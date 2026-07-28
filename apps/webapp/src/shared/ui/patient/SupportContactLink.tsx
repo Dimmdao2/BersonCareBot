@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { isAppSupportPath } from "@/lib/url/isAppSupportPath";
-import { isSafeExternalHref } from "@/lib/url/isSafeExternalHref";
-import { cn } from "@/lib/utils";
+import { isAppSupportPath } from '@/lib/url/isAppSupportPath';
+import { isSafeExternalHref } from '@/lib/url/isSafeExternalHref';
+import { cn } from '@/lib/utils';
 
 type SupportContactLinkProps = {
   href: string;

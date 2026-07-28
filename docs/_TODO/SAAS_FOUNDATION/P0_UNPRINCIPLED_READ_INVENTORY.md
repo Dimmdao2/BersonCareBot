@@ -25,17 +25,17 @@ rg -n 'export\s+const\s+\w+\s*=\s*pgTable\(\s*"[a-z_0-9]+"' apps/webapp/db/schem
 
 ## Reality summary
 
-| Metric | Exact value |
-|---|---:|
-| FORCE-RLS tables, `public` schema (`phase4-force-rls-cutover.sql`) | **149** |
-| FORCE-RLS tables, `integrator` schema | 14 |
-| FORCE `public` tables with a Drizzle `pgTable` export | 147 / 149 |
-| FORCE `public` tables with **no** Drizzle export (raw-SQL-only) | 2 — `broadcast_drafts`, `system_settings_audit` |
-| **Plain (non-tx) reads on FORCE-RLS tables in `infra/repos/*.ts`** | **371** |
-| Distinct `infra/repos` files carrying ≥1 such plain read | **54** |
-| Tx-scoped reads/writes on the same tables (already principled via `db.transaction()`) | 79 |
+| Metric                                                                                |                                     Exact value |
+| ------------------------------------------------------------------------------------- | ----------------------------------------------: |
+| FORCE-RLS tables, `public` schema (`phase4-force-rls-cutover.sql`)                    |                                         **149** |
+| FORCE-RLS tables, `integrator` schema                                                 |                                              14 |
+| FORCE `public` tables with a Drizzle `pgTable` export                                 |                                       147 / 149 |
+| FORCE `public` tables with **no** Drizzle export (raw-SQL-only)                       | 2 — `broadcast_drafts`, `system_settings_audit` |
+| **Plain (non-tx) reads on FORCE-RLS tables in `infra/repos/*.ts`**                    |                                         **371** |
+| Distinct `infra/repos` files carrying ≥1 such plain read                              |                                          **54** |
+| Tx-scoped reads/writes on the same tables (already principled via `db.transaction()`) |                                              79 |
 
-**371 plain reads across 54 files** is the exact unwrapped-read *surface* — every `.select()...from(X)`
+**371 plain reads across 54 files** is the exact unwrapped-read _surface_ — every `.select()...from(X)`
 or `db.query.X.find*()` on a FORCE-RLS table that is issued through the `getDrizzle()` singleton
 outside an explicit `db.transaction()` (writes and tx-scoped reads were already deterministically
 principled by `withPrincipalAwareTransactions()` before this task).
@@ -44,12 +44,12 @@ principled by `withPrincipalAwareTransactions()` before this task).
 
 The plan (`RLS_UNPRINCIPLED_READ_FIX_PLAN.md` §2) estimated **"~40-70 distinct broken read call
 sites … consistent with the owner's ~44."** That estimate counts the tighter subset: plain reads that
-are *actually reachable with no session-derived principal at all*. This inventory's **371** is the
+are _actually reachable with no session-derived principal at all_. This inventory's **371** is the
 broader denominator (every plain read on a walled table, regardless of whether its current callers
 happen to establish a principal). The two numbers are consistent and measure different things:
 
-- The plan's ~44 ≈ how many were *silently returning `[]`* in practice before the fix.
-- This inventory's 371 = how many plain reads the single chokepoint now *governs* (the reason Option
+- The plan's ~44 ≈ how many were _silently returning `[]`_ in practice before the fix.
+- This inventory's 371 = how many plain reads the single chokepoint now _governs_ (the reason Option
   (a) was chosen over per-call-site patching: it covers all 371, plus every future one, in one file).
 
 The precise "which of the 371 were reachable with zero principal" partition requires per-call-site
@@ -59,62 +59,62 @@ regardless — only for a per-route Phase 2 coverage claim.
 
 ## Per-file distribution (all 54 files, plain-read count)
 
-| Count | File (`apps/webapp/src/infra/repos/`) | Domain |
-|---:|---|---|
-| 38 | pgClientHistory.ts | Patients / client history |
-| 25 | pgDoctorCanonicalAppointments.ts | Appointments |
-| 22 | pgPatientClinical.ts | Patients / clinical |
-| 21 | pgProgramItemDiscussion.ts | Programs / discussion |
-| 19 | pgBookingEngine.ts | Booking |
-| 15 | pgMemberships.ts | Finances / memberships |
-| 15 | pgRubitimeMapping.ts | Booking / Rubitime bridge |
-| 11 | mediaFoldersRepo.ts | Media library |
-| 11 | pgBookingCalendar.ts | Booking / calendar |
-| 11 | pgContentPages.ts | Content (CMS) |
-| 11 | pgPayments.ts | Finances / payments |
-| 10 | pgAdminTranscodeHealthMetrics.ts | Media / ops |
-| 10 | pgBookingScheduling.ts | Schedule (working-hours, slots) |
-| 9 | pgBookingAppointmentLifecycle.ts | Appointments |
-| 9 | pgProductAnalytics.ts | Finances / products |
-| 9 | pgProducts.ts | Finances / products |
-| 8 | pgBookingRubitimeBridge.ts | Booking / Rubitime |
-| 8 | pgContentSections.ts | Content (CMS) |
-| 7 | pgPatientPracticeCompletions.ts | Programs / LFK |
-| 6 | pgClientMediaFolders.ts | Media / patient files |
-| 6 | pgTreatmentProgram.ts | Programs |
-| 5 | pgNotificationDeliveryAttempts.ts | Notifications |
-| 5 | pgPatientFiles.ts | Patients / files |
-| 5 | pgTreatmentProgramInstance.ts | Programs |
-| 5 | pgTreatmentProgramItemRefValidation.ts | Programs |
-| 5 | pgTreatmentProgramItemSnapshot.ts | Programs |
-| 4 | materialRatingTargetVideoMediaIds.ts | Media / ratings |
-| 4 | pgCourses.ts | Programs / courses |
-| 4 | pgMaterialRating.ts | Ratings |
-| 4 | pgMaterialRatingFeedback.ts | Ratings |
-| 4 | pgPatientComorbidities.ts | Patients / clinical |
-| 3 | pgBookingForm.ts | Booking |
-| 3 | pgClinicalTests.ts | Programs / tests |
-| 3 | pgPatientHomeBlocks.ts | Patient home |
-| 3 | pgPatientHomeLegacyContent.ts | Patient home |
-| 3 | pgPlatformUserContacts.ts | Identity / contacts (PII) |
-| 3 | pgRecommendations.ts | Content / recommendations |
-| 3 | pgSpecialistTasks.ts | Doctor tasks |
-| 2 | pgBookingPolicies.ts | Booking / policies |
-| 2 | pgDoctorPatientSupport.ts | Support |
-| 2 | pgHealthFailureArchive.ts | Ops / health |
-| 2 | pgOperatorHealthDigestRead.ts | Ops / health |
-| 2 | pgOrganizationMembership.ts | Org / membership |
-| 2 | pgPatientDiarySnapshots.ts | Patients / diary |
-| 2 | pgPatientMergeCandidate.ts | Identity / merge |
-| 2 | pgTreatmentProgramTestAttempts.ts | Programs / tests |
-| 1 | pgDoctorMotivationQuotesEditor.ts | Content |
-| 1 | pgEntitlements.ts | Entitlements |
-| 1 | pgOrgEntitlements.ts | Entitlements |
-| 1 | pgPatientDailyWarmupPresentation.ts | Patient home / LFK |
-| 1 | pgPatientOrganization.ts | Org |
-| 1 | pgPatientPayments.ts | Finances / payments |
-| 1 | pgProgramNoteReplyContext.ts | Programs |
-| 1 | pgTestSets.ts | Programs / tests |
+| Count | File (`apps/webapp/src/infra/repos/`)  | Domain                          |
+| ----: | -------------------------------------- | ------------------------------- |
+|    38 | pgClientHistory.ts                     | Patients / client history       |
+|    25 | pgDoctorCanonicalAppointments.ts       | Appointments                    |
+|    22 | pgPatientClinical.ts                   | Patients / clinical             |
+|    21 | pgProgramItemDiscussion.ts             | Programs / discussion           |
+|    19 | pgBookingEngine.ts                     | Booking                         |
+|    15 | pgMemberships.ts                       | Finances / memberships          |
+|    15 | pgRubitimeMapping.ts                   | Booking / Rubitime bridge       |
+|    11 | mediaFoldersRepo.ts                    | Media library                   |
+|    11 | pgBookingCalendar.ts                   | Booking / calendar              |
+|    11 | pgContentPages.ts                      | Content (CMS)                   |
+|    11 | pgPayments.ts                          | Finances / payments             |
+|    10 | pgAdminTranscodeHealthMetrics.ts       | Media / ops                     |
+|    10 | pgBookingScheduling.ts                 | Schedule (working-hours, slots) |
+|     9 | pgBookingAppointmentLifecycle.ts       | Appointments                    |
+|     9 | pgProductAnalytics.ts                  | Finances / products             |
+|     9 | pgProducts.ts                          | Finances / products             |
+|     8 | pgBookingRubitimeBridge.ts             | Booking / Rubitime              |
+|     8 | pgContentSections.ts                   | Content (CMS)                   |
+|     7 | pgPatientPracticeCompletions.ts        | Programs / LFK                  |
+|     6 | pgClientMediaFolders.ts                | Media / patient files           |
+|     6 | pgTreatmentProgram.ts                  | Programs                        |
+|     5 | pgNotificationDeliveryAttempts.ts      | Notifications                   |
+|     5 | pgPatientFiles.ts                      | Patients / files                |
+|     5 | pgTreatmentProgramInstance.ts          | Programs                        |
+|     5 | pgTreatmentProgramItemRefValidation.ts | Programs                        |
+|     5 | pgTreatmentProgramItemSnapshot.ts      | Programs                        |
+|     4 | materialRatingTargetVideoMediaIds.ts   | Media / ratings                 |
+|     4 | pgCourses.ts                           | Programs / courses              |
+|     4 | pgMaterialRating.ts                    | Ratings                         |
+|     4 | pgMaterialRatingFeedback.ts            | Ratings                         |
+|     4 | pgPatientComorbidities.ts              | Patients / clinical             |
+|     3 | pgBookingForm.ts                       | Booking                         |
+|     3 | pgClinicalTests.ts                     | Programs / tests                |
+|     3 | pgPatientHomeBlocks.ts                 | Patient home                    |
+|     3 | pgPatientHomeLegacyContent.ts          | Patient home                    |
+|     3 | pgPlatformUserContacts.ts              | Identity / contacts (PII)       |
+|     3 | pgRecommendations.ts                   | Content / recommendations       |
+|     3 | pgSpecialistTasks.ts                   | Doctor tasks                    |
+|     2 | pgBookingPolicies.ts                   | Booking / policies              |
+|     2 | pgDoctorPatientSupport.ts              | Support                         |
+|     2 | pgHealthFailureArchive.ts              | Ops / health                    |
+|     2 | pgOperatorHealthDigestRead.ts          | Ops / health                    |
+|     2 | pgOrganizationMembership.ts            | Org / membership                |
+|     2 | pgPatientDiarySnapshots.ts             | Patients / diary                |
+|     2 | pgPatientMergeCandidate.ts             | Identity / merge                |
+|     2 | pgTreatmentProgramTestAttempts.ts      | Programs / tests                |
+|     1 | pgDoctorMotivationQuotesEditor.ts      | Content                         |
+|     1 | pgEntitlements.ts                      | Entitlements                    |
+|     1 | pgOrgEntitlements.ts                   | Entitlements                    |
+|     1 | pgPatientDailyWarmupPresentation.ts    | Patient home / LFK              |
+|     1 | pgPatientOrganization.ts               | Org                             |
+|     1 | pgPatientPayments.ts                   | Finances / payments             |
+|     1 | pgProgramNoteReplyContext.ts           | Programs                        |
+|     1 | pgTestSets.ts                          | Programs / tests                |
 
 **Breadth verdict:** the risk is **broad, not concentrated** — 54 repo files across every product
 domain (schedule, appointments, patients/clinical, programs/LFK, content/CMS, finances/payments,
@@ -123,7 +123,7 @@ chokepoint in `drizzle.ts`) over per-call-site patching.
 
 The plan's directly-named examples are all present and confirmed in this scan:
 `listWorkingHoursAdmin` / `listBusyIntervals` (pgBookingScheduling.ts), `listClients` history
-(pgClientHistory.ts), `listTemplates` (pgTreatmentProgram*), `contentPages.listAll` (pgContentPages.ts),
+(pgClientHistory.ts), `listTemplates` (pgTreatmentProgram\*), `contentPages.listAll` (pgContentPages.ts),
 `listPrepaymentPolicies` (pgBookingPolicies/pgBookingEngine), and the `pgPatientPayments.ts` /
 `pgPayments.ts` pair from the payment-timeline finding.
 

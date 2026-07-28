@@ -1,47 +1,50 @@
-"use server";
+'use server';
 
-import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
-import { requireDoctorAccess, requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { logger } from "@/infra/logging/logger";
+import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
+import { requireDoctorAccess, requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { logger } from '@/infra/logging/logger';
 import {
   isLfkTemplateUsageConfirmationRequiredError,
   isTemplateArchiveAlreadyArchivedError,
   isTemplateArchiveNotFoundError,
   isTemplateUnarchiveNotArchivedError,
-} from "@/modules/lfk-templates/errors";
-import type { LfkTemplateUsageSnapshot, TemplateExerciseInput } from "@/modules/lfk-templates/types";
-import { EMPTY_LFK_TEMPLATE_USAGE_SNAPSHOT } from "@/modules/lfk-templates/types";
-import { sanitizeLfkTemplatesListPreserveQuery } from "./lfkTemplatesListPreserveQuery";
-import { requireEntitlementForMutationAction } from "@/app-layer/guards/requireEntitlement";
+} from '@/modules/lfk-templates/errors';
+import type {
+  LfkTemplateUsageSnapshot,
+  TemplateExerciseInput,
+} from '@/modules/lfk-templates/types';
+import { EMPTY_LFK_TEMPLATE_USAGE_SNAPSHOT } from '@/modules/lfk-templates/types';
+import { sanitizeLfkTemplatesListPreserveQuery } from './lfkTemplatesListPreserveQuery';
+import { requireEntitlementForMutationAction } from '@/app-layer/guards/requireEntitlement';
 
-const BASE = "/app/doctor/lfk-templates";
+const BASE = '/app/doctor/lfk-templates';
 
 export type ArchiveDoctorLfkTemplateState =
   | { ok: true }
-  | { ok: false; code: "USAGE_CONFIRMATION_REQUIRED"; usage: LfkTemplateUsageSnapshot }
+  | { ok: false; code: 'USAGE_CONFIRMATION_REQUIRED'; usage: LfkTemplateUsageSnapshot }
   | { ok: false; error: string };
 
 export type UnarchiveDoctorLfkTemplateState = { ok: true } | { ok: false; error: string };
 
 function parseAcknowledgeUsageWarning(fd: FormData): boolean {
-  const v = fd.get("acknowledgeUsageWarning");
-  return v === "1" || v === "true" || v === "on";
+  const v = fd.get('acknowledgeUsageWarning');
+  return v === '1' || v === 'true' || v === 'on';
 }
 
 async function archiveDoctorLfkTemplateCore(
   formData: FormData,
 ): Promise<
-  | { kind: "archived" }
-  | { kind: "needs_confirmation"; usage: LfkTemplateUsageSnapshot }
-  | { kind: "invalid"; error: string }
+  | { kind: 'archived' }
+  | { kind: 'needs_confirmation'; usage: LfkTemplateUsageSnapshot }
+  | { kind: 'invalid'; error: string }
 > {
   const workspace = await requireDoctorWorkspaceContext();
-  const idRaw = formData.get("id");
-  const id = typeof idRaw === "string" ? idRaw.trim() : "";
-  if (!id) return { kind: "invalid", error: "Не указан шаблон комплекса" };
+  const idRaw = formData.get('id');
+  const id = typeof idRaw === 'string' ? idRaw.trim() : '';
+  if (!id) return { kind: 'invalid', error: 'Не указан шаблон комплекса' };
 
   const acknowledgeUsageWarning = parseAcknowledgeUsageWarning(formData);
   const deps = buildAppDeps();
@@ -51,66 +54,67 @@ async function archiveDoctorLfkTemplateCore(
       { acknowledgeUsageWarning },
       {
         runTemplateWrite: (fn) =>
-          withDoctorWorkspacePrincipal(workspace, "doctor.lfk-templates.archive", fn),
+          withDoctorWorkspacePrincipal(workspace, 'doctor.lfk-templates.archive', fn),
       },
     );
-    return { kind: "archived" };
+    return { kind: 'archived' };
   } catch (e) {
     if (isLfkTemplateUsageConfirmationRequiredError(e)) {
-      return { kind: "needs_confirmation", usage: e.usage };
+      return { kind: 'needs_confirmation', usage: e.usage };
     }
     if (isTemplateArchiveNotFoundError(e)) {
-      return { kind: "invalid", error: e.message };
+      return { kind: 'invalid', error: e.message };
     }
     if (isTemplateArchiveAlreadyArchivedError(e)) {
-      return { kind: "invalid", error: e.message };
+      return { kind: 'invalid', error: e.message };
     }
-    logger.warn({ event: "doctor_lfk_template_archive_unexpected_error", templateId: id, err: e }, "archive failed");
-    return { kind: "invalid", error: "Не удалось архивировать комплекс" };
+    logger.warn(
+      { event: 'doctor_lfk_template_archive_unexpected_error', templateId: id, err: e },
+      'archive failed',
+    );
+    return { kind: 'invalid', error: 'Не удалось архивировать комплекс' };
   }
 }
 
 async function unarchiveDoctorLfkTemplateCore(
   formData: FormData,
-): Promise<{ kind: "unarchived"; id: string } | { kind: "invalid"; error: string }> {
+): Promise<{ kind: 'unarchived'; id: string } | { kind: 'invalid'; error: string }> {
   const workspace = await requireDoctorWorkspaceContext();
-  const idRaw = formData.get("id");
-  const id = typeof idRaw === "string" ? idRaw.trim() : "";
-  if (!id) return { kind: "invalid", error: "Не указан шаблон комплекса" };
+  const idRaw = formData.get('id');
+  const id = typeof idRaw === 'string' ? idRaw.trim() : '';
+  if (!id) return { kind: 'invalid', error: 'Не указан шаблон комплекса' };
 
   const deps = buildAppDeps();
   try {
     await deps.lfkTemplates.unarchiveTemplate(id, {
       runTemplateWrite: (fn) =>
-        withDoctorWorkspacePrincipal(workspace, "doctor.lfk-templates.unarchive", fn),
+        withDoctorWorkspacePrincipal(workspace, 'doctor.lfk-templates.unarchive', fn),
     });
-    return { kind: "unarchived", id };
+    return { kind: 'unarchived', id };
   } catch (e) {
     if (isTemplateArchiveNotFoundError(e)) {
-      return { kind: "invalid", error: e.message };
+      return { kind: 'invalid', error: e.message };
     }
     if (isTemplateUnarchiveNotArchivedError(e)) {
-      return { kind: "invalid", error: e.message };
+      return { kind: 'invalid', error: e.message };
     }
-    logger.warn({ event: "doctor_lfk_template_unarchive_unexpected_error", templateId: id, err: e }, "unarchive failed");
-    return { kind: "invalid", error: "Не удалось вернуть комплекс из архива" };
+    logger.warn(
+      { event: 'doctor_lfk_template_unarchive_unexpected_error', templateId: id, err: e },
+      'unarchive failed',
+    );
+    return { kind: 'invalid', error: 'Не удалось вернуть комплекс из архива' };
   }
 }
 
 export async function createLfkTemplateDraft(formData: FormData) {
   const workspace = await requireDoctorWorkspaceContext();
-  const titleRaw = formData.get("title");
-  const title =
-    typeof titleRaw === "string" && titleRaw.trim() ? titleRaw.trim() : "Новый шаблон";
+  const titleRaw = formData.get('title');
+  const title = typeof titleRaw === 'string' && titleRaw.trim() ? titleRaw.trim() : 'Новый шаблон';
   const deps = buildAppDeps();
-  const t = await deps.lfkTemplates.createTemplate(
-    { title },
-    workspace.session.user.userId,
-    {
-      runTemplateWrite: (fn) =>
-        withDoctorWorkspacePrincipal(workspace, "doctor.lfk-templates.create", fn),
-    },
-  );
+  const t = await deps.lfkTemplates.createTemplate({ title }, workspace.session.user.userId, {
+    runTemplateWrite: (fn) =>
+      withDoctorWorkspacePrincipal(workspace, 'doctor.lfk-templates.create', fn),
+  });
   revalidatePath(BASE);
   redirect(`${BASE}/${t.id}`);
 }
@@ -124,28 +128,28 @@ export async function createLfkTemplateDraftFromEditor(payload: {
     const workspace = await requireDoctorWorkspaceContext();
     const deps = buildAppDeps();
     const titleRaw = payload.title.trim();
-    const title = titleRaw || "Новый комплекс";
+    const title = titleRaw || 'Новый комплекс';
     const created = await deps.lfkTemplates.createTemplate(
       { title, description: payload.description },
       workspace.session.user.userId,
       {
         runTemplateWrite: (fn) =>
-          withDoctorWorkspacePrincipal(workspace, "doctor.lfk-templates.create", fn),
+          withDoctorWorkspacePrincipal(workspace, 'doctor.lfk-templates.create', fn),
       },
     );
     const includePlatformBase = (
-      await requireEntitlementForMutationAction(workspace, "exercise_catalog")
+      await requireEntitlementForMutationAction(workspace, 'exercise_catalog')
     ).ok;
     await deps.lfkTemplates.updateExercises(created.id, payload.exercises, {
       includePlatformBase,
       runTemplateWrite: (fn) =>
-        withDoctorWorkspacePrincipal(workspace, "doctor.lfk-templates.update-exercises", fn),
+        withDoctorWorkspacePrincipal(workspace, 'doctor.lfk-templates.update-exercises', fn),
     });
     revalidatePath(BASE);
     revalidatePath(`${BASE}/${created.id}`);
     return { ok: true, id: created.id };
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Не удалось создать черновик" };
+    return { ok: false, error: e instanceof Error ? e.message : 'Не удалось создать черновик' };
   }
 }
 
@@ -159,12 +163,12 @@ export async function persistLfkTemplateDraft(payload: {
     const workspace = await requireDoctorWorkspaceContext();
     const deps = buildAppDeps();
     const includePlatformBase = (
-      await requireEntitlementForMutationAction(workspace, "exercise_catalog")
+      await requireEntitlementForMutationAction(workspace, 'exercise_catalog')
     ).ok;
     const cur = await deps.lfkTemplates.getTemplate(payload.templateId);
-    if (!cur) return { ok: false, error: "Шаблон не найден" };
-    if (cur.status === "archived") {
-      return { ok: false, error: "Комплекс в архиве. Верните из архива, чтобы редактировать." };
+    if (!cur) return { ok: false, error: 'Шаблон не найден' };
+    if (cur.status === 'archived') {
+      return { ok: false, error: 'Комплекс в архиве. Верните из архива, чтобы редактировать.' };
     }
     await deps.lfkTemplates.updateTemplate(
       payload.templateId,
@@ -174,37 +178,37 @@ export async function persistLfkTemplateDraft(payload: {
       },
       {
         runTemplateWrite: (fn) =>
-          withDoctorWorkspacePrincipal(workspace, "doctor.lfk-templates.update", fn),
+          withDoctorWorkspacePrincipal(workspace, 'doctor.lfk-templates.update', fn),
       },
     );
     await deps.lfkTemplates.updateExercises(payload.templateId, payload.exercises, {
       includePlatformBase,
       runTemplateWrite: (fn) =>
-        withDoctorWorkspacePrincipal(workspace, "doctor.lfk-templates.update-exercises", fn),
+        withDoctorWorkspacePrincipal(workspace, 'doctor.lfk-templates.update-exercises', fn),
     });
     revalidatePath(BASE);
     revalidatePath(`${BASE}/${payload.templateId}`);
     return { ok: true };
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Не удалось сохранить" };
+    return { ok: false, error: e instanceof Error ? e.message : 'Не удалось сохранить' };
   }
 }
 
 export async function publishLfkTemplateAction(
-  templateId: string
+  templateId: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
     const workspace = await requireDoctorWorkspaceContext();
     const deps = buildAppDeps();
     await deps.lfkTemplates.publishTemplate(templateId, {
       runTemplateWrite: (fn) =>
-        withDoctorWorkspacePrincipal(workspace, "doctor.lfk-templates.publish", fn),
+        withDoctorWorkspacePrincipal(workspace, 'doctor.lfk-templates.publish', fn),
     });
     revalidatePath(BASE);
     revalidatePath(`${BASE}/${templateId}`);
     return { ok: true };
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Не удалось опубликовать" };
+    return { ok: false, error: e instanceof Error ? e.message : 'Не удалось опубликовать' };
   }
 }
 
@@ -213,16 +217,16 @@ export async function archiveDoctorLfkTemplate(
   formData: FormData,
 ): Promise<ArchiveDoctorLfkTemplateState> {
   const result = await archiveDoctorLfkTemplateCore(formData);
-  if (result.kind === "needs_confirmation") {
-    return { ok: false, code: "USAGE_CONFIRMATION_REQUIRED", usage: result.usage };
+  if (result.kind === 'needs_confirmation') {
+    return { ok: false, code: 'USAGE_CONFIRMATION_REQUIRED', usage: result.usage };
   }
-  if (result.kind === "invalid") {
+  if (result.kind === 'invalid') {
     return { ok: false, error: result.error };
   }
   revalidatePath(BASE);
-  const preserveRaw = formData.get("listPreserveQuery");
+  const preserveRaw = formData.get('listPreserveQuery');
   const safePreserve = sanitizeLfkTemplatesListPreserveQuery(
-    typeof preserveRaw === "string" ? preserveRaw : "",
+    typeof preserveRaw === 'string' ? preserveRaw : '',
   );
   redirect(safePreserve ? `${BASE}?${safePreserve}` : BASE);
 }
@@ -232,7 +236,7 @@ export async function unarchiveDoctorLfkTemplate(
   formData: FormData,
 ): Promise<UnarchiveDoctorLfkTemplateState> {
   const result = await unarchiveDoctorLfkTemplateCore(formData);
-  if (result.kind === "invalid") {
+  if (result.kind === 'invalid') {
     return { ok: false, error: result.error };
   }
   revalidatePath(BASE);

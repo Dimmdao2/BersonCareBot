@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { useEffect } from "react";
+import { useEffect } from 'react';
 
 type Props = {
   /** Текст для пользователя. */
@@ -16,13 +16,13 @@ type Props = {
  * код для поддержки; в dev — подсказка и `console.error` в браузере.
  */
 export function DataLoadFailureNotice({
-  title = "Не удалось загрузить данные. Попробуйте обновить страницу позже.",
+  title = 'Не удалось загрузить данные. Попробуйте обновить страницу позже.',
   digest,
   devMessage,
 }: Props) {
   useEffect(() => {
     if (devMessage) {
-      console.error("[DataLoadFailure]", { digest, message: devMessage });
+      console.error('[DataLoadFailure]', { digest, message: devMessage });
     }
   }, [digest, devMessage]);
 

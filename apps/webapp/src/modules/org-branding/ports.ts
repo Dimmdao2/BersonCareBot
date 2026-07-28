@@ -8,7 +8,7 @@
  * organization context, capability and entitlement (§3.2).
  */
 
-export const ORG_BRAND_REVISION_STATUSES = ["draft", "published", "archived"] as const;
+export const ORG_BRAND_REVISION_STATUSES = ['draft', 'published', 'archived'] as const;
 export type OrgBrandRevisionStatus = (typeof ORG_BRAND_REVISION_STATUSES)[number];
 
 /** Canonical organization identification. NOT branding, never gated by the paid `branding` mechanic (§2, §5.1). */

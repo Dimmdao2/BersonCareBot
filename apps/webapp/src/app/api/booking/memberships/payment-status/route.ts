@@ -1,30 +1,31 @@
-import { NextResponse } from "next/server";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
-import { withExplicitOrganizationPrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
-import { routePaths } from "@/app-layer/routes/paths";
+import { NextResponse } from 'next/server';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { requirePatientApiBusinessAccess } from '@/app-layer/guards/requireRole';
+import { withExplicitOrganizationPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
+import { routePaths } from '@/app-layer/routes/paths';
 
 export async function GET(request: Request) {
   const gate = await requirePatientApiBusinessAccess({ returnPath: routePaths.patientBooking });
   if (!gate.ok) return gate.response;
-  const patientPackageId = new URL(request.url).searchParams.get("patientPackageId")?.trim();
+  const patientPackageId = new URL(request.url).searchParams.get('patientPackageId')?.trim();
   if (!patientPackageId) {
-    return NextResponse.json({ ok: false, error: "patient_package_id_required" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'patient_package_id_required' }, { status: 400 });
   }
   const deps = buildAppDeps();
   if (!deps.memberships) {
-    return NextResponse.json({ ok: false, error: "memberships_unavailable" }, { status: 503 });
+    return NextResponse.json({ ok: false, error: 'memberships_unavailable' }, { status: 503 });
   }
-  const organizationId = await deps.memberships.resolvePatientPackageOrganizationId(patientPackageId);
+  const organizationId =
+    await deps.memberships.resolvePatientPackageOrganizationId(patientPackageId);
   if (!organizationId) {
-    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+    return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
   const pkg = await withExplicitOrganizationPrincipal(
-    { organizationId, source: "api/booking/memberships/payment-status:GET" },
+    { organizationId, source: 'api/booking/memberships/payment-status:GET' },
     () => deps.memberships!.getPatientPackageDetail(patientPackageId, organizationId),
   );
   if (!pkg || pkg.package.platformUserId !== gate.session.user.userId) {
-    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+    return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
   return NextResponse.json({
     ok: true,

@@ -1,7 +1,7 @@
-import type { PendingProgramTestEvaluationGlobalRow } from "@/modules/treatment-program/types";
-import { groupPendingProgramTestEvaluations } from "./clients/groupPendingProgramTestEvaluations";
-import { patientCardHref } from "./patients/patientCardHref";
-import { formatDateTimeRu } from "./loadDoctorTodayDashboard";
+import type { PendingProgramTestEvaluationGlobalRow } from '@/modules/treatment-program/types';
+import { groupPendingProgramTestEvaluations } from './clients/groupPendingProgramTestEvaluations';
+import { patientCardHref } from './patients/patientCardHref';
+import { formatDateTimeRu } from './loadDoctorTodayDashboard';
 
 export const DOCTOR_TODAY_PENDING_TESTS_PREVIEW_LIMIT = 10;
 
@@ -34,11 +34,11 @@ export function mapPendingProgramTestsForToday(
 
   return groups.map((g) => {
     const headGlobal = rows.find((r) => r.attemptId === g.attemptId);
-    const patientUserId = headGlobal?.patientUserId ?? "";
+    const patientUserId = headGlobal?.patientUserId ?? '';
     return {
       attemptId: g.attemptId,
       patientUserId,
-      patientDisplayName: headGlobal?.patientDisplayName.trim() || "—",
+      patientDisplayName: headGlobal?.patientDisplayName.trim() || '—',
       instanceId: g.instanceId,
       instanceTitle: g.instanceTitle,
       stageTitle: g.stageTitle,

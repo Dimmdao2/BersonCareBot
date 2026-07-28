@@ -8,8 +8,8 @@
  * Usage: node scripts/reconcile-reminders-domain.mjs [--max-mismatch-percent=N] [--sample-size=N]
  * Requires: DATABASE_URL (webapp), INTEGRATOR_DATABASE_URL (integrator).
  */
-import pg from "pg";
-import { loadCutoverEnv } from "../../../scripts/load-cutover-env.mjs";
+import pg from 'pg';
+import { loadCutoverEnv } from '../../../scripts/load-cutover-env.mjs';
 
 const { Client } = pg;
 
@@ -19,10 +19,16 @@ function parseArgs(argv) {
   let maxMismatchPercent = 0;
   let sampleSize = 10;
   for (const arg of argv) {
-    if (arg.startsWith("--max-mismatch-percent="))
-      maxMismatchPercent = Math.max(0, parseInt(arg.slice("--max-mismatch-percent=".length), 10) || 0);
-    if (arg.startsWith("--sample-size="))
-      sampleSize = Math.max(1, Math.min(500, parseInt(arg.slice("--sample-size=".length), 10) || 10));
+    if (arg.startsWith('--max-mismatch-percent='))
+      maxMismatchPercent = Math.max(
+        0,
+        parseInt(arg.slice('--max-mismatch-percent='.length), 10) || 0,
+      );
+    if (arg.startsWith('--sample-size='))
+      sampleSize = Math.max(
+        1,
+        Math.min(500, parseInt(arg.slice('--sample-size='.length), 10) || 10),
+      );
   }
   return { maxMismatchPercent, sampleSize };
 }
@@ -32,11 +38,11 @@ async function main() {
   const webappUrl = process.env.DATABASE_URL;
   const integratorUrl = process.env.INTEGRATOR_DATABASE_URL;
   if (!webappUrl?.trim()) {
-    console.error("DATABASE_URL is not set");
+    console.error('DATABASE_URL is not set');
     process.exit(1);
   }
   if (!integratorUrl?.trim()) {
-    console.error("INTEGRATOR_DATABASE_URL is not set");
+    console.error('INTEGRATOR_DATABASE_URL is not set');
     process.exit(1);
   }
 
@@ -46,7 +52,7 @@ async function main() {
     await webappClient.connect();
     await integratorClient.connect();
   } catch (err) {
-    console.error("DB connect error:", err.message);
+    console.error('DB connect error:', err.message);
     process.exit(1);
   }
 
@@ -58,8 +64,8 @@ async function main() {
   };
 
   try {
-    const srcRules = await integratorClient.query("SELECT id FROM user_reminder_rules");
-    const tgtRules = await webappClient.query("SELECT integrator_rule_id FROM reminder_rules");
+    const srcRules = await integratorClient.query('SELECT id FROM user_reminder_rules');
+    const tgtRules = await webappClient.query('SELECT integrator_rule_id FROM reminder_rules');
     const srcRuleIds = new Set(srcRules.rows.map((r) => r.id));
     const tgtRuleIds = new Set(tgtRules.rows.map((r) => r.integrator_rule_id));
     const missingRules = [...srcRuleIds].filter((id) => !tgtRuleIds.has(id));
@@ -71,9 +77,11 @@ async function main() {
     };
 
     const srcOcc = await integratorClient.query(
-      "SELECT id FROM user_reminder_occurrences WHERE status IN ('sent', 'failed')"
+      "SELECT id FROM user_reminder_occurrences WHERE status IN ('sent', 'failed')",
     );
-    const tgtOcc = await webappClient.query("SELECT integrator_occurrence_id FROM reminder_occurrence_history");
+    const tgtOcc = await webappClient.query(
+      'SELECT integrator_occurrence_id FROM reminder_occurrence_history',
+    );
     const srcOccIds = new Set(srcOcc.rows.map((r) => r.id));
     const tgtOccIds = new Set(tgtOcc.rows.map((r) => r.integrator_occurrence_id));
     const missingOcc = [...srcOccIds].filter((id) => !tgtOccIds.has(id));
@@ -84,8 +92,10 @@ async function main() {
       missingInWebappSample: missingOcc.slice(0, sampleSize),
     };
 
-    const srcLogs = await integratorClient.query("SELECT id FROM user_reminder_delivery_logs");
-    const tgtLogs = await webappClient.query("SELECT integrator_delivery_log_id FROM reminder_delivery_events");
+    const srcLogs = await integratorClient.query('SELECT id FROM user_reminder_delivery_logs');
+    const tgtLogs = await webappClient.query(
+      'SELECT integrator_delivery_log_id FROM reminder_delivery_events',
+    );
     const srcLogIds = new Set(srcLogs.rows.map((r) => r.id));
     const tgtLogIds = new Set(tgtLogs.rows.map((r) => r.integrator_delivery_log_id));
     const missingLogs = [...srcLogIds].filter((id) => !tgtLogIds.has(id));
@@ -96,8 +106,10 @@ async function main() {
       missingInWebappSample: missingLogs.slice(0, sampleSize),
     };
 
-    const srcGrants = await integratorClient.query("SELECT id FROM content_access_grants");
-    const tgtGrants = await webappClient.query("SELECT integrator_grant_id FROM content_access_grants_webapp");
+    const srcGrants = await integratorClient.query('SELECT id FROM content_access_grants');
+    const tgtGrants = await webappClient.query(
+      'SELECT integrator_grant_id FROM content_access_grants_webapp',
+    );
     const srcGrantIds = new Set(srcGrants.rows.map((r) => r.id));
     const tgtGrantIds = new Set(tgtGrants.rows.map((r) => r.integrator_grant_id));
     const missingGrants = [...srcGrantIds].filter((id) => !tgtGrantIds.has(id));
@@ -115,10 +127,10 @@ async function main() {
   console.log(JSON.stringify(report, null, 2));
 
   const tables = [
-    { name: "reminder_rules", ...report.reminder_rules },
-    { name: "reminder_occurrence_history", ...report.reminder_occurrence_history },
-    { name: "reminder_delivery_events", ...report.reminder_delivery_events },
-    { name: "content_access_grants", ...report.content_access_grants },
+    { name: 'reminder_rules', ...report.reminder_rules },
+    { name: 'reminder_occurrence_history', ...report.reminder_occurrence_history },
+    { name: 'reminder_delivery_events', ...report.reminder_delivery_events },
+    { name: 'content_access_grants', ...report.content_access_grants },
   ];
   for (const t of tables) {
     const sourceCount = t.sourceCount ?? 0;
@@ -126,7 +138,7 @@ async function main() {
     const pct = sourceCount > 0 ? (100 * missing) / sourceCount : 0;
     if (pct > maxMismatchPercent) {
       console.error(
-        `[reconcile-reminders-domain] ${t.name}: mismatch ${pct.toFixed(2)}% > ${maxMismatchPercent}%`
+        `[reconcile-reminders-domain] ${t.name}: mismatch ${pct.toFixed(2)}% > ${maxMismatchPercent}%`,
       );
       process.exit(1);
     }

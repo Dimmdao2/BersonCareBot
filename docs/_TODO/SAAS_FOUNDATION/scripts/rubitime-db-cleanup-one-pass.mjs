@@ -55,12 +55,12 @@ function parseArgs() {
 function commandToString([bin, ...args]) {
   const printableArgs = args.map((arg) => {
     if (
-      arg.startsWith('--owner-phone=')
-      || arg.startsWith('--historical-owner-doctor-phone=')
-      || arg.startsWith('--canonical=')
-      || arg.startsWith('--canonical-specialist=')
-      || arg.startsWith('--org=')
-      || arg.startsWith('--org-id=')
+      arg.startsWith('--owner-phone=') ||
+      arg.startsWith('--historical-owner-doctor-phone=') ||
+      arg.startsWith('--canonical=') ||
+      arg.startsWith('--canonical-specialist=') ||
+      arg.startsWith('--org=') ||
+      arg.startsWith('--org-id=')
     ) {
       return `${arg.slice(0, arg.indexOf('=') + 1)}<redacted>`;
     }
@@ -90,7 +90,9 @@ function runStep(step, command, options = {}) {
       console.error(`\n!!! ADVISORY (NOT FATAL): ${step} failed with status ${result.status ?? 1}`);
       console.error(`!!! WHY THIS IS NOT FATAL HERE: ${reason}`);
       console.error('!!! This must still be closed before the real PROD cutover — see');
-      console.error('!!! docs/_TODO/SAAS_FOUNDATION/SAAS_PROD_DEPLOY_PROCESS.md §2.5 (Track C R3-R6).\n');
+      console.error(
+        '!!! docs/_TODO/SAAS_FOUNDATION/SAAS_PROD_DEPLOY_PROCESS.md §2.5 (Track C R3-R6).\n',
+      );
       return;
     }
     throw new Error(`${step} failed with status ${result.status ?? 1}`);
@@ -101,11 +103,15 @@ function readTargetDatabaseName() {
   if (!process.env.DATABASE_URL) {
     throw new Error('DATABASE_URL is required for --execute');
   }
-  const result = spawnSync('psql', [process.env.DATABASE_URL, '-X', '-v', 'ON_ERROR_STOP=1', '-Atqc', 'SELECT current_database()'], {
-    cwd: repoRoot,
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
+  const result = spawnSync(
+    'psql',
+    [process.env.DATABASE_URL, '-X', '-v', 'ON_ERROR_STOP=1', '-Atqc', 'SELECT current_database()'],
+    {
+      cwd: repoRoot,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    },
+  );
   if ((result.status ?? 1) !== 0) {
     if (result.stderr) process.stderr.write(result.stderr);
     throw new Error('could not read target database name via DATABASE_URL');
@@ -189,15 +195,9 @@ function buildPlan(opts) {
       `--csv=${opts.csv}`,
     ],
   ]);
-  steps.push([
-    'placeholder bookings dry-run',
-    makePlaceholderPurgeCommand(opts, false),
-  ]);
+  steps.push(['placeholder bookings dry-run', makePlaceholderPurgeCommand(opts, false)]);
   if (opts.commitCleanup) {
-    steps.push([
-      'placeholder bookings commit',
-      makePlaceholderPurgeCommand(opts, true),
-    ]);
+    steps.push(['placeholder bookings commit', makePlaceholderPurgeCommand(opts, true)]);
   }
   steps.push([
     'specialist consolidation dry-run',
@@ -231,9 +231,15 @@ function buildPlan(opts) {
     ]);
   }
   const cleanupPasses = [
-    ['legacy test/canceled duplicate cleanup', ['--cleanup-only', '--delete-test', '--collapse-canceled-dups']],
+    [
+      'legacy test/canceled duplicate cleanup',
+      ['--cleanup-only', '--delete-test', '--collapse-canceled-dups'],
+    ],
     ['legacy non-confirmed cleanup', ['--cleanup-only', '--delete-non-confirmed']],
-    ['owner CSV historical import/projection', [`--historical-owner-doctor-phone=${opts.ownerPhone}`]],
+    [
+      'owner CSV historical import/projection',
+      [`--historical-owner-doctor-phone=${opts.ownerPhone}`],
+    ],
     ['post-import legacy non-confirmed cleanup', ['--cleanup-only', '--delete-non-confirmed']],
     ['legacy stale-vs-CSV cleanup', ['--cleanup-only', '--drop-stale-from-csv']],
   ];
@@ -262,7 +268,10 @@ function buildPlan(opts) {
       '--sample-size=0',
     ],
   ]);
-  steps.push(['current Rubitime retirement gate', ['pnpm', 'run', 'check:rubitime-retirement-current']]);
+  steps.push([
+    'current Rubitime retirement gate',
+    ['pnpm', 'run', 'check:rubitime-retirement-current'],
+  ]);
   steps.push(['R7 table disposition gate', ['pnpm', 'run', 'check:rubitime-r7-table-disposition']]);
   // ADVISORY, not fatal (2026-07-25 from-zero rehearsal). This step greps the REPOSITORY, not the
   // database: it asserts the Rubitime runtime code paths are already retired (post-R6). That retirement
@@ -272,7 +281,11 @@ function buildPlan(opts) {
   // has nothing to do with data integrity. It still prints loudly and stays a prod-cutover gate.
   steps.push([
     'post-R6 inventory expectation',
-    ['node', 'docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r6-r7-static-inventory.mjs', '--expect-post-r6'],
+    [
+      'node',
+      'docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r6-r7-static-inventory.mjs',
+      '--expect-post-r6',
+    ],
     {
       advisory: true,
       reason:
@@ -308,7 +321,8 @@ console.log(
       commitCleanup: opts.commitCleanup,
       dump: opts.dump ? basename(opts.dump) : null,
       csv: opts.csv,
-      r7DropStatus: 'gated: no DROP TABLE and no final R7 proof placeholder are produced by this wrapper',
+      r7DropStatus:
+        'gated: no DROP TABLE and no final R7 proof placeholder are produced by this wrapper',
       steps: plan.map(([name, command]) => ({ name, command: commandToString(command) })),
     },
     null,
@@ -332,6 +346,8 @@ try {
   }
   console.log('rubitime-db-cleanup-one-pass: OK');
 } catch (error) {
-  console.error(`rubitime-db-cleanup-one-pass: FAILED: ${error instanceof Error ? error.message : String(error)}`);
+  console.error(
+    `rubitime-db-cleanup-one-pass: FAILED: ${error instanceof Error ? error.message : String(error)}`,
+  );
   process.exit(1);
 }

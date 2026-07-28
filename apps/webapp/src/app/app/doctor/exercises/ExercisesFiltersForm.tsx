@@ -2,4 +2,4 @@
 export {
   DoctorCatalogFiltersForm as ExercisesFiltersForm,
   type DoctorCatalogFiltersFormProps as ExercisesFiltersFormProps,
-} from "@/shared/ui/doctor/DoctorCatalogFiltersForm";
+} from '@/shared/ui/doctor/DoctorCatalogFiltersForm';

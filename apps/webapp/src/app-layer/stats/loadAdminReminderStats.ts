@@ -1,31 +1,40 @@
-import { and, count, desc, eq, gte, sql } from "drizzle-orm";
-import { drizzleExcludeUserIdColumn, drizzleSqlUuidInList } from "@/modules/analytics/analyticsAudience";
-import { getDrizzle } from "@/app-layer/db/drizzle";
-import { loadAdminPlaybackHealthMetrics, type AdminPlaybackHealthMetrics } from "@/app-layer/media/adminPlaybackHealthMetrics";
+import { and, count, desc, eq, gte, sql } from 'drizzle-orm';
+import {
+  drizzleExcludeUserIdColumn,
+  drizzleSqlUuidInList,
+} from '@/modules/analytics/analyticsAudience';
+import { getDrizzle } from '@/app-layer/db/drizzle';
+import {
+  loadAdminPlaybackHealthMetrics,
+  type AdminPlaybackHealthMetrics,
+} from '@/app-layer/media/adminPlaybackHealthMetrics';
 import {
   loadAdminPlaybackClientHealthMetrics,
   type AdminPlaybackClientHealthMetrics,
-} from "@/app-layer/media/playbackClientEvents";
-import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
-import { buildReminderSendsLast24hClock, type HourlyClockSlice } from "@/app-layer/stats/reminderHourlyClock";
-import { patientDailyWarmupVideoViews } from "../../../db/schema/patientDailyWarmupVideoView";
-import { patientPracticeCompletions } from "../../../db/schema/patientPractice";
+} from '@/app-layer/media/playbackClientEvents';
+import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
+import {
+  buildReminderSendsLast24hClock,
+  type HourlyClockSlice,
+} from '@/app-layer/stats/reminderHourlyClock';
+import { patientDailyWarmupVideoViews } from '../../../db/schema/patientDailyWarmupVideoView';
+import { patientPracticeCompletions } from '../../../db/schema/patientPractice';
 import {
   productAnalyticsEventsRecent,
   productPushNotifications,
-} from "../../../db/schema/productAnalytics";
+} from '../../../db/schema/productAnalytics';
 import {
   contentPages,
   mediaFiles,
   mediaPlaybackResolutionEvents,
   reminderOccurrenceHistory,
   reminderRules,
-} from "../../../db/schema/schema";
+} from '../../../db/schema/schema';
 import {
   loadReminderPeopleWithNotificationsStats,
   type ReminderPeopleWithNotificationsStats,
-} from "@/app-layer/stats/reminderNotificationPeopleStats";
-import { estimateWatchMinutes } from "@/app-layer/stats/estimateWatchMinutes";
+} from '@/app-layer/stats/reminderNotificationPeopleStats';
+import { estimateWatchMinutes } from '@/app-layer/stats/estimateWatchMinutes';
 
 export type ContentEngagementTopPageRow = {
   contentPageId: string;
@@ -57,8 +66,8 @@ export function buildExerciseVideoSplit(
   assignedExerciseVideoCount: number;
 } {
   const toItem = (r: { media_id: string; title: string; n: string }): ExerciseVideoTopItemRow => ({
-    mediaId: r.media_id ?? "",
-    title: r.title ?? "",
+    mediaId: r.media_id ?? '',
+    title: r.title ?? '',
     count: Number(r.n ?? 0),
   });
   const promo = rows.filter((r) => r.in_promo).map(toItem);
@@ -142,13 +151,14 @@ export type ContentEngagementStatsResponse = {
 export type AdminReminderStatsResponse = ContentEngagementStatsResponse;
 
 function clampWindowHours(raw: unknown): number {
-  const n = typeof raw === "number" && Number.isFinite(raw) ? Math.floor(raw) : DEFAULT_WINDOW_HOURS;
+  const n =
+    typeof raw === 'number' && Number.isFinite(raw) ? Math.floor(raw) : DEFAULT_WINDOW_HOURS;
   return Math.min(MAX_WINDOW_HOURS, Math.max(MIN_WINDOW_HOURS, n || DEFAULT_WINDOW_HOURS));
 }
 
 /** Safe entrypoint for `GET /api/admin/reminder-stats` and `GET /api/doctor/content-stats` query parsing. */
 export function parseReminderStatsWindowHours(param: string | null): number {
-  if (param == null || param.trim() === "") return DEFAULT_WINDOW_HOURS;
+  if (param == null || param.trim() === '') return DEFAULT_WINDOW_HOURS;
   const parsed = Number.parseInt(param.trim(), 10);
   if (!Number.isFinite(parsed)) return DEFAULT_WINDOW_HOURS;
   return clampWindowHours(parsed);
@@ -163,8 +173,8 @@ function mergeOccurrenceHourly(
     if (!map.has(key)) map.set(key, { sent: 0, failed: 0 });
     const m = map.get(key)!;
     const n = Number(r.n ?? 0);
-    if (r.status === "sent") m.sent += n;
-    else if (r.status === "failed") m.failed += n;
+    if (r.status === 'sent') m.sent += n;
+    else if (r.status === 'failed') m.failed += n;
   }
   return [...map.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
@@ -180,8 +190,8 @@ export function mergePushOpenBuckets(
     if (!map.has(r.bucket)) map.set(r.bucket, { opened: 0, sent: 0 });
     const m = map.get(r.bucket)!;
     const n = Number(r.n ?? 0);
-    if (r.eventType === "push_open") m.opened += n;
-    else if (r.eventType === "push_sent") m.sent += n;
+    if (r.eventType === 'push_open') m.opened += n;
+    else if (r.eventType === 'push_sent') m.sent += n;
   }
   return [...map.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
@@ -243,10 +253,22 @@ export async function loadContentEngagementStats(opts: {
     patientPracticeCompletions.userId,
     excludedUserIds,
   );
-  const warmupUserExclude = drizzleExcludeUserIdColumn(patientDailyWarmupVideoViews.userId, excludedUserIds);
-  const pushOpenUserExclude = drizzleExcludeUserIdColumn(productAnalyticsEventsRecent.userId, excludedUserIds);
-  const pushSentUserExclude = drizzleExcludeUserIdColumn(productPushNotifications.userId, excludedUserIds);
-  const resolutionUserExclude = drizzleExcludeUserIdColumn(mediaPlaybackResolutionEvents.userId, excludedUserIds);
+  const warmupUserExclude = drizzleExcludeUserIdColumn(
+    patientDailyWarmupVideoViews.userId,
+    excludedUserIds,
+  );
+  const pushOpenUserExclude = drizzleExcludeUserIdColumn(
+    productAnalyticsEventsRecent.userId,
+    excludedUserIds,
+  );
+  const pushSentUserExclude = drizzleExcludeUserIdColumn(
+    productPushNotifications.userId,
+    excludedUserIds,
+  );
+  const resolutionUserExclude = drizzleExcludeUserIdColumn(
+    mediaPlaybackResolutionEvents.userId,
+    excludedUserIds,
+  );
   const exerciseUserExcludeSql =
     excludedUserIds.length > 0
       ? sql`AND mpre.user_id NOT IN (${drizzleSqlUuidInList(excludedUserIds)})`
@@ -283,7 +305,7 @@ export async function loadContentEngagementStats(opts: {
   ] = await Promise.all([
     db
       .select({
-        bucket: sql<string>`${hourTruncOcc}::text`.as("bucket"),
+        bucket: sql<string>`${hourTruncOcc}::text`.as('bucket'),
         status: reminderOccurrenceHistory.status,
         n: count(),
       })
@@ -294,7 +316,7 @@ export async function loadContentEngagementStats(opts: {
       .orderBy(sql`1`),
     db
       .select({
-        bucket: sql<string>`${dayTruncOcc}::text`.as("bucket"),
+        bucket: sql<string>`${dayTruncOcc}::text`.as('bucket'),
         status: reminderOccurrenceHistory.status,
         n: count(),
       })
@@ -304,7 +326,7 @@ export async function loadContentEngagementStats(opts: {
       .orderBy(sql`1`),
     db
       .select({
-        bucket: sql<string>`${hourTruncOcc}::text`.as("bucket"),
+        bucket: sql<string>`${hourTruncOcc}::text`.as('bucket'),
         status: reminderOccurrenceHistory.status,
         n: count(),
       })
@@ -319,14 +341,14 @@ export async function loadContentEngagementStats(opts: {
       .orderBy(sql`1`),
     db
       .select({
-        bucket: sql<string>`${hourTruncPushOpen}::text`.as("bucket"),
+        bucket: sql<string>`${hourTruncPushOpen}::text`.as('bucket'),
         n: count(),
       })
       .from(productAnalyticsEventsRecent)
       .where(
         and(
           gte(productAnalyticsEventsRecent.occurredAt, windowCutoffSql),
-          eq(productAnalyticsEventsRecent.eventType, "push_open"),
+          eq(productAnalyticsEventsRecent.eventType, 'push_open'),
           pushOpenUserExclude,
         ),
       )
@@ -334,14 +356,14 @@ export async function loadContentEngagementStats(opts: {
       .orderBy(sql`1`),
     db
       .select({
-        bucket: sql<string>`${dayTruncPushOpen}::text`.as("bucket"),
+        bucket: sql<string>`${dayTruncPushOpen}::text`.as('bucket'),
         n: count(),
       })
       .from(productAnalyticsEventsRecent)
       .where(
         and(
           gte(productAnalyticsEventsRecent.occurredAt, windowCutoffSql),
-          eq(productAnalyticsEventsRecent.eventType, "push_open"),
+          eq(productAnalyticsEventsRecent.eventType, 'push_open'),
           pushOpenUserExclude,
         ),
       )
@@ -349,7 +371,7 @@ export async function loadContentEngagementStats(opts: {
       .orderBy(sql`1`),
     db
       .select({
-        bucket: sql<string>`${hourTruncPushSent}::text`.as("bucket"),
+        bucket: sql<string>`${hourTruncPushSent}::text`.as('bucket'),
         n: count(),
       })
       .from(productPushNotifications)
@@ -358,7 +380,7 @@ export async function loadContentEngagementStats(opts: {
       .orderBy(sql`1`),
     db
       .select({
-        bucket: sql<string>`${dayTruncPushSent}::text`.as("bucket"),
+        bucket: sql<string>`${dayTruncPushSent}::text`.as('bucket'),
         n: count(),
       })
       .from(productPushNotifications)
@@ -401,9 +423,10 @@ export async function loadContentEngagementStats(opts: {
       .limit(15),
     db
       .select({
-        totalSeconds: sql<number>`COALESCE(SUM(COALESCE(${mediaFiles.videoDurationSeconds}, 0)), 0)::int`.as(
-          "total_seconds",
-        ),
+        totalSeconds:
+          sql<number>`COALESCE(SUM(COALESCE(${mediaFiles.videoDurationSeconds}, 0)), 0)::int`.as(
+            'total_seconds',
+          ),
       })
       .from(patientDailyWarmupVideoViews)
       .innerJoin(contentPages, eq(patientDailyWarmupVideoViews.contentPageId, contentPages.id))
@@ -415,25 +438,33 @@ export async function loadContentEngagementStats(opts: {
       .where(and(gte(patientDailyWarmupVideoViews.viewedAt, windowCutoffSql), warmupUserExclude)),
     db
       .select({
-        totalSeconds: sql<number>`COALESCE(SUM(COALESCE(${mediaFiles.videoDurationSeconds}, 0)), 0)::int`.as(
-          "total_seconds",
-        ),
+        totalSeconds:
+          sql<number>`COALESCE(SUM(COALESCE(${mediaFiles.videoDurationSeconds}, 0)), 0)::int`.as(
+            'total_seconds',
+          ),
       })
       .from(mediaPlaybackResolutionEvents)
       .innerJoin(mediaFiles, eq(mediaPlaybackResolutionEvents.mediaId, mediaFiles.id))
-      .where(and(gte(mediaPlaybackResolutionEvents.resolvedAt, windowCutoffSql), resolutionUserExclude)),
+      .where(
+        and(gte(mediaPlaybackResolutionEvents.resolvedAt, windowCutoffSql), resolutionUserExclude),
+      ),
     db
       .select({ n: count() })
       .from(mediaPlaybackResolutionEvents)
-      .where(and(gte(mediaPlaybackResolutionEvents.resolvedAt, windowCutoffSql), resolutionUserExclude)),
+      .where(
+        and(gte(mediaPlaybackResolutionEvents.resolvedAt, windowCutoffSql), resolutionUserExclude),
+      ),
     db
       .select({
-        avgSeconds: sql<number>`COALESCE(AVG(NULLIF(${mediaFiles.videoDurationSeconds}, 0)), 0)::float`.as(
-          "avg_seconds",
-        ),
+        avgSeconds:
+          sql<number>`COALESCE(AVG(NULLIF(${mediaFiles.videoDurationSeconds}, 0)), 0)::float`.as(
+            'avg_seconds',
+          ),
       })
       .from(mediaFiles)
-      .where(sql`${mediaFiles.videoDurationSeconds} IS NOT NULL AND ${mediaFiles.videoDurationSeconds} > 0`),
+      .where(
+        sql`${mediaFiles.videoDurationSeconds} IS NOT NULL AND ${mediaFiles.videoDurationSeconds} > 0`,
+      ),
     loadReminderPeopleWithNotificationsStats({ windowHours, displayTimezone, excludedUserIds }),
     db.select({ cnt: count() }).from(reminderRules).where(eq(reminderRules.isEnabled, true)),
     loadAdminPlaybackHealthMetrics({ windowHours, excludedUserIds }),
@@ -481,12 +512,12 @@ export async function loadContentEngagementStats(opts: {
   ]);
 
   const pushOpensHourly = mergePushOpenBuckets([
-    ...pushOpenHourlyRows.map((r) => ({ bucket: r.bucket, eventType: "push_open", n: r.n })),
-    ...pushSentHourlyRows.map((r) => ({ bucket: r.bucket, eventType: "push_sent", n: r.n })),
+    ...pushOpenHourlyRows.map((r) => ({ bucket: r.bucket, eventType: 'push_open', n: r.n })),
+    ...pushSentHourlyRows.map((r) => ({ bucket: r.bucket, eventType: 'push_sent', n: r.n })),
   ]);
   const pushOpensDaily = mergePushOpenBuckets([
-    ...pushOpenDailyRows.map((r) => ({ bucket: r.bucket, eventType: "push_open", n: r.n })),
-    ...pushSentDailyRows.map((r) => ({ bucket: r.bucket, eventType: "push_sent", n: r.n })),
+    ...pushOpenDailyRows.map((r) => ({ bucket: r.bucket, eventType: 'push_open', n: r.n })),
+    ...pushSentDailyRows.map((r) => ({ bucket: r.bucket, eventType: 'push_sent', n: r.n })),
   ]);
   const pushOpensSummary = summarizePushOpens(pushOpensHourly);
 

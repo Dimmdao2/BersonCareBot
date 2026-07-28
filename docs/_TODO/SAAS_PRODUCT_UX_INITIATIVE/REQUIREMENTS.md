@@ -22,17 +22,17 @@
 
 Из owner rulings и текущего кода:
 
-| Роль | Назначение |
-|---|---|
-| Global admin | Управление платформой, организациями, тарифами, биллингом, использованием и system health |
-| Organization owner | Владелец SaaS-аккаунта организации; lifecycle, billing, branding, staff и настройки организации |
-| Organization admin | Операционное управление организацией; может одновременно быть специалистом |
-| Specialist / doctor | Клиническая работа, расписание, пациенты, программы, коммуникации и контент в пределах организации |
-| Assistant / receptionist | Будущая clinic capability, не initial release; точные permissions и workspace не утверждены |
-| Patient | Собственные данные и care flows в одной или нескольких организациях |
-| Onboarding patient | Только активация identity; без business actions до достижения patient tier |
-| Anonymous/public | Platform landing, опубликованная страница организации, публичная запись и trusted invite entry; каталог/поиск позже |
-| System actors | Worker/integrator/scheduler/media/cron; не пользовательские кабинеты |
+| Роль                     | Назначение                                                                                                          |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------- |
+| Global admin             | Управление платформой, организациями, тарифами, биллингом, использованием и system health                           |
+| Organization owner       | Владелец SaaS-аккаунта организации; lifecycle, billing, branding, staff и настройки организации                     |
+| Organization admin       | Операционное управление организацией; может одновременно быть специалистом                                          |
+| Specialist / doctor      | Клиническая работа, расписание, пациенты, программы, коммуникации и контент в пределах организации                  |
+| Assistant / receptionist | Будущая clinic capability, не initial release; точные permissions и workspace не утверждены                         |
+| Patient                  | Собственные данные и care flows в одной или нескольких организациях                                                 |
+| Onboarding patient       | Только активация identity; без business actions до достижения patient tier                                          |
+| Anonymous/public         | Platform landing, опубликованная страница организации, публичная запись и trusted invite entry; каталог/поиск позже |
+| System actors            | Worker/integrator/scheduler/media/cron; не пользовательские кабинеты                                                |
 
 Текущий канон персонала: одна активная организация на один staff login; несколько активных membership — ошибка данных, не org switcher. Не менять это скрыто внутри UX-плана.
 

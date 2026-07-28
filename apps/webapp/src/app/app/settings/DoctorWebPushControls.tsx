@@ -1,14 +1,17 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import toast from "react-hot-toast";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { fetchStaffWebPushStatus } from "@/shared/lib/webPush/staffWebPushApi";
-import { restoreStaffWebPushSubscription, subscribeStaffWebPush } from "@/shared/lib/webPush/subscribeStaffWebPush";
-import { unsubscribeAllStaffWebPush } from "@/shared/lib/webPush/staffWebPushApi";
-import { probePushSupported } from "@/shared/lib/webPush/pushCapability";
-import { webPushSubscribeFailureMessage } from "@/shared/lib/webPush/webPushSubscribeFeedback";
+import { useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import toast from 'react-hot-toast';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { fetchStaffWebPushStatus } from '@/shared/lib/webPush/staffWebPushApi';
+import {
+  restoreStaffWebPushSubscription,
+  subscribeStaffWebPush,
+} from '@/shared/lib/webPush/subscribeStaffWebPush';
+import { unsubscribeAllStaffWebPush } from '@/shared/lib/webPush/staffWebPushApi';
+import { probePushSupported } from '@/shared/lib/webPush/pushCapability';
+import { webPushSubscribeFailureMessage } from '@/shared/lib/webPush/webPushSubscribeFeedback';
 
 type Props = {
   initialHasSubscription: boolean;
@@ -34,7 +37,7 @@ export function DoctorWebPushControls({ initialHasSubscription, initialGlobalEna
 
   const onEnable = useCallback(async () => {
     if (!(await probePushSupported())) {
-      toast.error("Уведомления не поддерживаются");
+      toast.error('Уведомления не поддерживаются');
       return;
     }
     setBusy(true);
@@ -43,12 +46,12 @@ export function DoctorWebPushControls({ initialHasSubscription, initialGlobalEna
       if (result.ok) {
         await refreshStatus();
         router.refresh();
-        toast.success("Push включён");
+        toast.success('Push включён');
         return;
       }
       toast.error(webPushSubscribeFailureMessage(result.reason));
     } catch {
-      toast.error("Ошибка");
+      toast.error('Ошибка');
     } finally {
       setBusy(false);
     }
@@ -61,7 +64,7 @@ export function DoctorWebPushControls({ initialHasSubscription, initialGlobalEna
       if (result.ok) {
         await refreshStatus();
         router.refresh();
-        toast.success("Подписка восстановлена");
+        toast.success('Подписка восстановлена');
         return;
       }
       toast.error(webPushSubscribeFailureMessage(result.reason));
@@ -77,7 +80,7 @@ export function DoctorWebPushControls({ initialHasSubscription, initialGlobalEna
       if (ok) {
         await refreshStatus();
         router.refresh();
-        toast.success("Push отключён");
+        toast.success('Push отключён');
       }
     } finally {
       setBusy(false);
@@ -90,24 +93,35 @@ export function DoctorWebPushControls({ initialHasSubscription, initialGlobalEna
     <div className="flex flex-col gap-2 rounded-lg border border-border px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
       <div>
         <p className="text-sm font-medium">Push в приложении</p>
-        <p className="text-xs text-muted-foreground">
-          {pushActive ? "Включено" : "Не включено"}
-        </p>
+        <p className="text-xs text-muted-foreground">{pushActive ? 'Включено' : 'Не включено'}</p>
       </div>
       <div className="flex shrink-0 gap-2">
-        {pushActive ?
-          <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => void onDisable()}>
+        {pushActive ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={busy}
+            onClick={() => void onDisable()}
+          >
             Отключить
           </Button>
-        : <>
+        ) : (
+          <>
             <Button type="button" size="sm" disabled={busy} onClick={() => void onEnable()}>
               Включить
             </Button>
-            <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => void onRestore()}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={busy}
+              onClick={() => void onRestore()}
+            >
               Восстановить
             </Button>
           </>
-        }
+        )}
       </div>
     </div>
   );

@@ -7,7 +7,11 @@ import {
   REMINDER_RULE_UPSERTED,
   USER_SUBSCRIPTION_UPSERTED,
 } from '../../../kernel/contracts/index.js';
-import { hashPayload, hashPayloadExcludingKeys, projectionIdempotencyKey } from './projectionKeys.js';
+import {
+  hashPayload,
+  hashPayloadExcludingKeys,
+  projectionIdempotencyKey,
+} from './projectionKeys.js';
 
 function asNonEmptyString(value: unknown): string | null {
   return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
@@ -29,7 +33,9 @@ function asFingerprintFiniteInt(value: unknown): number | null {
 }
 
 /** Canonical projection fingerprint for `reminder.rule.upserted` — aligned with webapp idempotency hash. */
-export function buildReminderRuleUpsertKeyPayload(raw: Record<string, unknown>): Record<string, unknown> {
+export function buildReminderRuleUpsertKeyPayload(
+  raw: Record<string, unknown>,
+): Record<string, unknown> {
   const integratorRuleId = asFingerprintString(raw.integratorRuleId);
   const integratorUserId = asFingerprintString(raw.integratorUserId);
   const category = asFingerprintString(raw.category);
@@ -62,7 +68,11 @@ const BIGINT_STRING = /^\d+$/;
  * Deep-clone JSON-ish value and replace integrator user id `loser` with `winner`
  * (string or truncated number forms). Other fields unchanged.
  */
-export function deepReplaceIntegratorUserIdInValue(value: unknown, loser: string, winner: string): unknown {
+export function deepReplaceIntegratorUserIdInValue(
+  value: unknown,
+  loser: string,
+  winner: string,
+): unknown {
   if (value === loser) return winner;
   if (typeof value === 'number' && Number.isFinite(value) && String(Math.trunc(value)) === loser) {
     const w = Number(winner);
@@ -87,10 +97,10 @@ export function payloadLikelyReferencesUserId(payload: unknown, userId: string):
   if (!BIGINT_STRING.test(userId)) return false;
   const s = JSON.stringify(payload);
   return (
-    s.includes(`"integratorUserId":"${userId}"`)
-    || s.includes(`"integratorUserId":${userId}`)
-    || s.includes(`"integrator_user_id":"${userId}"`)
-    || s.includes(`"integrator_user_id":${userId}`)
+    s.includes(`"integratorUserId":"${userId}"`) ||
+    s.includes(`"integratorUserId":${userId}`) ||
+    s.includes(`"integrator_user_id":"${userId}"`) ||
+    s.includes(`"integrator_user_id":${userId}`)
   );
 }
 
@@ -123,7 +133,12 @@ export function recomputeProjectionIdempotencyKeyAfterMerge(
     }
     case 'support.conversation.opened': {
       const cid = asNonEmptyString(payload.integratorConversationId);
-      if (!cid) return projectionIdempotencyKey(eventType, fallbackStable, hashPayloadExcludingKeys(payload, ['integratorUserId']));
+      if (!cid)
+        return projectionIdempotencyKey(
+          eventType,
+          fallbackStable,
+          hashPayloadExcludingKeys(payload, ['integratorUserId']),
+        );
       return projectionIdempotencyKey(
         eventType,
         cid,
@@ -142,7 +157,12 @@ export function recomputeProjectionIdempotencyKeyAfterMerge(
     }
     case 'support.question.created': {
       const qid = asNonEmptyString(payload.integratorQuestionId);
-      if (!qid) return projectionIdempotencyKey(eventType, fallbackStable, hashPayloadExcludingKeys(payload, ['integratorUserId']));
+      if (!qid)
+        return projectionIdempotencyKey(
+          eventType,
+          fallbackStable,
+          hashPayloadExcludingKeys(payload, ['integratorUserId']),
+        );
       return projectionIdempotencyKey(
         eventType,
         qid,
@@ -163,8 +183,17 @@ export function recomputeProjectionIdempotencyKeyAfterMerge(
       const uid = asNonEmptyString(payload.integratorUserId);
       const topics = payload.topics;
       const topicsObj = topics && typeof topics === 'object' ? { topics } : { topics: [] };
-      if (!uid) return projectionIdempotencyKey(eventType, fallbackStable, hashPayload(topicsObj as Record<string, unknown>));
-      return projectionIdempotencyKey(eventType, uid, hashPayload(topicsObj as Record<string, unknown>));
+      if (!uid)
+        return projectionIdempotencyKey(
+          eventType,
+          fallbackStable,
+          hashPayload(topicsObj as Record<string, unknown>),
+        );
+      return projectionIdempotencyKey(
+        eventType,
+        uid,
+        hashPayload(topicsObj as Record<string, unknown>),
+      );
     }
     case REMINDER_RULE_UPSERTED: {
       const ruleId = asNonEmptyString(payload.integratorRuleId);
@@ -199,13 +228,15 @@ export function recomputeProjectionIdempotencyKeyAfterMerge(
     case USER_SUBSCRIPTION_UPSERTED: {
       const uid = asNonEmptyString(payload.integratorUserId);
       const topicId = asNonEmptyString(payload.integratorTopicId);
-      if (!uid || !topicId) return projectionIdempotencyKey(eventType, fallbackStable, hashPayload(payload));
+      if (!uid || !topicId)
+        return projectionIdempotencyKey(eventType, fallbackStable, hashPayload(payload));
       return projectionIdempotencyKey(eventType, `${uid}:${topicId}`, hashPayload(payload));
     }
     case MAILING_LOG_SENT: {
       const uid = asNonEmptyString(payload.integratorUserId);
       const mid = asNonEmptyString(payload.integratorMailingId);
-      if (!uid || !mid) return projectionIdempotencyKey(eventType, fallbackStable, hashPayload(payload));
+      if (!uid || !mid)
+        return projectionIdempotencyKey(eventType, fallbackStable, hashPayload(payload));
       return projectionIdempotencyKey(eventType, `${uid}:${mid}`, hashPayload(payload));
     }
     default:

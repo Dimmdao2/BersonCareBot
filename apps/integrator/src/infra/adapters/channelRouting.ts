@@ -89,7 +89,8 @@ export function messageToIntent(msg: UnifiedOutgoingMessage): OutgoingIntent {
   const recipient: Record<string, unknown> = {};
   if (msg.recipient.chatId !== undefined) recipient.chatId = msg.recipient.chatId;
   if (msg.recipient.userId !== undefined) recipient.userId = msg.recipient.userId;
-  if (msg.recipient.phoneNormalized !== undefined) recipient.phoneNormalized = msg.recipient.phoneNormalized;
+  if (msg.recipient.phoneNormalized !== undefined)
+    recipient.phoneNormalized = msg.recipient.phoneNormalized;
   if (msg.recipient.email !== undefined) recipient.email = msg.recipient.email;
   if (msg.recipient.pushUserId !== undefined) recipient.pushUserId = msg.recipient.pushUserId;
 

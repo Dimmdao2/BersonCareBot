@@ -1,4 +1,4 @@
-export type PracticeSource = "home" | "reminder" | "section_page" | "daily_warmup";
+export type PracticeSource = 'home' | 'reminder' | 'section_page' | 'daily_warmup';
 
 export type PatientPracticeCompletionRow = {
   id: string;
@@ -20,7 +20,7 @@ export type RecordPracticeInput = {
 
 export type RecordPracticeResult =
   | { ok: true; id: string }
-  | { ok: false; error: "invalid_content_page" };
+  | { ok: false; error: 'invalid_content_page' };
 
 /** Мета cooldown разминки дня на главной (hero «Разминка выполнена»). */
 export type DailyWarmupHeroCooldownMeta =

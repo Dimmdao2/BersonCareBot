@@ -19,32 +19,29 @@
  * constraint — so a lost race fails cleanly as `slot_overlap`, exactly as two simultaneous
  * confirmed bookings already do today.
  */
-import { randomBytes } from "node:crypto";
-import type { PhoneChallengePayload } from "@/modules/auth/phoneChallengeStore";
+import { randomBytes } from 'node:crypto';
+import type { PhoneChallengePayload } from '@/modules/auth/phoneChallengeStore';
 import {
   OTP_LOCK_DURATION_SEC,
   OTP_MAX_VERIFY_ATTEMPTS,
   OTP_RESEND_COOLDOWN_SEC,
-} from "@/modules/auth/otpConstants";
-import { generateSmsCode } from "@/modules/auth/smsCode";
-import { normalizeRuPhoneE164 } from "@/shared/phone/normalizeRuPhoneE164";
-import { isValidPhoneE164 } from "@/modules/auth/phoneValidation";
-import type { PublicBookingOtpPort } from "./publicBookingOtpPort";
+} from '@/modules/auth/otpConstants';
+import { generateSmsCode } from '@/modules/auth/smsCode';
+import { normalizeRuPhoneE164 } from '@/shared/phone/normalizeRuPhoneE164';
+import { isValidPhoneE164 } from '@/modules/auth/phoneValidation';
+import type { PublicBookingOtpPort } from './publicBookingOtpPort';
 import {
   channelProvesPhoneControl,
   parsePublicBookingIntent,
   PUBLIC_BOOKING_INTENT_VERSION,
   type PublicBookingIntent,
-} from "./publicBookingIntent";
+} from './publicBookingIntent';
 
 /** Code lifetime; the same TTL the rest of the phone-OTP flow uses. */
 export const PUBLIC_BOOKING_CHALLENGE_TTL_SEC = 600;
 
 /** Delivery-only seam: "send this code to this number". Owns no storage. */
-export type PublicBookingCodeDelivery = (
-  phone: string,
-  code: string,
-) => Promise<{ ok: boolean }>;
+export type PublicBookingCodeDelivery = (phone: string, code: string) => Promise<{ ok: boolean }>;
 
 /**
  * Storage is the SECURITY DEFINER accessor port, delivery is a plain function.
@@ -64,10 +61,10 @@ export type PublicBookingVerificationDeps = {
 
 export type IssueVerificationResult =
   | { ok: true; challengeId: string; expiresInSeconds: number; retryAfterSeconds?: number }
-  | { ok: false; code: "invalid_phone" | "verification_unavailable"; retryAfterSeconds?: number };
+  | { ok: false; code: 'invalid_phone' | 'verification_unavailable'; retryAfterSeconds?: number };
 
 function generateChallengeId(): string {
-  return randomBytes(16).toString("base64url");
+  return randomBytes(16).toString('base64url');
 }
 
 /**
@@ -88,7 +85,7 @@ export async function issuePublicBookingVerification(
   // `normalizeRuPhoneE164` returns a string for any input (it answers "+" for garbage), so the
   // shape has to be checked separately — otherwise a nonsense contact would reach code delivery.
   const phone = normalizeRuPhoneE164(intent.contactPhone);
-  if (!isValidPhoneE164(phone)) return { ok: false, code: "invalid_phone" };
+  if (!isValidPhoneE164(phone)) return { ok: false, code: 'invalid_phone' };
 
   const challengeId = generateChallengeId();
   const code = generateSmsCode();
@@ -99,16 +96,16 @@ export async function issuePublicBookingVerification(
     code,
     ttlSec: PUBLIC_BOOKING_CHALLENGE_TTL_SEC,
     resendCooldownSec: OTP_RESEND_COOLDOWN_SEC,
-    deliveryChannel: "sms",
+    deliveryChannel: 'sms',
     intent: { ...intent, v: PUBLIC_BOOKING_INTENT_VERSION },
   });
   // Every limit failure collapses into ONE code. Lockout vs resend cooldown are both observable
   // functions of the phone number, so distinguishing them would rebuild the enumeration oracle one
   // layer down — which is why `issueChallenge` returns a bare boolean and not a reason.
-  if (!issued) return { ok: false, code: "verification_unavailable" };
+  if (!issued) return { ok: false, code: 'verification_unavailable' };
 
   const sent = await deps.deliverCode(phone, code);
-  if (!sent.ok) return { ok: false, code: "verification_unavailable" };
+  if (!sent.ok) return { ok: false, code: 'verification_unavailable' };
 
   return {
     ok: true,
@@ -121,14 +118,14 @@ export async function issuePublicBookingVerification(
 export type VerifiedIntent = {
   intent: PublicBookingIntent;
   /** Which channel delivered the code that was just entered. */
-  deliveryChannel: PhoneChallengePayload["deliveryChannel"];
+  deliveryChannel: PhoneChallengePayload['deliveryChannel'];
   /** Did that channel prove control of the phone number on the booking? */
   phoneProven: boolean;
 };
 
 export type ConsumeVerificationResult =
   | { ok: true; verified: VerifiedIntent }
-  | { ok: false; code: "verification_failed"; retryAfterSeconds?: number };
+  | { ok: false; code: 'verification_failed'; retryAfterSeconds?: number };
 
 /**
  * Verifies the entered code and hands back the pinned intent, once.
@@ -153,8 +150,10 @@ export async function consumePublicBookingVerification(
   if (!consumed.ok) {
     return {
       ok: false,
-      code: "verification_failed",
-      ...(consumed.retryAfterSeconds == null ? {} : { retryAfterSeconds: consumed.retryAfterSeconds }),
+      code: 'verification_failed',
+      ...(consumed.retryAfterSeconds == null
+        ? {}
+        : { retryAfterSeconds: consumed.retryAfterSeconds }),
     };
   }
 
@@ -162,7 +161,7 @@ export async function consumePublicBookingVerification(
   // `channelContextFromRow`: an intent of an unknown shape or version is "no intent", not a
   // half-trusted booking.
   const intent = parsePublicBookingIntent(consumed.intent);
-  if (!intent) return { ok: false, code: "verification_failed" };
+  if (!intent) return { ok: false, code: 'verification_failed' };
 
   return {
     ok: true,

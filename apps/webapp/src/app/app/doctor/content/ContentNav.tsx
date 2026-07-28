@@ -1,28 +1,28 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { cn } from "@/lib/utils";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Separator } from "@/shared/ui/doctor/primitives/separator";
-import { Eye, EyeOff } from "lucide-react";
+import Link from 'next/link';
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
+import { cn } from '@/lib/utils';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Separator } from '@/shared/ui/doctor/primitives/separator';
+import { Eye, EyeOff } from 'lucide-react';
 import {
   CMS_UNASSIGNED_SECTION_SLUG,
   isHelpSectionSlug,
   SYSTEM_PARENT_CODES,
-} from "@/modules/content-sections/types";
-import { setSectionVisibility } from "./sections/sectionVisibilityActions";
+} from '@/modules/content-sections/types';
+import { setSectionVisibility } from './sections/sectionVisibilityActions';
 
 // ---------------------------------------------------------------------------
 // Pane key types
 // ---------------------------------------------------------------------------
 
 export type ContentNavPaneKey =
-  | "patient-home"
-  | "warmups"
-  | "sos"
-  | "situations"
-  | "lessons"
+  | 'patient-home'
+  | 'warmups'
+  | 'sos'
+  | 'situations'
+  | 'lessons'
   | `section:${string}`;
 
 export type ContentNavSectionEntry = {
@@ -46,14 +46,14 @@ export type ContentNavProps = {
 // ---------------------------------------------------------------------------
 
 const SYSTEM_FOLDER_LABELS: Record<(typeof SYSTEM_PARENT_CODES)[number], string> = {
-  situations: "Ситуации",
-  sos: "SOS",
-  warmups: "Разминки",
-  lessons: "Уроки · Новости · Мотивации",
+  situations: 'Ситуации',
+  sos: 'SOS',
+  warmups: 'Разминки',
+  lessons: 'Уроки · Новости · Мотивации',
 };
 
 /** Pane keys hidden from the nav (stubs/removed sections). */
-const HIDDEN_SYSTEM_CODES = new Set<string>(["lessons"]);
+const HIDDEN_SYSTEM_CODES = new Set<string>(['lessons']);
 
 // ---------------------------------------------------------------------------
 // Lightweight nav row — file-tree list style
@@ -77,23 +77,21 @@ function NavRow({
       <Button
         type="button"
         variant="ghost"
-        aria-current={active ? "page" : undefined}
+        aria-current={active ? 'page' : undefined}
         onClick={onClick}
         className={cn(
-          "flex flex-1 min-w-0 h-auto items-center gap-1 rounded-md py-1.5 pl-2.5 pr-2 text-sm whitespace-normal text-left transition-colors justify-start",
+          'flex flex-1 min-w-0 h-auto items-center gap-1 rounded-md py-1.5 pl-2.5 pr-2 text-sm whitespace-normal text-left transition-colors justify-start',
           active
-            ? "border-l-2 border-primary bg-primary/10 font-medium text-foreground hover:bg-primary/10"
-            : "border-l-2 border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+            ? 'border-l-2 border-primary bg-primary/10 font-medium text-foreground hover:bg-primary/10'
+            : 'border-l-2 border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground',
         )}
       >
         <span className="flex-1 min-w-0">{label}</span>
-        {typeof count === "number" && count > 0 ? (
+        {typeof count === 'number' && count > 0 ? (
           <span className="shrink-0 text-xs text-muted-foreground tabular-nums">{count}</span>
         ) : null}
       </Button>
-      {trailingSlot ? (
-        <div className="shrink-0 pl-0.5">{trailingSlot}</div>
-      ) : null}
+      {trailingSlot ? <div className="shrink-0 pl-0.5">{trailingSlot}</div> : null}
     </div>
   );
 }
@@ -122,8 +120,8 @@ function SectionVisibilityToggle({
       type="button"
       variant="ghost"
       size="icon"
-      aria-label={isVisible ? "Скрыть раздел" : "Показать раздел"}
-      title={isVisible ? "Скрыть раздел" : "Показать раздел"}
+      aria-label={isVisible ? 'Скрыть раздел' : 'Показать раздел'}
+      title={isVisible ? 'Скрыть раздел' : 'Показать раздел'}
       disabled={disabled}
       onClick={(e) => {
         e.stopPropagation();
@@ -177,26 +175,23 @@ export function ContentNav({
     [baseUserSections, visibilityOverrides],
   );
 
-  const handleVisibilityToggle = useCallback(
-    (slug: string, nextIsVisible: boolean) => {
-      setVisibilityOverrides((prev) => ({ ...prev, [slug]: nextIsVisible }));
-      startTransition(async () => {
-        try {
-          const result = await setSectionVisibility(slug, nextIsVisible);
-          if (!result.ok) {
-            setVisibilityOverrides((prev) => ({ ...prev, [slug]: !nextIsVisible }));
-          }
-        } catch {
+  const handleVisibilityToggle = useCallback((slug: string, nextIsVisible: boolean) => {
+    setVisibilityOverrides((prev) => ({ ...prev, [slug]: nextIsVisible }));
+    startTransition(async () => {
+      try {
+        const result = await setSectionVisibility(slug, nextIsVisible);
+        if (!result.ok) {
           setVisibilityOverrides((prev) => ({ ...prev, [slug]: !nextIsVisible }));
         }
-      });
-    },
-    [],
-  );
+      } catch {
+        setVisibilityOverrides((prev) => ({ ...prev, [slug]: !nextIsVisible }));
+      }
+    });
+  }, []);
 
   return (
     <nav
-      className={cn("flex w-full flex-col gap-0.5 md:w-56 md:shrink-0", className)}
+      className={cn('flex w-full flex-col gap-0.5 md:w-56 md:shrink-0', className)}
       aria-label="Контент и страницы"
     >
       {/* ── Системные разделы ── */}
@@ -224,9 +219,9 @@ export function ContentNav({
       {articleSections.some((section) => isHelpSectionSlug(section.slug)) ? (
         <NavRow
           label="Справка"
-          active={activePaneKey === "section:help"}
-          count={countsByPaneKey["section:help"]}
-          onClick={() => onPaneChange("section:help")}
+          active={activePaneKey === 'section:help'}
+          count={countsByPaneKey['section:help']}
+          onClick={() => onPaneChange('section:help')}
         />
       ) : null}
 
@@ -237,7 +232,13 @@ export function ContentNav({
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Статьи и страницы
         </p>
-        <Button type="button" variant="outline" size="sm" className="h-6 px-2 text-xs" onClick={onCreateSection}>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-6 px-2 text-xs"
+          onClick={onCreateSection}
+        >
           + Раздел
         </Button>
       </div>
@@ -263,7 +264,6 @@ export function ContentNav({
           />
         ))
       )}
-
     </nav>
   );
 }
@@ -272,28 +272,23 @@ export function ContentNav({
 // URL-sync hook (mirrors DoctorAnalyticsShell / DoctorScheduleShell pattern)
 // ---------------------------------------------------------------------------
 
-const CONTENT_HUB_PATH = "/app/doctor/content";
+const CONTENT_HUB_PATH = '/app/doctor/content';
 
 function paneKeyToUrlParam(key: ContentNavPaneKey): string {
-  if (key.startsWith("section:")) return `section_${key.slice("section:".length)}`;
+  if (key.startsWith('section:')) return `section_${key.slice('section:'.length)}`;
   return key;
 }
 
 function urlParamToPaneKey(raw: string | null, articleSlugs: string[]): ContentNavPaneKey | null {
   if (!raw) return null;
   // section_ prefix → article section
-  if (raw.startsWith("section_")) {
-    const slug = raw.slice("section_".length);
+  if (raw.startsWith('section_')) {
+    const slug = raw.slice('section_'.length);
     if (articleSlugs.includes(slug)) return `section:${slug}`;
     return null;
   }
   // system pane keys
-  if (
-    raw === "warmups" ||
-    raw === "sos" ||
-    raw === "situations" ||
-    raw === "lessons"
-  ) {
+  if (raw === 'warmups' || raw === 'sos' || raw === 'situations' || raw === 'lessons') {
     return raw;
   }
   return null;
@@ -304,7 +299,7 @@ function defaultPaneKey(articleSections: ContentNavSectionEntry[]): ContentNavPa
     (s) => s.slug !== CMS_UNASSIGNED_SECTION_SLUG && !isHelpSectionSlug(s.slug),
   );
   if (first) return `section:${first.slug}`;
-  return "warmups";
+  return 'warmups';
 }
 
 /**
@@ -322,8 +317,8 @@ export function useContentNavState(articleSections: ContentNavSectionEntry[]): {
     .map((s) => s.slug);
 
   const resolveInitial = (): ContentNavPaneKey => {
-    if (typeof window === "undefined") return defaultPaneKey(articleSections);
-    const raw = new URLSearchParams(window.location.search).get("section");
+    if (typeof window === 'undefined') return defaultPaneKey(articleSections);
+    const raw = new URLSearchParams(window.location.search).get('section');
     return urlParamToPaneKey(raw, articleSlugs) ?? defaultPaneKey(articleSections);
   };
 
@@ -337,23 +332,20 @@ export function useContentNavState(articleSections: ContentNavSectionEntry[]): {
   useEffect(() => {
     const articleSlugsClosure = articleSlugs;
     const handler = () => {
-      const raw = new URLSearchParams(window.location.search).get("section");
+      const raw = new URLSearchParams(window.location.search).get('section');
       const key = urlParamToPaneKey(raw, articleSlugsClosure) ?? defaultPaneKey(articleSections);
       setActivePaneKeyState(key);
     };
-    window.addEventListener("popstate", handler);
-    return () => window.removeEventListener("popstate", handler);
+    window.addEventListener('popstate', handler);
+    return () => window.removeEventListener('popstate', handler);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const setActivePaneKey = useCallback(
-    (key: ContentNavPaneKey) => {
-      setActivePaneKeyState(key);
-      const param = paneKeyToUrlParam(key);
-      window.history.replaceState(null, "", `${CONTENT_HUB_PATH}?section=${param}`);
-    },
-    [],
-  );
+  const setActivePaneKey = useCallback((key: ContentNavPaneKey) => {
+    setActivePaneKeyState(key);
+    const param = paneKeyToUrlParam(key);
+    window.history.replaceState(null, '', `${CONTENT_HUB_PATH}?section=${param}`);
+  }, []);
 
   return { activePaneKey, setActivePaneKey };
 }

@@ -1,6 +1,6 @@
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import type { ProductAnalyticsEntryChannel } from "@/modules/product-analytics/types";
-import { isPlatformUserUuid } from "@/shared/platform-user/isPlatformUserUuid";
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import type { ProductAnalyticsEntryChannel } from '@/modules/product-analytics/types';
+import { isPlatformUserUuid } from '@/shared/platform-user/isPlatformUserUuid';
 
 export type RecordAuthLoginParams = {
   userId: string;
@@ -17,7 +17,7 @@ export async function recordAuthLogin(params: RecordAuthLoginParams): Promise<vo
     const deps = buildAppDeps();
     await deps.productAnalytics.recordEventsBatch([
       {
-        eventType: "auth_login",
+        eventType: 'auth_login',
         entryChannel: params.entryChannel,
         userId,
         metadata: { authMethod: params.authMethod },
@@ -32,7 +32,7 @@ export function entryChannelFromMessengerBindings(bindings?: {
   telegramId?: string | null;
   maxId?: string | null;
 }): ProductAnalyticsEntryChannel {
-  if (bindings?.maxId?.trim()) return "max";
-  if (bindings?.telegramId?.trim()) return "telegram";
-  return "browser";
+  if (bindings?.maxId?.trim()) return 'max';
+  if (bindings?.telegramId?.trim()) return 'telegram';
+  return 'browser';
 }

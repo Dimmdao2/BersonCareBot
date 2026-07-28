@@ -1,6 +1,9 @@
-import type { TreatmentProgramAssignmentSource, TreatmentProgramInstanceSummary } from "./types";
+import type { TreatmentProgramAssignmentSource, TreatmentProgramInstanceSummary } from './types';
 
-const PATIENT_HOME_PLAN_ASSIGNMENT_SOURCES = new Set<TreatmentProgramAssignmentSource>(["doctor", "course"]);
+const PATIENT_HOME_PLAN_ASSIGNMENT_SOURCES = new Set<TreatmentProgramAssignmentSource>([
+  'doctor',
+  'course',
+]);
 
 /**
  * Любой активный экземпляр (в т.ч. promo) — напоминания, go-цели, дневник.
@@ -9,7 +12,7 @@ export function pickActivePlanInstance(
   instances: TreatmentProgramInstanceSummary[],
 ): TreatmentProgramInstanceSummary | null {
   const active = instances
-    .filter((i) => i.status === "active")
+    .filter((i) => i.status === 'active')
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   return active[0] ?? null;
 }
@@ -22,7 +25,7 @@ export function pickActivePlanInstanceForPatientHome(
 ): TreatmentProgramInstanceSummary | null {
   const active = instances
     .filter(
-      (i) => i.status === "active" && PATIENT_HOME_PLAN_ASSIGNMENT_SOURCES.has(i.assignmentSource),
+      (i) => i.status === 'active' && PATIENT_HOME_PLAN_ASSIGNMENT_SOURCES.has(i.assignmentSource),
     )
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   return active[0] ?? null;

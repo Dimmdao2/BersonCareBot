@@ -1,6 +1,6 @@
-import type { LfkExercisesPort } from "@/modules/lfk-exercises/ports";
-import type { RecommendationListFilterScope } from "@/shared/lib/doctorCatalogListStatus";
-import { normalizeRuSearchString } from "@/shared/lib/ruSearchNormalize";
+import type { LfkExercisesPort } from '@/modules/lfk-exercises/ports';
+import type { RecommendationListFilterScope } from '@/shared/lib/doctorCatalogListStatus';
+import { normalizeRuSearchString } from '@/shared/lib/ruSearchNormalize';
 import type {
   CreateExerciseInput,
   Exercise,
@@ -9,15 +9,18 @@ import type {
   ExerciseMedia,
   ExerciseUsageSnapshot,
   UpdateExerciseInput,
-} from "@/modules/lfk-exercises/types";
-import { EMPTY_EXERCISE_USAGE_SNAPSHOT } from "@/modules/lfk-exercises/types";
-import { mergeExerciseRegionRefIds } from "@/modules/lfk-exercises/types";
+} from '@/modules/lfk-exercises/types';
+import { EMPTY_EXERCISE_USAGE_SNAPSHOT } from '@/modules/lfk-exercises/types';
+import { mergeExerciseRegionRefIds } from '@/modules/lfk-exercises/types';
 
 const exercises = new Map<string, Exercise>();
 const usageByExerciseId = new Map<string, ExerciseUsageSnapshot>();
 
 /** Только для тестов: задать usage snapshot для упражнения (in-memory port). */
-export function seedInMemoryExerciseUsageSnapshot(id: string, snapshot: ExerciseUsageSnapshot): void {
+export function seedInMemoryExerciseUsageSnapshot(
+  id: string,
+  snapshot: ExerciseUsageSnapshot,
+): void {
   usageByExerciseId.set(id, snapshot);
 }
 
@@ -29,22 +32,24 @@ export function resetInMemoryLfkExercisesStore(): void {
 
 function exerciseListArchiveScope(f: ExerciseFilter): RecommendationListFilterScope {
   if (f.archiveListScope) return f.archiveListScope;
-  if (f.includeArchived === true) return "all";
-  return "active";
+  if (f.includeArchived === true) return 'all';
+  return 'active';
 }
 
 function matchesFilter(ex: Exercise, f: ExerciseFilter): boolean {
-  if (ex.catalogScope !== "catalog") return false;
-  if (ex.ownerKind === "platform" && f.includePlatformBase !== true) return false;
+  if (ex.catalogScope !== 'catalog') return false;
+  if (ex.ownerKind === 'platform' && f.includePlatformBase !== true) return false;
   const scope = exerciseListArchiveScope(f);
-  if (scope === "active" && ex.isArchived) return false;
-  if (scope === "archived" && !ex.isArchived) return false;
+  if (scope === 'active' && ex.isArchived) return false;
+  if (scope === 'archived' && !ex.isArchived) return false;
   if (f.regionRefId) {
     if (!ex.regionRefIds.includes(f.regionRefId)) return false;
   }
   if (f.loadType && ex.loadType !== f.loadType) return false;
-  if (f.difficultyMin != null && (ex.difficulty1_10 == null || ex.difficulty1_10 < f.difficultyMin)) return false;
-  if (f.difficultyMax != null && (ex.difficulty1_10 == null || ex.difficulty1_10 > f.difficultyMax)) return false;
+  if (f.difficultyMin != null && (ex.difficulty1_10 == null || ex.difficulty1_10 < f.difficultyMin))
+    return false;
+  if (f.difficultyMax != null && (ex.difficulty1_10 == null || ex.difficulty1_10 > f.difficultyMax))
+    return false;
   if (f.tags?.length) {
     const tags = ex.tags ?? [];
     if (!f.tags.every((t) => tags.includes(t))) return false;
@@ -71,7 +76,10 @@ export const inMemoryLfkExercisesPort: LfkExercisesPort = {
     const out = new Map<string, string>();
     for (const id of ids) {
       const ex = exercises.get(id.trim());
-      if (ex?.catalogScope === "catalog" && (ex.ownerKind === "organization" || options.includePlatformBase === true)) {
+      if (
+        ex?.catalogScope === 'catalog' &&
+        (ex.ownerKind === 'organization' || options.includePlatformBase === true)
+      ) {
         out.set(ex.id, ex.title);
       }
     }
@@ -80,7 +88,12 @@ export const inMemoryLfkExercisesPort: LfkExercisesPort = {
 
   async getById(id: string, options: ExerciseAccessOptions = {}): Promise<Exercise | null> {
     const exercise = exercises.get(id);
-    if (!exercise || exercise.catalogScope !== "catalog" || (exercise.ownerKind === "platform" && options.includePlatformBase !== true)) return null;
+    if (
+      !exercise ||
+      exercise.catalogScope !== 'catalog' ||
+      (exercise.ownerKind === 'platform' && options.includePlatformBase !== true)
+    )
+      return null;
     return exercise;
   },
 
@@ -98,8 +111,8 @@ export const inMemoryLfkExercisesPort: LfkExercisesPort = {
     const regionRefIds = mergeExerciseRegionRefIds(input.regionRefId, input.regionRefIds ?? null);
     const ex: Exercise = {
       id,
-      ownerKind: "organization",
-      catalogScope: "catalog",
+      ownerKind: 'organization',
+      catalogScope: 'catalog',
       title: input.title,
       description: input.description ?? null,
       regionRefId: regionRefIds[0] ?? null,
@@ -120,7 +133,7 @@ export const inMemoryLfkExercisesPort: LfkExercisesPort = {
 
   async update(id: string, input: UpdateExerciseInput): Promise<Exercise | null> {
     const cur = exercises.get(id);
-    if (!cur || cur.ownerKind !== "organization" || cur.catalogScope !== "catalog") return null;
+    if (!cur || cur.ownerKind !== 'organization' || cur.catalogScope !== 'catalog') return null;
     const now = new Date().toISOString();
     let media = cur.media;
     if (input.media !== undefined && input.media !== null) {
@@ -147,8 +160,10 @@ export const inMemoryLfkExercisesPort: LfkExercisesPort = {
         ? { regionRefId: regionPatch[0] ?? null, regionRefIds: regionPatch }
         : {}),
       loadType: input.loadType !== undefined ? input.loadType : cur.loadType,
-      difficulty1_10: input.difficulty1_10 !== undefined ? input.difficulty1_10 : cur.difficulty1_10,
-      contraindications: input.contraindications !== undefined ? input.contraindications : cur.contraindications,
+      difficulty1_10:
+        input.difficulty1_10 !== undefined ? input.difficulty1_10 : cur.difficulty1_10,
+      contraindications:
+        input.contraindications !== undefined ? input.contraindications : cur.contraindications,
       tags: input.tags !== undefined ? input.tags : cur.tags,
       updatedAt: now,
       media,
@@ -159,14 +174,26 @@ export const inMemoryLfkExercisesPort: LfkExercisesPort = {
 
   async archive(id: string): Promise<boolean> {
     const cur = exercises.get(id);
-    if (!cur || cur.ownerKind !== "organization" || cur.catalogScope !== "catalog" || cur.isArchived) return false;
+    if (
+      !cur ||
+      cur.ownerKind !== 'organization' ||
+      cur.catalogScope !== 'catalog' ||
+      cur.isArchived
+    )
+      return false;
     exercises.set(id, { ...cur, isArchived: true, updatedAt: new Date().toISOString() });
     return true;
   },
 
   async unarchive(id: string): Promise<boolean> {
     const cur = exercises.get(id);
-    if (!cur || cur.ownerKind !== "organization" || cur.catalogScope !== "catalog" || !cur.isArchived) return false;
+    if (
+      !cur ||
+      cur.ownerKind !== 'organization' ||
+      cur.catalogScope !== 'catalog' ||
+      !cur.isArchived
+    )
+      return false;
     exercises.set(id, { ...cur, isArchived: false, updatedAt: new Date().toISOString() });
     return true;
   },

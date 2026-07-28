@@ -1,11 +1,11 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown } from "lucide-react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { cn } from "@/lib/utils";
-import { loadReferenceItems, type ReferenceItemDto } from "@/modules/references/referenceCache";
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ChevronDown } from 'lucide-react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { cn } from '@/lib/utils';
+import { loadReferenceItems, type ReferenceItemDto } from '@/modules/references/referenceCache';
 
 export type ReferenceSelectProps = {
   /** Required unless `prefetchedItems` is provided (then fetch is skipped). */
@@ -13,9 +13,9 @@ export type ReferenceSelectProps = {
   /** Static list: no API call; `value` / hidden submit follow `valueMatch` / `submitField`. */
   prefetchedItems?: ReferenceItemDto[];
   /** How `value` matches an item (default: id). */
-  valueMatch?: "id" | "code";
+  valueMatch?: 'id' | 'code';
   /** What goes into the hidden input when the form submits (default: id). */
-  submitField?: "id" | "code";
+  submitField?: 'id' | 'code';
   /** Selected item id or code per `valueMatch`, or null. */
   value: string | null;
   onChange: (nextValue: string | null, label: string) => void;
@@ -40,11 +40,11 @@ export type ReferenceSelectProps = {
 export function ReferenceSelect({
   categoryCode,
   prefetchedItems,
-  valueMatch = "id",
-  submitField = "id",
+  valueMatch = 'id',
+  submitField = 'id',
   value,
   onChange,
-  placeholder = "Выберите…",
+  placeholder = 'Выберите…',
   allowFreeText = false,
   disabled = false,
   className,
@@ -56,10 +56,10 @@ export function ReferenceSelect({
   searchable = true,
 }: ReferenceSelectProps) {
   const [remoteItems, setRemoteItems] = useState<ReferenceItemDto[]>([]);
-  const [loadState, setLoadState] = useState<"loading" | "done">(() =>
-    prefetchedItems || !categoryCode ? "done" : "loading",
+  const [loadState, setLoadState] = useState<'loading' | 'done'>(() =>
+    prefetchedItems || !categoryCode ? 'done' : 'loading',
   );
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
   const [listScrollOverflowBottom, setListScrollOverflowBottom] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -86,7 +86,7 @@ export function ReferenceSelect({
 
   useEffect(() => {
     queueMicrotask(() => {
-      setQuery("");
+      setQuery('');
       setOpen(false);
     });
   }, [value]);
@@ -95,19 +95,19 @@ export function ReferenceSelect({
     if (prefetchedItems || !categoryCode) return;
     let cancelled = false;
     queueMicrotask(() => {
-      if (!cancelled) setLoadState("loading");
+      if (!cancelled) setLoadState('loading');
     });
     void loadReferenceItems(categoryCode)
       .then((list) => {
         if (!cancelled) {
           setRemoteItems(list);
-          setLoadState("done");
+          setLoadState('done');
         }
       })
       .catch(() => {
         // `loadReferenceItems` itself never rejects, but a stuck "loading" state (no error, no
         // retry) is worse than surfacing an empty list — never leave the field disabled forever.
-        if (!cancelled) setLoadState("done");
+        if (!cancelled) setLoadState('done');
       });
     return () => {
       cancelled = true;
@@ -115,23 +115,25 @@ export function ReferenceSelect({
   }, [categoryCode, prefetchedItems]);
 
   const selectedLabel = useMemo(() => {
-    if (!value) return "";
+    if (!value) return '';
     if (missingValueOption && value === missingValueOption.value) return missingValueOption.label;
-    const it = items.find((i) => (valueMatch === "code" ? i.code === value : i.id === value));
-    return it?.title ?? "";
+    const it = items.find((i) => (valueMatch === 'code' ? i.code === value : i.id === value));
+    return it?.title ?? '';
   }, [items, value, valueMatch, missingValueOption]);
 
   const hiddenSubmitValue = useMemo(() => {
-    if (!value) return "";
-    const it = items.find((i) => (valueMatch === "code" ? i.code === value : i.id === value));
-    if (!it) return "";
-    return submitField === "code" ? it.code : it.id;
+    if (!value) return '';
+    const it = items.find((i) => (valueMatch === 'code' ? i.code === value : i.id === value));
+    if (!it) return '';
+    return submitField === 'code' ? it.code : it.id;
   }, [items, value, valueMatch, submitField]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return items;
-    return items.filter((i) => i.title.toLowerCase().includes(q) || i.code.toLowerCase().includes(q));
+    return items.filter(
+      (i) => i.title.toLowerCase().includes(q) || i.code.toLowerCase().includes(q),
+    );
   }, [items, query]);
 
   const updateListScrollOverflow = useCallback(() => {
@@ -148,7 +150,7 @@ export function ReferenceSelect({
     }
     const el = listboxRef.current;
     if (!el) return;
-    const RO = typeof globalThis.ResizeObserver === "function" ? globalThis.ResizeObserver : null;
+    const RO = typeof globalThis.ResizeObserver === 'function' ? globalThis.ResizeObserver : null;
     if (!RO) {
       queueMicrotask(updateListScrollOverflow);
       return;
@@ -162,15 +164,15 @@ export function ReferenceSelect({
   }, [open, filtered, clearOptionLabel, missingValueOption, updateListScrollOverflow]);
 
   return (
-    <div ref={rootRef} className={cn("relative", className)}>
+    <div ref={rootRef} className={cn('relative', className)}>
       {name ? <input type="hidden" name={name} value={hiddenSubmitValue} /> : null}
       <Input
         id={id}
         type="text"
         role="combobox"
         aria-expanded={open}
-        disabled={disabled || loadState !== "done"}
-        placeholder={loadState !== "done" ? "Загрузка…" : placeholder}
+        disabled={disabled || loadState !== 'done'}
+        placeholder={loadState !== 'done' ? 'Загрузка…' : placeholder}
         value={open && searchable ? query : selectedLabel}
         onChange={(e) => {
           if (!searchable) return;
@@ -182,19 +184,19 @@ export function ReferenceSelect({
           }
         }}
         onClick={() => {
-          if (!searchable && loadState === "done" && !disabled) {
+          if (!searchable && loadState === 'done' && !disabled) {
             setOpen(true);
-            setQuery(showAllOnFocus ? "" : "");
+            setQuery(showAllOnFocus ? '' : '');
           }
         }}
         onFocus={() => {
           setOpen(true);
-          setQuery(showAllOnFocus || !searchable ? "" : selectedLabel);
+          setQuery(showAllOnFocus || !searchable ? '' : selectedLabel);
         }}
         onBlur={() => {
           blurTimerRef.current = setTimeout(() => setOpen(false), 150);
         }}
-        className={cn("w-full", !searchable && "cursor-pointer caret-transparent")}
+        className={cn('w-full', !searchable && 'cursor-pointer caret-transparent')}
         readOnly={!searchable}
         autoComplete="off"
       />
@@ -215,8 +217,8 @@ export function ReferenceSelect({
                     className="h-auto w-full justify-start rounded-none px-3 py-2 text-left text-sm font-normal"
                     onMouseDown={(e) => {
                       e.preventDefault();
-                      onChange(null, "");
-                      setQuery("");
+                      onChange(null, '');
+                      setQuery('');
                       setOpen(false);
                       if (!searchable) blurInput();
                     }}
@@ -234,7 +236,7 @@ export function ReferenceSelect({
                     onMouseDown={(e) => {
                       e.preventDefault();
                       onChange(missingValueOption.value, missingValueOption.label);
-                      setQuery("");
+                      setQuery('');
                       setOpen(false);
                       if (!searchable) blurInput();
                     }}
@@ -251,8 +253,8 @@ export function ReferenceSelect({
                     className="h-auto w-full justify-start rounded-none px-3 py-2 text-left text-sm font-normal"
                     onMouseDown={(e) => {
                       e.preventDefault();
-                      onChange(valueMatch === "code" ? i.code : i.id, i.title);
-                      setQuery("");
+                      onChange(valueMatch === 'code' ? i.code : i.id, i.title);
+                      setQuery('');
                       setOpen(false);
                       if (!searchable) blurInput();
                     }}
@@ -268,7 +270,10 @@ export function ReferenceSelect({
                 aria-hidden
               >
                 <div className="absolute inset-0 bg-gradient-to-t from-background from-25% via-background/70 to-transparent" />
-                <ChevronDown className="relative size-4 shrink-0 text-muted-foreground opacity-80" strokeWidth={2.25} />
+                <ChevronDown
+                  className="relative size-4 shrink-0 text-muted-foreground opacity-80"
+                  strokeWidth={2.25}
+                />
               </div>
             ) : null}
           </div>

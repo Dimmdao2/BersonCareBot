@@ -1,11 +1,11 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { Button } from "@/shared/ui/patient/primitives/button";
-import { Textarea } from "@/shared/ui/patient/primitives/textarea";
-import { routePaths } from "@/app-layer/routes/paths";
-import { cn } from "@/lib/utils";
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { Button } from '@/shared/ui/patient/primitives/button';
+import { Textarea } from '@/shared/ui/patient/primitives/textarea';
+import { routePaths } from '@/app-layer/routes/paths';
+import { cn } from '@/lib/utils';
 import {
   patientButtonPrimaryClass,
   patientButtonSecondaryClass,
@@ -17,44 +17,44 @@ import {
   patientSectionTitleClass,
   patientSurfaceDangerClass,
   patientSurfaceSuccessClass,
-} from "@/shared/ui/patient/patientVisual";
+} from '@/shared/ui/patient/patientVisual';
 
-type State = "form" | "submitting" | "success" | "error";
+type State = 'form' | 'submitting' | 'success' | 'error';
 
 export function NutritionIntakeClient() {
   const router = useRouter();
-  const [state, setState] = useState<State>("form");
-  const [description, setDescription] = useState("");
+  const [state, setState] = useState<State>('form');
+  const [description, setDescription] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const canSubmit = description.trim().length >= 20;
 
   async function handleSubmit() {
     if (!canSubmit) return;
-    setState("submitting");
+    setState('submitting');
     setErrorMessage(null);
 
     try {
-      const res = await fetch("/api/patient/online-intake/nutrition", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const res = await fetch('/api/patient/online-intake/nutrition', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ description: description.trim() }),
       });
 
       if (res.ok) {
-        setState("success");
+        setState('success');
       } else {
         const data = (await res.json().catch(() => ({}))) as { message?: string };
-        setErrorMessage(data.message ?? "Произошла ошибка. Попробуйте ещё раз.");
-        setState("error");
+        setErrorMessage(data.message ?? 'Произошла ошибка. Попробуйте ещё раз.');
+        setState('error');
       }
     } catch {
-      setErrorMessage("Не удалось отправить запрос. Проверьте подключение.");
-      setState("error");
+      setErrorMessage('Не удалось отправить запрос. Проверьте подключение.');
+      setState('error');
     }
   }
 
-  if (state === "success") {
+  if (state === 'success') {
     return (
       <div className={patientInnerPageStackClass}>
         <div className={patientSurfaceSuccessClass}>
@@ -65,7 +65,7 @@ export function NutritionIntakeClient() {
         </div>
         <Button
           type="button"
-          className={cn(patientButtonSecondaryClass, "sm:w-auto")}
+          className={cn(patientButtonSecondaryClass, 'sm:w-auto')}
           onClick={() => router.push(routePaths.bookingNew)}
         >
           Вернуться в кабинет
@@ -80,42 +80,45 @@ export function NutritionIntakeClient() {
         <h1 className={patientSectionTitleClass}>Нутрициология</h1>
 
         <div className="flex flex-col gap-1.5">
-          <label className={cn("text-xs font-medium", patientMutedTextStrongClass)} htmlFor="nutrition-description">
+          <label
+            className={cn('text-xs font-medium', patientMutedTextStrongClass)}
+            htmlFor="nutrition-description"
+          >
             Описание запроса <span className="text-destructive">*</span>
           </label>
           <Textarea
             id="nutrition-description"
-            className={cn(patientFormSurfaceClass, "min-h-32 resize-y text-sm")}
+            className={cn(patientFormSurfaceClass, 'min-h-32 resize-y text-sm')}
             placeholder="Опишите запрос: цели, ограничения, что хотите обсудить с нутрициологом..."
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            disabled={state === "submitting"}
+            disabled={state === 'submitting'}
           />
           {description.trim().length > 0 && description.trim().length < 20 && (
             <p className="text-xs text-destructive">Минимум 20 символов</p>
           )}
         </div>
 
-        {state === "error" && errorMessage ? (
-          <div className={cn(patientSurfaceDangerClass, "text-sm")}>{errorMessage}</div>
+        {state === 'error' && errorMessage ? (
+          <div className={cn(patientSurfaceDangerClass, 'text-sm')}>{errorMessage}</div>
         ) : null}
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch">
           <Button
             type="button"
-            className={cn(patientButtonSecondaryClass, "sm:w-auto")}
+            className={cn(patientButtonSecondaryClass, 'sm:w-auto')}
             onClick={() => router.back()}
-            disabled={state === "submitting"}
+            disabled={state === 'submitting'}
           >
             Назад
           </Button>
           <Button
             type="button"
-            className={cn(patientButtonPrimaryClass, "sm:w-auto")}
+            className={cn(patientButtonPrimaryClass, 'sm:w-auto')}
             onClick={handleSubmit}
-            disabled={!canSubmit || state === "submitting"}
+            disabled={!canSubmit || state === 'submitting'}
           >
-            {state === "submitting" ? "Отправка..." : "Отправить запрос"}
+            {state === 'submitting' ? 'Отправка...' : 'Отправить запрос'}
           </Button>
         </div>
       </section>

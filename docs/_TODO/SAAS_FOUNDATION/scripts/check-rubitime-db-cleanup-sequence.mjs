@@ -194,7 +194,8 @@ if (fullResetLauncherSrc) {
     'BCB_TEST_FULL_RESET_ENTRYPOINT=deploy-test-full-reset-v1',
     'exec bash "$SCRIPT_DIR/deploy-test-saas.sh" "$@"',
     'For ordinary code deploys use: bash deploy/host/deploy-test.sh [branch]',
-  ]) requireMention(errors, fullResetLauncherSrc, fullResetLauncher, fragment);
+  ])
+    requireMention(errors, fullResetLauncherSrc, fullResetLauncher, fragment);
 }
 
 if (freshWrapperSrc) {
@@ -210,7 +211,8 @@ if (freshWrapperSrc) {
     'stage_hash_bound_rubitime_csv',
     'assert_staged_rubitime_csv_ready',
     'root:deploy:440',
-  ]) requireMention(errors, freshWrapperSrc, freshTestWrapper, fragment);
+  ])
+    requireMention(errors, freshWrapperSrc, freshTestWrapper, fragment);
   requireOrdered(errors, freshWrapperSrc, freshTestWrapper, [
     'log "build (install + build + build:webapp + media-worker + assets)"',
     'fio:owner-reviewed-test:verify',
@@ -226,15 +228,37 @@ if (freshWrapperSrc) {
     'run_strict_post_migration_closure',
     'DONE — full data-ready TEST migration',
   ]);
-  requireMention(errors, freshWrapperSrc, freshTestWrapper, `CANONICAL_SPECIALIST=${currentCanonicalSpecialist}`);
-  requireMention(errors, freshWrapperSrc, freshTestWrapper, 'direct destructive invocation is disabled');
-  requireMention(errors, freshWrapperSrc, freshTestWrapper, 'deploy/host/deploy-test-full-reset.sh');
+  requireMention(
+    errors,
+    freshWrapperSrc,
+    freshTestWrapper,
+    `CANONICAL_SPECIALIST=${currentCanonicalSpecialist}`,
+  );
+  requireMention(
+    errors,
+    freshWrapperSrc,
+    freshTestWrapper,
+    'direct destructive invocation is disabled',
+  );
+  requireMention(
+    errors,
+    freshWrapperSrc,
+    freshTestWrapper,
+    'deploy/host/deploy-test-full-reset.sh',
+  );
 }
 
 if (codeOnlyWrapperSrc) {
-  requireMention(errors, codeOnlyWrapperSrc, codeOnlyTestWrapper, 'code-only путь НИКОГДА не восстанавливает');
+  requireMention(
+    errors,
+    codeOnlyWrapperSrc,
+    codeOnlyTestWrapper,
+    'code-only путь НИКОГДА не восстанавливает',
+  );
   for (const fragment of codeOnlyIsolationErrors(codeOnlyWrapperSrc)) {
-    errors.push(`${codeOnlyTestWrapper}: code-only wrapper contains forbidden destructive fragment: ${fragment}`);
+    errors.push(
+      `${codeOnlyTestWrapper}: code-only wrapper contains forbidden destructive fragment: ${fragment}`,
+    );
   }
 }
 
@@ -247,11 +271,17 @@ if (process.argv.includes('--self-test') && codeOnlyWrapperSrc) {
   const undetected = mutations.filter(
     (mutation) => codeOnlyIsolationErrors(`${codeOnlyWrapperSrc}${mutation}`).length === 0,
   );
-  if (undetected.length > 0) errors.push(`${codeOnlyTestWrapper}: destructive isolation self-test failed`);
+  if (undetected.length > 0)
+    errors.push(`${codeOnlyTestWrapper}: destructive isolation self-test failed`);
 }
 
 if (deploy667Src) {
-  requireMention(errors, deploy667Src, deploy667, `--canonical=${currentCanonicalSpecialist} --summary-only --commit`);
+  requireMention(
+    errors,
+    deploy667Src,
+    deploy667,
+    `--canonical=${currentCanonicalSpecialist} --summary-only --commit`,
+  );
   if (deploy667Src.includes('--canonical=518ea988-9b5e-4ad8-8194-a2d98f43bd7b')) {
     errors.push(`${deploy667}: stale specialist canonical remains executable`);
   }
@@ -272,11 +302,15 @@ if (placeholderPurgeSrc) {
   ]) {
     requireMention(errors, placeholderPurgeSrc, placeholderPurge, fragment);
   }
-  if (placeholderPurgeSrc.includes('new pg.Pool')) errors.push(`${placeholderPurge}: raw pg pool is forbidden`);
+  if (placeholderPurgeSrc.includes('new pg.Pool'))
+    errors.push(`${placeholderPurge}: raw pg pool is forbidden`);
 }
 
 if (onePassSrc) {
-  for (const fragment of ['makePlaceholderPurgeCommand(opts, false)', 'makePlaceholderPurgeCommand(opts, true)']) {
+  for (const fragment of [
+    'makePlaceholderPurgeCommand(opts, false)',
+    'makePlaceholderPurgeCommand(opts, true)',
+  ]) {
     requireMention(errors, onePassSrc, onePassScript, fragment);
   }
 }
@@ -290,14 +324,20 @@ if (specialistConsolidationSrc) {
     'validateExplicitCanonicalCandidate',
     "reason: 'inactive'",
     "reason: 'organization_mismatch'",
-  ]) requireMention(errors, specialistConsolidationSrc, specialistConsolidation, fragment);
+  ])
+    requireMention(errors, specialistConsolidationSrc, specialistConsolidation, fragment);
   if (specialistConsolidationSrc.includes('new pg.Pool')) {
     errors.push(`${specialistConsolidation}: raw pg pool is forbidden`);
   }
 }
 
 if (fioApplySrc) {
-  for (const fragment of ['getDrizzle', 'current_database()', '--test', '--confirm-manifest-sha256']) {
+  for (const fragment of [
+    'getDrizzle',
+    'current_database()',
+    '--test',
+    '--confirm-manifest-sha256',
+  ]) {
     requireMention(errors, fioApplySrc, fioApply, fragment);
   }
   if (fioApplySrc.includes('new pg.Pool')) errors.push(`${fioApply}: raw pg pool is forbidden`);

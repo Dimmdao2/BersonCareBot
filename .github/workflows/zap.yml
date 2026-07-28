@@ -22,15 +22,15 @@ name: OWASP ZAP (DAST)
 on:
   schedule:
     # Weekly, Monday 03:00 UTC. Matches the plan's "еженедельно" cadence for ZAP.
-    - cron: "0 3 * * 1"
+    - cron: '0 3 * * 1'
   workflow_dispatch: {}
 
 permissions:
   contents: read
 
 env:
-  ZAP_BASELINE_ACTION_REF: "v0.12.0"
-  ZAP_FULL_SCAN_ACTION_REF: "v0.12.0"
+  ZAP_BASELINE_ACTION_REF: 'v0.12.0'
+  ZAP_FULL_SCAN_ACTION_REF: 'v0.12.0'
 
 jobs:
   # === TEST target — active scan, synthetic data only ========================================
@@ -75,7 +75,7 @@ jobs:
       # whatever `ZAP_FW_*` repo secrets the firewall API needs (endpoint/token/rule id), e.g.
       # `secrets.ZAP_FW_API_ENDPOINT`, `secrets.ZAP_FW_API_TOKEN`. Keep the window as narrow as
       # possible — open here, close in the always()-guarded step below, nothing else in between.
-      - name: "TODO(owner): OPEN test firewall allowlist for GitHub Actions IP ranges"
+      - name: 'TODO(owner): OPEN test firewall allowlist for GitHub Actions IP ranges'
         run: |
           echo "TODO(owner): call the real firewall API here to OPEN the allowlist window."
           echo "TODO(owner): read CIDR ranges from ${{ steps.gh-ranges.outputs.ranges_file }}."
@@ -88,7 +88,7 @@ jobs:
         uses: zaproxy/action-full-scan@v0.12.0
         with:
           target: ${{ vars.ZAP_TEST_TARGET }}
-          cmd_options: "-a"
+          cmd_options: '-a'
           fail_action: false
           artifact_name: zap-test-active-scan-report
 
@@ -106,7 +106,7 @@ jobs:
       # TODO(owner): CLOSE step. Must mirror the OPEN step above (same firewall API / rule id)
       # and undo exactly what was opened. `if: always()` guarantees this runs even if the scan
       # step above fails or times out, so the allowlist window never stays open unattended.
-      - name: "TODO(owner): CLOSE test firewall allowlist (auto-closes even on scan failure)"
+      - name: 'TODO(owner): CLOSE test firewall allowlist (auto-closes even on scan failure)'
         if: always()
         run: |
           echo "TODO(owner): call the real firewall API here to CLOSE/revoke the allowlist window opened above."

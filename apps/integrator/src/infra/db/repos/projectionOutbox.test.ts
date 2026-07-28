@@ -16,7 +16,8 @@ vi.mock('../drizzle.js', () => ({
 /** Литералы из Drizzle `sql` для assert на claim без `toQuery` диалекта. */
 function drizzleSqlNodeToText(node: unknown): string {
   if (node === null || node === undefined) return '';
-  if (typeof node === 'string' || typeof node === 'number' || typeof node === 'boolean') return String(node);
+  if (typeof node === 'string' || typeof node === 'number' || typeof node === 'boolean')
+    return String(node);
   if (typeof node !== 'object') return '';
   const rec = node as Record<string, unknown>;
   if (Array.isArray(rec.queryChunks)) {
@@ -103,9 +104,7 @@ describe('projectionOutbox', () => {
     await completeProjectionEvent(db, 99);
 
     expect(update).toHaveBeenCalledTimes(1);
-    expect(set).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 'done' }),
-    );
+    expect(set).toHaveBeenCalledWith(expect.objectContaining({ status: 'done' }));
     expect(where).toHaveBeenCalledTimes(1);
   });
 

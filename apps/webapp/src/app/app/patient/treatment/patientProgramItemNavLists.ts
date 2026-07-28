@@ -2,7 +2,7 @@
  * Порядок id для навигации на странице пункта плана (пациент).
  * Сервер-безопасный модуль — без `"use client"`.
  */
-import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
+import type { TreatmentProgramInstanceDetail } from '@/modules/treatment-program/types';
 import {
   isInstanceStageItemActiveForPatient,
   isInstanceStageItemShownOnPatientProgramSurfaces,
@@ -10,20 +10,20 @@ import {
   isTreatmentProgramInstanceSystemStageGroup,
   patientInstanceSystemGroupHasVisibleItems,
   sortDoctorInstanceStageGroupsForDisplay,
-} from "@/modules/treatment-program/stage-semantics";
-import { parseTestSetSnapshotTests } from "@/modules/treatment-program/testSetSnapshotView";
+} from '@/modules/treatment-program/stage-semantics';
+import { parseTestSetSnapshotTests } from '@/modules/treatment-program/testSetSnapshotView';
 
-type Stage = TreatmentProgramInstanceDetail["stages"][number];
-type StageItem = Stage["items"][number];
+type Stage = TreatmentProgramInstanceDetail['stages'][number];
+type StageItem = Stage['items'][number];
 
 function sortByOrderThenId<T extends { sortOrder: number; id: string }>(rows: T[]): T[] {
   return [...rows].sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id));
 }
 
 /** Выполняемые пункты: без клинических тестов (отдельная навигация) и без невыполняемых (persistent) рекомендаций; порядок как у «тела этапа». */
-export function flatExecIds(stage: Stage, itemInteraction: "full" | "readOnly"): string[] {
+export function flatExecIds(stage: Stage, itemInteraction: 'full' | 'readOnly'): string[] {
   const visibleItems = stage.items.filter((it) =>
-    itemInteraction === "readOnly"
+    itemInteraction === 'readOnly'
       ? isInstanceStageItemActiveForPatient(it)
       : isInstanceStageItemShownOnPatientProgramSurfaces(it),
   );
@@ -36,7 +36,7 @@ export function flatExecIds(stage: Stage, itemInteraction: "full" | "readOnly"):
   const ungroupedItems = sortByOrderThenId(visibleItems.filter((it) => !it.groupId));
   const ids: string[] = [];
   const include = (it: StageItem) =>
-    it.itemType !== "clinical_test" && !isPersistentRecommendation(it);
+    it.itemType !== 'clinical_test' && !isPersistentRecommendation(it);
   for (const g of sortedGroups) {
     const gItems = sortByOrderThenId(visibleItems.filter((it) => it.groupId === g.id));
     for (const it of gItems) {
@@ -53,11 +53,16 @@ export function flatExecIds(stage: Stage, itemInteraction: "full" | "readOnly"):
  * Единый список невыполняемых рекомендаций для вкладки «Рекомендации»:
  * сначала persistent текущего рабочего этапа, затем persistent этапов 0 (в порядке этапов).
  */
-export function flatRecReadIds(currentWorkingStage: Stage | null, stageZeroStages: Stage[]): string[] {
+export function flatRecReadIds(
+  currentWorkingStage: Stage | null,
+  stageZeroStages: Stage[],
+): string[] {
   const ids: string[] = [];
   const seen = new Set<string>();
   if (currentWorkingStage) {
-    for (const it of sortByOrderThenId(currentWorkingStage.items.filter((i) => isPersistentRecommendation(i)))) {
+    for (const it of sortByOrderThenId(
+      currentWorkingStage.items.filter((i) => isPersistentRecommendation(i)),
+    )) {
       if (!seen.has(it.id)) {
         seen.add(it.id);
         ids.push(it.id);
@@ -83,7 +88,7 @@ export function flatTestSlots(currentWorkingStage: Stage | null): PatientProgram
   if (!currentWorkingStage) return [];
   const testItems = sortByOrderThenId(
     currentWorkingStage.items.filter(
-      (it) => it.itemType === "clinical_test" && isInstanceStageItemActiveForPatient(it),
+      (it) => it.itemType === 'clinical_test' && isInstanceStageItemActiveForPatient(it),
     ),
   );
   const out: PatientProgramTestNavSlot[] = [];

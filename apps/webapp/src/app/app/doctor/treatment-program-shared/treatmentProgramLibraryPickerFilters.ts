@@ -1,9 +1,9 @@
-import type { Exercise, ExerciseLoadType } from "@/modules/lfk-exercises/types";
-import type { Template } from "@/modules/lfk-templates/types";
-import type { TreatmentProgramLibraryPickType } from "@/modules/treatment-program/types";
-import { normalizeRuSearchString } from "@/shared/lib/ruSearchNormalize";
-import { isDoctorCatalogMissingFilter } from "@/shared/lib/doctorCatalogEmptyFieldFilter";
-import type { TreatmentProgramLibraryRow } from "./treatmentProgramLibraryTypes";
+import type { Exercise, ExerciseLoadType } from '@/modules/lfk-exercises/types';
+import type { Template } from '@/modules/lfk-templates/types';
+import type { TreatmentProgramLibraryPickType } from '@/modules/treatment-program/types';
+import { normalizeRuSearchString } from '@/shared/lib/ruSearchNormalize';
+import { isDoctorCatalogMissingFilter } from '@/shared/lib/doctorCatalogEmptyFieldFilter';
+import type { TreatmentProgramLibraryRow } from './treatmentProgramLibraryTypes';
 
 export function buildExerciseMetaById(
   exercises: Exercise[],
@@ -20,14 +20,17 @@ export function mapExerciseRegionCodes(
   if (!bodyRegionIdToCode) return [];
   return regionRefIds
     .map((id) => bodyRegionIdToCode[id])
-    .filter((code): code is string => typeof code === "string" && code.length > 0);
+    .filter((code): code is string => typeof code === 'string' && code.length > 0);
 }
 
 export function buildLfkComplexLibraryFilterMeta(
   template: Template,
-  exerciseMetaById: Record<string, { regionRefIds: readonly string[]; loadType: ExerciseLoadType | null }>,
+  exerciseMetaById: Record<
+    string,
+    { regionRefIds: readonly string[]; loadType: ExerciseLoadType | null }
+  >,
   bodyRegionIdToCode: Record<string, string> | undefined,
-): Pick<TreatmentProgramLibraryRow, "regionCodes" | "loadTypes"> {
+): Pick<TreatmentProgramLibraryRow, 'regionCodes' | 'loadTypes'> {
   const regionCodes = new Set<string>();
   const loadTypes = new Set<string>();
 
@@ -48,13 +51,19 @@ export function buildLfkComplexLibraryFilterMeta(
 }
 
 export function supportsTreatmentProgramLibraryRegionLoadFilters(
-  pickType: TreatmentProgramLibraryPickType | "exercise" | "lfk_complex" | "clinical_test" | "recommendation" | "lesson",
+  pickType:
+    | TreatmentProgramLibraryPickType
+    | 'exercise'
+    | 'lfk_complex'
+    | 'clinical_test'
+    | 'recommendation'
+    | 'lesson',
 ): boolean {
   return (
-    pickType === "exercise" ||
-    pickType === "lfk_complex" ||
-    pickType === "clinical_test" ||
-    pickType === "recommendation"
+    pickType === 'exercise' ||
+    pickType === 'lfk_complex' ||
+    pickType === 'clinical_test' ||
+    pickType === 'recommendation'
   );
 }
 
@@ -85,7 +94,7 @@ export function filterTreatmentProgramLibraryPickerRows(
 
   if (!input.applyRegionLoadFilters) return out;
 
-  const regionCode = input.regionCode?.trim() ?? "";
+  const regionCode = input.regionCode?.trim() ?? '';
   if (isDoctorCatalogMissingFilter(regionCode)) {
     out = out.filter((row) => (row.regionCodes ?? []).length === 0);
   } else if (regionCode) {
@@ -118,8 +127,8 @@ export function treatmentProgramLibraryPickerEmptyMessage(input: {
   filteredListLength: number;
   filtersActive: boolean;
 }): string {
-  if (input.filteredListLength > 0) return "";
-  if (input.baseListLength === 0) return "Нет записей для выбранного типа.";
-  if (input.filtersActive) return "Ничего не найдено по фильтрам.";
-  return "Нет записей для выбранного типа.";
+  if (input.filteredListLength > 0) return '';
+  if (input.baseListLength === 0) return 'Нет записей для выбранного типа.';
+  if (input.filtersActive) return 'Ничего не найдено по фильтрам.';
+  return 'Нет записей для выбранного типа.';
 }

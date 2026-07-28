@@ -1,14 +1,17 @@
-import type { ChannelPreference } from "@/modules/channel-preferences/types";
+import type { ChannelPreference } from '@/modules/channel-preferences/types';
 import type {
   NotificationChannelCode,
   ResolvedNotificationChannelsCore,
   SkippedNotificationChannel,
   SkippedNotificationChannelReason,
-} from "./notificationChannelContract";
-import type { TopicChannelPrefRow } from "./topicChannelPrefsPort";
-import { allowedChannelsForTopic } from "./topicChannelRules";
+} from './notificationChannelContract';
+import type { TopicChannelPrefRow } from './topicChannelPrefsPort';
+import { allowedChannelsForTopic } from './topicChannelRules';
 
-export type { NotificationChannelCode, SkippedNotificationChannelReason } from "./notificationChannelContract";
+export type {
+  NotificationChannelCode,
+  SkippedNotificationChannelReason,
+} from './notificationChannelContract';
 
 export type PatientNotificationChannelAvailability = {
   hasTelegram: boolean;
@@ -62,7 +65,7 @@ export function resolvePatientNotificationChannels(params: {
   const gate = params.gate;
   if (gate?.muted) {
     for (const code of allowed) {
-      skippedChannels.push({ channel: code, reason: "muted" });
+      skippedChannels.push({ channel: code, reason: 'muted' });
     }
     return { selectedChannels, skippedChannels, availableChannels, enabledChannels };
   }
@@ -71,44 +74,44 @@ export function resolvePatientNotificationChannels(params: {
 
   const consider = (code: NotificationChannelCode) => {
     if (!allowed.includes(code)) {
-      skippedChannels.push({ channel: code, reason: "channel_not_allowed_for_topic" });
+      skippedChannels.push({ channel: code, reason: 'channel_not_allowed_for_topic' });
       return;
     }
 
     switch (code) {
-      case "telegram":
+      case 'telegram':
         if (!a.hasTelegram) {
-          skippedChannels.push({ channel: code, reason: "missing_binding" });
+          skippedChannels.push({ channel: code, reason: 'missing_binding' });
           return;
         }
         break;
-      case "max":
+      case 'max':
         if (!a.hasMax) {
-          skippedChannels.push({ channel: code, reason: "missing_binding" });
+          skippedChannels.push({ channel: code, reason: 'missing_binding' });
           return;
         }
         break;
-      case "email":
+      case 'email':
         if (!a.hasEmail) {
-          skippedChannels.push({ channel: code, reason: "missing_email" });
+          skippedChannels.push({ channel: code, reason: 'missing_email' });
           return;
         }
         if (!a.emailVerified) {
-          skippedChannels.push({ channel: code, reason: "email_not_verified" });
+          skippedChannels.push({ channel: code, reason: 'email_not_verified' });
           return;
         }
         if (a.smtpConfigured === false) {
-          skippedChannels.push({ channel: code, reason: "provider_disabled" });
+          skippedChannels.push({ channel: code, reason: 'provider_disabled' });
           return;
         }
         break;
-      case "web_push":
+      case 'web_push':
         if (!a.vapidConfigured) {
-          skippedChannels.push({ channel: code, reason: "vapid_missing" });
+          skippedChannels.push({ channel: code, reason: 'vapid_missing' });
           return;
         }
         if (!a.hasWebPushSubscription) {
-          skippedChannels.push({ channel: code, reason: "no_active_subscriptions" });
+          skippedChannels.push({ channel: code, reason: 'no_active_subscriptions' });
           return;
         }
         break;
@@ -119,11 +122,11 @@ export function resolvePatientNotificationChannels(params: {
     availableChannels.push(code);
 
     if (!globalNotificationsEnabled(channelPrefs, code)) {
-      skippedChannels.push({ channel: code, reason: "disabled_by_user_global" });
+      skippedChannels.push({ channel: code, reason: 'disabled_by_user_global' });
       return;
     }
     if (!resolveTopicChannelEnabled(topicChannelRows, topicCode, code)) {
-      skippedChannels.push({ channel: code, reason: "disabled_by_user_topic_channel" });
+      skippedChannels.push({ channel: code, reason: 'disabled_by_user_topic_channel' });
       return;
     }
 
@@ -131,7 +134,7 @@ export function resolvePatientNotificationChannels(params: {
     selectedChannels.push(code);
   };
 
-  for (const code of ["web_push", "telegram", "max", "email"] as const) {
+  for (const code of ['web_push', 'telegram', 'max', 'email'] as const) {
     consider(code);
   }
 

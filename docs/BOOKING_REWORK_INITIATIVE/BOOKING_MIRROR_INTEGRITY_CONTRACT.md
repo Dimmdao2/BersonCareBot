@@ -9,13 +9,13 @@
 
 ## Outbound (кабинет → Rubitime)
 
-| Сценарий | Порядок | При ошибке Rubitime после canonical |
-|----------|--------|-----------------------------------|
-| Staff reschedule | Rubitime → канон | Rollback Rubitime; канон не меняется |
-| Staff/admin cancel | канон → Rubitime | API `ok` + флаги partial failure; канон уже отменён |
-| Patient cancel/reschedule | канон → best-effort Rubitime | API `ok` + `rubitimeMirrorFailed` при сбое mirror |
+| Сценарий                        | Порядок                                                                          | При ошибке Rubitime после canonical                                         |
+| ------------------------------- | -------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| Staff reschedule                | Rubitime → канон                                                                 | Rollback Rubitime; канон не меняется                                        |
+| Staff/admin cancel              | канон → Rubitime                                                                 | API `ok` + флаги partial failure; канон уже отменён                         |
+| Patient cancel/reschedule       | канон → best-effort Rubitime                                                     | API `ok` + `rubitimeMirrorFailed` при сбое mirror                           |
 | Patient create (rubitime-first) | Rubitime → канон (adopt projection; **без** native `createAppointment` fallback) | Rollback `deleteRecord` при ошибке канона / `rubitime_projection_not_ready` |
-| Admin manual create | как doctor при mapping | Rubitime create+mapping или skip |
+| Admin manual create             | как doctor при mapping                                                           | Rubitime create+mapping или skip                                            |
 
 ## Bridge flag
 
@@ -60,13 +60,13 @@
 
 Продуктовый порядок: **сначала** `manual-cancel` (одно уведомление) → **потом** `POST …/appointments/[id]/delete` (тихо).
 
-| Правило | Деталь |
-|---------|--------|
-| Whitelist | `cancelled_by_patient`, `cancelled_by_specialist`, `late_cancellation` — **не** `no_show` / active / completed |
-| Канон `be_appointments` | **Не** hard-delete; audit в `be_appointment_cancellations` сохраняется |
-| Local purge (TX) | `appointment_records.deleted_at`; **DELETE** `patient_bookings` (upcoming + history) |
-| Rubitime | Только после local purge; `remove-record` / `deleteRecord` (не `cancelRecord`) при bridge on |
-| Events | Только **`booking.deleted`** (`idempotencyKey: booking.deleted:staff:{appointmentId}`); **запрещён** `booking.cancelled` на delete path |
-| Partial | `ok: true` + optional **`rubitimeMirrorFailed`** — не 502 после локального purge |
-| Inbound | `appointment.record.upserted` на purged row → `skipped_purged` (без revive) |
-| Read surfaces | Purged скрыты из canonical calendar/list/stats/KPI (`infra/repos/doctorAppointmentPurgeFilter`) |
+| Правило                 | Деталь                                                                                                                                  |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Whitelist               | `cancelled_by_patient`, `cancelled_by_specialist`, `late_cancellation` — **не** `no_show` / active / completed                          |
+| Канон `be_appointments` | **Не** hard-delete; audit в `be_appointment_cancellations` сохраняется                                                                  |
+| Local purge (TX)        | `appointment_records.deleted_at`; **DELETE** `patient_bookings` (upcoming + history)                                                    |
+| Rubitime                | Только после local purge; `remove-record` / `deleteRecord` (не `cancelRecord`) при bridge on                                            |
+| Events                  | Только **`booking.deleted`** (`idempotencyKey: booking.deleted:staff:{appointmentId}`); **запрещён** `booking.cancelled` на delete path |
+| Partial                 | `ok: true` + optional **`rubitimeMirrorFailed`** — не 502 после локального purge                                                        |
+| Inbound                 | `appointment.record.upserted` на purged row → `skipped_purged` (без revive)                                                             |
+| Read surfaces           | Purged скрыты из canonical calendar/list/stats/KPI (`infra/repos/doctorAppointmentPurgeFilter`)                                         |

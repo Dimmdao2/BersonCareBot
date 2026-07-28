@@ -1,31 +1,31 @@
-import { DateTime } from "luxon";
-import type { ReminderRule } from "@/modules/reminders/types";
-import { countWarmupReminderSlotsInUtcRange } from "@/modules/patient-home/nextReminderOccurrence";
-import { pickActivePlanInstance } from "@/modules/treatment-program/pickActivePlanInstance";
-import { omitDisabledInstanceStageItemsForPatientApi } from "@/modules/treatment-program/stage-semantics";
-import { buildLivePlanChecklistItemIds } from "@/modules/patient-diary/diaryPlanChecklist";
-import type { TreatmentProgramInstanceSummary } from "@/modules/treatment-program/types";
-import type { PatientDiarySnapshotsPort } from "./ports";
-import type { PatientPracticePort } from "@/modules/patient-practice/ports";
-import type { ProgramActionLogPort } from "@/modules/treatment-program/ports";
+import { DateTime } from 'luxon';
+import type { ReminderRule } from '@/modules/reminders/types';
+import { countWarmupReminderSlotsInUtcRange } from '@/modules/patient-home/nextReminderOccurrence';
+import { pickActivePlanInstance } from '@/modules/treatment-program/pickActivePlanInstance';
+import { omitDisabledInstanceStageItemsForPatientApi } from '@/modules/treatment-program/stage-semantics';
+import { buildLivePlanChecklistItemIds } from '@/modules/patient-diary/diaryPlanChecklist';
+import type { TreatmentProgramInstanceSummary } from '@/modules/treatment-program/types';
+import type { PatientDiarySnapshotsPort } from './ports';
+import type { PatientPracticePort } from '@/modules/patient-practice/ports';
+import type { ProgramActionLogPort } from '@/modules/treatment-program/ports';
 import {
   captureDiaryDaySnapshot,
   localCalendarDayWindowUtcIso,
   buildDiaryDayPlanFromLog,
   type CaptureDiaryDaySnapshotDeps,
-} from "./captureDiaryDaySnapshot";
-import type { PatientDiaryDaySnapshotRow } from "../../../db/schema/patientDiarySnapshots";
-import { snapshotDayHasPlanOrWarmupActivity } from "./aggregatePassageStatsFromSnapshots";
+} from './captureDiaryDaySnapshot';
+import type { PatientDiaryDaySnapshotRow } from '../../../db/schema/patientDiarySnapshots';
+import { snapshotDayHasPlanOrWarmupActivity } from './aggregatePassageStatsFromSnapshots';
 
-const WARMUP_COMPLETION_SOURCES = new Set(["daily_warmup", "reminder"]);
+const WARMUP_COMPLETION_SOURCES = new Set(['daily_warmup', 'reminder']);
 
 function countWarmupCompletionsInWindow(
-  listByUserInUtcRange: PatientPracticePort["listByUserInUtcRange"],
+  listByUserInUtcRange: PatientPracticePort['listByUserInUtcRange'],
   userId: string,
   win: { start: string; end: string },
 ): Promise<number> {
-  return listByUserInUtcRange(userId, win.start, win.end).then((rows) =>
-    rows.filter((r) => WARMUP_COMPLETION_SOURCES.has(r.source)).length,
+  return listByUserInUtcRange(userId, win.start, win.end).then(
+    (rows) => rows.filter((r) => WARMUP_COMPLETION_SOURCES.has(r.source)).length,
   );
 }
 
@@ -69,7 +69,10 @@ function snapToWarmupDay(snap: PatientDiaryDaySnapshotRow): DiaryWarmupDayModel 
   };
 }
 
-function hasPlanOrWarmupActivity(plan: DiaryPlanDayModel | null, warmup: DiaryWarmupDayModel | null): boolean {
+function hasPlanOrWarmupActivity(
+  plan: DiaryPlanDayModel | null,
+  warmup: DiaryWarmupDayModel | null,
+): boolean {
   if (warmup && (warmup.doneCount > 0 || warmup.allDone)) return true;
   if (plan && plan.items.some((it) => it.done)) return true;
   return false;
@@ -80,7 +83,11 @@ async function synthesizeWarmupDay(
   params: { userId: string; localYmd: string; iana: string; rules: ReminderRule[] },
 ): Promise<DiaryWarmupDayModel> {
   const win = localCalendarDayWindowUtcIso(params.localYmd, params.iana);
-  const slotLimit = countWarmupReminderSlotsInUtcRange(params.rules, new Date(win.start), new Date(win.end));
+  const slotLimit = countWarmupReminderSlotsInUtcRange(
+    params.rules,
+    new Date(win.start),
+    new Date(win.end),
+  );
   const doneCount = await countWarmupCompletionsInWindow(
     deps.patientPractice.listByUserInUtcRange,
     params.userId,
@@ -167,11 +174,7 @@ async function resolvePastDayActivityModels(
     } else if (planNeedsSynth && synPlan && plan != null && plan.items.length === 0) {
       plan = synPlan;
     }
-    if (
-      warmupNeedsSynth &&
-      synWarmup != null &&
-      (synWarmup.doneCount > 0 || synWarmup.allDone)
-    ) {
+    if (warmupNeedsSynth && synWarmup != null && (synWarmup.doneCount > 0 || synWarmup.allDone)) {
       warmup = synWarmup;
     }
   }
@@ -236,11 +239,11 @@ export async function loadPatientDiaryWeekActivity(
   },
 ): Promise<PatientDiaryWeekActivityModel> {
   const { userId, weekStartMs, weekEndMs, iana } = params;
-  const weekStart = DateTime.fromMillis(weekStartMs, { zone: iana }).startOf("day");
-  if (!weekStart.isValid) throw new Error("invalid_week_start");
+  const weekStart = DateTime.fromMillis(weekStartMs, { zone: iana }).startOf('day');
+  if (!weekStart.isValid) throw new Error('invalid_week_start');
 
   const todayYmd = DateTime.now().setZone(iana).toISODate()!;
-  if (!todayYmd) throw new Error("invalid_today");
+  if (!todayYmd) throw new Error('invalid_today');
 
   const [rules, instances] = await Promise.all([
     deps.reminders.listRulesByUser(userId),
@@ -255,7 +258,10 @@ export async function loadPatientDiaryWeekActivity(
   const snapshots = await deps.diarySnapshots.listForUserDateRange(userId, firstYmd!, lastYmd!);
   const snapBy = new Map(snapshots.map((r) => [r.localDate, r]));
 
-  const weekStartUtcIso = DateTime.fromMillis(weekStartMs, { zone: iana }).startOf("day").toUTC().toISO()!;
+  const weekStartUtcIso = DateTime.fromMillis(weekStartMs, { zone: iana })
+    .startOf('day')
+    .toUTC()
+    .toISO()!;
   const weekEndUtcExclusiveIso = DateTime.fromMillis(weekEndMs, { zone: iana }).toUTC().toISO()!;
 
   let donePairsWeek: Array<{ localDate: string; itemId: string }> = [];
@@ -263,7 +269,9 @@ export async function loadPatientDiaryWeekActivity(
   if (planPick) {
     const rawLive = await deps.treatmentProgramInstance.getInstanceForPatient(userId, planPick.id);
     if (rawLive) {
-      planItemIdsLive = buildLivePlanChecklistItemIds(omitDisabledInstanceStageItemsForPatientApi(rawLive));
+      planItemIdsLive = buildLivePlanChecklistItemIds(
+        omitDisabledInstanceStageItemsForPatientApi(rawLive),
+      );
     }
     const doneRows = await deps.programActionLog.listDoneItemsByLocalDateInWindow({
       instanceId: planPick.id,
@@ -315,8 +323,16 @@ export async function loadPatientDiaryWeekActivity(
 
     if (ymd === todayYmd) {
       const win = localCalendarDayWindowUtcIso(ymd, iana);
-      const slotLimit = countWarmupReminderSlotsInUtcRange(rules, new Date(win.start), new Date(win.end));
-      const doneCount = await countWarmupCompletionsInWindow(deps.patientPractice.listByUserInUtcRange, userId, win);
+      const slotLimit = countWarmupReminderSlotsInUtcRange(
+        rules,
+        new Date(win.start),
+        new Date(win.end),
+      );
+      const doneCount = await countWarmupCompletionsInWindow(
+        deps.patientPractice.listByUserInUtcRange,
+        userId,
+        win,
+      );
       const allDone = slotLimit > 0 && doneCount >= slotLimit;
       warmupDays.push({ localDate: ymd, slotLimit, doneCount, allDone });
 

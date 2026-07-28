@@ -1,14 +1,29 @@
-import { and, asc, count, desc, eq, gte, inArray, isNull, lte, max, min, ne, or, sql } from "drizzle-orm";
-import { getDrizzle } from "@/app-layer/db/drizzle";
-import { integratorPushOutbox } from "../../../db/schema/schema";
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNull,
+  lte,
+  max,
+  min,
+  ne,
+  or,
+  sql,
+} from 'drizzle-orm';
+import { getDrizzle } from '@/app-layer/db/drizzle';
+import { integratorPushOutbox } from '../../../db/schema/schema';
 import {
   integrationWebhookErrorEvents,
   integrationWebhookLastStatus,
   operatorIncidents,
   operatorJobStatus,
-} from "../../../db/schema/operatorHealth";
-import { outgoingDeliveryQueue } from "../../../db/schema/outgoingDeliveryQueue";
-import { beOrganizationMembers, beOrganizations } from "../../../db/schema/bookingEngine";
+} from '../../../db/schema/operatorHealth';
+import { outgoingDeliveryQueue } from '../../../db/schema/outgoingDeliveryQueue';
+import { beOrganizationMembers, beOrganizations } from '../../../db/schema/bookingEngine';
 import {
   TENANT_ISOLATION_CANARY_MAX_ORGANIZATIONS,
   type IntegratorPushOutboxHealthSnapshot,
@@ -19,11 +34,11 @@ import {
   type OperatorJobStatusTickRow,
   type OutgoingDeliveryQueueHealthSnapshot,
   type WebhookBurstRow,
-} from "@/modules/operator-health/ports";
+} from '@/modules/operator-health/ports';
 
 /** Dead queue rows that count toward operator degradation (excludes blocked-bot finals). */
 export function countAsOperatorOutgoingDeliveryDead(failureClass: string | null): boolean {
-  return failureClass !== "recipient_blocked_bot";
+  return failureClass !== 'recipient_blocked_bot';
 }
 
 export const pgOperatorHealthReadPort: OperatorHealthReadPort = {
@@ -82,7 +97,7 @@ export const pgOperatorHealthReadPort: OperatorHealthReadPort = {
         lastError: operatorJobStatus.lastError,
       })
       .from(operatorJobStatus)
-      .where(eq(operatorJobStatus.jobFamily, "backup"))
+      .where(eq(operatorJobStatus.jobFamily, 'backup'))
       .orderBy(operatorJobStatus.jobKey);
 
     return rows.map((r) => ({
@@ -121,7 +136,10 @@ export const pgOperatorHealthReadPort: OperatorHealthReadPort = {
     }));
   },
 
-  async listWebhookBurstSignals(windowMinutes: number, minCount: number): Promise<WebhookBurstRow[]> {
+  async listWebhookBurstSignals(
+    windowMinutes: number,
+    minCount: number,
+  ): Promise<WebhookBurstRow[]> {
     const db = getDrizzle();
     const window = Math.max(1, Math.trunc(windowMinutes));
     const threshold = Math.max(1, Math.trunc(minCount));
@@ -147,7 +165,10 @@ export const pgOperatorHealthReadPort: OperatorHealthReadPort = {
     }));
   },
 
-  async getOperatorJobStatus(jobFamily: string, jobKey: string): Promise<OperatorJobStatusTickRow | null> {
+  async getOperatorJobStatus(
+    jobFamily: string,
+    jobKey: string,
+  ): Promise<OperatorJobStatusTickRow | null> {
     const db = getDrizzle();
     const rows = await db
       .select({
@@ -169,7 +190,9 @@ export const pgOperatorHealthReadPort: OperatorHealthReadPort = {
     if (!r) return null;
     const meta = r.metaJson;
     const metaJson =
-      meta !== null && typeof meta === "object" && !Array.isArray(meta) ? (meta as Record<string, unknown>) : {};
+      meta !== null && typeof meta === 'object' && !Array.isArray(meta)
+        ? (meta as Record<string, unknown>)
+        : {};
     return {
       jobKey: r.jobKey,
       jobFamily: r.jobFamily,
@@ -187,19 +210,19 @@ export const pgOperatorHealthReadPort: OperatorHealthReadPort = {
   async getOutgoingDeliveryQueueHealth(): Promise<OutgoingDeliveryQueueHealthSnapshot> {
     const db = getDrizzle();
     const dueWh = and(
-      inArray(outgoingDeliveryQueue.status, ["pending", "failed_retryable"]),
+      inArray(outgoingDeliveryQueue.status, ['pending', 'failed_retryable']),
       lte(outgoingDeliveryQueue.nextRetryAt, sql`now()`),
     );
     const operatorDeadWh = and(
-      eq(outgoingDeliveryQueue.status, "dead"),
+      eq(outgoingDeliveryQueue.status, 'dead'),
       or(
         isNull(outgoingDeliveryQueue.failureClass),
-        ne(outgoingDeliveryQueue.failureClass, "recipient_blocked_bot"),
+        ne(outgoingDeliveryQueue.failureClass, 'recipient_blocked_bot'),
       ),
     );
     const blockedDeadWh = and(
-      eq(outgoingDeliveryQueue.status, "dead"),
-      eq(outgoingDeliveryQueue.failureClass, "recipient_blocked_bot"),
+      eq(outgoingDeliveryQueue.status, 'dead'),
+      eq(outgoingDeliveryQueue.failureClass, 'recipient_blocked_bot'),
     );
     const [
       dueRows,
@@ -241,7 +264,7 @@ export const pgOperatorHealthReadPort: OperatorHealthReadPort = {
       db
         .select({ c: count() })
         .from(outgoingDeliveryQueue)
-        .where(eq(outgoingDeliveryQueue.status, "processing")),
+        .where(eq(outgoingDeliveryQueue.status, 'processing')),
       db.select({ mx: max(outgoingDeliveryQueue.updatedAt) }).from(outgoingDeliveryQueue),
       db.select({ mx: max(outgoingDeliveryQueue.sentAt) }).from(outgoingDeliveryQueue),
       // D-d: позитивное доказательство доставки за окно сводки.
@@ -250,7 +273,7 @@ export const pgOperatorHealthReadPort: OperatorHealthReadPort = {
         .from(outgoingDeliveryQueue)
         .where(
           and(
-            eq(outgoingDeliveryQueue.status, "sent"),
+            eq(outgoingDeliveryQueue.status, 'sent'),
             gte(outgoingDeliveryQueue.sentAt, sql`now() - interval '24 hours'`),
           ),
         ),
@@ -295,7 +318,10 @@ export const pgOperatorHealthReadPort: OperatorHealthReadPort = {
 
   async getIntegratorPushOutboxHealth(): Promise<IntegratorPushOutboxHealthSnapshot> {
     const db = getDrizzle();
-    const dueWh = and(eq(integratorPushOutbox.status, "pending"), lte(integratorPushOutbox.nextTryAt, sql`now()`));
+    const dueWh = and(
+      eq(integratorPushOutbox.status, 'pending'),
+      lte(integratorPushOutbox.nextTryAt, sql`now()`),
+    );
     const [
       dueRows,
       deadRows,
@@ -307,8 +333,14 @@ export const pgOperatorHealthReadPort: OperatorHealthReadPort = {
       oldestProcessingRows,
     ] = await Promise.all([
       db.select({ c: count() }).from(integratorPushOutbox).where(dueWh),
-      db.select({ c: count() }).from(integratorPushOutbox).where(eq(integratorPushOutbox.status, "dead")),
-      db.select({ c: count() }).from(integratorPushOutbox).where(eq(integratorPushOutbox.status, "processing")),
+      db
+        .select({ c: count() })
+        .from(integratorPushOutbox)
+        .where(eq(integratorPushOutbox.status, 'dead')),
+      db
+        .select({ c: count() })
+        .from(integratorPushOutbox)
+        .where(eq(integratorPushOutbox.status, 'processing')),
       db
         .select({ nextTryAt: integratorPushOutbox.nextTryAt })
         .from(integratorPushOutbox)
@@ -324,12 +356,12 @@ export const pgOperatorHealthReadPort: OperatorHealthReadPort = {
       db
         .select({ kind: integratorPushOutbox.kind, n: count() })
         .from(integratorPushOutbox)
-        .where(eq(integratorPushOutbox.status, "dead"))
+        .where(eq(integratorPushOutbox.status, 'dead'))
         .groupBy(integratorPushOutbox.kind),
       db
         .select({ mn: min(integratorPushOutbox.updatedAt) })
         .from(integratorPushOutbox)
-        .where(eq(integratorPushOutbox.status, "processing")),
+        .where(eq(integratorPushOutbox.status, 'processing')),
     ]);
 
     const dueRow = dueRows[0];

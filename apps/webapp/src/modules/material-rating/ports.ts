@@ -4,7 +4,7 @@ import type {
   MaterialRatingDoctorDetailRater,
   MaterialRatingDoctorSummaryRow,
   MaterialRatingTargetKind,
-} from "./types";
+} from './types';
 
 export type MaterialRatingPort = {
   upsertRating(input: {

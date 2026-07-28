@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from 'zod';
 
 const short = z.string().max(500).optional();
 const uuid = z.string().uuid().optional();
@@ -16,6 +16,6 @@ export const bookingAttributionBodySchema = z.object({
   utmTerm: short,
   utmContent: short,
   presetCityCode: short,
-  embedMode: z.enum(["iframe", "popup", "link", "page"]).optional(),
+  embedMode: z.enum(['iframe', 'popup', 'link', 'page']).optional(),
   referrer: short,
 });

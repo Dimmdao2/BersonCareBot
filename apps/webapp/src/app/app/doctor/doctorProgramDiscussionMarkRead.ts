@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 type MarkDoctorProgramDiscussionReadInput = {
   instanceId: string;
@@ -13,9 +13,9 @@ export type MarkDoctorProgramDiscussionReadResult =
     };
 
 function mapMarkReadErrorToRu(errorCode: string | null | undefined): string {
-  if (errorCode === "invalid_id") return "Некорректный идентификатор";
-  if (errorCode === "not_found") return "Комментарий не найден";
-  return "Не удалось отметить как прочитанное";
+  if (errorCode === 'invalid_id') return 'Некорректный идентификатор';
+  if (errorCode === 'not_found') return 'Комментарий не найден';
+  return 'Не удалось отметить как прочитанное';
 }
 
 export async function markDoctorProgramDiscussionRead(
@@ -23,7 +23,7 @@ export async function markDoctorProgramDiscussionRead(
 ): Promise<MarkDoctorProgramDiscussionReadResult> {
   const res = await fetch(
     `/api/doctor/treatment-program-instances/${encodeURIComponent(input.instanceId)}/items/${encodeURIComponent(input.stageItemId)}/discussion/read`,
-    { method: "POST" },
+    { method: 'POST' },
   );
   const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
   if (!res.ok || !data?.ok) {
@@ -43,6 +43,8 @@ export async function markDoctorProgramDiscussionReadForStageItems(input: {
   const ids = [...new Set(input.stageItemIds.map((id) => id.trim()).filter(Boolean))];
   if (ids.length === 0) return;
   await Promise.all(
-    ids.map((stageItemId) => markDoctorProgramDiscussionRead({ instanceId: input.instanceId, stageItemId })),
+    ids.map((stageItemId) =>
+      markDoctorProgramDiscussionRead({ instanceId: input.instanceId, stageItemId }),
+    ),
   );
 }

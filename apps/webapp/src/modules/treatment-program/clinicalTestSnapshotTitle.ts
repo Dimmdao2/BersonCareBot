@@ -1,5 +1,5 @@
 function record(value: unknown): Record<string, unknown> | null {
-  return value !== null && typeof value === "object" && !Array.isArray(value)
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : null;
 }
@@ -16,12 +16,12 @@ export function clinicalTestTitleFromInstanceSnapshot(
   for (const candidate of tests) {
     const row = record(candidate);
     if (row?.testId !== testId) continue;
-    const title = typeof row.title === "string" ? row.title.trim() : "";
+    const title = typeof row.title === 'string' ? row.title.trim() : '';
     return title || null;
   }
 
   if (snapshot.id === testId) {
-    const title = typeof snapshot.title === "string" ? snapshot.title.trim() : "";
+    const title = typeof snapshot.title === 'string' ? snapshot.title.trim() : '';
     return title || null;
   }
   return null;

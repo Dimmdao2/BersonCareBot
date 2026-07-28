@@ -59,10 +59,8 @@ export async function recordNotificationDeliveryAttemptBestEffort(
 ): Promise<void> {
   try {
     const metadataJson = JSON.stringify(input.metadata ?? {});
-    await runWithOptionalOrganizationPrincipalTransaction(
-      db,
-      input.organizationId,
-      (targetDb) => runIntegratorSql(
+    await runWithOptionalOrganizationPrincipalTransaction(db, input.organizationId, (targetDb) =>
+      runIntegratorSql(
         targetDb,
         sql`INSERT INTO public.notification_delivery_attempts (
           organization_id,

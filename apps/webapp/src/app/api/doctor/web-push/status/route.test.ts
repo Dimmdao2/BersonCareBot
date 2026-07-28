@@ -1,26 +1,26 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
-import { NextResponse } from "next/server";
+import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { NextResponse } from 'next/server';
 
 const mockRequireStaffWebPushSelfApiSession = vi.hoisted(() => vi.fn());
 const mockBuildAppDeps = vi.hoisted(() => vi.fn());
 const mockGetWebPushVapidPublicKeyOnly = vi.hoisted(() => vi.fn());
 
-vi.mock("@/app-layer/guards/requireRole", () => ({
+vi.mock('@/app-layer/guards/requireRole', () => ({
   requireStaffWebPushSelfApiSession: mockRequireStaffWebPushSelfApiSession,
 }));
 
-vi.mock("@/app-layer/di/buildAppDeps", () => ({
+vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: mockBuildAppDeps,
 }));
 
-import { GET } from "./route";
+import { GET } from './route';
 
 const GLOBAL_ADMIN_SESSION = {
-  user: { userId: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee", role: "admin" as const, bindings: {} },
+  user: { userId: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', role: 'admin' as const, bindings: {} },
   adminMode: true,
 };
 
-describe("GET /api/doctor/web-push/status", () => {
+describe('GET /api/doctor/web-push/status', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockBuildAppDeps.mockReturnValue({
@@ -35,8 +35,11 @@ describe("GET /api/doctor/web-push/status", () => {
     mockGetWebPushVapidPublicKeyOnly.mockResolvedValue(null);
   });
 
-  it("returns 200 with vapidConfigured false when keys missing", async () => {
-    mockRequireStaffWebPushSelfApiSession.mockResolvedValue({ ok: true, session: GLOBAL_ADMIN_SESSION });
+  it('returns 200 with vapidConfigured false when keys missing', async () => {
+    mockRequireStaffWebPushSelfApiSession.mockResolvedValue({
+      ok: true,
+      session: GLOBAL_ADMIN_SESSION,
+    });
     const res = await GET();
     expect(res.status).toBe(200);
     const json = await res.json();
@@ -52,22 +55,28 @@ describe("GET /api/doctor/web-push/status", () => {
     );
   });
 
-  it("returns 401 when gate denies", async () => {
+  it('returns 401 when gate denies', async () => {
     mockRequireStaffWebPushSelfApiSession.mockResolvedValue({
       ok: false,
-      response: NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }),
+      response: NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 }),
     });
     const res = await GET();
     expect(res.status).toBe(401);
   });
 
-  it("uses only the public-key accessor when VAPID is configured", async () => {
-    mockRequireStaffWebPushSelfApiSession.mockResolvedValue({ ok: true, session: GLOBAL_ADMIN_SESSION });
-    mockGetWebPushVapidPublicKeyOnly.mockResolvedValue("public-vapid-key");
+  it('uses only the public-key accessor when VAPID is configured', async () => {
+    mockRequireStaffWebPushSelfApiSession.mockResolvedValue({
+      ok: true,
+      session: GLOBAL_ADMIN_SESSION,
+    });
+    mockGetWebPushVapidPublicKeyOnly.mockResolvedValue('public-vapid-key');
 
     const res = await GET();
 
-    expect(await res.json()).toMatchObject({ vapidConfigured: true, publicKey: "public-vapid-key" });
+    expect(await res.json()).toMatchObject({
+      vapidConfigured: true,
+      publicKey: 'public-vapid-key',
+    });
     expect(mockGetWebPushVapidPublicKeyOnly).toHaveBeenCalledTimes(1);
   });
 });

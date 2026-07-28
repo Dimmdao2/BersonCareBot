@@ -1,43 +1,78 @@
 #!/usr/bin/env node
-import { readFile } from "node:fs/promises";
-import { spawnSync } from "node:child_process";
+import { readFile } from 'node:fs/promises';
+import { spawnSync } from 'node:child_process';
 
 const suffix = `${Date.now()}_${process.pid}`;
 const db = `bcb_health_scratch_${suffix}`;
 const runtimeRole = `${db}_operator`.slice(0, 63);
-const roleNames = ["app_owner", "app_staff", "app_patient", "app_worker", "saas_telemetry_operator"];
+const roleNames = [
+  'app_owner',
+  'app_staff',
+  'app_patient',
+  'app_worker',
+  'saas_telemetry_operator',
+];
 const createdRoles = [];
 let databaseCreated = false;
 let ownerExisted = false;
 
 function postgres(args, input, allowFailure = false) {
-  const result = spawnSync("sudo", ["-n", "-u", "postgres", ...args], { encoding: "utf8", input });
+  const result = spawnSync('sudo', ['-n', '-u', 'postgres', ...args], { encoding: 'utf8', input });
   if (!allowFailure && result.status !== 0) {
-    throw new Error(result.stderr || result.stdout || `command_failed:${args.join(" ")}`);
+    throw new Error(result.stderr || result.stdout || `command_failed:${args.join(' ')}`);
   }
   return result.stdout.trim();
 }
 function sql(value) {
-  return postgres(["psql", "-d", db, "-X", "-v", "ON_ERROR_STOP=1", "-Atq"], value);
+  return postgres(['psql', '-d', db, '-X', '-v', 'ON_ERROR_STOP=1', '-Atq'], value);
 }
 function roleExists(role) {
-  return postgres(["psql", "-X", "-Atq", "-c", `SELECT EXISTS(SELECT 1 FROM pg_roles WHERE rolname='${role}')`]) === "t";
+  return (
+    postgres([
+      'psql',
+      '-X',
+      '-Atq',
+      '-c',
+      `SELECT EXISTS(SELECT 1 FROM pg_roles WHERE rolname='${role}')`,
+    ]) === 't'
+  );
 }
 
 try {
-  ownerExisted = roleExists("saas_system_health_owner");
+  ownerExisted = roleExists('saas_system_health_owner');
   for (const role of roleNames) {
     if (!roleExists(role)) {
-      postgres(["psql", "-X", "-v", "ON_ERROR_STOP=1", "-c", `CREATE ROLE ${role} NOLOGIN NOSUPERUSER NOBYPASSRLS`]);
+      postgres([
+        'psql',
+        '-X',
+        '-v',
+        'ON_ERROR_STOP=1',
+        '-c',
+        `CREATE ROLE ${role} NOLOGIN NOSUPERUSER NOBYPASSRLS`,
+      ]);
       createdRoles.push(role);
     }
   }
-  postgres(["psql", "-X", "-v", "ON_ERROR_STOP=1", "-c", `CREATE ROLE ${runtimeRole} LOGIN INHERIT NOSUPERUSER NOBYPASSRLS`]);
+  postgres([
+    'psql',
+    '-X',
+    '-v',
+    'ON_ERROR_STOP=1',
+    '-c',
+    `CREATE ROLE ${runtimeRole} LOGIN INHERIT NOSUPERUSER NOBYPASSRLS`,
+  ]);
   createdRoles.push(runtimeRole);
-  postgres(["psql", "-X", "-v", "ON_ERROR_STOP=1", "-c", `GRANT saas_telemetry_operator TO ${runtimeRole}`]);
-  postgres(["createdb", db]);
+  postgres([
+    'psql',
+    '-X',
+    '-v',
+    'ON_ERROR_STOP=1',
+    '-c',
+    `GRANT saas_telemetry_operator TO ${runtimeRole}`,
+  ]);
+  postgres(['createdb', db]);
   databaseCreated = true;
-  const serverVersionNum = Number(sql("SHOW server_version_num;"));
+  const serverVersionNum = Number(sql('SHOW server_version_num;'));
   if (serverVersionNum < 160000 || serverVersionNum >= 170000) {
     throw new Error(`postgres_16_required:${serverVersionNum}`);
   }
@@ -77,11 +112,26 @@ ALTER TABLE public.operator_incidents FORCE ROW LEVEL SECURITY;
 CREATE POLICY deny_all_incidents ON public.operator_incidents USING (false);
 `);
 
-  sql(await readFile("apps/webapp/db/drizzle-migrations/0189_patient_runtime_cooldown_playback_accessors.sql", "utf8"));
-  sql(await readFile("deploy/postgres/patient-media-playback-telemetry-accessors.sql", "utf8"));
-  sql("GRANT USAGE ON SCHEMA app TO app_owner, app_patient;");
-  sql(await readFile("apps/webapp/db/drizzle-migrations/0190_curated_system_health_diagnostics.sql", "utf8"));
-  sql(await readFile("apps/webapp/db/drizzle-migrations/0192_curated_playback_and_patient_program_runtime.sql", "utf8"));
+  sql(
+    await readFile(
+      'apps/webapp/db/drizzle-migrations/0189_patient_runtime_cooldown_playback_accessors.sql',
+      'utf8',
+    ),
+  );
+  sql(await readFile('deploy/postgres/patient-media-playback-telemetry-accessors.sql', 'utf8'));
+  sql('GRANT USAGE ON SCHEMA app TO app_owner, app_patient;');
+  sql(
+    await readFile(
+      'apps/webapp/db/drizzle-migrations/0190_curated_system_health_diagnostics.sql',
+      'utf8',
+    ),
+  );
+  sql(
+    await readFile(
+      'apps/webapp/db/drizzle-migrations/0192_curated_playback_and_patient_program_runtime.sql',
+      'utf8',
+    ),
+  );
   sql(`
 SELECT 1 / (
   NOT (app.read_curated_system_health() ? 'mediaPreview')
@@ -89,7 +139,12 @@ SELECT 1 / (
   AND NOT (app.read_curated_playback_health() ? 'hlsProxy')
 )::int AS pre_0196_existing_db_state_verified;
 `);
-  sql(await readFile("apps/webapp/db/drizzle-migrations/0196_curated_system_health_media_upgrade.sql", "utf8"));
+  sql(
+    await readFile(
+      'apps/webapp/db/drizzle-migrations/0196_curated_system_health_media_upgrade.sql',
+      'utf8',
+    ),
+  );
   sql(`
 SELECT 1 / (
   app.read_curated_system_health() ? 'mediaPreview'
@@ -97,7 +152,7 @@ SELECT 1 / (
   AND app.read_curated_playback_health() ? 'hlsProxy'
 )::int AS migration_0196_existing_db_upgrade_verified;
 `);
-  const overlay = `\\set system_health_operator_runtime_role ${runtimeRole}\n${await readFile("deploy/postgres/saas-system-health-diagnostics.sql", "utf8")}`;
+  const overlay = `\\set system_health_operator_runtime_role ${runtimeRole}\n${await readFile('deploy/postgres/saas-system-health-diagnostics.sql', 'utf8')}`;
   const stalePlaybackAcl = `
 GRANT SELECT ON TABLE
   public.media_playback_resolution_events,
@@ -306,11 +361,20 @@ SELECT 1 / (
   )
 )::int;
 `);
-  process.stdout.write("Curated System Health PostgreSQL rehearsal: PASS\n");
+  process.stdout.write('Curated System Health PostgreSQL rehearsal: PASS\n');
 } finally {
-  if (databaseCreated) postgres(["dropdb", "--if-exists", db], undefined, true);
+  if (databaseCreated) postgres(['dropdb', '--if-exists', db], undefined, true);
   for (const role of createdRoles.reverse()) {
-    postgres(["psql", "-X", "-v", "ON_ERROR_STOP=1", "-c", `DROP ROLE IF EXISTS ${role}`], undefined, true);
+    postgres(
+      ['psql', '-X', '-v', 'ON_ERROR_STOP=1', '-c', `DROP ROLE IF EXISTS ${role}`],
+      undefined,
+      true,
+    );
   }
-  if (!ownerExisted) postgres(["psql", "-X", "-v", "ON_ERROR_STOP=1", "-c", "DROP ROLE IF EXISTS saas_system_health_owner"], undefined, true);
+  if (!ownerExisted)
+    postgres(
+      ['psql', '-X', '-v', 'ON_ERROR_STOP=1', '-c', 'DROP ROLE IF EXISTS saas_system_health_owner'],
+      undefined,
+      true,
+    );
 }

@@ -19,16 +19,16 @@ PHASE_00 ✓ audit + scope
 
 ## Статус этапов
 
-| Этап | Файл | Статус | Зависит от |
-|------|------|--------|------------|
-| 0 | [PHASE_00_AUDIT_AND_AGREEMENT.md](PHASE_00_AUDIT_AND_AGREEMENT.md) | done | — |
-| 1 | [PHASE_01_RUBITIME_PLATFORM_USER.md](PHASE_01_RUBITIME_PLATFORM_USER.md) | done | 0 |
-| 2 | [PHASE_02_CONTACT_EMAIL_POLICY.md](PHASE_02_CONTACT_EMAIL_POLICY.md) | done | 0 |
-| 3 | [PHASE_03_EMAIL_SETUP_TOKENS.md](PHASE_03_EMAIL_SETUP_TOKENS.md) | done | 2 |
-| 4 | [PHASE_04_EMAIL_SETUP_FLOW.md](PHASE_04_EMAIL_SETUP_FLOW.md) | done | 3 |
-| 5 | [PHASE_05_AUTH_REGISTER_LOGIN_FORGOT.md](PHASE_05_AUTH_REGISTER_LOGIN_FORGOT.md) | done | 4 |
-| 6 | [PHASE_06_MERGE_IDENTITY.md](PHASE_06_MERGE_IDENTITY.md) | done | 1, 5 |
-| 7 | [login-register-backfill-appointments.md](../TODO_NOT_NOW/login-register-backfill-appointments.md) | **deferred** | 1 (после MVP) |
-| 8 | [login-register-mass-setup-email.md](../TODO_NOT_NOW/login-register-mass-setup-email.md) | **deferred** | 4, 7 |
+| Этап | Файл                                                                                               | Статус       | Зависит от    |
+| ---- | -------------------------------------------------------------------------------------------------- | ------------ | ------------- |
+| 0    | [PHASE_00_AUDIT_AND_AGREEMENT.md](PHASE_00_AUDIT_AND_AGREEMENT.md)                                 | done         | —             |
+| 1    | [PHASE_01_RUBITIME_PLATFORM_USER.md](PHASE_01_RUBITIME_PLATFORM_USER.md)                           | done         | 0             |
+| 2    | [PHASE_02_CONTACT_EMAIL_POLICY.md](PHASE_02_CONTACT_EMAIL_POLICY.md)                               | done         | 0             |
+| 3    | [PHASE_03_EMAIL_SETUP_TOKENS.md](PHASE_03_EMAIL_SETUP_TOKENS.md)                                   | done         | 2             |
+| 4    | [PHASE_04_EMAIL_SETUP_FLOW.md](PHASE_04_EMAIL_SETUP_FLOW.md)                                       | done         | 3             |
+| 5    | [PHASE_05_AUTH_REGISTER_LOGIN_FORGOT.md](PHASE_05_AUTH_REGISTER_LOGIN_FORGOT.md)                   | done         | 4             |
+| 6    | [PHASE_06_MERGE_IDENTITY.md](PHASE_06_MERGE_IDENTITY.md)                                           | done         | 1, 5          |
+| 7    | [login-register-backfill-appointments.md](../TODO_NOT_NOW/login-register-backfill-appointments.md) | **deferred** | 1 (после MVP) |
+| 8    | [login-register-mass-setup-email.md](../TODO_NOT_NOW/login-register-mass-setup-email.md)           | **deferred** | 4, 7          |
 
 Обновлять **Статус** при закрытии этапа.

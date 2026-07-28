@@ -7,7 +7,10 @@ export type OutgoingDeliveryScope =
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-export async function resolveOutgoingDeliveryScope(db: DbPort, queueId: string): Promise<OutgoingDeliveryScope> {
+export async function resolveOutgoingDeliveryScope(
+  db: DbPort,
+  queueId: string,
+): Promise<OutgoingDeliveryScope> {
   const result = await db.query<{
     queue_kind: string | null;
     organization_id: string | null;
@@ -32,7 +35,10 @@ export async function resolveOutgoingDeliveryScope(db: DbPort, queueId: string):
   };
 }
 
-export async function operatorIncidentAlertAlreadySent(db: DbPort, incidentId: string): Promise<boolean> {
+export async function operatorIncidentAlertAlreadySent(
+  db: DbPort,
+  incidentId: string,
+): Promise<boolean> {
   const result = await db.query<{ already_sent: boolean }>(
     'SELECT app.operator_incident_alert_already_sent($1::uuid) AS already_sent',
     [incidentId],

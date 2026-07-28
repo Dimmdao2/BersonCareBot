@@ -131,7 +131,7 @@ Wrapper shape for T0.3:
 async function withPatientResourcePrincipal<T>(
   input: {
     session: AppSession;
-    resource: "program_instance" | "appointment" | "media_submission" | "patient_enrollment";
+    resource: 'program_instance' | 'appointment' | 'media_submission' | 'patient_enrollment';
     resourceId: string;
     source: string;
   },
@@ -194,14 +194,14 @@ T0.3 wrapper implementation should include tests before route conversion:
 
 ## Stage Mapping
 
-| Stage | Use this T0.2 contract for |
-|---|---|
-| T0.3.1 | Doctor/admin workspace helpers and server actions |
-| T0.3.2 | Patient resource-bound APIs and actions |
-| T0.3.3 | Media upload/multipart/program-submission routes |
-| T0.3.4 | Public booking/payment routes after org-source classification |
-| T0.3.5 | Integrator-origin webapp routes |
-| T0.5 | Extend carrier beyond `app.org` only if patient-wall enforcement needs it |
+| Stage  | Use this T0.2 contract for                                                |
+| ------ | ------------------------------------------------------------------------- |
+| T0.3.1 | Doctor/admin workspace helpers and server actions                         |
+| T0.3.2 | Patient resource-bound APIs and actions                                   |
+| T0.3.3 | Media upload/multipart/program-submission routes                          |
+| T0.3.4 | Public booking/payment routes after org-source classification             |
+| T0.3.5 | Integrator-origin webapp routes                                           |
+| T0.5   | Extend carrier beyond `app.org` only if patient-wall enforcement needs it |
 
 ## Hard Stops For Later Slices
 

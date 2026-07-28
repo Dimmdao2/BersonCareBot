@@ -46,21 +46,21 @@ Principal carrier:
 
 Commands were run against non-test TypeScript files unless otherwise noted.
 
-| Surface | Count |
-|---|---:|
-| Webapp non-test files using DB helper APIs (explorer count) | 185 |
-| Webapp modules/app-layer/app files using DB helper APIs (explorer count) | 45 |
-| API route files total (explorer count) | 489 |
-| API route files with DB signals | 23 |
-| Server action files total (top-level `"use server"` files) | 29 |
-| Server action files with DB signals | 1 |
-| Files using `getPool(` | 74 |
-| Files using `getDrizzle(` | 86 |
-| Files using `runWebappPgText` | 66 |
-| Runtime `.connect(` files | 4 |
-| Runtime `new Pool` files | 7 |
-| Runtime files using `runWithDbOrganizationPrincipal` | 10 |
-| Guarded-layer raw SQL allowlist files in `check-db-chokepoint.mjs` | 12 |
+| Surface                                                                  | Count |
+| ------------------------------------------------------------------------ | ----: |
+| Webapp non-test files using DB helper APIs (explorer count)              |   185 |
+| Webapp modules/app-layer/app files using DB helper APIs (explorer count) |    45 |
+| API route files total (explorer count)                                   |   489 |
+| API route files with DB signals                                          |    23 |
+| Server action files total (top-level `"use server"` files)               |    29 |
+| Server action files with DB signals                                      |     1 |
+| Files using `getPool(`                                                   |    74 |
+| Files using `getDrizzle(`                                                |    86 |
+| Files using `runWebappPgText`                                            |    66 |
+| Runtime `.connect(` files                                                |     4 |
+| Runtime `new Pool` files                                                 |     7 |
+| Runtime files using `runWithDbOrganizationPrincipal`                     |    10 |
+| Guarded-layer raw SQL allowlist files in `check-db-chokepoint.mjs`       |    12 |
 
 Guard status:
 
@@ -225,27 +225,27 @@ T0.1 adds the inventory guard above. Later T0 stages should extend it only when 
 
 This section records the later T0.4-pre constraints that must remain visible alongside the T0.0 inventory.
 
-| Area | Access surface | Constraint before T0.4 |
-|---|---|---|
-| `system_settings` | Webapp port, integrator public accessor, media-worker global readers, legacy sync route | Runtime reads must remain on public canonical accessor paths. Mirror writes are compatibility only. |
-| Reminders | Webapp rule ports, integrator scheduler/worker repos, `outgoing_delivery_queue` | Do not assume public-only scheduling. Integrator dispatch state must get org context or be redesigned first. |
-| Rubitime | Integrator webhook/writePort, webapp projection handlers, booking catalog/appointment read switches | Treat as live legacy adapter until canonical read-source flips and parity are proven. |
-| Contacts | Integrator channel user repo, public platform identity repos, purge/merge package | `integrator.contacts` fallback remains live until exception audit and `public_only` setting cutover. |
-| Conversations/questions | Integrator transport repos, webapp support projection repos | Public support is product read model; integrator transport writers must be cut over before drops. |
-| Queues/logs/idempotency | Worker queues, outbox tick scripts, health archive repos | Technical state. Add principal/retention handling; do not collapse into business canon. |
+| Area                    | Access surface                                                                                      | Constraint before T0.4                                                                                       |
+| ----------------------- | --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `system_settings`       | Webapp port, integrator public accessor, media-worker global readers, legacy sync route             | Runtime reads must remain on public canonical accessor paths. Mirror writes are compatibility only.          |
+| Reminders               | Webapp rule ports, integrator scheduler/worker repos, `outgoing_delivery_queue`                     | Do not assume public-only scheduling. Integrator dispatch state must get org context or be redesigned first. |
+| Rubitime                | Integrator webhook/writePort, webapp projection handlers, booking catalog/appointment read switches | Treat as live legacy adapter until canonical read-source flips and parity are proven.                        |
+| Contacts                | Integrator channel user repo, public platform identity repos, purge/merge package                   | `integrator.contacts` fallback remains live until exception audit and `public_only` setting cutover.         |
+| Conversations/questions | Integrator transport repos, webapp support projection repos                                         | Public support is product read model; integrator transport writers must be cut over before drops.            |
+| Queues/logs/idempotency | Worker queues, outbox tick scripts, health archive repos                                            | Technical state. Add principal/retention handling; do not collapse into business canon.                      |
 
 ## T0 Risk Register
 
-| Risk | Impact | First stage to address |
-|---|---|---|
-| Principal currently applies only inside transaction chokepoints | FORCE RLS can deny plain reads/writes unexpectedly | T0.1/T0.3/T0.4 |
-| Runtime carrier lacks patient/user GUC | Patient-wall claims may be overstated | T0.1/T0.5 |
-| Webapp route handlers pass `getPool()` into infra helpers | Org context may be resolved but not active during DB access | T0.2/T0.3 |
-| Integrator `DbPort.query` bypasses `app.org` under ALS | Scoped bot/worker/scheduler reads may deny under RLS | T0.4 |
-| Scheduler and queues do not have one request org | Need per-row/per-job org derivation | T0.4 |
-| Media claim/reclaim occurs before org context exists | Queue discovery can break under RLS | T0.4/T0.6 |
-| Rubitime path ownership is unclear | Legacy/booking rows may be misclassified | T0.4 |
-| Shadow reporting could print PII if designed poorly | Security/compliance regression | T0.5/T0.7 |
+| Risk                                                            | Impact                                                      | First stage to address |
+| --------------------------------------------------------------- | ----------------------------------------------------------- | ---------------------- |
+| Principal currently applies only inside transaction chokepoints | FORCE RLS can deny plain reads/writes unexpectedly          | T0.1/T0.3/T0.4         |
+| Runtime carrier lacks patient/user GUC                          | Patient-wall claims may be overstated                       | T0.1/T0.5              |
+| Webapp route handlers pass `getPool()` into infra helpers       | Org context may be resolved but not active during DB access | T0.2/T0.3              |
+| Integrator `DbPort.query` bypasses `app.org` under ALS          | Scoped bot/worker/scheduler reads may deny under RLS        | T0.4                   |
+| Scheduler and queues do not have one request org                | Need per-row/per-job org derivation                         | T0.4                   |
+| Media claim/reclaim occurs before org context exists            | Queue discovery can break under RLS                         | T0.4/T0.6              |
+| Rubitime path ownership is unclear                              | Legacy/booking rows may be misclassified                    | T0.4                   |
+| Shadow reporting could print PII if designed poorly             | Security/compliance regression                              | T0.5/T0.7              |
 
 ## Recommended Next Discovery Commands
 

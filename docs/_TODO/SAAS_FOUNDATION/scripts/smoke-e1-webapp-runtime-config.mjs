@@ -1,27 +1,28 @@
 #!/usr/bin/env node
-import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 
 const suffix = `${process.pid}_${Date.now()}`;
 const db = `bcb_saas_e1_config_scratch_${suffix}`;
 const publicRole = `bcb_e1_public_${suffix}`;
 const migrationOwner = `bcb_e1_owner_${suffix}`;
 const arbitraryRole = `bcb_e1_arbitrary_${suffix}`;
-if (!db.startsWith("bcb_saas_") || !db.includes("scratch")) throw new Error("unsafe scratch name");
-if (!/^bcb_e1_public_[0-9_]+$/.test(publicRole)) throw new Error("unsafe scratch role name");
-if (!/^bcb_e1_owner_[0-9_]+$/.test(migrationOwner)) throw new Error("unsafe scratch owner name");
-if (!/^bcb_e1_arbitrary_[0-9_]+$/.test(arbitraryRole)) throw new Error("unsafe scratch role name");
+if (!db.startsWith('bcb_saas_') || !db.includes('scratch')) throw new Error('unsafe scratch name');
+if (!/^bcb_e1_public_[0-9_]+$/.test(publicRole)) throw new Error('unsafe scratch role name');
+if (!/^bcb_e1_owner_[0-9_]+$/.test(migrationOwner)) throw new Error('unsafe scratch owner name');
+if (!/^bcb_e1_arbitrary_[0-9_]+$/.test(arbitraryRole)) throw new Error('unsafe scratch role name');
 
 function run(args, input) {
-  const result = spawnSync("sudo", ["-n", "-u", "postgres", ...args], { encoding: "utf8", input });
+  const result = spawnSync('sudo', ['-n', '-u', 'postgres', ...args], { encoding: 'utf8', input });
   if (result.error) throw result.error;
   if (result.status !== 0) {
-    process.stdout.write(result.stdout ?? ""); process.stderr.write(result.stderr ?? "");
+    process.stdout.write(result.stdout ?? '');
+    process.stderr.write(result.stderr ?? '');
     throw new Error(`postgres command failed: ${result.status}`);
   }
 }
 function psql(sql) {
-  run(["psql", "-X", "--echo-errors", "-v", "ON_ERROR_STOP=1", "-d", db], sql);
+  run(['psql', '-X', '--echo-errors', '-v', 'ON_ERROR_STOP=1', '-d', db], sql);
 }
 
 const setup = `
@@ -464,23 +465,77 @@ function asMigrationOwner(sql) {
 }
 
 try {
-  run(["createuser", "--no-login", publicRole]);
-  run(["createuser", "--no-login", migrationOwner]);
-  run(["createuser", "--no-login", arbitraryRole]);
-  run(["createdb", "--owner", migrationOwner, db]);
+  run(['createuser', '--no-login', publicRole]);
+  run(['createuser', '--no-login', migrationOwner]);
+  run(['createuser', '--no-login', arbitraryRole]);
+  run(['createdb', '--owner', migrationOwner, db]);
   psql(`SELECT 1 / (NOT pg_has_role('${migrationOwner}', 'app_owner', 'MEMBER'))::int;`);
   psql(asMigrationOwner(setup));
-  psql(asMigrationOwner(readFileSync("apps/webapp/db/drizzle-migrations/0185_saas_isolation_diagnostics.sql", "utf8")));
-  psql(asMigrationOwner(readFileSync("apps/webapp/db/drizzle-migrations/0186_app_runtime_settings.sql", "utf8")));
+  psql(
+    asMigrationOwner(
+      readFileSync('apps/webapp/db/drizzle-migrations/0185_saas_isolation_diagnostics.sql', 'utf8'),
+    ),
+  );
+  psql(
+    asMigrationOwner(
+      readFileSync('apps/webapp/db/drizzle-migrations/0186_app_runtime_settings.sql', 'utf8'),
+    ),
+  );
   psql(asMigrationOwner(seed));
   psql(`ALTER ROLE ${migrationOwner} BYPASSRLS;`);
-  psql(asMigrationOwner(readFileSync("apps/webapp/db/drizzle-migrations/0193_e1_safe_runtime_config.sql", "utf8")));
-  psql(asMigrationOwner(readFileSync("apps/webapp/db/drizzle-migrations/0194_e1_patient_identity_exception.sql", "utf8")));
-  psql(asMigrationOwner(readFileSync("apps/webapp/db/drizzle-migrations/0195_e1_patient_maintenance_history.sql", "utf8")));
-  psql(asMigrationOwner(readFileSync("apps/webapp/db/drizzle-migrations/0216_current_patient_organization_context.sql", "utf8")));
-  psql(asMigrationOwner(readFileSync("apps/webapp/db/drizzle-migrations/0219_current_patient_organization_entitlements.sql", "utf8")));
-  psql(asMigrationOwner(readFileSync("apps/webapp/db/drizzle-migrations/0201_e1_webapp_auth_role_runtime_config.sql", "utf8")));
-  psql(asMigrationOwner(readFileSync("apps/webapp/db/drizzle-migrations/0231_admin_email_role_runtime_config.sql", "utf8")));
+  psql(
+    asMigrationOwner(
+      readFileSync('apps/webapp/db/drizzle-migrations/0193_e1_safe_runtime_config.sql', 'utf8'),
+    ),
+  );
+  psql(
+    asMigrationOwner(
+      readFileSync(
+        'apps/webapp/db/drizzle-migrations/0194_e1_patient_identity_exception.sql',
+        'utf8',
+      ),
+    ),
+  );
+  psql(
+    asMigrationOwner(
+      readFileSync(
+        'apps/webapp/db/drizzle-migrations/0195_e1_patient_maintenance_history.sql',
+        'utf8',
+      ),
+    ),
+  );
+  psql(
+    asMigrationOwner(
+      readFileSync(
+        'apps/webapp/db/drizzle-migrations/0216_current_patient_organization_context.sql',
+        'utf8',
+      ),
+    ),
+  );
+  psql(
+    asMigrationOwner(
+      readFileSync(
+        'apps/webapp/db/drizzle-migrations/0219_current_patient_organization_entitlements.sql',
+        'utf8',
+      ),
+    ),
+  );
+  psql(
+    asMigrationOwner(
+      readFileSync(
+        'apps/webapp/db/drizzle-migrations/0201_e1_webapp_auth_role_runtime_config.sql',
+        'utf8',
+      ),
+    ),
+  );
+  psql(
+    asMigrationOwner(
+      readFileSync(
+        'apps/webapp/db/drizzle-migrations/0231_admin_email_role_runtime_config.sql',
+        'utf8',
+      ),
+    ),
+  );
   psql(`ALTER ROLE ${migrationOwner} NOBYPASSRLS;`);
   psql(runtimeAcl);
   psql(`
@@ -508,10 +563,10 @@ try {
     RESET SESSION AUTHORIZATION;
     SELECT 1 / (NOT has_function_privilege('${arbitraryRole}','app.is_current_patient_test_account()','EXECUTE'))::int;
   `);
-  console.log("smoke-e1-webapp-runtime-config: OK");
+  console.log('smoke-e1-webapp-runtime-config: OK');
 } finally {
-  run(["dropdb", "--if-exists", db]);
-  run(["dropuser", "--if-exists", publicRole]);
-  run(["dropuser", "--if-exists", migrationOwner]);
-  run(["dropuser", "--if-exists", arbitraryRole]);
+  run(['dropdb', '--if-exists', db]);
+  run(['dropuser', '--if-exists', publicRole]);
+  run(['dropuser', '--if-exists', migrationOwner]);
+  run(['dropuser', '--if-exists', arbitraryRole]);
 }

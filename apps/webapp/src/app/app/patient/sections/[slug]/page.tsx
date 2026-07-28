@@ -3,22 +3,22 @@
  * Раздел «Разминки» — редирект на «Разминка дня» (как с главной / из напоминаний).
  */
 
-import { notFound, permanentRedirect, redirect } from "next/navigation";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { routePaths } from "@/app-layer/routes/paths";
-import { getOptionalPatientSession } from "@/app-layer/guards/requireRole";
-import { requireEntitlementForReadAction } from "@/app-layer/guards/requireEntitlement";
-import { resolvePatientEnrollmentOrganizationId } from "@/app/api/booking/bookingTenant";
-import { withPatientOrganizationPrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
-import { resolvePatientContentSectionSlug } from "@/infra/repos/resolvePatientContentSectionSlug";
-import { getSubscriptionCarouselSectionPresentation } from "@/modules/patient-home/patientHomeResolvers";
-import { DEFAULT_WARMUPS_SECTION_SLUG } from "@/modules/patient-home/warmupsSection";
+import { notFound, permanentRedirect, redirect } from 'next/navigation';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { routePaths } from '@/app-layer/routes/paths';
+import { getOptionalPatientSession } from '@/app-layer/guards/requireRole';
+import { requireEntitlementForReadAction } from '@/app-layer/guards/requireEntitlement';
+import { resolvePatientEnrollmentOrganizationId } from '@/app/api/booking/bookingTenant';
+import { withPatientOrganizationPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
+import { resolvePatientContentSectionSlug } from '@/infra/repos/resolvePatientContentSectionSlug';
+import { getSubscriptionCarouselSectionPresentation } from '@/modules/patient-home/patientHomeResolvers';
+import { DEFAULT_WARMUPS_SECTION_SLUG } from '@/modules/patient-home/warmupsSection';
 import {
   canViewPatientAuthOnlySection,
   filterPatientSectionPages,
-} from "@/app-layer/platform-access";
-import { PatientAppShell } from "@/shared/ui/patient/PatientAppShell";
-import { PatientSectionPageBody } from "./PatientSectionPageBody";
+} from '@/app-layer/platform-access';
+import { PatientAppShell } from '@/shared/ui/patient/PatientAppShell';
+import { PatientSectionPageBody } from './PatientSectionPageBody';
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -26,7 +26,7 @@ function isWarmupsPatientSection(
   canonicalSlug: string,
   systemParentCode: string | null | undefined,
 ): boolean {
-  if (systemParentCode === "warmups") return true;
+  if (systemParentCode === 'warmups') return true;
   const slug = canonicalSlug.trim();
   return slug === DEFAULT_WARMUPS_SECTION_SLUG;
 }
@@ -55,7 +55,9 @@ export default async function PatientSectionPage({ params }: Props) {
     redirect(routePaths.patientGoDailyWarmup);
   }
 
-  const allSectionPages = await deps.contentPages.listBySection(canonicalSlug, { viewAuthOnlyPages: true });
+  const allSectionPages = await deps.contentPages.listBySection(canonicalSlug, {
+    viewAuthOnlyPages: true,
+  });
   const canViewSection = await canViewPatientAuthOnlySection(
     session,
     section.requiresAuth,
@@ -65,7 +67,10 @@ export default async function PatientSectionPage({ params }: Props) {
   if (!canViewSection) notFound();
 
   const homeBlocks = await deps.patientHomeBlocks.listBlocksWithItems();
-  const subscriptionSectionPresentation = getSubscriptionCarouselSectionPresentation(homeBlocks, canonicalSlug);
+  const subscriptionSectionPresentation = getSubscriptionCarouselSectionPresentation(
+    homeBlocks,
+    canonicalSlug,
+  );
 
   const pages = await filterPatientSectionPages(session, allSectionPages, deps.entitlements);
 
@@ -73,27 +78,36 @@ export default async function PatientSectionPage({ params }: Props) {
     ...new Set(
       pages
         .map((p) => p.linkedCourseId)
-        .filter((id): id is string => typeof id === "string" && Boolean(id?.trim())),
+        .filter((id): id is string => typeof id === 'string' && Boolean(id?.trim())),
     ),
   ].map((id) => id.trim());
 
   const courseHighlightByLinkedId = new Map<string, string>();
   if (linkedCourseIds.length > 0 && session) {
-    const patientOrganization = await resolvePatientEnrollmentOrganizationId(deps, session.user.userId);
-    if (patientOrganization.ok && (await requireEntitlementForReadAction(patientOrganization, "courses")).ok) {
+    const patientOrganization = await resolvePatientEnrollmentOrganizationId(
+      deps,
+      session.user.userId,
+    );
+    if (
+      patientOrganization.ok &&
+      (await requireEntitlementForReadAction(patientOrganization, 'courses')).ok
+    ) {
       const courseRows = await withPatientOrganizationPrincipal(
         {
           organizationId: patientOrganization.organizationId,
           platformUserId: session.user.userId,
-          source: "app.patient.sections.course-projections",
+          source: 'app.patient.sections.course-projections',
         },
         () => Promise.all(linkedCourseIds.map((id) => deps.courses.getCourseForDoctor(id))),
       );
       for (let i = 0; i < linkedCourseIds.length; i += 1) {
         const row = courseRows[i];
         const key = linkedCourseIds[i]!;
-        if (row?.status === "published") {
-          courseHighlightByLinkedId.set(key, `/app/patient/courses?highlight=${encodeURIComponent(row.id)}`);
+        if (row?.status === 'published') {
+          courseHighlightByLinkedId.set(
+            key,
+            `/app/patient/courses?highlight=${encodeURIComponent(row.id)}`,
+          );
         }
       }
     }
@@ -105,7 +119,6 @@ export default async function PatientSectionPage({ params }: Props) {
       user={session?.user ?? null}
       backHref={routePaths.patient}
       backLabel="Меню"
-     
       patientTitleBadge={subscriptionSectionPresentation?.badgeLabel}
     >
       <PatientSectionPageBody

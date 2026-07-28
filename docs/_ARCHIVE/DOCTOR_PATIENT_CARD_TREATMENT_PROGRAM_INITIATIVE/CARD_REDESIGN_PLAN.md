@@ -18,16 +18,16 @@
 
 ## 2. User tasks — «10 секунд на ответ»
 
-| Вопрос врача | Где отвечаем | Действие |
-|---|---|---|
-| Кто это, когда следующий контакт? | Hero | Позвонить / Чат |
-| Я веду пациента? | Hero (тумблер «На сопровождении») | Toggle |
-| Что горит сейчас? | Action Strip | Перейти к проблеме |
-| Какие у меня дела по пациенту? | Hero (сводка задач) + секция «Задачи» | Выполнить / создать |
-| Как идёт лечение? | Таб «Обзор» (Care Plan + самочувствие) | Открыть программу |
-| Что нового от пациента? | Бейджи на табах + Action Strip | Ответить / оценить тест |
+| Вопрос врача                      | Где отвечаем                           | Действие                |
+| --------------------------------- | -------------------------------------- | ----------------------- |
+| Кто это, когда следующий контакт? | Hero                                   | Позвонить / Чат         |
+| Я веду пациента?                  | Hero (тумблер «На сопровождении»)      | Toggle                  |
+| Что горит сейчас?                 | Action Strip                           | Перейти к проблеме      |
+| Какие у меня дела по пациенту?    | Hero (сводка задач) + секция «Задачи»  | Выполнить / создать     |
+| Как идёт лечение?                 | Таб «Обзор» (Care Plan + самочувствие) | Открыть программу       |
+| Что нового от пациента?           | Бейджи на табах + Action Strip         | Ответить / оценить тест |
 
-Рыночный ориентир (care-management дашборды, типовые EHR): *patient header → priority/alerts → active care plan → timeline → vitals*. Адаптируем под нашу модель (программа-инстанс + дневник + чат + задачи специалиста).
+Рыночный ориентир (care-management дашборды, типовые EHR): _patient header → priority/alerts → active care plan → timeline → vitals_. Адаптируем под нашу модель (программа-инстанс + дневник + чат + задачи специалиста).
 
 ---
 
@@ -35,21 +35,21 @@
 
 ### 3.1 Уже есть (грузится / доступно)
 
-| Данные | Источник | Тип/поля |
-|---|---|---|
-| Идентичность, телефон, бейджи Архив/Блок | `ClientProfile.identity` (`ClientIdentity`) | `displayName`, `phone`, `isArchived`, `isBlocked`, `blockedReason` |
-| Ближайшая / предстоящие записи, статистика | `ClientProfile.upcomingAppointments`, `appointmentStats`, `appointmentHistory` | `AppointmentSummary` |
-| Флаг сопровождения | `DoctorClientSupportPanel` + `GET/PATCH …/support-settings` (фаза 1) | on/off |
-| Непрочитанные в чате | `POST /api/doctor/messages/conversations/unread-by-patient` | `unreadCount` |
-| Активная программа (summary) | `treatmentProgramInstancesInitial` | `TreatmentProgramInstanceSummary` (`status`, `patientPlanLastOpenedAt`, …) |
-| Этап + элементы (детально) | детальный экран инстанса (`TreatmentProgramInstanceDetail`) | `stages[].goals/objectives/expectedDuration*`, `items[].lastViewedAt/isActionable/snapshot` |
-| Тесты к проверке | `pendingProgramTestEvaluations` | `PendingProgramTestEvaluationRow` (`decided_by IS NULL`) |
-| Обсуждение элементов (комментарии/медиа) | `DoctorProgramItemDiscussionDialog`, `DoctorProgramActionLogMediaPreview` (экран инстанса) | поэлементно |
-| Самочувствие (дневник) | `ClientProfile.recentSymptomEntries`, `symptomTrackings` + `buildWellbeingWeekChartData` | `SymptomEntry.value0_10`, `recordedAt` |
-| ЛФК-сессии | `ClientProfile.recentLfkSessions`, `lfkComplexes` | `LfkSession` (`difficulty0_10`, `pain0_10`) |
-| События программы (timeline-источник) | `treatment_program_events` | `TREATMENT_PROGRAM_EVENT_TYPES` |
-| Старый журнал отправок | `messageHistory` | `MessageLogEntry` |
-| Контакты/каналы, профиль, lifecycle, админ | существующие панели | — |
+| Данные                                     | Источник                                                                                   | Тип/поля                                                                                    |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- |
+| Идентичность, телефон, бейджи Архив/Блок   | `ClientProfile.identity` (`ClientIdentity`)                                                | `displayName`, `phone`, `isArchived`, `isBlocked`, `blockedReason`                          |
+| Ближайшая / предстоящие записи, статистика | `ClientProfile.upcomingAppointments`, `appointmentStats`, `appointmentHistory`             | `AppointmentSummary`                                                                        |
+| Флаг сопровождения                         | `DoctorClientSupportPanel` + `GET/PATCH …/support-settings` (фаза 1)                       | on/off                                                                                      |
+| Непрочитанные в чате                       | `POST /api/doctor/messages/conversations/unread-by-patient`                                | `unreadCount`                                                                               |
+| Активная программа (summary)               | `treatmentProgramInstancesInitial`                                                         | `TreatmentProgramInstanceSummary` (`status`, `patientPlanLastOpenedAt`, …)                  |
+| Этап + элементы (детально)                 | детальный экран инстанса (`TreatmentProgramInstanceDetail`)                                | `stages[].goals/objectives/expectedDuration*`, `items[].lastViewedAt/isActionable/snapshot` |
+| Тесты к проверке                           | `pendingProgramTestEvaluations`                                                            | `PendingProgramTestEvaluationRow` (`decided_by IS NULL`)                                    |
+| Обсуждение элементов (комментарии/медиа)   | `DoctorProgramItemDiscussionDialog`, `DoctorProgramActionLogMediaPreview` (экран инстанса) | поэлементно                                                                                 |
+| Самочувствие (дневник)                     | `ClientProfile.recentSymptomEntries`, `symptomTrackings` + `buildWellbeingWeekChartData`   | `SymptomEntry.value0_10`, `recordedAt`                                                      |
+| ЛФК-сессии                                 | `ClientProfile.recentLfkSessions`, `lfkComplexes`                                          | `LfkSession` (`difficulty0_10`, `pain0_10`)                                                 |
+| События программы (timeline-источник)      | `treatment_program_events`                                                                 | `TREATMENT_PROGRAM_EVENT_TYPES`                                                             |
+| Старый журнал отправок                     | `messageHistory`                                                                           | `MessageLogEntry`                                                                           |
+| Контакты/каналы, профиль, lifecycle, админ | существующие панели                                                                        | —                                                                                           |
 
 ### 3.2 Новые read-модели / агрегаты (нужно добавить для 2B/2C)
 
@@ -103,9 +103,9 @@
 ```
 
 - **Обзор** (дефолт): двухколоночно (desktop) / стек (mobile):
-  - *Care Plan:* активный инстанс, текущий этап (`goals`/`objectives`/`expectedDuration*`), элементы этапа со **static-превью** (`PatientCatalogMediaStaticThumb`/`MediaThumb`, без `<video>`), бейдж «Новое» при `lastViewedAt = null`, прогресс этапов, CTA «Открыть программу» / «Назначить программу» (`PatientTreatmentProgramsPanel`).
-  - *Самочувствие (вторичный):* **спарклайн** `value0_10` (`buildWellbeingWeekChartData`) + последнее значение/тренд + маркеры ЛФК-сессий; кнопка «Подробный график» раскрывает полноразмерный график с периодом и маркерами выполнения/пропусков.
-  - *Секция «Задачи»* пациента (см. §6) — подробный список (решение «здесь vs мини-таб» ниже, см. §4.4).
+  - _Care Plan:_ активный инстанс, текущий этап (`goals`/`objectives`/`expectedDuration*`), элементы этапа со **static-превью** (`PatientCatalogMediaStaticThumb`/`MediaThumb`, без `<video>`), бейдж «Новое» при `lastViewedAt = null`, прогресс этапов, CTA «Открыть программу» / «Назначить программу» (`PatientTreatmentProgramsPanel`).
+  - _Самочувствие (вторичный):_ **спарклайн** `value0_10` (`buildWellbeingWeekChartData`) + последнее значение/тренд + маркеры ЛФК-сессий; кнопка «Подробный график» раскрывает полноразмерный график с периодом и маркерами выполнения/пропусков.
+  - _Секция «Задачи»_ пациента (см. §6) — подробный список (решение «здесь vs мини-таб» ниже, см. §4.4).
 - **Программа •N:** `PatientTreatmentProgramsPanel` (активная + архив) + program inbox (тесты к проверке, комментарии, медиа) с быстрым ответом/оценкой. Бейдж = к проверке + новые комментарии + медиа.
 - **Коммуникации •N:** встроенный чат поддержки (`DoctorClientEmbeddedChat` + `POST …/conversations/ensure`) + свёрнутый старый журнал `messageHistory` в `<details>`.
 - **Записи:** предстоящие + `appointmentStats` + свёрнутая история + текстовая сводка симптомов.
@@ -127,19 +127,19 @@
 
 Чтобы Composer не угадывал, куда переезжает каждая существующая секция:
 
-| Панель / секция (сейчас) | Целевой таб |
-|---|---|
-| `DoctorNotesPanel` (`-notes`) | **Обзор** (компактный блок «Заметки») — врач видит контекст без перехода |
-| `PatientTreatmentProgramsPanel` (`-treatment-programs`) | Программа |
-| inbox тестов (`-pending-program-tests`) | Программа |
-| `DoctorClientSupportPanel` (`-support`) | Hero-тумблер (управление) + дубль в «Учётка» при необходимости |
-| `DoctorLfkComplexExerciseOverridesPanel` + ЛФК-сводка (`-lfk`) | **Учётка** (legacy-блок, сворачиваемый) — не на «Обзоре» |
-| симптомы (`-symptoms`) | Записи (текстовая сводка) — числовой ряд в Wellbeing «Обзора» |
-| записи/история (`-appointments`, `-appointment-history`, booking history) | Записи |
-| `messageHistory` / чат (`-communications`) | Коммуникации |
-| контакты/каналы, `AdminClientProfileEditPanel`, `DoctorSupplementaryContactsPanel` (`-contacts`) | Учётка |
-| `DoctorClientLifecycleActions` (`-lifecycle`), `SubscriberBlockPanel` (`-subscriber`) | Учётка |
-| `Admin*` (`AdminDangerActions`, `AdminMergeAccountsPanel`, `AdminClientAuditHistorySection`) | меню «Админ» (lazy) |
+| Панель / секция (сейчас)                                                                         | Целевой таб                                                              |
+| ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
+| `DoctorNotesPanel` (`-notes`)                                                                    | **Обзор** (компактный блок «Заметки») — врач видит контекст без перехода |
+| `PatientTreatmentProgramsPanel` (`-treatment-programs`)                                          | Программа                                                                |
+| inbox тестов (`-pending-program-tests`)                                                          | Программа                                                                |
+| `DoctorClientSupportPanel` (`-support`)                                                          | Hero-тумблер (управление) + дубль в «Учётка» при необходимости           |
+| `DoctorLfkComplexExerciseOverridesPanel` + ЛФК-сводка (`-lfk`)                                   | **Учётка** (legacy-блок, сворачиваемый) — не на «Обзоре»                 |
+| симптомы (`-symptoms`)                                                                           | Записи (текстовая сводка) — числовой ряд в Wellbeing «Обзора»            |
+| записи/история (`-appointments`, `-appointment-history`, booking history)                        | Записи                                                                   |
+| `messageHistory` / чат (`-communications`)                                                       | Коммуникации                                                             |
+| контакты/каналы, `AdminClientProfileEditPanel`, `DoctorSupplementaryContactsPanel` (`-contacts`) | Учётка                                                                   |
+| `DoctorClientLifecycleActions` (`-lifecycle`), `SubscriberBlockPanel` (`-subscriber`)            | Учётка                                                                   |
+| `Admin*` (`AdminDangerActions`, `AdminMergeAccountsPanel`, `AdminClientAuditHistorySection`)     | меню «Админ» (lazy)                                                      |
 
 ---
 
@@ -185,24 +185,24 @@
 
 Полный список якорей в текущем `ClientProfileCard.tsx` / `ClientBookingHistoryPanel.tsx` (проверено `rg`). При монтировании карты по хешу: **выбрать таб → доскроллить к сохранённому `id`**. Сами `id` остаются на DOM-узлах внутри табов (не удалять).
 
-| Якорь (есть в коде) | Целевой таб + действие |
-|---|---|
-| `#doctor-client-section-tasks` | Обзор → секция «Задачи» (фаза 2C) |
-| `#doctor-client-section-notes` | Обзор → скролл к блоку «Заметки» |
-| `#doctor-client-section-support` | Обзор → Hero-тумблер сопровождения |
-| `#doctor-client-section-treatment-programs` | Программа → скролл |
-| `#doctor-client-section-pending-program-tests` | Программа → inbox |
-| `#doctor-client-section-lfk` | Учётка → legacy ЛФК-блок |
-| `#doctor-client-section-symptoms` | Записи → сводка симптомов |
-| `#doctor-client-section-appointments` | Записи → предстоящие |
-| `#doctor-client-section-appointment-history` | Записи → история |
-| `#doctor-client-section-booking-history` | Записи → booking history (`ClientBookingHistoryPanel`) |
-| `#doctor-client-section-communications` | Коммуникации |
-| `#doctor-client-section-contacts` | Учётка → контакты/каналы |
-| `#doctor-client-section-lifecycle` | Учётка → lifecycle |
-| `#doctor-client-section-subscriber` | Учётка → блокировка |
-| `?chat=1` | таб «Коммуникации» + якорь `#doctor-client-section-communications` (`autoOpenChat`) |
-| `?discussionItem={stageItemId}` (экран инстанса) | автооткрытие `DoctorProgramItemDiscussionDialog` для элемента |
+| Якорь (есть в коде)                              | Целевой таб + действие                                                              |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------- |
+| `#doctor-client-section-tasks`                   | Обзор → секция «Задачи» (фаза 2C)                                                   |
+| `#doctor-client-section-notes`                   | Обзор → скролл к блоку «Заметки»                                                    |
+| `#doctor-client-section-support`                 | Обзор → Hero-тумблер сопровождения                                                  |
+| `#doctor-client-section-treatment-programs`      | Программа → скролл                                                                  |
+| `#doctor-client-section-pending-program-tests`   | Программа → inbox                                                                   |
+| `#doctor-client-section-lfk`                     | Учётка → legacy ЛФК-блок                                                            |
+| `#doctor-client-section-symptoms`                | Записи → сводка симптомов                                                           |
+| `#doctor-client-section-appointments`            | Записи → предстоящие                                                                |
+| `#doctor-client-section-appointment-history`     | Записи → история                                                                    |
+| `#doctor-client-section-booking-history`         | Записи → booking history (`ClientBookingHistoryPanel`)                              |
+| `#doctor-client-section-communications`          | Коммуникации                                                                        |
+| `#doctor-client-section-contacts`                | Учётка → контакты/каналы                                                            |
+| `#doctor-client-section-lifecycle`               | Учётка → lifecycle                                                                  |
+| `#doctor-client-section-subscriber`              | Учётка → блокировка                                                                 |
+| `?chat=1`                                        | таб «Коммуникации» + якорь `#doctor-client-section-communications` (`autoOpenChat`) |
+| `?discussionItem={stageItemId}` (экран инстанса) | автооткрытие `DoctorProgramItemDiscussionDialog` для элемента                       |
 
 **Реализация (один helper):** при маунте читать `window.location.hash`, по карте «anchor → tabId» переключить активный таб, затем `scrollIntoView` по `id` (с небольшим `requestAnimationFrame`/`useEffect` после рендера таба). Внутренние кнопки Hero «История/Заметки/Программа» переводятся на тот же механизм (сейчас это `<Link href="#...">`).
 
@@ -217,23 +217,27 @@
 ### Фаза 2B — карточка ✅ (2026-06-02)
 
 **2B-1. Каркас Tabs + перенос секций (без новых данных).** ✅
+
 - Файлы: `ClientProfileCard.tsx` → тонкий каркас (Hero-заглушка + `Tabs` router, `key={userId}` сохранить); новые обёртки `OverviewTab/ProgramTab/CommunicationsTab/RecordsTab/AccountTab` в `apps/webapp/src/app/app/doctor/clients/`. Существующие панели переезжают **без изменений** по карте §4.5.
 - Props/данные `[userId]/page.tsx` **не меняем** (тот же `Promise.all`).
 - Проверки: `pnpm --dir apps/webapp exec tsc --noEmit`; `pnpm --dir apps/webapp lint`; обновить/прогнать `ClientProfileCard.backLink.test.tsx`; визуальный smoke (все блоки доступны в табах).
 - DoD: длинная лента заменена табами; ни одна существующая панель не потеряна; тесты карточки зелёные.
 
 **2B-2. Hero / Care Bar.** ✅
+
 - Новый `PatientCareBar` (идентичность, телефон `tel:`, бейджи Архив/Блок, ближайшая запись из `upcomingAppointments[0]`, тумблер сопровождения через существующий `support-settings` flow, кнопка «Чат» с `chatUnreadCount` через существующий `unread-by-patient`, меню `⋯`). Hero-сводка задач — плейсхолдер до 2C.
 - Проверки: `tsc`/`lint`; RTL на Hero (рендер бейджей, наличие кнопки чата с бейджем).
 - DoD: above-the-fold виден «кто/контакт/запись/сопровождение/чат» без скролла; mobile — 2 ряда.
 
 **2B-3. Action Strip + агрегаты (§3.2.1, §3.2.2).** ✅
+
 - Порт/сервис rollup комментариев/медиа активного инстанса + «план не открыт»; DI в `[userId]/page.tsx` (RSC, above-the-fold); `PatientActionStrip` с чипами по §4.1; пустое состояние «Срочных задач нет».
 - Семантику «нового» комментария/медиа зафиксировать в `LOG.md` + `apps/webapp/src/app/api/api.md`.
 - Проверки: unit на агрегат (порог дат «план не открыт», подсчёт «новых»); `tsc`/`lint`; route/RSC-тест на корректные счётчики.
 - DoD: каждый чип ведёт в нужный таб/чат; «план не открыт» по алгоритму §3.2.2.
 
 **2B-4. Обзор: Care Plan + Wellbeing.** ✅
+
 - `OverviewTab`: Care Plan-карточка из `treatmentProgramInstancesInitial` (активный инстанс summary, текущий этап, CTA «Открыть программу»/«Назначить»; элементы со static-превью `PatientCatalogMediaStaticThumb`/`MediaThumb`, **без** `<video>`, бейдж «Новое» при `lastViewedAt = null`); Wellbeing-спарклайн (`buildWellbeingWeekChartData` по `recentSymptomEntries`/`symptomTrackings`) + кнопка «Подробный график» (lazy раскрытие полного графика); компактный блок «Заметки» (§4.5).
 - Проверки: соответствие `patient-ui-shared-primitives` (static-превью); `tsc`/`lint`; RTL на «Новое»-бейдж и раскрытие графика (прогрев lazy в `beforeAll` по `webapp-tests-lean-no-bloat`).
 - DoD: лечение (программа+самочувствие) на «Обзоре»; полный график только по клику.
@@ -241,6 +245,7 @@
 **2B-5. Миграция якорей + `autoOpenChat`.** ✅
 
 **UX-аудит после 2B (P0/P1):** встроенный чат в табе; deep link `?discussionItem=` с inbox/Care Plan; Action Strip «Сейчас»; primary/secondary обзор; зона «Срочное» на табе «Программа»; `doctorClientCardChrome.ts`; админ вне табов. Детали — [`LOG.md`](LOG.md) §2026-06-02 UX-аудит.
+
 - Helper «anchor → tab + scroll» по таблице §8; Hero-ссылки переведены на него; `?chat=1` сохраняет автооткрытие.
 - Проверки: `rg "doctor-client-section-" apps/webapp/src`; RTL/integration на 2–3 ключевых якоря (`-treatment-programs`, `-pending-program-tests`, `-communications`) + `?chat=1`.
 - DoD: старые `#doctor-client-section-*` и `?chat=1` открывают правильный таб без «битого» якоря.
@@ -274,6 +279,7 @@
 **Разрешено трогать (2B):** `apps/webapp/src/app/app/doctor/clients/` (каркас карточки, новые `*Tab`/`PatientCareBar`/`PatientActionStrip`/`OverviewTab` и обёртки), `apps/webapp/src/app/app/doctor/clients/[userId]/page.tsx` (только добавление новых RSC-агрегатов в `Promise.all`), новые порт/сервис агрегатов в `apps/webapp/src/modules/treatment-program/` (или новый модуль агрегата), `api.md`, `LOG.md`. **2C** дополнительно: новая таблица задач (`apps/webapp/db/schema/*`, миграции), её порт/сервис/route, doctor-scope ключи `system_settings`, worker напоминаний, `/app/settings`, «Сегодня» (глобальные задачи).
 
 **Вне scope (не менять без отдельного решения):**
+
 - Детальный экран инстанса (`[instanceId]/*`: правка/обсуждение) — карточка только **ведёт** на него.
 - Существующие доменные панели — переезжают в табы **как есть**, без рефактора их внутренней логики.
 - Полный клинический timeline с богатой семантикой событий (после 2B). ~~CMS/help (фаза 6)~~ — **закрыта** 2026-06-02 (`CONTENT_PAGE_ROLES`, раздел `help`, `/app/patient/help`, revalidate, редирект `/content` → `/help`; см. LOG §фаза 6). ~~Черновик редактора программы (фаза 3)~~ — **закрыта** 2026-06-02 (`treatment-program-shared/instanceEditorDraft*`). ~~Фильтры picker «добавить из библиотеки» (фаза 4)~~ — **закрыта** 2026-06-02 (`TreatmentProgramLibraryPickerToolbar`; без «Без региона»/«Без типа» — см. LOG §фаза 4). ~~Cross-patient inbox «К проверке» на «Сегодня» (фаза 5)~~ — **закрыта** 2026-06-02 (`DoctorTodayPendingProgramTestsSection`, count+preview, `focusItemId`, бейдж «Сегодня» — LOG §фаза 5).

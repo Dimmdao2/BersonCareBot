@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const requireClinicManagementBookingEngineMock = vi.hoisted(() => vi.fn());
 const withDoctorWorkspacePrincipalMock = vi.hoisted(() =>
@@ -9,28 +9,28 @@ const getBranchMock = vi.hoisted(() => vi.fn());
 const getSpecialistMock = vi.hoisted(() => vi.fn());
 const setSoloServiceLocationAvailabilityMock = vi.hoisted(() => vi.fn());
 
-vi.mock("../_requireAdminBookingEngine", () => ({
+vi.mock('../_requireAdminBookingEngine', () => ({
   requireClinicManagementBookingEngine: requireClinicManagementBookingEngineMock,
 }));
 
-vi.mock("@/app-layer/principal/withOrganizationPrincipal", () => ({
+vi.mock('@/app-layer/principal/withOrganizationPrincipal', () => ({
   withDoctorWorkspacePrincipal: withDoctorWorkspacePrincipalMock,
 }));
 
-import { POST } from "./route";
+import { POST } from './route';
 
-const ORGANIZATION_ID = "11111111-1111-4111-8111-111111111111";
-const FOREIGN_ORGANIZATION_ID = "22222222-2222-4222-8222-222222222222";
-const SPECIALIST_ID = "33333333-3333-4333-8333-333333333333";
-const SERVICE_ID = "44444444-4444-4444-8444-444444444444";
-const BRANCH_ID = "55555555-5555-4555-8555-555555555555";
+const ORGANIZATION_ID = '11111111-1111-4111-8111-111111111111';
+const FOREIGN_ORGANIZATION_ID = '22222222-2222-4222-8222-222222222222';
+const SPECIALIST_ID = '33333333-3333-4333-8333-333333333333';
+const SERVICE_ID = '44444444-4444-4444-8444-444444444444';
+const BRANCH_ID = '55555555-5555-4555-8555-555555555555';
 
 function request(): Request {
-  return new Request("http://localhost/api/admin/booking-engine/availability", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
+  return new Request('http://localhost/api/admin/booking-engine/availability', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      kind: "solo_service_location",
+      kind: 'solo_service_location',
       specialistId: SPECIALIST_ID,
       serviceId: SERVICE_ID,
       branchId: BRANCH_ID,
@@ -39,7 +39,7 @@ function request(): Request {
   });
 }
 
-describe("/api/admin/booking-engine/availability solo command", () => {
+describe('/api/admin/booking-engine/availability solo command', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     withDoctorWorkspacePrincipalMock.mockImplementation(
@@ -49,8 +49,8 @@ describe("/api/admin/booking-engine/availability solo command", () => {
     getBranchMock.mockResolvedValue({ id: BRANCH_ID, organizationId: ORGANIZATION_ID });
     getSpecialistMock.mockResolvedValue({ id: SPECIALIST_ID, organizationId: ORGANIZATION_ID });
     setSoloServiceLocationAvailabilityMock.mockResolvedValue({
-      locationAvailability: { id: "location" },
-      specialistAvailability: { id: "specialist" },
+      locationAvailability: { id: 'location' },
+      specialistAvailability: { id: 'specialist' },
     });
     requireClinicManagementBookingEngineMock.mockResolvedValue({
       ok: true,
@@ -67,7 +67,7 @@ describe("/api/admin/booking-engine/availability solo command", () => {
     });
   });
 
-  it("normalizes location and specialist availability with one organization-scoped command", async () => {
+  it('normalizes location and specialist availability with one organization-scoped command', async () => {
     const response = await POST(request());
 
     expect(response.status).toBe(200);
@@ -81,16 +81,16 @@ describe("/api/admin/booking-engine/availability solo command", () => {
     });
     expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
       expect.objectContaining({ organizationId: ORGANIZATION_ID }),
-      "admin.booking-engine.availability.solo-service-location.set",
+      'admin.booking-engine.availability.solo-service-location.set',
       expect.any(Function),
     );
   });
 
   it.each([
-    ["service", getServiceMock, "service_not_found"],
-    ["branch", getBranchMock, "branch_not_found"],
-    ["specialist", getSpecialistMock, "specialist_not_found"],
-  ])("rejects a %s owned by another organization", async (_entity, lookup, expectedError) => {
+    ['service', getServiceMock, 'service_not_found'],
+    ['branch', getBranchMock, 'branch_not_found'],
+    ['specialist', getSpecialistMock, 'specialist_not_found'],
+  ])('rejects a %s owned by another organization', async (_entity, lookup, expectedError) => {
     lookup.mockResolvedValueOnce({ organizationId: FOREIGN_ORGANIZATION_ID });
 
     const response = await POST(request());

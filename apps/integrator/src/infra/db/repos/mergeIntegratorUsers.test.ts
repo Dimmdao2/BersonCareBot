@@ -62,7 +62,8 @@ describe('mergeIntegratorUsers', () => {
       if (q.startsWith('UPDATE user_subscriptions SET user_id')) return { rows: [], rowCount: 0 };
       if (q.startsWith('DELETE FROM mailing_logs')) return { rows: [], rowCount: 0 };
       if (q.startsWith('UPDATE mailing_logs SET user_id')) return { rows: [], rowCount: 0 };
-      if (q.includes('FROM projection_outbox') && q.includes('pending')) return { rows: [], rowCount: 0 };
+      if (q.includes('FROM projection_outbox') && q.includes('pending'))
+        return { rows: [], rowCount: 0 };
       if (q.startsWith('UPDATE projection_outbox')) return { rows: [], rowCount: 0 };
       if (q.startsWith('UPDATE users SET merged_into_user_id')) return { rows: [], rowCount: 0 };
       return { rows: [], rowCount: 0 };
@@ -235,7 +236,9 @@ describe('mergeIntegratorUsers', () => {
   });
 
   it('exposes MergeIntegratorUsersError for alias rows', () => {
-    expect(new MergeIntegratorUsersError('ALREADY_MERGED_ALIAS', 'x').code).toBe('ALREADY_MERGED_ALIAS');
+    expect(new MergeIntegratorUsersError('ALREADY_MERGED_ALIAS', 'x').code).toBe(
+      'ALREADY_MERGED_ALIAS',
+    );
   });
 
   it('T0.4: re-derives organization_id from the winner on every SCOPED re-parent, never leaving the loser stale org', async () => {
@@ -279,10 +282,13 @@ describe('mergeIntegratorUsers', () => {
     for (const { prefix, table } of reparentStatements) {
       const statement = sql.find((s) => s.startsWith(prefix));
       expect(statement, `${table} reparent statement should exist`).toBeDefined();
-      expect(statement, `${table} should stamp organization_id from the winner`).toContain('organization_id');
-      expect(statement, `${table} org derivation should reference the winner's platform user`).toContain(
-        winnerOrgExpr,
+      expect(statement, `${table} should stamp organization_id from the winner`).toContain(
+        'organization_id',
       );
+      expect(
+        statement,
+        `${table} org derivation should reference the winner's platform user`,
+      ).toContain(winnerOrgExpr);
       expect(statement, `${table} org derivation should key off winner id 20`).toContain(
         'integrator_user_id = 20',
       );
@@ -296,7 +302,7 @@ describe('mergeIntegratorUsers', () => {
     }
   });
 
-  it('defect fix: never NULLs a reparented row\'s organization_id when the winner has 0 active orgs', async () => {
+  it("defect fix: never NULLs a reparented row's organization_id when the winner has 0 active orgs", async () => {
     // Winner-single-active-org subquery below returns 0 rows (HAVING count = 1 fails when the
     // winner belongs to 0 orgs) and there is no organization principal in scope (no
     // runWithOrganizationPrincipal wrapper active in this unit test) — the OLD two-branch
@@ -346,7 +352,9 @@ describe('mergeIntegratorUsers', () => {
       const statement = sql.find((s) => s.startsWith(prefix));
       expect(statement, `${prefix} statement should exist`).toBeDefined();
       // COALESCE must end in the row's own organization_id column — never bare NULL.
-      expect(statement).toMatch(/COALESCE\([^)]*organization_id[^)]*\)$|organization_id\s*\)\s*WHERE/u);
+      expect(statement).toMatch(
+        /COALESCE\([^)]*organization_id[^)]*\)$|organization_id\s*\)\s*WHERE/u,
+      );
       const tableName = prefix.replace('UPDATE ', '').split(' ')[0];
       expect(
         statement,

@@ -1,27 +1,27 @@
-import { describe, expect, it } from "vitest";
-import { buildTreatmentProgramLibraryPickers } from "./buildTreatmentProgramLibraryPickers";
-import type { Exercise } from "@/modules/lfk-exercises/types";
-import type { Template } from "@/modules/lfk-templates/types";
-import type { Recommendation } from "@/modules/recommendations/types";
-import type { ClinicalTest } from "@/modules/tests/types";
+import { describe, expect, it } from 'vitest';
+import { buildTreatmentProgramLibraryPickers } from './buildTreatmentProgramLibraryPickers';
+import type { Exercise } from '@/modules/lfk-exercises/types';
+import type { Template } from '@/modules/lfk-templates/types';
+import type { Recommendation } from '@/modules/recommendations/types';
+import type { ClinicalTest } from '@/modules/tests/types';
 
 function minimalExercise(overrides: Partial<Exercise> = {}): Exercise {
   return {
-    id: "ex-1",
-    ownerKind: "organization",
-    catalogScope: "catalog",
-    title: "Упр",
+    id: 'ex-1',
+    ownerKind: 'organization',
+    catalogScope: 'catalog',
+    title: 'Упр',
     description: null,
-    regionRefId: "reg-1",
-    regionRefIds: ["reg-1", "reg-2"],
-    loadType: "strength",
+    regionRefId: 'reg-1',
+    regionRefIds: ['reg-1', 'reg-2'],
+    loadType: 'strength',
     difficulty1_10: null,
     contraindications: null,
     tags: null,
     isArchived: false,
     createdBy: null,
-    createdAt: "2026-01-01T00:00:00.000Z",
-    updatedAt: "2026-01-01T00:00:00.000Z",
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
     media: [],
     ...overrides,
   };
@@ -29,48 +29,48 @@ function minimalExercise(overrides: Partial<Exercise> = {}): Exercise {
 
 function minimalClinicalTest(overrides: Partial<ClinicalTest> = {}): ClinicalTest {
   return {
-    id: "ct-1",
-    title: "Тест",
+    id: 'ct-1',
+    title: 'Тест',
     description: null,
     testType: null,
     scoring: null,
     rawText: null,
     assessmentKind: null,
-    bodyRegionId: "reg-1",
-    bodyRegionIds: ["reg-1"],
+    bodyRegionId: 'reg-1',
+    bodyRegionIds: ['reg-1'],
     media: [],
     tags: null,
     isArchived: false,
     createdBy: null,
-    createdAt: "2026-01-01T00:00:00.000Z",
-    updatedAt: "2026-01-01T00:00:00.000Z",
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
     ...overrides,
   };
 }
 
 function minimalRecommendation(overrides: Partial<Recommendation> = {}): Recommendation {
   return {
-    id: "rec-1",
-    title: "Рекомендация",
-    bodyMd: "",
+    id: 'rec-1',
+    title: 'Рекомендация',
+    bodyMd: '',
     media: [],
     tags: null,
     domain: null,
-    bodyRegionId: "reg-2",
-    bodyRegionIds: ["reg-2"],
+    bodyRegionId: 'reg-2',
+    bodyRegionIds: ['reg-2'],
     quantityText: null,
     frequencyText: null,
     durationText: null,
     isArchived: false,
     createdBy: null,
-    createdAt: "2026-01-01T00:00:00.000Z",
-    updatedAt: "2026-01-01T00:00:00.000Z",
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
     ...overrides,
   };
 }
 
-describe("buildTreatmentProgramLibraryPickers", () => {
-  it("maps exercise region ref ids to codes for library filters", () => {
+describe('buildTreatmentProgramLibraryPickers', () => {
+  it('maps exercise region ref ids to codes for library filters', () => {
     const pickers = buildTreatmentProgramLibraryPickers({
       exercises: [minimalExercise()],
       lfkTemplates: [],
@@ -78,13 +78,13 @@ describe("buildTreatmentProgramLibraryPickers", () => {
       clinicalTests: [],
       recommendations: [],
       contentPagesAll: [],
-      bodyRegionIdToCode: { "reg-1": "spine", "reg-2": "knee" },
+      bodyRegionIdToCode: { 'reg-1': 'spine', 'reg-2': 'knee' },
     });
-    expect(pickers.exercises[0]?.regionCodes).toEqual(["spine", "knee"]);
-    expect(pickers.exercises[0]?.loadType).toBe("strength");
+    expect(pickers.exercises[0]?.regionCodes).toEqual(['spine', 'knee']);
+    expect(pickers.exercises[0]?.loadType).toBe('strength');
   });
 
-  it("maps recommendation and clinical test region ref ids to codes for library filters", () => {
+  it('maps recommendation and clinical test region ref ids to codes for library filters', () => {
     const pickers = buildTreatmentProgramLibraryPickers({
       exercises: [],
       lfkTemplates: [],
@@ -92,33 +92,33 @@ describe("buildTreatmentProgramLibraryPickers", () => {
       clinicalTests: [minimalClinicalTest()],
       recommendations: [minimalRecommendation()],
       contentPagesAll: [],
-      bodyRegionIdToCode: { "reg-1": "spine", "reg-2": "knee" },
+      bodyRegionIdToCode: { 'reg-1': 'spine', 'reg-2': 'knee' },
     });
 
-    expect(pickers.clinicalTests[0]?.regionCodes).toEqual(["spine"]);
-    expect(pickers.recommendations[0]?.regionCodes).toEqual(["knee"]);
+    expect(pickers.clinicalTests[0]?.regionCodes).toEqual(['spine']);
+    expect(pickers.recommendations[0]?.regionCodes).toEqual(['knee']);
   });
 
-  it("builds lfk complex filter meta from template exercises", () => {
+  it('builds lfk complex filter meta from template exercises', () => {
     const exercises = [
-      minimalExercise({ id: "e1", regionRefIds: ["reg-1"], loadType: "strength" }),
-      minimalExercise({ id: "e2", regionRefIds: [], loadType: null }),
+      minimalExercise({ id: 'e1', regionRefIds: ['reg-1'], loadType: 'strength' }),
+      minimalExercise({ id: 'e2', regionRefIds: [], loadType: null }),
     ];
     const lfkTemplates: Template[] = [
       {
-        id: "tpl-1",
-        ownerKind: "organization",
-        title: "Комплекс",
+        id: 'tpl-1',
+        ownerKind: 'organization',
+        title: 'Комплекс',
         description: null,
-        status: "published",
+        status: 'published',
         createdBy: null,
-        createdAt: "2026-01-01T00:00:00.000Z",
-        updatedAt: "2026-01-01T00:00:00.000Z",
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
         exercises: [
           {
-            id: "row-1",
-            templateId: "tpl-1",
-            exerciseId: "e1",
+            id: 'row-1',
+            templateId: 'tpl-1',
+            exerciseId: 'e1',
             sortOrder: 0,
             reps: null,
             sets: null,
@@ -127,9 +127,9 @@ describe("buildTreatmentProgramLibraryPickers", () => {
             comment: null,
           },
           {
-            id: "row-2",
-            templateId: "tpl-1",
-            exerciseId: "e2",
+            id: 'row-2',
+            templateId: 'tpl-1',
+            exerciseId: 'e2',
             sortOrder: 1,
             reps: null,
             sets: null,
@@ -147,36 +147,39 @@ describe("buildTreatmentProgramLibraryPickers", () => {
       clinicalTests: [],
       recommendations: [],
       contentPagesAll: [],
-      bodyRegionIdToCode: { "reg-1": "spine" },
+      bodyRegionIdToCode: { 'reg-1': 'spine' },
     });
-    expect(pickers.lfkComplexes[0]?.regionCodes).toEqual(["spine"]);
-    expect(pickers.lfkComplexes[0]?.loadTypes).toEqual(["strength"]);
+    expect(pickers.lfkComplexes[0]?.regionCodes).toEqual(['spine']);
+    expect(pickers.lfkComplexes[0]?.loadTypes).toEqual(['strength']);
     expect(pickers.lfkComplexes[0]?.expandLines).toEqual([
-      expect.objectContaining({ itemRefId: "e1", snapshot: expect.objectContaining({ title: "Упражнение" }) }),
-      expect.objectContaining({ itemRefId: "e2" }),
+      expect.objectContaining({
+        itemRefId: 'e1',
+        snapshot: expect.objectContaining({ title: 'Упражнение' }),
+      }),
+      expect.objectContaining({ itemRefId: 'e2' }),
     ]);
   });
 
-  it("maps template exercise load into lfkComplex expandLines", () => {
+  it('maps template exercise load into lfkComplex expandLines', () => {
     const exercises = [
-      minimalExercise({ id: "e1", title: "Упражнение", difficulty1_10: 3, regionRefIds: [] }),
+      minimalExercise({ id: 'e1', title: 'Упражнение', difficulty1_10: 3, regionRefIds: [] }),
     ];
     const lfkTemplates = [
       {
-        id: "tpl-1",
-        ownerKind: "organization" as const,
-        title: "Комплекс",
+        id: 'tpl-1',
+        ownerKind: 'organization' as const,
+        title: 'Комплекс',
         description: null,
-        status: "published" as const,
+        status: 'published' as const,
         createdBy: null,
-        createdAt: "2026-01-01T00:00:00.000Z",
-        updatedAt: "2026-01-01T00:00:00.000Z",
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
         exercises: [
           {
-            id: "line-1",
-            templateId: "tpl-1",
-            exerciseId: "e1",
-            exerciseTitle: "Упражнение",
+            id: 'line-1',
+            templateId: 'tpl-1',
+            exerciseId: 'e1',
+            exerciseTitle: 'Упражнение',
             sortOrder: 0,
             reps: 10,
             sets: 3,
@@ -202,35 +205,39 @@ describe("buildTreatmentProgramLibraryPickers", () => {
     });
   });
 
-  it("builds expandLines for test sets", () => {
+  it('builds expandLines for test sets', () => {
     const pickers = buildTreatmentProgramLibraryPickers({
       exercises: [],
       lfkTemplates: [],
       testSets: [
         {
-          id: "set-1",
-          title: "Набор",
+          id: 'set-1',
+          title: 'Набор',
           description: null,
-          publicationStatus: "published",
+          publicationStatus: 'published',
           isArchived: false,
           createdBy: null,
-          createdAt: "2026-01-01T00:00:00.000Z",
-          updatedAt: "2026-01-01T00:00:00.000Z",
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-01T00:00:00.000Z',
           items: [
             {
-              id: "line-1",
-              testSetId: "set-1",
-              testId: "test-a",
+              id: 'line-1',
+              testSetId: 'set-1',
+              testId: 'test-a',
               sortOrder: 0,
               comment: null,
               test: {
-                id: "test-a",
-                title: "Тест A",
+                id: 'test-a',
+                title: 'Тест A',
                 testType: null,
                 isArchived: false,
                 bodyRegionId: null,
                 bodyRegionIds: [],
-                previewMedia: { mediaUrl: "https://example.com/t.jpg", mediaType: "image", sortOrder: 0 },
+                previewMedia: {
+                  mediaUrl: 'https://example.com/t.jpg',
+                  mediaType: 'image',
+                  sortOrder: 0,
+                },
               },
             },
           ],
@@ -242,8 +249,8 @@ describe("buildTreatmentProgramLibraryPickers", () => {
     });
     expect(pickers.testSets[0]?.expandLines).toEqual([
       expect.objectContaining({
-        itemRefId: "test-a",
-        snapshot: expect.objectContaining({ title: "Тест A" }),
+        itemRefId: 'test-a',
+        snapshot: expect.objectContaining({ title: 'Тест A' }),
       }),
     ]);
   });

@@ -36,12 +36,14 @@ export async function runScheduledOperatorHealthProbeTick(
     if (isOperatorHealthProbeQuiet(config, now)) return false;
 
     const lastRunAt = await deps.loadLastRunAt();
-    const due = OPERATOR_HEALTH_PROBE_NAMES.filter((name) =>
-      config[name].enabled && isOperatorHealthProbeDue({
-        lastRunAt: lastRunAt[name] ?? null,
-        intervalMs: config[name].intervalMs,
-        now,
-      }),
+    const due = OPERATOR_HEALTH_PROBE_NAMES.filter(
+      (name) =>
+        config[name].enabled &&
+        isOperatorHealthProbeDue({
+          lastRunAt: lastRunAt[name] ?? null,
+          intervalMs: config[name].intervalMs,
+          now,
+        }),
     );
     if (due.length === 0) return false;
 

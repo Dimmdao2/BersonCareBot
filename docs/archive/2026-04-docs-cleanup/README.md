@@ -1,6 +1,6 @@
 # Архив: отработанная документация (апрель 2026)
 
-Сюда перенесены разовые журналы агентов, UX-снимки, закрытые execution logs и полный пакет аудита инициативы **TEST_AND_API_DI_OPTIMIZATION** (discovery + AUDIT_* + AUDIT_FINAL). Актуальные планы и инициативы перечислены в [`docs/README.md`](../../README.md).
+Сюда перенесены разовые журналы агентов, UX-снимки, закрытые execution logs и полный пакет аудита инициативы **TEST_AND_API_DI_OPTIMIZATION** (discovery + AUDIT\_\* + AUDIT_FINAL). Актуальные планы и инициативы перечислены в [`docs/README.md`](../../README.md).
 
 ## `reports/`
 

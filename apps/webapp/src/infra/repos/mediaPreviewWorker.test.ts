@@ -1,12 +1,12 @@
 /** @vitest-environment node */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { drizzleSqlFragmentToApproximateSql } from "@/infra/db/drizzleSqlDebugText";
-import sharp from "sharp";
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { drizzleSqlFragmentToApproximateSql } from '@/infra/db/drizzleSqlDebugText';
+import sharp from 'sharp';
 
 const ffmpegSetFfmpegPathMock = vi.fn();
-const ffmpegRunModeMock = vi.fn((): "end" | "error" => "end");
-const ffmpegErrorFactoryMock = vi.fn((): Error => new Error("ffmpeg_error"));
+const ffmpegRunModeMock = vi.fn((): 'end' | 'error' => 'end');
+const ffmpegErrorFactoryMock = vi.fn((): Error => new Error('ffmpeg_error'));
 const queryMock = vi.fn();
 const runWebappSqlMock = vi.hoisted(() => vi.fn());
 const s3GetObjectBodyMock = vi.fn();
@@ -19,15 +19,15 @@ const spawnMock = vi.fn();
 const pipelineMock = vi.fn();
 const createWriteStreamMock = vi.fn();
 const mockEnv = {
-  FFMPEG_PATH: "",
-  MAGICK_PATH: "",
+  FFMPEG_PATH: '',
+  MAGICK_PATH: '',
 };
 
-vi.mock("@ffmpeg-installer/ffmpeg", () => ({
-  default: { path: "/installer/ffmpeg" },
+vi.mock('@ffmpeg-installer/ffmpeg', () => ({
+  default: { path: '/installer/ffmpeg' },
 }));
 
-vi.mock("fluent-ffmpeg", () => {
+vi.mock('fluent-ffmpeg', () => {
   const ffmpegFn = vi.fn(() => {
     const handlers = new Map<string, (...args: unknown[]) => void>();
     const cmd = {
@@ -40,9 +40,9 @@ vi.mock("fluent-ffmpeg", () => {
       }),
       run: vi.fn(() => {
         const mode = ffmpegRunModeMock();
-        const cb = handlers.get(mode === "end" ? "end" : "error");
+        const cb = handlers.get(mode === 'end' ? 'end' : 'error');
         if (cb) {
-          if (mode === "end") {
+          if (mode === 'end') {
             cb();
           } else {
             cb(ffmpegErrorFactoryMock());
@@ -60,33 +60,33 @@ vi.mock("fluent-ffmpeg", () => {
   };
 });
 
-vi.mock("sharp", () => ({
+vi.mock('sharp', () => ({
   default: vi.fn(),
 }));
 
-vi.mock("node:fs/promises", () => ({
+vi.mock('node:fs/promises', () => ({
   mkdtemp: (...args: unknown[]) => mkdtempMock(...args),
   readFile: (...args: unknown[]) => readFileMock(...args),
   rm: (...args: unknown[]) => rmMock(...args),
 }));
 
-vi.mock("node:child_process", () => ({
+vi.mock('node:child_process', () => ({
   spawn: (...args: unknown[]) => spawnMock(...args),
 }));
 
-vi.mock("node:stream/promises", () => ({
+vi.mock('node:stream/promises', () => ({
   pipeline: (...args: unknown[]) => pipelineMock(...args),
 }));
 
-vi.mock("node:fs", () => ({
+vi.mock('node:fs', () => ({
   createWriteStream: (...args: unknown[]) => createWriteStreamMock(...args),
 }));
 
-vi.mock("@/config/env", () => ({
+vi.mock('@/config/env', () => ({
   env: mockEnv,
 }));
 
-vi.mock("@/infra/db/client", () => ({
+vi.mock('@/infra/db/client', () => ({
   getPool: () => ({
     connect: async () => ({
       query: (...args: unknown[]) => queryMock(...args),
@@ -95,19 +95,19 @@ vi.mock("@/infra/db/client", () => ({
   }),
 }));
 
-vi.mock("@/infra/db/runWebappSql", () => ({
+vi.mock('@/infra/db/runWebappSql', () => ({
   getWebappSqlFromPgClient: vi.fn(() => ({})),
   runWebappSql: runWebappSqlMock,
 }));
 
-vi.mock("@/infra/s3/client", () => ({
+vi.mock('@/infra/s3/client', () => ({
   presignGetUrl: (...args: unknown[]) => presignGetUrlMock(...args),
   s3GetObjectBody: (...args: unknown[]) => s3GetObjectBodyMock(...args),
-  s3PreviewKey: (id: string, size: "sm" | "md") => `previews/${size}/${id}.jpg`,
+  s3PreviewKey: (id: string, size: 'sm' | 'md') => `previews/${size}/${id}.jpg`,
   s3PutObjectBody: (...args: unknown[]) => s3PutObjectBodyMock(...args),
 }));
 
-vi.mock("@/infra/logging/logger", () => ({
+vi.mock('@/infra/logging/logger', () => ({
   logger: {
     info: vi.fn(),
     warn: vi.fn(),
@@ -133,72 +133,72 @@ function setupSingleRowScenario(row: PreviewRow) {
   let picked = false;
   queryMock.mockImplementation(async (sql: unknown) => {
     const text = String(sql);
-    if (text === "BEGIN" || text === "COMMIT" || text === "ROLLBACK") {
+    if (text === 'BEGIN' || text === 'COMMIT' || text === 'ROLLBACK') {
       return { rows: [] };
     }
     return { rows: [] };
   });
   runWebappSqlMock.mockImplementation(async (_db: unknown, fragment: unknown) => {
     const text = drizzleSqlFragmentToApproximateSql(fragment);
-    if (text.includes("SELECT id, s3_key, mime_type")) {
+    if (text.includes('SELECT id, s3_key, mime_type')) {
       if (picked) return { rows: [] };
       picked = true;
       return { rows: [row] };
     }
-    if (text.includes("UPDATE media_files")) {
+    if (text.includes('UPDATE media_files')) {
       return { rowCount: 1, rows: [] };
     }
     return { rows: [] };
   });
 }
 
-describe("mediaPreviewWorker ffmpeg path", () => {
+describe('mediaPreviewWorker ffmpeg path', () => {
   beforeEach(() => {
     vi.resetModules();
     ffmpegSetFfmpegPathMock.mockReset();
-    mockEnv.FFMPEG_PATH = "";
+    mockEnv.FFMPEG_PATH = '';
   });
 
-  it("uses env FFMPEG_PATH when provided", async () => {
-    mockEnv.FFMPEG_PATH = "/usr/bin/ffmpeg";
-    await import("./mediaPreviewWorker");
-    expect(ffmpegSetFfmpegPathMock).toHaveBeenCalledWith("/usr/bin/ffmpeg");
+  it('uses env FFMPEG_PATH when provided', async () => {
+    mockEnv.FFMPEG_PATH = '/usr/bin/ffmpeg';
+    await import('./mediaPreviewWorker');
+    expect(ffmpegSetFfmpegPathMock).toHaveBeenCalledWith('/usr/bin/ffmpeg');
   });
 
-  it("falls back to installer path when env FFMPEG_PATH is empty", async () => {
-    mockEnv.FFMPEG_PATH = "";
-    await import("./mediaPreviewWorker");
-    expect(ffmpegSetFfmpegPathMock).toHaveBeenCalledWith("/installer/ffmpeg");
+  it('falls back to installer path when env FFMPEG_PATH is empty', async () => {
+    mockEnv.FFMPEG_PATH = '';
+    await import('./mediaPreviewWorker');
+    expect(ffmpegSetFfmpegPathMock).toHaveBeenCalledWith('/installer/ffmpeg');
   });
 });
 
-describe("processMediaPreviewBatch", () => {
+describe('processMediaPreviewBatch', () => {
   const row: PreviewRow = {
-    id: "11111111-1111-4111-8111-111111111111",
-    s3_key: "media/source.jpg",
-    mime_type: "image/jpeg",
-    size_bytes: "1024",
+    id: '11111111-1111-4111-8111-111111111111',
+    s3_key: 'media/source.jpg',
+    mime_type: 'image/jpeg',
+    size_bytes: '1024',
     preview_attempts: 0,
   };
 
   beforeEach(() => {
     vi.resetModules();
-    mockEnv.FFMPEG_PATH = "";
-    mockEnv.MAGICK_PATH = "";
+    mockEnv.FFMPEG_PATH = '';
+    mockEnv.MAGICK_PATH = '';
     ffmpegRunModeMock.mockReset();
-    ffmpegRunModeMock.mockReturnValue("end");
+    ffmpegRunModeMock.mockReturnValue('end');
     ffmpegErrorFactoryMock.mockReset();
-    ffmpegErrorFactoryMock.mockReturnValue(new Error("ffmpeg_error"));
+    ffmpegErrorFactoryMock.mockReturnValue(new Error('ffmpeg_error'));
     queryMock.mockReset();
     runWebappSqlMock.mockReset();
     s3GetObjectBodyMock.mockReset();
     s3PutObjectBodyMock.mockReset();
     presignGetUrlMock.mockReset();
-    presignGetUrlMock.mockResolvedValue("https://example.test/media.mp4");
+    presignGetUrlMock.mockResolvedValue('https://example.test/media.mp4');
     mkdtempMock.mockReset();
-    mkdtempMock.mockResolvedValue("/tmp/media-prev-v-test");
+    mkdtempMock.mockResolvedValue('/tmp/media-prev-v-test');
     readFileMock.mockReset();
-    readFileMock.mockResolvedValue(Buffer.from("poster"));
+    readFileMock.mockResolvedValue(Buffer.from('poster'));
     rmMock.mockReset();
     rmMock.mockResolvedValue(undefined);
     pipelineMock.mockReset();
@@ -217,12 +217,12 @@ describe("processMediaPreviewBatch", () => {
         kill: vi.fn(),
       };
       queueMicrotask(() => {
-        handlers.get("close")?.(0);
+        handlers.get('close')?.(0);
       });
       return proc;
     });
     vi.stubGlobal(
-      "fetch",
+      'fetch',
       vi.fn().mockResolvedValue({
         ok: true,
         status: 200,
@@ -237,88 +237,112 @@ describe("processMediaPreviewBatch", () => {
         rotate: vi.fn().mockReturnThis(),
         resize: vi.fn().mockReturnThis(),
         jpeg: vi.fn().mockReturnThis(),
-        toBuffer: vi.fn().mockResolvedValue(Buffer.from("preview")),
+        toBuffer: vi.fn().mockResolvedValue(Buffer.from('preview')),
       };
       return chain as never;
     });
   });
 
-  it("generates sm preview for image/heic via ffmpeg path", async () => {
-    setupSingleRowScenario({ ...row, mime_type: "image/heic" });
-    const { processMediaPreviewBatch } = await import("./mediaPreviewWorker");
+  it('generates sm preview for image/heic via ffmpeg path', async () => {
+    setupSingleRowScenario({ ...row, mime_type: 'image/heic' });
+    const { processMediaPreviewBatch } = await import('./mediaPreviewWorker');
     const result = await processMediaPreviewBatch(2);
 
     expect(result).toEqual({ processed: 1, errors: 0 });
     expect(presignGetUrlMock.mock.calls.length).toBeGreaterThanOrEqual(2);
     expect(s3PutObjectBodyMock).toHaveBeenCalledWith(
-      "previews/sm/11111111-1111-4111-8111-111111111111.jpg",
+      'previews/sm/11111111-1111-4111-8111-111111111111.jpg',
       expect.any(Buffer),
-      "image/jpeg",
+      'image/jpeg',
     );
     expect(s3PutObjectBodyMock).toHaveBeenCalledWith(
-      "previews/md/11111111-1111-4111-8111-111111111111.jpg",
+      'previews/md/11111111-1111-4111-8111-111111111111.jpg',
       expect.any(Buffer),
-      "image/jpeg",
+      'image/jpeg',
     );
-    expect(runWebappSqlMock.mock.calls.some((call) => approxRunWebappSqlAt(runWebappSqlMock.mock.calls.indexOf(call)).includes("preview_status = 'ready'"))).toBe(true);
+    expect(
+      runWebappSqlMock.mock.calls.some((call) =>
+        approxRunWebappSqlAt(runWebappSqlMock.mock.calls.indexOf(call)).includes(
+          "preview_status = 'ready'",
+        ),
+      ),
+    ).toBe(true);
   });
 
-  it("skips image/heif when file size is too large for ffmpeg preview", async () => {
-    setupSingleRowScenario({ ...row, mime_type: "image/heif", size_bytes: String(4 * 1024 * 1024 * 1024) });
-    const { processMediaPreviewBatch } = await import("./mediaPreviewWorker");
+  it('skips image/heif when file size is too large for ffmpeg preview', async () => {
+    setupSingleRowScenario({
+      ...row,
+      mime_type: 'image/heif',
+      size_bytes: String(4 * 1024 * 1024 * 1024),
+    });
+    const { processMediaPreviewBatch } = await import('./mediaPreviewWorker');
     const result = await processMediaPreviewBatch(2);
 
     expect(result).toEqual({ processed: 1, errors: 0 });
     expect(presignGetUrlMock).not.toHaveBeenCalled();
-    expect(runWebappSqlMock.mock.calls.some((_, i) => approxRunWebappSqlAt(i).includes("preview_status = 'skipped'"))).toBe(true);
+    expect(
+      runWebappSqlMock.mock.calls.some((_, i) =>
+        approxRunWebappSqlAt(i).includes("preview_status = 'skipped'"),
+      ),
+    ).toBe(true);
   });
 
-  it("falls back to ImageMagick for image/heic when ffmpeg decoding fails", async () => {
-    setupSingleRowScenario({ ...row, mime_type: "image/heic" });
-    ffmpegRunModeMock.mockReturnValue("error");
-    ffmpegErrorFactoryMock.mockReturnValue(new Error("Invalid data found when processing input"));
-    const { processMediaPreviewBatch } = await import("./mediaPreviewWorker");
+  it('falls back to ImageMagick for image/heic when ffmpeg decoding fails', async () => {
+    setupSingleRowScenario({ ...row, mime_type: 'image/heic' });
+    ffmpegRunModeMock.mockReturnValue('error');
+    ffmpegErrorFactoryMock.mockReturnValue(new Error('Invalid data found when processing input'));
+    const { processMediaPreviewBatch } = await import('./mediaPreviewWorker');
     const result = await processMediaPreviewBatch(2);
 
     expect(result).toEqual({ processed: 1, errors: 0 });
     expect(spawnMock).toHaveBeenCalled();
-    expect(runWebappSqlMock.mock.calls.some((call) => approxRunWebappSqlAt(runWebappSqlMock.mock.calls.indexOf(call)).includes("preview_status = 'ready'"))).toBe(true);
+    expect(
+      runWebappSqlMock.mock.calls.some((call) =>
+        approxRunWebappSqlAt(runWebappSqlMock.mock.calls.indexOf(call)).includes(
+          "preview_status = 'ready'",
+        ),
+      ),
+    ).toBe(true);
   });
 
-  it("treats MAGICK_PATH with whitespace and shell metacharacters as one executable path", async () => {
-    setupSingleRowScenario({ ...row, mime_type: "image/heic" });
-    ffmpegRunModeMock.mockReturnValue("error");
-    ffmpegErrorFactoryMock.mockReturnValue(new Error("Invalid data found when processing input"));
-    mockEnv.MAGICK_PATH = "/opt/Image Magick/bin/magick;not-a-command";
+  it('treats MAGICK_PATH with whitespace and shell metacharacters as one executable path', async () => {
+    setupSingleRowScenario({ ...row, mime_type: 'image/heic' });
+    ffmpegRunModeMock.mockReturnValue('error');
+    ffmpegErrorFactoryMock.mockReturnValue(new Error('Invalid data found when processing input'));
+    mockEnv.MAGICK_PATH = '/opt/Image Magick/bin/magick;not-a-command';
 
-    const { processMediaPreviewBatch } = await import("./mediaPreviewWorker");
+    const { processMediaPreviewBatch } = await import('./mediaPreviewWorker');
     const result = await processMediaPreviewBatch(2);
 
     expect(result).toEqual({ processed: 1, errors: 0 });
     expect(spawnMock).toHaveBeenCalledWith(
-      "/opt/Image Magick/bin/magick;not-a-command",
+      '/opt/Image Magick/bin/magick;not-a-command',
       [
-        "/tmp/media-prev-v-test/input.heic[0]",
-        "-auto-orient",
-        "-quality",
-        "85",
-        "/tmp/media-prev-v-test/out.jpg",
+        '/tmp/media-prev-v-test/input.heic[0]',
+        '-auto-orient',
+        '-quality',
+        '85',
+        '/tmp/media-prev-v-test/out.jpg',
       ],
       {
-        stdio: ["ignore", "pipe", "pipe"],
+        stdio: ['ignore', 'pipe', 'pipe'],
         shell: false,
       },
     );
   });
 
-  it("marks image/heic as skipped when ffmpeg fails and magick also fails permanently", async () => {
-    setupSingleRowScenario({ ...row, mime_type: "image/heic" });
-    ffmpegRunModeMock.mockReturnValue("error");
-    ffmpegErrorFactoryMock.mockReturnValue(new Error("Invalid data found when processing input"));
+  it('marks image/heic as skipped when ffmpeg fails and magick also fails permanently', async () => {
+    setupSingleRowScenario({ ...row, mime_type: 'image/heic' });
+    ffmpegRunModeMock.mockReturnValue('error');
+    ffmpegErrorFactoryMock.mockReturnValue(new Error('Invalid data found when processing input'));
     spawnMock.mockImplementation(() => {
       const handlers = new Map<string, (...args: unknown[]) => void>();
       const proc = {
-        stderr: { on: vi.fn((_: string, cb: (chunk: unknown) => void) => cb("Invalid data found when processing input")) },
+        stderr: {
+          on: vi.fn((_: string, cb: (chunk: unknown) => void) =>
+            cb('Invalid data found when processing input'),
+          ),
+        },
         on: vi.fn((event: string, cb: (...args: unknown[]) => void) => {
           handlers.set(event, cb);
           return proc;
@@ -326,67 +350,89 @@ describe("processMediaPreviewBatch", () => {
         kill: vi.fn(),
       };
       queueMicrotask(() => {
-        handlers.get("close")?.(1);
+        handlers.get('close')?.(1);
       });
       return proc;
     });
-    const { processMediaPreviewBatch } = await import("./mediaPreviewWorker");
-    const result = await processMediaPreviewBatch(2);
-
-    expect(result).toEqual({ processed: 0, errors: 1 });
-    expect(runWebappSqlMock.mock.calls.some((_, i) => approxRunWebappSqlAt(i).includes("preview_status = 'skipped'"))).toBe(true);
-    expect(
-      runWebappSqlMock.mock.calls.some((_, i) => approxRunWebappSqlAt(i).includes("preview_next_attempt_at = now()")),
-    ).toBe(false);
-  });
-
-  it("schedules retry when heic fallback download times out", async () => {
-    setupSingleRowScenario({ ...row, mime_type: "image/heic" });
-    ffmpegRunModeMock.mockReturnValue("error");
-    ffmpegErrorFactoryMock.mockReturnValue(new Error("Invalid data found when processing input"));
-    const abortErr = new Error("request aborted");
-    abortErr.name = "AbortError";
-    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(abortErr));
-    const { processMediaPreviewBatch } = await import("./mediaPreviewWorker");
+    const { processMediaPreviewBatch } = await import('./mediaPreviewWorker');
     const result = await processMediaPreviewBatch(2);
 
     expect(result).toEqual({ processed: 0, errors: 1 });
     expect(
-      runWebappSqlMock.mock.calls.some((_, i) => approxRunWebappSqlAt(i).includes("preview_next_attempt_at = now()")),
+      runWebappSqlMock.mock.calls.some((_, i) =>
+        approxRunWebappSqlAt(i).includes("preview_status = 'skipped'"),
+      ),
     ).toBe(true);
     expect(
-      runWebappSqlMock.mock.calls.some((_, i) => approxRunWebappSqlAt(i).includes("preview_status = 'skipped'")),
+      runWebappSqlMock.mock.calls.some((_, i) =>
+        approxRunWebappSqlAt(i).includes('preview_next_attempt_at = now()'),
+      ),
     ).toBe(false);
   });
 
-  it("marks permanent SIGSEGV errors as skipped without retry backoff", async () => {
-    setupSingleRowScenario(row);
-    s3GetObjectBodyMock.mockRejectedValueOnce(new Error("ffmpeg was killed with signal SIGSEGV"));
-    const { processMediaPreviewBatch } = await import("./mediaPreviewWorker");
-    const result = await processMediaPreviewBatch(2);
-
-    expect(result).toEqual({ processed: 0, errors: 1 });
-    expect(runWebappSqlMock.mock.calls.some((_, i) => approxRunWebappSqlAt(i).includes("preview_status = 'skipped'"))).toBe(true);
-    expect(
-      runWebappSqlMock.mock.calls.some((_, i) => approxRunWebappSqlAt(i).includes("preview_next_attempt_at = now()")),
-    ).toBe(false);
-    expect(
-      runWebappSqlMock.mock.calls.some((_, i) => approxRunWebappSqlAt(i).includes("preview_attempts =")),
-    ).toBe(false);
-  });
-
-  it("increments attempts and sets retry backoff for transient errors", async () => {
-    setupSingleRowScenario(row);
-    s3GetObjectBodyMock.mockRejectedValueOnce(new Error("temporary network issue"));
-    const { processMediaPreviewBatch } = await import("./mediaPreviewWorker");
+  it('schedules retry when heic fallback download times out', async () => {
+    setupSingleRowScenario({ ...row, mime_type: 'image/heic' });
+    ffmpegRunModeMock.mockReturnValue('error');
+    ffmpegErrorFactoryMock.mockReturnValue(new Error('Invalid data found when processing input'));
+    const abortErr = new Error('request aborted');
+    abortErr.name = 'AbortError';
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(abortErr));
+    const { processMediaPreviewBatch } = await import('./mediaPreviewWorker');
     const result = await processMediaPreviewBatch(2);
 
     expect(result).toEqual({ processed: 0, errors: 1 });
     expect(
-      runWebappSqlMock.mock.calls.some((_, i) => approxRunWebappSqlAt(i).includes("preview_next_attempt_at = now()")),
+      runWebappSqlMock.mock.calls.some((_, i) =>
+        approxRunWebappSqlAt(i).includes('preview_next_attempt_at = now()'),
+      ),
     ).toBe(true);
     expect(
-      runWebappSqlMock.mock.calls.some((_, i) => approxRunWebappSqlAt(i).includes("preview_attempts =")),
+      runWebappSqlMock.mock.calls.some((_, i) =>
+        approxRunWebappSqlAt(i).includes("preview_status = 'skipped'"),
+      ),
+    ).toBe(false);
+  });
+
+  it('marks permanent SIGSEGV errors as skipped without retry backoff', async () => {
+    setupSingleRowScenario(row);
+    s3GetObjectBodyMock.mockRejectedValueOnce(new Error('ffmpeg was killed with signal SIGSEGV'));
+    const { processMediaPreviewBatch } = await import('./mediaPreviewWorker');
+    const result = await processMediaPreviewBatch(2);
+
+    expect(result).toEqual({ processed: 0, errors: 1 });
+    expect(
+      runWebappSqlMock.mock.calls.some((_, i) =>
+        approxRunWebappSqlAt(i).includes("preview_status = 'skipped'"),
+      ),
+    ).toBe(true);
+    expect(
+      runWebappSqlMock.mock.calls.some((_, i) =>
+        approxRunWebappSqlAt(i).includes('preview_next_attempt_at = now()'),
+      ),
+    ).toBe(false);
+    expect(
+      runWebappSqlMock.mock.calls.some((_, i) =>
+        approxRunWebappSqlAt(i).includes('preview_attempts ='),
+      ),
+    ).toBe(false);
+  });
+
+  it('increments attempts and sets retry backoff for transient errors', async () => {
+    setupSingleRowScenario(row);
+    s3GetObjectBodyMock.mockRejectedValueOnce(new Error('temporary network issue'));
+    const { processMediaPreviewBatch } = await import('./mediaPreviewWorker');
+    const result = await processMediaPreviewBatch(2);
+
+    expect(result).toEqual({ processed: 0, errors: 1 });
+    expect(
+      runWebappSqlMock.mock.calls.some((_, i) =>
+        approxRunWebappSqlAt(i).includes('preview_next_attempt_at = now()'),
+      ),
+    ).toBe(true);
+    expect(
+      runWebappSqlMock.mock.calls.some((_, i) =>
+        approxRunWebappSqlAt(i).includes('preview_attempts ='),
+      ),
     ).toBe(true);
   });
 

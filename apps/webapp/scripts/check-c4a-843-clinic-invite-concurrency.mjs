@@ -21,17 +21,17 @@
  * the same order/parameters through a private `pg` client. The control-flow glue (if/else between
  * statements) is hand-written but mirrors the source function 1:1 and is checked by --self-test.
  */
-import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync } from "node:fs";
-import { userInfo } from "node:os";
-import net from "node:net";
-import path from "node:path";
-import pg from "pg";
+import { spawnSync } from 'node:child_process';
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { userInfo } from 'node:os';
+import net from 'node:net';
+import path from 'node:path';
+import pg from 'pg';
 
-const root = path.resolve(import.meta.dirname, "..", "..", "..");
-const pgBin = "/usr/lib/postgresql/16/bin";
-const ACTOR = "10000000-0000-4000-8000-000000000001";
-const FAR_FUTURE_EXPIRY = "2030-01-01T00:00:00.000Z";
+const root = path.resolve(import.meta.dirname, '..', '..', '..');
+const pgBin = '/usr/lib/postgresql/16/bin';
+const ACTOR = '10000000-0000-4000-8000-000000000001';
+const FAR_FUTURE_EXPIRY = '2030-01-01T00:00:00.000Z';
 const OS_USER = userInfo().username;
 
 function fail(label) {
@@ -39,7 +39,7 @@ function fail(label) {
 }
 
 function stripLineComments(source) {
-  return source.replace(/\/\/[^\n]*/g, "");
+  return source.replace(/\/\/[^\n]*/g, '');
 }
 
 // ---------------------------------------------------------------------------
@@ -48,40 +48,47 @@ function stripLineComments(source) {
 // ---------------------------------------------------------------------------
 
 export function extractAcceptOrgInviteFunctionSql(overlaySource) {
-  const start = overlaySource.indexOf("CREATE OR REPLACE FUNCTION app.accept_org_invite");
-  const end = overlaySource.indexOf("COMMENT ON FUNCTION app.accept_org_invite", start);
-  if (start < 0 || end < 0) fail("could not locate app.accept_org_invite in the overlay source");
+  const start = overlaySource.indexOf('CREATE OR REPLACE FUNCTION app.accept_org_invite');
+  const end = overlaySource.indexOf('COMMENT ON FUNCTION app.accept_org_invite', start);
+  if (start < 0 || end < 0) fail('could not locate app.accept_org_invite in the overlay source');
   return overlaySource.slice(start, end);
 }
 
 export function extractCreateReplacingPendingSqlFragments(repoSource) {
-  const start = repoSource.indexOf("async createReplacingPending");
-  const end = repoSource.indexOf("async listPendingByOrganization");
-  if (start < 0 || end < 0) fail("could not locate createReplacingPending in pgOrganizationInvites.ts");
+  const start = repoSource.indexOf('async createReplacingPending');
+  const end = repoSource.indexOf('async listPendingByOrganization');
+  if (start < 0 || end < 0)
+    fail('could not locate createReplacingPending in pgOrganizationInvites.ts');
   const slice = stripLineComments(repoSource.slice(start, end));
   const fragments = [...slice.matchAll(/`([^`]*)`/gs)].map((m) => m[1]);
   if (fragments.length !== 5) {
-    fail(`expected exactly 5 extracted SQL fragments in createReplacingPending, found ${fragments.length}`);
+    fail(
+      `expected exactly 5 extracted SQL fragments in createReplacingPending, found ${fragments.length}`,
+    );
   }
   const [lockSql, activeMemberSql, capacitySql, revokeSql, insertSql] = fragments;
   return { lockSql, activeMemberSql, capacitySql, revokeSql, insertSql };
 }
 
 export function extractCountSeatReservationsSql(repoSource) {
-  const start = repoSource.indexOf("async countSeatReservationsByOrganization");
-  const end = repoSource.indexOf("async getByTokenHash");
-  if (start < 0 || end < 0) fail("could not locate countSeatReservationsByOrganization in pgOrganizationInvites.ts");
+  const start = repoSource.indexOf('async countSeatReservationsByOrganization');
+  const end = repoSource.indexOf('async getByTokenHash');
+  if (start < 0 || end < 0)
+    fail('could not locate countSeatReservationsByOrganization in pgOrganizationInvites.ts');
   const slice = stripLineComments(repoSource.slice(start, end));
   const fragments = [...slice.matchAll(/`([^`]*)`/gs)].map((m) => m[1]);
   if (fragments.length !== 1) {
-    fail(`expected exactly 1 extracted SQL fragment in countSeatReservationsByOrganization, found ${fragments.length}`);
+    fail(
+      `expected exactly 1 extracted SQL fragment in countSeatReservationsByOrganization, found ${fragments.length}`,
+    );
   }
   return fragments[0];
 }
 
 export function extractClinicTeamFailClosedSeatBaseline(typesSource) {
   const match = typesSource.match(/CLINIC_TEAM_FAIL_CLOSED_SEAT_BASELINE\s*=\s*(\d+)/);
-  if (!match) fail("could not locate CLINIC_TEAM_FAIL_CLOSED_SEAT_BASELINE in org-entitlements/types.ts");
+  if (!match)
+    fail('could not locate CLINIC_TEAM_FAIL_CLOSED_SEAT_BASELINE in org-entitlements/types.ts');
   return Number(match[1]);
 }
 
@@ -91,45 +98,55 @@ export function extractClinicTeamFailClosedSeatBaseline(typesSource) {
 
 function runSelfTest() {
   const overlaySource = readFileSync(
-    path.join(root, "deploy/postgres/organization-member-invites-rls.sql"),
-    "utf8",
+    path.join(root, 'deploy/postgres/organization-member-invites-rls.sql'),
+    'utf8',
   );
   const repoSource = readFileSync(
-    path.join(root, "apps/webapp/src/infra/repos/pgOrganizationInvites.ts"),
-    "utf8",
+    path.join(root, 'apps/webapp/src/infra/repos/pgOrganizationInvites.ts'),
+    'utf8',
   );
   const typesSource = readFileSync(
-    path.join(root, "apps/webapp/src/modules/org-entitlements/types.ts"),
-    "utf8",
+    path.join(root, 'apps/webapp/src/modules/org-entitlements/types.ts'),
+    'utf8',
   );
 
   const acceptSql = extractAcceptOrgInviteFunctionSql(overlaySource);
-  if (!acceptSql.includes("pg_advisory_xact_lock")) fail("self-test: accept function missing advisory lock");
+  if (!acceptSql.includes('pg_advisory_xact_lock'))
+    fail('self-test: accept function missing advisory lock');
   if (!acceptSql.includes("'entitlement_disabled'")) {
-    fail("self-test: accept function missing the entitlement_disabled fail-closed code (C4A P1 fix)");
+    fail(
+      'self-test: accept function missing the entitlement_disabled fail-closed code (C4A P1 fix)',
+    );
   }
-  if (acceptSql.indexOf("IF NOT v_clinic_team_enabled THEN") > acceptSql.indexOf("IF v_invite.invited_role = 'doctor' THEN")) {
-    fail("self-test: entitlement check must run before the doctor-only seat capacity block");
+  if (
+    acceptSql.indexOf('IF NOT v_clinic_team_enabled THEN') >
+    acceptSql.indexOf("IF v_invite.invited_role = 'doctor' THEN")
+  ) {
+    fail('self-test: entitlement check must run before the doctor-only seat capacity block');
   }
 
   const { lockSql, activeMemberSql, capacitySql, revokeSql, insertSql } =
     extractCreateReplacingPendingSqlFragments(repoSource);
-  if (!lockSql.includes("pg_advisory_xact_lock")) fail("self-test: lock fragment mismatch");
-  if (!activeMemberSql.includes("m.status = 'active'")) fail("self-test: activeMember fragment mismatch");
-  if (!capacitySql.includes("i.invited_email <> $2")) fail("self-test: capacity fragment missing same-email exclusion");
-  if (!revokeSql.includes("status = 'revoked'")) fail("self-test: revoke fragment mismatch");
-  if (!insertSql.includes("INSERT INTO organization_member_invites")) fail("self-test: insert fragment mismatch");
+  if (!lockSql.includes('pg_advisory_xact_lock')) fail('self-test: lock fragment mismatch');
+  if (!activeMemberSql.includes("m.status = 'active'"))
+    fail('self-test: activeMember fragment mismatch');
+  if (!capacitySql.includes('i.invited_email <> $2'))
+    fail('self-test: capacity fragment missing same-email exclusion');
+  if (!revokeSql.includes("status = 'revoked'")) fail('self-test: revoke fragment mismatch');
+  if (!insertSql.includes('INSERT INTO organization_member_invites'))
+    fail('self-test: insert fragment mismatch');
 
   const reservationSql = extractCountSeatReservationsSql(repoSource);
-  if (!reservationSql.includes("m.specialist_id IS NULL")) fail("self-test: reservation fragment mismatch");
+  if (!reservationSql.includes('m.specialist_id IS NULL'))
+    fail('self-test: reservation fragment mismatch');
 
   const baseline = extractClinicTeamFailClosedSeatBaseline(typesSource);
   if (baseline !== 1) fail(`self-test: expected fail-closed baseline 1, found ${baseline}`);
 
-  console.log("C4A #843 clinic invite concurrency proof self-test: OK (no PostgreSQL required)");
+  console.log('C4A #843 clinic invite concurrency proof self-test: OK (no PostgreSQL required)');
 }
 
-if (process.argv.includes("--self-test")) {
+if (process.argv.includes('--self-test')) {
   runSelfTest();
   process.exit(0);
 }
@@ -141,15 +158,15 @@ if (process.argv.includes("--self-test")) {
 
 const stamp = `${process.pid}_${Date.now()}`;
 const dir = mkdtempSync(`/tmp/bcb_c4a_843_invite_concurrency_scratch_${stamp}_`);
-const data = path.join(dir, "data");
-const socket = path.join(dir, "socket");
-const log = path.join(dir, "postgres.log");
+const data = path.join(dir, 'data');
+const socket = path.join(dir, 'socket');
+const log = path.join(dir, 'postgres.log');
 const db = `bcb_c4a_843_invite_concurrency_scratch_${stamp}`;
-const safeEnv = { LANG: "C", LC_ALL: "C", PATH: `${pgBin}:/usr/bin:/bin` };
+const safeEnv = { LANG: 'C', LC_ALL: 'C', PATH: `${pgBin}:/usr/bin:/bin` };
 let serverStarted = false;
 
 function run(command, args, label) {
-  const result = spawnSync(command, args, { cwd: root, encoding: "utf8", env: safeEnv });
+  const result = spawnSync(command, args, { cwd: root, encoding: 'utf8', env: safeEnv });
   if (result.error || result.status !== 0) fail(`${label}: ${result.stderr ?? result.error}`);
   return result.stdout;
 }
@@ -157,13 +174,15 @@ function run(command, args, label) {
 async function reservePrivatePort() {
   const server = net.createServer();
   await new Promise((resolve, reject) => {
-    server.once("error", reject);
-    server.listen(0, "127.0.0.1", resolve);
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
   });
   const address = server.address();
-  if (!address || typeof address === "string") fail("could not reserve a private PostgreSQL port");
+  if (!address || typeof address === 'string') fail('could not reserve a private PostgreSQL port');
   const { port: reservedPort } = address;
-  await new Promise((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+  await new Promise((resolve, reject) =>
+    server.close((error) => (error ? reject(error) : resolve())),
+  );
   return String(reservedPort);
 }
 
@@ -171,7 +190,13 @@ let port;
 
 function newClient() {
   // Explicit config only — never falls back to PG*/DATABASE_URL ambient env vars.
-  return new pg.Client({ host: socket, port: Number(port), database: db, user: OS_USER, ssl: false });
+  return new pg.Client({
+    host: socket,
+    port: Number(port),
+    database: db,
+    user: OS_USER,
+    ssl: false,
+  });
 }
 
 async function withClient(fn) {
@@ -254,8 +279,8 @@ async function installMinimalSyntheticSchema() {
     `);
 
     const overlaySource = readFileSync(
-      path.join(root, "deploy/postgres/organization-member-invites-rls.sql"),
-      "utf8",
+      path.join(root, 'deploy/postgres/organization-member-invites-rls.sql'),
+      'utf8',
     );
     const acceptFunctionSql = extractAcceptOrgInviteFunctionSql(overlaySource);
     await client.query(acceptFunctionSql);
@@ -296,10 +321,13 @@ let SEAT_BASELINE;
 
 async function createReplacingPendingProof(client, input) {
   await client.query(CREATE_SQL.lockSql, [input.organizationId]);
-  const activeMember = await client.query(CREATE_SQL.activeMemberSql, [input.organizationId, input.invitedEmail]);
-  if (activeMember.rows[0]) return { ok: false, code: "already_member" };
+  const activeMember = await client.query(CREATE_SQL.activeMemberSql, [
+    input.organizationId,
+    input.invitedEmail,
+  ]);
+  if (activeMember.rows[0]) return { ok: false, code: 'already_member' };
 
-  if (input.invitedRole === "doctor") {
+  if (input.invitedRole === 'doctor') {
     const capacity = await client.query(CREATE_SQL.capacitySql, [
       input.organizationId,
       input.invitedEmail,
@@ -308,7 +336,7 @@ async function createReplacingPendingProof(client, input) {
     const row = capacity.rows[0];
     const limitValue = row?.limit_value ?? 0;
     const usedValue = row?.used_value ?? 0;
-    if (usedValue >= limitValue) return { ok: false, code: "seat_limit_reached" };
+    if (usedValue >= limitValue) return { ok: false, code: 'seat_limit_reached' };
   }
 
   await client.query(CREATE_SQL.revokeSql, [input.organizationId, input.invitedEmail]);
@@ -321,7 +349,7 @@ async function createReplacingPendingProof(client, input) {
     input.createdByPlatformUserId,
   ]);
   const invite = inserted.rows[0];
-  if (!invite) fail("organization_invite_insert_failed");
+  if (!invite) fail('organization_invite_insert_failed');
   return { ok: true, invite };
 }
 
@@ -333,9 +361,9 @@ async function createReplacingPendingProof(client, input) {
  * blocked waiting for that same lock to release.
  */
 async function runInTransaction(client, fn) {
-  await client.query("BEGIN");
+  await client.query('BEGIN');
   const result = await fn(client);
-  await client.query("COMMIT");
+  await client.query('COMMIT');
   return result;
 }
 
@@ -371,7 +399,7 @@ async function pendingDoctorInviteCount(organizationId) {
 // ---------------------------------------------------------------------------
 
 async function scenarioTwoConcurrentDifferentEmailCreatesAtFinalSeat() {
-  const org = "20000000-0000-4000-8000-0000000000a1";
+  const org = '20000000-0000-4000-8000-0000000000a1';
   await seedOrgWithClinicTeamEntitlement(org, 1);
 
   const clientA = newClient();
@@ -383,9 +411,9 @@ async function scenarioTwoConcurrentDifferentEmailCreatesAtFinalSeat() {
       runInTransaction(clientA, (client) =>
         createReplacingPendingProof(client, {
           organizationId: org,
-          invitedEmail: "doctor-a-843@example.com",
-          invitedRole: "doctor",
-          tokenHash: "token-a-843",
+          invitedEmail: 'doctor-a-843@example.com',
+          invitedRole: 'doctor',
+          tokenHash: 'token-a-843',
           expiresAt: FAR_FUTURE_EXPIRY,
           createdByPlatformUserId: ACTOR,
         }),
@@ -393,9 +421,9 @@ async function scenarioTwoConcurrentDifferentEmailCreatesAtFinalSeat() {
       runInTransaction(clientB, (client) =>
         createReplacingPendingProof(client, {
           organizationId: org,
-          invitedEmail: "doctor-b-843@example.com",
-          invitedRole: "doctor",
-          tokenHash: "token-b-843",
+          invitedEmail: 'doctor-b-843@example.com',
+          invitedRole: 'doctor',
+          tokenHash: 'token-b-843',
           expiresAt: FAR_FUTURE_EXPIRY,
           createdByPlatformUserId: ACTOR,
         }),
@@ -404,14 +432,15 @@ async function scenarioTwoConcurrentDifferentEmailCreatesAtFinalSeat() {
 
     const outcomes = [resultA, resultB];
     const succeeded = outcomes.filter((r) => r.ok).length;
-    const denied = outcomes.filter((r) => !r.ok && r.code === "seat_limit_reached").length;
+    const denied = outcomes.filter((r) => !r.ok && r.code === 'seat_limit_reached').length;
     if (succeeded !== 1 || denied !== 1) {
       fail(
-        "two concurrent different-email doctor creates at the final seat did not resolve to exactly one success and one seat_limit_reached denial",
+        'two concurrent different-email doctor creates at the final seat did not resolve to exactly one success and one seat_limit_reached denial',
       );
     }
     const finalPending = await pendingDoctorInviteCount(org);
-    if (finalPending !== 1) fail("expected exactly one pending doctor invite after the concurrent create race");
+    if (finalPending !== 1)
+      fail('expected exactly one pending doctor invite after the concurrent create race');
   } finally {
     await clientA.end();
     await clientB.end();
@@ -419,21 +448,21 @@ async function scenarioTwoConcurrentDifferentEmailCreatesAtFinalSeat() {
 }
 
 async function scenarioSameEmailReplacementAtExactLimitUnderContention() {
-  const org = "20000000-0000-4000-8000-0000000000b1";
+  const org = '20000000-0000-4000-8000-0000000000b1';
   await seedOrgWithClinicTeamEntitlement(org, 1);
 
   await withClient(async (client) => {
     const seeded = await runInTransaction(client, (c) =>
       createReplacingPendingProof(c, {
         organizationId: org,
-        invitedEmail: "same-email-843@example.com",
-        invitedRole: "doctor",
-        tokenHash: "token-same-email-843-v0",
+        invitedEmail: 'same-email-843@example.com',
+        invitedRole: 'doctor',
+        tokenHash: 'token-same-email-843-v0',
         expiresAt: FAR_FUTURE_EXPIRY,
         createdByPlatformUserId: ACTOR,
       }),
     );
-    if (!seeded.ok) fail("seed pending invite at the limit must succeed");
+    if (!seeded.ok) fail('seed pending invite at the limit must succeed');
   });
 
   const clientReplace = newClient();
@@ -445,9 +474,9 @@ async function scenarioSameEmailReplacementAtExactLimitUnderContention() {
       runInTransaction(clientReplace, (client) =>
         createReplacingPendingProof(client, {
           organizationId: org,
-          invitedEmail: "same-email-843@example.com",
-          invitedRole: "doctor",
-          tokenHash: "token-same-email-843-v1",
+          invitedEmail: 'same-email-843@example.com',
+          invitedRole: 'doctor',
+          tokenHash: 'token-same-email-843-v1',
           expiresAt: FAR_FUTURE_EXPIRY,
           createdByPlatformUserId: ACTOR,
         }),
@@ -455,21 +484,25 @@ async function scenarioSameEmailReplacementAtExactLimitUnderContention() {
       runInTransaction(clientOther, (client) =>
         createReplacingPendingProof(client, {
           organizationId: org,
-          invitedEmail: "different-email-843@example.com",
-          invitedRole: "doctor",
-          tokenHash: "token-different-email-843",
+          invitedEmail: 'different-email-843@example.com',
+          invitedRole: 'doctor',
+          tokenHash: 'token-different-email-843',
           expiresAt: FAR_FUTURE_EXPIRY,
           createdByPlatformUserId: ACTOR,
         }),
       ),
     ]);
 
-    if (!replaceResult.ok) fail("same-email replacement at the exact limit must succeed under contention");
-    if (otherResult.ok || otherResult.code !== "seat_limit_reached") {
-      fail("a different-email create contending for the same slot must be denied seat_limit_reached");
+    if (!replaceResult.ok)
+      fail('same-email replacement at the exact limit must succeed under contention');
+    if (otherResult.ok || otherResult.code !== 'seat_limit_reached') {
+      fail(
+        'a different-email create contending for the same slot must be denied seat_limit_reached',
+      );
     }
     const finalPending = await pendingDoctorInviteCount(org);
-    if (finalPending !== 1) fail("exactly one pending reservation must remain after the same-email replacement");
+    if (finalPending !== 1)
+      fail('exactly one pending reservation must remain after the same-email replacement');
   } finally {
     await clientReplace.end();
     await clientOther.end();
@@ -477,24 +510,24 @@ async function scenarioSameEmailReplacementAtExactLimitUnderContention() {
 }
 
 async function scenarioConcurrentCreateVsAcceptNoOversubscriptionAndReservationUntilBinding() {
-  const org = "20000000-0000-4000-8000-0000000000c1";
-  const platformUserZ = "30000000-0000-4000-8000-0000000000c1";
+  const org = '20000000-0000-4000-8000-0000000000c1';
+  const platformUserZ = '30000000-0000-4000-8000-0000000000c1';
   await seedOrgWithClinicTeamEntitlement(org, 1);
-  await insertPlatformUser(platformUserZ, "doctor-z-843@example.com");
+  await insertPlatformUser(platformUserZ, 'doctor-z-843@example.com');
 
-  const tokenHashZ = "token-z-843";
+  const tokenHashZ = 'token-z-843';
   await withClient(async (client) => {
     const seeded = await runInTransaction(client, (c) =>
       createReplacingPendingProof(c, {
         organizationId: org,
-        invitedEmail: "doctor-z-843@example.com",
-        invitedRole: "doctor",
+        invitedEmail: 'doctor-z-843@example.com',
+        invitedRole: 'doctor',
         tokenHash: tokenHashZ,
         expiresAt: FAR_FUTURE_EXPIRY,
         createdByPlatformUserId: ACTOR,
       }),
     );
-    if (!seeded.ok) fail("seed pending invite Z at the limit must succeed");
+    if (!seeded.ok) fail('seed pending invite Z at the limit must succeed');
   });
 
   const clientAccept = newClient();
@@ -510,13 +543,13 @@ async function scenarioConcurrentCreateVsAcceptNoOversubscriptionAndReservationU
     // both branches would deadlock a losing (lock-blocked) branch against a winning one that's
     // done but held open awaiting its sibling.
     const [acceptResult, createWResult] = await Promise.all([
-      acceptOrgInviteProof(clientAccept, tokenHashZ, platformUserZ, "doctor-z-843@example.com"),
+      acceptOrgInviteProof(clientAccept, tokenHashZ, platformUserZ, 'doctor-z-843@example.com'),
       runInTransaction(clientCreateW, (client) =>
         createReplacingPendingProof(client, {
           organizationId: org,
-          invitedEmail: "doctor-w-843@example.com",
-          invitedRole: "doctor",
-          tokenHash: "token-w-843",
+          invitedEmail: 'doctor-w-843@example.com',
+          invitedRole: 'doctor',
+          tokenHash: 'token-w-843',
           expiresAt: FAR_FUTURE_EXPIRY,
           createdByPlatformUserId: ACTOR,
         }),
@@ -524,9 +557,12 @@ async function scenarioConcurrentCreateVsAcceptNoOversubscriptionAndReservationU
     ]);
     acceptRow = acceptResult;
 
-    if (!acceptResult.ok) fail("accepting invite Z for the last seat must succeed (its own reservation is excluded)");
-    if (createWResult.ok || createWResult.code !== "seat_limit_reached") {
-      fail("a concurrent different-email create for the same last seat must be denied regardless of lock winner");
+    if (!acceptResult.ok)
+      fail('accepting invite Z for the last seat must succeed (its own reservation is excluded)');
+    if (createWResult.ok || createWResult.code !== 'seat_limit_reached') {
+      fail(
+        'a concurrent different-email create for the same last seat must be denied regardless of lock winner',
+      );
     }
   } finally {
     await clientAccept.end();
@@ -535,23 +571,27 @@ async function scenarioConcurrentCreateVsAcceptNoOversubscriptionAndReservationU
 
   const reservationsAfterAccept = await countSeatReservations(org);
   if (reservationsAfterAccept !== 1) {
-    fail("exactly one reservation must remain after accept transitions it from pending to accepted-unbound");
+    fail(
+      'exactly one reservation must remain after accept transitions it from pending to accepted-unbound',
+    );
   }
 
   // Bullet 4: the accepted membership has no specialist binding yet, and still counts as the
   // reservation until a specialist binding replaces it.
   await withClient((client) =>
-    client.query(`SELECT status, specialist_id FROM public.be_organization_members WHERE id = $1`, [
-      acceptRow.membership_id,
-    ]).then((r) => {
-      const row = r.rows[0];
-      if (!row || row.status !== "active" || row.specialist_id !== null) {
-        fail("accepted membership must be active with no specialist binding before provisioning");
-      }
-    }),
+    client
+      .query(`SELECT status, specialist_id FROM public.be_organization_members WHERE id = $1`, [
+        acceptRow.membership_id,
+      ])
+      .then((r) => {
+        const row = r.rows[0];
+        if (!row || row.status !== 'active' || row.specialist_id !== null) {
+          fail('accepted membership must be active with no specialist binding before provisioning');
+        }
+      }),
   );
 
-  const newSpecialistId = "40000000-0000-4000-8000-0000000000c1";
+  const newSpecialistId = '40000000-0000-4000-8000-0000000000c1';
   await withClient((client) =>
     client.query(`UPDATE public.be_organization_members SET specialist_id = $1 WHERE id = $2`, [
       newSpecialistId,
@@ -568,7 +608,9 @@ async function scenarioConcurrentCreateVsAcceptNoOversubscriptionAndReservationU
   // (bound member + reservations) is still exactly at the limit, not freed.
   const reservationsAfterBinding = await countSeatReservations(org);
   if (reservationsAfterBinding !== 0) {
-    fail("the reservation-only count must drop to 0 once the membership is specialist-bound (no double count)");
+    fail(
+      'the reservation-only count must drop to 0 once the membership is specialist-bound (no double count)',
+    );
   }
   const boundMemberCount = await withClient(async (client) => {
     const r = await client.query(
@@ -578,45 +620,52 @@ async function scenarioConcurrentCreateVsAcceptNoOversubscriptionAndReservationU
     );
     return r.rows[0]?.c ?? 0;
   });
-  if (boundMemberCount !== 1) fail("expected exactly one active specialist-bound member after binding");
+  if (boundMemberCount !== 1)
+    fail('expected exactly one active specialist-bound member after binding');
 
   await withClient(async (client) => {
-    await client.query("BEGIN");
+    await client.query('BEGIN');
     const stillBlocked = await createReplacingPendingProof(client, {
       organizationId: org,
-      invitedEmail: "doctor-v-843@example.com",
-      invitedRole: "doctor",
-      tokenHash: "token-v-843",
+      invitedEmail: 'doctor-v-843@example.com',
+      invitedRole: 'doctor',
+      tokenHash: 'token-v-843',
       expiresAt: FAR_FUTURE_EXPIRY,
       createdByPlatformUserId: ACTOR,
     });
-    await client.query("COMMIT");
-    if (stillBlocked.ok || stillBlocked.code !== "seat_limit_reached") {
-      fail("a new different-email create must still be denied after specialist binding — no oversubscription");
+    await client.query('COMMIT');
+    if (stillBlocked.ok || stillBlocked.code !== 'seat_limit_reached') {
+      fail(
+        'a new different-email create must still be denied after specialist binding — no oversubscription',
+      );
     }
   });
 }
 
 try {
-  if (!existsSync(path.join(pgBin, "initdb"))) fail("PostgreSQL 16 binaries are unavailable");
+  if (!existsSync(path.join(pgBin, 'initdb'))) fail('PostgreSQL 16 binaries are unavailable');
   port = await reservePrivatePort();
   mkdirSync(socket, { recursive: true });
-  run(path.join(pgBin, "initdb"), ["-D", data, "-A", "trust", "--no-locale"], "private initdb");
+  run(path.join(pgBin, 'initdb'), ['-D', data, '-A', 'trust', '--no-locale'], 'private initdb');
   run(
-    path.join(pgBin, "pg_ctl"),
-    ["-D", data, "-l", log, "-o", `-k ${socket} -p ${port} -c listen_addresses=''`, "-w", "start"],
-    "private PostgreSQL startup",
+    path.join(pgBin, 'pg_ctl'),
+    ['-D', data, '-l', log, '-o', `-k ${socket} -p ${port} -c listen_addresses=''`, '-w', 'start'],
+    'private PostgreSQL startup',
   );
   serverStarted = true;
-  run(path.join(pgBin, "createdb"), ["-h", socket, "-p", port, db], "private scratch database creation");
+  run(
+    path.join(pgBin, 'createdb'),
+    ['-h', socket, '-p', port, db],
+    'private scratch database creation',
+  );
 
   const repoSource = readFileSync(
-    path.join(root, "apps/webapp/src/infra/repos/pgOrganizationInvites.ts"),
-    "utf8",
+    path.join(root, 'apps/webapp/src/infra/repos/pgOrganizationInvites.ts'),
+    'utf8',
   );
   const typesSource = readFileSync(
-    path.join(root, "apps/webapp/src/modules/org-entitlements/types.ts"),
-    "utf8",
+    path.join(root, 'apps/webapp/src/modules/org-entitlements/types.ts'),
+    'utf8',
   );
   CREATE_SQL = extractCreateReplacingPendingSqlFragments(repoSource);
   RESERVATION_SQL = extractCountSeatReservationsSql(repoSource);
@@ -628,14 +677,14 @@ try {
   await scenarioConcurrentCreateVsAcceptNoOversubscriptionAndReservationUntilBinding();
 
   console.log(
-    "C4A #843 clinic invite concurrency proof: OK (aggregate-only) — different-email race, " +
-      "same-email replacement under contention, create-vs-accept for the last seat, and " +
-      "reservation-until-binding all verified against a real private PostgreSQL 16 server",
+    'C4A #843 clinic invite concurrency proof: OK (aggregate-only) — different-email race, ' +
+      'same-email replacement under contention, create-vs-accept for the last seat, and ' +
+      'reservation-until-binding all verified against a real private PostgreSQL 16 server',
   );
 } finally {
   if (serverStarted) {
-    spawnSync(path.join(pgBin, "pg_ctl"), ["-D", data, "-m", "fast", "-w", "stop"], {
-      encoding: "utf8",
+    spawnSync(path.join(pgBin, 'pg_ctl'), ['-D', data, '-m', 'fast', '-w', 'stop'], {
+      encoding: 'utf8',
       env: safeEnv,
     });
   }

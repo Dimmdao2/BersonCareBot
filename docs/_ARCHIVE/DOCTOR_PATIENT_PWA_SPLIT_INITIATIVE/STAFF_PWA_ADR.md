@@ -8,15 +8,15 @@ Patient PWA (`manifest.ts`, `start_url: /app/patient`) — **без измене
 
 ## Решения
 
-| # | Вопрос | Решение |
-|---|--------|---------|
-| 1 | Scope staff manifest | **`/app`** — тот же origin scope, что patient SW; покрывает `/app/doctor`, `/app/settings`, `/app/admin` |
-| 2 | Два ярлыка на устройстве | **Да** — разные `id` manifest (`/app` patient vs `/app-staff` staff) и разные `start_url` |
-| 3 | Staff push на install | **Нет в §B** (2026-06-07); **да post-§B** — opt-in на `/app/doctor/install` после установки (`StaffPwaPushOptIn`) |
-| 4 | iOS install copy | **Да** — инструкции на `/app/doctor/install` (Safari «На экран Домой» / Mac Dock) |
-| 5 | Обязательность install | **Опционально** — browser OK для staff (как волна 1); PWA — ускорение, отдельная иконка |
-| 6 | Service worker | **Тот же** `public/sw.js`, `scope: /app` — без второго SW |
-| 7 | Manifest URL | **`/manifest-staff.webmanifest`** — route handler, канон в `staffPwaManifest.ts` |
+| #   | Вопрос                   | Решение                                                                                                           |
+| --- | ------------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| 1   | Scope staff manifest     | **`/app`** — тот же origin scope, что patient SW; покрывает `/app/doctor`, `/app/settings`, `/app/admin`          |
+| 2   | Два ярлыка на устройстве | **Да** — разные `id` manifest (`/app` patient vs `/app-staff` staff) и разные `start_url`                         |
+| 3   | Staff push на install    | **Нет в §B** (2026-06-07); **да post-§B** — opt-in на `/app/doctor/install` после установки (`StaffPwaPushOptIn`) |
+| 4   | iOS install copy         | **Да** — инструкции на `/app/doctor/install` (Safari «На экран Домой» / Mac Dock)                                 |
+| 5   | Обязательность install   | **Опционально** — browser OK для staff (как волна 1); PWA — ускорение, отдельная иконка                           |
+| 6   | Service worker           | **Тот же** `public/sw.js`, `scope: /app` — без второго SW                                                         |
+| 7   | Manifest URL             | **`/manifest-staff.webmanifest`** — route handler, канон в `staffPwaManifest.ts`                                  |
 
 ## Последствия
 
@@ -30,14 +30,14 @@ Patient PWA (`manifest.ts`, `start_url: /app/patient`) — **без измене
 
 Отдельный трек после закрытия §B; patient push stack **не меняли**.
 
-| Решение | Деталь |
-|---------|--------|
-| API | `/api/doctor/web-push/status|subscribe|unsubscribe` (doctor/admin) |
-| Подписка | Тот же `public/sw.js`, `user_web_push_subscriptions` |
-| Настройки | `/app/settings` — матрица тем × каналов (`doctor_specialist_task_reminders`, `doctor_patient_messages`) |
-| Доставка задач | Per-owner `user_notification_topic_channels` + fallback `doctor_specialist_task_reminder_channels` |
-| Сообщения пациентов | Per-staff **push-first** (`web_push` → telegram → max); integrator `sync-user-message` → notify; env tg/max — fallback только для мессенджеров |
-| Auto-restore | `StaffWebPushBootstrap` (`WEB_PUSH_SUBSCRIPTION_CHANGE`) |
+| Решение                | Деталь                                                                                                                                                                                              |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- | --------------------------- |
+| API                    | `/api/doctor/web-push/status                                                                                                                                                                        | subscribe | unsubscribe` (doctor/admin) |
+| Подписка               | Тот же `public/sw.js`, `user_web_push_subscriptions`                                                                                                                                                |
+| Настройки              | `/app/settings` — матрица тем × каналов (`doctor_specialist_task_reminders`, `doctor_patient_messages`)                                                                                             |
+| Доставка задач         | Per-owner `user_notification_topic_channels` + fallback `doctor_specialist_task_reminder_channels`                                                                                                  |
+| Сообщения пациентов    | Per-staff **push-first** (`web_push` → telegram → max); integrator `sync-user-message` → notify; env tg/max — fallback только для мессенджеров                                                      |
+| Auto-restore           | `StaffWebPushBootstrap` (`WEB_PUSH_SUBSCRIPTION_CHANGE`)                                                                                                                                            |
 | Defaults при subscribe | `enableStaffWebPushNotificationDefaults` — web_push для doctor-тем; **дефолт без prefs** — `web_push` + telegram + max — см. [`NOTIFICATION_CHANNELS.md`](../ARCHITECTURE/NOTIFICATION_CHANNELS.md) |
 
 Код: `modules/doctor-notifications/`, `shared/lib/webPush/staffWebPushApi.ts`, `subscribeStaffWebPush.ts`.

@@ -1,4 +1,3 @@
-
 # REFACTOR PLAN — ARCHITECTURE V3 REAL CLEAN
 
 Ветка: `ARCHITECTURE-V3-REAL-CLEAN`
@@ -319,8 +318,6 @@ src/content//templates.json
 
 src/runtime
 
-
-
 runtime/
 worker/
 worker.ts
@@ -430,8 +427,6 @@ integration
 → integration
 
 Каждый слой выполняет **только свою ответственность**.
-
-
 
 # КРИТИЧЕСКИЕ ЗАПРЕТЫ АРХИТЕКТУРЫ
 

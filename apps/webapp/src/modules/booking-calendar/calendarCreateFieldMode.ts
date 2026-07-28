@@ -1,8 +1,8 @@
-import type { CalendarFilterOption } from "./types";
+import type { CalendarFilterOption } from './types';
 
-export type CalendarCreateFieldKey = "specialist" | "branch" | "room" | "service";
+export type CalendarCreateFieldKey = 'specialist' | 'branch' | 'room' | 'service';
 
-export type CalendarCreateFieldMode = "hidden" | "fixed" | "select";
+export type CalendarCreateFieldMode = 'hidden' | 'fixed' | 'select';
 
 export type CalendarCreateActiveFilters = {
   specialistId: string | null;
@@ -15,9 +15,9 @@ export function resolveCalendarCreateFieldMode(
   options: readonly CalendarFilterOption[],
   activeFilterId: string | null,
 ): CalendarCreateFieldMode {
-  if (options.length === 0) return "hidden";
-  if (options.length === 1 || activeFilterId) return "fixed";
-  return "select";
+  if (options.length === 0) return 'hidden';
+  if (options.length === 1 || activeFilterId) return 'fixed';
+  return 'select';
 }
 
 export function resolveCalendarCreateFieldValue(
@@ -36,6 +36,6 @@ export function calendarCreateFieldLabel(
   valueId: string | null,
   fallback: string,
 ): string {
-  if (!valueId) return "—";
+  if (!valueId) return '—';
   return options.find((o) => o.id === valueId)?.label ?? fallback;
 }

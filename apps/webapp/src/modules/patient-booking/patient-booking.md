@@ -7,11 +7,11 @@
 Doctor list/KPI/calendar and patient/public slots/create are canonical-only. Historical source-selection rows may
 remain in the database for migration audit, but runtime does not read them.
 
-| Area | Runtime source |
-|------|----------------|
-| Patient/public slots | `booking-scheduling` canonical slots |
-| Patient/public create | native `be_appointments` via booking engine |
-| Create overlap guard | `assertSlotAvailable` preflight + atomic canonical insert guard |
+| Area                  | Runtime source                                                  |
+| --------------------- | --------------------------------------------------------------- |
+| Patient/public slots  | `booking-scheduling` canonical slots                            |
+| Patient/public create | native `be_appointments` via booking engine                     |
+| Create overlap guard  | `assertSlotAvailable` preflight + atomic canonical insert guard |
 
 Код: `canonicalCreate.ts`, `slotsReadSource.ts`, `doctorAppointmentsReadSwitch.ts`, `bookingCalendarReadSwitch.ts`.
 
@@ -85,14 +85,14 @@ API остаётся fail-closed. Существующие authenticated intake-
 
 ## Модули и инфра
 
-| Слой | Путь |
-|------|------|
-| Порты | `ports.ts` (`AppointmentProjectionPort` — в модуле, не в infra) |
-| Сервис | `service.ts`, `canonicalCreate.ts` |
-| Слоты | `../booking-scheduling/` |
-| Поля | `../booking-form/` |
-| Bookings | `infra/repos/pgPatientBookings.ts` |
-| API | `app/api/booking/*` |
+| Слой     | Путь                                                            |
+| -------- | --------------------------------------------------------------- |
+| Порты    | `ports.ts` (`AppointmentProjectionPort` — в модуле, не в infra) |
+| Сервис   | `service.ts`, `canonicalCreate.ts`                              |
+| Слоты    | `../booking-scheduling/`                                        |
+| Поля     | `../booking-form/`                                              |
+| Bookings | `infra/repos/pgPatientBookings.ts`                              |
+| API      | `app/api/booking/*`                                             |
 
 ## Тесты
 

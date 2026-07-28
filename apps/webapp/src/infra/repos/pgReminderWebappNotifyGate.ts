@@ -1,6 +1,6 @@
-import { eq } from "drizzle-orm";
-import { getDrizzle } from "@/app-layer/db/drizzle";
-import { platformUsers } from "../../../db/schema/schema";
+import { eq } from 'drizzle-orm';
+import { getDrizzle } from '@/app-layer/db/drizzle';
+import { platformUsers } from '../../../db/schema/schema';
 
 export type ReminderTopicGateResult = {
   muted: boolean;

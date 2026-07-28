@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
   gateMock,
@@ -41,20 +41,20 @@ const {
   };
 });
 
-vi.mock("@/app-layer/guards/requireRole", () => ({
+vi.mock('@/app-layer/guards/requireRole', () => ({
   requirePatientApiBusinessAccess: gateMock,
 }));
-vi.mock("@/app-layer/di/buildAppDeps", () => ({
+vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: buildAppDepsMock,
 }));
 
-import { POST } from "./route";
+import { POST } from './route';
 
-const instanceId = "11111111-1111-4111-8111-111111111111";
-const itemId = "22222222-2222-4222-8222-222222222222";
-const patientUserId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const instanceId = '11111111-1111-4111-8111-111111111111';
+const itemId = '22222222-2222-4222-8222-222222222222';
+const patientUserId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 
-describe("POST discussion/read", () => {
+describe('POST discussion/read', () => {
   beforeEach(() => {
     gateMock.mockReset();
     getBooleanMock.mockReset();
@@ -69,8 +69,8 @@ describe("POST discussion/read", () => {
       session: {
         user: {
           userId: patientUserId,
-          role: "client" as const,
-          phone: "+79990001122",
+          role: 'client' as const,
+          phone: '+79990001122',
           bindings: {},
         },
       },
@@ -83,8 +83,8 @@ describe("POST discussion/read", () => {
     });
     getInstanceForPatientMock.mockResolvedValue({
       id: instanceId,
-      organizationId: "44444444-4444-4444-8444-444444444444",
-      assignmentSource: "doctor",
+      organizationId: '44444444-4444-4444-8444-444444444444',
+      assignmentSource: 'doctor',
       stages: [{ items: [{ id: itemId }] }],
     });
     markReadMock.mockResolvedValue(undefined);
@@ -92,11 +92,11 @@ describe("POST discussion/read", () => {
     markInboundMessagesReadForUserMock.mockResolvedValue(undefined);
   });
 
-  it("marks item discussion as read", async () => {
+  it('marks item discussion as read', async () => {
     const res = await POST(
       new Request(
         `http://localhost/api/patient/treatment-program-instances/${instanceId}/items/${itemId}/discussion/read`,
-        { method: "POST" },
+        { method: 'POST' },
       ),
       { params: Promise.resolve({ instanceId, itemId }) },
     );
@@ -107,29 +107,32 @@ describe("POST discussion/read", () => {
     });
   });
 
-  it("syncs related support inbound messages as read", async () => {
+  it('syncs related support inbound messages as read', async () => {
     const linkedMessageIds = [
-      "33333333-3333-4333-8333-333333333333",
-      "44444444-4444-4444-8444-444444444444",
+      '33333333-3333-4333-8333-333333333333',
+      '44444444-4444-4444-8444-444444444444',
     ];
     listLinkedSupportMessageIdsForStageItemMock.mockResolvedValue(linkedMessageIds);
     const res = await POST(
       new Request(
         `http://localhost/api/patient/treatment-program-instances/${instanceId}/items/${itemId}/discussion/read`,
-        { method: "POST" },
+        { method: 'POST' },
       ),
       { params: Promise.resolve({ instanceId, itemId }) },
     );
     expect(res.status).toBe(200);
-    expect(markInboundMessagesReadForUserMock).toHaveBeenCalledWith(patientUserId, linkedMessageIds);
+    expect(markInboundMessagesReadForUserMock).toHaveBeenCalledWith(
+      patientUserId,
+      linkedMessageIds,
+    );
   });
 
-  it("returns 403 when feature disabled", async () => {
+  it('returns 403 when feature disabled', async () => {
     getBooleanMock.mockResolvedValue(false);
     const res = await POST(
       new Request(
         `http://localhost/api/patient/treatment-program-instances/${instanceId}/items/${itemId}/discussion/read`,
-        { method: "POST" },
+        { method: 'POST' },
       ),
       { params: Promise.resolve({ instanceId, itemId }) },
     );

@@ -1,7 +1,7 @@
-import { cache } from "react";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireStaffAccountPage } from "@/app-layer/guards/requireRole";
-import type { DoctorWorkspaceContext } from "@/modules/doctor-workspace/types";
+import { cache } from 'react';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { requireStaffAccountPage } from '@/app-layer/guards/requireRole';
+import type { DoctorWorkspaceContext } from '@/modules/doctor-workspace/types';
 
 export type StaffAccountPageContext = {
   session: Awaited<ReturnType<typeof requireStaffAccountPage>>;
@@ -16,8 +16,8 @@ export type StaffAccountPageContext = {
 export const loadStaffAccountPageContext = cache(async (): Promise<StaffAccountPageContext> => {
   const session = await requireStaffAccountPage();
   if (
-    session.staffSecurity?.assurance === "recovery" ||
-    session.staffSecurity?.assurance === "recovery_confirmation"
+    session.staffSecurity?.assurance === 'recovery' ||
+    session.staffSecurity?.assurance === 'recovery_confirmation'
   ) {
     return { session, workspaceContext: null };
   }
@@ -32,7 +32,7 @@ export const loadStaffAccountPageContext = cache(async (): Promise<StaffAccountP
   const { context } = resolution;
   const canAccessClinicalWorkspace =
     context.canAccessClinicalWorkspace ??
-    ((context.role === "owner" || context.role === "doctor") && context.specialistId !== null);
+    ((context.role === 'owner' || context.role === 'doctor') && context.specialistId !== null);
   return {
     session,
     workspaceContext: {

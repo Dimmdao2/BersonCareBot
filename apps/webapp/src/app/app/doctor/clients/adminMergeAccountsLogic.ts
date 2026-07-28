@@ -1,8 +1,8 @@
 /**
  * Pure helpers for admin manual merge UI — aligned with merge-preview JSON and ManualMergeResolution.
  */
-import type { MergePreviewIntegratorUserPresence } from "@/infra/mergePreviewIntegratorUserPresence";
-import type { ManualMergeResolution } from "@/infra/repos/manualMergeResolution";
+import type { MergePreviewIntegratorUserPresence } from '@/infra/mergePreviewIntegratorUserPresence';
+import type { ManualMergeResolution } from '@/infra/repos/manualMergeResolution';
 
 export type MergePreviewApiProfile = {
   id: string;
@@ -16,10 +16,10 @@ export type MergePreviewApiProfile = {
 };
 
 export type MergePreviewApiScalarConflict = {
-  field: "phone_normalized" | "display_name" | "first_name" | "last_name" | "email";
+  field: 'phone_normalized' | 'display_name' | 'first_name' | 'last_name' | 'email';
   targetValue: string | null;
   duplicateValue: string | null;
-  recommendedWinner: "target" | "duplicate";
+  recommendedWinner: 'target' | 'duplicate';
   reason: string;
 };
 
@@ -27,7 +27,7 @@ export type MergePreviewApiChannelConflict = {
   channelCode: string;
   targetExternalId: string | null;
   duplicateExternalId: string | null;
-  recommendedWinner: "target" | "duplicate";
+  recommendedWinner: 'target' | 'duplicate';
   reason: string;
 };
 
@@ -35,12 +35,12 @@ export type MergePreviewApiOauthConflict = {
   provider: string;
   targetProviderUserId: string | null;
   duplicateProviderUserId: string | null;
-  recommendedWinner: "target" | "duplicate";
+  recommendedWinner: 'target' | 'duplicate';
   reason: string;
 };
 
 export type MergePreviewApiAutoScalar = {
-  field: "phone_normalized" | "display_name" | "first_name" | "last_name" | "email";
+  field: 'phone_normalized' | 'display_name' | 'first_name' | 'last_name' | 'email';
   effectiveValue: string | null;
   note: string;
 };
@@ -96,25 +96,25 @@ export type MergePreviewApiOk = {
   hardBlockers: { code: string; message: string; details?: Record<string, unknown> }[];
 };
 
-type ScalarKey = keyof ManualMergeResolution["fields"];
+type ScalarKey = keyof ManualMergeResolution['fields'];
 
 function norm(v: string | null | undefined): string | null {
   if (v == null) return null;
   const t = v.trim();
-  return t === "" ? null : t;
+  return t === '' ? null : t;
 }
 
 function scalarFromProfile(p: MergePreviewApiProfile, field: ScalarKey): string | null {
   switch (field) {
-    case "phone_normalized":
+    case 'phone_normalized':
       return norm(p.phoneNormalized);
-    case "display_name":
+    case 'display_name':
       return norm(p.displayName);
-    case "first_name":
+    case 'first_name':
       return norm(p.firstName);
-    case "last_name":
+    case 'last_name':
       return norm(p.lastName);
-    case "email":
+    case 'email':
       return norm(p.email);
     default:
       return null;
@@ -162,29 +162,31 @@ export function resolveMergePreviewAlignment(
   return getAlignedMergePreviewRequest(anchorUserId, secondUserId, preview);
 }
 
-function defaultScalarWinner(preview: MergePreviewApiOk, field: ScalarKey): "target" | "duplicate" {
+function defaultScalarWinner(preview: MergePreviewApiOk, field: ScalarKey): 'target' | 'duplicate' {
   const c = preview.scalarConflicts.find((x) => x.field === field);
   if (c) return c.recommendedWinner;
   const auto = preview.autoMergeScalars.find((a) => a.field === field);
   const tVal = scalarFromProfile(preview.target, field);
   const dVal = scalarFromProfile(preview.duplicate, field);
   const eff = norm(auto?.effectiveValue ?? null);
-  if (eff != null && eff === dVal && eff !== tVal) return "duplicate";
-  return "target";
+  if (eff != null && eff === dVal && eff !== tVal) return 'duplicate';
+  return 'target';
 }
 
 function defaultChannelWinner(
   preview: MergePreviewApiOk,
-  code: "telegram" | "max" | "vk",
-): ManualMergeResolution["bindings"]["telegram"] {
+  code: 'telegram' | 'max' | 'vk',
+): ManualMergeResolution['bindings']['telegram'] {
   const c = preview.channelConflicts.find((x) => x.channelCode === code);
   if (c) return c.recommendedWinner;
-  return "both";
+  return 'both';
 }
 
 /** Build operator-default resolution from preview (recommended winners, auto `both` for non-conflicting channels). */
-export function buildDefaultManualMergeResolution(preview: MergePreviewApiOk): ManualMergeResolution {
-  const oauth: Record<string, "target" | "duplicate"> = {};
+export function buildDefaultManualMergeResolution(
+  preview: MergePreviewApiOk,
+): ManualMergeResolution {
+  const oauth: Record<string, 'target' | 'duplicate'> = {};
   for (const o of preview.oauthConflicts) {
     oauth[o.provider] = o.recommendedWinner;
   }
@@ -193,24 +195,27 @@ export function buildDefaultManualMergeResolution(preview: MergePreviewApiOk): M
     targetId: preview.targetId,
     duplicateId: preview.duplicateId,
     fields: {
-      phone_normalized: defaultScalarWinner(preview, "phone_normalized"),
-      display_name: defaultScalarWinner(preview, "display_name"),
-      first_name: defaultScalarWinner(preview, "first_name"),
-      last_name: defaultScalarWinner(preview, "last_name"),
-      email: defaultScalarWinner(preview, "email"),
+      phone_normalized: defaultScalarWinner(preview, 'phone_normalized'),
+      display_name: defaultScalarWinner(preview, 'display_name'),
+      first_name: defaultScalarWinner(preview, 'first_name'),
+      last_name: defaultScalarWinner(preview, 'last_name'),
+      email: defaultScalarWinner(preview, 'email'),
     },
     bindings: {
-      telegram: defaultChannelWinner(preview, "telegram"),
-      max: defaultChannelWinner(preview, "max"),
-      vk: defaultChannelWinner(preview, "vk"),
+      telegram: defaultChannelWinner(preview, 'telegram'),
+      max: defaultChannelWinner(preview, 'max'),
+      vk: defaultChannelWinner(preview, 'vk'),
     },
     oauth,
-    channelPreferences: "keep_newer",
+    channelPreferences: 'keep_newer',
   };
 }
 
 /** Every oauth conflict must have a winner in `resolution.oauth`. */
-export function isOauthResolutionComplete(preview: MergePreviewApiOk, resolution: ManualMergeResolution): boolean {
+export function isOauthResolutionComplete(
+  preview: MergePreviewApiOk,
+  resolution: ManualMergeResolution,
+): boolean {
   for (const o of preview.oauthConflicts) {
     if (!resolution.oauth[o.provider]) return false;
   }
@@ -223,13 +228,14 @@ export function canSubmitManualMerge(
   resolution: ManualMergeResolution,
 ): boolean {
   if (!preview.mergeAllowed || preview.hardBlockers.length > 0) return false;
-  if (resolution.targetId !== preview.targetId || resolution.duplicateId !== preview.duplicateId) return false;
+  if (resolution.targetId !== preview.targetId || resolution.duplicateId !== preview.duplicateId)
+    return false;
   for (const conflict of preview.channelConflicts) {
     if (
-      (conflict.channelCode === "telegram" ||
-        conflict.channelCode === "max" ||
-        conflict.channelCode === "vk") &&
-      resolution.bindings[conflict.channelCode] === "both"
+      (conflict.channelCode === 'telegram' ||
+        conflict.channelCode === 'max' ||
+        conflict.channelCode === 'vk') &&
+      resolution.bindings[conflict.channelCode] === 'both'
     ) {
       return false;
     }
@@ -237,64 +243,66 @@ export function canSubmitManualMerge(
   return isOauthResolutionComplete(preview, resolution);
 }
 
-const BLOCKER_RU: Record<
-  string,
-  { title: string; detail: string }
-> = {
+const BLOCKER_RU: Record<string, { title: string; detail: string }> = {
   target_is_alias: {
-    title: "Целевая запись — уже алиас merge",
+    title: 'Целевая запись — уже алиас merge',
     detail:
-      "У выбранной «канонической» стороны уже заполнен merged_into_id. Сначала разрешите цепочку merge или выберите другую пару.",
+      'У выбранной «канонической» стороны уже заполнен merged_into_id. Сначала разрешите цепочку merge или выберите другую пару.',
   },
   duplicate_is_alias: {
-    title: "Вторая запись — уже алиас merge",
+    title: 'Вторая запись — уже алиас merge',
     detail:
-      "У дубликата уже заполнен merged_into_id. Объединять можно только две канонические строки (merged_into_id IS NULL).",
+      'У дубликата уже заполнен merged_into_id. Объединять можно только две канонические строки (merged_into_id IS NULL).',
   },
   different_non_null_integrator_user_id: {
-    title: "Разные integrator user id (оба заданы)",
+    title: 'Разные integrator user id (оба заданы)',
     detail:
-      "Оба пользователя привязаны к разным записям в интеграторе. Режим v1: merge заблокирован (риск «фантомного» пользователя). В режиме v2 сначала выполняется canonical merge в integrator, затем webapp merge.",
+      'Оба пользователя привязаны к разным записям в интеграторе. Режим v1: merge заблокирован (риск «фантомного» пользователя). В режиме v2 сначала выполняется canonical merge в integrator, затем webapp merge.',
   },
   integrator_canonical_merge_required: {
-    title: "Нужен canonical merge в integrator",
+    title: 'Нужен canonical merge в integrator',
     detail:
-      "Включён режим v2: сначала объедините пользователей в БД интегратора (кнопка ниже или ops), при необходимости выполните realignment проекций в webapp, затем обновите preview и выполните webapp merge.",
+      'Включён режим v2: сначала объедините пользователей в БД интегратора (кнопка ниже или ops), при необходимости выполните realignment проекций в webapp, затем обновите preview и выполните webapp merge.',
   },
   integrator_merge_status_unavailable: {
-    title: "Не удалось проверить статус integrator",
+    title: 'Не удалось проверить статус integrator',
     detail:
-      "Не настроены INTEGRATOR_API_URL / секрет webhook или интегратор недоступен — preview не может подтвердить, что пара уже сведена к одному canonical users.id.",
+      'Не настроены INTEGRATOR_API_URL / секрет webhook или интегратор недоступен — preview не может подтвердить, что пара уже сведена к одному canonical users.id.',
   },
   active_bookings_time_overlap: {
-    title: "Пересечение активных записей по времени",
+    title: 'Пересечение активных записей по времени',
     detail:
-      "У пары есть пересекающиеся по времени активные patient_bookings с тем же правилом cooperator snapshot, что и в merge guard. Разрулите записи вручную или снимите конфликт расписания.",
+      'У пары есть пересекающиеся по времени активные patient_bookings с тем же правилом cooperator snapshot, что и в merge guard. Разрулите записи вручную или снимите конфликт расписания.',
   },
   active_lfk_template_conflict: {
-    title: "Конфликт активных назначений ЛФК",
-    detail: "На обоих пользователях есть активные patient_lfk_assignments с одним и тем же template_id.",
+    title: 'Конфликт активных назначений ЛФК',
+    detail:
+      'На обоих пользователях есть активные patient_lfk_assignments с одним и тем же template_id.',
   },
   active_treatment_program_conflict: {
-    title: "Конфликт активных программ лечения",
-    detail: "На обоих пользователях есть активная treatment_program_instances (допускается только одна active на пациента).",
+    title: 'Конфликт активных программ лечения',
+    detail:
+      'На обоих пользователях есть активная treatment_program_instances (допускается только одна active на пациента).',
   },
   open_test_attempt_conflict: {
-    title: "Конфликт открытых попыток тестирования",
-    detail: "На обоих пользователях есть незавершённая test_attempts по одному и тому же пункту программы.",
+    title: 'Конфликт открытых попыток тестирования',
+    detail:
+      'На обоих пользователях есть незавершённая test_attempts по одному и тому же пункту программы.',
   },
   shared_phone_both_have_meaningful_data: {
-    title: "Один телефон, у обоих есть значимые данные",
+    title: 'Один телефон, у обоих есть значимые данные',
     detail:
-      "Одинаковый нормализованный телефон и на обоих счётчики meaningful data > 0 (как в assertSharedPhoneGuard). Merge заблокирован.",
+      'Одинаковый нормализованный телефон и на обоих счётчики meaningful data > 0 (как в assertSharedPhoneGuard). Merge заблокирован.',
   },
 };
 
 export function hardBlockerUi(code: string): { title: string; detail: string } {
-  return BLOCKER_RU[code] ?? {
-    title: code,
-    detail: "Операция merge недоступна для этой пары до снятия блокировки.",
-  };
+  return (
+    BLOCKER_RU[code] ?? {
+      title: code,
+      detail: 'Операция merge недоступна для этой пары до снятия блокировки.',
+    }
+  );
 }
 
 /** Case-insensitive UUID equality (hex), trims whitespace. */
@@ -304,7 +312,10 @@ export function uuidEqualsNormalized(a: string, b: string): boolean {
 
 /** Первые 4 hex-цифры UUID (дефисы игнорируются), нижний регистр. */
 export function duplicateUuidFirstFourHex(duplicateId: string): string {
-  return duplicateId.replace(/[^0-9a-f]/gi, "").toLowerCase().slice(0, 4);
+  return duplicateId
+    .replace(/[^0-9a-f]/gi, '')
+    .toLowerCase()
+    .slice(0, 4);
 }
 
 /**
@@ -314,6 +325,6 @@ export function duplicateUuidFirstFourHex(duplicateId: string): string {
 export function mergeDuplicatePrefixConfirmed(input: string, duplicateId: string): boolean {
   const want = duplicateUuidFirstFourHex(duplicateId);
   if (want.length < 4) return false;
-  const got = input.replace(/[^0-9a-f]/gi, "").toLowerCase();
+  const got = input.replace(/[^0-9a-f]/gi, '').toLowerCase();
   return got.length === 4 && got === want;
 }

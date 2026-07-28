@@ -1,17 +1,17 @@
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import {
   createScheduledManualPatientVisit,
   createWalkInManualPatientVisit,
-} from "@/app-layer/doctor/createScheduledManualPatientVisit";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
+} from '@/app-layer/doctor/createScheduledManualPatientVisit';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import {
   staffBookingContactNameFromAppointment,
   staffBookingServiceTitleFromAppointment,
-} from "@/app-layer/booking/staffBookingIntegratorEvent";
-import { createBookingSyncPort } from "@/modules/integrator/bookingM2mApi";
-import { requireDoctorBookingEngine } from "../../_requireDoctorBookingEngine";
+} from '@/app-layer/booking/staffBookingIntegratorEvent';
+import { createBookingSyncPort } from '@/modules/integrator/bookingM2mApi';
+import { requireDoctorBookingEngine } from '../../_requireDoctorBookingEngine';
 
 const identitySchema = z.object({
   requestId: z.string().uuid(),
@@ -22,28 +22,32 @@ const identitySchema = z.object({
   email: z.string().max(320).nullable().optional(),
 });
 
-const bodySchema = z.discriminatedUnion("kind", [
-  identitySchema.extend({
-    kind: z.literal("scheduled"),
-  branchId: z.string().uuid().nullable().optional(),
-  roomId: z.string().uuid().nullable().optional(),
-  serviceId: z.string().uuid().nullable().optional(),
-  startAt: z.string().min(1),
-  endAt: z.string().min(1),
-  durationMinutes: z.number().int().positive(),
-  }).strict(),
-  identitySchema.extend({
-    kind: z.literal("walk_in"),
-    visitedAt: z.string().datetime({ offset: true }),
-  }).strict(),
+const bodySchema = z.discriminatedUnion('kind', [
+  identitySchema
+    .extend({
+      kind: z.literal('scheduled'),
+      branchId: z.string().uuid().nullable().optional(),
+      roomId: z.string().uuid().nullable().optional(),
+      serviceId: z.string().uuid().nullable().optional(),
+      startAt: z.string().min(1),
+      endAt: z.string().min(1),
+      durationMinutes: z.number().int().positive(),
+    })
+    .strict(),
+  identitySchema
+    .extend({
+      kind: z.literal('walk_in'),
+      visitedAt: z.string().datetime({ offset: true }),
+    })
+    .strict(),
 ]);
 
 function pgCode(error: unknown): { code: string; constraint: string } {
-  if (typeof error !== "object" || error === null) return { code: "", constraint: "" };
+  if (typeof error !== 'object' || error === null) return { code: '', constraint: '' };
   const value = error as { code?: unknown; constraint?: unknown };
   return {
-    code: typeof value.code === "string" ? value.code : "",
-    constraint: typeof value.constraint === "string" ? value.constraint : "",
+    code: typeof value.code === 'string' ? value.code : '',
+    constraint: typeof value.constraint === 'string' ? value.constraint : '',
   };
 }
 
@@ -52,21 +56,21 @@ export async function POST(request: Request) {
   if (!gate.ok) return gate.response;
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
 
   const { ctx } = gate;
   if (!ctx.specialistId) {
-    return NextResponse.json({ ok: false, error: "specialist_required" }, { status: 403 });
+    return NextResponse.json({ ok: false, error: 'specialist_required' }, { status: 403 });
   }
   const specialistId = ctx.specialistId;
   const deps = buildAppDeps();
   try {
     const result = await withDoctorWorkspacePrincipal(
       ctx,
-      "doctor.booking-engine.appointments.manual-patient-visit",
+      'doctor.booking-engine.appointments.manual-patient-visit',
       async () => {
-        if (parsed.data.kind === "scheduled" && deps.bookingScheduling) {
+        if (parsed.data.kind === 'scheduled' && deps.bookingScheduling) {
           const existingCommand = await ctx.service.getAppointment(parsed.data.requestId);
           if (existingCommand?.organizationId !== ctx.organizationId) {
             await deps.bookingScheduling.assertSlotAvailable({
@@ -91,7 +95,7 @@ export async function POST(request: Request) {
           email: parsed.data.email,
         };
         const created =
-          parsed.data.kind === "scheduled"
+          parsed.data.kind === 'scheduled'
             ? await createScheduledManualPatientVisit(
                 {
                   ...identity,
@@ -103,8 +107,8 @@ export async function POST(request: Request) {
                     startAt: parsed.data.startAt,
                     endAt: parsed.data.endAt,
                     durationMinutes: parsed.data.durationMinutes,
-                    source: "admin_manual",
-                    status: "confirmed",
+                    source: 'admin_manual',
+                    status: 'confirmed',
                     actorId: ctx.session.user.userId,
                   },
                 },
@@ -120,10 +124,10 @@ export async function POST(request: Request) {
               );
         if (!created.ok) return created;
 
-        if (created.kind === "walk_in") return created;
+        if (created.kind === 'walk_in') return created;
 
         let bookingRow: Awaited<
-          ReturnType<NonNullable<typeof deps.patientBooking>["getBookingByCanonicalAppointment"]>
+          ReturnType<NonNullable<typeof deps.patientBooking>['getBookingByCanonicalAppointment']>
         > = null;
         try {
           bookingRow = deps.patientBooking
@@ -136,15 +140,15 @@ export async function POST(request: Request) {
         if (!created.replayed && contactPhone) {
           try {
             await createBookingSyncPort().emitBookingEvent({
-              eventType: "booking.created",
+              eventType: 'booking.created',
               idempotencyKey: `staff.booking.created:${created.appointment.id}:${created.appointment.startAt}`,
               payload: {
                 organizationId: created.appointment.organizationId,
                 bookingId: bookingRow?.id ?? created.appointment.id,
                 userId: bookingRow?.userId ?? created.patient.userId,
-                bookingType: bookingRow?.bookingType ?? "in_person",
+                bookingType: bookingRow?.bookingType ?? 'in_person',
                 city: bookingRow?.city ?? undefined,
-                category: bookingRow?.category ?? "general",
+                category: bookingRow?.category ?? 'general',
                 slotStart: created.appointment.startAt,
                 slotEnd: created.appointment.endAt,
                 contactName:
@@ -187,26 +191,26 @@ export async function POST(request: Request) {
       },
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "create_failed";
+    const message = error instanceof Error ? error.message : 'create_failed';
     const pg = pgCode(error);
-    if (message === "slot_overlap" || pg.code === "23P01") {
-      return NextResponse.json({ ok: false, error: "slot_overlap" }, { status: 409 });
+    if (message === 'slot_overlap' || pg.code === '23P01') {
+      return NextResponse.json({ ok: false, error: 'slot_overlap' }, { status: 409 });
     }
-    if (message === "idempotency_conflict") {
-      return NextResponse.json({ ok: false, error: "idempotency_conflict" }, { status: 409 });
+    if (message === 'idempotency_conflict') {
+      return NextResponse.json({ ok: false, error: 'idempotency_conflict' }, { status: 409 });
     }
-    if (message === "visit_in_future" || message === "invalid_visit_time") {
+    if (message === 'visit_in_future' || message === 'invalid_visit_time') {
       return NextResponse.json({ ok: false, error: message }, { status: 400 });
     }
     if (
-      message === "email_conflict" ||
-      (pg.code === "23505" && pg.constraint === "uq_platform_users_email_normalized_active")
+      message === 'email_conflict' ||
+      (pg.code === '23505' && pg.constraint === 'uq_platform_users_email_normalized_active')
     ) {
-      return NextResponse.json({ ok: false, error: "email_conflict" }, { status: 409 });
+      return NextResponse.json({ ok: false, error: 'email_conflict' }, { status: 409 });
     }
-    if (message === "identity_conflict" || message === "patient_not_available") {
-      return NextResponse.json({ ok: false, error: "patient_not_available" }, { status: 409 });
+    if (message === 'identity_conflict' || message === 'patient_not_available') {
+      return NextResponse.json({ ok: false, error: 'patient_not_available' }, { status: 409 });
     }
-    return NextResponse.json({ ok: false, error: "create_failed" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'create_failed' }, { status: 400 });
   }
 }

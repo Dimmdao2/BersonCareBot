@@ -1,6 +1,6 @@
-import type { ChannelCode } from "./types";
+import type { ChannelCode } from './types';
 
-const PREFERRED_AUTH_ALLOWED_CHANNELS = new Set<ChannelCode>(["telegram", "max", "email", "sms"]);
+const PREFERRED_AUTH_ALLOWED_CHANNELS = new Set<ChannelCode>(['telegram', 'max', 'email', 'sms']);
 
 /** OTP / вход по телефону: каналы, для которых допустим флаг preferred auth. */
 export function isChannelAllowedForPreferredAuth(channelCode: ChannelCode | null): boolean {
@@ -9,10 +9,10 @@ export function isChannelAllowedForPreferredAuth(channelCode: ChannelCode | null
 }
 
 export class PreferredAuthChannelNotAllowedError extends Error {
-  readonly code = "preferred_auth_channel_not_allowed";
+  readonly code = 'preferred_auth_channel_not_allowed';
   constructor(public readonly channelCode: ChannelCode) {
     super(`Канал «${channelCode}» нельзя использовать для кода входа`);
-    this.name = "PreferredAuthChannelNotAllowedError";
+    this.name = 'PreferredAuthChannelNotAllowedError';
   }
 }
 

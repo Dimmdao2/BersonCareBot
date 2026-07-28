@@ -93,9 +93,9 @@ export async function maybeAutoEnqueueVideoTranscodeAfterUpload(mediaId: string)
 
 ## Сводка findings
 
-| ID   | Серьёзность | Статус   | Описание |
-|------|-------------|----------|----------|
-| —    | —           | —        | Блокирующих расхождений с критериями phase-06 не выявлено. |
+| ID  | Серьёзность | Статус | Описание                                                   |
+| --- | ----------- | ------ | ---------------------------------------------------------- |
+| —   | —           | —      | Блокирующих расхождений с критериями phase-06 не выявлено. |
 
 ---
 
@@ -103,12 +103,12 @@ export async function maybeAutoEnqueueVideoTranscodeAfterUpload(mediaId: string)
 
 **Дата FIX:** 2026-05-03
 
-| ID        | Серьёзность | Статус   | Резолюция |
-|-----------|-------------|----------|-----------|
-| FIX-P06-1 | Critical    | **CLOSED (N/A)** | Открытых critical по аудиту не было. |
-| FIX-P06-2 | Major       | **CLOSED (N/A)** | Открытых major по аудиту не было. |
-| FIX-P06-3 | Minor       | **CLOSED** | Подтверждение отсутствия дубликатов активных jobs: частичный уникальный индекс `media_transcode_jobs_one_active_per_media` в миграции `0019_media_transcode_jobs_queue.sql`; регрессионный unit-тест на ветку `23505` в `pgMediaTranscodeJobs.test.ts` (гонка INSERT). |
-| FIX-P06-4 | Minor       | **DEFERRED** | Единый ops-runbook (число реплик `media-worker`, `POLL_MS`, алёрты по очереди / P95 transcode) привязать к подтверждённому systemd unit и строкам в `docs/ARCHITECTURE/SERVER CONVENTIONS.md` — вне кода webapp; критерии уже в [phase-06-new-video-hls-default-path.md](./phases/phase-06-new-video-hls-default-path.md) («Метрики и проверки перед phase-07»). |
+| ID        | Серьёзность | Статус           | Резолюция                                                                                                                                                                                                                                                                                                                                                        |
+| --------- | ----------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| FIX-P06-1 | Critical    | **CLOSED (N/A)** | Открытых critical по аудиту не было.                                                                                                                                                                                                                                                                                                                             |
+| FIX-P06-2 | Major       | **CLOSED (N/A)** | Открытых major по аудиту не было.                                                                                                                                                                                                                                                                                                                                |
+| FIX-P06-3 | Minor       | **CLOSED**       | Подтверждение отсутствия дубликатов активных jobs: частичный уникальный индекс `media_transcode_jobs_one_active_per_media` в миграции `0019_media_transcode_jobs_queue.sql`; регрессионный unit-тест на ветку `23505` в `pgMediaTranscodeJobs.test.ts` (гонка INSERT).                                                                                           |
+| FIX-P06-4 | Minor       | **DEFERRED**     | Единый ops-runbook (число реплик `media-worker`, `POLL_MS`, алёрты по очереди / P95 transcode) привязать к подтверждённому systemd unit и строкам в `docs/ARCHITECTURE/SERVER CONVENTIONS.md` — вне кода webapp; критерии уже в [phase-06-new-video-hls-default-path.md](./phases/phase-06-new-video-hls-default-path.md) («Метрики и проверки перед phase-07»). |
 
 **Повтор целевых проверок phase-06 (на окружении агента):**  
 `pnpm install --frozen-lockfile && pnpm --dir apps/webapp exec vitest run src/app-layer/media/mediaTranscodeAutoEnqueue.test.ts src/app/api/media/confirm/route.test.ts src/app/api/media/multipart/complete/route.test.ts src/infra/repos/pgMediaTranscodeJobs.test.ts`  

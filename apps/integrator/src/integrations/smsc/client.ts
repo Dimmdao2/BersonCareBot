@@ -77,7 +77,8 @@ export function createSmscClient(config: SmscClientConfig): SmsClient {
         }
 
         if (parsed?.error || typeof parsed?.error_code === 'number') {
-          const errorCode = typeof parsed.error_code === 'number' ? String(parsed.error_code) : 'UNKNOWN';
+          const errorCode =
+            typeof parsed.error_code === 'number' ? String(parsed.error_code) : 'UNKNOWN';
           const errorText = parsed.error ?? 'SMSC_API_ERROR';
           return { ok: false, error: `${errorText} (code: ${errorCode})` };
         }

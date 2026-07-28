@@ -1,16 +1,16 @@
-import type { Pool, PoolClient } from "pg";
-import { callIntegratorUserMerge } from "@/infra/integrations/integratorUserMergeM2mClient";
-import { writeAuditLog } from "@/infra/adminAuditLog";
-import { startPoolTransaction } from "@/infra/db/withClient";
-import { logger } from "@/infra/logging/logger";
-import { fetchMergePartyDisplayLabels } from "@/infra/mergeAuditLabels";
-import { runIdentityClientPgText } from "@/infra/repos/identityPhoneSql";
+import type { Pool, PoolClient } from 'pg';
+import { callIntegratorUserMerge } from '@/infra/integrations/integratorUserMergeM2mClient';
+import { writeAuditLog } from '@/infra/adminAuditLog';
+import { startPoolTransaction } from '@/infra/db/withClient';
+import { logger } from '@/infra/logging/logger';
+import { fetchMergePartyDisplayLabels } from '@/infra/mergeAuditLabels';
+import { runIdentityClientPgText } from '@/infra/repos/identityPhoneSql';
 import {
   integratorUserIdNumericKey,
   parseIntegratorMergeHttpDetails,
   parseIntegratorMergeHttpError,
   platformUserMergePrecheckRowSchema,
-} from "@/infra/integratorPlatformUserMergeSchemas";
+} from '@/infra/integratorPlatformUserMergeSchemas';
 
 async function recordIntegratorMergeFailure(params: {
   pool: Pool;
@@ -22,11 +22,15 @@ async function recordIntegratorMergeFailure(params: {
   error: string;
   httpStatus?: number;
 }): Promise<void> {
-  const labels = await fetchMergePartyDisplayLabels(params.pool, params.targetId, params.duplicateId);
+  const labels = await fetchMergePartyDisplayLabels(
+    params.pool,
+    params.targetId,
+    params.duplicateId,
+  );
   const errSnippet = params.error.slice(0, 2_000);
   logger.error(
     {
-      action: "integrator_user_merge",
+      action: 'integrator_user_merge',
       phase: params.phase,
       targetId: params.targetId,
       duplicateId: params.duplicateId,
@@ -34,11 +38,11 @@ async function recordIntegratorMergeFailure(params: {
       httpStatus: params.httpStatus,
       err: errSnippet,
     },
-    "[integrator-merge] failed",
+    '[integrator-merge] failed',
   );
   await writeAuditLog(params.pool, {
     actorId: params.actorId,
-    action: "integrator_user_merge",
+    action: 'integrator_user_merge',
     targetId: params.targetId,
     details: {
       targetId: params.targetId,
@@ -50,7 +54,7 @@ async function recordIntegratorMergeFailure(params: {
       error: errSnippet,
       httpStatus: params.httpStatus ?? null,
     },
-    status: "error",
+    status: 'error',
   });
 }
 
@@ -123,10 +127,10 @@ export async function executeIntegratorPlatformUserMerge(params: {
         targetId,
         duplicateId,
         dryRun,
-        phase: "precheck_missing_user",
-        error: "missing_user",
+        phase: 'precheck_missing_user',
+        error: 'missing_user',
       });
-      return { ok: false, status: 404, body: { ok: false, error: "missing_user" } };
+      return { ok: false, status: 404, body: { ok: false, error: 'missing_user' } };
     }
 
     const byId = new Map(rows.map((row) => [row.id, row]));
@@ -141,13 +145,13 @@ export async function executeIntegratorPlatformUserMerge(params: {
         targetId,
         duplicateId,
         dryRun,
-        phase: "precheck_missing_user",
-        error: "missing_user",
+        phase: 'precheck_missing_user',
+        error: 'missing_user',
       });
-      return { ok: false, status: 404, body: { ok: false, error: "missing_user" } };
+      return { ok: false, status: 404, body: { ok: false, error: 'missing_user' } };
     }
 
-    if (tRow.role !== "client" || dRow.role !== "client") {
+    if (tRow.role !== 'client' || dRow.role !== 'client') {
       await tx.rollback();
       txOpen = false;
       await recordIntegratorMergeFailure({
@@ -156,10 +160,10 @@ export async function executeIntegratorPlatformUserMerge(params: {
         targetId,
         duplicateId,
         dryRun,
-        phase: "precheck_role",
-        error: "not_client",
+        phase: 'precheck_role',
+        error: 'not_client',
       });
-      return { ok: false, status: 400, body: { ok: false, error: "not_client" } };
+      return { ok: false, status: 400, body: { ok: false, error: 'not_client' } };
     }
 
     if (tRow.merged_into_id != null || dRow.merged_into_id != null) {
@@ -171,14 +175,14 @@ export async function executeIntegratorPlatformUserMerge(params: {
         targetId,
         duplicateId,
         dryRun,
-        phase: "precheck_merged_alias",
-        error: "alias_not_allowed",
+        phase: 'precheck_merged_alias',
+        error: 'alias_not_allowed',
       });
-      return { ok: false, status: 409, body: { ok: false, error: "alias_not_allowed" } };
+      return { ok: false, status: 409, body: { ok: false, error: 'alias_not_allowed' } };
     }
 
-    const winner = tRow.integrator_user_id?.trim() || "";
-    const loser = dRow.integrator_user_id?.trim() || "";
+    const winner = tRow.integrator_user_id?.trim() || '';
+    const loser = dRow.integrator_user_id?.trim() || '';
     if (!winner || !loser || winner === loser) {
       await tx.rollback();
       txOpen = false;
@@ -188,16 +192,17 @@ export async function executeIntegratorPlatformUserMerge(params: {
         targetId,
         duplicateId,
         dryRun,
-        phase: "precheck_integrator_ids",
-        error: "integrator_ids_not_divergent",
+        phase: 'precheck_integrator_ids',
+        error: 'integrator_ids_not_divergent',
       });
       return {
         ok: false,
         status: 400,
         body: {
           ok: false,
-          error: "integrator_ids_not_divergent",
-          message: "Both platform users must have different non-null integrator_user_id for integrator merge.",
+          error: 'integrator_ids_not_divergent',
+          message:
+            'Both platform users must have different non-null integrator_user_id for integrator merge.',
         },
       };
     }
@@ -212,44 +217,44 @@ export async function executeIntegratorPlatformUserMerge(params: {
       await tx.rollback();
       txOpen = false;
 
-      if (merged.reason === "unconfigured") {
+      if (merged.reason === 'unconfigured') {
         await recordIntegratorMergeFailure({
           pool,
           actorId,
           targetId,
           duplicateId,
           dryRun,
-          phase: "integrator_unconfigured",
-          error: "integrator_unconfigured",
+          phase: 'integrator_unconfigured',
+          error: 'integrator_unconfigured',
         });
         return {
           ok: false,
           status: 503,
           body: {
             ok: false,
-            error: "integrator_unconfigured",
-            message: "INTEGRATOR_API_URL or webhook secret missing.",
+            error: 'integrator_unconfigured',
+            message: 'INTEGRATOR_API_URL or webhook secret missing.',
           },
         };
       }
 
-      if (merged.reason === "timeout") {
+      if (merged.reason === 'timeout') {
         await recordIntegratorMergeFailure({
           pool,
           actorId,
           targetId,
           duplicateId,
           dryRun,
-          phase: "integrator_timeout",
-          error: "integrator_timeout",
+          phase: 'integrator_timeout',
+          error: 'integrator_timeout',
         });
         return {
           ok: false,
           status: 503,
           body: {
             ok: false,
-            error: "integrator_timeout",
-            message: "Integrator merge request timed out.",
+            error: 'integrator_timeout',
+            message: 'Integrator merge request timed out.',
           },
         };
       }
@@ -258,12 +263,12 @@ export async function executeIntegratorPlatformUserMerge(params: {
       const missing = parsedHttpErr.missingIntegratorUserIds;
       const loserKey = integratorUserIdNumericKey(loser);
       const loserOnlyMissing =
-        merged.reason === "http" &&
+        merged.reason === 'http' &&
         merged.status === 400 &&
-        parsedHttpErr.error === "USER_NOT_FOUND" &&
+        parsedHttpErr.error === 'USER_NOT_FOUND' &&
         Array.isArray(missing) &&
         missing.length === 1 &&
-        integratorUserIdNumericKey(missing[0] ?? "") === loserKey;
+        integratorUserIdNumericKey(missing[0] ?? '') === loserKey;
 
       if (loserOnlyMissing) {
         if (dryRun) {
@@ -292,16 +297,17 @@ export async function executeIntegratorPlatformUserMerge(params: {
             targetId,
             duplicateId,
             dryRun: false,
-            phase: "orphan_clear_race",
-            error: "UPDATE platform_users integrator_user_id clear: rowCount not 1",
+            phase: 'orphan_clear_race',
+            error: 'UPDATE platform_users integrator_user_id clear: rowCount not 1',
           });
           return {
             ok: false,
             status: 409,
             body: {
               ok: false,
-              error: "orphan_clear_failed",
-              message: "Could not clear duplicate integrator_user_id (row changed?). Retry preview.",
+              error: 'orphan_clear_failed',
+              message:
+                'Could not clear duplicate integrator_user_id (row changed?). Retry preview.',
             },
           };
         }
@@ -311,27 +317,27 @@ export async function executeIntegratorPlatformUserMerge(params: {
         const labels = await fetchMergePartyDisplayLabels(pool, targetId, duplicateId);
         await writeAuditLog(pool, {
           actorId,
-          action: "integrator_user_merge",
+          action: 'integrator_user_merge',
           targetId,
-          status: "ok",
+          status: 'ok',
           details: {
             targetId,
             duplicateId,
             targetDisplayName: labels.targetDisplayName,
             duplicateDisplayName: labels.duplicateDisplayName,
-            phase: "orphan_duplicate_integrator_id_cleared",
+            phase: 'orphan_duplicate_integrator_id_cleared',
             clearedIntegratorUserId: loser,
           },
         });
         logger.info(
           {
-            action: "integrator_user_merge",
-            phase: "orphan_duplicate_integrator_id_cleared",
+            action: 'integrator_user_merge',
+            phase: 'orphan_duplicate_integrator_id_cleared',
             targetId,
             duplicateId,
             clearedIntegratorUserId: loser,
           },
-          "[integrator-merge] cleared phantom duplicate integrator_user_id",
+          '[integrator-merge] cleared phantom duplicate integrator_user_id',
         );
         return {
           ok: true,
@@ -357,7 +363,7 @@ export async function executeIntegratorPlatformUserMerge(params: {
         targetId,
         duplicateId,
         dryRun,
-        phase: "integrator_m2m",
+        phase: 'integrator_m2m',
         error: safeErrorCode,
         httpStatus: merged.status,
       });
@@ -366,7 +372,7 @@ export async function executeIntegratorPlatformUserMerge(params: {
         status: http,
         body: {
           ok: false,
-          error: "integrator_merge_failed",
+          error: 'integrator_merge_failed',
           status: merged.status,
           details: errBody,
         },
@@ -386,8 +392,8 @@ export async function executeIntegratorPlatformUserMerge(params: {
     }
     const msg = error instanceof Error ? error.message : String(error);
     logger.error(
-      { err: msg, action: "integrator_user_merge", targetId, duplicateId },
-      "[integrator-merge] unexpected error",
+      { err: msg, action: 'integrator_user_merge', targetId, duplicateId },
+      '[integrator-merge] unexpected error',
     );
     throw error;
   } finally {

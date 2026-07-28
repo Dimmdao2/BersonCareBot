@@ -1,13 +1,13 @@
-import type { AdminPlatformUserStatsPort } from "@/modules/admin-platform-stats/ports";
+import type { AdminPlatformUserStatsPort } from '@/modules/admin-platform-stats/ports';
 import {
   MIN_REGISTRATION_STATS_INCLUSIVE_DAYS,
   resolveAdminStatsLocalRange,
-} from "@/modules/admin-platform-stats/registrationTimeRange";
+} from '@/modules/admin-platform-stats/registrationTimeRange';
 import type {
   AdminRegistrationStatsPayload,
   AdminStatsTimePreset,
   AdminSubscriberStatsPayload,
-} from "@/modules/admin-platform-stats/types";
+} from '@/modules/admin-platform-stats/types';
 
 export function createAdminPlatformUserStatsService(port: AdminPlatformUserStatsPort) {
   return {
@@ -19,13 +19,10 @@ export function createAdminPlatformUserStatsService(port: AdminPlatformUserStats
       excludedUserIds?: string[];
     }): Promise<AdminRegistrationStatsPayload> {
       const { iana, preset, customFrom, customTo } = params;
-      const { fromDay, toDay, startUtcIso, endExclusiveUtcIso, dayKeys } = resolveAdminStatsLocalRange(
-        iana,
-        preset,
-        customFrom,
-        customTo,
-        { enforceMinInclusiveDays: MIN_REGISTRATION_STATS_INCLUSIVE_DAYS },
-      );
+      const { fromDay, toDay, startUtcIso, endExclusiveUtcIso, dayKeys } =
+        resolveAdminStatsLocalRange(iana, preset, customFrom, customTo, {
+          enforceMinInclusiveDays: MIN_REGISTRATION_STATS_INCLUSIVE_DAYS,
+        });
 
       const raw = await port.getRegistrationStats({
         iana,
@@ -64,12 +61,8 @@ export function createAdminPlatformUserStatsService(port: AdminPlatformUserStats
       excludedUserIds?: string[];
     }): Promise<AdminSubscriberStatsPayload> {
       const { iana, preset, customFrom, customTo } = params;
-      const { fromDay, toDay, startUtcIso, endExclusiveUtcIso, dayKeys } = resolveAdminStatsLocalRange(
-        iana,
-        preset,
-        customFrom,
-        customTo,
-      );
+      const { fromDay, toDay, startUtcIso, endExclusiveUtcIso, dayKeys } =
+        resolveAdminStatsLocalRange(iana, preset, customFrom, customTo);
 
       const raw = await port.getSubscriberBindingStats({
         iana,

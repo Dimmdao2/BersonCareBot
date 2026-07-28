@@ -13,7 +13,11 @@ describe('writePort subscription/mailing projection events', () => {
     projectionInserts: { eventType: string; idempotencyKey: string; payload: unknown }[];
   }): DbPort {
     const query = vi.fn(async (sql: string, params: unknown[]) => {
-      if (typeof sql === 'string' && sql.includes('merged_into_user_id') && sql.includes('FROM users')) {
+      if (
+        typeof sql === 'string' &&
+        sql.includes('merged_into_user_id') &&
+        sql.includes('FROM users')
+      ) {
         return { rows: [{ merged_into_user_id: null }] } as Awaited<ReturnType<DbPort['query']>>;
       }
       return { rows: [] } as Awaited<ReturnType<DbPort['query']>>;
@@ -30,7 +34,9 @@ describe('writePort subscription/mailing projection events', () => {
   }
 
   it('mailing.topic.upsert enqueues mailing.topic.upserted with deterministic idempotency key', async () => {
-    const capture = { projectionInserts: [] as { eventType: string; idempotencyKey: string; payload: unknown }[] };
+    const capture = {
+      projectionInserts: [] as { eventType: string; idempotencyKey: string; payload: unknown }[],
+    };
     const db = makeMockDb(capture);
     const writePort = createDbWritePort({ db });
     await writePort.writeDb({
@@ -58,7 +64,9 @@ describe('writePort subscription/mailing projection events', () => {
   });
 
   it('user.subscription.upsert enqueues user.subscription.upserted', async () => {
-    const capture = { projectionInserts: [] as { eventType: string; idempotencyKey: string; payload: unknown }[] };
+    const capture = {
+      projectionInserts: [] as { eventType: string; idempotencyKey: string; payload: unknown }[],
+    };
     const db = makeMockDb(capture);
     const writePort = createDbWritePort({ db });
     await writePort.writeDb({
@@ -80,7 +88,9 @@ describe('writePort subscription/mailing projection events', () => {
   });
 
   it('mailing.log.append enqueues mailing.log.sent', async () => {
-    const capture = { projectionInserts: [] as { eventType: string; idempotencyKey: string; payload: unknown }[] };
+    const capture = {
+      projectionInserts: [] as { eventType: string; idempotencyKey: string; payload: unknown }[],
+    };
     const db = makeMockDb(capture);
     const writePort = createDbWritePort({ db });
     await writePort.writeDb({

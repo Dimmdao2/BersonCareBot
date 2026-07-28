@@ -1,9 +1,9 @@
 /**
  * Обёртка совместимости: единый пациентский плеер — {@link PatientMediaPlaybackVideo}.
  */
-"use client";
+'use client';
 
 export {
   PatientMediaPlaybackVideo as PatientContentAdaptiveVideo,
   type PatientMediaPlaybackVideoProps as PatientContentAdaptiveVideoProps,
-} from "@/shared/ui/patient/media/PatientMediaPlaybackVideo";
+} from '@/shared/ui/patient/media/PatientMediaPlaybackVideo';

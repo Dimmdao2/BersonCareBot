@@ -4,21 +4,21 @@
  *
  * Строгий сценарий (S3, advisory lock, audit): `runStrictPurgePlatformUser` в `strictPlatformUserPurge.ts`.
  */
-import type { Pool, PoolClient } from "pg";
-import { getPool } from "@/infra/db/client";
-import { getIntegratorPurgePoolProvider } from "@/infra/db/integratorPurgePoolProvider";
-import { startPoolTransaction } from "@/infra/db/withClient";
-import { runPurgeClientPgText, runPurgePoolPgText } from "@/infra/platformUserPurgeSql";
+import type { Pool, PoolClient } from 'pg';
+import { getPool } from '@/infra/db/client';
+import { getIntegratorPurgePoolProvider } from '@/infra/db/integratorPurgePoolProvider';
+import { startPoolTransaction } from '@/infra/db/withClient';
+import { runPurgeClientPgText, runPurgePoolPgText } from '@/infra/platformUserPurgeSql';
 
 function trimEnv(name: string): string {
-  return process.env[name]?.trim() ?? "";
+  return process.env[name]?.trim() ?? '';
 }
 
 function isUsablePostgresUrl(raw: string): boolean {
   if (!raw) return false;
   try {
     const host = new URL(raw).hostname;
-    if (host === "base") return false;
+    if (host === 'base') return false;
     return true;
   } catch {
     return false;
@@ -32,7 +32,7 @@ function isUsablePostgresUrl(raw: string): boolean {
 export function appendIntegratorSearchPathToConnectionString(connectionString: string): string {
   try {
     const u = new URL(connectionString);
-    u.searchParams.set("options", "-c search_path=integrator,public");
+    u.searchParams.set('options', '-c search_path=integrator,public');
     return u.toString();
   } catch {
     return connectionString;
@@ -47,10 +47,10 @@ export function appendIntegratorSearchPathToConnectionString(connectionString: s
  */
 export function getIntegratorPoolForPurge(): Pool | null {
   const explicit =
-    trimEnv("INTEGRATOR_DATABASE_URL") ||
-    trimEnv("USER_PHONE_ADMIN_INTEGRATOR_DATABASE_URL") ||
-    trimEnv("SOURCE_DATABASE_URL");
-  const databaseUrl = trimEnv("DATABASE_URL");
+    trimEnv('INTEGRATOR_DATABASE_URL') ||
+    trimEnv('USER_PHONE_ADMIN_INTEGRATOR_DATABASE_URL') ||
+    trimEnv('SOURCE_DATABASE_URL');
+  const databaseUrl = trimEnv('DATABASE_URL');
 
   let baseUrl: string | null = null;
   let useIntegratorSearchPath = false;
@@ -67,14 +67,16 @@ export function getIntegratorPoolForPurge(): Pool | null {
 
   if (!baseUrl) return null;
 
-  const connectionString = useIntegratorSearchPath ? appendIntegratorSearchPathToConnectionString(baseUrl) : baseUrl;
+  const connectionString = useIntegratorSearchPath
+    ? appendIntegratorSearchPathToConnectionString(baseUrl)
+    : baseUrl;
 
   return getIntegratorPurgePoolProvider(connectionString);
 }
 
 /** Только цифры; для сопоставления записей по номеру. */
 export function phoneDigits(phone: string): string {
-  return phone.replace(/\D/g, "");
+  return phone.replace(/\D/g, '');
 }
 
 /**
@@ -82,15 +84,15 @@ export function phoneDigits(phone: string): string {
  * Не включает дневник симптомов/ЛФК — см. `deleteSymptomAndLfkDiaryForUser` (порядок FK: комплексы ↔ trackings).
  */
 const CONTENT_TABLES: { table: string; column: string }[] = [
-  { table: "patient_bookings", column: "platform_user_id" },
-  { table: "reminder_rules", column: "platform_user_id" },
-  { table: "doctor_notes", column: "user_id" },
-  { table: "support_conversations", column: "platform_user_id" },
-  { table: "patient_lfk_assignments", column: "patient_user_id" },
-  { table: "content_access_grants_webapp", column: "platform_user_id" },
-  { table: "user_notification_topic_channels", column: "user_id" },
-  { table: "user_web_push_subscriptions", column: "user_id" },
-  { table: "online_intake_requests", column: "user_id" },
+  { table: 'patient_bookings', column: 'platform_user_id' },
+  { table: 'reminder_rules', column: 'platform_user_id' },
+  { table: 'doctor_notes', column: 'user_id' },
+  { table: 'support_conversations', column: 'platform_user_id' },
+  { table: 'patient_lfk_assignments', column: 'patient_user_id' },
+  { table: 'content_access_grants_webapp', column: 'platform_user_id' },
+  { table: 'user_notification_topic_channels', column: 'user_id' },
+  { table: 'user_web_push_subscriptions', column: 'user_id' },
+  { table: 'online_intake_requests', column: 'user_id' },
 ];
 
 /** Дневники симптомов и ЛФК: порядок как в `pgDiaryPurge` (FK `lfk_complexes.symptom_tracking_id` → `symptom_trackings`). */
@@ -105,18 +107,21 @@ async function deleteSymptomAndLfkDiaryForUser(client: PoolClient, userId: strin
 }
 
 const IDENTITY_TABLES: { table: string; column: string }[] = [
-  { table: "user_channel_bindings", column: "user_id" },
-  { table: "user_pins", column: "user_id" },
-  { table: "login_tokens", column: "user_id" },
-  { table: "user_email_setup_tokens", column: "user_id" },
-  { table: "user_oauth_bindings", column: "user_id" },
+  { table: 'user_channel_bindings', column: 'user_id' },
+  { table: 'user_pins', column: 'user_id' },
+  { table: 'login_tokens', column: 'user_id' },
+  { table: 'user_email_setup_tokens', column: 'user_id' },
+  { table: 'user_oauth_bindings', column: 'user_id' },
 ];
 
 export function isPlatformUserUuid(s: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s.trim());
 }
 
-async function deletePhoneKeyedWebappRows(client: PoolClient, phoneNormalized: string): Promise<void> {
+async function deletePhoneKeyedWebappRows(
+  client: PoolClient,
+  phoneNormalized: string,
+): Promise<void> {
   const digs = phoneDigits(phoneNormalized);
 
   await runPurgeClientPgText(
@@ -153,16 +158,43 @@ async function deletePhoneKeyedWebappRows(client: PoolClient, phoneNormalized: s
   );
 }
 
-async function deleteWebappProjectionByIntegratorUserId(client: PoolClient, integratorUserId: string): Promise<void> {
+async function deleteWebappProjectionByIntegratorUserId(
+  client: PoolClient,
+  integratorUserId: string,
+): Promise<void> {
   if (!/^\d+$/.test(integratorUserId.trim())) return;
   const id = integratorUserId.trim();
 
-  await runPurgeClientPgText(client, `DELETE FROM reminder_delivery_events WHERE integrator_user_id = $1::bigint`, [id]);
-  await runPurgeClientPgText(client, `DELETE FROM reminder_occurrence_history WHERE integrator_user_id = $1::bigint`, [id]);
-  await runPurgeClientPgText(client, `DELETE FROM reminder_rules WHERE integrator_user_id = $1::bigint`, [id]);
-  await runPurgeClientPgText(client, `DELETE FROM content_access_grants_webapp WHERE integrator_user_id = $1::bigint`, [id]);
-  await runPurgeClientPgText(client, `DELETE FROM user_subscriptions_webapp WHERE integrator_user_id = $1::bigint`, [id]);
-  await runPurgeClientPgText(client, `DELETE FROM mailing_logs_webapp WHERE integrator_user_id = $1::bigint`, [id]);
+  await runPurgeClientPgText(
+    client,
+    `DELETE FROM reminder_delivery_events WHERE integrator_user_id = $1::bigint`,
+    [id],
+  );
+  await runPurgeClientPgText(
+    client,
+    `DELETE FROM reminder_occurrence_history WHERE integrator_user_id = $1::bigint`,
+    [id],
+  );
+  await runPurgeClientPgText(
+    client,
+    `DELETE FROM reminder_rules WHERE integrator_user_id = $1::bigint`,
+    [id],
+  );
+  await runPurgeClientPgText(
+    client,
+    `DELETE FROM content_access_grants_webapp WHERE integrator_user_id = $1::bigint`,
+    [id],
+  );
+  await runPurgeClientPgText(
+    client,
+    `DELETE FROM user_subscriptions_webapp WHERE integrator_user_id = $1::bigint`,
+    [id],
+  );
+  await runPurgeClientPgText(
+    client,
+    `DELETE FROM mailing_logs_webapp WHERE integrator_user_id = $1::bigint`,
+    [id],
+  );
   await runPurgeClientPgText(
     client,
     `DELETE FROM support_question_messages WHERE question_id IN (
@@ -179,17 +211,47 @@ async function deleteWebappProjectionByIntegratorUserId(client: PoolClient, inte
      )`,
     [id],
   );
-  await runPurgeClientPgText(client, `DELETE FROM support_conversations WHERE integrator_user_id = $1::bigint`, [id]);
+  await runPurgeClientPgText(
+    client,
+    `DELETE FROM support_conversations WHERE integrator_user_id = $1::bigint`,
+    [id],
+  );
 }
 
 async function clearPlatformUserDeleteBlockers(client: PoolClient, userId: string): Promise<void> {
-  await runPurgeClientPgText(client, `UPDATE platform_users SET blocked_by = NULL WHERE blocked_by = $1`, [userId]);
-  await runPurgeClientPgText(client, `UPDATE patient_lfk_assignments SET assigned_by = NULL WHERE assigned_by = $1`, [userId]);
-  await runPurgeClientPgText(client, `DELETE FROM patient_lfk_assignments WHERE patient_user_id = $1`, [userId]);
-  await runPurgeClientPgText(client, `DELETE FROM online_intake_requests WHERE user_id = $1`, [userId]);
-  await runPurgeClientPgText(client, `UPDATE lfk_complex_templates SET created_by = NULL WHERE created_by = $1`, [userId]);
-  await runPurgeClientPgText(client, `UPDATE lfk_exercises SET created_by = NULL WHERE created_by = $1`, [userId]);
-  await runPurgeClientPgText(client, `UPDATE system_settings SET updated_by = NULL WHERE updated_by = $1`, [userId]);
+  await runPurgeClientPgText(
+    client,
+    `UPDATE platform_users SET blocked_by = NULL WHERE blocked_by = $1`,
+    [userId],
+  );
+  await runPurgeClientPgText(
+    client,
+    `UPDATE patient_lfk_assignments SET assigned_by = NULL WHERE assigned_by = $1`,
+    [userId],
+  );
+  await runPurgeClientPgText(
+    client,
+    `DELETE FROM patient_lfk_assignments WHERE patient_user_id = $1`,
+    [userId],
+  );
+  await runPurgeClientPgText(client, `DELETE FROM online_intake_requests WHERE user_id = $1`, [
+    userId,
+  ]);
+  await runPurgeClientPgText(
+    client,
+    `UPDATE lfk_complex_templates SET created_by = NULL WHERE created_by = $1`,
+    [userId],
+  );
+  await runPurgeClientPgText(
+    client,
+    `UPDATE lfk_exercises SET created_by = NULL WHERE created_by = $1`,
+    [userId],
+  );
+  await runPurgeClientPgText(
+    client,
+    `UPDATE system_settings SET updated_by = NULL WHERE updated_by = $1`,
+    [userId],
+  );
   await runPurgeClientPgText(
     client,
     `UPDATE doctor_notes SET author_id = user_id WHERE author_id = $1 AND user_id <> $1`,
@@ -199,8 +261,12 @@ async function clearPlatformUserDeleteBlockers(client: PoolClient, userId: strin
 
 async function deleteContentTablesForUser(client: PoolClient, userId: string): Promise<void> {
   for (const { table, column } of CONTENT_TABLES) {
-    if (table === "doctor_notes") {
-      await runPurgeClientPgText(client, `DELETE FROM doctor_notes WHERE user_id = $1 OR author_id = $1`, [userId]);
+    if (table === 'doctor_notes') {
+      await runPurgeClientPgText(
+        client,
+        `DELETE FROM doctor_notes WHERE user_id = $1 OR author_id = $1`,
+        [userId],
+      );
     } else {
       await runPurgeClientPgText(client, `DELETE FROM ${table} WHERE ${column} = $1`, [userId]);
     }
@@ -218,7 +284,10 @@ export type PurgeArtifactKeys = {
  * **after** `pg_advisory_xact_lock` and **before** any DELETE that cascades to `online_intake_attachments`
  * / clears media ownership.
  */
-export async function collectPurgeArtifactKeys(client: PoolClient, userId: string): Promise<PurgeArtifactKeys> {
+export async function collectPurgeArtifactKeys(
+  client: PoolClient,
+  userId: string,
+): Promise<PurgeArtifactKeys> {
   const intakeRes = await runPurgeClientPgText<{ s3_key: string }>(
     client,
     `SELECT a.s3_key
@@ -228,7 +297,9 @@ export async function collectPurgeArtifactKeys(client: PoolClient, userId: strin
         AND a.s3_key IS NOT NULL`,
     [userId],
   );
-  const intakeS3Keys = intakeRes.rows.map((r) => r.s3_key).filter((k): k is string => typeof k === "string" && k.length > 0);
+  const intakeS3Keys = intakeRes.rows
+    .map((r) => r.s3_key)
+    .filter((k): k is string => typeof k === 'string' && k.length > 0);
 
   const mediaRes = await runPurgeClientPgText<{ id: string; s3_key: string | null }>(
     client,
@@ -252,7 +323,10 @@ export type PurgePlatformUserRow = {
 /**
  * Core webapp DELETE sequence (single transaction). Caller must hold advisory lock and have called `collectPurgeArtifactKeys` first when strict S3 cleanup is required.
  */
-export async function runWebappPurgeCoreInTransaction(client: PoolClient, user: PurgePlatformUserRow): Promise<void> {
+export async function runWebappPurgeCoreInTransaction(
+  client: PoolClient,
+  user: PurgePlatformUserRow,
+): Promise<void> {
   if (user.phone_normalized?.trim()) {
     await deletePhoneKeyedWebappRows(client, user.phone_normalized);
   }
@@ -280,7 +354,7 @@ export async function runWebappPurgeCoreInTransaction(client: PoolClient, user: 
 }
 
 /** Messenger rows in webapp `user_channel_bindings` that map to integrator `identities.resource`. */
-const INTEGRATOR_CLEANUP_CHANNEL_CODES = new Set(["telegram", "max"]);
+const INTEGRATOR_CLEANUP_CHANNEL_CODES = new Set(['telegram', 'max']);
 
 export type MessengerBindingForIntegratorCleanup = {
   channel_code: string;
@@ -325,7 +399,7 @@ export async function resolveIntegratorUserIds(
   if (messengerBindings && messengerBindings.length > 0) {
     for (const b of messengerBindings) {
       if (!INTEGRATOR_CLEANUP_CHANNEL_CODES.has(b.channel_code)) continue;
-      const ext = typeof b.external_id === "string" ? b.external_id.trim() : "";
+      const ext = typeof b.external_id === 'string' ? b.external_id.trim() : '';
       if (!ext) continue;
       const r = await runPurgePoolPgText<{ user_id: string }>(
         integratorDb,
@@ -346,7 +420,7 @@ async function clearMessengerAttributedPhonesForBindings(
 ): Promise<void> {
   for (const b of bindings) {
     if (!INTEGRATOR_CLEANUP_CHANNEL_CODES.has(b.channel_code)) continue;
-    const ext = typeof b.external_id === "string" ? b.external_id.trim() : "";
+    const ext = typeof b.external_id === 'string' ? b.external_id.trim() : '';
     if (!ext) continue;
     await runPurgeClientPgText(
       client,
@@ -386,7 +460,9 @@ export async function deleteIntegratorPhoneData(
     );
 
     if (integratorUserIds.length > 0) {
-      await runPurgeClientPgText(client, `DELETE FROM users WHERE id = ANY($1::bigint[])`, [integratorUserIds]);
+      await runPurgeClientPgText(client, `DELETE FROM users WHERE id = ANY($1::bigint[])`, [
+        integratorUserIds,
+      ]);
     }
 
     await tx.commit();
@@ -428,19 +504,25 @@ export async function deleteIntegratorPhoneDataWithResult(
 }
 
 /** Mirrors `runStrictPurgePlatformUser` — see `strictPlatformUserPurge.ts`. */
-export type StrictPurgeOutcome = "completed" | "partial_failed" | "needs_retry";
+export type StrictPurgeOutcome = 'completed' | 'partial_failed' | 'needs_retry';
 
 export type PurgePlatformUserResult =
   | { ok: true; integratorSkipped: boolean; outcome?: StrictPurgeOutcome }
-  | { ok: false; error: "invalid_uuid" | "not_found" | "not_client" | "transaction_failed" };
+  | { ok: false; error: 'invalid_uuid' | 'not_found' | 'not_client' | 'transaction_failed' };
 
 /**
  * Удаляет строку `platform_users` и связанные данные (см. CONTENT_TABLES / скрипт purge-by-id).
  * Делегирует в `runStrictPurgePlatformUser` (advisory lock, S3, integrator, audit при необходимости).
  */
-export async function purgePlatformUserByPlatformId(rawId: string): Promise<PurgePlatformUserResult> {
-  const { runStrictPurgePlatformUser } = await import("@/infra/strictPlatformUserPurge");
-  const r = await runStrictPurgePlatformUser({ targetId: rawId, actorId: null, audit: { enabled: true } });
+export async function purgePlatformUserByPlatformId(
+  rawId: string,
+): Promise<PurgePlatformUserResult> {
+  const { runStrictPurgePlatformUser } = await import('@/infra/strictPlatformUserPurge');
+  const r = await runStrictPurgePlatformUser({
+    targetId: rawId,
+    actorId: null,
+    audit: { enabled: true },
+  });
   if (!r.ok) {
     return { ok: false, error: r.error };
   }
@@ -462,7 +544,9 @@ async function loadPurgeUserRow(db: Pool, id: string): Promise<PurgePlatformUser
 }
 
 /** For tests / diagnostics: load user row without deleting. */
-export async function getPurgePlatformUserRowForTests(rawId: string): Promise<PurgePlatformUserRow | null> {
+export async function getPurgePlatformUserRowForTests(
+  rawId: string,
+): Promise<PurgePlatformUserRow | null> {
   const id = rawId.trim();
   if (!isPlatformUserUuid(id)) return null;
   return loadPurgeUserRow(getPool(), id);

@@ -30,26 +30,33 @@ Never touch prod / bcb_webapp_prod; never wipe test DB; never BYPASSRLS; deploy 
 commits (never `git add -A`).
 
 ## Canonical mechanic list (single source of truth — apps/webapp/src/modules/org-entitlements/types.ts, MECHANICS)
+
 `booking, exercise_catalog, exercise_packages, courses, cms_pages, files, patient_card, subscriptions, payments,
 mailings, patient_app, patient_app_paid_subscription, branding, custom_domain`. A new mechanic defaults to enabled
 until a tariff excludes it.
 
 ---
+
 ## P0 — entitlement foundation — ✅ DONE (commits c1f07c130, 52d99299b)
+
 - [x] `saas_tariffs` (global catalog, `mechanics` jsonb), `be_organizations.tariff_id`, `saas_org_entitlement_overrides`
-  (org-scoped FORCE RLS). deploy/postgres/store-p0-entitlements-rls.sql (applied to test) + drizzle schema + migration 0180.
+      (org-scoped FORCE RLS). deploy/postgres/store-p0-entitlements-rls.sql (applied to test) + drizzle schema + migration 0180.
 - [x] `modules/org-entitlements`: `resolveOrgEntitlements` = override ?? tariff ?? true; `isMechanicEnabled`. `pgOrgEntitlements` port.
 - [x] Verified live: org-A staff sees own override, org-B sees 0 (isolation); precedence proven. Dormant.
 
 ## P1 — enforcement chokepoint
+
 ### P1.a — slice — ✅ DONE (commit 530cb2bbd)
+
 - [x] DI-wired `orgEntitlements` (pg + in-memory fake, default-on). `requireEntitlement(mechanic)` guard: auth FIRST
-  (requireDoctorWorkspaceApiContext), then `isMechanicEnabled(org from ctx)`, disabled → 403 `entitlement_required`.
+      (requireDoctorWorkspaceApiContext), then `isMechanicEnabled(org from ctx)`, disabled → 403 `entitlement_required`.
 - [x] Gated `courses` create (`POST /api/doctor/courses`). Verified live: default 200 → override off 403 (A) → B 200 → restore 200.
 
 ### P1.b — gate the remaining mechanics (default-on; auth ALWAYS before the entitlement check)
+
 For EACH mechanic below, add `requireEntitlement("<mechanic>")` AFTER the existing auth guard on the mechanic's
 WRITE/primary routes ONLY (do not gate pure reads unless noted). Ground the exact route file before editing.
+
 - [-] ~~`mailings` → `apps/webapp/src/app/api/doctor/broadcasts/*` (create/send route).~~ — ✅ СДЕЛАНО ДО ВЫТЕСНЕНИЯ, зафиксировано в `apps/webapp/src/app-layer/entitlements/protectedActionRegistry.ts:45-46` (`mailings.execute`, `mailings.draft.save` gated via `requireEntitlementForMutationAction`; guard in `apps/webapp/src/app-layer/guards/requireEntitlement.ts`).
 - [-] ~~`booking` → the clinic booking-engine write routes `apps/webapp/src/app/api/admin/booking-engine/*` (branch/service/slot create) — NOT patient booking reads.~~ — ✅ СДЕЛАНО ДО ВЫТЕСНЕНИЯ: `protectedActionRegistry.ts:83-86` (branch/service/schedule-block create+delete gated via `requireEntitlementForMutation`); GET routes explicitly exempted as reads at lines 124-126 — reads were never double-gated, per the box's own instruction.
 - [-] ~~`cms_pages` → `apps/webapp/src/app/api/doctor/content/*` (page/section create).~~ — ✅ СДЕЛАНО ДО ВЫТЕСНЕНИЯ: `protectedActionRegistry.ts:47-69` (content pages/sections + patient-home block actions, 20 mapped entries under the `cms_pages` mechanic).
@@ -69,6 +76,7 @@ WRITE/primary routes ONLY (do not gate pure reads unless noted). Ground the exac
   runs before auth). Confirm the app is not broken for the existing single tenant.
 
 ## P2 — global-admin tariff constructor + assign-to-clinic (the "prices are configured here")
+
 - [-] ~~`GET/POST/PATCH /api/admin/tariffs` (+ delete/deactivate), guarded by `requireAdminWorkspaceApiContext` (global
   admin ONLY — NOT clinic_admin). CRUD on `saas_tariffs`: name, description, price_minor, currency, and the full
   per-mechanic toggle map (`mechanics` jsonb keyed by the MECHANICS list). Validate mechanic keys against MECHANICS.~~ — ✅ СДЕЛАНО ДО ВЫТЕСНЕНИЯ, evolved shape: unified `apps/webapp/src/app/api/admin/commercial/route.ts` (`GET` + `POST` discriminated-union `create_tariff`/`update_tariff`/`archive_tariff`, zod-validated), guarded by `requirePlatformOperationsApiContext` (`apps/webapp/src/app-layer/guards/requireRole.ts:231`, doc comment: "Platform-only API boundary. It intentionally has no organization resolution path." — stricter than the plan's named guard, same effect: clinic_admin gets 403).
@@ -84,6 +92,7 @@ WRITE/primary routes ONLY (do not gate pure reads unless noted). Ground the exac
   and assigning a tariff actually flips enforcement end-to-end (tariff, not just override, drives the gate).
 
 ## P3 — admin-curated exercise store (packages)
+
 - [-] ~~Global admin assembles platform exercises (currently GLOBAL, `modules/lfk-exercises`) into sellable PACKAGES
   (extend `modules/lfk-templates` ordered-set primitive; or a new `saas_exercise_packages`). Admin-curated ONLY.~~ — ↪️ ВЫТЕСНЕНО 2026-07-27: не построено — проверено `grep -rn "saas_exercise_packages"` (0 совпадений); текущий статус зафиксирован как "S4-3/C5D deferred" в `apps/webapp/src/app-layer/entitlements/protectedActionRegistry.ts:132` (`DECLARED_NO_SURFACE.exercise_packages`). Работа живёт в `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md`.
 - [-] ~~Grant-based access: a clinic whose tariff includes `exercise_packages` (+ specific packages) gets READ access to
@@ -94,12 +103,14 @@ WRITE/primary routes ONLY (do not gate pure reads unless noted). Ground the exac
 - 🔴 OPUS CHECK: cross-tenant — a clinic without the grant cannot read package/exercise media (no leak); grant is read-only.
 
 ## P4 — per-clinic analytics for the global admin
+
 - [-] ~~Cross-tenant aggregate dashboard for global admin built on the org-tagged `modules/product-analytics` base
   (per-clinic metrics: registrations, activity, retention). Global-admin-only page + API. NOT per-user only.~~ — ↪️ ВЫТЕСНЕНО 2026-07-27: не построено — проверено, `apps/webapp/src/modules/product-analytics/` содержит только per-page/topic aggregation (`buildAdminDashboard.ts`, `service.ts` etc.), нет per-clinic/cross-tenant файла или route. Если решится делаться — трекать в `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md`, не здесь.
 - Verify: global admin sees per-clinic breakdown; a clinic_admin cannot access the cross-tenant view.
 - 🔴 OPUS CHECK: cross-tenant read is global-admin-only; no clinic can see another clinic's aggregates.
 
 ## P5 — tenant billing + branding/custom-domain (LATER — biggest, real money)
+
 - [-] ~~Tenant billing domain, SEPARATE from patient `payments`/`memberships` (per FOUNDATION_PLAN.md:458): org billing
   account, invoices, subscription lifecycle (trial/active/past_due/suspended/cancelled), a REAL PSP (today only mock).~~ — ↪️ ВЫТЕСНЕНО 2026-07-27: не построено — крупная денежная фаза, объём не проверялся дальше факта отсутствия billing-схемы; если делается, живёт в `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md`, не здесь.
 - [-] ~~`branding` + `custom_domain` as paid capabilities (greenfield: add columns/side-tables to be_organizations;
@@ -108,7 +119,9 @@ WRITE/primary routes ONLY (do not gate pure reads unless noted). Ground the exac
   state machine, and that a suspended clinic is correctly gated. Do NOT ship without Opus acceptance + owner sign-off.
 
 ---
+
 ### Global invariants (verify every phase)
+
 - Default-on: any org without a tariff/override keeps ALL mechanics — the existing single tenant must never break.
 - `requireEntitlement` ALWAYS after auth; org comes from the authenticated context, never client input.
 - Org isolation: an override/tariff for org A must never affect org B (RLS + org-from-ctx).

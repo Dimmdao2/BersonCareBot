@@ -46,33 +46,33 @@ Email остаётся как подключаемый канал в профи�
 
 ### Файлы auth-модуля
 
-| Файл | Назначение |
-|---|---|
-| `modules/auth/service.ts` | Сессии, cookie, exchangeIntegratorToken, exchangeTelegramInitData |
-| `modules/auth/phoneAuth.ts` | startPhoneAuth, confirmPhoneAuth |
-| `modules/auth/phoneNormalize.ts` | normalizePhone → E.164 (международный) |
-| `modules/auth/phoneValidation.ts` | isValidPhoneE164, isRuMobile (SMS РФ), др. |
-| `modules/auth/checkPhoneMethods.ts` | resolveAuthMethodsForPhone, AuthMethodsPayload |
-| `modules/auth/otpChannelUi.ts` | pickPrimaryOtpChannel, OTP_OTHER_CHANNELS_ORDER |
-| `modules/auth/smsPort.ts` | SmsPort interface, PhoneOtpDelivery |
-| `modules/auth/oauthService.ts` | exchangeYandexCode, fetchYandexUserInfo |
-| `modules/auth/oauthBindingsPort.ts` | OAuthBindingsPort interface |
-| `infra/integrations/sms/integratorSmsAdapter.ts` | SmsPort implementation через интегратор |
-| `shared/ui/auth/InternationalPhoneInput.tsx` | UI: поле телефона (международное) |
-| `shared/ui/auth/AuthFlowV2.tsx` | UI: поток входа (Telegram Login primary, phone/OTP secondary, без PIN шага) |
-| `shared/ui/auth/OtpCodeForm.tsx` | UI: форма ввода кода |
-| `shared/ui/auth/PinInput.tsx` | UI: ввод PIN |
-| `shared/ui/auth/ChannelPicker.tsx` | UI: выбор канала OTP |
-| `app/api/auth/phone/start/route.ts` | API: старт SMS/OTP |
-| `app/api/auth/phone/confirm/route.ts` | API: подтверждение OTP |
-| `app/api/auth/check-phone/route.ts` | API: проверка доступных методов |
-| `app/api/auth/telegram-init/route.ts` | API: вход по Telegram Mini App initData |
-| `app/api/auth/telegram-login/route.ts` | API: Telegram Login Widget (подпись, сессия) |
-| `app/api/auth/telegram-login/config/route.ts` | API: `{ botUsername }` для виджета |
-| `app/api/auth/messenger/start/route.ts` | API: вход через мессенджер (deep link) |
-| `app/api/auth/oauth/start/route.ts` | API: старт Yandex OAuth |
-| `app/api/auth/oauth/callback/yandex/route.ts` | API: callback Yandex OAuth (канонический); legacy — `callback/route.ts` |
-| `app/api/auth/exchange/route.ts` | API: обмен integrator token → сессия |
+| Файл                                             | Назначение                                                                  |
+| ------------------------------------------------ | --------------------------------------------------------------------------- |
+| `modules/auth/service.ts`                        | Сессии, cookie, exchangeIntegratorToken, exchangeTelegramInitData           |
+| `modules/auth/phoneAuth.ts`                      | startPhoneAuth, confirmPhoneAuth                                            |
+| `modules/auth/phoneNormalize.ts`                 | normalizePhone → E.164 (международный)                                      |
+| `modules/auth/phoneValidation.ts`                | isValidPhoneE164, isRuMobile (SMS РФ), др.                                  |
+| `modules/auth/checkPhoneMethods.ts`              | resolveAuthMethodsForPhone, AuthMethodsPayload                              |
+| `modules/auth/otpChannelUi.ts`                   | pickPrimaryOtpChannel, OTP_OTHER_CHANNELS_ORDER                             |
+| `modules/auth/smsPort.ts`                        | SmsPort interface, PhoneOtpDelivery                                         |
+| `modules/auth/oauthService.ts`                   | exchangeYandexCode, fetchYandexUserInfo                                     |
+| `modules/auth/oauthBindingsPort.ts`              | OAuthBindingsPort interface                                                 |
+| `infra/integrations/sms/integratorSmsAdapter.ts` | SmsPort implementation через интегратор                                     |
+| `shared/ui/auth/InternationalPhoneInput.tsx`     | UI: поле телефона (международное)                                           |
+| `shared/ui/auth/AuthFlowV2.tsx`                  | UI: поток входа (Telegram Login primary, phone/OTP secondary, без PIN шага) |
+| `shared/ui/auth/OtpCodeForm.tsx`                 | UI: форма ввода кода                                                        |
+| `shared/ui/auth/PinInput.tsx`                    | UI: ввод PIN                                                                |
+| `shared/ui/auth/ChannelPicker.tsx`               | UI: выбор канала OTP                                                        |
+| `app/api/auth/phone/start/route.ts`              | API: старт SMS/OTP                                                          |
+| `app/api/auth/phone/confirm/route.ts`            | API: подтверждение OTP                                                      |
+| `app/api/auth/check-phone/route.ts`              | API: проверка доступных методов                                             |
+| `app/api/auth/telegram-init/route.ts`            | API: вход по Telegram Mini App initData                                     |
+| `app/api/auth/telegram-login/route.ts`           | API: Telegram Login Widget (подпись, сессия)                                |
+| `app/api/auth/telegram-login/config/route.ts`    | API: `{ botUsername }` для виджета                                          |
+| `app/api/auth/messenger/start/route.ts`          | API: вход через мессенджер (deep link)                                      |
+| `app/api/auth/oauth/start/route.ts`              | API: старт Yandex OAuth                                                     |
+| `app/api/auth/oauth/callback/yandex/route.ts`    | API: callback Yandex OAuth (канонический); legacy — `callback/route.ts`     |
+| `app/api/auth/exchange/route.ts`                 | API: обмен integrator token → сессия                                        |
 
 ---
 
@@ -141,6 +141,7 @@ Email остаётся как подключаемый канал в профи�
 **Предыстория:**
 
 Telegram Login Widget — отдельный от Bot API механизм авторизации для **веб-сайтов**:
+
 - На страницу добавляется `<script async src="https://telegram.org/js/telegram-widget.js">` + кнопка
 - Пользователь нажимает → авторизуется через Telegram (popup или redirect)
 - Telegram возвращает подписанный payload: `id`, `first_name`, `last_name`, `username`, `photo_url`, `auth_date`, `hash`
@@ -160,6 +161,7 @@ Telegram Login Widget — отдельный от Bot API механизм ав�
 - **S3.T08** — Тесты: верификация подписи виджета, создание сессии, привязка к существующему пользователю.
 
 **Подпись Telegram Login Widget:**
+
 ```
 data_check_string = "auth_date=<auth_date>\nfirst_name=<first_name>\nid=<id>\n..." (поля отсортированы, без hash)
 secret_key = SHA256(<bot_token>)
@@ -275,47 +277,47 @@ Stage 8 — зачистка.
 
 ## Зависимости между stage
 
-| Зависит от | Что | Почему |
-|---|---|---|
-| Stage 2 | Stage 4 | Международная валидация нужна для определения «РФ или нет» |
-| Stage 3 | Stage 4 | `telegramLogin` метод в AuthMethodsPayload |
-| Stage 3 | Stage 5 | После Telegram Login нужно единообразно убирать `set_pin` редирект |
-| — | Stage 1 | Независимый, можно делать сразу |
-| — | Stage 6 | Независимый, можно параллельно с 3–5 |
+| Зависит от | Что     | Почему                                                             |
+| ---------- | ------- | ------------------------------------------------------------------ |
+| Stage 2    | Stage 4 | Международная валидация нужна для определения «РФ или нет»         |
+| Stage 3    | Stage 4 | `telegramLogin` метод в AuthMethodsPayload                         |
+| Stage 3    | Stage 5 | После Telegram Login нужно единообразно убирать `set_pin` редирект |
+| —          | Stage 1 | Независимый, можно делать сразу                                    |
+| —          | Stage 6 | Независимый, можно параллельно с 3–5                               |
 
 ## Файлы (ожидаемые изменения)
 
-| Файл | Stage | Действие |
-|---|---|---|
-| `modules/auth/smsPort.ts` | 1 | Изменение (добавить `delivery_failed`) |
-| `infra/integrations/sms/integratorSmsAdapter.ts` | 1 | Изменение (коды ошибок) |
-| `app/api/auth/phone/start/route.ts` | 1, 4 | Изменение (errorMessage, sms_ru_only) |
-| `shared/ui/auth/PhoneInput.tsx` | 2 | Удалён; используется `InternationalPhoneInput` |
-| `shared/ui/auth/InternationalPhoneInput.tsx` | 2 | Новый |
-| `modules/auth/phoneNormalize.ts` | 2 | Изменение (международная нормализация) |
-| `modules/auth/phoneValidation.ts` | 2 | Изменение (isValidPhoneE164) |
-| `app/api/auth/check-phone/route.ts` | 2, 4 | Изменение (международная валидация, sms flag) |
-| `app/api/auth/pin/login/route.ts` | 2 | Изменение (международная валидация) |
-| `app/api/auth/messenger/start/route.ts` | 2 | Изменение (международная валидация) |
-| `app/api/auth/telegram-login/route.ts` | 3 | Новый |
-| `modules/auth/telegramLoginVerify.ts` | 3 | Новый (верификация подписи виджета) |
-| `shared/ui/auth/TelegramLoginButton.tsx` | 3 | Новый |
-| `shared/ui/auth/AuthFlowV2.tsx` | 3, 4, 5 | Изменение (TG Login первый, flow по типу номера, PIN скрыт) |
-| `modules/auth/checkPhoneMethods.ts` | 4, 7 | Изменение (sms flag, telegramLogin, oauth без UI-публикации) |
-| `modules/auth/otpChannelUi.ts` | 4 | Изменение (порядок каналов) |
-| `modules/auth/service.ts` | 3 | Изменение (новый метод для TG Login Widget) |
-| `integrator/.../handleUpdate.ts` | 6 | Изменение (request_contact при /start) |
-| `integrator/.../handleMessage.ts` | 6 | Изменение (handleStart flow) |
-| `app/api/auth/oauth/callback/route.ts` | 7 | Изменение (полный flow) |
-| `modules/auth/auth.md` | 8 | Изменение (документация) |
-| `system-settings/types.ts` | 3 | Изменение (telegram_login_bot_username) |
+| Файл                                             | Stage   | Действие                                                     |
+| ------------------------------------------------ | ------- | ------------------------------------------------------------ |
+| `modules/auth/smsPort.ts`                        | 1       | Изменение (добавить `delivery_failed`)                       |
+| `infra/integrations/sms/integratorSmsAdapter.ts` | 1       | Изменение (коды ошибок)                                      |
+| `app/api/auth/phone/start/route.ts`              | 1, 4    | Изменение (errorMessage, sms_ru_only)                        |
+| `shared/ui/auth/PhoneInput.tsx`                  | 2       | Удалён; используется `InternationalPhoneInput`               |
+| `shared/ui/auth/InternationalPhoneInput.tsx`     | 2       | Новый                                                        |
+| `modules/auth/phoneNormalize.ts`                 | 2       | Изменение (международная нормализация)                       |
+| `modules/auth/phoneValidation.ts`                | 2       | Изменение (isValidPhoneE164)                                 |
+| `app/api/auth/check-phone/route.ts`              | 2, 4    | Изменение (международная валидация, sms flag)                |
+| `app/api/auth/pin/login/route.ts`                | 2       | Изменение (международная валидация)                          |
+| `app/api/auth/messenger/start/route.ts`          | 2       | Изменение (международная валидация)                          |
+| `app/api/auth/telegram-login/route.ts`           | 3       | Новый                                                        |
+| `modules/auth/telegramLoginVerify.ts`            | 3       | Новый (верификация подписи виджета)                          |
+| `shared/ui/auth/TelegramLoginButton.tsx`         | 3       | Новый                                                        |
+| `shared/ui/auth/AuthFlowV2.tsx`                  | 3, 4, 5 | Изменение (TG Login первый, flow по типу номера, PIN скрыт)  |
+| `modules/auth/checkPhoneMethods.ts`              | 4, 7    | Изменение (sms flag, telegramLogin, oauth без UI-публикации) |
+| `modules/auth/otpChannelUi.ts`                   | 4       | Изменение (порядок каналов)                                  |
+| `modules/auth/service.ts`                        | 3       | Изменение (новый метод для TG Login Widget)                  |
+| `integrator/.../handleUpdate.ts`                 | 6       | Изменение (request_contact при /start)                       |
+| `integrator/.../handleMessage.ts`                | 6       | Изменение (handleStart flow)                                 |
+| `app/api/auth/oauth/callback/route.ts`           | 7       | Изменение (полный flow)                                      |
+| `modules/auth/auth.md`                           | 8       | Изменение (документация)                                     |
+| `system-settings/types.ts`                       | 3       | Изменение (telegram_login_bot_username)                      |
 
 ## Новые зависимости (npm)
 
-| Пакет | Версия | Зачем | Stage |
-|---|---|---|---|
-| `react-phone-number-input` | latest | Поле телефона с флагами и форматированием | 2 |
-| `libphonenumber-js` | latest (peer) | Валидация и парсинг международных номеров | 2 |
+| Пакет                      | Версия        | Зачем                                     | Stage |
+| -------------------------- | ------------- | ----------------------------------------- | ----- |
+| `react-phone-number-input` | latest        | Поле телефона с флагами и форматированием | 2     |
+| `libphonenumber-js`        | latest (peer) | Валидация и парсинг международных номеров | 2     |
 
 ## Критерии готовности (definition of done)
 

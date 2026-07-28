@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import {
   Select,
@@ -6,10 +6,10 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/ui/doctor/primitives/select";
-import { cn } from "@/lib/utils";
+} from '@/shared/ui/doctor/primitives/select';
+import { cn } from '@/lib/utils';
 
-export type TitleSortValue = "default" | "asc" | "desc";
+export type TitleSortValue = 'default' | 'asc' | 'desc';
 
 export type DoctorCatalogTitleSortSelectProps = {
   value: TitleSortValue;
@@ -24,20 +24,15 @@ export type DoctorCatalogTitleSortSelectProps = {
 export function DoctorCatalogTitleSortSelect({
   value,
   onValueChange,
-  label = "Сортировка",
+  label = 'Сортировка',
   className,
   triggerClassName,
 }: DoctorCatalogTitleSortSelectProps) {
   return (
-    <div
-      className={cn(
-        "flex w-[160px] max-w-[160px] shrink-0 min-w-0 flex-col gap-1",
-        className,
-      )}
-    >
+    <div className={cn('flex w-[160px] max-w-[160px] shrink-0 min-w-0 flex-col gap-1', className)}>
       <span className="text-[11px] text-muted-foreground sm:sr-only">{label}</span>
       <Select value={value} onValueChange={(v) => onValueChange(v as TitleSortValue)}>
-        <SelectTrigger size="sm" className={cn("w-full text-left", triggerClassName)}>
+        <SelectTrigger size="sm" className={cn('w-full text-left', triggerClassName)}>
           <SelectValue />
         </SelectTrigger>
         <SelectContent>

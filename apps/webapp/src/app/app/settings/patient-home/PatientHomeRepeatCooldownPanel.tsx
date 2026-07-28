@@ -1,22 +1,22 @@
-"use client";
+'use client';
 
-import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
+import { useRouter } from 'next/navigation';
+import { useMemo, useState } from 'react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/ui/doctor/primitives/select";
-import { savePatientHomeRepeatCooldownsAction } from "@/app/app/doctor/patient-home/patientHomeDoctorSettingsActions";
+} from '@/shared/ui/doctor/primitives/select';
+import { savePatientHomeRepeatCooldownsAction } from '@/app/app/doctor/patient-home/patientHomeDoctorSettingsActions';
 import {
   PATIENT_REPEAT_COOLDOWN_MINUTES_MAX,
   PATIENT_REPEAT_COOLDOWN_MINUTES_MIN,
   clampRepeatCooldownMinutes,
-} from "@/modules/patient-home/patientHomeRepeatCooldownSettings";
-import { doctorSectionCardClass, doctorSectionTitleClass } from "@/shared/ui/doctor/doctorVisual";
+} from '@/modules/patient-home/patientHomeRepeatCooldownSettings';
+import { doctorSectionCardClass, doctorSectionTitleClass } from '@/shared/ui/doctor/doctorVisual';
 
 const MINUTE_OPTIONS: number[] = Array.from(
   { length: (PATIENT_REPEAT_COOLDOWN_MINUTES_MAX - PATIENT_REPEAT_COOLDOWN_MINUTES_MIN) / 5 + 1 },
@@ -55,7 +55,7 @@ export function PatientHomeRepeatCooldownPanel(props: Props) {
       p < PATIENT_REPEAT_COOLDOWN_MINUTES_MIN ||
       p > PATIENT_REPEAT_COOLDOWN_MINUTES_MAX
     ) {
-      setError("Выберите паузу из списка.");
+      setError('Выберите паузу из списка.');
       return;
     }
     setPending(true);
@@ -65,27 +65,36 @@ export function PatientHomeRepeatCooldownPanel(props: Props) {
         planItemRepeatMinutes: p,
       });
       if (!result.ok) {
-        setError(result.error === "forbidden" ? "Нет доступа." : "Не удалось сохранить.");
+        setError(result.error === 'forbidden' ? 'Нет доступа.' : 'Не удалось сохранить.');
         return;
       }
-      setMessage("Сохранено");
+      setMessage('Сохранено');
       router.refresh();
     } catch {
-      setError("Не удалось сохранить.");
+      setError('Не удалось сохранить.');
     } finally {
       setPending(false);
     }
   }
 
   return (
-    <section className={doctorSectionCardClass} aria-labelledby="patient-home-repeat-cooldown-heading">
+    <section
+      className={doctorSectionCardClass}
+      aria-labelledby="patient-home-repeat-cooldown-heading"
+    >
       <h2 id="patient-home-repeat-cooldown-heading" className={doctorSectionTitleClass}>
         Паузы повтора
       </h2>
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
         <label className="flex flex-col gap-1">
           <span className="text-xs font-medium text-muted-foreground">Разминка (мин)</span>
-          <Select value={warmupMin} onValueChange={(v) => { if (v) setWarmupMin(v); }} disabled={pending}>
+          <Select
+            value={warmupMin}
+            onValueChange={(v) => {
+              if (v) setWarmupMin(v);
+            }}
+            disabled={pending}
+          >
             <SelectTrigger className="w-40">
               <SelectValue />
             </SelectTrigger>
@@ -101,7 +110,13 @@ export function PatientHomeRepeatCooldownPanel(props: Props) {
         </label>
         <label className="flex flex-col gap-1">
           <span className="text-xs font-medium text-muted-foreground">Пункты плана (мин)</span>
-          <Select value={planMin} onValueChange={(v) => { if (v) setPlanMin(v); }} disabled={pending}>
+          <Select
+            value={planMin}
+            onValueChange={(v) => {
+              if (v) setPlanMin(v);
+            }}
+            disabled={pending}
+          >
             <SelectTrigger className="w-40">
               <SelectValue />
             </SelectTrigger>
@@ -115,7 +130,7 @@ export function PatientHomeRepeatCooldownPanel(props: Props) {
           </Select>
         </label>
         <Button type="button" onClick={() => void onSave()} disabled={pending}>
-          {pending ? "Сохранение…" : "Сохранить"}
+          {pending ? 'Сохранение…' : 'Сохранить'}
         </Button>
       </div>
       {error ? (

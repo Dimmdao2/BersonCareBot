@@ -129,7 +129,10 @@ function channelLinkCompleteFailureTemplateKey(source: string, errRaw: string | 
   return `${source}:channelLink.completeFailed.generic`;
 }
 
-function phoneMessengerBindCompleteFailureTemplateKey(source: string, errRaw: string | undefined): string {
+function phoneMessengerBindCompleteFailureTemplateKey(
+  source: string,
+  errRaw: string | undefined,
+): string {
   const e = (errRaw ?? '').trim().toLowerCase();
   if (e === 'phone_mismatch') {
     return `${source}:phoneAuthMismatch`;
@@ -155,14 +158,18 @@ function phoneMessengerBindCompleteFailureTemplateKey(source: string, errRaw: st
 }
 
 function parsePhoneAuthSetupToken(ctx: DomainContext): string | null {
-  const state = typeof ctx.base.conversationState === 'string' ? ctx.base.conversationState.trim() : '';
+  const state =
+    typeof ctx.base.conversationState === 'string' ? ctx.base.conversationState.trim() : '';
   const prefix = 'await_phoneauth:';
   if (!state.startsWith(prefix)) return null;
   const token = state.slice(prefix.length).trim();
   return /^auth_[A-Za-z0-9_-]+$/.test(token) ? token : null;
 }
 
-function resolveChannelLinkFailureChatId(ctx: DomainContext, externalId: string): string | number | null {
+function resolveChannelLinkFailureChatId(
+  ctx: DomainContext,
+  externalId: string,
+): string | number | null {
   const fromCtx = readIncomingChatId(ctx);
   if (fromCtx !== null && String(fromCtx).trim() !== '') {
     const n = Number(fromCtx);
@@ -247,7 +254,10 @@ async function appendPhoneMessengerBindFailureRecovery(
       const channels = opts.source === 'max' ? ['max'] : ['telegram'];
       failureIntents.push({
         type: 'message.send',
-        meta: buildIntentMeta({ ...action, id: `${action.id}:${opts.failureText.intentIdSuffix}` }, ctx),
+        meta: buildIntentMeta(
+          { ...action, id: `${action.id}:${opts.failureText.intentIdSuffix}` },
+          ctx,
+        ),
         payload: {
           recipient: { chatId },
           message: { text },
@@ -284,12 +294,14 @@ async function buildPhoneAuthLoginUrlIntents(
     params: {
       chatId,
       templateKey: `${opts.source}:phoneAuthOpenAppPrompt`,
-      inlineKeyboard: [[
-        {
-          textTemplateKey: `${opts.source}:phoneAuthOpenAppButton`,
-          urlFact: 'links.webappHomeUrl',
-        },
-      ]],
+      inlineKeyboard: [
+        [
+          {
+            textTemplateKey: `${opts.source}:phoneAuthOpenAppButton`,
+            urlFact: 'links.webappHomeUrl',
+          },
+        ],
+      ],
       delivery: { channels: [opts.source], maxAttempts: 1 },
     },
   };
@@ -406,11 +418,19 @@ export async function executeAction(
     case 'webapp.event.emit': {
       const port = deps.webappEventsPort;
       if (!port) {
-        return { actionId: action.id, status: 'success', values: { webappEmit: { ok: false, reason: 'webappEventsPort not configured' } } };
+        return {
+          actionId: action.id,
+          status: 'success',
+          values: { webappEmit: { ok: false, reason: 'webappEventsPort not configured' } },
+        };
       }
       const eventType = asString(action.params.eventType);
       if (!eventType) {
-        return { actionId: action.id, status: 'failed', error: 'webapp.event.emit: eventType required' };
+        return {
+          actionId: action.id,
+          status: 'failed',
+          error: 'webapp.event.emit: eventType required',
+        };
       }
       const payload = asRecord(action.params.payload ?? {});
 
@@ -418,17 +438,26 @@ export async function executeAction(
       // event types — write directly to public.symptom_trackings / public.lfk_complexes instead of
       // emitting the webhook. See writeDiaryLfkDirect.ts for the platform-user resolution + exact-org
       // (no default-org fallback) + fail-closed semantics this replaces the old fire-and-forget emit with.
-      if (eventType === 'diary.symptom.tracking.created' || eventType === 'diary.lfk.complex.created') {
+      if (
+        eventType === 'diary.symptom.tracking.created' ||
+        eventType === 'diary.lfk.complex.created'
+      ) {
         const source = asString(ctx.event.meta.source) ?? 'telegram';
-        const channelUserId = asNumericString(readExternalActorId(ctx))
-          ?? asNumericString((ctx.event.payload as { incoming?: { channelUserId?: unknown } })?.incoming?.channelUserId);
-        const link = channelUserId && deps.readPort
-          ? await deps.readPort.readDb<{ userId?: string } | null>({
-              type: 'user.byIdentity',
-              params: { resource: source, externalId: channelUserId },
-            })
-          : null;
-        const integratorUserId = link && typeof link === 'object' && typeof link.userId === 'string' ? link.userId : null;
+        const channelUserId =
+          asNumericString(readExternalActorId(ctx)) ??
+          asNumericString(
+            (ctx.event.payload as { incoming?: { channelUserId?: unknown } })?.incoming
+              ?.channelUserId,
+          );
+        const link =
+          channelUserId && deps.readPort
+            ? await deps.readPort.readDb<{ userId?: string } | null>({
+                type: 'user.byIdentity',
+                params: { resource: source, externalId: channelUserId },
+              })
+            : null;
+        const integratorUserId =
+          link && typeof link === 'object' && typeof link.userId === 'string' ? link.userId : null;
         if (!channelUserId || !integratorUserId) {
           return {
             actionId: action.id,
@@ -439,48 +468,71 @@ export async function executeAction(
         if (eventType === 'diary.symptom.tracking.created') {
           const symptomTitle = asString(payload.symptomTitle);
           if (!symptomTitle) {
-            return { actionId: action.id, status: 'failed', error: 'diary.symptom.tracking.created: payload.symptomTitle required' };
+            return {
+              actionId: action.id,
+              status: 'failed',
+              error: 'diary.symptom.tracking.created: payload.symptomTitle required',
+            };
           }
-          await persistWrites(deps.writePort, [{
-            type: 'diary.symptom.tracking.create',
-            params: {
-              resource: source,
-              externalId: channelUserId,
-              integratorUserId,
-              symptomKey: asString(payload.symptomKey),
-              symptomTitle,
+          await persistWrites(deps.writePort, [
+            {
+              type: 'diary.symptom.tracking.create',
+              params: {
+                resource: source,
+                externalId: channelUserId,
+                integratorUserId,
+                symptomKey: asString(payload.symptomKey),
+                symptomTitle,
+              },
             },
-          }]);
+          ]);
         } else {
           const title = asString(payload.title);
           if (!title) {
-            return { actionId: action.id, status: 'failed', error: 'diary.lfk.complex.created: payload.title required' };
+            return {
+              actionId: action.id,
+              status: 'failed',
+              error: 'diary.lfk.complex.created: payload.title required',
+            };
           }
-          await persistWrites(deps.writePort, [{
-            type: 'diary.lfk.complex.create',
-            params: {
-              resource: source,
-              externalId: channelUserId,
-              integratorUserId,
-              title,
-              origin: payload.origin,
+          await persistWrites(deps.writePort, [
+            {
+              type: 'diary.lfk.complex.create',
+              params: {
+                resource: source,
+                externalId: channelUserId,
+                integratorUserId,
+                title,
+                origin: payload.origin,
+              },
             },
-          }]);
+          ]);
         }
-        return { actionId: action.id, status: 'success', values: { webappEmit: { ok: true, status: 202 } } };
+        return {
+          actionId: action.id,
+          status: 'success',
+          values: { webappEmit: { ok: true, status: 202 } },
+        };
       }
 
       let userId = asString(payload.userId);
       if (!userId && deps.readPort) {
         const source = asString(ctx.event.meta.source) ?? 'telegram';
-        const channelUserId = asNumericString(readExternalActorId(ctx))
-          ?? asNumericString((ctx.event.payload as { incoming?: { channelUserId?: unknown } })?.incoming?.channelUserId);
+        const channelUserId =
+          asNumericString(readExternalActorId(ctx)) ??
+          asNumericString(
+            (ctx.event.payload as { incoming?: { channelUserId?: unknown } })?.incoming
+              ?.channelUserId,
+          );
         if (channelUserId) {
           const link = await deps.readPort.readDb<{ userId?: string } | null>({
             type: 'user.byIdentity',
             params: { resource: source, externalId: channelUserId },
           });
-          userId = link && typeof link === 'object' && typeof link.userId === 'string' ? link.userId : null;
+          userId =
+            link && typeof link === 'object' && typeof link.userId === 'string'
+              ? link.userId
+              : null;
         }
       }
       const mergedPayload = userId ? { ...payload, userId } : payload;
@@ -497,15 +549,22 @@ export async function executeAction(
       };
       const result = await port.emit(eventBody);
       if (!result.ok) {
-        return { actionId: action.id, status: 'success', values: { webappEmit: { ok: false, status: result.status, error: result.error } } };
+        return {
+          actionId: action.id,
+          status: 'success',
+          values: { webappEmit: { ok: false, status: result.status, error: result.error } },
+        };
       }
-      return { actionId: action.id, status: 'success', values: { webappEmit: { ok: true, status: result.status } } };
+      return {
+        actionId: action.id,
+        status: 'success',
+        values: { webappEmit: { ok: true, status: result.status } },
+      };
     }
 
     case 'webapp.phoneMessengerBind.complete': {
       const port = deps.webappEventsPort;
-      const setupToken =
-        asString(action.params.setupToken) ?? parsePhoneAuthSetupToken(ctx);
+      const setupToken = asString(action.params.setupToken) ?? parsePhoneAuthSetupToken(ctx);
       const channelCode = asString(action.params.channelCode) ?? ctx.event.meta.source;
       const externalId = asString(action.params.externalId) ?? ctx.event.meta.userId;
       const phoneNormalized = asString(action.params.phoneNormalized) ?? readIncomingPhone(ctx);
@@ -520,7 +579,9 @@ export async function executeAction(
         return {
           actionId: action.id,
           status: 'success',
-          values: { phoneMessengerBind: { ok: false, reason: 'phone_messenger_bind_port_missing' } },
+          values: {
+            phoneMessengerBind: { ok: false, reason: 'phone_messenger_bind_port_missing' },
+          },
         };
       }
       const messengerChannel = channelCode === 'max' ? 'max' : 'telegram';
@@ -701,9 +762,10 @@ export async function executeAction(
             })),
           );
         } else if (!isReplay) {
-          const loginTemplateKey = result.accountCreated === true
-            ? `${source}:phoneAuthAccountCreated`
-            : `${source}:phoneAuthLoginCode`;
+          const loginTemplateKey =
+            result.accountCreated === true
+              ? `${source}:phoneAuthAccountCreated`
+              : `${source}:phoneAuthLoginCode`;
           successIntents.push(
             ...(await buildPhoneMessengerBindMainMenuIntents(action, ctx, fullDeps, {
               source,
@@ -718,9 +780,10 @@ export async function executeAction(
             ...(await buildPhoneMessengerBindMainMenuIntents(action, ctx, fullDeps, {
               source,
               externalId,
-              templateKey: result.accountCreated === true
-                ? `${source}:phoneAuthAccountCreated`
-                : `${source}:phoneAuthLoginCode`,
+              templateKey:
+                result.accountCreated === true
+                  ? `${source}:phoneAuthAccountCreated`
+                  : `${source}:phoneAuthLoginCode`,
               actionIdSuffix: 'phone-auth-code-replay',
               menuOnly: true,
             })),
@@ -761,8 +824,8 @@ export async function executeAction(
 
     case 'webapp.programNote.replyBegin': {
       const port = deps.webappEventsPort;
-      const stageItemId = asString(action.params.stageItemId)
-        ?? asString(readIncoming(ctx).stageItemId);
+      const stageItemId =
+        asString(action.params.stageItemId) ?? asString(readIncoming(ctx).stageItemId);
       if (!stageItemId) {
         const intents: OutgoingIntent[] = [];
         pushCallbackAnswerFromIncoming(intents, action, ctx, 'reply-begin-missing-stage-ack');
@@ -784,7 +847,9 @@ export async function executeAction(
             meta: buildIntentMeta(action, ctx),
             payload: {
               recipient: { chatId: adminChatId },
-              message: { text: 'Не удалось открыть ответ на комментарий. Попробуйте в кабинете врача.' },
+              message: {
+                text: 'Не удалось открыть ответ на комментарий. Попробуйте в кабинете врача.',
+              },
               delivery: { channels: [source], maxAttempts: 1 },
             },
           });
@@ -812,7 +877,9 @@ export async function executeAction(
             meta: buildIntentMeta(action, ctx),
             payload: {
               recipient: { chatId: adminChatId },
-              message: { text: 'Не удалось открыть ответ на комментарий. Попробуйте в кабинете врача.' },
+              message: {
+                text: 'Не удалось открыть ответ на комментарий. Попробуйте в кабинете врача.',
+              },
               delivery: { channels: [source], maxAttempts: 1 },
             },
           });
@@ -829,11 +896,7 @@ export async function executeAction(
       const channelUserId = readMessengerChannelUserId(ctx, action);
       const resource = ctx.event.meta.source;
       const writes: DbWriteMutation[] = [];
-      if (
-        deps.writePort
-        && channelUserId
-        && (resource === 'telegram' || resource === 'max')
-      ) {
+      if (deps.writePort && channelUserId && (resource === 'telegram' || resource === 'max')) {
         const stateWrite: DbWriteMutation = {
           type: 'user.state.set',
           params: {
@@ -862,7 +925,11 @@ export async function executeAction(
       const channelCode = asString(action.params.channelCode) ?? 'telegram';
       const externalId = asString(action.params.externalId);
       if (!linkToken || !externalId) {
-        return { actionId: action.id, status: 'failed', error: 'webapp.channelLink.complete: linkToken and externalId required' };
+        return {
+          actionId: action.id,
+          status: 'failed',
+          error: 'webapp.channelLink.complete: linkToken and externalId required',
+        };
       }
       if (!port?.completeChannelLink) {
         return {
@@ -932,7 +999,9 @@ export async function executeAction(
               resource: 'telegram',
               channelUserId: externalId,
               phoneNormalized,
-              ...(ctx.event.meta.correlationId ? { correlationId: ctx.event.meta.correlationId } : {}),
+              ...(ctx.event.meta.correlationId
+                ? { correlationId: ctx.event.meta.correlationId }
+                : {}),
             },
           });
           syncWrites.push({
@@ -946,7 +1015,9 @@ export async function executeAction(
               resource: 'max',
               channelUserId: externalId,
               phoneNormalized,
-              ...(ctx.event.meta.correlationId ? { correlationId: ctx.event.meta.correlationId } : {}),
+              ...(ctx.event.meta.correlationId
+                ? { correlationId: ctx.event.meta.correlationId }
+                : {}),
             },
           });
         }
@@ -1012,7 +1083,10 @@ export async function executeAction(
               const channels = source === 'max' ? ['max'] : ['telegram'];
               failureIntents.push({
                 type: 'message.send',
-                meta: buildIntentMeta({ ...action, id: `${action.id}:channel-link-phone-sync-failed` }, ctx),
+                meta: buildIntentMeta(
+                  { ...action, id: `${action.id}:channel-link-phone-sync-failed` },
+                  ctx,
+                ),
                 payload: {
                   recipient: { chatId },
                   message: { text },
@@ -1045,7 +1119,9 @@ export async function executeAction(
             actionId: action.id,
             status: 'failed',
             error: 'webapp.channelLink.complete: writePort required for Telegram contact prompt',
-            values: { channelLink: { ok: true, needsPhone: true, contactPrompt: 'skipped_no_write_port' } },
+            values: {
+              channelLink: { ok: true, needsPhone: true, contactPrompt: 'skipped_no_write_port' },
+            },
           };
         }
         try {
@@ -1126,57 +1202,73 @@ export async function executeAction(
     }
 
     case 'booking.event.insert': {
-      const writes: DbWriteMutation[] = [{
-        type: 'event.log',
-        params: {
-          source: ctx.event.meta.source,
-          eventType: ctx.event.type,
-          eventId: ctx.event.meta.eventId,
-          occurredAt: ctx.event.meta.occurredAt,
-          body: action.params,
+      const writes: DbWriteMutation[] = [
+        {
+          type: 'event.log',
+          params: {
+            source: ctx.event.meta.source,
+            eventType: ctx.event.type,
+            eventId: ctx.event.meta.eventId,
+            occurredAt: ctx.event.meta.occurredAt,
+            body: action.params,
+          },
         },
-      }];
+      ];
       await persistWrites(deps.writePort, writes);
       return { actionId: action.id, status: 'success', writes };
     }
 
     case 'message.compose': {
-      const source = typeof action.params.source === 'string' ? action.params.source : ctx.event.meta.source;
-      const templateId = typeof action.params.templateId === 'string' ? action.params.templateId : '';
-      const vars = typeof action.params.vars === 'object' && action.params.vars !== null
-        ? action.params.vars as Record<string, unknown>
-        : {};
-      const recipient = typeof action.params.recipient === 'object' && action.params.recipient !== null
-        ? action.params.recipient as Record<string, unknown>
-        : {};
-      const delivery = typeof action.params.delivery === 'object' && action.params.delivery !== null
-        ? action.params.delivery as Record<string, unknown>
-        : { maxAttempts: 1 };
+      const source =
+        typeof action.params.source === 'string' ? action.params.source : ctx.event.meta.source;
+      const templateId =
+        typeof action.params.templateId === 'string' ? action.params.templateId : '';
+      const vars =
+        typeof action.params.vars === 'object' && action.params.vars !== null
+          ? (action.params.vars as Record<string, unknown>)
+          : {};
+      const recipient =
+        typeof action.params.recipient === 'object' && action.params.recipient !== null
+          ? (action.params.recipient as Record<string, unknown>)
+          : {};
+      const delivery =
+        typeof action.params.delivery === 'object' && action.params.delivery !== null
+          ? (action.params.delivery as Record<string, unknown>)
+          : { maxAttempts: 1 };
 
-      const composedText = deps.templatePort && templateId
-        ? (await deps.templatePort.renderTemplate({
-          source,
-          templateId,
-          vars,
-          audience: contentAudience(ctx),
-        })).text
-        : (typeof action.params.text === 'string' ? action.params.text : '');
+      const composedText =
+        deps.templatePort && templateId
+          ? (
+              await deps.templatePort.renderTemplate({
+                source,
+                templateId,
+                vars,
+                audience: contentAudience(ctx),
+              })
+            ).text
+          : typeof action.params.text === 'string'
+            ? action.params.text
+            : '';
 
-      const intents: OutgoingIntent[] = [{
-        type: 'message.send',
-        meta: {
-          eventId: `${ctx.event.meta.eventId}:intent:${action.id}`,
-          occurredAt: nowIso(ctx),
-          source: ctx.event.meta.source,
-          ...(ctx.event.meta.correlationId ? { correlationId: ctx.event.meta.correlationId } : {}),
-          ...(ctx.event.meta.userId ? { userId: ctx.event.meta.userId } : {}),
+      const intents: OutgoingIntent[] = [
+        {
+          type: 'message.send',
+          meta: {
+            eventId: `${ctx.event.meta.eventId}:intent:${action.id}`,
+            occurredAt: nowIso(ctx),
+            source: ctx.event.meta.source,
+            ...(ctx.event.meta.correlationId
+              ? { correlationId: ctx.event.meta.correlationId }
+              : {}),
+            ...(ctx.event.meta.userId ? { userId: ctx.event.meta.userId } : {}),
+          },
+          payload: {
+            recipient,
+            message: { text: composedText },
+            delivery,
+          },
         },
-        payload: {
-          recipient,
-          message: { text: composedText },
-          delivery,
-        },
-      }];
+      ];
       return { actionId: action.id, status: 'success', intents };
     }
 
@@ -1184,8 +1276,9 @@ export async function executeAction(
     case 'message.inlineKeyboard.show':
     case 'admin.forward': {
       if (action.type === 'admin.forward') {
-        const userMessage = asString((action.params.vars as Record<string, unknown>)?.messageText)
-          ?? readIncomingText(ctx);
+        const userMessage =
+          asString((action.params.vars as Record<string, unknown>)?.messageText) ??
+          readIncomingText(ctx);
         if (userMessage && /^\/start\s+set/i.test(userMessage.trim())) {
           return { actionId: action.id, status: 'success' };
         }
@@ -1196,9 +1289,10 @@ export async function executeAction(
         ...rawVars,
         usernameMention: username ? `@${username}` : '',
       };
-      const expandedParams = action.type === 'message.inlineKeyboard.show'
-        ? await expandContentMenuParam(action.params, ctx, fullDeps.contentPort)
-        : action.params;
+      const expandedParams =
+        action.type === 'message.inlineKeyboard.show'
+          ? await expandContentMenuParam(action.params, ctx, fullDeps.contentPort)
+          : action.params;
       const text = await renderText({
         text: expandedParams.text,
         messageText: expandedParams.messageText,
@@ -1214,20 +1308,23 @@ export async function executeAction(
         templatePort: deps.templatePort,
       });
       const chatId = asNumber(expandedParams.chatId) ?? asString(expandedParams.chatId);
-      const parseMode = action.params.parseMode === 'HTML' || action.params.parseMode === 'Markdown'
-        ? action.params.parseMode
-        : undefined;
-      const intents: OutgoingIntent[] = [{
-        type: 'message.send',
-        meta: buildIntentMeta(action, ctx),
-        payload: {
-          recipient: chatId === null ? {} : { chatId },
-          message: { text },
-          ...(replyMarkup ? { replyMarkup } : {}),
-          ...(parseMode ? { parse_mode: parseMode } : {}),
-          delivery: { maxAttempts: 1 },
+      const parseMode =
+        action.params.parseMode === 'HTML' || action.params.parseMode === 'Markdown'
+          ? action.params.parseMode
+          : undefined;
+      const intents: OutgoingIntent[] = [
+        {
+          type: 'message.send',
+          meta: buildIntentMeta(action, ctx),
+          payload: {
+            recipient: chatId === null ? {} : { chatId },
+            message: { text },
+            ...(replyMarkup ? { replyMarkup } : {}),
+            ...(parseMode ? { parse_mode: parseMode } : {}),
+            delivery: { maxAttempts: 1 },
+          },
         },
-      }];
+      ];
       return { actionId: action.id, status: 'success', intents };
     }
 
@@ -1249,20 +1346,23 @@ export async function executeAction(
       });
       const chatId = asNumber(expandedParams.chatId) ?? asString(expandedParams.chatId);
       const messageId = asMessageId(action.params.messageId);
-      const parseMode = action.params.parseMode === 'HTML' || action.params.parseMode === 'Markdown'
-        ? action.params.parseMode
-        : undefined;
-      const intents: OutgoingIntent[] = [{
-        type: 'message.edit',
-        meta: buildIntentMeta(action, ctx),
-        payload: {
-          recipient: chatId === null ? {} : { chatId },
-          ...(messageId === null ? {} : { messageId }),
-          message: { text },
-          ...(replyMarkup ? { replyMarkup } : {}),
-          ...(parseMode ? { parse_mode: parseMode } : {}),
+      const parseMode =
+        action.params.parseMode === 'HTML' || action.params.parseMode === 'Markdown'
+          ? action.params.parseMode
+          : undefined;
+      const intents: OutgoingIntent[] = [
+        {
+          type: 'message.edit',
+          meta: buildIntentMeta(action, ctx),
+          payload: {
+            recipient: chatId === null ? {} : { chatId },
+            ...(messageId === null ? {} : { messageId }),
+            message: { text },
+            ...(replyMarkup ? { replyMarkup } : {}),
+            ...(parseMode ? { parse_mode: parseMode } : {}),
+          },
         },
-      }];
+      ];
       return { actionId: action.id, status: 'success', intents };
     }
 
@@ -1275,25 +1375,31 @@ export async function executeAction(
         ctx,
         templatePort: deps.templatePort,
       });
-      const intents: OutgoingIntent[] = [{
-        type: 'message.replyMarkup.edit',
-        meta: buildIntentMeta(action, ctx),
-        payload: {
-          recipient: chatId === null ? {} : { chatId },
-          ...(messageId === null ? {} : { messageId }),
-          ...(replyMarkup ? { replyMarkup } : {}),
+      const intents: OutgoingIntent[] = [
+        {
+          type: 'message.replyMarkup.edit',
+          meta: buildIntentMeta(action, ctx),
+          payload: {
+            recipient: chatId === null ? {} : { chatId },
+            ...(messageId === null ? {} : { messageId }),
+            ...(replyMarkup ? { replyMarkup } : {}),
+          },
         },
-      }];
+      ];
       return { actionId: action.id, status: 'success', intents };
     }
 
     case 'callback.answer': {
       const callbackQueryId = asString(action.params.callbackQueryId);
-      const intents: OutgoingIntent[] = callbackQueryId ? [{
-        type: 'callback.answer',
-        meta: buildIntentMeta(action, ctx),
-        payload: { callbackQueryId },
-      }] : [];
+      const intents: OutgoingIntent[] = callbackQueryId
+        ? [
+            {
+              type: 'callback.answer',
+              meta: buildIntentMeta(action, ctx),
+              payload: { callbackQueryId },
+            },
+          ]
+        : [];
       return { actionId: action.id, status: 'success', ...(intents.length > 0 ? { intents } : {}) };
     }
 
@@ -1302,8 +1408,12 @@ export async function executeAction(
         action,
         ctx,
         ...(deps.readPort ? { readPort: deps.readPort } : {}),
-        ...(deps.deliveryDefaultsPort !== undefined ? { deliveryDefaultsPort: deps.deliveryDefaultsPort } : {}),
-        ...(deps.deliveryTargetsPort !== undefined ? { deliveryTargetsPort: deps.deliveryTargetsPort } : {}),
+        ...(deps.deliveryDefaultsPort !== undefined
+          ? { deliveryDefaultsPort: deps.deliveryDefaultsPort }
+          : {}),
+        ...(deps.deliveryTargetsPort !== undefined
+          ? { deliveryTargetsPort: deps.deliveryTargetsPort }
+          : {}),
       });
       if (deps.queuePort) {
         await deps.queuePort.enqueue({ kind: job.kind, payload: job.payload });
@@ -1314,21 +1424,32 @@ export async function executeAction(
       return {
         actionId: action.id,
         status: 'queued',
-        jobs: [{
-          ...job,
-          jobId: job.id,
-          createdAt: ctx.nowIso,
-          status: 'pending',
-          attemptsMade: 0,
-          plan: channels.map((channel, index) => ({
-            stageId: `stage:${index + 1}`,
-            channel,
-            maxAttempts: 1,
-          })),
-          targets: Array.isArray(job.payload.targets) ? job.payload.targets as Array<{ resource: string; address: Record<string, unknown> }> : [],
-          retry: asRecord(job.payload.retry) as { maxAttempts: number; backoffSeconds: number[]; deadlineAt?: string },
-          onFail: asRecord(job.payload.onFail) as { adminNotifyIntent?: OutgoingIntent },
-        }],
+        jobs: [
+          {
+            ...job,
+            jobId: job.id,
+            createdAt: ctx.nowIso,
+            status: 'pending',
+            attemptsMade: 0,
+            plan: channels.map((channel, index) => ({
+              stageId: `stage:${index + 1}`,
+              channel,
+              maxAttempts: 1,
+            })),
+            targets: Array.isArray(job.payload.targets)
+              ? (job.payload.targets as Array<{
+                  resource: string;
+                  address: Record<string, unknown>;
+                }>)
+              : [],
+            retry: asRecord(job.payload.retry) as {
+              maxAttempts: number;
+              backoffSeconds: number[];
+              deadlineAt?: string;
+            },
+            onFail: asRecord(job.payload.onFail) as { adminNotifyIntent?: OutgoingIntent },
+          },
+        ],
       };
     }
 
@@ -1350,10 +1471,12 @@ export async function executeAction(
         },
       };
       const mappedResult = await executeAction(mappedAction, ctx, deps);
-      const writes: DbWriteMutation[] = [{
-        type: 'message.retry.enqueue',
-        params: action.params,
-      }];
+      const writes: DbWriteMutation[] = [
+        {
+          type: 'message.retry.enqueue',
+          params: action.params,
+        },
+      ];
       await persistWrites(deps.writePort, writes);
       const result: ActionResult = {
         actionId: action.id,
@@ -1368,7 +1491,11 @@ export async function executeAction(
     }
 
     case 'intent.enqueueDelivery': {
-      const job = buildDeliveryJob({ actionId: action.id, params: action.params, now: nowIso(ctx) });
+      const job = buildDeliveryJob({
+        actionId: action.id,
+        params: action.params,
+        now: nowIso(ctx),
+      });
       if (deps.queuePort) {
         await deps.queuePort.enqueue({ kind: job.kind, payload: job.payload });
       }
@@ -1376,7 +1503,8 @@ export async function executeAction(
     }
 
     case 'user.findByPhone': {
-      const phone = typeof action.params.phoneNormalized === 'string' ? action.params.phoneNormalized : null;
+      const phone =
+        typeof action.params.phoneNormalized === 'string' ? action.params.phoneNormalized : null;
       if (deps.readPort && phone) {
         await deps.readPort.readDb({ type: 'user.byPhone', params: { phoneNormalized: phone } });
       }
@@ -1389,14 +1517,17 @@ export async function executeAction(
       if (!stateStr) {
         return { actionId: action.id, status: 'skipped', error: 'USER_STATE_EMPTY' };
       }
-      const writes: DbWriteMutation[] = [{
-        type: 'user.state.set',
-        params: {
-          resource: ctx.event.meta.source,
-          channelUserId: action.params.channelUserId ?? action.params.channelId ?? readExternalActorId(ctx),
-          state: stateStr,
+      const writes: DbWriteMutation[] = [
+        {
+          type: 'user.state.set',
+          params: {
+            resource: ctx.event.meta.source,
+            channelUserId:
+              action.params.channelUserId ?? action.params.channelId ?? readExternalActorId(ctx),
+            state: stateStr,
+          },
         },
-      }];
+      ];
       await persistWrites(deps.writePort, writes);
       return {
         actionId: action.id,
@@ -1407,7 +1538,8 @@ export async function executeAction(
     }
 
     case 'user.phone.link': {
-      const channelUserId = action.params.channelUserId ?? action.params.channelId ?? readExternalActorId(ctx);
+      const channelUserId =
+        action.params.channelUserId ?? action.params.channelId ?? readExternalActorId(ctx);
       const phoneNormalized = asString(action.params.phoneNormalized) ?? readIncomingPhone(ctx);
       if (!phoneNormalized || !deps.writePort) {
         return {
@@ -1426,10 +1558,12 @@ export async function executeAction(
         },
       };
       const meta = await deps.writePort.writeDb(write);
-      const hasMeta =
-        typeof meta === 'object' && meta !== null && 'userPhoneLinkApplied' in meta;
+      const hasMeta = typeof meta === 'object' && meta !== null && 'userPhoneLinkApplied' in meta;
       if (!hasMeta) {
-        logger.warn({ actionId: action.id }, 'user.phone.link: writeDb missing userPhoneLinkApplied');
+        logger.warn(
+          { actionId: action.id },
+          'user.phone.link: writeDb missing userPhoneLinkApplied',
+        );
       }
       const m = hasMeta ? (meta as DbWriteDbResult) : null;
       const indeterminate = !hasMeta || m?.phoneLinkIndeterminate === true;
@@ -1471,19 +1605,21 @@ export async function executeAction(
           text = phoneLinkSaveFailedUserMessage();
         }
         const replyMarkup = phoneLinkFailureReplyMarkup(ctx, source, reason);
-        const intents: OutgoingIntent[] = [{
-          type: 'message.send',
-          meta: buildIntentMeta(action, ctx),
-          payload: {
-            recipient:
-              chatIdStr != null && Number.isFinite(chatIdParsed)
-                ? { chatId: chatIdParsed }
-                : { chatId: chatIdStr ?? undefined },
-            message: { text },
-            ...(replyMarkup ? { replyMarkup } : {}),
-            delivery: { channels: [source], maxAttempts: 1 },
+        const intents: OutgoingIntent[] = [
+          {
+            type: 'message.send',
+            meta: buildIntentMeta(action, ctx),
+            payload: {
+              recipient:
+                chatIdStr != null && Number.isFinite(chatIdParsed)
+                  ? { chatId: chatIdParsed }
+                  : { chatId: chatIdStr ?? undefined },
+              message: { text },
+              ...(replyMarkup ? { replyMarkup } : {}),
+              delivery: { channels: [source], maxAttempts: 1 },
+            },
           },
-        }];
+        ];
         return {
           actionId: action.id,
           status: 'success',
@@ -1511,19 +1647,21 @@ export async function executeAction(
           error: 'DRAFT_INPUT_MISSING',
         };
       }
-      const writes: DbWriteMutation[] = [{
-        type: 'draft.upsert',
-        params: {
-          id: randomUUID(),
-          resource: ctx.event.meta.source,
-          externalId,
-          source,
-          externalChatId: readIncomingChatId(ctx),
-          externalMessageId: readIncomingMessageId(ctx),
-          draftTextCurrent,
-          state: 'pending_confirmation',
+      const writes: DbWriteMutation[] = [
+        {
+          type: 'draft.upsert',
+          params: {
+            id: randomUUID(),
+            resource: ctx.event.meta.source,
+            externalId,
+            source,
+            externalChatId: readIncomingChatId(ctx),
+            externalMessageId: readIncomingMessageId(ctx),
+            draftTextCurrent,
+            state: 'pending_confirmation',
+          },
         },
-      }];
+      ];
       await persistWrites(deps.writePort, writes);
       return {
         actionId: action.id,
@@ -1548,14 +1686,16 @@ export async function executeAction(
           error: 'DRAFT_CANCEL_INPUT_MISSING',
         };
       }
-      const writes: DbWriteMutation[] = [{
-        type: 'draft.cancel',
-        params: {
-          resource: ctx.event.meta.source,
-          externalId,
-          source,
+      const writes: DbWriteMutation[] = [
+        {
+          type: 'draft.cancel',
+          params: {
+            resource: ctx.event.meta.source,
+            externalId,
+            source,
+          },
         },
-      }];
+      ];
       await persistWrites(deps.writePort, writes);
       return {
         actionId: action.id,
@@ -1688,26 +1828,31 @@ export async function executeAction(
             createdAt: ctx.nowIso,
           },
         },
-        ...(userIdentityId ? [{
-          type: 'question.create' as const,
-          params: {
-            id: questionId,
-            userIdentityId,
-            conversationId,
-            telegramMessageId: asString(draft.external_message_id),
-            text: draftTextCurrent,
-            createdAt: ctx.nowIso,
-          },
-        }, {
-          type: 'question.message.add' as const,
-          params: {
-            id: firstQuestionMessageId,
-            questionId,
-            senderType: 'user',
-            messageText: draftTextCurrent,
-            createdAt: ctx.nowIso,
-          },
-        }] : []),
+        ...(userIdentityId
+          ? [
+              {
+                type: 'question.create' as const,
+                params: {
+                  id: questionId,
+                  userIdentityId,
+                  conversationId,
+                  telegramMessageId: asString(draft.external_message_id),
+                  text: draftTextCurrent,
+                  createdAt: ctx.nowIso,
+                },
+              },
+              {
+                type: 'question.message.add' as const,
+                params: {
+                  id: firstQuestionMessageId,
+                  questionId,
+                  senderType: 'user',
+                  messageText: draftTextCurrent,
+                  createdAt: ctx.nowIso,
+                },
+              },
+            ]
+          : []),
         {
           type: 'draft.cancel',
           params: {
@@ -1752,9 +1897,14 @@ export async function executeAction(
         return { actionId: action.id, status: 'skipped', error: 'READ_PORT_REQUIRED' };
       }
       const skipReasonWait =
-        typeof ctx.base.conversationState === 'string' && ctx.base.conversationState.startsWith('waiting_skip_reason:');
+        typeof ctx.base.conversationState === 'string' &&
+        ctx.base.conversationState.startsWith('waiting_skip_reason:');
       if (skipReasonWait) {
-        return { actionId: action.id, status: 'skipped', error: 'CONVERSATION_OPEN_BLOCKED_SKIP_REASON' };
+        return {
+          actionId: action.id,
+          status: 'skipped',
+          error: 'CONVERSATION_OPEN_BLOCKED_SKIP_REASON',
+        };
       }
       const externalId = readExternalActorId(ctx);
       const source = asString(action.params.source) ?? ctx.event.meta.source;
@@ -1766,14 +1916,16 @@ export async function executeAction(
       if (adminChatId === null) {
         return { actionId: action.id, status: 'skipped', error: 'ADMIN_CHAT_ID_REQUIRED' };
       }
-      const messageText = (typeof text === 'string' && text.trim().length > 0) ? text.trim() : null;
+      const messageText = typeof text === 'string' && text.trim().length > 0 ? text.trim() : null;
       if (!messageText) {
         return { actionId: action.id, status: 'skipped', error: 'CONVERSATION_OPEN_TEXT_REQUIRED' };
       }
-      await persistWrites(deps.writePort, [{
-        type: 'identity.ensure',
-        params: { resource: source, externalId },
-      }]);
+      await persistWrites(deps.writePort, [
+        {
+          type: 'identity.ensure',
+          params: { resource: source, externalId },
+        },
+      ]);
       const conversationId = randomUUID();
       const firstMessageId = randomUUID();
       const nowIsoVal = ctx.nowIso;
@@ -1860,23 +2012,34 @@ export async function executeAction(
       if (!conversationId) {
         return { actionId: action.id, status: 'skipped', error: 'CONVERSATION_ID_MISSING' };
       }
-      const writes: DbWriteMutation[] = [{
-        type: 'conversation.state.set',
-        params: {
-          id: conversationId,
-          status: 'closed',
-          lastMessageAt: ctx.nowIso,
-          closedAt: ctx.nowIso,
-          closeReason: asString(action.params.closeReason) ?? 'admin_closed',
+      const writes: DbWriteMutation[] = [
+        {
+          type: 'conversation.state.set',
+          params: {
+            id: conversationId,
+            status: 'closed',
+            lastMessageAt: ctx.nowIso,
+            closedAt: ctx.nowIso,
+            closeReason: asString(action.params.closeReason) ?? 'admin_closed',
+          },
         },
-      }];
+      ];
       await persistWrites(deps.writePort, writes);
       const intents: OutgoingIntent[] = [];
       const adminClosedText = deps.templatePort
-        ? (await renderText({ templateKey: ADMIN.DIALOG_CLOSED, ctx, templatePort: deps.templatePort })) || 'Диалог завершён.'
+        ? (await renderText({
+            templateKey: ADMIN.DIALOG_CLOSED,
+            ctx,
+            templatePort: deps.templatePort,
+          })) || 'Диалог завершён.'
         : 'Диалог завершён.';
       intents.push(sendAdminMessage({ action, ctx, text: adminClosedText }));
-      return { actionId: action.id, status: 'success', writes, ...(intents.length > 0 ? { intents } : {}) };
+      return {
+        actionId: action.id,
+        status: 'success',
+        writes,
+        ...(intents.length > 0 ? { intents } : {}),
+      };
     }
 
     case 'conversation.listOpen': {
@@ -1895,38 +2058,58 @@ export async function executeAction(
         return { actionId: action.id, status: 'skipped', error: 'ADMIN_CHAT_ID_MISSING' };
       }
       const rows = Array.isArray(items) ? items : [];
-      const listBody = rows.map((item, index) => {
-        const label = formatActorLabel({
-          firstName: asString(item.first_name),
-          lastName: asString(item.last_name),
-          username: asString(item.username),
-          channelId: asString(item.user_channel_id),
-        });
-        const status = asString(item.status) ?? 'open';
-        return `${index + 1}. ${label} [${status}]`;
-      }).join('\n');
-      const text = rows.length === 0
-        ? (deps.templatePort ? (await renderText({ templateKey: ADMIN.DIALOGS_EMPTY, ctx, templatePort: deps.templatePort })) || 'Открытых диалогов нет.' : 'Открытых диалогов нет.')
-        : (deps.templatePort ? (await renderText({ templateKey: ADMIN.DIALOGS_LIST, vars: { listBody }, ctx, templatePort: deps.templatePort })) || `Открытые диалоги:\n\n${listBody}` : `Открытые диалоги:\n\n${listBody}`);
-      const inline_keyboard = rows.slice(0, 10).map((item) => [{
-        text: formatActorLabel({
-          firstName: asString(item.first_name),
-          lastName: asString(item.last_name),
-          username: asString(item.username),
-          channelId: asString(item.user_channel_id),
-        }),
-        callback_data: `dialogs.view:${asString(item.id)}`,
-      }]);
-      const intents: OutgoingIntent[] = [{
-        type: 'message.send',
-        meta: buildIntentMeta(action, ctx),
-        payload: {
-          recipient: { chatId: adminChatId },
-          message: { text },
-          ...(inline_keyboard.length > 0 ? { replyMarkup: { inline_keyboard } } : {}),
-          delivery: { maxAttempts: 1 },
+      const listBody = rows
+        .map((item, index) => {
+          const label = formatActorLabel({
+            firstName: asString(item.first_name),
+            lastName: asString(item.last_name),
+            username: asString(item.username),
+            channelId: asString(item.user_channel_id),
+          });
+          const status = asString(item.status) ?? 'open';
+          return `${index + 1}. ${label} [${status}]`;
+        })
+        .join('\n');
+      const text =
+        rows.length === 0
+          ? deps.templatePort
+            ? (await renderText({
+                templateKey: ADMIN.DIALOGS_EMPTY,
+                ctx,
+                templatePort: deps.templatePort,
+              })) || 'Открытых диалогов нет.'
+            : 'Открытых диалогов нет.'
+          : deps.templatePort
+            ? (await renderText({
+                templateKey: ADMIN.DIALOGS_LIST,
+                vars: { listBody },
+                ctx,
+                templatePort: deps.templatePort,
+              })) || `Открытые диалоги:\n\n${listBody}`
+            : `Открытые диалоги:\n\n${listBody}`;
+      const inline_keyboard = rows.slice(0, 10).map((item) => [
+        {
+          text: formatActorLabel({
+            firstName: asString(item.first_name),
+            lastName: asString(item.last_name),
+            username: asString(item.username),
+            channelId: asString(item.user_channel_id),
+          }),
+          callback_data: `dialogs.view:${asString(item.id)}`,
         },
-      }];
+      ]);
+      const intents: OutgoingIntent[] = [
+        {
+          type: 'message.send',
+          meta: buildIntentMeta(action, ctx),
+          payload: {
+            recipient: { chatId: adminChatId },
+            message: { text },
+            ...(inline_keyboard.length > 0 ? { replyMarkup: { inline_keyboard } } : {}),
+            delivery: { maxAttempts: 1 },
+          },
+        },
+      ];
       return { actionId: action.id, status: 'success', intents };
     }
 
@@ -1943,57 +2126,95 @@ export async function executeAction(
         return { actionId: action.id, status: 'skipped', error: 'ADMIN_CHAT_ID_MISSING' };
       }
       const rows = Array.isArray(items) ? items : [];
-      const listBodyUnanswered = rows.map((item, index) => {
-        const label = formatActorLabel({
-          firstName: asString(item.first_name),
-          lastName: asString(item.last_name),
-          username: asString(item.username),
-          channelId: asString(item.user_channel_id),
-        });
-        const excerpt = (asString(item.text) ?? '').slice(0, 80);
-        return `${index + 1}. ${label}\n   ${excerpt}${(asString(item.text) ?? '').length > 80 ? '…' : ''}`;
-      }).join('\n\n');
-      const text = rows.length === 0
-        ? (deps.templatePort ? (await renderText({ templateKey: ADMIN.QUESTIONS_EMPTY, ctx, templatePort: deps.templatePort })) || 'Неотвеченных вопросов нет.' : 'Неотвеченных вопросов нет.')
-        : (deps.templatePort ? (await renderText({ templateKey: ADMIN.QUESTIONS_LIST, vars: { count: rows.length, listBody: listBodyUnanswered }, ctx, templatePort: deps.templatePort })) || `Неотвеченные вопросы (${rows.length}):\n\n${listBodyUnanswered}` : `Неотвеченные вопросы (${rows.length}):\n\n${listBodyUnanswered}`);
-      const filteredRows = rows.filter((item) => asString(item.conversation_id)).slice(0, 15);
-      const inline_keyboard = deps.templatePort
-        ? await Promise.all(filteredRows.map(async (item) => {
+      const listBodyUnanswered = rows
+        .map((item, index) => {
           const label = formatActorLabel({
             firstName: asString(item.first_name),
             lastName: asString(item.last_name),
             username: asString(item.username),
             channelId: asString(item.user_channel_id),
           });
-          const btnText = (await renderText({ templateKey: ADMIN.QUESTIONS_REPLY_BUTTON, vars: { label }, ctx, templatePort: deps.templatePort })) || `Ответить: ${label}`;
-          return [{ text: btnText, callback_data: `admin_reply:${asString(item.conversation_id)}` }];
-        }))
-        : filteredRows.map((item) => [{
-          text: `Ответить: ${formatActorLabel({
-            firstName: asString(item.first_name),
-            lastName: asString(item.last_name),
-            username: asString(item.username),
-            channelId: asString(item.user_channel_id),
-          })}`,
-          callback_data: `admin_reply:${asString(item.conversation_id)}`,
-        }]);
-      const inlineRows: Array<Array<{ text: string; callback_data: string }>> = [...inline_keyboard];
+          const excerpt = (asString(item.text) ?? '').slice(0, 80);
+          return `${index + 1}. ${label}\n   ${excerpt}${(asString(item.text) ?? '').length > 80 ? '…' : ''}`;
+        })
+        .join('\n\n');
+      const text =
+        rows.length === 0
+          ? deps.templatePort
+            ? (await renderText({
+                templateKey: ADMIN.QUESTIONS_EMPTY,
+                ctx,
+                templatePort: deps.templatePort,
+              })) || 'Неотвеченных вопросов нет.'
+            : 'Неотвеченных вопросов нет.'
+          : deps.templatePort
+            ? (await renderText({
+                templateKey: ADMIN.QUESTIONS_LIST,
+                vars: { count: rows.length, listBody: listBodyUnanswered },
+                ctx,
+                templatePort: deps.templatePort,
+              })) || `Неотвеченные вопросы (${rows.length}):\n\n${listBodyUnanswered}`
+            : `Неотвеченные вопросы (${rows.length}):\n\n${listBodyUnanswered}`;
+      const filteredRows = rows.filter((item) => asString(item.conversation_id)).slice(0, 15);
+      const inline_keyboard = deps.templatePort
+        ? await Promise.all(
+            filteredRows.map(async (item) => {
+              const label = formatActorLabel({
+                firstName: asString(item.first_name),
+                lastName: asString(item.last_name),
+                username: asString(item.username),
+                channelId: asString(item.user_channel_id),
+              });
+              const btnText =
+                (await renderText({
+                  templateKey: ADMIN.QUESTIONS_REPLY_BUTTON,
+                  vars: { label },
+                  ctx,
+                  templatePort: deps.templatePort,
+                })) || `Ответить: ${label}`;
+              return [
+                { text: btnText, callback_data: `admin_reply:${asString(item.conversation_id)}` },
+              ];
+            }),
+          )
+        : filteredRows.map((item) => [
+            {
+              text: `Ответить: ${formatActorLabel({
+                firstName: asString(item.first_name),
+                lastName: asString(item.last_name),
+                username: asString(item.username),
+                channelId: asString(item.user_channel_id),
+              })}`,
+              callback_data: `admin_reply:${asString(item.conversation_id)}`,
+            },
+          ]);
+      const inlineRows: Array<Array<{ text: string; callback_data: string }>> = [
+        ...inline_keyboard,
+      ];
       if (rows.length > 0) {
         const markAllLabel = deps.templatePort
-          ? (await renderText({ templateKey: ADMIN.QUESTIONS_MARK_ALL_BUTTON, ctx, templatePort: deps.templatePort }))?.trim() || 'Пометить все как отвеченные'
+          ? (
+              await renderText({
+                templateKey: ADMIN.QUESTIONS_MARK_ALL_BUTTON,
+                ctx,
+                templatePort: deps.templatePort,
+              })
+            )?.trim() || 'Пометить все как отвеченные'
           : 'Пометить все как отвеченные';
         inlineRows.push([{ text: markAllLabel, callback_data: 'questions.mark_all_answered' }]);
       }
-      const intents: OutgoingIntent[] = [{
-        type: 'message.send',
-        meta: buildIntentMeta(action, ctx),
-        payload: {
-          recipient: { chatId: adminChatId },
-          message: { text },
-          ...(inlineRows.length > 0 ? { replyMarkup: { inline_keyboard: inlineRows } } : {}),
-          delivery: { maxAttempts: 1 },
+      const intents: OutgoingIntent[] = [
+        {
+          type: 'message.send',
+          meta: buildIntentMeta(action, ctx),
+          payload: {
+            recipient: { chatId: adminChatId },
+            message: { text },
+            ...(inlineRows.length > 0 ? { replyMarkup: { inline_keyboard: inlineRows } } : {}),
+            delivery: { maxAttempts: 1 },
+          },
         },
-      }];
+      ];
       return { actionId: action.id, status: 'success', intents };
     }
 
@@ -2059,13 +2280,28 @@ export async function executeAction(
       });
       const status = asString(conversation.status) ?? 'open';
       const showText = deps.templatePort
-        ? (await renderText({ templateKey: ADMIN.CONVERSATION_SHOW, vars: { label, status }, ctx, templatePort: deps.templatePort })) || `Диалог\nПользователь: ${label}\nСтатус: ${status}`
+        ? (await renderText({
+            templateKey: ADMIN.CONVERSATION_SHOW,
+            vars: { label, status },
+            ctx,
+            templatePort: deps.templatePort,
+          })) || `Диалог\nПользователь: ${label}\nСтатус: ${status}`
         : `Диалог\nПользователь: ${label}\nСтатус: ${status}`;
       const replyBtnText = deps.templatePort
-        ? (await renderText({ templateKey: ADMIN.REPLY_BUTTON, ctx, templatePort: deps.templatePort })) || 'Ответить'
+        ? (await renderText({
+            templateKey: ADMIN.REPLY_BUTTON,
+            ctx,
+            templatePort: deps.templatePort,
+          })) || 'Ответить'
         : 'Ответить';
       const closeBtnText = deps.templatePort
-        ? (await renderText({ templateKey: ADMIN.DIALOG_CLOSE_BUTTON, ctx, templatePort: deps.templatePort }))?.trim() ?? ''
+        ? ((
+            await renderText({
+              templateKey: ADMIN.DIALOG_CLOSE_BUTTON,
+              ctx,
+              templatePort: deps.templatePort,
+            })
+          )?.trim() ?? '')
         : '';
       const rows: Array<Array<{ text: string; callback_data: string }>> = [
         [{ text: replyBtnText, callback_data: `admin_reply:${conversationId}` }],
@@ -2073,16 +2309,18 @@ export async function executeAction(
       if (closeBtnText) {
         rows.push([{ text: closeBtnText, callback_data: `admin_close_dialog:${conversationId}` }]);
       }
-      const intents: OutgoingIntent[] = [{
-        type: 'message.send',
-        meta: buildIntentMeta(action, ctx),
-        payload: {
-          recipient: { chatId: adminChatId },
-          message: { text: showText },
-          replyMarkup: { inline_keyboard: rows },
-          delivery: { maxAttempts: 1 },
+      const intents: OutgoingIntent[] = [
+        {
+          type: 'message.send',
+          meta: buildIntentMeta(action, ctx),
+          payload: {
+            recipient: { chatId: adminChatId },
+            message: { text: showText },
+            replyMarkup: { inline_keyboard: rows },
+            delivery: { maxAttempts: 1 },
+          },
         },
-      }];
+      ];
       return { actionId: action.id, status: 'success', intents };
     }
 
@@ -2104,24 +2342,31 @@ export async function executeAction(
     }
 
     case 'notifications.toggle': {
-      const currentSettings = readNotificationSettings(ctx)
-        ?? (deps.readPort
-          ? await deps.readPort.readDb<NotificationSettings | null>({
+      const currentSettings =
+        readNotificationSettings(ctx) ??
+        (deps.readPort
+          ? ((await deps.readPort.readDb<NotificationSettings | null>({
               type: 'notifications.settings',
               params: {
                 resource: ctx.event.meta.source,
                 channelUserId: action.params.channelUserId ?? action.params.channelId,
               },
-            }) ?? defaultNotificationSettings()
+            })) ?? defaultNotificationSettings())
           : defaultNotificationSettings());
       const toggleKey = asString(action.params.toggleKey);
       let nextSettings: NotificationSettings = { ...currentSettings };
       if (toggleKey === 'notify_toggle_spb') nextSettings.notify_spb = !currentSettings.notify_spb;
       if (toggleKey === 'notify_toggle_msk') nextSettings.notify_msk = !currentSettings.notify_msk;
-      if (toggleKey === 'notify_toggle_online') nextSettings.notify_online = !currentSettings.notify_online;
-      if (toggleKey === 'notify_toggle_bookings') nextSettings.notify_bookings = !currentSettings.notify_bookings;
+      if (toggleKey === 'notify_toggle_online')
+        nextSettings.notify_online = !currentSettings.notify_online;
+      if (toggleKey === 'notify_toggle_bookings')
+        nextSettings.notify_bookings = !currentSettings.notify_bookings;
       if (toggleKey === 'notify_toggle_all' && action.params.supportsToggleAll === true) {
-        const allEnabled = currentSettings.notify_spb && currentSettings.notify_msk && currentSettings.notify_online && currentSettings.notify_bookings;
+        const allEnabled =
+          currentSettings.notify_spb &&
+          currentSettings.notify_msk &&
+          currentSettings.notify_online &&
+          currentSettings.notify_bookings;
         nextSettings = {
           notify_spb: !allEnabled,
           notify_msk: !allEnabled,
@@ -2129,17 +2374,19 @@ export async function executeAction(
           notify_bookings: !allEnabled,
         };
       }
-      const writes: DbWriteMutation[] = [{
-        type: 'notifications.update',
-        params: {
-          resource: ctx.event.meta.source,
-          channelUserId: action.params.channelUserId ?? action.params.channelId,
-          notify_spb: nextSettings.notify_spb,
-          notify_msk: nextSettings.notify_msk,
-          notify_online: nextSettings.notify_online,
-          notify_bookings: nextSettings.notify_bookings,
+      const writes: DbWriteMutation[] = [
+        {
+          type: 'notifications.update',
+          params: {
+            resource: ctx.event.meta.source,
+            channelUserId: action.params.channelUserId ?? action.params.channelId,
+            notify_spb: nextSettings.notify_spb,
+            notify_msk: nextSettings.notify_msk,
+            notify_online: nextSettings.notify_online,
+            notify_bookings: nextSettings.notify_bookings,
+          },
         },
-      }];
+      ];
       await persistWrites(deps.writePort, writes);
       return {
         actionId: action.id,
@@ -2150,83 +2397,141 @@ export async function executeAction(
     }
 
     case 'reminders.rules.get': {
-      if (!deps.readPort) return { actionId: action.id, status: 'skipped', error: 'reminders.rules.get: no readPort' };
-      const channelUserId = asNumericString(action.params.channelUserId) ?? readExternalActorId(ctx);
+      if (!deps.readPort)
+        return {
+          actionId: action.id,
+          status: 'skipped',
+          error: 'reminders.rules.get: no readPort',
+        };
+      const channelUserId =
+        asNumericString(action.params.channelUserId) ?? readExternalActorId(ctx);
       const resource = asString(action.params.resource) ?? ctx.event.meta.source ?? 'telegram';
-      if (!channelUserId) return { actionId: action.id, status: 'failed', error: 'reminders.rules.get: missing channelUserId' };
+      if (!channelUserId)
+        return {
+          actionId: action.id,
+          status: 'failed',
+          error: 'reminders.rules.get: missing channelUserId',
+        };
       const link = await deps.readPort.readDb<{ userId?: string } | null>({
         type: 'user.byIdentity',
         params: { resource, externalId: channelUserId },
       });
-      const userId = link && typeof link === 'object' && typeof link.userId === 'string' ? link.userId : null;
+      const userId =
+        link && typeof link === 'object' && typeof link.userId === 'string' ? link.userId : null;
       if (!userId) return { actionId: action.id, status: 'success', values: { reminderRules: [] } };
       const rules = await deps.readPort.readDb<ReminderRuleRecord[]>({
         type: 'reminders.rules.forUser',
         params: { userId },
       });
       const list = Array.isArray(rules) ? rules : [];
-      return { actionId: action.id, status: 'success', values: { reminderRules: list, reminderUserId: userId } };
+      return {
+        actionId: action.id,
+        status: 'success',
+        values: { reminderRules: list, reminderUserId: userId },
+      };
     }
 
     case 'reminders.rule.toggle': {
-      if (!deps.readPort || !deps.writePort) return { actionId: action.id, status: 'skipped', error: 'reminders.rule.toggle: missing port' };
+      if (!deps.readPort || !deps.writePort)
+        return {
+          actionId: action.id,
+          status: 'skipped',
+          error: 'reminders.rule.toggle: missing port',
+        };
       let userId = asString(action.params.userId);
       if (!userId) {
-        const channelUserId = asNumericString(action.params.channelUserId) ?? readExternalActorId(ctx);
+        const channelUserId =
+          asNumericString(action.params.channelUserId) ?? readExternalActorId(ctx);
         const resource = asString(action.params.resource) ?? ctx.event.meta.source ?? 'telegram';
-        if (!channelUserId) return { actionId: action.id, status: 'failed', error: 'reminders.rule.toggle: missing userId or channelUserId' };
+        if (!channelUserId)
+          return {
+            actionId: action.id,
+            status: 'failed',
+            error: 'reminders.rule.toggle: missing userId or channelUserId',
+          };
         const link = await deps.readPort.readDb<{ userId?: string } | null>({
           type: 'user.byIdentity',
           params: { resource, externalId: channelUserId },
         });
-        userId = link && typeof link === 'object' && typeof link.userId === 'string' ? link.userId : null;
+        userId =
+          link && typeof link === 'object' && typeof link.userId === 'string' ? link.userId : null;
       }
       const category = asString(action.params.category) as ReminderCategory | null;
-      if (!userId || !category) return { actionId: action.id, status: 'failed', error: 'reminders.rule.toggle: missing userId or category' };
+      if (!userId || !category)
+        return {
+          actionId: action.id,
+          status: 'failed',
+          error: 'reminders.rule.toggle: missing userId or category',
+        };
       const existing = await deps.readPort.readDb<ReminderRuleRecord | null>({
         type: 'reminders.rule.forUserAndCategory',
         params: { userId, category },
       });
       const ruleId = existing?.id ?? `reminder:${userId}:${category}`;
       const nextEnabled = existing ? !existing.isEnabled : true;
-      const record: ReminderRuleRecord = existing ?? buildDefaultReminderRule({ id: ruleId, userId, category });
-      const writes: DbWriteMutation[] = [{
-        type: 'reminders.rule.upsert',
-        params: {
-          id: ruleId,
-          userId,
-          category,
-          isEnabled: nextEnabled,
-          scheduleType: record.scheduleType,
-          timezone: record.timezone,
-          intervalMinutes: record.intervalMinutes,
-          windowStartMinute: record.windowStartMinute,
-          windowEndMinute: record.windowEndMinute,
-          daysMask: record.daysMask,
-          contentMode: record.contentMode,
-          quietHoursStartMinute: record.quietHoursStartMinute ?? null,
-          quietHoursEndMinute: record.quietHoursEndMinute ?? null,
+      const record: ReminderRuleRecord =
+        existing ?? buildDefaultReminderRule({ id: ruleId, userId, category });
+      const writes: DbWriteMutation[] = [
+        {
+          type: 'reminders.rule.upsert',
+          params: {
+            id: ruleId,
+            userId,
+            category,
+            isEnabled: nextEnabled,
+            scheduleType: record.scheduleType,
+            timezone: record.timezone,
+            intervalMinutes: record.intervalMinutes,
+            windowStartMinute: record.windowStartMinute,
+            windowEndMinute: record.windowEndMinute,
+            daysMask: record.daysMask,
+            contentMode: record.contentMode,
+            quietHoursStartMinute: record.quietHoursStartMinute ?? null,
+            quietHoursEndMinute: record.quietHoursEndMinute ?? null,
+          },
         },
-      }];
+      ];
       await persistWrites(deps.writePort, writes);
-      return { actionId: action.id, status: 'success', writes, values: { reminderRule: { ...record, isEnabled: nextEnabled } } };
+      return {
+        actionId: action.id,
+        status: 'success',
+        writes,
+        values: { reminderRule: { ...record, isEnabled: nextEnabled } },
+      };
     }
 
     case 'reminders.rule.cyclePreset': {
-      if (!deps.readPort || !deps.writePort) return { actionId: action.id, status: 'skipped', error: 'reminders.rule.cyclePreset: missing port' };
+      if (!deps.readPort || !deps.writePort)
+        return {
+          actionId: action.id,
+          status: 'skipped',
+          error: 'reminders.rule.cyclePreset: missing port',
+        };
       let userId = asString(action.params.userId);
       if (!userId) {
-        const channelUserId = asNumericString(action.params.channelUserId) ?? readExternalActorId(ctx);
+        const channelUserId =
+          asNumericString(action.params.channelUserId) ?? readExternalActorId(ctx);
         const resource = asString(action.params.resource) ?? ctx.event.meta.source ?? 'telegram';
-        if (!channelUserId) return { actionId: action.id, status: 'failed', error: 'reminders.rule.cyclePreset: missing userId or channelUserId' };
+        if (!channelUserId)
+          return {
+            actionId: action.id,
+            status: 'failed',
+            error: 'reminders.rule.cyclePreset: missing userId or channelUserId',
+          };
         const link = await deps.readPort.readDb<{ userId?: string } | null>({
           type: 'user.byIdentity',
           params: { resource, externalId: channelUserId },
         });
-        userId = link && typeof link === 'object' && typeof link.userId === 'string' ? link.userId : null;
+        userId =
+          link && typeof link === 'object' && typeof link.userId === 'string' ? link.userId : null;
       }
       const category = asString(action.params.category) as ReminderCategory | null;
-      if (!userId || !category) return { actionId: action.id, status: 'failed', error: 'reminders.rule.cyclePreset: missing userId or category' };
+      if (!userId || !category)
+        return {
+          actionId: action.id,
+          status: 'failed',
+          error: 'reminders.rule.cyclePreset: missing userId or category',
+        };
       const existing = await deps.readPort.readDb<ReminderRuleRecord | null>({
         type: 'reminders.rule.forUserAndCategory',
         params: { userId, category },
@@ -2235,71 +2540,95 @@ export async function executeAction(
       const nextPreset = cycleReminderPreset(currentPreset);
       const config = reminderPresetConfig(nextPreset);
       const ruleId = existing?.id ?? `reminder:${userId}:${category}`;
-      const record: ReminderRuleRecord = existing ?? buildDefaultReminderRule({ id: ruleId, userId, category });
-      const writes: DbWriteMutation[] = [{
-        type: 'reminders.rule.upsert',
-        params: {
-          id: ruleId,
-          userId,
-          category,
-          isEnabled: record.isEnabled,
-          scheduleType: record.scheduleType,
-          timezone: record.timezone,
-          intervalMinutes: config.intervalMinutes,
-          windowStartMinute: config.windowStartMinute,
-          windowEndMinute: config.windowEndMinute,
-          daysMask: record.daysMask,
-          contentMode: record.contentMode,
-          quietHoursStartMinute: record.quietHoursStartMinute ?? null,
-          quietHoursEndMinute: record.quietHoursEndMinute ?? null,
+      const record: ReminderRuleRecord =
+        existing ?? buildDefaultReminderRule({ id: ruleId, userId, category });
+      const writes: DbWriteMutation[] = [
+        {
+          type: 'reminders.rule.upsert',
+          params: {
+            id: ruleId,
+            userId,
+            category,
+            isEnabled: record.isEnabled,
+            scheduleType: record.scheduleType,
+            timezone: record.timezone,
+            intervalMinutes: config.intervalMinutes,
+            windowStartMinute: config.windowStartMinute,
+            windowEndMinute: config.windowEndMinute,
+            daysMask: record.daysMask,
+            contentMode: record.contentMode,
+            quietHoursStartMinute: record.quietHoursStartMinute ?? null,
+            quietHoursEndMinute: record.quietHoursEndMinute ?? null,
+          },
         },
-      }];
+      ];
       await persistWrites(deps.writePort, writes);
-      return { actionId: action.id, status: 'success', writes, values: { reminderPreset: nextPreset } };
+      return {
+        actionId: action.id,
+        status: 'success',
+        writes,
+        values: { reminderPreset: nextPreset },
+      };
     }
 
     case 'content.section.open': {
-      if (!deps.contentCatalogPort) return { actionId: action.id, status: 'skipped', error: 'content.section.open: no contentCatalogPort' };
+      if (!deps.contentCatalogPort)
+        return {
+          actionId: action.id,
+          status: 'skipped',
+          error: 'content.section.open: no contentCatalogPort',
+        };
       const section = asString(action.params.section);
       const userId = asString(action.params.userId);
       const chatId = asNumber(action.params.chatId);
-      if (!section) return { actionId: action.id, status: 'failed', error: 'content.section.open: missing section' };
+      if (!section)
+        return {
+          actionId: action.id,
+          status: 'failed',
+          error: 'content.section.open: missing section',
+        };
       const url = await deps.contentCatalogPort.getSectionLink({
         section: section as Parameters<ContentCatalogPort['getSectionLink']>[0]['section'],
         ...(userId ? { userId } : {}),
       });
       const sectionPlaceholder: Record<string, string> = {
         useful_lessons: 'Здесь скоро будет много полезного, я вам обязательно сообщу!',
-        emergency_help: 'Здесь скоро будут советы и упражнения для снятия острой боли, как только сделаю - я вам обязательно сообщу!',
+        emergency_help:
+          'Здесь скоро будут советы и упражнения для снятия острой боли, как только сделаю - я вам обязательно сообщу!',
       };
       const text = url
         ? `Открыть раздел: ${url}`
         : (sectionPlaceholder[section] ?? 'Раздел пока недоступен.');
-      const intents: OutgoingIntent[] = chatId != null && Number.isFinite(chatId)
-        ? [{
-          type: 'message.send',
-          meta: buildIntentMeta(action, ctx),
-          payload: {
-            recipient: { chatId },
-            message: { text },
-            delivery: { channels: ['telegram'], maxAttempts: 1 },
-          },
-        }]
-        : [];
+      const intents: OutgoingIntent[] =
+        chatId != null && Number.isFinite(chatId)
+          ? [
+              {
+                type: 'message.send',
+                meta: buildIntentMeta(action, ctx),
+                payload: {
+                  recipient: { chatId },
+                  message: { text },
+                  delivery: { channels: ['telegram'], maxAttempts: 1 },
+                },
+              },
+            ]
+          : [];
       return { actionId: action.id, status: 'success', intents };
     }
 
     case 'log.audit': {
-      const writes: DbWriteMutation[] = [{
-        type: 'event.log',
-        params: {
-          source: 'domain',
-          eventType: 'audit',
-          eventId: `${ctx.event.meta.eventId}:audit:${action.id}`,
-          occurredAt: nowIso(ctx),
-          body: action.params,
+      const writes: DbWriteMutation[] = [
+        {
+          type: 'event.log',
+          params: {
+            source: 'domain',
+            eventType: 'audit',
+            eventId: `${ctx.event.meta.eventId}:audit:${action.id}`,
+            occurredAt: nowIso(ctx),
+            body: action.params,
+          },
         },
-      }];
+      ];
       await persistWrites(deps.writePort, writes);
       return { actionId: action.id, status: 'success', writes };
     }
@@ -2310,24 +2639,39 @@ export async function executeAction(
       const messageId = asMessageId(action.params.messageId);
       const callbackQueryId = asString(action.params.callbackQueryId);
       if (chatId === null) {
-        return { actionId: action.id, status: 'failed', error: 'diary.symptom.list: chatId required' };
+        return {
+          actionId: action.id,
+          status: 'failed',
+          error: 'diary.symptom.list: chatId required',
+        };
       }
       let userId: string | null = asString(action.params.userId);
       if (!userId && deps.readPort) {
         const source = asString(ctx.event.meta.source) ?? 'telegram';
-        const channelUserId = asNumericString(readExternalActorId(ctx))
-          ?? asNumericString((ctx.event.payload as { incoming?: { channelUserId?: unknown } })?.incoming?.channelUserId);
+        const channelUserId =
+          asNumericString(readExternalActorId(ctx)) ??
+          asNumericString(
+            (ctx.event.payload as { incoming?: { channelUserId?: unknown } })?.incoming
+              ?.channelUserId,
+          );
         if (channelUserId) {
           const link = await deps.readPort.readDb<{ userId?: string } | null>({
             type: 'user.byIdentity',
             params: { resource: source, externalId: channelUserId },
           });
-          userId = link && typeof link === 'object' && typeof link.userId === 'string' ? link.userId : null;
+          userId =
+            link && typeof link === 'object' && typeof link.userId === 'string'
+              ? link.userId
+              : null;
         }
       }
       const intents: OutgoingIntent[] = [];
       if (callbackQueryId) {
-        intents.push({ type: 'callback.answer', meta: buildIntentMeta(action, ctx), payload: { callbackQueryId } });
+        intents.push({
+          type: 'callback.answer',
+          meta: buildIntentMeta(action, ctx),
+          payload: { callbackQueryId },
+        });
       }
       const listText = deps.templatePort
         ? (await renderText({
@@ -2345,7 +2689,9 @@ export async function executeAction(
             ...(messageId !== null ? { messageId } : {}),
             message: { text: listText },
             replyMarkup: {
-              inline_keyboard: [[{ text: 'Добавить симптом для отслеживания', callback_data: 'diary.symptom.add' }]],
+              inline_keyboard: [
+                [{ text: 'Добавить симптом для отслеживания', callback_data: 'diary.symptom.add' }],
+              ],
             },
           },
         });
@@ -2355,7 +2701,9 @@ export async function executeAction(
       const rows: Array<Array<{ text: string; callback_data: string }>> = trackings.map((t) => [
         { text: t.symptomTitle || t.id, callback_data: `diary.symptom.select:${t.id}` },
       ]);
-      rows.push([{ text: '➕ Добавить симптом для отслеживания', callback_data: 'diary.symptom.add' }]);
+      rows.push([
+        { text: '➕ Добавить симптом для отслеживания', callback_data: 'diary.symptom.add' },
+      ]);
       intents.push({
         type: 'message.edit',
         meta: buildIntentMeta(action, ctx),
@@ -2375,7 +2723,11 @@ export async function executeAction(
       const messageId = asMessageId(action.params.messageId);
       const callbackQueryId = asString(action.params.callbackQueryId);
       if (!trackingId || chatId === null) {
-        return { actionId: action.id, status: 'failed', error: 'diary.symptom.select: trackingId and chatId required' };
+        return {
+          actionId: action.id,
+          status: 'failed',
+          error: 'diary.symptom.select: trackingId and chatId required',
+        };
       }
       const rateText = deps.templatePort
         ? (await renderText({
@@ -2390,7 +2742,11 @@ export async function executeAction(
       }));
       const intents: OutgoingIntent[] = [];
       if (callbackQueryId) {
-        intents.push({ type: 'callback.answer', meta: buildIntentMeta(action, ctx), payload: { callbackQueryId } });
+        intents.push({
+          type: 'callback.answer',
+          meta: buildIntentMeta(action, ctx),
+          payload: { callbackQueryId },
+        });
       }
       intents.push({
         type: 'message.edit',
@@ -2408,12 +2764,17 @@ export async function executeAction(
     case 'diary.symptom.value': {
       const trackingId = asString(action.params.trackingId);
       const valueRaw = asNumber(action.params.value) ?? asString(action.params.value);
-      const value0_10 = valueRaw !== null ? Math.min(10, Math.max(0, Math.round(Number(valueRaw)))) : null;
+      const value0_10 =
+        valueRaw !== null ? Math.min(10, Math.max(0, Math.round(Number(valueRaw)))) : null;
       const chatId = asNumber(action.params.chatId);
       const messageId = asMessageId(action.params.messageId);
       const callbackQueryId = asString(action.params.callbackQueryId);
       if (!trackingId || value0_10 === null || chatId === null) {
-        return { actionId: action.id, status: 'failed', error: 'diary.symptom.value: trackingId, value and chatId required' };
+        return {
+          actionId: action.id,
+          status: 'failed',
+          error: 'diary.symptom.value: trackingId, value and chatId required',
+        };
       }
       const typeText = deps.templatePort
         ? (await renderText({
@@ -2424,7 +2785,11 @@ export async function executeAction(
         : 'Тип записи';
       const intents: OutgoingIntent[] = [];
       if (callbackQueryId) {
-        intents.push({ type: 'callback.answer', meta: buildIntentMeta(action, ctx), payload: { callbackQueryId } });
+        intents.push({
+          type: 'callback.answer',
+          meta: buildIntentMeta(action, ctx),
+          payload: { callbackQueryId },
+        });
       }
       intents.push({
         type: 'message.edit',
@@ -2436,8 +2801,14 @@ export async function executeAction(
           replyMarkup: {
             inline_keyboard: [
               [
-                { text: 'В моменте', callback_data: `diary.symptom.entryType:${trackingId}:${value0_10}:instant` },
-                { text: 'В течение дня', callback_data: `diary.symptom.entryType:${trackingId}:${value0_10}:daily` },
+                {
+                  text: 'В моменте',
+                  callback_data: `diary.symptom.entryType:${trackingId}:${value0_10}:instant`,
+                },
+                {
+                  text: 'В течение дня',
+                  callback_data: `diary.symptom.entryType:${trackingId}:${value0_10}:daily`,
+                },
               ],
             ],
           },
@@ -2451,44 +2822,60 @@ export async function executeAction(
       const entryTypeRaw = asString(action.params.entryType);
       const entryType = entryTypeRaw === 'daily' ? 'daily' : 'instant';
       const valueFromPrev = asNumber(action.params.value);
-      const value0_10 = valueFromPrev !== null ? Math.min(10, Math.max(0, Math.round(valueFromPrev))) : 5;
+      const value0_10 =
+        valueFromPrev !== null ? Math.min(10, Math.max(0, Math.round(valueFromPrev))) : 5;
       const chatId = asNumber(action.params.chatId);
       const messageId = asMessageId(action.params.messageId);
       const callbackQueryId = asString(action.params.callbackQueryId);
       if (!trackingId || chatId === null) {
-        return { actionId: action.id, status: 'failed', error: 'diary.symptom.entryType: trackingId and chatId required' };
+        return {
+          actionId: action.id,
+          status: 'failed',
+          error: 'diary.symptom.entryType: trackingId and chatId required',
+        };
       }
       let userId: string | null = asString(action.params.userId);
       const entrySource = asString(ctx.event.meta.source) ?? 'telegram';
-      const entryChannelUserId = asNumericString(readExternalActorId(ctx))
-        ?? asNumericString((ctx.event.payload as { incoming?: { channelUserId?: unknown } })?.incoming?.channelUserId);
+      const entryChannelUserId =
+        asNumericString(readExternalActorId(ctx)) ??
+        asNumericString(
+          (ctx.event.payload as { incoming?: { channelUserId?: unknown } })?.incoming
+            ?.channelUserId,
+        );
       if (!userId && deps.readPort && entryChannelUserId) {
         const link = await deps.readPort.readDb<{ userId?: string } | null>({
           type: 'user.byIdentity',
           params: { resource: entrySource, externalId: entryChannelUserId },
         });
-        userId = link && typeof link === 'object' && typeof link.userId === 'string' ? link.userId : null;
+        userId =
+          link && typeof link === 'object' && typeof link.userId === 'string' ? link.userId : null;
       }
       const intents: OutgoingIntent[] = [];
       if (callbackQueryId) {
-        intents.push({ type: 'callback.answer', meta: buildIntentMeta(action, ctx), payload: { callbackQueryId } });
+        intents.push({
+          type: 'callback.answer',
+          meta: buildIntentMeta(action, ctx),
+          payload: { callbackQueryId },
+        });
       }
       // D2: `diary.symptom.entry.created` is a retired HTTP projection event type — write directly to
       // public.symptom_entries instead. `userId` here is the integrator-space id (ChannelUserLinkRow);
       // writeDiaryLfkDirect.ts resolves the actual canonical public.platform_users.id from it.
       if (userId && entryChannelUserId) {
-        await persistWrites(deps.writePort, [{
-          type: 'diary.symptom.entry.create',
-          params: {
-            resource: entrySource,
-            externalId: entryChannelUserId,
-            integratorUserId: userId,
-            trackingId,
-            value0_10,
-            entryType,
-            recordedAt: nowIso(ctx),
+        await persistWrites(deps.writePort, [
+          {
+            type: 'diary.symptom.entry.create',
+            params: {
+              resource: entrySource,
+              externalId: entryChannelUserId,
+              integratorUserId: userId,
+              trackingId,
+              value0_10,
+              entryType,
+              recordedAt: nowIso(ctx),
+            },
           },
-        }]);
+        ]);
       }
       const successText = deps.templatePort
         ? (await renderText({
@@ -2504,21 +2891,27 @@ export async function executeAction(
           recipient: { chatId },
           ...(messageId !== null ? { messageId } : {}),
           message: { text: successText },
-          replyMarkup: { inline_keyboard: [[{ text: '⬅️ К списку симптомов', callback_data: 'diary.symptom.open' }]] },
+          replyMarkup: {
+            inline_keyboard: [
+              [{ text: '⬅️ К списку симптомов', callback_data: 'diary.symptom.open' }],
+            ],
+          },
         },
       });
       return { actionId: action.id, status: 'success', intents };
     }
 
     case 'diary.symptom.add': {
-      const writes: DbWriteMutation[] = [{
-        type: 'user.state.set',
-        params: {
-          resource: ctx.event.meta.source,
-          channelUserId: readExternalActorId(ctx),
-          state: 'diary.symptom.awaiting_title',
+      const writes: DbWriteMutation[] = [
+        {
+          type: 'user.state.set',
+          params: {
+            resource: ctx.event.meta.source,
+            channelUserId: readExternalActorId(ctx),
+            state: 'diary.symptom.awaiting_title',
+          },
         },
-      }];
+      ];
       await persistWrites(deps.writePort, writes);
       const chatId = asNumber(action.params.chatId);
       const messageId = asMessageId(action.params.messageId);
@@ -2532,7 +2925,11 @@ export async function executeAction(
         : 'Введите название симптома для отслеживания.';
       const intents: OutgoingIntent[] = [];
       if (callbackQueryId) {
-        intents.push({ type: 'callback.answer', meta: buildIntentMeta(action, ctx), payload: { callbackQueryId } });
+        intents.push({
+          type: 'callback.answer',
+          meta: buildIntentMeta(action, ctx),
+          payload: { callbackQueryId },
+        });
       }
       if (chatId !== null) {
         intents.push({
@@ -2555,19 +2952,30 @@ export async function executeAction(
       const symptomTitle = asString(action.params.symptomTitle)?.trim() ?? '';
       const chatId = asNumber(action.params.chatId);
       if (chatId === null) {
-        return { actionId: action.id, status: 'failed', error: 'diary.symptom.afterTrackingCreated: chatId required' };
+        return {
+          actionId: action.id,
+          status: 'failed',
+          error: 'diary.symptom.afterTrackingCreated: chatId required',
+        };
       }
       let userId: string | null = asString(action.params.userId);
       if (!userId && deps.readPort) {
         const source = asString(ctx.event.meta.source) ?? 'telegram';
-        const channelUserId = asNumericString(readExternalActorId(ctx))
-          ?? asNumericString((ctx.event.payload as { incoming?: { channelUserId?: unknown } })?.incoming?.channelUserId);
+        const channelUserId =
+          asNumericString(readExternalActorId(ctx)) ??
+          asNumericString(
+            (ctx.event.payload as { incoming?: { channelUserId?: unknown } })?.incoming
+              ?.channelUserId,
+          );
         if (channelUserId) {
           const link = await deps.readPort.readDb<{ userId?: string } | null>({
             type: 'user.byIdentity',
             params: { resource: source, externalId: channelUserId },
           });
-          userId = link && typeof link === 'object' && typeof link.userId === 'string' ? link.userId : null;
+          userId =
+            link && typeof link === 'object' && typeof link.userId === 'string'
+              ? link.userId
+              : null;
         }
       }
       const intensityText = deps.templatePort
@@ -2592,9 +3000,10 @@ export async function executeAction(
         const byTitle = trackings.filter(
           (t) => (t.symptomTitle ?? '').trim().toLowerCase() === titleLower,
         );
-        const chosen = byTitle.length > 0
-          ? byTitle.sort((a, b) => (b.updatedAt ?? '').localeCompare(a.updatedAt ?? ''))[0]
-          : null;
+        const chosen =
+          byTitle.length > 0
+            ? byTitle.sort((a, b) => (b.updatedAt ?? '').localeCompare(a.updatedAt ?? ''))[0]
+            : null;
         trackingId = chosen?.id ?? null;
       }
       if (trackingId) {
@@ -2621,7 +3030,9 @@ export async function executeAction(
             message: { text: fallbackText },
             delivery: { channels: [ctx.event.meta.source], maxAttempts: 1 },
             replyMarkup: {
-              inline_keyboard: [[{ text: '⬅️ К списку симптомов', callback_data: 'diary.symptom.open' }]],
+              inline_keyboard: [
+                [{ text: '⬅️ К списку симптомов', callback_data: 'diary.symptom.open' }],
+              ],
             },
           },
         });
@@ -2640,19 +3051,30 @@ export async function executeAction(
       let userId: string | null = asString(action.params.userId);
       if (!userId && deps.readPort) {
         const source = asString(ctx.event.meta.source) ?? 'telegram';
-        const channelUserId = asNumericString(readExternalActorId(ctx))
-          ?? asNumericString((ctx.event.payload as { incoming?: { channelUserId?: unknown } })?.incoming?.channelUserId);
+        const channelUserId =
+          asNumericString(readExternalActorId(ctx)) ??
+          asNumericString(
+            (ctx.event.payload as { incoming?: { channelUserId?: unknown } })?.incoming
+              ?.channelUserId,
+          );
         if (channelUserId) {
           const link = await deps.readPort.readDb<{ userId?: string } | null>({
             type: 'user.byIdentity',
             params: { resource: source, externalId: channelUserId },
           });
-          userId = link && typeof link === 'object' && typeof link.userId === 'string' ? link.userId : null;
+          userId =
+            link && typeof link === 'object' && typeof link.userId === 'string'
+              ? link.userId
+              : null;
         }
       }
       const intents: OutgoingIntent[] = [];
       if (callbackQueryId) {
-        intents.push({ type: 'callback.answer', meta: buildIntentMeta(action, ctx), payload: { callbackQueryId } });
+        intents.push({
+          type: 'callback.answer',
+          meta: buildIntentMeta(action, ctx),
+          payload: { callbackQueryId },
+        });
       }
       const listText = deps.templatePort
         ? (await renderText({
@@ -2700,7 +3122,11 @@ export async function executeAction(
       const messageId = asMessageId(action.params.messageId);
       const callbackQueryId = asString(action.params.callbackQueryId);
       if (!complexId || chatId === null) {
-        return { actionId: action.id, status: 'failed', error: 'diary.lfk.select: complexId and chatId required' };
+        return {
+          actionId: action.id,
+          status: 'failed',
+          error: 'diary.lfk.select: complexId and chatId required',
+        };
       }
       const promptText = deps.templatePort
         ? (await renderText({
@@ -2711,7 +3137,11 @@ export async function executeAction(
         : 'Отметить занятие?';
       const intents: OutgoingIntent[] = [];
       if (callbackQueryId) {
-        intents.push({ type: 'callback.answer', meta: buildIntentMeta(action, ctx), payload: { callbackQueryId } });
+        intents.push({
+          type: 'callback.answer',
+          meta: buildIntentMeta(action, ctx),
+          payload: { callbackQueryId },
+        });
       }
       intents.push({
         type: 'message.edit',
@@ -2721,7 +3151,9 @@ export async function executeAction(
           ...(messageId !== null ? { messageId } : {}),
           message: { text: promptText },
           replyMarkup: {
-            inline_keyboard: [[{ text: '✅ Отметить занятие', callback_data: `diary.lfk.session:${complexId}` }]],
+            inline_keyboard: [
+              [{ text: '✅ Отметить занятие', callback_data: `diary.lfk.session:${complexId}` }],
+            ],
           },
         },
       });
@@ -2734,37 +3166,52 @@ export async function executeAction(
       const messageId = asMessageId(action.params.messageId);
       const callbackQueryId = asString(action.params.callbackQueryId);
       if (!complexId || chatId === null) {
-        return { actionId: action.id, status: 'failed', error: 'diary.lfk.session: complexId and chatId required' };
+        return {
+          actionId: action.id,
+          status: 'failed',
+          error: 'diary.lfk.session: complexId and chatId required',
+        };
       }
       let userId: string | null = asString(action.params.userId);
       const sessionSource = asString(ctx.event.meta.source) ?? 'telegram';
-      const sessionChannelUserId = asNumericString(readExternalActorId(ctx))
-        ?? asNumericString((ctx.event.payload as { incoming?: { channelUserId?: unknown } })?.incoming?.channelUserId);
+      const sessionChannelUserId =
+        asNumericString(readExternalActorId(ctx)) ??
+        asNumericString(
+          (ctx.event.payload as { incoming?: { channelUserId?: unknown } })?.incoming
+            ?.channelUserId,
+        );
       if (!userId && deps.readPort && sessionChannelUserId) {
         const link = await deps.readPort.readDb<{ userId?: string } | null>({
           type: 'user.byIdentity',
           params: { resource: sessionSource, externalId: sessionChannelUserId },
         });
-        userId = link && typeof link === 'object' && typeof link.userId === 'string' ? link.userId : null;
+        userId =
+          link && typeof link === 'object' && typeof link.userId === 'string' ? link.userId : null;
       }
       const intents: OutgoingIntent[] = [];
       if (callbackQueryId) {
-        intents.push({ type: 'callback.answer', meta: buildIntentMeta(action, ctx), payload: { callbackQueryId } });
+        intents.push({
+          type: 'callback.answer',
+          meta: buildIntentMeta(action, ctx),
+          payload: { callbackQueryId },
+        });
       }
       // D2: `diary.lfk.session.created` is a retired HTTP projection event type — write directly to
       // public.lfk_sessions instead. `userId` here is the integrator-space id (ChannelUserLinkRow);
       // writeDiaryLfkDirect.ts resolves the actual canonical public.platform_users.id from it.
       if (userId && sessionChannelUserId) {
-        await persistWrites(deps.writePort, [{
-          type: 'diary.lfk.session.create',
-          params: {
-            resource: sessionSource,
-            externalId: sessionChannelUserId,
-            integratorUserId: userId,
-            complexId,
-            completedAt: nowIso(ctx),
+        await persistWrites(deps.writePort, [
+          {
+            type: 'diary.lfk.session.create',
+            params: {
+              resource: sessionSource,
+              externalId: sessionChannelUserId,
+              integratorUserId: userId,
+              complexId,
+              completedAt: nowIso(ctx),
+            },
           },
-        }]);
+        ]);
       }
       const successText = deps.templatePort
         ? (await renderText({
@@ -2780,21 +3227,25 @@ export async function executeAction(
           recipient: { chatId },
           ...(messageId !== null ? { messageId } : {}),
           message: { text: successText },
-          replyMarkup: { inline_keyboard: [[{ text: '⬅️ К списку ЛФК', callback_data: 'diary.lfk.open' }]] },
+          replyMarkup: {
+            inline_keyboard: [[{ text: '⬅️ К списку ЛФК', callback_data: 'diary.lfk.open' }]],
+          },
         },
       });
       return { actionId: action.id, status: 'success', intents };
     }
 
     case 'diary.lfk.add': {
-      const writes: DbWriteMutation[] = [{
-        type: 'user.state.set',
-        params: {
-          resource: ctx.event.meta.source,
-          channelUserId: readExternalActorId(ctx),
-          state: 'diary.lfk.awaiting_title',
+      const writes: DbWriteMutation[] = [
+        {
+          type: 'user.state.set',
+          params: {
+            resource: ctx.event.meta.source,
+            channelUserId: readExternalActorId(ctx),
+            state: 'diary.lfk.awaiting_title',
+          },
         },
-      }];
+      ];
       await persistWrites(deps.writePort, writes);
       const chatId = asNumber(action.params.chatId);
       const messageId = asMessageId(action.params.messageId);
@@ -2808,7 +3259,11 @@ export async function executeAction(
         : 'Введите название комплекса ЛФК.';
       const intents: OutgoingIntent[] = [];
       if (callbackQueryId) {
-        intents.push({ type: 'callback.answer', meta: buildIntentMeta(action, ctx), payload: { callbackQueryId } });
+        intents.push({
+          type: 'callback.answer',
+          meta: buildIntentMeta(action, ctx),
+          payload: { callbackQueryId },
+        });
       }
       if (chatId !== null) {
         intents.push({

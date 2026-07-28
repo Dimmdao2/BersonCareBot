@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { Badge } from "@/shared/ui/doctor/primitives/badge";
-import { cn } from "@/lib/utils";
-import type { TestSetPublicationStatus } from "@/modules/tests/types";
+import { Badge } from '@/shared/ui/doctor/primitives/badge';
+import { cn } from '@/lib/utils';
+import type { TestSetPublicationStatus } from '@/modules/tests/types';
 
 /** Бейдж статуса набора в master-списке (как у комплексов ЛФК / шаблонов программ). */
 export function TestSetMasterListStatusBadge({
@@ -16,18 +16,22 @@ export function TestSetMasterListStatusBadge({
 }) {
   if (isArchived) {
     return (
-      <Badge variant="destructive" className={cn("w-full justify-center text-[10px] leading-tight font-medium", className)} title="В архиве">
+      <Badge
+        variant="destructive"
+        className={cn('w-full justify-center text-[10px] leading-tight font-medium', className)}
+        title="В архиве"
+      >
         В архиве
       </Badge>
     );
   }
-  if (publicationStatus === "published") {
+  if (publicationStatus === 'published') {
     return (
       <Badge
         variant="outline"
         className={cn(
-          "w-full justify-center text-[10px] leading-tight font-medium",
-          "border-emerald-600/35 bg-emerald-600/12 text-emerald-900 dark:border-emerald-500/45 dark:bg-emerald-500/12 dark:text-emerald-50",
+          'w-full justify-center text-[10px] leading-tight font-medium',
+          'border-emerald-600/35 bg-emerald-600/12 text-emerald-900 dark:border-emerald-500/45 dark:bg-emerald-500/12 dark:text-emerald-50',
           className,
         )}
         title="Опубликован"
@@ -37,7 +41,11 @@ export function TestSetMasterListStatusBadge({
     );
   }
   return (
-    <Badge variant="secondary" className={cn("w-full justify-center text-[10px] leading-tight font-medium", className)} title="Черновик">
+    <Badge
+      variant="secondary"
+      className={cn('w-full justify-center text-[10px] leading-tight font-medium', className)}
+      title="Черновик"
+    >
       Черновик
     </Badge>
   );

@@ -3,6 +3,7 @@
 ## Цель
 
 Реализовать полный цикл подключения Google Calendar из UI Settings webapp:
+
 1. Ввод OAuth credentials (Client ID, Client Secret, Redirect URI) из Google Cloud Console.
 2. OAuth consent flow (кнопка «Подключить Google» → Google Account chooser → callback).
 3. Выбор календаря из списка (calendarList.list).
@@ -11,6 +12,7 @@
 ## Хранение
 
 Все данные — в `system_settings` с `scope='admin'` (один доктор = админ). Ключи:
+
 - `google_client_id`, `google_client_secret`, `google_redirect_uri` — ручной ввод
 - `google_refresh_token` — автоматически после OAuth callback
 - `google_calendar_id` — после выбора календаря
@@ -37,9 +39,10 @@
 ## Связанные файлы
 
 ### Webapp
+
 - `apps/webapp/src/modules/system-settings/types.ts` — ALLOWED_KEYS
 - `apps/webapp/src/app/api/admin/settings/route.ts` — ADMIN_SCOPE_KEYS, SECRET_LIKE_KEYS
-- `apps/webapp/src/modules/system-settings/integrationRuntime.ts` — getGoogle* getters
+- `apps/webapp/src/modules/system-settings/integrationRuntime.ts` — getGoogle\* getters
 - `apps/webapp/src/modules/google-calendar/googleOAuthHelpers.ts` — pure HTTP helpers
 - `apps/webapp/src/app/api/admin/google-calendar/start/route.ts`
 - `apps/webapp/src/app/api/admin/google-calendar/callback/route.ts`
@@ -48,11 +51,13 @@
 - `apps/webapp/src/app/app/settings/page.tsx`
 
 ### Integrator
+
 - `apps/integrator/src/integrations/google-calendar/runtimeConfig.ts` — DB-backed + env fallback
 - `apps/integrator/src/integrations/bersoncare/settingsSyncRoute.ts` — cache invalidation
-- `apps/integrator/src/config/env.ts` — deprecated GOOGLE_* env vars
+- `apps/integrator/src/config/env.ts` — deprecated GOOGLE\_\* env vars
 
 ### Тесты
+
 - `apps/webapp/src/modules/google-calendar/googleOAuthHelpers.test.ts`
 - `apps/webapp/src/app/api/admin/google-calendar/start/route.test.ts`
 - `apps/webapp/src/app/api/admin/google-calendar/callback/route.test.ts`

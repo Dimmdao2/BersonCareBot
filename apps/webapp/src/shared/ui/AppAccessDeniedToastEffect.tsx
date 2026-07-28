@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { useEffect, useRef } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useRef } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
   parseReturnToPath,
   searchParamsHasAccessDeniedToast,
@@ -9,7 +9,7 @@ import {
   showAppAccessDeniedToastIfFlagged,
   stripAccessDeniedToastFromNextParam,
   stripAccessDeniedToastFromUrl,
-} from "@/shared/lib/appAccessDeniedToast";
+} from '@/shared/lib/appAccessDeniedToast';
 
 /**
  * Одноразовый toast при cross-zone block (волна 2): читает `app_access_denied`, показывает toast, убирает query.
@@ -22,8 +22,8 @@ export function AppAccessDeniedToastEffect() {
 
   useEffect(() => {
     const search = searchParams.toString();
-    const fullSearch = search ? `?${search}` : "";
-    const nextParam = searchParams.get("next");
+    const fullSearch = search ? `?${search}` : '';
+    const nextParam = searchParams.get('next');
     const hasDirectFlag = searchParamsHasAccessDeniedToast(searchParams);
     const hasNextFlag = searchParamsHasAccessDeniedToastInNext(nextParam);
 
@@ -47,8 +47,8 @@ export function AppAccessDeniedToastEffect() {
       const parsedNext = parseReturnToPath(nextParam);
       showAppAccessDeniedToastIfFlagged(parsedNext?.search);
       const params = new URLSearchParams(searchParams.toString());
-      params.set("next", stripAccessDeniedToastFromNextParam(nextParam));
-      const hash = typeof window !== "undefined" ? window.location.hash : "";
+      params.set('next', stripAccessDeniedToastFromNextParam(nextParam));
+      const hash = typeof window !== 'undefined' ? window.location.hash : '';
       router.replace(`${pathname}?${params.toString()}${hash}`);
     }
   }, [pathname, router, searchParams]);

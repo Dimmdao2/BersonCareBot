@@ -3,12 +3,12 @@ export const SYMPTOM_INSTANT_DEDUP_MS = 2 * 60 * 1000;
 
 export type LastSymptomSaveMeta = {
   trackingId: string;
-  entryType: "instant" | "daily";
+  entryType: 'instant' | 'daily';
   at: number;
 };
 
 export type ExistingSymptomEntryMeta = {
-  entryType: "instant" | "daily";
+  entryType: 'instant' | 'daily';
   value0_10: number;
   notes: string | null;
   recordedAt: string;
@@ -17,16 +17,16 @@ export type ExistingSymptomEntryMeta = {
 export function shouldConfirmInstantDuplicate(
   last: LastSymptomSaveMeta | null,
   trackingId: string,
-  entryType: "instant" | "daily",
+  entryType: 'instant' | 'daily',
 ): boolean {
   if (!last) return false;
-  if (entryType !== "instant" || last.entryType !== "instant") return false;
+  if (entryType !== 'instant' || last.entryType !== 'instant') return false;
   if (last.trackingId !== trackingId) return false;
   return Date.now() - last.at < SYMPTOM_INSTANT_DEDUP_MS;
 }
 
 function normalizeNotes(notes: string | null): string {
-  return (notes ?? "").trim();
+  return (notes ?? '').trim();
 }
 
 export function hasInstantDuplicateInWindow(
@@ -41,7 +41,7 @@ export function hasInstantDuplicateInWindow(
   const dedupWindowMs = params.dedupWindowMs ?? SYMPTOM_INSTANT_DEDUP_MS;
   const targetNotes = normalizeNotes(params.notes);
   return entries.some((entry) => {
-    if (entry.entryType !== "instant") return false;
+    if (entry.entryType !== 'instant') return false;
     if (entry.value0_10 !== params.value0_10) return false;
     if (normalizeNotes(entry.notes) !== targetNotes) return false;
     const ts = new Date(entry.recordedAt).getTime();

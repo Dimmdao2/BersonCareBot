@@ -1,11 +1,11 @@
-"use client";
+'use client';
 
-import { ChevronDown } from "lucide-react";
-import { useEffect, useId, useRef, useState } from "react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { cn } from "@/lib/utils";
-import { DOCTOR_CATALOG_TOOLBAR_FILTER_WRAP_CLASS } from "@/shared/ui/doctor/doctorCatalogToolbarFilterClasses";
+import { ChevronDown } from 'lucide-react';
+import { useEffect, useId, useRef, useState } from 'react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { cn } from '@/lib/utils';
+import { DOCTOR_CATALOG_TOOLBAR_FILTER_WRAP_CLASS } from '@/shared/ui/doctor/doctorCatalogToolbarFilterClasses';
 
 export type DoctorCatalogToolbarChoiceOption = { value: string; label: string };
 
@@ -16,7 +16,7 @@ export type DoctorCatalogToolbarChoiceInputProps = {
   options: DoctorCatalogToolbarChoiceOption[];
   value: string;
   onValueChange: (next: string) => void;
-  "aria-label": string;
+  'aria-label': string;
   disabled?: boolean;
   className?: string;
 };
@@ -30,7 +30,7 @@ export function DoctorCatalogToolbarChoiceInput({
   options,
   value,
   onValueChange,
-  "aria-label": ariaLabel,
+  'aria-label': ariaLabel,
   disabled = false,
   className,
 }: DoctorCatalogToolbarChoiceInputProps) {
@@ -39,7 +39,7 @@ export function DoctorCatalogToolbarChoiceInput({
   const listboxId = `${id}-listbox`;
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
-  const selectedLabel = options.find((o) => o.value === value)?.label ?? "";
+  const selectedLabel = options.find((o) => o.value === value)?.label ?? '';
 
   useEffect(() => {
     if (!open) return;
@@ -48,12 +48,15 @@ export function DoctorCatalogToolbarChoiceInput({
         setOpen(false);
       }
     };
-    document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
   }, [open]);
 
   return (
-    <div ref={rootRef} className={cn(DOCTOR_CATALOG_TOOLBAR_FILTER_WRAP_CLASS, "relative", className)}>
+    <div
+      ref={rootRef}
+      className={cn(DOCTOR_CATALOG_TOOLBAR_FILTER_WRAP_CLASS, 'relative', className)}
+    >
       {name ? <input type="hidden" name={name} value={value} readOnly tabIndex={-1} /> : null}
       <div className="relative w-full">
         <Input
@@ -66,15 +69,15 @@ export function DoctorCatalogToolbarChoiceInput({
           aria-label={ariaLabel}
           disabled={disabled}
           value={selectedLabel}
-          placeholder={selectedLabel ? undefined : "Выберите…"}
+          placeholder={selectedLabel ? undefined : 'Выберите…'}
           className="w-full cursor-pointer pr-9"
           autoComplete="off"
           onClick={() => {
             if (!disabled) setOpen((o) => !o);
           }}
           onKeyDown={(e) => {
-            if (e.key === "Escape") setOpen(false);
-            if (e.key === "Enter" || e.key === " ") {
+            if (e.key === 'Escape') setOpen(false);
+            if (e.key === 'Enter' || e.key === ' ') {
               e.preventDefault();
               if (!disabled) setOpen((o) => !o);
             }
@@ -92,9 +95,9 @@ export function DoctorCatalogToolbarChoiceInput({
           >
             {options.map((o) => (
               <li
-                key={o.value.length ? o.value : "__empty"}
+                key={o.value.length ? o.value : '__empty'}
                 role="presentation"
-                className={cn(o.value === value && "bg-muted/50")}
+                className={cn(o.value === value && 'bg-muted/50')}
               >
                 <Button
                   type="button"

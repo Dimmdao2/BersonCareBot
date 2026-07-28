@@ -11,13 +11,13 @@ reopened 2026-07-22 because its `2026-07-21` deadline expired while `branchServi
 
 ## Table disposition
 
-| Legacy table | Canonical target | R3-CATALOG disposition |
-| --- | --- | --- |
-| `booking_cities` | `be_branches.city_code` | patient city list is derived from active canonical branches in the patient's active organization; generic public city list fails closed until host/link org source exists |
-| `booking_branches` | `be_branches` | patient service flow and public branch-service deep links read canonical branch rows |
-| `booking_services` | `be_clinic_services` | patient service list and public branch-service deep links read canonical service rows |
-| `booking_specialists` | `be_specialists` + `be_specialist_service_availability` | service availability uses canonical specialist/service availability; legacy specialist rows remain admin/compat only |
-| `booking_branch_services` | `be_specialist_service_availability` + compatibility mapping | primary APIs use canonical `branchId+serviceId`; legacy `branchServiceId` remains bounded compatibility for old links/rows |
+| Legacy table              | Canonical target                                             | R3-CATALOG disposition                                                                                                                                                    |
+| ------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `booking_cities`          | `be_branches.city_code`                                      | patient city list is derived from active canonical branches in the patient's active organization; generic public city list fails closed until host/link org source exists |
+| `booking_branches`        | `be_branches`                                                | patient service flow and public branch-service deep links read canonical branch rows                                                                                      |
+| `booking_services`        | `be_clinic_services`                                         | patient service list and public branch-service deep links read canonical service rows                                                                                     |
+| `booking_specialists`     | `be_specialists` + `be_specialist_service_availability`      | service availability uses canonical specialist/service availability; legacy specialist rows remain admin/compat only                                                      |
+| `booking_branch_services` | `be_specialist_service_availability` + compatibility mapping | primary APIs use canonical `branchId+serviceId`; legacy `branchServiceId` remains bounded compatibility for old links/rows                                                |
 
 ## Implemented in this batch
 

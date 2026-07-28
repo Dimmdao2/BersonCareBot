@@ -3,7 +3,7 @@
  * Используется при привязке номера телефона к chat ID мессенджера или при входе из web.
  */
 
-export type ChannelKind = "telegram" | "vk" | "max" | "web";
+export type ChannelKind = 'telegram' | 'vk' | 'max' | 'web';
 
 export type ChannelContext = {
   channel: ChannelKind;
@@ -13,17 +13,15 @@ export type ChannelContext = {
   displayName?: string;
 };
 
-export function channelToBindingKey(
-  channel: ChannelKind
-): "telegramId" | "vkId" | "maxId" | null {
+export function channelToBindingKey(channel: ChannelKind): 'telegramId' | 'vkId' | 'maxId' | null {
   switch (channel) {
-    case "telegram":
-      return "telegramId";
-    case "vk":
-      return "vkId";
-    case "max":
-      return "maxId";
-    case "web":
+    case 'telegram':
+      return 'telegramId';
+    case 'vk':
+      return 'vkId';
+    case 'max':
+      return 'maxId';
+    case 'web':
       return null;
   }
 }

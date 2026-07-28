@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 /**
  * PatientCardClient — Wave 2: real header + 6-tab client-side navigation.
@@ -6,40 +6,46 @@
  *
  * Header: FIO display with inline edit. All other editing lives in the «Учётка» tab.
  */
-import { useState, useEffect, type ReactNode } from "react";
-import type { PatientCardHeader, PatientAppointmentItem } from "@/modules/doctor-clients/ports";
-import type { AnamnesisState, ClinicalState, Visit } from "@/modules/patient-clinical/ports";
-import type { Comorbidity } from "@/modules/patient-comorbidities/ports";
-import type { DoctorNoteRow } from "@/modules/doctor-notes/ports";
-import type { SpecialistTaskRow } from "@/modules/specialist-tasks/types";
-import type { ProactiveInsightRow } from "@/modules/doctor-proactive-insights/types";
-import type { DoctorPatientProgramActivity } from "../loadDoctorPatientProgramActivity";
-import type { TreatmentProgramInstanceSummary } from "@/modules/treatment-program/types";
+import { useState, useEffect, type ReactNode } from 'react';
+import type { PatientCardHeader, PatientAppointmentItem } from '@/modules/doctor-clients/ports';
+import type { AnamnesisState, ClinicalState, Visit } from '@/modules/patient-clinical/ports';
+import type { Comorbidity } from '@/modules/patient-comorbidities/ports';
+import type { DoctorNoteRow } from '@/modules/doctor-notes/ports';
+import type { SpecialistTaskRow } from '@/modules/specialist-tasks/types';
+import type { ProactiveInsightRow } from '@/modules/doctor-proactive-insights/types';
+import type { DoctorPatientProgramActivity } from '../loadDoctorPatientProgramActivity';
+import type { TreatmentProgramInstanceSummary } from '@/modules/treatment-program/types';
 import {
   doctorSectionCardClass,
   doctorSectionTitleClass,
   doctorSectionSubtitleClass,
-} from "@/shared/ui/doctor/doctorVisual";
-import { cn } from "@/lib/utils";
-import { MessageSquare, Send, Smartphone, Mail, Pencil, X, Check } from "lucide-react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { DoctorDatePicker } from "@/shared/ui/doctor/DoctorDatePicker";
-import { DoctorOpenChatButton } from "@/shared/ui/doctor/DoctorOpenChatButton";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/ui/doctor/primitives/select";
-import { formatDoctorFio } from "@/shared/lib/fio";
-import { PatientTabOverview } from "./tabs/PatientTabOverview";
-import { PatientTabKarta } from "./tabs/PatientTabKarta";
-import { PatientTabProgram } from "./tabs/PatientTabProgram";
-import { PatientTabRecords } from "./tabs/PatientTabRecords";
-import { PatientTabFiles, type FileRecord } from "./tabs/PatientTabFiles";
-import { PatientTabAccount, type SupplementaryContact } from "./tabs/PatientTabAccount";
-import { PatientTabComms } from "./tabs/PatientTabComms";
-import { PatientTabFinances, type FinancesInitialData } from "./tabs/PatientTabFinances";
-import type { ApiPackage, PaymentItem, AppointmentPrefill } from "./tabs/PatientTabRecords";
-import type { PatientProgramInteractionPolicy } from "@/modules/doctor-clients/supportPolicy";
-import type { PatientPortalStatus } from "@/modules/patient-invites/ports";
-import { PatientPortalInviteControls } from "./PatientPortalInviteControls";
+} from '@/shared/ui/doctor/doctorVisual';
+import { cn } from '@/lib/utils';
+import { MessageSquare, Send, Smartphone, Mail, Pencil, X, Check } from 'lucide-react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { DoctorDatePicker } from '@/shared/ui/doctor/DoctorDatePicker';
+import { DoctorOpenChatButton } from '@/shared/ui/doctor/DoctorOpenChatButton';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/shared/ui/doctor/primitives/select';
+import { formatDoctorFio } from '@/shared/lib/fio';
+import { PatientTabOverview } from './tabs/PatientTabOverview';
+import { PatientTabKarta } from './tabs/PatientTabKarta';
+import { PatientTabProgram } from './tabs/PatientTabProgram';
+import { PatientTabRecords } from './tabs/PatientTabRecords';
+import { PatientTabFiles, type FileRecord } from './tabs/PatientTabFiles';
+import { PatientTabAccount, type SupplementaryContact } from './tabs/PatientTabAccount';
+import { PatientTabComms } from './tabs/PatientTabComms';
+import { PatientTabFinances, type FinancesInitialData } from './tabs/PatientTabFinances';
+import type { ApiPackage, PaymentItem, AppointmentPrefill } from './tabs/PatientTabRecords';
+import type { PatientProgramInteractionPolicy } from '@/modules/doctor-clients/supportPolicy';
+import type { PatientPortalStatus } from '@/modules/patient-invites/ports';
+import { PatientPortalInviteControls } from './PatientPortalInviteControls';
 
 type Props = {
   cardHeader: PatientCardHeader | null;
@@ -81,44 +87,78 @@ type Props = {
   isAdmin?: boolean;
 };
 
-type TabId = "overview" | "karta" | "program" | "records" | "files" | "account" | "comms" | "finances";
+type TabId =
+  | 'overview'
+  | 'karta'
+  | 'program'
+  | 'records'
+  | 'files'
+  | 'account'
+  | 'comms'
+  | 'finances';
 
 const PATIENT_TABS: Array<{ id: TabId; label: string; badge?: number }> = [
-  { id: "overview", label: "Обзор" },
-  { id: "karta", label: "Карточка" },
-  { id: "program", label: "Программа" },
-  { id: "records", label: "Визиты" },
-  { id: "files", label: "Файлы" },
-  { id: "comms", label: "Коммуникации" },
-  { id: "finances", label: "Финансы" },
-  { id: "account", label: "Учётка" },
+  { id: 'overview', label: 'Обзор' },
+  { id: 'karta', label: 'Карточка' },
+  { id: 'program', label: 'Программа' },
+  { id: 'records', label: 'Визиты' },
+  { id: 'files', label: 'Файлы' },
+  { id: 'comms', label: 'Коммуникации' },
+  { id: 'finances', label: 'Финансы' },
+  { id: 'account', label: 'Учётка' },
 ];
 
 /** Format ISO date yyyy-mm-dd → DD.MM.YYYY */
 function fmtBirthDate(iso: string | null | undefined): string {
-  if (!iso) return "—";
-  const [year, month, day] = iso.split("-");
-  if (!year || !month || !day) return "—";
+  if (!iso) return '—';
+  const [year, month, day] = iso.split('-');
+  if (!year || !month || !day) return '—';
   return `${day}.${month}.${year}`;
 }
 
 function todayInputDate(): string {
   const today = new Date();
   const year = today.getFullYear();
-  const month = String(today.getMonth() + 1).padStart(2, "0");
-  const day = String(today.getDate()).padStart(2, "0");
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 }
 
 function phoneHref(phone: string): string {
-  const normalized = phone.replace(/[^\d+]/g, "");
+  const normalized = phone.replace(/[^\d+]/g, '');
   return `tel:${normalized || phone}`;
 }
 
-export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, visitDate, embeddedProgramContent, initialClinicalState, initialVisits, initialNotes, initialTasks, initialSignals, initialProgramActivity, initialAppointments, initialProgramInstances, initialFiles, initialAnamnesis, initialComorbidities, initialFinancesData, initialSupplementaryContacts, initialPackages, initialPaymentsSummary, initialSupportEffectivePolicy, initialPortalState = { status: "not_activated", inviteId: null, expiresAt: null }, isAdmin = false }: Props) {
+export function PatientCardClient({
+  cardHeader,
+  initialTab,
+  createVisitFrom,
+  visitDate,
+  embeddedProgramContent,
+  initialClinicalState,
+  initialVisits,
+  initialNotes,
+  initialTasks,
+  initialSignals,
+  initialProgramActivity,
+  initialAppointments,
+  initialProgramInstances,
+  initialFiles,
+  initialAnamnesis,
+  initialComorbidities,
+  initialFinancesData,
+  initialSupplementaryContacts,
+  initialPackages,
+  initialPaymentsSummary,
+  initialSupportEffectivePolicy,
+  initialPortalState = { status: 'not_activated', inviteId: null, expiresAt: null },
+  isAdmin = false,
+}: Props) {
   const header = cardHeader;
   const resolvedInitialTab: TabId =
-    initialTab && PATIENT_TABS.some((t) => t.id === initialTab) ? (initialTab as TabId) : "overview";
+    initialTab && PATIENT_TABS.some((t) => t.id === initialTab)
+      ? (initialTab as TabId)
+      : 'overview';
   const [activeTab, setActiveTab] = useState<TabId>(resolvedInitialTab);
   const [pendingAppointmentId, setPendingAppointmentId] = useState<string | null>(
     createVisitFrom ?? null,
@@ -138,18 +178,18 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
     lastName: string | null;
     patronymic: string | null;
     birthDate?: string | null;
-    gender?: "male" | "female" | null;
+    gender?: 'male' | 'female' | null;
   } | null>(null);
   // Draft input values
-  const [fioLastName, setFioLastName] = useState("");
-  const [fioFirstName, setFioFirstName] = useState("");
-  const [fioPatronymic, setFioPatronymic] = useState("");
-  const [fioBirthDate, setFioBirthDate] = useState("");
-  const [fioGender, setFioGender] = useState<"male" | "female" | "">("");
+  const [fioLastName, setFioLastName] = useState('');
+  const [fioFirstName, setFioFirstName] = useState('');
+  const [fioPatronymic, setFioPatronymic] = useState('');
+  const [fioBirthDate, setFioBirthDate] = useState('');
+  const [fioGender, setFioGender] = useState<'male' | 'female' | ''>('');
 
   // Auto-switch to karta tab when opening with createVisitFrom URL param
   useEffect(() => {
-    if (createVisitFrom) setActiveTab("karta");
+    if (createVisitFrom) setActiveTab('karta');
   }, [createVisitFrom]);
 
   // Listen for cross-tab navigation events dispatched by child tabs (e.g. «Оформить визит» → Карта)
@@ -160,8 +200,8 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
         setActiveTab(tab);
       }
     }
-    window.addEventListener("patient:open-tab", handleOpenTab);
-    return () => window.removeEventListener("patient:open-tab", handleOpenTab);
+    window.addEventListener('patient:open-tab', handleOpenTab);
+    return () => window.removeEventListener('patient:open-tab', handleOpenTab);
   }, []);
 
   if (!header) {
@@ -180,19 +220,18 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
   const resolvedPatronymic = fioOverride ? fioOverride.patronymic : identity.patronymic;
   const resolvedBirthDate =
     fioOverride?.birthDate !== undefined ? fioOverride.birthDate : identity.birthDate;
-  const resolvedGender =
-    fioOverride?.gender !== undefined ? fioOverride.gender : identity.gender;
+  const resolvedGender = fioOverride?.gender !== undefined ? fioOverride.gender : identity.gender;
   const fioDisplay = formatDoctorFio(
     { lastName: resolvedLastName, firstName: resolvedFirstName, patronymic: resolvedPatronymic },
-    identity.displayName || "—",
+    identity.displayName || '—',
   );
 
   function openFioEdit() {
-    setFioLastName(resolvedLastName ?? "");
-    setFioFirstName(resolvedFirstName ?? "");
-    setFioPatronymic(resolvedPatronymic ?? "");
-    setFioBirthDate(resolvedBirthDate ?? "");
-    setFioGender(resolvedGender ?? "");
+    setFioLastName(resolvedLastName ?? '');
+    setFioFirstName(resolvedFirstName ?? '');
+    setFioPatronymic(resolvedPatronymic ?? '');
+    setFioBirthDate(resolvedBirthDate ?? '');
+    setFioGender(resolvedGender ?? '');
     setFioError(null);
     setFioEditing(true);
   }
@@ -207,8 +246,8 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
     setFioError(null);
     try {
       const res = await fetch(`/api/doctor/patients/${identity.userId}/fio`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           lastName: fioLastName.trim() || null,
           firstName: fioFirstName.trim() || null,
@@ -219,7 +258,7 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
       });
       if (!res.ok) {
         const json = await res.json().catch(() => null);
-        setFioError((json as { error?: string })?.error ?? "Ошибка сохранения");
+        setFioError((json as { error?: string })?.error ?? 'Ошибка сохранения');
         return;
       }
       // Apply local override to avoid page reload
@@ -232,7 +271,7 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
       });
       setFioEditing(false);
     } catch {
-      setFioError("Ошибка сети");
+      setFioError('Ошибка сети');
     } finally {
       setFioSaving(false);
     }
@@ -254,7 +293,6 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
       <div className="rounded-xl border border-border bg-card overflow-hidden">
         {/* Main header body */}
         <div className="px-4 pt-3.5 pb-2.5 flex flex-wrap gap-3.5 items-start">
-
           {/* LEFT: identity */}
           <div className="flex-1 min-w-[280px] flex flex-col gap-0">
             {/* FIO (primary) + edit button + support chip */}
@@ -275,7 +313,6 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
                     <Pencil className="h-3 w-3" />
                   </Button>
                 </div>
-
               </div>
 
               <div className="flex items-center gap-2 flex-wrap shrink-0">
@@ -295,7 +332,9 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
               <div className="mt-2 flex flex-col gap-1.5 rounded-lg border border-border bg-muted/30 p-3">
                 <div className="grid grid-cols-3 gap-2">
                   <div className="flex flex-col gap-0.5">
-                    <label className="text-[10px] text-muted-foreground uppercase tracking-wide">Фамилия</label>
+                    <label className="text-[10px] text-muted-foreground uppercase tracking-wide">
+                      Фамилия
+                    </label>
                     <Input
                       type="text"
                       value={fioLastName}
@@ -305,7 +344,9 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
                     />
                   </div>
                   <div className="flex flex-col gap-0.5">
-                    <label className="text-[10px] text-muted-foreground uppercase tracking-wide">Имя</label>
+                    <label className="text-[10px] text-muted-foreground uppercase tracking-wide">
+                      Имя
+                    </label>
                     <Input
                       type="text"
                       value={fioFirstName}
@@ -315,7 +356,9 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
                     />
                   </div>
                   <div className="flex flex-col gap-0.5">
-                    <label className="text-[10px] text-muted-foreground uppercase tracking-wide">Отчество</label>
+                    <label className="text-[10px] text-muted-foreground uppercase tracking-wide">
+                      Отчество
+                    </label>
                     <Input
                       type="text"
                       value={fioPatronymic}
@@ -327,7 +370,9 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="flex flex-col gap-0.5">
-                    <label className="text-[10px] text-muted-foreground uppercase tracking-wide">Дата рождения</label>
+                    <label className="text-[10px] text-muted-foreground uppercase tracking-wide">
+                      Дата рождения
+                    </label>
                     <DoctorDatePicker
                       value={fioBirthDate}
                       onChange={setFioBirthDate}
@@ -336,14 +381,16 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
                     />
                   </div>
                   <div className="flex flex-col gap-0.5">
-                    <label className="text-[10px] text-muted-foreground uppercase tracking-wide">Пол</label>
+                    <label className="text-[10px] text-muted-foreground uppercase tracking-wide">
+                      Пол
+                    </label>
                     <Select
-                      value={fioGender || "__none__"}
-                      onValueChange={(v) => setFioGender(v === "__none__" ? "" : v as "male" | "female")}
+                      value={fioGender || '__none__'}
+                      onValueChange={(v) =>
+                        setFioGender(v === '__none__' ? '' : (v as 'male' | 'female'))
+                      }
                     >
-                      <SelectTrigger
-                        className="h-8 text-sm w-[120px]"
-                      >
+                      <SelectTrigger className="h-8 text-sm w-[120px]">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -354,9 +401,7 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
                     </Select>
                   </div>
                 </div>
-                {fioError && (
-                  <p className="text-xs text-destructive">{fioError}</p>
-                )}
+                {fioError && <p className="text-xs text-destructive">{fioError}</p>}
                 <div className="flex gap-2 mt-0.5">
                   <Button
                     variant="default"
@@ -365,7 +410,7 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
                     className="h-auto gap-1 rounded-md px-3 py-1 text-xs font-medium disabled:opacity-60"
                   >
                     <Check className="h-3 w-3" />
-                    {fioSaving ? "Сохранение…" : "Сохранить"}
+                    {fioSaving ? 'Сохранение…' : 'Сохранить'}
                   </Button>
                   <Button
                     variant="outline"
@@ -383,7 +428,7 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
             {/* Дата рождения — read-only; edit via pencil */}
             <div className="mt-1.5 text-xs text-muted-foreground flex items-center gap-1.5 flex-wrap">
               <span>
-                Дата рождения: {resolvedBirthDate ? fmtBirthDate(resolvedBirthDate) : "—"}
+                Дата рождения: {resolvedBirthDate ? fmtBirthDate(resolvedBirthDate) : '—'}
               </span>
             </div>
 
@@ -395,7 +440,7 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
                   variant="ghost"
                   title="Позвонить"
                   onClick={() => {
-                    window.open(phoneHref(identity.phone!), "_self");
+                    window.open(phoneHref(identity.phone!), '_self');
                   }}
                   className="h-6 rounded-md border border-primary/30 bg-primary/5 px-2 font-mono text-xs text-primary hover:bg-primary/15"
                 >
@@ -415,10 +460,10 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
                   title="Открыть чат"
                   disabled={!hasChat}
                   className={cn(
-                    "h-6 w-6 rounded-md border text-xs",
+                    'h-6 w-6 rounded-md border text-xs',
                     hasChat
-                      ? "border-primary/30 bg-primary/5 text-primary hover:bg-primary/15"
-                      : "border-transparent bg-muted/30 text-muted-foreground/40",
+                      ? 'border-primary/30 bg-primary/5 text-primary hover:bg-primary/15'
+                      : 'border-transparent bg-muted/30 text-muted-foreground/40',
                   )}
                 >
                   <MessageSquare className="h-3.5 w-3.5" />
@@ -426,14 +471,14 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
                 <Button
                   variant="ghost"
                   size="icon"
-                  title={hasTelegram ? "Открыть коммуникации: Telegram" : "Telegram не привязан"}
+                  title={hasTelegram ? 'Открыть коммуникации: Telegram' : 'Telegram не привязан'}
                   disabled={!hasTelegram}
-                  onClick={() => setActiveTab("comms")}
+                  onClick={() => setActiveTab('comms')}
                   className={cn(
-                    "h-6 w-6 rounded-md border text-xs",
+                    'h-6 w-6 rounded-md border text-xs',
                     hasTelegram
-                      ? "border-primary/30 bg-primary/5 text-primary hover:bg-primary/15"
-                      : "border-transparent bg-muted/30 text-muted-foreground/40",
+                      ? 'border-primary/30 bg-primary/5 text-primary hover:bg-primary/15'
+                      : 'border-transparent bg-muted/30 text-muted-foreground/40',
                   )}
                 >
                   <Send className="h-3.5 w-3.5" />
@@ -441,14 +486,14 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
                 <Button
                   variant="ghost"
                   size="icon"
-                  title={hasMax ? "Открыть коммуникации: MAX" : "MAX не привязан"}
+                  title={hasMax ? 'Открыть коммуникации: MAX' : 'MAX не привязан'}
                   disabled={!hasMax}
-                  onClick={() => setActiveTab("comms")}
+                  onClick={() => setActiveTab('comms')}
                   className={cn(
-                    "h-6 w-6 rounded-md border text-xs",
+                    'h-6 w-6 rounded-md border text-xs',
                     hasMax
-                      ? "border-primary/30 bg-primary/5 text-primary hover:bg-primary/15"
-                      : "border-transparent bg-muted/30 text-muted-foreground/40",
+                      ? 'border-primary/30 bg-primary/5 text-primary hover:bg-primary/15'
+                      : 'border-transparent bg-muted/30 text-muted-foreground/40',
                   )}
                 >
                   <Smartphone className="h-3.5 w-3.5" />
@@ -459,13 +504,13 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
                   title="Написать email"
                   disabled={!hasEmail}
                   onClick={() => {
-                    if (identity.email) window.open(`mailto:${identity.email}`, "_self");
+                    if (identity.email) window.open(`mailto:${identity.email}`, '_self');
                   }}
                   className={cn(
-                    "h-6 w-6 rounded-md border text-xs",
+                    'h-6 w-6 rounded-md border text-xs',
                     hasEmail
-                      ? "border-primary/30 bg-primary/5 text-primary hover:bg-primary/15"
-                      : "border-transparent bg-muted/30 text-muted-foreground/40",
+                      ? 'border-primary/30 bg-primary/5 text-primary hover:bg-primary/15'
+                      : 'border-transparent bg-muted/30 text-muted-foreground/40',
                   )}
                 >
                   <Mail className="h-3.5 w-3.5" />
@@ -492,20 +537,20 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
                 variant="ghost"
                 onClick={() => setActiveTab(tab.id)}
                 className={cn(
-                  "h-auto gap-1 rounded-md px-3 py-1 text-sm font-medium",
+                  'h-auto gap-1 rounded-md px-3 py-1 text-sm font-medium',
                   activeTab === tab.id
-                    ? "bg-primary/15 text-primary"
-                    : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+                    ? 'bg-primary/15 text-primary'
+                    : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
                 )}
               >
                 {tab.label}
                 {tab.badge != null && (
                   <span
                     className={cn(
-                      "inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-semibold tabular-nums",
+                      'inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-semibold tabular-nums',
                       activeTab === tab.id
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-muted text-muted-foreground",
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-muted text-muted-foreground',
                     )}
                   >
                     {tab.badge}
@@ -520,7 +565,7 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
       {/* ================================================================
           TAB PANELS — rendered once, hidden when not active.
       ================================================================ */}
-      <div className={cn(activeTab !== "overview" && "hidden")}>
+      <div className={cn(activeTab !== 'overview' && 'hidden')}>
         <PatientTabOverview
           userId={identity.userId}
           header={header}
@@ -536,7 +581,7 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
           initialSupportEffectivePolicy={initialSupportEffectivePolicy}
         />
       </div>
-      <div className={cn(activeTab !== "karta" && "hidden")}>
+      <div className={cn(activeTab !== 'karta' && 'hidden')}>
         <PatientTabKarta
           userId={identity.userId}
           header={header}
@@ -558,12 +603,17 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
           initialComorbidities={initialComorbidities}
         />
       </div>
-      <div className={cn(activeTab !== "program" && "hidden")}>
+      <div className={cn(activeTab !== 'program' && 'hidden')}>
         {embeddedProgramContent ?? (
-          <PatientTabProgram userId={identity.userId} header={header} active={activeTab === "program"} initialProgramInstances={initialProgramInstances} />
+          <PatientTabProgram
+            userId={identity.userId}
+            header={header}
+            active={activeTab === 'program'}
+            initialProgramInstances={initialProgramInstances}
+          />
         )}
       </div>
-      <div className={cn(activeTab !== "records" && "hidden")}>
+      <div className={cn(activeTab !== 'records' && 'hidden')}>
         <PatientTabRecords
           userId={identity.userId}
           header={header}
@@ -572,33 +622,36 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
             setPendingPrefillLocation(prefill.location ?? null);
             setPendingPrefillService(prefill.service ?? null);
             setPendingPrefillDurationMin(prefill.durationMin ?? null);
-            setActiveTab("karta");
+            setActiveTab('karta');
           }}
           initialAppointments={initialAppointments}
           initialPackages={initialPackages}
           initialPaymentsSummary={initialPaymentsSummary}
         />
       </div>
-      <div className={cn(activeTab !== "files" && "hidden")}>
+      <div className={cn(activeTab !== 'files' && 'hidden')}>
         <PatientTabFiles
           userId={identity.userId}
           header={header}
           initialFiles={initialFiles ?? undefined}
         />
       </div>
-      <div className={cn(activeTab !== "account" && "hidden")}>
+      <div className={cn(activeTab !== 'account' && 'hidden')}>
         <PatientTabAccount
           userId={identity.userId}
           header={header}
-          active={activeTab === "account"}
+          active={activeTab === 'account'}
           initialSupplementaryContacts={initialSupplementaryContacts}
           isAdmin={isAdmin}
         />
       </div>
-      <div className={cn(activeTab !== "comms" && "hidden")}>
-        <PatientTabComms userId={identity.userId} initialProgramInstances={initialProgramInstances} />
+      <div className={cn(activeTab !== 'comms' && 'hidden')}>
+        <PatientTabComms
+          userId={identity.userId}
+          initialProgramInstances={initialProgramInstances}
+        />
       </div>
-      <div className={cn(activeTab !== "finances" && "hidden")}>
+      <div className={cn(activeTab !== 'finances' && 'hidden')}>
         <PatientTabFinances
           userId={identity.userId}
           initialData={initialFinancesData}

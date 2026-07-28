@@ -1,11 +1,19 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { Folder, FolderOpen, MoreHorizontal } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent as ReactDragEvent, type ReactNode } from "react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { cn } from "@/lib/utils";
-import { doctorInteractiveSurfaceButtonClass } from "@/shared/ui/doctor/doctorVisual";
+import Link from 'next/link';
+import { Folder, FolderOpen, MoreHorizontal } from 'lucide-react';
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type DragEvent as ReactDragEvent,
+  type ReactNode,
+} from 'react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { cn } from '@/lib/utils';
+import { doctorInteractiveSurfaceButtonClass } from '@/shared/ui/doctor/doctorVisual';
 import {
   Dialog,
   DialogContent,
@@ -13,7 +21,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/shared/ui/doctor/primitives/dialog";
+} from '@/shared/ui/doctor/primitives/dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,41 +30,44 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/shared/ui/doctor/primitives/dropdown-menu";
-import { Input } from "@/shared/ui/doctor/primitives/input";
+} from '@/shared/ui/doctor/primitives/dropdown-menu';
+import { Input } from '@/shared/ui/doctor/primitives/input';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/ui/doctor/primitives/select";
-import { Separator } from "@/shared/ui/doctor/primitives/separator";
-import { FILE_INPUT_ACCEPT } from "@/modules/media/uploadAllowedMime";
-import { libraryMultipartAbort, libraryMultipartUpload } from "./libraryMultipartUpload";
-import { UploadRequestError, uploadWithProgress } from "@/shared/ui/doctor/media/uploadWithProgress";
-import { MediaCard } from "./MediaCard";
-import { MediaCardActionsMenu } from "./MediaCardActionsMenu";
-import { MediaLightbox } from "./MediaLightbox";
-import { canRenderInlineImage } from "./mediaPreview";
-import type { MediaPreviewStatus } from "@/modules/media/types";
-import { MediaThumb } from "@/shared/ui/doctor/media/MediaThumb";
-import { buildCrumbsForMediaFolder } from "@/shared/ui/doctor/media/mediaFolderScopeUtils";
-import { useFlatMediaFolders } from "@/shared/ui/doctor/media/useFlatMediaFolders";
+} from '@/shared/ui/doctor/primitives/select';
+import { Separator } from '@/shared/ui/doctor/primitives/separator';
+import { FILE_INPUT_ACCEPT } from '@/modules/media/uploadAllowedMime';
+import { libraryMultipartAbort, libraryMultipartUpload } from './libraryMultipartUpload';
+import {
+  UploadRequestError,
+  uploadWithProgress,
+} from '@/shared/ui/doctor/media/uploadWithProgress';
+import { MediaCard } from './MediaCard';
+import { MediaCardActionsMenu } from './MediaCardActionsMenu';
+import { MediaLightbox } from './MediaLightbox';
+import { canRenderInlineImage } from './mediaPreview';
+import type { MediaPreviewStatus } from '@/modules/media/types';
+import { MediaThumb } from '@/shared/ui/doctor/media/MediaThumb';
+import { buildCrumbsForMediaFolder } from '@/shared/ui/doctor/media/mediaFolderScopeUtils';
+import { useFlatMediaFolders } from '@/shared/ui/doctor/media/useFlatMediaFolders';
 import {
   findClientFilesRootFolder,
   isClientFilesFolderKind,
-} from "@/modules/media/clientFilesFolders";
-import type { MediaFolderRecord } from "@/modules/media/types";
-import { libraryMediaRowToPreviewUi } from "@/shared/ui/doctor/media/mediaPreviewUiModel";
+} from '@/modules/media/clientFilesFolders';
+import type { MediaFolderRecord } from '@/modules/media/types';
+import { libraryMediaRowToPreviewUi } from '@/shared/ui/doctor/media/mediaPreviewUiModel';
 
-type MediaKindFilter = "all" | "image" | "video" | "audio" | "file";
-type SortBy = "date" | "size" | "type" | "name";
-type SortDir = "asc" | "desc";
+type MediaKindFilter = 'all' | 'image' | 'video' | 'audio' | 'file';
+type SortBy = 'date' | 'size' | 'type' | 'name';
+type SortDir = 'asc' | 'desc';
 
 type MediaItem = {
   id: string;
-  kind: "image" | "video" | "audio" | "file";
+  kind: 'image' | 'video' | 'audio' | 'file';
   mimeType: string;
   filename: string;
   displayName?: string | null;
@@ -80,12 +91,7 @@ type Crumb = { id: string | null; label: string };
 type UsageRef = {
   pageId: string;
   pageSlug: string;
-  field:
-    | "image_url"
-    | "video_url"
-    | "body_md"
-    | "body_html"
-    | "program_item_discussion_media_only";
+  field: 'image_url' | 'video_url' | 'body_md' | 'body_html' | 'program_item_discussion_media_only';
 };
 
 type UploadOkResponse = {
@@ -103,10 +109,10 @@ type MediaListResponse = {
   total?: number;
 };
 
-type ViewMode = "media" | "files";
+type ViewMode = 'media' | 'files';
 
-const VIEW_MODE_STORAGE_KEY = "doctor-media-library-view-v2";
-const VIEW_MODE_LEGACY_KEY = "doctor-media-library-view";
+const VIEW_MODE_STORAGE_KEY = 'doctor-media-library-view-v2';
+const VIEW_MODE_LEGACY_KEY = 'doctor-media-library-view';
 const PAGE_SIZE = 24;
 
 function formatSize(bytes: number): string {
@@ -119,7 +125,7 @@ function formatSize(bytes: number): string {
 
 function formatDate(iso: string): string {
   try {
-    return new Date(iso).toLocaleString("ru-RU");
+    return new Date(iso).toLocaleString('ru-RU');
   } catch {
     return iso;
   }
@@ -127,15 +133,17 @@ function formatDate(iso: string): string {
 
 function TableMediaThumb({ item, onOpen }: { item: MediaItem; onOpen: () => void }) {
   const thumbMedia = libraryMediaRowToPreviewUi(item);
-  if (item.kind !== "image" && item.kind !== "video") {
+  if (item.kind !== 'image' && item.kind !== 'video') {
     return (
       <Button
         type="button"
         variant="ghost"
         onClick={onOpen}
-        className={cn(doctorInteractiveSurfaceButtonClass, "rounded border border-border")}
+        className={cn(doctorInteractiveSurfaceButtonClass, 'rounded border border-border')}
       >
-        <div className="flex h-16 w-28 items-center justify-center bg-muted/30 text-xs text-muted-foreground">—</div>
+        <div className="flex h-16 w-28 items-center justify-center bg-muted/30 text-xs text-muted-foreground">
+          —
+        </div>
       </Button>
     );
   }
@@ -145,13 +153,13 @@ function TableMediaThumb({ item, onOpen }: { item: MediaItem; onOpen: () => void
       type="button"
       variant="ghost"
       onClick={onOpen}
-      className={cn(doctorInteractiveSurfaceButtonClass, "rounded border border-border")}
+      className={cn(doctorInteractiveSurfaceButtonClass, 'rounded border border-border')}
     >
       <MediaThumb
         media={thumbMedia}
         className="flex h-16 w-28 items-center justify-center rounded"
         imgClassName="max-h-16 max-w-28 rounded object-contain bg-muted/30"
-        labels={{ skipped: "—", failed: "—" }}
+        labels={{ skipped: '—', failed: '—' }}
       />
     </Button>
   );
@@ -159,8 +167,8 @@ function TableMediaThumb({ item, onOpen }: { item: MediaItem; onOpen: () => void
 
 type DeleteDialogState =
   | null
-  | { item: MediaItem; phase: "confirm" }
-  | { item: MediaItem; phase: "in_use"; usage: UsageRef[] };
+  | { item: MediaItem; phase: 'confirm' }
+  | { item: MediaItem; phase: 'in_use'; usage: UsageRef[] };
 
 type RenameDialogState = null | { item: MediaItem; nextDisplayName: string };
 
@@ -189,13 +197,13 @@ function mediaTitle(item: MediaItem): string {
 function foldersByParent(folders: FolderRow[]): Map<string, FolderRow[]> {
   const groups = new Map<string, FolderRow[]>();
   for (const folder of folders) {
-    const key = folder.parentId ?? "__root__";
+    const key = folder.parentId ?? '__root__';
     const list = groups.get(key) ?? [];
     list.push(folder);
     groups.set(key, list);
   }
   for (const list of groups.values()) {
-    list.sort((a, b) => a.name.localeCompare(b.name, "ru"));
+    list.sort((a, b) => a.name.localeCompare(b.name, 'ru'));
   }
   return groups;
 }
@@ -243,13 +251,13 @@ function MediaFolderTreePane({
           <Button
             type="button"
             variant="ghost"
-            aria-current={active ? "page" : undefined}
+            aria-current={active ? 'page' : undefined}
             onClick={() => onSelectFolder(folder)}
             className={cn(
-              "h-auto min-h-8 flex-1 justify-start gap-1.5 rounded-md border-l-2 py-1.5 pr-2 text-left text-sm",
+              'h-auto min-h-8 flex-1 justify-start gap-1.5 rounded-md border-l-2 py-1.5 pr-2 text-left text-sm',
               active
-                ? "border-primary bg-muted font-medium text-foreground"
-                : "border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+                ? 'border-primary bg-muted font-medium text-foreground'
+                : 'border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground',
             )}
             style={{ paddingLeft: `${8 + depth * 14}px` }}
           >
@@ -265,13 +273,22 @@ function MediaFolderTreePane({
                 <MoreHorizontal className="size-3" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="min-w-44">
-                <DropdownMenuItem onClick={() => onRenameFolder({ id: folder.id, name: folder.name })}>
+                <DropdownMenuItem
+                  onClick={() => onRenameFolder({ id: folder.id, name: folder.name })}
+                >
                   Переименовать
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => onMoveFolder({ id: folder.id, name: folder.name }, folder.parentId ?? null)}>
+                <DropdownMenuItem
+                  onClick={() =>
+                    onMoveFolder({ id: folder.id, name: folder.name }, folder.parentId ?? null)
+                  }
+                >
                   Переместить…
                 </DropdownMenuItem>
-                <DropdownMenuItem variant="destructive" onClick={() => onDeleteFolder({ id: folder.id, name: folder.name })}>
+                <DropdownMenuItem
+                  variant="destructive"
+                  onClick={() => onDeleteFolder({ id: folder.id, name: folder.name })}
+                >
                   Удалить…
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -287,7 +304,7 @@ function MediaFolderTreePane({
     );
   }
 
-  const rootFolders = grouped.get("__root__") ?? [];
+  const rootFolders = grouped.get('__root__') ?? [];
   const rootActive = !viewAllFiles && currentFolderId === null;
 
   return (
@@ -295,7 +312,13 @@ function MediaFolderTreePane({
       <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/60 px-3 py-2">
         <p className="text-sm font-semibold">Папки</p>
         {canCreateFolder ? (
-          <Button type="button" variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={onNewFolder}>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-7 px-2 text-xs"
+            onClick={onNewFolder}
+          >
             Новая
           </Button>
         ) : null}
@@ -305,13 +328,13 @@ function MediaFolderTreePane({
           <Button
             type="button"
             variant="ghost"
-            aria-current={viewAllFiles ? "page" : undefined}
+            aria-current={viewAllFiles ? 'page' : undefined}
             onClick={onSelectAll}
             className={cn(
-              "h-auto min-h-8 justify-start rounded-md border-l-2 px-2 py-1.5 text-left text-sm",
+              'h-auto min-h-8 justify-start rounded-md border-l-2 px-2 py-1.5 text-left text-sm',
               viewAllFiles
-                ? "border-primary bg-muted font-medium text-foreground"
-                : "border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+                ? 'border-primary bg-muted font-medium text-foreground'
+                : 'border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground',
             )}
           >
             Все файлы
@@ -319,13 +342,13 @@ function MediaFolderTreePane({
           <Button
             type="button"
             variant="ghost"
-            aria-current={rootActive ? "page" : undefined}
+            aria-current={rootActive ? 'page' : undefined}
             onClick={onSelectRoot}
             className={cn(
-              "h-auto min-h-8 justify-start gap-1.5 rounded-md border-l-2 px-2 py-1.5 text-left text-sm",
+              'h-auto min-h-8 justify-start gap-1.5 rounded-md border-l-2 px-2 py-1.5 text-left text-sm',
               rootActive
-                ? "border-primary bg-muted font-medium text-foreground"
-                : "border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+                ? 'border-primary bg-muted font-medium text-foreground'
+                : 'border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground',
             )}
           >
             <FolderOpen className="size-3.5" aria-hidden />
@@ -338,7 +361,9 @@ function MediaFolderTreePane({
         ) : rootFolders.length === 0 ? (
           <p className="px-2 text-xs text-muted-foreground">Папок пока нет.</p>
         ) : (
-          <ul className="flex flex-col gap-0.5">{rootFolders.map((folder) => renderFolder(folder, 0))}</ul>
+          <ul className="flex flex-col gap-0.5">
+            {rootFolders.map((folder) => renderFolder(folder, 0))}
+          </ul>
         )}
       </div>
     </aside>
@@ -350,11 +375,13 @@ export type MediaLibraryClientProps = {
   canSeeDeleteErrorsLink?: boolean;
 };
 
-export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibraryClientProps = {}) {
-  const [kind, setKind] = useState<MediaKindFilter>("all");
-  const [sortBy, setSortBy] = useState<SortBy>("date");
-  const [sortDir, setSortDir] = useState<SortDir>("desc");
-  const [query, setQuery] = useState("");
+export function MediaLibraryClient({
+  canSeeDeleteErrorsLink = false,
+}: MediaLibraryClientProps = {}) {
+  const [kind, setKind] = useState<MediaKindFilter>('all');
+  const [sortBy, setSortBy] = useState<SortBy>('date');
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
+  const [query, setQuery] = useState('');
   const [items, setItems] = useState<MediaItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -362,7 +389,7 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
   const [uploadPercent, setUploadPercent] = useState<number | null>(null);
   const [uploadStatus, setUploadStatus] = useState<string | null>(null);
   const [isMobileUploadUi, setIsMobileUploadUi] = useState(false);
-  const [viewMode, setViewMode] = useState<ViewMode>("files");
+  const [viewMode, setViewMode] = useState<ViewMode>('files');
   const [isDragActive, setIsDragActive] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [copiedItemId, setCopiedItemId] = useState<string | null>(null);
@@ -379,10 +406,11 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
   const desktopUploadInputRef = useRef<HTMLInputElement | null>(null);
   const mobileFilesInputRef = useRef<HTMLInputElement | null>(null);
   const mobileCaptureInputRef = useRef<HTMLInputElement | null>(null);
-  const [crumbs, setCrumbs] = useState<Crumb[]>([{ id: null, label: "Корень" }]);
+  const [crumbs, setCrumbs] = useState<Crumb[]>([{ id: null, label: 'Корень' }]);
   /** Список без ограничения по папке в запросе медиа (все файлы библиотеки). */
   const [viewAllFiles, setViewAllFiles] = useState(true);
-  const { folders: flatFolderRecords, foldersLoaded: flatFoldersLoaded } = useFlatMediaFolders(true);
+  const { folders: flatFolderRecords, foldersLoaded: flatFoldersLoaded } =
+    useFlatMediaFolders(true);
   const [newFolderDialog, setNewFolderDialog] = useState<NewFolderDialogState>(null);
   const [moveFolderDialog, setMoveFolderDialog] = useState<MoveFolderDialogState>(null);
   const [allFoldersFlat, setAllFoldersFlat] = useState<FolderRow[]>([]);
@@ -408,20 +436,20 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
   const insideClientFilesSubtree =
     currentFolderRecord != null && isClientFilesFolderKind(currentFolderRecord.kind);
   const systemManagedFolder = insideClientFilesSubtree;
-  const uploadBlockedAtClientRoot = currentFolderRecord?.kind === "client_files_root";
+  const uploadBlockedAtClientRoot = currentFolderRecord?.kind === 'client_files_root';
   const uploadTargetFolderIdResolved = uploadBlockedAtClientRoot ? null : uploadTargetFolderId;
 
   const searchParams = useMemo(() => {
     const p = new URLSearchParams();
-    p.set("kind", kind);
-    p.set("sortBy", sortBy);
-    p.set("sortDir", sortDir);
-    if (query.trim()) p.set("q", query.trim());
+    p.set('kind', kind);
+    p.set('sortBy', sortBy);
+    p.set('sortDir', sortDir);
+    if (query.trim()) p.set('q', query.trim());
     if (!viewAllFiles) {
-      if (currentFolderId === null) p.set("folderId", "root");
+      if (currentFolderId === null) p.set('folderId', 'root');
       else {
-        p.set("folderId", currentFolderId);
-        p.set("includeDescendants", "true");
+        p.set('folderId', currentFolderId);
+        p.set('includeDescendants', 'true');
       }
     }
     return p.toString();
@@ -431,20 +459,22 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
     const requestId = ++listRequestRef.current;
     setLoading(true);
     setError(null);
-    fetch(`/api/admin/media?${searchParams}&limit=${PAGE_SIZE}&offset=0`, { credentials: "same-origin" })
+    fetch(`/api/admin/media?${searchParams}&limit=${PAGE_SIZE}&offset=0`, {
+      credentials: 'same-origin',
+    })
       .then(async (res) => {
         const data = (await res.json()) as MediaListResponse;
-        if (!res.ok || !data.ok) throw new Error(data.error ?? "load_failed");
+        if (!res.ok || !data.ok) throw new Error(data.error ?? 'load_failed');
         if (requestId !== listRequestRef.current) return;
         setItems(data.items ?? []);
         setHasMore(Boolean(data.hasMore));
-        setNextOffset(data.nextOffset ?? (data.items?.length ?? 0));
-        setTotalCount(typeof data.total === "number" ? data.total : null);
+        setNextOffset(data.nextOffset ?? data.items?.length ?? 0);
+        setTotalCount(typeof data.total === 'number' ? data.total : null);
         setLightboxIndex(null);
       })
       .catch(() => {
         if (requestId !== listRequestRef.current) return;
-        setError("Не удалось загрузить библиотеку");
+        setError('Не удалось загрузить библиотеку');
       })
       .finally(() => {
         if (requestId !== listRequestRef.current) return;
@@ -454,7 +484,7 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
 
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/admin/media/delete-errors?limit=1", { credentials: "same-origin" })
+    fetch('/api/admin/media/delete-errors?limit=1', { credentials: 'same-origin' })
       .then(async (res) => {
         const data = (await res.json()) as { ok?: boolean; total?: number };
         if (!res.ok || !data.ok) return;
@@ -469,29 +499,29 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
   }, [reloadKey]);
 
   useEffect(() => {
-    const mq = window.matchMedia("(max-width: 767px), (pointer: coarse)");
+    const mq = window.matchMedia('(max-width: 767px), (pointer: coarse)');
     const applyViewport = () => {
       const mobile = mq.matches;
       setIsMobileUploadUi(mobile);
       if (mobile) {
-        setViewMode("media");
+        setViewMode('media');
       } else {
         let savedView = window.localStorage.getItem(VIEW_MODE_STORAGE_KEY);
         if (!savedView) {
           const legacy = window.localStorage.getItem(VIEW_MODE_LEGACY_KEY);
-          if (legacy === "grid") savedView = "media";
-          else if (legacy === "table") savedView = "files";
+          if (legacy === 'grid') savedView = 'media';
+          else if (legacy === 'table') savedView = 'files';
         }
-        if (savedView === "media" || savedView === "files") {
+        if (savedView === 'media' || savedView === 'files') {
           setViewMode(savedView);
         } else {
-          setViewMode("files");
+          setViewMode('files');
         }
       }
     };
     applyViewport();
-    mq.addEventListener("change", applyViewport);
-    return () => mq.removeEventListener("change", applyViewport);
+    mq.addEventListener('change', applyViewport);
+    return () => mq.removeEventListener('change', applyViewport);
   }, []);
 
   function onChangeViewMode(nextMode: ViewMode) {
@@ -512,7 +542,7 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
 
   function selectRootFolder() {
     setViewAllFiles(false);
-    setCrumbs([{ id: null, label: "Корень" }]);
+    setCrumbs([{ id: null, label: 'Корень' }]);
   }
 
   function selectFolder(folder: FolderRow) {
@@ -526,11 +556,14 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
     setLoadingMore(true);
     setError(null);
     try {
-      const res = await fetch(`/api/admin/media?${searchParams}&limit=${PAGE_SIZE}&offset=${nextOffset}`, {
-        credentials: "same-origin",
-      });
+      const res = await fetch(
+        `/api/admin/media?${searchParams}&limit=${PAGE_SIZE}&offset=${nextOffset}`,
+        {
+          credentials: 'same-origin',
+        },
+      );
       const data = (await res.json()) as MediaListResponse;
-      if (!res.ok || !data.ok) throw new Error(data.error ?? "load_more_failed");
+      if (!res.ok || !data.ok) throw new Error(data.error ?? 'load_more_failed');
       if (requestId !== listRequestRef.current) return;
       const incoming = data.items ?? [];
       setItems((prev) => {
@@ -540,10 +573,10 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
       });
       setHasMore(Boolean(data.hasMore));
       setNextOffset(data.nextOffset ?? nextOffset + incoming.length);
-      if (typeof data.total === "number") setTotalCount(data.total);
+      if (typeof data.total === 'number') setTotalCount(data.total);
     } catch {
       if (requestId !== listRequestRef.current) return;
-      setError("Не удалось загрузить следующую страницу");
+      setError('Не удалось загрузить следующую страницу');
     } finally {
       if (requestId !== listRequestRef.current) return;
       setLoadingMore(false);
@@ -561,7 +594,7 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
       (entries) => {
         if (entries[0]?.isIntersecting) void onLoadMoreRef.current();
       },
-      { root: null, rootMargin: "400px", threshold: 0.01 },
+      { root: null, rootMargin: '400px', threshold: 0.01 },
     );
     obs.observe(el);
     return () => obs.disconnect();
@@ -572,13 +605,13 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
       if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(item.url);
       } else {
-        const textArea = document.createElement("textarea");
+        const textArea = document.createElement('textarea');
         textArea.value = item.url;
-        textArea.style.position = "fixed";
-        textArea.style.opacity = "0";
+        textArea.style.position = 'fixed';
+        textArea.style.opacity = '0';
         document.body.appendChild(textArea);
         textArea.select();
-        document.execCommand("copy");
+        document.execCommand('copy');
         textArea.remove();
       }
       setCopiedItemId(item.id);
@@ -586,26 +619,26 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
         setCopiedItemId((current) => (current === item.id ? null : current));
       }, 1500);
     } catch {
-      setError("Не удалось скопировать URL");
+      setError('Не удалось скопировать URL');
     }
   }
 
   useEffect(() => {
     if (isMobileUploadUi) return undefined;
     const onWindowDragOver = (event: DragEvent) => {
-      if (!event.dataTransfer?.types.includes("Files")) return;
+      if (!event.dataTransfer?.types.includes('Files')) return;
       event.preventDefault();
     };
     const onWindowDrop = (event: DragEvent) => {
-      if (!event.dataTransfer?.types.includes("Files")) return;
+      if (!event.dataTransfer?.types.includes('Files')) return;
       event.preventDefault();
       setIsDragActive(false);
     };
-    window.addEventListener("dragover", onWindowDragOver);
-    window.addEventListener("drop", onWindowDrop);
+    window.addEventListener('dragover', onWindowDragOver);
+    window.addEventListener('drop', onWindowDrop);
     return () => {
-      window.removeEventListener("dragover", onWindowDragOver);
-      window.removeEventListener("drop", onWindowDrop);
+      window.removeEventListener('dragover', onWindowDragOver);
+      window.removeEventListener('drop', onWindowDrop);
     };
   }, [isMobileUploadUi]);
 
@@ -628,7 +661,10 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
     uploadAbortRef.current = ac;
     let useS3Multipart = false;
     try {
-      const capRes = await fetch("/api/media/s3-status", { credentials: "same-origin", signal: ac.signal });
+      const capRes = await fetch('/api/media/s3-status', {
+        credentials: 'same-origin',
+        signal: ac.signal,
+      });
       const cap = (await capRes.json().catch(() => ({}))) as { s3Multipart?: boolean };
       useS3Multipart = Boolean(cap.s3Multipart);
 
@@ -636,20 +672,20 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
       let uploadedBytes = 0;
       for (let i = 0; i < files.length; i += 1) {
         if (ac.signal.aborted) {
-          setUploadStatus("Загрузка отменена");
+          setUploadStatus('Загрузка отменена');
           break;
         }
         const file = files[i]!;
         setUploadStatus(`Файл ${i + 1}/${files.length}: ${file.name}`);
-        const mime = (file.type || "application/octet-stream").toLowerCase();
+        const mime = (file.type || 'application/octet-stream').toLowerCase();
 
         if (!useS3Multipart) {
           const fd = new FormData();
-          fd.set("file", file);
-          if (uploadTargetFolderIdResolved === null) fd.set("folderId", "root");
-          else if (uploadTargetFolderIdResolved) fd.set("folderId", uploadTargetFolderIdResolved);
+          fd.set('file', file);
+          if (uploadTargetFolderIdResolved === null) fd.set('folderId', 'root');
+          else if (uploadTargetFolderIdResolved) fd.set('folderId', uploadTargetFolderIdResolved);
           await uploadWithProgress<UploadOkResponse>({
-            url: "/api/media/upload",
+            url: '/api/media/upload',
             formData: fd,
             withCredentials: true,
             onProgress: (loaded) => {
@@ -685,43 +721,52 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
         void libraryMultipartAbort(multipartSessionRef.current);
       }
       if (ac.signal.aborted) {
-        setError("Загрузка отменена");
+        setError('Загрузка отменена');
       } else if (e instanceof UploadRequestError) {
-        const payload = (e.data ?? {}) as { error?: string; filename?: string; retryable?: boolean };
+        const payload = (e.data ?? {}) as {
+          error?: string;
+          filename?: string;
+          retryable?: boolean;
+        };
         if (payload.filename) {
           setError(`Не удалось загрузить файл: ${payload.filename}`);
-        } else if (payload.error === "network_error") {
-          setError("Сетевая ошибка при загрузке");
-        } else if (payload.error === "aborted") {
-          setError("Загрузка отменена");
-        } else if (payload.error === "integrity_mismatch") {
-          setError("Файл не прошёл проверку целостности на сервере");
-        } else if (payload.error === "session_expired") {
-          setError("Сессия загрузки истекла — начните загрузку заново");
-        } else if (payload.error === "session_state_conflict") {
-          setError("Сессия загрузки в недопустимом состоянии — начните загрузку заново");
-        } else if (payload.error === "session_not_found" || payload.error === "session_not_completable") {
-          setError("Сессия загрузки устарела или закрыта — попробуйте снова");
-        } else if (payload.error === "finalize_inconsistent_state") {
-          setError("Сервер не смог завершить загрузку; попробуйте повторить или загрузить файл заново");
-        } else if (payload.error === "finalize_failed" && payload.retryable) {
-          setError("Временная ошибка сервера при завершении загрузки — попробуйте ещё раз");
-        } else if (payload.error === "part_out_of_range") {
-          setError("Сбой нумерации частей загрузки — попробуйте снова");
-        } else if (payload.error === "missing_etag") {
-          setError("Хранилище не вернуло ETag — проверьте CORS (Expose ETag) для MinIO");
-        } else if (payload.error === "part_retry_exhausted") {
-          setError("Не удалось загрузить часть файла после нескольких попыток");
-        } else if (payload.error === "incomplete_parts") {
-          setError("Загрузка прервана: не все части отправлены");
+        } else if (payload.error === 'network_error') {
+          setError('Сетевая ошибка при загрузке');
+        } else if (payload.error === 'aborted') {
+          setError('Загрузка отменена');
+        } else if (payload.error === 'integrity_mismatch') {
+          setError('Файл не прошёл проверку целостности на сервере');
+        } else if (payload.error === 'session_expired') {
+          setError('Сессия загрузки истекла — начните загрузку заново');
+        } else if (payload.error === 'session_state_conflict') {
+          setError('Сессия загрузки в недопустимом состоянии — начните загрузку заново');
+        } else if (
+          payload.error === 'session_not_found' ||
+          payload.error === 'session_not_completable'
+        ) {
+          setError('Сессия загрузки устарела или закрыта — попробуйте снова');
+        } else if (payload.error === 'finalize_inconsistent_state') {
+          setError(
+            'Сервер не смог завершить загрузку; попробуйте повторить или загрузить файл заново',
+          );
+        } else if (payload.error === 'finalize_failed' && payload.retryable) {
+          setError('Временная ошибка сервера при завершении загрузки — попробуйте ещё раз');
+        } else if (payload.error === 'part_out_of_range') {
+          setError('Сбой нумерации частей загрузки — попробуйте снова');
+        } else if (payload.error === 'missing_etag') {
+          setError('Хранилище не вернуло ETag — проверьте CORS (Expose ETag) для MinIO');
+        } else if (payload.error === 'part_retry_exhausted') {
+          setError('Не удалось загрузить часть файла после нескольких попыток');
+        } else if (payload.error === 'incomplete_parts') {
+          setError('Загрузка прервана: не все части отправлены');
         } else {
-          setError("Не удалось загрузить файл");
+          setError('Не удалось загрузить файл');
         }
       } else {
-        setError("Не удалось загрузить файл");
+        setError('Не удалось загрузить файл');
       }
       if (!ac.signal.aborted) {
-        setUploadStatus("Загрузка остановлена из-за ошибки");
+        setUploadStatus('Загрузка остановлена из-за ошибки');
       }
     } finally {
       uploadAbortRef.current = null;
@@ -736,7 +781,7 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
 
   async function onUploadFile(e: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
-    e.target.value = "";
+    e.target.value = '';
     await uploadBatch(files);
   }
 
@@ -749,13 +794,13 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
   }
 
   function openDeleteDialog(item: MediaItem) {
-    setDeleteDialog({ item, phase: "confirm" });
+    setDeleteDialog({ item, phase: 'confirm' });
   }
 
   function openRenameDialog(item: MediaItem) {
     setRenameDialog({
       item,
-      nextDisplayName: item.displayName?.trim() || "",
+      nextDisplayName: item.displayName?.trim() || '',
     });
   }
 
@@ -767,19 +812,24 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
     setError(null);
     try {
       const res = await fetch(`/api/admin/media/${item.id}`, {
-        method: "PATCH",
-        credentials: "same-origin",
-        headers: { "content-type": "application/json" },
+        method: 'PATCH',
+        credentials: 'same-origin',
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ displayName: nextDisplayName }),
       });
-      const data = (await res.json().catch(() => ({}))) as { ok?: boolean; displayName?: string | null };
-      if (!res.ok || !data.ok) throw new Error("rename_failed");
+      const data = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        displayName?: string | null;
+      };
+      if (!res.ok || !data.ok) throw new Error('rename_failed');
       setItems((prev) =>
-        prev.map((entry) => (entry.id === item.id ? { ...entry, displayName: data.displayName ?? null } : entry)),
+        prev.map((entry) =>
+          entry.id === item.id ? { ...entry, displayName: data.displayName ?? null } : entry,
+        ),
       );
       setRenameDialog(null);
     } catch {
-      setError("Не удалось переименовать файл");
+      setError('Не удалось переименовать файл');
     } finally {
       setRenamingId(null);
     }
@@ -791,27 +841,27 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
     if (!name) return;
     setError(null);
     try {
-      const res = await fetch("/api/admin/media/folders", {
-        method: "POST",
-        credentials: "same-origin",
-        headers: { "content-type": "application/json" },
+      const res = await fetch('/api/admin/media/folders', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ name, parentId: viewAllFiles ? null : currentFolderId }),
       });
       const data = (await res.json().catch(() => ({}))) as { ok?: boolean };
       if (!res.ok || !data.ok) {
-        setError("Не удалось создать папку");
+        setError('Не удалось создать папку');
         return;
       }
       setNewFolderDialog(null);
       setReloadKey((x) => x + 1);
     } catch {
-      setError("Не удалось создать папку");
+      setError('Не удалось создать папку');
     }
   }
 
   async function loadFlatFoldersForMove() {
     try {
-      const res = await fetch("/api/admin/media/folders?flat=true", { credentials: "same-origin" });
+      const res = await fetch('/api/admin/media/folders?flat=true', { credentials: 'same-origin' });
       const data = (await res.json()) as { ok?: boolean; items?: FolderRow[] };
       if (res.ok && data.ok) setAllFoldersFlat(data.items ?? []);
     } catch {
@@ -821,7 +871,7 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
 
   async function loadFlatFoldersForFolderCrud() {
     try {
-      const res = await fetch("/api/admin/media/folders?flat=true", { credentials: "same-origin" });
+      const res = await fetch('/api/admin/media/folders?flat=true', { credentials: 'same-origin' });
       const data = (await res.json()) as { ok?: boolean; items?: FolderRow[] };
       if (res.ok && data.ok) setFoldersFlatForCrud(data.items ?? []);
     } catch {
@@ -840,21 +890,23 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
     setError(null);
     try {
       const res = await fetch(`/api/admin/media/folders/${folderRenameDialog.id}`, {
-        method: "PATCH",
-        credentials: "same-origin",
-        headers: { "content-type": "application/json" },
+        method: 'PATCH',
+        credentials: 'same-origin',
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ name }),
       });
       const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
       if (!res.ok || !data.ok) {
-        setError("Не удалось переименовать папку");
+        setError('Не удалось переименовать папку');
         return;
       }
       setFolderRenameDialog(null);
-      setCrumbs((prev) => prev.map((c) => (c.id === folderRenameDialog.id ? { ...c, label: name } : c)));
+      setCrumbs((prev) =>
+        prev.map((c) => (c.id === folderRenameDialog.id ? { ...c, label: name } : c)),
+      );
       setReloadKey((x) => x + 1);
     } catch {
-      setError("Не удалось переименовать папку");
+      setError('Не удалось переименовать папку');
     }
   }
 
@@ -868,27 +920,27 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
     setError(null);
     try {
       const res = await fetch(`/api/admin/media/folders/${folderMoveDialog.id}`, {
-        method: "PATCH",
-        credentials: "same-origin",
-        headers: { "content-type": "application/json" },
+        method: 'PATCH',
+        credentials: 'same-origin',
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ parentId: folderMoveDialog.newParentId }),
       });
       const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
       if (!res.ok || !data.ok) {
-        if (data.error === "parent_not_found") {
-          setError("Родительская папка не найдена или была удалена");
-        } else if (data.error === "move_failed") {
-          setError("Нельзя переместить папку (цикл или конфликт имён)");
+        if (data.error === 'parent_not_found') {
+          setError('Родительская папка не найдена или была удалена');
+        } else if (data.error === 'move_failed') {
+          setError('Нельзя переместить папку (цикл или конфликт имён)');
         } else {
-          setError("Не удалось переместить папку");
+          setError('Не удалось переместить папку');
         }
         return;
       }
       setFolderMoveDialog(null);
       setReloadKey((x) => x + 1);
-      setCrumbs([{ id: null, label: "Корень" }]);
+      setCrumbs([{ id: null, label: 'Корень' }]);
     } catch {
-      setError("Не удалось переместить папку");
+      setError('Не удалось переместить папку');
     }
   }
 
@@ -901,15 +953,15 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
     setError(null);
     try {
       const res = await fetch(`/api/admin/media/folders/${folderDeleteDialog.id}`, {
-        method: "DELETE",
-        credentials: "same-origin",
+        method: 'DELETE',
+        credentials: 'same-origin',
       });
       const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
       if (!res.ok || !data.ok) {
-        if (data.error === "not_empty") {
-          setError("Папка не пустая — сначала удалите файлы и вложенные папки");
+        if (data.error === 'not_empty') {
+          setError('Папка не пустая — сначала удалите файлы и вложенные папки');
         } else {
-          setError("Не удалось удалить папку");
+          setError('Не удалось удалить папку');
         }
         return;
       }
@@ -921,7 +973,7 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
       });
       setReloadKey((x) => x + 1);
     } catch {
-      setError("Не удалось удалить папку");
+      setError('Не удалось удалить папку');
     }
   }
 
@@ -935,14 +987,14 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
     setError(null);
     try {
       const res = await fetch(`/api/admin/media/${moveFolderDialog.item.id}`, {
-        method: "PATCH",
-        credentials: "same-origin",
-        headers: { "content-type": "application/json" },
+        method: 'PATCH',
+        credentials: 'same-origin',
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ folderId: moveFolderDialog.folderId }),
       });
       const data = (await res.json().catch(() => ({}))) as { ok?: boolean };
       if (!res.ok || !data.ok) {
-        setError("Не удалось переместить файл");
+        setError('Не удалось переместить файл');
         return;
       }
       const targetId = moveFolderDialog.folderId;
@@ -951,16 +1003,16 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
       setItems((prev) => prev.map((x) => (x.id === movedId ? { ...x, folderId: targetId } : x)));
       setReloadKey((x) => x + 1);
     } catch {
-      setError("Не удалось переместить файл");
+      setError('Не удалось переместить файл');
     }
   }
 
   function resolutionText(item: MediaItem): string {
-    if (item.kind !== "image" && item.kind !== "video") return "—";
+    if (item.kind !== 'image' && item.kind !== 'video') return '—';
     const w = item.sourceWidth;
     const h = item.sourceHeight;
-    if (typeof w === "number" && typeof h === "number" && w > 0 && h > 0) return `${w}x${h}`;
-    return "—";
+    if (typeof w === 'number' && typeof h === 'number' && w > 0 && h > 0) return `${w}x${h}`;
+    return '—';
   }
 
   async function executeDelete(force: boolean) {
@@ -969,22 +1021,22 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
     setDeletingId(item.id);
     setError(null);
     try {
-      const q = force ? "?confirmDelete=true&confirmUsed=true" : "?confirmDelete=true";
+      const q = force ? '?confirmDelete=true&confirmUsed=true' : '?confirmDelete=true';
       const res = await fetch(`/api/admin/media/${item.id}${q}`, {
-        method: "DELETE",
-        credentials: "same-origin",
+        method: 'DELETE',
+        credentials: 'same-origin',
       });
       if (res.status === 409) {
         const data = (await res.json()) as { usage?: UsageRef[] };
         const usage = data.usage ?? [];
-        setDeleteDialog({ item, phase: "in_use", usage });
+        setDeleteDialog({ item, phase: 'in_use', usage });
         return;
       }
-      if (!res.ok) throw new Error("delete_failed");
+      if (!res.ok) throw new Error('delete_failed');
       setDeleteDialog(null);
       setReloadKey((x) => x + 1);
     } catch {
-      setError("Не удалось удалить файл");
+      setError('Не удалось удалить файл');
     } finally {
       setDeletingId(null);
     }
@@ -1002,17 +1054,22 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
         }}
       >
         <DialogContent className="sm:max-w-md" showCloseButton={deletingId === null}>
-          {deleteItem && deletePhase === "confirm" ? (
+          {deleteItem && deletePhase === 'confirm' ? (
             <>
               <DialogHeader>
                 <DialogTitle>Удалить файл?</DialogTitle>
                 <DialogDescription>
-                  Файл «{mediaTitle(deleteItem)}» сразу пропадёт из библиотеки; окончательное удаление из хранилища
-                  выполняется в фоне на сервере.
+                  Файл «{mediaTitle(deleteItem)}» сразу пропадёт из библиотеки; окончательное
+                  удаление из хранилища выполняется в фоне на сервере.
                 </DialogDescription>
               </DialogHeader>
               <DialogFooter className="border-0 bg-transparent p-0 sm:justify-end">
-                <Button type="button" variant="outline" onClick={() => setDeleteDialog(null)} disabled={deletingId !== null}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setDeleteDialog(null)}
+                  disabled={deletingId !== null}
+                >
                   Отмена
                 </Button>
                 <Button
@@ -1021,18 +1078,21 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
                   disabled={deletingId !== null}
                   onClick={() => void executeDelete(false)}
                 >
-                  {deletingId === deleteItem.id ? "Удаление..." : "Удалить"}
+                  {deletingId === deleteItem.id ? 'Удаление...' : 'Удалить'}
                 </Button>
               </DialogFooter>
             </>
           ) : null}
-          {deleteItem && deletePhase === "in_use" && deleteDialog && deleteDialog.phase === "in_use" ? (
+          {deleteItem &&
+          deletePhase === 'in_use' &&
+          deleteDialog &&
+          deleteDialog.phase === 'in_use' ? (
             <>
               <DialogHeader>
                 <DialogTitle>Файл используется</DialogTitle>
                 <DialogDescription>
-                  Этот файл всё ещё используется в контенте или диалогах пациента. Удаление может сломать
-                  ссылки и историю сообщений.
+                  Этот файл всё ещё используется в контенте или диалогах пациента. Удаление может
+                  сломать ссылки и историю сообщений.
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-3 text-sm">
@@ -1044,12 +1104,19 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
                   ))}
                 </ul>
                 {deleteDialog.usage.length > 12 ? (
-                  <p className="text-xs text-muted-foreground">…и ещё {deleteDialog.usage.length - 12}</p>
+                  <p className="text-xs text-muted-foreground">
+                    …и ещё {deleteDialog.usage.length - 12}
+                  </p>
                 ) : null}
                 <p className="font-medium text-foreground">Удалить всё равно?</p>
               </div>
               <DialogFooter className="border-0 bg-transparent p-0 sm:justify-end">
-                <Button type="button" variant="outline" onClick={() => setDeleteDialog(null)} disabled={deletingId !== null}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setDeleteDialog(null)}
+                  disabled={deletingId !== null}
+                >
                   Отмена
                 </Button>
                 <Button
@@ -1058,7 +1125,7 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
                   disabled={deletingId !== null}
                   onClick={() => void executeDelete(true)}
                 >
-                  {deletingId === deleteItem.id ? "Удаление..." : "Удалить всё равно"}
+                  {deletingId === deleteItem.id ? 'Удаление...' : 'Удалить всё равно'}
                 </Button>
               </DialogFooter>
             </>
@@ -1077,14 +1144,19 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
               <DialogHeader>
                 <DialogTitle>Переименовать файл</DialogTitle>
                 <DialogDescription>
-                  Измените отображаемое название для библиотеки. Исходное имя файла в хранилище не меняется.
+                  Измените отображаемое название для библиотеки. Исходное имя файла в хранилище не
+                  меняется.
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-2">
                 <Input
                   value={renameDialog.nextDisplayName}
                   maxLength={180}
-                  onChange={(e) => setRenameDialog((curr) => (curr ? { ...curr, nextDisplayName: e.target.value } : curr))}
+                  onChange={(e) =>
+                    setRenameDialog((curr) =>
+                      curr ? { ...curr, nextDisplayName: e.target.value } : curr,
+                    )
+                  }
                   placeholder={renameDialog.item.filename}
                   disabled={renamingId !== null}
                 />
@@ -1093,11 +1165,20 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
                 </p>
               </div>
               <DialogFooter className="border-0 bg-transparent p-0 sm:justify-end">
-                <Button type="button" variant="outline" onClick={() => setRenameDialog(null)} disabled={renamingId !== null}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setRenameDialog(null)}
+                  disabled={renamingId !== null}
+                >
                   Отмена
                 </Button>
-                <Button type="button" disabled={renamingId !== null} onClick={() => void executeRename()}>
-                  {renamingId === renameDialog.item.id ? "Сохранение..." : "Сохранить"}
+                <Button
+                  type="button"
+                  disabled={renamingId !== null}
+                  onClick={() => void executeRename()}
+                >
+                  {renamingId === renameDialog.item.id ? 'Сохранение...' : 'Сохранить'}
                 </Button>
               </DialogFooter>
             </>
@@ -1113,10 +1194,12 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
         <DialogContent className="sm:max-w-md" showCloseButton>
           <DialogHeader>
             <DialogTitle>Новая папка</DialogTitle>
-            <DialogDescription>Создаётся в текущей папке: {crumbs[crumbs.length - 1]?.label ?? "Корень"}</DialogDescription>
+            <DialogDescription>
+              Создаётся в текущей папке: {crumbs[crumbs.length - 1]?.label ?? 'Корень'}
+            </DialogDescription>
           </DialogHeader>
           <Input
-            value={newFolderDialog?.name ?? ""}
+            value={newFolderDialog?.name ?? ''}
             maxLength={180}
             placeholder="Название"
             onChange={(e) => setNewFolderDialog((c) => (c ? { ...c, name: e.target.value } : c))}
@@ -1147,11 +1230,11 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
               <label className="flex flex-col gap-1 text-sm">
                 <span className="text-xs text-muted-foreground">Папка</span>
                 <Select
-                  value={moveFolderDialog.folderId ?? ""}
+                  value={moveFolderDialog.folderId ?? ''}
                   onValueChange={(v) => {
-                    const next = v ?? "";
+                    const next = v ?? '';
                     setMoveFolderDialog((c) =>
-                      c ? { ...c, folderId: next === "" ? null : next } : c,
+                      c ? { ...c, folderId: next === '' ? null : next } : c,
                     );
                   }}
                 >
@@ -1192,7 +1275,7 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
             <DialogDescription>Новое имя в текущей библиотеке</DialogDescription>
           </DialogHeader>
           <Input
-            value={folderRenameDialog?.name ?? ""}
+            value={folderRenameDialog?.name ?? ''}
             maxLength={180}
             placeholder="Название"
             onChange={(e) => setFolderRenameDialog((c) => (c ? { ...c, name: e.target.value } : c))}
@@ -1223,10 +1306,12 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
               <label className="flex flex-col gap-1 text-sm">
                 <span className="text-xs text-muted-foreground">Новый родитель</span>
                 <Select
-                  value={folderMoveDialog.newParentId ?? ""}
+                  value={folderMoveDialog.newParentId ?? ''}
                   onValueChange={(v) => {
-                    const next = v ?? "";
-                    setFolderMoveDialog((c) => (c ? { ...c, newParentId: next === "" ? null : next } : c));
+                    const next = v ?? '';
+                    setFolderMoveDialog((c) =>
+                      c ? { ...c, newParentId: next === '' ? null : next } : c,
+                    );
                   }}
                 >
                   <SelectTrigger className="w-full">
@@ -1272,14 +1357,19 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
               <DialogHeader>
                 <DialogTitle>Удалить папку?</DialogTitle>
                 <DialogDescription>
-                  Папка «{folderDeleteDialog.name}» удалится только если в ней нет файлов и вложенных папок.
+                  Папка «{folderDeleteDialog.name}» удалится только если в ней нет файлов и
+                  вложенных папок.
                 </DialogDescription>
               </DialogHeader>
               <DialogFooter className="border-0 bg-transparent p-0 sm:justify-end">
                 <Button type="button" variant="outline" onClick={() => setFolderDeleteDialog(null)}>
                   Отмена
                 </Button>
-                <Button type="button" variant="destructive" onClick={() => void executeFolderDelete()}>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  onClick={() => void executeFolderDelete()}
+                >
                   Удалить
                 </Button>
               </DialogFooter>
@@ -1324,7 +1414,7 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
           onSelectAll={selectAllFiles}
           onSelectRoot={selectRootFolder}
           onSelectFolder={selectFolder}
-          onNewFolder={() => setNewFolderDialog({ name: "" })}
+          onNewFolder={() => setNewFolderDialog({ name: '' })}
           onRenameFolder={openFolderRename}
           onMoveFolder={openFolderMove}
           onDeleteFolder={openFolderDelete}
@@ -1338,7 +1428,10 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
                 <span className="font-medium text-foreground">Все файлы</span>
               ) : (
                 crumbs.map((c, idx) => (
-                  <span key={`${c.id ?? "root"}-${idx}`} className="inline-flex items-center gap-0.5">
+                  <span
+                    key={`${c.id ?? 'root'}-${idx}`}
+                    className="inline-flex items-center gap-0.5"
+                  >
                     {idx > 0 ? <span aria-hidden>/</span> : null}
                     <Button
                       type="button"
@@ -1356,363 +1449,390 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
               )}
             </div>
             {uploadBlockedAtClientRoot ? (
-              <p className="text-xs text-muted-foreground">Откройте папку клиента, чтобы загрузить файл.</p>
+              <p className="text-xs text-muted-foreground">
+                Откройте папку клиента, чтобы загрузить файл.
+              </p>
             ) : null}
           </div>
 
           <div className="flex flex-wrap items-end gap-2">
-        {canSeeDeleteErrorsLink && s3DeleteQueueErrors != null && s3DeleteQueueErrors > 0 ? (
-          <Link
-            href="/app/doctor/content/library/delete-errors"
-            className="inline-flex h-10 items-center gap-2 rounded-md border border-destructive/50 bg-destructive/10 px-3 text-sm font-medium text-destructive hover:bg-destructive/15"
-          >
-            Ошибки удаления S3
-            <span className="rounded-full bg-destructive px-2 py-0.5 text-xs text-destructive-foreground">
-              {s3DeleteQueueErrors}
-            </span>
-          </Link>
-        ) : null}
-        <div className="flex h-10 items-center rounded-md border border-input bg-background p-1">
-          <Button
-            type="button"
-            variant={viewMode === "media" ? "default" : "ghost"}
-            size="sm"
-            className="h-8"
-            title="Плитка как в галерее"
-            onClick={() => onChangeViewMode("media")}
-          >
-            Медиа
-          </Button>
-          <Button
-            type="button"
-            variant={viewMode === "files" ? "default" : "ghost"}
-            size="sm"
-            className="h-8"
-            title="Список файлов"
-            onClick={() => onChangeViewMode("files")}
-          >
-            Файлы
-          </Button>
-        </div>
-
-        <label className="flex min-w-[9rem] flex-col gap-1 text-sm">
-          <span className="text-xs text-muted-foreground">Категория</span>
-          <Select
-            value={kind}
-            onValueChange={(v) => setKind((v ?? "all") as MediaKindFilter)}
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Все</SelectItem>
-              <SelectItem value="image">Изображения</SelectItem>
-              <SelectItem value="video">Видео</SelectItem>
-              <SelectItem value="audio">Аудио</SelectItem>
-              <SelectItem value="file">Файлы</SelectItem>
-            </SelectContent>
-          </Select>
-        </label>
-
-        <label className="flex min-w-[9rem] flex-col gap-1 text-sm">
-          <span className="text-xs text-muted-foreground">Сортировать по</span>
-          <Select
-            value={sortBy}
-            onValueChange={(v) => setSortBy((v ?? "date") as SortBy)}
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="date">Дате загрузки</SelectItem>
-              <SelectItem value="name">Названию</SelectItem>
-              <SelectItem value="size">Размеру</SelectItem>
-              <SelectItem value="type">Типу (MIME)</SelectItem>
-            </SelectContent>
-          </Select>
-        </label>
-
-        <label className="flex min-w-[8rem] flex-col gap-1 text-sm">
-          <span className="text-xs text-muted-foreground">Порядок</span>
-          <Select
-            value={sortDir}
-            onValueChange={(v) => setSortDir((v ?? "desc") as SortDir)}
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="desc">По убыванию</SelectItem>
-              <SelectItem value="asc">По возрастанию</SelectItem>
-            </SelectContent>
-          </Select>
-        </label>
-
-        <label className="flex min-w-[14rem] flex-1 flex-col gap-1 text-sm">
-          <span className="text-xs text-muted-foreground">Поиск по имени</span>
-          <Input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Например, welcome-video"
-          />
-        </label>
-
-        {isMobileUploadUi ? (
-          <div className="flex w-full flex-wrap gap-2 sm:w-auto">
-            <Button
-              type="button"
-              variant="outline"
-              className="h-10"
-              disabled={uploading || uploadBlockedAtClientRoot}
-              onClick={() => mobileCaptureInputRef.current?.click()}
-            >
-              Снять фото/видео
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              className="h-10"
-              disabled={uploading || uploadBlockedAtClientRoot}
-              onClick={() => mobileFilesInputRef.current?.click()}
-            >
-              {uploading ? "Загрузка..." : "Выбрать из файлов"}
-            </Button>
-          </div>
-        ) : (
-          <Button
-            type="button"
-            variant="outline"
-            className="h-10"
-            disabled={uploading || uploadBlockedAtClientRoot}
-            onClick={() => desktopUploadInputRef.current?.click()}
-          >
-            {uploading ? "Загрузка..." : "Загрузить файлы"}
-          </Button>
-        )}
-      </div>
-
-      {!isMobileUploadUi && !uploadBlockedAtClientRoot ? (
-        <label
-          onDragEnter={(e) => {
-            if (!e.dataTransfer.types.includes("Files")) return;
-            e.preventDefault();
-            setIsDragActive(true);
-          }}
-          onDragOver={(e) => {
-            if (!e.dataTransfer.types.includes("Files")) return;
-            e.preventDefault();
-            if (!isDragActive) setIsDragActive(true);
-          }}
-          onDragLeave={(e) => {
-            if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
-              setIsDragActive(false);
-            }
-          }}
-          onDrop={onDropZoneDrop}
-          className={`rounded-md border border-dashed p-3 text-sm transition-colors ${
-            isDragActive ? "border-primary bg-primary/10" : "border-border/70 bg-muted/20"
-          }`}
-        >
-          <p className="text-foreground">Перетащите файлы сюда для загрузки</p>
-          <p className="text-xs text-muted-foreground">
-            Desktop: drag-and-drop поддерживается для фото, видео, аудио и PDF
-          </p>
-        </label>
-      ) : null}
-
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
-      {uploadPercent !== null ? (
-        <div className="flex flex-col gap-1 rounded-md border border-border/70 bg-muted/20 p-2 text-xs">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-muted-foreground">{uploadStatus ?? "Загрузка..."}</span>
-            <div className="flex items-center gap-2">
-              <span className="font-medium">{uploadPercent}%</span>
-              {uploading ? (
-                <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => cancelActiveUpload()}>
-                  Отменить
-                </Button>
-              ) : null}
-            </div>
-          </div>
-          <div className="h-2 w-full overflow-hidden rounded bg-muted">
-            <div className="h-full bg-primary transition-all" style={{ width: `${uploadPercent}%` }} />
-          </div>
-        </div>
-      ) : null}
-      {loading ? <p className="text-sm text-muted-foreground">Загрузка...</p> : null}
-
-      {!loading &&
-        (viewMode === "media" ? (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
-            {items.map((item) => (
-              <MediaCard
-                key={item.id}
-                item={item}
-                deleting={deletingId === item.id}
-                copied={copiedItemId === item.id}
-                resolutionText={resolutionText(item)}
-                onOpenPreview={() => openLightboxByItemId(item.id)}
-                onDelete={() => openDeleteDialog(item)}
-                onRename={() => openRenameDialog(item)}
-                onMoveFolder={() => openMoveFolderDialog(item)}
-                onCopyUrl={() => void onCopyUrl(item)}
-                formatSize={formatSize}
-                formatDate={formatDate}
-              />
-            ))}
-            {items.length === 0 ? (
-              <div className="col-span-full rounded-md border border-border px-3 py-6 text-center text-sm text-muted-foreground">
-                Файлы не найдены
-              </div>
-            ) : null}
-          </div>
-        ) : isMobileUploadUi ? (
-          <div className="flex flex-col divide-y rounded-md border border-border">
-            {items.map((item) => (
-              <div key={item.id} className="flex items-start gap-3 p-3">
-                <span className="min-w-0 flex-1 truncate font-medium text-foreground" title={mediaTitle(item)}>
-                  {mediaTitle(item)}
+            {canSeeDeleteErrorsLink && s3DeleteQueueErrors != null && s3DeleteQueueErrors > 0 ? (
+              <Link
+                href="/app/doctor/content/library/delete-errors"
+                className="inline-flex h-10 items-center gap-2 rounded-md border border-destructive/50 bg-destructive/10 px-3 text-sm font-medium text-destructive hover:bg-destructive/15"
+              >
+                Ошибки удаления S3
+                <span className="rounded-full bg-destructive px-2 py-0.5 text-xs text-destructive-foreground">
+                  {s3DeleteQueueErrors}
                 </span>
-                <MediaCardActionsMenu
-                  triggerVariant="label"
-                  item={item}
-                  resolutionText={resolutionText(item)}
-                  copied={copiedItemId === item.id}
-                  deleting={deletingId === item.id}
-                  onCopyUrl={() => void onCopyUrl(item)}
-                  onRename={() => openRenameDialog(item)}
-                  onMoveFolder={() => openMoveFolderDialog(item)}
-                  onDelete={() => openDeleteDialog(item)}
-                  onOpenPreview={() => openLightboxByItemId(item.id)}
-                  formatSize={formatSize}
-                  formatDate={formatDate}
+              </Link>
+            ) : null}
+            <div className="flex h-10 items-center rounded-md border border-input bg-background p-1">
+              <Button
+                type="button"
+                variant={viewMode === 'media' ? 'default' : 'ghost'}
+                size="sm"
+                className="h-8"
+                title="Плитка как в галерее"
+                onClick={() => onChangeViewMode('media')}
+              >
+                Медиа
+              </Button>
+              <Button
+                type="button"
+                variant={viewMode === 'files' ? 'default' : 'ghost'}
+                size="sm"
+                className="h-8"
+                title="Список файлов"
+                onClick={() => onChangeViewMode('files')}
+              >
+                Файлы
+              </Button>
+            </div>
+
+            <label className="flex min-w-[9rem] flex-col gap-1 text-sm">
+              <span className="text-xs text-muted-foreground">Категория</span>
+              <Select value={kind} onValueChange={(v) => setKind((v ?? 'all') as MediaKindFilter)}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Все</SelectItem>
+                  <SelectItem value="image">Изображения</SelectItem>
+                  <SelectItem value="video">Видео</SelectItem>
+                  <SelectItem value="audio">Аудио</SelectItem>
+                  <SelectItem value="file">Файлы</SelectItem>
+                </SelectContent>
+              </Select>
+            </label>
+
+            <label className="flex min-w-[9rem] flex-col gap-1 text-sm">
+              <span className="text-xs text-muted-foreground">Сортировать по</span>
+              <Select value={sortBy} onValueChange={(v) => setSortBy((v ?? 'date') as SortBy)}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="date">Дате загрузки</SelectItem>
+                  <SelectItem value="name">Названию</SelectItem>
+                  <SelectItem value="size">Размеру</SelectItem>
+                  <SelectItem value="type">Типу (MIME)</SelectItem>
+                </SelectContent>
+              </Select>
+            </label>
+
+            <label className="flex min-w-[8rem] flex-col gap-1 text-sm">
+              <span className="text-xs text-muted-foreground">Порядок</span>
+              <Select value={sortDir} onValueChange={(v) => setSortDir((v ?? 'desc') as SortDir)}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="desc">По убыванию</SelectItem>
+                  <SelectItem value="asc">По возрастанию</SelectItem>
+                </SelectContent>
+              </Select>
+            </label>
+
+            <label className="flex min-w-[14rem] flex-1 flex-col gap-1 text-sm">
+              <span className="text-xs text-muted-foreground">Поиск по имени</span>
+              <Input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Например, welcome-video"
+              />
+            </label>
+
+            {isMobileUploadUi ? (
+              <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-10"
+                  disabled={uploading || uploadBlockedAtClientRoot}
+                  onClick={() => mobileCaptureInputRef.current?.click()}
+                >
+                  Снять фото/видео
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-10"
+                  disabled={uploading || uploadBlockedAtClientRoot}
+                  onClick={() => mobileFilesInputRef.current?.click()}
+                >
+                  {uploading ? 'Загрузка...' : 'Выбрать из файлов'}
+                </Button>
+              </div>
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                className="h-10"
+                disabled={uploading || uploadBlockedAtClientRoot}
+                onClick={() => desktopUploadInputRef.current?.click()}
+              >
+                {uploading ? 'Загрузка...' : 'Загрузить файлы'}
+              </Button>
+            )}
+          </div>
+
+          {!isMobileUploadUi && !uploadBlockedAtClientRoot ? (
+            <label
+              onDragEnter={(e) => {
+                if (!e.dataTransfer.types.includes('Files')) return;
+                e.preventDefault();
+                setIsDragActive(true);
+              }}
+              onDragOver={(e) => {
+                if (!e.dataTransfer.types.includes('Files')) return;
+                e.preventDefault();
+                if (!isDragActive) setIsDragActive(true);
+              }}
+              onDragLeave={(e) => {
+                if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+                  setIsDragActive(false);
+                }
+              }}
+              onDrop={onDropZoneDrop}
+              className={`rounded-md border border-dashed p-3 text-sm transition-colors ${
+                isDragActive ? 'border-primary bg-primary/10' : 'border-border/70 bg-muted/20'
+              }`}
+            >
+              <p className="text-foreground">Перетащите файлы сюда для загрузки</p>
+              <p className="text-xs text-muted-foreground">
+                Desktop: drag-and-drop поддерживается для фото, видео, аудио и PDF
+              </p>
+            </label>
+          ) : null}
+
+          {error ? <p className="text-sm text-destructive">{error}</p> : null}
+          {uploadPercent !== null ? (
+            <div className="flex flex-col gap-1 rounded-md border border-border/70 bg-muted/20 p-2 text-xs">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-muted-foreground">{uploadStatus ?? 'Загрузка...'}</span>
+                <div className="flex items-center gap-2">
+                  <span className="font-medium">{uploadPercent}%</span>
+                  {uploading ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => cancelActiveUpload()}
+                    >
+                      Отменить
+                    </Button>
+                  ) : null}
+                </div>
+              </div>
+              <div className="h-2 w-full overflow-hidden rounded bg-muted">
+                <div
+                  className="h-full bg-primary transition-all"
+                  style={{ width: `${uploadPercent}%` }}
                 />
               </div>
-            ))}
-            {items.length === 0 ? (
-              <div className="px-3 py-6 text-center text-sm text-muted-foreground">Файлы не найдены</div>
-            ) : null}
-          </div>
-        ) : (
-          <div className="overflow-auto rounded-md border border-border">
-            <table className="w-full min-w-[28rem] border-collapse text-sm">
-              <thead className="bg-muted/40 text-left">
-                <tr>
-                  <th className="px-3 py-2">Файл</th>
-                  <th className="px-3 py-2">Просмотр</th>
-                  <th className="sr-only px-3 py-2">Действия</th>
-                </tr>
-              </thead>
-              <tbody>
+            </div>
+          ) : null}
+          {loading ? <p className="text-sm text-muted-foreground">Загрузка...</p> : null}
+
+          {!loading &&
+            (viewMode === 'media' ? (
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
                 {items.map((item) => (
-                  <tr key={item.id} className="border-t border-border align-top">
-                    <td className="px-3 py-2">
-                      <div className="max-w-[22rem]">
-                        <p className="truncate font-medium" title={mediaTitle(item)}>
-                          {mediaTitle(item)}
-                        </p>
-                        {item.displayName?.trim() ? (
-                          <p className="truncate text-xs text-muted-foreground" title={item.filename}>
-                            Исходное имя: {item.filename}
-                          </p>
-                        ) : null}
-                      </div>
-                    </td>
-                    <td className="px-3 py-2">
-                      {item.kind === "image" && canRenderInlineImage(item.mimeType) ? (
-                        <TableMediaThumb item={item} onOpen={() => openLightboxByItemId(item.id)} />
-                      ) : item.kind === "video" ? (
-                        <TableMediaThumb item={item} onOpen={() => openLightboxByItemId(item.id)} />
-                      ) : item.kind === "audio" ? (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          onClick={() => openLightboxByItemId(item.id)}
-                          className={cn(doctorInteractiveSurfaceButtonClass, "text-primary underline")}
-                        >
-                          Прослушать
-                        </Button>
-                      ) : (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          onClick={() => openLightboxByItemId(item.id)}
-                          className={cn(doctorInteractiveSurfaceButtonClass, "text-primary underline")}
-                        >
-                          Открыть
-                        </Button>
-                      )}
-                    </td>
-                    <td className="px-3 py-2">
-                      <MediaCardActionsMenu
-                        item={item}
-                        resolutionText={resolutionText(item)}
-                        copied={copiedItemId === item.id}
-                        deleting={deletingId === item.id}
-                        onCopyUrl={() => void onCopyUrl(item)}
-                        onRename={() => openRenameDialog(item)}
-                        onMoveFolder={() => openMoveFolderDialog(item)}
-                        onDelete={() => openDeleteDialog(item)}
-                        onOpenPreview={() => openLightboxByItemId(item.id)}
-                        formatSize={formatSize}
-                        formatDate={formatDate}
-                      />
-                    </td>
-                  </tr>
+                  <MediaCard
+                    key={item.id}
+                    item={item}
+                    deleting={deletingId === item.id}
+                    copied={copiedItemId === item.id}
+                    resolutionText={resolutionText(item)}
+                    onOpenPreview={() => openLightboxByItemId(item.id)}
+                    onDelete={() => openDeleteDialog(item)}
+                    onRename={() => openRenameDialog(item)}
+                    onMoveFolder={() => openMoveFolderDialog(item)}
+                    onCopyUrl={() => void onCopyUrl(item)}
+                    formatSize={formatSize}
+                    formatDate={formatDate}
+                  />
                 ))}
                 {items.length === 0 ? (
-                  <tr>
-                    <td colSpan={3} className="px-3 py-6 text-center text-muted-foreground">
-                      Файлы не найдены
-                    </td>
-                  </tr>
+                  <div className="col-span-full rounded-md border border-border px-3 py-6 text-center text-sm text-muted-foreground">
+                    Файлы не найдены
+                  </div>
                 ) : null}
-              </tbody>
-            </table>
-          </div>
-        ))}
+              </div>
+            ) : isMobileUploadUi ? (
+              <div className="flex flex-col divide-y rounded-md border border-border">
+                {items.map((item) => (
+                  <div key={item.id} className="flex items-start gap-3 p-3">
+                    <span
+                      className="min-w-0 flex-1 truncate font-medium text-foreground"
+                      title={mediaTitle(item)}
+                    >
+                      {mediaTitle(item)}
+                    </span>
+                    <MediaCardActionsMenu
+                      triggerVariant="label"
+                      item={item}
+                      resolutionText={resolutionText(item)}
+                      copied={copiedItemId === item.id}
+                      deleting={deletingId === item.id}
+                      onCopyUrl={() => void onCopyUrl(item)}
+                      onRename={() => openRenameDialog(item)}
+                      onMoveFolder={() => openMoveFolderDialog(item)}
+                      onDelete={() => openDeleteDialog(item)}
+                      onOpenPreview={() => openLightboxByItemId(item.id)}
+                      formatSize={formatSize}
+                      formatDate={formatDate}
+                    />
+                  </div>
+                ))}
+                {items.length === 0 ? (
+                  <div className="px-3 py-6 text-center text-sm text-muted-foreground">
+                    Файлы не найдены
+                  </div>
+                ) : null}
+              </div>
+            ) : (
+              <div className="overflow-auto rounded-md border border-border">
+                <table className="w-full min-w-[28rem] border-collapse text-sm">
+                  <thead className="bg-muted/40 text-left">
+                    <tr>
+                      <th className="px-3 py-2">Файл</th>
+                      <th className="px-3 py-2">Просмотр</th>
+                      <th className="sr-only px-3 py-2">Действия</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {items.map((item) => (
+                      <tr key={item.id} className="border-t border-border align-top">
+                        <td className="px-3 py-2">
+                          <div className="max-w-[22rem]">
+                            <p className="truncate font-medium" title={mediaTitle(item)}>
+                              {mediaTitle(item)}
+                            </p>
+                            {item.displayName?.trim() ? (
+                              <p
+                                className="truncate text-xs text-muted-foreground"
+                                title={item.filename}
+                              >
+                                Исходное имя: {item.filename}
+                              </p>
+                            ) : null}
+                          </div>
+                        </td>
+                        <td className="px-3 py-2">
+                          {item.kind === 'image' && canRenderInlineImage(item.mimeType) ? (
+                            <TableMediaThumb
+                              item={item}
+                              onOpen={() => openLightboxByItemId(item.id)}
+                            />
+                          ) : item.kind === 'video' ? (
+                            <TableMediaThumb
+                              item={item}
+                              onOpen={() => openLightboxByItemId(item.id)}
+                            />
+                          ) : item.kind === 'audio' ? (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              onClick={() => openLightboxByItemId(item.id)}
+                              className={cn(
+                                doctorInteractiveSurfaceButtonClass,
+                                'text-primary underline',
+                              )}
+                            >
+                              Прослушать
+                            </Button>
+                          ) : (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              onClick={() => openLightboxByItemId(item.id)}
+                              className={cn(
+                                doctorInteractiveSurfaceButtonClass,
+                                'text-primary underline',
+                              )}
+                            >
+                              Открыть
+                            </Button>
+                          )}
+                        </td>
+                        <td className="px-3 py-2">
+                          <MediaCardActionsMenu
+                            item={item}
+                            resolutionText={resolutionText(item)}
+                            copied={copiedItemId === item.id}
+                            deleting={deletingId === item.id}
+                            onCopyUrl={() => void onCopyUrl(item)}
+                            onRename={() => openRenameDialog(item)}
+                            onMoveFolder={() => openMoveFolderDialog(item)}
+                            onDelete={() => openDeleteDialog(item)}
+                            onOpenPreview={() => openLightboxByItemId(item.id)}
+                            formatSize={formatSize}
+                            formatDate={formatDate}
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                    {items.length === 0 ? (
+                      <tr>
+                        <td colSpan={3} className="px-3 py-6 text-center text-muted-foreground">
+                          Файлы не найдены
+                        </td>
+                      </tr>
+                    ) : null}
+                  </tbody>
+                </table>
+              </div>
+            ))}
 
-      <MediaLightbox
-        open={lightboxIndex !== null && lightboxItem !== null}
-        item={lightboxItem}
-        onOpenChange={(open) => {
-          if (!open) setLightboxIndex(null);
-        }}
-        onPrev={
-          lightboxIndex !== null && lightboxIndex > 0
-            ? () => setLightboxIndex((idx) => (idx === null ? null : Math.max(0, idx - 1)))
-            : undefined
-        }
-        onNext={
-          lightboxIndex !== null && lightboxIndex < items.length - 1
-            ? () => setLightboxIndex((idx) => (idx === null ? null : Math.min(items.length - 1, idx + 1)))
-            : undefined
-        }
-      />
+          <MediaLightbox
+            open={lightboxIndex !== null && lightboxItem !== null}
+            item={lightboxItem}
+            onOpenChange={(open) => {
+              if (!open) setLightboxIndex(null);
+            }}
+            onPrev={
+              lightboxIndex !== null && lightboxIndex > 0
+                ? () => setLightboxIndex((idx) => (idx === null ? null : Math.max(0, idx - 1)))
+                : undefined
+            }
+            onNext={
+              lightboxIndex !== null && lightboxIndex < items.length - 1
+                ? () =>
+                    setLightboxIndex((idx) =>
+                      idx === null ? null : Math.min(items.length - 1, idx + 1),
+                    )
+                : undefined
+            }
+          />
 
-      {!loading && items.length > 0 ? (
-        <div className="flex flex-col items-center gap-2 py-3">
-          <p className="text-xs text-muted-foreground">
-            {totalCount != null
-              ? `Показано ${items.length} из ${totalCount}`
-              : `Показано ${items.length}`}
-          </p>
-          {hasMore ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={loadingMore}
-              onClick={() => void onLoadMore()}
-            >
-              {loadingMore ? "Загрузка…" : "Загрузить ещё"}
-            </Button>
-          ) : (
-            <p className="text-xs text-muted-foreground">Все файлы загружены</p>
-          )}
-          {hasMore ? <div ref={loadMoreSentinelRef} className="h-1 w-full shrink-0" aria-hidden /> : null}
-        </div>
-      ) : null}
+          {!loading && items.length > 0 ? (
+            <div className="flex flex-col items-center gap-2 py-3">
+              <p className="text-xs text-muted-foreground">
+                {totalCount != null
+                  ? `Показано ${items.length} из ${totalCount}`
+                  : `Показано ${items.length}`}
+              </p>
+              {hasMore ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={loadingMore}
+                  onClick={() => void onLoadMore()}
+                >
+                  {loadingMore ? 'Загрузка…' : 'Загрузить ещё'}
+                </Button>
+              ) : (
+                <p className="text-xs text-muted-foreground">Все файлы загружены</p>
+              )}
+              {hasMore ? (
+                <div ref={loadMoreSentinelRef} className="h-1 w-full shrink-0" aria-hidden />
+              ) : null}
+            </div>
+          ) : null}
         </div>
       </div>
     </div>

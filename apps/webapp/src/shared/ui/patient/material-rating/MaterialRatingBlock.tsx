@@ -1,16 +1,16 @@
-"use client";
+'use client';
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
-import toast from "react-hot-toast";
-import { Star } from "lucide-react";
-import { Rating, Star as RatingStarShape } from "@smastrom/react-rating";
-import "@smastrom/react-rating/style.css";
-import { Button } from "@/shared/ui/patient/primitives/button";
-import { cn } from "@/lib/utils";
-import { patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
-import { ruRatingCountLabel } from "@/shared/lib/ruRatingCountLabel";
-import type { MaterialRatingTargetKind } from "@/modules/material-rating/types";
-import { MaterialRatingNativeStars } from "./MaterialRatingNativeStars";
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import toast from 'react-hot-toast';
+import { Star } from 'lucide-react';
+import { Rating, Star as RatingStarShape } from '@smastrom/react-rating';
+import '@smastrom/react-rating/style.css';
+import { Button } from '@/shared/ui/patient/primitives/button';
+import { cn } from '@/lib/utils';
+import { patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
+import { ruRatingCountLabel } from '@/shared/lib/ruRatingCountLabel';
+import type { MaterialRatingTargetKind } from '@/modules/material-rating/types';
+import { MaterialRatingNativeStars } from './MaterialRatingNativeStars';
 
 export type MaterialRatingBlockProps = {
   targetKind: MaterialRatingTargetKind;
@@ -20,7 +20,7 @@ export type MaterialRatingBlockProps = {
   guest?: boolean;
   needsActivation?: boolean;
   readOnly?: boolean;
-  variant?: "patient" | "doctorCompact";
+  variant?: 'patient' | 'doctorCompact';
   /** После успешного PUT, только если сохранённые звёзды 1–3. */
   onLowRatingSaved?: (stars: number) => void;
   hideAfterSaved?: boolean;
@@ -40,23 +40,23 @@ function buildQuery(
   programStageItemId?: string,
 ) {
   const sp = new URLSearchParams({ kind: targetKind, id: targetId });
-  if (programInstanceId) sp.set("programInstanceId", programInstanceId);
-  if (programStageItemId) sp.set("programStageItemId", programStageItemId);
+  if (programInstanceId) sp.set('programInstanceId', programInstanceId);
+  if (programStageItemId) sp.set('programStageItemId', programStageItemId);
   return sp.toString();
 }
 
 /** Undici/jsdom требует абсолютный URL; в браузере достаточно относительного пути. */
 function fetchApiUrl(pathWithLeadingSlash: string): string {
-  if (pathWithLeadingSlash.startsWith("http://") || pathWithLeadingSlash.startsWith("https://")) {
+  if (pathWithLeadingSlash.startsWith('http://') || pathWithLeadingSlash.startsWith('https://')) {
     return pathWithLeadingSlash;
   }
   const origin =
-    typeof window !== "undefined" &&
+    typeof window !== 'undefined' &&
     window.location?.origin &&
-    window.location.origin !== "null" &&
-    window.location.origin !== "undefined"
+    window.location.origin !== 'null' &&
+    window.location.origin !== 'undefined'
       ? window.location.origin
-      : "http://localhost";
+      : 'http://localhost';
   return new URL(pathWithLeadingSlash, origin).toString();
 }
 
@@ -64,10 +64,10 @@ function fetchApiUrl(pathWithLeadingSlash: string): string {
 const MATERIAL_RATING_ITEM_STYLES = {
   itemShapes: RatingStarShape,
   itemStrokeWidth: 2,
-  activeFillColor: "#f7965c",
-  inactiveFillColor: "#fff7ed",
-  activeStrokeColor: "#bb5e26",
-  inactiveStrokeColor: "#eda76a",
+  activeFillColor: '#f7965c',
+  inactiveFillColor: '#fff7ed',
+  activeStrokeColor: '#bb5e26',
+  inactiveStrokeColor: '#eda76a',
 } as const;
 
 type SmastromBoundaryProps = {
@@ -78,7 +78,10 @@ type SmastromBoundaryProps = {
 type SmastromBoundaryState = { failed: boolean };
 
 /** При смене материала родитель задаёт `key` — состояние ошибки сбрасывается без `setState` в update. */
-class MaterialRatingSmastromBoundary extends React.Component<SmastromBoundaryProps, SmastromBoundaryState> {
+class MaterialRatingSmastromBoundary extends React.Component<
+  SmastromBoundaryProps,
+  SmastromBoundaryState
+> {
   constructor(props: SmastromBoundaryProps) {
     super(props);
     this.state = { failed: false };
@@ -101,7 +104,7 @@ export function MaterialRatingBlock({
   guest = false,
   needsActivation = false,
   readOnly = false,
-  variant = "patient",
+  variant = 'patient',
   onLowRatingSaved,
   hideAfterSaved = false,
   className,
@@ -115,8 +118,8 @@ export function MaterialRatingBlock({
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const interactive = !readOnly && !guest && !needsActivation;
-  const isDoctorCompact = variant === "doctorCompact";
-  const ratingKey = `${targetKind}:${targetId}:${programInstanceId ?? ""}:${programStageItemId ?? ""}`;
+  const isDoctorCompact = variant === 'doctorCompact';
+  const ratingKey = `${targetKind}:${targetId}:${programInstanceId ?? ''}:${programStageItemId ?? ''}`;
 
   useEffect(() => {
     return () => {
@@ -131,7 +134,7 @@ export function MaterialRatingBlock({
       const path = isDoctorCompact
         ? `/api/doctor/material-ratings/aggregate?kind=${encodeURIComponent(targetKind)}&id=${encodeURIComponent(targetId)}`
         : `/api/patient/material-ratings?${buildQuery(targetKind, targetId, programInstanceId, programStageItemId)}`;
-      const res = await fetch(fetchApiUrl(path), { method: "GET" });
+      const res = await fetch(fetchApiUrl(path), { method: 'GET' });
       const data = (await res.json().catch(() => ({}))) as {
         ok?: boolean;
         avg?: number | null;
@@ -140,7 +143,7 @@ export function MaterialRatingBlock({
         error?: string;
       };
       if (!res.ok || !data.ok) {
-        setError(data.error === "not_found" ? "" : "Не удалось загрузить оценки");
+        setError(data.error === 'not_found' ? '' : 'Не удалось загрузить оценки');
         setAggregate(null);
         return;
       }
@@ -152,7 +155,7 @@ export function MaterialRatingBlock({
       setAggregate(payload);
       setValue(payload.myStars ?? 0);
     } catch {
-      setError("Не удалось загрузить оценки");
+      setError('Не удалось загрузить оценки');
       setAggregate(null);
     } finally {
       setLoading(false);
@@ -175,9 +178,9 @@ export function MaterialRatingBlock({
         debounceRef.current = null;
         void (async () => {
           try {
-            const res = await fetch(fetchApiUrl("/api/patient/material-ratings"), {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
+            const res = await fetch(fetchApiUrl('/api/patient/material-ratings'), {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 targetKind,
                 targetId,
@@ -194,7 +197,7 @@ export function MaterialRatingBlock({
             };
             if (!res.ok || !data.ok) {
               setError(null);
-              toast.error("Не удалось сохранить");
+              toast.error('Не удалось сохранить');
               await load();
               return;
             }
@@ -207,22 +210,30 @@ export function MaterialRatingBlock({
             });
             setValue(my ?? 0);
             setEditRatingPicker(false);
-            toast.success("Спасибо за оценку!");
+            toast.success('Спасибо за оценку!');
             if (my != null && my >= 1 && my <= 3) {
               onLowRatingSaved?.(my);
             }
           } catch {
             setError(null);
-            toast.error("Не удалось сохранить");
+            toast.error('Не удалось сохранить');
             await load();
           }
         })();
       }, 320);
     },
-    [interactive, load, onLowRatingSaved, programInstanceId, programStageItemId, targetId, targetKind],
+    [
+      interactive,
+      load,
+      onLowRatingSaved,
+      programInstanceId,
+      programStageItemId,
+      targetId,
+      targetKind,
+    ],
   );
 
-  const pickerClassName = cn("material-rating-stars material-rating-stars--size-primary");
+  const pickerClassName = cn('material-rating-stars material-rating-stars--size-primary');
 
   const nativeStars = (
     <MaterialRatingNativeStars
@@ -239,14 +250,14 @@ export function MaterialRatingBlock({
 
   if (isDoctorCompact) {
     if (loading && !aggregate) {
-      return <p className={cn("text-xs text-muted-foreground", className)}>…</p>;
+      return <p className={cn('text-xs text-muted-foreground', className)}>…</p>;
     }
     if (!aggregate || aggregate.count === 0) {
-      return <p className={cn("text-xs text-muted-foreground", className)}>Нет оценок</p>;
+      return <p className={cn('text-xs text-muted-foreground', className)}>Нет оценок</p>;
     }
     return (
-      <p className={cn("text-xs text-muted-foreground tabular-nums", className)}>
-        Средняя {aggregate.avg != null ? aggregate.avg.toFixed(1) : "—"} · {aggregate.count}{" "}
+      <p className={cn('text-xs text-muted-foreground tabular-nums', className)}>
+        Средняя {aggregate.avg != null ? aggregate.avg.toFixed(1) : '—'} · {aggregate.count}{' '}
         {ruRatingCountLabel(aggregate.count)}
       </p>
     );
@@ -254,7 +265,7 @@ export function MaterialRatingBlock({
 
   if (loading && !aggregate) {
     return (
-      <div className={cn(patientMutedTextClass, "text-sm", className)} aria-busy>
+      <div className={cn(patientMutedTextClass, 'text-sm', className)} aria-busy>
         …
       </div>
     );
@@ -265,7 +276,7 @@ export function MaterialRatingBlock({
   }
 
   const myStars = aggregate?.myStars;
-  const hasSavedVote = typeof myStars === "number" && myStars >= 1;
+  const hasSavedVote = typeof myStars === 'number' && myStars >= 1;
   const showSummaryRow = hasSavedVote && !editRatingPicker && !guest;
   const showChangeLink = showSummaryRow && interactive;
   const showStarPicker = !showSummaryRow;
@@ -275,10 +286,10 @@ export function MaterialRatingBlock({
   }
 
   return (
-    <div className={cn("flex flex-col gap-1.5", className)}>
+    <div className={cn('flex flex-col gap-1.5', className)}>
       {showSummaryRow ? (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-normal leading-snug">
-          <span className={cn(patientMutedTextClass, "font-normal")}>Ваша оценка:</span>
+          <span className={cn(patientMutedTextClass, 'font-normal')}>Ваша оценка:</span>
           <span className="inline-flex items-center gap-1.5" aria-hidden>
             {[1, 2, 3, 4, 5].map((n) => {
               const filled = n <= (myStars ?? 0);
@@ -287,8 +298,8 @@ export function MaterialRatingBlock({
                   key={n}
                   size={15}
                   className="shrink-0"
-                  fill={filled ? "#f7965c" : "#fff7ed"}
-                  stroke={filled ? "#bb5e26" : "#eda76a"}
+                  fill={filled ? '#f7965c' : '#fff7ed'}
+                  stroke={filled ? '#bb5e26' : '#eda76a'}
                   strokeWidth={1.5}
                 />
               );
@@ -300,10 +311,10 @@ export function MaterialRatingBlock({
               variant="ghost"
               className={cn(
                 patientMutedTextClass,
-                "cursor-pointer border-0 bg-transparent p-0 text-[11px] font-normal underline decoration-muted-foreground/55 underline-offset-2 hover:opacity-90",
+                'cursor-pointer border-0 bg-transparent p-0 text-[11px] font-normal underline decoration-muted-foreground/55 underline-offset-2 hover:opacity-90',
               )}
               onClick={() => {
-                if (!window.confirm("Сбросить вашу прошлую оценку?")) return;
+                if (!window.confirm('Сбросить вашу прошлую оценку?')) return;
                 setEditRatingPicker(true);
                 setValue(0);
               }}

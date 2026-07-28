@@ -1,13 +1,13 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   inMemoryAppointmentProjectionPort,
   resetInMemoryAppointmentProjectionState,
-} from "@/infra/repos/inMemoryAppointmentProjection";
-import { staffPurgeCancelledAppointment } from "./staffPurgeCancelledAppointment";
+} from '@/infra/repos/inMemoryAppointmentProjection';
+import { staffPurgeCancelledAppointment } from './staffPurgeCancelledAppointment';
 
 const emitBookingDeletedEventMock = vi.hoisted(() => vi.fn());
 
-vi.mock("@/app-layer/booking/emitBookingDeletedEvent", () => ({
+vi.mock('@/app-layer/booking/emitBookingDeletedEvent', () => ({
   emitBookingDeletedEvent: emitBookingDeletedEventMock,
 }));
 
@@ -24,9 +24,9 @@ function deps() {
   } as never;
 }
 
-const APPT_ID = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
+const APPT_ID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
 
-describe("staffPurgeCancelledAppointment", () => {
+describe('staffPurgeCancelledAppointment', () => {
   beforeEach(() => {
     resetInMemoryAppointmentProjectionState();
     emitBookingDeletedEventMock.mockReset();
@@ -37,58 +37,58 @@ describe("staffPurgeCancelledAppointment", () => {
     emitBookingDeletedEventMock.mockResolvedValue(undefined);
   });
 
-  it("returns not_cancelled for confirmed appointment", async () => {
+  it('returns not_cancelled for confirmed appointment', async () => {
     getAppointmentMock.mockResolvedValue({
       id: APPT_ID,
-      organizationId: "org-1",
-      status: "confirmed",
-      startAt: "2026-06-01T10:00:00.000Z",
+      organizationId: 'org-1',
+      status: 'confirmed',
+      startAt: '2026-06-01T10:00:00.000Z',
     });
 
     const result = await staffPurgeCancelledAppointment({
       deps: deps(),
-      organizationId: "org-1",
+      organizationId: 'org-1',
       appointmentId: APPT_ID,
-      actorId: "u1",
+      actorId: 'u1',
     });
 
-    expect(result).toEqual({ ok: false, error: "not_cancelled" });
+    expect(result).toEqual({ ok: false, error: 'not_cancelled' });
     expect(emitBookingDeletedEventMock).not.toHaveBeenCalled();
   });
 
-  it("returns not_cancelled for no_show", async () => {
+  it('returns not_cancelled for no_show', async () => {
     getAppointmentMock.mockResolvedValue({
       id: APPT_ID,
-      organizationId: "org-1",
-      status: "no_show",
-      startAt: "2026-06-01T10:00:00.000Z",
+      organizationId: 'org-1',
+      status: 'no_show',
+      startAt: '2026-06-01T10:00:00.000Z',
     });
 
     const result = await staffPurgeCancelledAppointment({
       deps: deps(),
-      organizationId: "org-1",
+      organizationId: 'org-1',
       appointmentId: APPT_ID,
-      actorId: "u1",
+      actorId: 'u1',
     });
 
-    expect(result).toEqual({ ok: false, error: "not_cancelled" });
+    expect(result).toEqual({ ok: false, error: 'not_cancelled' });
   });
 
-  it("purges cancelled appointment and emits booking.deleted only", async () => {
+  it('purges cancelled appointment and emits booking.deleted only', async () => {
     const principalState = { inside: false };
     getAppointmentMock.mockResolvedValue({
       id: APPT_ID,
-      organizationId: "org-1",
-      status: "cancelled_by_specialist",
-      startAt: "2026-06-01T10:00:00.000Z",
+      organizationId: 'org-1',
+      status: 'cancelled_by_specialist',
+      startAt: '2026-06-01T10:00:00.000Z',
     });
     await inMemoryAppointmentProjectionPort.upsertRecordFromProjection({
       integratorRecordId: `be:${APPT_ID}`,
-      phoneNormalized: "+79990000000",
-      recordAt: "2026-06-01T10:00:00.000Z",
-      status: "cancelled",
+      phoneNormalized: '+79990000000',
+      recordAt: '2026-06-01T10:00:00.000Z',
+      status: 'cancelled',
       payloadJson: {},
-      lastEvent: "native.cancelled",
+      lastEvent: 'native.cancelled',
       updatedAt: new Date().toISOString(),
     });
     emitBookingDeletedEventMock.mockImplementation(async () => {
@@ -97,9 +97,9 @@ describe("staffPurgeCancelledAppointment", () => {
 
     const result = await staffPurgeCancelledAppointment({
       deps: deps(),
-      organizationId: "org-1",
+      organizationId: 'org-1',
       appointmentId: APPT_ID,
-      actorId: "u1",
+      actorId: 'u1',
       runLocalPurge: async (fn) => {
         principalState.inside = true;
         try {
@@ -113,71 +113,72 @@ describe("staffPurgeCancelledAppointment", () => {
     expect(result).toEqual({ ok: true });
     expect(principalState.inside).toBe(false);
     expect(emitBookingDeletedEventMock).toHaveBeenCalledTimes(1);
-    const purged = await inMemoryAppointmentProjectionPort.isIntegratorRecordPurged(`be:${APPT_ID}`);
+    const purged = await inMemoryAppointmentProjectionPort.isIntegratorRecordPurged(
+      `be:${APPT_ID}`,
+    );
     expect(purged).toBe(true);
   });
 
-  it("is idempotent when already purged", async () => {
+  it('is idempotent when already purged', async () => {
     getAppointmentMock.mockResolvedValue({
       id: APPT_ID,
-      organizationId: "org-1",
-      status: "cancelled_by_patient",
-      startAt: "2026-06-01T10:00:00.000Z",
+      organizationId: 'org-1',
+      status: 'cancelled_by_patient',
+      startAt: '2026-06-01T10:00:00.000Z',
     });
     await inMemoryAppointmentProjectionPort.upsertRecordFromProjection({
       integratorRecordId: `be:${APPT_ID}`,
-      phoneNormalized: "+79990000000",
-      recordAt: "2026-06-01T10:00:00.000Z",
-      status: "cancelled",
+      phoneNormalized: '+79990000000',
+      recordAt: '2026-06-01T10:00:00.000Z',
+      status: 'cancelled',
       payloadJson: {},
-      lastEvent: "native.cancelled",
+      lastEvent: 'native.cancelled',
       updatedAt: new Date().toISOString(),
     });
     await inMemoryAppointmentProjectionPort.softDeleteByCanonicalAppointmentId(APPT_ID);
 
     const result = await staffPurgeCancelledAppointment({
       deps: deps(),
-      organizationId: "org-1",
+      organizationId: 'org-1',
       appointmentId: APPT_ID,
-      actorId: "u1",
+      actorId: 'u1',
     });
 
     expect(result).toEqual({ ok: true });
     expect(emitBookingDeletedEventMock).toHaveBeenCalled();
   });
 
-  it("returns not_found when appointment missing", async () => {
+  it('returns not_found when appointment missing', async () => {
     getAppointmentMock.mockResolvedValue(null);
 
     const result = await staffPurgeCancelledAppointment({
       deps: deps(),
-      organizationId: "org-1",
+      organizationId: 'org-1',
       appointmentId: APPT_ID,
-      actorId: "u1",
+      actorId: 'u1',
     });
 
-    expect(result).toEqual({ ok: false, error: "not_found" });
+    expect(result).toEqual({ ok: false, error: 'not_found' });
   });
 
-  it("purges via tombstone when projection row is missing", async () => {
+  it('purges via tombstone when projection row is missing', async () => {
     getAppointmentMock.mockResolvedValue({
       id: APPT_ID,
-      organizationId: "org-1",
-      status: "cancelled_by_patient",
-      startAt: "2026-06-01T10:00:00.000Z",
+      organizationId: 'org-1',
+      status: 'cancelled_by_patient',
+      startAt: '2026-06-01T10:00:00.000Z',
     });
 
     const result = await staffPurgeCancelledAppointment({
       deps: deps(),
-      organizationId: "org-1",
+      organizationId: 'org-1',
       appointmentId: APPT_ID,
-      actorId: "u1",
+      actorId: 'u1',
     });
 
     expect(result).toEqual({ ok: true });
-    expect(
-      await inMemoryAppointmentProjectionPort.isIntegratorRecordPurged(`be:${APPT_ID}`),
-    ).toBe(true);
+    expect(await inMemoryAppointmentProjectionPort.isIntegratorRecordPurged(`be:${APPT_ID}`)).toBe(
+      true,
+    );
   });
-
 });

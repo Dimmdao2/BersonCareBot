@@ -1,1 +1,1 @@
-export { computeMessengerPhoneBindRequestHash } from "@/infra/idempotency/messengerPhoneBindRequestHash";
+export { computeMessengerPhoneBindRequestHash } from '@/infra/idempotency/messengerPhoneBindRequestHash';

@@ -1,6 +1,6 @@
 ---
 name: Doctor-only stage completion
-overview: "Привести логику этапов к правилу «закрытие этапа только врачом»: убрать автозавершение этапа из пациентских путей, сохранить пациентский переход `available -> in_progress`, переписать тесты, добавить в кабинете врача кнопку «Открыть заново» для этапов `completed`/`skipped`, обновить каноническую документацию и runbook отката."
+overview: 'Привести логику этапов к правилу «закрытие этапа только врачом»: убрать автозавершение этапа из пациентских путей, сохранить пациентский переход `available -> in_progress`, переписать тесты, добавить в кабинете врача кнопку «Открыть заново» для этапов `completed`/`skipped`, обновить каноническую документацию и runbook отката.'
 status: completed
 todos:
   - id: preflight-and-scope
@@ -95,6 +95,7 @@ flowchart LR
 - Проверить, что врачебный путь `doctorSetStageStatus` уже покрывает `completed/skipped`.
 
 Чек-лист верификации:
+
 - `rg "maybeCompleteStageFromItems" apps/webapp/src`
 - `rg "doctorSetStageStatus|updateInstanceStage\\(" apps/webapp/src/modules/treatment-program apps/webapp/src/app/api/doctor`
 - Зафиксировать результат в execution log.
@@ -109,6 +110,7 @@ flowchart LR
 - Не трогать `doctorSetStageStatus`.
 
 Чек-лист верификации:
+
 - `rg "maybeCompleteStageFromItems" apps/webapp/src` => 0 runtime совпадений.
 - `rg "patientTouchStageItemInner" apps/webapp/src/modules/treatment-program/progress-service.ts` => переход `available -> in_progress` сохранен.
 
@@ -127,6 +129,7 @@ flowchart LR
     - исключить автозакрытие этапа пациентом.
 
 Чек-лист верификации:
+
 - `pnpm vitest run apps/webapp/src/modules/treatment-program/progress-service.test.ts`
 - `rg "stage_completed|status\\)\\.toBe\\(\"completed\"\\)" apps/webapp/src/modules/treatment-program/progress-service.test.ts` и ручная проверка, что новые ожидания корректны.
 
@@ -136,6 +139,7 @@ flowchart LR
 - Прогон всего тестового поддерева `treatment-program`.
 
 Чек-лист верификации:
+
 - `rg "patientCompleteSimpleItem|patientSubmitTestResult|stage_completed|status.*completed" apps/webapp/src/modules/treatment-program`
 - `pnpm vitest run "apps/webapp/src/modules/treatment-program/**/*.test.ts"`
 - при необходимости целевой `pnpm --filter webapp lint` / `pnpm --filter webapp typecheck` на затронутой области.
@@ -149,6 +153,7 @@ flowchart LR
 - В [`docs/ARCHITECTURE/DB_STRUCTURE.md`](docs/ARCHITECTURE/DB_STRUCTURE.md) (2.9, экземпляры программ) кратко закрепить ту же семантику.
 
 Чек-лист верификации:
+
 - `rg "completed.*patient|doctor.*completed|in_progress" docs/ARCHITECTURE/PATIENT_TREATMENT_PROGRAM_STAGE_SURFACES.md docs/ARCHITECTURE/DB_STRUCTURE.md`
 - Проверить, что не правятся immutable/archive docs.
 
@@ -164,6 +169,7 @@ flowchart LR
   - что намеренно не делали.
 
 Чек-лист верификации:
+
 - файл лога существует и содержит timestamped записи;
 - ссылки на команды/результаты проверок присутствуют.
 
@@ -172,11 +178,12 @@ flowchart LR
 - Зафиксировать в docs/PR runbook:
   - стандартный doctor UI блокирует действия на `completed/skipped` (`stageActionsLocked`);
   - откат ошибочно закрытого этапа выполняется только согласованным ops-способом:
-    1) прямой PATCH API врача (под контролем),
-    2) SQL-операция с учетом возможного unlock следующего этапа.
+    1. прямой PATCH API врача (под контролем),
+    2. SQL-операция с учетом возможного unlock следующего этапа.
 - Добавить явные критерии, когда использовать PATCH vs SQL.
 
 Чек-лист верификации:
+
 - runbook содержит preconditions, steps, post-check SQL/API, rollback пункт.
 - после шага 7: основной сценарий отката — через UI «Открыть заново»; PATCH/SQL остаются fallback.
 

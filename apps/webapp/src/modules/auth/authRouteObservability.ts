@@ -1,5 +1,5 @@
-import { logger } from "@/infra/logging/logger";
-import { getServerRuntimeBool } from "@/modules/system-settings/configAdapter";
+import { logger } from '@/infra/logging/logger';
+import { getServerRuntimeBool } from '@/modules/system-settings/configAdapter';
 
 /**
  * Server-side auth route latency / outcome (no secrets, no raw tokens).
@@ -14,13 +14,13 @@ export function logAuthRouteTiming(input: {
   outcome: string;
   errorType?: string;
 }): void {
-  if (process.env.NODE_ENV === "test") return;
+  if (process.env.NODE_ENV === 'test') return;
   const elapsedMs = Date.now() - input.startedAt;
   void (async () => {
-    if (!(await getServerRuntimeBool("debug_forward_to_admin"))) return;
+    if (!(await getServerRuntimeBool('debug_forward_to_admin'))) return;
     logger.info(
       {
-        scope: "auth_route",
+        scope: 'auth_route',
         route: input.route,
         status: input.status,
         outcome: input.outcome,

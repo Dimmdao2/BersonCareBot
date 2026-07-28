@@ -1,53 +1,53 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useState, useTransition } from "react";
-import { apiJson } from "@/shared/lib/apiJson";
-import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { Label } from "@/shared/ui/doctor/primitives/label";
-import { Switch } from "@/shared/ui/doctor/primitives/switch";
+import { useCallback, useEffect, useState, useTransition } from 'react';
+import { apiJson } from '@/shared/lib/apiJson';
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { Label } from '@/shared/ui/doctor/primitives/label';
+import { Switch } from '@/shared/ui/doctor/primitives/switch';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/ui/doctor/primitives/select";
+} from '@/shared/ui/doctor/primitives/select';
 import type {
   CancellationPolicy,
   LateCancellationBehavior,
   PolicyScopeLevel,
   RescheduleLimitBehavior,
   ReschedulePolicy,
-} from "@/modules/booking-policies/types";
+} from '@/modules/booking-policies/types';
 
-const BASE = "/api/admin/booking-engine/policies";
+const BASE = '/api/admin/booking-engine/policies';
 
 const SCOPE_LEVELS: { value: PolicyScopeLevel; label: string }[] = [
-  { value: "organization", label: "Клиника" },
-  { value: "specialist", label: "Специалист" },
-  { value: "service", label: "Услуга" },
-  { value: "product", label: "Продукт" },
+  { value: 'organization', label: 'Клиника' },
+  { value: 'specialist', label: 'Специалист' },
+  { value: 'service', label: 'Услуга' },
+  { value: 'product', label: 'Продукт' },
 ];
 
 const LATE_CANCEL_OPTIONS: { value: LateCancellationBehavior; label: string }[] = [
-  { value: "manual_review", label: "Ручное решение" },
-  { value: "penalty", label: "Штраф" },
-  { value: "charge_package", label: "Списание абонемента" },
-  { value: "retain_prepayment", label: "Удержать предоплату" },
-  { value: "refund_prepayment", label: "Вернуть предоплату" },
+  { value: 'manual_review', label: 'Ручное решение' },
+  { value: 'penalty', label: 'Штраф' },
+  { value: 'charge_package', label: 'Списание абонемента' },
+  { value: 'retain_prepayment', label: 'Удержать предоплату' },
+  { value: 'refund_prepayment', label: 'Вернуть предоплату' },
 ];
 
 const LIMIT_OPTIONS: { value: RescheduleLimitBehavior; label: string }[] = [
-  { value: "manual_request", label: "Запрос персоналу" },
-  { value: "deny", label: "Запретить" },
+  { value: 'manual_request', label: 'Запрос персоналу' },
+  { value: 'deny', label: 'Запретить' },
 ];
 
-type PolicyKind = "cancellation" | "reschedule";
+type PolicyKind = 'cancellation' | 'reschedule';
 
-const OVERVIEW = "/api/admin/booking-engine/overview";
-const PRODUCTS = "/api/admin/booking-engine/products";
+const OVERVIEW = '/api/admin/booking-engine/overview';
+const PRODUCTS = '/api/admin/booking-engine/products';
 
 type Props = {
   defaultKind?: PolicyKind;
@@ -55,11 +55,11 @@ type Props = {
   lockKind?: boolean;
 };
 
-export function BookingPoliciesSection({ defaultKind = "cancellation", lockKind = false }: Props) {
+export function BookingPoliciesSection({ defaultKind = 'cancellation', lockKind = false }: Props) {
   const [cancellationPolicies, setCancellationPolicies] = useState<CancellationPolicy[]>([]);
   const [reschedulePolicies, setReschedulePolicies] = useState<ReschedulePolicy[]>([]);
-  const [scopeLevel, setScopeLevel] = useState<PolicyScopeLevel>("organization");
-  const [scopeEntityId, setScopeEntityId] = useState("");
+  const [scopeLevel, setScopeLevel] = useState<PolicyScopeLevel>('organization');
+  const [scopeEntityId, setScopeEntityId] = useState('');
   const [kind, setKind] = useState<PolicyKind>(defaultKind);
   const [specialists, setSpecialists] = useState<Array<{ id: string; fullName: string }>>([]);
   const [services, setServices] = useState<Array<{ id: string; title: string }>>([]);
@@ -79,7 +79,7 @@ export function BookingPoliciesSection({ defaultKind = "cancellation", lockKind 
       setReschedulePolicies(json.reschedulePolicies ?? []);
       setError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "load_failed");
+      setError(e instanceof Error ? e.message : 'load_failed');
     }
   }, []);
 
@@ -120,29 +120,29 @@ export function BookingPoliciesSection({ defaultKind = "cancellation", lockKind 
     cancellationPolicies.find(
       (p) =>
         p.scopeLevel === scopeLevel &&
-        (scopeLevel === "organization" || (p.scopeEntityId ?? "") === scopeEntityId.trim()),
+        (scopeLevel === 'organization' || (p.scopeEntityId ?? '') === scopeEntityId.trim()),
     ) ?? null;
 
   const reschedulePolicy =
     reschedulePolicies.find(
       (p) =>
         p.scopeLevel === scopeLevel &&
-        (scopeLevel === "organization" || (p.scopeEntityId ?? "") === scopeEntityId.trim()),
+        (scopeLevel === 'organization' || (p.scopeEntityId ?? '') === scopeEntityId.trim()),
     ) ?? null;
 
-  const activePolicy = kind === "cancellation" ? cancelPolicy : reschedulePolicy;
+  const activePolicy = kind === 'cancellation' ? cancelPolicy : reschedulePolicy;
 
   function saveCancellation(policy: CancellationPolicy) {
     startTransition(async () => {
       try {
         await apiJson(BASE, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            kind: "cancellation",
+            kind: 'cancellation',
             id: policy.id,
             scopeLevel: policy.scopeLevel,
-            scopeEntityId: policy.scopeLevel === "organization" ? null : policy.scopeEntityId,
+            scopeEntityId: policy.scopeLevel === 'organization' ? null : policy.scopeEntityId,
             title: policy.title,
             isActive: policy.isActive,
             freeCancelHoursBefore: policy.freeCancelHoursBefore,
@@ -158,7 +158,7 @@ export function BookingPoliciesSection({ defaultKind = "cancellation", lockKind 
         });
         await load();
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Ошибка сети");
+        setError(e instanceof Error ? e.message : 'Ошибка сети');
       }
     });
   }
@@ -167,13 +167,13 @@ export function BookingPoliciesSection({ defaultKind = "cancellation", lockKind 
     startTransition(async () => {
       try {
         await apiJson(BASE, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            kind: "reschedule",
+            kind: 'reschedule',
             id: policy.id,
             scopeLevel: policy.scopeLevel,
-            scopeEntityId: policy.scopeLevel === "organization" ? null : policy.scopeEntityId,
+            scopeEntityId: policy.scopeLevel === 'organization' ? null : policy.scopeEntityId,
             title: policy.title,
             isActive: policy.isActive,
             selfRescheduleHoursBefore: policy.selfRescheduleHoursBefore,
@@ -191,11 +191,10 @@ export function BookingPoliciesSection({ defaultKind = "cancellation", lockKind 
         });
         await load();
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Ошибка сети");
+        setError(e instanceof Error ? e.message : 'Ошибка сети');
       }
     });
   }
-
 
   return (
     <Card>
@@ -207,7 +206,10 @@ export function BookingPoliciesSection({ defaultKind = "cancellation", lockKind 
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-2">
             <Label>Уровень</Label>
-            <Select value={scopeLevel} onValueChange={(v) => v && setScopeLevel(v as PolicyScopeLevel)}>
+            <Select
+              value={scopeLevel}
+              onValueChange={(v) => v && setScopeLevel(v as PolicyScopeLevel)}
+            >
               <SelectTrigger className="w-full">
                 <SelectValue />
               </SelectTrigger>
@@ -220,7 +222,7 @@ export function BookingPoliciesSection({ defaultKind = "cancellation", lockKind 
               </SelectContent>
             </Select>
           </div>
-          {scopeLevel === "specialist" ? (
+          {scopeLevel === 'specialist' ? (
             <div className="space-y-2">
               <Label>Специалист</Label>
               <Select value={scopeEntityId} onValueChange={(v) => v && setScopeEntityId(v)}>
@@ -237,7 +239,7 @@ export function BookingPoliciesSection({ defaultKind = "cancellation", lockKind 
               </Select>
             </div>
           ) : null}
-          {scopeLevel === "service" ? (
+          {scopeLevel === 'service' ? (
             <div className="space-y-2">
               <Label>Услуга</Label>
               <Select value={scopeEntityId} onValueChange={(v) => v && setScopeEntityId(v)}>
@@ -254,7 +256,7 @@ export function BookingPoliciesSection({ defaultKind = "cancellation", lockKind 
               </Select>
             </div>
           ) : null}
-          {scopeLevel === "product" ? (
+          {scopeLevel === 'product' ? (
             <div className="space-y-2">
               <Label>Продукт</Label>
               <Select value={scopeEntityId} onValueChange={(v) => v && setScopeEntityId(v)}>
@@ -291,7 +293,7 @@ export function BookingPoliciesSection({ defaultKind = "cancellation", lockKind 
           ) : null}
         </div>
 
-        {kind === "cancellation" && cancelPolicy ? (
+        {kind === 'cancellation' && cancelPolicy ? (
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-2">
               <Label>Бесплатная отмена, часов</Label>
@@ -342,7 +344,9 @@ export function BookingPoliciesSection({ defaultKind = "cancellation", lockKind 
                 checked={cancelPolicy.cancellationAllowed}
                 onCheckedChange={(v) =>
                   setCancellationPolicies((prev) =>
-                    prev.map((p) => (p.id === cancelPolicy.id ? { ...p, cancellationAllowed: v } : p)),
+                    prev.map((p) =>
+                      p.id === cancelPolicy.id ? { ...p, cancellationAllowed: v } : p,
+                    ),
                   )
                 }
               />
@@ -376,7 +380,7 @@ export function BookingPoliciesSection({ defaultKind = "cancellation", lockKind 
           </div>
         ) : null}
 
-        {kind === "reschedule" && reschedulePolicy ? (
+        {kind === 'reschedule' && reschedulePolicy ? (
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-2">
               <Label>Самостоятельный перенос, часов</Label>
@@ -444,7 +448,9 @@ export function BookingPoliciesSection({ defaultKind = "cancellation", lockKind 
                 checked={reschedulePolicy.allowDifferentBranch}
                 onCheckedChange={(v) =>
                   setReschedulePolicies((prev) =>
-                    prev.map((p) => (p.id === reschedulePolicy.id ? { ...p, allowDifferentBranch: v } : p)),
+                    prev.map((p) =>
+                      p.id === reschedulePolicy.id ? { ...p, allowDifferentBranch: v } : p,
+                    ),
                   )
                 }
               />
@@ -455,7 +461,9 @@ export function BookingPoliciesSection({ defaultKind = "cancellation", lockKind 
                 checked={reschedulePolicy.allowDifferentCity}
                 onCheckedChange={(v) =>
                   setReschedulePolicies((prev) =>
-                    prev.map((p) => (p.id === reschedulePolicy.id ? { ...p, allowDifferentCity: v } : p)),
+                    prev.map((p) =>
+                      p.id === reschedulePolicy.id ? { ...p, allowDifferentCity: v } : p,
+                    ),
                   )
                 }
               />
@@ -479,7 +487,9 @@ export function BookingPoliciesSection({ defaultKind = "cancellation", lockKind 
                 checked={reschedulePolicy.allowDifferentService}
                 onCheckedChange={(v) =>
                   setReschedulePolicies((prev) =>
-                    prev.map((p) => (p.id === reschedulePolicy.id ? { ...p, allowDifferentService: v } : p)),
+                    prev.map((p) =>
+                      p.id === reschedulePolicy.id ? { ...p, allowDifferentService: v } : p,
+                    ),
                   )
                 }
               />
@@ -490,7 +500,9 @@ export function BookingPoliciesSection({ defaultKind = "cancellation", lockKind 
                 checked={reschedulePolicy.notifyPatient}
                 onCheckedChange={(v) =>
                   setReschedulePolicies((prev) =>
-                    prev.map((p) => (p.id === reschedulePolicy.id ? { ...p, notifyPatient: v } : p)),
+                    prev.map((p) =>
+                      p.id === reschedulePolicy.id ? { ...p, notifyPatient: v } : p,
+                    ),
                   )
                 }
               />
@@ -507,7 +519,11 @@ export function BookingPoliciesSection({ defaultKind = "cancellation", lockKind 
               />
               <Label>Уведомлять персонал</Label>
             </div>
-            <Button type="button" disabled={pending} onClick={() => saveReschedule(reschedulePolicy)}>
+            <Button
+              type="button"
+              disabled={pending}
+              onClick={() => saveReschedule(reschedulePolicy)}
+            >
               Сохранить перенос
             </Button>
           </div>

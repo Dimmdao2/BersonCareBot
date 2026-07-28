@@ -31,25 +31,25 @@
 
 ## Файлы инициативы
 
-| Файл | Назначение |
-|------|------------|
-| [`MASTER_PLAN.md`](MASTER_PLAN.md) | Порядок B1–B7, зависимости с A, карта кода, DoD-политика |
-| [`PRE_IMPLEMENTATION_DECISIONS.md`](PRE_IMPLEMENTATION_DECISIONS.md) | Pre-impl решения после аудита кода; слабые места этапных планов |
-| [`STAGE_B1_PLAN.md`](STAGE_B1_PLAN.md) | Две оси фильтра публикация × архив |
-| [`STAGE_B2_PLAN.md`](STAGE_B2_PLAN.md) | Клинические тесты + B2.5 `CreatableComboboxInput` + `measure_kinds` |
-| [`STAGE_B3_PLAN.md`](STAGE_B3_PLAN.md) | Наборы тестов — редактор как LFK-комплекс |
-| [`STAGE_B4_PLAN.md`](STAGE_B4_PLAN.md) | Рекомендации — тип, регион, метрики |
-| [`STAGE_B5_PLAN.md`](STAGE_B5_PLAN.md) | Комплексы ЛФК — UX pass-1, «иконка глаза» |
-| [`STAGE_B6_PLAN.md`](STAGE_B6_PLAN.md) | Шаблоны программ — UX pass-1 конструктора (см. `PRE_IMPLEMENTATION_DECISIONS` — A уже в коде) |
-| [`STAGE_B7_PLAN.md`](STAGE_B7_PLAN.md) | Universal comment pattern на item-контейнеры |
-| [`LOG.md`](LOG.md) | Журнал |
-| [`LOG_TEMPLATE.md`](LOG_TEMPLATE.md) | Шаблон записи в LOG |
-| [`EXECUTION_AUDIT_TEMPLATE.md`](EXECUTION_AUDIT_TEMPLATE.md) | Шаблон аудита |
-| [`PROMPTS_EXEC_AUDIT_FIX_GLOBAL.md`](PROMPTS_EXEC_AUDIT_FIX_GLOBAL.md) | Промпты EXEC/AUDIT/FIX, коммиты, пуш, CI (см. `MASTER_PLAN` §9) |
-| [`AUDIT_GLOBAL.md`](AUDIT_GLOBAL.md) | Сводный аудит B1–B7 и кросс-регресс |
-| [`AUDIT_PREPUSH_POSTFIX.md`](AUDIT_PREPUSH_POSTFIX.md) | Запись полного CI перед push |
-| [`DEFER_CLOSURE_MASTER_PLAN.md`](DEFER_CLOSURE_MASTER_PLAN.md) | Мастер-план закрытия product defer после B1–B7 |
-| [`STAGE_D1_PLAN.md`](STAGE_D1_PLAN.md) … [`STAGE_D6_PLAN.md`](STAGE_D6_PLAN.md) | Технические планы defer-wave по этапам |
-| [`AUDIT_DEFER_CLOSURE_GLOBAL.md`](AUDIT_DEFER_CLOSURE_GLOBAL.md) | Сводный аудит defer-wave D1–D6 (основной текст D6) |
-| [`AUDIT_STAGE_D6.md`](AUDIT_STAGE_D6.md) | Вход к аудиту этапа 6 → ссылка на `AUDIT_DEFER_CLOSURE_GLOBAL` |
-| [`PROMPTS_DEFER_CLOSURE_STAGES.md`](PROMPTS_DEFER_CLOSURE_STAGES.md) | Раздельные промпты `EXEC` / `AUDIT` / `FIX` для каждого D-этапа |
+| Файл                                                                            | Назначение                                                                                    |
+| ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| [`MASTER_PLAN.md`](MASTER_PLAN.md)                                              | Порядок B1–B7, зависимости с A, карта кода, DoD-политика                                      |
+| [`PRE_IMPLEMENTATION_DECISIONS.md`](PRE_IMPLEMENTATION_DECISIONS.md)            | Pre-impl решения после аудита кода; слабые места этапных планов                               |
+| [`STAGE_B1_PLAN.md`](STAGE_B1_PLAN.md)                                          | Две оси фильтра публикация × архив                                                            |
+| [`STAGE_B2_PLAN.md`](STAGE_B2_PLAN.md)                                          | Клинические тесты + B2.5 `CreatableComboboxInput` + `measure_kinds`                           |
+| [`STAGE_B3_PLAN.md`](STAGE_B3_PLAN.md)                                          | Наборы тестов — редактор как LFK-комплекс                                                     |
+| [`STAGE_B4_PLAN.md`](STAGE_B4_PLAN.md)                                          | Рекомендации — тип, регион, метрики                                                           |
+| [`STAGE_B5_PLAN.md`](STAGE_B5_PLAN.md)                                          | Комплексы ЛФК — UX pass-1, «иконка глаза»                                                     |
+| [`STAGE_B6_PLAN.md`](STAGE_B6_PLAN.md)                                          | Шаблоны программ — UX pass-1 конструктора (см. `PRE_IMPLEMENTATION_DECISIONS` — A уже в коде) |
+| [`STAGE_B7_PLAN.md`](STAGE_B7_PLAN.md)                                          | Universal comment pattern на item-контейнеры                                                  |
+| [`LOG.md`](LOG.md)                                                              | Журнал                                                                                        |
+| [`LOG_TEMPLATE.md`](LOG_TEMPLATE.md)                                            | Шаблон записи в LOG                                                                           |
+| [`EXECUTION_AUDIT_TEMPLATE.md`](EXECUTION_AUDIT_TEMPLATE.md)                    | Шаблон аудита                                                                                 |
+| [`PROMPTS_EXEC_AUDIT_FIX_GLOBAL.md`](PROMPTS_EXEC_AUDIT_FIX_GLOBAL.md)          | Промпты EXEC/AUDIT/FIX, коммиты, пуш, CI (см. `MASTER_PLAN` §9)                               |
+| [`AUDIT_GLOBAL.md`](AUDIT_GLOBAL.md)                                            | Сводный аудит B1–B7 и кросс-регресс                                                           |
+| [`AUDIT_PREPUSH_POSTFIX.md`](AUDIT_PREPUSH_POSTFIX.md)                          | Запись полного CI перед push                                                                  |
+| [`DEFER_CLOSURE_MASTER_PLAN.md`](DEFER_CLOSURE_MASTER_PLAN.md)                  | Мастер-план закрытия product defer после B1–B7                                                |
+| [`STAGE_D1_PLAN.md`](STAGE_D1_PLAN.md) … [`STAGE_D6_PLAN.md`](STAGE_D6_PLAN.md) | Технические планы defer-wave по этапам                                                        |
+| [`AUDIT_DEFER_CLOSURE_GLOBAL.md`](AUDIT_DEFER_CLOSURE_GLOBAL.md)                | Сводный аудит defer-wave D1–D6 (основной текст D6)                                            |
+| [`AUDIT_STAGE_D6.md`](AUDIT_STAGE_D6.md)                                        | Вход к аудиту этапа 6 → ссылка на `AUDIT_DEFER_CLOSURE_GLOBAL`                                |
+| [`PROMPTS_DEFER_CLOSURE_STAGES.md`](PROMPTS_DEFER_CLOSURE_STAGES.md)            | Раздельные промпты `EXEC` / `AUDIT` / `FIX` для каждого D-этапа                               |

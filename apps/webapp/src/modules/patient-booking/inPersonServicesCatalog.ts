@@ -1,17 +1,17 @@
-import type { OrganizationCatalogPort, ServiceAvailabilityPort } from "@/modules/booking-engine/ports";
-import type { BookingCity } from "@/modules/booking-catalog/types";
+import type {
+  OrganizationCatalogPort,
+  ServiceAvailabilityPort,
+} from '@/modules/booking-engine/ports';
+import type { BookingCity } from '@/modules/booking-catalog/types';
 import {
   findBuiltInOnlineLocation,
   isBuiltInOnlineLocation,
-} from "@/modules/booking-engine/onlineLocation";
+} from '@/modules/booking-engine/onlineLocation';
 
 export type InPersonServicesCatalogDeps = {
   bookingEngine: {
-    catalog: Pick<OrganizationCatalogPort, "listBranches" | "getBranch" | "listSpecialists">;
-    services: Pick<
-      ServiceAvailabilityPort,
-      "listServices" | "listSpecialistServiceAvailability"
-    >;
+    catalog: Pick<OrganizationCatalogPort, 'listBranches' | 'getBranch' | 'listSpecialists'>;
+    services: Pick<ServiceAvailabilityPort, 'listServices' | 'listSpecialistServiceAvailability'>;
   } | null;
 };
 
@@ -31,9 +31,9 @@ export type OnlineBookingLocationOption = {
 
 export function titleForBookingCityCode(cityCode: string): string {
   const normalized = cityCode.trim().toLowerCase();
-  if (normalized === "online") return "Онлайн";
-  if (normalized === "moscow") return "Москва";
-  if (normalized === "spb") return "Санкт-Петербург";
+  if (normalized === 'online') return 'Онлайн';
+  if (normalized === 'moscow') return 'Москва';
+  if (normalized === 'spb') return 'Санкт-Петербург';
   return cityCode;
 }
 
@@ -61,8 +61,8 @@ export async function listInPersonCitiesForOrganization(
       title: titleForBookingCityCode(city.cityCode),
       isActive: true,
       sortOrder: city.sortOrder,
-      createdAt: "",
-      updatedAt: "",
+      createdAt: '',
+      updatedAt: '',
     }));
 }
 
@@ -94,7 +94,7 @@ export async function resolveActiveBranchForCity(
   const branches = await deps.bookingEngine.catalog.listBranches(organizationId);
   const match = branches
     .filter((b) => b.isActive && b.cityCode.trim().toLowerCase() === normalized)
-    .sort((a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title, "ru"))[0];
+    .sort((a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title, 'ru'))[0];
   return match ? { id: match.id, title: match.title, cityCode: match.cityCode } : null;
 }
 
@@ -103,7 +103,10 @@ export async function listInPersonServicesForBranch(
   organizationId: string,
   branchId: string,
   specialistId?: string | null,
-): Promise<{ branch: { id: string; title: string; cityCode: string }; services: InPersonServiceListItem[] } | null> {
+): Promise<{
+  branch: { id: string; title: string; cityCode: string };
+  services: InPersonServiceListItem[];
+} | null> {
   if (!deps.bookingEngine) return null;
   const branch = await deps.bookingEngine.catalog.getBranch(branchId);
   if (!branch || branch.organizationId !== organizationId || !branch.isActive) return null;

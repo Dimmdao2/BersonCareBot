@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import type { BroadcastRecipientsPreview } from "@/modules/doctor-broadcasts/ports";
+import type { BroadcastRecipientsPreview } from '@/modules/doctor-broadcasts/ports';
 
 type Props = {
   recipientsPreview: BroadcastRecipientsPreview | undefined;
@@ -20,7 +20,10 @@ export function BroadcastRecipientsPreviewBlock({ recipientsPreview }: Props) {
   return (
     <div id="broadcast-recipients-preview" className="flex flex-col gap-1 text-sm">
       <p className="text-muted-foreground">Получатели ({recipientsPreview.total})</p>
-      <ul className="max-h-40 list-disc overflow-y-auto pl-5 text-xs" id="broadcast-recipients-preview-list">
+      <ul
+        className="max-h-40 list-disc overflow-y-auto pl-5 text-xs"
+        id="broadcast-recipients-preview-list"
+      >
         {recipientsPreview.names.map((name, i) => (
           <li key={`${i}:${name}`}>{name}</li>
         ))}

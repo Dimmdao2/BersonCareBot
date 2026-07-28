@@ -1,73 +1,75 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const getCurrentSessionMock = vi.hoisted(() => vi.fn());
 const buildAppDepsMock = vi.hoisted(() => vi.fn());
 const requireDoctorWorkspaceApiContextMock = vi.hoisted(() => vi.fn());
-const withDoctorWorkspacePrincipalMock = vi.hoisted(() => vi.fn((_: unknown, sourceOrFn: string | (() => unknown), maybeFn?: () => unknown) => {
-  const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
-  if (!fn) throw new Error("principal_callback_required");
-  return fn();
-}));
+const withDoctorWorkspacePrincipalMock = vi.hoisted(() =>
+  vi.fn((_: unknown, sourceOrFn: string | (() => unknown), maybeFn?: () => unknown) => {
+    const fn = typeof sourceOrFn === 'function' ? sourceOrFn : maybeFn;
+    if (!fn) throw new Error('principal_callback_required');
+    return fn();
+  }),
+);
 
-vi.mock("@/modules/auth/service", () => ({
+vi.mock('@/modules/auth/service', () => ({
   getCurrentSession: getCurrentSessionMock,
 }));
 
-vi.mock("@/app-layer/di/buildAppDeps", () => ({
+vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: buildAppDepsMock,
 }));
 
-vi.mock("@/app-layer/guards/requireRole", () => ({
+vi.mock('@/app-layer/guards/requireRole', () => ({
   requireDoctorWorkspaceApiContext: () => requireDoctorWorkspaceApiContextMock(),
 }));
 
-vi.mock("@/app-layer/guards/doctorWorkspacePrincipal", () => ({
+vi.mock('@/app-layer/guards/doctorWorkspacePrincipal', () => ({
   withDoctorWorkspacePrincipal: (
     ctx: unknown,
     sourceOrFn: string | (() => unknown),
     maybeFn?: () => unknown,
   ) => {
-    const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
-    if (!fn) throw new Error("principal_callback_required");
+    const fn = typeof sourceOrFn === 'function' ? sourceOrFn : maybeFn;
+    if (!fn) throw new Error('principal_callback_required');
     return withDoctorWorkspacePrincipalMock(ctx, fn);
   },
 }));
 
-const patientUserId = "a0000000-0000-4000-8000-000000000001";
-const canonicalPatientUserId = "a0000000-0000-4000-8000-000000000011";
+const patientUserId = 'a0000000-0000-4000-8000-000000000001';
+const canonicalPatientUserId = 'a0000000-0000-4000-8000-000000000011';
 const workspaceCtx = {
-  session: { user: { userId: "doc-1", role: "doctor", bindings: {} } },
-  organizationId: "b0000000-0000-4000-8000-000000000002",
-  membershipId: "c0000000-0000-4000-8000-000000000003",
-  membershipRole: "doctor",
+  session: { user: { userId: 'doc-1', role: 'doctor', bindings: {} } },
+  organizationId: 'b0000000-0000-4000-8000-000000000002',
+  membershipId: 'c0000000-0000-4000-8000-000000000003',
+  membershipRole: 'doctor',
   specialistId: null,
   canManageOrganization: false,
   canManageAllSpecialists: false,
 };
 
-describe("doctor client support-settings route", () => {
+describe('doctor client support-settings route', () => {
   beforeEach(() => {
     requireDoctorWorkspaceApiContextMock.mockReset();
     withDoctorWorkspacePrincipalMock.mockClear();
     withDoctorWorkspacePrincipalMock.mockImplementation(
       (_: unknown, sourceOrFn: string | (() => unknown), maybeFn?: () => unknown) => {
-        const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
-        if (!fn) throw new Error("principal_callback_required");
+        const fn = typeof sourceOrFn === 'function' ? sourceOrFn : maybeFn;
+        if (!fn) throw new Error('principal_callback_required');
         return fn();
       },
     );
     requireDoctorWorkspaceApiContextMock.mockResolvedValue({ ok: true, ctx: workspaceCtx });
   });
 
-  it("GET returns profile and effective policy", async () => {
-    getCurrentSessionMock.mockResolvedValue({ user: { userId: "doc-1", role: "doctor" } });
+  it('GET returns profile and effective policy', async () => {
+    getCurrentSessionMock.mockResolvedValue({ user: { userId: 'doc-1', role: 'doctor' } });
     const getClientSupport = vi.fn().mockResolvedValue({
       patientUserId: canonicalPatientUserId,
       onSupport: true,
       commentsEnabled: null,
       mediaEnabled: null,
-      updatedAt: "2026-01-01",
-      updatedBy: "doc-1",
+      updatedAt: '2026-01-01',
+      updatedBy: 'doc-1',
     });
     const getPatientProgramInteractionPolicy = vi.fn().mockResolvedValue({
       onSupport: true,
@@ -76,13 +78,15 @@ describe("doctor client support-settings route", () => {
     });
     buildAppDepsMock.mockReturnValue({
       doctorClientsPort: {
-        getClientIdentityForOrganization: vi.fn().mockResolvedValue({ userId: canonicalPatientUserId }),
+        getClientIdentityForOrganization: vi
+          .fn()
+          .mockResolvedValue({ userId: canonicalPatientUserId }),
       },
       doctorClients: { getClientSupport, getPatientProgramInteractionPolicy },
     });
 
-    const { GET } = await import("./route");
-    const res = await GET(new Request("http://localhost"), {
+    const { GET } = await import('./route');
+    const res = await GET(new Request('http://localhost'), {
       params: Promise.resolve({ userId: patientUserId }),
     });
     const json = (await res.json()) as {
@@ -98,15 +102,15 @@ describe("doctor client support-settings route", () => {
     expect(getPatientProgramInteractionPolicy).toHaveBeenCalledWith(canonicalPatientUserId);
   });
 
-  it("PATCH updates support profile", async () => {
-    getCurrentSessionMock.mockResolvedValue({ user: { userId: "doc-1", role: "doctor" } });
+  it('PATCH updates support profile', async () => {
+    getCurrentSessionMock.mockResolvedValue({ user: { userId: 'doc-1', role: 'doctor' } });
     const updateClientSupport = vi.fn().mockResolvedValue({
       patientUserId: canonicalPatientUserId,
       onSupport: false,
       commentsEnabled: true,
       mediaEnabled: null,
-      updatedAt: "2026-01-02",
-      updatedBy: "doc-1",
+      updatedAt: '2026-01-02',
+      updatedBy: 'doc-1',
     });
     const getPatientProgramInteractionPolicy = vi.fn().mockResolvedValue({
       onSupport: false,
@@ -115,16 +119,18 @@ describe("doctor client support-settings route", () => {
     });
     buildAppDepsMock.mockReturnValue({
       doctorClientsPort: {
-        getClientIdentityForOrganization: vi.fn().mockResolvedValue({ userId: canonicalPatientUserId }),
+        getClientIdentityForOrganization: vi
+          .fn()
+          .mockResolvedValue({ userId: canonicalPatientUserId }),
       },
       doctorClients: { updateClientSupport, getPatientProgramInteractionPolicy },
     });
 
-    const { PATCH } = await import("./route");
+    const { PATCH } = await import('./route');
     const res = await PATCH(
-      new Request("http://localhost", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+      new Request('http://localhost', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ onSupport: false, commentsEnabled: true }),
       }),
       { params: Promise.resolve({ userId: patientUserId }) },
@@ -137,7 +143,7 @@ describe("doctor client support-settings route", () => {
       patientUserId: canonicalPatientUserId,
       onSupport: false,
       commentsEnabled: true,
-      actorId: "doc-1",
+      actorId: 'doc-1',
     });
   });
 });

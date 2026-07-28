@@ -5,16 +5,16 @@
  * in shape from an ordinary failure). This module only resolves the IP key and asks the limiter;
  * it never renders a response itself.
  */
-import { isAuthConfirmRateLimitedByKey } from "@/modules/auth/authRateLimits";
-import { resolveRealIpRateLimitClientKey } from "@/modules/auth/realIpRateLimitClientKey";
+import { isAuthConfirmRateLimitedByKey } from '@/modules/auth/authRateLimits';
+import { resolveRealIpRateLimitClientKey } from '@/modules/auth/realIpRateLimitClientKey';
 
 /** Same figure the limiter itself uses (`auth.confirm`, 30/10min) -- see authRateLimits.ts for the rationale. */
 export const AUTH_CONFIRM_RATE_LIMIT_SEC = 600;
 
 export type AuthConfirmRateLimitResult =
   | { limited: false }
-  | { limited: true; reason: "rate_limited" }
-  | { limited: true; reason: "proxy_configuration" };
+  | { limited: true; reason: 'rate_limited' }
+  | { limited: true; reason: 'proxy_configuration' };
 
 /**
  * @param routeTag short, stable tag for logs only (e.g. "phone_confirm") -- never rendered to the caller.
@@ -24,15 +24,15 @@ export async function checkAuthConfirmRateLimit(
   routeTag: string,
 ): Promise<AuthConfirmRateLimitResult> {
   const identity = resolveRealIpRateLimitClientKey(request, {
-    scope: "auth.confirm",
+    scope: 'auth.confirm',
     logPrefix: `auth_confirm_${routeTag}`,
-    fallbackKey: "auth_confirm:missing_x_real_ip",
+    fallbackKey: 'auth_confirm:missing_x_real_ip',
   });
   if (!identity.ok) {
-    return { limited: true, reason: "proxy_configuration" };
+    return { limited: true, reason: 'proxy_configuration' };
   }
   if (await isAuthConfirmRateLimitedByKey(identity.key)) {
-    return { limited: true, reason: "rate_limited" };
+    return { limited: true, reason: 'rate_limited' };
   }
   return { limited: false };
 }

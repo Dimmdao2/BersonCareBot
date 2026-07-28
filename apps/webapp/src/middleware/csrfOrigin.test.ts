@@ -1,10 +1,10 @@
 /** @vitest-environment node */
-import { createHash } from "node:crypto";
-import { readdirSync, readFileSync } from "node:fs";
-import { Agent, createServer, request as httpRequest } from "node:http";
-import { dirname, join, relative, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { createHash } from 'node:crypto';
+import { readdirSync, readFileSync } from 'node:fs';
+import { Agent, createServer, request as httpRequest } from 'node:http';
+import { dirname, join, relative, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   APPLE_FORM_POST_CSRF_EXEMPT_PATH,
   INTERNAL_BEARER_CSRF_EXEMPT_PATHS,
@@ -13,20 +13,20 @@ import {
   classifyCsrfMutation,
   decideCsrfOrigin,
   type CsrfOriginInput,
-} from "@/middleware/csrfOrigin";
+} from '@/middleware/csrfOrigin';
 
-const webappRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
-const apiRoot = join(webappRoot, "src/app/api");
-const appRoot = join(webappRoot, "src/app");
+const webappRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
+const apiRoot = join(webappRoot, 'src/app/api');
+const appRoot = join(webappRoot, 'src/app');
 
 const defaultInput: CsrfOriginInput = {
-  method: "POST",
-  pathname: "/api/auth/exchange",
-  host: "bersoncare.ru",
-  requestUrlProtocol: "http:",
-  forwardedProto: "https",
-  secFetchSite: "same-origin",
-  origin: "https://bersoncare.ru",
+  method: 'POST',
+  pathname: '/api/auth/exchange',
+  host: 'bersoncare.ru',
+  requestUrlProtocol: 'http:',
+  forwardedProto: 'https',
+  secFetchSite: 'same-origin',
+  origin: 'https://bersoncare.ru',
   referer: null,
 };
 
@@ -35,195 +35,254 @@ function decide(overrides: Partial<CsrfOriginInput> = {}) {
 }
 
 function walkFiles(directory: string, fileName?: string): string[] {
-  return readdirSync(directory, { withFileTypes: true })
-    .flatMap((entry) => {
-      const path = join(directory, entry.name);
-      if (entry.isDirectory()) return walkFiles(path, fileName);
-      return !fileName || entry.name === fileName ? [path] : [];
-    });
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(directory, entry.name);
+    if (entry.isDirectory()) return walkFiles(path, fileName);
+    return !fileName || entry.name === fileName ? [path] : [];
+  });
 }
 
 function sha256Lines(lines: readonly string[]): string {
-  return createHash("sha256").update(`${lines.join("\n")}\n`).digest("hex");
+  return createHash('sha256')
+    .update(`${lines.join('\n')}\n`)
+    .digest('hex');
 }
 
 function exportedHttpMethods(source: string): string[] {
-  return [...source.matchAll(/^export\s+(?:(?:async\s+)?function|const)\s+(GET|POST|PUT|PATCH|DELETE)\b/gm)]
+  return [
+    ...source.matchAll(
+      /^export\s+(?:(?:async\s+)?function|const)\s+(GET|POST|PUT|PATCH|DELETE)\b/gm,
+    ),
+  ]
     .map((match) => match[1])
-    .filter((method): method is string => typeof method === "string")
+    .filter((method): method is string => typeof method === 'string')
     .sort();
 }
 
 function runtimePathToRouteFile(pathname: string): string {
-  return `${pathname.replace(/^\/api\//, "")}/route.ts`;
+  return `${pathname.replace(/^\/api\//, '')}/route.ts`;
 }
 
-describe("CSRF origin policy", () => {
-  it("allows safe methods without changing their header contract", () => {
-    for (const method of ["GET", "HEAD", "OPTIONS"]) {
+describe('CSRF origin policy', () => {
+  it('allows safe methods without changing their header contract', () => {
+    for (const method of ['GET', 'HEAD', 'OPTIONS']) {
       expect(decide({ method, origin: null, referer: null, secFetchSite: null })).toEqual({
-        action: "allow",
-        proof: "safe_method",
+        action: 'allow',
+        proof: 'safe_method',
         mutationClass: null,
       });
     }
   });
 
-  it("allows exact same-origin Origin and Referer fallback", () => {
-    expect(decide()).toMatchObject({ action: "allow", proof: "same_origin_origin" });
-    expect(decide({ origin: null, referer: "https://bersoncare.ru/app/doctor?q=1#section" }))
-      .toMatchObject({ action: "allow", proof: "same_origin_referer" });
-    expect(decide({
-      host: "127.0.0.1:5200",
-      forwardedProto: null,
-      requestUrlProtocol: "http:",
-      origin: "http://127.0.0.1:5200",
-    })).toMatchObject({ action: "allow", proof: "same_origin_origin" });
-    expect(decide({
-      host: "localhost:5200",
-      forwardedProto: "http, https",
-      origin: "http://localhost:5200",
-    })).toMatchObject({ action: "allow", proof: "same_origin_origin" });
+  it('allows exact same-origin Origin and Referer fallback', () => {
+    expect(decide()).toMatchObject({ action: 'allow', proof: 'same_origin_origin' });
+    expect(
+      decide({ origin: null, referer: 'https://bersoncare.ru/app/doctor?q=1#section' }),
+    ).toMatchObject({ action: 'allow', proof: 'same_origin_referer' });
+    expect(
+      decide({
+        host: '127.0.0.1:5200',
+        forwardedProto: null,
+        requestUrlProtocol: 'http:',
+        origin: 'http://127.0.0.1:5200',
+      }),
+    ).toMatchObject({ action: 'allow', proof: 'same_origin_origin' });
+    expect(
+      decide({
+        host: 'localhost:5200',
+        forwardedProto: 'http, https',
+        origin: 'http://localhost:5200',
+      }),
+    ).toMatchObject({ action: 'allow', proof: 'same_origin_origin' });
   });
 
-  it("fails closed for fetch metadata and missing source headers", () => {
-    for (const secFetchSite of ["cross-site", "same-site", "none", "", "same-origin, cross-site"]) {
-      expect(decide({ secFetchSite })).toMatchObject({ action: "reject", proof: "fetch_site_forbidden" });
+  it('fails closed for fetch metadata and missing source headers', () => {
+    for (const secFetchSite of ['cross-site', 'same-site', 'none', '', 'same-origin, cross-site']) {
+      expect(decide({ secFetchSite })).toMatchObject({
+        action: 'reject',
+        proof: 'fetch_site_forbidden',
+      });
     }
-    expect(decide({ secFetchSite: null, origin: null, referer: null }))
-      .toMatchObject({ action: "reject", proof: "source_headers_missing" });
+    expect(decide({ secFetchSite: null, origin: null, referer: null })).toMatchObject({
+      action: 'reject',
+      proof: 'source_headers_missing',
+    });
   });
 
-  it("rejects malformed, multiple, null, and non-canonical Origin values", () => {
+  it('rejects malformed, multiple, null, and non-canonical Origin values', () => {
     for (const origin of [
-      "",
-      "null",
-      "not a url",
-      "https://bersoncare.ru, https://evil.example",
-      "https://user@bersoncare.ru",
-      "https://bersoncare.ru/path",
-      "https://bersoncare.ru/",
-      "https://bersoncare.ru:443",
-      "file://bersoncare.ru",
+      '',
+      'null',
+      'not a url',
+      'https://bersoncare.ru, https://evil.example',
+      'https://user@bersoncare.ru',
+      'https://bersoncare.ru/path',
+      'https://bersoncare.ru/',
+      'https://bersoncare.ru:443',
+      'file://bersoncare.ru',
     ]) {
-      expect(decide({ origin })).toMatchObject({ action: "reject", proof: "origin_invalid" });
+      expect(decide({ origin })).toMatchObject({ action: 'reject', proof: 'origin_invalid' });
     }
   });
 
-  it("rejects sibling same-site, scheme, port, and localhost alias mismatches", () => {
+  it('rejects sibling same-site, scheme, port, and localhost alias mismatches', () => {
     for (const origin of [
-      "https://test.bersoncare.ru",
-      "http://bersoncare.ru",
-      "https://bersoncare.ru:8443",
+      'https://test.bersoncare.ru',
+      'http://bersoncare.ru',
+      'https://bersoncare.ru:8443',
     ]) {
-      expect(decide({ origin })).toMatchObject({ action: "reject", proof: "origin_mismatch" });
+      expect(decide({ origin })).toMatchObject({ action: 'reject', proof: 'origin_mismatch' });
     }
-    expect(decide({
-      host: "127.0.0.1:5200",
-      forwardedProto: null,
-      origin: "http://localhost:5200",
-    })).toMatchObject({ action: "reject", proof: "origin_mismatch" });
-    expect(decide({
-      host: "localhost:5200",
-      forwardedProto: null,
-      origin: "http://127.0.0.1:5200",
-    })).toMatchObject({ action: "reject", proof: "origin_mismatch" });
+    expect(
+      decide({
+        host: '127.0.0.1:5200',
+        forwardedProto: null,
+        origin: 'http://localhost:5200',
+      }),
+    ).toMatchObject({ action: 'reject', proof: 'origin_mismatch' });
+    expect(
+      decide({
+        host: 'localhost:5200',
+        forwardedProto: null,
+        origin: 'http://127.0.0.1:5200',
+      }),
+    ).toMatchObject({ action: 'reject', proof: 'origin_mismatch' });
   });
 
-  it("does not fall back to Referer when Origin is present but invalid", () => {
-    expect(decide({ origin: "null", referer: "https://bersoncare.ru/app" }))
-      .toMatchObject({ action: "reject", proof: "origin_invalid" });
-    expect(decide({ origin: null, referer: "::::" }))
-      .toMatchObject({ action: "reject", proof: "referer_invalid" });
-    expect(decide({
-      origin: null,
-      referer: "https://bersoncare.ru/app, https://evil.example/x",
-    })).toMatchObject({ action: "reject", proof: "referer_invalid" });
-    expect(decide({ origin: null, referer: "https://test.bersoncare.ru/app" }))
-      .toMatchObject({ action: "reject", proof: "referer_mismatch" });
+  it('does not fall back to Referer when Origin is present but invalid', () => {
+    expect(decide({ origin: 'null', referer: 'https://bersoncare.ru/app' })).toMatchObject({
+      action: 'reject',
+      proof: 'origin_invalid',
+    });
+    expect(decide({ origin: null, referer: '::::' })).toMatchObject({
+      action: 'reject',
+      proof: 'referer_invalid',
+    });
+    expect(
+      decide({
+        origin: null,
+        referer: 'https://bersoncare.ru/app, https://evil.example/x',
+      }),
+    ).toMatchObject({ action: 'reject', proof: 'referer_invalid' });
+    expect(decide({ origin: null, referer: 'https://test.bersoncare.ru/app' })).toMatchObject({
+      action: 'reject',
+      proof: 'referer_mismatch',
+    });
   });
 
-  it("uses exact Host and only a validated first forwarded proto", () => {
-    for (const forwardedProto of ["ftp", "javascript", ",https"] as const) {
-      expect(decide({ forwardedProto })).toMatchObject({ action: "reject", proof: "request_origin_invalid" });
+  it('uses exact Host and only a validated first forwarded proto', () => {
+    for (const forwardedProto of ['ftp', 'javascript', ',https'] as const) {
+      expect(decide({ forwardedProto })).toMatchObject({
+        action: 'reject',
+        proof: 'request_origin_invalid',
+      });
     }
-    for (const host of [null, "", "bersoncare.ru,evil.example", "user@bersoncare.ru", "bersoncare.ru/path"] as const) {
-      expect(decide({ host })).toMatchObject({ action: "reject", proof: "request_origin_invalid" });
+    for (const host of [
+      null,
+      '',
+      'bersoncare.ru,evil.example',
+      'user@bersoncare.ru',
+      'bersoncare.ru/path',
+    ] as const) {
+      expect(decide({ host })).toMatchObject({ action: 'reject', proof: 'request_origin_invalid' });
     }
-    expect(decide({ forwardedProto: "https, javascript" }))
-      .toMatchObject({ action: "allow", proof: "same_origin_origin" });
+    expect(decide({ forwardedProto: 'https, javascript' })).toMatchObject({
+      action: 'allow',
+      proof: 'same_origin_origin',
+    });
   });
 
-  it("has only the exact typed runtime exemptions and rejects lookalikes", () => {
+  it('has only the exact typed runtime exemptions and rejects lookalikes', () => {
     expect(INTEGRATOR_HMAC_CSRF_EXEMPT_PATHS).toHaveLength(18);
     expect(INTERNAL_BEARER_CSRF_EXEMPT_PATHS).toHaveLength(15);
     expect(PAYMENT_WEBHOOK_CSRF_EXEMPT_PATTERNS).toHaveLength(2);
     for (const pathname of INTEGRATOR_HMAC_CSRF_EXEMPT_PATHS) {
-      expect(decide({ pathname, origin: null, referer: null, secFetchSite: null }))
-        .toEqual({ action: "allow", proof: "integrator_hmac", mutationClass: "integrator_hmac" });
+      expect(decide({ pathname, origin: null, referer: null, secFetchSite: null })).toEqual({
+        action: 'allow',
+        proof: 'integrator_hmac',
+        mutationClass: 'integrator_hmac',
+      });
     }
     for (const pathname of INTERNAL_BEARER_CSRF_EXEMPT_PATHS) {
-      expect(decide({ pathname, origin: null, referer: null, secFetchSite: null }))
-        .toEqual({ action: "allow", proof: "internal_bearer", mutationClass: "internal_bearer" });
+      expect(decide({ pathname, origin: null, referer: null, secFetchSite: null })).toEqual({
+        action: 'allow',
+        proof: 'internal_bearer',
+        mutationClass: 'internal_bearer',
+      });
     }
     for (const pathname of [
-      "/api/payments/webhook/yookassa",
-      "/api/payments/patient-acquiring-webhook/tinkoff",
+      '/api/payments/webhook/yookassa',
+      '/api/payments/patient-acquiring-webhook/tinkoff',
     ]) {
-      expect(decide({ pathname, origin: null, referer: null, secFetchSite: null }))
-        .toEqual({ action: "allow", proof: "payment_webhook", mutationClass: "payment_webhook" });
+      expect(decide({ pathname, origin: null, referer: null, secFetchSite: null })).toEqual({
+        action: 'allow',
+        proof: 'payment_webhook',
+        mutationClass: 'payment_webhook',
+      });
     }
-    expect(decide({
-      pathname: APPLE_FORM_POST_CSRF_EXEMPT_PATH,
-      origin: null,
-      referer: null,
-      secFetchSite: null,
-    })).toEqual({ action: "allow", proof: "apple_form_post", mutationClass: "apple_form_post" });
+    expect(
+      decide({
+        pathname: APPLE_FORM_POST_CSRF_EXEMPT_PATH,
+        origin: null,
+        referer: null,
+        secFetchSite: null,
+      }),
+    ).toEqual({ action: 'allow', proof: 'apple_form_post', mutationClass: 'apple_form_post' });
 
     for (const pathname of [
-      "/api/integrator/events/",
-      "/api/integrator/events-lookalike",
-      "/api/internal/media-preview/process/extra",
-      "/api/payments/webhook/yookassa/extra",
-      "/api/payments/webhookish/yookassa",
-      "/api/auth/oauth/callback/apple/extra",
-      "/api/auth/exchange",
-      "/api/auth/dev-bypass",
-      "/api/booking/public/create",
-      "/api/booking/payments/mock-complete",
-      "/api/booking/memberships/payments/mock-complete",
-      "/api/booking/products/payments/mock-complete",
-      "/api/booking/public/payments/mock-complete",
-      "/api/booking/public/products/payments/mock-complete",
+      '/api/integrator/events/',
+      '/api/integrator/events-lookalike',
+      '/api/internal/media-preview/process/extra',
+      '/api/payments/webhook/yookassa/extra',
+      '/api/payments/webhookish/yookassa',
+      '/api/auth/oauth/callback/apple/extra',
+      '/api/auth/exchange',
+      '/api/auth/dev-bypass',
+      '/api/booking/public/create',
+      '/api/booking/payments/mock-complete',
+      '/api/booking/memberships/payments/mock-complete',
+      '/api/booking/products/payments/mock-complete',
+      '/api/booking/public/payments/mock-complete',
+      '/api/booking/public/products/payments/mock-complete',
     ]) {
-      expect(decide({ pathname, origin: null, referer: null, secFetchSite: null }))
-        .toMatchObject({ action: "reject", mutationClass: "browser" });
+      expect(decide({ pathname, origin: null, referer: null, secFetchSite: null })).toMatchObject({
+        action: 'reject',
+        mutationClass: 'browser',
+      });
     }
-    expect(classifyCsrfMutation("PUT", INTEGRATOR_HMAC_CSRF_EXEMPT_PATHS[0])).toBe("browser");
+    expect(classifyCsrfMutation('PUT', INTEGRATOR_HMAC_CSRF_EXEMPT_PATHS[0])).toBe('browser');
   });
 });
 
-describe("frozen webapp mutation census", () => {
-  const routeFiles = walkFiles(apiRoot, "route.ts").sort();
+describe('frozen webapp mutation census', () => {
+  const routeFiles = walkFiles(apiRoot, 'route.ts').sort();
   const routeInventory = routeFiles.map((file) => relative(apiRoot, file));
   const unsafeInventory = routeFiles
     .map((file) => {
-      const unsafe = exportedHttpMethods(readFileSync(file, "utf8"))
-        .filter((method) => method !== "GET");
+      const unsafe = exportedHttpMethods(readFileSync(file, 'utf8')).filter(
+        (method) => method !== 'GET',
+      );
       return { file: relative(apiRoot, file), methods: unsafe };
     })
     .filter((entry) => entry.methods.length > 0);
-  const unsafeInventoryLines = unsafeInventory.map((entry) => `${entry.file}|${entry.methods.join(",")}`);
+  const unsafeInventoryLines = unsafeInventory.map(
+    (entry) => `${entry.file}|${entry.methods.join(',')}`,
+  );
   const integratorFiles = new Set(INTEGRATOR_HMAC_CSRF_EXEMPT_PATHS.map(runtimePathToRouteFile));
   const internalFiles = new Set(INTERNAL_BEARER_CSRF_EXEMPT_PATHS.map(runtimePathToRouteFile));
   const paymentFiles = new Set([
-    "payments/webhook/[provider]/route.ts",
-    "payments/patient-acquiring-webhook/[provider]/route.ts",
+    'payments/webhook/[provider]/route.ts',
+    'payments/patient-acquiring-webhook/[provider]/route.ts',
   ]);
   const appleFiles = new Set([runtimePathToRouteFile(APPLE_FORM_POST_CSRF_EXEMPT_PATH)]);
-  const specialFiles = new Set([...integratorFiles, ...internalFiles, ...paymentFiles, ...appleFiles]);
+  const specialFiles = new Set([
+    ...integratorFiles,
+    ...internalFiles,
+    ...paymentFiles,
+    ...appleFiles,
+  ]);
 
-  it("freezes every API route, unsafe route, and unsafe handler", () => {
+  it('freezes every API route, unsafe route, and unsafe handler', () => {
     // 517 -> 518: 1561246d8 added `api/doctor/proactive-insights/by-patient/route.ts` (GET only,
     // so the unsafe-handler census below is unchanged) and left this frozen census red.
     // 518 -> 520: the dead man's switch receiver (design D-d) added
@@ -266,19 +325,25 @@ describe("frozen webapp mutation census", () => {
     // 509 -> 507: ac7ca4d5c (#1070) removed the two GET-only platform support routes because their
     // backing store contains patient-to-clinic clinical messages. Unsafe counts remain unchanged;
     // the exact route hash below keeps an unreviewed reintroduction red.
-    expect(routeInventory).toContain("admin/appointment-records/[integratorRecordId]/soft-delete/route.ts");
-    expect(routeInventory).toContain("admin/organizations/route.ts");
-    expect(routeInventory).toContain("admin/organizations/[organizationId]/members/route.ts");
-    expect(routeInventory).toContain("admin/organizations/[organizationId]/billing/route.ts");
-    expect(routeInventory).toContain("clinic/billing/route.ts");
+    expect(routeInventory).toContain(
+      'admin/appointment-records/[integratorRecordId]/soft-delete/route.ts',
+    );
+    expect(routeInventory).toContain('admin/organizations/route.ts');
+    expect(routeInventory).toContain('admin/organizations/[organizationId]/members/route.ts');
+    expect(routeInventory).toContain('admin/organizations/[organizationId]/billing/route.ts');
+    expect(routeInventory).toContain('clinic/billing/route.ts');
     expect(routeFiles).toHaveLength(507);
-    expect(sha256Lines(routeInventory)).toBe("50c692792ebceda295902f7026f12990355ac7a9286926dde234982df37bc15e");
+    expect(sha256Lines(routeInventory)).toBe(
+      '50c692792ebceda295902f7026f12990355ac7a9286926dde234982df37bc15e',
+    );
     expect(unsafeInventory).toHaveLength(339);
     expect(unsafeInventory.reduce((count, entry) => count + entry.methods.length, 0)).toBe(373);
-    expect(sha256Lines(unsafeInventoryLines)).toBe("0285e65270f53a3222ad681c1d2a94a8bbb5d1fe2659dfcf4f823dc62a8a598f");
+    expect(sha256Lines(unsafeInventoryLines)).toBe(
+      '0285e65270f53a3222ad681c1d2a94a8bbb5d1fe2659dfcf4f823dc62a8a598f',
+    );
   });
 
-  it("exhaustively classifies unsafe files as browser, integrator, internal, webhook, or Apple", () => {
+  it('exhaustively classifies unsafe files as browser, integrator, internal, webhook, or Apple', () => {
     const actualUnsafeFiles = new Set(unsafeInventory.map((entry) => entry.file));
     for (const file of specialFiles) expect(actualUnsafeFiles.has(file), file).toBe(true);
     expect(specialFiles.size).toBe(36);
@@ -289,12 +354,12 @@ describe("frozen webapp mutation census", () => {
     expect(browser).toHaveLength(303);
     expect(browser.reduce((count, entry) => count + entry.methods.length, 0)).toBe(337);
     expect(browser).toContainEqual({
-      file: "admin/settings/route.ts",
-      methods: ["DELETE", "PATCH"],
+      file: 'admin/settings/route.ts',
+      methods: ['DELETE', 'PATCH'],
     });
     expect(browser).toContainEqual({
-      file: "auth/specialist-signup/slug/route.ts",
-      methods: ["POST"],
+      file: 'auth/specialist-signup/slug/route.ts',
+      methods: ['POST'],
     });
     expect([...integratorFiles]).toHaveLength(18);
     expect([...internalFiles]).toHaveLength(15);
@@ -302,84 +367,104 @@ describe("frozen webapp mutation census", () => {
     expect([...appleFiles]).toHaveLength(1);
   });
 
-  it("freezes all Server Action files", () => {
+  it('freezes all Server Action files', () => {
     const serverActions = walkFiles(appRoot)
-      .filter((file) => /\.[tj]sx?$/.test(file) && readFileSync(file, "utf8").includes("use server"))
+      .filter(
+        (file) => /\.[tj]sx?$/.test(file) && readFileSync(file, 'utf8').includes('use server'),
+      )
       .map((file) => relative(webappRoot, file))
       .sort();
     // 28 -> 29: ad9db8266 added `src/app/app/settings/brandingActions.ts` and left this frozen
     // census red. A permanently red gate teaches everyone to ignore gates, so the count and the
     // hash are re-frozen here against the reviewed file list.
     expect(serverActions).toHaveLength(29);
-    expect(sha256Lines(serverActions)).toBe("0cd77097478786b48646ec7a7043f64e927ed3412444e005e73b14c12a739829");
+    expect(sha256Lines(serverActions)).toBe(
+      '0cd77097478786b48646ec7a7043f64e927ed3412444e005e73b14c12a739829',
+    );
   });
 
-  it("freezes nine stateful GET exceptions and their stronger proof", () => {
+  it('freezes nine stateful GET exceptions and their stronger proof', () => {
     const statefulGetProofs = [
       // #1071 moved the calendar connection to the clinic: this state-changing GET must persist
       // the refresh token to the selected organization, never to the global settings row.
       [
-        "admin/google-calendar/callback/route.ts",
+        'admin/google-calendar/callback/route.ts',
         /updateSetting\(\s*"google_refresh_token",\s*"admin",\s*\{ value: refreshToken \},\s*userId,\s*\{ organizationId \},\s*\)/,
       ],
-      ["auth/dev-bypass/route.ts", /exchangeIntegratorToken\(token\)/],
-      ["auth/dev-public/route.ts", /clearSession\(\)/],
-      ["auth/logout/route.ts", /export async function GET[\s\S]*clearSession\(\)/],
-      ["auth/oauth/callback/route.ts", /handleYandexOAuthCallbackGet\(request\)/],
-      ["auth/oauth/callback/google/route.ts", /completeOAuthWebLoginRedirectUrls/],
-      ["auth/oauth/callback/yandex/route.ts", /handleYandexOAuthCallbackGet\(request\)/],
-      ["media\/\[id\]\/playback\/route.ts", /resolveMediaPlaybackPayload/],
-      ["patient/organization-context/open/route.ts", /PATIENT_ORGANIZATION_PREFERENCE_COOKIE/],
+      ['auth/dev-bypass/route.ts', /exchangeIntegratorToken\(token\)/],
+      ['auth/dev-public/route.ts', /clearSession\(\)/],
+      ['auth/logout/route.ts', /export async function GET[\s\S]*clearSession\(\)/],
+      ['auth/oauth/callback/route.ts', /handleYandexOAuthCallbackGet\(request\)/],
+      ['auth/oauth/callback/google/route.ts', /completeOAuthWebLoginRedirectUrls/],
+      ['auth/oauth/callback/yandex/route.ts', /handleYandexOAuthCallbackGet\(request\)/],
+      ['media\/\[id\]\/playback\/route.ts', /resolveMediaPlaybackPayload/],
+      ['patient/organization-context/open/route.ts', /PATIENT_ORGANIZATION_PREFERENCE_COOKIE/],
     ] as const;
     expect(statefulGetProofs).toHaveLength(9);
     for (const [relativeFile, proof] of statefulGetProofs) {
-      const normalizedFile = relativeFile.replaceAll("\\/", "/");
-      const source = readFileSync(join(apiRoot, normalizedFile), "utf8");
-      expect(exportedHttpMethods(source), normalizedFile).toContain("GET");
+      const normalizedFile = relativeFile.replaceAll('\\/', '/');
+      const source = readFileSync(join(apiRoot, normalizedFile), 'utf8');
+      expect(exportedHttpMethods(source), normalizedFile).toContain('GET');
       expect(source, normalizedFile).toMatch(proof);
     }
-    const playbackSource = readFileSync(join(webappRoot, "src/app-layer/media/resolveMediaPlaybackPayload.ts"), "utf8");
+    const playbackSource = readFileSync(
+      join(webappRoot, 'src/app-layer/media/resolveMediaPlaybackPayload.ts'),
+      'utf8',
+    );
     expect(playbackSource).toMatch(/recordPlaybackResolutionStat/);
     expect(playbackSource).toMatch(/recordPlaybackResolutionEvent/);
   });
 });
 
-describe("exemption stronger-proof audit", () => {
-  it("binds every integrator exemption to verifyIntegratorSignature", () => {
+describe('exemption stronger-proof audit', () => {
+  it('binds every integrator exemption to verifyIntegratorSignature', () => {
     for (const pathname of INTEGRATOR_HMAC_CSRF_EXEMPT_PATHS) {
-      const source = readFileSync(join(apiRoot, runtimePathToRouteFile(pathname)), "utf8");
+      const source = readFileSync(join(apiRoot, runtimePathToRouteFile(pathname)), 'utf8');
       expect(source, pathname).toMatch(/verifyIntegratorSignature\s*\(/);
     }
   });
 
-  it("binds every internal exemption to constant-time INTERNAL_JOB_SECRET verification", () => {
+  it('binds every internal exemption to constant-time INTERNAL_JOB_SECRET verification', () => {
     for (const pathname of INTERNAL_BEARER_CSRF_EXEMPT_PATHS) {
-      const source = readFileSync(join(apiRoot, runtimePathToRouteFile(pathname)), "utf8");
+      const source = readFileSync(join(apiRoot, runtimePathToRouteFile(pathname)), 'utf8');
       expect(source, pathname).toMatch(/timingSafeEqual\s*\(/);
       expect(source, pathname).toMatch(/env\.INTERNAL_JOB_SECRET/);
       expect(source, pathname).toMatch(/Bearer /);
     }
   });
 
-  it("binds both provider webhooks and Apple form_post to their stronger proofs", () => {
-    const bookingWebhook = readFileSync(join(apiRoot, "payments/webhook/[provider]/route.ts"), "utf8");
-    const patientWebhook = readFileSync(join(apiRoot, "payments/patient-acquiring-webhook/[provider]/route.ts"), "utf8");
-    const paymentsService = readFileSync(join(webappRoot, "src/modules/payments/service.ts"), "utf8");
+  it('binds both provider webhooks and Apple form_post to their stronger proofs', () => {
+    const bookingWebhook = readFileSync(
+      join(apiRoot, 'payments/webhook/[provider]/route.ts'),
+      'utf8',
+    );
+    const patientWebhook = readFileSync(
+      join(apiRoot, 'payments/patient-acquiring-webhook/[provider]/route.ts'),
+      'utf8',
+    );
+    const paymentsService = readFileSync(
+      join(webappRoot, 'src/modules/payments/service.ts'),
+      'utf8',
+    );
     expect(bookingWebhook).toMatch(/processProviderWebhook/);
-    expect(paymentsService).toMatch(/async processProviderWebhook[\s\S]*adapter\.verifyWebhook\s*\(/);
+    expect(paymentsService).toMatch(
+      /async processProviderWebhook[\s\S]*adapter\.verifyWebhook\s*\(/,
+    );
     expect(patientWebhook).toMatch(/adapter\.verifyWebhook\s*\(/);
 
-    const apple = readFileSync(join(apiRoot, "auth/oauth/callback/apple/route.ts"), "utf8");
+    const apple = readFileSync(join(apiRoot, 'auth/oauth/callback/apple/route.ts'), 'utf8');
     expect(apple).toMatch(/parseVerifiedSignedOAuthState\(stateRaw, "apple"\)/);
     expect(apple).toMatch(/!verified\.nonce/);
     expect(apple).toMatch(/expectedNonce:\s*verified\.nonce/);
   });
 
-  it("keeps the shared helper synchronous and free of I/O dependencies", () => {
-    const source = readFileSync(join(webappRoot, "src/middleware/csrfOrigin.ts"), "utf8");
+  it('keeps the shared helper synchronous and free of I/O dependencies', () => {
+    const source = readFileSync(join(webappRoot, 'src/middleware/csrfOrigin.ts'), 'utf8');
     expect(source).not.toMatch(/^\s*import\s/m);
     expect(source).not.toMatch(/\basync\b|\bawait\b/);
-    expect(source).not.toMatch(/buildAppDeps|@\/modules\/auth|database|\bdb\b|logger|fetch\s*\(|process\.env|system_settings/i);
+    expect(source).not.toMatch(
+      /buildAppDeps|@\/modules\/auth|database|\bdb\b|logger|fetch\s*\(|process\.env|system_settings/i,
+    );
   });
 });
 
@@ -389,142 +474,160 @@ function percentile(sorted: readonly number[], quantile: number): number {
   return sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * quantile))] ?? 0;
 }
 
-describe.skipIf(process.env.RUN_D2_CSRF_LOAD_PROOF !== "1")("CSRF helper loopback load proof", () => {
-  const samplesPerRun = 640;
-  const concurrency = 16;
-  const rss: number[] = [];
-  let baseUrl = "";
-  let server: ReturnType<typeof createServer> | null = null;
-  let transportFailures = 0;
-  let unexpectedStatuses = 0;
-  const agent = new Agent({ keepAlive: true, maxSockets: concurrency });
+describe.skipIf(process.env.RUN_D2_CSRF_LOAD_PROOF !== '1')(
+  'CSRF helper loopback load proof',
+  () => {
+    const samplesPerRun = 640;
+    const concurrency = 16;
+    const rss: number[] = [];
+    let baseUrl = '';
+    let server: ReturnType<typeof createServer> | null = null;
+    let transportFailures = 0;
+    let unexpectedStatuses = 0;
+    const agent = new Agent({ keepAlive: true, maxSockets: concurrency });
 
-  beforeAll(async () => {
-    const createdServer = createServer((request, response) => {
-      const requestUrl = new URL(request.url ?? "/", "http://127.0.0.1");
-      if (requestUrl.pathname === "/guarded") {
-        const decision = decideCsrfOrigin({
-          method: request.method ?? "POST",
-          pathname: "/api/auth/exchange",
-          host: request.headers.host ?? null,
-          requestUrlProtocol: "http:",
-          forwardedProto: null,
-          secFetchSite: typeof request.headers["sec-fetch-site"] === "string" ? request.headers["sec-fetch-site"] : null,
-          origin: typeof request.headers.origin === "string" ? request.headers.origin : null,
-          referer: typeof request.headers.referer === "string" ? request.headers.referer : null,
+    beforeAll(async () => {
+      const createdServer = createServer((request, response) => {
+        const requestUrl = new URL(request.url ?? '/', 'http://127.0.0.1');
+        if (requestUrl.pathname === '/guarded') {
+          const decision = decideCsrfOrigin({
+            method: request.method ?? 'POST',
+            pathname: '/api/auth/exchange',
+            host: request.headers.host ?? null,
+            requestUrlProtocol: 'http:',
+            forwardedProto: null,
+            secFetchSite:
+              typeof request.headers['sec-fetch-site'] === 'string'
+                ? request.headers['sec-fetch-site']
+                : null,
+            origin: typeof request.headers.origin === 'string' ? request.headers.origin : null,
+            referer: typeof request.headers.referer === 'string' ? request.headers.referer : null,
+          });
+          if (decision.action !== 'allow') {
+            response.writeHead(403).end();
+            return;
+          }
+        }
+        response.writeHead(204).end();
+      });
+      server = createdServer;
+      await new Promise<void>((resolveListen) =>
+        createdServer.listen(0, '127.0.0.1', resolveListen),
+      );
+      const address = createdServer.address();
+      if (!address || typeof address === 'string') throw new Error('loopback_listener_missing');
+      baseUrl = `http://127.0.0.1:${address.port}`;
+    });
+
+    afterAll(async () => {
+      agent.destroy();
+      const runningServer = server;
+      if (runningServer) {
+        await new Promise<void>((resolveClose, rejectClose) => {
+          runningServer.close((error) => (error ? rejectClose(error) : resolveClose()));
         });
-        if (decision.action !== "allow") {
-          response.writeHead(403).end();
-          return;
+      }
+    });
+
+    async function one(pathname: string): Promise<number> {
+      const started = performance.now();
+      const status = await new Promise<number>((resolveRequest, rejectRequest) => {
+        const request = httpRequest(
+          `${baseUrl}${pathname}`,
+          {
+            method: 'POST',
+            agent,
+            headers: {
+              Origin: baseUrl,
+              'Sec-Fetch-Site': 'same-origin',
+              'Content-Length': '0',
+            },
+          },
+          (response) => {
+            response.resume();
+            response.on('end', () => resolveRequest(response.statusCode ?? 0));
+          },
+        );
+        request.on('error', (error) => {
+          transportFailures += 1;
+          rejectRequest(error);
+        });
+        request.end();
+      });
+      if (status !== 204) unexpectedStatuses += 1;
+      return performance.now() - started;
+    }
+
+    function summarize(latencies: number[], durationMs: number): LoadSample {
+      latencies.sort((left, right) => left - right);
+      return {
+        p50Ms: percentile(latencies, 0.5),
+        p95Ms: percentile(latencies, 0.95),
+        p99Ms: percentile(latencies, 0.99),
+        throughput: latencies.length / (durationMs / 1000),
+      };
+    }
+
+    async function runPair(sampleCountPerPath: number): Promise<
+      Readonly<{
+        baseline: LoadSample;
+        guarded: LoadSample;
+      }>
+    > {
+      const baselineLatencies: number[] = [];
+      const guardedLatencies: number[] = [];
+      const perPathBatch = concurrency / 2;
+      const started = performance.now();
+      for (let offset = 0; offset < sampleCountPerPath; offset += perPathBatch) {
+        const reverseOrder = (offset / perPathBatch) % 2 === 1;
+        const requests = Array.from({ length: concurrency }, (_, index) => {
+          const isGuarded = (index % 2 === 1) !== reverseOrder;
+          return one(isGuarded ? '/guarded' : '/baseline').then((latency) => ({
+            isGuarded,
+            latency,
+          }));
+        });
+        for (const result of await Promise.all(requests)) {
+          (result.isGuarded ? guardedLatencies : baselineLatencies).push(result.latency);
         }
       }
-      response.writeHead(204).end();
-    });
-    server = createdServer;
-    await new Promise<void>((resolveListen) => createdServer.listen(0, "127.0.0.1", resolveListen));
-    const address = createdServer.address();
-    if (!address || typeof address === "string") throw new Error("loopback_listener_missing");
-    baseUrl = `http://127.0.0.1:${address.port}`;
-  });
-
-  afterAll(async () => {
-    agent.destroy();
-    const runningServer = server;
-    if (runningServer) {
-      await new Promise<void>((resolveClose, rejectClose) => {
-        runningServer.close((error) => error ? rejectClose(error) : resolveClose());
-      });
+      const durationMs = performance.now() - started;
+      return {
+        baseline: summarize(baselineLatencies, durationMs),
+        guarded: summarize(guardedLatencies, durationMs),
+      };
     }
-  });
 
-  async function one(pathname: string): Promise<number> {
-    const started = performance.now();
-    const status = await new Promise<number>((resolveRequest, rejectRequest) => {
-      const request = httpRequest(`${baseUrl}${pathname}`, {
-        method: "POST",
-        agent,
-        headers: {
-          Origin: baseUrl,
-          "Sec-Fetch-Site": "same-origin",
-          "Content-Length": "0",
-        },
-      }, (response) => {
-        response.resume();
-        response.on("end", () => resolveRequest(response.statusCode ?? 0));
-      });
-      request.on("error", (error) => {
-        transportFailures += 1;
-        rejectRequest(error);
-      });
-      request.end();
-    });
-    if (status !== 204) unexpectedStatuses += 1;
-    return performance.now() - started;
-  }
-
-  function summarize(latencies: number[], durationMs: number): LoadSample {
-    latencies.sort((left, right) => left - right);
-    return {
-      p50Ms: percentile(latencies, 0.50),
-      p95Ms: percentile(latencies, 0.95),
-      p99Ms: percentile(latencies, 0.99),
-      throughput: latencies.length / (durationMs / 1000),
-    };
-  }
-
-  async function runPair(sampleCountPerPath: number): Promise<Readonly<{
-    baseline: LoadSample;
-    guarded: LoadSample;
-  }>> {
-    const baselineLatencies: number[] = [];
-    const guardedLatencies: number[] = [];
-    const perPathBatch = concurrency / 2;
-    const started = performance.now();
-    for (let offset = 0; offset < sampleCountPerPath; offset += perPathBatch) {
-      const reverseOrder = (offset / perPathBatch) % 2 === 1;
-      const requests = Array.from({ length: concurrency }, (_, index) => {
-        const isGuarded = (index % 2 === 1) !== reverseOrder;
-        return one(isGuarded ? "/guarded" : "/baseline")
-          .then((latency) => ({ isGuarded, latency }));
-      });
-      for (const result of await Promise.all(requests)) {
-        (result.isGuarded ? guardedLatencies : baselineLatencies).push(result.latency);
+    it('keeps three concurrency-16 browser POST runs within the 5% p95 budget', async () => {
+      await runPair(128);
+      const baseline: LoadSample[] = [];
+      const guarded: LoadSample[] = [];
+      for (let index = 0; index < 3; index += 1) {
+        const pair = await runPair(samplesPerRun);
+        baseline.push(pair.baseline);
+        guarded.push(pair.guarded);
+        rss.push(process.memoryUsage().rss);
       }
-    }
-    const durationMs = performance.now() - started;
-    return {
-      baseline: summarize(baselineLatencies, durationMs),
-      guarded: summarize(guardedLatencies, durationMs),
-    };
-  }
-
-  it("keeps three concurrency-16 browser POST runs within the 5% p95 budget", async () => {
-    await runPair(128);
-    const baseline: LoadSample[] = [];
-    const guarded: LoadSample[] = [];
-    for (let index = 0; index < 3; index += 1) {
-      const pair = await runPair(samplesPerRun);
-      baseline.push(pair.baseline);
-      guarded.push(pair.guarded);
-      rss.push(process.memoryUsage().rss);
-    }
-    const baselineP95 = baseline.map((sample) => sample.p95Ms).sort((a, b) => a - b)[1] ?? 0;
-    const guardedP95 = guarded.map((sample) => sample.p95Ms).sort((a, b) => a - b)[1] ?? 0;
-    const dbPoolConnections = 0;
-    process.stdout.write(`${JSON.stringify({
-      concurrency,
-      samplesPerRun,
-      baseline,
-      guarded,
-      rss,
-      transportFailures,
-      unexpectedStatuses,
-      dbPoolConnections,
-    })}\n`);
-    expect(transportFailures).toBe(0);
-    expect(unexpectedStatuses).toBe(0);
-    expect(dbPoolConnections).toBe(0);
-    expect(guardedP95).toBeLessThanOrEqual(baselineP95 * 1.05);
-    expect(Math.max(...rss) - Math.min(...rss)).toBeLessThan(32 * 1024 * 1024);
-  }, 30_000);
-});
+      const baselineP95 = baseline.map((sample) => sample.p95Ms).sort((a, b) => a - b)[1] ?? 0;
+      const guardedP95 = guarded.map((sample) => sample.p95Ms).sort((a, b) => a - b)[1] ?? 0;
+      const dbPoolConnections = 0;
+      process.stdout.write(
+        `${JSON.stringify({
+          concurrency,
+          samplesPerRun,
+          baseline,
+          guarded,
+          rss,
+          transportFailures,
+          unexpectedStatuses,
+          dbPoolConnections,
+        })}\n`,
+      );
+      expect(transportFailures).toBe(0);
+      expect(unexpectedStatuses).toBe(0);
+      expect(dbPoolConnections).toBe(0);
+      expect(guardedP95).toBeLessThanOrEqual(baselineP95 * 1.05);
+      expect(Math.max(...rss) - Math.min(...rss)).toBeLessThan(32 * 1024 * 1024);
+    }, 30_000);
+  },
+);

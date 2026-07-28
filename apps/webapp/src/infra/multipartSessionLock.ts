@@ -1,8 +1,8 @@
-import type { Pool, PoolClient } from "pg";
-import { pgAdvisoryXactLock } from "@/infra/db/pgAdvisoryLock";
-import { withPoolTransaction } from "@/infra/db/withClient";
+import type { Pool, PoolClient } from 'pg';
+import { pgAdvisoryXactLock } from '@/infra/db/pgAdvisoryLock';
+import { withPoolTransaction } from '@/infra/db/withClient';
 
-const LOCK_PREFIX = "multipart_session:";
+const LOCK_PREFIX = 'multipart_session:';
 
 /**
  * Exclusive transaction-scoped advisory lock for a single multipart upload session.

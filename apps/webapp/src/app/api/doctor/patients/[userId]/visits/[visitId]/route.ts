@@ -4,12 +4,12 @@
  * Инлайн-правка текстовых полей визита (осмотр/манипуляции/пробы/рекомендации/локация/
  * длительность). Пустая строка очищает поле. Жалобы/диагнозы/динамику визита не трогает.
  */
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
-import { requireEntitlementForMutation } from "@/app-layer/guards/requireEntitlement";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 
 const bodySchema = z
   .object({
@@ -30,7 +30,7 @@ const bodySchema = z
       b.manipulations !== undefined ||
       b.trialResults !== undefined ||
       b.recommendations !== undefined,
-    { message: "nothing_to_update" },
+    { message: 'nothing_to_update' },
   );
 
 export async function PATCH(
@@ -45,20 +45,20 @@ export async function PATCH(
     !z.string().uuid().safeParse(userId).success ||
     !z.string().uuid().safeParse(visitId).success
   ) {
-    return NextResponse.json({ ok: false, error: "invalid_id" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_id' }, { status: 400 });
   }
 
   let json: unknown;
   try {
     json = await request.json();
   } catch {
-    return NextResponse.json({ ok: false, error: "invalid_json" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_json' }, { status: 400 });
   }
 
   const parsed = bodySchema.safeParse(json);
   if (!parsed.success) {
     return NextResponse.json(
-      { ok: false, error: "invalid_body", details: parsed.error.flatten() },
+      { ok: false, error: 'invalid_body', details: parsed.error.flatten() },
       { status: 400 },
     );
   }
@@ -69,10 +69,10 @@ export async function PATCH(
     gate.ctx.organizationId,
   );
   if (!identity) {
-    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+    return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
   const patientUserId = identity.userId;
-  const entitlement = await requireEntitlementForMutation(gate.ctx, "patient_card");
+  const entitlement = await requireEntitlementForMutation(gate.ctx, 'patient_card');
   if (!entitlement.ok) return entitlement.response;
 
   let ok: boolean;
@@ -85,12 +85,12 @@ export async function PATCH(
       }),
     );
   } catch (error) {
-    if (error instanceof Error && error.message === "organization_principal_mismatch") {
-      return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+    if (error instanceof Error && error.message === 'organization_principal_mismatch') {
+      return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
     }
     throw error;
   }
-  if (!ok) return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  if (!ok) return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
 
   return NextResponse.json({ ok: true });
 }

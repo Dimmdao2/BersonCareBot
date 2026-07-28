@@ -1,4 +1,4 @@
-import type { PatientBookingRecord } from "@/modules/patient-booking/types";
+import type { PatientBookingRecord } from '@/modules/patient-booking/types';
 
 export type PrepaymentResolveContext = {
   onlineCategory?: string | null;
@@ -10,7 +10,7 @@ export function prepaymentContextFromBooking(
   row: PatientBookingRecord | null | undefined,
 ): PrepaymentResolveContext | undefined {
   if (!row) return undefined;
-  if (row.bookingType === "online") {
+  if (row.bookingType === 'online') {
     return { onlineCategory: row.category, servicePriceMinor: null };
   }
   return { onlineCategory: null, servicePriceMinor: row.priceMinorSnapshot };

@@ -5,13 +5,7 @@
   "concurrency": 4,
   "routesDiscovered": 140,
   "concretePathCount": 114,
-  "activeRoles": [
-    "doctor",
-    "clinic_admin",
-    "patient",
-    "global_admin",
-    "public"
-  ],
+  "activeRoles": ["doctor", "clinic_admin", "patient", "global_admin", "public"],
   "unavailableRoles": [],
   "results": [
     {
@@ -10060,188 +10054,132 @@
       {
         "template": "/app/doctor/clinical-tests/:id",
         "reason": "needs concrete id(s) for param(s): id",
-        "missingParams": [
-          "id"
-        ]
+        "missingParams": ["id"]
       },
       {
         "template": "/app/doctor/content/edit/:id",
         "reason": "needs concrete id(s) for param(s): id",
-        "missingParams": [
-          "id"
-        ]
+        "missingParams": ["id"]
       },
       {
         "template": "/app/doctor/content/sections/edit/:slug",
         "reason": "needs concrete id(s) for param(s): slug",
-        "missingParams": [
-          "slug"
-        ]
+        "missingParams": ["slug"]
       },
       {
         "template": "/app/doctor/courses/:id",
         "reason": "needs concrete id(s) for param(s): id",
-        "missingParams": [
-          "id"
-        ]
+        "missingParams": ["id"]
       },
       {
         "template": "/app/doctor/exercises/:id",
         "reason": "needs concrete id(s) for param(s): id",
-        "missingParams": [
-          "id"
-        ]
+        "missingParams": ["id"]
       },
       {
         "template": "/app/doctor/lfk-templates/:id",
         "reason": "needs concrete id(s) for param(s): id",
-        "missingParams": [
-          "id"
-        ]
+        "missingParams": ["id"]
       },
       {
         "template": "/app/doctor/material-ratings/:kind/:id",
         "reason": "needs concrete id(s) for param(s): kind, id",
-        "missingParams": [
-          "kind",
-          "id"
-        ]
+        "missingParams": ["kind", "id"]
       },
       {
         "template": "/app/doctor/online-intake/:requestId",
         "reason": "needs concrete id(s) for param(s): requestId",
-        "missingParams": [
-          "requestId"
-        ]
+        "missingParams": ["requestId"]
       },
       {
         "template": "/app/doctor/patients/:userId",
         "reason": "needs concrete id(s) for param(s): userId",
-        "missingParams": [
-          "userId"
-        ]
+        "missingParams": ["userId"]
       },
       {
         "template": "/app/doctor/patients/:userId/:...tabSlug",
         "reason": "needs concrete id(s) for param(s): userId, tabSlug",
-        "missingParams": [
-          "userId",
-          "tabSlug"
-        ]
+        "missingParams": ["userId", "tabSlug"]
       },
       {
         "template": "/app/doctor/patients/:userId/programs/:instanceId",
         "reason": "needs concrete id(s) for param(s): userId, instanceId",
-        "missingParams": [
-          "userId",
-          "instanceId"
-        ]
+        "missingParams": ["userId", "instanceId"]
       },
       {
         "template": "/app/doctor/recommendations/:id",
         "reason": "needs concrete id(s) for param(s): id",
-        "missingParams": [
-          "id"
-        ]
+        "missingParams": ["id"]
       },
       {
         "template": "/app/doctor/references/:categoryCode",
         "reason": "needs concrete id(s) for param(s): categoryCode",
-        "missingParams": [
-          "categoryCode"
-        ]
+        "missingParams": ["categoryCode"]
       },
       {
         "template": "/app/doctor/subscribers/:userId",
         "reason": "needs concrete id(s) for param(s): userId",
-        "missingParams": [
-          "userId"
-        ]
+        "missingParams": ["userId"]
       },
       {
         "template": "/app/doctor/test-sets/:id",
         "reason": "needs concrete id(s) for param(s): id",
-        "missingParams": [
-          "id"
-        ]
+        "missingParams": ["id"]
       },
       {
         "template": "/app/doctor/treatment-program-templates/:id",
         "reason": "needs concrete id(s) for param(s): id",
-        "missingParams": [
-          "id"
-        ]
+        "missingParams": ["id"]
       },
       {
         "template": "/app/patient/broadcasts/:auditId",
         "reason": "needs concrete id(s) for param(s): auditId",
-        "missingParams": [
-          "auditId"
-        ]
+        "missingParams": ["auditId"]
       },
       {
         "template": "/app/patient/content/:slug",
         "reason": "needs concrete id(s) for param(s): slug",
-        "missingParams": [
-          "slug"
-        ]
+        "missingParams": ["slug"]
       },
       {
         "template": "/app/patient/go/:kind",
         "reason": "needs concrete id(s) for param(s): kind",
-        "missingParams": [
-          "kind"
-        ]
+        "missingParams": ["kind"]
       },
       {
         "template": "/app/patient/help/:slug",
         "reason": "needs concrete id(s) for param(s): slug",
-        "missingParams": [
-          "slug"
-        ]
+        "missingParams": ["slug"]
       },
       {
         "template": "/app/patient/memberships/:id",
         "reason": "needs concrete id(s) for param(s): id",
-        "missingParams": [
-          "id"
-        ]
+        "missingParams": ["id"]
       },
       {
         "template": "/app/patient/reminders/journal/:ruleId",
         "reason": "needs concrete id(s) for param(s): ruleId",
-        "missingParams": [
-          "ruleId"
-        ]
+        "missingParams": ["ruleId"]
       },
       {
         "template": "/app/patient/sections/:slug",
         "reason": "needs concrete id(s) for param(s): slug",
-        "missingParams": [
-          "slug"
-        ]
+        "missingParams": ["slug"]
       },
       {
         "template": "/app/patient/treatment/:instanceId",
         "reason": "needs concrete id(s) for param(s): instanceId",
-        "missingParams": [
-          "instanceId"
-        ]
+        "missingParams": ["instanceId"]
       },
       {
         "template": "/app/patient/treatment/:instanceId/item/:itemId",
         "reason": "needs concrete id(s) for param(s): instanceId, itemId",
-        "missingParams": [
-          "instanceId",
-          "itemId"
-        ]
+        "missingParams": ["instanceId", "itemId"]
       },
       {
         "template": "/app/patient/treatment/promo/item/:templateStageItemId",
         "reason": "needs concrete id(s) for param(s): templateStageItemId",
-        "missingParams": [
-          "templateStageItemId"
-        ]
+        "missingParams": ["templateStageItemId"]
       }
     ]
   }

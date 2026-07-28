@@ -161,4 +161,3 @@ Do not run root `pnpm run ci`.
 - Existing guest/auth behavior preserved.
 - Tests updated and targeted checks pass or failures are fixed.
 - `LOG.md` updated.
-

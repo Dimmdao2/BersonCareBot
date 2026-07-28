@@ -3,6 +3,7 @@
 ## 2026-06-13 — Post-audit: drop legacy break columns (0118)
 
 Удалены legacy-поля `break_start_minute`/`break_end_minute` во всех слоях:
+
 - **Миграция 0118** (`db/drizzle-migrations/0118_drop_legacy_break_columns.sql`): DROP CONSTRAINT
   `be_working_days_break_check` / `be_schedule_templates_break_check`, затем DROP COLUMN на обеих
   таблицах (idempotent, IF EXISTS). Бэкфилл уже был выполнен миграцией 0116.
@@ -25,6 +26,7 @@
 ## 2026-06-12 — Планирование
 
 **Сделано:**
+
 - Аудит текущего состояния раздела «Расписание»:
   - `/app/doctor/schedule` — виртуальный rewrite в `src/middleware/doctorRouteRedirects.ts`
     (`?tab=calendar→/calendar`, `?tab=appointments→/appointments`, `?tab=setup→/admin/booking`);
@@ -40,11 +42,13 @@
 - Создан план `.cursor/plans/doctor_schedule_section.plan.md` (этапы 0–14, DoD, scope boundaries).
 
 **Решения:**
+
 - Полный объём по вайрфрейму; per-date модель графика с новыми миграциями; полный ребилд таба
   «Настройки записи».
 - per-date слой — backward-compatible надстройка над booking-engine, без замены weekday-модели.
 
 **Сознательно НЕ делали (планирование):**
+
 - Реализацию не начинали — по запросу пользователя сперва детальный план.
 
 **Координация §7.5:** пересечение с `BOOKING_REWORK_INITIATIVE` зафиксировано; редизайн «Графика
@@ -53,6 +57,7 @@
 ### Усиление плана (та же сессия)
 
 Углублён аудит до уровня реальных символов и точек интеграции; план переписан с детализацией:
+
 - Точная точка интеграции per-date в слот-движок — `service.ts:computeSlotsInternal` + расширение
   `computeSlots.ts:workingIntervalsForDate(…, perDayRow?)` (backward-compatible).
 - DDL `be_working_days` / `be_schedule_templates` (колонки, FK на `bookingEngine`, check, partial-unique
@@ -69,6 +74,7 @@
 **Сделано:**
 
 ### e0 — DDL + миграция
+
 - `apps/webapp/db/schema/bookingScheduling.ts`: добавлены `beWorkingDays` и `beScheduleTemplates`.
   - `be_working_days`: id, organizationId, specialistId (nullable FK), branchId (nullable FK), roomId (nullable FK), workDate (date), startMinute/endMinute (nullable int), breakStart/breakEnd (nullable int), isClosed (bool), check-constraints, index `idx_be_working_days_org_date`.
   - Partial-unique index `uq_be_working_days_scope_date` по `(organization_id, COALESCE(specialist_id, sentinel), work_date)` — единственная строка per-date per-scope.
@@ -78,21 +84,25 @@
 - Миграция применена к dev-БД, идемпотентность проверена.
 
 ### e1a — порты booking-scheduling
+
 - `apps/webapp/src/modules/booking-scheduling/ports.ts`:
   - Добавлены типы: `WorkingDayRecord`, `UpsertWorkingDaysInput`, `CloseWorkingDaysInput`, `ClearWorkingDaysInput`, `ScheduleTemplateRecord`, `CreateScheduleTemplateInput`.
   - Расширены `BookingSchedulingPort` и `BookingSchedulingService` методами: `listWorkingDays`, `upsertWorkingDays`, `closeWorkingDays`, `clearWorkingDays`, `listScheduleTemplates`, `createScheduleTemplate`, `deleteScheduleTemplate`; сервис дополнительно: `applyScheduleTemplate`.
 
 ### e1b — pg-реализация booking-scheduling
+
 - `apps/webapp/src/infra/repos/pgBookingScheduling.ts`:
   - `listWorkingDays`, `upsertWorkingDays` (raw SQL INSERT ON CONFLICT из-за expression-based unique index), `closeWorkingDays`, `clearWorkingDays`, `listScheduleTemplates`, `createScheduleTemplate`, `deleteScheduleTemplate`.
   - Sentinel UUID `'00000000-0000-0000-0000-000000000000'` в ON CONFLICT COALESCE.
 
 ### e2a — сервис booking-scheduling
+
 - `apps/webapp/src/modules/booking-scheduling/service.ts`:
   - Валидаторы (`assertUuid`, `assertMinute`, `assertDate`, `assertDateRangeDays`, `validateUpsertInput`, `validateScheduleTemplateInput`).
   - Реализации: `listWorkingDays`, `upsertWorkingDays`, `closeWorkingDays`, `clearWorkingDays`, `listScheduleTemplates`, `createScheduleTemplate`, `deleteScheduleTemplate`, `applyScheduleTemplate`.
 
 ### e2b — интеграция per-date в слот-движок
+
 - `apps/webapp/src/modules/booking-scheduling/computeSlots.ts`:
   - Добавлен `WorkingDayRow`, функция `splitByBreak(row, dateKey, tz, buffer): TimeInterval[]`.
   - Расширен `workingIntervalsForDate(…, perDayRow?)`: при наличии perDayRow — `splitByBreak`; иначе — прежнее weekday-поведение (backward-compatible).
@@ -100,9 +110,11 @@
   - Получает `perDayRows` из порта, строит `perDayMap`, передаёт в `workingIntervalsForDate`.
 
 ### e2c — inMemory-заглушки
+
 - `apps/webapp/src/modules/booking-calendar/service.test.ts`: добавлены vi.fn()-заглушки новых методов в mock `BookingSchedulingPort`.
 
 ### e3 — KPI-тип и порт doctor-appointments
+
 - `apps/webapp/src/modules/doctor-appointments/ports.ts`: `ScheduleKpis` + `getScheduleKpis` на `DoctorAppointmentsPort`.
 - `apps/webapp/src/modules/doctor-appointments/service.ts`: делегирование `getScheduleKpis` в порт.
 - `apps/webapp/src/infra/repos/pgDoctorCanonicalAppointments.ts`: `getScheduleKpis` с `countDistinct` + NOT EXISTS subquery.
@@ -112,6 +124,7 @@
 - Тест-заглушки добавлены: `doctorAppointmentsReadSwitch.test.ts`, `doctor-appointments/service.test.ts`.
 
 ### e5 — API-роуты
+
 - `apps/webapp/src/app/api/admin/booking-engine/working-days/route.ts`:
   - `GET ?dateFrom&dateTo&specialistId` → `listWorkingDays`; `__none__` sentinel → null.
   - `PUT { action: upsert|close|clear, dates, … }` → upsertWorkingDays / closeWorkingDays / clearWorkingDays.
@@ -121,7 +134,7 @@
   - `POST` (без action) → `createScheduleTemplate` (validate startMinute < endMinute).
   - `POST ?action=apply` → `applyScheduleTemplate`.
   - `DELETE ?id=uuid` → `deleteScheduleTemplate`.
-- Тесты: `working-days/route.test.ts` (401/GET range/GET __none__/PUT upsert/PUT close/PUT clear) и `working-schedule-templates/route.test.ts` (401/GET/POST create/POST apply/DELETE) — все зелёные.
+- Тесты: `working-days/route.test.ts` (401/GET range/GET **none**/PUT upsert/PUT close/PUT clear) и `working-schedule-templates/route.test.ts` (401/GET/POST create/POST apply/DELETE) — все зелёные.
 
 **Typecheck:** зелёный (`pnpm --dir apps/webapp typecheck`).
 
@@ -183,6 +196,7 @@
   - Правая панель отображается.
 
 **Решения (CalendarViewMode / view совместимость):**
+
 - Новый вид называется `"weeklist"` (не `"weekgrid"`/`"weeklist"` из вайрфрейма напрямую).
 - Существующий `"week"` = «Неделя · сетка» (FullCalendar timeGridWeek) — сохранён без переименования
   для backward-compat с `calendar/page.tsx` и существующим URL `?view=week`.
@@ -191,6 +205,7 @@
 - `calendar/page.tsx` обновлён: теперь принимает `"weeklist"` в парсере searchParams.
 
 **Проверки:**
+
 - `pnpm --dir apps/webapp typecheck` — зелёный (EXIT 0).
 - `pnpm --dir apps/webapp exec eslint "src/app/app/doctor/schedule/**" --max-warnings 0` — чистый.
 - `pnpm --dir apps/webapp exec eslint "src/app/app/doctor/calendar/DoctorBookingCalendarClient.tsx" --max-warnings 0` — чистый.
@@ -200,6 +215,7 @@
 - Pre-existing failures: `webappPhase15F.verify.test.ts` (2 теста, без изменений).
 
 **Сознательно НЕ делали (этот батч):**
+
 - Этапы 8–14 (ScheduleWorkTab, ScheduleSetupTab, DoctorScheduleShell, URL-sync шелл, page.tsx, routing, nav).
 - `DoctorCreateAppointmentDialog` в тулбаре таба (есть кнопка «Создать» во встроенной `DoctorCalendarEventPanel` — достаточно по вайрфрейму; отдельная плавающая кнопка «+ Создать запись» — этап 10/шелл).
 - Реализация keepMounted-шелл — этап 10.
@@ -240,11 +256,13 @@
   - `bookingSoloAdminApi` полностью замокан.
 
 **Решения:**
+
 - solo R2: специалист резолвится через `ensureDefaultSpecialist` (как в `BookingSoloScheduleSection`).
 - R3 (одна локация на день): модель — один `branchId` per-row, UI не поддерживает две локации в день (backlog).
 - Цвета локаций — детерминированный маппинг по индексу (не захардкожены branch-цвета в DB).
 
 **Проверки:**
+
 - `pnpm --dir apps/webapp typecheck` — зелёный (EXIT 0).
 - `pnpm --dir apps/webapp exec eslint "src/app/app/doctor/schedule/**" --max-warnings 0` — чистый.
 - `pnpm --dir apps/webapp exec vitest --run "ScheduleWorkTab.test"` — 8/8 зелёных.
@@ -252,6 +270,7 @@
 - Pre-existing failures: `webappPhase15F.verify.test.ts` (2 теста, без изменений с нашей стороны).
 
 **Сознательно НЕ делали (этот батч):**
+
 - Этапы 9–14 (ScheduleSetupTab, DoctorScheduleShell, URL-sync, page.tsx, routing, nav).
 - UI-оптимизация масштаба (ячейка не растёт по клику — нет accordion-раскрытия деталей дня).
 
@@ -312,15 +331,18 @@
   - Все тяжёлые секции замоканы stubs; прогрев чанка в `beforeAll` (webapp-tests-lean).
 
 **Решения:**
+
 - Логика «admin-only» для этого таба уже обеспечена на уровне регистрации в nav (`admin` link в `doctorNavLinks.ts`) и шелла (Этап 10). Внутри самого таба проверку роли не дублируем — это добавит излишнюю зависимость от сессии в client-компоненте, а нарушитель всё равно получит 401/403 от API.
 - Секции `locations` и `services` не объединены в одну группу: по вайрфрейму они раздельны, и это логично (локации = конфигурация офлайн-мест, услуги = прайс-лист).
 - `BookingCatalogPackagesSection` добавлена в секцию `services` — пакеты семантически принадлежат каталогу услуг.
 
 **Координация §7.5 (BOOKING_REWORK_INITIATIVE):**
+
 - Ребилд раскладки `admin/booking` (Этап 9) ведётся здесь по согласованию; существующие страницы не сломаны.
 - Сведение `admin/booking/**` к 308 — Этап 13.
 
 **Проверки:**
+
 - `pnpm --dir apps/webapp typecheck` — зелёный (EXIT 0).
 - `pnpm --dir apps/webapp exec eslint "src/app/app/doctor/schedule/**" --max-warnings 0` — чистый.
 - `pnpm --dir apps/webapp exec vitest run "ScheduleSetupTab.test"` — 8/8 зелёных.
@@ -329,11 +351,13 @@
 - Pre-existing failures: `webappPhase15F.verify.test.ts` (2 теста, без изменений с нашей стороны).
 
 **Сознательно НЕ делали (этот батч):**
+
 - Этапы 10–14 (DoctorScheduleShell, URL-sync, page.tsx, routing, nav).
 - Сведение `admin/booking/**` к 308 — Этап 13.
 - Добавление новых бэкенд-сущностей/миграций: все секции уже имеют нужные API-эндпойнты.
 
 **Открытые вопросы:**
+
 - Нет. Все секции полностью переиспользованы; новых бэкенд-зависимостей не потребовалось.
 
 **Следующие шаги:** e10 — DoctorScheduleShell.
@@ -361,6 +385,7 @@
 ### e11 — URL-sync
 
 Реализован внутри `DoctorScheduleShell`:
+
 - `?tab=<id>` — обновляется через `history.replaceState` при смене таба или deep-link параметра.
 - `?period=` — пишется при смене периода (значение `month` не пишется — дефолт).
 - Под-параметры каждого таба (из `SCHEDULE_TAB_REGISTRY.deepLinkKeys`) — пишутся при `onDeepLinkChange`.
@@ -400,6 +425,7 @@
 - Рассинхрона нет: nav/308-таргеты/нормализация → все используют `cal/work/setup`.
 
 **Судьба loop-guard `REWRITE_MARKER_HEADER`:**
+
 - Хедер `x-bc-doctor-rewrite` сохранён в коде (guard на входе функции).
 - Значение `rewriteWithMarker` удалено как dead code (нет rewrite).
 - Guard актуален: если в proxy.ts появится другой rewrite, он не войдёт в петлю 308.
@@ -471,17 +497,17 @@
 
 **Результат проверки каждого шага:**
 
-| Шаг | Результат | Примечание |
-|-----|-----------|------------|
-| `lint` (eslint) | PASS | ESLint чистый; `check-legacy-migrations-frozen` — предсуществующий фейл (см. ниже) |
-| `check:hls-helpers-sync` | PASS | |
-| `typecheck` | PASS | EXIT 0 (все пакеты) |
-| `test` (integrator) | PASS | 1100/1106 passed (6 skipped) |
-| `test:webapp` | PASS* | 5983/6031 passed; **2 фейла в `webappPhase15F` — предсуществующие** |
-| `test:media-worker` | PASS | 24/24 |
-| `build` (integrator) | PASS | EXIT 0 |
-| `build:webapp` | PASS | EXIT 0, Next.js 16.2.6 Turbopack |
-| `audit` | PASS | No known vulnerabilities |
+| Шаг                      | Результат | Примечание                                                                         |
+| ------------------------ | --------- | ---------------------------------------------------------------------------------- |
+| `lint` (eslint)          | PASS      | ESLint чистый; `check-legacy-migrations-frozen` — предсуществующий фейл (см. ниже) |
+| `check:hls-helpers-sync` | PASS      |                                                                                    |
+| `typecheck`              | PASS      | EXIT 0 (все пакеты)                                                                |
+| `test` (integrator)      | PASS      | 1100/1106 passed (6 skipped)                                                       |
+| `test:webapp`            | PASS\*    | 5983/6031 passed; **2 фейла в `webappPhase15F` — предсуществующие**                |
+| `test:media-worker`      | PASS      | 24/24                                                                              |
+| `build` (integrator)     | PASS      | EXIT 0                                                                             |
+| `build:webapp`           | PASS      | EXIT 0, Next.js 16.2.6 Turbopack                                                   |
+| `audit`                  | PASS      | No known vulnerabilities                                                           |
 
 **Предсуществующие фейлы (не наш scope):**
 
@@ -501,6 +527,7 @@
 ### Полный перечень файлов раздела «Расписание»
 
 **Новые файлы:**
+
 - `apps/webapp/src/app/app/doctor/schedule/page.tsx`
 - `apps/webapp/src/app/app/doctor/schedule/DoctorScheduleShell.tsx`
 - `apps/webapp/src/app/app/doctor/schedule/DoctorScheduleShell.test.tsx`
@@ -528,6 +555,7 @@
 - `.cursor/plans/doctor_schedule_section.plan.md`
 
 **Изменённые файлы:**
+
 - `apps/webapp/db/drizzle-migrations/meta/_journal.json`
 - `apps/webapp/db/schema/bookingScheduling.ts` (+`beWorkingDays`, `beScheduleTemplates`)
 - `apps/webapp/src/modules/booking-scheduling/ports.ts` (+WorkingDay/Template types & methods)
@@ -554,19 +582,21 @@
 - `docs/BOOKING_REWORK_INITIATIVE/ROADMAP.md` (§7.5 ссылка на инициативу)
 
 **Сознательно НЕ делали:**
+
 - Удаление legacy-страниц `/calendar/page.tsx` и `/appointments/page.tsx` — сохранены как Next.js
   fallback (308 поглощают прямые хиты; rg не нашёл runtime-использований кроме редиректов).
 - Починка `webappPhase15F.verify.test.ts` — не наш scope (broadcasts).
 - Две локации в один день (R3 → backlog).
 
-
 ## 2026-06-12 — Детальная проверка реализации (orchestrator review)
 
 **Найдено и исправлено вручную (важнейшее, correctness):**
+
 1. **Branch-leak в слот-движке.** `pgBookingScheduling.listWorkingDays` фильтрует по org+specialist+date (без branch). В `computeSlotsInternal` per-date override применялся к запросу слотов ЛЮБОЙ локации → для solo-врача с одним specialist на две локации (СПб/Москва) день, назначенный в СПб, генерировал слоты и для Москвы. Регрессия против branch-scoped weekday `be_working_hours`. **Фикс:** в `service.ts:computeSlotsInternal` при `perDayRow.branchId != null && context.branchId != null && perDayRow.branchId !== context.branchId` день трактуется как закрытый для этой локации. Editor по-прежнему видит все дни (listWorkingDays branch-agnostic — это правильно), scoping только на этапе генерации слотов.
-2. **snake_case в raw RETURNING.** `upsertWorkingDays`/`closeWorkingDays` через `db.execute(sql\`...RETURNING *\`)` отдают ключи snake_case, а `mapWorkingDayRow` читал camelCase → возвращаемые `WorkingDayRecord` имели undefined-поля (роут отдаёт `{ok:true}`, поэтому пользовательски не проявлялось). **Фикс:** добавлен `mapRawWorkingDayRow` (snake_case) + generic `db.execute<RawWorkingDayRow>`.
+2. **snake_case в raw RETURNING.** `upsertWorkingDays`/`closeWorkingDays` через `db.execute(sql\`...RETURNING \*\`)`отдают ключи snake_case, а`mapWorkingDayRow`читал camelCase → возвращаемые`WorkingDayRecord`имели undefined-поля (роут отдаёт`{ok:true}`, поэтому пользовательски не проявлялось). **Фикс:** добавлен `mapRawWorkingDayRow`(snake_case) + generic`db.execute<RawWorkingDayRow>`.
 
 **Закрыт пробел в тестах** (Batch A/B over-claim: заявленные per-date/service тесты фактически отсутствовали):
+
 - `computeSlots.test.ts`: +4 (override>weekday, closed→0, break→2 окна, fallback backward-compat).
 - `service.test.ts` (новый): +3 (branch match → есть слоты, mismatch → 0, branchId=null → есть).
 
@@ -602,6 +632,7 @@
 **pg (pgDoctorCanonicalAppointments.ts) — стиль: Drizzle ORM (как в соседних методах файла).**
 Все 9 метрик реализованы через параллельные `db.select({c: count()})` + один последовательный
 запрос `firstVisitRow` (NOT EXISTS ранее):
+
 - `recordsInPeriod`: non-cancelled, `start_at ∈ [from, to)`.
 - `pastInPeriod`: то же + `start_at < now()`.
 - `futureInPeriod`: то же + `start_at >= now()`.
@@ -650,14 +681,14 @@
 
 **Проверки:**
 
-| Артефакт | Результат |
-|----------|-----------|
-| `tsc --noEmit --skipLibCheck` | EXIT 0 |
-| `service.test.ts` | 10/10 |
-| `doctorAppointmentsReadSwitch.test.ts` | 5/5 |
-| `loadDoctorScheduleKpis.test.ts` | 13/13 |
-| `schedule-kpis/route.test.ts` | 9/9 |
-| `DoctorScheduleShell.test.tsx` | 13/13 |
+| Артефакт                               | Результат |
+| -------------------------------------- | --------- |
+| `tsc --noEmit --skipLibCheck`          | EXIT 0    |
+| `service.test.ts`                      | 10/10     |
+| `doctorAppointmentsReadSwitch.test.ts` | 5/5       |
+| `loadDoctorScheduleKpis.test.ts`       | 13/13     |
+| `schedule-kpis/route.test.ts`          | 9/9       |
+| `DoctorScheduleShell.test.tsx`         | 13/13     |
 
 **Решение по стилю pg:** файл `pgDoctorCanonicalAppointments.ts` использует Drizzle ORM
 (метод `getScheduleKpis` в том же файле уже был на Drizzle). Новая реализация следует тому же
@@ -665,6 +696,7 @@
 добавлен как stub (возвращает нули, SQL не нужен — нет per-patient analytics в Rubitime).
 
 **Сознательно НЕ делали:**
+
 - Тест паритета pg/inMemory (inMemory — stubbed, не real dataset, комментарий об этом есть).
 - Переезд KPI из шелла в таб «Записи» (это Этап D/F; сейчас минимальная совместимость).
 
@@ -683,6 +715,7 @@
 `beWorkingDays` в `db/schema/bookingScheduling.ts` не объявлял `uq_be_working_days_scope_date`
 (COALESCE-выражение невозможно в Drizzle table-builder).
 **Действие:** добавлен «SCHEMA DRIFT NOTE» комментарий к JSDoc таблицы с указанием:
+
 - индекс в миграции `0115`; drizzle-kit его не воспроизведёт; при пересоздании — добавить вручную.
 
 ### 3. Over-claim покрытие: pgBookingScheduling mapper tests
@@ -690,6 +723,7 @@
 `mapRawWorkingDayRow` и `mapWorkingDayRow` были приватными без тестов, хотя маппер
 был источником критического бага (snake_case vs camelCase).
 **Действие:**
+
 - Экспортированы `mapRawWorkingDayRow`, `mapWorkingDayRow`, `RawWorkingDayRow` из `pgBookingScheduling.ts`.
 - Создан `src/infra/repos/pgBookingScheduling.mappers.test.ts`: 4 теста (полный маппинг,
   закрытый день, маппинг перерыва, null-поля). Drizzle изолирован через vi.mock.
@@ -697,6 +731,7 @@
 ### 4. Широкий correctness-проход
 
 Проверены без обнаружения реальных багов:
+
 - `DoctorScheduleShell.tsx`: URL-sync (buildTabUrl/handleDeepLinkChange/popstate), keepMounted,
   period-fetch через loadKpis, SSR-restore через `typeof window` guard — всё корректно.
 - `doctorRouteRedirects.ts`: 308-таргеты `/calendar→?tab=cal`, `/appointments→?tab=cal`,
@@ -712,14 +747,14 @@
 
 ### Проверки
 
-| Артефакт | Результат |
-|----------|-----------|
-| `pnpm typecheck` | EXIT 0 |
-| `eslint src/infra/repos/pgBookingScheduling.ts inMemoryDoctorAppointments.ts pgBookingScheduling.mappers.test.ts db/schema/bookingScheduling.ts` | 0 warnings |
-| `eslint src/app/app/doctor/schedule/**` | 0 warnings |
-| Таргетные тесты: все 16 файлов (169 тестов) | 169/169 зелёных |
-| Новые mapper тесты: `pgBookingScheduling.mappers.test.ts` | 4/4 зелёных |
-| Предсуществующие фейлы `webappPhase15F` | не тронуты |
+| Артефакт                                                                                                                                         | Результат       |
+| ------------------------------------------------------------------------------------------------------------------------------------------------ | --------------- |
+| `pnpm typecheck`                                                                                                                                 | EXIT 0          |
+| `eslint src/infra/repos/pgBookingScheduling.ts inMemoryDoctorAppointments.ts pgBookingScheduling.mappers.test.ts db/schema/bookingScheduling.ts` | 0 warnings      |
+| `eslint src/app/app/doctor/schedule/**`                                                                                                          | 0 warnings      |
+| Таргетные тесты: все 16 файлов (169 тестов)                                                                                                      | 169/169 зелёных |
+| Новые mapper тесты: `pgBookingScheduling.mappers.test.ts`                                                                                        | 4/4 зелёных     |
+| Предсуществующие фейлы `webappPhase15F`                                                                                                          | не тронуты      |
 
 ### Сознательно НЕ делали
 
@@ -735,6 +770,7 @@
 ### B1 — Drizzle-схема + миграции
 
 **Изменения в схеме:**
+
 - `apps/webapp/db/schema/bookingScheduling.ts`:
   - `beWorkingDays` и `beScheduleTemplates`: добавлена колонка `breaks` (`jsonb NOT NULL DEFAULT '[]'::jsonb`, `$type<Array<{startMinute,endMinute}>>`) — N-break модель.
   - Легаси-колонки `breakStartMinute`/`breakEndMinute` оставлены nullable для backward-compat.
@@ -742,6 +778,7 @@
   - `beBranches`: добавлена колонка `shortTitle` (`text`, nullable) — migration 0117.
 
 **Миграции (ручные SQL, не drizzle-kit — `bookingScheduling.ts` не в `drizzle.config.ts`):**
+
 - `0116_breaks_jsonb_working_days_templates.sql`:
   - `ALTER TABLE be_working_days ADD COLUMN IF NOT EXISTS breaks jsonb NOT NULL DEFAULT '[]'::jsonb`
   - `ALTER TABLE be_schedule_templates ADD COLUMN IF NOT EXISTS breaks jsonb NOT NULL DEFAULT '[]'::jsonb`
@@ -759,18 +796,21 @@ pgBookingScheduling). Это безопасно: строки с `breaks IS NULL
 ### B2 — Порты / Сервис / Репозиторий / Zod-валидация
 
 **Типы и порты:**
+
 - `modules/booking-scheduling/ports.ts`:
   - `BreakInterval = { startMinute: number; endMinute: number }`.
   - `breaks: BreakInterval[]` → `WorkingDayRecord`, `ScheduleTemplateRecord`.
   - `breaks?: BreakInterval[]` → `UpsertWorkingDaysInput`, `CreateScheduleTemplateInput`.
 
 **Сервис (`modules/booking-scheduling/service.ts`):**
+
 - `validateBreaks(breaks, dayStart, dayEnd)`: count ≤ 6 (`MAX_BREAKS`), каждый ⊂ [dayStart, dayEnd],
   без пересечений (sorted prev.end ≤ cur.start).
 - `validateUpsertInput` и `validateScheduleTemplateInput` вызывают `validateBreaks` при `breaks.length > 0`.
 - `applyScheduleTemplate`: `effectiveBreaks` = `tmpl.breaks.length > 0 ? tmpl.breaks : (legacy scalar fallback)`.
 
 **Репозиторий (`infra/repos/pgBookingScheduling.ts`):**
+
 - `resolveBreaks(breaks, legacyStart, legacyEnd)` helper — централизованный fallback.
 - `mapWorkingDayRow`, `mapRawWorkingDayRow`, `mapTemplateRow` — включают `breaks`.
 - `RawWorkingDayRow` расширен полем `breaks: Array<…> | null`.
@@ -778,17 +818,20 @@ pgBookingScheduling). Это безопасно: строки с `breaks IS NULL
 - `createScheduleTemplate` пишет `effectiveBreaks`.
 
 **Zod-валидация в API-роутах:**
+
 - `working-days/route.ts`: `breakIntervalSchema = z.object({startMinute, endMinute})`;
   `breaks: z.array(breakIntervalSchema).max(6).optional()` в `upsertSchema`.
 - `working-schedule-templates/route.ts`: аналогично в `createBody`.
 
 **Тесты:**
+
 - `pgBookingScheduling.mappers.test.ts`: +3 новых теста (breaks=[] при нет легаси, легаси→синтез, breaks[] приоритет). Итого 5/5.
 - `modules/booking-scheduling/service.test.ts`: `breaks: []` добавлен в фикстуру `WorkingDayRecord` (type-fix). 3/3.
 
 ### B3 — Слот-движок: N перерывов
 
 **Изменения в `computeSlots.ts`:**
+
 - `WorkingDayRow` type: добавлено опциональное поле `breaks?`.
 - `resolveWorkingDayBreaks(row)`: возвращает `BreakInterval[]` с fallback на legacy scalars.
 - `splitByBreak(row, dateKey, tz, buffer)` — полный рерайт с cursor-based подходом:
@@ -803,11 +846,13 @@ pgBookingScheduling). Это безопасно: строки с `breaks IS NULL
 ### B4 — be_branches.short_title: чтение + UI
 
 **Типы и порты:**
+
 - `modules/booking-engine/types.ts`: `BeBranch.shortTitle: string | null`.
 - `modules/booking-engine/ports.ts`: `OrganizationCatalogPort.upsertBranch` — `shortTitle?: string | null`.
 - `modules/booking-calendar/types.ts`: `CalendarFilterOption.shortLabel?: string | null`.
 
 **Репозитории:**
+
 - `infra/repos/pgBookingEngine.ts`:
   - `mapBranch()`: читает `row.shortTitle ?? null`.
   - `upsertBranch()`: пишет `shortTitle` (key-in-input check для обновлений).
@@ -816,10 +861,12 @@ pgBookingScheduling). Это безопасно: строки с `breaks IS NULL
     маппинг branches: `{ id, label, shortLabel: r.shortTitle ?? null }`.
 
 **API-роут:**
+
 - `branches/[id]/route.ts`: `PatchSchema` расширена полем `shortTitle: z.string().trim().max(12).nullable().optional()`.
   `upsertBranch` call: `shortTitle` передаётся только если присутствует в `parsed.data` (preserve-existing семантика).
 
 **Settings UI:**
+
 - `app/app/settings/bookingSoloAdminApi.ts`: `SoloOverview.branches` — добавлено поле `shortTitle: string | null`.
 - `app/app/settings/BookingSoloLocationsSection.tsx`:
   - `editShortTitle` state.
@@ -829,6 +876,7 @@ pgBookingScheduling). Это безопасно: строки с `breaks IS NULL
   - Сохранение: `shortTitle: editShortTitle.trim() || null` в PATCH body.
 
 **Проверки B4:**
+
 - `tsc --noEmit --skipLibCheck`: EXIT 0.
 - Таргетные тесты (24/24): `pgBookingScheduling.mappers.test.ts` (5/5),
   `computeSlots.test.ts` (16/16), `service.test.ts` (3/3).
@@ -836,7 +884,7 @@ pgBookingScheduling). Это безопасно: строки с `breaks IS NULL
 ### Коммиты (все в feat/doctor-ui-rebuild)
 
 1. **`feat(booking-scheduling): B1+B4-schema — breaks jsonb (0116) + be_branches.short_title (0117)`**
-   — db/schema, migrations, _journal.json.
+   — db/schema, migrations, \_journal.json.
 2. **`feat(booking-scheduling): B2 — breaks BreakInterval ports/service/pg/Zod validation`**
    — ports.ts, service.ts, pgBookingScheduling.ts, mappers.test.ts, service.test.ts, API routes.
 3. **`feat(booking-scheduling): B3 — computeSlots N-break cursor engine + 11 tests`**
@@ -854,6 +902,7 @@ pgBookingScheduling). Это безопасно: строки с `breaks IS NULL
 ## Этап C — Фид диапазоны/часы ±1ч + ближайшее свободное окно
 
 **Сделано:**
+
 - **C1** `parseCalendarQuery`: виды `3days` (якорь+2 дня) и `feed` (±30 дней §13.6, либо явные `from/to`);
   явные `from/to` перекрывают расчёт по view; `month` строго 1-е..последнее (без overflow-дней). Не сломаны
   `week`/`weeklist`/`day`.
@@ -938,13 +987,13 @@ pgBookingScheduling). Это безопасно: строки с `breaks IS NULL
 
 ### Проверки
 
-| Артефакт | Результат |
-|----------|-----------|
-| `tsc --noEmit --skipLibCheck` | EXIT 0 (только pre-existing BroadcastForm ошибка) |
-| `vitest run "ScheduleCalendarTab.test"` | **37/37** зелёных |
-| `vitest run "scheduleTabRegistry.test"` | **16/16** зелёных |
-| Все schedule тесты (`vitest run "schedule"`) | **170/170** зелёных (21 файл) |
-| Pre-existing failures | `webappPhase15F.verify.test.ts` — 2 теста, не тронуты |
+| Артефакт                                     | Результат                                             |
+| -------------------------------------------- | ----------------------------------------------------- |
+| `tsc --noEmit --skipLibCheck`                | EXIT 0 (только pre-existing BroadcastForm ошибка)     |
+| `vitest run "ScheduleCalendarTab.test"`      | **37/37** зелёных                                     |
+| `vitest run "scheduleTabRegistry.test"`      | **16/16** зелёных                                     |
+| Все schedule тесты (`vitest run "schedule"`) | **170/170** зелёных (21 файл)                         |
+| Pre-existing failures                        | `webappPhase15F.verify.test.ts` — 2 теста, не тронуты |
 
 ### Изменённые / созданные файлы
 
@@ -1034,14 +1083,14 @@ pgBookingScheduling). Это безопасно: строки с `breaks IS NULL
 
 ### Проверки
 
-| Артефакт | Результат |
-|----------|-----------|
-| `tsc --noEmit --skipLibCheck` | EXIT 0 (pre-existing BroadcastForm — не наши) |
-| `eslint ScheduleWorkTab.tsx working-days/route.ts ports.ts pgBookingScheduling.ts` | 0 предупреждений |
-| `vitest run "ScheduleWorkTab.test"` | **19/19** зелёных |
-| `vitest run "schedule"` | **181/181** зелёных (21 файл) |
-| Doctor-UI §16 rg: no `rounded-2xl`, no `@/components/ui`, no `@/shared/ui/patient` | OK |
-| Pre-existing failures `webappPhase15F` | не тронуты |
+| Артефакт                                                                           | Результат                                     |
+| ---------------------------------------------------------------------------------- | --------------------------------------------- |
+| `tsc --noEmit --skipLibCheck`                                                      | EXIT 0 (pre-existing BroadcastForm — не наши) |
+| `eslint ScheduleWorkTab.tsx working-days/route.ts ports.ts pgBookingScheduling.ts` | 0 предупреждений                              |
+| `vitest run "ScheduleWorkTab.test"`                                                | **19/19** зелёных                             |
+| `vitest run "schedule"`                                                            | **181/181** зелёных (21 файл)                 |
+| Doctor-UI §16 rg: no `rounded-2xl`, no `@/components/ui`, no `@/shared/ui/patient` | OK                                            |
+| Pre-existing failures `webappPhase15F`                                             | не тронуты                                    |
 
 ### Изменённые/созданные файлы
 
@@ -1103,15 +1152,16 @@ pgBookingScheduling). Это безопасно: строки с `breaks IS NULL
 
 **Найденные и закрытые расхождения:**
 
-| # | Артефакт | Было | Стало |
-|---|---------|------|-------|
-| 1 | Tab nav — ярлык «Записи» | «Календарь записей» | «Записи» |
-| 2 | Tab nav — ярлык «Настройки» | «Настройки записи» | «Настройки» |
-| 3 | Shell — KPI-ряд | Отображался на всех 3 табах | Удалён из шелла (только в табе «Записи») |
-| 4 | Shell — `?period=` в URL | Писался при смене периода | Удалён (период управляется только табом) |
-| 5 | Nav — «Расписание» в меню | Аккордеон (3 под-пункта) | Одна ссылка (нет accordion) |
+| #   | Артефакт                    | Было                        | Стало                                    |
+| --- | --------------------------- | --------------------------- | ---------------------------------------- |
+| 1   | Tab nav — ярлык «Записи»    | «Календарь записей»         | «Записи»                                 |
+| 2   | Tab nav — ярлык «Настройки» | «Настройки записи»          | «Настройки»                              |
+| 3   | Shell — KPI-ряд             | Отображался на всех 3 табах | Удалён из шелла (только в табе «Записи») |
+| 4   | Shell — `?period=` в URL    | Писался при смене периода   | Удалён (период управляется только табом) |
+| 5   | Nav — «Расписание» в меню   | Аккордеон (3 под-пункта)    | Одна ссылка (нет accordion)              |
 
 **Не нашедшие расхождения (всё уже корректно из D/E):**
+
 - `ScheduleCalendarTab`: тулбар sticky, backdrop-blur, view switcher, KPI 9 карточек с `cursor-pointer`,
   `doctorStatCardShellClass`/`doctorStatCardInteractiveClass`, FullCalendar wrapper `rounded-xl`.
 - `RightPanelEmptyStub`: «Запись не выбрана» + CTA + `NearestWindowLine` — корректно.
@@ -1133,19 +1183,20 @@ pgBookingScheduling). Это безопасно: строки с `breaks IS NULL
 
 ### Проверки
 
-| Артефакт | Результат |
-|----------|-----------|
-| `tsc --noEmit --skipLibCheck` | EXIT 0 (pre-existing BroadcastForm — не наши) |
-| `DoctorScheduleShell.test.tsx` | **11/11** зелёных |
-| `doctorNavLinks.test.ts` | **20/20** зелёных |
-| `doctorScheduleTabs.test.ts` | **14/14** зелёных |
-| `doctorRouteRedirects.test.ts` | **25/25** зелёных |
-| Pre-existing failures `webappPhase15F` | не тронуты |
-| Чужие файлы (broadcasts/communications) | не затронуты |
+| Артефакт                                | Результат                                     |
+| --------------------------------------- | --------------------------------------------- |
+| `tsc --noEmit --skipLibCheck`           | EXIT 0 (pre-existing BroadcastForm — не наши) |
+| `DoctorScheduleShell.test.tsx`          | **11/11** зелёных                             |
+| `doctorNavLinks.test.ts`                | **20/20** зелёных                             |
+| `doctorScheduleTabs.test.ts`            | **14/14** зелёных                             |
+| `doctorRouteRedirects.test.ts`          | **25/25** зелёных                             |
+| Pre-existing failures `webappPhase15F`  | не тронуты                                    |
+| Чужие файлы (broadcasts/communications) | не затронуты                                  |
 
 ### Изменённые/удалённые файлы
 
 **Изменены:**
+
 - `apps/webapp/src/app/app/doctor/schedule/DoctorScheduleShell.tsx` — KPI/period removed
 - `apps/webapp/src/app/app/doctor/schedule/DoctorScheduleShell.test.tsx` — обновлены тесты
 - `apps/webapp/src/app/app/doctor/schedule/page.tsx` — упрощена (без KPI SSR-загрузки)
@@ -1158,6 +1209,7 @@ pgBookingScheduling). Это безопасно: строки с `breaks IS NULL
 - `.cursor/plans/doctor_schedule_v26_rebuild.plan.md` — f1–f5 completed, status: completed
 
 **Удалены:**
+
 - `apps/webapp/src/app/app/doctor/schedule/loadDoctorScheduleKpis.ts`
 - `apps/webapp/src/app/app/doctor/schedule/loadDoctorScheduleKpis.test.ts`
 

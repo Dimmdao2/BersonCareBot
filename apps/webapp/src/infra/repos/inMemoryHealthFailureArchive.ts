@@ -2,7 +2,7 @@ import type {
   HealthFailureArchiveClearBatchResult,
   HealthFailureArchiveListResult,
   HealthFailureArchivePort,
-} from "@/modules/operator-health/healthFailureArchivePort";
+} from '@/modules/operator-health/healthFailureArchivePort';
 /** In-memory заглушка (Vitest / CI без БД). */
 export const inMemoryHealthFailureArchivePort: HealthFailureArchivePort = {
   async archiveOutgoingDeadBatch(): Promise<HealthFailureArchiveClearBatchResult> {

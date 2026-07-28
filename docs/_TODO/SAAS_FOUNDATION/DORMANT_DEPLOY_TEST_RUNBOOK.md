@@ -3,6 +3,7 @@
 **Status: READY.** `feat`=`saas`=`bdff8dfca`, full `pnpm run ci` green, all SaaS isolation is DORMANT.
 
 ## What this is (and is NOT)
+
 This deploys the **dormant** multi-tenant isolation foundation to **test** and validates it does
 **nothing** to runtime behavior. It is **safe, reversible, and does not touch prod**.
 
@@ -21,11 +22,13 @@ any real role switch, the flip plan must move/neutralize FORCE, add dormant symm
 compatibility mode, and prove locked patient/integrator identity labels.
 
 ## Preconditions
+
 - Fresh prod dump exists (hourly): `bcb-prod:/opt/backups/postgres/hourly/unified_bcb_webapp_prod_*.dump`
   (verified present, ~hourly). Use the newest.
-- Test host access (151.x). *(Note: I have SSH to prod `bcb-prod`, not confirmed to the test host — you run the test-side steps.)*
+- Test host access (151.x). _(Note: I have SSH to prod `bcb-prod`, not confirmed to the test host — you run the test-side steps.)_
 
 ## Steps
+
 1. **Refresh test DB from a fresh prod dump.** Your existing flow:
    `sudo -u postgres bash /tmp/bcb-test-setup/restore-test-db.sh` (recreates `bersoncarebot_test` from
    the prod hourly dump — pull the newest dump first).
@@ -39,13 +42,16 @@ compatibility mode, and prove locked patient/integrator identity labels.
    ```
 4. **Verify NO behavior change:** test health checks pass; log in as doctor + patient; open patient
    card, schedule, messages; confirm everything works exactly as today (RLS dormant). No `permission
-   denied`, no empty lists.
+denied`, no empty lists.
 
 ## Rollback
+
 Re-run step 1 (restore test DB from the prod dump). Roles: re-run the role script with `-v p0_5b_down=1`.
 Nothing on prod is affected at any point.
 
 ## After this passes → the FLIP (separate, still owner-gated, NOT yet ready)
+
 Still needed before the flip can be commanded: **B4-fanout** (app connects patient sessions as
 `app_patient`, staff/workers as `app_staff`, sets the GUCs), **#664** (RLS `WITH CHECK` value-enforcement
-+ re-add 2 patient columns), **B7** shadow-run, **B8** flip plan. I'll hand a separate flip runbook then.
+
+- re-add 2 patient columns), **B7** shadow-run, **B8** flip plan. I'll hand a separate flip runbook then.

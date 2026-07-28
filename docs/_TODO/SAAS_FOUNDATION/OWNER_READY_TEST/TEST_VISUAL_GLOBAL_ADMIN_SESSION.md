@@ -82,8 +82,8 @@ must report `absent`. If cleanup is missed, the cookie still cannot slide and ex
 - The helper refuses non-root issuance/revocation, non-canonical TEST env metadata, duplicate env keys, non-local
   PostgreSQL host/port, non-TEST database names, wrong systemd/listener identity, malformed protected packets,
   invalid session signatures, non-admin sessions, missing admin mode, unsafe TTL, symlink output directories/files,
-and overwrite of an existing handoff. The capture wrapper rejects non-dev callers, expired/mis-scoped/non-Secure
-cookies and every caller-supplied argument.
+  and overwrite of an existing handoff. The capture wrapper rejects non-dev callers, expired/mis-scoped/non-Secure
+  cookies and every caller-supplied argument.
 - The fixed System Health route has its own global-operator layout: it still requires `role=admin` and explicit
   admin mode, but deliberately does not require a tenant organization membership. Before Chromium starts, the
   wrapper follows only same-origin redirects for the exact route and emits one classified line containing only the

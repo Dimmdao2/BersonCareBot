@@ -28,23 +28,23 @@ export const MESSENGER_SOFT_TIMEOUT_MS = 2000;
 export const MESSENGER_HARD_TIMEOUT_MS = MESSENGER_HARD_POLL_CAP_MS;
 
 export const MAX_INIT_DATA_TIMEOUT_USER_MESSAGE =
-  "Не удалось войти через MAX: приложение не передало данные для входа. Закройте мини-приложение и откройте его снова из чата с ботом.";
+  'Не удалось войти через MAX: приложение не передало данные для входа. Закройте мини-приложение и откройте его снова из чата с ботом.';
 
 /** Таймаут initData в miniapp (Telegram / единый контекст `ctx=bot`) без авто-перехода в телефонный флоу. */
 export const MESSENGER_MINIAPP_INIT_TIMEOUT_USER_MESSAGE =
-  "Не удалось получить данные для входа из мини-приложения. Нажмите «Повторить» или откройте мини-приложение снова из чата с ботом.";
+  'Не удалось получить данные для входа из мини-приложения. Нажмите «Повторить» или откройте мини-приложение снова из чата с ботом.';
 
 /** Устаревший `bersoncare_platform=bot` в обычном браузере: cookie сбрасывается, далее показывается обычный веб-вход. */
 export const STALE_BOT_PLATFORM_COOKIE_STANDALONE_MESSAGE =
-  "Обнаружена устаревшая метка входа из мини-приложения в обычном браузере — она сброшена. Ниже доступен вход через сайт (OAuth или номер телефона).";
+  'Обнаружена устаревшая метка входа из мини-приложения в обычном браузере — она сброшена. Ниже доступен вход через сайт (OAuth или номер телефона).';
 
 /** Отказ miniapp init (например whitelist / не нажат Start): явная подсказка пользователю. */
 export const MINIAPP_ACTIVATE_BOT_AND_AUTH_MESSAGE =
-  "Активируйте бота: откройте чат с ботом и нажмите Start, затем снова откройте приложение из бота. Если уже нажимали Start — нажмите «Повторить».";
+  'Активируйте бота: откройте чат с ботом и нажмите Start, затем снова откройте приложение из бота. Если уже нажимали Start — нажмите «Повторить».';
 
 /** Серверный ключ MAX не задан или вход через MAX недоступен — не показываем телефонный OTP и не переключаем на Telegram. */
 export const MAX_SERVICE_UNAVAILABLE_MESSAGE =
-  "Вход через MAX временно недоступен из‑за настройки сервера. Откройте приложение через бота в MAX или попробуйте позже.";
+  'Вход через MAX временно недоступен из‑за настройки сервера. Откройте приложение через бота в MAX или попробуйте позже.';
 
 /**
  * Пока нет query JWT, Telegram initData пустой, а MAX bridge ещё не загрузился —
@@ -70,7 +70,10 @@ export function shouldDeferPhoneLoginWhileMaxBridgeMayLoad(input: {
 /**
  * Поверхность MAX Mini App: bridge уже есть, Telegram initData пуст (в MAX нет TG данных).
  */
-export function isLikelyMaxMiniAppSurface(telegramInitDataEmpty: boolean, maxBridgeReady: boolean): boolean {
+export function isLikelyMaxMiniAppSurface(
+  telegramInitDataEmpty: boolean,
+  maxBridgeReady: boolean,
+): boolean {
   return maxBridgeReady && telegramInitDataEmpty;
 }
 
@@ -95,7 +98,7 @@ export function isConfirmedMessengerByInitData(input: {
 /** Feature flag: ранний интерактивный login + prefetch (`AuthBootstrap` / `AuthFlowV2`). */
 export function isAuthBootstrapEarlyUiV2Enabled(): boolean {
   const v = process.env.NEXT_PUBLIC_AUTH_BOOTSTRAP_EARLY_UI_V2?.trim().toLowerCase();
-  return v === "1" || v === "true" || v === "yes";
+  return v === '1' || v === 'true' || v === 'yes';
 }
 
 /**
@@ -110,12 +113,12 @@ export function shouldExposeInteractiveLogin(input: {
   isMessengerMiniAppEntry: boolean;
   messengerSoftOk: boolean;
   browserSoftOk: boolean;
-  initDataStatus: "unknown" | "yes" | "no";
-  state: "idle" | "loading" | "error";
+  initDataStatus: 'unknown' | 'yes' | 'no';
+  state: 'idle' | 'loading' | 'error';
   /** Явный miniapp-entry роут: не показывать OAuth/телефон как «обычный сайт». */
   routeBoundMiniappEntry?: boolean;
 }): boolean {
-  if (input.initDataStatus === "no") {
+  if (input.initDataStatus === 'no') {
     if (input.routeBoundMiniappEntry && input.isMessengerMiniAppEntry) return false;
     return true;
   }
@@ -125,11 +128,11 @@ export function shouldExposeInteractiveLogin(input: {
   }
 
   if (input.isMessengerMiniAppEntry) {
-    if (input.state === "error") return false;
+    if (input.state === 'error') return false;
     if (
       input.earlyUiEnabled &&
-      input.state === "idle" &&
-      input.initDataStatus === "unknown" &&
+      input.state === 'idle' &&
+      input.initDataStatus === 'unknown' &&
       input.messengerSoftOk
     ) {
       return true;
@@ -137,7 +140,7 @@ export function shouldExposeInteractiveLogin(input: {
     return false;
   }
 
-  if (input.state === "error") return true;
-  if (!input.earlyUiEnabled || input.initDataStatus !== "unknown") return false;
+  if (input.state === 'error') return true;
+  if (!input.earlyUiEnabled || input.initDataStatus !== 'unknown') return false;
   return input.browserSoftOk;
 }

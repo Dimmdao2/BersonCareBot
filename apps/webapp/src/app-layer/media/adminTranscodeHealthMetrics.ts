@@ -1,8 +1,8 @@
-import { logger } from "@/app-layer/logging/logger";
+import { logger } from '@/app-layer/logging/logger';
 import {
   loadAdminTranscodeJobQueueMetrics,
   loadAdminTranscodeMediaFileCounts,
-} from "@/infra/repos/pgAdminTranscodeHealthMetrics";
+} from '@/infra/repos/pgAdminTranscodeHealthMetrics';
 
 export type AdminTranscodeHealthMetrics = {
   pendingCount: number;
@@ -38,7 +38,8 @@ export async function loadAdminTranscodeHealthMetrics(): Promise<AdminTranscodeH
 
   return {
     ...jobMetrics,
-    legacyReconcileCandidateCountWithinSizeCap: mediaExtras.legacyReconcileCandidateCountWithinSizeCap,
+    legacyReconcileCandidateCountWithinSizeCap:
+      mediaExtras.legacyReconcileCandidateCountWithinSizeCap,
     readableVideoReadyWithHlsCount: mediaExtras.readableVideoReadyWithHlsCount,
   };
 }
@@ -47,7 +48,7 @@ export async function loadAdminTranscodeHealthMetricsSafe(): Promise<AdminTransc
   try {
     return await loadAdminTranscodeHealthMetrics();
   } catch (e) {
-    logger.error({ err: e }, "admin_transcode_health_metrics_failed");
+    logger.error({ err: e }, 'admin_transcode_health_metrics_failed');
     return null;
   }
 }

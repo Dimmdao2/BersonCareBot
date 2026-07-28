@@ -1,14 +1,18 @@
-"use client";
+'use client';
 
-import { useRouter } from "next/navigation";
-import { Button } from "@/shared/ui/patient/primitives/button";
-import { routePaths } from "@/app-layer/routes/paths";
-import type { BookingCity } from "@/modules/booking-catalog/types";
-import { patientInfoLinkTileClass, patientMutedTextClass, patientSectionSurfaceClass } from "@/shared/ui/patient/patientVisual";
+import { useRouter } from 'next/navigation';
+import { Button } from '@/shared/ui/patient/primitives/button';
+import { routePaths } from '@/app-layer/routes/paths';
+import type { BookingCity } from '@/modules/booking-catalog/types';
+import {
+  patientInfoLinkTileClass,
+  patientMutedTextClass,
+  patientSectionSurfaceClass,
+} from '@/shared/ui/patient/patientVisual';
 
 function sortCitiesForDisplay(cities: BookingCity[]): BookingCity[] {
   return [...cities].sort(
-    (a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title, "ru"),
+    (a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title, 'ru'),
   );
 }
 

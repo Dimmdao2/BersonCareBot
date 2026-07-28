@@ -1,29 +1,29 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useState, useTransition } from "react";
-import Link from "next/link";
-import { Badge } from "@/shared/ui/doctor/primitives/badge";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Checkbox } from "@/shared/ui/doctor/primitives/checkbox";
-import { Label } from "@/shared/ui/doctor/primitives/label";
-import { DoctorModal } from "@/shared/ui/doctor/DoctorModal";
-import type { PatientPackageSessionRow } from "@/modules/memberships/types";
+import { useCallback, useEffect, useState, useTransition } from 'react';
+import Link from 'next/link';
+import { Badge } from '@/shared/ui/doctor/primitives/badge';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Checkbox } from '@/shared/ui/doctor/primitives/checkbox';
+import { Label } from '@/shared/ui/doctor/primitives/label';
+import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
+import type { PatientPackageSessionRow } from '@/modules/memberships/types';
 
 const LINKAGE_LABELS: Record<string, string> = {
-  reserved: "Резерв",
-  consumed: "Списано",
-  penalty: "Штраф",
-  released: "Отвязано",
-  refunded: "Возврат",
-  none: "—",
+  reserved: 'Резерв',
+  consumed: 'Списано',
+  penalty: 'Штраф',
+  released: 'Отвязано',
+  refunded: 'Возврат',
+  none: '—',
 };
 
-type DetachOutcome = "release_reserve" | "charge_as_delivered" | "refund_consumed";
+type DetachOutcome = 'release_reserve' | 'charge_as_delivered' | 'refund_consumed';
 
 const FIRST_CONFIRM_TEXT: Record<DetachOutcome, string> = {
-  release_reserve: "Точно отвязать эту запись и вернуть занятие в абонемент?",
-  refund_consumed: "Вернуть списанный сеанс в абонемент?",
-  charge_as_delivered: "Списать этот сеанс как оказанный?",
+  release_reserve: 'Точно отвязать эту запись и вернуть занятие в абонемент?',
+  refund_consumed: 'Вернуть списанный сеанс в абонемент?',
+  charge_as_delivered: 'Списать этот сеанс как оказанный?',
 };
 
 type Props = {
@@ -51,7 +51,7 @@ export function PatientPackageSessionsList({ packageId, apiBase, onError, onChan
 
   const load = useCallback(async () => {
     const res = await fetch(
-      `${apiBase}/${packageId}/sessions?includePast=${includePast ? "true" : "false"}`,
+      `${apiBase}/${packageId}/sessions?includePast=${includePast ? 'true' : 'false'}`,
     );
     const json = (await res.json()) as {
       ok?: boolean;
@@ -59,7 +59,7 @@ export function PatientPackageSessionsList({ packageId, apiBase, onError, onChan
       error?: string;
     };
     if (!json.ok) {
-      onError?.(json.error ?? "load_failed");
+      onError?.(json.error ?? 'load_failed');
       return;
     }
     setSessions(json.sessions ?? []);
@@ -80,14 +80,14 @@ export function PatientPackageSessionsList({ packageId, apiBase, onError, onChan
       const res = await fetch(
         `/api/doctor/booking-engine/appointments/${appointmentId}/package/detach`,
         {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ outcome, confirmPastTwice: opts?.confirmPastTwice }),
         },
       );
       const json = (await res.json()) as { ok?: boolean; error?: string };
       if (!json.ok) {
-        if (json.error === "late_detach_choice_required") {
+        if (json.error === 'late_detach_choice_required') {
           const row = sessions.find((s) => s.appointmentId === appointmentId);
           setLateChoice({
             appointmentId,
@@ -97,7 +97,7 @@ export function PatientPackageSessionsList({ packageId, apiBase, onError, onChan
           setConfirmStep(0);
           return;
         }
-        onError?.(json.error ?? "detach_failed");
+        onError?.(json.error ?? 'detach_failed');
         return;
       }
       setConfirmStep(0);
@@ -114,7 +114,7 @@ export function PatientPackageSessionsList({ packageId, apiBase, onError, onChan
   }
 
   function beginManualConsume(appointmentId: string, isPast: boolean) {
-    beginDetach(appointmentId, "charge_as_delivered", isPast);
+    beginDetach(appointmentId, 'charge_as_delivered', isPast);
   }
 
   function afterFirstConfirm() {
@@ -140,12 +140,12 @@ export function PatientPackageSessionsList({ packageId, apiBase, onError, onChan
 
   function formatWhen(iso: string) {
     try {
-      return new Date(iso).toLocaleString("ru-RU", {
-        timeZone: "Europe/Moscow",
-        day: "2-digit",
-        month: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
+      return new Date(iso).toLocaleString('ru-RU', {
+        timeZone: 'Europe/Moscow',
+        day: '2-digit',
+        month: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
       });
     } catch {
       return iso;
@@ -173,7 +173,10 @@ export function PatientPackageSessionsList({ packageId, apiBase, onError, onChan
       ) : (
         <ul className="m-0 list-none space-y-2 p-0">
           {sessions.map((s) => (
-            <li key={s.appointmentId} className="rounded-lg border border-border/60 px-2 py-2 text-sm">
+            <li
+              key={s.appointmentId}
+              className="rounded-lg border border-border/60 px-2 py-2 text-sm"
+            >
               <div className="flex flex-wrap items-center gap-2">
                 <span className="font-medium">{formatWhen(s.startsAt)}</span>
                 <span className="text-muted-foreground">{s.serviceTitle}</span>
@@ -183,7 +186,7 @@ export function PatientPackageSessionsList({ packageId, apiBase, onError, onChan
                 <Badge variant="secondary" className="text-xs">
                   {LINKAGE_LABELS[s.linkage] ?? s.linkage}
                 </Badge>
-                {s.mappingStatus === "mapping_missing" ? (
+                {s.mappingStatus === 'mapping_missing' ? (
                   <Badge variant="destructive" className="text-xs">
                     нет связи услуги
                   </Badge>
@@ -196,7 +199,7 @@ export function PatientPackageSessionsList({ packageId, apiBase, onError, onChan
                     size="sm"
                     variant="secondary"
                     disabled={pending}
-                    onClick={() => beginDetach(s.appointmentId, "release_reserve", s.isPast)}
+                    onClick={() => beginDetach(s.appointmentId, 'release_reserve', s.isPast)}
                   >
                     Отвязать
                   </Button>
@@ -207,7 +210,7 @@ export function PatientPackageSessionsList({ packageId, apiBase, onError, onChan
                     size="sm"
                     variant="secondary"
                     disabled={pending}
-                    onClick={() => beginDetach(s.appointmentId, "refund_consumed", s.isPast)}
+                    onClick={() => beginDetach(s.appointmentId, 'refund_consumed', s.isPast)}
                   >
                     Вернуть сеанс
                   </Button>
@@ -253,9 +256,7 @@ export function PatientPackageSessionsList({ packageId, apiBase, onError, onChan
         }
       >
         <p className="text-sm">
-          {pendingDetach
-            ? FIRST_CONFIRM_TEXT[pendingDetach.outcome]
-            : "Подтвердите действие."}
+          {pendingDetach ? FIRST_CONFIRM_TEXT[pendingDetach.outcome] : 'Подтвердите действие.'}
         </p>
       </DoctorModal>
 
@@ -284,7 +285,9 @@ export function PatientPackageSessionsList({ packageId, apiBase, onError, onChan
         title="Поздняя отвязка"
         size="sm"
       >
-        <p className="text-sm text-muted-foreground">Выберите исход для записи вне бесплатного окна отмены.</p>
+        <p className="text-sm text-muted-foreground">
+          Выберите исход для записи вне бесплатного окна отмены.
+        </p>
         <div className="flex flex-col gap-2 pt-2">
           <Button
             type="button"
@@ -292,7 +295,7 @@ export function PatientPackageSessionsList({ packageId, apiBase, onError, onChan
               if (!lateChoice) return;
               const { appointmentId, isPast } = lateChoice;
               setLateChoice(null);
-              beginDetach(appointmentId, "release_reserve", isPast);
+              beginDetach(appointmentId, 'release_reserve', isPast);
             }}
           >
             Вернуть резерв в абонемент
@@ -304,7 +307,7 @@ export function PatientPackageSessionsList({ packageId, apiBase, onError, onChan
               if (!lateChoice) return;
               const { appointmentId, isPast } = lateChoice;
               setLateChoice(null);
-              beginDetach(appointmentId, "charge_as_delivered", isPast);
+              beginDetach(appointmentId, 'charge_as_delivered', isPast);
             }}
           >
             Списать как оказанную

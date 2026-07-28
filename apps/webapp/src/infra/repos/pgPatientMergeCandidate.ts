@@ -1,10 +1,10 @@
-import { and, desc, eq, or } from "drizzle-orm";
-import { getDrizzle } from "@/app-layer/db/drizzle";
-import { patientMergeCandidates } from "../../../db/schema/patientMergeCandidate";
+import { and, desc, eq, or } from 'drizzle-orm';
+import { getDrizzle } from '@/app-layer/db/drizzle';
+import { patientMergeCandidates } from '../../../db/schema/patientMergeCandidate';
 import type {
   PatientMergeCandidatePort,
   PatientMergeCandidateRecord,
-} from "@/modules/patient-merge-candidate/ports";
+} from '@/modules/patient-merge-candidate/ports';
 
 function mapRow(row: typeof patientMergeCandidates.$inferSelect): PatientMergeCandidateRecord {
   return {
@@ -13,7 +13,7 @@ function mapRow(row: typeof patientMergeCandidates.$inferSelect): PatientMergeCa
     anchorUserId: row.anchorUserId,
     candidateUserId: row.candidateUserId,
     reason: row.reason,
-    status: row.status as PatientMergeCandidateRecord["status"],
+    status: row.status as PatientMergeCandidateRecord['status'],
     triggerAppointmentId: row.triggerAppointmentId,
     payload: (row.payload ?? {}) as Record<string, unknown>,
     createdAt: row.createdAt,
@@ -34,7 +34,7 @@ export function createPgPatientMergeCandidatePort(): PatientMergeCandidatePort {
             eq(patientMergeCandidates.organizationId, input.organizationId),
             eq(patientMergeCandidates.anchorUserId, input.anchorUserId),
             eq(patientMergeCandidates.candidateUserId, input.candidateUserId),
-            eq(patientMergeCandidates.status, "pending"),
+            eq(patientMergeCandidates.status, 'pending'),
           ),
         )
         .limit(1);
@@ -48,7 +48,7 @@ export function createPgPatientMergeCandidatePort(): PatientMergeCandidatePort {
           anchorUserId: input.anchorUserId,
           candidateUserId: input.candidateUserId,
           reason: input.reason,
-          status: "pending",
+          status: 'pending',
           triggerAppointmentId: input.triggerAppointmentId ?? null,
           payload: input.payload ?? {},
         })
@@ -64,7 +64,7 @@ export function createPgPatientMergeCandidatePort(): PatientMergeCandidatePort {
         .where(
           and(
             eq(patientMergeCandidates.organizationId, organizationId),
-            eq(patientMergeCandidates.status, "pending"),
+            eq(patientMergeCandidates.status, 'pending'),
           ),
         )
         .orderBy(desc(patientMergeCandidates.createdAt))
@@ -77,8 +77,8 @@ export function createPgPatientMergeCandidatePort(): PatientMergeCandidatePort {
       const now = new Date().toISOString();
       const updated = await db
         .update(patientMergeCandidates)
-        .set({ status: "dismissed", resolvedAt: now, resolvedBy })
-        .where(and(eq(patientMergeCandidates.id, id), eq(patientMergeCandidates.status, "pending")))
+        .set({ status: 'dismissed', resolvedAt: now, resolvedBy })
+        .where(and(eq(patientMergeCandidates.id, id), eq(patientMergeCandidates.status, 'pending')))
         .returning({ id: patientMergeCandidates.id });
       return updated.length > 0;
     },
@@ -88,10 +88,10 @@ export function createPgPatientMergeCandidatePort(): PatientMergeCandidatePort {
       const now = new Date().toISOString();
       const updated = await db
         .update(patientMergeCandidates)
-        .set({ status: "resolved", resolvedAt: now, resolvedBy })
+        .set({ status: 'resolved', resolvedAt: now, resolvedBy })
         .where(
           and(
-            eq(patientMergeCandidates.status, "pending"),
+            eq(patientMergeCandidates.status, 'pending'),
             or(
               and(
                 eq(patientMergeCandidates.anchorUserId, anchorUserId),

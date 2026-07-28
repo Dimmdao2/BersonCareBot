@@ -1,9 +1,9 @@
-import { notFound } from "next/navigation";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
-import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
-import { ReferenceCacheBuster } from "./ReferenceCacheBuster";
-import { ReferenceItemsTableClient } from "./ReferenceItemsTableClient";
+import { notFound } from 'next/navigation';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
+import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
+import { ReferenceCacheBuster } from './ReferenceCacheBuster';
+import { ReferenceItemsTableClient } from './ReferenceItemsTableClient';
 
 type PageProps = {
   params: Promise<{ categoryCode: string }>;

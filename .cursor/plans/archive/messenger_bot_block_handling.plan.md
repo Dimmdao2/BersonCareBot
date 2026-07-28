@@ -1,32 +1,32 @@
 ---
 name: Messenger bot block handling
-overview: "Нормализовать «пользователь заблокировал бота» (TG/MAX): маркер в БД, без degraded в health, канал неактивен в метриках/фильтрах каталога, рассылки по-прежнему включают получателя, маркер снимается при успешной доставке."
+overview: 'Нормализовать «пользователь заблокировал бота» (TG/MAX): маркер в БД, без degraded в health, канал неактивен в метриках/фильтрах каталога, рассылки по-прежнему включают получателя, маркер снимается при успешной доставке.'
 status: completed
-completedAt: "2026-06-06"
+completedAt: '2026-06-06'
 todos:
   - id: schema-migration
-    content: "Drizzle migration 0107: user_channel_bindings.bot_blocked_*, outgoing_delivery_queue.failure_class, broadcast_audit.blocked_recipient_count; integrator markOutgoingDeliveryDead принимает failure_class"
+    content: 'Drizzle migration 0107: user_channel_bindings.bot_blocked_*, outgoing_delivery_queue.failure_class, broadcast_audit.blocked_recipient_count; integrator markOutgoingDeliveryDead принимает failure_class'
     status: completed
   - id: integrator-detect
     content: recipientBotBlocked module + TG/MAX adapter propagate/classify + deliveryContract non-retryable + unit fixtures
     status: completed
   - id: worker-path
-    content: "outgoingDeliveryWorker: blocked branch (skip attempt, blocked_recipient_count, failure_class, marker UPSERT); success clears marker (reminder, broadcast, operator_alert); reminder без DELIVERY_DEAD"
+    content: 'outgoingDeliveryWorker: blocked branch (skip attempt, blocked_recipient_count, failure_class, marker UPSERT); success clears marker (reminder, broadcast, operator_alert); reminder без DELIVERY_DEAD'
     status: completed
   - id: health-exclude
-    content: "Исключить blocked из deadTotal probe, doctor banner, health UI info counters; notification attempts = skipped not failed"
+    content: 'Исключить blocked из deadTotal probe, doctor banner, health UI info counters; notification attempts = skipped not failed'
     status: completed
   - id: broadcast-ui
-    content: "blocked_recipient_count в audit read + BroadcastAuditLog info column + deliveryIncomplete учитывает blocked + DOCTOR_BROADCASTS.md"
+    content: 'blocked_recipient_count в audit read + BroadcastAuditLog info column + deliveryIncomplete учитывает blocked + DOCTOR_BROADCASTS.md'
     status: completed
   - id: client-metrics
-    content: "activeMessengerBindingSql + analytics SQL + DoctorClientsPanel tri-state; listClients hasTelegram/hasMax НЕ менять (рассылки); subscribers active filter"
+    content: 'activeMessengerBindingSql + analytics SQL + DoctorClientsPanel tri-state; listClients hasTelegram/hasMax НЕ менять (рассылки); subscribers active filter'
     status: completed
   - id: prod-cleanup
-    content: "Ops SQL checklist (backfill bot_blocked_at, reclassify failure_class) — docs в DOCTOR_BROADCASTS.md; выполнение post-deploy на prod"
+    content: 'Ops SQL checklist (backfill bot_blocked_at, reclassify failure_class) — docs в DOCTOR_BROADCASTS.md; выполнение post-deploy на prod'
     status: completed
   - id: verify
-    content: "Targeted unit/parity tests + deliveryJobs blocked enqueue + pnpm run ci зелёный"
+    content: 'Targeted unit/parity tests + deliveryJobs blocked enqueue + pnpm run ci зелёный'
     status: completed
 isProject: false
 ---
@@ -35,13 +35,13 @@ isProject: false
 
 ## Сверка с постановкой (4 пункта)
 
-| # | Задача | Критерий приёмки | Где в плане |
-|---|--------|------------------|-------------|
-| **1** | Не считать блокировку бота деградацией | Карточки «Очередь доставки» и «Доставка уведомлений» = `ok` при только blocked; в health нет `failed`/`dead` по blocked | §4, §3 |
-| **1b** | Достаточно info в статусе рассылки | `broadcast_audit.blocked_recipient_count`, колонка «Бот заблокирован», не `error_count` | §5 |
-| **2** | Маркер в БД + метрики использования | `user_channel_bindings.bot_blocked_at/reason`; KPI `messengerBotBlocked`; новые metric keys в analytics | §1, §6 |
-| **3** | TG/MAX не «активен» в метриках и фильтрах каталога | Pie/segment SQL + tri-state фильтры каталога = binding **и** `bot_blocked_at IS NULL` | §6 |
-| **4** | Не исключать из рассылок; снять маркер при разблокировке | **`listClients({ hasTelegram/hasMax })` semantics = binding only**; worker clear on success | §6 (критично), §3 |
+| #      | Задача                                                   | Критерий приёмки                                                                                                        | Где в плане       |
+| ------ | -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ----------------- |
+| **1**  | Не считать блокировку бота деградацией                   | Карточки «Очередь доставки» и «Доставка уведомлений» = `ok` при только blocked; в health нет `failed`/`dead` по blocked | §4, §3            |
+| **1b** | Достаточно info в статусе рассылки                       | `broadcast_audit.blocked_recipient_count`, колонка «Бот заблокирован», не `error_count`                                 | §5                |
+| **2**  | Маркер в БД + метрики использования                      | `user_channel_bindings.bot_blocked_at/reason`; KPI `messengerBotBlocked`; новые metric keys в analytics                 | §1, §6            |
+| **3**  | TG/MAX не «активен» в метриках и фильтрах каталога       | Pie/segment SQL + tri-state фильтры каталога = binding **и** `bot_blocked_at IS NULL`                                   | §6                |
+| **4**  | Не исключать из рассылок; снять маркер при разблокировке | **`listClients({ hasTelegram/hasMax })` semantics = binding only**; worker clear on success                             | §6 (критично), §3 |
 
 ### Критичное уточнение (исправление пробела v1 плана)
 
@@ -50,6 +50,7 @@ isProject: false
 **Нельзя** менять семантику `hasTelegram`/`hasMax` на «active only» — это **исключит** blocked из сегментов `with_telegram`/`with_max` и нарушит п.4.
 
 **Разделение:**
+
 - **Рассылки / audience / eligible** → binding exists (как сейчас)
 - **Каталог (client-side фильтры) + analytics SQL** → active binding (`bot_blocked_at IS NULL`)
 
@@ -58,6 +59,7 @@ isProject: false
 ## Контекст (текущая проблема)
 
 Блокировка бота сейчас = обычная ошибка провайдера:
+
 - 6 ретраев → `outgoing_delivery_queue.dead` → degraded «Очередь доставки уведомлений»
 - `notification_delivery_attempts.failed` + `delivery_dead` → degraded «Доставка уведомлений»
 - `broadcast_audit.error_count++` → «Не удалось доставить»
@@ -94,13 +96,16 @@ flowchart TD
 ## 1. Схема БД (Drizzle migration)
 
 **[`user_channel_bindings`](apps/webapp/db/schema/schema.ts)** — per `(user_id, channel_code)`:
+
 - `bot_blocked_at timestamptz NULL`
 - `bot_blocked_reason text NULL` — канон: `recipient_blocked_bot`
 
 **[`outgoing_delivery_queue`](apps/webapp/db/schema/outgoingDeliveryQueue.ts)**:
+
 - `failure_class text NULL` — `'recipient_blocked_bot'` для blocked-финала
 
 **[`broadcast_audit`](apps/webapp/db/schema/schema.ts)**:
+
 - `blocked_recipient_count integer NOT NULL DEFAULT 0`
 
 **Integrator SQL:** расширить [`markOutgoingDeliveryDead`](apps/integrator/src/infra/db/repos/outgoingDeliveryQueue.ts) параметром `failureClass?: string | null`.
@@ -112,15 +117,18 @@ flowchart TD
 ## 2. Детекция (integrator)
 
 Модуль [`apps/integrator/src/infra/delivery/recipientBotBlocked.ts`](apps/integrator/src/infra/delivery/recipientBotBlocked.ts):
+
 - `RECIPIENT_BLOCKED_BOT` — normalized message prefix
 - `classifyRecipientBlockedBotError(err, channel)`
 - `isRecipientBlockedBotMessage(message: string): boolean` — для backfill legacy `last_error`
 
 **Telegram** ([`telegram/deliveryAdapter.ts`](apps/integrator/src/integrations/telegram/deliveryAdapter.ts)):
+
 - grammy/API: 403 + (`bot was blocked by the user` | `user is deactivated` | …) → throw normalized error
 - **Не** включать `PEER_ID_INVALID` без подтверждения из prod — только задокументированные паттерны + fixtures
 
 **MAX** (выбрано: propagate + pattern):
+
 - [`max/client.ts`](apps/integrator/src/integrations/max/client.ts): throw `MaxSendError` с `apiMessage`/`apiCode` вместо `return null`
 - [`max/deliveryAdapter.ts`](apps/integrator/src/integrations/max/deliveryAdapter.ts): classify по whitelist паттернов
 - **Исключить** `dialog.notfound` fallback path
@@ -134,6 +142,7 @@ flowchart TD
 ## 3. Worker ([`outgoingDeliveryWorker.ts`](apps/integrator/src/infra/runtime/worker/outgoingDeliveryWorker.ts))
 
 **Blocked branch** (до generic `handleDispatchFailure`):
+
 1. `markUserChannelBotBlocked(db, userId, channel)` — UPSERT binding row
 2. `recordMessengerQueueDeliveryAttempt` → **`status: 'skipped'`, `reason: 'recipient_blocked_bot'`** (не `failed`)
 3. `markOutgoingDeliveryDead(..., failureClass: 'recipient_blocked_bot')` — строка остаётся для audit очереди, но **не** operator-dead
@@ -141,6 +150,7 @@ flowchart TD
 5. **`reminder_dispatch`:** не вызывать `reminders.occurrence.markFailed` / `DELIVERY_DEAD`; occurrence → `skipped` с кодом вроде `RECIPIENT_BLOCKED_BOT` (согласовать с существующими skip-кодами reminder domain)
 
 **Success branch** (telegram/max, kinds `reminder_dispatch`, `doctor_broadcast_intent`, **`operator_alert`**):
+
 - `clearUserChannelBotBlocked(db, userId, channel)` — `bot_blocked_at = NULL`
 
 Repo: [`apps/integrator/src/infra/db/repos/userChannelBotBlocked.ts`](apps/integrator/src/infra/db/repos/userChannelBotBlocked.ts).
@@ -154,6 +164,7 @@ Repo: [`apps/integrator/src/infra/db/repos/userChannelBotBlocked.ts`](apps/integ
 **«Доставка уведомлений»:** worker пишет **skipped**, не failed → [`classifyNotificationDeliverySystemHealthStatus`](apps/webapp/src/app-layer/health/adminNotificationDeliveryHealthMetrics.ts) остаётся `ok`. `recipient_blocked_bot` **не** добавлять в `OPERATOR_DEGRADED_SKIP_REASONS`.
 
 **«Очередь доставки»:** [`pgOperatorHealthRead.getOutgoingDeliveryQueueHealth`](apps/webapp/src/infra/repos/pgOperatorHealthRead.ts):
+
 - `deadTotal`, `deadByKind` — **исключить** `failure_class = 'recipient_blocked_bot'`
 - добавить **`blockedRecipientTotal`** (info-only) для UI accordion
 
@@ -169,13 +180,14 @@ Repo: [`apps/integrator/src/infra/db/repos/userChannelBotBlocked.ts`](apps/integ
 
 **Audit counters** ([`DOCTOR_BROADCASTS.md`](docs/ARCHITECTURE/DOCTOR_BROADCASTS.md) § semantics):
 
-| Колонка | Смысл после изменения |
-|---------|----------------------|
-| `sent_count` | успешная доставка |
-| `error_count` | только **реальные** ошибки (не blocked) |
+| Колонка                   | Смысл после изменения                               |
+| ------------------------- | --------------------------------------------------- |
+| `sent_count`              | успешная доставка                                   |
+| `error_count`             | только **реальные** ошибки (не blocked)             |
 | `blocked_recipient_count` | получатель заблокировал бота / unreachable-by-block |
 
 **[`BroadcastAuditLog.tsx`](apps/webapp/src/app/app/doctor/broadcasts/BroadcastAuditLog.tsx):**
+
 - колонка **«Бот заблокирован»** (muted), если `blockedRecipientCount > 0`
 - «Не удалось доставить» — только `errorCount > 0`
 - `deliveryIncomplete`: `sent + error + blocked < planned` (blocked = завершённый исход, не «ещё в очереди»)
@@ -190,6 +202,7 @@ Read path: broadcast audit repo + [`BroadcastAuditEntry`](apps/webapp/src/module
 ### Shared SQL helper (webapp)
 
 Файл [`apps/webapp/src/modules/doctor-clients/activeMessengerBindingSql.ts`](apps/webapp/src/modules/doctor-clients/activeMessengerBindingSql.ts) (новый):
+
 ```sql
 -- active telegram: binding AND bot_blocked_at IS NULL
 EXISTS (SELECT 1 FROM user_channel_bindings ucb
@@ -198,6 +211,7 @@ EXISTS (SELECT 1 FROM user_channel_bindings ucb
 ```
 
 Использовать в:
+
 - [`getClientContactBreakdown`](apps/webapp/src/infra/repos/pgDoctorClients.ts) — pie segments
 - [`pgDoctorAnalyticsMetricAccounts.ts`](apps/webapp/src/infra/repos/pgDoctorAnalyticsMetricAccounts.ts) — **все** metric keys с `channel_code IN ('telegram','max')` (26-key parity test обязателен)
 - [`countRecentClientsWithoutMessagingChannels`](apps/webapp/src/infra/repos/pgDoctorClients.ts) — трактовать blocked как «нет активного мессенджера» (optional product alignment с п.3)
@@ -211,6 +225,7 @@ EXISTS (SELECT 1 FROM user_channel_bindings ucb
 ### Analytics KPI (п.2 «метрики использования»)
 
 [`doctor-stats/service.ts`](apps/webapp/src/modules/doctor-stats/service.ts) + analytics clients page:
+
 - `messengerBotBlocked: { telegram: number, max: number }`
 - новые drill-down keys (ports): `clients_messenger_bot_blocked_telegram`, `clients_messenger_bot_blocked_max` в [`doctor-analytics-metric-accounts/ports.ts`](apps/webapp/src/modules/doctor-analytics-metric-accounts/ports.ts)
 
@@ -254,6 +269,7 @@ Copy-paste блок — в ops note в [`DOCTOR_BROADCASTS.md`](docs/ARCHITECTUR
 - [ ] **Post-deploy prod:** backfill SQL из §8 (ops gate, не блокер merge)
 
 **Targeted run:**
+
 ```bash
 pnpm run ci
 pnpm --dir apps/webapp exec vitest run --project fast \
@@ -270,15 +286,15 @@ pnpm --dir apps/integrator exec vitest run \
 
 ## Execution log (2026-06-06)
 
-| Шаг | Результат |
-|-----|-----------|
-| Schema + integrator detection/worker | Done — см. LOG |
-| Health + broadcast UI | Done |
-| Webapp metrics (`activeMessengerBindingSql`, KPI, catalog tri-state) | Done |
-| Typecheck fixes (`DoctorTodayDashboard.test`, `exactOptionalPropertyTypes`) | Done |
-| Lint (`recipientBotBlocked` rename, no-secrets) | Done |
-| Full CI | Green |
-| Prod backfill | **Pending ops** — SQL в `DOCTOR_BROADCASTS.md` |
+| Шаг                                                                         | Результат                                      |
+| --------------------------------------------------------------------------- | ---------------------------------------------- |
+| Schema + integrator detection/worker                                        | Done — см. LOG                                 |
+| Health + broadcast UI                                                       | Done                                           |
+| Webapp metrics (`activeMessengerBindingSql`, KPI, catalog tri-state)        | Done                                           |
+| Typecheck fixes (`DoctorTodayDashboard.test`, `exactOptionalPropertyTypes`) | Done                                           |
+| Lint (`recipientBotBlocked` rename, no-secrets)                             | Done                                           |
+| Full CI                                                                     | Green                                          |
+| Prod backfill                                                               | **Pending ops** — SQL в `DOCTOR_BROADCASTS.md` |
 
 Журнал: [`docs/archive/2026-06-initiatives/MESSENGER_BOT_BLOCK_HANDLING_INITIATIVE/LOG.md`](docs/archive/2026-06-initiatives/MESSENGER_BOT_BLOCK_HANDLING_INITIATIVE/LOG.md).
 

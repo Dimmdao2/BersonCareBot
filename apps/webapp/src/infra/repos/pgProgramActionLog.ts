@@ -1,17 +1,21 @@
-import { and, count, desc, eq, gte, lt, max, or, isNull, sql } from "drizzle-orm";
-import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
-import { getDrizzle } from "@/app-layer/db/drizzle";
-import { runDrizzleMutationTransaction } from "@/infra/db/drizzleMutationTx";
-import { programActionLog as logTable } from "../../../db/schema/programActionLog";
+import { and, count, desc, eq, gte, lt, max, or, isNull, sql } from 'drizzle-orm';
+import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
+import { getDrizzle } from '@/app-layer/db/drizzle';
+import { runDrizzleMutationTransaction } from '@/infra/db/drizzleMutationTx';
+import { programActionLog as logTable } from '../../../db/schema/programActionLog';
 import {
   treatmentProgramInstanceStageItems as itemTable,
   treatmentProgramInstanceStages as stageTable,
   treatmentProgramInstances as instTable,
-} from "../../../db/schema/treatmentProgramInstances";
-import type { ProgramActionLogPort } from "@/modules/treatment-program/ports";
-import type { ProgramActionLogInsert, ProgramActionLogListRow, ProgramActionType } from "@/modules/treatment-program/types";
-import { PROGRAM_ACTION_TYPES } from "@/modules/treatment-program/types";
-import { programActionDoneActivityKey } from "@/modules/treatment-program/programActionActivityKey";
+} from '../../../db/schema/treatmentProgramInstances';
+import type { ProgramActionLogPort } from '@/modules/treatment-program/ports';
+import type {
+  ProgramActionLogInsert,
+  ProgramActionLogListRow,
+  ProgramActionType,
+} from '@/modules/treatment-program/types';
+import { PROGRAM_ACTION_TYPES } from '@/modules/treatment-program/types';
+import { programActionDoneActivityKey } from '@/modules/treatment-program/programActionActivityKey';
 
 function currentWriteOrganizationId(...fallbacks: (string | null | undefined)[]): string | null {
   const principalOrganizationId = getCurrentDbPrincipalOrganizationId();
@@ -20,9 +24,11 @@ function currentWriteOrganizationId(...fallbacks: (string | null | undefined)[])
   const hasFallbackMismatch = fallbackOrganizationIds.some((id) => id !== fallbackOrganizationId);
   if (
     hasFallbackMismatch ||
-    (principalOrganizationId && fallbackOrganizationId && principalOrganizationId !== fallbackOrganizationId)
+    (principalOrganizationId &&
+      fallbackOrganizationId &&
+      principalOrganizationId !== fallbackOrganizationId)
   ) {
-    throw new Error("organization_principal_mismatch");
+    throw new Error('organization_principal_mismatch');
   }
   return principalOrganizationId ?? fallbackOrganizationId;
 }
@@ -45,7 +51,7 @@ export function createPgProgramActionLogPort(): ProgramActionLogPort {
           .where(eq(itemTable.id, input.instanceStageItemId))
           .limit(1);
         if (!inst || !stageItem || stageItem.instanceId !== input.instanceId) {
-          throw new Error("program_action_log_parent_mismatch");
+          throw new Error('program_action_log_parent_mismatch');
         }
         const [row] = await tx
           .insert(logTable)
@@ -64,7 +70,7 @@ export function createPgProgramActionLogPort(): ProgramActionLogPort {
             note: input.note ?? null,
           })
           .returning({ id: logTable.id, createdAt: logTable.createdAt });
-        if (!row) throw new Error("insert program_action_log failed");
+        if (!row) throw new Error('insert program_action_log failed');
         return { id: row.id, createdAt: row.createdAt };
       });
     },
@@ -74,7 +80,9 @@ export function createPgProgramActionLogPort(): ProgramActionLogPort {
         const [row] = await tx
           .update(logTable)
           .set({
-            payload: sql<Record<string, unknown>>`coalesce(${logTable.payload}, '{}'::jsonb) || ${JSON.stringify(params.payloadPatch)}::jsonb`,
+            payload: sql<
+              Record<string, unknown>
+            >`coalesce(${logTable.payload}, '{}'::jsonb) || ${JSON.stringify(params.payloadPatch)}::jsonb`,
           })
           .where(
             eq(
@@ -110,7 +118,7 @@ export function createPgProgramActionLogPort(): ProgramActionLogPort {
             eq(logTable.instanceId, params.instanceId),
             eq(logTable.patientUserId, params.patientUserId),
             eq(logTable.instanceStageItemId, params.instanceStageItemId),
-            eq(logTable.actionType, "done"),
+            eq(logTable.actionType, 'done'),
             or(
               isNull(logTable.payload),
               sql`coalesce(${logTable.payload}->>'source', '') not in ('test_submitted', 'lfk_exercise_done')`,
@@ -131,7 +139,7 @@ export function createPgProgramActionLogPort(): ProgramActionLogPort {
               eq(logTable.instanceId, params.instanceId),
               eq(logTable.patientUserId, params.patientUserId),
               eq(logTable.instanceStageItemId, params.instanceStageItemId),
-              eq(logTable.actionType, "done"),
+              eq(logTable.actionType, 'done'),
               gte(logTable.createdAt, params.windowStartIso),
               lt(logTable.createdAt, params.windowEndIso),
               or(
@@ -152,7 +160,7 @@ export function createPgProgramActionLogPort(): ProgramActionLogPort {
               eq(logTable.instanceId, params.instanceId),
               eq(logTable.patientUserId, params.patientUserId),
               eq(logTable.instanceStageItemId, params.instanceStageItemId),
-              eq(logTable.actionType, "done"),
+              eq(logTable.actionType, 'done'),
               gte(logTable.createdAt, params.windowStartIso),
               lt(logTable.createdAt, params.windowEndIso),
             ),
@@ -169,7 +177,7 @@ export function createPgProgramActionLogPort(): ProgramActionLogPort {
           and(
             eq(logTable.instanceId, params.instanceId),
             eq(logTable.patientUserId, params.patientUserId),
-            eq(logTable.actionType, "done"),
+            eq(logTable.actionType, 'done'),
             gte(logTable.createdAt, params.windowStartIso),
             lt(logTable.createdAt, params.windowEndIso),
           ),
@@ -189,7 +197,7 @@ export function createPgProgramActionLogPort(): ProgramActionLogPort {
           and(
             eq(logTable.instanceId, params.instanceId),
             eq(logTable.patientUserId, params.patientUserId),
-            eq(logTable.actionType, "done"),
+            eq(logTable.actionType, 'done'),
             gte(logTable.createdAt, params.windowStartIso),
             lt(logTable.createdAt, params.windowEndIso),
           ),
@@ -214,7 +222,7 @@ export function createPgProgramActionLogPort(): ProgramActionLogPort {
           and(
             eq(logTable.instanceId, params.instanceId),
             eq(logTable.patientUserId, params.patientUserId),
-            eq(logTable.actionType, "done"),
+            eq(logTable.actionType, 'done'),
             gte(logTable.createdAt, params.windowStartIso),
             lt(logTable.createdAt, params.windowEndIso),
           ),
@@ -242,7 +250,7 @@ export function createPgProgramActionLogPort(): ProgramActionLogPort {
           and(
             eq(logTable.instanceId, params.instanceId),
             eq(logTable.patientUserId, params.patientUserId),
-            eq(logTable.actionType, "done"),
+            eq(logTable.actionType, 'done'),
           ),
         )
         .groupBy(logTable.instanceStageItemId);
@@ -258,14 +266,16 @@ export function createPgProgramActionLogPort(): ProgramActionLogPort {
       const rows = await db
         .select({
           itemId: logTable.instanceStageItemId,
-          c: sql<number>`count(distinct coalesce(${logTable.sessionId}, ${logTable.id}))`.mapWith(Number),
+          c: sql<number>`count(distinct coalesce(${logTable.sessionId}, ${logTable.id}))`.mapWith(
+            Number,
+          ),
         })
         .from(logTable)
         .where(
           and(
             eq(logTable.instanceId, params.instanceId),
             eq(logTable.patientUserId, params.patientUserId),
-            eq(logTable.actionType, "done"),
+            eq(logTable.actionType, 'done'),
           ),
         )
         .groupBy(logTable.instanceStageItemId);
@@ -289,7 +299,7 @@ export function createPgProgramActionLogPort(): ProgramActionLogPort {
           and(
             eq(logTable.instanceId, params.instanceId),
             eq(logTable.patientUserId, params.patientUserId),
-            eq(logTable.actionType, "done"),
+            eq(logTable.actionType, 'done'),
           ),
         );
       const out: Record<string, string> = {};
@@ -308,7 +318,7 @@ export function createPgProgramActionLogPort(): ProgramActionLogPort {
     async countDistinctLocalCalendarDaysWithDoneInWindow(params) {
       const iana = params.displayIana;
       if (!/^[-+/_0-9a-zA-Z]+$/.test(iana)) {
-        throw new Error("invalid_timezone");
+        throw new Error('invalid_timezone');
       }
       const zoneSql = sql.raw(`'${iana.replace(/'/g, "''")}'`);
       const db = getDrizzle();
@@ -323,7 +333,7 @@ export function createPgProgramActionLogPort(): ProgramActionLogPort {
           and(
             eq(logTable.instanceId, params.instanceId),
             eq(logTable.patientUserId, params.patientUserId),
-            eq(logTable.actionType, "done"),
+            eq(logTable.actionType, 'done'),
             gte(logTable.createdAt, params.windowStartUtcIso),
             lt(logTable.createdAt, params.windowEndUtcExclusiveIso),
           ),
@@ -334,7 +344,7 @@ export function createPgProgramActionLogPort(): ProgramActionLogPort {
     async listDistinctLocalDoneDateKeysInWindowForPatient(params) {
       const iana = params.displayIana;
       if (!/^[-+/_0-9a-zA-Z]+$/.test(iana)) {
-        throw new Error("invalid_timezone");
+        throw new Error('invalid_timezone');
       }
       const zoneSql = sql.raw(`'${iana.replace(/'/g, "''")}'`);
       const db = getDrizzle();
@@ -347,19 +357,21 @@ export function createPgProgramActionLogPort(): ProgramActionLogPort {
           and(
             eq(logTable.patientUserId, params.patientUserId),
             params.organizationId ? eq(logTable.organizationId, params.organizationId) : undefined,
-            eq(logTable.actionType, "done"),
+            eq(logTable.actionType, 'done'),
             gte(logTable.createdAt, params.windowStartUtcIso),
             lt(logTable.createdAt, params.windowEndUtcExclusiveIso),
           ),
         )
         .groupBy(sql`((${logTable.createdAt} AT TIME ZONE ${zoneSql})::date)::text`);
-      return rows.map((r) => r.dayKey).filter((v): v is string => typeof v === "string" && v.length > 0);
+      return rows
+        .map((r) => r.dayKey)
+        .filter((v): v is string => typeof v === 'string' && v.length > 0);
     },
 
     async listDoneItemsByLocalDateInWindow(params) {
       const iana = params.displayIana;
       if (!/^[-+/_0-9a-zA-Z]+$/.test(iana)) {
-        throw new Error("invalid_timezone");
+        throw new Error('invalid_timezone');
       }
       const zoneSql = sql.raw(`'${iana.replace(/'/g, "''")}'`);
       const db = getDrizzle();
@@ -373,19 +385,22 @@ export function createPgProgramActionLogPort(): ProgramActionLogPort {
           and(
             eq(logTable.instanceId, params.instanceId),
             eq(logTable.patientUserId, params.patientUserId),
-            eq(logTable.actionType, "done"),
+            eq(logTable.actionType, 'done'),
             gte(logTable.createdAt, params.windowStartUtcIso),
             lt(logTable.createdAt, params.windowEndUtcExclusiveIso),
           ),
         )
-        .groupBy(sql`((${logTable.createdAt} AT TIME ZONE ${zoneSql})::date)`, logTable.instanceStageItemId);
+        .groupBy(
+          sql`((${logTable.createdAt} AT TIME ZONE ${zoneSql})::date)`,
+          logTable.instanceStageItemId,
+        );
       return rows.map((r) => ({ localDate: r.localDate, itemId: r.itemId }));
     },
 
     async listDoneItemsByLocalDateInWindowForPatient(params) {
       const iana = params.displayIana;
       if (!/^[-+/_0-9a-zA-Z]+$/.test(iana)) {
-        throw new Error("invalid_timezone");
+        throw new Error('invalid_timezone');
       }
       const zoneSql = sql.raw(`'${iana.replace(/'/g, "''")}'`);
       const db = getDrizzle();
@@ -400,7 +415,7 @@ export function createPgProgramActionLogPort(): ProgramActionLogPort {
           and(
             eq(logTable.patientUserId, params.patientUserId),
             params.organizationId ? eq(logTable.organizationId, params.organizationId) : undefined,
-            eq(logTable.actionType, "done"),
+            eq(logTable.actionType, 'done'),
             gte(logTable.createdAt, params.windowStartUtcIso),
             lt(logTable.createdAt, params.windowEndUtcExclusiveIso),
           ),
@@ -475,7 +490,7 @@ export function createPgProgramActionLogPort(): ProgramActionLogPort {
           and(
             eq(logTable.instanceId, params.instanceId),
             eq(logTable.instanceStageItemId, params.instanceStageItemId),
-            eq(logTable.actionType, "done"),
+            eq(logTable.actionType, 'done'),
             gte(logTable.createdAt, params.windowStartUtcIso),
             lt(logTable.createdAt, params.windowEndUtcExclusiveIso),
           ),

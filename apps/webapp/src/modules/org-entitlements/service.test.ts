@@ -442,10 +442,10 @@ describe('platform tariff constructor validation', () => {
       "IF to_regprocedure('app.cms_pages_snapshot_usage(uuid)') IS NULL THEN",
     );
     expect(platformRuntime).toContain(
-      "REVOKE ALL ON FUNCTION app.cms_pages_snapshot_usage(uuid)\n      FROM PUBLIC, app_staff, app_patient, app_platform_settings",
+      'REVOKE ALL ON FUNCTION app.cms_pages_snapshot_usage(uuid)\n      FROM PUBLIC, app_staff, app_patient, app_platform_settings',
     );
     expect(platformRuntime).toContain(
-      "GRANT EXECUTE ON FUNCTION app.cms_pages_snapshot_usage(uuid)\n      TO app_platform_settings",
+      'GRANT EXECUTE ON FUNCTION app.cms_pages_snapshot_usage(uuid)\n      TO app_platform_settings',
     );
     expect(platformRuntime).toContain(
       'CREATE OR REPLACE FUNCTION app.read_org_enforced_quota_usage(',
@@ -456,9 +456,7 @@ describe('platform tariff constructor validation', () => {
     expect(platformRuntime).toContain(
       'REVOKE ALL PRIVILEGES ON TABLE\n    public.courses,\n    public.organization_member_invites\n  FROM app_platform_settings',
     );
-    expect(platformRuntime).not.toContain(
-      'CREATE POLICY courses_platform_quota_usage_select',
-    );
+    expect(platformRuntime).not.toContain('CREATE POLICY courses_platform_quota_usage_select');
     expect(platformRuntime).toContain('c5a_platform_enforced_quota_usage_exact_wall');
   });
 });

@@ -1,12 +1,12 @@
-import { sql } from "drizzle-orm";
-import { getDrizzle } from "@/app-layer/db/drizzle";
-import { drizzleSqlUuidInList } from "@/modules/analytics/analyticsAudience";
+import { sql } from 'drizzle-orm';
+import { getDrizzle } from '@/app-layer/db/drizzle';
+import { drizzleSqlUuidInList } from '@/modules/analytics/analyticsAudience';
 import {
   aggregateReminderPeopleChannelSegments,
   type ReminderPeopleWithNotificationsStats,
-} from "@/app-layer/stats/reminderNotificationPeopleShared";
+} from '@/app-layer/stats/reminderNotificationPeopleShared';
 
-export type { ReminderPeopleWithNotificationsStats } from "@/app-layer/stats/reminderNotificationPeopleShared";
+export type { ReminderPeopleWithNotificationsStats } from '@/app-layer/stats/reminderNotificationPeopleShared';
 
 type DailyRow = { bucket: string; peopleCount: unknown };
 type ChannelFlagsRow = {

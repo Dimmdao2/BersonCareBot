@@ -1,26 +1,29 @@
-import type { EmailSetupAccessService } from "@/modules/auth/emailSetupAccess/service";
-import type { EmailSetupTokensService } from "@/modules/auth/emailSetupTokens/service";
-import { hashPin } from "@/modules/auth/pinHash";
-import type { EmailSetupFlowPort } from "./ports";
+import type { EmailSetupAccessService } from '@/modules/auth/emailSetupAccess/service';
+import type { EmailSetupTokensService } from '@/modules/auth/emailSetupTokens/service';
+import { hashPin } from '@/modules/auth/pinHash';
+import type { EmailSetupFlowPort } from './ports';
 
 export type ValidateEmailSetupFormResult =
-  | { ok: true; email: string; status: "ready" }
-  | { ok: false; error: "expired"; email: string }
-  | { ok: false; error: "invalid_token" | "used" | "revoked" | "email_mismatch" | "already_has_login" };
+  | { ok: true; email: string; status: 'ready' }
+  | { ok: false; error: 'expired'; email: string }
+  | {
+      ok: false;
+      error: 'invalid_token' | 'used' | 'revoked' | 'email_mismatch' | 'already_has_login';
+    };
 
 export type CompleteEmailSetupResult =
   | { ok: true; userId: string }
   | {
       ok: false;
       error:
-        | "invalid_token"
-        | "expired"
-        | "used"
-        | "revoked"
-        | "email_mismatch"
-        | "already_has_login"
-        | "invalid_password"
-        | "server_error";
+        | 'invalid_token'
+        | 'expired'
+        | 'used'
+        | 'revoked'
+        | 'email_mismatch'
+        | 'already_has_login'
+        | 'invalid_password'
+        | 'server_error';
     };
 
 export type ResendEmailSetupResult =
@@ -28,12 +31,12 @@ export type ResendEmailSetupResult =
   | {
       ok: false;
       error:
-        | "invalid_token"
-        | "used"
-        | "revoked"
-        | "email_mismatch"
-        | "already_has_login"
-        | "not_configured";
+        | 'invalid_token'
+        | 'used'
+        | 'revoked'
+        | 'email_mismatch'
+        | 'already_has_login'
+        | 'not_configured';
     };
 
 const PASSWORD_MIN = 8;
@@ -49,14 +52,17 @@ export function createEmailSetupFlowService(deps: {
     emailNormalized: string,
   ): Promise<
     | { ok: true; email: string }
-    | { ok: false; reason: "email_mismatch" | "already_has_login" | "user_not_found" }
+    | { ok: false; reason: 'email_mismatch' | 'already_has_login' | 'user_not_found' }
   > {
     const contact = await deps.flowPort.assertContactEmailForSetup({ userId, emailNormalized });
     if (!contact.ok) {
-      if (contact.reason === "already_has_login") {
-        return { ok: false, reason: "already_has_login" };
+      if (contact.reason === 'already_has_login') {
+        return { ok: false, reason: 'already_has_login' };
       }
-      return { ok: false, reason: contact.reason === "user_not_found" ? "user_not_found" : "email_mismatch" };
+      return {
+        ok: false,
+        reason: contact.reason === 'user_not_found' ? 'user_not_found' : 'email_mismatch',
+      };
     }
     return { ok: true, email: contact.email };
   }
@@ -66,53 +72,56 @@ export function createEmailSetupFlowService(deps: {
       const lookup = await deps.tokens.lookupEmailSetupToken(tokenPlain);
       if (!lookup.ok) {
         const err =
-          lookup.reason === "used"
-            ? "used"
-            : lookup.reason === "revoked"
-              ? "revoked"
-              : "invalid_token";
+          lookup.reason === 'used'
+            ? 'used'
+            : lookup.reason === 'revoked'
+              ? 'revoked'
+              : 'invalid_token';
         return { ok: false, error: err };
       }
 
       const contact = await checkContact(lookup.userId, lookup.emailNormalized);
       if (!contact.ok) {
-        if (contact.reason === "already_has_login") {
-          return { ok: false, error: "already_has_login" };
+        if (contact.reason === 'already_has_login') {
+          return { ok: false, error: 'already_has_login' };
         }
-        return { ok: false, error: "email_mismatch" };
+        return { ok: false, error: 'email_mismatch' };
       }
 
-      if (lookup.status === "expired") {
-        return { ok: false, error: "expired", email: contact.email };
+      if (lookup.status === 'expired') {
+        return { ok: false, error: 'expired', email: contact.email };
       }
 
-      return { ok: true, email: contact.email, status: "ready" };
+      return { ok: true, email: contact.email, status: 'ready' };
     },
 
-    async completeEmailSetup(tokenPlain: string, plainPassword: string): Promise<CompleteEmailSetupResult> {
+    async completeEmailSetup(
+      tokenPlain: string,
+      plainPassword: string,
+    ): Promise<CompleteEmailSetupResult> {
       if (plainPassword.length < PASSWORD_MIN || plainPassword.length > PASSWORD_MAX) {
-        return { ok: false, error: "invalid_password" };
+        return { ok: false, error: 'invalid_password' };
       }
 
       const validated = await deps.tokens.validateEmailSetupToken(tokenPlain);
       if (!validated.ok) {
         const err =
-          validated.reason === "expired"
-            ? "expired"
-            : validated.reason === "used"
-              ? "used"
-              : validated.reason === "revoked"
-                ? "revoked"
-                : "invalid_token";
+          validated.reason === 'expired'
+            ? 'expired'
+            : validated.reason === 'used'
+              ? 'used'
+              : validated.reason === 'revoked'
+                ? 'revoked'
+                : 'invalid_token';
         return { ok: false, error: err };
       }
 
       const contact = await checkContact(validated.userId, validated.emailNormalized);
       if (!contact.ok) {
-        if (contact.reason === "already_has_login") {
-          return { ok: false, error: "already_has_login" };
+        if (contact.reason === 'already_has_login') {
+          return { ok: false, error: 'already_has_login' };
         }
-        return { ok: false, error: "email_mismatch" };
+        return { ok: false, error: 'email_mismatch' };
       }
 
       const passwordHash = await hashPin(plainPassword);
@@ -126,11 +135,11 @@ export function createEmailSetupFlowService(deps: {
         return {
           ok: false,
           error:
-            applied.reason === "email_mismatch"
-              ? "email_mismatch"
-              : applied.reason === "token_consume_failed"
-                ? "server_error"
-                : "server_error",
+            applied.reason === 'email_mismatch'
+              ? 'email_mismatch'
+              : applied.reason === 'token_consume_failed'
+                ? 'server_error'
+                : 'server_error',
         };
       }
 
@@ -140,28 +149,33 @@ export function createEmailSetupFlowService(deps: {
     async resendFromExpiredToken(tokenPlain: string): Promise<ResendEmailSetupResult> {
       const lookup = await deps.tokens.lookupEmailSetupToken(tokenPlain);
       if (!lookup.ok) {
-        const err = lookup.reason === "used" ? "used" : lookup.reason === "revoked" ? "revoked" : "invalid_token";
+        const err =
+          lookup.reason === 'used'
+            ? 'used'
+            : lookup.reason === 'revoked'
+              ? 'revoked'
+              : 'invalid_token';
         return { ok: false, error: err };
       }
-      if (lookup.status !== "expired") {
-        return { ok: false, error: "invalid_token" };
+      if (lookup.status !== 'expired') {
+        return { ok: false, error: 'invalid_token' };
       }
 
       const contact = await checkContact(lookup.userId, lookup.emailNormalized);
       if (!contact.ok) {
-        if (contact.reason === "already_has_login") {
-          return { ok: false, error: "already_has_login" };
+        if (contact.reason === 'already_has_login') {
+          return { ok: false, error: 'already_has_login' };
         }
-        return { ok: false, error: "email_mismatch" };
+        return { ok: false, error: 'email_mismatch' };
       }
 
       const sent = await deps.emailSetupAccess.requestContactEmailSetup({
         userId: lookup.userId,
         emailNormalized: lookup.emailNormalized,
-        source: "manual_resend",
+        source: 'manual_resend',
       });
-      if (!sent.ok || sent.status !== "enqueued") {
-        return { ok: false, error: "not_configured" };
+      if (!sent.ok || sent.status !== 'enqueued') {
+        return { ok: false, error: 'not_configured' };
       }
 
       return { ok: true };

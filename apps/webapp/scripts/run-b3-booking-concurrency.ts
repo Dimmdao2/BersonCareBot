@@ -183,7 +183,10 @@ async function proveAdjacentRangesRemainIndependent(): Promise<{ rows: number; r
   return { rows: aggregate.rows, rejected: 0 };
 }
 
-async function proveReverseStartOrderDoesNotDeadlock(): Promise<{ rows: number; rejected: number }> {
+async function proveReverseStartOrderDoesNotDeadlock(): Promise<{
+  rows: number;
+  rejected: number;
+}> {
   const results = await withDeadlockTimeout(
     runWithDbOrganizationPrincipal(organizationId, () =>
       Promise.allSettled([

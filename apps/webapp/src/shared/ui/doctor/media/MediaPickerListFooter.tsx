@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { Button } from "@/shared/ui/doctor/primitives/button";
+import { Button } from '@/shared/ui/doctor/primitives/button';
 
 type Props = {
   shownCount: number;
@@ -30,7 +30,9 @@ export function MediaPickerListFooter({
   return (
     <div className="flex flex-col items-center gap-2">
       {inServerMode ? <p className="text-xs text-muted-foreground">По всей библиотеке</p> : null}
-      {localSearchHint ? <p className="max-w-md text-center text-xs text-muted-foreground">{localSearchHint}</p> : null}
+      {localSearchHint ? (
+        <p className="max-w-md text-center text-xs text-muted-foreground">{localSearchHint}</p>
+      ) : null}
       {shownCount > 0 ? (
         <>
           <p className="text-xs text-muted-foreground">
@@ -44,7 +46,7 @@ export function MediaPickerListFooter({
               disabled={loadingMore}
               onClick={() => onLoadMore()}
             >
-              {loadingMore ? "Загрузка…" : "Загрузить ещё"}
+              {loadingMore ? 'Загрузка…' : 'Загрузить ещё'}
             </Button>
           ) : null}
         </>

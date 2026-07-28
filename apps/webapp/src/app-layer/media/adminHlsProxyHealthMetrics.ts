@@ -1,7 +1,7 @@
-import { and, desc, gte, inArray, sql } from "drizzle-orm";
-import { getDrizzle } from "@/app-layer/db/drizzle";
-import { mediaHlsProxyErrorEvents } from "../../../db/schema";
-import { HLS_PROXY_REASON_CODES_DB } from "@/modules/media/hlsProxyTelemetry";
+import { and, desc, gte, inArray, sql } from 'drizzle-orm';
+import { getDrizzle } from '@/app-layer/db/drizzle';
+import { mediaHlsProxyErrorEvents } from '../../../db/schema';
+import { HLS_PROXY_REASON_CODES_DB } from '@/modules/media/hlsProxyTelemetry';
 
 export const ADMIN_HLS_PROXY_METRICS_WINDOW_HOURS = 24;
 export const ADMIN_HLS_PROXY_DEGRADED_MIN_ERRORS_1H = 20;
@@ -46,13 +46,15 @@ export async function loadAdminHlsProxyHealthMetrics(opts?: {
   windowHours?: number;
 }): Promise<AdminHlsProxyHealthMetrics> {
   const windowHours =
-    typeof opts?.windowHours === "number" && Number.isFinite(opts.windowHours) && opts.windowHours > 0
+    typeof opts?.windowHours === 'number' &&
+    Number.isFinite(opts.windowHours) &&
+    opts.windowHours > 0
       ? Math.floor(opts.windowHours)
       : ADMIN_HLS_PROXY_METRICS_WINDOW_HOURS;
   const db = getDrizzle();
   const cutoff24 = cutoffIso(windowHours);
   const cutoff1h = cutoffIso(1);
-  const criticalReasons = ["upstream_403", "missing_object"] as const;
+  const criticalReasons = ['upstream_403', 'missing_object'] as const;
 
   const [totals24, totals1h, critical1hRow, recentRows] = await Promise.all([
     db
@@ -108,7 +110,7 @@ export async function loadAdminHlsProxyHealthMetrics(opts?: {
     errorsTotal1h += n;
   }
 
-  const critical1h = Number.parseInt(critical1hRow[0]?.c ?? "0", 10) || 0;
+  const critical1h = Number.parseInt(critical1hRow[0]?.c ?? '0', 10) || 0;
   const degraded = computeDegraded(errorsTotal1h, critical1h);
 
   return {

@@ -101,7 +101,11 @@ describe('communicationReadsPort', () => {
   });
 
   it('getConversationById returns null for 404', async () => {
-    fetchMock.mockResolvedValueOnce({ ok: false, status: 404, json: async () => ({ ok: false, error: 'not_found' }) });
+    fetchMock.mockResolvedValueOnce({
+      ok: false,
+      status: 404,
+      json: async () => ({ ok: false, error: 'not_found' }),
+    });
     const port = createCommunicationReadsPort({ db: mockDb });
     const conv = await port.getConversationById('conv-missing');
     expect(conv).toBeNull();

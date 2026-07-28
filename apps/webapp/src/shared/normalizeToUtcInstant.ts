@@ -8,4 +8,4 @@ export {
   type TryNormalizeToUtcInstantResult,
   type NormalizeToUtcInstantFailureReason,
   NAIVE_WALL_CLOCK_REGEX,
-} from "../../../integrator/src/shared/normalizeToUtcInstant.js";
+} from '../../../integrator/src/shared/normalizeToUtcInstant.js';

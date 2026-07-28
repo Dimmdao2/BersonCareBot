@@ -1,32 +1,27 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import type { PatientPlanPassageStats } from "@/modules/treatment-program/patient-plan-passage-stats";
-import { calendarDayIndexSinceInstanceCreated } from "@/modules/treatment-program/patient-plan-passage-stats";
+import { useEffect, useState } from 'react';
+import type { PatientPlanPassageStats } from '@/modules/treatment-program/patient-plan-passage-stats';
+import { calendarDayIndexSinceInstanceCreated } from '@/modules/treatment-program/patient-plan-passage-stats';
 import {
   patientBodyTextClass,
   patientCardClass,
   patientMutedTextClass,
   PatientShimmerPanel,
-} from "@/shared/ui/patient/patientVisual";
-import { PatientProgramBlockHeading } from "@/app/app/patient/treatment/program-detail/PatientProgramBlockHeading";
-import { TrendingUp } from "lucide-react";
-import { cn } from "@/lib/utils";
+} from '@/shared/ui/patient/patientVisual';
+import { PatientProgramBlockHeading } from '@/app/app/patient/treatment/program-detail/PatientProgramBlockHeading';
+import { TrendingUp } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 export function PatientProgramPassageStatisticsSection(props: {
   instanceId: string;
   detailCreatedAtIso: string;
-  detailStatus: "active" | "completed";
+  detailStatus: 'active' | 'completed';
   patientCalendarDayIana: string;
   refreshToken: number;
 }) {
-  const {
-    instanceId,
-    detailCreatedAtIso,
-    detailStatus,
-    patientCalendarDayIana,
-    refreshToken,
-  } = props;
+  const { instanceId, detailCreatedAtIso, detailStatus, patientCalendarDayIana, refreshToken } =
+    props;
 
   const [nowMs, setNowMs] = useState(() => Date.now());
 
@@ -75,7 +70,7 @@ export function PatientProgramPassageStatisticsSection(props: {
       if (!res.ok || !data.ok || !data.stats) {
         setStats(null);
         setShowCollectingCopyFromApi(null);
-        setStatsError(data.error ?? "Не удалось загрузить статистику");
+        setStatsError(data.error ?? 'Не удалось загрузить статистику');
         return;
       }
       setStats(data.stats);
@@ -94,7 +89,7 @@ export function PatientProgramPassageStatisticsSection(props: {
         iconClassName="text-[var(--patient-color-primary)]"
       />
       {showCollectingCopy ? (
-        <div className={cn(patientMutedTextClass, "space-y-2 text-sm leading-snug")}>
+        <div className={cn(patientMutedTextClass, 'space-y-2 text-sm leading-snug')}>
           <p className={patientBodyTextClass}>Статистика пока собирается.</p>
           <p>Регулярность в занятиях - основа вашего здоровья!</p>
         </div>
@@ -103,7 +98,12 @@ export function PatientProgramPassageStatisticsSection(props: {
           {statsError}
         </p>
       ) : stats ? (
-        <ul className={cn(patientMutedTextClass, "m-0 list-none space-y-1.5 p-0 text-sm leading-snug")}>
+        <ul
+          className={cn(
+            patientMutedTextClass,
+            'm-0 list-none space-y-1.5 p-0 text-sm leading-snug',
+          )}
+        >
           <li>Дней с занятиями: {stats.daysWithActivity}</li>
           <li>Пропущено дней: {stats.missedDays}</li>
           <li>Среднее выполнений в день: {stats.avgCompletionsPerDay}</li>

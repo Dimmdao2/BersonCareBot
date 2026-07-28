@@ -22,7 +22,7 @@ the walk made GET requests using the cookies it already contained; nothing in th
 `regenerate-saas-smoke-fixture.mjs` or writes to `user_password_credentials`. The fixture file
 itself was read via `sudo cat` into a session-local scratch copy (0600, session-scratchpad only,
 never committed, deleted after the run) purely to work around its `root:deploy` file permission —
-its *contents* were never altered. Session-cookie **values** were never printed to any log, the
+its _contents_ were never altered. Session-cookie **values** were never printed to any log, the
 JSON/CSV output, or this report — verified by grepping the output artifacts for the session cookie
 name before writing anything to the repo (no hits).
 
@@ -42,21 +42,21 @@ name before writing anything to the repo (no hits).
 
 ## Result totals
 
-| judgement | count |
-|---|---|
-| OK (200, not a disguised login page) | 134 |
-| REDIRECT (3xx, not followed) | 433 |
-| LOGIN-PAGE-AS-200 (expected, public entry points only) | 3 |
-| 4xx / 5xx / timeout / fetch error | **0** |
+| judgement                                              | count |
+| ------------------------------------------------------ | ----- |
+| OK (200, not a disguised login page)                   | 134   |
+| REDIRECT (3xx, not followed)                           | 433   |
+| LOGIN-PAGE-AS-200 (expected, public entry points only) | 3     |
+| 4xx / 5xx / timeout / fetch error                      | **0** |
 
 Per role: doctor 35 OK / 79 redirect · clinic_admin 35 OK / 79 redirect · patient 43 OK / 71
 redirect · global_admin 18 OK / 96 redirect · public 3 OK(login-page, expected) / 108 redirect.
 
 **The 200-is-not-proof trap, checked directly**: every one of the 134 "OK" responses was re-fetched
-and its *body* scanned for a Next.js error digest, an "Application error" string, a generic React
+and its _body_ scanned for a Next.js error digest, an "Application error" string, a generic React
 error-boundary marker, an HTTP-500-style string, or a suspiciously tiny payload (<2KB) that would
 indicate a shell rendering with nothing inside. **Zero hits.** This does not prove every page's
-content is *correct*, only that none of them silently swallowed a server-side exception into a
+content is _correct_, only that none of them silently swallowed a server-side exception into a
 200 — the specific failure mode the task called out (analytics shell / branding contract / settings
 toggle from earlier today).
 
@@ -147,7 +147,7 @@ account with LFK complex data or a direct action-level check.**
   client-side data fetch, or a hydration mismatch would show as "OK" here regardless.
 - **Body-scan is a heuristic, not a content audit.** The error-marker scan on all 134 "OK" rows
   catches crash-shaped failures (error boundaries, 500-flavored text, tiny payloads) but does not
-  confirm the *correct* data is present — e.g. it cannot tell a populated dashboard from one
+  confirm the _correct_ data is present — e.g. it cannot tell a populated dashboard from one
   correctly showing an empty state vs one that should have data but silently doesn't.
 - **No interaction-gated content** (modals, tabs that fetch on click, wizards past step 1) is
   exercised.
@@ -158,11 +158,10 @@ The only prior walk on disk (`walk-dev.json` / `walk-dev-3.json` in this session
 generated 2026-07-26 ~08:10 local) targeted **DEV** (`127.0.0.1:5200`), **not TEST**, using
 `--auth=dev-bypass`, and predates today's admin-console rename (commit `49f19b120`, 20:03 today) and
 several other same-day fixes (C-4, OTP hardening, reminder RLS). It also only had 3 of 5 roles
-available (DEV has no seeded `clinic_admin`/`patient` dev-bypass account) — 342 probes vs today's
-570. Given the different server, different auth mechanism, and same-day architecture changes
+available (DEV has no seeded `clinic_admin`/`patient` dev-bypass account) — 342 probes vs today's 570. Given the different server, different auth mechanism, and same-day architecture changes
 between the two runs, a route-by-route diff would mostly reflect the admin-URL rename rather than
 real regressions/fixes, so I did not force one. What **is** comparable and meaningful: that morning
-DEV walk *also* found zero 4xx/5xx/timeout responses (55 OK / 284 redirect / 3 expected-login-page
+DEV walk _also_ found zero 4xx/5xx/timeout responses (55 OK / 284 redirect / 3 expected-login-page
 out of 342). So both the pre-change DEV snapshot and today's post-change TEST snapshot agree on the
 one thing that matters most: no raw HTTP-level breakage, then or now.
 

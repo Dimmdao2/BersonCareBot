@@ -1,6 +1,6 @@
-import type { ChannelBindings } from "@/shared/types/session";
-import type { ClientContactBreakdown } from "./clientContactSegments";
-import type { ClientSupportProfile, PatientProgramInteractionPolicy } from "./supportPolicy";
+import type { ChannelBindings } from '@/shared/types/session';
+import type { ClientContactBreakdown } from './clientContactSegments';
+import type { ClientSupportProfile, PatientProgramInteractionPolicy } from './supportPolicy';
 
 /** Фильтры для списка клиентов специалиста. */
 export type DoctorClientsFilters = {
@@ -38,7 +38,7 @@ export type DoctorClientsFilters = {
   /** Только заархивированные (`is_archived`), раздел «Архив». */
   archivedOnly?: boolean;
   /** `on` — `doctor_patient_support.on_support`; `programWithoutSupport` — активная doctor-программа без сопровождения. */
-  supportStatus?: "on" | "programWithoutSupport";
+  supportStatus?: 'on' | 'programWithoutSupport';
   /** Есть действующий абонемент (`be_patient_packages.status = 'active'`). */
   hasMemberships?: boolean;
   /** Есть истёкший абонемент (`be_patient_packages.status = 'expired'`). */
@@ -142,7 +142,7 @@ export type PatientCardHeader = {
     patronymic: string | null;
     phone: string | null;
     email: string | null;
-    bindings: import("@/shared/types/session").ChannelBindings;
+    bindings: import('@/shared/types/session').ChannelBindings;
     /** Есть ли у пациента переписка (хотя бы одно сообщение в support_conversations),
      * независимо от привязанного канала — чтобы открыть чат даже без Telegram/MAX. */
     hasConversation: boolean;
@@ -153,7 +153,7 @@ export type PatientCardHeader = {
     /** Возраст в полных годах, вычисляется из birthDate; null если birthDate отсутствует. */
     age: number | null;
     /** Пол пациента из platform_users.gender; null если не указан. */
-    gender: "male" | "female" | null;
+    gender: 'male' | 'female' | null;
   };
   /** Сопровождение врача. */
   support: {
@@ -233,7 +233,7 @@ export type PatientAppointmentItem = {
    * Маппинг: canonical cancelled statuses → 'canceled'; canonical rescheduled → 'rescheduled';
    * other non-cancelled past/future slots → 'completed' / 'upcoming'.
    */
-  status: "completed" | "rescheduled" | "canceled" | "upcoming";
+  status: 'completed' | 'rescheduled' | 'canceled' | 'upcoming';
   /** Тип/услуга из canonical service title. */
   serviceName: string | null;
   /** Локация/филиал из canonical branch title. */
@@ -256,22 +256,34 @@ export type DoctorClientsPort = {
     audience?: { excludedUserIds?: string[] },
   ): Promise<ClientListItem[]>;
   /** История записей пациента по userId (прошедшие + предстоящие), новые сверху. */
-  listPatientAppointments(userId: string, organizationId?: string): Promise<PatientAppointmentItem[]>;
+  listPatientAppointments(
+    userId: string,
+    organizationId?: string,
+  ): Promise<PatientAppointmentItem[]>;
   /**
    * Агрегат шапки карточки пациента (для нового раздела «Пациенты»).
    * Возвращает null, если пользователь не найден или не является клиентом.
    */
   getPatientCardHeader(userId: string): Promise<PatientCardHeader | null>;
   /** Сегменты контактов для аналитики `/app/doctor/analytics/clients`. */
-  getClientContactBreakdown(audience?: { excludedUserIds?: string[]; organizationId?: string }): Promise<ClientContactBreakdown>;
+  getClientContactBreakdown(audience?: {
+    excludedUserIds?: string[];
+    organizationId?: string;
+  }): Promise<ClientContactBreakdown>;
   /** Lightweight role lookup for routes that must distinguish missing users from non-clients. */
   getPlatformUserRole(userId: string): Promise<string | null>;
   getClientIdentity(userId: string): Promise<ClientIdentity | null>;
   /** Patient identity visible inside a concrete organization workspace. */
-  getClientIdentityForOrganization(userId: string, organizationId: string): Promise<ClientIdentity | null>;
+  getClientIdentityForOrganization(
+    userId: string,
+    organizationId: string,
+  ): Promise<ClientIdentity | null>;
   /** Patient-scoped doctor APIs — `role = 'client'` only; otherwise `null`. */
   getPatientClientIdentity(userId: string): Promise<ClientIdentity | null>;
-  getDashboardPatientMetrics(audience?: { excludedUserIds?: string[]; organizationId?: string }): Promise<DoctorDashboardPatientMetrics>;
+  getDashboardPatientMetrics(audience?: {
+    excludedUserIds?: string[];
+    organizationId?: string;
+  }): Promise<DoctorDashboardPatientMetrics>;
   /** Блокировка исходящих сообщений пациента (проверка в patient messaging). */
   isClientMessagingBlocked(userId: string): Promise<boolean>;
   /** Врач/админ: установить блокировку подписчика. */
@@ -301,7 +313,7 @@ export type DoctorClientsPort = {
    * Устанавливает пол клиента (platform_users.gender): 'male' | 'female' | null (сброс).
    * Работает только для клиентов (role='client').
    */
-  setPatientGender(userId: string, gender: "male" | "female" | null): Promise<void>;
+  setPatientGender(userId: string, gender: 'male' | 'female' | null): Promise<void>;
   /**
    * Обновляет structured FIO клиента. Compatibility display_name derives from the resulting fields.
    * Обновляются только переданные поля; structured parts допускают null (сброс).
@@ -315,7 +327,9 @@ export type DoctorClientsPort = {
    * Возвращает физические параметры пациента (рост/вес).
    * Null если не заданы. Возвращает null целиком если пользователь не найден или не клиент.
    */
-  getPatientPhysical(userId: string): Promise<{ heightCm: number | null; weightKg: number | null } | null>;
+  getPatientPhysical(
+    userId: string,
+  ): Promise<{ heightCm: number | null; weightKg: number | null } | null>;
   /**
    * Устанавливает рост и/или вес пациента (platform_users.height_cm / weight_kg).
    * Обновляются только переданные поля (null = сброс).
@@ -327,4 +341,4 @@ export type DoctorClientsPort = {
   ): Promise<void>;
 };
 
-export type { ClientSupportProfile, PatientProgramInteractionPolicy } from "./supportPolicy";
+export type { ClientSupportProfile, PatientProgramInteractionPolicy } from './supportPolicy';

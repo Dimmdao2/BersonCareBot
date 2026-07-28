@@ -1,15 +1,18 @@
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireEntitlementForRead, requireEntitlementForMutation } from "@/app-layer/guards/requireEntitlement";
-import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import {
+  requireEntitlementForRead,
+  requireEntitlementForMutation,
+} from '@/app-layer/guards/requireEntitlement';
+import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import {
   isCourseArchiveNotFoundError,
   isCourseUsageConfirmationRequiredError,
-} from "@/modules/courses/errors";
+} from '@/modules/courses/errors';
 
-const courseStatusSchema = z.enum(["draft", "published", "archived"]);
+const courseStatusSchema = z.enum(['draft', 'published', 'archived']);
 
 const patchBodySchema = z
   .object({
@@ -24,57 +27,51 @@ const patchBodySchema = z
     /** При переводе в `archived`: если нужно подтверждение usage — повторите PATCH с `true`. */
     acknowledgeUsageWarning: z.boolean().optional(),
   })
-  .refine((o) => Object.keys(o).filter((k) => k !== "acknowledgeUsageWarning").length > 0, {
-    message: "empty_patch",
+  .refine((o) => Object.keys(o).filter((k) => k !== 'acknowledgeUsageWarning').length > 0, {
+    message: 'empty_patch',
   });
 
-export async function GET(
-  _request: Request,
-  context: { params: Promise<{ id: string }> },
-) {
+export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   const auth = await requireDoctorWorkspaceApiContext();
   if (!auth.ok) return auth.response;
-  const entitlement = await requireEntitlementForRead(auth.ctx, "courses");
+  const entitlement = await requireEntitlementForRead(auth.ctx, 'courses');
   if (!entitlement.ok) return entitlement.response;
 
   const { id } = await context.params;
   if (!z.string().uuid().safeParse(id).success) {
-    return NextResponse.json({ ok: false, error: "invalid_id" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_id' }, { status: 400 });
   }
 
   const deps = buildAppDeps();
-  const item = await withDoctorWorkspacePrincipal(auth.ctx, "doctor.courses.get", () =>
+  const item = await withDoctorWorkspacePrincipal(auth.ctx, 'doctor.courses.get', () =>
     deps.courses.getCourseForDoctor(id),
   );
-  if (!item) return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  if (!item) return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   return NextResponse.json({ ok: true, item });
 }
 
-export async function PATCH(
-  request: Request,
-  context: { params: Promise<{ id: string }> },
-) {
+export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   const auth = await requireDoctorWorkspaceApiContext();
   if (!auth.ok) return auth.response;
-  const entitlement = await requireEntitlementForMutation(auth.ctx, "courses");
+  const entitlement = await requireEntitlementForMutation(auth.ctx, 'courses');
   if (!entitlement.ok) return entitlement.response;
   const { ctx: workspace } = auth;
 
   const { id } = await context.params;
   if (!z.string().uuid().safeParse(id).success) {
-    return NextResponse.json({ ok: false, error: "invalid_id" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_id' }, { status: 400 });
   }
 
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = patchBodySchema.safeParse(raw);
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
 
   const deps = buildAppDeps();
   const { acknowledgeUsageWarning, ...patch } = parsed.data;
   try {
-    const source = patch.status === "archived" ? "doctor.courses.archive" : "doctor.courses.update";
+    const source = patch.status === 'archived' ? 'doctor.courses.archive' : 'doctor.courses.update';
     const item = await withDoctorWorkspacePrincipal(workspace, source, () =>
       deps.courses.updateCourse(
         id,
@@ -91,9 +88,9 @@ export async function PATCH(
       return NextResponse.json({ ok: false, code: e.code, usage: e.usage }, { status: 409 });
     }
     if (isCourseArchiveNotFoundError(e)) {
-      return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+      return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
     }
-    const msg = e instanceof Error ? e.message : "error";
+    const msg = e instanceof Error ? e.message : 'error';
     return NextResponse.json({ ok: false, error: msg }, { status: 400 });
   }
 }

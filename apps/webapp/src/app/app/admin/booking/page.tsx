@@ -1,5 +1,5 @@
-import { requireAdminDoctorPage } from "@/app/app/settings/requireAdminDoctorPage";
-import { PlatformLocationPaletteSection } from "./PlatformLocationPaletteSection";
+import { requireAdminDoctorPage } from '@/app/app/settings/requireAdminDoctorPage';
+import { PlatformLocationPaletteSection } from './PlatformLocationPaletteSection';
 
 /**
  * Platform-scope booking defaults. Deliberately NOT a clinic booking screen.

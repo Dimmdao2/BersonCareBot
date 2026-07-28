@@ -1,4 +1,4 @@
-import type { PlatformUserContactSource, PlatformUserContactType } from "./types";
+import type { PlatformUserContactSource, PlatformUserContactType } from './types';
 
 export type PlatformUserContactRecord = {
   id: string;

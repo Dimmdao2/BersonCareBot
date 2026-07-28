@@ -1,23 +1,23 @@
-import { PgDialect } from "drizzle-orm/pg-core";
-import { describe, expect, it } from "vitest";
-import { runWithDbOrganizationPrincipal } from "@bersoncare/db-principal";
-import { mediaWorkerSqlFromPgText, runMediaWorkerPgText } from "./runMediaWorkerSql.js";
+import { PgDialect } from 'drizzle-orm/pg-core';
+import { describe, expect, it } from 'vitest';
+import { runWithDbOrganizationPrincipal } from '@bersoncare/db-principal';
+import { mediaWorkerSqlFromPgText, runMediaWorkerPgText } from './runMediaWorkerSql.js';
 
 const pgDialect = new PgDialect();
 
 // eslint-disable-next-line no-secrets/no-secrets -- test title, not credential material
-describe("mediaWorkerSqlFromPgText", () => {
-  it("keeps array as single parameter for PG array casts", () => {
-    const fragment = mediaWorkerSqlFromPgText("SELECT 1 WHERE status = ANY($1::text[])", [
-      ["pending", "done"],
+describe('mediaWorkerSqlFromPgText', () => {
+  it('keeps array as single parameter for PG array casts', () => {
+    const fragment = mediaWorkerSqlFromPgText('SELECT 1 WHERE status = ANY($1::text[])', [
+      ['pending', 'done'],
     ]);
     const { sql, params } = pgDialect.sqlToQuery(fragment);
 
-    expect(sql).toBe("SELECT 1 WHERE status = ANY($1::text[])");
-    expect(params).toEqual([["pending", "done"]]);
+    expect(sql).toBe('SELECT 1 WHERE status = ANY($1::text[])');
+    expect(params).toEqual([['pending', 'done']]);
   });
 
-  it("uses direct pool query when organization principal is unset", async () => {
+  it('uses direct pool query when organization principal is unset', async () => {
     const pool = {
       query: async (text: string, params: readonly unknown[]) => ({
         rows: [{ text, params }],
@@ -25,19 +25,20 @@ describe("mediaWorkerSqlFromPgText", () => {
       }),
     };
 
-    const result = await runMediaWorkerPgText(pool as never, "UPDATE public.media_files SET status = $2 WHERE id = $1", [
-      "media-1",
-      "ready",
-    ]);
+    const result = await runMediaWorkerPgText(
+      pool as never,
+      'UPDATE public.media_files SET status = $2 WHERE id = $1',
+      ['media-1', 'ready'],
+    );
 
     expect(result.rowCount).toBe(1);
     expect(result.rows[0]).toEqual({
-      text: "UPDATE public.media_files SET status = $1 WHERE id = $2",
-      params: ["ready", "media-1"],
+      text: 'UPDATE public.media_files SET status = $1 WHERE id = $2',
+      params: ['ready', 'media-1'],
     });
   });
 
-  it("uses media-worker transaction chokepoint when organization principal is set", async () => {
+  it('uses media-worker transaction chokepoint when organization principal is set', async () => {
     const releaseCalls: string[] = [];
     const queryCalls: unknown[][] = [];
     const client = {
@@ -46,36 +47,39 @@ describe("mediaWorkerSqlFromPgText", () => {
         return { rows: [], rowCount: 1 };
       },
       release: () => {
-        releaseCalls.push("release");
+        releaseCalls.push('release');
       },
     };
     const pool = {
       connect: async () => client,
       query: async () => {
-        throw new Error("pool.query should not be used with an organization principal");
+        throw new Error('pool.query should not be used with an organization principal');
       },
     };
 
-    const result = await runWithDbOrganizationPrincipal("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", () =>
-      runMediaWorkerPgText(pool as never, "UPDATE public.media_files SET status = $2 WHERE id = $1", [
-        "media-1",
-        "ready",
-      ]),
+    const result = await runWithDbOrganizationPrincipal(
+      'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      () =>
+        runMediaWorkerPgText(
+          pool as never,
+          'UPDATE public.media_files SET status = $2 WHERE id = $1',
+          ['media-1', 'ready'],
+        ),
     );
 
     expect(result.rowCount).toBe(1);
     expect(queryCalls).toEqual([
-      ["SELECT set_config('app.org', $1, false)", ["bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"]],
-      ["SELECT set_config('app.patient_user_id', $1, false)", [""]],
-      ["SELECT set_config('app.integrator_user_id', $1, false)", [""]],
-      ["BEGIN"],
-      ["SELECT set_config('app.org', $1, true)", ["bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"]],
-      ["UPDATE public.media_files SET status = $1 WHERE id = $2", ["ready", "media-1"]],
-      ["COMMIT"],
-      ["SELECT set_config('app.org', $1, false)", [""]],
-      ["SELECT set_config('app.patient_user_id', $1, false)", [""]],
-      ["SELECT set_config('app.integrator_user_id', $1, false)", [""]],
+      ["SELECT set_config('app.org', $1, false)", ['bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb']],
+      ["SELECT set_config('app.patient_user_id', $1, false)", ['']],
+      ["SELECT set_config('app.integrator_user_id', $1, false)", ['']],
+      ['BEGIN'],
+      ["SELECT set_config('app.org', $1, true)", ['bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb']],
+      ['UPDATE public.media_files SET status = $1 WHERE id = $2', ['ready', 'media-1']],
+      ['COMMIT'],
+      ["SELECT set_config('app.org', $1, false)", ['']],
+      ["SELECT set_config('app.patient_user_id', $1, false)", ['']],
+      ["SELECT set_config('app.integrator_user_id', $1, false)", ['']],
     ]);
-    expect(releaseCalls).toEqual(["release"]);
+    expect(releaseCalls).toEqual(['release']);
   });
 });

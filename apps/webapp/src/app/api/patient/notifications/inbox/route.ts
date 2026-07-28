@@ -1,11 +1,11 @@
 /**
  * GET /api/patient/notifications/inbox — уведомления пациента без поля ответа.
  */
-import { NextResponse } from "next/server";
-import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
-import { routePaths } from "@/app-layer/routes/paths";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { serializeSupportMessage } from "@/modules/messaging/serializeSupportMessage";
+import { NextResponse } from 'next/server';
+import { requirePatientApiBusinessAccess } from '@/app-layer/guards/requireRole';
+import { routePaths } from '@/app-layer/routes/paths';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { serializeSupportMessage } from '@/modules/messaging/serializeSupportMessage';
 
 export async function GET() {
   const gate = await requirePatientApiBusinessAccess({ returnPath: routePaths.patient });

@@ -18,7 +18,9 @@ async function main(): Promise<void> {
     process.exit(2);
   }
   if (!isDevRedirectActive()) {
-    logger.error('ABORT: dev delivery redirect is NOT active — refusing to send (would risk a real client).');
+    logger.error(
+      'ABORT: dev delivery redirect is NOT active — refusing to send (would risk a real client).',
+    );
     process.exit(2);
   }
   const targets = getDevRedirectTargets();
@@ -33,17 +35,29 @@ async function main(): Promise<void> {
 
   const telegram: OutgoingIntent = {
     type: 'message.send',
-    meta: { eventId: `qa-test-tg:${stamp}`, occurredAt: now, source: 'telegram', correlationId: `qa-test-${stamp}` },
+    meta: {
+      eventId: `qa-test-tg:${stamp}`,
+      occurredAt: now,
+      source: 'telegram',
+      correlationId: `qa-test-${stamp}`,
+    },
     payload: {
       recipient: { chatId: 700000001 }, // FAKE → redirect collapses to Дмитрий's telegram
-      message: { text: `🧪 BersonCare DEV — тест-отправка (Telegram).\nЕсли видишь это — редирект на тебя работает.\n${now}` },
+      message: {
+        text: `🧪 BersonCare DEV — тест-отправка (Telegram).\nЕсли видишь это — редирект на тебя работает.\n${now}`,
+      },
       delivery: { channels: ['telegram'] },
     },
   };
 
   const webPush: OutgoingIntent = {
     type: 'message.send',
-    meta: { eventId: `qa-test-wp:${stamp}`, occurredAt: now, source: 'web_push', correlationId: `qa-test-${stamp}` },
+    meta: {
+      eventId: `qa-test-wp:${stamp}`,
+      occurredAt: now,
+      source: 'web_push',
+      correlationId: `qa-test-${stamp}`,
+    },
     payload: {
       recipient: { pushUserId: 'fa9e0000-0000-4000-8000-790000000000' }, // FAKE QA user → redirect → Дмитрий's pushUserId
       message: { text: `🧪 BersonCare DEV — тест-пуш. Редирект на тебя работает. ${now}` },
@@ -53,7 +67,10 @@ async function main(): Promise<void> {
     },
   };
 
-  for (const [label, intent] of [['telegram', telegram], ['web_push', webPush]] as const) {
+  for (const [label, intent] of [
+    ['telegram', telegram],
+    ['web_push', webPush],
+  ] as const) {
     try {
       const result = await deps.dispatchPort.dispatchOutgoing(intent);
       logger.warn({ channel: label, result }, `QA test-send: ${label} dispatched`);

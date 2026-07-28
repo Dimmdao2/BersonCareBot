@@ -1,31 +1,31 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { useState } from "react";
-import { DoctorMetricList } from "@/shared/ui/doctor/DoctorMetricList";
-import { KpiPreviewModal } from "@/shared/ui/doctor/KpiPreviewModal";
-import { doctorInlineLinkClass, doctorSectionItemClass } from "@/shared/ui/doctor/doctorVisual";
-import { DoctorStatCard } from "./analytics/clients/DoctorStatCard";
-import { ExerciseCommentPreviewItemContent } from "./comments/ExerciseCommentPreviewItem";
+import Link from 'next/link';
+import { useState } from 'react';
+import { DoctorMetricList } from '@/shared/ui/doctor/DoctorMetricList';
+import { KpiPreviewModal } from '@/shared/ui/doctor/KpiPreviewModal';
+import { doctorInlineLinkClass, doctorSectionItemClass } from '@/shared/ui/doctor/doctorVisual';
+import { DoctorStatCard } from './analytics/clients/DoctorStatCard';
+import { ExerciseCommentPreviewItemContent } from './comments/ExerciseCommentPreviewItem';
 import type {
   TodayDashboardData,
   TodayIntakeItem,
   TodayUnreadConversationItem,
   TodayExerciseCommentAttentionItem,
-} from "./loadDoctorTodayDashboard";
-import type { TodayPendingProgramTestItem } from "./mapPendingProgramTestsForToday";
-import { routePaths } from "@/app-layer/routes/paths";
+} from './loadDoctorTodayDashboard';
+import type { TodayPendingProgramTestItem } from './mapPendingProgramTestsForToday';
+import { routePaths } from '@/app-layer/routes/paths';
 
 type Props = Pick<
   TodayDashboardData,
-  | "newIntakeRequests"
-  | "unreadConversations"
-  | "unreadTotal"
-  | "pendingProgramTests"
-  | "pendingProgramTestsTotal"
-  | "exerciseCommentAttentionItems"
-  | "exerciseCommentAttentionTotal"
-  | "exerciseCommentAttentionTruncated"
+  | 'newIntakeRequests'
+  | 'unreadConversations'
+  | 'unreadTotal'
+  | 'pendingProgramTests'
+  | 'pendingProgramTestsTotal'
+  | 'exerciseCommentAttentionItems'
+  | 'exerciseCommentAttentionTotal'
+  | 'exerciseCommentAttentionTruncated'
 > & {
   intakeCount: number;
   pendingTestsTotal: number;
@@ -37,7 +37,7 @@ type Props = Pick<
   exerciseCommentsTotalOverride?: number;
 };
 
-type KpiModal = "messages" | "comments" | "intake" | "tests" | null;
+type KpiModal = 'messages' | 'comments' | 'intake' | 'tests' | null;
 
 function IntakeModalItem({ item }: { item: TodayIntakeItem }) {
   return (
@@ -69,10 +69,14 @@ function UnreadConversationModalItem({ item }: { item: TodayUnreadConversationIt
         <span className="shrink-0 text-xs text-muted-foreground">{item.lastMessageAtLabel}</span>
       </div>
       {item.lastMessagePreview ? (
-        <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{item.lastMessagePreview}</p>
+        <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
+          {item.lastMessagePreview}
+        </p>
       ) : null}
       {item.unreadFromUserCount > 0 ? (
-        <p className="mt-0.5 text-xs text-muted-foreground">{item.unreadFromUserCount} непрочитанных</p>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          {item.unreadFromUserCount} непрочитанных
+        </p>
       ) : null}
       <p className="mt-2">
         {/* #812: deep-link to this exact dialog, not just the chats tab */}
@@ -88,7 +92,9 @@ function PendingTestModalItem({ item }: { item: TodayPendingProgramTestItem }) {
   return (
     <div className={doctorSectionItemClass}>
       <p className="font-medium text-foreground">{item.patientDisplayName}</p>
-      <p className="mt-0.5 text-xs text-muted-foreground">{item.instanceTitle} · {item.stageTitle}</p>
+      <p className="mt-0.5 text-xs text-muted-foreground">
+        {item.instanceTitle} · {item.stageTitle}
+      </p>
       <p className="mt-0.5 text-xs text-muted-foreground">{item.submittedAtLabel}</p>
       <p className="mt-2">
         <Link href={item.href} className={doctorInlineLinkClass}>
@@ -142,8 +148,8 @@ export function DoctorTodayLeftKpiRow({
           title="Сообщения"
           value={unreadTotal}
           tooltip="Непрочитанные сообщения от клиентов."
-          tone={unreadTotal > 0 ? "warning" : "neutral"}
-          onClick={unreadTotal > 0 ? () => setKpiModal("messages") : undefined}
+          tone={unreadTotal > 0 ? 'warning' : 'neutral'}
+          onClick={unreadTotal > 0 ? () => setKpiModal('messages') : undefined}
         />
         {/* Комментарии к упражнениям → KpiPreviewModal (S2.8) */}
         <DoctorStatCard
@@ -151,8 +157,8 @@ export function DoctorTodayLeftKpiRow({
           title="Комментарии"
           value={displayTotal}
           tooltip="Новые комментарии клиентов к упражнениям."
-          tone={displayTotal > 0 ? "warning" : "neutral"}
-          onClick={displayTotal > 0 ? () => setKpiModal("comments") : undefined}
+          tone={displayTotal > 0 ? 'warning' : 'neutral'}
+          onClick={displayTotal > 0 ? () => setKpiModal('comments') : undefined}
         />
         {/* Онлайн-заявки → KpiPreviewModal (S2.8) */}
         <DoctorStatCard
@@ -160,8 +166,8 @@ export function DoctorTodayLeftKpiRow({
           title="Заявки"
           value={intakeCount}
           tooltip="Новые заявки на консультацию."
-          tone={intakeCount > 0 ? "warning" : "neutral"}
-          onClick={intakeCount > 0 ? () => setKpiModal("intake") : undefined}
+          tone={intakeCount > 0 ? 'warning' : 'neutral'}
+          onClick={intakeCount > 0 ? () => setKpiModal('intake') : undefined}
         />
         {/* Тесты к проверке → KpiPreviewModal (SEG-02) */}
         <DoctorStatCard
@@ -169,14 +175,14 @@ export function DoctorTodayLeftKpiRow({
           title="Тесты"
           value={pendingTestsTotal}
           tooltip="Тесты по программам, ожидающие проверки."
-          tone={pendingTestsTotal > 0 ? "warning" : "neutral"}
-          onClick={pendingTestsTotal > 0 ? () => setKpiModal("tests") : undefined}
+          tone={pendingTestsTotal > 0 ? 'warning' : 'neutral'}
+          onClick={pendingTestsTotal > 0 ? () => setKpiModal('tests') : undefined}
         />
       </DoctorMetricList>
 
       {/* KpiPreviewModal: Комментарии */}
       <KpiPreviewModal<TodayExerciseCommentAttentionItem>
-        open={kpiModal === "comments"}
+        open={kpiModal === 'comments'}
         onClose={() => setKpiModal(null)}
         title="Комментарии"
         count={displayTotal}
@@ -191,7 +197,7 @@ export function DoctorTodayLeftKpiRow({
 
       {/* KpiPreviewModal: Заявки */}
       <KpiPreviewModal<TodayIntakeItem>
-        open={kpiModal === "intake"}
+        open={kpiModal === 'intake'}
         onClose={() => setKpiModal(null)}
         title="Заявки"
         count={intakeCount}
@@ -199,7 +205,7 @@ export function DoctorTodayLeftKpiRow({
         renderItem={(item) => <IntakeModalItem item={item} />}
         emptyState={
           <p className="py-4 text-center text-sm text-muted-foreground">
-            Новых заявок нет.{" "}
+            Новых заявок нет.{' '}
             <Link href="/app/doctor/online-intake" className={doctorInlineLinkClass}>
               Все заявки
             </Link>
@@ -209,7 +215,7 @@ export function DoctorTodayLeftKpiRow({
 
       {/* KpiPreviewModal: Сообщения (SEG-02) */}
       <KpiPreviewModal<TodayUnreadConversationItem>
-        open={kpiModal === "messages"}
+        open={kpiModal === 'messages'}
         onClose={() => setKpiModal(null)}
         title="Сообщения"
         count={unreadTotal}
@@ -217,7 +223,7 @@ export function DoctorTodayLeftKpiRow({
         renderItem={(item) => <UnreadConversationModalItem item={item} />}
         emptyState={
           <p className="py-4 text-center text-sm text-muted-foreground">
-            Нет непрочитанных сообщений.{" "}
+            Нет непрочитанных сообщений.{' '}
             <Link href={routePaths.doctorCommunications} className={doctorInlineLinkClass}>
               Открыть коммуникации
             </Link>
@@ -227,7 +233,7 @@ export function DoctorTodayLeftKpiRow({
 
       {/* KpiPreviewModal: Тесты к проверке (SEG-02) */}
       <KpiPreviewModal<TodayPendingProgramTestItem>
-        open={kpiModal === "tests"}
+        open={kpiModal === 'tests'}
         onClose={() => setKpiModal(null)}
         title="Тесты к проверке"
         count={pendingProgramTestsTotal}

@@ -10,6 +10,7 @@
 2. **content-сценарии** — где эти данные могут использоваться как **нормализованные ключи условий и параметров**.
 
 Все остальные слои работают с такими данными **только как с generic context data** и не знают:
+
 - из какой интеграции они пришли;
 - что они означают в терминах конкретного канала;
 - как они хранятся во внешней БД/SDK/webhook payload.
@@ -19,12 +20,14 @@
 #### Интеграции
 
 Разрешено:
+
 - валидировать внешний payload;
 - мапить payload в `IncomingEvent`;
 - прикладывать набор нормализованных context facts / context data;
 - исполнять исходящие transport-specific intents.
 
 Запрещено:
+
 - выбирать бизнес-сценарий;
 - знать orchestrator-ветвления;
 - принимать бизнес-решения вместо content/kernel;
@@ -33,11 +36,13 @@
 #### App / Pipeline
 
 Разрешено:
+
 - wiring зависимостей;
 - запуск pipeline;
 - проброс портов и данных вниз.
 
 Запрещено:
+
 - интерпретировать интеграционные поля в бизнес-смысле;
 - принимать решения по меню / booking / notifications;
 - подменять orchestrator/domain.
@@ -45,12 +50,14 @@
 #### Orchestrator
 
 Разрешено:
+
 - видеть только универсальный контейнер данных;
 - матчить `event`, `input`, `context`, `meta`, `values`, `facts` по ключам и значениям;
 - подставлять данные в шаги сценария;
 - выбирать script plan.
 
 Запрещено:
+
 - знать transport/business смысл интеграционных ключей;
 - читать raw payload интеграции как часть бизнес-логики;
 - знать таблицы/поля БД конкретной интеграции;
@@ -59,12 +66,14 @@
 #### Domain / Executor
 
 Разрешено:
+
 - исполнять generic actions;
 - пользоваться портами;
 - готовить `DbWriteMutation`, `OutgoingIntent`, `DeliveryJob`;
 - переносить execution-state внутри одного сценария.
 
 Запрещено:
+
 - знать схему webhook payload интеграции;
 - знать названия таблиц/колонок интеграционной БД;
 - хранить в `values` infra-объекты, SDK, adapter instances.
@@ -72,11 +81,13 @@
 #### Infra / DB / Dispatch
 
 Разрешено:
+
 - реализовывать порты ядра;
 - хранить интеграционно-специфичные таблицы и колонки;
 - мапить generic port-запросы в конкретную схему хранения/доставки.
 
 Запрещено:
+
 - принимать сценарные решения;
 - тащить бизнес-ветвления в infra adapters.
 
@@ -85,6 +96,7 @@
 Интеграционно-специфичные таблицы и поля остаются на стороне `infra`/integration-specific adapters.
 
 Ядро работает только через порт:
+
 - по generic query/mutation типу;
 - по значениям ключей, пришедших в универсальном контексте;
 - без знания имен таблиц, колонок и схемы хранения.
@@ -230,6 +242,7 @@
 ### ⚠ Отклонение 1. Transport/delivery knowledge частично живет в content
 
 Сейчас в `src/content/*/scripts.json` есть признаки transport-specific логики:
+
 - transport event names вроде `callback.received`, `webhook.received`;
 - transport/UI actions вроде `message.replyKeyboard.show`, `message.inlineKeyboard.show`, `callback.answer`;
 - delivery-поля вроде `delivery.channels`, `retry`, `onFail`.
@@ -240,4 +253,4 @@
 
 Ранее отдельный systemd-юнит для `src/infra/runtime/scheduler/main.ts` не был частью host-deploy. Сейчас канонический unit: **`bersoncarebot-scheduler-prod.service`** (`deploy/systemd/bersoncarebot-scheduler-prod.service`), установка и restart — `deploy/host/bootstrap-systemd-prod.sh` / `deploy/host/deploy-prod.sh` (см. `docs/ARCHITECTURE/SERVER CONVENTIONS.md`).
 
-*(Отклонения 2 и 4 устранены: eventGateway — только idempotencyPort и pipeline; дефолты доставки вынесены в порт `DeliveryDefaultsPort`, реализация в infra, ядро не знает имён каналов.)*
+_(Отклонения 2 и 4 устранены: eventGateway — только idempotencyPort и pipeline; дефолты доставки вынесены в порт `DeliveryDefaultsPort`, реализация в infra, ядро не знает имён каналов.)_

@@ -1,6 +1,6 @@
-import { extractBroadcastBodyContent } from "@/modules/patient-broadcasts/extractBroadcastBodyContent";
-import type { PatientBroadcastsPort } from "@/modules/patient-broadcasts/ports";
-import { isInMemoryBroadcastRecipient } from "./inMemoryBroadcastRecipients";
+import { extractBroadcastBodyContent } from '@/modules/patient-broadcasts/extractBroadcastBodyContent';
+import type { PatientBroadcastsPort } from '@/modules/patient-broadcasts/ports';
+import { isInMemoryBroadcastRecipient } from './inMemoryBroadcastRecipients';
 
 type AuditRow = {
   messageTitle: string;
@@ -13,7 +13,7 @@ const auditById = new Map<string, AuditRow>();
 
 export function registerInMemoryBroadcastAuditForPatientRead(
   auditId: string,
-  row: Omit<AuditRow, "previewOnly"> & { previewOnly?: boolean },
+  row: Omit<AuditRow, 'previewOnly'> & { previewOnly?: boolean },
 ): void {
   auditById.set(auditId, {
     messageTitle: row.messageTitle,

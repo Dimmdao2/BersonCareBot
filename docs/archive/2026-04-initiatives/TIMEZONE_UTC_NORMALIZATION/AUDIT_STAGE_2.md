@@ -15,13 +15,13 @@
 
 ## Проверенные критерии
 
-| # | Критерий | Результат |
-|---|-----------|-----------|
-| 1 | Корректность для naive / Z / offset строк | OK: наивные через Luxon + IANA; Z/offset через `Date.parse` + `toISOString()`. Покрыто тестами (Moscow/Samara, `+03:00`, `+0300`, `z`, отрицательный offset, DST, spring-forward). |
-| 2 | Плохой input не даёт неконтролируемого падения runtime | OK: пустое, мусор, невалидный календарь, невалидная IANA → `null`; `Intl` в `try/catch`. Экстремальные ISO дают `null` без throw. |
-| 3 | Нет хардкода `+03:00` в реализации normalizer | OK: в `apps/integrator/src/shared/normalizeToUtcInstant.ts` нет. Литерал `+03:00` допустим в тестах как входной ISO-offset. |
-| 4 | Экспорт / доступность по плану | OK: канон в integrator `shared/`; webapp — re-export + `experimental.externalDir` в `next.config.ts`; typecheck и production build проходят. |
-| 5 | CI evidence | OK: `pnpm run ci` — зелёный (lint, typecheck, integrator + webapp tests, build, audit). |
+| #   | Критерий                                               | Результат                                                                                                                                                                          |
+| --- | ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Корректность для naive / Z / offset строк              | OK: наивные через Luxon + IANA; Z/offset через `Date.parse` + `toISOString()`. Покрыто тестами (Moscow/Samara, `+03:00`, `+0300`, `z`, отрицательный offset, DST, spring-forward). |
+| 2   | Плохой input не даёт неконтролируемого падения runtime | OK: пустое, мусор, невалидный календарь, невалидная IANA → `null`; `Intl` в `try/catch`. Экстремальные ISO дают `null` без throw.                                                  |
+| 3   | Нет хардкода `+03:00` в реализации normalizer          | OK: в `apps/integrator/src/shared/normalizeToUtcInstant.ts` нет. Литерал `+03:00` допустим в тестах как входной ISO-offset.                                                        |
+| 4   | Экспорт / доступность по плану                         | OK: канон в integrator `shared/`; webapp — re-export + `experimental.externalDir` в `next.config.ts`; typecheck и production build проходят.                                       |
+| 5   | CI evidence                                            | OK: `pnpm run ci` — зелёный (lint, typecheck, integrator + webapp tests, build, audit).                                                                                            |
 
 ---
 

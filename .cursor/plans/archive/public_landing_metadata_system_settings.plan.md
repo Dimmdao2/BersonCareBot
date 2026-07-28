@@ -1,31 +1,31 @@
 ---
 name: Публичный лендинг — заголовок и meta из настроек
-overview: "Черновик, не сейчас. Канон-карточка: docs/TODO_NOT_NOW/public_landing_metadata.md. Вынести title и meta description для `/` из хардкода в system_settings (global), редактирование врачом/админом, SSR через generateMetadata."
+overview: 'Черновик, не сейчас. Канон-карточка: docs/TODO_NOT_NOW/public_landing_metadata.md. Вынести title и meta description для `/` из хардкода в system_settings (global), редактирование врачом/админом, SSR через generateMetadata.'
 status: draft
 todos:
   - id: allow-key-and-shape
-    content: "ALLOWED_KEYS + тип/парсер значения (Zod): один ключ, например `public_landing_document_meta`, JSON `{ documentTitle, metaDescription }`; лимиты длины, trim, без HTML"
+    content: 'ALLOWED_KEYS + тип/парсер значения (Zod): один ключ, например `public_landing_document_meta`, JSON `{ documentTitle, metaDescription }`; лимиты длины, trim, без HTML'
     status: cancelled
   - id: doctor-patch-get
-    content: "Расширить `apps/webapp/src/app/api/doctor/settings/route.ts`: DOCTOR_SCOPE_KEYS + GET отдаёт новую строку; PATCH только для этого ключа с `updateSetting(..., \"global\", ...)` (явный allowlist глобальных ключей, редактируемых врачом — не общий bypass)"
+    content: 'Расширить `apps/webapp/src/app/api/doctor/settings/route.ts`: DOCTOR_SCOPE_KEYS + GET отдаёт новую строку; PATCH только для этого ключа с `updateSetting(..., "global", ...)` (явный allowlist глобальных ключей, редактируемых врачом — не общий bypass)'
     status: cancelled
   - id: admin-patch-get
-    content: "Добавить ключ в `ADMIN_SCOPE_KEYS` и нормализацию PATCH в `admin/settings/route.ts` (как у строковых/JSON настроек); GET списка админки — включить ключ в выборку, если список явный"
+    content: 'Добавить ключ в `ADMIN_SCOPE_KEYS` и нормализацию PATCH в `admin/settings/route.ts` (как у строковых/JSON настроек); GET списка админки — включить ключ в выборку, если список явный'
     status: cancelled
   - id: landing-metadata-ssr
-    content: "`apps/webapp/src/app/page.tsx`: `generateMetadata()` — чтение через `buildAppDeps().systemSettings.getSetting(key, \"global\")`, fallback на текущие дефолтные строки если строки нет/битая"
+    content: '`apps/webapp/src/app/page.tsx`: `generateMetadata()` — чтение через `buildAppDeps().systemSettings.getSetting(key, "global")`, fallback на текущие дефолтные строки если строки нет/битая'
     status: cancelled
   - id: settings-ui
-    content: "`SettingsForm.tsx` (+ props из `settings/page.tsx`): блок «Публичный лендинг /» — два поля (заголовок документа, meta description), краткие подсказки про iOS/PWA и manifest; сохранение через PATCH doctor settings; `displayLabel`/подписи по правилам select при необходимости"
+    content: '`SettingsForm.tsx` (+ props из `settings/page.tsx`): блок «Публичный лендинг /» — два поля (заголовок документа, meta description), краткие подсказки про iOS/PWA и manifest; сохранение через PATCH doctor settings; `displayLabel`/подписи по правилам select при необходимости'
     status: cancelled
   - id: optional-apple-manifest
-    content: "Опционально (отдельный подпункт DoD или фаза 2): согласовать `appleWebApp`/короткий заголовок в `layout.tsx` и поля `manifest.ts` с теми же строками — только после продуктового решения"
+    content: 'Опционально (отдельный подпункт DoD или фаза 2): согласовать `appleWebApp`/короткий заголовок в `layout.tsx` и поля `manifest.ts` с теми же строками — только после продуктового решения'
     status: cancelled
   - id: migration-seed
-    content: "Drizzle-миграция: опциональный seed `INSERT ... ON CONFLICT` для `global` + дефолтные значения = текущий хардкод (чтобы стенд сразу имел строки); либо только fallback в коде без seed — зафиксировать в плане при исполнении"
+    content: 'Drizzle-миграция: опциональный seed `INSERT ... ON CONFLICT` для `global` + дефолтные значения = текущий хардкод (чтобы стенд сразу имел строки); либо только fallback в коде без seed — зафиксировать в плане при исполнении'
     status: cancelled
   - id: tests-docs
-    content: "`doctor/settings/route.test.ts` — PATCH/GET для нового ключа; короткий тест или контракт на `generateMetadata` при моке deps при наличии паттерна; `docs/PWA_INITIATIVE/LOG.md` или PHASE_01 — одна запись о источнике title/description"
+    content: '`doctor/settings/route.test.ts` — PATCH/GET для нового ключа; короткий тест или контракт на `generateMetadata` при моке deps при наличии паттерна; `docs/PWA_INITIATIVE/LOG.md` или PHASE_01 — одна запись о источнике title/description'
     status: cancelled
 isProject: false
 ---

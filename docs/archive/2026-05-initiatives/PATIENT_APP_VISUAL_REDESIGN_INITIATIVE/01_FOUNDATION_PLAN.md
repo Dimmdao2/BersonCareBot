@@ -136,4 +136,3 @@ Do not run root `pnpm run ci`.
 - No doctor/admin intentional visual changes.
 - `LOG.md` updated.
 - Checks appropriate to changed files pass or failures are documented.
-

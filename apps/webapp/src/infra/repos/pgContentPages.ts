@@ -1,9 +1,9 @@
-import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
-import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
-import { getDrizzle } from "@/app-layer/db/drizzle";
-import { runDrizzleMutationTransaction } from "@/infra/db/drizzleMutationTx";
-import { contentPages, contentSections } from "../../../db/schema/schema";
-import { courses as coursesTable } from "../../../db/schema/courses";
+import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
+import { getDrizzle } from '@/app-layer/db/drizzle';
+import { runDrizzleMutationTransaction } from '@/infra/db/drizzleMutationTx';
+import { contentPages, contentSections } from '../../../db/schema/schema';
+import { courses as coursesTable } from '../../../db/schema/courses';
 
 export type ContentPageRow = {
   id: string;
@@ -41,14 +41,23 @@ export type ContentPageLifecyclePatch = {
   requiresAuth?: boolean;
 };
 
-export type ContentPageUpsertInput = Omit<ContentPageRow, "id" | "archivedAt" | "deletedAt" | "linkedCourseId"> & {
+export type ContentPageUpsertInput = Omit<
+  ContentPageRow,
+  'id' | 'archivedAt' | 'deletedAt' | 'linkedCourseId'
+> & {
   id?: string;
   linkedCourseId?: string | null;
 };
 
 export type ContentPagesPort = {
-  listBySection: (section: string, opts?: ListContentPagesBySectionOpts) => Promise<ContentPageRow[]>;
-  getBySlug: (slug: string, options?: { organizationId?: string }) => Promise<ContentPageRow | null>;
+  listBySection: (
+    section: string,
+    opts?: ListContentPagesBySectionOpts,
+  ) => Promise<ContentPageRow[]>;
+  getBySlug: (
+    slug: string,
+    options?: { organizationId?: string },
+  ) => Promise<ContentPageRow | null>;
   getById: (id: string, options?: { organizationId?: string }) => Promise<ContentPageRow | null>;
   listAll: () => Promise<ContentPageRow[]>;
   upsert: (page: ContentPageUpsertInput) => Promise<string>;
@@ -71,7 +80,7 @@ const patientVisible = and(
 function currentPrincipalOrganizationId(): string {
   const principalOrganizationId = getCurrentDbPrincipalOrganizationId();
   if (!principalOrganizationId) {
-    throw new Error("organization_principal_required");
+    throw new Error('organization_principal_required');
   }
   return principalOrganizationId;
 }
@@ -90,8 +99,11 @@ function currentWriteOrganizationId(...fallbacks: (string | null | undefined)[])
   const fallbackOrganizationIds = fallbacks.filter((x): x is string => Boolean(x));
   const fallbackOrganizationId = fallbackOrganizationIds[0] ?? null;
   const hasFallbackMismatch = fallbackOrganizationIds.some((id) => id !== fallbackOrganizationId);
-  if (hasFallbackMismatch || (fallbackOrganizationId && principalOrganizationId !== fallbackOrganizationId)) {
-    throw new Error("organization_principal_mismatch");
+  if (
+    hasFallbackMismatch ||
+    (fallbackOrganizationId && principalOrganizationId !== fallbackOrganizationId)
+  ) {
+    throw new Error('organization_principal_mismatch');
   }
   return principalOrganizationId;
 }
@@ -130,9 +142,9 @@ function mapDrizzleRow(row: typeof contentPages.$inferSelect): ContentPageRow {
     section: row.section,
     slug: row.slug,
     title: row.title,
-    summary: row.summary ?? "",
-    bodyMd: row.bodyMd ?? "",
-    bodyHtml: row.bodyHtml ?? "",
+    summary: row.summary ?? '',
+    bodyMd: row.bodyMd ?? '',
+    bodyHtml: row.bodyHtml ?? '',
     sortOrder: row.sortOrder,
     isPublished: row.isPublished,
     requiresAuth: row.requiresAuth,
@@ -189,7 +201,12 @@ export function createPgContentPagesPort(): ContentPagesPort {
       const rows = await db
         .select()
         .from(contentPages)
-        .where(and(eq(contentPages.id, id), ...(organizationId ? [eq(contentPages.organizationId, organizationId)] : [])))
+        .where(
+          and(
+            eq(contentPages.id, id),
+            ...(organizationId ? [eq(contentPages.organizationId, organizationId)] : []),
+          ),
+        )
         .limit(1);
       return rows[0] ? mapDrizzleRow(rows[0]) : null;
     },
@@ -202,7 +219,12 @@ export function createPgContentPagesPort(): ContentPagesPort {
       const rows = await db
         .select({ id: contentPages.id, title: contentPages.title, slug: contentPages.slug })
         .from(contentPages)
-        .where(and(inArray(contentPages.id, unique), ...(organizationId ? [eq(contentPages.organizationId, organizationId)] : [])));
+        .where(
+          and(
+            inArray(contentPages.id, unique),
+            ...(organizationId ? [eq(contentPages.organizationId, organizationId)] : []),
+          ),
+        );
       return rows.map((r) => ({ id: r.id, title: r.title, slug: r.slug }));
     },
 
@@ -220,7 +242,9 @@ export function createPgContentPagesPort(): ContentPagesPort {
     async upsert(page) {
       const organizationId = currentPrincipalOrganizationId();
       const linked =
-        page.linkedCourseId !== undefined && page.linkedCourseId !== null && page.linkedCourseId.trim()
+        page.linkedCourseId !== undefined &&
+        page.linkedCourseId !== null &&
+        page.linkedCourseId.trim()
           ? page.linkedCourseId.trim()
           : null;
       const values = {
@@ -273,14 +297,16 @@ export function createPgContentPagesPort(): ContentPagesPort {
           .returning({ id: contentPages.id });
       });
       const id = rows[0]?.id;
-      if (!id) throw new Error("content_pages upsert returned no id");
+      if (!id) throw new Error('content_pages upsert returned no id');
       return id;
     },
 
     async updateFull(id, page) {
       const organizationId = currentPrincipalOrganizationId();
       const linked =
-        page.linkedCourseId !== undefined && page.linkedCourseId !== null && page.linkedCourseId.trim()
+        page.linkedCourseId !== undefined &&
+        page.linkedCourseId !== null &&
+        page.linkedCourseId.trim()
           ? page.linkedCourseId.trim()
           : null;
       await runDrizzleMutationTransaction(async (tx) => {
@@ -351,11 +377,11 @@ export function createPgContentPagesPort(): ContentPagesPort {
         }
         const inDb = new Set(check.map((r) => r.id));
         if (inDb.size !== orderedIds.length) {
-          throw new Error("reorder: count mismatch");
+          throw new Error('reorder: count mismatch');
         }
         for (const rowId of orderedIds) {
           if (!inDb.has(rowId)) {
-            throw new Error("reorder: unknown id");
+            throw new Error('reorder: unknown id');
           }
         }
         for (let i = 0; i < orderedIds.length; i++) {
@@ -407,7 +433,7 @@ export const inMemoryContentPagesPort: ContentPagesPort = {
           !p.deletedAt &&
           (viewAuthOnlyPages || !p.requiresAuth),
       )
-      .sort((a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title, "ru"));
+      .sort((a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title, 'ru'));
   },
 
   async getBySlug(slug, options) {
@@ -419,14 +445,18 @@ export const inMemoryContentPagesPort: ContentPagesPort = {
         !p.deletedAt &&
         (options?.organizationId === undefined || p.organizationId === options.organizationId),
     );
-    candidates.sort((a, b) => a.section.localeCompare(b.section, "ru"));
+    candidates.sort((a, b) => a.section.localeCompare(b.section, 'ru'));
     return candidates[0] ?? null;
   },
 
   async getById(id, options) {
-    return inMemoryContentPagesStore.find(
-      (p) => p.id === id && (options?.organizationId === undefined || p.organizationId === options.organizationId),
-    ) ?? null;
+    return (
+      inMemoryContentPagesStore.find(
+        (p) =>
+          p.id === id &&
+          (options?.organizationId === undefined || p.organizationId === options.organizationId),
+      ) ?? null
+    );
   },
 
   async listMetaByIds(ids) {
@@ -439,13 +469,17 @@ export const inMemoryContentPagesPort: ContentPagesPort = {
   async listAll() {
     return [...inMemoryContentPagesStore].sort(
       (a, b) =>
-        a.section.localeCompare(b.section, "ru") || a.sortOrder - b.sortOrder || a.title.localeCompare(b.title, "ru"),
+        a.section.localeCompare(b.section, 'ru') ||
+        a.sortOrder - b.sortOrder ||
+        a.title.localeCompare(b.title, 'ru'),
     );
   },
 
   async upsert(page) {
     const linked = page.linkedCourseId?.trim() ? page.linkedCourseId.trim() : null;
-    const existingIdx = inMemoryContentPagesStore.findIndex((p) => p.section === page.section && p.slug === page.slug);
+    const existingIdx = inMemoryContentPagesStore.findIndex(
+      (p) => p.section === page.section && p.slug === page.slug,
+    );
     const archivedAt: string | null = null;
     const deletedAt: string | null = null;
     if (existingIdx >= 0) {
@@ -518,10 +552,10 @@ export const inMemoryContentPagesPort: ContentPagesPort = {
 
   async reorderInSection(section, orderedIds) {
     const inSection = inMemoryContentPagesStore.filter((p) => p.section === section);
-    if (inSection.length !== orderedIds.length) throw new Error("reorder: count mismatch");
+    if (inSection.length !== orderedIds.length) throw new Error('reorder: count mismatch');
     const set = new Set(inSection.map((p) => p.id));
     for (const rowId of orderedIds) {
-      if (!set.has(rowId)) throw new Error("reorder: unknown id");
+      if (!set.has(rowId)) throw new Error('reorder: unknown id');
     }
     for (let i = 0; i < orderedIds.length; i++) {
       const p = inMemoryContentPagesStore.find((x) => x.id === orderedIds[i]);

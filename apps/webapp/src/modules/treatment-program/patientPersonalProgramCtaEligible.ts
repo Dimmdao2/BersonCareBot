@@ -1,11 +1,15 @@
-import type { TreatmentProgramAssignmentSource, TreatmentProgramInstanceStatus } from "./types";
+import type { TreatmentProgramAssignmentSource, TreatmentProgramInstanceStatus } from './types';
 
 /** CTA «персональная программа»: показываем только при назначении не врачом (промо, курс/запись на курс). */
-export function patientPersonalProgramCtaEligible(source: TreatmentProgramAssignmentSource): boolean {
-  return source === "promo" || source === "course";
+export function patientPersonalProgramCtaEligible(
+  source: TreatmentProgramAssignmentSource,
+): boolean {
+  return source === 'promo' || source === 'course';
 }
 
-export function patientPersonalProgramCtaShouldRender(source: TreatmentProgramAssignmentSource): boolean {
+export function patientPersonalProgramCtaShouldRender(
+  source: TreatmentProgramAssignmentSource,
+): boolean {
   return patientPersonalProgramCtaEligible(source);
 }
 
@@ -14,10 +18,10 @@ export function patientPersonalProgramCtaShouldRenderOnPlanScreen(input: {
   status: TreatmentProgramInstanceStatus;
   assignmentSource: TreatmentProgramAssignmentSource;
 }): boolean {
-  if (input.status === "completed" && input.assignmentSource === "doctor") {
+  if (input.status === 'completed' && input.assignmentSource === 'doctor') {
     return true;
   }
-  if (input.status === "active") {
+  if (input.status === 'active') {
     return patientPersonalProgramCtaShouldRender(input.assignmentSource);
   }
   return false;

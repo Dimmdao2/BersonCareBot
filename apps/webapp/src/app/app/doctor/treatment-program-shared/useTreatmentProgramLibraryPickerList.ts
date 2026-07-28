@@ -1,19 +1,25 @@
-import { useMemo } from "react";
-import type { TreatmentProgramLibraryPickType } from "@/modules/treatment-program/types";
-import type { TreatmentProgramLibraryRow } from "./treatmentProgramLibraryTypes";
+import { useMemo } from 'react';
+import type { TreatmentProgramLibraryPickType } from '@/modules/treatment-program/types';
+import type { TreatmentProgramLibraryRow } from './treatmentProgramLibraryTypes';
 import {
   filterTreatmentProgramLibraryPickerRows,
   supportsTreatmentProgramLibraryRegionLoadFilters,
   treatmentProgramLibraryPickerEmptyMessage,
   treatmentProgramLibraryPickerFiltersActive,
-} from "./treatmentProgramLibraryPickerFilters";
+} from './treatmentProgramLibraryPickerFilters';
 
 export function useTreatmentProgramLibraryPickerList(input: {
   rows: TreatmentProgramLibraryRow[];
   searchQuery: string;
   regionCode: string | null;
   loadType: string | null;
-  pickType: TreatmentProgramLibraryPickType | "exercise" | "lfk_complex" | "clinical_test" | "recommendation" | "lesson";
+  pickType:
+    | TreatmentProgramLibraryPickType
+    | 'exercise'
+    | 'lfk_complex'
+    | 'clinical_test'
+    | 'recommendation'
+    | 'lesson';
 }) {
   const applyRegionLoadFilters = supportsTreatmentProgramLibraryRegionLoadFilters(input.pickType);
 

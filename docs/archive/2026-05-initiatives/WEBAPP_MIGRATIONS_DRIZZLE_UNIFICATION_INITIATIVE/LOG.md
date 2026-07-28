@@ -28,14 +28,14 @@
 
 ### Findings (severity)
 
-| Severity | Finding |
-|----------|---------|
-| **critical** | Канонический `pnpm --dir apps/webapp run migrate` вызывает **только** `drizzle-kit migrate` (`scripts/run-webapp-drizzle-migrate.mjs`). Legacy SQL из `apps/webapp/migrations/` **не** выполняется этим входом; нужен отдельный `pnpm run migrate:legacy`. Чистая БД не получает legacy-DDL из канонического пути. |
-| **critical** | `db/drizzle-migrations/0000_wandering_famine.sql` — **noop** (`SELECT 1`), с комментарием что базовые таблицы `public` создаются legacy-runner’ом. Drizzle-цепочка не содержит introspect-бaseline SQL в репозитории. |
-| **major** | Два файла с одинаковым числовым префиксом **`040_*.sql`** и два **`045_*.sql`** — порядок определяется лексикографической сортировкой `run-migrations.mjs` (сейчас: `040_auth_preferred_channel` → `040_patient_bookings`; `045_media_pending_delete_status` → `045_system_settings_integration_keys`). Риск при смене сортировки или переименовании. |
-| **major** | Post-deploy guardrail проверяет `test_sets.publication_status` и `recommendations.domain`. На момент инвентаризации: `publication_status` — Drizzle `0033_*`; для **`domain`** отдельного Drizzle-`ALTER` не было (только legacy `082_*`). **После Stage B:** канонический путь дополняет Drizzle **`0053_*`** (идемпотентно); смешанная **историческая** провенанция baseline для прочей схемы `public` сохраняется. |
-| **minor** | Авто-парсер для части файлов не извлекает объекты (только индексы / только `UPDATE` / опечатки вроде артефакта `in` у `072_*`) — строки таблицы ниже всё равно помечены; при необходимости ручной разбор в Stage B. |
-| **unknown** | Для строк с **`partial`**: насколько Drizzle-изменения покрывают **конкретные** колонки/constraints legacy — без построчного diff SQL не классифицировано (передаётся Codex). |
+| Severity     | Finding                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **critical** | Канонический `pnpm --dir apps/webapp run migrate` вызывает **только** `drizzle-kit migrate` (`scripts/run-webapp-drizzle-migrate.mjs`). Legacy SQL из `apps/webapp/migrations/` **не** выполняется этим входом; нужен отдельный `pnpm run migrate:legacy`. Чистая БД не получает legacy-DDL из канонического пути.                                                                                                    |
+| **critical** | `db/drizzle-migrations/0000_wandering_famine.sql` — **noop** (`SELECT 1`), с комментарием что базовые таблицы `public` создаются legacy-runner’ом. Drizzle-цепочка не содержит introspect-бaseline SQL в репозитории.                                                                                                                                                                                                 |
+| **major**    | Два файла с одинаковым числовым префиксом **`040_*.sql`** и два **`045_*.sql`** — порядок определяется лексикографической сортировкой `run-migrations.mjs` (сейчас: `040_auth_preferred_channel` → `040_patient_bookings`; `045_media_pending_delete_status` → `045_system_settings_integration_keys`). Риск при смене сортировки или переименовании.                                                                 |
+| **major**    | Post-deploy guardrail проверяет `test_sets.publication_status` и `recommendations.domain`. На момент инвентаризации: `publication_status` — Drizzle `0033_*`; для **`domain`** отдельного Drizzle-`ALTER` не было (только legacy `082_*`). **После Stage B:** канонический путь дополняет Drizzle **`0053_*`** (идемпотентно); смешанная **историческая** провенанция baseline для прочей схемы `public` сохраняется. |
+| **minor**    | Авто-парсер для части файлов не извлекает объекты (только индексы / только `UPDATE` / опечатки вроде артефакта `in` у `072_*`) — строки таблицы ниже всё равно помечены; при необходимости ручной разбор в Stage B.                                                                                                                                                                                                   |
+| **unknown**  | Для строк с **`partial`**: насколько Drizzle-изменения покрывают **конкретные** колонки/constraints legacy — без построчного diff SQL не классифицировано (передаётся Codex).                                                                                                                                                                                                                                         |
 
 ### Ledger risk (fix deferred — Stage B)
 
@@ -49,17 +49,17 @@
 
 **Журналы миграций** (не DDL приложения, но обязательны для соответствующих раннеров): `public.webapp_schema_migrations` — legacy `run-migrations.mjs`; `drizzle.__drizzle_migrations` — Drizzle-kit migrate. Dual-ledger риск см. блок «Ledger risk» выше.
 
-| Область | Объекты / комментарий |
-|---------|------------------------|
-| Deploy guardrail | `public.test_sets.publication_status`; `public.recommendations.domain` (`deploy/host/deploy-prod.sh`). |
-| Media / pipeline | `media_files` (колонки из legacy `028`, `044`, HLS из Drizzle `0018+`, превью `075`, размеры `079`, очереди статусов `060`, и т.д.); `media_transcode_jobs` (Drizzle `0019`+); настройки `system_settings` ключей pipeline/watermark (`media-worker` + webapp). |
-| Media-worker (код) | `system_settings` (`video_watermark_enabled`, `video_hls_pipeline_enabled`); `media_files`; `media_transcode_jobs` — см. `apps/media-worker/src/*.ts`. |
-| Integrator sync | `integrator_push_outbox` (legacy `071_*`). |
-| Напоминания / правила | `reminder_rules`, `reminder_journal`, `reminder_occurrence_history`, occurrence actions — legacy `050`–`051`, `084`–`085`, др. |
-| Запись / каталог | `patient_bookings`, `booking_*`, `branches` — серия legacy `040`–`057`. |
-| Платформа / идентичность | `platform_users`, идемпотентность, каналы, OTP, OAuth — ранняя legacy-цепочка + частично Drizzle (`0032_platform_users_calendar_timezone`, …). |
-| Treatment program / CMS | Таблицы стадий программы, тесты, курсы, комментарии — преимущественно **Drizzle `0001`–`0052`** (зависят от уже существующих `platform_users`, `lfk_*`, `content_*` из legacy). |
-| Ops/backfill (преимущественно **DML**, не DDL холодного старта) | Data-only / backfill (`058_branch_timezone_seed`, `063_platform_user_owned_refs_backfill`, requeue `076`–`081`) — критичны для корректности данных и фоновых jobs, не всегда воспроизводимы Drizzle-only путём. |
+| Область                                                         | Объекты / комментарий                                                                                                                                                                                                                                           |
+| --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Deploy guardrail                                                | `public.test_sets.publication_status`; `public.recommendations.domain` (`deploy/host/deploy-prod.sh`).                                                                                                                                                          |
+| Media / pipeline                                                | `media_files` (колонки из legacy `028`, `044`, HLS из Drizzle `0018+`, превью `075`, размеры `079`, очереди статусов `060`, и т.д.); `media_transcode_jobs` (Drizzle `0019`+); настройки `system_settings` ключей pipeline/watermark (`media-worker` + webapp). |
+| Media-worker (код)                                              | `system_settings` (`video_watermark_enabled`, `video_hls_pipeline_enabled`); `media_files`; `media_transcode_jobs` — см. `apps/media-worker/src/*.ts`.                                                                                                          |
+| Integrator sync                                                 | `integrator_push_outbox` (legacy `071_*`).                                                                                                                                                                                                                      |
+| Напоминания / правила                                           | `reminder_rules`, `reminder_journal`, `reminder_occurrence_history`, occurrence actions — legacy `050`–`051`, `084`–`085`, др.                                                                                                                                  |
+| Запись / каталог                                                | `patient_bookings`, `booking_*`, `branches` — серия legacy `040`–`057`.                                                                                                                                                                                         |
+| Платформа / идентичность                                        | `platform_users`, идемпотентность, каналы, OTP, OAuth — ранняя legacy-цепочка + частично Drizzle (`0032_platform_users_calendar_timezone`, …).                                                                                                                  |
+| Treatment program / CMS                                         | Таблицы стадий программы, тесты, курсы, комментарии — преимущественно **Drizzle `0001`–`0052`** (зависят от уже существующих `platform_users`, `lfk_*`, `content_*` из legacy).                                                                                 |
+| Ops/backfill (преимущественно **DML**, не DDL холодного старта) | Data-only / backfill (`058_branch_timezone_seed`, `063_platform_user_owned_refs_backfill`, requeue `076`–`081`) — критичны для корректности данных и фоновых jobs, не всегда воспроизводимы Drizzle-only путём.                                                 |
 
 ### Risk list для Codex (Stage B) — все `missing` / `partial` / unknown
 
@@ -85,95 +85,95 @@
 
 ### Таблица соответствия legacy → Drizzle (coverage)
 
-| legacy file | Primary objects (abbrev.) | Drizzle SQL overlap (table-name heuristic) | Coverage |
-|-------------|---------------------------|--------------------------------------------|----------|
-| `001_diaries.sql` | lfk_sessions, symptom_entries | `0051_warmup_feeling_symptom`: symptom_entries | partial |
-| `002_idempotency.sql` | idempotency_keys | — | missing |
-| `003_channel_preferences.sql` | user_channel_preferences | — | missing |
-| `004_symptom_trackings_and_entries.sql` | symptom_entries, symptom_trackings | `0051_warmup_feeling_symptom`: symptom_entries | partial |
-| `005_lfk_complexes_and_sessions.sql` | lfk_complexes, lfk_sessions | — | missing |
-| `006_platform_users.sql` | platform_users, user_channel_bindings | `0032_platform_users_calendar_timezone`: platform_users | partial |
-| `007_phone_challenges_message_log_broadcast_audit.sql` | broadcast_audit, message_log, phone_challenges | `0016_drop_news_broadcast_channels`: broadcast_audit | partial |
-| `008_patient_master_extension.sql` | platform_users, user_notification_topics | `0032_platform_users_calendar_timezone`: platform_users | partial |
-| `009_support_communication_history.sql` | support_* tables | — | missing |
-| `010_reminders_content_access.sql` | reminder_*, content_access_grants_webapp | — | missing |
-| `011_appointment_records.sql` | appointment_records | — | missing |
-| `012_subscription_mailing.sql` | mailing_*, user_subscriptions_webapp | — | missing |
-| `013_delivery_events_idempotency.sql` | (indexes / constraints — см. файл) | — | missing |
-| `014_rubitime_patient_branch.sql` | branches, platform_users, appointment_records | `0032_platform_users_calendar_timezone`: platform_users | partial |
-| `015_content_pages.sql` | content_pages | `0009_content_pages_linked_course`: content_pages | partial |
-| `016_phone_challenges_otp.sql` | phone_challenges, phone_otp_locks | — | missing |
-| `017_email_verification.sql` | email_challenges, email_send_cooldowns, platform_users | `0032_platform_users_calendar_timezone`: platform_users | partial |
-| `018_channel_link_secrets.sql` | channel_link_secrets | — | missing |
-| `019_sms_email_channel_preferences.sql` | user_channel_preferences | — | missing |
-| `020_auth_methods.sql` | login_tokens, user_oauth_bindings, user_pins | — | missing |
-| `021_login_tokens_session_issued.sql` | login_tokens | — | missing |
-| `022_reference_tables_and_seed.sql` | reference_categories, reference_items | — | missing |
-| `023_symptom_tracking_extension.sql` | symptom_trackings | — | missing |
-| `024_lfk_extension.sql` | lfk_complexes, lfk_sessions (+updates) | — | missing |
-| `025_support_messaging_extension.sql` | support_conversation_messages | — | missing |
-| `026_doctor_notes_user_flags.sql` | doctor_notes, platform_users, appointment_records | `0032_platform_users_calendar_timezone`: platform_users | partial |
-| `027_content_pages_markdown.sql` | content_pages | `0009_content_pages_linked_course`: content_pages | partial |
-| `028_media_files.sql` | media_files | `0018_media_files_hls_foundation`: media_files | partial |
-| `029_content_sections_and_status.sql` | content_pages | `0009_content_pages_linked_course`: content_pages | partial |
-| `030_news_and_motivation.sql` | motivational_quotes, news_items | `0016_drop_news_broadcast_channels`: news_items | partial |
-| `031_system_settings.sql` | system_settings | — | missing |
-| `032_reminder_seen_status.sql` | reminder_occurrence_history | — | missing |
-| `033_lfk_exercises.sql` | lfk_exercises, lfk_exercise_media | — | missing |
-| `034_lfk_templates.sql` | lfk_complex_templates, … | `0042_lfk_exercise_side_damaged_healthy`: lfk_complex_template_exercises | partial |
-| `035_lfk_complex_exercises.sql` | lfk_complex_exercises | `0037_*`, `0042_*`: lfk_complex_exercises | partial |
-| `036_auth_rate_limit_events_and_news_views.sql` | auth_rate_limit_events, news_item_views | `0016_drop_news_broadcast_channels`: news_item_views | partial |
-| `037_system_settings_config_keys.sql` | (INSERT/UPDATE settings keys) | — | missing |
-| `038_whitelist_to_system_settings.sql` | (data move) | — | missing |
-| `039_content_sections.sql` | content_sections | `0008_*`, `0017_*`: content_sections | partial |
-| `040_auth_preferred_channel.sql` | user_channel_preferences | — | missing |
-| `040_patient_bookings.sql` | patient_bookings | — | missing |
-| `041_patient_bookings_no_overlap.sql` | patient_bookings | — | missing |
-| `042_patient_bookings_cancelling_status.sql` | patient_bookings | — | missing |
-| `043_booking_display_timezone.sql` | (CHECK/constraint) | — | missing |
-| `044_media_files_s3.sql` | media_files | `0018_media_files_hls_foundation`: media_files | partial |
-| `045_media_pending_delete_status.sql` | (constraints / enum-like) | — | missing |
-| `045_system_settings_integration_keys.sql` | (keys / seed) | — | missing |
-| `046_booking_catalog_v2.sql` | booking_* | — | missing |
-| `047_patient_bookings_v2_refs.sql` | patient_bookings | — | missing |
-| `048_online_intake.sql` | online_intake_* | — | missing |
-| `049_patient_bookings_compat_source.sql` | patient_bookings | — | missing |
-| `050_reminder_rules_object_links_and_journal.sql` | reminder_rules, reminder_journal | — | missing |
-| `051_reminder_occurrence_actions.sql` | reminder_occurrence_history | — | missing |
-| `052_patient_bookings_platform_user_null_compat.sql` | patient_bookings | — | missing |
-| `053_patient_bookings_compat_provenance.sql` | patient_bookings | — | missing |
-| `054_patient_bookings_rubitime_manage_url.sql` | patient_bookings | — | missing |
-| `055_patient_bookings_overlap_per_specialist.sql` | patient_bookings | — | missing |
-| `056_branches_timezone.sql` | branches | — | missing |
-| `057_booking_branches_timezone.sql` | booking_branches | — | missing |
-| `058_branch_timezone_seed.sql` | UPDATE booking_branches, branches | — | missing |
-| `059_lfk_sessions_user_id_to_uuid.sql` | lfk_sessions | — | missing |
-| `060_media_files_status_retry.sql` | media_files | `0018_*`: media_files | partial |
-| `061_platform_users_merge.sql` | platform_users | `0032_*`: platform_users | partial |
-| `062_platform_user_owned_refs_prepare.sql` | symptom_*, ucp, message_log, … | `0016_*`, `0051_*`: … | partial |
-| `063_platform_user_owned_refs_backfill.sql` | UPDATE нескольких таблиц | те же таблицы, что и в `062`/`064`, частично пересекаются с Drizzle по именам | partial |
-| `064_platform_user_owned_refs_enforce.sql` | lfk_*, symptom_*, … | `0016_*`, `0051_*`: … | partial |
-| `065_media_display_name.sql` | media_files | `0018_*`: media_files | partial |
-| `066_admin_audit_log.sql` | admin_audit_log | — | missing |
-| `067_media_folders_and_multipart.sql` | media_folders, media_upload_sessions, media_files | `0018_*`: media_files | partial |
-| `068_platform_users_patient_phone_trust.sql` | platform_users | `0032_*`: platform_users | partial |
-| `069_oauth_google_login_apple_settings.sql` | (settings keys) | — | missing |
-| `070_vk_web_login_url.sql` | (settings keys) | — | missing |
-| `071_integrator_push_outbox.sql` | integrator_push_outbox | — | missing |
-| `072_idempotency_keys_webapp_columns.sql` | idempotency_keys | — | missing |
-| `073_content_requires_auth.sql` | content_pages, content_sections | `0008_*`, `0009_*`, `0017_*` | partial |
-| `074_max_debug_page_enabled.sql` | (settings) | — | missing |
-| `075_media_preview_status.sql` | media_files | `0018_*`: media_files | partial |
-| `076_requeue_skipped_mov_heic.sql` | UPDATE media_files | `0018_*`: media_files | partial |
-| `077_requeue_previews_skipped_by_200mb_cap.sql` | UPDATE media_files | `0018_*`: media_files | partial |
-| `078_reference_items_deleted_at.sql` | reference_items | — | missing |
-| `079_media_files_source_dimensions.sql` | media_files | `0018_*`: media_files | partial |
-| `080_requeue_source_dimensions.sql` | UPDATE media_files | `0018_*`: media_files | partial |
-| `081_requeue_video_for_md_preview.sql` | UPDATE media_files | `0018_*`: media_files | partial |
-| `082_recommendations_domain.sql` | recommendations | `0001_*`, `0036_*`: recommendations | partial |
-| `083_notifications_topics.sql` | (topics / settings) | — | missing |
-| `084_reminder_rehab_slots_mute.sql` | reminder_rules, platform_users | `0032_*`: platform_users | partial |
-| `085_reminder_rules_quiet_hours.sql` | reminder_rules | — | missing |
+| legacy file                                            | Primary objects (abbrev.)                              | Drizzle SQL overlap (table-name heuristic)                                    | Coverage |
+| ------------------------------------------------------ | ------------------------------------------------------ | ----------------------------------------------------------------------------- | -------- |
+| `001_diaries.sql`                                      | lfk_sessions, symptom_entries                          | `0051_warmup_feeling_symptom`: symptom_entries                                | partial  |
+| `002_idempotency.sql`                                  | idempotency_keys                                       | —                                                                             | missing  |
+| `003_channel_preferences.sql`                          | user_channel_preferences                               | —                                                                             | missing  |
+| `004_symptom_trackings_and_entries.sql`                | symptom_entries, symptom_trackings                     | `0051_warmup_feeling_symptom`: symptom_entries                                | partial  |
+| `005_lfk_complexes_and_sessions.sql`                   | lfk_complexes, lfk_sessions                            | —                                                                             | missing  |
+| `006_platform_users.sql`                               | platform_users, user_channel_bindings                  | `0032_platform_users_calendar_timezone`: platform_users                       | partial  |
+| `007_phone_challenges_message_log_broadcast_audit.sql` | broadcast_audit, message_log, phone_challenges         | `0016_drop_news_broadcast_channels`: broadcast_audit                          | partial  |
+| `008_patient_master_extension.sql`                     | platform_users, user_notification_topics               | `0032_platform_users_calendar_timezone`: platform_users                       | partial  |
+| `009_support_communication_history.sql`                | support\_\* tables                                     | —                                                                             | missing  |
+| `010_reminders_content_access.sql`                     | reminder\_\*, content_access_grants_webapp             | —                                                                             | missing  |
+| `011_appointment_records.sql`                          | appointment_records                                    | —                                                                             | missing  |
+| `012_subscription_mailing.sql`                         | mailing\_\*, user_subscriptions_webapp                 | —                                                                             | missing  |
+| `013_delivery_events_idempotency.sql`                  | (indexes / constraints — см. файл)                     | —                                                                             | missing  |
+| `014_rubitime_patient_branch.sql`                      | branches, platform_users, appointment_records          | `0032_platform_users_calendar_timezone`: platform_users                       | partial  |
+| `015_content_pages.sql`                                | content_pages                                          | `0009_content_pages_linked_course`: content_pages                             | partial  |
+| `016_phone_challenges_otp.sql`                         | phone_challenges, phone_otp_locks                      | —                                                                             | missing  |
+| `017_email_verification.sql`                           | email_challenges, email_send_cooldowns, platform_users | `0032_platform_users_calendar_timezone`: platform_users                       | partial  |
+| `018_channel_link_secrets.sql`                         | channel_link_secrets                                   | —                                                                             | missing  |
+| `019_sms_email_channel_preferences.sql`                | user_channel_preferences                               | —                                                                             | missing  |
+| `020_auth_methods.sql`                                 | login_tokens, user_oauth_bindings, user_pins           | —                                                                             | missing  |
+| `021_login_tokens_session_issued.sql`                  | login_tokens                                           | —                                                                             | missing  |
+| `022_reference_tables_and_seed.sql`                    | reference_categories, reference_items                  | —                                                                             | missing  |
+| `023_symptom_tracking_extension.sql`                   | symptom_trackings                                      | —                                                                             | missing  |
+| `024_lfk_extension.sql`                                | lfk_complexes, lfk_sessions (+updates)                 | —                                                                             | missing  |
+| `025_support_messaging_extension.sql`                  | support_conversation_messages                          | —                                                                             | missing  |
+| `026_doctor_notes_user_flags.sql`                      | doctor_notes, platform_users, appointment_records      | `0032_platform_users_calendar_timezone`: platform_users                       | partial  |
+| `027_content_pages_markdown.sql`                       | content_pages                                          | `0009_content_pages_linked_course`: content_pages                             | partial  |
+| `028_media_files.sql`                                  | media_files                                            | `0018_media_files_hls_foundation`: media_files                                | partial  |
+| `029_content_sections_and_status.sql`                  | content_pages                                          | `0009_content_pages_linked_course`: content_pages                             | partial  |
+| `030_news_and_motivation.sql`                          | motivational_quotes, news_items                        | `0016_drop_news_broadcast_channels`: news_items                               | partial  |
+| `031_system_settings.sql`                              | system_settings                                        | —                                                                             | missing  |
+| `032_reminder_seen_status.sql`                         | reminder_occurrence_history                            | —                                                                             | missing  |
+| `033_lfk_exercises.sql`                                | lfk_exercises, lfk_exercise_media                      | —                                                                             | missing  |
+| `034_lfk_templates.sql`                                | lfk_complex_templates, …                               | `0042_lfk_exercise_side_damaged_healthy`: lfk_complex_template_exercises      | partial  |
+| `035_lfk_complex_exercises.sql`                        | lfk_complex_exercises                                  | `0037_*`, `0042_*`: lfk_complex_exercises                                     | partial  |
+| `036_auth_rate_limit_events_and_news_views.sql`        | auth_rate_limit_events, news_item_views                | `0016_drop_news_broadcast_channels`: news_item_views                          | partial  |
+| `037_system_settings_config_keys.sql`                  | (INSERT/UPDATE settings keys)                          | —                                                                             | missing  |
+| `038_whitelist_to_system_settings.sql`                 | (data move)                                            | —                                                                             | missing  |
+| `039_content_sections.sql`                             | content_sections                                       | `0008_*`, `0017_*`: content_sections                                          | partial  |
+| `040_auth_preferred_channel.sql`                       | user_channel_preferences                               | —                                                                             | missing  |
+| `040_patient_bookings.sql`                             | patient_bookings                                       | —                                                                             | missing  |
+| `041_patient_bookings_no_overlap.sql`                  | patient_bookings                                       | —                                                                             | missing  |
+| `042_patient_bookings_cancelling_status.sql`           | patient_bookings                                       | —                                                                             | missing  |
+| `043_booking_display_timezone.sql`                     | (CHECK/constraint)                                     | —                                                                             | missing  |
+| `044_media_files_s3.sql`                               | media_files                                            | `0018_media_files_hls_foundation`: media_files                                | partial  |
+| `045_media_pending_delete_status.sql`                  | (constraints / enum-like)                              | —                                                                             | missing  |
+| `045_system_settings_integration_keys.sql`             | (keys / seed)                                          | —                                                                             | missing  |
+| `046_booking_catalog_v2.sql`                           | booking\_\*                                            | —                                                                             | missing  |
+| `047_patient_bookings_v2_refs.sql`                     | patient_bookings                                       | —                                                                             | missing  |
+| `048_online_intake.sql`                                | online*intake*\*                                       | —                                                                             | missing  |
+| `049_patient_bookings_compat_source.sql`               | patient_bookings                                       | —                                                                             | missing  |
+| `050_reminder_rules_object_links_and_journal.sql`      | reminder_rules, reminder_journal                       | —                                                                             | missing  |
+| `051_reminder_occurrence_actions.sql`                  | reminder_occurrence_history                            | —                                                                             | missing  |
+| `052_patient_bookings_platform_user_null_compat.sql`   | patient_bookings                                       | —                                                                             | missing  |
+| `053_patient_bookings_compat_provenance.sql`           | patient_bookings                                       | —                                                                             | missing  |
+| `054_patient_bookings_rubitime_manage_url.sql`         | patient_bookings                                       | —                                                                             | missing  |
+| `055_patient_bookings_overlap_per_specialist.sql`      | patient_bookings                                       | —                                                                             | missing  |
+| `056_branches_timezone.sql`                            | branches                                               | —                                                                             | missing  |
+| `057_booking_branches_timezone.sql`                    | booking_branches                                       | —                                                                             | missing  |
+| `058_branch_timezone_seed.sql`                         | UPDATE booking_branches, branches                      | —                                                                             | missing  |
+| `059_lfk_sessions_user_id_to_uuid.sql`                 | lfk_sessions                                           | —                                                                             | missing  |
+| `060_media_files_status_retry.sql`                     | media_files                                            | `0018_*`: media_files                                                         | partial  |
+| `061_platform_users_merge.sql`                         | platform_users                                         | `0032_*`: platform_users                                                      | partial  |
+| `062_platform_user_owned_refs_prepare.sql`             | symptom\_\*, ucp, message_log, …                       | `0016_*`, `0051_*`: …                                                         | partial  |
+| `063_platform_user_owned_refs_backfill.sql`            | UPDATE нескольких таблиц                               | те же таблицы, что и в `062`/`064`, частично пересекаются с Drizzle по именам | partial  |
+| `064_platform_user_owned_refs_enforce.sql`             | lfk*\*, symptom*\*, …                                  | `0016_*`, `0051_*`: …                                                         | partial  |
+| `065_media_display_name.sql`                           | media_files                                            | `0018_*`: media_files                                                         | partial  |
+| `066_admin_audit_log.sql`                              | admin_audit_log                                        | —                                                                             | missing  |
+| `067_media_folders_and_multipart.sql`                  | media_folders, media_upload_sessions, media_files      | `0018_*`: media_files                                                         | partial  |
+| `068_platform_users_patient_phone_trust.sql`           | platform_users                                         | `0032_*`: platform_users                                                      | partial  |
+| `069_oauth_google_login_apple_settings.sql`            | (settings keys)                                        | —                                                                             | missing  |
+| `070_vk_web_login_url.sql`                             | (settings keys)                                        | —                                                                             | missing  |
+| `071_integrator_push_outbox.sql`                       | integrator_push_outbox                                 | —                                                                             | missing  |
+| `072_idempotency_keys_webapp_columns.sql`              | idempotency_keys                                       | —                                                                             | missing  |
+| `073_content_requires_auth.sql`                        | content_pages, content_sections                        | `0008_*`, `0009_*`, `0017_*`                                                  | partial  |
+| `074_max_debug_page_enabled.sql`                       | (settings)                                             | —                                                                             | missing  |
+| `075_media_preview_status.sql`                         | media_files                                            | `0018_*`: media_files                                                         | partial  |
+| `076_requeue_skipped_mov_heic.sql`                     | UPDATE media_files                                     | `0018_*`: media_files                                                         | partial  |
+| `077_requeue_previews_skipped_by_200mb_cap.sql`        | UPDATE media_files                                     | `0018_*`: media_files                                                         | partial  |
+| `078_reference_items_deleted_at.sql`                   | reference_items                                        | —                                                                             | missing  |
+| `079_media_files_source_dimensions.sql`                | media_files                                            | `0018_*`: media_files                                                         | partial  |
+| `080_requeue_source_dimensions.sql`                    | UPDATE media_files                                     | `0018_*`: media_files                                                         | partial  |
+| `081_requeue_video_for_md_preview.sql`                 | UPDATE media_files                                     | `0018_*`: media_files                                                         | partial  |
+| `082_recommendations_domain.sql`                       | recommendations                                        | `0001_*`, `0036_*`: recommendations                                           | partial  |
+| `083_notifications_topics.sql`                         | (topics / settings)                                    | —                                                                             | missing  |
+| `084_reminder_rehab_slots_mute.sql`                    | reminder_rules, platform_users                         | `0032_*`: platform_users                                                      | partial  |
+| `085_reminder_rules_quiet_hours.sql`                   | reminder_rules                                         | —                                                                             | missing  |
 
 ### Definition of Done — Stage A
 
@@ -193,31 +193,31 @@
 
 ### 1) Полнота инвентаризации legacy / Drizzle
 
-| Severity | Finding |
-|----------|---------|
-| **minor** | **Подтверждено:** на диске ровно **87** файлов `apps/webapp/migrations/*.sql`; множество имён из списка в Stage A совпадает с множеством на диске **без расхождений** (скриптовая сверка множеств). |
-| **minor** | **Подтверждено:** в `apps/webapp/db/drizzle-migrations/` ровно **53** файла `*.sql`; теги в `meta/_journal.json` (53 записи) в точности соответствуют именам файлов `NNNN_tag.sql` на диске (расхождений нет). |
-| **minor** | Файлы `meta/*.json` (snapshots журнала) **не входили** в инвентаризацию SQL — это ожидаемо для scope «*.sql»; при расширении аудита учитывать отдельно. |
-| **unknown** | GitHub Actions / CI не проверялись в этом аудите на предмет автоматического прогона полной цепочки миграций против чистой БД — влияние на выводы Stage A по greenfield **не оценено**. |
+| Severity    | Finding                                                                                                                                                                                                        |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **minor**   | **Подтверждено:** на диске ровно **87** файлов `apps/webapp/migrations/*.sql`; множество имён из списка в Stage A совпадает с множеством на диске **без расхождений** (скриптовая сверка множеств).            |
+| **minor**   | **Подтверждено:** в `apps/webapp/db/drizzle-migrations/` ровно **53** файла `*.sql`; теги в `meta/_journal.json` (53 записи) в точности соответствуют именам файлов `NNNN_tag.sql` на диске (расхождений нет). |
+| **minor**   | Файлы `meta/*.json` (snapshots журнала) **не входили** в инвентаризацию SQL — это ожидаемо для scope «\*.sql»; при расширении аудита учитывать отдельно.                                                       |
+| **unknown** | GitHub Actions / CI не проверялись в этом аудите на предмет автоматического прогона полной цепочки миграций против чистой БД — влияние на выводы Stage A по greenfield **не оценено**.                         |
 
 ### 2) Корректность списка runtime-critical объектов
 
-| Severity | Finding |
-|----------|---------|
-| **major** | *(На момент аудита Stage A; **устранено** в Stage B/C.)* Раньше **`deploy-webapp-prod.sh`** не выполнял post-migrate guardrail после migrate (в отличие от `deploy-prod.sh`). **Фактическое состояние репозитория:** parity guardrail в webapp-only deploy (Stage B), затем общий **`webapp-post-migrate-schema-check.sh`** в обоих скриптах (Stage C). Исходная формулировка сохранена как история аудита. |
-| **minor** | В агрегате Stage A строка **«Ops/backfill (преимущественно DML)»** (`058_*`, `063_*`, `076`–`081_*`) по смыслу — преимущественно **DML / разовые данные**, не DDL холодного старта; как напоминание об ops-критичности корректно; заголовок секции Stage A после remediation явно отличает DDL приложения и DML/backfill. |
-| **minor** | Таблицы журналов миграций **`public.webapp_schema_migrations`** и **`drizzle.__drizzle_migrations`** в раннем агрегате Stage A **не были названы явно в таблице** — исправлено в блоке «Runtime-critical объекты…» (журналы + ops/backfill); dual-ledger вывод не меняется. |
+| Severity  | Finding                                                                                                                                                                                                                                                                                                                                                                                                     |
+| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **major** | _(На момент аудита Stage A; **устранено** в Stage B/C.)_ Раньше **`deploy-webapp-prod.sh`** не выполнял post-migrate guardrail после migrate (в отличие от `deploy-prod.sh`). **Фактическое состояние репозитория:** parity guardrail в webapp-only deploy (Stage B), затем общий **`webapp-post-migrate-schema-check.sh`** в обоих скриптах (Stage C). Исходная формулировка сохранена как история аудита. |
+| **minor** | В агрегате Stage A строка **«Ops/backfill (преимущественно DML)»** (`058_*`, `063_*`, `076`–`081_*`) по смыслу — преимущественно **DML / разовые данные**, не DDL холодного старта; как напоминание об ops-критичности корректно; заголовок секции Stage A после remediation явно отличает DDL приложения и DML/backfill.                                                                                   |
+| **minor** | Таблицы журналов миграций **`public.webapp_schema_migrations`** и **`drizzle.__drizzle_migrations`** в раннем агрегате Stage A **не были названы явно в таблице** — исправлено в блоке «Runtime-critical объекты…» (журналы + ops/backfill); dual-ledger вывод не меняется.                                                                                                                                 |
 
 ### 3) Actionable риски для Stage B
 
-| Severity | Finding |
-|----------|---------|
+| Severity     | Finding                                                                                                                                                                                                                                                      |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **critical** | Подтверждено как **actionable:** канонический `pnpm migrate` (`scripts/migrate-all.sh`) вызывает только integrator migrate + **Drizzle webapp**; **legacy SQL не входит** — без отдельной политики/bootstrap greenfield и расхождение с продом не снимаются. |
-| **critical** | Подтверждено: `0000_wandering_famine.sql` остаётся noop — baseline `public` в Drizzle-SQL в репо **не восстановлен**; консолидация в Stage B обязательна, если цель — один источник DDL. |
-| **major** | Подтверждено: смешанная провенанция guardrail-колонок (`0033` Drizzle vs `082` legacy для `recommendations.domain`) — **явный work item** для выравнивания миграционной цепочки и/или guardrail. |
-| **major** | Подтверждено: **dual ledger** (`webapp_schema_migrations` vs `drizzle.__drizzle_migrations`) — actionable стратегия repair/ordering на Stage B (уже зафиксировано в Stage A; аудит не снимает приоритет). |
-| **minor** | Подтверждено: дубликаты числовых префиксов **`040_*` / `045_*`** и лексикографический порядок — actionable как минимум документация для операторов; опционально переименование при согласовании. |
-| **minor** | Таблица coverage Stage A остаётся **actionable для Codex**: все строки `missing` и семантически непроверенные `partial` требуют построчного diff (аудит не заменяет Stage B). |
+| **critical** | Подтверждено: `0000_wandering_famine.sql` остаётся noop — baseline `public` в Drizzle-SQL в репо **не восстановлен**; консолидация в Stage B обязательна, если цель — один источник DDL.                                                                     |
+| **major**    | Подтверждено: смешанная провенанция guardrail-колонок (`0033` Drizzle vs `082` legacy для `recommendations.domain`) — **явный work item** для выравнивания миграционной цепочки и/или guardrail.                                                             |
+| **major**    | Подтверждено: **dual ledger** (`webapp_schema_migrations` vs `drizzle.__drizzle_migrations`) — actionable стратегия repair/ordering на Stage B (уже зафиксировано в Stage A; аудит не снимает приоритет).                                                    |
+| **minor**    | Подтверждено: дубликаты числовых префиксов **`040_*` / `045_*`** и лексикографический порядок — actionable как минимум документация для операторов; опционально переименование при согласовании.                                                             |
+| **minor**    | Таблица coverage Stage A остаётся **actionable для Codex**: все строки `missing` и семантически непроверенные `partial` требуют построчного diff (аудит не заменяет Stage B).                                                                                |
 
 ### Итог аудита
 
@@ -254,7 +254,7 @@
 - `pnpm --dir apps/webapp run lint`
 - `pnpm --dir apps/webapp run typecheck`
 
-*(Полный прогон `drizzle-kit migrate` против реальной БД в этой сессии не выполнялся — нужен `DATABASE_URL`; на проде выполняется из deploy после выкладки артефактов.)*
+_(Полный прогон `drizzle-kit migrate` против реальной БД в этой сессии не выполнялся — нужен `DATABASE_URL`; на проде выполняется из deploy после выкладки артефактов.)_
 
 ### Residual / Stage C+
 
@@ -276,27 +276,27 @@
 
 ### 1) Покрытие runtime-critical изменений Drizzle
 
-| Severity | Finding |
-|----------|---------|
+| Severity     | Finding                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **critical** | Требование формулировки этапа «**все** runtime-critical изменения webapp покрыты Drizzle» (см. `STAGE_B.md` / README целей инициативы) **не выполнено в полном объёме**. Stage B добавил в Drizzle только **`recommendations.domain` + `idx_recommendations_domain`** (`0053`). Объекты из агрегата Stage A (**integrator_push_outbox**, **booking/patient_bookings**, **reminders**, часть **media** DDL только из legacy, **platform/auth** baseline и т.д.) по-прежнему зависят от **`migrate:legacy`** / исторического состояния БД; noop `0000` не заменён baseline SQL. Это **явно** отражено в LOG («Residual»), но не эквивалентно «полному покрытию». |
-| **major** | Для **deploy guardrail** (`deploy-prod.sh`; после Stage B — также проверка в `deploy-webapp-prod.sh`): колонки **`test_sets.publication_status`** и **`recommendations.domain`** могут появиться после **только** Drizzle-цепочки *при условии*, что базовые таблицы уже существуют (`publication_status` из **`0033_*`**, `domain` из **`0053_*`**). Для **чистой БД без legacy** полный `public` всё ещё **не** гарантируется одним `pnpm --dir apps/webapp run migrate` — согласовано с residual в LOG. |
-| **minor** | README инициативы после Stage B описывает прогресс точечно (`0053` + guardrail webapp deploy); не утверждает полного merge legacy → Drizzle — **корректно относительно фактов**. |
+| **major**    | Для **deploy guardrail** (`deploy-prod.sh`; после Stage B — также проверка в `deploy-webapp-prod.sh`): колонки **`test_sets.publication_status`** и **`recommendations.domain`** могут появиться после **только** Drizzle-цепочки _при условии_, что базовые таблицы уже существуют (`publication_status` из **`0033_*`**, `domain` из **`0053_*`**). Для **чистой БД без legacy** полный `public` всё ещё **не** гарантируется одним `pnpm --dir apps/webapp run migrate` — согласовано с residual в LOG.                                                                                                                                                     |
+| **minor**    | README инициативы после Stage B описывает прогресс точечно (`0053` + guardrail webapp deploy); не утверждает полного merge legacy → Drizzle — **корректно относительно фактов**.                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 
 ### 2) Риск повторного применения DDL
 
-| Severity | Finding |
-|----------|---------|
-| **minor** | Миграция **`0053`** семантически совпадает с legacy **`082_recommendations_domain.sql`** (оба: `ADD COLUMN IF NOT EXISTS`, `CREATE INDEX IF NOT EXISTS`). Повторное применение на уже соответствующей БД **не должно** падать; повторный прогон того же шага в Drizzle обычно **не выполняется** после записи hash в `drizzle.__drizzle_migrations`. |
-| **minor** | Остаточный процессный риск **не из текста `0053`**: два журнала (**`webapp_schema_migrations`** vs **`drizzle.__drizzle_migrations`**) — возможны ошибки порядка legacy/Drizzle или repair meta; Stage B это не устранял (Stage C/D). |
-| **unknown** | Если на редкой БД индекс **`idx_recommendations_domain`** существовал с **другим** определением, `CREATE INDEX IF NOT EXISTS` **не** перестроит его — крайний случай; для истории с legacy `082` определение совпадает. |
+| Severity    | Finding                                                                                                                                                                                                                                                                                                                                              |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **minor**   | Миграция **`0053`** семантически совпадает с legacy **`082_recommendations_domain.sql`** (оба: `ADD COLUMN IF NOT EXISTS`, `CREATE INDEX IF NOT EXISTS`). Повторное применение на уже соответствующей БД **не должно** падать; повторный прогон того же шага в Drizzle обычно **не выполняется** после записи hash в `drizzle.__drizzle_migrations`. |
+| **minor**   | Остаточный процессный риск **не из текста `0053`**: два журнала (**`webapp_schema_migrations`** vs **`drizzle.__drizzle_migrations`**) — возможны ошибки порядка legacy/Drizzle или repair meta; Stage B это не устранял (Stage C/D).                                                                                                                |
+| **unknown** | Если на редкой БД индекс **`idx_recommendations_domain`** существовал с **другим** определением, `CREATE INDEX IF NOT EXISTS` **не** перестроит его — крайний случай; для истории с legacy `082` определение совпадает.                                                                                                                              |
 
 ### 3) Прозрачность проверок и результатов в LOG
 
-| Severity | Finding |
-|----------|---------|
-| **minor** | Перечислены **конкретные команды** (`lint`, `typecheck`) и **exit code 0** — воспроизводимо. |
+| Severity  | Finding                                                                                                                                                                                                                                                       |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **minor** | Перечислены **конкретные команды** (`lint`, `typecheck`) и **exit code 0** — воспроизводимо.                                                                                                                                                                  |
 | **minor** | Явно указано, что **`drizzle-kit migrate` против реальной БД** в сессии Stage B **не прогонялся** — честно; при этом фактическое применение `0053` на PostgreSQL в том заходе **не верифицировалось** через migrate (остаётся прод/deploy или ручной прогон). |
-| **minor** | Нет приложённого лога/времени выполнения команд — для docs-достаточно; при строгом audit trail можно добавлять в будущем. |
+| **minor** | Нет приложённого лога/времени выполнения команд — для docs-достаточно; при строгом audit trail можно добавлять в будущем.                                                                                                                                     |
 
 ### Итог аудита Stage B
 
@@ -342,27 +342,27 @@
 
 ### 1) Покрытие guardrail’ом критичных колонок
 
-| Severity | Finding |
-|----------|---------|
-| **major** | Список в **`webapp-post-migrate-schema-check.sh`** заметно шире пары guardrail-колонок из Stage A/B (`test_sets.publication_status`, `recommendations.domain`) и добавляет media pipeline, `media_transcode_jobs`, **`integrator_push_outbox`**, **`system_settings`**, **`platform_users.calendar_timezone`**. Это **осмысленное усиление**, но агрегат Stage A по-прежнему включает большие области (**booking/patient_bookings**, **reminder_rules**/journal, часть legacy-only DDL), которые **не** проверяются колоночным guardrail — полного покрытия «все runtime-critical из инвентаризации» **нет** (и Stage C этого не заявлял в узком DoD). |
-| **minor** | Для **media-worker** проверяются ключевые колонки `media_files` и строки очереди `media_transcode_jobs`; отдельно не проверяются другие таблицы вроде только-чтения из worker кода — приемлемо как узкий production smoke. |
-| **unknown** | На редкой БД без полного legacy/bootstrap отсутствие таблицы/колонки из списка приведёт к **fail deploy после migrate** — это строже, чем прежние две колонки; нужно ли смягчение списка для нестандартных окружений — вне фактов этого аудита. |
+| Severity    | Finding                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **major**   | Список в **`webapp-post-migrate-schema-check.sh`** заметно шире пары guardrail-колонок из Stage A/B (`test_sets.publication_status`, `recommendations.domain`) и добавляет media pipeline, `media_transcode_jobs`, **`integrator_push_outbox`**, **`system_settings`**, **`platform_users.calendar_timezone`**. Это **осмысленное усиление**, но агрегат Stage A по-прежнему включает большие области (**booking/patient_bookings**, **reminder_rules**/journal, часть legacy-only DDL), которые **не** проверяются колоночным guardrail — полного покрытия «все runtime-critical из инвентаризации» **нет** (и Stage C этого не заявлял в узком DoD). |
+| **minor**   | Для **media-worker** проверяются ключевые колонки `media_files` и строки очереди `media_transcode_jobs`; отдельно не проверяются другие таблицы вроде только-чтения из worker кода — приемлемо как узкий production smoke.                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| **unknown** | На редкой БД без полного legacy/bootstrap отсутствие таблицы/колонки из списка приведёт к **fail deploy после migrate** — это строже, чем прежние две колонки; нужно ли смягчение списка для нестандартных окружений — вне фактов этого аудита.                                                                                                                                                                                                                                                                                                                                                                                                        |
 
 ### 2) Соответствие документации фактическому deploy flow
 
-| Severity | Finding |
-|----------|---------|
+| Severity  | Finding                                                                                                                                                                                                                                                                                          |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **minor** | В **`HOST_DEPLOY_README`** общая фраза про guardrail после migrate была **двусмысленна** (`pnpm migrate` vs webapp-only). **Устранено:** явное различение команд migrate для `deploy-prod.sh` и `deploy-webapp-prod.sh` перед описанием общего вызова **`webapp-post-migrate-schema-check.sh`**. |
-| **minor** | Раздел «Основной production deploy» перечисляет порядок **backup → `pnpm migrate` → `webapp-post-migrate-schema-check.sh` → restart** — **совпадает** с `deploy-prod.sh` (строки backup, migrate, bash guardrail, затем `systemctl restart`). |
-| **minor** | Раздел «Отдельный webapp deploy» описывает guardrail до рестарта webapp — **совпадает** с `deploy-webapp-prod.sh`. |
+| **minor** | Раздел «Основной production deploy» перечисляет порядок **backup → `pnpm migrate` → `webapp-post-migrate-schema-check.sh` → restart** — **совпадает** с `deploy-prod.sh` (строки backup, migrate, bash guardrail, затем `systemctl restart`).                                                    |
+| **minor** | Раздел «Отдельный webapp deploy» описывает guardrail до рестарта webapp — **совпадает** с `deploy-webapp-prod.sh`.                                                                                                                                                                               |
 
 ### 3) Регрессия операционных шагов
 
-| Severity | Finding |
-|----------|---------|
+| Severity  | Finding                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **major** | **Поведенческое изменение:** guardrail стал **строже** (10 пар таблица/колонка вместо 2). Ранее проходивший deploy при полной схеме мог **начать падать**, если на БД отсутствует любая из новых проверяемых колонок (например, не накатан legacy/Drizzle шаг для **`calendar_timezone`** или **`integrator_push_outbox`**). Это не «поломка порядка шагов», а **ужесточение критерия успеха** — операторам нужно чинить схему или миграции, а не откатывать порядок backup/migrate/restart. |
-| **minor** | Обязательная последовательность **pre-migrations backup → migrate → guardrail → restart** сохранена; шагов не удалено по сравнению с задокументированным намерением Stage C. |
-| **minor** | `deploy-webapp-prod.sh` по-прежнему **не** запускает integrator migrate — регрессии относительно прежнего scope webapp-only деплоя нет. |
+| **minor** | Обязательная последовательность **pre-migrations backup → migrate → guardrail → restart** сохранена; шагов не удалено по сравнению с задокументированным намерением Stage C.                                                                                                                                                                                                                                                                                                                 |
+| **minor** | `deploy-webapp-prod.sh` по-прежнему **не** запускает integrator migrate — регрессии относительно прежнего scope webapp-only деплоя нет.                                                                                                                                                                                                                                                                                                                                                      |
 
 ### Итог аудита Stage C
 
@@ -385,11 +385,11 @@ Guardrail **усиливает** прод-путь и **совпадает по 
 
 ### Инварианты production flow (фактическое состояние репозитория)
 
-| Инвариант | Состояние |
-|-----------|-----------|
-| Канонические изменения схемы webapp в обычной разработке | Drizzle SQL в `apps/webapp/db/drizzle-migrations/`, вход `pnpm --dir apps/webapp run migrate`. |
-| Production host после Stage C | `pnpm migrate` (integrator + webapp) или webapp-only migrate → **`deploy/host/webapp-post-migrate-schema-check.sh`** → только затем `systemctl restart`. **`migrate:legacy` в deploy-скриптах отсутствует.** |
-| Legacy runner | Сохранён как **опциональный** путь (`migrate:legacy` в package scripts); предназначение — bootstrap / восстановление / исторический DDL не в Drizzle-журнале. |
+| Инвариант                                                | Состояние                                                                                                                                                                                                    |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Канонические изменения схемы webapp в обычной разработке | Drizzle SQL в `apps/webapp/db/drizzle-migrations/`, вход `pnpm --dir apps/webapp run migrate`.                                                                                                               |
+| Production host после Stage C                            | `pnpm migrate` (integrator + webapp) или webapp-only migrate → **`deploy/host/webapp-post-migrate-schema-check.sh`** → только затем `systemctl restart`. **`migrate:legacy` в deploy-скриптах отсутствует.** |
+| Legacy runner                                            | Сохранён как **опциональный** путь (`migrate:legacy` в package scripts); предназначение — bootstrap / восстановление / исторический DDL не в Drizzle-журнале.                                                |
 
 ### Final global audit (черновик)
 
@@ -426,17 +426,17 @@ Guardrail **усиливает** прод-путь и **совпадает по 
 
 Рекомендация: при следующем проходе выровнять формулировки **emergency/historical only** и убрать двусмысленность «при необходимости» там, где это звучит как рутина — **без** удаления скриптов из CI/тестов без явного решения.
 
-| Область | Путь |
-|---------|------|
-| Package script | `apps/webapp/package.json` (`migrate:legacy`) |
-| Legacy runner | `apps/webapp/scripts/run-migrations.mjs` |
-| Drizzle migrate helper text | `apps/webapp/scripts/run-webapp-drizzle-migrate.mjs` |
-| Тестовая БД | `apps/webapp/vitest.globalSetup.ts` |
-| Документация webapp scripts (вне scope правок Stage D) | `apps/webapp/scripts/README.md` |
-| Ops / media | `docs/MEDIA_PREVIEW_PIPELINE.md` |
-| Архивный снимок БД | `docs/ARCHITECTURE/PRODUCTION_DB_INVENTORY_2026-04-13.md` (упоминание `run-migrations.mjs`) |
-| Архив инициатив | `docs/RULES/TREATMENT_PROGRAM_EXECUTION_RULES.md`; `docs/archive/2026-05-initiatives/TREATMENT_PROGRAM_INITIATIVE/AUDIT_PHASE_1.md` |
-| Прочие архивы | `docs/archive/**` — множественные упоминания `run-migrations.mjs` / legacy (низкий приоритет, исторический контекст) |
+| Область                                                | Путь                                                                                                                                |
+| ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Package script                                         | `apps/webapp/package.json` (`migrate:legacy`)                                                                                       |
+| Legacy runner                                          | `apps/webapp/scripts/run-migrations.mjs`                                                                                            |
+| Drizzle migrate helper text                            | `apps/webapp/scripts/run-webapp-drizzle-migrate.mjs`                                                                                |
+| Тестовая БД                                            | `apps/webapp/vitest.globalSetup.ts`                                                                                                 |
+| Документация webapp scripts (вне scope правок Stage D) | `apps/webapp/scripts/README.md`                                                                                                     |
+| Ops / media                                            | `docs/MEDIA_PREVIEW_PIPELINE.md`                                                                                                    |
+| Архивный снимок БД                                     | `docs/ARCHITECTURE/PRODUCTION_DB_INVENTORY_2026-04-13.md` (упоминание `run-migrations.mjs`)                                         |
+| Архив инициатив                                        | `docs/RULES/TREATMENT_PROGRAM_EXECUTION_RULES.md`; `docs/archive/2026-05-initiatives/TREATMENT_PROGRAM_INITIATIVE/AUDIT_PHASE_1.md` |
+| Прочие архивы                                          | `docs/archive/**` — множественные упоминания `run-migrations.mjs` / legacy (низкий приоритет, исторический контекст)                |
 
 ### Gate закрытия инициативы (WEBAPP_MIGRATIONS_DRIZZLE_UNIFICATION)
 
@@ -450,14 +450,14 @@ Guardrail **усиливает** прод-путь и **совпадает по 
 
 Консолидация состояния после этапов A–D (без повторного полного инвентарного diff):
 
-| Область | Итог |
-|---------|------|
-| **Инвентаризация** | Stage A: полный список legacy/Drizzle SQL, таблица coverage, риски повторного DDL и dual-ledger зафиксированы в LOG. |
-| **Канонический путь схемы** | Обычная разработка и production deploy: **`pnpm --dir apps/webapp run migrate`** (Drizzle). **`pnpm migrate`** на хосте — integrator + webapp Drizzle. |
-| **Закрытый пробел guardrail** | Stage B: Drizzle **`0053`** для `recommendations.domain`; совместимо с уже накатанными БД (`IF NOT EXISTS`). |
-| **Deploy safety** | Stage C: общий **`webapp-post-migrate-schema-check.sh`** до рестарта сервисов; список колонок расширен относительно начальной пары. |
-| **Legacy runner** | Физически сохранён (`migrate:legacy`, `run-migrations.mjs`); Stage D: в runbook и `DB_STRUCTURE` закреплено **emergency/historical/bootstrap only**, не обязательный шаг prod deploy. |
-| **Технический долг вне инициативы** | Noop **`0000`**, отсутствие merged baseline для всего `public`, dual ledger, часть Stage A coverage `missing` — осознанно перенесены в residual (Codex/будущие эпики). |
+| Область                             | Итог                                                                                                                                                                                  |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Инвентаризация**                  | Stage A: полный список legacy/Drizzle SQL, таблица coverage, риски повторного DDL и dual-ledger зафиксированы в LOG.                                                                  |
+| **Канонический путь схемы**         | Обычная разработка и production deploy: **`pnpm --dir apps/webapp run migrate`** (Drizzle). **`pnpm migrate`** на хосте — integrator + webapp Drizzle.                                |
+| **Закрытый пробел guardrail**       | Stage B: Drizzle **`0053`** для `recommendations.domain`; совместимо с уже накатанными БД (`IF NOT EXISTS`).                                                                          |
+| **Deploy safety**                   | Stage C: общий **`webapp-post-migrate-schema-check.sh`** до рестарта сервисов; список колонок расширен относительно начальной пары.                                                   |
+| **Legacy runner**                   | Физически сохранён (`migrate:legacy`, `run-migrations.mjs`); Stage D: в runbook и `DB_STRUCTURE` закреплено **emergency/historical/bootstrap only**, не обязательный шаг prod deploy. |
+| **Технический долг вне инициативы** | Noop **`0000`**, отсутствие merged baseline для всего `public`, dual ledger, часть Stage A coverage `missing` — осознанно перенесены в residual (Codex/будущие эпики).                |
 
 ---
 
@@ -465,20 +465,20 @@ Guardrail **усиливает** прод-путь и **совпадает по 
 
 Ориентир: раздел **Definition of Done** в [`STAGE_PLAN.md`](./STAGE_PLAN.md).
 
-| Критерий STAGE_PLAN | Выполнение |
-|---------------------|------------|
-| Webapp-миграции идут через один **канонический** путь (**Drizzle**) в **обычном deploy-flow** | **Да.** `deploy-prod.sh` / `deploy-webapp-prod.sh` вызывают только Drizzle-migrate (через `pnpm migrate` или `pnpm --dir apps/webapp run migrate`). Legacy-SQL не входит в эти скрипты. |
-| Критичные для рантайма колонки проверяются **post-migrate guardrail** | **Да.** `deploy/host/webapp-post-migrate-schema-check.sh` после migrate, до `systemctl restart`. |
-| **Legacy path** не используется как **обязательный** шаг production deploy | **Да.** Зафиксировано в `HOST_DEPLOY_README.md`, `DB_STRUCTURE.md`, блоках Stage D в LOG; prod deploy-скрипты legacy не вызывают. |
-| Документация и **runbook** синхронизированы | **Да** в рамках scope инициативы (`HOST_DEPLOY_README.md`, `DB_STRUCTURE.md`, документы в `docs/archive/2026-05-initiatives/WEBAPP_MIGRATIONS_DRIZZLE_UNIFICATION_INITIATIVE/`). Отдельные doc из таблицы residual refs для Codex — не блокер закрытия. |
-| В **`LOG.md`** зафиксированы этапы, проверки и решения | **Да.** Этапы A–D, аудиты, политика, residual риски, refs. |
+| Критерий STAGE_PLAN                                                                           | Выполнение                                                                                                                                                                                                                                              |
+| --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Webapp-миграции идут через один **канонический** путь (**Drizzle**) в **обычном deploy-flow** | **Да.** `deploy-prod.sh` / `deploy-webapp-prod.sh` вызывают только Drizzle-migrate (через `pnpm migrate` или `pnpm --dir apps/webapp run migrate`). Legacy-SQL не входит в эти скрипты.                                                                 |
+| Критичные для рантайма колонки проверяются **post-migrate guardrail**                         | **Да.** `deploy/host/webapp-post-migrate-schema-check.sh` после migrate, до `systemctl restart`.                                                                                                                                                        |
+| **Legacy path** не используется как **обязательный** шаг production deploy                    | **Да.** Зафиксировано в `HOST_DEPLOY_README.md`, `DB_STRUCTURE.md`, блоках Stage D в LOG; prod deploy-скрипты legacy не вызывают.                                                                                                                       |
+| Документация и **runbook** синхронизированы                                                   | **Да** в рамках scope инициативы (`HOST_DEPLOY_README.md`, `DB_STRUCTURE.md`, документы в `docs/archive/2026-05-initiatives/WEBAPP_MIGRATIONS_DRIZZLE_UNIFICATION_INITIATIVE/`). Отдельные doc из таблицы residual refs для Codex — не блокер закрытия. |
+| В **`LOG.md`** зафиксированы этапы, проверки и решения                                        | **Да.** Этапы A–D, аудиты, политика, residual риски, refs.                                                                                                                                                                                              |
 
 ---
 
 ## Initiative closed
 
-- **Дата:** 2026-05-09  
-- **Решение:** инициатива **WEBAPP_MIGRATIONS_DRIZZLE_UNIFICATION_INITIATIVE** закрывается как **выполненная по Definition of Done** из `STAGE_PLAN.md`.  
+- **Дата:** 2026-05-09
+- **Решение:** инициатива **WEBAPP_MIGRATIONS_DRIZZLE_UNIFICATION_INITIATIVE** закрывается как **выполненная по Definition of Done** из `STAGE_PLAN.md`.
 - **Блокирующих открытых пунктов нет.** Дальнейшие действия по dual ledger, полному baseline Drizzle, выравниванию вспомогательной документации и удалению/упрощению legacy-runner — **отдельные задачи / Codex**, не входят в scope этого закрытия.
 
 ### Документальное выравнивание с аудитами A–C (после закрытия)

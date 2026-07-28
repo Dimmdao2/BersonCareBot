@@ -1,41 +1,41 @@
 #!/usr/bin/env node
 
-import { createHash } from "node:crypto";
-import { fileURLToPath, pathToFileURL } from "node:url";
-import { spawnSync } from "node:child_process";
-import argon2 from "argon2";
-import pg from "pg";
-import { readSmokeLoginPacket } from "../../../deploy/host/smoke-login-packet.mjs";
+import { createHash } from 'node:crypto';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { spawnSync } from 'node:child_process';
+import argon2 from 'argon2';
+import pg from 'pg';
+import { readSmokeLoginPacket } from '../../../deploy/host/smoke-login-packet.mjs';
 
 const { Client } = pg;
-const REQUIRED_DATABASE = "bersoncarebot_test";
-const REQUIRED_DB_USER = "postgres";
-const REQUIRED_ACTORS = Object.freeze(["doctor", "global_admin", "patient"]);
+const REQUIRED_DATABASE = 'bersoncarebot_test';
+const REQUIRED_DB_USER = 'postgres';
+const REQUIRED_ACTORS = Object.freeze(['doctor', 'global_admin', 'patient']);
 const ACTOR_SPECS = Object.freeze({
   doctor: Object.freeze({
-    emailKey: "SAAS_SMOKE_DOCTOR_EMAIL",
-    passwordKey: "SAAS_SMOKE_DOCTOR_PASSWORD",
-    platformRole: "doctor",
+    emailKey: 'SAAS_SMOKE_DOCTOR_EMAIL',
+    passwordKey: 'SAAS_SMOKE_DOCTOR_PASSWORD',
+    platformRole: 'doctor',
     requiresClinicOwnerMembership: true,
   }),
   global_admin: Object.freeze({
-    emailKey: "SAAS_SMOKE_GLOBAL_ADMIN_EMAIL",
-    passwordKey: "SAAS_SMOKE_GLOBAL_ADMIN_PASSWORD",
-    platformRole: "admin",
+    emailKey: 'SAAS_SMOKE_GLOBAL_ADMIN_EMAIL',
+    passwordKey: 'SAAS_SMOKE_GLOBAL_ADMIN_PASSWORD',
+    platformRole: 'admin',
     requiresClinicOwnerMembership: false,
   }),
   patient: Object.freeze({
-    emailKey: "SAAS_SMOKE_PATIENT_EMAIL",
-    passwordKey: "SAAS_SMOKE_PATIENT_PASSWORD",
-    platformRole: "client",
+    emailKey: 'SAAS_SMOKE_PATIENT_EMAIL',
+    passwordKey: 'SAAS_SMOKE_PATIENT_PASSWORD',
+    platformRole: 'client',
     requiresClinicOwnerMembership: false,
   }),
 });
 const PASSWORD_MIN_LENGTH = 8;
 const PASSWORD_MAX_LENGTH = 128;
-const ACCOUNT_FAILURE_SCOPE = "auth.password_account_failure";
-const IDENTIFIER_FAILURE_SCOPE = "auth.password_identifier_failure";
-const IDENTIFIER_LOCK_SCOPE = "auth.password_identifier_lock";
+const ACCOUNT_FAILURE_SCOPE = 'auth.password_account_failure';
+const IDENTIFIER_FAILURE_SCOPE = 'auth.password_identifier_failure';
+const IDENTIFIER_LOCK_SCOPE = 'auth.password_identifier_lock';
 
 function fail(code) {
   throw new Error(code);
@@ -43,13 +43,13 @@ function fail(code) {
 
 function normalizeEmail(value) {
   const email = value.trim().toLowerCase();
-  if (!/^[^@\s]+@[^@\s]+$/.test(email)) fail("invalid_email");
+  if (!/^[^@\s]+@[^@\s]+$/.test(email)) fail('invalid_email');
   return email;
 }
 
 function validatePassword(value) {
   if (value.length < PASSWORD_MIN_LENGTH || value.length > PASSWORD_MAX_LENGTH) {
-    fail("invalid_password_length");
+    fail('invalid_password_length');
   }
   return value;
 }
@@ -64,13 +64,13 @@ export function smokeLoginAccountsFromPacket(packet) {
     });
   });
   if (new Set(accounts.map(({ email }) => email)).size !== accounts.length) {
-    fail("duplicate_actor_email");
+    fail('duplicate_actor_email');
   }
   return Object.freeze(accounts);
 }
 
 export function passwordIdentifierRateLimitKey(emailNormalized) {
-  const digest = createHash("sha256").update(emailNormalized).digest("hex");
+  const digest = createHash('sha256').update(emailNormalized).digest('hex');
   return `password-email:v1:${digest}`;
 }
 
@@ -84,39 +84,48 @@ export async function verifySmokeLoginPassword(passwordHash, plainPassword) {
 
 export function assertSmokeLoginAccountFact(actor, fact) {
   const spec = ACTOR_SPECS[actor];
-  if (!spec || !fact) fail("account_not_ready");
-  if (fact.role !== spec.platformRole) fail("account_role_mismatch");
-  if (fact.email_verified !== true) fail("account_email_not_verified");
-  if (fact.is_blocked === true) fail("account_blocked");
+  if (!spec || !fact) fail('account_not_ready');
+  if (fact.role !== spec.platformRole) fail('account_role_mismatch');
+  if (fact.email_verified !== true) fail('account_email_not_verified');
+  if (fact.is_blocked === true) fail('account_blocked');
   if (
     spec.requiresClinicOwnerMembership &&
-    (
-      Number(fact.active_memberships) !== 1 ||
+    (Number(fact.active_memberships) !== 1 ||
       Number(fact.owner_memberships) !== 1 ||
-      Number(fact.owner_specialist_memberships) !== 1
-    )
+      Number(fact.owner_specialist_memberships) !== 1)
   ) {
-    fail("doctor_membership_shape_mismatch");
+    fail('doctor_membership_shape_mismatch');
   }
 }
 
 function validateAccountsInput(value) {
-  if (!value || typeof value !== "object" || Array.isArray(value) || !Array.isArray(value.accounts)) {
-    fail("invalid_input");
+  if (
+    !value ||
+    typeof value !== 'object' ||
+    Array.isArray(value) ||
+    !Array.isArray(value.accounts)
+  ) {
+    fail('invalid_input');
   }
-  if (value.accounts.length !== REQUIRED_ACTORS.length) fail("invalid_actor_count");
+  if (value.accounts.length !== REQUIRED_ACTORS.length) fail('invalid_actor_count');
   const byActor = new Map();
   for (const candidate of value.accounts) {
-    if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) fail("invalid_actor");
-    if (!REQUIRED_ACTORS.includes(candidate.actor) || byActor.has(candidate.actor)) fail("invalid_actor");
-    byActor.set(candidate.actor, Object.freeze({
-      actor: candidate.actor,
-      email: normalizeEmail(candidate.email),
-      password: validatePassword(candidate.password),
-    }));
+    if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate))
+      fail('invalid_actor');
+    if (!REQUIRED_ACTORS.includes(candidate.actor) || byActor.has(candidate.actor))
+      fail('invalid_actor');
+    byActor.set(
+      candidate.actor,
+      Object.freeze({
+        actor: candidate.actor,
+        email: normalizeEmail(candidate.email),
+        password: validatePassword(candidate.password),
+      }),
+    );
   }
   const accounts = REQUIRED_ACTORS.map((actor) => byActor.get(actor));
-  if (new Set(accounts.map(({ email }) => email)).size !== accounts.length) fail("duplicate_actor_email");
+  if (new Set(accounts.map(({ email }) => email)).size !== accounts.length)
+    fail('duplicate_actor_email');
   return accounts;
 }
 
@@ -124,9 +133,9 @@ async function readStdinJson() {
   const chunks = [];
   for await (const chunk of process.stdin) chunks.push(chunk);
   try {
-    return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+    return JSON.parse(Buffer.concat(chunks).toString('utf8'));
   } catch {
-    fail("invalid_input");
+    fail('invalid_input');
   }
 }
 
@@ -158,7 +167,7 @@ async function findAccountFact(client, account) {
      GROUP BY users.id, users.role, users.email_verified_at, users.is_blocked`,
     [account.email],
   );
-  if (result.rows.length !== 1) fail("account_not_ready");
+  if (result.rows.length !== 1) fail('account_not_ready');
   return result.rows[0];
 }
 
@@ -175,7 +184,7 @@ async function convergeAccount(client, account) {
   );
   const credential = credentialResult.rows[0];
   let passwordMatches = false;
-  if (credential?.algo === "argon2id") {
+  if (credential?.algo === 'argon2id') {
     try {
       passwordMatches = await argon2.verify(credential.password_hash, account.password);
     } catch {
@@ -219,14 +228,14 @@ async function convergeAccount(client, account) {
       passwordIdentifierRateLimitKey(account.email),
     ],
   );
-  return passwordMatches ? "unchanged" : "changed";
+  return passwordMatches ? 'unchanged' : 'changed';
 }
 
 async function applyTestAccountsFromStdin() {
   const accounts = validateAccountsInput(await readStdinJson());
   const client = new Client({
     database: REQUIRED_DATABASE,
-    host: "/var/run/postgresql",
+    host: '/var/run/postgresql',
     user: REQUIRED_DB_USER,
   });
   await client.connect();
@@ -240,16 +249,17 @@ async function applyTestAccountsFromStdin() {
       [REQUIRED_DATABASE, REQUIRED_DB_USER],
     );
     const row = identity.rows[0];
-    if (!row?.database_ok || !row?.user_ok || !row?.superuser_ok) fail("test_database_guard_failed");
+    if (!row?.database_ok || !row?.user_ok || !row?.superuser_ok)
+      fail('test_database_guard_failed');
 
-    await client.query("BEGIN");
+    await client.query('BEGIN');
     try {
       for (const account of accounts) {
-        if ((await convergeAccount(client, account)) === "changed") changed += 1;
+        if ((await convergeAccount(client, account)) === 'changed') changed += 1;
       }
-      await client.query("COMMIT");
+      await client.query('COMMIT');
     } catch (error) {
-      await client.query("ROLLBACK");
+      await client.query('ROLLBACK');
       throw error;
     }
   } finally {
@@ -261,65 +271,72 @@ async function applyTestAccountsFromStdin() {
 }
 
 function parseParentArgs(argv) {
-  if (argv.length !== 1 || !argv[0].startsWith("--packet=")) fail("usage");
-  const packetPath = argv[0].slice("--packet=".length);
-  if (!packetPath) fail("usage");
+  if (argv.length !== 1 || !argv[0].startsWith('--packet=')) fail('usage');
+  const packetPath = argv[0].slice('--packet='.length);
+  if (!packetPath) fail('usage');
   return packetPath;
 }
 
 function convergeFromPacket(argv) {
-  if (process.env.SAAS_SMOKE_PASSWORD_CONVERGENCE_TEST_ONLY !== "1") {
-    fail("test_only_enable_required");
+  if (process.env.SAAS_SMOKE_PASSWORD_CONVERGENCE_TEST_ONLY !== '1') {
+    fail('test_only_enable_required');
   }
-  if (process.getuid?.() !== 0) fail("root_required");
+  if (process.getuid?.() !== 0) fail('root_required');
   const packetPath = parseParentArgs(argv);
   const accounts = smokeLoginAccountsFromPacket(readSmokeLoginPacket(packetPath));
   const result = spawnSync(
-    "sudo",
-    ["-u", REQUIRED_DB_USER, process.execPath, fileURLToPath(import.meta.url), "--apply-test-from-stdin"],
+    'sudo',
+    [
+      '-u',
+      REQUIRED_DB_USER,
+      process.execPath,
+      fileURLToPath(import.meta.url),
+      '--apply-test-from-stdin',
+    ],
     {
       input: JSON.stringify({ accounts }),
-      encoding: "utf8",
+      encoding: 'utf8',
       env: {
-        PATH: process.env.PATH ?? "/usr/bin:/bin",
-        NODE_ENV: "production",
+        PATH: process.env.PATH ?? '/usr/bin:/bin',
+        NODE_ENV: 'production',
       },
       maxBuffer: 1024 * 1024,
     },
   );
-  if (result.status !== 0) fail("test_password_convergence_failed");
+  if (result.status !== 0) fail('test_password_convergence_failed');
   process.stdout.write(result.stdout);
 }
 
 async function selfTest() {
   const packet = {
-    SAAS_SMOKE_DOCTOR_EMAIL: "doctor@example.test",
-    SAAS_SMOKE_DOCTOR_PASSWORD: "doctor-password",
-    SAAS_SMOKE_GLOBAL_ADMIN_EMAIL: "admin@example.test",
-    SAAS_SMOKE_GLOBAL_ADMIN_PASSWORD: "admin-password",
-    SAAS_SMOKE_PATIENT_EMAIL: "patient@example.test",
-    SAAS_SMOKE_PATIENT_PASSWORD: "patient-password",
+    SAAS_SMOKE_DOCTOR_EMAIL: 'doctor@example.test',
+    SAAS_SMOKE_DOCTOR_PASSWORD: 'doctor-password',
+    SAAS_SMOKE_GLOBAL_ADMIN_EMAIL: 'admin@example.test',
+    SAAS_SMOKE_GLOBAL_ADMIN_PASSWORD: 'admin-password',
+    SAAS_SMOKE_PATIENT_EMAIL: 'patient@example.test',
+    SAAS_SMOKE_PATIENT_PASSWORD: 'patient-password',
   };
   const accounts = smokeLoginAccountsFromPacket(packet);
-  if (accounts.length !== 3 || accounts[0].actor !== "doctor") fail("self_test_accounts");
-  assertSmokeLoginAccountFact("doctor", {
-    role: "doctor",
+  if (accounts.length !== 3 || accounts[0].actor !== 'doctor') fail('self_test_accounts');
+  assertSmokeLoginAccountFact('doctor', {
+    role: 'doctor',
     email_verified: true,
     is_blocked: false,
     active_memberships: 1,
     owner_memberships: 1,
     owner_specialist_memberships: 1,
   });
-  const passwordHash = await hashSmokeLoginPassword("self-test-password");
-  if (!passwordHash.startsWith("$argon2id$")) fail("self_test_hash_type");
-  if (!(await verifySmokeLoginPassword(passwordHash, "self-test-password"))) fail("self_test_hash_verify");
-  process.stdout.write("converge-saas-smoke-login-passwords self-test: OK\n");
+  const passwordHash = await hashSmokeLoginPassword('self-test-password');
+  if (!passwordHash.startsWith('$argon2id$')) fail('self_test_hash_type');
+  if (!(await verifySmokeLoginPassword(passwordHash, 'self-test-password')))
+    fail('self_test_hash_verify');
+  process.stdout.write('converge-saas-smoke-login-passwords self-test: OK\n');
 }
 
 async function main() {
-  if (process.argv[2] === "--apply-test-from-stdin") {
+  if (process.argv[2] === '--apply-test-from-stdin') {
     await applyTestAccountsFromStdin();
-  } else if (process.argv[2] === "--self-test") {
+  } else if (process.argv[2] === '--self-test') {
     await selfTest();
   } else {
     convergeFromPacket(process.argv.slice(2));
@@ -328,7 +345,9 @@ async function main() {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main().catch(() => {
-    process.stderr.write("converge-saas-smoke-login-passwords: failed without changing non-packet accounts\n");
+    process.stderr.write(
+      'converge-saas-smoke-login-passwords: failed without changing non-packet accounts\n',
+    );
     process.exitCode = 1;
   });
 }

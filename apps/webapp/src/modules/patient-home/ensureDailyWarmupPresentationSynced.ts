@@ -1,9 +1,9 @@
 import {
   syncDailyWarmupScheduledRotation,
   type SyncDailyWarmupScheduledRotationDeps,
-} from "@/modules/patient-home/syncDailyWarmupScheduledRotation";
-import { listDailyWarmupPagesForHome } from "@/modules/patient-home/todayConfig";
-import { pickDailyWarmupFromOrderedList } from "@/modules/patient-home/pickDailyWarmupFromOrderedList";
+} from '@/modules/patient-home/syncDailyWarmupScheduledRotation';
+import { listDailyWarmupPagesForHome } from '@/modules/patient-home/todayConfig';
+import { pickDailyWarmupFromOrderedList } from '@/modules/patient-home/pickDailyWarmupFromOrderedList';
 
 export type { SyncDailyWarmupScheduledRotationDeps as DailyWarmupPresentationSyncDeps };
 
@@ -19,7 +19,8 @@ export async function ensureDailyWarmupPresentationSynced(
   const state = await syncDailyWarmupScheduledRotation(userId, pages, deps, now);
   if (state) return state.contentPageId;
 
-  const lastCompleted = await deps.patientPractice.getLatestDailyWarmupCompletedContentPageId(userId);
+  const lastCompleted =
+    await deps.patientPractice.getLatestDailyWarmupCompletedContentPageId(userId);
   const idx = pickDailyWarmupFromOrderedList(pages, lastCompleted);
   return pages[idx]?.contentPageId ?? pages[0]?.contentPageId ?? null;
 }

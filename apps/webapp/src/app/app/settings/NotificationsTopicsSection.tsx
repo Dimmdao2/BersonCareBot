@@ -1,17 +1,17 @@
-"use client";
+'use client';
 
-import { useState, useTransition } from "react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
-import { Input } from "@/shared/ui/doctor/primitives/input";
+import { useState, useTransition } from 'react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
+import { Input } from '@/shared/ui/doctor/primitives/input';
 import {
   NOTIFICATIONS_TOPICS_MAX,
   NOTIFICATION_TOPIC_ID_MAX_LEN,
   NOTIFICATION_TOPIC_TITLE_MAX_LEN,
   isValidNotificationTopicId,
   isValidNotificationTopicTitle,
-} from "@/modules/patient-notifications/notificationsTopics";
-import { patchAdminSetting } from "./patchAdminSetting";
+} from '@/modules/patient-notifications/notificationsTopics';
+import { patchAdminSetting } from './patchAdminSetting';
 
 export type NotificationsTopicsSectionProps = {
   initialRows: Array<{ id: string; title: string }>;
@@ -26,7 +26,7 @@ export function NotificationsTopicsSection({ initialRows }: NotificationsTopicsS
   function addRow() {
     setRows((r) => {
       if (r.length >= NOTIFICATIONS_TOPICS_MAX) return r;
-      return [...r, { id: "", title: "" }];
+      return [...r, { id: '', title: '' }];
     });
   }
 
@@ -34,7 +34,7 @@ export function NotificationsTopicsSection({ initialRows }: NotificationsTopicsS
     setRows((r) => r.filter((_, i) => i !== index));
   }
 
-  function updateRow(index: number, field: "id" | "title", value: string) {
+  function updateRow(index: number, field: 'id' | 'title', value: string) {
     setRows((r) => r.map((row, i) => (i === index ? { ...row, [field]: value } : row)));
   }
 
@@ -43,7 +43,7 @@ export function NotificationsTopicsSection({ initialRows }: NotificationsTopicsS
     setError(null);
     startTransition(async () => {
       if (rows.length === 0) {
-        setError("Добавьте хотя бы одну тему.");
+        setError('Добавьте хотя бы одну тему.');
         return;
       }
       for (let i = 0; i < rows.length; i++) {
@@ -55,20 +55,22 @@ export function NotificationsTopicsSection({ initialRows }: NotificationsTopicsS
           return;
         }
         if (!isValidNotificationTopicTitle(r.title)) {
-          setError(`Строка ${i + 1}: укажите подпись (до ${NOTIFICATION_TOPIC_TITLE_MAX_LEN} символов).`);
+          setError(
+            `Строка ${i + 1}: укажите подпись (до ${NOTIFICATION_TOPIC_TITLE_MAX_LEN} символов).`,
+          );
           return;
         }
       }
       const trimmedIds = rows.map((row) => row.id.trim());
       if (new Set(trimmedIds).size !== trimmedIds.length) {
-        setError("Коды тем не должны повторяться.");
+        setError('Коды тем не должны повторяться.');
         return;
       }
       const payload = rows.map((row) => ({ id: row.id.trim(), title: row.title.trim() }));
-      const ok = await patchAdminSetting("notifications_topics", payload);
+      const ok = await patchAdminSetting('notifications_topics', payload);
       if (!ok) {
         setError(
-          "Не удалось сохранить. Проверьте: код темы (латиница, цифры, _), длину подписи, уникальность кодов; при заполненной проекции рассылок код должен существовать в справочнике тем.",
+          'Не удалось сохранить. Проверьте: код темы (латиница, цифры, _), длину подписи, уникальность кодов; при заполненной проекции рассылок код должен существовать в справочнике тем.',
         );
         return;
       }
@@ -81,9 +83,10 @@ export function NotificationsTopicsSection({ initialRows }: NotificationsTopicsS
       <CardHeader className="pb-2">
         <CardTitle className="text-base">Темы рассылок (пациент)</CardTitle>
         <p className="text-xs text-muted-foreground">
-          Подписи для блока «Темы рассылок» на странице пациента{" "}
-          <code className="rounded bg-muted px-1">/notifications</code>. Поле «код» совпадает с кодом темы
-          рассылки в интеграторе (<code className="rounded bg-muted px-1">mailing_topics</code>
+          Подписи для блока «Темы рассылок» на странице пациента{' '}
+          <code className="rounded bg-muted px-1">/notifications</code>. Поле «код» совпадает с
+          кодом темы рассылки в интеграторе (
+          <code className="rounded bg-muted px-1">mailing_topics</code>
           ). Порядок строк — порядок отображения. Не больше {NOTIFICATIONS_TOPICS_MAX} тем.
         </p>
       </CardHeader>
@@ -98,7 +101,7 @@ export function NotificationsTopicsSection({ initialRows }: NotificationsTopicsS
                 <span className="text-xs font-medium">Код темы</span>
                 <Input
                   value={row.id}
-                  onChange={(e) => updateRow(index, "id", e.target.value)}
+                  onChange={(e) => updateRow(index, 'id', e.target.value)}
                   disabled={pending}
                   maxLength={NOTIFICATION_TOPIC_ID_MAX_LEN}
                   placeholder="news"
@@ -109,7 +112,7 @@ export function NotificationsTopicsSection({ initialRows }: NotificationsTopicsS
                 <span className="text-xs font-medium">Подпись для пациента</span>
                 <Input
                   value={row.title}
-                  onChange={(e) => updateRow(index, "title", e.target.value)}
+                  onChange={(e) => updateRow(index, 'title', e.target.value)}
                   disabled={pending}
                   maxLength={NOTIFICATION_TOPIC_TITLE_MAX_LEN}
                   placeholder="Новости и обновления"
@@ -117,7 +120,13 @@ export function NotificationsTopicsSection({ initialRows }: NotificationsTopicsS
                 />
               </label>
               <div className="flex items-end sm:justify-end">
-                <Button type="button" variant="ghost" size="sm" onClick={() => removeRow(index)} disabled={pending}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => removeRow(index)}
+                  disabled={pending}
+                >
                   Удалить
                 </Button>
               </div>
@@ -125,11 +134,22 @@ export function NotificationsTopicsSection({ initialRows }: NotificationsTopicsS
           ))}
         </ul>
         <div className="flex flex-wrap items-center gap-3">
-          <Button type="button" variant="outline" size="sm" onClick={addRow} disabled={pending || rows.length >= NOTIFICATIONS_TOPICS_MAX}>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={addRow}
+            disabled={pending || rows.length >= NOTIFICATIONS_TOPICS_MAX}
+          >
             Добавить тему
           </Button>
-          <Button type="button" variant="default" onClick={() => void handleSave()} disabled={pending}>
-            {pending ? "Сохранение…" : "Сохранить"}
+          <Button
+            type="button"
+            variant="default"
+            onClick={() => void handleSave()}
+            disabled={pending}
+          >
+            {pending ? 'Сохранение…' : 'Сохранить'}
           </Button>
           {saved ? <span className="text-sm text-green-600">Сохранено</span> : null}
           {error ? <span className="text-sm text-destructive">{error}</span> : null}

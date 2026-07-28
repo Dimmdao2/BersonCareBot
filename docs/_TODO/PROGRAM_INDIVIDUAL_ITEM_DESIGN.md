@@ -47,8 +47,8 @@ design pass; this is noted as provenance, not treated as an open question needin
 - `treatment_program_instance_stage_items` (`apps/webapp/db/schema/treatmentProgramInstances.ts:200-266`):
   `itemType text` constrained to `['exercise','recommendation','lesson','clinical_test']`
   (`:257-260`, `treatment_program_instance_stage_items_item_type_check`), `itemRefId uuid NOT NULL`
-  (`:207`, deliberately **no FK** — per `AGENTS.md` §5 "Product absolutes": *"No database FK on
-  `item_ref_id`; polymorphic reference; validate only in the service layer"*), `settings jsonb` (`:211`,
+  (`:207`, deliberately **no FK** — per `AGENTS.md` §5 "Product absolutes": _"No database FK on
+  `item_ref_id`; polymorphic reference; validate only in the service layer"_), `settings jsonb` (`:211`,
   per-instance overrides), `snapshot jsonb NOT NULL` (`:212`, frozen copy of the catalog item's
   display content at add-time).
 - The **same** `item_type` domain is shared with `treatment_program_template_stage_items`
@@ -61,7 +61,7 @@ design pass; this is noted as provenance, not treated as an open question needin
   on the referenced row (§2.a) avoids that mismatch entirely.
 - `catalogSnapshotForEditorBatch`/`itemRefs.assertItemRefExists` (called throughout
   `apps/webapp/src/modules/treatment-program/instanceEditorBatchApply.ts`, e.g. lines `282,309,316,349,488,
-  569,599,684`) is the chokepoint that validates `itemRefId` exists for a given `itemType` before an
+569,599,684`) is the chokepoint that validates `itemRefId` exists for a given `itemType` before an
   editor-batch add/replace is applied — this is where "does this ref resolve to something real" is enforced
   today, service-layer only, matching the "no FK" rule.
 - Snapshot semantics already assume **frozen-at-add-time** content, even for ordinary catalog items:
@@ -127,12 +127,12 @@ This directly resolves card #565's acceptance criterion 3 ("media folder name de
   already use, via the helper `pgEnsureClientPatientFolder(patientUserId)`
   (`apps/webapp/src/app-layer/media/clientMediaFolders.ts:1-11`, re-exporting
   `apps/webapp/src/infra/repos/pgClientMediaFolders.ts`).
-- LOG.md is explicit about the connection point still needed: *"When a doctor-side individual-exercise
+- LOG.md is explicit about the connection point still needed: _"When a doctor-side individual-exercise
   presign route is created, it must call `pgEnsureClientPatientFolder(patientUserId, ...)` — using the
   **patient's** userId (not the doctor's)... Future task: Create doctor-side presign route at e.g.
-  `/api/doctor/treatment-program-instances/[instanceId]/media-presign`."* — PFI's own scope explicitly
-  excluded building that route/UI (*"Full UI for doctor individual-exercise video capture (only
-  routing/helper here — see O3)"*, `ROADMAP.md:144`) — **that missing route/UI is exactly what #564
+  `/api/doctor/treatment-program-instances/[instanceId]/media-presign`."_ — PFI's own scope explicitly
+  excluded building that route/UI (_"Full UI for doctor individual-exercise video capture (only
+  routing/helper here — see O3)"_, `ROADMAP.md:144`) — **that missing route/UI is exactly what #564
   (implementation, gated on this design) is for.**
 - The exact pattern to copy is the existing patient-side presign route,
   `apps/webapp/src/app/api/patient/media/program-submission/presign/route.ts:1-119`: validates mime/size
@@ -175,14 +175,14 @@ scope text NOT NULL DEFAULT 'catalog' CHECK (scope IN ('catalog', 'personal'))
   `InstanceAddLibraryItemDialog` flow.
 - `scope = 'personal'`: created **inline**, directly from a treatment-program instance's editor (not via the
   catalog "add new exercise" screen). The `list()` query (§1.b) gets one additional predicate —
-  `e.scope = 'catalog'` — so personal rows never surface in the general catalog picker for *any* patient,
+  `e.scope = 'catalog'` — so personal rows never surface in the general catalog picker for _any_ patient,
   including other patients in the same clinic. `organizationId` continues to be set to the instance's clinic
   (consistent with existing clinic-scoped rows) — this is what makes the row **visible to any doctor in that
   clinic who opens this specific patient's program** (§2.b), not what makes it excluded from the catalog
   (that's `scope`'s job).
 - The row keeps a `createdBy`/`organizationId` exactly like any other clinic-scoped exercise (`schema.ts:948,
-  939`) — no new ownership model needed, this is the same clinic-scoping the catalog already uses for
-  non-global rows, just filtered out of the *browsable list* by `scope`.
+939`) — no new ownership model needed, this is the same clinic-scoping the catalog already uses for
+  non-global rows, just filtered out of the _browsable list_ by `scope`.
 
 This keeps `item_ref_id` pointing at a **real** `lfk_exercises.id` in all cases (personal or catalog),
 preserving "no FK, validate in service layer" (§1.a) and letting `assertItemRefExists("exercise", id)`
@@ -231,7 +231,7 @@ patient." This is naturally satisfied by:
   semantic, §1.d) — **open choice, not decided here**: either add a new allowed value (e.g.
   `'individual_program_exercise'`) to `media_files_usage_purpose_check` (`schema.ts:1194-1197`, a one-line
   CHECK-constraint migration, same shape as the existing single-value constraint), or leave `usage_purpose
-  NULL` for this flow (it's nullable, `:1164`) since HLS transcoding/preview generation doesn't appear to
+NULL` for this flow (it's nullable, `:1164`) since HLS transcoding/preview generation doesn't appear to
   branch on `usage_purpose` at all (it exists for feature-specific downstream logic, e.g. the discussion
   flow's own gating) — recommend **NULL for MVP** unless a concrete downstream consumer needs the tag,
   since adding an unused enum value is speculative machinery the repo convention (`AGENTS.md` §4a) advises
@@ -243,7 +243,7 @@ patient." This is naturally satisfied by:
 
 ### 2.d Immutability: video locked after assignment, title/prescription stay editable
 
-Per owner decision: *"after assignment title and prescription fields remain editable, video is immutable."*
+Per owner decision: _"after assignment title and prescription fields remain editable, video is immutable."_
 Concretely:
 
 - **Title/description** (`lfk_exercises.title`/`description`) and **prescription fields** (per-instance

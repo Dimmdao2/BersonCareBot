@@ -15,18 +15,19 @@
 **Файл:** `apps/webapp/src/shared/ui/AppShell.tsx`
 
 **Найти:**
+
 ```tsx
-const isBrowserOnly =
-  user &&
-  !user.bindings.telegramId?.trim() &&
-  !user.bindings.maxId?.trim();
+const isBrowserOnly = user && !user.bindings.telegramId?.trim() && !user.bindings.maxId?.trim();
 ```
+
 и
+
 ```tsx
 <AskQuestionFAB visible={!!isBrowserOnly} />
 ```
 
 **Заменить на:**
+
 ```tsx
 <AskQuestionFAB visible={user !== null} />
 ```
@@ -56,7 +57,9 @@ const isBrowserOnly =
   box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-  transition: transform 0.2s, box-shadow 0.2s;
+  transition:
+    transform 0.2s,
+    box-shadow 0.2s;
 }
 
 .ask-question-fab:hover {
@@ -70,6 +73,7 @@ const isBrowserOnly =
 ```
 
 **Заменить на:**
+
 ```css
 .ask-question-fab {
   position: fixed;
@@ -103,6 +107,7 @@ const isBrowserOnly =
 **Файл:** `apps/webapp/src/app/globals.css`
 
 **Найти:**
+
 ```css
 .app-shell--patient {
   padding: 0 16px 32px;
@@ -110,6 +115,7 @@ const isBrowserOnly =
 ```
 
 **Заменить на:**
+
 ```css
 .app-shell--patient {
   padding: 0 16px 32px;

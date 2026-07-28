@@ -11,12 +11,12 @@
 
 ## Матрица совместимости этапов 1 и 2
 
-| Состояние | Поведение |
-|-----------|-----------|
-| Этап **1** без **2** | После TX `user.phone.link` в том же коммите обновляются и `public`, и `integrator.contacts`; `linkedPhone` в оркестраторе остаётся согласованным с webapp по телефону, пока запись идёт только этим путём. |
-| Этап **2** без **1** | Чтение из `public` без TX bind на запись — возможен рассинхрон при старых путях записи только в `contacts`; не рекомендуется как целевое сочетание. |
-| **1 + 2** (цель) | Канон для сценариев = `public` с fallback на `contacts`; новые привязки пишутся TX в оба слоя. |
-| Две **разные** БД (legacy) | Путь «одна TX `public` + `integrator`» **недоступен**; оставлять HTTP/worker или отдельный runbook до unified — не расширять TX-путь до cutover на одну PostgreSQL. |
+| Состояние                  | Поведение                                                                                                                                                                                                  |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Этап **1** без **2**       | После TX `user.phone.link` в том же коммите обновляются и `public`, и `integrator.contacts`; `linkedPhone` в оркестраторе остаётся согласованным с webapp по телефону, пока запись идёт только этим путём. |
+| Этап **2** без **1**       | Чтение из `public` без TX bind на запись — возможен рассинхрон при старых путях записи только в `contacts`; не рекомендуется как целевое сочетание.                                                        |
+| **1 + 2** (цель)           | Канон для сценариев = `public` с fallback на `contacts`; новые привязки пишутся TX в оба слоя.                                                                                                             |
+| Две **разные** БД (legacy) | Путь «одна TX `public` + `integrator`» **недоступен**; оставлять HTTP/worker или отдельный runbook до unified — не расширять TX-путь до cutover на одну PostgreSQL.                                        |
 
 ## Цели инициативы
 
@@ -27,15 +27,15 @@
 
 ## Этапы (файлы)
 
-| Этап | Файл | Кратко |
-|------|------|--------|
-| 1 | [`STAGE_01_BIND_TX_AND_GRANTS.md`](STAGE_01_BIND_TX_AND_GRANTS.md) | TX bind, права на `public`, снятие HTTP/fanout с phone path |
-| 2 | [`STAGE_02_READ_LINK_DATA_FROM_PUBLIC.md`](STAGE_02_READ_LINK_DATA_FROM_PUBLIC.md) | `getLinkDataByIdentity` → `platform_users` / bindings; карта полей |
-| 3 | [`STAGE_03_LEGACY_EMIT_AND_CONTACT_LINKED.md`](STAGE_03_LEGACY_EMIT_AND_CONTACT_LINKED.md) | `webappEventsClient`, outbox/worker, контракт `contact.linked` |
-| 4 | [`STAGE_04_UX_REASONS_AND_SCRIPTS.md`](STAGE_04_UX_REASONS_AND_SCRIPTS.md) | Таксономия ошибок, `phoneLinkUserMessages`, сценарии |
-| 5 | [`STAGE_05_OBSERVABILITY_TESTS_DOCS.md`](STAGE_05_OBSERVABILITY_TESTS_DOCS.md) | Логи, метрики, тесты, INTEGRATOR_CONTRACT / auth |
-| 6 | [`STAGE_06_OPTIONAL_HTTP_BIND_ROUTE.md`](STAGE_06_OPTIONAL_HTTP_BIND_ROUTE.md) | Signed POST только для внешнего вызывающего (опционально) |
-| — | [`AGENT_AND_AUDIT_LOG.md`](AGENT_AND_AUDIT_LOG.md) | Журнал работ агента и записи аудитов |
+| Этап | Файл                                                                                       | Кратко                                                             |
+| ---- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ |
+| 1    | [`STAGE_01_BIND_TX_AND_GRANTS.md`](STAGE_01_BIND_TX_AND_GRANTS.md)                         | TX bind, права на `public`, снятие HTTP/fanout с phone path        |
+| 2    | [`STAGE_02_READ_LINK_DATA_FROM_PUBLIC.md`](STAGE_02_READ_LINK_DATA_FROM_PUBLIC.md)         | `getLinkDataByIdentity` → `platform_users` / bindings; карта полей |
+| 3    | [`STAGE_03_LEGACY_EMIT_AND_CONTACT_LINKED.md`](STAGE_03_LEGACY_EMIT_AND_CONTACT_LINKED.md) | `webappEventsClient`, outbox/worker, контракт `contact.linked`     |
+| 4    | [`STAGE_04_UX_REASONS_AND_SCRIPTS.md`](STAGE_04_UX_REASONS_AND_SCRIPTS.md)                 | Таксономия ошибок, `phoneLinkUserMessages`, сценарии               |
+| 5    | [`STAGE_05_OBSERVABILITY_TESTS_DOCS.md`](STAGE_05_OBSERVABILITY_TESTS_DOCS.md)             | Логи, метрики, тесты, INTEGRATOR_CONTRACT / auth                   |
+| 6    | [`STAGE_06_OPTIONAL_HTTP_BIND_ROUTE.md`](STAGE_06_OPTIONAL_HTTP_BIND_ROUTE.md)             | Signed POST только для внешнего вызывающего (опционально)          |
+| —    | [`AGENT_AND_AUDIT_LOG.md`](AGENT_AND_AUDIT_LOG.md)                                         | Журнал работ агента и записи аудитов                               |
 
 Порядок внедрения: **1 → 2** параллельно с хвостами **3** там, где ещё есть M2M; **4–5** идут вместе с каждым крупным merge; **6** — по необходимости.
 
@@ -43,18 +43,18 @@
 
 Отдельного файла «будущие todo» нет: хвосты закрываются по **чек-листам внизу** соответствующих `STAGE_*.md`. В IDE план может ещё показывать `pending` — это дубль до ручного закрытия там.
 
-| Todo id (план Cursor) | Где в репозитории |
-|------------------------|-------------------|
-| `read-canon-from-public` | [`STAGE_02_READ_LINK_DATA_FROM_PUBLIC.md`](STAGE_02_READ_LINK_DATA_FROM_PUBLIC.md) |
-| `retire-worker-phone-path` (хвост M2M / воркер не-phone) | [`STAGE_03_LEGACY_EMIT_AND_CONTACT_LINKED.md`](STAGE_03_LEGACY_EMIT_AND_CONTACT_LINKED.md) |
-| `emit-202-parse` (регресс оставшихся emit) | [`STAGE_03_…`](STAGE_03_LEGACY_EMIT_AND_CONTACT_LINKED.md) |
-| `contact-linked-contract` | [`STAGE_03_…`](STAGE_03_LEGACY_EMIT_AND_CONTACT_LINKED.md) |
-| `scripts-ux`, доработки копирайта/веток | [`STAGE_04_UX_REASONS_AND_SCRIPTS.md`](STAGE_04_UX_REASONS_AND_SCRIPTS.md) |
-| `error-taxonomy` (добавить reason/тесты) | [`STAGE_04_…`](STAGE_04_UX_REASONS_AND_SCRIPTS.md) |
-| `admin-audit-logs` | [`STAGE_05_OBSERVABILITY_TESTS_DOCS.md`](STAGE_05_OBSERVABILITY_TESTS_DOCS.md) |
-| `product-copy-contract`, `docs-contract` | [`STAGE_05_…`](STAGE_05_OBSERVABILITY_TESTS_DOCS.md) |
-| `webapp-bind-route` | [`STAGE_06_OPTIONAL_HTTP_BIND_ROUTE.md`](STAGE_06_OPTIONAL_HTTP_BIND_ROUTE.md) — реализовано; повторный аудит и полное покрытие чек-листа: [`AGENT_AND_AUDIT_LOG.md`](AGENT_AND_AUDIT_LOG.md) (2026-04-14) |
-| `single-db-bind-tx`, `integrator-bind-writeport`, `grants-search-path`, `no-binding-policy`, `mini-app-refresh` | в основном [`STAGE_01_…`](STAGE_01_BIND_TX_AND_GRANTS.md) (+ UX в STAGE_04 для текстов) |
+| Todo id (план Cursor)                                                                                           | Где в репозитории                                                                                                                                                                                          |
+| --------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `read-canon-from-public`                                                                                        | [`STAGE_02_READ_LINK_DATA_FROM_PUBLIC.md`](STAGE_02_READ_LINK_DATA_FROM_PUBLIC.md)                                                                                                                         |
+| `retire-worker-phone-path` (хвост M2M / воркер не-phone)                                                        | [`STAGE_03_LEGACY_EMIT_AND_CONTACT_LINKED.md`](STAGE_03_LEGACY_EMIT_AND_CONTACT_LINKED.md)                                                                                                                 |
+| `emit-202-parse` (регресс оставшихся emit)                                                                      | [`STAGE_03_…`](STAGE_03_LEGACY_EMIT_AND_CONTACT_LINKED.md)                                                                                                                                                 |
+| `contact-linked-contract`                                                                                       | [`STAGE_03_…`](STAGE_03_LEGACY_EMIT_AND_CONTACT_LINKED.md)                                                                                                                                                 |
+| `scripts-ux`, доработки копирайта/веток                                                                         | [`STAGE_04_UX_REASONS_AND_SCRIPTS.md`](STAGE_04_UX_REASONS_AND_SCRIPTS.md)                                                                                                                                 |
+| `error-taxonomy` (добавить reason/тесты)                                                                        | [`STAGE_04_…`](STAGE_04_UX_REASONS_AND_SCRIPTS.md)                                                                                                                                                         |
+| `admin-audit-logs`                                                                                              | [`STAGE_05_OBSERVABILITY_TESTS_DOCS.md`](STAGE_05_OBSERVABILITY_TESTS_DOCS.md)                                                                                                                             |
+| `product-copy-contract`, `docs-contract`                                                                        | [`STAGE_05_…`](STAGE_05_OBSERVABILITY_TESTS_DOCS.md)                                                                                                                                                       |
+| `webapp-bind-route`                                                                                             | [`STAGE_06_OPTIONAL_HTTP_BIND_ROUTE.md`](STAGE_06_OPTIONAL_HTTP_BIND_ROUTE.md) — реализовано; повторный аудит и полное покрытие чек-листа: [`AGENT_AND_AUDIT_LOG.md`](AGENT_AND_AUDIT_LOG.md) (2026-04-14) |
+| `single-db-bind-tx`, `integrator-bind-writeport`, `grants-search-path`, `no-binding-policy`, `mini-app-refresh` | в основном [`STAGE_01_…`](STAGE_01_BIND_TX_AND_GRANTS.md) (+ UX в STAGE_04 для текстов)                                                                                                                    |
 
 ## Журнал и аудиты
 

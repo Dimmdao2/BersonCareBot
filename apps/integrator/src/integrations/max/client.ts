@@ -3,7 +3,13 @@
  * Docs: https://github.com/max-messenger/max-bot-api-client-ts
  */
 import { Bot } from '@maxhub/max-bot-api';
-import type { AttachmentRequest, BotCommand, BotInfo, Message, MessageLinkType } from '@maxhub/max-bot-api/types';
+import type {
+  AttachmentRequest,
+  BotCommand,
+  BotInfo,
+  Message,
+  MessageLinkType,
+} from '@maxhub/max-bot-api/types';
 
 export type MaxClientConfig = {
   apiKey: string;
@@ -124,7 +130,10 @@ export async function sendMaxMessage(
   } catch (err) {
     if (err instanceof MaxSendError) throw err;
     const apiMessage =
-      err !== null && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string'
+      err !== null &&
+      typeof err === 'object' &&
+      'message' in err &&
+      typeof (err as { message: unknown }).message === 'string'
         ? (err as { message: string }).message
         : err instanceof Error
           ? err.message
@@ -140,7 +149,10 @@ export async function sendMaxMessage(
 /**
  * PUT /messages?message_id= — edit message. Library expects messageId as string.
  */
-export async function editMaxMessage(config: MaxClientConfig, params: MaxEditMessageParams): Promise<boolean> {
+export async function editMaxMessage(
+  config: MaxClientConfig,
+  params: MaxEditMessageParams,
+): Promise<boolean> {
   try {
     const bot = getBot(config);
     await bot.api.editMessage(params.messageId, params.extra);
@@ -155,7 +167,10 @@ export async function editMaxMessage(config: MaxClientConfig, params: MaxEditMes
 /**
  * DELETE /messages?message_id= — remove message (best-effort; soft-fail for reminder stale-delete).
  */
-export async function deleteMaxMessage(config: MaxClientConfig, messageId: string): Promise<boolean> {
+export async function deleteMaxMessage(
+  config: MaxClientConfig,
+  messageId: string,
+): Promise<boolean> {
   const mid = typeof messageId === 'string' ? messageId.trim() : '';
   if (!mid) return false;
   try {
@@ -172,7 +187,10 @@ export async function deleteMaxMessage(config: MaxClientConfig, messageId: strin
 /**
  * POST /answers — answer callback (button press).
  */
-export async function answerMaxCallback(config: MaxClientConfig, params: MaxAnswerCallbackParams): Promise<boolean> {
+export async function answerMaxCallback(
+  config: MaxClientConfig,
+  params: MaxAnswerCallbackParams,
+): Promise<boolean> {
   try {
     const bot = getBot(config);
     await bot.api.answerOnCallback(params.callbackId, params.extra);

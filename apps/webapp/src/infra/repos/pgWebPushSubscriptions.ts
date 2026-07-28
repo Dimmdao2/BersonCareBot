@@ -1,11 +1,14 @@
 /**
  * Wave 3 phase 14D — domain SQL via `runWebappPgText`; Class C TX on `saveSubscription`.
  */
-import { getPool } from "@/infra/db/client";
-import { getWebappSqlFromPgClient, runWebappPgText } from "@/infra/db/runWebappSql";
-import { withPoolTransaction } from "@/infra/db/withClient";
-import type { WebPushSubscriptionPayloadV1, WebPushSubscriptionsPort } from "@/modules/web-push/ports";
-import type { PoolClient } from "pg";
+import { getPool } from '@/infra/db/client';
+import { getWebappSqlFromPgClient, runWebappPgText } from '@/infra/db/runWebappSql';
+import { withPoolTransaction } from '@/infra/db/withClient';
+import type {
+  WebPushSubscriptionPayloadV1,
+  WebPushSubscriptionsPort,
+} from '@/modules/web-push/ports';
+import type { PoolClient } from 'pg';
 
 const MAX_SUBSCRIPTIONS_PER_USER = 5;
 
@@ -70,7 +73,9 @@ export function createPgWebPushSubscriptionsPort(): WebPushSubscriptionsPort {
     },
 
     async removeSubscriptionsForUser(userId) {
-      await runWebappPgText(`DELETE FROM user_web_push_subscriptions WHERE user_id = $1::uuid`, [userId]);
+      await runWebappPgText(`DELETE FROM user_web_push_subscriptions WHERE user_id = $1::uuid`, [
+        userId,
+      ]);
     },
 
     async hasAnyForUserId(userId) {

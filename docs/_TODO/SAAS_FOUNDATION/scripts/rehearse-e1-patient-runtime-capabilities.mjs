@@ -1,15 +1,17 @@
 #!/usr/bin/env node
-import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
 
-const args = new Map(process.argv.slice(2).map((arg) => {
-  const [key, ...rest] = arg.split("=");
-  return [key, rest.join("=")];
-}));
-const db = args.get("--db") ?? "";
-if (!process.argv.includes("--execute") || db !== "bcb_webapp_dev") {
-  throw new Error("usage: --execute --db=bcb_webapp_dev");
+const args = new Map(
+  process.argv.slice(2).map((arg) => {
+    const [key, ...rest] = arg.split('=');
+    return [key, rest.join('=')];
+  }),
+);
+const db = args.get('--db') ?? '';
+if (!process.argv.includes('--execute') || db !== 'bcb_webapp_dev') {
+  throw new Error('usage: --execute --db=bcb_webapp_dev');
 }
 
 const fixture = String.raw`
@@ -70,10 +72,9 @@ SELECT 1 / (NOT EXISTS (
 ))::int;
 `;
 
-const overlayPath = resolve("deploy/postgres/e1-webapp-runtime-config.sql");
-const overlay = readFileSync(overlayPath, "utf8").replace(
-  /^\\ir\s+(.+)$/gm,
-  (_, relativePath) => readFileSync(resolve(dirname(overlayPath), relativePath.trim()), "utf8"),
+const overlayPath = resolve('deploy/postgres/e1-webapp-runtime-config.sql');
+const overlay = readFileSync(overlayPath, 'utf8').replace(/^\\ir\s+(.+)$/gm, (_, relativePath) =>
+  readFileSync(resolve(dirname(overlayPath), relativePath.trim()), 'utf8'),
 );
 const sql = String.raw`\set e1_webapp_runtime_role app_staff
 BEGIN;
@@ -85,13 +86,14 @@ ${proof}
 ROLLBACK;
 `;
 
-const result = spawnSync("sudo", [
-  "-n", "-u", "postgres", "psql", "-X", "-v", "ON_ERROR_STOP=1",
-  "-d", db,
-], { encoding: "utf8", input: sql });
+const result = spawnSync(
+  'sudo',
+  ['-n', '-u', 'postgres', 'psql', '-X', '-v', 'ON_ERROR_STOP=1', '-d', db],
+  { encoding: 'utf8', input: sql },
+);
 if (result.status !== 0) {
-  process.stdout.write(result.stdout ?? "");
-  process.stderr.write(result.stderr ?? "");
+  process.stdout.write(result.stdout ?? '');
+  process.stderr.write(result.stderr ?? '');
   throw new Error(`E1 capability rehearsal failed: ${result.status}`);
 }
-console.log("E1 patient runtime capabilities PostgreSQL rehearsal: PASS");
+console.log('E1 patient runtime capabilities PostgreSQL rehearsal: PASS');

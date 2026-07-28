@@ -10,7 +10,7 @@ import type {
   TestSetUsageSnapshot,
   UpdateClinicalTestInput,
   UpdateTestSetInput,
-} from "./types";
+} from './types';
 
 export type ClinicalTestsPort = {
   list(filter: ClinicalTestFilter): Promise<ClinicalTest[]>;

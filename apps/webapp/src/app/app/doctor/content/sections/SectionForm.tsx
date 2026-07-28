@@ -1,20 +1,20 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { useActionState, useEffect, useMemo, useRef, useState } from "react";
-import { Badge } from "@/shared/ui/doctor/primitives/badge";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Checkbox } from "@/shared/ui/doctor/primitives/checkbox";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { Label } from "@/shared/ui/doctor/primitives/label";
+import Link from 'next/link';
+import { useActionState, useEffect, useMemo, useRef, useState } from 'react';
+import { Badge } from '@/shared/ui/doctor/primitives/badge';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Checkbox } from '@/shared/ui/doctor/primitives/checkbox';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { Label } from '@/shared/ui/doctor/primitives/label';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/ui/doctor/primitives/select";
-import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
+} from '@/shared/ui/doctor/primitives/select';
+import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
 import {
   type ContentSectionKind,
   type SystemParentCode,
@@ -23,19 +23,19 @@ import {
   isSectionSlugProtectedFromDelete,
   isSystemParentCode,
   placementFromTaxonomy,
-} from "@/modules/content-sections/types";
-import type { PatientHomeCmsReturnQuery } from "@/modules/patient-home/patientHomeCmsReturnUrls";
-import { fallbackSlug, slugFromTitle } from "@/shared/lib/slugify";
-import { MediaLibraryPickerDialog } from "../MediaLibraryPickerDialog";
-import { saveContentSection, type SaveContentSectionState } from "./actions";
-import { SectionDeleteDialog } from "./SectionDeleteDialog";
-import { SectionSlugRenameDialog } from "./SectionSlugRenameDialog";
+} from '@/modules/content-sections/types';
+import type { PatientHomeCmsReturnQuery } from '@/modules/patient-home/patientHomeCmsReturnUrls';
+import { fallbackSlug, slugFromTitle } from '@/shared/lib/slugify';
+import { MediaLibraryPickerDialog } from '../MediaLibraryPickerDialog';
+import { saveContentSection, type SaveContentSectionState } from './actions';
+import { SectionDeleteDialog } from './SectionDeleteDialog';
+import { SectionSlugRenameDialog } from './SectionSlugRenameDialog';
 
 const FOLDER_LABELS: Record<SystemParentCode, string> = {
-  situations: "Ситуации",
-  sos: "SOS",
-  warmups: "Разминки",
-  lessons: "Уроки",
+  situations: 'Ситуации',
+  sos: 'SOS',
+  warmups: 'Разминки',
+  lessons: 'Уроки',
 };
 
 type SectionRow = {
@@ -56,10 +56,11 @@ function placementSummary(
   systemParentCode: SystemParentCode | null,
   sectionSlug?: string,
 ): string {
-  if (sectionSlug && isHelpSectionSlug(sectionSlug)) return "Справка (/help)";
-  if (kind === "article") return "Статьи (общий каталог)";
-  if (systemParentCode && isSystemParentCode(systemParentCode)) return `Папка «${FOLDER_LABELS[systemParentCode]}»`;
-  return "Встроенный системный раздел (корень приложения)";
+  if (sectionSlug && isHelpSectionSlug(sectionSlug)) return 'Справка (/help)';
+  if (kind === 'article') return 'Статьи (общий каталог)';
+  if (systemParentCode && isSystemParentCode(systemParentCode))
+    return `Папка «${FOLDER_LABELS[systemParentCode]}»`;
+  return 'Встроенный системный раздел (корень приложения)';
 }
 
 export function SectionForm({
@@ -79,20 +80,23 @@ export function SectionForm({
   patientHomeContext?: PatientHomeCmsReturnQuery;
   onSaved?: () => void;
 }) {
-  const [state, formAction, pending] = useActionState(saveContentSection, null as SaveContentSectionState | null);
+  const [state, formAction, pending] = useActionState(
+    saveContentSection,
+    null as SaveContentSectionState | null,
+  );
   const isEdit = Boolean(section);
   const initialCreateSlug =
-    !isEdit && initialSuggestedSlug != null && initialSuggestedSlug.trim() !== ""
+    !isEdit && initialSuggestedSlug != null && initialSuggestedSlug.trim() !== ''
       ? (() => {
           const raw = initialSuggestedSlug.trim().toLowerCase();
-          if (!/^[a-z0-9-]+$/.test(raw) || /^-+$/.test(raw)) return "";
+          if (!/^[a-z0-9-]+$/.test(raw) || /^-+$/.test(raw)) return '';
           return raw;
         })()
-      : "";
-  const [titleValue, setTitleValue] = useState(section?.title ?? "");
+      : '';
+  const [titleValue, setTitleValue] = useState(section?.title ?? '');
   const [slugValue, setSlugValue] = useState(initialCreateSlug);
-  const [coverImageUrlValue, setCoverImageUrlValue] = useState(section?.coverImageUrl ?? "");
-  const [iconImageUrlValue, setIconImageUrlValue] = useState(section?.iconImageUrl ?? "");
+  const [coverImageUrlValue, setCoverImageUrlValue] = useState(section?.coverImageUrl ?? '');
+  const [iconImageUrlValue, setIconImageUrlValue] = useState(section?.iconImageUrl ?? '');
   const slugManualRef = useRef(initialCreateSlug.length > 0);
 
   useEffect(() => {
@@ -100,16 +104,18 @@ export function SectionForm({
   }, [onSaved, state?.ok]);
 
   const placementLocked =
-    isEdit && section != null && (isImmutableSystemSectionSlug(section.slug) || isSectionSlugProtectedFromDelete(section.slug));
+    isEdit &&
+    section != null &&
+    (isImmutableSystemSectionSlug(section.slug) || isSectionSlugProtectedFromDelete(section.slug));
 
   const defaultCreatePlacement = useMemo(() => {
-    const raw = initialSystemParentCode?.trim() ?? "";
+    const raw = initialSystemParentCode?.trim() ?? '';
     if (raw && isSystemParentCode(raw)) return raw;
-    return "article";
+    return 'article';
   }, [initialSystemParentCode]);
 
   const editPlacementValue =
-    section != null ? placementFromTaxonomy(section.kind, section.systemParentCode) : "article";
+    section != null ? placementFromTaxonomy(section.kind, section.systemParentCode) : 'article';
 
   return (
     <form action={formAction} className="flex flex-col gap-4">
@@ -120,12 +126,19 @@ export function SectionForm({
       ) : null}
       {state?.ok ? (
         patientHomeContext ? (
-          <div role="status" className="rounded-md border border-primary/30 bg-primary/5 p-4 text-sm">
+          <div
+            role="status"
+            className="rounded-md border border-primary/30 bg-primary/5 p-4 text-sm"
+          >
             <p className="font-medium">Раздел сохранён</p>
             <p className="mt-1 text-muted-foreground">
-              Вернитесь на экран главной пациента и добавьте раздел в блок «{patientHomeContext.patientHomeBlock}».
+              Вернитесь на экран главной пациента и добавьте раздел в блок «
+              {patientHomeContext.patientHomeBlock}».
             </p>
-            <Link href={patientHomeContext.returnTo} className="mt-2 inline-flex text-primary underline">
+            <Link
+              href={patientHomeContext.returnTo}
+              className="mt-2 inline-flex text-primary underline"
+            >
               Открыть экран «Главная пациента»
             </Link>
           </div>
@@ -138,10 +151,18 @@ export function SectionForm({
 
       {isEdit ? (
         <div className="flex flex-col gap-1">
-          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Slug</span>
+          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Slug
+          </span>
           <div className="flex flex-wrap items-center gap-2">
             <input type="hidden" name="slug" value={section!.slug} />
-            <Input type="text" value={section!.slug} disabled readOnly className="min-w-[12rem] flex-1" />
+            <Input
+              type="text"
+              value={section!.slug}
+              disabled
+              readOnly
+              className="min-w-[12rem] flex-1"
+            />
             <SectionSlugRenameDialog
               oldSlug={section!.slug}
               pagesAffectedCount={pagesInSection}
@@ -153,14 +174,16 @@ export function SectionForm({
       ) : null}
 
       <label className="flex flex-col gap-1">
-        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Заголовок</span>
+        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          Заголовок
+        </span>
         {isEdit ? (
           <Input
             type="text"
             name="title"
             required
-            defaultValue={section?.title ?? ""}
-            key={`title-${section?.slug ?? "new"}`}
+            defaultValue={section?.title ?? ''}
+            key={`title-${section?.slug ?? 'new'}`}
           />
         ) : (
           <Input
@@ -182,7 +205,9 @@ export function SectionForm({
 
       {!isEdit ? (
         <label className="flex flex-col gap-1">
-          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Slug</span>
+          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Slug
+          </span>
           <div className="flex flex-wrap gap-2">
             <Input
               type="text"
@@ -246,7 +271,7 @@ export function SectionForm({
               <SelectItem value="sos">SOS</SelectItem>
               <SelectItem value="warmups">Разминки</SelectItem>
               <SelectItem value="lessons">Уроки</SelectItem>
-              {editPlacementValue === "system_root" ? (
+              {editPlacementValue === 'system_root' ? (
                 <SelectItem value="system_root">Встроенный (корень)</SelectItem>
               ) : null}
             </SelectContent>
@@ -271,58 +296,76 @@ export function SectionForm({
         )}
         {!placementLocked ? (
           <p className="text-xs text-muted-foreground">
-            Разделы в папках «Ситуации», «SOS», «Разминки» и «Уроки» не попадают в список всех статей; статьи остаются в
-            общем каталоге.
+            Разделы в папках «Ситуации», «SOS», «Разминки» и «Уроки» не попадают в список всех
+            статей; статьи остаются в общем каталоге.
           </p>
         ) : null}
       </div>
 
       <label className="flex flex-col gap-1">
-        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Описание</span>
+        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          Описание
+        </span>
         <Textarea
           name="description"
           rows={2}
-          defaultValue={section?.description ?? ""}
-          key={`desc-${section?.slug ?? "new"}`}
+          defaultValue={section?.description ?? ''}
+          key={`desc-${section?.slug ?? 'new'}`}
         />
       </label>
 
       <label className="flex flex-col gap-1">
-        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Порядок сортировки</span>
+        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          Порядок сортировки
+        </span>
         <Input
           type="number"
           name="sort_order"
           defaultValue={section?.sortOrder ?? 0}
-          key={`sort-${section?.slug ?? "new"}`}
+          key={`sort-${section?.slug ?? 'new'}`}
         />
       </label>
 
       <div className="flex flex-col gap-1">
-        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Обложка раздела</span>
+        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          Обложка раздела
+        </span>
         <input type="hidden" name="cover_image_url" value={coverImageUrlValue} />
-        <MediaLibraryPickerDialog kind="image" value={coverImageUrlValue} onChange={setCoverImageUrlValue} />
+        <MediaLibraryPickerDialog
+          kind="image"
+          value={coverImageUrlValue}
+          onChange={setCoverImageUrlValue}
+        />
       </div>
 
       <div className="flex flex-col gap-1">
-        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Иконка раздела</span>
+        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          Иконка раздела
+        </span>
         <input type="hidden" name="icon_image_url" value={iconImageUrlValue} />
-        <MediaLibraryPickerDialog kind="image" value={iconImageUrlValue} onChange={setIconImageUrlValue} />
+        <MediaLibraryPickerDialog
+          kind="image"
+          value={iconImageUrlValue}
+          onChange={setIconImageUrlValue}
+        />
       </div>
 
       <label className="flex items-center gap-2">
         <Checkbox
           name="is_visible"
           defaultChecked={section?.isVisible ?? true}
-          key={`vis-${section?.slug ?? "new"}`}
+          key={`vis-${section?.slug ?? 'new'}`}
         />
-        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Виден пациентам</span>
+        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          Виден пациентам
+        </span>
       </label>
 
       <label className="flex items-center gap-2">
         <Checkbox
           name="requires_auth"
           defaultChecked={section?.requiresAuth ?? false}
-          key={`req-${section?.slug ?? "new"}`}
+          key={`req-${section?.slug ?? 'new'}`}
         />
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
           Только для залогиненных (щит)
@@ -331,7 +374,7 @@ export function SectionForm({
 
       <div className="flex flex-wrap items-center gap-3">
         <Button type="submit" disabled={pending}>
-          {pending ? "Сохранение…" : "Сохранить"}
+          {pending ? 'Сохранение…' : 'Сохранить'}
         </Button>
         {isEdit && section != null && !isSectionSlugProtectedFromDelete(section.slug) ? (
           <SectionDeleteDialog

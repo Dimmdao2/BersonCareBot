@@ -1,5 +1,5 @@
-import type { UserPinsPort } from "./userPinsPort";
-import { verifyPinAgainstHash } from "./pinHash";
+import type { UserPinsPort } from './userPinsPort';
+import { verifyPinAgainstHash } from './pinHash';
 
 export const PIN_MAX_ATTEMPTS = 5;
 export const PIN_LOCK_MINUTES = 15;
@@ -14,7 +14,7 @@ export type PinLoginVerifyResult =
   | { ok: true }
   | {
       ok: false;
-      code: "no_pin" | "locked" | "invalid_pin";
+      code: 'no_pin' | 'locked' | 'invalid_pin';
       attemptsLeft?: number;
       lockedUntilIso?: string;
     };
@@ -22,11 +22,11 @@ export type PinLoginVerifyResult =
 export async function verifyPinForLogin(
   userId: string,
   pin: string,
-  pinsPort: UserPinsPort
+  pinsPort: UserPinsPort,
 ): Promise<PinLoginVerifyResult> {
   let row = await pinsPort.getByUserId(userId);
   if (!row) {
-    return { ok: false, code: "no_pin" };
+    return { ok: false, code: 'no_pin' };
   }
 
   const now = new Date();
@@ -34,14 +34,14 @@ export async function verifyPinForLogin(
     await pinsPort.resetAttempts(userId);
     row = await pinsPort.getByUserId(userId);
     if (!row) {
-      return { ok: false, code: "no_pin" };
+      return { ok: false, code: 'no_pin' };
     }
   }
 
   if (row.lockedUntil && row.lockedUntil.getTime() > now.getTime()) {
     return {
       ok: false,
-      code: "locked",
+      code: 'locked',
       lockedUntilIso: row.lockedUntil.toISOString(),
     };
   }
@@ -56,7 +56,7 @@ export async function verifyPinForLogin(
   if (after.lockedUntil && after.attemptsFailed >= PIN_MAX_ATTEMPTS) {
     return {
       ok: false,
-      code: "locked",
+      code: 'locked',
       attemptsLeft: 0,
       lockedUntilIso: after.lockedUntil.toISOString(),
     };
@@ -64,7 +64,7 @@ export async function verifyPinForLogin(
 
   return {
     ok: false,
-    code: "invalid_pin",
+    code: 'invalid_pin',
     attemptsLeft: Math.max(0, PIN_MAX_ATTEMPTS - after.attemptsFailed),
   };
 }

@@ -10,12 +10,12 @@
 
 ## 1. Резюме для продукта
 
-| Проблема (из постановки) | Подтверждено кодом | Корневая причина |
-|--------------------------|-------------------|------------------|
-| Запись из Rubitime есть, карточка пациента не всегда | **Да** | Горячий путь Rubitime → `booking.upsert` **не** шлёт `appointment.record.upserted` в webapp → `ensureClientFromAppointmentProjection` часто **не вызывается** |
-| Врач добавил email, регистрация — «email занят» | **Да** | Email на существующем `platform_users`; регистрация всегда `INSERT` нового client → `23505` |
-| Forgot — «отправили», письма нет | **Да** | `forgot` требует `user_password_credentials` + `email_verified_at`; contact-only → **нет** `startEmailChallenge`; UI всё равно success |
-| Вход PWA по email+паролю | **Нет пути** | Нет «claim / setup access» на существующую карточку (планируется фазы 3–5) |
+| Проблема (из постановки)                             | Подтверждено кодом | Корневая причина                                                                                                                                              |
+| ---------------------------------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Запись из Rubitime есть, карточка пациента не всегда | **Да**             | Горячий путь Rubitime → `booking.upsert` **не** шлёт `appointment.record.upserted` в webapp → `ensureClientFromAppointmentProjection` часто **не вызывается** |
+| Врач добавил email, регистрация — «email занят»      | **Да**             | Email на существующем `platform_users`; регистрация всегда `INSERT` нового client → `23505`                                                                   |
+| Forgot — «отправили», письма нет                     | **Да**             | `forgot` требует `user_password_credentials` + `email_verified_at`; contact-only → **нет** `startEmailChallenge`; UI всё равно success                        |
+| Вход PWA по email+паролю                             | **Нет пути**       | Нет «claim / setup access» на существующую карточку (планируется фазы 3–5)                                                                                    |
 
 **Сценарий пользователя (бот + email от врача):** полностью воспроизводится текущим кодом. SMTP/integrator при этом могут быть исправны (отдельная проверка `send-email` 200 не отменяет тупик forgot для contact-only).
 
@@ -49,11 +49,11 @@ Rubitime webhook / post-create
 
 ### 2.2 Когда `appointment_records.platform_user_id` заполняется
 
-| Путь | Поведение |
-|------|-----------|
-| Integrator `booking.upsert` | Колонка **не пишется** (`publicAppointmentRecordSync.ts`) |
+| Путь                                | Поведение                                                                                                                         |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Integrator `booking.upsert`         | Колонка **не пишется** (`publicAppointmentRecordSync.ts`)                                                                         |
 | Webapp `upsertRecordFromProjection` | Только при HTTP-событии `appointment.record.upserted`: подзапрос по `user_phone_history` / lone `platform_users.phone_normalized` |
-| `ensureClient` + projection | Если phone есть и событие дошло — `userId` в compat; SQL может проставить `platform_user_id` |
+| `ensureClient` + projection         | Если phone есть и событие дошло — `userId` в compat; SQL может проставить `platform_user_id`                                      |
 
 **Остаётся NULL:** только integrator-path; ambiguous phone; merge conflict; нет телефона.
 
@@ -61,11 +61,11 @@ Rubitime webhook / post-create
 
 ### 2.3 Find/create — порядок vs MAIN PLAN
 
-| MAIN PLAN | Код сегодня |
-|-----------|-------------|
-| Сначала phone, затем email | **Phone → integrator_user_id** в `ensureAppointmentClientTx`; **email search/create нет** |
-| Email при create — unverified | При INSERT в ensure — email в поле, **без** `email_verified_at` (NULL) |
-| Trusted phone из Rubitime | INSERT ensure **без** `patient_phone_trust_at`; autobind **не** ставит trust |
+| MAIN PLAN                        | Код сегодня                                                                                                                                                                                   |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Сначала phone, затем email       | **Phone → integrator_user_id** в `ensureAppointmentClientTx`; **email search/create нет**                                                                                                     |
+| Email при create — unverified    | При INSERT в ensure — email в поле, **без** `email_verified_at` (NULL)                                                                                                                        |
+| Trusted phone из Rubitime        | INSERT ensure **без** `patient_phone_trust_at`; autobind **не** ставит trust                                                                                                                  |
 | Не переименовывать существующего | **Нарушение:** UPDATE в `ensureAppointmentClientTx` перезаписывает `display_name` / first / last при непустом payload (комментарий в коде: «overwrite», строки 329–355 `pgUserProjection.ts`) |
 
 ### 2.4 `applyRubitimeEmailAutobind`
@@ -102,12 +102,12 @@ Rubitime webhook / post-create
 
 ### 3.2 Регистрация / forgot / reset
 
-| Endpoint | Условие отправки почты | Ответ при contact-only |
-|----------|------------------------|-------------------------|
-| `POST .../register` | Новый user + `startEmailChallenge` (await) | `duplicate_email` → `tryResend` только если есть password row + unverified |
-| `POST .../forgot` | `findVerifiedUserIdWithPassword` | **200 ok**, send **не** вызывается |
-| `POST .../reset` | verified + password + valid challenge | `invalid_code` (dummy user если нет verified) |
-| `POST .../email/start` (сессия) | `startEmailChallenge` | Ошибки видны (503 `email_send_failed`) |
+| Endpoint                        | Условие отправки почты                     | Ответ при contact-only                                                     |
+| ------------------------------- | ------------------------------------------ | -------------------------------------------------------------------------- |
+| `POST .../register`             | Новый user + `startEmailChallenge` (await) | `duplicate_email` → `tryResend` только если есть password row + unverified |
+| `POST .../forgot`               | `findVerifiedUserIdWithPassword`           | **200 ok**, send **не** вызывается                                         |
+| `POST .../reset`                | verified + password + valid challenge      | `invalid_code` (dummy user если нет verified)                              |
+| `POST .../email/start` (сессия) | `startEmailChallenge`                      | Ошибки видны (503 `email_send_failed`)                                     |
 
 **Forgot** (`forgot/route.ts`): `void startEmailChallenge(...).catch(() => undefined)` — ошибки SMTP **не** влияют на HTTP.
 
@@ -121,26 +121,26 @@ Rubitime webhook / post-create
 
 ### 3.4 Тупик «бот + email врача» (таблица состояний)
 
-| Поле / таблица | Типично |
-|----------------|---------|
-| `platform_users` | Есть (Telegram/phone), `email` после врача |
-| `email_verified_at` | **NULL** |
-| `user_password_credentials` | **Нет** |
-| Register | 409 `duplicate_email` |
-| Forgot | 200, письмо **нет** |
-| Login email+password | 401 |
-| PWA по Telegram | **Работает** (отдельный канал) |
+| Поле / таблица              | Типично                                    |
+| --------------------------- | ------------------------------------------ |
+| `platform_users`            | Есть (Telegram/phone), `email` после врача |
+| `email_verified_at`         | **NULL**                                   |
+| `user_password_credentials` | **Нет**                                    |
+| Register                    | 409 `duplicate_email`                      |
+| Forgot                      | 200, письмо **нет**                        |
+| Login email+password        | 401                                        |
+| PWA по Telegram             | **Работает** (отдельный канал)             |
 
 ---
 
 ## 4. Email setup access (MAIN PLAN §3–4) — отсутствует
 
-| Артефакт | Статус |
-|----------|--------|
-| Таблица `user_email_setup_tokens` | **Нет** в schema/migrations |
-| URL `/app/auth/email-setup` | **Нет** |
-| API validate / complete / resend | **Нет** |
-| Письмо со ссылкой (не OTP) | **Нет** — только код в `send-email` |
+| Артефакт                          | Статус                              |
+| --------------------------------- | ----------------------------------- |
+| Таблица `user_email_setup_tokens` | **Нет** в schema/migrations         |
+| URL `/app/auth/email-setup`       | **Нет**                             |
+| API validate / complete / resend  | **Нет**                             |
+| Письмо со ссылкой (не OTP)        | **Нет** — только код в `send-email` |
 
 **Вывод:** весь блок §3–5 MAIN PLAN — **greenfield** поверх существующего OTP.
 
@@ -156,13 +156,13 @@ Rubitime webhook / post-create
 
 ### 5.2 Целевые состояния (из MAIN PLAN) — gap
 
-| # | Состояние | Реализовано |
-|---|-----------|-------------|
-| 1 | Email свободен → register | Да |
-| 2 | Contact-only → setup link | **Нет** |
-| 3 | Verified + password → login/forgot | Да |
-| 4 | Verified, нет password → setup | **Нет** |
-| 5 | Конфликт / несколько кандидатов → support | Частично (merge/conflict в других потоках) |
+| #   | Состояние                                 | Реализовано                                |
+| --- | ----------------------------------------- | ------------------------------------------ |
+| 1   | Email свободен → register                 | Да                                         |
+| 2   | Contact-only → setup link                 | **Нет**                                    |
+| 3   | Verified + password → login/forgot        | Да                                         |
+| 4   | Verified, нет password → setup            | **Нет**                                    |
+| 5   | Конфликт / несколько кандидатов → support | Частично (merge/conflict в других потоках) |
 
 ---
 
@@ -171,7 +171,7 @@ Rubitime webhook / post-create
 ### 6.1 Ручной merge
 
 - UI: `AdminMergeAccountsPanel`, API `doctor/clients/merge*`, `integrator-merge` (v2).
-- Движок: `packages/platform-merge/src/pgPlatformUserMerge.ts` — appointments, symptom_*, reminders, LFK, bindings, OAuth, passwords, email challenges.
+- Движок: `packages/platform-merge/src/pgPlatformUserMerge.ts` — appointments, symptom\_\*, reminders, LFK, bindings, OAuth, passwords, email challenges.
 
 **Gap для инициативы:** нет регрессионного теста «appointments + diary на одном canonical» (MAIN PLAN §11).
 
@@ -184,12 +184,12 @@ Auto-merge по phone (`projection`, `phone_bind`) **не** зависит от 
 
 ### 6.3 vs Rubitime/email initiative
 
-| Сценарий MAIN PLAN | Код |
-|---------------------|-----|
-| Предотвратить дубль phone/email при Rubitime | **Слабо:** нет email-find; hot path без ensure |
-| Email user + Rubitime phone → trusted на том же user | **Нет** |
-| Bot + тот же phone | Phone match / merge если оба canonical; иначе conflict |
-| Не затирать имя | **Нарушено** в ensure UPDATE |
+| Сценарий MAIN PLAN                                   | Код                                                    |
+| ---------------------------------------------------- | ------------------------------------------------------ |
+| Предотвратить дубль phone/email при Rubitime         | **Слабо:** нет email-find; hot path без ensure         |
+| Email user + Rubitime phone → trusted на том же user | **Нет**                                                |
+| Bot + тот же phone                                   | Phone match / merge если оба canonical; иначе conflict |
+| Не затирать имя                                      | **Нарушено** в ensure UPDATE                           |
 
 **Вывод:** merge как **страховка** зрелый; приоритет — **фаза 1 + 3–5**, не новый merge engine.
 
@@ -216,13 +216,13 @@ Auto-merge по phone (`projection`, `phone_bind`) **не** зависит от 
 
 ## 8. Тестовое покрытие (MAIN PLAN §11)
 
-| Группа | Есть | Нет |
-|--------|------|-----|
+| Группа                     | Есть                                           | Нет                                     |
+| -------------------------- | ---------------------------------------------- | --------------------------------------- |
 | Rubitime projection events | `events.test.ts` (appointment.record.upserted) | E2E «webhook → platform_user_id filled» |
-| Email auth forgot neutral | `forgot/route.test.ts` | contact-only → setup |
-| Register duplicate | частично | `existing_account_needs_email_setup` |
-| Setup token | — | весь блок |
-| Merge appointments+diary | merge unit tests | сценарий §7 из MAIN PLAN |
+| Email auth forgot neutral  | `forgot/route.test.ts`                         | contact-only → setup                    |
+| Register duplicate         | частично                                       | `existing_account_needs_email_setup`    |
+| Setup token                | —                                              | весь блок                               |
+| Merge appointments+diary   | merge unit tests                               | сценарий §7 из MAIN PLAN                |
 
 ---
 
@@ -267,30 +267,30 @@ Auto-merge по phone (`projection`, `phone_bind`) **не** зависит от 
 
 ## 11. Gate фазы 0
 
-| Критерий PHASE_00 | Статус |
-|-------------------|--------|
-| Аудит CODE_AUDIT_MAP | **Выполнен** (этот отчёт) |
-| Список файлов / миграций | **§9** |
-| Подтверждение `user_email_setup_tokens` | Рекомендация: **да** |
-| Продуктовое согласование MVP | **Ожидает** (вопросы в README / чат) |
-| Старт кода | **Запрещён** до ответов на блокеры (на момент 2026-05-19) |
+| Критерий PHASE_00                       | Статус                                                    |
+| --------------------------------------- | --------------------------------------------------------- |
+| Аудит CODE_AUDIT_MAP                    | **Выполнен** (этот отчёт)                                 |
+| Список файлов / миграций                | **§9**                                                    |
+| Подтверждение `user_email_setup_tokens` | Рекомендация: **да**                                      |
+| Продуктовое согласование MVP            | **Ожидает** (вопросы в README / чат)                      |
+| Старт кода                              | **Запрещён** до ответов на блокеры (на момент 2026-05-19) |
 
 ---
 
 ## 12. Состояние после фаз 1–6 + hardening (2026-05-20)
 
-| Блок PHASE_00 (§) | Было (2026-05-19) | Сейчас |
-|-------------------|-------------------|--------|
-| §2 Rubitime hot path | Нет fan-out → нет ensure | **PHASE_01:** `appointment.record.upserted` после `booking.upsert`; ensure + `platform_user_id` на live-path |
-| §2.3 overwrite имени | ensure UPDATE затирал ФИО | **Исправлено** в `ensureAppointmentClientTx`; messenger `upsertFromProjectionTx` — отдельный legacy-path |
-| §2.3 trusted phone | Нет `patient_phone_trust_at` | **Исправлено** в ensure INSERT/UPDATE |
-| §2 email find | Нет | **Исправлено:** phone → integrator_id → email |
-| §3 contact email + setup | Нет токенов/писем | **PHASE_02–03:** политика + tokens + mail; **hardening:** enqueue на `appointment.record.upserted` при новом/изменённом email |
-| §3 forgot/register тупик | duplicate / silent forgot | **PHASE_05:** `existing_account_needs_email_setup`, forgot → setup |
-| §4 setup UI | Нет | **PHASE_04:** `/app/auth/email-setup`, validate/complete/resend; **hardening:** consume token в одной tx с verify+password |
-| §5 auth states | Нет | **PHASE_05:** `resolveAuthState`, `AuthFlowV2`, lookup/setup-access |
-| §6 merge тест §7.3 | Нет | **PHASE_06:** unit-тест appointments + diary/warmup при manual merge |
-| §7 migrations | Нет `user_email_setup_tokens` | **0076** + journal (PHASE_03–04) |
+| Блок PHASE_00 (§)        | Было (2026-05-19)             | Сейчас                                                                                                                        |
+| ------------------------ | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| §2 Rubitime hot path     | Нет fan-out → нет ensure      | **PHASE_01:** `appointment.record.upserted` после `booking.upsert`; ensure + `platform_user_id` на live-path                  |
+| §2.3 overwrite имени     | ensure UPDATE затирал ФИО     | **Исправлено** в `ensureAppointmentClientTx`; messenger `upsertFromProjectionTx` — отдельный legacy-path                      |
+| §2.3 trusted phone       | Нет `patient_phone_trust_at`  | **Исправлено** в ensure INSERT/UPDATE                                                                                         |
+| §2 email find            | Нет                           | **Исправлено:** phone → integrator_id → email                                                                                 |
+| §3 contact email + setup | Нет токенов/писем             | **PHASE_02–03:** политика + tokens + mail; **hardening:** enqueue на `appointment.record.upserted` при новом/изменённом email |
+| §3 forgot/register тупик | duplicate / silent forgot     | **PHASE_05:** `existing_account_needs_email_setup`, forgot → setup                                                            |
+| §4 setup UI              | Нет                           | **PHASE_04:** `/app/auth/email-setup`, validate/complete/resend; **hardening:** consume token в одной tx с verify+password    |
+| §5 auth states           | Нет                           | **PHASE_05:** `resolveAuthState`, `AuthFlowV2`, lookup/setup-access                                                           |
+| §6 merge тест §7.3       | Нет                           | **PHASE_06:** unit-тест appointments + diary/warmup при manual merge                                                          |
+| §7 migrations            | Нет `user_email_setup_tokens` | **0076** + journal (PHASE_03–04)                                                                                              |
 
 **Post-MVP hardening (2026-05-20):** structured logging enqueue (`enqueueContactEmailSetup.ts`); autobind skip reporter (`skipped_verified` / conflict); UI `already_has_login`; см. [`LOG.md`](LOG.md).
 

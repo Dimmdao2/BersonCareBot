@@ -1,31 +1,31 @@
-import { describe, expect, it } from "vitest";
-import { computeWorkerStatus } from "./SystemHealthSection";
+import { describe, expect, it } from 'vitest';
+import { computeWorkerStatus } from './SystemHealthSection';
 
-describe("computeWorkerStatus", () => {
-  it("returns idle when projection queue is empty", () => {
+describe('computeWorkerStatus', () => {
+  it('returns idle when projection queue is empty', () => {
     const result = computeWorkerStatus({
-      webappDb: "up",
-      integratorApi: { status: "ok", db: "up" },
+      webappDb: 'up',
+      integratorApi: { status: 'ok', db: 'up' },
       projection: {
-        status: "ok",
+        status: 'ok',
         snapshot: {
           pendingCount: 0,
           processingCount: 0,
-          lastSuccessAt: "2026-04-16T10:00:00.000Z",
+          lastSuccessAt: '2026-04-16T10:00:00.000Z',
         },
       },
-      mediaCronWorkers: { status: "configured" },
+      mediaCronWorkers: { status: 'configured' },
       mediaPreview: {
-        status: "ok",
+        status: 'ok',
         stalePendingCount: 0,
         byMimeAndStatus: {
-          "video/quicktime": { pending: 0, ready: 0, failed: 0, skipped: 0 },
-          "image/heic": { pending: 0, ready: 0, failed: 0, skipped: 0 },
-          "image/heif": { pending: 0, ready: 0, failed: 0, skipped: 0 },
+          'video/quicktime': { pending: 0, ready: 0, failed: 0, skipped: 0 },
+          'image/heic': { pending: 0, ready: 0, failed: 0, skipped: 0 },
+          'image/heif': { pending: 0, ready: 0, failed: 0, skipped: 0 },
         },
       },
       videoPlayback: {
-        status: "ok",
+        status: 'ok',
         windowHours: 24,
         playbackApiEnabled: false,
         byDelivery: { hls: 0, mp4: 0, file: 0 },
@@ -37,7 +37,7 @@ describe("computeWorkerStatus", () => {
         totalResolutionsLast1h: 0,
       },
       videoTranscode: {
-        status: "ok",
+        status: 'ok',
         pipelineEnabled: false,
         reconcileEnabled: false,
         pendingCount: 0,
@@ -54,36 +54,36 @@ describe("computeWorkerStatus", () => {
         readableVideoReadyWithHlsCount: 0,
         lastReconcileTick: null,
       },
-      fetchedAt: "2026-04-16T10:00:00.000Z",
+      fetchedAt: '2026-04-16T10:00:00.000Z',
     });
-    expect(result.worker).toBe("idle");
+    expect(result.worker).toBe('idle');
   });
 
-  it("returns no_activity when queue has items and last success is stale", () => {
-    const oldIso = "2020-01-01T00:00:00.000Z";
+  it('returns no_activity when queue has items and last success is stale', () => {
+    const oldIso = '2020-01-01T00:00:00.000Z';
     const result = computeWorkerStatus({
-      webappDb: "up",
-      integratorApi: { status: "ok", db: "up" },
+      webappDb: 'up',
+      integratorApi: { status: 'ok', db: 'up' },
       projection: {
-        status: "ok",
+        status: 'ok',
         snapshot: {
           pendingCount: 1,
           processingCount: 0,
           lastSuccessAt: oldIso,
         },
       },
-      mediaCronWorkers: { status: "configured" },
+      mediaCronWorkers: { status: 'configured' },
       mediaPreview: {
-        status: "ok",
+        status: 'ok',
         stalePendingCount: 0,
         byMimeAndStatus: {
-          "video/quicktime": { pending: 0, ready: 0, failed: 0, skipped: 0 },
-          "image/heic": { pending: 0, ready: 0, failed: 0, skipped: 0 },
-          "image/heif": { pending: 0, ready: 0, failed: 0, skipped: 0 },
+          'video/quicktime': { pending: 0, ready: 0, failed: 0, skipped: 0 },
+          'image/heic': { pending: 0, ready: 0, failed: 0, skipped: 0 },
+          'image/heif': { pending: 0, ready: 0, failed: 0, skipped: 0 },
         },
       },
       videoPlayback: {
-        status: "ok",
+        status: 'ok',
         windowHours: 24,
         playbackApiEnabled: false,
         byDelivery: { hls: 0, mp4: 0, file: 0 },
@@ -95,7 +95,7 @@ describe("computeWorkerStatus", () => {
         totalResolutionsLast1h: 0,
       },
       videoTranscode: {
-        status: "ok",
+        status: 'ok',
         pipelineEnabled: false,
         reconcileEnabled: false,
         pendingCount: 0,
@@ -112,8 +112,8 @@ describe("computeWorkerStatus", () => {
         readableVideoReadyWithHlsCount: 0,
         lastReconcileTick: null,
       },
-      fetchedAt: "2026-04-16T10:00:00.000Z",
+      fetchedAt: '2026-04-16T10:00:00.000Z',
     });
-    expect(result.worker).toBe("no_activity");
+    expect(result.worker).toBe('no_activity');
   });
 });

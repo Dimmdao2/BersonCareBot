@@ -1,15 +1,18 @@
-"use client";
+'use client';
 
-import { useEffect } from "react";
-import { getPushPermissionState, probePushSupported } from "@/shared/lib/webPush/pushCapability";
-import { fetchPatientWebPushStatus, reportPwaLaunchSnapshot } from "@/shared/lib/webPush/patientWebPushApi";
-import { useWebPushClientState } from "@/shared/lib/webPush/PatientWebPushContext";
-import { isStandalonePwa } from "@/shared/lib/webPush/pwaDisplay";
-import { restorePatientWebPushSubscription } from "@/shared/lib/webPush/subscribePatientWebPush";
-import { PatientWebPushFreshLoginDeniedDialog } from "@/shared/ui/patient/webPush/PatientWebPushFreshLoginDeniedDialog";
-import { PatientWebPushOnboardingCard } from "@/shared/ui/patient/webPush/PatientWebPushOnboardingCard";
+import { useEffect } from 'react';
+import { getPushPermissionState, probePushSupported } from '@/shared/lib/webPush/pushCapability';
+import {
+  fetchPatientWebPushStatus,
+  reportPwaLaunchSnapshot,
+} from '@/shared/lib/webPush/patientWebPushApi';
+import { useWebPushClientState } from '@/shared/lib/webPush/PatientWebPushContext';
+import { isStandalonePwa } from '@/shared/lib/webPush/pwaDisplay';
+import { restorePatientWebPushSubscription } from '@/shared/lib/webPush/subscribePatientWebPush';
+import { PatientWebPushFreshLoginDeniedDialog } from '@/shared/ui/patient/webPush/PatientWebPushFreshLoginDeniedDialog';
+import { PatientWebPushOnboardingCard } from '@/shared/ui/patient/webPush/PatientWebPushOnboardingCard';
 
-const SW_MESSAGE_TYPE = "WEB_PUSH_SUBSCRIPTION_CHANGE";
+const SW_MESSAGE_TYPE = 'WEB_PUSH_SUBSCRIPTION_CHANGE';
 
 /** Registers SW, launch analytics, onboarding card, pushsubscriptionchange relay. */
 export function PatientWebPushBootstrap() {
@@ -31,7 +34,7 @@ export function PatientWebPushBootstrap() {
   const { refresh } = state;
 
   useEffect(() => {
-    if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return;
+    if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
 
     const onMessage = (event: MessageEvent) => {
       const data = event.data as { type?: string } | null;
@@ -44,8 +47,8 @@ export function PatientWebPushBootstrap() {
       })();
     };
 
-    navigator.serviceWorker.addEventListener("message", onMessage);
-    return () => navigator.serviceWorker.removeEventListener("message", onMessage);
+    navigator.serviceWorker.addEventListener('message', onMessage);
+    return () => navigator.serviceWorker.removeEventListener('message', onMessage);
   }, [refresh]);
 
   return (

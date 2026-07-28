@@ -10,24 +10,25 @@
 - [x] Integrator runtimeConfig: пофилдовое слияние DB + env (частичная БД не затирает env пустыми строками)
 - [x] UI Settings: редирект `?gcal=error&reason=` показывает расшифровку; сбой PATCH календаря/тоггла откатывает локальный state
 - [x] Нет новых env-переменных для интеграции (правило `000-critical-integration-config-in-db`)
-- [x] Env GOOGLE_* в integrator помечены `@deprecated`
+- [x] Env GOOGLE\_\* в integrator помечены `@deprecated`
 - [x] Документация обновлена: `CONFIGURATION_ENV_VS_DATABASE.md`
 - [x] `pnpm run ci` зелёный (lint, typecheck, test, test:webapp, webapp:typecheck, build, audit)
 
 ## Test Coverage
 
-| Area | Tests | Status |
-|------|-------|--------|
-| googleOAuthHelpers | 11 | pass |
-| /api/admin/google-calendar/start | 4 | pass |
-| /api/admin/google-calendar/callback | 7 | pass |
-| /api/admin/google-calendar/calendars | 6 | pass |
-| integrator runtimeConfig | 6 | pass |
-| **Total new** | **34** | **pass** |
+| Area                                 | Tests  | Status   |
+| ------------------------------------ | ------ | -------- |
+| googleOAuthHelpers                   | 11     | pass     |
+| /api/admin/google-calendar/start     | 4      | pass     |
+| /api/admin/google-calendar/callback  | 7      | pass     |
+| /api/admin/google-calendar/calendars | 6      | pass     |
+| integrator runtimeConfig             | 6      | pass     |
+| **Total new**                        | **34** | **pass** |
 
 ## Files Changed/Created
 
 ### New files (11)
+
 1. `apps/webapp/src/modules/google-calendar/googleOAuthHelpers.ts`
 2. `apps/webapp/src/modules/google-calendar/googleOAuthHelpers.test.ts`
 3. `apps/webapp/src/app/api/admin/google-calendar/start/route.ts`
@@ -41,6 +42,7 @@
 11. `docs/GOOGLE_CALENDAR_UI_CONNECTION/` (3 docs)
 
 ### Modified files (7)
+
 1. `apps/webapp/src/modules/system-settings/types.ts`
 2. `apps/webapp/src/app/api/admin/settings/route.ts`
 3. `apps/webapp/src/modules/system-settings/integrationRuntime.ts`

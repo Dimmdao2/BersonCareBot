@@ -85,8 +85,7 @@ describe('patient organization TEST operator URL', () => {
         'postgresql://u5a_fixture_operator_login@db.test/bersoncarebot_test',
       ),
     ).toEqual({
-      connectionString:
-        'postgresql://u5a_fixture_operator_login@db.test/bersoncarebot_test',
+      connectionString: 'postgresql://u5a_fixture_operator_login@db.test/bersoncarebot_test',
       loginRole: 'u5a_fixture_operator_login',
     });
     for (const value of [
@@ -164,9 +163,14 @@ describe('patient organization TEST operator boundary', () => {
     ];
     for (const probe of unsafeProbes) {
       const candidate = portFor(probe);
-      await expect(runPatientOrganizationLifecycle(candidate.port, 'status')).rejects.toMatchObject({
-        code: probe.databaseName === 'bersoncarebot_test' ? 'operator_preflight_failed' : 'wrong_database',
-      });
+      await expect(runPatientOrganizationLifecycle(candidate.port, 'status')).rejects.toMatchObject(
+        {
+          code:
+            probe.databaseName === 'bersoncarebot_test'
+              ? 'operator_preflight_failed'
+              : 'wrong_database',
+        },
+      );
       expect(candidate.invoke).not.toHaveBeenCalled();
     }
   });

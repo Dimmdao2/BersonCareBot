@@ -1,6 +1,6 @@
 ---
 name: booking mirror integrity hardening
-overview: "Устранить рассинхроны Rubitime↔канон↔legacy в create/cancel/reschedule и inbound ingest; закрыто 2026-06-05 (commits 377f3d51→13abe6d7)."
+overview: 'Устранить рассинхроны Rubitime↔канон↔legacy в create/cancel/reschedule и inbound ingest; закрыто 2026-06-05 (commits 377f3d51→13abe6d7).'
 status: completed
 completedAt: 2026-06-05
 closeoutCommits:
@@ -16,10 +16,10 @@ todos:
     content: Зафиксировать контракт целевого поведения и границы изменений
     status: completed
   - id: phase1-fix-create-consistency
-    content: "Исправить create-пайплайн: prepayment/rubitimeId, admin-vs-doctor manual create, rollback holes"
+    content: 'Исправить create-пайплайн: prepayment/rubitimeId, admin-vs-doctor manual create, rollback holes'
     status: completed
   - id: phase2-fix-cancel-reschedule-consistency
-    content: "Исправить cancel/reschedule-пайплайн staff/patient: частичные коммиты и обработку mirror failures"
+    content: 'Исправить cancel/reschedule-пайплайн staff/patient: частичные коммиты и обработку mirror failures'
     status: completed
   - id: phase3-lifecycle-race-hardening
     content: Добавить защиту от гонок в lifecycle репозитории
@@ -313,16 +313,16 @@ flowchart TD
 
 ## Execution evidence addendum (audit closeout)
 
-| Phase | Commits | Verification trail |
-|-------|---------|--------------------|
-| 0 | `377f3d51`, `d9bf2335` | Contract + defer constraints: `BOOKING_MIRROR_INTEGRITY_CONTRACT.md`; grep checks listed in this plan |
-| 1 | `377f3d51`, `d9bf2335` | `canonicalCreate.test.ts`, doctor/admin `manual/route.test.ts` |
-| 2 | `377f3d51`, `d9bf2335`, `e823a581` | `manual-cancel/route.test.ts`, `service.test.ts`, `staffManualCancelAfterCanonical.test.ts` |
-| 3 | `377f3d51`, `d9bf2335` | `pgBookingAppointmentLifecycle.test.ts`, `pgPatientBookings.test.ts` |
-| 4 | `377f3d51`, `d9bf2335` | `rubitimePayloadHash.test.ts`, `eventGateway/index.test.ts`, `events.test.ts` |
-| 5 | `377f3d51`, `d9bf2335` | `normalizeUpdateRecordPatch.test.ts`, `recordM2mRoute.test.ts`, `INTEGRATOR_CONTRACT.md` |
-| 6 | `d9bf2335`, `e823a581`, `9e2ef6c3` | acceptance matrix + docs sync (`ACCEPTANCE_MIRROR_SYNC.md`, `RUBITIME_BOOKING_PIPELINE.md`, `api.md`, `patient-booking.md`, partial flags by surface в контракте) |
-| 7 | `e823a581`, `f960825b`, `9e2ef6c3`, `13abe6d7` | audit closeout: partial-flag tests, plan/LOG ledger, docs reconciliation, post-audit plan sync; targeted matrix + `tsc` + full `pnpm run ci` before push |
+| Phase | Commits                                        | Verification trail                                                                                                                                                |
+| ----- | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0     | `377f3d51`, `d9bf2335`                         | Contract + defer constraints: `BOOKING_MIRROR_INTEGRITY_CONTRACT.md`; grep checks listed in this plan                                                             |
+| 1     | `377f3d51`, `d9bf2335`                         | `canonicalCreate.test.ts`, doctor/admin `manual/route.test.ts`                                                                                                    |
+| 2     | `377f3d51`, `d9bf2335`, `e823a581`             | `manual-cancel/route.test.ts`, `service.test.ts`, `staffManualCancelAfterCanonical.test.ts`                                                                       |
+| 3     | `377f3d51`, `d9bf2335`                         | `pgBookingAppointmentLifecycle.test.ts`, `pgPatientBookings.test.ts`                                                                                              |
+| 4     | `377f3d51`, `d9bf2335`                         | `rubitimePayloadHash.test.ts`, `eventGateway/index.test.ts`, `events.test.ts`                                                                                     |
+| 5     | `377f3d51`, `d9bf2335`                         | `normalizeUpdateRecordPatch.test.ts`, `recordM2mRoute.test.ts`, `INTEGRATOR_CONTRACT.md`                                                                          |
+| 6     | `d9bf2335`, `e823a581`, `9e2ef6c3`             | acceptance matrix + docs sync (`ACCEPTANCE_MIRROR_SYNC.md`, `RUBITIME_BOOKING_PIPELINE.md`, `api.md`, `patient-booking.md`, partial flags by surface в контракте) |
+| 7     | `e823a581`, `f960825b`, `9e2ef6c3`, `13abe6d7` | audit closeout: partial-flag tests, plan/LOG ledger, docs reconciliation, post-audit plan sync; targeted matrix + `tsc` + full `pnpm run ci` before push          |
 
 ## Scope reconciliation addendum
 

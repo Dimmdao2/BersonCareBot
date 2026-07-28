@@ -1,1 +1,1 @@
-export * from "@/shared/ui/primitives/button-variants"
+export * from '@/shared/ui/primitives/button-variants';

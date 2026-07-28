@@ -1,24 +1,24 @@
 /** @vitest-environment jsdom */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
-import { DoctorCatalogFiltersForm } from "./DoctorCatalogFiltersForm";
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, screen } from '@testing-library/react';
+import { DoctorCatalogFiltersForm } from './DoctorCatalogFiltersForm';
 
-vi.mock("next/navigation", () => ({
-  usePathname: () => "/app/doctor/exercises",
+vi.mock('next/navigation', () => ({
+  usePathname: () => '/app/doctor/exercises',
 }));
 
-vi.mock("@/shared/ui/doctor/ReferenceSelect", () => ({
+vi.mock('@/shared/ui/doctor/ReferenceSelect', () => ({
   ReferenceSelect: (props: { id?: string; onChange?: (code: string | null) => void }) => (
     <button
       type="button"
-      data-testid={`mock-ref-${props.id ?? "unknown"}`}
+      data-testid={`mock-ref-${props.id ?? 'unknown'}`}
       onClick={() => {
-        const code = props.id?.includes("-load")
-          ? "strength"
-          : props.id?.includes("-region")
-            ? "spine"
-            : "x";
+        const code = props.id?.includes('-load')
+          ? 'strength'
+          : props.id?.includes('-region')
+            ? 'spine'
+            : 'x';
         props.onChange?.(code);
       }}
     >
@@ -27,21 +27,21 @@ vi.mock("@/shared/ui/doctor/ReferenceSelect", () => ({
   ),
 }));
 
-describe("DoctorCatalogFiltersForm", () => {
+describe('DoctorCatalogFiltersForm', () => {
   let replaceStateSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
-    window.history.replaceState({}, "", "/app/doctor/exercises");
-    replaceStateSpy = vi.spyOn(window.history, "replaceState");
+    window.history.replaceState({}, '', '/app/doctor/exercises');
+    replaceStateSpy = vi.spyOn(window.history, 'replaceState');
   });
 
   afterEach(() => {
     vi.useRealTimers();
     replaceStateSpy.mockRestore();
-    window.history.replaceState({}, "", "/");
+    window.history.replaceState({}, '', '/');
   });
 
-  it("debounces search and preserves workspace params in URL", () => {
+  it('debounces search and preserves workspace params in URL', () => {
     vi.useFakeTimers();
 
     render(
@@ -50,73 +50,85 @@ describe("DoctorCatalogFiltersForm", () => {
         view="list"
         titleSort="desc"
         selectedId="row-1"
-        catalogPubArch={{ arch: "archived", pub: "published" }}
+        catalogPubArch={{ arch: 'archived', pub: 'published' }}
       />,
     );
 
-    fireEvent.change(screen.getByPlaceholderText("Поиск по названию"), {
-      target: { value: "колено" },
+    fireEvent.change(screen.getByPlaceholderText('Поиск по названию'), {
+      target: { value: 'колено' },
     });
     vi.advanceTimersByTime(350);
 
     expect(replaceStateSpy).toHaveBeenCalledTimes(1);
     const url = String(replaceStateSpy.mock.calls[0]?.[2]);
-    expect(url).toContain("q=%D0%BA%D0%BE%D0%BB%D0%B5%D0%BD%D0%BE");
-    expect(url).toContain("view=list");
-    expect(url).toContain("titleSort=desc");
-    expect(url).toContain("selected=row-1");
-    expect(url).toContain("arch=archived");
-    expect(url).toContain("pub=published");
-    expect(url).not.toContain("load=");
-    expect(url).not.toContain("region=");
+    expect(url).toContain('q=%D0%BA%D0%BE%D0%BB%D0%B5%D0%BD%D0%BE');
+    expect(url).toContain('view=list');
+    expect(url).toContain('titleSort=desc');
+    expect(url).toContain('selected=row-1');
+    expect(url).toContain('arch=archived');
+    expect(url).toContain('pub=published');
+    expect(url).not.toContain('load=');
+    expect(url).not.toContain('region=');
   });
 
-  it("shows region and load filters in the toolbar row", () => {
+  it('shows region and load filters in the toolbar row', () => {
     render(<DoctorCatalogFiltersForm q="" view="list" titleSort={null} idPrefix="ex" />);
 
-    expect(screen.getByTestId("mock-ref-ex-region")).toBeInTheDocument();
-    expect(screen.getByTestId("mock-ref-ex-load")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /все фильтры/i })).toBeNull();
+    expect(screen.getByTestId('mock-ref-ex-region')).toBeInTheDocument();
+    expect(screen.getByTestId('mock-ref-ex-load')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /все фильтры/i })).toBeNull();
   });
 
-  it("applies region and load to URL from ReferenceSelect (codes only, no UUID)", () => {
-    window.history.replaceState({}, "", "/app/doctor/exercises");
+  it('applies region and load to URL from ReferenceSelect (codes only, no UUID)', () => {
+    window.history.replaceState({}, '', '/app/doctor/exercises');
     render(<DoctorCatalogFiltersForm q="" view="list" titleSort={null} idPrefix="ex" />);
 
-    fireEvent.click(screen.getByTestId("mock-ref-ex-region"));
+    fireEvent.click(screen.getByTestId('mock-ref-ex-region'));
     expect(replaceStateSpy).toHaveBeenCalled();
     let url = String(replaceStateSpy.mock.calls.at(-1)?.[2]);
-    expect(url).toContain("region=spine");
+    expect(url).toContain('region=spine');
     expect(url).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
 
-    fireEvent.click(screen.getByTestId("mock-ref-ex-load"));
+    fireEvent.click(screen.getByTestId('mock-ref-ex-load'));
     url = String(replaceStateSpy.mock.calls.at(-1)?.[2]);
-    expect(url).toContain("load=strength");
-    expect(url).toContain("region=spine");
+    expect(url).toContain('load=strength');
+    expect(url).toContain('region=spine');
   });
 
-  it("reports compact layout on mount", () => {
+  it('reports compact layout on mount', () => {
     const onFilterToolbarLayoutChange = vi.fn();
-    render(<DoctorCatalogFiltersForm q="" idPrefix="lay" onFilterToolbarLayoutChange={onFilterToolbarLayoutChange} />);
-
-    expect(onFilterToolbarLayoutChange).toHaveBeenCalledWith("compact");
-  });
-
-  it("hides region when showRegionFilter is false", () => {
     render(
-      <DoctorCatalogFiltersForm q="" showRegionFilter={false} showLoadFilter={false} idPrefix="tpl" titleSort={null} />,
+      <DoctorCatalogFiltersForm
+        q=""
+        idPrefix="lay"
+        onFilterToolbarLayoutChange={onFilterToolbarLayoutChange}
+      />,
     );
 
-    expect(screen.queryByTestId("mock-ref-tpl-region")).toBeNull();
+    expect(onFilterToolbarLayoutChange).toHaveBeenCalledWith('compact');
   });
 
-  it("renders without apply button and summary line", () => {
+  it('hides region when showRegionFilter is false', () => {
+    render(
+      <DoctorCatalogFiltersForm
+        q=""
+        showRegionFilter={false}
+        showLoadFilter={false}
+        idPrefix="tpl"
+        titleSort={null}
+      />,
+    );
+
+    expect(screen.queryByTestId('mock-ref-tpl-region')).toBeNull();
+  });
+
+  it('renders without apply button and summary line', () => {
     const { container } = render(
       <DoctorCatalogFiltersForm q="" regionCode="spine" loadType="strength" />,
     );
 
-    expect(screen.queryByRole("button", { name: "Применить" })).toBeNull();
-    expect(container).not.toHaveTextContent("Тип нагрузки:");
-    expect(container).not.toHaveTextContent("Регион:");
+    expect(screen.queryByRole('button', { name: 'Применить' })).toBeNull();
+    expect(container).not.toHaveTextContent('Тип нагрузки:');
+    expect(container).not.toHaveTextContent('Регион:');
   });
 });

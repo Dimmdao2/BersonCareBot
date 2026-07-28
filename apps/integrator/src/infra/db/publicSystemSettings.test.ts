@@ -17,7 +17,9 @@ describe('publicSystemSettings', () => {
       rowCount: 1,
     } as DbQueryResult<{ value_json: unknown }>);
 
-    await expect(readPublicSystemSettingString(makeDb(query), 'app_base_url')).resolves.toBe('https://example.test');
+    await expect(readPublicSystemSettingString(makeDb(query), 'app_base_url')).resolves.toBe(
+      'https://example.test',
+    );
 
     const sqlText = query.mock.calls[0]?.[0] as string | undefined;
     const params = query.mock.calls[0]?.[1] as unknown[] | undefined;
@@ -55,10 +57,7 @@ describe('publicSystemSettings', () => {
     });
 
     await expect(
-      listExactOrganizationIdsWithTruePublicSystemSetting(
-        makeDb(query),
-        'google_calendar_enabled',
-      ),
+      listExactOrganizationIdsWithTruePublicSystemSetting(makeDb(query), 'google_calendar_enabled'),
     ).resolves.toEqual([
       'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
       'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
@@ -66,7 +65,7 @@ describe('publicSystemSettings', () => {
 
     const sqlText = query.mock.calls[0]?.[0] as string | undefined;
     const params = query.mock.calls[0]?.[1] as unknown[] | undefined;
-    expect(sqlText).toContain("organization_id IS NOT NULL");
+    expect(sqlText).toContain('organization_id IS NOT NULL');
     expect(sqlText).toContain("value_json ->> 'value'");
     expect(params).toEqual(['google_calendar_enabled']);
   });

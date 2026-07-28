@@ -1,39 +1,39 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { Label } from "@/shared/ui/doctor/primitives/label";
+import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { Label } from '@/shared/ui/doctor/primitives/label';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/ui/doctor/primitives/select";
-import { Checkbox } from "@/shared/ui/doctor/primitives/checkbox";
-import { apiJson } from "@/shared/lib/apiJson";
+} from '@/shared/ui/doctor/primitives/select';
+import { Checkbox } from '@/shared/ui/doctor/primitives/checkbox';
+import { apiJson } from '@/shared/lib/apiJson';
 import {
   ensureDefaultSpecialist,
   fetchSoloOverview,
   minuteToTimeLabel,
   timeLabelToMinute,
-} from "@/app/app/settings/bookingSoloAdminApi";
+} from '@/app/app/settings/bookingSoloAdminApi';
 
 // Doctor-scoped route: server resolves and forces the doctor's own specialist;
 // a client-supplied specialistId in POST/PATCH bodies is ignored server-side.
-const WH_BASE = "/api/doctor/booking-engine/working-hours";
-const SETTINGS_BASE = "/api/admin/booking-engine/scheduling-settings";
+const WH_BASE = '/api/doctor/booking-engine/working-hours';
+const SETTINGS_BASE = '/api/admin/booking-engine/scheduling-settings';
 
 const WEEKDAYS = [
-  { value: 1, label: "Понедельник", short: "Пн" },
-  { value: 2, label: "Вторник", short: "Вт" },
-  { value: 3, label: "Среда", short: "Ср" },
-  { value: 4, label: "Четверг", short: "Чт" },
-  { value: 5, label: "Пятница", short: "Пт" },
-  { value: 6, label: "Суббота", short: "Сб" },
-  { value: 0, label: "Воскресенье", short: "Вс" },
+  { value: 1, label: 'Понедельник', short: 'Пн' },
+  { value: 2, label: 'Вторник', short: 'Вт' },
+  { value: 3, label: 'Среда', short: 'Ср' },
+  { value: 4, label: 'Четверг', short: 'Чт' },
+  { value: 5, label: 'Пятница', short: 'Пт' },
+  { value: 6, label: 'Суббота', short: 'Сб' },
+  { value: 0, label: 'Воскресенье', short: 'Вс' },
 ] as const;
 
 const BUFFER_PRESETS = [0, 10, 15, 30] as const;
@@ -48,26 +48,25 @@ type HourRow = {
 
 export function BookingSoloScheduleSection() {
   const [branches, setBranches] = useState<{ id: string; title: string; isActive: boolean }[]>([]);
-  const [branchId, setBranchId] = useState("");
-  const [specialistId, setSpecialistId] = useState("");
+  const [branchId, setBranchId] = useState('');
+  const [specialistId, setSpecialistId] = useState('');
   const [rows, setRows] = useState<HourRow[]>([]);
   const [usesFallback, setUsesFallback] = useState(false);
   const [bufferMinutes, setBufferMinutes] = useState(0);
   const [minNoticeHours, setMinNoticeHours] = useState(0);
   const [maxConsecutiveSlotHours, setMaxConsecutiveSlotHours] = useState(3);
-  const [customBuffer, setCustomBuffer] = useState("");
+  const [customBuffer, setCustomBuffer] = useState('');
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
-  const [addWeekday, setAddWeekday] = useState("1");
-  const [addStart, setAddStart] = useState("09:00");
-  const [addEnd, setAddEnd] = useState("18:00");
+  const [addWeekday, setAddWeekday] = useState('1');
+  const [addStart, setAddStart] = useState('09:00');
+  const [addEnd, setAddEnd] = useState('18:00');
   const [editId, setEditId] = useState<string | null>(null);
-  const [editStart, setEditStart] = useState("");
-  const [editEnd, setEditEnd] = useState("");
+  const [editStart, setEditStart] = useState('');
+  const [editEnd, setEditEnd] = useState('');
   const [copyFromWeekday, setCopyFromWeekday] = useState<number | null>(null);
   const [copyTargets, setCopyTargets] = useState<number[]>([]);
-
 
   const rowsByWeekday = useMemo(() => {
     const map = new Map<number, HourRow[]>();
@@ -86,49 +85,49 @@ export function BookingSoloScheduleSection() {
 
   const loadHours = useCallback(async (specId: string, brId: string) => {
     const qs = new URLSearchParams();
-    if (specId) qs.set("specialistId", specId);
-    if (brId) qs.set("branchId", brId);
-    const json = await apiJson<{ ok: boolean; rows: HourRow[]; usesFallback?: boolean }>(`${WH_BASE}?${qs.toString()}`);
+    if (specId) qs.set('specialistId', specId);
+    if (brId) qs.set('branchId', brId);
+    const json = await apiJson<{ ok: boolean; rows: HourRow[]; usesFallback?: boolean }>(
+      `${WH_BASE}?${qs.toString()}`,
+    );
     setRows(json.rows);
     setUsesFallback(json.usesFallback === true);
   }, []);
 
   const loadSettings = useCallback(async (specId: string) => {
-    const qs = specId ? `?specialistId=${encodeURIComponent(specId)}` : "";
+    const qs = specId ? `?specialistId=${encodeURIComponent(specId)}` : '';
     const json = await apiJson<{
       ok: boolean;
       bufferMinutes: number;
       minNoticeHours: number;
       maxConsecutiveSlotHours: number;
-    }>(
-      `${SETTINGS_BASE}${qs}`,
-    );
+    }>(`${SETTINGS_BASE}${qs}`);
     setBufferMinutes(json.bufferMinutes);
     setMinNoticeHours(json.minNoticeHours);
     setMaxConsecutiveSlotHours(json.maxConsecutiveSlotHours);
     if (!BUFFER_PRESETS.includes(json.bufferMinutes as (typeof BUFFER_PRESETS)[number])) {
       setCustomBuffer(String(json.bufferMinutes));
     } else {
-      setCustomBuffer("");
+      setCustomBuffer('');
     }
   }, []);
 
   const bootstrap = useCallback(async () => {
     setLoadError(null);
     const overview = await fetchSoloOverview();
-    if (!overview) throw new Error("booking_engine_unavailable");
+    if (!overview) throw new Error('booking_engine_unavailable');
     const activeBranches = overview.branches.filter((b) => b.isActive);
     setBranches(activeBranches);
     const specId = await ensureDefaultSpecialist(overview.organization?.title);
     setSpecialistId(specId);
-    const brId = activeBranches[0]?.id ?? "";
+    const brId = activeBranches[0]?.id ?? '';
     setBranchId(brId);
     await loadSettings(specId);
   }, [loadSettings]);
 
   useEffect(() => {
     startTransition(() => {
-      void bootstrap().catch((e) => setLoadError(e instanceof Error ? e.message : "load_failed"));
+      void bootstrap().catch((e) => setLoadError(e instanceof Error ? e.message : 'load_failed'));
     });
   }, [bootstrap]);
 
@@ -136,7 +135,7 @@ export function BookingSoloScheduleSection() {
     if (!specialistId || !branchId) return;
     startTransition(() => {
       void loadHours(specialistId, branchId).catch((e) =>
-        setLoadError(e instanceof Error ? e.message : "hours_load_failed"),
+        setLoadError(e instanceof Error ? e.message : 'hours_load_failed'),
       );
     });
   }, [branchId, specialistId, loadHours]);
@@ -148,16 +147,20 @@ export function BookingSoloScheduleSection() {
         await fn();
         if (specialistId && branchId) await loadHours(specialistId, branchId);
       } catch (e) {
-        setActionError(e instanceof Error ? e.message : "action_failed");
+        setActionError(e instanceof Error ? e.message : 'action_failed');
       }
     });
   }
 
-  function saveSettings(nextBuffer: number, nextNotice: number, nextMaxConsecutive = maxConsecutiveSlotHours) {
+  function saveSettings(
+    nextBuffer: number,
+    nextNotice: number,
+    nextMaxConsecutive = maxConsecutiveSlotHours,
+  ) {
     run(async () => {
       await apiJson(SETTINGS_BASE, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           specialistId,
           bufferMinutes: nextBuffer,
@@ -176,12 +179,12 @@ export function BookingSoloScheduleSection() {
       for (const targetWd of copyTargets) {
         const existing = rows.filter((r) => r.weekday === targetWd && r.isActive);
         for (const row of existing) {
-          await apiJson(`${WH_BASE}?id=${encodeURIComponent(row.id)}`, { method: "DELETE" });
+          await apiJson(`${WH_BASE}?id=${encodeURIComponent(row.id)}`, { method: 'DELETE' });
         }
         for (const interval of source) {
           await apiJson(WH_BASE, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               weekday: targetWd,
               startMinute: interval.startMinute,
@@ -280,8 +283,8 @@ export function BookingSoloScheduleSection() {
                               onClick={() =>
                                 run(async () => {
                                   await apiJson(WH_BASE, {
-                                    method: "PATCH",
-                                    headers: { "Content-Type": "application/json" },
+                                    method: 'PATCH',
+                                    headers: { 'Content-Type': 'application/json' },
                                     body: JSON.stringify({
                                       id: row.id,
                                       startMinute: timeLabelToMinute(editStart),
@@ -307,7 +310,8 @@ export function BookingSoloScheduleSection() {
                         ) : (
                           <>
                             <span>
-                              {minuteToTimeLabel(row.startMinute)} — {minuteToTimeLabel(row.endMinute)}
+                              {minuteToTimeLabel(row.startMinute)} —{' '}
+                              {minuteToTimeLabel(row.endMinute)}
                             </span>
                             <Button
                               type="button"
@@ -332,7 +336,7 @@ export function BookingSoloScheduleSection() {
                               onClick={() =>
                                 run(async () => {
                                   await apiJson(`${WH_BASE}?id=${encodeURIComponent(row.id)}`, {
-                                    method: "DELETE",
+                                    method: 'DELETE',
                                   });
                                 })
                               }
@@ -374,7 +378,12 @@ export function BookingSoloScheduleSection() {
               })}
             </div>
             <div className="flex gap-2">
-              <Button type="button" size="sm" disabled={pending || copyTargets.length === 0} onClick={copyDay}>
+              <Button
+                type="button"
+                size="sm"
+                disabled={pending || copyTargets.length === 0}
+                onClick={copyDay}
+              >
                 Применить
               </Button>
               <Button
@@ -408,8 +417,18 @@ export function BookingSoloScheduleSection() {
                 ))}
               </SelectContent>
             </Select>
-            <Input type="time" className="h-8 w-28" value={addStart} onChange={(e) => setAddStart(e.target.value)} />
-            <Input type="time" className="h-8 w-28" value={addEnd} onChange={(e) => setAddEnd(e.target.value)} />
+            <Input
+              type="time"
+              className="h-8 w-28"
+              value={addStart}
+              onChange={(e) => setAddStart(e.target.value)}
+            />
+            <Input
+              type="time"
+              className="h-8 w-28"
+              value={addEnd}
+              onChange={(e) => setAddEnd(e.target.value)}
+            />
             <Button
               type="button"
               size="sm"
@@ -417,8 +436,8 @@ export function BookingSoloScheduleSection() {
               onClick={() =>
                 run(async () => {
                   await apiJson(WH_BASE, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                       weekday: Number(addWeekday),
                       startMinute: timeLabelToMinute(addStart),
@@ -444,11 +463,11 @@ export function BookingSoloScheduleSection() {
                   key={m}
                   type="button"
                   size="sm"
-                  variant={bufferMinutes === m && !customBuffer ? "default" : "outline"}
+                  variant={bufferMinutes === m && !customBuffer ? 'default' : 'outline'}
                   disabled={pending}
                   onClick={() => saveSettings(m, minNoticeHours)}
                 >
-                  {m === 0 ? "0" : `${m} мин`}
+                  {m === 0 ? '0' : `${m} мин`}
                 </Button>
               ))}
             </div>
@@ -504,7 +523,9 @@ export function BookingSoloScheduleSection() {
                 min={1}
                 max={24}
                 value={maxConsecutiveSlotHours}
-                onChange={(e) => setMaxConsecutiveSlotHours(Math.max(1, Number(e.target.value) || 1))}
+                onChange={(e) =>
+                  setMaxConsecutiveSlotHours(Math.max(1, Number(e.target.value) || 1))
+                }
               />
               <Button
                 type="button"

@@ -1,10 +1,13 @@
-import { asc, eq } from "drizzle-orm";
-import { getCurrentDbPrincipal } from "@bersoncare/db-principal";
-import { getDrizzle } from "@/app-layer/db/drizzle";
-import { runDrizzleMutationTransaction } from "@/infra/db/drizzleMutationTx";
-import { clinicalTestMeasureKinds } from "../../../db/schema/clinicalTests";
-import type { ClinicalTestMeasureKindsPort, ClinicalTestMeasureKindRow } from "@/modules/tests/measureKindsPorts";
-import { measureKindLabelToCode } from "@/modules/tests/measureKindCode";
+import { asc, eq } from 'drizzle-orm';
+import { getCurrentDbPrincipal } from '@bersoncare/db-principal';
+import { getDrizzle } from '@/app-layer/db/drizzle';
+import { runDrizzleMutationTransaction } from '@/infra/db/drizzleMutationTx';
+import { clinicalTestMeasureKinds } from '../../../db/schema/clinicalTests';
+import type {
+  ClinicalTestMeasureKindsPort,
+  ClinicalTestMeasureKindRow,
+} from '@/modules/tests/measureKindsPorts';
+import { measureKindLabelToCode } from '@/modules/tests/measureKindCode';
 
 function mapRow(row: typeof clinicalTestMeasureKinds.$inferSelect): ClinicalTestMeasureKindRow {
   return {
@@ -28,8 +31,8 @@ function mapRow(row: typeof clinicalTestMeasureKinds.$inferSelect): ClinicalTest
  */
 function assertStaffOrPlatformWritePrincipal(): void {
   const kind = getCurrentDbPrincipal()?.kind;
-  if (kind !== "staff" && kind !== "platform") {
-    throw new Error("staff_or_platform_principal_required");
+  if (kind !== 'staff' && kind !== 'platform') {
+    throw new Error('staff_or_platform_principal_required');
   }
 }
 
@@ -44,7 +47,9 @@ export function createPgClinicalTestMeasureKindsPort(): ClinicalTestMeasureKinds
       return rows.map(mapRow);
     },
 
-    async upsertMeasureKindByLabel(label: string): Promise<{ row: ClinicalTestMeasureKindRow; created: boolean }> {
+    async upsertMeasureKindByLabel(
+      label: string,
+    ): Promise<{ row: ClinicalTestMeasureKindRow; created: boolean }> {
       assertStaffOrPlatformWritePrincipal();
       const db = getDrizzle();
       const code = measureKindLabelToCode(label);

@@ -16,36 +16,36 @@
 
 ## 2. Checklist coverage (`04_SAFE_SLUG_RENAME_PLAN.md`)
 
-| Пункт чеклиста | Статус | Доказательство |
-| --- | --- | --- |
-| Migration created and schema exported. | **Да** | `0008_content_section_slug_history.sql`, `contentSectionSlugHistory` в `apps/webapp/db/schema/schema.ts`, запись в `db/drizzle-migrations/meta/_journal.json`. |
-| Transactional rename implemented. | **Да** | `renameSectionSlug` в `pgContentSections.ts`: один клиент PostgreSQL, `BEGIN` / `COMMIT` / `ROLLBACK` (см. §8). |
-| All references updated atomically. | **Да (в границах плана)** | В одной транзакции: `content_pages.section`, при наличии таблицы — `patient_home_block_items`, `content_sections.slug`, `INSERT` в историю. Иные хранилища slug вне транзакции не заявлены в `04` (см. §5). |
-| Redirect behavior added and tested. | **Да** | `resolvePatientContentSectionSlug` + `permanentRedirect` в `patient/sections/[slug]/page.tsx`; тесты `resolvePatientContentSectionSlug.test.ts`, `page.slugRedirect.test.tsx`. |
-| Section edit UI provides dedicated rename flow. | **Да** | `SectionSlugRenameDialog.tsx`, счётчик страниц `countPagesWithSectionSlug` на `edit/[slug]/page.tsx`, подтверждение чекбоксом, slug в основной форме read-only (`SectionForm.tsx`). |
-| Rollback SQL documented. | **Да** | `ROLLBACK_SQL.md`. |
-| `LOG.md` updated. | **Да** | Запись Phase 4 — EXEC. |
+| Пункт чеклиста                                  | Статус                    | Доказательство                                                                                                                                                                                              |
+| ----------------------------------------------- | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Migration created and schema exported.          | **Да**                    | `0008_content_section_slug_history.sql`, `contentSectionSlugHistory` в `apps/webapp/db/schema/schema.ts`, запись в `db/drizzle-migrations/meta/_journal.json`.                                              |
+| Transactional rename implemented.               | **Да**                    | `renameSectionSlug` в `pgContentSections.ts`: один клиент PostgreSQL, `BEGIN` / `COMMIT` / `ROLLBACK` (см. §8).                                                                                             |
+| All references updated atomically.              | **Да (в границах плана)** | В одной транзакции: `content_pages.section`, при наличии таблицы — `patient_home_block_items`, `content_sections.slug`, `INSERT` в историю. Иные хранилища slug вне транзакции не заявлены в `04` (см. §5). |
+| Redirect behavior added and tested.             | **Да**                    | `resolvePatientContentSectionSlug` + `permanentRedirect` в `patient/sections/[slug]/page.tsx`; тесты `resolvePatientContentSectionSlug.test.ts`, `page.slugRedirect.test.tsx`.                              |
+| Section edit UI provides dedicated rename flow. | **Да**                    | `SectionSlugRenameDialog.tsx`, счётчик страниц `countPagesWithSectionSlug` на `edit/[slug]/page.tsx`, подтверждение чекбоксом, slug в основной форме read-only (`SectionForm.tsx`).                         |
+| Rollback SQL documented.                        | **Да**                    | `ROLLBACK_SQL.md`.                                                                                                                                                                                          |
+| `LOG.md` updated.                               | **Да**                    | Запись Phase 4 — EXEC.                                                                                                                                                                                      |
 
 ---
 
 ## 3. Behavior requirements (`04` §Behavior Requirements)
 
-| Требование | Статус | Комментарий |
-| --- | --- | --- |
-| Slug is not free-edited in main form. | **Да** | Режим edit: скрытое поле + `Input` disabled. |
-| Rename is explicit confirm action. | **Да** | Отдельная кнопка/диалог; `confirm_rename === "on"` в `renameContentSectionSlug`. |
-| Prevent collisions with existing slug. | **Да** | Проверка занятости `new` в `content_sections` до DML; обработка `23505`. |
-| Reject invalid slug format. | **Да** | `validateContentSectionSlug` в порте и в `saveContentSection`. |
+| Требование                                  | Статус | Комментарий                                                                          |
+| ------------------------------------------- | ------ | ------------------------------------------------------------------------------------ |
+| Slug is not free-edited in main form.       | **Да** | Режим edit: скрытое поле + `Input` disabled.                                         |
+| Rename is explicit confirm action.          | **Да** | Отдельная кнопка/диалог; `confirm_rename === "on"` в `renameContentSectionSlug`.     |
+| Prevent collisions with existing slug.      | **Да** | Проверка занятости `new` в `content_sections` до DML; обработка `23505`.             |
+| Reject invalid slug format.                 | **Да** | `validateContentSectionSlug` в порте и в `saveContentSection`.                       |
 | Keep old route functional through redirect. | **Да** | История `old_slug` → `new_slug`, обход цепочки в `resolvePatientContentSectionSlug`. |
 
 ---
 
 ## 4. Completion criteria
 
-| Критерий | Статус |
-| --- | --- |
-| Slug rename no longer requires manual DB surgery. | **Да** | Операция доступна из doctor UI + server action. |
-| Existing links continue to work after rename. | **Частично** | URL вида `/app/patient/sections/<old>` и `content_pages` по `section` — да, за счёт редиректа и транзакции. Связи **напоминаний**, захардкоженные на `"warmups"` как `linkedObjectId`, при смене slug раздела с `"warmups"` на другой идентификатор **не** обновляются автоматически (см. §5). |
+| Критерий                                          | Статус       |
+| ------------------------------------------------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Slug rename no longer requires manual DB surgery. | **Да**       | Операция доступна из doctor UI + server action.                                                                                                                                                                                                                                                |
+| Existing links continue to work after rename.     | **Частично** | URL вида `/app/patient/sections/<old>` и `content_pages` по `section` — да, за счёт редиректа и транзакции. Связи **напоминаний**, захардкоженные на `"warmups"` как `linkedObjectId`, при смене slug раздела с `"warmups"` на другой идентификатор **не** обновляются автоматически (см. §5). |
 
 ---
 
@@ -67,11 +67,11 @@
 
 ## 6. Out of scope (негативная проверка)
 
-| Запрет | Статус |
-| --- | --- |
-| No visual redesign of patient section page. | **Ок** |
+| Запрет                                                | Статус |
+| ----------------------------------------------------- | ------ | ------------------------------------------------------------------------------- |
+| No visual redesign of patient section page.           | **Ок** |
 | No redesign of section list UI beyond rename control. | **Ок** |
-| No changes to unrelated content entities. | **Ок** | Изменения сфокусированы на секциях, страницах, истории, verify-скрипте, тестах. |
+| No changes to unrelated content entities.             | **Ок** | Изменения сфокусированы на секциях, страницах, истории, verify-скрипте, тестах. |
 
 ---
 

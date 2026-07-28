@@ -15,4 +15,4 @@ export {
   insertPendingProgramSubmissionMediaFileTx,
   listMediaDeleteErrors,
   purgePendingMediaDeleteBatch,
-} from "@/infra/repos/s3MediaStorage";
+} from '@/infra/repos/s3MediaStorage';

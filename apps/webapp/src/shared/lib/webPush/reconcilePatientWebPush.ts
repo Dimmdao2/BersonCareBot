@@ -1,5 +1,5 @@
-import type { PushPermissionState } from "@/shared/lib/webPush/pushCapability";
-import { unsubscribeAllPatientWebPush } from "@/shared/lib/webPush/patientWebPushApi";
+import type { PushPermissionState } from '@/shared/lib/webPush/pushCapability';
+import { unsubscribeAllPatientWebPush } from '@/shared/lib/webPush/patientWebPushApi';
 
 /**
  * Сброс серверных подписок, когда браузер уже не может доставлять push
@@ -17,11 +17,11 @@ export async function reconcileStalePatientWebPushSubscriptions(input: {
     return unsubscribeAllPatientWebPush();
   }
 
-  if (input.permission === "denied") {
+  if (input.permission === 'denied') {
     return unsubscribeAllPatientWebPush();
   }
 
-  if (input.permission === "default" && !input.hasLocalSubscription) {
+  if (input.permission === 'default' && !input.hasLocalSubscription) {
     return unsubscribeAllPatientWebPush();
   }
 

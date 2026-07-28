@@ -1,14 +1,14 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from 'vitest';
 import {
   MAX_BRIDGE_LOAD_GRACE_MS,
   isAuthBootstrapEarlyUiV2Enabled,
   isLikelyMaxMiniAppSurface,
   shouldDeferPhoneLoginWhileMaxBridgeMayLoad,
   shouldExposeInteractiveLogin,
-} from "./messengerAuthStrategy";
+} from './messengerAuthStrategy';
 
-describe("shouldDeferPhoneLoginWhileMaxBridgeMayLoad", () => {
-  it("defers while grace elapsed and bridge not ready", () => {
+describe('shouldDeferPhoneLoginWhileMaxBridgeMayLoad', () => {
+  it('defers while grace elapsed and bridge not ready', () => {
     expect(
       shouldDeferPhoneLoginWhileMaxBridgeMayLoad({
         token: null,
@@ -21,7 +21,7 @@ describe("shouldDeferPhoneLoginWhileMaxBridgeMayLoad", () => {
     ).toBe(true);
   });
 
-  it("stops deferring after grace when bridge never appears (plain browser)", () => {
+  it('stops deferring after grace when bridge never appears (plain browser)', () => {
     expect(
       shouldDeferPhoneLoginWhileMaxBridgeMayLoad({
         token: null,
@@ -34,7 +34,7 @@ describe("shouldDeferPhoneLoginWhileMaxBridgeMayLoad", () => {
     ).toBe(false);
   });
 
-  it("does not defer in plain browser without messenger mini app context", () => {
+  it('does not defer in plain browser without messenger mini app context', () => {
     expect(
       shouldDeferPhoneLoginWhileMaxBridgeMayLoad({
         token: null,
@@ -47,10 +47,10 @@ describe("shouldDeferPhoneLoginWhileMaxBridgeMayLoad", () => {
     ).toBe(false);
   });
 
-  it("does not defer when query jwt present", () => {
+  it('does not defer when query jwt present', () => {
     expect(
       shouldDeferPhoneLoginWhileMaxBridgeMayLoad({
-        token: "x",
+        token: 'x',
         elapsedMs: 0,
         telegramInitDataEmpty: true,
         maxInitDataEmpty: true,
@@ -60,7 +60,7 @@ describe("shouldDeferPhoneLoginWhileMaxBridgeMayLoad", () => {
     ).toBe(false);
   });
 
-  it("does not defer when MAX bridge already ready", () => {
+  it('does not defer when MAX bridge already ready', () => {
     expect(
       shouldDeferPhoneLoginWhileMaxBridgeMayLoad({
         token: null,
@@ -74,112 +74,112 @@ describe("shouldDeferPhoneLoginWhileMaxBridgeMayLoad", () => {
   });
 });
 
-describe("isLikelyMaxMiniAppSurface", () => {
-  it("detects MAX when TG empty and bridge ready", () => {
+describe('isLikelyMaxMiniAppSurface', () => {
+  it('detects MAX when TG empty and bridge ready', () => {
     expect(isLikelyMaxMiniAppSurface(true, true)).toBe(true);
     expect(isLikelyMaxMiniAppSurface(false, true)).toBe(false);
   });
 });
 
-describe("shouldExposeInteractiveLogin", () => {
-  it("exposes initData=no in messenger context (legacy /app + cookie)", () => {
+describe('shouldExposeInteractiveLogin', () => {
+  it('exposes initData=no in messenger context (legacy /app + cookie)', () => {
     expect(
       shouldExposeInteractiveLogin({
         earlyUiEnabled: false,
         isMessengerMiniAppEntry: true,
         messengerSoftOk: false,
         browserSoftOk: false,
-        initDataStatus: "no",
-        state: "idle",
+        initDataStatus: 'no',
+        state: 'idle',
       }),
     ).toBe(true);
   });
 
-  it("does not expose initData=no on route-bound miniapp entry (/app/tg, /app/max)", () => {
+  it('does not expose initData=no on route-bound miniapp entry (/app/tg, /app/max)', () => {
     expect(
       shouldExposeInteractiveLogin({
         earlyUiEnabled: false,
         isMessengerMiniAppEntry: true,
         messengerSoftOk: false,
         browserSoftOk: false,
-        initDataStatus: "no",
-        state: "idle",
+        initDataStatus: 'no',
+        state: 'idle',
         routeBoundMiniappEntry: true,
       }),
     ).toBe(false);
   });
 
-  it("does not expose messenger mini app on error state (timeout / init failure UI)", () => {
+  it('does not expose messenger mini app on error state (timeout / init failure UI)', () => {
     expect(
       shouldExposeInteractiveLogin({
         earlyUiEnabled: false,
         isMessengerMiniAppEntry: true,
         messengerSoftOk: true,
         browserSoftOk: false,
-        initDataStatus: "unknown",
-        state: "error",
+        initDataStatus: 'unknown',
+        state: 'error',
       }),
     ).toBe(false);
   });
 
-  it("exposes on error in plain browser (non-messenger)", () => {
+  it('exposes on error in plain browser (non-messenger)', () => {
     expect(
       shouldExposeInteractiveLogin({
         earlyUiEnabled: false,
         isMessengerMiniAppEntry: false,
         messengerSoftOk: false,
         browserSoftOk: false,
-        initDataStatus: "unknown",
-        state: "error",
+        initDataStatus: 'unknown',
+        state: 'error',
       }),
     ).toBe(true);
   });
 
-  it("with early UI exposes after messenger soft while initData unknown (legacy entry)", () => {
+  it('with early UI exposes after messenger soft while initData unknown (legacy entry)', () => {
     expect(
       shouldExposeInteractiveLogin({
         earlyUiEnabled: true,
         isMessengerMiniAppEntry: true,
         messengerSoftOk: true,
         browserSoftOk: false,
-        initDataStatus: "unknown",
-        state: "idle",
+        initDataStatus: 'unknown',
+        state: 'idle',
       }),
     ).toBe(true);
   });
 
-  it("with early UI does not expose messenger soft on route-bound miniapp entry", () => {
+  it('with early UI does not expose messenger soft on route-bound miniapp entry', () => {
     expect(
       shouldExposeInteractiveLogin({
         earlyUiEnabled: true,
         isMessengerMiniAppEntry: true,
         messengerSoftOk: true,
         browserSoftOk: false,
-        initDataStatus: "unknown",
-        state: "idle",
+        initDataStatus: 'unknown',
+        state: 'idle',
         routeBoundMiniappEntry: true,
       }),
     ).toBe(false);
   });
 
-  it("with early UI exposes after browser soft in non-messenger context", () => {
+  it('with early UI exposes after browser soft in non-messenger context', () => {
     expect(
       shouldExposeInteractiveLogin({
         earlyUiEnabled: true,
         isMessengerMiniAppEntry: false,
         messengerSoftOk: false,
         browserSoftOk: true,
-        initDataStatus: "unknown",
-        state: "idle",
+        initDataStatus: 'unknown',
+        state: 'idle',
       }),
     ).toBe(true);
   });
 });
 
-describe("isAuthBootstrapEarlyUiV2Enabled", () => {
-  it("reads NEXT_PUBLIC_AUTH_BOOTSTRAP_EARLY_UI_V2", () => {
+describe('isAuthBootstrapEarlyUiV2Enabled', () => {
+  it('reads NEXT_PUBLIC_AUTH_BOOTSTRAP_EARLY_UI_V2', () => {
     const prev = process.env.NEXT_PUBLIC_AUTH_BOOTSTRAP_EARLY_UI_V2;
-    process.env.NEXT_PUBLIC_AUTH_BOOTSTRAP_EARLY_UI_V2 = "1";
+    process.env.NEXT_PUBLIC_AUTH_BOOTSTRAP_EARLY_UI_V2 = '1';
     expect(isAuthBootstrapEarlyUiV2Enabled()).toBe(true);
     if (prev === undefined) delete process.env.NEXT_PUBLIC_AUTH_BOOTSTRAP_EARLY_UI_V2;
     else process.env.NEXT_PUBLIC_AUTH_BOOTSTRAP_EARLY_UI_V2 = prev;

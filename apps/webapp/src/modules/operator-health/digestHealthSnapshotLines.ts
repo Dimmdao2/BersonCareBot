@@ -2,15 +2,15 @@ import {
   classifyCriticalHealthSignals,
   type CriticalHealthSignalsInput,
   type ProjectionProbeStatus,
-} from "./criticalHealthSignals";
-import { extractDigestDegradedLines } from "./extractDigestDegradedLines";
-import type { CronJobsHealthPayload } from "@/app-layer/health/collectCronJobsHealth";
-import type { IntegratorPushOutboxHealthSnapshot } from "./ports";
-import type { VideoTranscodeHealthStatus } from "./criticalHealthSignals";
+} from './criticalHealthSignals';
+import { extractDigestDegradedLines } from './extractDigestDegradedLines';
+import type { CronJobsHealthPayload } from '@/app-layer/health/collectCronJobsHealth';
+import type { IntegratorPushOutboxHealthSnapshot } from './ports';
+import type { VideoTranscodeHealthStatus } from './criticalHealthSignals';
 
 export type DigestHealthSnapshotInput = {
-  webappDb: "up" | "down";
-  integratorApi: "ok" | "unreachable" | "error";
+  webappDb: 'up' | 'down';
+  integratorApi: 'ok' | 'unreachable' | 'error';
   projection: {
     probeStatus: ProjectionProbeStatus;
     deadCount: number;

@@ -1,7 +1,7 @@
-import type { ReferenceItem } from "@/modules/references/types";
-import { isDoctorCatalogMissingFilterToken } from "@/shared/lib/doctorCatalogEmptyFieldFilter";
-import { parseDoctorCatalogRegionQueryParam } from "@/shared/lib/doctorCatalogRegionQuery";
-import { parseRecommendationDomain, type RecommendationDomain } from "./recommendationDomain";
+import type { ReferenceItem } from '@/modules/references/types';
+import { isDoctorCatalogMissingFilterToken } from '@/shared/lib/doctorCatalogEmptyFieldFilter';
+import { parseDoctorCatalogRegionQueryParam } from '@/shared/lib/doctorCatalogRegionQuery';
+import { parseRecommendationDomain, type RecommendationDomain } from './recommendationDomain';
 
 export type RecommendationCatalogSsrParsed = {
   /** Значение для `listRecommendations({ domain })`; `null` = без фильтра по типу. */
@@ -33,12 +33,14 @@ export function parseRecommendationCatalogSsrQuery(
 ): RecommendationCatalogSsrParsed {
   const regionParsed = parseDoctorCatalogRegionQueryParam(sp.region);
 
-  const domainRaw = typeof sp.domain === "string" ? sp.domain.trim() : "";
+  const domainRaw = typeof sp.domain === 'string' ? sp.domain.trim() : '';
   const domainParsed = domainRaw ? parseRecommendationDomain(domainRaw, refItems) : undefined;
   const invalidDomainQuery =
-    domainRaw !== "" && domainParsed === undefined && !isDoctorCatalogMissingFilterToken(domainRaw);
+    domainRaw !== '' && domainParsed === undefined && !isDoctorCatalogMissingFilterToken(domainRaw);
   const domainForList =
-    invalidDomainQuery || isDoctorCatalogMissingFilterToken(domainParsed) ? null : (domainParsed ?? null);
+    invalidDomainQuery || isDoctorCatalogMissingFilterToken(domainParsed)
+      ? null
+      : (domainParsed ?? null);
 
   return {
     domainForList,

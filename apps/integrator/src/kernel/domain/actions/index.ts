@@ -71,7 +71,8 @@ async function handleMessageSend(step: Step, ctx: ScriptContext): Promise<StepRe
       delivery: {
         ...(payload.delivery ?? {}),
         channels,
-        maxAttempts: typeof payload.delivery?.maxAttempts === 'number' ? payload.delivery.maxAttempts : 3,
+        maxAttempts:
+          typeof payload.delivery?.maxAttempts === 'number' ? payload.delivery.maxAttempts : 3,
       },
     },
   };

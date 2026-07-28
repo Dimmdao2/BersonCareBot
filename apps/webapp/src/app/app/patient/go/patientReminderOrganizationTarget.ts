@@ -1,5 +1,5 @@
-import { z } from "zod";
-import { routePaths } from "@/app-layer/routes/paths";
+import { z } from 'zod';
+import { routePaths } from '@/app-layer/routes/paths';
 
 const organizationIdSchema = z.string().uuid();
 
@@ -9,11 +9,11 @@ export function parsePatientReminderOrganizationTarget(raw: string | undefined):
 }
 
 export function buildPatientReminderOrganizationOpener(
-  kind: "daily-warmup" | "plan-start-lesson",
+  kind: 'daily-warmup' | 'plan-start-lesson',
   organizationId: string,
 ): string {
   const search = new URLSearchParams({
-    kind: "organization_go",
+    kind: 'organization_go',
     organizationId,
     goKind: kind,
   });
@@ -21,18 +21,17 @@ export function buildPatientReminderOrganizationOpener(
 }
 
 export function buildPatientReminderContinuation(
-  kind: "daily-warmup" | "plan-start-lesson",
+  kind: 'daily-warmup' | 'plan-start-lesson',
   organizationId: string,
 ): string {
-  const path = kind === "daily-warmup"
-    ? routePaths.patientGoDailyWarmup
-    : routePaths.patientGoPlanStartLesson;
-  const search = new URLSearchParams({ from: "reminder", organizationId });
+  const path =
+    kind === 'daily-warmup' ? routePaths.patientGoDailyWarmup : routePaths.patientGoPlanStartLesson;
+  const search = new URLSearchParams({ from: 'reminder', organizationId });
   return `${path}?${search.toString()}`;
 }
 
 export function patientOrganizationRecoveryPath(
-  reason: "reminder_target_missing" | "organization_unavailable",
+  reason: 'reminder_target_missing' | 'organization_unavailable',
 ): string {
   return `${routePaths.patientOrganizations}?reason=${reason}`;
 }

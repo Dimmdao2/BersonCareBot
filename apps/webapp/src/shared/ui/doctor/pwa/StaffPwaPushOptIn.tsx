@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import { fetchStaffWebPushStatus } from "@/shared/lib/webPush/staffWebPushApi";
-import { DoctorWebPushControls } from "@/app/app/settings/DoctorWebPushControls";
+import { useEffect, useState } from 'react';
+import { fetchStaffWebPushStatus } from '@/shared/lib/webPush/staffWebPushApi';
+import { DoctorWebPushControls } from '@/app/app/settings/DoctorWebPushControls';
 
 /** Push opt-in на странице установки staff PWA (после установки). */
 export function StaffPwaPushOptIn() {

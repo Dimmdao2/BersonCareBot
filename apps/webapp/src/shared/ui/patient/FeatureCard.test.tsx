@@ -1,11 +1,11 @@
 /** @vitest-environment jsdom */
 
-import { describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
-import { FeatureCard } from "@/shared/ui/patient/FeatureCard";
+import { describe, expect, it } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import { FeatureCard } from '@/shared/ui/patient/FeatureCard';
 
-describe("FeatureCard", () => {
-  it("renders secondary link without nesting inside primary href", () => {
+describe('FeatureCard', () => {
+  it('renders secondary link without nesting inside primary href', () => {
     render(
       <FeatureCard
         title="Материал"
@@ -14,24 +14,32 @@ describe("FeatureCard", () => {
         secondaryHref="/app/patient/courses?highlight=aaaaaaaa-bbbb-4ccc-dddd-eeeeeeeeeeee"
       />,
     );
-    expect(screen.getByRole("link", { name: "Материал" })).toHaveAttribute("href", "/app/patient/content/fixture-page");
-    expect(screen.getByRole("link", { name: "Открыть курс" })).toHaveAttribute(
-      "href",
-      "/app/patient/courses?highlight=aaaaaaaa-bbbb-4ccc-dddd-eeeeeeeeeeee",
+    expect(screen.getByRole('link', { name: 'Материал' })).toHaveAttribute(
+      'href',
+      '/app/patient/content/fixture-page',
+    );
+    expect(screen.getByRole('link', { name: 'Открыть курс' })).toHaveAttribute(
+      'href',
+      '/app/patient/courses?highlight=aaaaaaaa-bbbb-4ccc-dddd-eeeeeeeeeeee',
     );
   });
 
-  it("renders non-interactive article when href is omitted", () => {
+  it('renders non-interactive article when href is omitted', () => {
     render(
-      <FeatureCard title="Скоро" description="Текст" status="coming-soon" containerId="card-soon" />,
+      <FeatureCard
+        title="Скоро"
+        description="Текст"
+        status="coming-soon"
+        containerId="card-soon"
+      />,
     );
-    expect(screen.getByRole("article")).toHaveAttribute("id", "card-soon");
-    expect(screen.getByRole("heading", { level: 3, name: "Скоро" })).toBeInTheDocument();
-    expect(screen.queryByRole("link")).toBeNull();
-    expect(screen.getByText("скоро")).toBeInTheDocument();
+    expect(screen.getByRole('article')).toHaveAttribute('id', 'card-soon');
+    expect(screen.getByRole('heading', { level: 3, name: 'Скоро' })).toBeInTheDocument();
+    expect(screen.queryByRole('link')).toBeNull();
+    expect(screen.getByText('скоро')).toBeInTheDocument();
   });
 
-  it("places containerId on Card root in secondaryHref branch", () => {
+  it('places containerId on Card root in secondaryHref branch', () => {
     const { container } = render(
       <FeatureCard
         title="Материал"
@@ -40,12 +48,12 @@ describe("FeatureCard", () => {
         containerId="card-dual"
       />,
     );
-    const root = container.querySelector("#card-dual");
+    const root = container.querySelector('#card-dual');
     expect(root).toBeTruthy();
-    expect(root?.getAttribute("data-slot")).toBe("card");
+    expect(root?.getAttribute('data-slot')).toBe('card');
   });
 
-  it("renders locked card as article without link even when href is set", () => {
+  it('renders locked card as article without link even when href is set', () => {
     render(
       <FeatureCard
         title="Закрыто"
@@ -54,23 +62,28 @@ describe("FeatureCard", () => {
         containerId="card-locked"
       />,
     );
-    expect(screen.getByRole("article")).toHaveAttribute("id", "card-locked");
-    expect(screen.getByRole("heading", { level: 3, name: "Закрыто" })).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Закрыто" })).toBeNull();
-    expect(screen.getByText("заблокировано")).toBeInTheDocument();
+    expect(screen.getByRole('article')).toHaveAttribute('id', 'card-locked');
+    expect(screen.getByRole('heading', { level: 3, name: 'Закрыто' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Закрыто' })).toBeNull();
+    expect(screen.getByText('заблокировано')).toBeInTheDocument();
   });
 
-  it("renders single-link card with link wrapping card surface", () => {
+  it('renders single-link card with link wrapping card surface', () => {
     render(
-      <FeatureCard title="Раздел" href="/app/patient/sections/warmups" compact containerId="card-one" />,
+      <FeatureCard
+        title="Раздел"
+        href="/app/patient/sections/warmups"
+        compact
+        containerId="card-one"
+      />,
     );
-    const link = screen.getByRole("link", { name: "Раздел" });
-    expect(link).toHaveAttribute("href", "/app/patient/sections/warmups");
-    expect(link).toHaveAttribute("id", "card-one");
+    const link = screen.getByRole('link', { name: 'Раздел' });
+    expect(link).toHaveAttribute('href', '/app/patient/sections/warmups');
+    expect(link).toHaveAttribute('id', 'card-one');
     expect(link.querySelector('[data-slot="card"]')).toBeTruthy();
   });
 
-  it("renders full card with status badge when not compact", () => {
+  it('renders full card with status badge when not compact', () => {
     render(
       <FeatureCard
         title="Секция"
@@ -79,8 +92,11 @@ describe("FeatureCard", () => {
         status="coming-soon"
       />,
     );
-    expect(screen.getByRole("link", { name: /Секция/i })).toHaveAttribute("href", "/app/patient/sections/a");
-    expect(screen.getByText("скоро")).toBeInTheDocument();
-    expect(screen.getByText("Описание")).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Секция/i })).toHaveAttribute(
+      'href',
+      '/app/patient/sections/a',
+    );
+    expect(screen.getByText('скоро')).toBeInTheDocument();
+    expect(screen.getByText('Описание')).toBeInTheDocument();
   });
 });

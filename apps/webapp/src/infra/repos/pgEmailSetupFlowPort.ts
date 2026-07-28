@@ -1,6 +1,6 @@
 /** Wave 3 phase 15B — domain SQL via `runWebappPgText`; TX on `applyEmailSetupCompletion`. */
-import { runWebappPgText, runWebappTransaction } from "@/infra/db/runWebappSql";
-import type { EmailSetupFlowPort } from "@/modules/auth/emailSetupFlow/ports";
+import { runWebappPgText, runWebappTransaction } from '@/infra/db/runWebappSql';
+import type { EmailSetupFlowPort } from '@/modules/auth/emailSetupFlow/ports';
 
 export const pgEmailSetupFlowPort: EmailSetupFlowPort = {
   async assertContactEmailForSetup({ userId, emailNormalized }) {
@@ -24,13 +24,13 @@ export const pgEmailSetupFlowPort: EmailSetupFlowPort = {
     );
     const row = r.rows[0];
     if (!row?.email_normalized) {
-      return { ok: false, reason: "user_not_found" };
+      return { ok: false, reason: 'user_not_found' };
     }
     if (row.email_normalized !== emailNormalized) {
-      return { ok: false, reason: "email_mismatch" };
+      return { ok: false, reason: 'email_mismatch' };
     }
     if (row.email_verified_at != null && row.has_password) {
-      return { ok: false, reason: "already_has_login" };
+      return { ok: false, reason: 'already_has_login' };
     }
     return { ok: true, email: row.email ?? emailNormalized };
   },
@@ -50,7 +50,7 @@ export const pgEmailSetupFlowPort: EmailSetupFlowPort = {
         );
         if (!userRes.rows[0]) {
           tx.rollback();
-          return { ok: false, reason: "email_mismatch" as const };
+          return { ok: false, reason: 'email_mismatch' as const };
         }
 
         await runWebappPgText(
@@ -69,13 +69,13 @@ export const pgEmailSetupFlowPort: EmailSetupFlowPort = {
         );
         if (tokenRes.rows[0]?.marked !== true) {
           tx.rollback();
-          return { ok: false, reason: "token_consume_failed" as const };
+          return { ok: false, reason: 'token_consume_failed' as const };
         }
 
         return { ok: true as const };
       });
     } catch {
-      return { ok: false, reason: "user_not_found" as const };
+      return { ok: false, reason: 'user_not_found' as const };
     }
   },
 };

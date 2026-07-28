@@ -1,14 +1,14 @@
-"use client";
+'use client';
 
-import { Sparkles } from "lucide-react";
-import { stripApiMediaForAnonymousGuest } from "@/app/app/patient/home/patientHomeGuestNav";
-import { PatientHomeSafeImage } from "@/app/app/patient/home/PatientHomeSafeImage";
-import { cn } from "@/lib/utils";
+import { Sparkles } from 'lucide-react';
+import { stripApiMediaForAnonymousGuest } from '@/app/app/patient/home/patientHomeGuestNav';
+import { PatientHomeSafeImage } from '@/app/app/patient/home/PatientHomeSafeImage';
+import { cn } from '@/lib/utils';
 
 /** Слот обложки на странице материала разминки — меньше карточки на главной, ниже hero. */
 const warmupDetailHeroImageSlotClass = cn(
-  "pointer-events-none absolute bottom-0 right-4 z-[1] flex items-end justify-end overflow-hidden min-[380px]:right-6 lg:right-10",
-  "h-[106px] w-[90px] min-[380px]:h-[114px] min-[380px]:w-[100px] lg:h-[178px] lg:w-[152px] xl:h-[186px] xl:w-[162px]",
+  'pointer-events-none absolute bottom-0 right-4 z-[1] flex items-end justify-end overflow-hidden min-[380px]:right-6 lg:right-10',
+  'h-[106px] w-[90px] min-[380px]:h-[114px] min-[380px]:w-[100px] lg:h-[178px] lg:w-[152px] xl:h-[186px] xl:w-[162px]',
 );
 
 type Props = {

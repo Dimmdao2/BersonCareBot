@@ -3,11 +3,11 @@
  * Wave 3 phase 13B — domain SQL via `runWebappPgText`; Class C TX transport on soft-delete.
  */
 
-import { getPool } from "@/infra/db/client";
-import { nullableToIsoStringSafe, toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
-import { getWebappSqlFromPgClient, runWebappPgText } from "@/infra/db/runWebappSql";
-import { withPoolTransaction } from "@/infra/db/withClient";
-import { nativeIntegratorRecordId } from "@/modules/patient-booking/projectCanonicalAppointment";
+import { getPool } from '@/infra/db/client';
+import { nullableToIsoStringSafe, toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
+import { getWebappSqlFromPgClient, runWebappPgText } from '@/infra/db/runWebappSql';
+import { withPoolTransaction } from '@/infra/db/withClient';
+import { nativeIntegratorRecordId } from '@/modules/patient-booking/projectCanonicalAppointment';
 
 export type SoftDeleteByIntegratorIdOpts = {
   cancelReason?: string;
@@ -26,8 +26,8 @@ export type SoftDeleteByIntegratorIdOpts = {
 
 class AppointmentProjectionOrganizationMismatchError extends Error {
   constructor() {
-    super("appointment_projection_organization_mismatch");
-    this.name = "AppointmentProjectionOrganizationMismatchError";
+    super('appointment_projection_organization_mismatch');
+    this.name = 'AppointmentProjectionOrganizationMismatchError';
   }
 }
 
@@ -84,8 +84,8 @@ export type AppointmentRecordRow = {
 
 class AppointmentProjectionRecordNotFoundError extends Error {
   constructor() {
-    super("appointment_projection_record_not_found");
-    this.name = "AppointmentProjectionRecordNotFoundError";
+    super('appointment_projection_record_not_found');
+    this.name = 'AppointmentProjectionRecordNotFoundError';
   }
 }
 
@@ -104,7 +104,10 @@ export type AppointmentProjectionPort = {
   /** Активные предстоящие: статус created/updated, слот в будущем или без времени, не soft-delete. */
   listActiveByPhoneNormalized(phoneNormalized: string): Promise<AppointmentRecordRow[]>;
   /** Все записи по телефону для истории (исключая soft-delete). */
-  listHistoryByPhoneNormalized(phoneNormalized: string, limit?: number): Promise<AppointmentRecordRow[]>;
+  listHistoryByPhoneNormalized(
+    phoneNormalized: string,
+    limit?: number,
+  ): Promise<AppointmentRecordRow[]>;
   /** Админ / staff: пометить запись удалённой. */
   softDeleteByIntegratorId(
     integratorRecordId: string,
@@ -134,10 +137,10 @@ function mapRow(r: {
     recordAt: nullableToIsoStringSafe(r.record_at),
     status: r.status,
     payloadJson:
-      typeof r.payload_json === "object" && r.payload_json !== null
+      typeof r.payload_json === 'object' && r.payload_json !== null
         ? (r.payload_json as Record<string, unknown>)
         : {},
-    lastEvent: r.last_event ?? "",
+    lastEvent: r.last_event ?? '',
     branchId: r.branch_id ?? null,
     createdAt: toIsoStringSafe(r.created_at),
     updatedAt: toIsoStringSafe(r.updated_at),
@@ -146,9 +149,7 @@ function mapRow(r: {
 }
 
 /** Staff delete when cancel left no projection row — tombstone + DELETE patient_bookings. */
-async function purgeCanonicalStaffDeleteTombstone(
-  appointmentId: string,
-): Promise<boolean> {
+async function purgeCanonicalStaffDeleteTombstone(appointmentId: string): Promise<boolean> {
   const pool = getPool();
   const tombstoneId = nativeIntegratorRecordId(appointmentId);
   await withPoolTransaction(pool, async (client) => {
@@ -243,7 +244,9 @@ export function createPgAppointmentProjectionPort(): AppointmentProjectionPort {
       );
     },
 
-    async getRecordByIntegratorId(integratorRecordId: string): Promise<AppointmentRecordRow | null> {
+    async getRecordByIntegratorId(
+      integratorRecordId: string,
+    ): Promise<AppointmentRecordRow | null> {
       const result = await runWebappPgText<{
         id: string;
         integrator_record_id: string;
@@ -259,7 +262,7 @@ export function createPgAppointmentProjectionPort(): AppointmentProjectionPort {
       }>(
         `SELECT id, integrator_record_id, phone_normalized, record_at, status, payload_json, last_event, branch_id, created_at, updated_at, deleted_at
          FROM appointment_records WHERE integrator_record_id = $1 LIMIT 1`,
-        [integratorRecordId]
+        [integratorRecordId],
       );
       const row = result.rows[0];
       return row ? mapRow(row) : null;
@@ -285,12 +288,15 @@ export function createPgAppointmentProjectionPort(): AppointmentProjectionPort {
            AND deleted_at IS NULL
            AND (record_at IS NULL OR record_at >= now())
          ORDER BY record_at ASC NULLS LAST`,
-        [phoneNormalized]
+        [phoneNormalized],
       );
       return result.rows.map(mapRow);
     },
 
-    async listHistoryByPhoneNormalized(phoneNormalized: string, limit = 50): Promise<AppointmentRecordRow[]> {
+    async listHistoryByPhoneNormalized(
+      phoneNormalized: string,
+      limit = 50,
+    ): Promise<AppointmentRecordRow[]> {
       const result = await runWebappPgText<{
         id: string;
         integrator_record_id: string;
@@ -309,7 +315,7 @@ export function createPgAppointmentProjectionPort(): AppointmentProjectionPort {
          WHERE phone_normalized = $1 AND deleted_at IS NULL
          ORDER BY record_at DESC NULLS LAST, updated_at DESC
          LIMIT $2`,
-        [phoneNormalized, limit]
+        [phoneNormalized, limit],
       );
       return result.rows.map(mapRow);
     },
@@ -319,7 +325,7 @@ export function createPgAppointmentProjectionPort(): AppointmentProjectionPort {
       opts?: SoftDeleteByIntegratorIdOpts,
     ): Promise<boolean> {
       const pool = getPool();
-      const cancelReason = opts?.cancelReason ?? "admin_soft_delete";
+      const cancelReason = opts?.cancelReason ?? 'admin_soft_delete';
       const purgePatientBookings = opts?.purgePatientBookings === true;
       const organizationId = opts?.organizationId;
       try {
@@ -418,7 +424,7 @@ export function createPgAppointmentProjectionPort(): AppointmentProjectionPort {
       const purgeOpts = {
         canonicalAppointmentId: appointmentId,
         purgePatientBookings: true as const,
-        cancelReason: "staff_delete",
+        cancelReason: 'staff_delete',
       };
       const primaryId = nativeIntegratorRecordId(appointmentId);
       const ok = await this.softDeleteByIntegratorId(primaryId, purgeOpts);

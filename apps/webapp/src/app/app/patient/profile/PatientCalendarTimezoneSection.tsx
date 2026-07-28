@@ -1,65 +1,67 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import type { StylesConfig } from "react-select";
-import TimezoneSelect, { type ITimezone, type ITimezoneOption } from "react-timezone-select";
-import { Button } from "@/shared/ui/patient/primitives/button";
-import { Label } from "@/shared/ui/patient/primitives/label";
-import { cn } from "@/lib/utils";
-import { getBrowserCalendarIanaForAuth } from "@/shared/lib/browserCalendarIana";
-import { mergePatientTimezoneSelectLabels } from "@/shared/timezone/patientTimezoneSelectLabels";
-import { patientInlineLinkClass, patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
-import { useMobileViewport } from "@/app/app/patient/cabinet/useMobileViewport";
-import { PATIENT_CALENDAR_TZ_BOOTSTRAP_EVENT } from "../PatientCalendarTimezoneBootstrap";
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import type { StylesConfig } from 'react-select';
+import TimezoneSelect, { type ITimezone, type ITimezoneOption } from 'react-timezone-select';
+import { Button } from '@/shared/ui/patient/primitives/button';
+import { Label } from '@/shared/ui/patient/primitives/label';
+import { cn } from '@/lib/utils';
+import { getBrowserCalendarIanaForAuth } from '@/shared/lib/browserCalendarIana';
+import { mergePatientTimezoneSelectLabels } from '@/shared/timezone/patientTimezoneSelectLabels';
+import { patientInlineLinkClass, patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
+import { useMobileViewport } from '@/app/app/patient/cabinet/useMobileViewport';
+import { PATIENT_CALENDAR_TZ_BOOTSTRAP_EVENT } from '../PatientCalendarTimezoneBootstrap';
 
 const patientTzSelectStyles: StylesConfig<ITimezone, false> = {
   control: (base, state) => ({
     ...base,
     minHeight: 40,
-    borderRadius: "var(--patient-card-radius-mobile)",
-    borderColor: "var(--patient-border)",
-    backgroundColor: "var(--patient-card-bg)",
-    boxShadow: "none",
-    cursor: "pointer",
+    borderRadius: 'var(--patient-card-radius-mobile)',
+    borderColor: 'var(--patient-border)',
+    backgroundColor: 'var(--patient-card-bg)',
+    boxShadow: 'none',
+    cursor: 'pointer',
     opacity: state.isDisabled ? 0.6 : 1,
-    ":hover": { borderColor: "var(--patient-border)" },
+    ':hover': { borderColor: 'var(--patient-border)' },
   }),
   menuPortal: (base) => ({ ...base, zIndex: 60 }),
   menu: (base) => ({
     ...base,
     borderRadius: 8,
-    border: "1px solid var(--patient-border)",
-    overflow: "hidden",
-    backgroundColor: "var(--patient-card-bg)",
-    boxShadow: "var(--patient-shadow-card-mobile)",
+    border: '1px solid var(--patient-border)',
+    overflow: 'hidden',
+    backgroundColor: 'var(--patient-card-bg)',
+    boxShadow: 'var(--patient-shadow-card-mobile)',
   }),
   menuList: (base) => ({ ...base, padding: 0 }),
   option: (base, state) => ({
     ...base,
-    backgroundColor: state.isFocused ? "var(--patient-color-primary-soft)" : "var(--patient-card-bg)",
-    color: "var(--patient-text-primary)",
-    cursor: "pointer",
-    fontSize: "1rem",
+    backgroundColor: state.isFocused
+      ? 'var(--patient-color-primary-soft)'
+      : 'var(--patient-card-bg)',
+    color: 'var(--patient-text-primary)',
+    cursor: 'pointer',
+    fontSize: '1rem',
     lineHeight: 1.35,
   }),
   singleValue: (base) => ({
     ...base,
-    color: "var(--patient-text-primary)",
-    fontSize: "1rem",
+    color: 'var(--patient-text-primary)',
+    fontSize: '1rem',
   }),
   placeholder: (base) => ({
     ...base,
-    color: "var(--patient-text-muted)",
-    fontSize: "1rem",
+    color: 'var(--patient-text-muted)',
+    fontSize: '1rem',
   }),
-  input: (base) => ({ ...base, color: "var(--patient-text-primary)", fontSize: "1rem" }),
-  indicatorSeparator: () => ({ display: "none" }),
+  input: (base) => ({ ...base, color: 'var(--patient-text-primary)', fontSize: '1rem' }),
+  indicatorSeparator: () => ({ display: 'none' }),
   dropdownIndicator: (base, state) => ({
     ...base,
-    color: "var(--patient-text-muted)",
-    transform: state.selectProps.menuIsOpen ? "rotate(180deg)" : undefined,
-    transition: "transform 0.15s ease",
+    color: 'var(--patient-text-muted)',
+    transform: state.selectProps.menuIsOpen ? 'rotate(180deg)' : undefined,
+    transition: 'transform 0.15s ease',
   }),
 };
 
@@ -68,7 +70,7 @@ export function PatientCalendarTimezoneSection() {
   const isMobileViewport = useMobileViewport();
   /** `null` в UI — в БД ещё нет своего IANA (плейсхолдер по умолчанию приложения). */
   const [iana, setIana] = useState<string | null>(null);
-  const [appDefaultTimezonePlaceholder, setAppDefaultTimezonePlaceholder] = useState("");
+  const [appDefaultTimezonePlaceholder, setAppDefaultTimezonePlaceholder] = useState('');
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -76,16 +78,20 @@ export function PatientCalendarTimezoneSection() {
   const timezoneLabels = useMemo(() => mergePatientTimezoneSelectLabels(iana), [iana]);
 
   const loadFromApi = useCallback(async () => {
-    const res = await fetch("/api/patient/profile/calendar-timezone");
+    const res = await fetch('/api/patient/profile/calendar-timezone');
     const data = (await res.json().catch(() => null)) as {
       ok?: boolean;
       calendarTimezone?: string | null;
       appDefaultTimezonePlaceholder?: string;
     };
     if (res.ok && data?.ok) {
-      const raw = data.calendarTimezone?.trim() ?? "";
+      const raw = data.calendarTimezone?.trim() ?? '';
       setIana(raw.length > 0 ? raw : null);
-      setAppDefaultTimezonePlaceholder(typeof data.appDefaultTimezonePlaceholder === "string" ? data.appDefaultTimezonePlaceholder : "");
+      setAppDefaultTimezonePlaceholder(
+        typeof data.appDefaultTimezonePlaceholder === 'string'
+          ? data.appDefaultTimezonePlaceholder
+          : '',
+      );
     }
     setLoaded(true);
   }, []);
@@ -106,17 +112,17 @@ export function PatientCalendarTimezoneSection() {
     setSaving(true);
     setMsg(null);
     try {
-      const res = await fetch("/api/patient/profile/calendar-timezone", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+      const res = await fetch('/api/patient/profile/calendar-timezone', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ calendarTimezone }),
       });
       const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
       if (!res.ok || !data.ok) {
         setMsg(
-          data.error === "invalid_timezone"
-            ? "Выберите корректный пояс из списка."
-            : "Не удалось сохранить.",
+          data.error === 'invalid_timezone'
+            ? 'Выберите корректный пояс из списка.'
+            : 'Не удалось сохранить.',
         );
         return false;
       }
@@ -128,14 +134,14 @@ export function PatientCalendarTimezoneSection() {
   };
 
   const save = async () => {
-    const trimmed = iana?.trim() ?? "";
-    await persistCalendarTimezone(trimmed === "" ? null : trimmed);
+    const trimmed = iana?.trim() ?? '';
+    await persistCalendarTimezone(trimmed === '' ? null : trimmed);
   };
 
   const applyFromBrowser = async () => {
     const browserTz = getBrowserCalendarIanaForAuth();
     if (!browserTz) {
-      setMsg("Не удалось определить пояс в браузере.");
+      setMsg('Не удалось определить пояс в браузере.');
       return;
     }
     setIana(browserTz);
@@ -145,10 +151,13 @@ export function PatientCalendarTimezoneSection() {
 
   return (
     <div className="flex flex-col gap-2 border-t border-[var(--patient-border)] pt-4 first:border-t-0 first:pt-0">
-      <Label htmlFor="patient-calendar-tz-input" className={cn(patientMutedTextClass, "text-xs font-normal uppercase tracking-wide")}>
+      <Label
+        htmlFor="patient-calendar-tz-input"
+        className={cn(patientMutedTextClass, 'text-xs font-normal uppercase tracking-wide')}
+      >
         UTC (Часовой пояс)
       </Label>
-      <p className={cn(patientMutedTextClass, "text-xs")}>
+      <p className={cn(patientMutedTextClass, 'text-xs')}>
         Вручную в списке или «Определить автоматически» — из настроек браузера.
       </p>
       <div className="max-w-md">
@@ -166,9 +175,11 @@ export function PatientCalendarTimezoneSection() {
           displayValue="UTC"
           isDisabled={!loaded || saving}
           isSearchable={!isMobileViewport}
-          placeholder={loaded && iana === null ? appDefaultTimezonePlaceholder || undefined : undefined}
+          placeholder={
+            loaded && iana === null ? appDefaultTimezonePlaceholder || undefined : undefined
+          }
           styles={patientTzSelectStyles as never}
-          menuPortalTarget={typeof document !== "undefined" ? document.body : null}
+          menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
           menuPosition="fixed"
           maxMenuHeight={280}
         />
@@ -176,13 +187,16 @@ export function PatientCalendarTimezoneSection() {
       <div className="flex flex-col gap-1">
         <div className="flex flex-nowrap items-center gap-2">
           <Button type="button" size="sm" disabled={!loaded || saving} onClick={() => void save()}>
-            {saving ? "Сохранение…" : "Сохранить пояс"}
+            {saving ? 'Сохранение…' : 'Сохранить пояс'}
           </Button>
           <Button
             type="button"
             variant="link"
             size="sm"
-            className={cn(patientInlineLinkClass, "h-auto min-h-0 p-0 text-xs shrink-0 disabled:pointer-events-none disabled:opacity-50")}
+            className={cn(
+              patientInlineLinkClass,
+              'h-auto min-h-0 p-0 text-xs shrink-0 disabled:pointer-events-none disabled:opacity-50',
+            )}
             disabled={!loaded || saving}
             onClick={() => void applyFromBrowser()}
           >

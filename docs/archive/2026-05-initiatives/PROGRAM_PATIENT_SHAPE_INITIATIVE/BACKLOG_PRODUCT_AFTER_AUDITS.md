@@ -7,12 +7,12 @@
 
 ## 0. Закрыто в волне «сейчас» (2026-05-03)
 
-| Тема | Реализация (кратко) |
-|------|---------------------|
-| **A4-UTC-01** | Колонка **`platform_users.calendar_timezone`**, чек-лист по **Luxon** `localDayWindowIso` + **GET/PATCH** `/api/patient/profile/calendar-timezone`, fallback **`app_display_timezone`**. |
-| **Одна активная программа** | **`assignTemplateToPatient`** → ошибка, если уже есть инстанс **`active`**; **POST** doctor **`409`** (`SECOND_ACTIVE_TREATMENT_PROGRAM_MESSAGE`). |
-| **A3-UI-INST-01** | Диалог «Изменить» для группы инстанса (**title / description / scheduleText**), **`PATCH .../stage-groups/[groupId]`**. |
-| **Пустой этап у пациента** | **`patientStageSectionShouldRender`** в **`stage-semantics`**, фильтр этапов в **`PatientTreatmentProgramDetailClient`**. |
+| Тема                        | Реализация (кратко)                                                                                                                                                                      |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **A4-UTC-01**               | Колонка **`platform_users.calendar_timezone`**, чек-лист по **Luxon** `localDayWindowIso` + **GET/PATCH** `/api/patient/profile/calendar-timezone`, fallback **`app_display_timezone`**. |
+| **Одна активная программа** | **`assignTemplateToPatient`** → ошибка, если уже есть инстанс **`active`**; **POST** doctor **`409`** (`SECOND_ACTIVE_TREATMENT_PROGRAM_MESSAGE`).                                       |
+| **A3-UI-INST-01**           | Диалог «Изменить» для группы инстанса (**title / description / scheduleText**), **`PATCH .../stage-groups/[groupId]`**.                                                                  |
+| **Пустой этап у пациента**  | **`patientStageSectionShouldRender`** в **`stage-semantics`**, фильтр этапов в **`PatientTreatmentProgramDetailClient`**.                                                                |
 
 ---
 
@@ -34,10 +34,10 @@ _Пункты **A3-UI-INST-01**, «пустой этап» и см. §0 пере
 
 ## 3. Не делаем / снято с backlog
 
-| ID | Решение |
-|---|---|
-| **A4-LOG-TYPES-01** | Отдельные строки `program_action_log` с `action_type: "viewed"` — **избыточно**, не планируется. |
-| **A2-LEGACY-01** | Боевых шаблонов с проблемным `sort_order` нет (кроме тестов); **миграция контента не требуется** до появления реальных данных. |
+| ID                  | Решение                                                                                                                        |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| **A4-LOG-TYPES-01** | Отдельные строки `program_action_log` с `action_type: "viewed"` — **избыточно**, не планируется.                               |
+| **A2-LEGACY-01**    | Боевых шаблонов с проблемным `sort_order` нет (кроме тестов); **миграция контента не требуется** до появления реальных данных. |
 
 ---
 
@@ -56,11 +56,11 @@ _Пункты **A3-UI-INST-01**, «пустой этап» и см. §0 пере
 
 ## 5. Сводная таблица «сейчас vs фаза B»
 
-| Задача | Контур | Ориентир объёма |
-|--------|--------|------------------|
-| ~~UI редактирования instance-группы~~ | — | **done** (§0) |
-| ~~Пустой этап — UX у пациента~~ | — | **done** (§0) |
-| ~~Один активный инстанс~~ | — | **done** (§0) |
-| ~~Чек-лист по TZ пациента~~ | — | **done** (§0) |
-| A5-TS-EQUALITY-01 | badges / events | **S** (несрочно) |
-| Фаза B1–B7 целиком | doctor catalogs, schema | **XL** |
+| Задача                                | Контур                  | Ориентир объёма  |
+| ------------------------------------- | ----------------------- | ---------------- |
+| ~~UI редактирования instance-группы~~ | —                       | **done** (§0)    |
+| ~~Пустой этап — UX у пациента~~       | —                       | **done** (§0)    |
+| ~~Один активный инстанс~~             | —                       | **done** (§0)    |
+| ~~Чек-лист по TZ пациента~~           | —                       | **done** (§0)    |
+| A5-TS-EQUALITY-01                     | badges / events         | **S** (несрочно) |
+| Фаза B1–B7 целиком                    | doctor catalogs, schema | **XL**           |

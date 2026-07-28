@@ -4,12 +4,12 @@
  * Read API returns rows with id/userId as integrator ids (string) for adapter compatibility.
  */
 
-import { sql } from "drizzle-orm";
-import { getPool } from "@/infra/db/client";
-import { getWebappSqlDb, runWebappSql } from "@/infra/db/runWebappSql";
-import { buildReminderDeepLink } from "@/modules/reminders/buildReminderDeepLink";
-import { loadWarmupsSectionSlugs } from "@/infra/repos/pgWarmupsSectionSlugs";
-import { findCanonicalUserIdByIntegratorId } from "@/infra/repos/pgCanonicalPlatformUser";
+import { sql } from 'drizzle-orm';
+import { getPool } from '@/infra/db/client';
+import { getWebappSqlDb, runWebappSql } from '@/infra/db/runWebappSql';
+import { buildReminderDeepLink } from '@/modules/reminders/buildReminderDeepLink';
+import { loadWarmupsSectionSlugs } from '@/infra/repos/pgWarmupsSectionSlugs';
+import { findCanonicalUserIdByIntegratorId } from '@/infra/repos/pgCanonicalPlatformUser';
 
 export type ReminderRuleListItem = {
   id: string;
@@ -45,7 +45,7 @@ export type ReminderRuleListItem = {
 export type ReminderOccurrenceHistoryItem = {
   id: string;
   ruleId: string;
-  status: "sent" | "failed";
+  status: 'sent' | 'failed';
   deliveryChannel: string | null;
   errorCode: string | null;
   occurredAt: string;
@@ -71,7 +71,7 @@ export type ReminderProjectionPort = {
     integratorRuleId: string;
     integratorUserId: string;
     category: string;
-    status: "sent" | "failed";
+    status: 'sent' | 'failed';
     deliveryChannel: string | null;
     errorCode: string | null;
     occurredAt: string;
@@ -101,11 +101,11 @@ export type ReminderProjectionPort = {
   listRulesByIntegratorUserId(integratorUserId: string): Promise<ReminderRuleListItem[]>;
   getRuleByIntegratorUserIdAndCategory(
     integratorUserId: string,
-    category: string
+    category: string,
   ): Promise<ReminderRuleListItem | null>;
   listHistoryByIntegratorUserId(
     integratorUserId: string,
-    limit?: number
+    limit?: number,
   ): Promise<ReminderOccurrenceHistoryItem[]>;
   /**
    * Кол-во непросмотренных occurrence для пользователя (webapp platform_user_id).
@@ -118,7 +118,7 @@ export type ReminderProjectionPort = {
    */
   getStats(
     platformUserId: string,
-    days: number
+    days: number,
   ): Promise<{ total: number; seen: number; unseen: number; failed: number }>;
   /**
    * Отмечает occurrence как просмотренные (seen_at = now()) для текущего пользователя.
@@ -133,15 +133,15 @@ export type ReminderProjectionPort = {
 
 function resolvePlatformUserId(
   pool: Awaited<ReturnType<typeof getPool>>,
-  integratorUserId: string
+  integratorUserId: string,
 ): Promise<string | null> {
-  if (integratorUserId === "") return Promise.resolve(null);
+  if (integratorUserId === '') return Promise.resolve(null);
   return findCanonicalUserIdByIntegratorId(pool, integratorUserId);
 }
 
 function mapScheduleDataColumn(raw: unknown): Record<string, unknown> | null {
   if (raw == null) return null;
-  if (typeof raw === "object" && !Array.isArray(raw)) return raw as Record<string, unknown>;
+  if (typeof raw === 'object' && !Array.isArray(raw)) return raw as Record<string, unknown>;
   return null;
 }
 
@@ -415,7 +415,7 @@ export function createPgReminderProjectionPort(): ReminderProjectionPort {
       return r.rows.map((row) => ({
         id: row.integrator_occurrence_id,
         ruleId: row.integrator_rule_id,
-        status: row.status as "sent" | "failed",
+        status: row.status as 'sent' | 'failed',
         deliveryChannel: row.delivery_channel,
         errorCode: row.error_code,
         occurredAt: row.occurred_at,
@@ -433,7 +433,7 @@ export function createPgReminderProjectionPort(): ReminderProjectionPort {
            WHERE rr.platform_user_id = ${platformUserId}::uuid
              AND roh.seen_at IS NULL`,
         );
-        return parseInt(r.rows[0]?.cnt ?? "0", 10);
+        return parseInt(r.rows[0]?.cnt ?? '0', 10);
       } catch {
         // seen_at column doesn't exist yet (migration 032 pending)
         return 0;
@@ -462,10 +462,10 @@ export function createPgReminderProjectionPort(): ReminderProjectionPort {
         );
         const row = r.rows[0];
         return {
-          total: parseInt(row?.total ?? "0", 10),
-          seen: parseInt(row?.seen ?? "0", 10),
-          unseen: parseInt(row?.unseen ?? "0", 10),
-          failed: parseInt(row?.failed ?? "0", 10),
+          total: parseInt(row?.total ?? '0', 10),
+          seen: parseInt(row?.seen ?? '0', 10),
+          unseen: parseInt(row?.unseen ?? '0', 10),
+          failed: parseInt(row?.failed ?? '0', 10),
         };
       } catch {
         return { total: 0, seen: 0, unseen: 0, failed: 0 };

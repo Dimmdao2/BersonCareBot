@@ -1,4 +1,9 @@
-import type { CalendarAggregate, CalendarAppointmentEvent, CalendarFilters, CalendarFilterMeta } from "./types";
+import type {
+  CalendarAggregate,
+  CalendarAppointmentEvent,
+  CalendarFilters,
+  CalendarFilterMeta,
+} from './types';
 
 export type BookingCalendarPort = {
   listAppointmentsInRange(filters: CalendarFilters): Promise<CalendarAppointmentEvent[]>;

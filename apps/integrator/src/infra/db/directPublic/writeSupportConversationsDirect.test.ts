@@ -16,17 +16,25 @@ type Router = (sql: string, params: unknown[]) => QueryResult;
 /** Route SQL text → tag for assertions (mock, no real pg). Same idiom as writeDiaryLfkDirect.test.ts. */
 function tagFor(sql: string): string {
   if (/FROM users\s+WHERE id =/.test(sql)) return 'integrator_users:canonical';
-  if (/FROM public\.platform_users/.test(sql) && /integrator_user_id =/.test(sql)) return 'platform_users:candidate_by_int';
-  if (/FROM public\.platform_users/.test(sql) && /phone_normalized =/.test(sql)) return 'platform_users:candidate_by_phone';
-  if (/FROM public\.user_channel_bindings ucb/.test(sql)) return 'platform_users:candidate_by_channel';
+  if (/FROM public\.platform_users/.test(sql) && /integrator_user_id =/.test(sql))
+    return 'platform_users:candidate_by_int';
+  if (/FROM public\.platform_users/.test(sql) && /phone_normalized =/.test(sql))
+    return 'platform_users:candidate_by_phone';
+  if (/FROM public\.user_channel_bindings ucb/.test(sql))
+    return 'platform_users:candidate_by_channel';
   if (/FROM public\.org_enrollments/.test(sql)) return 'org_enrollments:active';
   if (/INSERT INTO public\.support_conversations/.test(sql)) return 'support_conversations:insert';
-  if (/SELECT id::text AS id, organization_id/.test(sql) && /FROM public\.support_conversations/.test(sql)) {
+  if (
+    /SELECT id::text AS id, organization_id/.test(sql) &&
+    /FROM public\.support_conversations/.test(sql)
+  ) {
     return 'support_conversations:lookup';
   }
-  if (/UPDATE public\.support_conversations SET\s+status/.test(sql)) return 'support_conversations:status_update';
+  if (/UPDATE public\.support_conversations SET\s+status/.test(sql))
+    return 'support_conversations:status_update';
   if (/UPDATE public\.support_conversations/.test(sql)) return 'support_conversations:touch';
-  if (/INSERT INTO public\.support_conversation_messages/.test(sql)) return 'support_conversation_messages:insert';
+  if (/INSERT INTO public\.support_conversation_messages/.test(sql))
+    return 'support_conversation_messages:insert';
   return 'other';
 }
 
@@ -123,7 +131,11 @@ describe('openSupportConversationDirect (D3 direct public write)', () => {
 
     expect(state.txCount).toBe(1);
     expect(state.committed).toBe(true);
-    expect(result).toEqual({ id: CONVERSATION_ID, platformUserId: PLATFORM_USER_ID, organizationId: ORG_ID });
+    expect(result).toEqual({
+      id: CONVERSATION_ID,
+      platformUserId: PLATFORM_USER_ID,
+      organizationId: ORG_ID,
+    });
 
     const insert = state.queries.find((q) => q.tag === 'support_conversations:insert');
     expect(insert?.params).toEqual([
@@ -141,8 +153,12 @@ describe('openSupportConversationDirect (D3 direct public write)', () => {
   });
 
   it('fails closed (no write) when zero platform-user candidates resolve', async () => {
-    const { db, state } = createDbMock(baseRouter({ 'platform_users:candidate_by_channel': rows([]) }));
-    await expect(openSupportConversationDirect(db, input)).rejects.toBeInstanceOf(DirectPublicWriteError);
+    const { db, state } = createDbMock(
+      baseRouter({ 'platform_users:candidate_by_channel': rows([]) }),
+    );
+    await expect(openSupportConversationDirect(db, input)).rejects.toBeInstanceOf(
+      DirectPublicWriteError,
+    );
     expect(state.rolledBack).toBe(true);
     expect(state.queries.some((q) => q.tag === 'support_conversations:insert')).toBe(false);
   });
@@ -157,7 +173,12 @@ describe('openSupportConversationDirect (D3 direct public write)', () => {
 
   it('fails closed (no write, no default org) when active org enrollment is ambiguous', async () => {
     const { db, state } = createDbMock(
-      baseRouter({ 'org_enrollments:active': rows([{ organization_id: 'org-a' }, { organization_id: 'org-b' }]) }),
+      baseRouter({
+        'org_enrollments:active': rows([
+          { organization_id: 'org-a' },
+          { organization_id: 'org-b' },
+        ]),
+      }),
     );
     const err = await openSupportConversationDirect(db, input).catch((e) => e);
     expect(err).toBeInstanceOf(DiaryLfkDirectWriteError);
@@ -180,7 +201,11 @@ describe('appendSupportConversationMessageDirect (D3 direct public write)', () =
     const { db, state } = createDbMock(baseRouter());
     const result = await appendSupportConversationMessageDirect(db, messageInput);
 
-    expect(result).toEqual({ id: 'msg-1', conversationId: CONVERSATION_ID, organizationId: ORG_ID });
+    expect(result).toEqual({
+      id: 'msg-1',
+      conversationId: CONVERSATION_ID,
+      organizationId: ORG_ID,
+    });
     const insert = state.queries.find((q) => q.tag === 'support_conversation_messages:insert');
     expect(insert?.params).toEqual([
       'integrator-msg-1',
@@ -220,7 +245,9 @@ describe('setSupportConversationStatusDirect (D3 direct public write)', () => {
   });
 
   it('throws conversation_not_found (NOT a silent no-op) when the conversation row was never opened via D3 — caller must route this to the durable outbox fallback', async () => {
-    const { db, state } = createDbMock(baseRouter({ 'support_conversations:status_update': rows([], 0) }));
+    const { db, state } = createDbMock(
+      baseRouter({ 'support_conversations:status_update': rows([], 0) }),
+    );
     const err = await setSupportConversationStatusDirect(db, {
       integratorConversationId: 'integrator-conv-missing',
       status: 'closed',

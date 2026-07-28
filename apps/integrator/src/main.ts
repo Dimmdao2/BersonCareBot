@@ -9,17 +9,18 @@ import './config/loadEnv.js';
  * Перед стартом применяет legacy startup-миграции или выполняет locked-runtime preflight.
  */
 async function start() {
-  const {
-    assertApiIsolationTelemetryWriterReady,
-  } = await import('./infra/observability/saasIsolationTelemetry.js');
+  const { assertApiIsolationTelemetryWriterReady } =
+    await import('./infra/observability/saasIsolationTelemetry.js');
   const { runStartupMigrationGate } = await import('./infra/db/migrate.js');
-  const { assertIntegratorDiagnosticPoolReady } = await import('./infra/db/operationalPoolReadiness.js');
+  const { assertIntegratorDiagnosticPoolReady } =
+    await import('./infra/db/operationalPoolReadiness.js');
   const { createDbPort } = await import('./infra/db/client.js');
   const { getAppBaseUrl } = await import('./config/appBaseUrl.js');
   const { buildApp } = await import('./app/index.js');
   const { env } = await import('./config/env.js');
   const { logger } = await import('./infra/observability/logger.js');
-  const { initIntegratorErrorTracking, closeIntegratorErrorTracking } = await import('./infra/observability/errorTracking.js');
+  const { initIntegratorErrorTracking, closeIntegratorErrorTracking } =
+    await import('./infra/observability/errorTracking.js');
   const runtimeDb = createDbPort();
 
   await initIntegratorErrorTracking(runtimeDb, 'api');
@@ -48,8 +49,10 @@ async function start() {
 }
 
 start().catch(async (error: unknown) => {
-  const { captureIntegratorStartupFatal, closeIntegratorErrorTracking } = await import('./infra/observability/errorTracking.js');
-  const { reportIntegratorIsolationFailure } = await import('./infra/observability/saasIsolationTelemetry.js');
+  const { captureIntegratorStartupFatal, closeIntegratorErrorTracking } =
+    await import('./infra/observability/errorTracking.js');
+  const { reportIntegratorIsolationFailure } =
+    await import('./infra/observability/saasIsolationTelemetry.js');
   const { logger } = await import('./infra/observability/logger.js');
   captureIntegratorStartupFatal(error);
   reportIntegratorIsolationFailure(error);

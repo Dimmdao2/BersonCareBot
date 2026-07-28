@@ -1,16 +1,16 @@
-import { and, asc, desc, eq, ilike, inArray, or } from "drizzle-orm";
-import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
-import { getDrizzle } from "@/app-layer/db/drizzle";
-import { getPool } from "@/infra/db/client";
-import { runDrizzleMutationTransaction } from "@/infra/db/drizzleMutationTx";
-import { runPgPoolPgText } from "@/infra/db/runWebappSql";
+import { and, asc, desc, eq, ilike, inArray, or } from 'drizzle-orm';
+import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
+import { getDrizzle } from '@/app-layer/db/drizzle';
+import { getPool } from '@/infra/db/client';
+import { runDrizzleMutationTransaction } from '@/infra/db/drizzleMutationTx';
+import { runPgPoolPgText } from '@/infra/db/runWebappSql';
 import {
   clinicalTestRegions,
   clinicalTests as clinicalTestsTable,
   testSets as testSetsTable,
   testSetItems as testSetItemsTable,
-} from "../../../db/schema/clinicalTests";
-import type { TestSetsPort } from "@/modules/tests/ports";
+} from '../../../db/schema/clinicalTests';
+import type { TestSetsPort } from '@/modules/tests/ports';
 import type {
   ClinicalTestMediaItem,
   TestSet,
@@ -21,16 +21,16 @@ import type {
   TestSetItemWithTest,
   TestSetUsageRef,
   TestSetUsageSnapshot,
-} from "@/modules/tests/types";
-import { EMPTY_TEST_SET_USAGE_SNAPSHOT, TEST_SET_USAGE_DETAIL_LIMIT } from "@/modules/tests/types";
-import { mergeCatalogBodyRegionIds } from "@/shared/lib/mergeCatalogBodyRegionIds";
+} from '@/modules/tests/types';
+import { EMPTY_TEST_SET_USAGE_SNAPSHOT, TEST_SET_USAGE_DETAIL_LIMIT } from '@/modules/tests/types';
+import { mergeCatalogBodyRegionIds } from '@/shared/lib/mergeCatalogBodyRegionIds';
 
-function mapMeta(row: typeof testSetsTable.$inferSelect): Omit<TestSet, "items"> {
+function mapMeta(row: typeof testSetsTable.$inferSelect): Omit<TestSet, 'items'> {
   return {
     id: row.id,
     title: row.title,
     description: row.description,
-    publicationStatus: row.publicationStatus as TestSet["publicationStatus"],
+    publicationStatus: row.publicationStatus as TestSet['publicationStatus'],
     isArchived: row.isArchived,
     createdBy: row.createdBy,
     createdAt: row.createdAt,
@@ -41,7 +41,7 @@ function mapMeta(row: typeof testSetsTable.$inferSelect): Omit<TestSet, "items">
 function currentPrincipalOrganizationId(): string {
   const principalOrganizationId = getCurrentDbPrincipalOrganizationId();
   if (!principalOrganizationId) {
-    throw new Error("organization_principal_required");
+    throw new Error('organization_principal_required');
   }
   return principalOrganizationId;
 }
@@ -51,8 +51,11 @@ function currentWriteOrganizationId(...fallbacks: (string | null | undefined)[])
   const fallbackOrganizationIds = fallbacks.filter((x): x is string => Boolean(x));
   const fallbackOrganizationId = fallbackOrganizationIds[0] ?? null;
   const hasFallbackMismatch = fallbackOrganizationIds.some((id) => id !== fallbackOrganizationId);
-  if (hasFallbackMismatch || (fallbackOrganizationId && principalOrganizationId !== fallbackOrganizationId)) {
-    throw new Error("organization_principal_mismatch");
+  if (
+    hasFallbackMismatch ||
+    (fallbackOrganizationId && principalOrganizationId !== fallbackOrganizationId)
+  ) {
+    throw new Error('organization_principal_mismatch');
   }
   return principalOrganizationId;
 }
@@ -67,7 +70,7 @@ function pickFirstClinicalMedia(media: unknown): ClinicalTestMediaItem | null {
 function mapTestRow(
   row: typeof clinicalTestsTable.$inferSelect,
   m2mBodyRegionIds: readonly string[] = [],
-): TestSetItemWithTest["test"] {
+): TestSetItemWithTest['test'] {
   const merged = mergeCatalogBodyRegionIds(row.bodyRegionId, m2mBodyRegionIds);
   return {
     id: row.id,
@@ -80,7 +83,10 @@ function mapTestRow(
   };
 }
 
-async function loadItemsForSet(testSetId: string, organizationId: string): Promise<TestSetItemWithTest[]> {
+async function loadItemsForSet(
+  testSetId: string,
+  organizationId: string,
+): Promise<TestSetItemWithTest[]> {
   const db = getDrizzle();
   const rows = await db
     .select({
@@ -89,7 +95,12 @@ async function loadItemsForSet(testSetId: string, organizationId: string): Promi
     })
     .from(testSetItemsTable)
     .innerJoin(clinicalTestsTable, eq(testSetItemsTable.testId, clinicalTestsTable.id))
-    .where(and(eq(testSetItemsTable.testSetId, testSetId), eq(testSetItemsTable.organizationId, organizationId)))
+    .where(
+      and(
+        eq(testSetItemsTable.testSetId, testSetId),
+        eq(testSetItemsTable.organizationId, organizationId),
+      ),
+    )
     .orderBy(asc(testSetItemsTable.sortOrder), asc(testSetItemsTable.id));
 
   const testIds = [...new Set(rows.map((r) => r.test.id))];
@@ -98,7 +109,12 @@ async function loadItemsForSet(testSetId: string, organizationId: string): Promi
     const crRows = await db
       .select()
       .from(clinicalTestRegions)
-      .where(and(inArray(clinicalTestRegions.clinicalTestId, testIds), eq(clinicalTestRegions.organizationId, organizationId)));
+      .where(
+        and(
+          inArray(clinicalTestRegions.clinicalTestId, testIds),
+          eq(clinicalTestRegions.organizationId, organizationId),
+        ),
+      );
     byTest = new Map<string, string[]>();
     for (const cr of crRows) {
       const cur = byTest.get(cr.clinicalTestId) ?? [];
@@ -121,7 +137,7 @@ function parseTestSetUsageRefs(raw: unknown): TestSetUsageRef[] {
   if (raw == null) return [];
   let arr: unknown[];
   if (Array.isArray(raw)) arr = raw;
-  else if (typeof raw === "string") {
+  else if (typeof raw === 'string') {
     try {
       const p = JSON.parse(raw) as unknown;
       arr = Array.isArray(p) ? p : [];
@@ -132,19 +148,20 @@ function parseTestSetUsageRefs(raw: unknown): TestSetUsageRef[] {
 
   const out: TestSetUsageRef[] = [];
   for (const x of arr) {
-    if (!x || typeof x !== "object") continue;
+    if (!x || typeof x !== 'object') continue;
     const o = x as Record<string, unknown>;
     const kind = o.kind;
     const id = o.id;
     const title = o.title;
     const patientUserId = o.patientUserId;
-    if (kind === "treatment_program_template") {
-      if (typeof id !== "string" || typeof title !== "string") continue;
+    if (kind === 'treatment_program_template') {
+      if (typeof id !== 'string' || typeof title !== 'string') continue;
       out.push({ kind, id, title });
       continue;
     }
-    if (kind === "treatment_program_instance") {
-      if (typeof id !== "string" || typeof title !== "string" || typeof patientUserId !== "string") continue;
+    if (kind === 'treatment_program_instance') {
+      if (typeof id !== 'string' || typeof title !== 'string' || typeof patientUserId !== 'string')
+        continue;
       out.push({ kind, id, title, patientUserId });
     }
   }
@@ -286,7 +303,7 @@ async function loadTestSetUsageSummary(
   if (!row) return { ...EMPTY_TEST_SET_USAGE_SNAPSHOT };
   const n = (v: string | number | null | undefined) => {
     if (v == null) return 0;
-    if (typeof v === "number") return v;
+    if (typeof v === 'number') return v;
     const parsed = Number.parseInt(String(v), 10);
     return Number.isFinite(parsed) ? parsed : 0;
   };
@@ -311,18 +328,17 @@ export function createPgTestSetsPort(): TestSetsPort {
       const db = getDrizzle();
       const organizationId = currentPrincipalOrganizationId();
       const conds = [eq(testSetsTable.organizationId, organizationId)];
-      const scope =
-        filter.archiveScope ?? (filter.includeArchived ? "all" : "active");
-      if (scope === "active") {
+      const scope = filter.archiveScope ?? (filter.includeArchived ? 'all' : 'active');
+      if (scope === 'active') {
         conds.push(eq(testSetsTable.isArchived, false));
-      } else       if (scope === "archived") {
+      } else if (scope === 'archived') {
         conds.push(eq(testSetsTable.isArchived, true));
       }
-      const pub = filter.publicationScope ?? "all";
-      if (pub === "draft") {
-        conds.push(eq(testSetsTable.publicationStatus, "draft"));
-      } else if (pub === "published") {
-        conds.push(eq(testSetsTable.publicationStatus, "published"));
+      const pub = filter.publicationScope ?? 'all';
+      if (pub === 'draft') {
+        conds.push(eq(testSetsTable.publicationStatus, 'draft'));
+      } else if (pub === 'published') {
+        conds.push(eq(testSetsTable.publicationStatus, 'published'));
       }
       const q = filter.search?.trim();
       if (q) {
@@ -347,7 +363,11 @@ export function createPgTestSetsPort(): TestSetsPort {
     async getById(id: string): Promise<TestSet | null> {
       const db = getDrizzle();
       const organizationId = currentPrincipalOrganizationId();
-      const rows = await db.select().from(testSetsTable).where(and(eq(testSetsTable.id, id), eq(testSetsTable.organizationId, organizationId))).limit(1);
+      const rows = await db
+        .select()
+        .from(testSetsTable)
+        .where(and(eq(testSetsTable.id, id), eq(testSetsTable.organizationId, organizationId)))
+        .limit(1);
       if (!rows[0]) return null;
       const items = await loadItemsForSet(id, organizationId);
       return { ...mapMeta(rows[0]), items };
@@ -357,15 +377,15 @@ export function createPgTestSetsPort(): TestSetsPort {
       const organizationId = currentWriteOrganizationId();
       const rows = await runDrizzleMutationTransaction((tx) =>
         tx
-        .insert(testSetsTable)
-        .values({
-          organizationId,
-          title: input.title,
-          description: input.description ?? null,
-          publicationStatus: input.publicationStatus ?? "draft",
-          createdBy,
-        })
-        .returning(),
+          .insert(testSetsTable)
+          .values({
+            organizationId,
+            title: input.title,
+            description: input.description ?? null,
+            publicationStatus: input.publicationStatus ?? 'draft',
+            createdBy,
+          })
+          .returning(),
       );
       return { ...mapMeta(rows[0]), items: [] };
     },
@@ -384,7 +404,12 @@ export function createPgTestSetsPort(): TestSetsPort {
         const existing = await tx
           .select({ organizationId: testSetsTable.organizationId })
           .from(testSetsTable)
-          .where(and(eq(testSetsTable.id, id), eq(testSetsTable.organizationId, currentPrincipalOrganizationId())))
+          .where(
+            and(
+              eq(testSetsTable.id, id),
+              eq(testSetsTable.organizationId, currentPrincipalOrganizationId()),
+            ),
+          )
           .limit(1);
         if (!existing[0]) return [];
         const organizationId = currentWriteOrganizationId(existing[0].organizationId);
@@ -405,14 +430,26 @@ export function createPgTestSetsPort(): TestSetsPort {
         const existing = await tx
           .select({ organizationId: testSetsTable.organizationId })
           .from(testSetsTable)
-          .where(and(eq(testSetsTable.id, id), eq(testSetsTable.organizationId, currentPrincipalOrganizationId()), eq(testSetsTable.isArchived, false)))
+          .where(
+            and(
+              eq(testSetsTable.id, id),
+              eq(testSetsTable.organizationId, currentPrincipalOrganizationId()),
+              eq(testSetsTable.isArchived, false),
+            ),
+          )
           .limit(1);
         if (!existing[0]) return false;
         const organizationId = currentWriteOrganizationId(existing[0].organizationId);
         const rows = await tx
           .update(testSetsTable)
           .set({ organizationId, isArchived: true, updatedAt: new Date().toISOString() })
-          .where(and(eq(testSetsTable.id, id), eq(testSetsTable.organizationId, organizationId), eq(testSetsTable.isArchived, false)))
+          .where(
+            and(
+              eq(testSetsTable.id, id),
+              eq(testSetsTable.organizationId, organizationId),
+              eq(testSetsTable.isArchived, false),
+            ),
+          )
           .returning({ id: testSetsTable.id });
         return rows.length > 0;
       });
@@ -424,14 +461,26 @@ export function createPgTestSetsPort(): TestSetsPort {
         const existing = await tx
           .select({ organizationId: testSetsTable.organizationId })
           .from(testSetsTable)
-          .where(and(eq(testSetsTable.id, id), eq(testSetsTable.organizationId, currentPrincipalOrganizationId()), eq(testSetsTable.isArchived, true)))
+          .where(
+            and(
+              eq(testSetsTable.id, id),
+              eq(testSetsTable.organizationId, currentPrincipalOrganizationId()),
+              eq(testSetsTable.isArchived, true),
+            ),
+          )
           .limit(1);
         if (!existing[0]) return false;
         const organizationId = currentWriteOrganizationId(existing[0].organizationId);
         const rows = await tx
           .update(testSetsTable)
           .set({ organizationId, isArchived: false, updatedAt: new Date().toISOString() })
-          .where(and(eq(testSetsTable.id, id), eq(testSetsTable.organizationId, organizationId), eq(testSetsTable.isArchived, true)))
+          .where(
+            and(
+              eq(testSetsTable.id, id),
+              eq(testSetsTable.organizationId, organizationId),
+              eq(testSetsTable.isArchived, true),
+            ),
+          )
           .returning({ id: testSetsTable.id });
         return rows.length > 0;
       });
@@ -443,7 +492,12 @@ export function createPgTestSetsPort(): TestSetsPort {
         const existingSet = await tx
           .select({ organizationId: testSetsTable.organizationId })
           .from(testSetsTable)
-          .where(and(eq(testSetsTable.id, testSetId), eq(testSetsTable.organizationId, currentPrincipalOrganizationId())))
+          .where(
+            and(
+              eq(testSetsTable.id, testSetId),
+              eq(testSetsTable.organizationId, currentPrincipalOrganizationId()),
+            ),
+          )
           .limit(1);
         if (!existingSet[0]) return;
         const testIds = [...new Set(items.map((it) => it.testId))];
@@ -452,13 +506,25 @@ export function createPgTestSetsPort(): TestSetsPort {
             ? await tx
                 .select({ organizationId: clinicalTestsTable.organizationId })
                 .from(clinicalTestsTable)
-                .where(and(inArray(clinicalTestsTable.id, testIds), eq(clinicalTestsTable.organizationId, currentPrincipalOrganizationId())))
+                .where(
+                  and(
+                    inArray(clinicalTestsTable.id, testIds),
+                    eq(clinicalTestsTable.organizationId, currentPrincipalOrganizationId()),
+                  ),
+                )
             : [];
         const organizationId = currentWriteOrganizationId(
           existingSet[0].organizationId,
           ...existingTests.map((x) => x.organizationId),
         );
-        await tx.delete(testSetItemsTable).where(and(eq(testSetItemsTable.testSetId, testSetId), eq(testSetItemsTable.organizationId, organizationId)));
+        await tx
+          .delete(testSetItemsTable)
+          .where(
+            and(
+              eq(testSetItemsTable.testSetId, testSetId),
+              eq(testSetItemsTable.organizationId, organizationId),
+            ),
+          );
         if (items.length > 0) {
           await tx.insert(testSetItemsTable).values(
             items.map((it, idx) => ({
@@ -473,7 +539,9 @@ export function createPgTestSetsPort(): TestSetsPort {
         await tx
           .update(testSetsTable)
           .set({ organizationId, updatedAt: new Date().toISOString() })
-          .where(and(eq(testSetsTable.id, testSetId), eq(testSetsTable.organizationId, organizationId)));
+          .where(
+            and(eq(testSetsTable.id, testSetId), eq(testSetsTable.organizationId, organizationId)),
+          );
       });
     },
 

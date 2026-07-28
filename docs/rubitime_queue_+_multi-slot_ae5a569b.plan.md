@@ -1,21 +1,21 @@
 ---
 name: Rubitime queue + multi-slot
-overview: "Фаза 1 (закрыта): глобальный pacing 5.5s для всех Rubitime api2 в integrator — в прод-коде, миграция, тесты, INTEGRATOR_CONTRACT + REPORT. Фаза 2 не в этом цикле: очередь/async/мультислоты — спецификация и чеклист только в репозитории docs/REPORTS/RUBITIME_API2_PACING_AND_PHASE2_BACKLOG.md (§ Фаза 2)."
+overview: 'Фаза 1 (закрыта): глобальный pacing 5.5s для всех Rubitime api2 в integrator — в прод-коде, миграция, тесты, INTEGRATOR_CONTRACT + REPORT. Фаза 2 не в этом цикле: очередь/async/мультислоты — спецификация и чеклист только в репозитории docs/REPORTS/RUBITIME_API2_PACING_AND_PHASE2_BACKLOG.md (§ Фаза 2).'
 todos:
   - id: rubitime-phase1-api2-pacing-complete
-    content: "Фаза 1: throttle+lock, client+postCreateProjection, миграция, unit-тесты, ретрай лимита Rubitime, лог ожидания, контракт webapp, REPORT с backlog фазы 2"
+    content: 'Фаза 1: throttle+lock, client+postCreateProjection, миграция, unit-тесты, ретрай лимита Rubitime, лог ожидания, контракт webapp, REPORT с backlog фазы 2'
     status: completed
 isProject: false
 ---
 
 # Статус внедрения (закрыто по фазе 1)
 
-| Часть | Состояние | Где зафиксировано |
-|-------|-----------|-------------------|
-| **Pacing 5.5s** | **Готово** | Код integrator + миграция `20260413_0001_rubitime_api_throttle.sql` |
-| **Тесты фазы 1** | **Готово** | `client.test.ts`, `rubitimeApiThrottle.test.ts` |
-| **Документация / контракт** | **Готово** | [`INTEGRATOR_CONTRACT.md`](apps/webapp/INTEGRATOR_CONTRACT.md), [`RUBITIME_API2_PACING_AND_PHASE2_BACKLOG.md`](docs/REPORTS/RUBITIME_API2_PACING_AND_PHASE2_BACKLOG.md), [`docs/README.md`](docs/README.md) |
-| **Фаза 2** (очередь, async, мультислоты) | **Backlog** | Только в REPORT §«Фаза 2 — backlog»; отдельная инициатива после мержа фазы 1 |
+| Часть                                    | Состояние   | Где зафиксировано                                                                                                                                                                                           |
+| ---------------------------------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Pacing 5.5s**                          | **Готово**  | Код integrator + миграция `20260413_0001_rubitime_api_throttle.sql`                                                                                                                                         |
+| **Тесты фазы 1**                         | **Готово**  | `client.test.ts`, `rubitimeApiThrottle.test.ts`                                                                                                                                                             |
+| **Документация / контракт**              | **Готово**  | [`INTEGRATOR_CONTRACT.md`](apps/webapp/INTEGRATOR_CONTRACT.md), [`RUBITIME_API2_PACING_AND_PHASE2_BACKLOG.md`](docs/REPORTS/RUBITIME_API2_PACING_AND_PHASE2_BACKLOG.md), [`docs/README.md`](docs/README.md) |
+| **Фаза 2** (очередь, async, мультислоты) | **Backlog** | Только в REPORT §«Фаза 2 — backlog»; отдельная инициатива после мержа фазы 1                                                                                                                                |
 
 # Очередь Rubitime (5.5s) + мультислоты
 

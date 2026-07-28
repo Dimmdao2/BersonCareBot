@@ -2,7 +2,7 @@
 
 Real-browser (Playwright/Chromium) click-through tests that go past the GET-only page walk
 (`runs/g4_app_walk/`). That walk proved 570 pages return non-error HTTP status; this suite proves
-(or disproves) that the *effects* of writes are real — reminder marked done, LFK diary journal
+(or disproves) that the _effects_ of writes are real — reminder marked done, LFK diary journal
 opened by a patient who owns real data, a clinic name saved and rendered in a different session,
 a booking actually created, an admin setting actually persisted.
 
@@ -33,7 +33,7 @@ If a future session wants this as a proper repo dependency (e.g. to run in CI), 
 - `lib/browser.mjs` — resolves Playwright (see above) and the TEST base URL
   (`CLICKTHROUGH_BASE_URL` env override, defaults to `http://127.0.0.1:6300`).
 - `flows/*.mjs` — one file per flow, each exporting a `run<Name>Flow({ browser, baseUrl,
-  screenshotDir, log })` that returns `{ flow, steps: [{name, ok, detail}], verdict }`.
+screenshotDir, log })` that returns `{ flow, steps: [{name, ok, detail}], verdict }`.
 - `run-all.mjs` — runs every flow in one Chromium instance, sequentially (this box's dev-server
   capacity notes say keep heavy browser work modest), writes `out/results-<ts>.json` and
   `out/REPORT.md`.
@@ -82,7 +82,7 @@ hardcoded and idempotent).
   exercised end-to-end by this session.
 - **Single-tenant blind spot**: every flow runs as the owner's three accounts inside ONE
   organization (Точка Здоровья). Cross-tenant isolation is out of scope here (covered elsewhere —
-  see MEMORY.md's B4-core-* entries).
+  see MEMORY.md's B4-core-\* entries).
 - **No mobile/responsive pass** — all flows run at a fixed 1280×900 desktop viewport (the doctor
   sidebar brand mark is desktop-only markup — see `flows/branding.mjs`).
 - **No accessibility/perf assertions** — this suite only checks functional effects.

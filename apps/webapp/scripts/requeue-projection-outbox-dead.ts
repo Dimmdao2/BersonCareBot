@@ -11,20 +11,21 @@
  *   DATABASE_URL=... pnpm --dir apps/webapp exec tsx scripts/requeue-projection-outbox-dead.ts --event-type=appointment.record.upserted
  */
 
-import "dotenv/config";
-import pg from "pg";
+import 'dotenv/config';
+import pg from 'pg';
 
 const args = process.argv.slice(2);
-const isCommit = args.includes("--commit");
-const eventTypeArg = args.find((a) => a.startsWith("--event-type="));
-const eventTypeFilter = eventTypeArg?.slice("--event-type=".length).trim() || null;
-const errorSubstrArg = args.find((a) => a.startsWith("--error-contains="));
-const errorContains = errorSubstrArg?.slice("--error-contains=".length).trim() || "platform_user_id";
+const isCommit = args.includes('--commit');
+const eventTypeArg = args.find((a) => a.startsWith('--event-type='));
+const eventTypeFilter = eventTypeArg?.slice('--event-type='.length).trim() || null;
+const errorSubstrArg = args.find((a) => a.startsWith('--error-contains='));
+const errorContains =
+  errorSubstrArg?.slice('--error-contains='.length).trim() || 'platform_user_id';
 
 async function main(): Promise<void> {
   const url = process.env.DATABASE_URL;
   if (!url) {
-    console.error("DATABASE_URL is required");
+    console.error('DATABASE_URL is required');
     process.exit(1);
   }
   const pool = new pg.Pool({ connectionString: url });
@@ -36,11 +37,17 @@ async function main(): Promise<void> {
          AND ($2::text IS NULL OR last_error ILIKE $2)`,
       [eventTypeFilter, errorContains ? `%${errorContains}%` : null],
     );
-    const n = Number(before.rows[0]?.c ?? "0");
-    console.log(JSON.stringify({ mode: isCommit ? "commit" : "dry-run", deadMatching: n, eventTypeFilter, errorContains }, null, 2));
+    const n = Number(before.rows[0]?.c ?? '0');
+    console.log(
+      JSON.stringify(
+        { mode: isCommit ? 'commit' : 'dry-run', deadMatching: n, eventTypeFilter, errorContains },
+        null,
+        2,
+      ),
+    );
 
     if (!isCommit) {
-      console.log("Dry-run only. Pass --commit to reset matching rows to pending.");
+      console.log('Dry-run only. Pass --commit to reset matching rows to pending.');
       return;
     }
 
@@ -65,7 +72,7 @@ async function main(): Promise<void> {
          AND ($2::text IS NULL OR last_error ILIKE $2)`,
       [eventTypeFilter, errorContains ? `%${errorContains}%` : null],
     );
-    console.log(JSON.stringify({ deadRemainingAfter: Number(after.rows[0]?.c ?? "0") }, null, 2));
+    console.log(JSON.stringify({ deadRemainingAfter: Number(after.rows[0]?.c ?? '0') }, null, 2));
   } finally {
     await pool.end();
   }

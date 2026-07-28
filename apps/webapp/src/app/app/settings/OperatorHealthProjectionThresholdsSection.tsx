@@ -1,11 +1,11 @@
-"use client";
+'use client';
 
-import { useState, useTransition } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { patchAdminSetting } from "./patchAdminSetting";
-import type { OperatorHealthProjectionThresholds } from "@/modules/operator-health/operatorHealthProjectionThresholds";
+import { useState, useTransition } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { patchAdminSetting } from './patchAdminSetting';
+import type { OperatorHealthProjectionThresholds } from '@/modules/operator-health/operatorHealthProjectionThresholds';
 
 export type OperatorHealthProjectionThresholdsSectionProps = {
   initialThresholds: OperatorHealthProjectionThresholds;
@@ -29,9 +29,9 @@ export function OperatorHealthProjectionThresholdsSection({
     setSaved(false);
     setError(null);
     startTransition(async () => {
-      const ok = await patchAdminSetting("operator_health_projection_thresholds", thresholds);
+      const ok = await patchAdminSetting('operator_health_projection_thresholds', thresholds);
       if (!ok) {
-        setError("Не удалось сохранить");
+        setError('Не удалось сохранить');
         return;
       }
       setSaved(true);
@@ -50,7 +50,7 @@ export function OperatorHealthProjectionThresholdsSection({
             type="number"
             min={1}
             value={thresholds.retriesDebounceMinutes}
-            onChange={(e) => setMinutes("retriesDebounceMinutes", e.target.value)}
+            onChange={(e) => setMinutes('retriesDebounceMinutes', e.target.value)}
             className="w-36"
             aria-label="Ретраи, мин"
           />
@@ -61,7 +61,7 @@ export function OperatorHealthProjectionThresholdsSection({
             type="number"
             min={1}
             value={thresholds.stalePendingDebounceMinutes}
-            onChange={(e) => setMinutes("stalePendingDebounceMinutes", e.target.value)}
+            onChange={(e) => setMinutes('stalePendingDebounceMinutes', e.target.value)}
             className="w-36"
             aria-label="Долгий pending, мин"
           />
@@ -72,7 +72,7 @@ export function OperatorHealthProjectionThresholdsSection({
             type="number"
             min={5}
             value={thresholds.oldestPendingStaleMinutes}
-            onChange={(e) => setMinutes("oldestPendingStaleMinutes", e.target.value)}
+            onChange={(e) => setMinutes('oldestPendingStaleMinutes', e.target.value)}
             className="w-36"
             aria-label="Возраст pending, мин"
           />

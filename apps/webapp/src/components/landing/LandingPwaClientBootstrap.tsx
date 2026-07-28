@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { Suspense, useEffect } from "react";
-import { isMessengerMiniAppHost } from "@/shared/lib/messengerMiniApp";
-import { AppAccessDeniedToastEffect } from "@/shared/ui/AppAccessDeniedToastEffect";
+import { Suspense, useEffect } from 'react';
+import { isMessengerMiniAppHost } from '@/shared/lib/messengerMiniApp';
+import { AppAccessDeniedToastEffect } from '@/shared/ui/AppAccessDeniedToastEffect';
 
 /**
  * Регистрация `public/sw.js` с главной `/` (scope = /app).
@@ -11,8 +11,8 @@ import { AppAccessDeniedToastEffect } from "@/shared/ui/AppAccessDeniedToastEffe
 export function LandingPwaClientBootstrap() {
   useEffect(() => {
     const t = window.setTimeout(() => {
-      if (!isMessengerMiniAppHost() && "serviceWorker" in navigator) {
-        void navigator.serviceWorker.register("/sw.js", { scope: "/app" }).catch(() => {});
+      if (!isMessengerMiniAppHost() && 'serviceWorker' in navigator) {
+        void navigator.serviceWorker.register('/sw.js', { scope: '/app' }).catch(() => {});
       }
     }, 0);
     return () => window.clearTimeout(t);

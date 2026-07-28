@@ -10,6 +10,7 @@
 ### Аудит задачи [0.1]: Скрыть `/app/patient/purchases` из навигации
 
 **Файлы проверены:**
+
 - `apps/webapp/src/app-layer/routes/navigation.ts` ✅
 - `apps/webapp/src/app-layer/routes/navigation.test.ts` ✅
 - `apps/webapp/src/app/app/patient/home/PatientHomeExtraBlocks.tsx` ✅
@@ -17,9 +18,11 @@
 **Соответствие спеку:** Да
 
 **Замечания:**
+
 1. Нет.
 
 **Тесты:**
+
 - Покрытие: достаточное
 - Отсутствующие тесты: не обнаружены
 
@@ -32,6 +35,7 @@
 ### Аудит задачи [0.2]: Скрыть `/app/patient/help` из навигации
 
 **Файлы проверены:**
+
 - `apps/webapp/src/app-layer/routes/navigation.ts` ✅
 - `apps/webapp/src/shared/ui/PatientHeader.tsx` ✅
 - `apps/webapp/src/app-layer/routes/navigation.test.ts` ✅
@@ -39,9 +43,11 @@
 **Соответствие спеку:** Да
 
 **Замечания:**
+
 1. Нет.
 
 **Тесты:**
+
 - Покрытие: достаточное
 - Отсутствующие тесты: не обнаружены
 
@@ -54,6 +60,7 @@
 ### Аудит задачи [0.3]: Скрыть `/app/patient/install` из навигации
 
 **Файлы проверены:**
+
 - `apps/webapp/src/app-layer/routes/navigation.ts` ✅
 - `apps/webapp/src/app-layer/routes/navigation.test.ts` ✅
 - `apps/webapp/src/shared/ui/PatientHeader.tsx` ✅
@@ -61,9 +68,11 @@
 **Соответствие спеку:** Да
 
 **Замечания:**
+
 1. Нет.
 
 **Тесты:**
+
 - Покрытие: достаточное
 - Отсутствующие тесты: не обнаружены
 
@@ -76,6 +85,7 @@
 ### Аудит задачи [0.4]: Скрыть `/app/doctor/references` из меню
 
 **Файлы проверены:**
+
 - `apps/webapp/src/shared/ui/DoctorHeader.tsx` ✅
 - `apps/webapp/src/shared/ui/doctorScreenTitles.ts` ✅
 - `apps/webapp/src/shared/ui/doctorScreenTitles.test.ts` ✅
@@ -83,9 +93,11 @@
 **Соответствие спеку:** Да
 
 **Замечания:**
+
 1. Нет.
 
 **Тесты:**
+
 - Покрытие: достаточное
 - Отсутствующие тесты: не обнаружены
 
@@ -98,15 +110,18 @@
 ### Аудит задачи [0.5]: Убрать API-вызовы из broadcasts, оставить инфо-баннер
 
 **Файлы проверены:**
+
 - `apps/webapp/src/app/app/doctor/broadcasts/page.tsx` ✅
 - `apps/webapp/src/shared/ui/DoctorHeader.tsx` ✅
 
 **Соответствие спеку:** Да
 
 **Замечания:**
+
 1. Нет.
 
 **Тесты:**
+
 - Покрытие: достаточное
 - Отсутствующие тесты: не обнаружены
 
@@ -119,14 +134,17 @@
 ### Аудит задачи [0.6]: Исправить дублирование CSS в `DashboardTile`
 
 **Файлы проверены:**
+
 - `apps/webapp/src/app/app/doctor/page.tsx` ✅
 
 **Соответствие спеку:** Да
 
 **Замечания:**
+
 1. Нет.
 
 **Тесты:**
+
 - Покрытие: достаточное
 - Отсутствующие тесты: не обнаружены
 
@@ -139,14 +157,17 @@
 ### Аудит задачи [0.7]: Убрать блок «Быстрые действия» на дашборде
 
 **Файлы проверены:**
+
 - `apps/webapp/src/app/app/doctor/page.tsx` ✅
 
 **Соответствие спеку:** Да
 
 **Замечания:**
+
 1. Нет.
 
 **Тесты:**
+
 - Покрытие: достаточное
 - Отсутствующие тесты: не обнаружены
 
@@ -159,11 +180,13 @@
 ### Аудит задачи [0.8]: Заменить `MOCK_ITEMS` в purchases на пустое состояние
 
 **Файлы проверены:**
+
 - `apps/webapp/src/app/app/patient/purchases/page.tsx` ✅
 
 **Соответствие спеку:** Да
 
 **Замечания:**
+
 1. [severity: minor] В верхнем комментарии файла осталась устаревшая формулировка про «мок-данные».
    - Файл: `apps/webapp/src/app/app/patient/purchases/page.tsx`
    - Строка: 3
@@ -171,6 +194,7 @@
    - Как исправить: обновить описание комментария под empty-state.
 
 **Тесты:**
+
 - Покрытие: достаточное
 - Отсутствующие тесты: не обнаружены
 
@@ -191,5 +215,5 @@
 **Финальное решение:** approve
 
 **Список конкретных замечаний для исправления:**
-1. Обновить комментарий в `apps/webapp/src/app/app/patient/purchases/page.tsx` (устаревшая фраза про мок-данные).
 
+1. Обновить комментарий в `apps/webapp/src/app/app/patient/purchases/page.tsx` (устаревшая фраза про мок-данные).

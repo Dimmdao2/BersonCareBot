@@ -1,14 +1,14 @@
 # WORK ORDER — Finish Doctor/SaaS UI to real PASS + re-audit "done" stages
 
 **Owner:** Dmitry Berson · **Created:** 2026-07-22 · **Runs on:** THIS box = DEV + TEST only.
-**Authority for "done":** the linked *detailed* plan file of each stage — NEVER the roadmap one-line summary.
+**Authority for "done":** the linked _detailed_ plan file of each stage — NEVER the roadmap one-line summary.
 
 > **RE-VERIFIED 2026-07-23:** all production `[x]` across the roadmap and detailed plans (~676) were audited against
 > code. Verified state + remaining-volume: [`PRODUCTION_READINESS_LEDGER_2026-07-23.md`](PRODUCTION_READINESS_LEDGER_2026-07-23.md)
 > and [`CHECKPOINT_2026-07-23_STATE_AND_BACKEND_WORK_ORDER.md`](CHECKPOINT_2026-07-23_STATE_AND_BACKEND_WORK_ORDER.md).
-> 659/676 confirmed; **3 functional fake-done reopened** → `[ ]`: Rubitime *patient/public "create works without
-> Rubitime"* (Track C — falsified by incident #839 + D0 census; Rubitime create-path coupling still live) and
-> `TASK_A` *"Full prod-copy PII rehearsal DONE"* (no artifact, contradicts its own "NOT YET PROVEN"). 11 live-only
+> 659/676 confirmed; **3 functional fake-done reopened** → `[ ]`: Rubitime _patient/public "create works without
+> Rubitime"_ (Track C — falsified by incident #839 + D0 census; Rubitime create-path coupling still live) and
+> `TASK_A` _"Full prod-copy PII rehearsal DONE"_ (no artifact, contradicts its own "NOT YET PROVEN"). 11 live-only
 > items reclassified `[~]`. Reality of the tracks below is unchanged: **Track C NOT done** (`branchServiceId` live,
 > R3C-11 past deadline, R7 not started, no drop migration); **Track D only D0 done**, D1-D10 open.
 
@@ -22,7 +22,6 @@
 > **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
-
 
 - **Production is a DIFFERENT server (IP 135.x). It is NOT on this box and is OUT OF SCOPE.**
   This box has only the DEV server and the TEST server. TEST is not production.
@@ -42,7 +41,6 @@
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-
 The previous orchestrator closed ~30 "done" stages off **short roadmap descriptions** — it did not open the linked
 detailed plans, did not hand workers the full detailed checklist, did not verify each checkbox against reality.
 Net result: of ~30 accepted stages, ~2 are actually done. Symptoms already seen: DNA background replaced with
@@ -58,8 +56,8 @@ their own UI instead of following detailed plans.
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
+### Track A — UI finish to real PASS with PNG acceptance (PRIMARY)
 
-### Track A — UI finish to real PASS with PNG acceptance  (PRIMARY)
 - **A1. DNA background regression.** Doctor page background is `#faf9f4` (near-white) via
   `--doctor-page-gap-background` in `apps/webapp/src/app/styles/bersoncare-tweakcn-theme.css:91,95`; DNA canvas is
   `#f6f4ef` (greige, `--bc-canvas:15`). Verify the correct page background against the DNA spec
@@ -74,14 +72,16 @@ their own UI instead of following detailed plans.
   complete, screenshot the whole page and check ALL its checkboxes against what the owner specified. NOT a
   screenshot per micro-tweak.
 
-### Track B — Global-admin login for the owner on TEST  (small, do early — unblocks owner review)
+### Track B — Global-admin login for the owner on TEST (small, do early — unblocks owner review)
+
 - Enable email-OTP sign-in for `dimmdao@gmail.com` on TEST and make that email resolve to **global admin**
   (email-OTP already exists via `AuthFlowV2`; admin role currently resolves by phone/telegram/max allowlists only —
   email is not wired). Owner logs in with an emailed code.
 - Set up **PWA + web-push** for the global-admin account on TEST.
 - Deliverable: exact login steps sent to the owner.
 
-### Track C — Rubitime retirement on TEST  (finish the existing plan)
+### Track C — Rubitime retirement on TEST (finish the existing plan)
+
 - Master plan: `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_EXECUTION_PLAN.md` + rounds R1–R5 + DB_CLEANUP_SEQUENCE.
 - Current state: NOT done — Rubitime code/tables still present on TEST (patient cabinet, booking, DoctorToday KPI,
   `(global-admin)/doctor/admin/booking/integrations`). Finish R1–R5 **on TEST**: stop the exchange, remove
@@ -104,102 +104,102 @@ Execute these packages in order; each package is one worker stage with the same 
 auditor:
 
 - [x] **D0 — truthful retirement gate, no deletion.** `--expect-post-r6` must detect the Rubitime
-  `booking.upsert` branch/package, `buildAppointmentRecordUpsertedFanout`, the producer and handler for
-  `appointment.record.upserted`, `/api/integrator/events`, `tryEmitWebappProjectionThenEnqueue`,
-  `projection_outbox`, and the projection worker. A fixture/self-test must prove each category changes the verdict.
+      `booking.upsert` branch/package, `buildAppointmentRecordUpsertedFanout`, the producer and handler for
+      `appointment.record.upserted`, `/api/integrator/events`, `tryEmitWebappProjectionThenEnqueue`,
+      `projection_outbox`, and the projection worker. A fixture/self-test must prove each category changes the verdict.
 - [x] **D1 — identity and notification preferences.** One integrator transaction writes channel anchors plus
-  canonical `public.platform_users` / `user_channel_bindings` / `user_notification_topics`; retain integrator-only
-  channel identity and messenger state that are not duplicate business projections.
-  <br>**DONE + LIVE-PROVEN 2026-07-24 (correct fix landed).** A7 re-verified live on TEST (feat `79571f8f0`,
-  green closure): synthetic NEW telegram user → webhook `{"ok":true}` (no crash), `platform_users` +
-  `user_channel_bindings` written DIRECTLY, `projection_outbox` `user.upserted` unchanged (18, producer removed).
-  Telegram bootstrap now works via **fail-open reads in code** (`max/webhook.ts`, `handleIncomingEvent.ts`,
-  merge `4997c9513`) — NOT via role grants (the earlier grant approach violated deploy assertions + took TEST
-  down; reverted). Deploy stays green (assertions pass). Below = history of the reverted attempt.
-  <br>**HISTORY (reverted grant attempt):** Approach A (TS infra-repo
-  `directPublic/writeIdentityAndPreferencesDirect.ts`, decision `SAAS_FOUNDATION/TRACK_D1_APPROACH_DECISION_2026-07-24.md`).
-  Merged (`b4fa18544`), adversarial Opus audit no-blocker, byte-parity with `pgUserProjection.ts`. The direct-write
-  MECHANISM is live-proven under an org-principal via **D2**. The telegram **A7** proof (new user → direct
-  `platform_users`/`user_channel_bindings`/`user_channel_preferences`; outbox `user.upserted` unchanged) was
-  achieved via an integrator-login `current_org_id` + `system_settings` grant that **VIOLATED deploy runtime-role
-  assertions and took TEST down** — reverted (memory `deploy-asserts-runtime-role-privileges-dont-violate`).
-  **REMAINING for a true tick:** make the inbound-telegram BOOTSTRAP path (pre-existing broken) work via
-  **fail-open reads in code** (started: webhook.ts `resolveMessengerStaffAdmin`, `207d4ce78`), NOT role grants,
-  then re-verify A7. Merge `b4fa18544`.
-  Proof: `scratchpad/d1-a7-live-proof.md`. Follow-up: promote overlay to a real integrator migration (prod-correct).
+      canonical `public.platform_users` / `user_channel_bindings` / `user_notification_topics`; retain integrator-only
+      channel identity and messenger state that are not duplicate business projections.
+      <br>**DONE + LIVE-PROVEN 2026-07-24 (correct fix landed).** A7 re-verified live on TEST (feat `79571f8f0`,
+      green closure): synthetic NEW telegram user → webhook `{"ok":true}` (no crash), `platform_users` +
+      `user_channel_bindings` written DIRECTLY, `projection_outbox` `user.upserted` unchanged (18, producer removed).
+      Telegram bootstrap now works via **fail-open reads in code** (`max/webhook.ts`, `handleIncomingEvent.ts`,
+      merge `4997c9513`) — NOT via role grants (the earlier grant approach violated deploy assertions + took TEST
+      down; reverted). Deploy stays green (assertions pass). Below = history of the reverted attempt.
+      <br>**HISTORY (reverted grant attempt):** Approach A (TS infra-repo
+      `directPublic/writeIdentityAndPreferencesDirect.ts`, decision `SAAS_FOUNDATION/TRACK_D1_APPROACH_DECISION_2026-07-24.md`).
+      Merged (`b4fa18544`), adversarial Opus audit no-blocker, byte-parity with `pgUserProjection.ts`. The direct-write
+      MECHANISM is live-proven under an org-principal via **D2**. The telegram **A7** proof (new user → direct
+      `platform_users`/`user_channel_bindings`/`user_channel_preferences`; outbox `user.upserted` unchanged) was
+      achieved via an integrator-login `current_org_id` + `system_settings` grant that **VIOLATED deploy runtime-role
+      assertions and took TEST down** — reverted (memory `deploy-asserts-runtime-role-privileges-dont-violate`).
+      **REMAINING for a true tick:** make the inbound-telegram BOOTSTRAP path (pre-existing broken) work via
+      **fail-open reads in code** (started: webhook.ts `resolveMessengerStaffAdmin`, `207d4ce78`), NOT role grants,
+      then re-verify A7. Merge `b4fa18544`.
+      Proof: `scratchpad/d1-a7-live-proof.md`. Follow-up: promote overlay to a real integrator migration (prod-correct).
 - [x] **D2 — diary and LFK.** Resolve canonical platform user and exact organization/enrollment, validate ownership,
-  write symptom tracking/entries and LFK complexes/sessions directly, and retire the four corresponding HTTP event
-  types without a default-org fallback.
-  <br>**DONE 2026-07-24** (approach A, merge `79720d89d`). 4 event types (diary.symptom.tracking.created/entry.created,
-  diary.lfk.complex.created/session.created) → direct `public.symptom_trackings/symptom_entries/lfk_complexes/
-  lfk_sessions` via `directPublic/writeDiaryLfkDirect.ts` (reuses D1 candidate resolver). Exact org/enrollment,
-  **no default-org fallback** (0 or 2+ active → fail-closed); ownership validation on entry/session. Fixed a latent
-  ID-space bug in the retired path (userId was integrator bigint, not platform_users.id → silent no-op). Overlay
-  addendum grants (column-scoped). integrator vitest 1383/1385, typecheck/chokepoint/lint clean. **Live-verified on
-  TEST** (real HMAC org-principal; all 4 tables + ownership reads pass RLS; bare-role blocked). Detail:
-  `scratchpad/d2-diary-lfk-report.md`. Follow-up: same ID-space bug in GET reads `listSymptomTrackings`/
-  `listLfkComplexes` (not among the 4 event types) left for a separate fix; multi-org patient diary attribution
-  fails-closed (product edge — owner Q if multi-clinic diary needed).
+      write symptom tracking/entries and LFK complexes/sessions directly, and retire the four corresponding HTTP event
+      types without a default-org fallback.
+      <br>**DONE 2026-07-24** (approach A, merge `79720d89d`). 4 event types (diary.symptom.tracking.created/entry.created,
+      diary.lfk.complex.created/session.created) → direct `public.symptom_trackings/symptom_entries/lfk_complexes/
+lfk_sessions` via `directPublic/writeDiaryLfkDirect.ts` (reuses D1 candidate resolver). Exact org/enrollment,
+      **no default-org fallback** (0 or 2+ active → fail-closed); ownership validation on entry/session. Fixed a latent
+      ID-space bug in the retired path (userId was integrator bigint, not platform_users.id → silent no-op). Overlay
+      addendum grants (column-scoped). integrator vitest 1383/1385, typecheck/chokepoint/lint clean. **Live-verified on
+      TEST** (real HMAC org-principal; all 4 tables + ownership reads pass RLS; bare-role blocked). Detail:
+      `scratchpad/d2-diary-lfk-report.md`. Follow-up: same ID-space bug in GET reads `listSymptomTrackings`/
+      `listLfkComplexes` (not among the 4 event types) left for a separate fix; multi-org patient diary attribution
+      fails-closed (product edge — owner Q if multi-clinic diary needed).
 - [ ] **D3 — support conversations and messages.** Direct transactional open/message/status writes and qualified
-  public reads; reconcile the two current organization-null conversation rows before tightening/removing legacy
-  storage.
+      public reads; reconcile the two current organization-null conversation rows before tightening/removing legacy
+      storage.
 - [ ] **D4 — support questions and delivery audit.** Direct question create/message/answered and delivery-attempt
-  writes with tenant mismatch denied; keep `message_drafts` integrator-local as ephemeral state.
+      writes with tenant mismatch denied; keep `message_drafts` integrator-local as ephemeral state.
 - [ ] **D5 — reminder rules.** `public.reminder_rules` becomes the only business source for CRUD and scheduler reads;
-  retire `reminder.rule.upserted`, then classify the integrator rule table for migration-backed removal.
-  <br>**PARTIAL 2026-07-25** (write-side slice, commit `384e7ca29`): `reminder.rule.upserted` HTTP fanout retired —
-  `writePort.ts`'s `reminders.rule.upsert` now writes `public.reminder_rules` directly (`directPublic/
-  writeReminderRulesDirect.ts`, D1-D4 candidate/org-resolution pattern reused), full field parity (fixed a gap:
-  the retired payload never carried `linked_object_type/id`, `custom_title/text`, `schedule_data`,
-  `reminder_intent`, `quiet_hours_*`, `notification_topic_code`) and a correct `organization_id` (the retired
-  consumer never set it at all — same class of bug D3 found for `support_conversations`). Column-scoped grants
-  (UP+DOWN) applied+verified live on TEST; tenant isolation live-proven in rolled-back transactions (bare login
-  denied, org-A principal writes org-A, org-A principal RLS-denied on org-B). Durability: no fail-closed-no-write
-  case (this domain never had one) — every failure falls back to the same durable outbox + operator incident.
-  **NOT done (deferred to D6):** "scheduler reads" — `getEnabledReminderRules` (the `reminders.planDue` read) still
-  reads `integrator.user_reminder_rules`, and the integrator-local write there is UNCHANGED (kept), because
-  `user_reminder_occurrences.rule_id` has a hard `ON DELETE CASCADE` FK to it — cutting that write/read over to
-  `public.reminder_rules` requires migrating that FK, which is occurrence-lifecycle machinery (D6's explicit
-  remit: "reminder lifecycle, delivery... before retiring duplicate... projections"), not an independently-safe
-  D5 change. `integrator.user_reminder_rules` is therefore NOT YET classified for migration-backed removal —
-  that classification is blocked on the same D6 FK migration. Full detail: commit `384e7ca29` message.
-  <br>**Note found, not fixed here (pre-existing, unrelated to D5):** this WORK_ORDER's D3/D4 checkboxes above
-  are still `[ ]` even though both are merged+audited (`fc5493c91`/`3022816da` D3, `e2590d050`/`c376b6b74` D4,
-  confirmed via `git log`) — left as-is since fixing that is outside this D5 push's scope.
-  <br>**AUDIT ROUND 2 FIX 2026-07-25 (commit `c7aac2aea`):** independent audit live-reproduced a real defect —
-  `upsertReminderRuleDirect` was RLS-denied under the REAL "integrator" principal
-  (`runWithIntegratorPrincipal`, the exact shape `reminders.rule.toggle`/`.cyclePreset` run under for an
-  already-known telegram/max user: org set, patient NULL, `SET ROLE app_patient`), so every normal toggle
-  silently degraded to the durable-outbox fallback + fired an operator incident on every call. Class-check
-  found the SAME defect in D2 (`createSymptomTrackingDirect`, worse — no fallback branch, so an uncaught
-  throw) and D3/D4 (`openSupportConversationDirect`/`createSupportQuestionDirect`); live-reproduced
-  before/after for all three. Fixed uniformly via a new `runDirectPublicWriteWithOrgPrincipal` wrap in
-  `writePort.ts` (12 call sites across D2-D5) that re-installs an explicit org principal using the
-  ALREADY-ambient organization id. Added an opt-in real-Postgres RLS regression test. Full detail: commit
-  `c7aac2aea` message.
-  <br>**NEW finding, spawned as a SEPARATE task (`task_53b67199`), NOT fixed here — out of D5 scope:** the
-  `app_patient` role `runWithIntegratorPrincipal` locks lacks INSERT/UPDATE (and mostly SELECT) on
-  `integrator.*` schema tables entirely (confirmed live: `has_table_privilege('app_patient',
-  'integrator.users','SELECT')` = false, same for `user_reminder_rules` INSERT/UPDATE). This means the
-  INTEGRATOR-LOCAL write inside `reminders.rule.upsert` (and likely many other handlers' local writes)
-  still fails end-to-end under a real locked integrator principal — a broader, pre-existing, likely-live
-  defect independent of and in addition to the RLS bug just fixed. Needs its own investigation.
+      retire `reminder.rule.upserted`, then classify the integrator rule table for migration-backed removal.
+      <br>**PARTIAL 2026-07-25** (write-side slice, commit `384e7ca29`): `reminder.rule.upserted` HTTP fanout retired —
+      `writePort.ts`'s `reminders.rule.upsert` now writes `public.reminder_rules` directly (`directPublic/
+writeReminderRulesDirect.ts`, D1-D4 candidate/org-resolution pattern reused), full field parity (fixed a gap:
+      the retired payload never carried `linked_object_type/id`, `custom_title/text`, `schedule_data`,
+      `reminder_intent`, `quiet_hours_*`, `notification_topic_code`) and a correct `organization_id` (the retired
+      consumer never set it at all — same class of bug D3 found for `support_conversations`). Column-scoped grants
+      (UP+DOWN) applied+verified live on TEST; tenant isolation live-proven in rolled-back transactions (bare login
+      denied, org-A principal writes org-A, org-A principal RLS-denied on org-B). Durability: no fail-closed-no-write
+      case (this domain never had one) — every failure falls back to the same durable outbox + operator incident.
+      **NOT done (deferred to D6):** "scheduler reads" — `getEnabledReminderRules` (the `reminders.planDue` read) still
+      reads `integrator.user_reminder_rules`, and the integrator-local write there is UNCHANGED (kept), because
+      `user_reminder_occurrences.rule_id` has a hard `ON DELETE CASCADE` FK to it — cutting that write/read over to
+      `public.reminder_rules` requires migrating that FK, which is occurrence-lifecycle machinery (D6's explicit
+      remit: "reminder lifecycle, delivery... before retiring duplicate... projections"), not an independently-safe
+      D5 change. `integrator.user_reminder_rules` is therefore NOT YET classified for migration-backed removal —
+      that classification is blocked on the same D6 FK migration. Full detail: commit `384e7ca29` message.
+      <br>**Note found, not fixed here (pre-existing, unrelated to D5):** this WORK_ORDER's D3/D4 checkboxes above
+      are still `[ ]` even though both are merged+audited (`fc5493c91`/`3022816da` D3, `e2590d050`/`c376b6b74` D4,
+      confirmed via `git log`) — left as-is since fixing that is outside this D5 push's scope.
+      <br>**AUDIT ROUND 2 FIX 2026-07-25 (commit `c7aac2aea`):** independent audit live-reproduced a real defect —
+      `upsertReminderRuleDirect` was RLS-denied under the REAL "integrator" principal
+      (`runWithIntegratorPrincipal`, the exact shape `reminders.rule.toggle`/`.cyclePreset` run under for an
+      already-known telegram/max user: org set, patient NULL, `SET ROLE app_patient`), so every normal toggle
+      silently degraded to the durable-outbox fallback + fired an operator incident on every call. Class-check
+      found the SAME defect in D2 (`createSymptomTrackingDirect`, worse — no fallback branch, so an uncaught
+      throw) and D3/D4 (`openSupportConversationDirect`/`createSupportQuestionDirect`); live-reproduced
+      before/after for all three. Fixed uniformly via a new `runDirectPublicWriteWithOrgPrincipal` wrap in
+      `writePort.ts` (12 call sites across D2-D5) that re-installs an explicit org principal using the
+      ALREADY-ambient organization id. Added an opt-in real-Postgres RLS regression test. Full detail: commit
+      `c7aac2aea` message.
+      <br>**NEW finding, spawned as a SEPARATE task (`task_53b67199`), NOT fixed here — out of D5 scope:** the
+      `app_patient` role `runWithIntegratorPrincipal` locks lacks INSERT/UPDATE (and mostly SELECT) on
+      `integrator.*` schema tables entirely (confirmed live: `has_table_privilege('app_patient',
+'integrator.users','SELECT')` = false, same for `user_reminder_rules` INSERT/UPDATE). This means the
+      INTEGRATOR-LOCAL write inside `reminders.rule.upsert` (and likely many other handlers' local writes)
+      still fails end-to-end under a real locked integrator principal — a broader, pre-existing, likely-live
+      defect independent of and in addition to the RLS bug just fixed. Needs its own investigation.
 - [ ] **D6 — reminder lifecycle, delivery and content grants.** Reconcile/backfill the currently missing failed
-  occurrence history before retiring duplicate delivery/content projections; keep only proven technical scheduler
-  state.
+      occurrence history before retiring duplicate delivery/content projections; keep only proven technical scheduler
+      state.
 - [ ] **D7 — remaining reminder writes.** Replace snooze/skip/done/mute/messenger-topic/notification-settings signed
-  POST adapters with the same validated direct-DB service contract.
+      POST adapters with the same validated direct-DB service contract.
 - [ ] **D8 — mailing/subscriptions.** Run an exact producer/consumer callgraph first. If the currently empty source
-  and projection tables have no live producer, remove the dead event types/adapters/tables; do not build a new writer
-  for a dead domain.
+      and projection tables have no live producer, remove the dead event types/adapters/tables; do not build a new writer
+      for a dead domain.
 - [ ] **D9 — Rubitime/appointment retirement, coordinated with Track C.** Remove Rubitime booking branches,
-  appointment projection events/handlers, bridge paths, provider tables/settings and `appointment_records` only
-  after canonical preservation proof. First migrate the still-active retry storage and calendar mapping to
-  provider-neutral structures.
+      appointment projection events/handlers, bridge paths, provider tables/settings and `appointment_records` only
+      after canonical preservation proof. First migrate the still-active retry storage and calendar mapping to
+      provider-neutral structures.
 - [ ] **D10 — projection transport teardown, last.** Only after an exact zero-producer census, remove fanout/outbox,
-  worker/wiring, generic emit client surface, `/api/integrator/events`, event contract/CSRF exception, projection
-  health/proxy/digest tooling and the outbox table through a migration. Do not delete generic idempotency, delivery
-  queues or unrelated service HTTP calls.
+      worker/wiring, generic emit client surface, `/api/integrator/events`, event contract/CSRF exception, projection
+      health/proxy/digest tooling and the outbox table through a migration. Do not delete generic idempotency, delivery
+      queues or unrelated service HTTP calls.
 
 Execution order: D0 first. After D0, D1, D2 and the code-only portion of D9 may run in parallel where their file scopes
 do not intersect. D3 precedes D4. D5 precedes D6, which precedes D7. D8 may run alongside reminder packages. D10 is
@@ -214,7 +214,6 @@ disposable restore+migrate proof and live TEST verification are milestone gates,
 > **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
-
 
 A row-by-row matrix, one row per atomic checkbox of the **linked detailed plan** (quoted verbatim):
 
@@ -231,7 +230,6 @@ Report ends with: `closed X/N against <owner plan path>` + a mandatory `NOT DONE
 > **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
-
 
 - **Support/tech chat:** for both specialists and their clients → routes to the **global admin**; delivery =
   **push + email to the sender**; technical requests, ticket model, show "do not share patient data" notice.

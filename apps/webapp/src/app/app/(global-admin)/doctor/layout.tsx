@@ -1,9 +1,9 @@
-import type { Metadata } from "next";
-import type { ReactNode } from "react";
-import "../../../styles/doctor.css";
-import { requirePlatformOperationsPage } from "@/app-layer/guards/requireRole";
-import { staffPwaLayoutMetadata } from "@/shared/lib/pwa/staffPwaLayoutMetadata";
-import { DoctorWorkspaceShell } from "@/shared/ui/doctor/shell/DoctorWorkspaceShell";
+import type { Metadata } from 'next';
+import type { ReactNode } from 'react';
+import '../../../styles/doctor.css';
+import { requirePlatformOperationsPage } from '@/app-layer/guards/requireRole';
+import { staffPwaLayoutMetadata } from '@/shared/lib/pwa/staffPwaLayoutMetadata';
+import { DoctorWorkspaceShell } from '@/shared/ui/doctor/shell/DoctorWorkspaceShell';
 
 export const metadata: Metadata = staffPwaLayoutMetadata;
 

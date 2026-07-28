@@ -1,21 +1,21 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 const oauthMocks = vi.hoisted(() => ({
-  getYandexOauthClientId: vi.fn().mockResolvedValue(""),
-  getYandexOauthClientSecret: vi.fn().mockResolvedValue(""),
-  getYandexOauthRedirectUri: vi.fn().mockResolvedValue(""),
-  getGoogleClientId: vi.fn().mockResolvedValue(""),
-  getGoogleClientSecret: vi.fn().mockResolvedValue(""),
-  getGoogleOauthLoginRedirectUri: vi.fn().mockResolvedValue(""),
-  getAppleOauthClientId: vi.fn().mockResolvedValue(""),
-  getAppleOauthRedirectUri: vi.fn().mockResolvedValue(""),
-  getAppleOauthTeamId: vi.fn().mockResolvedValue(""),
-  getAppleOauthKeyId: vi.fn().mockResolvedValue(""),
-  getAppleOauthPrivateKey: vi.fn().mockResolvedValue(""),
+  getYandexOauthClientId: vi.fn().mockResolvedValue(''),
+  getYandexOauthClientSecret: vi.fn().mockResolvedValue(''),
+  getYandexOauthRedirectUri: vi.fn().mockResolvedValue(''),
+  getGoogleClientId: vi.fn().mockResolvedValue(''),
+  getGoogleClientSecret: vi.fn().mockResolvedValue(''),
+  getGoogleOauthLoginRedirectUri: vi.fn().mockResolvedValue(''),
+  getAppleOauthClientId: vi.fn().mockResolvedValue(''),
+  getAppleOauthRedirectUri: vi.fn().mockResolvedValue(''),
+  getAppleOauthTeamId: vi.fn().mockResolvedValue(''),
+  getAppleOauthKeyId: vi.fn().mockResolvedValue(''),
+  getAppleOauthPrivateKey: vi.fn().mockResolvedValue(''),
 }));
 
-vi.mock("@/modules/system-settings/integrationRuntime", async (importOriginal) => {
-  const m = await importOriginal<typeof import("@/modules/system-settings/integrationRuntime")>();
+vi.mock('@/modules/system-settings/integrationRuntime', async (importOriginal) => {
+  const m = await importOriginal<typeof import('@/modules/system-settings/integrationRuntime')>();
   return {
     ...m,
     getYandexOauthClientId: oauthMocks.getYandexOauthClientId,
@@ -32,197 +32,209 @@ vi.mock("@/modules/system-settings/integrationRuntime", async (importOriginal) =
   };
 });
 
-vi.mock("@/config/env", () => ({
-  env: { SESSION_COOKIE_SECRET: "test-session-secret-16chars" },
+vi.mock('@/config/env', () => ({
+  env: { SESSION_COOKIE_SECRET: 'test-session-secret-16chars' },
 }));
 
 const isOAuthProviderEnabledMock = vi.hoisted(() => vi.fn().mockResolvedValue(true));
 
-vi.mock("@/modules/auth/authChannelPolicy", () => ({
+vi.mock('@/modules/auth/authChannelPolicy', () => ({
   isOAuthProviderEnabled: isOAuthProviderEnabledMock,
 }));
 
 const recordAuthRegistrationAttemptMock = vi.fn(async (_params: unknown) => undefined);
 
-vi.mock("@/app-layer/product-analytics/recordAuthRegistration", () => ({
-  newRegistrationAttemptId: () => "11111111-1111-4111-8111-111111111111",
+vi.mock('@/app-layer/product-analytics/recordAuthRegistration', () => ({
+  newRegistrationAttemptId: () => '11111111-1111-4111-8111-111111111111',
   recordAuthRegistrationAttempt: (params: unknown) => recordAuthRegistrationAttemptMock(params),
   recordAuthRegistrationFailure: vi.fn(async () => undefined),
-  registrationAttemptIdFromOAuthState: () => "22222222-2222-4222-8222-222222222222",
+  registrationAttemptIdFromOAuthState: () => '22222222-2222-4222-8222-222222222222',
 }));
 
-import { POST } from "./route";
+import { POST } from './route';
 
-describe("POST /api/auth/oauth/start", () => {
+describe('POST /api/auth/oauth/start', () => {
   beforeEach(() => {
-    oauthMocks.getYandexOauthClientId.mockResolvedValue("");
-    oauthMocks.getYandexOauthClientSecret.mockResolvedValue("");
-    oauthMocks.getYandexOauthRedirectUri.mockResolvedValue("");
-    oauthMocks.getGoogleClientId.mockResolvedValue("");
-    oauthMocks.getGoogleClientSecret.mockResolvedValue("");
-    oauthMocks.getGoogleOauthLoginRedirectUri.mockResolvedValue("");
-    oauthMocks.getAppleOauthClientId.mockResolvedValue("");
-    oauthMocks.getAppleOauthRedirectUri.mockResolvedValue("");
-    oauthMocks.getAppleOauthTeamId.mockResolvedValue("");
-    oauthMocks.getAppleOauthKeyId.mockResolvedValue("");
-    oauthMocks.getAppleOauthPrivateKey.mockResolvedValue("");
+    oauthMocks.getYandexOauthClientId.mockResolvedValue('');
+    oauthMocks.getYandexOauthClientSecret.mockResolvedValue('');
+    oauthMocks.getYandexOauthRedirectUri.mockResolvedValue('');
+    oauthMocks.getGoogleClientId.mockResolvedValue('');
+    oauthMocks.getGoogleClientSecret.mockResolvedValue('');
+    oauthMocks.getGoogleOauthLoginRedirectUri.mockResolvedValue('');
+    oauthMocks.getAppleOauthClientId.mockResolvedValue('');
+    oauthMocks.getAppleOauthRedirectUri.mockResolvedValue('');
+    oauthMocks.getAppleOauthTeamId.mockResolvedValue('');
+    oauthMocks.getAppleOauthKeyId.mockResolvedValue('');
+    oauthMocks.getAppleOauthPrivateKey.mockResolvedValue('');
     recordAuthRegistrationAttemptMock.mockReset();
     isOAuthProviderEnabledMock.mockReset().mockResolvedValue(true);
   });
 
-  it("returns 400 for missing body", async () => {
+  it('returns 400 for missing body', async () => {
     const res = await POST(
-      new Request("http://localhost/api/auth/oauth/start", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
+      new Request('http://localhost/api/auth/oauth/start', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({}),
       }),
     );
     expect(res.status).toBe(400);
     const data = (await res.json()) as { ok: boolean; error: string };
     expect(data.ok).toBe(false);
-    expect(data.error).toBe("invalid_body");
+    expect(data.error).toBe('invalid_body');
   });
 
-  it("returns 501 for google when not configured", async () => {
+  it('returns 501 for google when not configured', async () => {
     const res = await POST(
-      new Request("http://localhost/api/auth/oauth/start", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ provider: "google" }),
+      new Request('http://localhost/api/auth/oauth/start', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ provider: 'google' }),
       }),
     );
     expect(res.status).toBe(501);
     const data = (await res.json()) as { ok: boolean; error: string };
     expect(data.ok).toBe(false);
-    expect(data.error).toBe("oauth_disabled");
+    expect(data.error).toBe('oauth_disabled');
   });
 
-  it("returns 501 for apple when not configured", async () => {
+  it('returns 501 for apple when not configured', async () => {
     const res = await POST(
-      new Request("http://localhost/api/auth/oauth/start", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ provider: "apple" }),
+      new Request('http://localhost/api/auth/oauth/start', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ provider: 'apple' }),
       }),
     );
     expect(res.status).toBe(501);
   });
 
-  it("returns 501 for yandex when system_settings not configured (empty integration)", async () => {
+  it('returns 501 for yandex when system_settings not configured (empty integration)', async () => {
     const res = await POST(
-      new Request("http://localhost/api/auth/oauth/start", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ provider: "yandex" }),
+      new Request('http://localhost/api/auth/oauth/start', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ provider: 'yandex' }),
       }),
     );
     expect(res.status).toBe(501);
     const data = (await res.json()) as { ok: boolean; error: string };
     expect(data.ok).toBe(false);
-    expect(data.error).toBe("oauth_disabled");
+    expect(data.error).toBe('oauth_disabled');
   });
 
-  it("returns 200 with authUrl when yandex credentials are present", async () => {
-    oauthMocks.getYandexOauthClientId.mockResolvedValue("test-client-id");
-    oauthMocks.getYandexOauthClientSecret.mockResolvedValue("test-secret");
-    oauthMocks.getYandexOauthRedirectUri.mockResolvedValue("http://localhost/api/auth/oauth/callback/yandex");
+  it('returns 200 with authUrl when yandex credentials are present', async () => {
+    oauthMocks.getYandexOauthClientId.mockResolvedValue('test-client-id');
+    oauthMocks.getYandexOauthClientSecret.mockResolvedValue('test-secret');
+    oauthMocks.getYandexOauthRedirectUri.mockResolvedValue(
+      'http://localhost/api/auth/oauth/callback/yandex',
+    );
 
     const res = await POST(
-      new Request("http://localhost/api/auth/oauth/start", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ provider: "yandex" }),
+      new Request('http://localhost/api/auth/oauth/start', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ provider: 'yandex' }),
       }),
     );
     expect(res.status).toBe(200);
     const data = (await res.json()) as { ok: boolean; authUrl?: string };
     expect(data.ok).toBe(true);
-    expect(data.authUrl).toContain("https://oauth.yandex.ru/authorize");
-    expect(data.authUrl).toContain("client_id=test-client-id");
-    expect(data.authUrl).toContain("login%3Adefault_phone");
+    expect(data.authUrl).toContain('https://oauth.yandex.ru/authorize');
+    expect(data.authUrl).toContain('client_id=test-client-id');
+    expect(data.authUrl).toContain('login%3Adefault_phone');
     expect(recordAuthRegistrationAttemptMock).toHaveBeenCalledWith(
-      expect.objectContaining({ authMethod: "oauth_yandex", stage: "start" }),
+      expect.objectContaining({ authMethod: 'oauth_yandex', stage: 'start' }),
     );
   });
 
-  it("returns 200 with Google authorize URL when configured", async () => {
-    oauthMocks.getGoogleClientId.mockResolvedValue("g-id");
-    oauthMocks.getGoogleClientSecret.mockResolvedValue("g-sec");
-    oauthMocks.getGoogleOauthLoginRedirectUri.mockResolvedValue("http://localhost/api/auth/oauth/callback/google");
+  it('returns 200 with Google authorize URL when configured', async () => {
+    oauthMocks.getGoogleClientId.mockResolvedValue('g-id');
+    oauthMocks.getGoogleClientSecret.mockResolvedValue('g-sec');
+    oauthMocks.getGoogleOauthLoginRedirectUri.mockResolvedValue(
+      'http://localhost/api/auth/oauth/callback/google',
+    );
 
     const res = await POST(
-      new Request("http://localhost/api/auth/oauth/start", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ provider: "google" }),
+      new Request('http://localhost/api/auth/oauth/start', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ provider: 'google' }),
       }),
     );
     expect(res.status).toBe(200);
     const data = (await res.json()) as { ok: boolean; authUrl?: string };
     expect(data.ok).toBe(true);
-    expect(data.authUrl).toContain("https://accounts.google.com/o/oauth2/v2/auth");
-    expect(data.authUrl).toContain("client_id=g-id");
-    expect(data.authUrl).toContain("openid");
+    expect(data.authUrl).toContain('https://accounts.google.com/o/oauth2/v2/auth');
+    expect(data.authUrl).toContain('client_id=g-id');
+    expect(data.authUrl).toContain('openid');
   });
 
-  it("returns 501 for google when the admin toggle is off, even with credentials present", async () => {
-    oauthMocks.getGoogleClientId.mockResolvedValue("g-id");
-    oauthMocks.getGoogleClientSecret.mockResolvedValue("g-sec");
-    oauthMocks.getGoogleOauthLoginRedirectUri.mockResolvedValue("http://localhost/api/auth/oauth/callback/google");
+  it('returns 501 for google when the admin toggle is off, even with credentials present', async () => {
+    oauthMocks.getGoogleClientId.mockResolvedValue('g-id');
+    oauthMocks.getGoogleClientSecret.mockResolvedValue('g-sec');
+    oauthMocks.getGoogleOauthLoginRedirectUri.mockResolvedValue(
+      'http://localhost/api/auth/oauth/callback/google',
+    );
     isOAuthProviderEnabledMock.mockResolvedValue(false);
 
     const res = await POST(
-      new Request("http://localhost/api/auth/oauth/start", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ provider: "google" }),
+      new Request('http://localhost/api/auth/oauth/start', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ provider: 'google' }),
       }),
     );
     expect(res.status).toBe(501);
     const data = (await res.json()) as { ok: boolean; error: string };
     expect(data.ok).toBe(false);
-    expect(data.error).toBe("oauth_disabled");
+    expect(data.error).toBe('oauth_disabled');
   });
 
-  it("returns 501 for yandex when the admin toggle is off, even with credentials present", async () => {
-    oauthMocks.getYandexOauthClientId.mockResolvedValue("test-client-id");
-    oauthMocks.getYandexOauthClientSecret.mockResolvedValue("test-secret");
-    oauthMocks.getYandexOauthRedirectUri.mockResolvedValue("http://localhost/api/auth/oauth/callback/yandex");
+  it('returns 501 for yandex when the admin toggle is off, even with credentials present', async () => {
+    oauthMocks.getYandexOauthClientId.mockResolvedValue('test-client-id');
+    oauthMocks.getYandexOauthClientSecret.mockResolvedValue('test-secret');
+    oauthMocks.getYandexOauthRedirectUri.mockResolvedValue(
+      'http://localhost/api/auth/oauth/callback/yandex',
+    );
     isOAuthProviderEnabledMock.mockResolvedValue(false);
 
     const res = await POST(
-      new Request("http://localhost/api/auth/oauth/start", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ provider: "yandex" }),
+      new Request('http://localhost/api/auth/oauth/start', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ provider: 'yandex' }),
       }),
     );
     expect(res.status).toBe(501);
     const data = (await res.json()) as { ok: boolean; error: string };
     expect(data.ok).toBe(false);
-    expect(data.error).toBe("oauth_disabled");
+    expect(data.error).toBe('oauth_disabled');
   });
 
-  it("returns 200 with Apple authorize URL when configured", async () => {
-    oauthMocks.getAppleOauthClientId.mockResolvedValue("com.example.siwa");
-    oauthMocks.getAppleOauthRedirectUri.mockResolvedValue("http://localhost/api/auth/oauth/callback/apple");
-    oauthMocks.getAppleOauthTeamId.mockResolvedValue("TEAM");
-    oauthMocks.getAppleOauthKeyId.mockResolvedValue("KEY");
-    oauthMocks.getAppleOauthPrivateKey.mockResolvedValue("-----BEGIN PRIVATE KEY-----\nMIGE...\n-----END PRIVATE KEY-----");
+  it('returns 200 with Apple authorize URL when configured', async () => {
+    oauthMocks.getAppleOauthClientId.mockResolvedValue('com.example.siwa');
+    oauthMocks.getAppleOauthRedirectUri.mockResolvedValue(
+      'http://localhost/api/auth/oauth/callback/apple',
+    );
+    oauthMocks.getAppleOauthTeamId.mockResolvedValue('TEAM');
+    oauthMocks.getAppleOauthKeyId.mockResolvedValue('KEY');
+    oauthMocks.getAppleOauthPrivateKey.mockResolvedValue(
+      '-----BEGIN PRIVATE KEY-----\nMIGE...\n-----END PRIVATE KEY-----',
+    );
 
     const res = await POST(
-      new Request("http://localhost/api/auth/oauth/start", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ provider: "apple" }),
+      new Request('http://localhost/api/auth/oauth/start', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ provider: 'apple' }),
       }),
     );
     expect(res.status).toBe(200);
     const data = (await res.json()) as { ok: boolean; authUrl?: string };
     expect(data.ok).toBe(true);
-    expect(data.authUrl).toContain("https://appleid.apple.com/auth/authorize");
-    expect(data.authUrl).toContain("response_mode=form_post");
-    expect(data.authUrl).toContain("nonce=");
+    expect(data.authUrl).toContain('https://appleid.apple.com/auth/authorize');
+    expect(data.authUrl).toContain('response_mode=form_post');
+    expect(data.authUrl).toContain('nonce=');
   });
 });

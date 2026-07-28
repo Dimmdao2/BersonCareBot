@@ -1,4 +1,4 @@
-import type { OauthProvider, OAuthBindingsPort } from "@/modules/auth/oauthBindingsPort";
+import type { OauthProvider, OAuthBindingsPort } from '@/modules/auth/oauthBindingsPort';
 
 const byUser = new Map<string, Set<OauthProvider>>();
 /** provider → providerUserId → userId */
@@ -14,7 +14,10 @@ export const inMemoryOAuthBindingsPort: OAuthBindingsPort = {
     return s ? [...s] : [];
   },
 
-  async findUserByOAuthId(provider: OauthProvider, providerUserId: string): Promise<{ userId: string } | null> {
+  async findUserByOAuthId(
+    provider: OauthProvider,
+    providerUserId: string,
+  ): Promise<{ userId: string } | null> {
     const userId = byOAuthId.get(oauthKey(provider, providerUserId));
     return userId ? { userId } : null;
   },
@@ -26,7 +29,11 @@ export function __testSetOauthProviders(userId: string, providers: OauthProvider
 }
 
 /** Только для тестов: зарегистрировать OAuth-привязку (provider → userId). */
-export function __testSetOauthBinding(provider: OauthProvider, providerUserId: string, userId: string): void {
+export function __testSetOauthBinding(
+  provider: OauthProvider,
+  providerUserId: string,
+  userId: string,
+): void {
   byOAuthId.set(oauthKey(provider, providerUserId), userId);
   const s = byUser.get(userId) ?? new Set<OauthProvider>();
   s.add(provider);

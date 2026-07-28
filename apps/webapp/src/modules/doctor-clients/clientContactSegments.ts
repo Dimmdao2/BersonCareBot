@@ -1,19 +1,19 @@
 /** Сегменты круговой диаграммы контактов (взаимоисключающие). */
 export type ClientContactPieSegment =
-  | "telegram_only"
-  | "max_only"
-  | "email_only"
-  | "telegram_email"
-  | "max_email"
-  | "phone_email_no_messenger";
+  | 'telegram_only'
+  | 'max_only'
+  | 'email_only'
+  | 'telegram_email'
+  | 'max_email'
+  | 'phone_email_no_messenger';
 
 export const CLIENT_CONTACT_PIE_SEGMENT_LABELS: Record<ClientContactPieSegment, string> = {
-  telegram_only: "Только ТГ",
-  max_only: "Только Макс",
-  email_only: "Только email",
-  telegram_email: "ТГ + email",
-  max_email: "Макс + email",
-  phone_email_no_messenger: "Телефон + email",
+  telegram_only: 'Только ТГ',
+  max_only: 'Только Макс',
+  email_only: 'Только email',
+  telegram_email: 'ТГ + email',
+  max_email: 'Макс + email',
+  phone_email_no_messenger: 'Телефон + email',
 };
 
 export type ClientContactFlags = {
@@ -57,17 +57,19 @@ export function emptyClientContactBreakdown(): ClientContactBreakdown {
 }
 
 /** Один клиент попадает ровно в одну категорию: pie-сегмент, phoneOnly или appGuests. */
-export function classifyClientContact(flags: ClientContactFlags): ClientContactPieSegment | "phone_only" | "app_guest" {
+export function classifyClientContact(
+  flags: ClientContactFlags,
+): ClientContactPieSegment | 'phone_only' | 'app_guest' {
   const { hasTelegram, hasMax, hasVerifiedEmail, hasPhone } = flags;
-  if (hasTelegram && hasVerifiedEmail) return "telegram_email";
-  if (hasMax && hasVerifiedEmail && !hasTelegram) return "max_email";
-  if (hasTelegram && !hasVerifiedEmail && !hasMax) return "telegram_only";
-  if (hasMax && !hasVerifiedEmail && !hasTelegram) return "max_only";
-  if (hasPhone && hasVerifiedEmail && !hasTelegram && !hasMax) return "phone_email_no_messenger";
-  if (hasVerifiedEmail && !hasTelegram && !hasMax && !hasPhone) return "email_only";
-  if (hasPhone && !hasVerifiedEmail && !hasTelegram && !hasMax) return "phone_only";
-  if (!hasPhone && !hasVerifiedEmail && !hasTelegram && !hasMax) return "app_guest";
-  return "app_guest";
+  if (hasTelegram && hasVerifiedEmail) return 'telegram_email';
+  if (hasMax && hasVerifiedEmail && !hasTelegram) return 'max_email';
+  if (hasTelegram && !hasVerifiedEmail && !hasMax) return 'telegram_only';
+  if (hasMax && !hasVerifiedEmail && !hasTelegram) return 'max_only';
+  if (hasPhone && hasVerifiedEmail && !hasTelegram && !hasMax) return 'phone_email_no_messenger';
+  if (hasVerifiedEmail && !hasTelegram && !hasMax && !hasPhone) return 'email_only';
+  if (hasPhone && !hasVerifiedEmail && !hasTelegram && !hasMax) return 'phone_only';
+  if (!hasPhone && !hasVerifiedEmail && !hasTelegram && !hasMax) return 'app_guest';
+  return 'app_guest';
 }
 
 export function accumulateClientContactBreakdown(
@@ -76,11 +78,11 @@ export function accumulateClientContactBreakdown(
 ): void {
   breakdown.total += 1;
   const bucket = classifyClientContact(flags);
-  if (bucket === "phone_only") {
+  if (bucket === 'phone_only') {
     breakdown.phoneOnly += 1;
     return;
   }
-  if (bucket === "app_guest") {
+  if (bucket === 'app_guest') {
     breakdown.appGuests += 1;
     return;
   }

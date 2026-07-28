@@ -1,4 +1,4 @@
-import type { DevBypassStaffWorkspaceKind } from "./devBypassClinicAdminWorkspaceReconciliation";
+import type { DevBypassStaffWorkspaceKind } from './devBypassClinicAdminWorkspaceReconciliation';
 
 export type DevBypassClinicAdminWorkspacePort = {
   ensureStaffWorkspace(input: {

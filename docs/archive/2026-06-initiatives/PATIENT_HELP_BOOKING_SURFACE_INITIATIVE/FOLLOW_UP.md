@@ -36,9 +36,9 @@
 
 **Зачем:** сейчас у пациента два разных маршрута с похожим смыслом:
 
-| Откуда | Куда |
-|--------|------|
-| Плитка на «Запись» | Статья в CMS `/help/about` |
+| Откуда                                       | Куда                                              |
+| -------------------------------------------- | ------------------------------------------------- |
+| Плитка на «Запись»                           | Статья в CMS `/help/about`                        |
 | Статья «Запись в приложении» `/help/booking` | Статическая `/app/patient/about` + ссылка на сайт |
 
 Это **не ошибка** — так задумано в фазах 2 и 4, но редактору и пациенту легко запутаться.
@@ -108,18 +108,18 @@
 
 ## Для агента: расшифровка задач в коде
 
-| Задача (человеческая) | Где в репозитории |
-|----------------------|-------------------|
-| Плитки на «Запись» | `apps/webapp/src/app/app/patient/booking/new/page.tsx` → `CabinetInfoLinks` `surface="booking"` |
-| Сбор плиток по опубликованным slug | `apps/webapp/src/modules/help-content/cabinetInfoLinkTiles.ts` → `buildCabinetInfoLinkTiles`, `HELP_CANONICAL_ARTICLE_SLUGS_IN_CABINET_TILES`, `resolvePublishedServicesPricingSlug` |
-| City-aware «Адрес» | `patientHelpAddressLink.ts`, `pickBookingCityCodeForAddressLinks`, `bookingCityCode` в `buildCabinetInfoLinkTiles`; query `?cityCode=` и snapshot предстоящих записей на `booking/new/page.tsx` |
-| URL «Запись» с городом в wizard | `apps/webapp/src/app/app/patient/booking/bookingNewHref.ts`; использование в `booking/new/service/page.tsx`, `confirm/page.tsx` |
-| Каталог `/help` | `apps/webapp/src/app/app/patient/help/page.tsx`, `PatientHelpArticleList` |
-| Статья help + CTA booking → about | `apps/webapp/src/app/app/patient/help/[slug]/page.tsx`, `HelpBookingAboutLink.tsx`, константа `HELP_CANONICAL_ARTICLE_SLUG_BOOKING` в `canonicalSlugs.ts` |
-| Статическая about | `apps/webapp/src/app/app/patient/about/page.tsx`, `PatientAboutSiteLink.tsx`, `routePaths.patientAbout` в `apps/webapp/src/app-layer/routes/paths.ts` |
-| Сброс кэша после CMS | `apps/webapp/src/app-layer/content/revalidatePatientContentPaths.ts` (пути `/help`, `/help/[slug]`, `booking/new`) |
-| Канон slug и IA | `apps/webapp/src/modules/help-content/canonicalSlugs.ts` (`HELP_CANONICAL_ARTICLE_IA`, 8 slug) |
-| Тесты about/booking | `about-page.test.ts`, `HelpBookingAboutLink.test.tsx`, `PatientAboutSiteLink.test.tsx`, `help-booking-about-link.test.ts`, `cabinetInfoLinkTiles.test.ts`, `booking-new-page.test.ts` |
-| Закрытый план | `.cursor/plans/archive/patient_help_booking_surface_phase_f90d9842.plan.md` |
+| Задача (человеческая)              | Где в репозитории                                                                                                                                                                               |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Плитки на «Запись»                 | `apps/webapp/src/app/app/patient/booking/new/page.tsx` → `CabinetInfoLinks` `surface="booking"`                                                                                                 |
+| Сбор плиток по опубликованным slug | `apps/webapp/src/modules/help-content/cabinetInfoLinkTiles.ts` → `buildCabinetInfoLinkTiles`, `HELP_CANONICAL_ARTICLE_SLUGS_IN_CABINET_TILES`, `resolvePublishedServicesPricingSlug`            |
+| City-aware «Адрес»                 | `patientHelpAddressLink.ts`, `pickBookingCityCodeForAddressLinks`, `bookingCityCode` в `buildCabinetInfoLinkTiles`; query `?cityCode=` и snapshot предстоящих записей на `booking/new/page.tsx` |
+| URL «Запись» с городом в wizard    | `apps/webapp/src/app/app/patient/booking/bookingNewHref.ts`; использование в `booking/new/service/page.tsx`, `confirm/page.tsx`                                                                 |
+| Каталог `/help`                    | `apps/webapp/src/app/app/patient/help/page.tsx`, `PatientHelpArticleList`                                                                                                                       |
+| Статья help + CTA booking → about  | `apps/webapp/src/app/app/patient/help/[slug]/page.tsx`, `HelpBookingAboutLink.tsx`, константа `HELP_CANONICAL_ARTICLE_SLUG_BOOKING` в `canonicalSlugs.ts`                                       |
+| Статическая about                  | `apps/webapp/src/app/app/patient/about/page.tsx`, `PatientAboutSiteLink.tsx`, `routePaths.patientAbout` в `apps/webapp/src/app-layer/routes/paths.ts`                                           |
+| Сброс кэша после CMS               | `apps/webapp/src/app-layer/content/revalidatePatientContentPaths.ts` (пути `/help`, `/help/[slug]`, `booking/new`)                                                                              |
+| Канон slug и IA                    | `apps/webapp/src/modules/help-content/canonicalSlugs.ts` (`HELP_CANONICAL_ARTICLE_IA`, 8 slug)                                                                                                  |
+| Тесты about/booking                | `about-page.test.ts`, `HelpBookingAboutLink.test.tsx`, `PatientAboutSiteLink.test.tsx`, `help-booking-about-link.test.ts`, `cabinetInfoLinkTiles.test.ts`, `booking-new-page.test.ts`           |
+| Закрытый план                      | `.cursor/plans/archive/patient_help_booking_surface_phase_f90d9842.plan.md`                                                                                                                     |
 
 **Вне scope инициативы (не смешивать без отдельного решения):** редизайн wizard записи, карта на `/app/patient/address`, изменения Rubitime API.

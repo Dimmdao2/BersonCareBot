@@ -14,6 +14,7 @@
 **Назначение:** оценка текущей IA по продуктовым целям + предложение этапов работ (0–8). Этапы — потенциальные отдельные инициативы (отдельные папки `docs/*_INITIATIVE/`).
 
 **Зависимости:**
+
 - Базовый снимок «как есть» — [`STRUCTURE_AUDIT.md`](STRUCTURE_AUDIT.md) (immutable baseline «до реформы»). Часть III пункты про `news`/RSC/`pool.query` на страницах контента и таблицу `news_items` **частично устарели** после этапа 1 — актуальный факт: блок **«Этап 1 APP_RESTRUCTURE»** в [`LOG.md`](LOG.md); baseline не переписываем.
 - Целевое видение — [`TARGET_STRUCTURE_PATIENT.md`](TARGET_STRUCTURE_PATIENT.md), [`TARGET_STRUCTURE_DOCTOR.md`](TARGET_STRUCTURE_DOCTOR.md).
 - UI-стандарт реализации страниц — [`../ARCHITECTURE/PATIENT_APP_UI_STYLE_GUIDE.md`](../ARCHITECTURE/PATIENT_APP_UI_STYLE_GUIDE.md): сначала shared patient primitives и shadcn/Base UI (`apps/webapp/src/components/ui/*`), без одноразового custom chrome. При переработке экранов в рамках roadmap и мини-инициатив — см. также [`ROADMAP_2.md`](ROADMAP_2.md) §1 п.4 (порог: не усложнять код ради примитива, если это бьёт по поддерживаемости).
@@ -28,18 +29,18 @@
 
 Зафиксировано в [`LOG.md`](LOG.md) в этой же инициативе. Это **не** закрывает этапы 0–8 целиком, только узкий пакет стабилизации IA.
 
-| Область | Сделано |
-|---------|---------|
-| Главная пациента / код | Удалены orphan `PatientHomeNewsSection` / `PatientHomeMailingsSection` (+ тесты); из `navigation.ts` убраны legacy `HomeBlockId` / `patientHomeBlocks*`. |
-| Меню врача | Кластерное меню + аккордеон (`doctorNavLinks.ts`, `DoctorMenuAccordion`); пункт «Онлайн-заявки» в кластере «Работа с пациентами» → `/app/doctor/online-intake` (**план кабинета** [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) этап 2 закрыт 2026-05-02, см. [`DOCTOR_MENU_RESTRUCTURE_EXECUTION_AUDIT.md`](done/DOCTOR_MENU_RESTRUCTURE_EXECUTION_AUDIT.md)). Ранее (2026-05-01) пункт добавлялся в плоский список меню. |
-| Debug / admin | Страница `delete-errors` и ссылка из медиа-библиотеки только для admin + adminMode; legacy `/subscribers` остаётся redirect с комментарием «не в меню». |
-| Сообщения vs рассылки | `/app/doctor/messages` — только чат поддержки; журнал массовых рассылок остаётся на `/broadcasts`. |
-| Patient intake | `/app/patient/intake/nutrition` и `/lfk` обёрнуты в `AppShell` (patient shell). |
-| Кабинет пациента | `CabinetInfoLinks`: честные подписи и маршруты (адрес, запись через wizard, справка), без вводящих в заблуждение плиток под `/help`. |
-| Темы `/notifications` | Ключ `notifications_topics` в `system_settings` (admin), UI в `/app/settings` → «Параметры приложения». Перепроверка после аудита: клиентская валидация до PATCH, тест совпадения дефолтного JSON с миграцией `083_*`, синхронизация roadmap и [`LOG.md`](LOG.md) (2026-05-01). |
-| Режим техработ patient app | **Операционный guard (2026-05-02):** при включении в админке клиенты видят один экран под `/app/patient` (сообщение, внешняя запись Rubitime, ближайшие записи); без новых env; ключи `patient_app_*` / `patient_booking_url`. **UI настроек техработ перенесён во вкладку «Режимы»** (тот же день). Детали — [`PATIENT_MAINTENANCE_MODE_EXECUTION_AUDIT.md`](done/PATIENT_MAINTENANCE_MODE_EXECUTION_AUDIT.md), запись в [`LOG.md`](LOG.md). **Не** заменяет целевую IA из §I.3 / [`TARGET_STRUCTURE_PATIENT.md`](TARGET_STRUCTURE_PATIENT.md). |
+| Область                                | Сделано                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Главная пациента / код                 | Удалены orphan `PatientHomeNewsSection` / `PatientHomeMailingsSection` (+ тесты); из `navigation.ts` убраны legacy `HomeBlockId` / `patientHomeBlocks*`.                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| Меню врача                             | Кластерное меню + аккордеон (`doctorNavLinks.ts`, `DoctorMenuAccordion`); пункт «Онлайн-заявки» в кластере «Работа с пациентами» → `/app/doctor/online-intake` (**план кабинета** [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) этап 2 закрыт 2026-05-02, см. [`DOCTOR_MENU_RESTRUCTURE_EXECUTION_AUDIT.md`](done/DOCTOR_MENU_RESTRUCTURE_EXECUTION_AUDIT.md)). Ранее (2026-05-01) пункт добавлялся в плоский список меню.                                                                                                                                                                         |
+| Debug / admin                          | Страница `delete-errors` и ссылка из медиа-библиотеки только для admin + adminMode; legacy `/subscribers` остаётся redirect с комментарием «не в меню».                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| Сообщения vs рассылки                  | `/app/doctor/messages` — только чат поддержки; журнал массовых рассылок остаётся на `/broadcasts`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| Patient intake                         | `/app/patient/intake/nutrition` и `/lfk` обёрнуты в `AppShell` (patient shell).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Кабинет пациента                       | `CabinetInfoLinks`: честные подписи и маршруты (адрес, запись через wizard, справка), без вводящих в заблуждение плиток под `/help`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Темы `/notifications`                  | Ключ `notifications_topics` в `system_settings` (admin), UI в `/app/settings` → «Параметры приложения». Перепроверка после аудита: клиентская валидация до PATCH, тест совпадения дефолтного JSON с миграцией `083_*`, синхронизация roadmap и [`LOG.md`](LOG.md) (2026-05-01).                                                                                                                                                                                                                                                                                                                         |
+| Режим техработ patient app             | **Операционный guard (2026-05-02):** при включении в админке клиенты видят один экран под `/app/patient` (сообщение, внешняя запись Rubitime, ближайшие записи); без новых env; ключи `patient_app_*` / `patient_booking_url`. **UI настроек техработ перенесён во вкладку «Режимы»** (тот же день). Детали — [`PATIENT_MAINTENANCE_MODE_EXECUTION_AUDIT.md`](done/PATIENT_MAINTENANCE_MODE_EXECUTION_AUDIT.md), запись в [`LOG.md`](LOG.md). **Не** заменяет целевую IA из §I.3 / [`TARGET_STRUCTURE_PATIENT.md`](TARGET_STRUCTURE_PATIENT.md).                                                        |
 | Режимы / тестовые аккаунты / dev relay | **2026-05-02:** вкладка «Режимы» — `test_account_identifiers`, bypass техработ для тестовых клиентов, `dev_mode` relay по `channel`+`recipient` (без internal userId в UI). **2026-05-02 (доп.):** batch PATCH всей формы «Режимы» + предпросмотр отброшенных телефонов тестовых аккаунтов до Save. Аудит: [`MODES_AND_TEST_ACCOUNTS_EXECUTION_AUDIT.md`](done/MODES_AND_TEST_ACCOUNTS_EXECUTION_AUDIT.md); зеркала планов: [`MODES_SETTINGS_CLEANUP_PLAN.md`](done/MODES_SETTINGS_CLEANUP_PLAN.md), [`MODES_BATCH_PATCH_AND_PHONE_PREVIEW_PLAN.md`](done/MODES_BATCH_PATCH_AND_PHONE_PREVIEW_PLAN.md). |
-| Этап 1: новости + рассылки | Таблицы `news_*` сняты миграцией `0016_*`; `broadcast_audit.channels`; UI каналов и редирект `/content/news` → мотивация; чтение списка мотиваций через порт (см. блок «Этап 1» выше). Массовая доставка не в `doctor-broadcasts.execute` — только аудит. |
+| Этап 1: новости + рассылки             | Таблицы `news_*` сняты миграцией `0016_*`; `broadcast_audit.channels`; UI каналов и редирект `/content/news` → мотивация; чтение списка мотиваций через порт (см. блок «Этап 1» выше). Массовая доставка не в `doctor-broadcasts.execute` — только аудит.                                                                                                                                                                                                                                                                                                                                               |
 
 ---
 
@@ -109,13 +110,13 @@
 
 ## I.3. Целевая модель IA пациента (короткая сводка)
 
-| Вкладка | Что туда уходит |
-|---------|------------------|
-| **Сегодня** | Без изменений (новый home) |
-| **План** | Программы и шаги, прогресс, тесты к заполнению, материалы дня; абсорбирует `/treatment-programs/*` + ссылку «весь план» в архив |
-| **Дневник** | Симптомы + ЛФК-журнал (без само-создания комплексов) |
-| **Запись** | Единый wizard, включает онлайн-форматы (`/intake/*`); `/cabinet` как «Мои визиты» внутри той же ветки |
-| **Профиль** (справа в шапке) | Аккаунт + Уведомления + Поддержка + Помощь + Установить приложение + Выход |
+| Вкладка                      | Что туда уходит                                                                                                                 |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| **Сегодня**                  | Без изменений (новый home)                                                                                                      |
+| **План**                     | Программы и шаги, прогресс, тесты к заполнению, материалы дня; абсорбирует `/treatment-programs/*` + ссылку «весь план» в архив |
+| **Дневник**                  | Симптомы + ЛФК-журнал (без само-создания комплексов)                                                                            |
+| **Запись**                   | Единый wizard, включает онлайн-форматы (`/intake/*`); `/cabinet` как «Мои визиты» внутри той же ветки                           |
+| **Профиль** (справа в шапке) | Аккаунт + Уведомления + Поддержка + Помощь + Установить приложение + Выход                                                      |
 
 В этой модели исчезают как отдельные пункты IA: `/sections`, `/purchases`, `/address`, `/help`, `/support`, `/install`.
 
@@ -142,6 +143,7 @@
 **Факт (2026-05-02, навигация обновлена 2026-05):** `/app/doctor` — рабочий экран «Сегодня» ([`DOCTOR_TODAY_DASHBOARD_PLAN.md`](done/DOCTOR_TODAY_DASHBOARD_PLAN.md), [`LOG.md`](LOG.md)): записи на сегодня, новые онлайн-заявки (`status=new`), непрочитанные диалоги поддержки, ближайшие записи (неделя с дедупом относительно «сегодня»); KPI на «Сегодня», полные агрегаты и графики регистраций — на **`/app/doctor/analytics/clients`** ([`DOCTOR_CABINET_NAVIGATION.md`](../ARCHITECTURE/DOCTOR_CABINET_NAVIGATION.md)); `/app/doctor/stats` — redirect.
 
 **Что остаётся backlog относительно полной «рабочей модели дня»:**
+
 1. **«К проверке»** как реальная очередь — нет готового единого источника «требует проверки врача» (вне MVP этапа 4 [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md)).
 2. **Проактивная лента** («боль выше порога», пропуски ЛФК, тест без оценки) — часть IV **этап 8** этого roadmap (не путать с этапом 8 [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) — плотность UI).
 
@@ -192,6 +194,7 @@
 После **варианта C** ([`CMS_RESTRUCTURE_PLAN.md`](done/CMS_RESTRUCTURE_PLAN.md)) у `content_sections` уже есть **`kind`** (`article` \| `system`) и **`system_parent_code`** для кластеров CMS и фильтров patient-home; сайдбар CMS разделён на статьи и системные папки. Ниже — что **ещё** тянет техдолг и продуктовую путаницу относительно **целевой** модели отдельных `situation` / `subscription` / `course_lesson` и табов хаба (II.4.3).
 
 `content_sections` по-прежнему **одна таблица** для разных смыслов контента. Часть различий всё ещё опирается на legacy-признаки и код:
+
 - `requires_auth` — флаг «нужен tier patient»; используется как proxy для «по подписке»;
 - `LESSON_CONTENT_SECTION = "lessons"` / `LESSON_CONTENT_SECTION_LEGACY = "course_lessons"` — **хардкоженый slug** в `modules/treatment-program/types.ts`, по которому фильтруются страницы для шаблона программы;
 - `slug` секции «случайно» = коду блока главной (`situations`, `daily_warmup`, `subscription_carousel` ссылаются на `content_sections.slug` через `patient_home_block_items.target_type=content_section`).
@@ -201,6 +204,7 @@
 ### II.4.2 Главная нестыковка
 
 В коде есть **два независимых уровня типизации**, которые должны были быть одним:
+
 - `patient_home_blocks.code` — содержит «смысловой тип» блока (`situations`, `subscription_carousel`, `courses`, `useful_post`, `daily_warmup`...);
 - `content_sections` — после варианта C есть **`kind`** / **`system_parent_code`**, но это **ещё не** целевой жёсткий enum из II.4.3 (отдельные `situation` / `subscription` / `course_lesson`).
 
@@ -212,15 +216,16 @@
 
 Ввести **`content_sections.kind`** как **полный** enum (строгий):
 
-| `kind` | Смысл | Где используется |
-|--------|-------|------------------|
-| `article` | Статьи / уроки / FAQ | `/app/patient/sections/[slug]`, прямые ссылки |
-| `situation` | Ситуации для главной | Только блок `situations` |
-| `subscription` | Материалы подписки | Только `subscription_carousel`, бейдж «по подписке» |
-| `course_lesson` | Материалы шаблона программы | Конструктор `treatment_program_templates` (заменит хардкод slug `lessons`) |
-| `system` | Технические разделы (например, `warmups`) | Прибит к коду через ID |
+| `kind`          | Смысл                                     | Где используется                                                           |
+| --------------- | ----------------------------------------- | -------------------------------------------------------------------------- |
+| `article`       | Статьи / уроки / FAQ                      | `/app/patient/sections/[slug]`, прямые ссылки                              |
+| `situation`     | Ситуации для главной                      | Только блок `situations`                                                   |
+| `subscription`  | Материалы подписки                        | Только `subscription_carousel`, бейдж «по подписке»                        |
+| `course_lesson` | Материалы шаблона программы               | Конструктор `treatment_program_templates` (заменит хардкод slug `lessons`) |
+| `system`        | Технические разделы (например, `warmups`) | Прибит к коду через ID                                                     |
 
 Дальше:
+
 - На страницах `/content/sections`, `/content` — **разнести по табам/маршрутам** по `kind`.
 - На `/patient-home` редактор **видит только разрешённые `kind`** для блока (для `situations` — выбор только из `kind=situation`; для `subscription_carousel` — `subscription`).
 - На редакторе шаблона программы — выбор «уроков» только из `kind=course_lesson`, без хардкода slug.
@@ -228,6 +233,7 @@
 ### II.4.4 `requires_auth` vs `kind=subscription`
 
 Сейчас «подписочный контент» = `requires_auth=true`. Это **семантически неверно**: «требует входа» ≠ «является частью подписки». После реформы:
+
 - `requires_auth` → access-control (нужен tier patient).
 - `kind=subscription` → визуальная маркировка и место (карусель «по подписке»).
 
@@ -243,13 +249,13 @@
 
 3. **Broadcasts → «Сообщение пациентам»** с полем `channels[]` (**этап 1: колонка audit + UI; `execute` пишет только аудит** — см. LOG). На старте — два канала (`bot_message`, `sms` — то, что сегодня по факту). Дальше расширяется без миграции модели:
 
-   | Канал | Когда добавить | Что значит |
-   |-------|----------------|------------|
-   | `bot_message` | сейчас (есть) | TG/MAX через интегратор |
-   | `sms` | сейчас (есть) | через интегратор |
-   | `push` | позже | web push для PWA |
-   | `home_banner` | позже | плашка на `/app/patient` (займёт нишу удалённых `news_items`) |
-   | `notification_bell` | позже | колокольчик в шапке |
+   | Канал               | Когда добавить | Что значит                                                    |
+   | ------------------- | -------------- | ------------------------------------------------------------- |
+   | `bot_message`       | сейчас (есть)  | TG/MAX через интегратор                                       |
+   | `sms`               | сейчас (есть)  | через интегратор                                              |
+   | `push`              | позже          | web push для PWA                                              |
+   | `home_banner`       | позже          | плашка на `/app/patient` (займёт нишу удалённых `news_items`) |
+   | `notification_bell` | позже          | колокольчик в шапке                                           |
 
    В UI редактора — multiselect каналов (**этап 1:** чекбоксы по активным + disabled «скоро»), неактивные `disabled` с подписью «скоро».
 
@@ -280,6 +286,7 @@
 **Хорошо:** одинаковая структура, единый `doctorCatalogViewFromSearchParams`, общие фильтры (`q`, `region`, `load`).
 
 **Что было проблемой / что остаётся:**
+
 1. ~~**Обратная связь «где используется» / счётчики назначений**~~ — **снято (2026-05-02):** [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) этап 7 / [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](done/ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md).
 2. ~~**Архивация без предупреждения при активном использовании**~~ — **снято** тем же этапом 7 (guard + `acknowledgeUsageWarning` по каталогам по ТЗ).
 3. ~~**Курсы и Шаблоны программ — объединение административных экранов**~~ — **переформулировано (2026-05-03):** курсы — отдельная сущность по геткурс-модели, не «шаблон программы с флагом». Делается отдельной инициативой [`../COURSES_INITIATIVE/README.md`](../COURSES_INITIATIVE/README.md). См. этап 7 ниже (часть IV) — переформулирован.
@@ -336,14 +343,14 @@
 
 Не делать «архитектурную фазу» отдельно. Каждый пункт прикрепить к продуктовой инициативе:
 
-| Долг (см. `STRUCTURE_AUDIT.md` §III) | К какой инициативе |
-|---------------------------------------|---------------------|
-| `LESSON_CONTENT_SECTION` хардкод | CMS-типизация (**часть IV, этап 2** roadmap — не путать с этапом 2 [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md)) |
-| `target_ref=slug` без FK | Backlog (не блокер) |
-| `pool.query` в RSC (news/motivation) | **News:** снято (страница — редирект). **Motivation (список):** чтение через `DoctorMotivationQuotesEditorPort`. **Остаётся:** мутации в `motivation/actions.ts` (backlog). |
-| ~~Хардкод тем для `/notifications` (`SUBSCRIPTIONS`)~~ | **Снято (2026-05-01):** ключ `notifications_topics` в `system_settings`; полная реформа UX этапа 4 (связь с reminders, профиль) остаётся |
-| Orphan-компоненты | Этап 0 (чистка) — **часть закрыта 2026-05-01** (см. [`LOG.md`](LOG.md)) |
-| Legacy `HomeBlockId` | Этап 0 (чистка) — **из `navigation.ts` убрано 2026-05-01** |
+| Долг (см. `STRUCTURE_AUDIT.md` §III)                   | К какой инициативе                                                                                                                                                          |
+| ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `LESSON_CONTENT_SECTION` хардкод                       | CMS-типизация (**часть IV, этап 2** roadmap — не путать с этапом 2 [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md))                                                      |
+| `target_ref=slug` без FK                               | Backlog (не блокер)                                                                                                                                                         |
+| `pool.query` в RSC (news/motivation)                   | **News:** снято (страница — редирект). **Motivation (список):** чтение через `DoctorMotivationQuotesEditorPort`. **Остаётся:** мутации в `motivation/actions.ts` (backlog). |
+| ~~Хардкод тем для `/notifications` (`SUBSCRIPTIONS`)~~ | **Снято (2026-05-01):** ключ `notifications_topics` в `system_settings`; полная реформа UX этапа 4 (связь с reminders, профиль) остаётся                                    |
+| Orphan-компоненты                                      | Этап 0 (чистка) — **часть закрыта 2026-05-01** (см. [`LOG.md`](LOG.md))                                                                                                     |
+| Legacy `HomeBlockId`                                   | Этап 0 (чистка) — **из `navigation.ts` убрано 2026-05-01**                                                                                                                  |
 
 ---
 
@@ -360,6 +367,7 @@
 **Зачем:** уменьшить шум для последующих этапов, убрать orphan-компоненты, на которые могут случайно начать ссылаться.
 
 **Конкретно:**
+
 - ~~Удалить orphan-компоненты `PatientHomeNewsSection.tsx`, `PatientHomeMailingsSection.tsx` + их тесты.~~ **Сделано (2026-05-01).**
 - ~~Из `apps/webapp/src/app-layer/routes/navigation.ts` выкинуть legacy константы `HomeBlockId`, `patientHomeBlocksCanonical`, `patientHomeBlocksByPlatform`, `PATIENT_HOME_BLOCKS_HIDDEN_IN_BOT`, `patientHomeBlocksForEntry` (и адаптировать импортёры, если они есть).~~ **Сделано (2026-05-01).**
 - ~~Удалить legacy redirects: `/app/patient/lessons`, `/app/patient/emergency`,~~ **`/app/patient/diary/symptoms`, `/app/patient/diary/lfk`** ~~после контроля inbound-ссылок~~ — **частично (2026-05-04):** для дневника удалены `page.tsx`-заглушки, редиректы перенесены в `apps/webapp/next.config.ts` (`redirects`, permanent); inbound grep — см. [`LOG.md`](LOG.md) запись 2026-05-04 ROADMAP_2 §1.2. Остаются: `/app/patient/lessons`, `/app/patient/emergency` (grep + контроль ссылок).
@@ -382,7 +390,6 @@
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-
 **Статус реализации (2026-05-01):** миграция `0016_drop_news_broadcast_channels` (drop `news_*`, колонка `channels` в `broadcast_audit`); CMS без «Новостей»; рассылки с выбором каналов в UI и в audit. `execute` в `doctor-broadcasts` **только** пишет аудит (доставка по каналам — вне этого модуля), см. [`LOG.md`](LOG.md) блок «Этап 1». Роут `/app/doctor/content/news` оставлен как **редирект** для закладок. Опционально в плане: **multiselect** в UI — фактически чекбоксы по двум активным каналам + «скоро» для остальных.
 
 **Чек-лист закрытия этапа 1 (фиксация в коде и CI):**
@@ -404,6 +411,7 @@
 **Зачем:** убрать мёртвую сущность с интерфейсной поверхности и лишним хардкодом, превратить рассылки в единую точку «сказать что-то пациентам».
 
 **Конкретно:**
+
 - Миграция: `DROP TABLE news_items` (с экспортом контента в `.md`/`.csv` для архива редактора — **ops, не в репо;** см. [`LOG.md`](LOG.md)).
 - Удалить страницу `/app/doctor/content/news`, пункт «Новости» в `ContentPagesSidebar`. **Факт:** редирект на мотивацию + сайдбар без пункта «Новости».
 - В `broadcasts` добавить колонку `channels text[] not null default '{bot_message,sms}'`. Бэк отправки по каналам — **не** расширялся в рамках этапа; аудит фиксирует намерение.
@@ -428,6 +436,7 @@
 **Зачем:** это **фундамент CMS-реформы**. Без него любой UI-апгрейд CMS остаётся «всё в одной куче». Также эта же миграция выносит хардкод slug `lessons` (`course_lesson` → `kind`).
 
 **Конкретно:**
+
 - Drizzle-схема: добавить `content_sections.kind` (enum: `article | situation | subscription | course_lesson | system`).
 - Миграция данных: всем существующим разделам присвоить `kind=article` по умолчанию; вручную пометить:
   - `lessons` / `course_lessons` → `course_lesson`;
@@ -455,6 +464,7 @@
 **Зачем:** довести до конца смысл реформы: «контент, разнесённый по смыслу, в редакторских интерфейсах, заточенных под темп ввода».
 
 **Конкретно:**
+
 - Перестроить `ContentPagesSidebar` под новую группировку (II.4.6).
 - Inline-редактор для `motivational_quotes` (без модалки, прямо в строке таблицы), bulk-import textarea «по одной цитате на строку».
 - На редакторе блока главной с типом `news`/`motivation` (если останется) — показать ссылку «открыть управление в основном CMS», не дублировать редактор внутри.
@@ -479,6 +489,7 @@
 **Зачем:** привести в порядок главную смысловую цепочку «пациент получает важное» и убрать архитектурное нарушение по env vs DB.
 
 **Конкретно:**
+
 - ~~Перенести `SUBSCRIPTIONS` (`/app/patient/notifications/page.tsx`) в `system_settings` (`scope=admin`, ключ типа `notifications_topics`). Добавить ALLOWED_KEYS и UI в админ-настройках. См. `system-settings-integrator-mirror.mdc`.~~ **Сделано (2026-05-01)** — см. [`LOG.md`](LOG.md).
 - Убрать аккордеон «Уведомления» из `/profile` (или оставить, но встроить полноценную форму, а не ссылку-хоп).
 - На `/notifications` явно показать связь с `/reminders` («управление личными напоминаниями — здесь»). Унифицировать language (термины «темы», «правила», «каналы»).
@@ -499,6 +510,7 @@
 **Зачем:** довести редизайн до внутренних страниц. После home это **самая видимая работа для пациента**.
 
 **Конкретно:**
+
 - **`/treatment-programs`** — карточка с прогрессом, ближайшим шагом, датой; «завершённые» → отдельная вкладка/архив.
 - **`/treatment-programs/[instanceId]`** — точка входа в «сегодняшний шаг»; ссылка на материал/тест.
 - **`/diary`** — **частично (2026-05-04):** пациентское создание ЛФК-комплекса убрано (UI + server action no-op); empty-state ЛФК — назначения врача + CTA на программы/сообщения; legacy URL → единая страница (`next.config`). **Остаётся:** открытие на «отметить за сегодня» как главный сценарий, read-only история не первична — см. [`ROADMAP_2.md`](ROADMAP_2.md) §1.2.
@@ -528,6 +540,7 @@
 **Зачем:** закрыть боль «дашборд врача — полная ерунда, карточка пациента не рабочая».
 
 **Конкретно:**
+
 - ~~Перестроить `DOCTOR_MENU_ENTRIES` под 5 кластеров~~ — **выполнено (2026-05-02):** кластеры + standalone «Библиотека файлов», аккордеон, см. [`DOCTOR_MENU_RESTRUCTURE_EXECUTION_AUDIT.md`](done/DOCTOR_MENU_RESTRUCTURE_EXECUTION_AUDIT.md). ~~Добавить `/online-intake` в меню.~~ **Пункт меню добавлен (2026-05-01)** до полной перестройки; теперь входит в кластер «Работа с пациентами». Убрать `/subscribers` (legacy) — **redirect пока оставлен** (закладки); без пункта в меню.
 - ~~Единый чат врача (страница + карточка пациента)~~ — **выполнено (2026-05-02)** по [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) этап 5 / [`DOCTOR_MESSAGES_UNIFIED_CHAT_EXECUTION_AUDIT.md`](done/DOCTOR_MESSAGES_UNIFIED_CHAT_EXECUTION_AUDIT.md).
 - ~~Пакет «плотность UI» без редизайна~~ — **выполнено (2026-05-02)** по [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) этап 8 / [`DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md`](done/DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md).
@@ -565,6 +578,7 @@
 ## Этап 9. Новая модель «Плана лечения» пациента (PROGRAM_PATIENT_SHAPE) + переработка каталогов «Назначений»
 
 > Зафиксирован 2026-05-03 как отдельная инициатива. Состоит из **двух параллельных планов**:
+>
 > - **Доменный**: [`PROGRAM_PATIENT_SHAPE_PLAN.md`](PROGRAM_PATIENT_SHAPE_PLAN.md) — этапы A1–A5 (модель плана, цели/задачи/срок, группы, action_log, бейджи, Inbox К проверке, universal comment pattern §1.9). Execution: [`../archive/2026-05-initiatives/PROGRAM_PATIENT_SHAPE_INITIATIVE/README.md`](../archive/2026-05-initiatives/PROGRAM_PATIENT_SHAPE_INITIATIVE/README.md).
 > - **Sister-план по каталогам**: [`ASSIGNMENT_CATALOGS_REWORK_PLAN.md`](ASSIGNMENT_CATALOGS_REWORK_PLAN.md) — этапы B1–B7 (UX/тех-фиксы каталогов «Назначений», `CreatableComboboxInput`, две оси фильтра «черновик/опубликован» × «активный/архив», universal comment pattern на все item-контейнеры). Execution: [`../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/README.md`](../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/README.md).
 >
@@ -578,19 +592,20 @@
 
 **Конкретно — нарезка:**
 
-| Доменная (A1–A5) | Каталоги/UX (B1–B7) |
-|---|---|
-| **A1.** Цели/задачи/срок этапа на template + instance. | **B1.** Две независимых оси фильтра «черновик/опубликован» × «активный/архив». |
+| Доменная (A1–A5)                                                           | Каталоги/UX (B1–B7)                                                                                                                     |
+| -------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| **A1.** Цели/задачи/срок этапа на template + instance.                     | **B1.** Две независимых оси фильтра «черновик/опубликован» × «активный/архив».                                                          |
 | **A2.** Рекомендация actionable/persistent + Этап 0 + «отключение» item-а. | **B2.** Клин. тесты: `assessmentKind` справочник, `body_region` FK, структурированный `scoring`; новый shared `CreatableComboboxInput`. |
-| **A3.** `tplStageGroups` / `instStageGroups` (отдельные таблицы). | **B3.** Наборы тестов — клон редактора LFK-комплекса (без reps/sets, с комментариями). |
-| **A4.** `program_action_log` + чек-лист дня + Inbox «К проверке». | **B4.** Рекомендации: «Тип» (UI), `body_region` FK, `quantity`/`frequency`/`duration`. |
-| **A5.** Бейдж «План обновлён» + бейдж «Новое». | **B5.** Комплексы ЛФК — фикс «иконки глаза» и UX pass-1. |
-| | **B6.** Шаблоны программ — UX pass-1 конструктора (визуально, без новой доменной модели). |
-| | **B7.** Universal comment pattern на все item-контейнеры (template `comment` → instance `local_comment override`). |
+| **A3.** `tplStageGroups` / `instStageGroups` (отдельные таблицы).          | **B3.** Наборы тестов — клон редактора LFK-комплекса (без reps/sets, с комментариями).                                                  |
+| **A4.** `program_action_log` + чек-лист дня + Inbox «К проверке».          | **B4.** Рекомендации: «Тип» (UI), `body_region` FK, `quantity`/`frequency`/`duration`.                                                  |
+| **A5.** Бейдж «План обновлён» + бейдж «Новое».                             | **B5.** Комплексы ЛФК — фикс «иконки глаза» и UX pass-1.                                                                                |
+|                                                                            | **B6.** Шаблоны программ — UX pass-1 конструктора (визуально, без новой доменной модели).                                               |
+|                                                                            | **B7.** Universal comment pattern на все item-контейнеры (template `comment` → instance `local_comment override`).                      |
 
 Каждый подэтап — самостоятельная единица работы; продукт остаётся работоспособным после любого. Подробности и open questions — в соответствующих планах (PROGRAM_PATIENT_SHAPE §5 — O1–O7; ASSIGNMENT_CATALOGS_REWORK §5 — Q1–Q7).
 
 **Порядок исполнения (рекомендуемый):**
+
 - **B1 + B2/B3/B4/B5** можно делать параллельно (или по интересу/готовности).
 - **B6** — визуальный pass конструктора **до** A1+A3, чтобы доменное расширение шло поверх причёсанного UI и не было двойного refactor.
 - **A1** — после B6.
@@ -612,6 +627,7 @@
 **Зачем:** превратить кабинет из «ответа на запросы» в «опережение проблем».
 
 **Конкретно:**
+
 - Сервис event-aggregator на основе уже существующих сигналов (`symptom_diary_entries`, `lfk_sessions`, `clinical_test_responses`, `appointment_records`).
 - Лента в шапке кабинета и/или внутри карточки клиента (Tab 1 → блок «События»).
 - Настройки порогов (например, «уведомить при болях ≥ 7») — отдельный admin UI.

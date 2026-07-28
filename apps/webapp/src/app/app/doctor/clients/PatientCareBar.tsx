@@ -1,26 +1,26 @@
-"use client";
+'use client';
 
-import { MoreHorizontal } from "lucide-react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { cn } from "@/lib/utils";
+import { MoreHorizontal } from 'lucide-react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { cn } from '@/lib/utils';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/shared/ui/doctor/primitives/dropdown-menu";
-import type { ClientIdentity } from "@/modules/doctor-clients/ports";
-import type { AppointmentSummary } from "@/modules/appointments/service";
-import type { SpecialistTaskPatientSummary } from "@/modules/specialist-tasks/types";
-import { phoneToTelHref } from "@/shared/lib/phoneLinks";
-import { DoctorClientSupportCareBar } from "./DoctorClientSupportCareBar";
+} from '@/shared/ui/doctor/primitives/dropdown-menu';
+import type { ClientIdentity } from '@/modules/doctor-clients/ports';
+import type { AppointmentSummary } from '@/modules/appointments/service';
+import type { SpecialistTaskPatientSummary } from '@/modules/specialist-tasks/types';
+import { phoneToTelHref } from '@/shared/lib/phoneLinks';
+import { DoctorClientSupportCareBar } from './DoctorClientSupportCareBar';
 import {
   doctorClientDisplayNameClass,
   doctorClientEntityHeaderClass,
   doctorClientStatusPillDestructiveClass,
   doctorClientStatusPillMutedClass,
-} from "./doctorClientCardChrome";
-import { doctorInlineLinkClass } from "@/shared/ui/doctor/doctorVisual";
+} from './doctorClientCardChrome';
+import { doctorInlineLinkClass } from '@/shared/ui/doctor/doctorVisual';
 
 type PatientCareBarProps = {
   identity: ClientIdentity;
@@ -35,7 +35,9 @@ function UpcomingAppointment({ appointment }: { appointment: AppointmentSummary 
   return (
     <>
       {appointment.scheduleProvenancePrefix ? (
-        <p className="mb-0.5 text-xs text-muted-foreground">{appointment.scheduleProvenancePrefix}</p>
+        <p className="mb-0.5 text-xs text-muted-foreground">
+          {appointment.scheduleProvenancePrefix}
+        </p>
       ) : null}
       {appointment.link && /^https?:\/\//i.test(appointment.link) ? (
         <a
@@ -63,7 +65,7 @@ export function PatientCareBar({
 }: PatientCareBarProps) {
   const tel = phoneToTelHref(identity.phone);
   const displayHeading =
-    identity.displayName?.trim() !== "" ? identity.displayName.trim() : "Имя не указано";
+    identity.displayName?.trim() !== '' ? identity.displayName.trim() : 'Имя не указано';
 
   return (
     <header className={doctorClientEntityHeaderClass}>
@@ -105,14 +107,17 @@ export function PatientCareBar({
               <Button
                 type="button"
                 variant="ghost"
-                className={cn("mt-2 h-auto w-full justify-start p-0 text-left text-xs", doctorInlineLinkClass)}
-                onClick={() => onNavigateAnchor("doctor-client-section-tasks")}
+                className={cn(
+                  'mt-2 h-auto w-full justify-start p-0 text-left text-xs',
+                  doctorInlineLinkClass,
+                )}
+                onClick={() => onNavigateAnchor('doctor-client-section-tasks')}
               >
                 Задачи: {taskSummary.openCount} невып.
-                {taskSummary.nextImportantOrOverdue?.isImportant ? " ❗" : ""}
+                {taskSummary.nextImportantOrOverdue?.isImportant ? ' ❗' : ''}
                 {taskSummary.nextImportantOrOverdue?.title
                   ? ` · ${taskSummary.nextImportantOrOverdue.title}`
-                  : ""}
+                  : ''}
               </Button>
             ) : null}
           </div>
@@ -142,16 +147,22 @@ export function PatientCareBar({
                 <MoreHorizontal className="size-4" aria-hidden />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => onNavigateAnchor("doctor-client-section-booking-history")}>
+                <DropdownMenuItem
+                  onClick={() => onNavigateAnchor('doctor-client-section-booking-history')}
+                >
                   История
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => onNavigateAnchor("doctor-client-section-notes")}>
+                <DropdownMenuItem onClick={() => onNavigateAnchor('doctor-client-section-notes')}>
                   Заметки
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => onNavigateAnchor("doctor-client-section-treatment-programs")}>
+                <DropdownMenuItem
+                  onClick={() => onNavigateAnchor('doctor-client-section-treatment-programs')}
+                >
                   Программа
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => onNavigateAnchor("doctor-client-section-contacts")}>
+                <DropdownMenuItem
+                  onClick={() => onNavigateAnchor('doctor-client-section-contacts')}
+                >
                   Учётка
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -176,13 +187,16 @@ export function PatientCareBar({
           <Button
             type="button"
             variant="ghost"
-            className={cn("h-auto justify-start p-0 text-left text-sm md:hidden", doctorInlineLinkClass)}
-            onClick={() => onNavigateAnchor("doctor-client-section-tasks")}
+            className={cn(
+              'h-auto justify-start p-0 text-left text-sm md:hidden',
+              doctorInlineLinkClass,
+            )}
+            onClick={() => onNavigateAnchor('doctor-client-section-tasks')}
           >
             Задачи: {taskSummary.openCount} невып.
             {taskSummary.nextImportantOrOverdue?.title
               ? ` · ${taskSummary.nextImportantOrOverdue.title}`
-              : ""}
+              : ''}
           </Button>
         ) : null}
       </div>

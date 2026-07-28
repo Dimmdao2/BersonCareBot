@@ -1,27 +1,30 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import type { AppointmentRow } from "@/modules/doctor-appointments/ports";
-import { formatPatientPackageShortLabel } from "@/modules/memberships/display";
-import { doctorInteractiveSurfaceButtonClass, doctorSectionCardClass } from "@/shared/ui/doctor/doctorVisual";
-import { DoctorAppointmentActions } from "./DoctorAppointmentActions";
-import { cn } from "@/lib/utils";
+import { useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import type { AppointmentRow } from '@/modules/doctor-appointments/ports';
+import { formatPatientPackageShortLabel } from '@/modules/memberships/display';
+import {
+  doctorInteractiveSurfaceButtonClass,
+  doctorSectionCardClass,
+} from '@/shared/ui/doctor/doctorVisual';
+import { DoctorAppointmentActions } from './DoctorAppointmentActions';
+import { cn } from '@/lib/utils';
 
 type Props = {
   appointments: AppointmentRow[];
-  view: "future" | "past";
+  view: 'future' | 'past';
 };
 
 function formatDateKeyLabel(dateKey: string): string {
-  if (!dateKey) return "Без даты";
+  if (!dateKey) return 'Без даты';
   try {
-    return new Intl.DateTimeFormat("ru-RU", {
-      weekday: "short",
-      day: "numeric",
-      month: "long",
+    return new Intl.DateTimeFormat('ru-RU', {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'long',
     }).format(new Date(dateKey));
   } catch {
     return dateKey;
@@ -30,11 +33,11 @@ function formatDateKeyLabel(dateKey: string): string {
 
 function groupByDateKey(
   rows: AppointmentRow[],
-  order: "asc" | "desc",
+  order: 'asc' | 'desc',
 ): Array<{ dateKey: string; rows: AppointmentRow[] }> {
   const map = new Map<string, AppointmentRow[]>();
   for (const row of rows) {
-    const key = row.dateKey || "";
+    const key = row.dateKey || '';
     const existing = map.get(key);
     if (existing) {
       existing.push(row);
@@ -51,7 +54,7 @@ function groupByDateKey(
     if (!a.dateKey) return 1;
     if (!b.dateKey) return -1;
     const cmp = a.dateKey < b.dateKey ? -1 : a.dateKey > b.dateKey ? 1 : 0;
-    return order === "desc" ? -cmp : cmp;
+    return order === 'desc' ? -cmp : cmp;
   });
   return groups;
 }
@@ -62,10 +65,10 @@ export function DoctorAppointmentsListClient({ appointments, view }: Props) {
   const [archiveRows, setArchiveRows] = useState<AppointmentRow[]>(appointments);
   const [archiveOffset, setArchiveOffset] = useState(appointments.length);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [hasMore, setHasMore] = useState(view === "past" && appointments.length >= 50);
+  const [hasMore, setHasMore] = useState(view === 'past' && appointments.length >= 50);
 
-  const displayRows = view === "past" ? archiveRows : appointments;
-  const groups = groupByDateKey(displayRows, view === "past" ? "desc" : "asc");
+  const displayRows = view === 'past' ? archiveRows : appointments;
+  const groups = groupByDateKey(displayRows, view === 'past' ? 'desc' : 'asc');
 
   async function loadMore() {
     setLoadingMore(true);
@@ -89,7 +92,7 @@ export function DoctorAppointmentsListClient({ appointments, view }: Props) {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2">
-        {view === "future" ? (
+        {view === 'future' ? (
           <>
             <span className="text-sm font-medium">Будущие</span>
             <Link
@@ -114,7 +117,7 @@ export function DoctorAppointmentsListClient({ appointments, view }: Props) {
 
       {groups.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          {view === "future" ? "Нет предстоящих записей." : "Нет прошедших записей."}
+          {view === 'future' ? 'Нет предстоящих записей.' : 'Нет прошедших записей.'}
         </p>
       ) : (
         <div className="space-y-4">
@@ -125,23 +128,24 @@ export function DoctorAppointmentsListClient({ appointments, view }: Props) {
               </p>
               <ul className="m-0 list-none space-y-2 p-0">
                 {rows.map((a) => (
-                  <li
-                    key={a.id}
-                    className={doctorSectionCardClass}
-                    style={{ cursor: "pointer" }}
-                  >
+                  <li key={a.id} className={doctorSectionCardClass} style={{ cursor: 'pointer' }}>
                     <Button
                       type="button"
                       variant="ghost"
-                      className={cn(doctorInteractiveSurfaceButtonClass, "w-full justify-start text-left")}
+                      className={cn(
+                        doctorInteractiveSurfaceButtonClass,
+                        'w-full justify-start text-left',
+                      )}
                       onClick={() => setExpandedId((prev) => (prev === a.id ? null : a.id))}
                     >
                       <div className="flex flex-col gap-1">
                         {a.scheduleProvenancePrefix ? (
-                          <p className="text-xs text-muted-foreground">{a.scheduleProvenancePrefix}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {a.scheduleProvenancePrefix}
+                          </p>
                         ) : null}
                         <span className="text-sm">
-                          {a.time} — {a.clientLabel}{" "}
+                          {a.time} — {a.clientLabel}{' '}
                           {a.packageUsageRef || a.packageTitle ? (
                             <span
                               className="mr-1 inline-flex items-center rounded-md border border-violet-500/30 bg-violet-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-violet-900"
@@ -150,7 +154,9 @@ export function DoctorAppointmentsListClient({ appointments, view }: Props) {
                               {formatPatientPackageShortLabel(a.packageDisplayNumber)}
                             </span>
                           ) : null}
-                          <span className="text-muted-foreground">({a.type}, {a.status})</span>
+                          <span className="text-muted-foreground">
+                            ({a.type}, {a.status})
+                          </span>
                         </span>
                         {a.branchName ? (
                           <span className="text-xs text-muted-foreground">{a.branchName}</span>
@@ -177,15 +183,9 @@ export function DoctorAppointmentsListClient({ appointments, view }: Props) {
         </div>
       )}
 
-      {view === "past" && hasMore ? (
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={loadingMore}
-          onClick={loadMore}
-        >
-          {loadingMore ? "Загрузка..." : "Загрузить ещё"}
+      {view === 'past' && hasMore ? (
+        <Button type="button" variant="outline" size="sm" disabled={loadingMore} onClick={loadMore}>
+          {loadingMore ? 'Загрузка...' : 'Загрузить ещё'}
         </Button>
       ) : null}
     </div>

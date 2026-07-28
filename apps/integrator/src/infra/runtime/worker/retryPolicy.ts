@@ -9,9 +9,10 @@ export function decideRetry(input: {
   nowIso: string;
   retryDelaySeconds: number;
 }): RetryDecision {
-  const attemptsMade = typeof input.job.attemptsMade === 'number'
-    ? Math.max(0, Math.trunc(input.job.attemptsMade))
-    : Math.max(0, Math.trunc(input.job.attempts));
+  const attemptsMade =
+    typeof input.job.attemptsMade === 'number'
+      ? Math.max(0, Math.trunc(input.job.attemptsMade))
+      : Math.max(0, Math.trunc(input.job.attempts));
   const nextAttempts = attemptsMade + 1;
   const maxAttempts = input.job.retry?.maxAttempts ?? input.job.maxAttempts;
   if (nextAttempts >= maxAttempts) {
@@ -20,9 +21,10 @@ export function decideRetry(input: {
 
   const backoff = input.job.retry?.backoffSeconds?.[attemptsMade];
   const nowMs = Date.parse(input.nowIso);
-  const delaySeconds = typeof backoff === 'number' && Number.isFinite(backoff)
-    ? Math.max(0, Math.trunc(backoff))
-    : Math.max(0, Math.trunc(input.retryDelaySeconds));
+  const delaySeconds =
+    typeof backoff === 'number' && Number.isFinite(backoff)
+      ? Math.max(0, Math.trunc(backoff))
+      : Math.max(0, Math.trunc(input.retryDelaySeconds));
   const delayMs = delaySeconds * 1000;
   return {
     kind: 'retry',

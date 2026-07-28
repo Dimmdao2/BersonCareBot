@@ -16,7 +16,7 @@ export type ReferenceItemDto = {
  * way out and no error surfaced to the user.
  */
 export async function loadReferenceItems(categoryCode: string): Promise<ReferenceItemDto[]> {
-  if (typeof window === "undefined") return [];
+  if (typeof window === 'undefined') return [];
   try {
     const res = await fetch(`/api/doctor/references/${encodeURIComponent(categoryCode)}`);
     if (!res.ok) return [];

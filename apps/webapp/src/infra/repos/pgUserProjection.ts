@@ -2,24 +2,31 @@
  * Wave 3 phase 14B + R0/S3R — projection transactions go through `withPoolTransaction`.
  * Domain SQL — `runWebappPgText` / `getWebappSqlFromPgClient`.
  */
-import { getPool } from "@/infra/db/client";
-import { withPoolTransaction } from "@/infra/db/withClient";
-import { nullableToIsoStringSafe, toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
-import { getWebappSqlFromPgClient, runWebappPgText } from "@/infra/db/runWebappSql";
-import { findCanonicalUserIdByChannelBinding } from "@/infra/repos/pgCanonicalPlatformUser";
-import { MergeConflictError, MergeDependentConflictError } from "@/infra/repos/platformUserMergeErrors";
-import { mergePlatformUsersInTransaction, pickMergeTargetId, enrichPickMergeCandidatesWithBookingCounts } from "@/infra/repos/pgPlatformUserMerge";
+import { getPool } from '@/infra/db/client';
+import { withPoolTransaction } from '@/infra/db/withClient';
+import { nullableToIsoStringSafe, toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
+import { getWebappSqlFromPgClient, runWebappPgText } from '@/infra/db/runWebappSql';
+import { findCanonicalUserIdByChannelBinding } from '@/infra/repos/pgCanonicalPlatformUser';
+import {
+  MergeConflictError,
+  MergeDependentConflictError,
+} from '@/infra/repos/platformUserMergeErrors';
+import {
+  mergePlatformUsersInTransaction,
+  pickMergeTargetId,
+  enrichPickMergeCandidatesWithBookingCounts,
+} from '@/infra/repos/pgPlatformUserMerge';
 import {
   TrustedPatientPhoneSource,
   trustedPatientPhoneWriteAnchor,
-} from "@/modules/platform-access/trustedPhonePolicy";
-import type { PoolClient } from "pg";
-import { upsertBroadcastDefaultsAfterChannelBind } from "@/infra/upsertBroadcastDefaultsAfterChannelBind";
-import { applyPlatformUserPhoneHistoryTransition } from "@/infra/repos/pgPhoneHistory";
+} from '@/modules/platform-access/trustedPhonePolicy';
+import type { PoolClient } from 'pg';
+import { upsertBroadcastDefaultsAfterChannelBind } from '@/infra/upsertBroadcastDefaultsAfterChannelBind';
+import { applyPlatformUserPhoneHistoryTransition } from '@/infra/repos/pgPhoneHistory';
 import {
   findPlatformUserIdWithEmailConflict,
   findPlatformUserIdWithPhoneConflict,
-} from "@/infra/repos/pgAdminClientProfileConflicts";
+} from '@/infra/repos/pgAdminClientProfileConflicts';
 
 function txPgText<T = unknown>(
   client: PoolClient,
@@ -38,7 +45,7 @@ function deferPlatformUserUniqueConstraints(client: PoolClient) {
 
 class PatchAdminClientProfileNoRowsError extends Error {
   constructor() {
-    super("patch_admin_client_profile_no_rows");
+    super('patch_admin_client_profile_no_rows');
   }
 }
 
@@ -78,7 +85,7 @@ export type UserProjectionPort = {
   /** Сброс email у своего аккаунта врача/админа (`role IN ('doctor','admin')`). */
   clearStaffAccountEmail: (
     platformUserId: string,
-  ) => Promise<{ ok: true } | { ok: false; reason: "not_found_or_not_staff" | "already_empty" }>;
+  ) => Promise<{ ok: true } | { ok: false; reason: 'not_found_or_not_staff' | 'already_empty' }>;
   /**
    * Admin (webapp): правка ФИО/email/телефона канонического клиента по `platform_users.id`.
    * Только `role = client`, `merged_into_id IS NULL`. Смена email сбрасывает верификацию при изменении значения.
@@ -91,8 +98,13 @@ export type UserProjectionPort = {
       email?: string | null;
       phoneNormalized?: string | null;
     };
-  }) => Promise<{ ok: true } | { ok: false; reason: "nothing_to_update" | "not_found_or_not_client" }>;
-  findPlatformUserIdWithEmailConflict: (canonicalId: string, email: string) => Promise<string | null>;
+  }) => Promise<
+    { ok: true } | { ok: false; reason: 'nothing_to_update' | 'not_found_or_not_client' }
+  >;
+  findPlatformUserIdWithEmailConflict: (
+    canonicalId: string,
+    email: string,
+  ) => Promise<string | null>;
   findPlatformUserIdWithPhoneConflict: (
     canonicalId: string,
     phoneNormalized: string,
@@ -128,7 +140,7 @@ async function loadPuRow(client: PoolClient, id: string): Promise<PuRow | null> 
 export async function mergeCanonicalPlatformUserCandidates(
   client: PoolClient,
   candidateIds: string[],
-  reason: "projection" | "phone_bind",
+  reason: 'projection' | 'phone_bind',
 ): Promise<string> {
   return mergeCandidates(client, candidateIds, reason);
 }
@@ -136,10 +148,10 @@ export async function mergeCanonicalPlatformUserCandidates(
 async function mergeCandidates(
   client: PoolClient,
   candidateIds: string[],
-  reason: "projection" | "phone_bind",
+  reason: 'projection' | 'phone_bind',
 ): Promise<string> {
   const uniq = [...new Set(candidateIds)].filter(Boolean);
-  if (uniq.length === 0) throw new MergeConflictError("mergeCandidates: empty", candidateIds);
+  if (uniq.length === 0) throw new MergeConflictError('mergeCandidates: empty', candidateIds);
   if (uniq.length === 1) return uniq[0]!;
   let ids = [...uniq].sort();
   while (ids.length > 1) {
@@ -147,7 +159,7 @@ async function mergeCandidates(
     const id1 = ids[1]!;
     const a = await loadPuRow(client, id0);
     const b = await loadPuRow(client, id1);
-    if (!a || !b) throw new MergeConflictError("mergeCandidates: row missing", ids);
+    if (!a || !b) throw new MergeConflictError('mergeCandidates: row missing', ids);
     const [ea, eb] = await enrichPickMergeCandidatesWithBookingCounts(client, a, b);
     const { target, duplicate } = pickMergeTargetId(ea, eb);
     try {
@@ -179,7 +191,11 @@ async function collectCandidateIds(
      LIMIT 3`,
     [params.integratorUserId],
   );
-  if (byInt.rows.length > 1) throw new MergeConflictError("ambiguous integrator_user_id match", byInt.rows.map(r => r.id));
+  if (byInt.rows.length > 1)
+    throw new MergeConflictError(
+      'ambiguous integrator_user_id match',
+      byInt.rows.map((r) => r.id),
+    );
   if (byInt.rows[0]) ids.push(byInt.rows[0].id);
   // Phone match is intentional for signed integrator webhook: payload asserts this user owns the number
   // (may merge a row without patient_phone_trust_at; UPDATE path then sets trust when phone is supplied).
@@ -191,11 +207,19 @@ async function collectCandidateIds(
        LIMIT 3`,
       [params.phoneNormalized],
     );
-    if (byPhone.rows.length > 1) throw new MergeConflictError("ambiguous phone_normalized match", byPhone.rows.map(r => r.id));
+    if (byPhone.rows.length > 1)
+      throw new MergeConflictError(
+        'ambiguous phone_normalized match',
+        byPhone.rows.map((r) => r.id),
+      );
     if (byPhone.rows[0]) ids.push(byPhone.rows[0].id);
   }
   if (params.channelCode && params.externalId) {
-    const ch = await findCanonicalUserIdByChannelBinding(client, params.channelCode, params.externalId);
+    const ch = await findCanonicalUserIdByChannelBinding(
+      client,
+      params.channelCode,
+      params.externalId,
+    );
     if (ch) ids.push(ch);
   }
   return [...new Set(ids)];
@@ -224,7 +248,7 @@ async function upsertFromProjectionTx(
   let userId: string;
 
   if (candidateIds.length === 0) {
-    const displayName = params.displayName ?? "";
+    const displayName = params.displayName ?? '';
     const ins = await txPgText<{ id: string }>(
       client,
       `INSERT INTO platform_users (
@@ -246,7 +270,7 @@ async function upsertFromProjectionTx(
     );
     userId = ins.rows[0]!.id;
   } else {
-    userId = await mergeCandidates(client, candidateIds, "projection");
+    userId = await mergeCandidates(client, candidateIds, 'projection');
     await txPgText(
       client,
       `UPDATE platform_users SET
@@ -353,19 +377,19 @@ export const pgUserProjectionPort: UserProjectionPort = {
     await withPoolTransaction(pool, async (client) => {
       await txPgText(
         client,
-        "UPDATE platform_users SET phone_normalized = $1, patient_phone_trust_at = now(), updated_at = now() WHERE id = $2",
+        'UPDATE platform_users SET phone_normalized = $1, patient_phone_trust_at = now(), updated_at = now() WHERE id = $2',
         [phoneNormalized, platformUserId],
       );
       await applyPlatformUserPhoneHistoryTransition(client, {
         platformUserId,
         newPhoneNormalized: phoneNormalized,
-        source: "projection",
+        source: 'projection',
       });
     });
   },
 
   async updateProfileByPhone(params) {
-    const sets: string[] = ["updated_at = now()"];
+    const sets: string[] = ['updated_at = now()'];
     const vals: unknown[] = [];
     let idx = 0;
     if (params.firstName !== undefined) {
@@ -383,7 +407,7 @@ export const pgUserProjectionPort: UserProjectionPort = {
     if (vals.length === 0) return;
     vals.push(params.phoneNormalized);
     await runWebappPgText(
-      `UPDATE platform_users SET ${sets.join(", ")}
+      `UPDATE platform_users SET ${sets.join(', ')}
        WHERE phone_normalized = $${idx + 1} AND merged_into_id IS NULL`,
       vals,
     );
@@ -420,10 +444,10 @@ export const pgUserProjectionPort: UserProjectionPort = {
   },
 
   async getProfileEmailFields(platformUserId) {
-    const result = await runWebappPgText<{ email: string | null; email_verified_at: Date | string | null }>(
-      "SELECT email, email_verified_at FROM platform_users WHERE id = $1",
-      [platformUserId],
-    );
+    const result = await runWebappPgText<{
+      email: string | null;
+      email_verified_at: Date | string | null;
+    }>('SELECT email, email_verified_at FROM platform_users WHERE id = $1', [platformUserId]);
     if (result.rows.length === 0) {
       return { email: null, emailVerifiedAt: null };
     }
@@ -441,11 +465,11 @@ export const pgUserProjectionPort: UserProjectionPort = {
       [platformUserId],
     );
     if (current.rows.length === 0) {
-      return { ok: false as const, reason: "not_found_or_not_staff" as const };
+      return { ok: false as const, reason: 'not_found_or_not_staff' as const };
     }
     const email = current.rows[0]?.email;
-    if (email == null || email.trim() === "") {
-      return { ok: false as const, reason: "already_empty" as const };
+    if (email == null || email.trim() === '') {
+      return { ok: false as const, reason: 'already_empty' as const };
     }
     await runWebappPgText(
       `UPDATE platform_users
@@ -458,11 +482,11 @@ export const pgUserProjectionPort: UserProjectionPort = {
 
   async patchAdminClientProfile({ platformUserId, patch }) {
     const pool = getPool();
-    const sets: string[] = ["updated_at = now()"];
+    const sets: string[] = ['updated_at = now()'];
     const vals: unknown[] = [];
     let n = 0;
-    let firstNameExpr = "first_name";
-    let lastNameExpr = "last_name";
+    let firstNameExpr = 'first_name';
+    let lastNameExpr = 'last_name';
 
     if (patch.firstName !== undefined) {
       n += 1;
@@ -517,7 +541,7 @@ export const pgUserProjectionPort: UserProjectionPort = {
     }
 
     if (sets.length === 1) {
-      return { ok: false as const, reason: "nothing_to_update" as const };
+      return { ok: false as const, reason: 'nothing_to_update' as const };
     }
 
     n += 1;
@@ -528,7 +552,7 @@ export const pgUserProjectionPort: UserProjectionPort = {
       return await withPoolTransaction(pool, async (client) => {
         const result = await txPgText(
           client,
-          `UPDATE platform_users SET ${sets.join(", ")}
+          `UPDATE platform_users SET ${sets.join(', ')}
            WHERE id = $${idPlaceholder}::uuid AND role = 'client' AND merged_into_id IS NULL`,
           vals,
         );
@@ -545,7 +569,7 @@ export const pgUserProjectionPort: UserProjectionPort = {
           await applyPlatformUserPhoneHistoryTransition(client, {
             platformUserId,
             newPhoneNormalized: pn,
-            source: "admin",
+            source: 'admin',
           });
         }
 
@@ -553,7 +577,7 @@ export const pgUserProjectionPort: UserProjectionPort = {
       });
     } catch (e) {
       if (e instanceof PatchAdminClientProfileNoRowsError) {
-        return { ok: false as const, reason: "not_found_or_not_client" as const };
+        return { ok: false as const, reason: 'not_found_or_not_client' as const };
       }
       throw e;
     }
@@ -569,7 +593,7 @@ export const pgUserProjectionPort: UserProjectionPort = {
 };
 
 export const inMemoryUserProjectionPort: UserProjectionPort = {
-  upsertFromProjection: async () => ({ platformUserId: "" }),
+  upsertFromProjection: async () => ({ platformUserId: '' }),
   findByIntegratorId: async () => null,
   findByPhoneNormalized: async () => null,
   updatePhone: async () => {},

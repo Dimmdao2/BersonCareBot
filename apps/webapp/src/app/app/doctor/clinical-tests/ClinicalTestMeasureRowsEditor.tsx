@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   DndContext,
   KeyboardSensor,
@@ -9,21 +9,24 @@ import {
   useSensor,
   useSensors,
   type DragEndEvent,
-} from "@dnd-kit/core";
+} from '@dnd-kit/core';
 import {
   SortableContext,
   arrayMove,
   sortableKeyboardCoordinates,
   useSortable,
   verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
-import { GripVertical } from "lucide-react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { Label } from "@/shared/ui/doctor/primitives/label";
-import { CreatableComboboxInput, type CreatableComboboxItem } from "@/shared/ui/doctor/CreatableComboboxInput";
-import { MEASURE_KINDS_CATALOG_CHANGED_EVENT } from "@/modules/tests/measureKindsClientEvent";
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { GripVertical } from 'lucide-react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { Label } from '@/shared/ui/doctor/primitives/label';
+import {
+  CreatableComboboxInput,
+  type CreatableComboboxItem,
+} from '@/shared/ui/doctor/CreatableComboboxInput';
+import { MEASURE_KINDS_CATALOG_CHANGED_EVENT } from '@/modules/tests/measureKindsClientEvent';
 
 export type ClinicalTestMeasureRowModel = {
   id: string;
@@ -57,11 +60,7 @@ function SortableMeasureRow({
   );
 
   return (
-    <li
-      ref={setNodeRef}
-      style={style}
-      className="space-y-2 rounded-md border border-border/60 p-3"
-    >
+    <li ref={setNodeRef} style={style} className="space-y-2 rounded-md border border-border/60 p-3">
       <div className="flex items-center justify-between gap-2">
         <Button
           type="button"
@@ -92,7 +91,7 @@ function SortableMeasureRow({
           <CreatableComboboxInput
             items={kindItems}
             value={row.measureKind || null}
-            onChange={(v) => patch({ measureKind: v ?? "" })}
+            onChange={(v) => patch({ measureKind: v ?? '' })}
             onCreate={onCreate}
             disabled={disabled}
             placeholder="Выберите или создайте…"
@@ -153,12 +152,12 @@ export function ClinicalTestMeasureRowsEditor({
     setLoadError(null);
     const run = async () => {
       try {
-        const res = await fetch("/api/doctor/measure-kinds");
+        const res = await fetch('/api/doctor/measure-kinds');
         let data: unknown;
         try {
           data = await res.json();
         } catch {
-          throw new Error("Некорректный ответ сервера");
+          throw new Error('Некорректный ответ сервера');
         }
         const d = data as {
           ok?: boolean;
@@ -169,20 +168,20 @@ export function ClinicalTestMeasureRowsEditor({
           throw new Error(d.error ?? `Ошибка загрузки (${res.status})`);
         }
         if (!d.ok || !Array.isArray(d.items)) {
-          throw new Error(d.error ?? "Справочник видов измерений недоступен");
+          throw new Error(d.error ?? 'Справочник видов измерений недоступен');
         }
         if (cancelled) return;
         setKindItems(
           [...d.items]
             .sort(
               (a, b) =>
-                (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.label.localeCompare(b.label, "ru"),
+                (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.label.localeCompare(b.label, 'ru'),
             )
             .map((it) => ({ value: it.code, label: it.label })),
         );
       } catch (e) {
         if (cancelled) return;
-        const msg = e instanceof Error ? e.message : "Не удалось загрузить виды измерений";
+        const msg = e instanceof Error ? e.message : 'Не удалось загрузить виды измерений';
         setLoadError(msg);
         setKindItems([]);
       }
@@ -200,14 +199,18 @@ export function ClinicalTestMeasureRowsEditor({
   }, []);
 
   const onCreate = useCallback(async (label: string) => {
-    const res = await fetch("/api/doctor/measure-kinds", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+    const res = await fetch('/api/doctor/measure-kinds', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ label }),
     });
-    const data = (await res.json()) as { ok?: boolean; item?: { code: string; label: string }; error?: string };
+    const data = (await res.json()) as {
+      ok?: boolean;
+      item?: { code: string; label: string };
+      error?: string;
+    };
     if (!res.ok || !data.ok || !data.item) {
-      throw new Error(data.error ?? "Ошибка создания вида измерения");
+      throw new Error(data.error ?? 'Ошибка создания вида измерения');
     }
     const next: CreatableComboboxItem = { value: data.item.code, label: data.item.label };
     setReloadToken((t) => t + 1);
@@ -217,7 +220,7 @@ export function ClinicalTestMeasureRowsEditor({
   const addRow = () =>
     setRows((prev) => [
       ...prev,
-      { id: crypto.randomUUID(), measureKind: "", value: "", unit: "", comment: "" },
+      { id: crypto.randomUUID(), measureKind: '', value: '', unit: '', comment: '' },
     ]);
 
   const onDragEnd = (event: DragEndEvent) => {

@@ -11,7 +11,10 @@ export type OperatorJobFailureDigestRow = {
 
 export type OperatorHealthDigestReadPort = {
   countAuditErrorsInWindow(windowStartIso: string, windowEndIso: string): Promise<number>;
-  hadOperatorIncidentsResolveAllInWindow(windowStartIso: string, windowEndIso: string): Promise<boolean>;
+  hadOperatorIncidentsResolveAllInWindow(
+    windowStartIso: string,
+    windowEndIso: string,
+  ): Promise<boolean>;
   listIncidentsOpenedInWindow(
     windowStartIso: string,
     windowEndIso: string,

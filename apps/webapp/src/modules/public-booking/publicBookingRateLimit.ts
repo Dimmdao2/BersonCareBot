@@ -21,45 +21,47 @@
  * per-caller behaviour of the limit was untestable. It now falls back through `X-Forwarded-For`
  * before reaching the shared literal, and production still fails closed on a missing header.
  */
-import { env } from "@/config/env";
+import { env } from '@/config/env';
 import {
   isPublicBookingCreateRateLimited as isPublicBookingCreateRateLimitedCore,
   isPublicBookingConfirmRateLimited as isPublicBookingConfirmRateLimitedCore,
-} from "@/modules/auth/authRateLimits";
-import { logger } from "@/infra/logging/logger";
+} from '@/modules/auth/authRateLimits';
+import { logger } from '@/infra/logging/logger';
 
-const SCOPE = "booking.public_create";
+const SCOPE = 'booking.public_create';
 
 export const PUBLIC_BOOKING_RATE_LIMIT_SEC = 3600;
 export const PUBLIC_BOOKING_CONFIRM_RATE_LIMIT_SEC = 600;
-export const PUBLIC_BOOKING_FALLBACK_CLIENT_KEY = "public_booking:missing_x_real_ip";
+export const PUBLIC_BOOKING_FALLBACK_CLIENT_KEY = 'public_booking:missing_x_real_ip';
 
 export type PublicBookingRateLimitKeyResult =
   | { ok: true; key: string }
-  | { ok: false; reason: "missing_x_real_ip" };
+  | { ok: false; reason: 'missing_x_real_ip' };
 
 /** First hop of `X-Forwarded-For`, which is the client as seen by the outermost proxy. */
 function firstForwardedFor(request: Request): string | null {
-  const raw = request.headers.get("x-forwarded-for");
+  const raw = request.headers.get('x-forwarded-for');
   if (!raw) return null;
-  const first = raw.split(",")[0]?.trim();
+  const first = raw.split(',')[0]?.trim();
   return first && first.length > 0 ? first : null;
 }
 
-export function resolvePublicBookingRateLimitClientKey(request: Request): PublicBookingRateLimitKeyResult {
-  const real = request.headers.get("x-real-ip")?.trim();
+export function resolvePublicBookingRateLimitClientKey(
+  request: Request,
+): PublicBookingRateLimitKeyResult {
+  const real = request.headers.get('x-real-ip')?.trim();
   if (real && real.length > 0) {
     return { ok: true, key: real };
   }
-  if (env.NODE_ENV === "production") {
-    logger.error({ msg: "public_booking_x_real_ip_required", scope: SCOPE });
-    return { ok: false, reason: "missing_x_real_ip" };
+  if (env.NODE_ENV === 'production') {
+    logger.error({ msg: 'public_booking_x_real_ip_required', scope: SCOPE });
+    return { ok: false, reason: 'missing_x_real_ip' };
   }
   const forwarded = firstForwardedFor(request);
   if (forwarded) {
     return { ok: true, key: `xff:${forwarded}` };
   }
-  logger.debug({ msg: "public_booking_missing_x_real_ip", scope: SCOPE });
+  logger.debug({ msg: 'public_booking_missing_x_real_ip', scope: SCOPE });
   return { ok: true, key: PUBLIC_BOOKING_FALLBACK_CLIENT_KEY };
 }
 

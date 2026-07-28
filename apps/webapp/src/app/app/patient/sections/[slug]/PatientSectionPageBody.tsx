@@ -1,9 +1,9 @@
-import { cn } from "@/lib/utils";
-import { FeatureCard } from "@/shared/ui/patient/FeatureCard";
-import { patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
-import { PatientSectionSubscriptionCallout } from "../PatientSectionSubscriptionCallout";
-import type { getSubscriptionCarouselSectionPresentation } from "@/modules/patient-home/patientHomeResolvers";
-import type { ContentPageRow } from "@/infra/repos/pgContentPages";
+import { cn } from '@/lib/utils';
+import { FeatureCard } from '@/shared/ui/patient/FeatureCard';
+import { patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
+import { PatientSectionSubscriptionCallout } from '../PatientSectionSubscriptionCallout';
+import type { getSubscriptionCarouselSectionPresentation } from '@/modules/patient-home/patientHomeResolvers';
+import type { ContentPageRow } from '@/infra/repos/pgContentPages';
 
 type SubscriptionPresentation = ReturnType<typeof getSubscriptionCarouselSectionPresentation>;
 
@@ -33,13 +33,15 @@ export function PatientSectionPageBody({
             href={`/app/patient/content/${p.slug}`}
             compact
             secondaryHref={
-              p.linkedCourseId?.trim() ? courseHighlightByLinkedId.get(p.linkedCourseId.trim()) : undefined
+              p.linkedCourseId?.trim()
+                ? courseHighlightByLinkedId.get(p.linkedCourseId.trim())
+                : undefined
             }
           />
         ))}
       </section>
       {pages.length === 0 ? (
-        <p className={cn(patientMutedTextClass, "mt-4")}>В этом разделе пока нет материалов.</p>
+        <p className={cn(patientMutedTextClass, 'mt-4')}>В этом разделе пока нет материалов.</p>
       ) : null}
     </>
   );

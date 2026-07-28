@@ -11,22 +11,19 @@
  *
  * Auth: Basic (TerminalKey:SecretKey) via ShopId/ApiKey convention.
  */
-import { createHash, timingSafeEqual } from "node:crypto";
-import type { PaymentProviderPort } from "@/modules/payments/providerPort";
-import type { PaymentProviderConfig } from "@/modules/payments/types";
-import {
-  fetchWithTimeout,
-  PAYMENT_PROVIDER_FETCH_TIMEOUT_MS,
-} from "@/shared/lib/externalFetch";
+import { createHash, timingSafeEqual } from 'node:crypto';
+import type { PaymentProviderPort } from '@/modules/payments/providerPort';
+import type { PaymentProviderConfig } from '@/modules/payments/types';
+import { fetchWithTimeout, PAYMENT_PROVIDER_FETCH_TIMEOUT_MS } from '@/shared/lib/externalFetch';
 
 function requireTinkoffCredentials(config?: PaymentProviderConfig): {
   terminalKey: string;
   password: string;
 } {
   // terminalKey can be stored in either terminalKey or shopId (both parsed); password in apiKey.
-  const terminalKey = (config?.terminalKey ?? config?.shopId ?? "").trim();
-  const password = (config?.apiKey ?? "").trim();
-  if (!terminalKey || !password) throw new Error("tinkoff_credentials_missing");
+  const terminalKey = (config?.terminalKey ?? config?.shopId ?? '').trim();
+  const password = (config?.apiKey ?? '').trim();
+  if (!terminalKey || !password) throw new Error('tinkoff_credentials_missing');
   return { terminalKey, password };
 }
 
@@ -41,76 +38,67 @@ function requireTinkoffCredentials(config?: PaymentProviderConfig): {
  *  4. Concatenate values (cast to string).
  *  5. SHA-256 of the concatenated string (hex).
  */
-export function computeTinkoffToken(
-  params: Record<string, unknown>,
-  password: string,
-): string {
+export function computeTinkoffToken(params: Record<string, unknown>, password: string): string {
   const merged: Record<string, unknown> = { ...params, Password: password };
-  delete merged["Token"];
+  delete merged['Token'];
   const sorted = Object.keys(merged)
     .sort()
-    .map((k) => String(merged[k] ?? ""))
-    .join("");
-  return createHash("sha256").update(sorted).digest("hex");
+    .map((k) => String(merged[k] ?? ''))
+    .join('');
+  return createHash('sha256').update(sorted).digest('hex');
 }
 
 function inspectTinkoffWebhook(bodyText: string) {
   const payload = JSON.parse(bodyText) as Record<string, unknown>;
-  const paymentId = String(payload["PaymentId"] ?? "");
-  const orderId = String(payload["OrderId"] ?? "");
-  const status = String(payload["Status"] ?? "");
-  const amountRaw = payload["Amount"];
+  const paymentId = String(payload['PaymentId'] ?? '');
+  const orderId = String(payload['OrderId'] ?? '');
+  const status = String(payload['Status'] ?? '');
+  const amountRaw = payload['Amount'];
   const amountMinor =
     amountRaw != null && !Number.isNaN(Number(amountRaw))
       ? Math.round(Number(amountRaw))
       : undefined;
   const idempotencyKey = orderId || paymentId;
   const eventType =
-    status === "CONFIRMED"
-      ? "payment.succeeded"
-      : status === "REFUNDED" || status === "PARTIAL_REFUNDED"
-        ? "payment.refunded"
+    status === 'CONFIRMED'
+      ? 'payment.succeeded'
+      : status === 'REFUNDED' || status === 'PARTIAL_REFUNDED'
+        ? 'payment.refunded'
         : `tinkoff.${status.toLowerCase()}`;
-  if (!idempotencyKey || !status) throw new Error("invalid_webhook_payload");
+  if (!idempotencyKey || !status) throw new Error('invalid_webhook_payload');
   return { idempotencyKey, eventType, payload, intentRef: paymentId, amountMinor };
 }
 
 export function createTinkoffPaymentProvider(): PaymentProviderPort {
   return {
-    async createIntent({
-      amountMinor,
-      currency,
-      idempotencyKey,
-      metadata,
-      providerConfig,
-    }) {
+    async createIntent({ amountMinor, currency, idempotencyKey, metadata, providerConfig }) {
       const { terminalKey, password } = requireTinkoffCredentials(providerConfig);
       const returnUrl =
-        typeof metadata.returnUrl === "string" && metadata.returnUrl.trim()
+        typeof metadata.returnUrl === 'string' && metadata.returnUrl.trim()
           ? metadata.returnUrl.trim()
-          : "https://www.tbank.ru";
+          : 'https://www.tbank.ru';
 
       const params: Record<string, unknown> = {
         TerminalKey: terminalKey,
         Amount: amountMinor, // Tinkoff uses kopecks (minor units) — matches our convention
         OrderId: idempotencyKey,
-        Description: typeof metadata.description === "string" ? metadata.description : undefined,
+        Description: typeof metadata.description === 'string' ? metadata.description : undefined,
         SuccessURL: returnUrl,
         DATA: { idempotencyKey, ...metadata },
       };
       const token = computeTinkoffToken(params, password);
 
       const body = await fetchWithTimeout(
-        "https://securepay.tinkoff.ru/v2/Init",
+        'https://securepay.tinkoff.ru/v2/Init',
         {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ ...params, Token: token }),
         },
         { timeoutMs: PAYMENT_PROVIDER_FETCH_TIMEOUT_MS },
         async (res) => {
           if (!res.ok) {
-            const text = await res.text().catch(() => "");
+            const text = await res.text().catch(() => '');
             throw new Error(`tinkoff_create_failed:${res.status}:${text.slice(0, 200)}`);
           }
           return (await res.json()) as {
@@ -123,11 +111,11 @@ export function createTinkoffPaymentProvider(): PaymentProviderPort {
       );
 
       if (!body.Success) {
-        throw new Error(`tinkoff_create_error:${body.Message ?? "unknown"}`);
+        throw new Error(`tinkoff_create_error:${body.Message ?? 'unknown'}`);
       }
 
-      const providerIntentRef = String(body.PaymentId ?? "");
-      if (!providerIntentRef) throw new Error("tinkoff_missing_payment_id");
+      const providerIntentRef = String(body.PaymentId ?? '');
+      if (!providerIntentRef) throw new Error('tinkoff_missing_payment_id');
 
       return {
         providerIntentRef,
@@ -135,12 +123,7 @@ export function createTinkoffPaymentProvider(): PaymentProviderPort {
       };
     },
 
-    async refund({
-      providerIntentRef,
-      amountMinor,
-      idempotencyKey,
-      providerConfig,
-    }) {
+    async refund({ providerIntentRef, amountMinor, idempotencyKey, providerConfig }) {
       const { terminalKey, password } = requireTinkoffCredentials(providerConfig);
 
       const params: Record<string, unknown> = {
@@ -151,16 +134,16 @@ export function createTinkoffPaymentProvider(): PaymentProviderPort {
       const token = computeTinkoffToken(params, password);
 
       const body = await fetchWithTimeout(
-        "https://securepay.tinkoff.ru/v2/Cancel",
+        'https://securepay.tinkoff.ru/v2/Cancel',
         {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ ...params, Token: token }),
         },
         { timeoutMs: PAYMENT_PROVIDER_FETCH_TIMEOUT_MS },
         async (res) => {
           if (!res.ok) {
-            const text = await res.text().catch(() => "");
+            const text = await res.text().catch(() => '');
             throw new Error(`tinkoff_refund_failed:${res.status}:${text.slice(0, 200)}`);
           }
           return (await res.json()) as {
@@ -172,7 +155,7 @@ export function createTinkoffPaymentProvider(): PaymentProviderPort {
       );
 
       if (!body.Success) {
-        throw new Error(`tinkoff_refund_error:${body.Message ?? "unknown"}`);
+        throw new Error(`tinkoff_refund_error:${body.Message ?? 'unknown'}`);
       }
 
       return {
@@ -187,14 +170,14 @@ export function createTinkoffPaymentProvider(): PaymentProviderPort {
     verifyWebhook({ bodyText, webhookSecret }) {
       // webhookSecret = Tinkoff terminal password (same as apiKey / password used for Token)
       const payload = JSON.parse(bodyText) as Record<string, unknown>;
-      const incomingToken = String(payload["Token"] ?? "");
-      if (!incomingToken) throw new Error("tinkoff_webhook_missing_token");
+      const incomingToken = String(payload['Token'] ?? '');
+      if (!incomingToken) throw new Error('tinkoff_webhook_missing_token');
 
       const expectedToken = computeTinkoffToken(payload, webhookSecret);
       const a = Buffer.from(incomingToken.toLowerCase());
       const b = Buffer.from(expectedToken.toLowerCase());
       if (a.length !== b.length || !timingSafeEqual(a, b)) {
-        throw new Error("invalid_webhook_signature");
+        throw new Error('invalid_webhook_signature');
       }
 
       return inspectTinkoffWebhook(bodyText);

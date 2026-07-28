@@ -33,7 +33,6 @@ cancelled or superseded work and is excluded from both totals. Detail and eviden
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-
 - [ ] **A-1 (C1) Split the definer owner + policies instead of bypass + a gate.** Owner: «думаю надо делать
       все 1+2+3». Corrected facts: 46 anon-reachable definers, of which only **17** are owned by the
       BYPASSRLS `app_owner`; 28 belong to the DB owner (no BYPASSRLS, 162/209 tables are FORCE RLS); 2 with
@@ -49,19 +48,16 @@ cancelled or superseded work and is excluded from both totals. Detail and eviden
       no row-level protection; that remainder is A-4, and A-1 must not claim credit for it.
       Also verified live: the 2026-07-24 remedy is already in place — `app.provision_specialist_owner` is owned
       by `app_owner` (NOLOGIN, BYPASSRLS, **0 members**, owns exactly the 3 P2-B tables).
-      **Decision — Option C, staged; matches the owner's «все 1+2+3»:**
-      1. **A first, alone (safe default, zero deploy risk):** extend the deploy gate to pin the anon-reachable
-         definer count for `bersoncarebot_test` (28) and `saas_telemetry_owner` (1), plus a required-grant
-         allowlist for the 7 tables — mirroring the existing 27-row `app_owner` VALUES pattern. Purely additive
-         assertion; cannot leave TEST half-configured.
-      2. **Then the owner split:** a narrow `NOLOGIN NOBYPASSRLS` role owns the 28; grant it exactly the 7
-         tables' needed privileges; `system_settings` (the one FORCE-RLS target) gets a **policy**, not bypass.
-         Land **WARN-not-FATAL first**, flip to FATAL after clean deploy cycles — the repo's own precedent
-         (`assert_specialist_owner_provisioning_seam_pinned` started that way), and the guard against repeating
-         the 2026-07-24 mid-deploy outage.
-      3. **Then make the gate structural, not a count:** every anon-reachable definer's owner must be in a
-         reviewed allowlist, and the DB-owner role must own **zero** of them. Pure `pg_catalog` introspection —
-         no AST machinery needed. This closes the gap for FUTURE functions, not just today's 29.
+      **Decision — Option C, staged; matches the owner's «все 1+2+3»:** 1. **A first, alone (safe default, zero deploy risk):** extend the deploy gate to pin the anon-reachable
+      definer count for `bersoncarebot_test` (28) and `saas_telemetry_owner` (1), plus a required-grant
+      allowlist for the 7 tables — mirroring the existing 27-row `app_owner` VALUES pattern. Purely additive
+      assertion; cannot leave TEST half-configured. 2. **Then the owner split:** a narrow `NOLOGIN NOBYPASSRLS` role owns the 28; grant it exactly the 7
+      tables' needed privileges; `system_settings` (the one FORCE-RLS target) gets a **policy**, not bypass.
+      Land **WARN-not-FATAL first**, flip to FATAL after clean deploy cycles — the repo's own precedent
+      (`assert_specialist_owner_provisioning_seam_pinned` started that way), and the guard against repeating
+      the 2026-07-24 mid-deploy outage. 3. **Then make the gate structural, not a count:** every anon-reachable definer's owner must be in a
+      reviewed allowlist, and the DB-owner role must own **zero** of them. Pure `pg_catalog` introspection —
+      no AST machinery needed. This closes the gap for FUTURE functions, not just today's 29.
       Named sources behind the shape (not invented): PostgreSQL `CREATE FUNCTION` on SECURITY DEFINER owner
       privileges and `search_path`; `ddl-rowsecurity` on BYPASSRLS/FORCE and on documented covert channels;
       Supabase's schema-scoped `supabase_auth_admin`; PostgREST's private `basic_auth` schema + scalar-returning
@@ -158,50 +154,50 @@ cancelled or superseded work and is excluded from both totals. Detail and eviden
       dynamic, not statically rendered, so the wrong origin was never frozen beyond the 60 s cache.
 
 - [-] ~~**A-5 first pass, SUPERSEDED — its gate was false assurance.**~~ — ↪️ **ВЫТЕСНЕНО** 27.07:
-      live A-5 is the AST gate in `0f4035e7b` above.
-      The independent auditor kept all four assertions green with a live instance of the bug present, and the
-      headline assertion stayed green when the fix it protects was reverted. Two causes: the establisher regex
-      matches a guard's own DEFINITION site (17 guards live under `src/app`), so merely *importing* a guard
-      satisfies it; and reads through modules outside `src/app` (`configAdapter`, `pgAppRuntimeSettings`) make
-      the page invisible to the census entirely. Also `getOptionalPatientSession` sits in the establisher list
-      but returns `null` and stamps nothing for an anonymous caller. Being repaired; a false gate is worse
-      than no gate.
-      **Two of my own claims here were wrong, corrected by the audit:** (1) the "five public pages" — four of
-      them never touch `system_settings` at all; they read through `app.read_public_runtime_setting`, a
-      definer accessor the anonymous role may execute, under an explicitly declared bootstrap principal, and
-      get the CORRECT value with zero denials. Only the landing genuinely reaches `system_settings`, and the
-      `getConfigValue` chokepoint has 50 call sites across 18 files, so attributing the denial volume to five
-      pages was unfounded. (2) The claim that 26 `api/integrator/*` handlers "express no principal at all" is
-      false — every one of them stamps a bootstrap principal through `assertIntegratorGetRequest` /
-      `verifyIntegratorSignature`. The count is 0, not 26. The consequence (same 42501, same bare login role)
-      is real, but it is deliberate, not accidental — #1008's stated reason must be rewritten.
-      **A real product bug came out of it:** the anonymous landing serves the env fallback instead of the
-      configured `app_base_url`, AND `configAdapter` caches that failure in a process-global map keyed only by
-      setting name — poisoning it for ~60 s for authenticated consumers too: clinic invite links, booking
-      confirmation e-mails, OAuth redirect base. Being fixed with the gate.
+  live A-5 is the AST gate in `0f4035e7b` above.
+  The independent auditor kept all four assertions green with a live instance of the bug present, and the
+  headline assertion stayed green when the fix it protects was reverted. Two causes: the establisher regex
+  matches a guard's own DEFINITION site (17 guards live under `src/app`), so merely _importing_ a guard
+  satisfies it; and reads through modules outside `src/app` (`configAdapter`, `pgAppRuntimeSettings`) make
+  the page invisible to the census entirely. Also `getOptionalPatientSession` sits in the establisher list
+  but returns `null` and stamps nothing for an anonymous caller. Being repaired; a false gate is worse
+  than no gate.
+  **Two of my own claims here were wrong, corrected by the audit:** (1) the "five public pages" — four of
+  them never touch `system_settings` at all; they read through `app.read_public_runtime_setting`, a
+  definer accessor the anonymous role may execute, under an explicitly declared bootstrap principal, and
+  get the CORRECT value with zero denials. Only the landing genuinely reaches `system_settings`, and the
+  `getConfigValue` chokepoint has 50 call sites across 18 files, so attributing the denial volume to five
+  pages was unfounded. (2) The claim that 26 `api/integrator/*` handlers "express no principal at all" is
+  false — every one of them stamps a bootstrap principal through `assertIntegratorGetRequest` /
+  `verifyIntegratorSignature`. The count is 0, not 26. The consequence (same 42501, same bare login role)
+  is real, but it is deliberate, not accidental — #1008's stated reason must be rewritten.
+  **A real product bug came out of it:** the anonymous landing serves the env fallback instead of the
+  configured `app_base_url`, AND `configAdapter` caches that failure in a process-global map keyed only by
+  setting name — poisoning it for ~60 s for authenticated consumers too: clinic invite links, booking
+  confirmation e-mails, OAuth redirect base. Being fixed with the gate.
 
 - [-] ~~**A-5 first pass (superseded above)** (`bf7e951f7`).~~ — ↪️ **ВЫТЕСНЕНО** 27.07:
-      live A-5 is the AST gate in `0f4035e7b` above.
-      **The class was far smaller than the denial count implied, and the count was misleading.** Census: 173
-      page/layout entries, 88 read the DB in their own scope, **87 already stamped a principal, exactly 1 did
-      not** — now fixed. Server actions swept too: 0 unstamped. Route handlers are outside the class by
-      construction (a route is the root of its own async context; nothing above it to fail to inherit from).
-      The 15 800 `system_settings` denials come from **5 genuinely public pages** whose config read
-      (`modules/system-settings/configAdapter.ts::getConfigValue`) catches the denial and falls back to env —
-      they never 500; they log once per anonymous request. Fixing that noise properly IS item A-2, not this
-      one. Gate: `app-layer/principal/pagePrincipalCensus.test.ts`, copied from the repo's existing
-      source-scanning census tests, proven to FAIL when either fix is reverted. Three stale frozen-count
-      gates repaired in passing (my attribution of the breakage was wrong — it was `1561246d8`, not
-      `ad9db8266`, and `ad9db8266` broke two different assertions).
-      Escalated, not fixed: **#1009** — `/app/doctor/admin/booking` is 308-redirected for every request with
-      no role check, so it is unreachable while still counted as a live surface, AND neither sanctioned
-      principal shape fits its booking-engine read. **#1008** — 26 `api/integrator/*` handlers read the DB
-      expressing no principal at all.
+  live A-5 is the AST gate in `0f4035e7b` above.
+  **The class was far smaller than the denial count implied, and the count was misleading.** Census: 173
+  page/layout entries, 88 read the DB in their own scope, **87 already stamped a principal, exactly 1 did
+  not** — now fixed. Server actions swept too: 0 unstamped. Route handlers are outside the class by
+  construction (a route is the root of its own async context; nothing above it to fail to inherit from).
+  The 15 800 `system_settings` denials come from **5 genuinely public pages** whose config read
+  (`modules/system-settings/configAdapter.ts::getConfigValue`) catches the denial and falls back to env —
+  they never 500; they log once per anonymous request. Fixing that noise properly IS item A-2, not this
+  one. Gate: `app-layer/principal/pagePrincipalCensus.test.ts`, copied from the repo's existing
+  source-scanning census tests, proven to FAIL when either fix is reverted. Three stale frozen-count
+  gates repaired in passing (my attribution of the breakage was wrong — it was `1561246d8`, not
+  `ad9db8266`, and `ad9db8266` broke two different assertions).
+  Escalated, not fixed: **#1009** — `/app/doctor/admin/booking` is 308-redirected for every request with
+  no role check, so it is unreachable while still counted as a live surface, AND neither sanctioned
+  principal shape fits its booking-engine read. **#1008** — 26 `api/integrator/*` handlers read the DB
+  expressing no principal at all.
 - [x] **A-6 (#1007) Cross-tenant writes to shared dictionaries** — CLOSED and proven, `7705cd8f5` +
       `f5e7c2d2b`. `clinical_test_measure_kinds` (no `organization_id` by design, pre-SaaS-pivot table)
       let any clinic's doctor mutate the platform-wide catalog; the guard now enforces ownership on write.
       Swept the same class across `reference_categories/items`, `courses`, `content_pages`, `tests/
-      test_sets`, `lfk_exercises` + `owner_kind='platform'` siblings — this table was the sole outlier.
+    test_sets`, `lfk_exercises` + `owner_kind='platform'` siblings — this table was the sole outlier.
       `f5e7c2d2b` hardens the deploy SQL so an absent table warns instead of aborting the whole closure.
       Proof: `route.test.ts` (146 new lines) re-run during this reconciliation — 4/4 pass.
 
@@ -214,7 +210,6 @@ cancelled or superseded work and is excluded from both totals. Detail and eviden
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-
 - [ ] **B-1 (A1) Split OS identities.** Owner authorised configuring users on THIS box under deploy rights.
       Runtime account with no sudo and **no `docker` group** (docker membership is root by itself and
       survives any sudo trim); deploy stays separate; delete the dormant old deploy path. Also: create a
@@ -222,23 +217,20 @@ cancelled or superseded work and is excluded from both totals. Detail and eviden
       **Re-verified live 2026-07-26 (`cd2ce0a0a` + execution) — the core split landed and is provably
       working, two named sub-asks are not.** `bersoncarebot-webapp-test.service` runs as `bcb-web-test`,
       `bersoncarebot-api-test`/`worker-test`/`scheduler-test` run as `bcb-api-test` (`systemctl show
-      -p User -p Group` on all four, live), `bersoncarebot-media-worker-test` intentionally stays on
+    -p User -p Group` on all four, live), `bersoncarebot-media-worker-test` intentionally stays on
       `deploy` (hard-pinned by `assert-media-worker-test-unit-properties.sh`, out of this runbook's
       scope). Both new accounts: `id` shows no `sudo`, no `docker`, only their own primary group.
       Cross-read provably blocked: `sudo -u bcb-web-test cat /opt/env/bersoncarebot/api.test` →
-      `Permission denied`, and the reverse. `/api/health` → `200 {"ok":true,"db":"up"}`.
-      - [x] **B-1: finished identity split.** Web runs as `bcb-web-test`; integrator, worker and scheduler
-        run as `bcb-api-test`; both have neither `sudo` nor `docker`, services answer, and the web identity
-        cannot read integrator keys. This was re-verified live; full CI was green at `8393cb4f5` (10,919
-        tests, 0 failures; the known dev-tool advisory is separately dispositioned in G-5).
-      - [ ] **B-1 remainder: remove the dormant old deploy path.** Two candidate SSH keys under
-        `deploy/.ssh/` still make the exact target ambiguous; this is open, not owner-deferred.
-      - [ ] **B-1 remainder: create the separate root-capable identity with no external access.** `dev`
-        already resembles that shape, but the requested separate identity has not been created; this is open,
-        not owner-deferred.
+      `Permission denied`, and the reverse. `/api/health` → `200 {"ok":true,"db":"up"}`. - [x] **B-1: finished identity split.** Web runs as `bcb-web-test`; integrator, worker and scheduler
+      run as `bcb-api-test`; both have neither `sudo` nor `docker`, services answer, and the web identity
+      cannot read integrator keys. This was re-verified live; full CI was green at `8393cb4f5` (10,919
+      tests, 0 failures; the known dev-tool advisory is separately dispositioned in G-5). - [ ] **B-1 remainder: remove the dormant old deploy path.** Two candidate SSH keys under
+      `deploy/.ssh/` still make the exact target ambiguous; this is open, not owner-deferred. - [ ] **B-1 remainder: create the separate root-capable identity with no external access.** `dev`
+      already resembles that shape, but the requested separate identity has not been created; this is open,
+      not owner-deferred.
 - [x] **B-2 (A2) Postgres host trust** — narrowing done and verified live; break-glass requirement was
       already met, not newly built. `pg_hba.conf` today: `local all postgres peer`, `local tgcarebot
-      tgcarebot peer`, then straight to `host ... scram-sha-256` — the catch-all `local all all peer` line
+    tgcarebot peer`, then straight to `host ... scram-sha-256` — the catch-all `local all all peer` line
       is gone (re-checked directly against `/etc/postgresql/16/main/pg_hba.conf` during this
       reconciliation). Discovery before the cut confirmed nothing depends on it: every app `DATABASE_URL`
       and every `psql`/`pg_dump` call in `deploy/host/*.sh` and the backup scripts use TCP +
@@ -259,7 +251,6 @@ cancelled or superseded work and is excluded from both totals. Detail and eviden
 > **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
-
 
 - [x] **C-1 (D1) Session revocation** — `12e263e63` was superseded, not finished; the replacement is
       proven. Owner confirmed: idle 12 h staff / 30 d patient, absolute ceiling 7 d / 90 d. An independent
@@ -343,7 +334,7 @@ cancelled or superseded work and is excluded from both totals. Detail and eviden
       Две мои формулировки владельцу были неверны и исправлены в том файле.
       **Implemented after the recon, `5f81febc4` + `c28267883` — but proven incomplete, stays open.**
       The seven allowlists (`admin_emails/admin_phones/admin_telegram_ids/admin_max_ids/doctor_phones/
-      doctor_telegram_ids/doctor_max_ids`) stop conferring role; alert recipients now derive from role
+    doctor_telegram_ids/doctor_max_ids`) stop conferring role; alert recipients now derive from role
       at send time; the technical-settings UI fields are marked inert. **Confirmed live during this
       reconciliation: the integrator reads the same seven lists independently and is untouched by
       either commit** — `apps/integrator/src/infra/db/messengerStaffIds.ts` still keys off
@@ -382,7 +373,6 @@ cancelled or superseded work and is excluded from both totals. Detail and eviden
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-
 - [ ] **D-1 (D5) Routing by role + an owner-facing matrix**: per notification/error type choose push /
       e-mail / SMS. SMS is mechanism-only for now. Operational alerts get their own channel (the July
       SMTP-quota outage went unnoticed for a day because alerts shared a channel).
@@ -396,47 +386,38 @@ cancelled or superseded work and is excluded from both totals. Detail and eviden
       chronology and evidence are in [OUTBOUND_DELIVERY_ALERTING_PLAN.md](OUTBOUND_DELIVERY_ALERTING_PLAN.md#инцидент-2026-07-24--2026-07-27--напоминания-пациентам-не-уходили); do not duplicate it here.
       **Owner ruling 27.07 closes the open half of the routing question** — `OWNER_PRODUCT_RULES.md` §28:
       operator alerts are a separate class (all channels by default, past user preferences and past the
-      dev filter), ordinary admin notifications follow §21. Still to BUILD, none of it exists yet:
-      - [ ] the operator-alert destination list and channel switches in the global-admin cabinet;
-      - [x] the undisableable floor — enforced server-side in `operatorHealthAlertConfig.ts`: disabling the
-        emergency class, e-mail, or any critical channel is REJECTED with a cause, and a stored config that
-        already violates the floor is repaired on read so the alert still goes out. 15 scoped tests, re-run by
-        the lead in the main tree (the worker's own clone had no `node_modules` and it said so);
-      - [ ] no early return on an empty recipient set: fall back, count, and let the counter alert.
+      dev filter), ordinary admin notifications follow §21. Still to BUILD, none of it exists yet: - [ ] the operator-alert destination list and channel switches in the global-admin cabinet; - [x] the undisableable floor — enforced server-side in `operatorHealthAlertConfig.ts`: disabling the
+      emergency class, e-mail, or any critical channel is REJECTED with a cause, and a stored config that
+      already violates the floor is repaired on read so the alert still goes out. 15 scoped tests, re-run by
+      the lead in the main tree (the worker's own clone had no `node_modules` and it said so); - [ ] no early return on an empty recipient set: fall back, count, and let the counter alert.
       **What counts as an emergency is now decided too** — §28.1: a failed precondition/channel self-test,
       never a share of recipients. The probe machinery already exists (`runOperatorHealthProbes`: MAX,
       Telegram, Rubitime, Google Calendar) and **nothing schedules it** — no cron, no timer, no in-process
-      job. Open work:
-      - [x] the probes are now driven from the leader-elected scheduler with per-channel interval, timeout,
-        consecutive-failure threshold and a quiet window (`14e88c606`) — **an independent audit returned
-        FAIL and the lead confirmed the three worst findings by reading the code**: the new DB reads carry no
-        principal context, so on TEST every tick throws before reaching the probes; the configured threshold
-        does not drive paging (hardcoded `PROBE_CRITICAL_CONSECUTIVE_FAIL_RUNS = 3`); an unbounded quiet
-        window can silence the probes forever.
-        **All three fixed in `cefd66fb6`, confirmed by re-reading the code, not the worker's report:**
-        (1) `operatorHealthProbeTick.ts` wraps config load + last-run read + probe run in
-        `runWithInfraPrincipal` — no more bare DB call outside a principal; (2) the hardcoded 3-strike
-        constant is deleted from `criticalHealthSignals.ts`; the banner and the critical-signal classifier
-        now fire on `probeIncidentsOpenCount > 0` (an incident the integrator only opens after each probe's
-        *configured* `consecutiveFailures`), proven by a new test asserting `reportOperatorFailure` is
-        NOT called below a raised per-channel threshold; (3) `quietWindowMaxDurationMs` (default 24h, capped
-        60s–7d by schema) bounds `isOperatorHealthProbeQuiet` so a stored `quietUntil` can no longer silence
-        probes indefinitely. `25479901a` re-aligned the banner test to the new incident-based threshold and
-        added the `DELETE /api/admin/settings` census/exemption entry for the probe-config reset route.
-        Integrator scoped tests 11/11 green (`operatorHealthProbeTick.test.ts`,
-        `operatorHealthProbeRunner.test.ts`, `operatorHealthProbeSettings.test.ts`), webapp scoped tests
-        66/66 (+1 skipped) green (`criticalHealthSignals`, `adminDoctorTodayHealthBanner`,
-        `dispatchOperatorAlert`, `operatorHealthAlertConfig`, `csrfOrigin`), re-run during this reconciliation.
-      - [ ] add the missing probes: SMTP connect+AUTH, a daily real test send, SMS balance, web push;
-      - [x] per-channel timeouts replaced the single 15 s constant, and the threshold is configurable —
-        **and now wired to what actually pages**, per the `cefd66fb6` fix above.
-      - [ ] an external heartbeat whose silence is the alert, on a transport we do not own.
-      - [x] the admin form for the probes (§28.3): enable, interval, timeout, consecutive failures, each field
-        showing its default, with a reset control — and the settings service gained the delete path a reset
-        actually needs (it had none). IMAP service-mailbox fields landed with it (secret-enveloped password,
-        never returned to the client); the mail probe itself is a separate slice and is NOT built.
-      - [ ] the deploy must issue its own short, auto-expiring silence (§28.7), and an active silence must be
-        visible on the health page — neither exists yet.
+      job. Open work: - [x] the probes are now driven from the leader-elected scheduler with per-channel interval, timeout,
+      consecutive-failure threshold and a quiet window (`14e88c606`) — **an independent audit returned
+      FAIL and the lead confirmed the three worst findings by reading the code**: the new DB reads carry no
+      principal context, so on TEST every tick throws before reaching the probes; the configured threshold
+      does not drive paging (hardcoded `PROBE_CRITICAL_CONSECUTIVE_FAIL_RUNS = 3`); an unbounded quiet
+      window can silence the probes forever.
+      **All three fixed in `cefd66fb6`, confirmed by re-reading the code, not the worker's report:**
+      (1) `operatorHealthProbeTick.ts` wraps config load + last-run read + probe run in
+      `runWithInfraPrincipal` — no more bare DB call outside a principal; (2) the hardcoded 3-strike
+      constant is deleted from `criticalHealthSignals.ts`; the banner and the critical-signal classifier
+      now fire on `probeIncidentsOpenCount > 0` (an incident the integrator only opens after each probe's
+      _configured_ `consecutiveFailures`), proven by a new test asserting `reportOperatorFailure` is
+      NOT called below a raised per-channel threshold; (3) `quietWindowMaxDurationMs` (default 24h, capped
+      60s–7d by schema) bounds `isOperatorHealthProbeQuiet` so a stored `quietUntil` can no longer silence
+      probes indefinitely. `25479901a` re-aligned the banner test to the new incident-based threshold and
+      added the `DELETE /api/admin/settings` census/exemption entry for the probe-config reset route.
+      Integrator scoped tests 11/11 green (`operatorHealthProbeTick.test.ts`,
+      `operatorHealthProbeRunner.test.ts`, `operatorHealthProbeSettings.test.ts`), webapp scoped tests
+      66/66 (+1 skipped) green (`criticalHealthSignals`, `adminDoctorTodayHealthBanner`,
+      `dispatchOperatorAlert`, `operatorHealthAlertConfig`, `csrfOrigin`), re-run during this reconciliation. - [ ] add the missing probes: SMTP connect+AUTH, a daily real test send, SMS balance, web push; - [x] per-channel timeouts replaced the single 15 s constant, and the threshold is configurable —
+      **and now wired to what actually pages**, per the `cefd66fb6` fix above. - [ ] an external heartbeat whose silence is the alert, on a transport we do not own. - [x] the admin form for the probes (§28.3): enable, interval, timeout, consecutive failures, each field
+      showing its default, with a reset control — and the settings service gained the delete path a reset
+      actually needs (it had none). IMAP service-mailbox fields landed with it (secret-enveloped password,
+      never returned to the client); the mail probe itself is a separate slice and is NOT built. - [ ] the deploy must issue its own short, auto-expiring silence (§28.7), and an active silence must be
+      visible on the health page — neither exists yet.
 - [x] **D-2 DONE 2026-07-26 (`eb62b6544`) — and the defect was worse than this line said.**
       Both routes (`api/patient/support`, `api/public/support`) hardcoded `ADMIN_TELEGRAM_ID` and relayed
       to Telegram only: unset id → 503 before anything was attempted, relay failure → 502. **Neither route
@@ -466,31 +447,30 @@ cancelled or superseded work and is excluded from both totals. Detail and eviden
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-
 - [-] ~~**E-1 — CANCELLED 2026-07-26 by the owner. Nothing is cut; both stay, switchable.**~~ — ⛔
-      **ОТМЕНЕНО ВЛАДЕЛЬЦЕМ 26.07:** «тг мы не вырезаем тогда, оставляем просто отключаемым в настройках».
-      Owner, verbatim: «тг мы не вырезаем тогда, оставляем просто отключаемым в настройках» — and earlier,
-      that MAX may come back as a login method. So the original instruction («MAX тоже нахер пока») is
-      **superseded**: no kill-switch to build, no code to delete, no `telegram_state` retirement, no data
-      migration. Everything this item asked for already exists and was verified working today.
-      **Verified live 2026-07-26** (`90cd8cf22`): the four «Доступные способы входа» toggles
-      (`auth_email_enabled`, `auth_sms_enabled`, `auth_telegram_enabled`, `auth_max_enabled`) each block
-      the **server-side** login path before any send or session creation — not merely hide a button, so
-      they cannot be bypassed by posting straight to the endpoint. Disabled channels are also absent from
-      the login UI, fail-closed if the policy fetch is missing.
-      **Login and delivery are genuinely separate axes in the code**, which is what makes the owner's
-      position workable: the login gate is the `system_settings` toggle; the delivery gate is the env
-      (`MAX_ENABLED`, `TELEGRAM_BOT_TOKEN`, `SMSC_ENABLED`) consumed only when building dispatch adapters.
-      `max-init` never touches the dispatch layer. So messenger delivery can be off while messenger login
-      stays on, with nothing to change.
-      Gap found and closed: three login routes had **no test** proving the disabled-channel gate — the code
-      was right but the protection rested on a fail-open default. Now asserted.
-      Market context that also removes the urgency (research 2026-07-26): Russian clinics have **not** left
-      Telegram — a Naumen study of 23 major chains, Apr–Jun 2026, found half still use it despite fines, with
-      MAX growing fastest but not dominant. Cutting both would have been **stricter than the market**, not
-      catching up to it.
-      Remaining, and unchanged: the legal restriction is about **what content** travels over a foreign
-      messenger, not about having the channel at all — see D-1/#913 for the field-level matrix.
+  **ОТМЕНЕНО ВЛАДЕЛЬЦЕМ 26.07:** «тг мы не вырезаем тогда, оставляем просто отключаемым в настройках».
+  Owner, verbatim: «тг мы не вырезаем тогда, оставляем просто отключаемым в настройках» — and earlier,
+  that MAX may come back as a login method. So the original instruction («MAX тоже нахер пока») is
+  **superseded**: no kill-switch to build, no code to delete, no `telegram_state` retirement, no data
+  migration. Everything this item asked for already exists and was verified working today.
+  **Verified live 2026-07-26** (`90cd8cf22`): the four «Доступные способы входа» toggles
+  (`auth_email_enabled`, `auth_sms_enabled`, `auth_telegram_enabled`, `auth_max_enabled`) each block
+  the **server-side** login path before any send or session creation — not merely hide a button, so
+  they cannot be bypassed by posting straight to the endpoint. Disabled channels are also absent from
+  the login UI, fail-closed if the policy fetch is missing.
+  **Login and delivery are genuinely separate axes in the code**, which is what makes the owner's
+  position workable: the login gate is the `system_settings` toggle; the delivery gate is the env
+  (`MAX_ENABLED`, `TELEGRAM_BOT_TOKEN`, `SMSC_ENABLED`) consumed only when building dispatch adapters.
+  `max-init` never touches the dispatch layer. So messenger delivery can be off while messenger login
+  stays on, with nothing to change.
+  Gap found and closed: three login routes had **no test** proving the disabled-channel gate — the code
+  was right but the protection rested on a fail-open default. Now asserted.
+  Market context that also removes the urgency (research 2026-07-26): Russian clinics have **not** left
+  Telegram — a Naumen study of 23 major chains, Apr–Jun 2026, found half still use it despite fines, with
+  MAX growing fastest but not dominant. Cutting both would have been **stricter than the market**, not
+  catching up to it.
+  Remaining, and unchanged: the legal restriction is about **what content** travels over a foreign
+  messenger, not about having the channel at all — see D-1/#913 for the field-level matrix.
 
 - [ ] **E-2** Bot-token plaintext in `system_settings` retires with the bot.
 - [ ] **E-3** Pre-production: message the messenger-only accounts while the bots still work.
@@ -503,7 +483,6 @@ cancelled or superseded work and is excluded from both totals. Detail and eviden
 > **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
-
 
 - [x] **F-1 (#1002) Dropdowns show the KEY instead of the label** — closed at the root, not patched.
       `9caef151e` fixed it once in the shared primitive: `select.tsx`'s wrapper now auto-collects labels
@@ -631,6 +610,7 @@ cancelled or superseded work and is excluded from both totals. Detail and eviden
       **ОСТАЛОСЬ ЗА ВЛАДЕЛЬЦЕМ (taskdb #1058 follow_up):** резервирования имён не истекают никогда —
       любой с одноразовой почтой может занять красивый адрес навсегда; и список зарезервированных слов
       проверяется только в коде, но не в базе.
+
 - [x] **G-1** Deploy writes a log to a file — done and live, not just wired. `DEPLOY_LOG_DIR` in
       `deploy/host/deploy-test.sh` points at `~/.local/state/bersoncarebot/deploy-logs/`; confirmed live
       during this reconciliation — 11 real log files there, 91KB–166KB each, timestamps spanning
@@ -661,7 +641,7 @@ cancelled or superseded work and is excluded from both totals. Detail and eviden
       каталог когда-нибудь почистят, доказательная база исчезнет независимо от веток.
 - [x] **G-3** Mark #970 superseded by the owner's confirmed session numbers — done, in taskdb.
       `node taskdb.mjs get 970` shows status `done`, note `SUPERSEDED 26.07 решением владельца по срокам
-      сессий (пункт C-1 плана...)`, pointing at commit `988f0decd` (the C-1 epoch mechanism). This is the
+    сессий (пункт C-1 плана...)`, pointing at commit `988f0decd` (the C-1 epoch mechanism). This is the
       correct target — see C-1 above.
 - [x] **G-5 Dependency advisories** — owner instruction 2026-07-26 «обновляй зависимости». Done with an
       explicit, expiring advisory exception rather than a falsely red CI outcome.
@@ -673,17 +653,14 @@ cancelled or superseded work and is excluded from both totals. Detail and eviden
       **The third cannot be fixed upstream today:** GHSA-mh99-v99m-4gvg,
       `brace-expansion@1.1.16`: the 1.x line is end-of-life (1.1.16 is its last release ever and carries the
       advisory) and the only consumer left is `eslint@9.39.4` itself, which depends on `minimatch@3` directly.
-      **Three routes were tried and all failed — do not repeat them:**
-      1. force 5.x into the `minimatch@3` slot → lint dies outright, `TypeError: expand is not a function`
-         (5.x is not the CommonJS callable that 3.x requires);
-      2. override `@eslint/config-array` / `@eslint/eslintrc` onto `minimatch@10` → the path moves, the
-         package stays in the tree, advisory unchanged;
-      3. **upgrade ESLint 9 → 10** (which drops the eslintrc machinery and minimatch@3) → blocked UPSTREAM,
-         not by us. Our own side is ready: the repo is already on flat config, the root config lints clean
-         under ESLint 10, and all four plugins' peer ranges allow it. But `eslint-plugin-react@7.37.5` — the
-         latest published version, pulled in by `eslint-config-next` — calls `context.getFilename()`, an API
-         **removed** in ESLint 10, and crashes on plugin load. Open upstream issue, no fix released:
-         https://github.com/vercel/next.js/issues/89764 (same stack: Next 16.1.6+, ESLint 10, React 19).
+      **Three routes were tried and all failed — do not repeat them:** 1. force 5.x into the `minimatch@3` slot → lint dies outright, `TypeError: expand is not a function`
+      (5.x is not the CommonJS callable that 3.x requires); 2. override `@eslint/config-array` / `@eslint/eslintrc` onto `minimatch@10` → the path moves, the
+      package stays in the tree, advisory unchanged; 3. **upgrade ESLint 9 → 10** (which drops the eslintrc machinery and minimatch@3) → blocked UPSTREAM,
+      not by us. Our own side is ready: the repo is already on flat config, the root config lints clean
+      under ESLint 10, and all four plugins' peer ranges allow it. But `eslint-plugin-react@7.37.5` — the
+      latest published version, pulled in by `eslint-config-next` — calls `context.getFilename()`, an API
+      **removed** in ESLint 10, and crashes on plugin load. Open upstream issue, no fix released:
+      https://github.com/vercel/next.js/issues/89764 (same stack: Next 16.1.6+, ESLint 10, React 19).
       **Decision (lead):** stay on ESLint 9; do NOT apply the `@eslint/compat` `fixupPluginRules` shim — that
       is a wrapper around a broken third-party plugin, not a fix, and not worth taking on for a DoS in a
       lint-time glob expander that no request path reaches. **Revisit when `eslint-config-next` ships an
@@ -711,15 +688,12 @@ cancelled or superseded work and is excluded from both totals. Detail and eviden
       the intended capability model, but he has said a clinic admin needs a clinic-wide schedule of his own
       (#1028), so it is flagged rather than assumed correct.
       **STATUS 2026-07-26 afternoon: TEST is UP and the walk RAN. Blocked on ONE thing — session cookies.**
-      Deploy took three attempts; each failure was a defect in the TOOLING, never in the product:
-      1. the closure replayed a superseded constraint and choked on a legitimate telemetry row — fixed
-         `2ea3cfef2`, proven by reproduction on a throwaway DB;
-      2. the boot guard read `information_schema.columns`, which is PRIVILEGE-FILTERED, so it mistook
-         "the probe's role has no grant" for "the column is missing" and refused to start a healthy app —
-         fixed `f132af20c`, proven with the exact role that produced the false alarm;
-      3. last night's 0244 registered `app_base_url` for audience `public` and thereby OVERWROTE the
-         `server`-audience row (the unique index is `(key, scope)`, audience is not part of it), blinding
-         the integrator accessor — fixed `522e7976f`, with both directions of the widening pinned.
+      Deploy took three attempts; each failure was a defect in the TOOLING, never in the product: 1. the closure replayed a superseded constraint and choked on a legitimate telemetry row — fixed
+      `2ea3cfef2`, proven by reproduction on a throwaway DB; 2. the boot guard read `information_schema.columns`, which is PRIVILEGE-FILTERED, so it mistook
+      "the probe's role has no grant" for "the column is missing" and refused to start a healthy app —
+      fixed `f132af20c`, proven with the exact role that produced the false alarm; 3. last night's 0244 registered `app_base_url` for audience `public` and thereby OVERWROTE the
+      `server`-audience row (the unique index is `(key, scope)`, audience is not part of it), blinding
+      the integrator accessor — fixed `522e7976f`, with both directions of the widening pinned.
       Deploy also **lied**: it printed "TEST units are left RUNNING and healthy" while all five were down.
       That is worse than the outage, because an operator believes it. Recorded as taskdb **#1016**.
       **Verified landed on TEST:** patient mark-read (`read_at` UPDATE), reminder done/snooze/skip
@@ -746,21 +720,18 @@ cancelled or superseded work and is excluded from both totals. Detail and eviden
       privilege defects found this morning break on a button press, not on page load, and a GET walk would
       have reported both surfaces green. A click-through under the patient role is required on top of the walk.
       **Preconditions found by a read-only sweep before deploying (each is the same class as F-4 —
-      an orphan `deploy/postgres/*.sql` that no closure runs, so `deploy-test.sh` never applies it):**
-      - `patient-support-mark-read-grant.sql` — F-4. Wired in `7e0bf0a83`.
-      - `patient-write-grants-role-pool-mismatch.sql` — patient INSERT on `reminder_journal`, UPDATE on the
-        three `treatment_program_instance*` tables. **Never applied anywhere, not even by hand on DEV** —
-        reminder done/snooze/skip and treatment-program item completion 500 with 42501 today. In flight.
-      - ~~`patient-media-playback-telemetry-accessors.sql` — wired only into PROD~~ **REFUTED on
-        re-verification.** It IS applied on TEST — reached by `\ir` from
-        `deploy/postgres/test-strict-rls-finalizer.sql` (commit `0ee8418ac`), which
-        `apply_test_strict_rls_finalizer()` runs inside the same closure. The sweep's `grep <basename>`
-        could not see an `\ir` include, and its description of the file's contents was wrong too.
-        **Lesson for the next sweep of this class: grep for the basename AND follow `\ir` includes** —
-        a file can be wired without any shell script naming it.
-        Separate drift recorded, not acted on: on this one DEV is the STALE side — it still has direct
-        SELECT for `app_patient`/`app_staff` on the four raw telemetry tables that TEST has already
-        revoked in favour of a sealed definer accessor (`saas-system-health-diagnostics.sql:178-190`).
+      an orphan `deploy/postgres/*.sql` that no closure runs, so `deploy-test.sh` never applies it):** - `patient-support-mark-read-grant.sql` — F-4. Wired in `7e0bf0a83`. - `patient-write-grants-role-pool-mismatch.sql` — patient INSERT on `reminder_journal`, UPDATE on the
+      three `treatment_program_instance*` tables. **Never applied anywhere, not even by hand on DEV** —
+      reminder done/snooze/skip and treatment-program item completion 500 with 42501 today. In flight. - ~~`patient-media-playback-telemetry-accessors.sql` — wired only into PROD~~ **REFUTED on
+      re-verification.** It IS applied on TEST — reached by `\ir` from
+      `deploy/postgres/test-strict-rls-finalizer.sql` (commit `0ee8418ac`), which
+      `apply_test_strict_rls_finalizer()` runs inside the same closure. The sweep's `grep <basename>`
+      could not see an `\ir` include, and its description of the file's contents was wrong too.
+      **Lesson for the next sweep of this class: grep for the basename AND follow `\ir` includes** —
+      a file can be wired without any shell script naming it.
+      Separate drift recorded, not acted on: on this one DEV is the STALE side — it still has direct
+      SELECT for `app_patient`/`app_staff` on the four raw telemetry tables that TEST has already
+      revoked in favour of a sealed definer accessor (`saas-system-health-diagnostics.sql:178-190`).
       **Verified clean by the same sweep** (so the coverage is known, not just the hits): journal integrity
       246/246 tags↔files after `2423509cc`; `d3-4-bootstrap-base-login-read-grants.sql`,
       `phase4-force-rls-cutover.sql`, `u9a-platform-settings-role.sql`,
@@ -780,7 +751,7 @@ cancelled or superseded work and is excluded from both totals. Detail and eviden
 - [x] Two 500s were a missing PRINCIPAL, not a missing grant — `19f52fed2` (my diagnosis was wrong; the
       worker refuted it with PostgreSQL's own logs).
 - [-] ~~Session-revocation code restored and finished — `12e263e63` (unproven against a DB).~~ — ↪️
-      **ВЫТЕСНЕНО** 27.07: C-1's live mechanism is `988f0decd`, proven against a DB; see C-1 above.
+  **ВЫТЕСНЕНО** 27.07: C-1's live mechanism is `988f0decd`, proven against a DB; see C-1 above.
 - [x] Unmerged branches reconciled — no side branch explains any broken page.
 - [x] Pre-production list opened — `docs/_TODO/PRE_PRODUCTION_TODO.md`.
 
@@ -792,7 +763,6 @@ cancelled or superseded work and is excluded from both totals. Detail and eviden
 > **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
-
 
 Владелец закрыл висевшие развилки. Каждая строка ниже — задача к исполнению; вопрос по ней **закрыт**,
 повторно не поднимать. Правила целиком: [`OWNER_PRODUCT_RULES.md`](../ARCHITECTURE/OWNER_PRODUCT_RULES.md).
@@ -808,35 +778,35 @@ cancelled or superseded work and is excluded from both totals. Detail and eviden
       three branches of the rule, including the no-schedule-at-all → zero-slots case. 10/10 tests re-run
       clean during this reconciliation.
 - [-] ~~**H-2 (#913) Что видно в уведомлении.** Запись и напоминания о занятиях — **открыто, как было**;
-      личный чат — только «новое сообщение от <имя>»; рассылка — тема открыто, содержание при переходе.~~
-      — ↪️ **ВЫТЕСНЕНО** 27.07 для рассылки: `fcd956395` восстановил полное тело в
-      `fanOutBroadcastEmail.ts` и `deliveryJobs.ts`; действующее правило владельца —
-      `OWNER_PRODUCT_RULES.md` §15: «текст открыто, как есть».
-      **Проверено 26.07: только решение, кода нет.** Строка «новое сообщение от» нигде не встречается в
-      `apps/webapp/src`/`apps/integrator/src` (прямой grep). taskdb #913 подтверждает: статус `blocked`,
-      решение записано в заметке, но реализации нет.
-      ~~✅ **СДЕЛАНО 27.07** (`298c025d7` → correction `e1c6f62a1` → correction `d99c72d9d`; полный CI зелёный,
-      9470 тестов).~~ Реализация рассылки из этих коммитов вытеснена `fcd956395`.
-      **Личный чат:** было — текст сообщения до 500 символов плюс описания вложений; стало — только
-      «новое сообщение от <имя>» и ссылка, во всех четырёх каналах (пуш, Telegram, MAX, почта). Хелпер
-      `previewText`, который резал и отправлял текст, удалён — живых вызывающих не осталось.
-      ~~**Рассылка:** тема и ссылка, тело не уходит. Включая SMS — первый исполнитель вывел SMS из-под
-      правила НАМЕРЕННО и переименовал тест, чтобы это узаконить («sms keeps its existing full-content
-      rendition»); правило владельца каналов не исключает, исключение снято.~~
-      **Запись и напоминания о занятиях — байт в байт не тронуты.** Это половина правила, которую легче
-      всего сломать по инерции; проверено сторожевым тестом и диффом по всем трём коммитам.
-      **Имя отправителя** — единственное живое содержимое уведомления, поэтому пропущено через фильтр:
-      структурное ФИО → отображаемое имя → нейтральное слово. Телефон, почта и сырой идентификатор
-      отбрасываются в ОБЕ стороны. Без этого правило приватности вынесло бы наружу телефон пациента
-      вместо текста — второй аудит поймал именно это.
-      **Контракт между приложениями** чуть не сломали: поле имени сделали обязательным на подписанной
-      ручке интегратор→вебапп, из-за чего старый интегратор получал бы 400 на каждый ответ врача.
-      Сделано необязательным с нейтральным запасным значением, покрыто тестом на старый payload.
-      **ОСТАЛОСЬ ЗА ВЛАДЕЛЬЦЕМ (4 вопроса, taskdb #913 follow_up):** врачебный админ-чат в Telegram
-      (пересылает сообщение пациента целиком — «уведомление» или «сам чат, где врач работает»); картинка
-      рассылки (уходит целиком в Telegram и в письмо); уведомление о заявке (несёт имя пациента и 200
-      символов жалобы, в §2 такого вида нет); подпись врача при ответе из бота берётся из имени его
-      Telegram-профиля, а не из ФИО в системе.
+  личный чат — только «новое сообщение от <имя>»; рассылка — тема открыто, содержание при переходе.~~
+  — ↪️ **ВЫТЕСНЕНО** 27.07 для рассылки: `fcd956395` восстановил полное тело в
+  `fanOutBroadcastEmail.ts` и `deliveryJobs.ts`; действующее правило владельца —
+  `OWNER_PRODUCT_RULES.md` §15: «текст открыто, как есть».
+  **Проверено 26.07: только решение, кода нет.** Строка «новое сообщение от» нигде не встречается в
+  `apps/webapp/src`/`apps/integrator/src` (прямой grep). taskdb #913 подтверждает: статус `blocked`,
+  решение записано в заметке, но реализации нет.
+  ~~✅ **СДЕЛАНО 27.07** (`298c025d7` → correction `e1c6f62a1` → correction `d99c72d9d`; полный CI зелёный,
+  9470 тестов).~~ Реализация рассылки из этих коммитов вытеснена `fcd956395`.
+  **Личный чат:** было — текст сообщения до 500 символов плюс описания вложений; стало — только
+  «новое сообщение от <имя>» и ссылка, во всех четырёх каналах (пуш, Telegram, MAX, почта). Хелпер
+  `previewText`, который резал и отправлял текст, удалён — живых вызывающих не осталось.
+  ~~**Рассылка:** тема и ссылка, тело не уходит. Включая SMS — первый исполнитель вывел SMS из-под
+  правила НАМЕРЕННО и переименовал тест, чтобы это узаконить («sms keeps its existing full-content
+  rendition»); правило владельца каналов не исключает, исключение снято.~~
+  **Запись и напоминания о занятиях — байт в байт не тронуты.** Это половина правила, которую легче
+  всего сломать по инерции; проверено сторожевым тестом и диффом по всем трём коммитам.
+  **Имя отправителя** — единственное живое содержимое уведомления, поэтому пропущено через фильтр:
+  структурное ФИО → отображаемое имя → нейтральное слово. Телефон, почта и сырой идентификатор
+  отбрасываются в ОБЕ стороны. Без этого правило приватности вынесло бы наружу телефон пациента
+  вместо текста — второй аудит поймал именно это.
+  **Контракт между приложениями** чуть не сломали: поле имени сделали обязательным на подписанной
+  ручке интегратор→вебапп, из-за чего старый интегратор получал бы 400 на каждый ответ врача.
+  Сделано необязательным с нейтральным запасным значением, покрыто тестом на старый payload.
+  **ОСТАЛОСЬ ЗА ВЛАДЕЛЬЦЕМ (4 вопроса, taskdb #913 follow_up):** врачебный админ-чат в Telegram
+  (пересылает сообщение пациента целиком — «уведомление» или «сам чат, где врач работает»); картинка
+  рассылки (уходит целиком в Telegram и в письмо); уведомление о заявке (несёт имя пациента и 200
+  символов жалобы, в §2 такого вида нет); подпись врача при ответе из бота берётся из имени его
+  Telegram-профиля, а не из ФИО в системе.
 - [x] **H-2: оставшаяся половина — уведомления личного чата.** `298c025d7` / `e1c6f62a1` /
       `d99c72d9d` остаются действующим доказательством для чата: без текста и превью, только факт,
       дата-время и ссылка по `OWNER_PRODUCT_RULES.md` §22. `fcd956395` не отменяет эту половину.

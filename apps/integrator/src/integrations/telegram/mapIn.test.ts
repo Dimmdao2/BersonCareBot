@@ -169,12 +169,16 @@ describe('Telegram callback_query mapper (webhook parity)', () => {
       chatId: 42,
       callbackQueryId: 'cq-x',
     });
-    expect(incomingCallbackUpdateFromTelegramCallbackQuery(cq('rem_skip_r:occ-s:reason'))).toMatchObject({
+    expect(
+      incomingCallbackUpdateFromTelegramCallbackQuery(cq('rem_skip_r:occ-s:reason')),
+    ).toMatchObject({
       action: 'rem_skip_r',
       reminderOccurrenceId: 'occ-s',
       skipReasonCode: 'reason',
     });
-    expect(incomingCallbackUpdateFromTelegramCallbackQuery(cq('diary.symptom.entryType:tr-1:5:instant'))).toMatchObject({
+    expect(
+      incomingCallbackUpdateFromTelegramCallbackQuery(cq('diary.symptom.entryType:tr-1:5:instant')),
+    ).toMatchObject({
       action: 'diary.symptom.entryType',
       trackingId: 'tr-1',
       value: 5,

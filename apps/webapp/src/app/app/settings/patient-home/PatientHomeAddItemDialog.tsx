@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { useEffect, useMemo, useState, useTransition } from "react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
+import Link from 'next/link';
+import { useEffect, useMemo, useState, useTransition } from 'react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
 import {
   Dialog,
   DialogClose,
@@ -11,24 +11,24 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/shared/ui/doctor/primitives/dialog";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { getPatientHomeBlockEditorMetadata } from "@/modules/patient-home/blockEditorMetadata";
-import { patientHomeBlockItemTargetTypeLabelRu } from "@/modules/patient-home/patientHomeBlockItemDisplayTitle";
+} from '@/shared/ui/doctor/primitives/dialog';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { getPatientHomeBlockEditorMetadata } from '@/modules/patient-home/blockEditorMetadata';
+import { patientHomeBlockItemTargetTypeLabelRu } from '@/modules/patient-home/patientHomeBlockItemDisplayTitle';
 import {
   allowedTargetTypesForBlock,
   canManageItemsForBlock,
   isPatientHomeBlockCode,
   type PatientHomeCmsBlockCode,
-} from "@/modules/patient-home/blocks";
+} from '@/modules/patient-home/blocks';
 import {
   assertPatientHomeCmsBlockCode,
   buildPatientHomeContentNewUrl,
   buildPatientHomeCourseNewUrl,
   buildPatientHomeSectionsNewUrl,
   PATIENT_HOME_CMS_DEFAULT_RETURN_PATH,
-} from "@/modules/patient-home/patientHomeCmsReturnUrls";
-import { addPatientHomeItem, listPatientHomeCandidates } from "./actions";
+} from '@/modules/patient-home/patientHomeCmsReturnUrls';
+import { addPatientHomeItem, listPatientHomeCandidates } from './actions';
 
 type Candidate = {
   targetType: string;
@@ -50,7 +50,7 @@ export function PatientHomeAddItemDialog({
   onSaved(): void;
 }) {
   const [items, setItems] = useState<Candidate[]>([]);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -77,7 +77,9 @@ export function PatientHomeAddItemDialog({
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return items;
-    return items.filter((item) => item.title.toLowerCase().includes(q) || item.targetRef.toLowerCase().includes(q));
+    return items.filter(
+      (item) => item.title.toLowerCase().includes(q) || item.targetRef.toLowerCase().includes(q),
+    );
   }, [items, query]);
 
   const handleAdd = (item: Candidate) => {
@@ -100,26 +102,29 @@ export function PatientHomeAddItemDialog({
   const returnTo = PATIENT_HOME_CMS_DEFAULT_RETURN_PATH;
   const showCmsCreateShortcuts =
     cmsNavBlock !== null && items.length === 0 && error === null && !isPending;
-  const usefulPostMaterialOnly = blockCode === "useful_post";
+  const usefulPostMaterialOnly = blockCode === 'useful_post';
 
   const pickMeta =
-    isPatientHomeBlockCode(blockCode) && canManageItemsForBlock(blockCode) ?
-      getPatientHomeBlockEditorMetadata(blockCode)
-    : null;
-  const dialogTitle = pickMeta?.pickExistingLabel ?? "Добавить из CMS";
+    isPatientHomeBlockCode(blockCode) && canManageItemsForBlock(blockCode)
+      ? getPatientHomeBlockEditorMetadata(blockCode)
+      : null;
+  const dialogTitle = pickMeta?.pickExistingLabel ?? 'Добавить из CMS';
   const dialogDescription =
-    pickMeta?.pickExistingDialogDescription ?? "Выберите элемент в списке ниже — он будет привязан к блоку главной.";
+    pickMeta?.pickExistingDialogDescription ??
+    'Выберите элемент в списке ниже — он будет привязан к блоку главной.';
 
-  const allowedForShortcuts = isPatientHomeBlockCode(blockCode) ? [...allowedTargetTypesForBlock(blockCode)] : [];
-  const showSectionCreateShortcut = allowedForShortcuts.includes("content_section");
-  const showPageCreateShortcut = allowedForShortcuts.includes("content_page");
-  const showCourseCreateShortcut = allowedForShortcuts.includes("course");
+  const allowedForShortcuts = isPatientHomeBlockCode(blockCode)
+    ? [...allowedTargetTypesForBlock(blockCode)]
+    : [];
+  const showSectionCreateShortcut = allowedForShortcuts.includes('content_section');
+  const showPageCreateShortcut = allowedForShortcuts.includes('content_page');
+  const showCourseCreateShortcut = allowedForShortcuts.includes('course');
 
   return (
     <Dialog
       open={open}
       onOpenChange={onOpenChange}
-      key={open ? `patient-home-add-item-${blockCode}` : "patient-home-add-item-closed"}
+      key={open ? `patient-home-add-item-${blockCode}` : 'patient-home-add-item-closed'}
     >
       <DialogContent>
         <DialogHeader>
@@ -137,12 +142,17 @@ export function PatientHomeAddItemDialog({
           ) : null}
           {items.length > 0
             ? filtered.map((item) => (
-                <div key={`${item.targetType}:${item.targetRef}`} className="rounded-lg border border-border p-3">
+                <div
+                  key={`${item.targetType}:${item.targetRef}`}
+                  className="rounded-lg border border-border p-3"
+                >
                   <div className="text-sm font-medium">{item.title}</div>
                   <div className="text-xs text-muted-foreground">
                     {patientHomeBlockItemTargetTypeLabelRu(item.targetType)} · {item.targetRef}
                   </div>
-                  {item.subtitle ? <div className="mt-1 text-xs text-muted-foreground">{item.subtitle}</div> : null}
+                  {item.subtitle ? (
+                    <div className="mt-1 text-xs text-muted-foreground">{item.subtitle}</div>
+                  ) : null}
                   <div className="mt-2">
                     <Button size="sm" onClick={() => handleAdd(item)} disabled={isPending}>
                       Добавить
@@ -158,41 +168,50 @@ export function PatientHomeAddItemDialog({
                 data-testid="patient-home-add-item-cms-shortcuts"
               >
                 <p className="mb-2 text-muted-foreground">
-                  {usefulPostMaterialOnly ?
-                    "Нет материалов, которые можно выбрать для этого блока. Создайте страницу в каталоге статей или в системной папке CMS (не в разделах «Разминки» и SOS), затем вернитесь сюда."
-                  : "Нет готовых элементов в списке. Создайте новый объект в CMS:"}
+                  {usefulPostMaterialOnly
+                    ? 'Нет материалов, которые можно выбрать для этого блока. Создайте страницу в каталоге статей или в системной папке CMS (не в разделах «Разминки» и SOS), затем вернитесь сюда.'
+                    : 'Нет готовых элементов в списке. Создайте новый объект в CMS:'}
                 </p>
                 <ul className="flex flex-col gap-2">
-                  {!usefulPostMaterialOnly && showSectionCreateShortcut ?
+                  {!usefulPostMaterialOnly && showSectionCreateShortcut ? (
                     <li>
                       <Link
                         className="text-primary underline underline-offset-2"
-                        href={buildPatientHomeSectionsNewUrl({ returnTo, patientHomeBlock: cmsNavBlock! })}
+                        href={buildPatientHomeSectionsNewUrl({
+                          returnTo,
+                          patientHomeBlock: cmsNavBlock!,
+                        })}
                       >
                         Открыть создание раздела в CMS
                       </Link>
                     </li>
-                  : null}
-                  {showPageCreateShortcut ?
+                  ) : null}
+                  {showPageCreateShortcut ? (
                     <li>
                       <Link
                         className="text-primary underline underline-offset-2"
-                        href={buildPatientHomeContentNewUrl({ returnTo, patientHomeBlock: cmsNavBlock! })}
+                        href={buildPatientHomeContentNewUrl({
+                          returnTo,
+                          patientHomeBlock: cmsNavBlock!,
+                        })}
                       >
                         Открыть создание страницы в CMS
                       </Link>
                     </li>
-                  : null}
-                  {!usefulPostMaterialOnly && showCourseCreateShortcut ?
+                  ) : null}
+                  {!usefulPostMaterialOnly && showCourseCreateShortcut ? (
                     <li>
                       <Link
                         className="text-primary underline underline-offset-2"
-                        href={buildPatientHomeCourseNewUrl({ returnTo, patientHomeBlock: cmsNavBlock! })}
+                        href={buildPatientHomeCourseNewUrl({
+                          returnTo,
+                          patientHomeBlock: cmsNavBlock!,
+                        })}
                       >
                         Открыть создание курса в CMS
                       </Link>
                     </li>
-                  : null}
+                  ) : null}
                 </ul>
               </div>
             ) : (

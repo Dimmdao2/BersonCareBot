@@ -1,16 +1,16 @@
-import { config } from "dotenv";
-import path from "node:path";
+import { config } from 'dotenv';
+import path from 'node:path';
 
 const envFile =
-  typeof process.env.ENV_FILE === "string" && process.env.ENV_FILE.trim().length > 0
+  typeof process.env.ENV_FILE === 'string' && process.env.ENV_FILE.trim().length > 0
     ? process.env.ENV_FILE
     : null;
 
 if (envFile) {
   config({ path: path.resolve(/* turbopackIgnore: true */ process.cwd(), envFile) });
-} else if (process.env.NODE_ENV === "development") {
+} else if (process.env.NODE_ENV === 'development') {
   // В dev по умолчанию грузим .env.dev (чтобы не требовать копию .env). Затем .env переопределяет при наличии.
-  config({ path: path.resolve(/* turbopackIgnore: true */ process.cwd(), ".env.dev") });
+  config({ path: path.resolve(/* turbopackIgnore: true */ process.cwd(), '.env.dev') });
   config();
 } else {
   config();

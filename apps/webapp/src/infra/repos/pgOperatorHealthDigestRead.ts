@@ -1,8 +1,8 @@
-import { and, count, eq, gte, isNotNull, lt } from "drizzle-orm";
-import { getDrizzle } from "@/app-layer/db/drizzle";
-import { adminAuditLog } from "../../../db/schema/schema";
-import { operatorIncidents, operatorJobStatus } from "../../../db/schema/operatorHealth";
-import type { OperatorHealthDigestReadPort } from "@/modules/operator-health/digestPorts";
+import { and, count, eq, gte, isNotNull, lt } from 'drizzle-orm';
+import { getDrizzle } from '@/app-layer/db/drizzle';
+import { adminAuditLog } from '../../../db/schema/schema';
+import { operatorIncidents, operatorJobStatus } from '../../../db/schema/operatorHealth';
+import type { OperatorHealthDigestReadPort } from '@/modules/operator-health/digestPorts';
 
 export const pgOperatorHealthDigestReadPort: OperatorHealthDigestReadPort = {
   async countAuditErrorsInWindow(windowStartIso: string, windowEndIso: string): Promise<number> {
@@ -14,7 +14,7 @@ export const pgOperatorHealthDigestReadPort: OperatorHealthDigestReadPort = {
         and(
           gte(adminAuditLog.createdAt, windowStartIso),
           lt(adminAuditLog.createdAt, windowEndIso),
-          eq(adminAuditLog.status, "error"),
+          eq(adminAuditLog.status, 'error'),
         ),
       );
     return Number(row?.n ?? 0);
@@ -32,7 +32,7 @@ export const pgOperatorHealthDigestReadPort: OperatorHealthDigestReadPort = {
         and(
           gte(adminAuditLog.createdAt, windowStartIso),
           lt(adminAuditLog.createdAt, windowEndIso),
-          eq(adminAuditLog.action, "operator_incidents_resolve_all"),
+          eq(adminAuditLog.action, 'operator_incidents_resolve_all'),
         ),
       );
     return Number(row?.n ?? 0) > 0;

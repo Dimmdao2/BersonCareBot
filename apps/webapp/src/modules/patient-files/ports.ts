@@ -3,19 +3,14 @@
  * Single source of truth for a patient's files (standalone + linked from visits).
  */
 
-export type PatientFileCategory =
-  | "выписка"
-  | "снимок"
-  | "анализ"
-  | "фото_теста"
-  | "прочее";
+export type PatientFileCategory = 'выписка' | 'снимок' | 'анализ' | 'фото_теста' | 'прочее';
 
 export const PATIENT_FILE_CATEGORIES: PatientFileCategory[] = [
-  "выписка",
-  "снимок",
-  "анализ",
-  "фото_теста",
-  "прочее",
+  'выписка',
+  'снимок',
+  'анализ',
+  'фото_теста',
+  'прочее',
 ];
 
 export type PatientFileRecord = {

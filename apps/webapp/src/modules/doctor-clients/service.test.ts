@@ -1,16 +1,16 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { emptyClientContactBreakdown } from "./clientContactSegments";
-import { createDoctorClientsService } from "./service";
-import type { DoctorClientsPort } from "./ports";
-import { createRuntimeConfigProvider } from "@/modules/system-settings/runtimeConfig";
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { emptyClientContactBreakdown } from './clientContactSegments';
+import { createDoctorClientsService } from './service';
+import type { DoctorClientsPort } from './ports';
+import { createRuntimeConfigProvider } from '@/modules/system-settings/runtimeConfig';
 
-describe("doctor-clients service", () => {
+describe('doctor-clients service', () => {
   const stubIdentity = {
-    userId: "user-1",
-    displayName: "Иван",
-    phone: "+79001234567",
-    bindings: { telegramId: "tg1", maxId: undefined, vkId: undefined },
-    createdAt: "2024-01-01T00:00:00Z",
+    userId: 'user-1',
+    displayName: 'Иван',
+    phone: '+79001234567',
+    bindings: { telegramId: 'tg1', maxId: undefined, vkId: undefined },
+    createdAt: '2024-01-01T00:00:00Z',
     isBlocked: false,
     blockedReason: null,
     isArchived: false,
@@ -21,10 +21,10 @@ describe("doctor-clients service", () => {
     async listClients() {
       return [
         {
-          userId: "user-1",
-          displayName: "Иван",
-          phone: "+79001234567",
-          bindings: { telegramId: "tg1" },
+          userId: 'user-1',
+          displayName: 'Иван',
+          phone: '+79001234567',
+          bindings: { telegramId: 'tg1' },
           nextAppointmentLabel: null,
           activeTreatmentProgram: false,
           activeTreatmentProgramInstanceId: null,
@@ -43,10 +43,10 @@ describe("doctor-clients service", () => {
       return this.getPatientClientIdentity(userId);
     },
     async getPlatformUserRole(userId: string) {
-      return userId === "user-1" ? "client" : null;
+      return userId === 'user-1' ? 'client' : null;
     },
     async getClientIdentity(userId: string) {
-      return userId === "user-1" ? stubIdentity : null;
+      return userId === 'user-1' ? stubIdentity : null;
     },
     async getDashboardPatientMetrics() {
       return {
@@ -91,7 +91,9 @@ describe("doctor-clients service", () => {
     async setPatientBirthDate() {},
     async setPatientGender() {},
     async setPatientNames() {},
-    async getPatientPhysical() { return { heightCm: null, weightKg: null }; },
+    async getPatientPhysical() {
+      return { heightCm: null, weightKg: null };
+    },
     async setPatientPhysical() {},
   };
 
@@ -100,12 +102,12 @@ describe("doctor-clients service", () => {
     getDoctorSupportDefault: async () => false,
     getUpcomingAppointments: () => [
       {
-        id: "apt-1",
-        dateLabel: "15.03.2026",
-        timeLabel: "14:30",
-        label: "15.03.2026 14:30",
+        id: 'apt-1',
+        dateLabel: '15.03.2026',
+        timeLabel: '14:30',
+        label: '15.03.2026 14:30',
         link: null,
-        status: "confirmed" as const,
+        status: 'confirmed' as const,
       },
     ],
     listAppointmentHistoryForPhone: async () => [],
@@ -115,9 +117,9 @@ describe("doctor-clients service", () => {
     listLfkSessions: async () => [],
     getChannelCards: async () => [
       {
-        code: "telegram",
-        title: "Telegram",
-        openUrl: "",
+        code: 'telegram',
+        title: 'Telegram',
+        openUrl: '',
         isLinked: true,
         isImplemented: true,
         isEnabledForMessages: true,
@@ -127,47 +129,45 @@ describe("doctor-clients service", () => {
     listSupplementaryContacts: async (_userId, _identity) => [],
   });
 
-  it("listClients returns port result", async () => {
+  it('listClients returns port result', async () => {
     const list = await service.listClients({});
     expect(list).toHaveLength(1);
-    expect(list[0].displayName).toBe("Иван");
-    expect(list[0].bindings.telegramId).toBe("tg1");
+    expect(list[0].displayName).toBe('Иван');
+    expect(list[0].bindings.telegramId).toBe('tg1');
   });
 
-  it("getClientProfile returns null for unknown userId", async () => {
-    const profile = await service.getClientProfile("unknown");
+  it('getClientProfile returns null for unknown userId', async () => {
+    const profile = await service.getClientProfile('unknown');
     expect(profile).toBeNull();
   });
 
-  it("getPatientProgramInteractionPolicy uses port profile and doctor defaults", async () => {
+  it('getPatientProgramInteractionPolicy uses port profile and doctor defaults', async () => {
     const portWithSupport: DoctorClientsPort = {
       ...mockPort,
       async getClientSupport() {
         return {
-          patientUserId: "user-1",
-          organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          patientUserId: 'user-1',
+          organizationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
           onSupport: false,
           supportStartedAt: null,
           commentsEnabled: true,
           mediaEnabled: null,
-          updatedAt: "2026-01-01T00:00:00.000Z",
-          updatedBy: "doc-1",
+          updatedAt: '2026-01-01T00:00:00.000Z',
+          updatedBy: 'doc-1',
         };
       },
     };
     const runtimeConfig = createRuntimeConfigProvider({
       async getEffective(input) {
-        expect(input.organizationId).toBe("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
-        expect(input.scope).toBe("doctor");
+        expect(input.organizationId).toBe('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+        expect(input.scope).toBe('doctor');
         return {
           key: input.key,
           scope: input.scope,
           organizationId: null,
-          audience: "authenticated_client",
+          audience: 'authenticated_client',
           valueJson: {
-            value:
-              input.key ===
-              "doctor_patient_support_media_without_support_default_enabled",
+            value: input.key === 'doctor_patient_support_media_without_support_default_enabled',
           },
         };
       },
@@ -184,27 +184,27 @@ describe("doctor-clients service", () => {
       getChannelCards: async () => [],
       listSupplementaryContacts: async () => [],
     });
-    const policy = await policyService.getPatientProgramInteractionPolicy("user-1");
+    const policy = await policyService.getPatientProgramInteractionPolicy('user-1');
     expect(policy.onSupport).toBe(false);
     expect(policy.commentsAllowed).toBe(true);
     expect(policy.mediaAllowed).toBe(true);
   });
 
-  it("does not read without-support defaults for an on-support patient", async () => {
+  it('does not read without-support defaults for an on-support patient', async () => {
     const getDoctorSupportDefault = vi.fn(async () => false);
     const policyService = createDoctorClientsService({
       clientsPort: {
         ...mockPort,
         async getClientSupport() {
           return {
-            patientUserId: "user-1",
-            organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            patientUserId: 'user-1',
+            organizationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
             onSupport: true,
-            supportStartedAt: "2026-01-01T00:00:00.000Z",
+            supportStartedAt: '2026-01-01T00:00:00.000Z',
             commentsEnabled: null,
             mediaEnabled: null,
-            updatedAt: "2026-01-01T00:00:00.000Z",
-            updatedBy: "doc-1",
+            updatedAt: '2026-01-01T00:00:00.000Z',
+            updatedBy: 'doc-1',
           };
         },
       },
@@ -219,24 +219,26 @@ describe("doctor-clients service", () => {
       listSupplementaryContacts: async () => [],
     });
 
-    await expect(policyService.getPatientProgramInteractionPolicy("user-1")).resolves.toMatchObject({
-      onSupport: true,
-      commentsAllowed: true,
-      mediaAllowed: true,
-    });
+    await expect(policyService.getPatientProgramInteractionPolicy('user-1')).resolves.toMatchObject(
+      {
+        onSupport: true,
+        commentsAllowed: true,
+        mediaAllowed: true,
+      },
+    );
     expect(getDoctorSupportDefault).not.toHaveBeenCalled();
   });
 
-  it("getClientProfile returns full profile for known client", async () => {
-    const profile = await service.getClientProfile("user-1");
+  it('getClientProfile returns full profile for known client', async () => {
+    const profile = await service.getClientProfile('user-1');
     expect(profile).not.toBeNull();
-    expect(profile!.identity.displayName).toBe("Иван");
-    expect(profile!.identity.phone).toBe("+79001234567");
+    expect(profile!.identity.displayName).toBe('Иван');
+    expect(profile!.identity.phone).toBe('+79001234567');
     expect(profile!.channelCards).toHaveLength(1);
     expect(profile!.upcomingAppointments).toHaveLength(1);
-    expect(profile!.upcomingAppointments[0].label).toBe("15.03.2026 14:30");
-    expect(profile!.upcomingAppointments[0].dateLabel).toBe("15.03.2026");
-    expect(profile!.upcomingAppointments[0].timeLabel).toBe("14:30");
+    expect(profile!.upcomingAppointments[0].label).toBe('15.03.2026 14:30');
+    expect(profile!.upcomingAppointments[0].dateLabel).toBe('15.03.2026');
+    expect(profile!.upcomingAppointments[0].timeLabel).toBe('14:30');
     expect(profile!.appointmentStats.total).toBe(1);
     expect(profile!.appointmentStats.cancellations30d).toBe(0);
     expect(profile!.symptomTrackings).toEqual([]);
@@ -247,17 +249,17 @@ describe("doctor-clients service", () => {
     expect(profile!.supplementaryContacts).toEqual([]);
   });
 
-  it("getClientProfile passes verified email into channel delivery context", async () => {
+  it('getClientProfile passes verified email into channel delivery context', async () => {
     const getChannelCards = vi.fn(async () => []);
     const verifiedService = createDoctorClientsService({
       clientsPort: {
         ...mockPort,
         async getClientIdentity(userId: string) {
-          if (userId !== "user-1") return null;
+          if (userId !== 'user-1') return null;
           return {
             ...stubIdentity,
-            email: "patient@example.com",
-            emailVerifiedAt: "2026-05-19T00:00:00.000Z",
+            email: 'patient@example.com',
+            emailVerifiedAt: '2026-05-19T00:00:00.000Z',
           };
         },
       },
@@ -272,23 +274,22 @@ describe("doctor-clients service", () => {
       listSupplementaryContacts: async () => [],
     });
 
-    await verifiedService.getClientProfile("user-1");
+    await verifiedService.getClientProfile('user-1');
 
-    expect(getChannelCards).toHaveBeenCalledWith(
-      "user-1",
-      stubIdentity.bindings,
-      { phone: "+79001234567", emailVerified: true },
-    );
+    expect(getChannelCards).toHaveBeenCalledWith('user-1', stubIdentity.bindings, {
+      phone: '+79001234567',
+      emailVerified: true,
+    });
   });
 });
 
-describe("getClientProfile appointmentStats from history (ARCH-03)", () => {
+describe('getClientProfile appointmentStats from history (ARCH-03)', () => {
   const stubIdentity = {
-    userId: "user-1",
-    displayName: "Иван",
-    phone: "+79001234567",
-    bindings: { telegramId: "tg1", maxId: undefined, vkId: undefined },
-    createdAt: "2024-01-01T00:00:00Z",
+    userId: 'user-1',
+    displayName: 'Иван',
+    phone: '+79001234567',
+    bindings: { telegramId: 'tg1', maxId: undefined, vkId: undefined },
+    createdAt: '2024-01-01T00:00:00Z',
     isBlocked: false,
     blockedReason: null,
     isArchived: false,
@@ -309,10 +310,10 @@ describe("getClientProfile appointmentStats from history (ARCH-03)", () => {
       return this.getPatientClientIdentity(userId);
     },
     async getPlatformUserRole(userId: string) {
-      return userId === "user-1" ? "client" : null;
+      return userId === 'user-1' ? 'client' : null;
     },
     async getClientIdentity(userId: string) {
-      return userId === "user-1" ? stubIdentity : null;
+      return userId === 'user-1' ? stubIdentity : null;
     },
     async getDashboardPatientMetrics() {
       return {
@@ -357,7 +358,9 @@ describe("getClientProfile appointmentStats from history (ARCH-03)", () => {
     async setPatientBirthDate() {},
     async setPatientGender() {},
     async setPatientNames() {},
-    async getPatientPhysical() { return { heightCm: null, weightKg: null }; },
+    async getPatientPhysical() {
+      return { heightCm: null, weightKg: null };
+    },
     async setPatientPhysical() {},
   };
 
@@ -365,9 +368,9 @@ describe("getClientProfile appointmentStats from history (ARCH-03)", () => {
     vi.useRealTimers();
   });
 
-  it("computes cancellations30d and lastVisitLabel from appointment history", async () => {
+  it('computes cancellations30d and lastVisitLabel from appointment history', async () => {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date("2025-03-25T12:00:00.000Z"));
+    vi.setSystemTime(new Date('2025-03-25T12:00:00.000Z'));
 
     const service = createDoctorClientsService({
       clientsPort: mockPort,
@@ -375,28 +378,28 @@ describe("getClientProfile appointmentStats from history (ARCH-03)", () => {
       getUpcomingAppointments: () => [],
       listAppointmentHistoryForPhone: async () => [
         {
-          id: "h1",
-          recordAt: "2025-03-01T12:00:00.000Z",
-          status: "updated",
-          label: "Визит ранний",
-          lastEvent: "evt",
-          updatedAt: "2025-03-01T12:00:00.000Z",
+          id: 'h1',
+          recordAt: '2025-03-01T12:00:00.000Z',
+          status: 'updated',
+          label: 'Визит ранний',
+          lastEvent: 'evt',
+          updatedAt: '2025-03-01T12:00:00.000Z',
         },
         {
-          id: "h2",
-          recordAt: "2025-03-22T15:00:00.000Z",
-          status: "updated",
-          label: "Визит поздний",
-          lastEvent: "evt",
-          updatedAt: "2025-03-22T15:00:00.000Z",
+          id: 'h2',
+          recordAt: '2025-03-22T15:00:00.000Z',
+          status: 'updated',
+          label: 'Визит поздний',
+          lastEvent: 'evt',
+          updatedAt: '2025-03-22T15:00:00.000Z',
         },
         {
-          id: "h3",
-          recordAt: "2025-03-24T10:00:00.000Z",
-          status: "canceled",
-          label: "Отмена",
-          lastEvent: "event-cancel",
-          updatedAt: "2025-03-24T11:00:00.000Z",
+          id: 'h3',
+          recordAt: '2025-03-24T10:00:00.000Z',
+          status: 'canceled',
+          label: 'Отмена',
+          lastEvent: 'event-cancel',
+          updatedAt: '2025-03-24T11:00:00.000Z',
         },
       ],
       listSymptomTrackings: async () => [],
@@ -407,9 +410,9 @@ describe("getClientProfile appointmentStats from history (ARCH-03)", () => {
       listSupplementaryContacts: async (_userId, _identity) => [],
     });
 
-    const profile = await service.getClientProfile("user-1");
+    const profile = await service.getClientProfile('user-1');
     expect(profile).not.toBeNull();
     expect(profile!.appointmentStats.cancellations30d).toBe(1);
-    expect(profile!.appointmentStats.lastVisitLabel).toBe("Отмена");
+    expect(profile!.appointmentStats.lastVisitLabel).toBe('Отмена');
   });
 });

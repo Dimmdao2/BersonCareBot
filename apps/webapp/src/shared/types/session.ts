@@ -1,4 +1,4 @@
-export type UserRole = "client" | "doctor" | "admin";
+export type UserRole = 'client' | 'doctor' | 'admin';
 
 export type ChannelBindings = {
   telegramId?: string;
@@ -57,20 +57,20 @@ export type AppSession = {
   issuedAt: number;
   expiresAt: number;
   /** Internal source hint for non-production dev bypass auth flow. */
-  authSource?: "dev_bypass";
+  authSource?: 'dev_bypass';
   adminMode?: boolean;
   /** Root-issued, ordinary TEST login handoff. It is signed like every session and never slides. */
   operatorSession?: {
-    purpose: "test_global_admin_visual";
+    purpose: 'test_global_admin_visual';
     expiresAt: number;
   };
   /** Подсказки UI сразу после входа (не для авторизации). */
   postLoginHints?: {
-    phoneOtpChannel?: "sms" | "telegram" | "max" | "email";
+    phoneOtpChannel?: 'sms' | 'telegram' | 'max' | 'email';
   };
   /** Authentication assurance for staff-only security gates; never inferred from role or membership. */
   staffSecurity?: {
-    assurance: "pending_enrollment" | "factor_verified" | "recovery" | "recovery_confirmation";
+    assurance: 'pending_enrollment' | 'factor_verified' | 'recovery' | 'recovery_confirmation';
     verifiedAt?: number;
   };
   /**

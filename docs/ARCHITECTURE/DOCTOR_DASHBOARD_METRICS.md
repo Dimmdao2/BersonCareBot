@@ -19,13 +19,13 @@
 
 ### Поверхности, проходящие через audience
 
-| Зона | Точки входа |
-|------|-------------|
-| «Сегодня» | RSC `/app/doctor` — KPI, записи, `loadDoctorTodayDashboard` |
-| По клиентам | RSC `/app/doctor/analytics/clients`, `GET /api/admin/doctor-analytics-appointments`, `GET /api/admin/platform-user-registration-stats`, `GET /api/admin/platform-user-subscriber-stats`, drill-down `GET /api/doctor/analytics-metric-accounts` |
-| По контенту / уведомлениям | `GET /api/doctor/content-stats`, `GET /api/admin/reminder-stats` |
-| Оценки материалов | `GET /api/doctor/material-ratings/*`, RSC `/app/doctor/material-ratings` |
-| Использование | `GET /api/admin/product-analytics` (`includeTestAccounts` из `loadProductAnalyticsAudience`) |
+| Зона                       | Точки входа                                                                                                                                                                                                                                     |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| «Сегодня»                  | RSC `/app/doctor` — KPI, записи, `loadDoctorTodayDashboard`                                                                                                                                                                                     |
+| По клиентам                | RSC `/app/doctor/analytics/clients`, `GET /api/admin/doctor-analytics-appointments`, `GET /api/admin/platform-user-registration-stats`, `GET /api/admin/platform-user-subscriber-stats`, drill-down `GET /api/doctor/analytics-metric-accounts` |
+| По контенту / уведомлениям | `GET /api/doctor/content-stats`, `GET /api/admin/reminder-stats`                                                                                                                                                                                |
+| Оценки материалов          | `GET /api/doctor/material-ratings/*`, RSC `/app/doctor/material-ratings`                                                                                                                                                                        |
+| Использование              | `GET /api/admin/product-analytics` (`includeTestAccounts` из `loadProductAnalyticsAudience`)                                                                                                                                                    |
 
 ---
 
@@ -52,10 +52,10 @@
 
 ## Плитки «Пациенты»
 
-| Плитка | Метрика | Определение |
-|--------|---------|-------------|
-| Всего в базе | `totalClients` | `platform_users` с `role = 'client'`, не архивные. |
-| На сопровождении | `onSupportCount` | Уникальные клиенты с `doctor_patient_support.on_support = true`. |
+| Плитка                 | Метрика                         | Определение                                                                                                                    |
+| ---------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Всего в базе           | `totalClients`                  | `platform_users` с `role = 'client'`, не архивные.                                                                             |
+| На сопровождении       | `onSupportCount`                | Уникальные клиенты с `doctor_patient_support.on_support = true`.                                                               |
 | Были на приёме (месяц) | `visitedThisCalendarMonthCount` | Уникальные клиенты с прошедшим слотом `created`/`updated`: `record_at` в текущем календарном месяце **и** `record_at < NOW()`. |
 
 **Список по клику:** подписчики (`/app/doctor/subscribers`), сопровождение — `?scope=all&support=on`; «программа без сопровождения» — `?scope=all&support=programWithoutSupport`; legacy «есть активная doctor-программа» — `?treatmentProgram=1`; «Были на приёме» — клиенты с записями `?visitedMonth=1` (`listClients({ visitedThisCalendarMonth: true, onlyWithAppointmentRecords: true })`).
@@ -64,11 +64,11 @@
 
 ## Плитки «Записи на приём»
 
-| Плитка | Метрика | Определение |
-|--------|---------|-------------|
-| Активные (будущие) | `futureActiveCount` | Канон: активные статусы + `start_at >= NOW()`. |
-| Всего за месяц | `recordsInCalendarMonthTotal` | Канон: `start_at` в текущем UTC-месяце (любой статус). |
-| Отмен за месяц | `cancellationsInCalendarMonth` | Канон: terminal cancel-статусы; интервал по **`updated_at`** в текущем месяце. |
+| Плитка             | Метрика                        | Определение                                                                    |
+| ------------------ | ------------------------------ | ------------------------------------------------------------------------------ |
+| Активные (будущие) | `futureActiveCount`            | Канон: активные статусы + `start_at >= NOW()`.                                 |
+| Всего за месяц     | `recordsInCalendarMonthTotal`  | Канон: `start_at` в текущем UTC-месяце (любой статус).                         |
+| Отмен за месяц     | `cancellationsInCalendarMonth` | Канон: terminal cancel-статусы; интервал по **`updated_at`** в текущем месяце. |
 
 **Списки:** `/app/doctor/appointments?view=future|month|cancellationsMonth` (read `be_appointments`).
 
@@ -92,10 +92,10 @@
 
 Верхние плитки (`DoctorTodayDashboard`, `deps.doctorStats.getStats()`):
 
-| Плитка | Источник |
-|--------|----------|
-| Записи сегодня | Число записей на текущий день (`start_at` в окне «сегодня», `app_display_timezone`) |
-| Записи на неделю | `getAppointmentStats({ range: 'week' }).total` — все строки с `start_at` в окне недели |
+| Плитка           | Источник                                                                                    |
+| ---------------- | ------------------------------------------------------------------------------------------- |
+| Записи сегодня   | Число записей на текущий день (`start_at` в окне «сегодня», `app_display_timezone`)         |
+| Записи на неделю | `getAppointmentStats({ range: 'week' }).total` — все строки с `start_at` в окне недели      |
 | Отмены за 30 дн. | `getAppointmentStats` → `cancellations30d` (канон: cancel-статусы, `updated_at` за 30 дней) |
 
 Клик по плитке открывает список аккаунтов (`GET /api/doctor/analytics-metric-accounts`, ключи `today_*`).
@@ -104,11 +104,11 @@
 
 ### Блок «Требует внимания» и проактивные сигналы (фаза 7 MVP)
 
-| Секция / бейдж | Источник | Определение |
-|----------------|----------|-------------|
-| «К проверке» | `treatmentProgramProgress` | Distinct попытки тестов на оценку (как `pending-program-tests/summary`) |
-| «Сигналы пациентов» | `doctorProactiveInsights.queryInsights` | Только `doctor_patient_support.on_support = true`: **`wellbeing_low_streak`** — `general_wellbeing` ≤ 2 три календарных дня подряд (якорь — сегодня или вчера); **`program_inactivity`** — активная doctor-программа без `program_action_log.done` по **этому** instance ≥ 5 дней |
-| Бейдж «Сегодня» в меню | `todayAttention` | `pending-program-tests/summary` + `proactive-insights/summary` |
+| Секция / бейдж         | Источник                                | Определение                                                                                                                                                                                                                                                                       |
+| ---------------------- | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| «К проверке»           | `treatmentProgramProgress`              | Distinct попытки тестов на оценку (как `pending-program-tests/summary`)                                                                                                                                                                                                           |
+| «Сигналы пациентов»    | `doctorProactiveInsights.queryInsights` | Только `doctor_patient_support.on_support = true`: **`wellbeing_low_streak`** — `general_wellbeing` ≤ 2 три календарных дня подряд (якорь — сегодня или вчера); **`program_inactivity`** — активная doctor-программа без `program_action_log.done` по **этому** instance ≥ 5 дней |
+| Бейдж «Сегодня» в меню | `todayAttention`                        | `pending-program-tests/summary` + `proactive-insights/summary`                                                                                                                                                                                                                    |
 
 Пороги — `apps/webapp/src/modules/doctor-proactive-insights/constants.ts` (admin UI — backlog RECOMMENDATIONS §этап 8). На карточке клиента — `listForPatient` → блок «Сигналы» на табе «Обзор».
 
@@ -128,6 +128,7 @@
 (Записей/Прошло/Впереди/По абонементу/Первичных/Повторных/Уникальных/Отмены/Переносы).
 
 Эти метрики **не смешивать** с дашбордом «Сегодня» выше:
+
 - Реализованы через `getScheduleKpis(query: ScheduleKpisQuery)` в `modules/doctor-appointments/ports.ts`.
 - API: `GET /api/doctor/schedule-kpis?from=&to=&branchId?=&serviceId?=`.
 - Диапазон произвольный `{from, to}` (не пресет дня/недели); фильтры по филиалу/услуге.

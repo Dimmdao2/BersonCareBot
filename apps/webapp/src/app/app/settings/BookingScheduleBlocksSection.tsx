@@ -1,22 +1,22 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useState, useTransition } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { Label } from "@/shared/ui/doctor/primitives/label";
+import { useCallback, useEffect, useState, useTransition } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { Label } from '@/shared/ui/doctor/primitives/label';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/ui/doctor/primitives/select";
+} from '@/shared/ui/doctor/primitives/select';
 
-import { pickDefaultSpecialist } from "@/app/app/settings/bookingSoloAdminApi";
-import { apiJson } from "@/shared/lib/apiJson";
-const BASE = "/api/admin/booking-engine/schedule-blocks";
-const OVERVIEW = "/api/admin/booking-engine/overview";
+import { pickDefaultSpecialist } from '@/app/app/settings/bookingSoloAdminApi';
+import { apiJson } from '@/shared/lib/apiJson';
+const BASE = '/api/admin/booking-engine/schedule-blocks';
+const OVERVIEW = '/api/admin/booking-engine/overview';
 
 type Block = {
   id: string;
@@ -36,17 +36,16 @@ type Catalog = {
 };
 
 function blockTypeLabel(blockType: string, solo: boolean): string {
-  if (blockType === "absence") return "Отсутствие";
-  return solo ? "Занято" : "Блок";
+  if (blockType === 'absence') return 'Отсутствие';
+  return solo ? 'Занято' : 'Блок';
 }
 
-function scopeLabel(
-  block: Block,
-  catalog: Catalog | null,
-): string {
+function scopeLabel(block: Block, catalog: Catalog | null): string {
   const parts: string[] = [];
   if (block.specialistId) {
-    parts.push(catalog?.specialists.find((s) => s.id === block.specialistId)?.fullName ?? block.specialistId);
+    parts.push(
+      catalog?.specialists.find((s) => s.id === block.specialistId)?.fullName ?? block.specialistId,
+    );
   }
   if (block.branchId) {
     parts.push(catalog?.branches.find((b) => b.id === block.branchId)?.title ?? block.branchId);
@@ -54,7 +53,7 @@ function scopeLabel(
   if (block.roomId) {
     parts.push(catalog?.rooms.find((r) => r.id === block.roomId)?.title ?? block.roomId);
   }
-  return parts.length > 0 ? parts.join(" · ") : "Вся клиника";
+  return parts.length > 0 ? parts.join(' · ') : 'Вся клиника';
 }
 
 export function BookingScheduleBlocksSection({ soloUx = false }: { soloUx?: boolean }) {
@@ -62,24 +61,24 @@ export function BookingScheduleBlocksSection({ soloUx = false }: { soloUx?: bool
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
-  const [startAt, setStartAt] = useState("");
-  const [endAt, setEndAt] = useState("");
-  const [blockType, setBlockType] = useState<"block" | "absence">("block");
-  const [title, setTitle] = useState("");
-  const [specialistId, setSpecialistId] = useState("");
-  const [branchId, setBranchId] = useState("");
-  const [roomId, setRoomId] = useState("");
-  const [filterSpecialistId, setFilterSpecialistId] = useState("");
-  const [filterBranchId, setFilterBranchId] = useState("");
-  const [filterRoomId, setFilterRoomId] = useState("");
+  const [startAt, setStartAt] = useState('');
+  const [endAt, setEndAt] = useState('');
+  const [blockType, setBlockType] = useState<'block' | 'absence'>('block');
+  const [title, setTitle] = useState('');
+  const [specialistId, setSpecialistId] = useState('');
+  const [branchId, setBranchId] = useState('');
+  const [roomId, setRoomId] = useState('');
+  const [filterSpecialistId, setFilterSpecialistId] = useState('');
+  const [filterBranchId, setFilterBranchId] = useState('');
+  const [filterRoomId, setFilterRoomId] = useState('');
 
   const loadCatalog = useCallback(async () => {
     try {
       const json = await apiJson<{
         ok?: boolean;
-        specialists?: (Catalog["specialists"][0] & { isActive?: boolean })[];
-        branches?: Catalog["branches"];
-        rooms?: Catalog["rooms"];
+        specialists?: (Catalog['specialists'][0] & { isActive?: boolean })[];
+        branches?: Catalog['branches'];
+        rooms?: Catalog['rooms'];
       }>(OVERVIEW);
       if (json.specialists && json.branches && json.rooms) {
         setCatalog({ specialists: json.specialists, branches: json.branches, rooms: json.rooms });
@@ -104,19 +103,21 @@ export function BookingScheduleBlocksSection({ soloUx = false }: { soloUx?: bool
 
   const load = useCallback(async () => {
     const qs = new URLSearchParams();
-    if (filterSpecialistId) qs.set("specialistId", filterSpecialistId);
-    if (filterBranchId) qs.set("branchId", filterBranchId);
-    if (filterRoomId) qs.set("roomId", filterRoomId);
+    if (filterSpecialistId) qs.set('specialistId', filterSpecialistId);
+    if (filterBranchId) qs.set('branchId', filterBranchId);
+    if (filterRoomId) qs.set('roomId', filterRoomId);
     try {
-      const json = await apiJson<{ ok?: boolean; blocks?: Block[]; error?: string }>(`${BASE}?${qs.toString()}`);
+      const json = await apiJson<{ ok?: boolean; blocks?: Block[]; error?: string }>(
+        `${BASE}?${qs.toString()}`,
+      );
       if (!json.blocks) {
-        setError("load_failed");
+        setError('load_failed');
         return;
       }
       setBlocks(json.blocks);
       setError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "load_failed");
+      setError(e instanceof Error ? e.message : 'load_failed');
     }
   }, [filterBranchId, filterRoomId, filterSpecialistId]);
 
@@ -137,8 +138,8 @@ export function BookingScheduleBlocksSection({ soloUx = false }: { soloUx?: bool
     startTransition(async () => {
       try {
         await apiJson(BASE, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             startAt: new Date(startAt).toISOString(),
             endAt: new Date(endAt).toISOString(),
@@ -149,12 +150,12 @@ export function BookingScheduleBlocksSection({ soloUx = false }: { soloUx?: bool
             roomId: roomId || null,
           }),
         });
-        setStartAt("");
-        setEndAt("");
-        setTitle("");
+        setStartAt('');
+        setEndAt('');
+        setTitle('');
         await load();
       } catch (e) {
-        setError(e instanceof Error ? e.message : "create_failed");
+        setError(e instanceof Error ? e.message : 'create_failed');
       }
     });
   }
@@ -162,9 +163,9 @@ export function BookingScheduleBlocksSection({ soloUx = false }: { soloUx?: bool
   function removeBlock(id: string) {
     startTransition(async () => {
       try {
-        await apiJson(`${BASE}?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+        await apiJson(`${BASE}?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
       } catch (e) {
-        setError(e instanceof Error ? e.message : "delete_failed");
+        setError(e instanceof Error ? e.message : 'delete_failed');
       }
       await load();
     });
@@ -173,37 +174,40 @@ export function BookingScheduleBlocksSection({ soloUx = false }: { soloUx?: bool
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{soloUx ? "Исключения" : "Блокировки расписания"}</CardTitle>
+        <CardTitle>{soloUx ? 'Исключения' : 'Блокировки расписания'}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
-        <div className={soloUx ? "grid gap-3 sm:grid-cols-1" : "grid gap-3 sm:grid-cols-3"}>
+        <div className={soloUx ? 'grid gap-3 sm:grid-cols-1' : 'grid gap-3 sm:grid-cols-3'}>
           {!soloUx ? (
-          <div className="flex flex-col gap-1">
-            <Label>Фильтр: специалист</Label>
-            <Select
-              value={filterSpecialistId || "__all__"}
-              onValueChange={(v) => setFilterSpecialistId(!v || v === "__all__" ? "" : v)}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all__" label="Все">
-                  Все
-                </SelectItem>
-                {(catalog?.specialists ?? []).map((s) => (
-                  <SelectItem key={s.id} value={s.id} label={s.fullName}>
-                    {s.fullName}
+            <div className="flex flex-col gap-1">
+              <Label>Фильтр: специалист</Label>
+              <Select
+                value={filterSpecialistId || '__all__'}
+                onValueChange={(v) => setFilterSpecialistId(!v || v === '__all__' ? '' : v)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__" label="Все">
+                    Все
                   </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+                  {(catalog?.specialists ?? []).map((s) => (
+                    <SelectItem key={s.id} value={s.id} label={s.fullName}>
+                      {s.fullName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           ) : null}
           <div className="flex flex-col gap-1">
-            <Label>{soloUx ? "Локация" : "Фильтр: филиал"}</Label>
-            <Select value={filterBranchId || "__all__"} onValueChange={(v) => setFilterBranchId(!v || v === "__all__" ? "" : v)}>
+            <Label>{soloUx ? 'Локация' : 'Фильтр: филиал'}</Label>
+            <Select
+              value={filterBranchId || '__all__'}
+              onValueChange={(v) => setFilterBranchId(!v || v === '__all__' ? '' : v)}
+            >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -220,30 +224,37 @@ export function BookingScheduleBlocksSection({ soloUx = false }: { soloUx?: bool
             </Select>
           </div>
           {!soloUx ? (
-          <div className="flex flex-col gap-1">
-            <Label>Фильтр: кабинет</Label>
-            <Select value={filterRoomId || "__all__"} onValueChange={(v) => setFilterRoomId(!v || v === "__all__" ? "" : v)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all__" label="Все">
-                  Все
-                </SelectItem>
-                {(catalog?.rooms ?? []).map((r) => (
-                  <SelectItem key={r.id} value={r.id} label={r.title}>
-                    {r.title}
+            <div className="flex flex-col gap-1">
+              <Label>Фильтр: кабинет</Label>
+              <Select
+                value={filterRoomId || '__all__'}
+                onValueChange={(v) => setFilterRoomId(!v || v === '__all__' ? '' : v)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__" label="Все">
+                    Все
                   </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+                  {(catalog?.rooms ?? []).map((r) => (
+                    <SelectItem key={r.id} value={r.id} label={r.title}>
+                      {r.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           ) : null}
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="flex flex-col gap-1">
             <Label>Начало</Label>
-            <Input type="datetime-local" value={startAt} onChange={(e) => setStartAt(e.target.value)} />
+            <Input
+              type="datetime-local"
+              value={startAt}
+              onChange={(e) => setStartAt(e.target.value)}
+            />
           </label>
           <label className="flex flex-col gap-1">
             <Label>Конец</Label>
@@ -251,13 +262,13 @@ export function BookingScheduleBlocksSection({ soloUx = false }: { soloUx?: bool
           </label>
           <label className="flex flex-col gap-1">
             <Label>Тип</Label>
-            <Select value={blockType} onValueChange={(v) => setBlockType(v as "block" | "absence")}>
+            <Select value={blockType} onValueChange={(v) => setBlockType(v as 'block' | 'absence')}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="block" label={blockTypeLabel("block", soloUx)}>
-                  {blockTypeLabel("block", soloUx)}
+                <SelectItem value="block" label={blockTypeLabel('block', soloUx)}>
+                  {blockTypeLabel('block', soloUx)}
                 </SelectItem>
                 <SelectItem value="absence" label="Отсутствие">
                   Отсутствие
@@ -270,28 +281,34 @@ export function BookingScheduleBlocksSection({ soloUx = false }: { soloUx?: bool
             <Input value={title} onChange={(e) => setTitle(e.target.value)} />
           </label>
           {!soloUx ? (
-          <div className="flex flex-col gap-1">
-            <Label>Специалист</Label>
-            <Select value={specialistId || "__none__"} onValueChange={(v) => setSpecialistId(!v || v === "__none__" ? "" : v)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__" label="Вся клиника">
-                  Вся клиника
-                </SelectItem>
-                {(catalog?.specialists ?? []).map((s) => (
-                  <SelectItem key={s.id} value={s.id} label={s.fullName}>
-                    {s.fullName}
+            <div className="flex flex-col gap-1">
+              <Label>Специалист</Label>
+              <Select
+                value={specialistId || '__none__'}
+                onValueChange={(v) => setSpecialistId(!v || v === '__none__' ? '' : v)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__" label="Вся клиника">
+                    Вся клиника
                   </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+                  {(catalog?.specialists ?? []).map((s) => (
+                    <SelectItem key={s.id} value={s.id} label={s.fullName}>
+                      {s.fullName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           ) : null}
           <div className="flex flex-col gap-1">
-            <Label>{soloUx ? "Локация" : "Филиал"}</Label>
-            <Select value={branchId || "__none__"} onValueChange={(v) => setBranchId(!v || v === "__none__" ? "" : v)}>
+            <Label>{soloUx ? 'Локация' : 'Филиал'}</Label>
+            <Select
+              value={branchId || '__none__'}
+              onValueChange={(v) => setBranchId(!v || v === '__none__' ? '' : v)}
+            >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -308,24 +325,27 @@ export function BookingScheduleBlocksSection({ soloUx = false }: { soloUx?: bool
             </Select>
           </div>
           {!soloUx ? (
-          <div className="flex flex-col gap-1">
-            <Label>Кабинет</Label>
-            <Select value={roomId || "__none__"} onValueChange={(v) => setRoomId(!v || v === "__none__" ? "" : v)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__" label="Все">
-                  Все
-                </SelectItem>
-                {(catalog?.rooms ?? []).map((r) => (
-                  <SelectItem key={r.id} value={r.id} label={r.title}>
-                    {r.title}
+            <div className="flex flex-col gap-1">
+              <Label>Кабинет</Label>
+              <Select
+                value={roomId || '__none__'}
+                onValueChange={(v) => setRoomId(!v || v === '__none__' ? '' : v)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__" label="Все">
+                    Все
                   </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+                  {(catalog?.rooms ?? []).map((r) => (
+                    <SelectItem key={r.id} value={r.id} label={r.title}>
+                      {r.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           ) : null}
         </div>
         <Button type="button" onClick={createBlock} disabled={pending || !startAt || !endAt}>
@@ -333,13 +353,23 @@ export function BookingScheduleBlocksSection({ soloUx = false }: { soloUx?: bool
         </Button>
         <ul className="space-y-2 text-sm">
           {blocks.map((b) => (
-            <li key={b.id} className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-2">
+            <li
+              key={b.id}
+              className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-2"
+            >
               <span>
-                {scopeLabel(b, catalog)} · {blockTypeLabel(b.blockType, soloUx)} ·{" "}
-                {new Date(b.startAt).toLocaleString("ru-RU")} — {new Date(b.endAt).toLocaleString("ru-RU")}
-                {b.title ? ` · ${b.title}` : ""}
+                {scopeLabel(b, catalog)} · {blockTypeLabel(b.blockType, soloUx)} ·{' '}
+                {new Date(b.startAt).toLocaleString('ru-RU')} —{' '}
+                {new Date(b.endAt).toLocaleString('ru-RU')}
+                {b.title ? ` · ${b.title}` : ''}
               </span>
-              <Button type="button" variant="outline" size="sm" onClick={() => removeBlock(b.id)} disabled={pending}>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => removeBlock(b.id)}
+                disabled={pending}
+              >
                 Удалить
               </Button>
             </li>

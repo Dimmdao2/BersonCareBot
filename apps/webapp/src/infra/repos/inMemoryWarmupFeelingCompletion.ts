@@ -1,5 +1,5 @@
-import type { PatientPracticePort } from "@/modules/patient-practice/ports";
-import type { WarmupFeelingCompletionPort } from "@/modules/patient-practice/warmupFeelingCompletionPort";
+import type { PatientPracticePort } from '@/modules/patient-practice/ports';
+import type { WarmupFeelingCompletionPort } from '@/modules/patient-practice/warmupFeelingCompletionPort';
 
 /** Упрощённая модель без таблицы симптомов: только обновление completion (dev / Vitest без Drizzle). */
 const completionIdsWithAppliedSymptom = new Set<string>();
@@ -9,7 +9,7 @@ export function resetInMemoryWarmupFeelingCompletionForTests(): void {
 }
 
 export function createInMemoryWarmupFeelingCompletionPort(opts: {
-  completions: Pick<PatientPracticePort, "getByIdForUser" | "updateFeelingById">;
+  completions: Pick<PatientPracticePort, 'getByIdForUser' | 'updateFeelingById'>;
 }): WarmupFeelingCompletionPort {
   return {
     async applyDailyWarmupFeeling(params) {
@@ -18,7 +18,11 @@ export function createInMemoryWarmupFeelingCompletionPort(opts: {
       if (row.feeling !== null) return { duplicate: true };
 
       if (completionIdsWithAppliedSymptom.has(params.completionId)) {
-        await opts.completions.updateFeelingById(params.completionId, params.userId, params.feeling);
+        await opts.completions.updateFeelingById(
+          params.completionId,
+          params.userId,
+          params.feeling,
+        );
         return { duplicate: true };
       }
 

@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { cn } from "@/lib/utils";
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { cn } from '@/lib/utils';
 
 export type CreatableComboboxItem = { value: string; label: string };
 
@@ -18,7 +18,7 @@ export type CreatableComboboxInputProps = {
   placeholder?: string;
   disabled?: boolean;
   className?: string;
-  "aria-label"?: string;
+  'aria-label'?: string;
 };
 
 /**
@@ -31,25 +31,25 @@ export function CreatableComboboxInput({
   value,
   onChange,
   onCreate,
-  placeholder = "Начните ввод…",
+  placeholder = 'Начните ввод…',
   disabled,
   className,
-  "aria-label": ariaLabel,
+  'aria-label': ariaLabel,
 }: CreatableComboboxInputProps) {
   const [open, setOpen] = useState(false);
-  const [q, setQ] = useState("");
+  const [q, setQ] = useState('');
   const [activeIdx, setActiveIdx] = useState(0);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
-  const listId = `${id ?? "ccb"}-listbox`;
+  const listId = `${id ?? 'ccb'}-listbox`;
 
   const selectedLabel = useMemo(() => {
-    if (!value) return "";
+    if (!value) return '';
     // `value` — код из справочника (`{ code, label }` из `/api/doctor/measure-kinds`), не подпись.
     // При промахе показываем placeholder, а НЕ код: сырой ключ в закрытом поле — тот самый
     // многолетний дефект «в списке подписи, в поле ключ».
-    return items.find((i) => i.value === value)?.label ?? "";
+    return items.find((i) => i.value === value)?.label ?? '';
   }, [items, value]);
 
   const filtered = useMemo(() => {
@@ -62,12 +62,15 @@ export function CreatableComboboxInput({
 
   const trimmedQ = q.trim();
   const exactHit = useMemo(
-    () => items.find((i) => i.label.toLowerCase() === trimmedQ.toLowerCase() || i.value === trimmedQ),
+    () =>
+      items.find((i) => i.label.toLowerCase() === trimmedQ.toLowerCase() || i.value === trimmedQ),
     [items, trimmedQ],
   );
 
   const showCreate =
-    trimmedQ.length > 0 && !exactHit && !filtered.some((i) => i.label.toLowerCase() === trimmedQ.toLowerCase());
+    trimmedQ.length > 0 &&
+    !exactHit &&
+    !filtered.some((i) => i.label.toLowerCase() === trimmedQ.toLowerCase());
 
   const listLen = filtered.length + (showCreate ? 1 : 0);
 
@@ -82,15 +85,15 @@ export function CreatableComboboxInput({
       if (!el || el.contains(ev.target as Node)) return;
       setOpen(false);
     };
-    document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
   }, [open]);
 
   const pick = useCallback(
     (item: CreatableComboboxItem) => {
       setErr(null);
       onChange(item.value, item.label);
-      setQ("");
+      setQ('');
       setOpen(false);
     },
     [onChange],
@@ -104,7 +107,7 @@ export function CreatableComboboxInput({
       const created = await onCreate(trimmedQ);
       pick(created);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Не удалось создать";
+      const msg = e instanceof Error ? e.message : 'Не удалось создать';
       setErr(msg);
     } finally {
       setBusy(false);
@@ -112,23 +115,23 @@ export function CreatableComboboxInput({
   }, [busy, onCreate, pick, trimmedQ]);
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (!open && (e.key === "ArrowDown" || e.key === "Enter")) {
+    if (!open && (e.key === 'ArrowDown' || e.key === 'Enter')) {
       setOpen(true);
       return;
     }
-    if (e.key === "Escape") {
+    if (e.key === 'Escape') {
       setOpen(false);
       return;
     }
-    if (e.key === "ArrowDown") {
+    if (e.key === 'ArrowDown') {
       e.preventDefault();
       setActiveIdx((i) => (listLen === 0 ? 0 : (i + 1) % listLen));
     }
-    if (e.key === "ArrowUp") {
+    if (e.key === 'ArrowUp') {
       e.preventDefault();
       setActiveIdx((i) => (listLen === 0 ? 0 : (i - 1 + listLen) % listLen));
     }
-    if (e.key === "Enter") {
+    if (e.key === 'Enter') {
       e.preventDefault();
       if (listLen === 0) return;
       if (showCreate && activeIdx === filtered.length) {
@@ -143,8 +146,8 @@ export function CreatableComboboxInput({
   const displayValue = open ? q : selectedLabel;
 
   return (
-    <div ref={rootRef} className={cn("relative min-w-0", className)}>
-      {name ? <input type="hidden" name={name} value={value ?? ""} readOnly /> : null}
+    <div ref={rootRef} className={cn('relative min-w-0', className)}>
+      {name ? <input type="hidden" name={name} value={value ?? ''} readOnly /> : null}
       <Input
         id={id}
         type="text"
@@ -182,8 +185,8 @@ export function CreatableComboboxInput({
               role="option"
               aria-selected={idx === activeIdx}
               className={cn(
-                "flex w-full cursor-pointer px-3 py-2 text-left hover:bg-muted",
-                idx === activeIdx && "bg-muted",
+                'flex w-full cursor-pointer px-3 py-2 text-left hover:bg-muted',
+                idx === activeIdx && 'bg-muted',
               )}
               onMouseEnter={() => setActiveIdx(idx)}
               onMouseDown={(ev) => ev.preventDefault()}
@@ -199,15 +202,15 @@ export function CreatableComboboxInput({
               role="option"
               aria-selected={activeIdx === filtered.length}
               className={cn(
-                "flex w-full cursor-pointer px-3 py-2 text-left text-primary hover:bg-muted",
-                activeIdx === filtered.length && "bg-muted",
+                'flex w-full cursor-pointer px-3 py-2 text-left text-primary hover:bg-muted',
+                activeIdx === filtered.length && 'bg-muted',
               )}
               onMouseEnter={() => setActiveIdx(filtered.length)}
               onMouseDown={(ev) => ev.preventDefault()}
               onClick={() => void tryCreate()}
               disabled={busy}
             >
-              {busy ? "Создание…" : `+ Добавить «${trimmedQ}»`}
+              {busy ? 'Создание…' : `+ Добавить «${trimmedQ}»`}
             </Button>
           ) : null}
         </div>

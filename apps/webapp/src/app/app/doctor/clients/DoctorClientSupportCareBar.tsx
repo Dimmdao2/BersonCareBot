@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useState } from "react";
-import { Switch } from "@/shared/ui/doctor/primitives/switch";
-import { Label } from "@/shared/ui/doctor/primitives/label";
-import type { PatientProgramInteractionPolicy } from "@/modules/doctor-clients/supportPolicy";
+import { useCallback, useEffect, useState } from 'react';
+import { Switch } from '@/shared/ui/doctor/primitives/switch';
+import { Label } from '@/shared/ui/doctor/primitives/label';
+import type { PatientProgramInteractionPolicy } from '@/modules/doctor-clients/supportPolicy';
 
 type SupportSettingsResponse = {
   ok?: boolean;
@@ -43,8 +43,8 @@ export function DoctorClientSupportCareBar({ patientUserId }: { patientUserId: s
       const res = await fetch(
         `/api/doctor/clients/${encodeURIComponent(patientUserId)}/support-settings`,
         {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ onSupport: checked }),
         },
       );
@@ -60,17 +60,17 @@ export function DoctorClientSupportCareBar({ patientUserId }: { patientUserId: s
   };
 
   return (
-    <div
-      id="doctor-client-section-support"
-      className="flex items-center gap-2 shrink-0"
-    >
+    <div id="doctor-client-section-support" className="flex items-center gap-2 shrink-0">
       <Switch
         id="doctor-client-on-support-care-bar"
         checked={onSupport}
         disabled={loading || saving}
         onCheckedChange={(checked) => void patch(checked)}
       />
-      <Label htmlFor="doctor-client-on-support-care-bar" className="text-sm font-medium whitespace-nowrap">
+      <Label
+        htmlFor="doctor-client-on-support-care-bar"
+        className="text-sm font-medium whitespace-nowrap"
+      >
         На сопровождении
       </Label>
     </div>

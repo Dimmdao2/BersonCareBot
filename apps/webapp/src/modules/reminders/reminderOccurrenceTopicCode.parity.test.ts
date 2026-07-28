@@ -1,9 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from 'vitest';
 
 import {
   reminderOccurrenceTopicCode,
   type ReminderRuleForTopicCode,
-} from "./reminderOccurrenceTopicCode";
+} from './reminderOccurrenceTopicCode';
 
 /**
  * Mirror the fixture table below in
@@ -23,88 +23,88 @@ const REMINDER_TOPIC_CODE_PARITY_CASES: ReadonlyArray<{
   readonly expected: string | undefined;
 }> = [
   {
-    name: "explicit notification_topic_code wins (trimmed)",
+    name: 'explicit notification_topic_code wins (trimmed)',
     rule: {
-      category: "water",
-      notificationTopicCode: "  custom_topic  ",
-      reminderIntent: "generic",
+      category: 'water',
+      notificationTopicCode: '  custom_topic  ',
+      reminderIntent: 'generic',
     },
-    occCategory: "water",
-    expected: "custom_topic",
+    occCategory: 'water',
+    expected: 'custom_topic',
   },
   {
-    name: "water category with generic intent — no inherited topic (not exercise_reminders)",
+    name: 'water category with generic intent — no inherited topic (not exercise_reminders)',
     rule: {
-      category: "water",
+      category: 'water',
       notificationTopicCode: null,
-      reminderIntent: "generic",
+      reminderIntent: 'generic',
     },
-    occCategory: "water",
+    occCategory: 'water',
     expected: undefined,
   },
   {
-    name: "warmup intent maps to warmup_reminders",
+    name: 'warmup intent maps to warmup_reminders',
     rule: {
-      category: "supplements_medication",
+      category: 'supplements_medication',
       notificationTopicCode: null,
-      reminderIntent: "warmup",
+      reminderIntent: 'warmup',
     },
-    occCategory: "supplements_medication",
-    expected: "warmup_reminders",
+    occCategory: 'supplements_medication',
+    expected: 'warmup_reminders',
   },
   {
-    name: "linkedObjectType rehab_program maps to training_reminders",
+    name: 'linkedObjectType rehab_program maps to training_reminders',
     rule: {
-      category: "supplements_medication",
+      category: 'supplements_medication',
       notificationTopicCode: null,
-      linkedObjectType: "rehab_program",
+      linkedObjectType: 'rehab_program',
     },
-    occCategory: "supplements_medication",
-    expected: "training_reminders",
+    occCategory: 'supplements_medication',
+    expected: 'training_reminders',
   },
   {
-    name: "occurrence category exercise when rule is undefined",
+    name: 'occurrence category exercise when rule is undefined',
     rule: undefined,
-    occCategory: "exercise",
-    expected: "training_reminders",
+    occCategory: 'exercise',
+    expected: 'training_reminders',
   },
   {
-    name: "occurrence category warmup when rule is undefined",
+    name: 'occurrence category warmup when rule is undefined',
     rule: undefined,
-    occCategory: "warmup",
-    expected: "warmup_reminders",
+    occCategory: 'warmup',
+    expected: 'warmup_reminders',
   },
   {
-    name: "occurrence category breathing when rule is undefined",
+    name: 'occurrence category breathing when rule is undefined',
     rule: undefined,
-    occCategory: "breathing",
-    expected: "training_reminders",
+    occCategory: 'breathing',
+    expected: 'training_reminders',
   },
   {
-    name: "supplements category alone — no heuristic topic",
+    name: 'supplements category alone — no heuristic topic',
     rule: {
-      category: "supplements_medication",
+      category: 'supplements_medication',
       notificationTopicCode: null,
       reminderIntent: null,
       linkedObjectType: null,
     },
-    occCategory: "supplements_medication",
+    occCategory: 'supplements_medication',
     expected: undefined,
   },
 ];
 
-describe("reminderOccurrenceTopicCode (parity vs integrator)", () => {
+describe('reminderOccurrenceTopicCode (parity vs integrator)', () => {
   for (const c of REMINDER_TOPIC_CODE_PARITY_CASES) {
     it(c.name, () => {
       const rule =
-        c.rule === undefined ?
-          undefined
-        : ({
-            category: c.rule.category,
-            notificationTopicCode: c.rule.notificationTopicCode ?? undefined,
-            reminderIntent: c.rule.reminderIntent ?? undefined,
-            linkedObjectType: c.rule.linkedObjectType ?? undefined,
-          } satisfies ReminderRuleForTopicCode);
+        c.rule === undefined
+          ? undefined
+          : ({
+              category: c.rule.category,
+              notificationTopicCode: c.rule.notificationTopicCode ?? undefined,
+              reminderIntent: c.rule.reminderIntent ?? undefined,
+              linkedObjectType: c.rule.linkedObjectType ?? undefined,
+            } satisfies ReminderRuleForTopicCode);
       expect(reminderOccurrenceTopicCode(rule, c.occCategory)).toBe(c.expected);
     });
   }

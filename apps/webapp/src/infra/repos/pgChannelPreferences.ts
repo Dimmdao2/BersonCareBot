@@ -1,19 +1,19 @@
 /**
  * Wave 3 phase 14D — domain SQL via `runWebappPgText`; Class C TX on `setPreferredAuthChannel`.
  */
-import { getPool } from "@/infra/db/client";
-import { getWebappSqlFromPgClient, runWebappPgText } from "@/infra/db/runWebappSql";
-import { withPoolTransaction } from "@/infra/db/withClient";
-import type { BroadcastNotificationPrefsFlags } from "@/modules/doctor-broadcasts/ports";
-import type { ChannelPreferencesPort } from "@/modules/channel-preferences/ports";
+import { getPool } from '@/infra/db/client';
+import { getWebappSqlFromPgClient, runWebappPgText } from '@/infra/db/runWebappSql';
+import { withPoolTransaction } from '@/infra/db/withClient';
+import type { BroadcastNotificationPrefsFlags } from '@/modules/doctor-broadcasts/ports';
+import type { ChannelPreferencesPort } from '@/modules/channel-preferences/ports';
 import {
   assertChannelAllowedForPreferredAuth,
   isChannelAllowedForPreferredAuth,
-} from "@/modules/channel-preferences/preferredAuthChannelPolicy";
-import type { ChannelCode, ChannelPreference } from "@/modules/channel-preferences/types";
-import type { PoolClient } from "pg";
+} from '@/modules/channel-preferences/preferredAuthChannelPolicy';
+import type { ChannelCode, ChannelPreference } from '@/modules/channel-preferences/types';
+import type { PoolClient } from 'pg';
 
-const CODES: ChannelCode[] = ["telegram", "max", "vk", "sms", "email", "web_push"];
+const CODES: ChannelCode[] = ['telegram', 'max', 'vk', 'sms', 'email', 'web_push'];
 
 function userMatchSql(paramIndex: number): string {
   return `(platform_user_id = $${paramIndex}::uuid OR (platform_user_id IS NULL AND user_id = $${paramIndex}::text))`;
@@ -59,13 +59,14 @@ export const pgChannelPreferencesPort: ChannelPreferencesPort = {
     for (const row of result.rows) {
       byCode.set(row.channel_code, rowToPreference(row));
     }
-    return CODES.map((code) =>
-      byCode.get(code) ?? {
-        channelCode: code,
-        isEnabledForMessages: true,
-        isEnabledForNotifications: true,
-        isPreferredForAuth: false,
-      },
+    return CODES.map(
+      (code) =>
+        byCode.get(code) ?? {
+          channelCode: code,
+          isEnabledForMessages: true,
+          isEnabledForNotifications: true,
+          isPreferredForAuth: false,
+        },
     );
   },
 
@@ -81,7 +82,13 @@ export const pgChannelPreferencesPort: ChannelPreferencesPort = {
          is_enabled_for_messages = EXCLUDED.is_enabled_for_messages,
          is_enabled_for_notifications = EXCLUDED.is_enabled_for_notifications,
          updated_at = EXCLUDED.updated_at`,
-      [params.userId, params.channelCode, params.isEnabledForMessages, params.isEnabledForNotifications, now],
+      [
+        params.userId,
+        params.channelCode,
+        params.isEnabledForMessages,
+        params.isEnabledForNotifications,
+        now,
+      ],
     );
     const result = await runWebappPgText<{
       channel_code: string;
@@ -96,7 +103,9 @@ export const pgChannelPreferencesPort: ChannelPreferencesPort = {
     return rowToPreference(result.rows[0]!);
   },
 
-  async getBroadcastNotificationFlagsBatch(platformUserIds): Promise<Map<string, BroadcastNotificationPrefsFlags>> {
+  async getBroadcastNotificationFlagsBatch(
+    platformUserIds,
+  ): Promise<Map<string, BroadcastNotificationPrefsFlags>> {
     const out = new Map<string, BroadcastNotificationPrefsFlags>();
     for (const id of platformUserIds) {
       out.set(id, { telegram: true, max: true, sms: true });
@@ -117,9 +126,9 @@ export const pgChannelPreferencesPort: ChannelPreferencesPort = {
     for (const row of result.rows) {
       const cur = out.get(row.platform_user_id);
       if (!cur) continue;
-      if (row.channel_code === "telegram") cur.telegram = row.is_enabled_for_notifications;
-      else if (row.channel_code === "max") cur.max = row.is_enabled_for_notifications;
-      else if (row.channel_code === "sms") cur.sms = row.is_enabled_for_notifications;
+      if (row.channel_code === 'telegram') cur.telegram = row.is_enabled_for_notifications;
+      else if (row.channel_code === 'max') cur.max = row.is_enabled_for_notifications;
+      else if (row.channel_code === 'sms') cur.sms = row.is_enabled_for_notifications;
     }
     return out;
   },

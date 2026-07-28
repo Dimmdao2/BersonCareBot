@@ -14,7 +14,10 @@ vi.mock('./client.js', async (importOriginal) => {
     deleteMaxMessage: (...args: unknown[]) => deleteMaxMessageMock(...args),
   };
 });
-vi.mock('./runtimeConfig.js', () => ({ getMaxApiKey: async () => 'test-key', getMaxBaseUrl: () => undefined }));
+vi.mock('./runtimeConfig.js', () => ({
+  getMaxApiKey: async () => 'test-key',
+  getMaxBaseUrl: () => undefined,
+}));
 
 import { createMaxDeliveryAdapter } from './deliveryAdapter.js';
 
@@ -103,7 +106,11 @@ describe('max deliveryAdapter', () => {
     const intent = {
       type: 'message.send' as const,
       meta: { eventId: 'e', occurredAt: '', source: 'telegram' },
-      payload: { recipient: { chatId: 1 }, message: { text: 'x' }, delivery: { channels: ['telegram'] } },
+      payload: {
+        recipient: { chatId: 1 },
+        message: { text: 'x' },
+        delivery: { channels: ['telegram'] },
+      },
     };
     expect(adapter.canHandle(intent)).toBe(false);
   });
@@ -149,16 +156,19 @@ describe('max deliveryAdapter', () => {
         message: { text: 'hello' },
         delivery: { channels: ['max'] },
         replyMarkup: {
-          inline_keyboard: [[
-            { text: 'A', web_app: { url: 'https://app.example/a' } },
-            { text: 'B', web_app: { url: 'https://app.example/b' } },
-            { text: 'C', web_app: { url: 'https://app.example/c' } },
-          ]],
+          inline_keyboard: [
+            [
+              { text: 'A', web_app: { url: 'https://app.example/a' } },
+              { text: 'B', web_app: { url: 'https://app.example/b' } },
+              { text: 'C', web_app: { url: 'https://app.example/c' } },
+            ],
+          ],
         },
       },
     });
     const call = sendMaxMessageMock.mock.calls[0]?.[1] as { extra?: { attachments?: unknown[] } };
-    const row = (call?.extra?.attachments?.[0] as { payload?: { buttons?: unknown[][] } })?.payload?.buttons?.[0] as Array<{ type?: string; web_app?: string }>;
+    const row = (call?.extra?.attachments?.[0] as { payload?: { buttons?: unknown[][] } })?.payload
+      ?.buttons?.[0] as Array<{ type?: string; web_app?: string }>;
     expect(row).toHaveLength(3);
     expect(row?.every((b) => b.type === 'open_app')).toBe(true);
     expect(row?.[0]?.web_app).toBe('https://app.example/a');
@@ -175,7 +185,9 @@ describe('max deliveryAdapter', () => {
         message: { text: 'Open app' },
         delivery: { channels: ['max'] },
         replyMarkup: {
-          inline_keyboard: [[{ text: 'Веб-приложение', web_app: { url: 'https://app.example/app/max?t=dummy' } }]],
+          inline_keyboard: [
+            [{ text: 'Веб-приложение', web_app: { url: 'https://app.example/app/max?t=dummy' } }],
+          ],
         },
       },
     });
@@ -220,7 +232,8 @@ describe('max deliveryAdapter', () => {
       },
     });
     const call = sendMaxMessageMock.mock.calls[0]?.[1] as { extra?: { attachments?: unknown[] } };
-    const btn = (call?.extra?.attachments?.[0] as { payload?: { buttons?: unknown[][] } })?.payload?.buttons?.[0]?.[0] as Record<string, unknown>;
+    const btn = (call?.extra?.attachments?.[0] as { payload?: { buttons?: unknown[][] } })?.payload
+      ?.buttons?.[0]?.[0] as Record<string, unknown>;
     expect(btn?.contact_id).toBe(555);
   });
 
@@ -237,7 +250,8 @@ describe('max deliveryAdapter', () => {
       },
     });
     const call = editMaxMessageMock.mock.calls[0]?.[1] as { extra?: { attachments?: unknown[] } };
-    const btn = (call?.extra?.attachments?.[0] as { payload?: { buttons?: unknown[][] } })?.payload?.buttons?.[0]?.[0] as Record<string, unknown>;
+    const btn = (call?.extra?.attachments?.[0] as { payload?: { buttons?: unknown[][] } })?.payload
+      ?.buttons?.[0]?.[0] as Record<string, unknown>;
     expect(btn?.contact_id).toBe(777);
   });
 
@@ -256,7 +270,8 @@ describe('max deliveryAdapter', () => {
       },
     });
     const call = sendMaxMessageMock.mock.calls[0]?.[1] as { extra?: { attachments?: unknown[] } };
-    const btn = (call?.extra?.attachments?.[0] as { payload?: { buttons?: unknown[][] } })?.payload?.buttons?.[0]?.[0] as Record<string, unknown>;
+    const btn = (call?.extra?.attachments?.[0] as { payload?: { buttons?: unknown[][] } })?.payload
+      ?.buttons?.[0]?.[0] as Record<string, unknown>;
     expect(btn?.type).toBe('open_app');
     expect(btn?.web_app).toBe('https://app.example/x');
     expect(btn?.contact_id).toBe(200);
@@ -278,7 +293,9 @@ describe('max deliveryAdapter', () => {
       },
     });
     const call = sendMaxMessageMock.mock.calls[0]?.[1] as { extra?: { attachments?: unknown[] } };
-    const rows = (call?.extra?.attachments?.[0] as { payload?: { buttons?: Record<string, unknown>[][] } })?.payload?.buttons;
+    const rows = (
+      call?.extra?.attachments?.[0] as { payload?: { buttons?: Record<string, unknown>[][] } }
+    )?.payload?.buttons;
     expect(rows).toHaveLength(2);
     expect(rows?.[0]?.[0]?.type).toBe('open_app');
     expect(rows?.[0]?.[0]?.web_app).toBe('https://app.example/i');
@@ -341,7 +358,9 @@ describe('max deliveryAdapter', () => {
 
   it('send message.send propagates MaxSendError from client', async () => {
     const { MaxSendError } = await import('./client.js');
-    sendMaxMessageMock.mockRejectedValueOnce(new MaxSendError('MAX_SEND_FAILED', { apiMessage: 'send failed' }));
+    sendMaxMessageMock.mockRejectedValueOnce(
+      new MaxSendError('MAX_SEND_FAILED', { apiMessage: 'send failed' }),
+    );
     const adapter = createMaxDeliveryAdapter();
     await expect(
       adapter.send({
@@ -363,10 +382,10 @@ describe('max deliveryAdapter', () => {
       meta: { eventId: 'e', occurredAt: '', source: 'max' },
       payload: { callbackQueryId: 'cb-99' },
     });
-    expect(answerMaxCallbackMock).toHaveBeenCalledWith(
-      expect.any(Object),
-      { callbackId: 'cb-99', extra: { notification: '\u200b' } },
-    );
+    expect(answerMaxCallbackMock).toHaveBeenCalledWith(expect.any(Object), {
+      callbackId: 'cb-99',
+      extra: { notification: '\u200b' },
+    });
   });
 
   it('send callback.answer forwards payload.text when no notification', async () => {
@@ -376,10 +395,10 @@ describe('max deliveryAdapter', () => {
       meta: { eventId: 'e', occurredAt: '', source: 'max' },
       payload: { callbackQueryId: 'cb-101', text: 'Сохранено' },
     });
-    expect(answerMaxCallbackMock).toHaveBeenCalledWith(
-      expect.any(Object),
-      { callbackId: 'cb-101', extra: { notification: 'Сохранено' } },
-    );
+    expect(answerMaxCallbackMock).toHaveBeenCalledWith(expect.any(Object), {
+      callbackId: 'cb-101',
+      extra: { notification: 'Сохранено' },
+    });
   });
 
   it('send callback.answer keeps explicit notification', async () => {
@@ -389,10 +408,10 @@ describe('max deliveryAdapter', () => {
       meta: { eventId: 'e', occurredAt: '', source: 'max' },
       payload: { callbackQueryId: 'cb-100', notification: 'Открываю диалог' },
     });
-    expect(answerMaxCallbackMock).toHaveBeenCalledWith(
-      expect.any(Object),
-      { callbackId: 'cb-100', extra: { notification: 'Открываю диалог' } },
-    );
+    expect(answerMaxCallbackMock).toHaveBeenCalledWith(expect.any(Object), {
+      callbackId: 'cb-100',
+      extra: { notification: 'Открываю диалог' },
+    });
   });
 
   it('send message.edit keeps string messageId', async () => {

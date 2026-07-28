@@ -45,7 +45,9 @@ export function bindOAuthUserResolvePort(port: OAuthUserResolvePort): void {
 
 export function requireOAuthUserResolvePort(): OAuthUserResolvePort {
   if (!oauthUserResolvePort) {
-    throw new Error("OAuthUserResolvePort is not bound. Call ensureAuthModulePortsBound() from buildAppDeps.");
+    throw new Error(
+      'OAuthUserResolvePort is not bound. Call ensureAuthModulePortsBound() from buildAppDeps.',
+    );
   }
   return oauthUserResolvePort;
 }

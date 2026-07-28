@@ -1,6 +1,6 @@
 /** Парсинг `system_settings.patient_home_mood_icons` для главной пациента. */
 
-import { PATIENT_HOME_MOOD_STATIC_ICON_URL } from "./patientHomeStaticIcons";
+import { PATIENT_HOME_MOOD_STATIC_ICON_URL } from './patientHomeStaticIcons';
 
 export type PatientHomeMoodIconOption = {
   score: 1 | 2 | 3 | 4 | 5;
@@ -9,15 +9,19 @@ export type PatientHomeMoodIconOption = {
 };
 
 const DEFAULT_BY_SCORE: Record<1 | 2 | 3 | 4 | 5, { label: string }> = {
-  1: { label: "Очень плохо" },
-  2: { label: "Скорее плохо" },
-  3: { label: "Нейтрально" },
-  4: { label: "Хорошо" },
-  5: { label: "Отлично" },
+  1: { label: 'Очень плохо' },
+  2: { label: 'Скорее плохо' },
+  3: { label: 'Нейтрально' },
+  4: { label: 'Хорошо' },
+  5: { label: 'Отлично' },
 };
 
 function unwrapValueJson(valueJson: unknown): unknown {
-  if (valueJson !== null && typeof valueJson === "object" && "value" in (valueJson as Record<string, unknown>)) {
+  if (
+    valueJson !== null &&
+    typeof valueJson === 'object' &&
+    'value' in (valueJson as Record<string, unknown>)
+  ) {
     return (valueJson as { value: unknown }).value;
   }
   return valueJson;
@@ -27,20 +31,22 @@ function unwrapValueJson(valueJson: unknown): unknown {
  * Возвращает 5 кнопок настроения (1-5) с label.
  * Картинка: override из admin settings, иначе bundled PNG из `public/patient/home/icons/mood/`.
  */
-export function parsePatientHomeMoodIcons(valueJson: unknown): readonly PatientHomeMoodIconOption[] {
+export function parsePatientHomeMoodIcons(
+  valueJson: unknown,
+): readonly PatientHomeMoodIconOption[] {
   const raw = unwrapValueJson(valueJson);
   const fromDb = new Map<number, { label?: string; imageUrl?: string | null }>();
   if (Array.isArray(raw)) {
     for (const row of raw) {
-      if (row === null || typeof row !== "object") continue;
+      if (row === null || typeof row !== 'object') continue;
       const o = row as Record<string, unknown>;
-      const score = typeof o.score === "number" && o.score >= 1 && o.score <= 5 ? o.score : null;
+      const score = typeof o.score === 'number' && o.score >= 1 && o.score <= 5 ? o.score : null;
       if (score === null) continue;
-      const label = typeof o.label === "string" && o.label.trim() ? o.label.trim() : undefined;
+      const label = typeof o.label === 'string' && o.label.trim() ? o.label.trim() : undefined;
       const imageUrl =
         o.imageUrl === null || o.imageUrl === undefined
           ? null
-          : typeof o.imageUrl === "string" && o.imageUrl.trim()
+          : typeof o.imageUrl === 'string' && o.imageUrl.trim()
             ? o.imageUrl.trim()
             : null;
       fromDb.set(score, { label, imageUrl });

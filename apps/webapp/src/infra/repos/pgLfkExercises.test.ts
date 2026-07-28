@@ -1,28 +1,28 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const runWebappPgTextMock = vi.hoisted(() => vi.fn());
 const runWebappTransactionMock = vi.hoisted(() => vi.fn());
 const getCurrentOrganizationIdMock = vi.hoisted(() => vi.fn());
 
-vi.mock("@bersoncare/db-principal", () => ({
+vi.mock('@bersoncare/db-principal', () => ({
   getCurrentDbPrincipalOrganizationId: getCurrentOrganizationIdMock,
 }));
 
-vi.mock("@/infra/db/runWebappSql", () => ({
+vi.mock('@/infra/db/runWebappSql', () => ({
   runWebappPgText: runWebappPgTextMock,
   runWebappTransaction: runWebappTransactionMock,
 }));
 
-import { createPgLfkExercisesPort } from "./pgLfkExercises";
+import { createPgLfkExercisesPort } from './pgLfkExercises';
 
-const exerciseId = "550e8400-e29b-41d4-a716-446655440000";
+const exerciseId = '550e8400-e29b-41d4-a716-446655440000';
 
 function exerciseDbRow(overrides: Partial<{ id: string; title: string }> = {}) {
   return {
     id: exerciseId,
-    owner_kind: "organization",
-    catalog_scope: "catalog",
-    title: "Присед",
+    owner_kind: 'organization',
+    catalog_scope: 'catalog',
+    title: 'Присед',
     description: null,
     region_ref_id: null,
     load_type: null,
@@ -31,86 +31,88 @@ function exerciseDbRow(overrides: Partial<{ id: string; title: string }> = {}) {
     tags: null,
     is_archived: false,
     created_by: null,
-    created_at: new Date("2026-01-01T00:00:00.000Z"),
-    updated_at: new Date("2026-01-01T00:00:00.000Z"),
+    created_at: new Date('2026-01-01T00:00:00.000Z'),
+    updated_at: new Date('2026-01-01T00:00:00.000Z'),
     ...overrides,
   };
 }
 
-describe("createPgLfkExercisesPort", () => {
+describe('createPgLfkExercisesPort', () => {
   beforeEach(() => {
     runWebappPgTextMock.mockReset();
     runWebappTransactionMock.mockReset();
     getCurrentOrganizationIdMock.mockReset();
-    getCurrentOrganizationIdMock.mockReturnValue("a0000000-0000-4000-8000-000000000001");
+    getCurrentOrganizationIdMock.mockReturnValue('a0000000-0000-4000-8000-000000000001');
     runWebappTransactionMock.mockImplementation(async (fn) => fn({ rollback: vi.fn() }));
   });
 
-  it("fails closed when an organization principal is absent", async () => {
+  it('fails closed when an organization principal is absent', async () => {
     getCurrentOrganizationIdMock.mockReturnValue(null);
     const port = createPgLfkExercisesPort();
     await expect(port.list({})).rejects.toThrow(/Organization principal/);
     expect(runWebappPgTextMock).not.toHaveBeenCalled();
   });
 
-  it("list builds filter for load_type and archived", async () => {
+  it('list builds filter for load_type and archived', async () => {
     runWebappPgTextMock.mockResolvedValueOnce({ rows: [] });
     const port = createPgLfkExercisesPort();
-    await port.list({ loadType: "cardio", includeArchived: false });
-    const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
-    expect(sql).toContain("load_type");
-    expect(sql).toContain("is_archived = false");
+    await port.list({ loadType: 'cardio', includeArchived: false });
+    const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? '');
+    expect(sql).toContain('load_type');
+    expect(sql).toContain('is_archived = false');
     expect(sql).toContain("e.catalog_scope = 'catalog'");
     expect(sql).toContain(
       "e.organization_id = COALESCE(app.current_org_id(), NULLIF(current_setting('app.org', true), '')::uuid)",
     );
   });
 
-  it("list with archiveListScope archived filters archived only", async () => {
+  it('list with archiveListScope archived filters archived only', async () => {
     runWebappPgTextMock.mockResolvedValueOnce({ rows: [] });
     const port = createPgLfkExercisesPort();
-    await port.list({ archiveListScope: "archived" });
-    const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
-    expect(sql).toContain("is_archived = true");
+    await port.list({ archiveListScope: 'archived' });
+    const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? '');
+    expect(sql).toContain('is_archived = true');
   });
 
-  it("keeps platform base hidden by default and includes it only from a trusted option", async () => {
+  it('keeps platform base hidden by default and includes it only from a trusted option', async () => {
     runWebappPgTextMock.mockResolvedValue({ rows: [] });
     const port = createPgLfkExercisesPort();
     await port.list({});
-    const offSql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
+    const offSql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? '');
     expect(offSql).not.toContain("e.owner_kind = 'platform'");
 
     await port.list({ includePlatformBase: true });
-    const onSql = String(runWebappPgTextMock.mock.calls[1]?.[0] ?? "");
+    const onSql = String(runWebappPgTextMock.mock.calls[1]?.[0] ?? '');
     expect(onSql).toContain("e.owner_kind = 'platform'");
-    expect(onSql).toContain("e.organization_id IS NULL");
+    expect(onSql).toContain('e.organization_id IS NULL');
   });
 
-  it("direct lookup binds entitlement OFF/ON instead of trusting a target id", async () => {
+  it('direct lookup binds entitlement OFF/ON instead of trusting a target id', async () => {
     runWebappPgTextMock.mockResolvedValue({ rows: [] });
     const port = createPgLfkExercisesPort();
     await port.getById(exerciseId);
     await port.getById(exerciseId, { includePlatformBase: true });
     expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual([exerciseId, false]);
     expect(runWebappPgTextMock.mock.calls[1]?.[1]).toEqual([exerciseId, true]);
-    expect(String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "")).toContain("e.catalog_scope = 'catalog'");
+    expect(String(runWebappPgTextMock.mock.calls[0]?.[0] ?? '')).toContain(
+      "e.catalog_scope = 'catalog'",
+    );
   });
 
-  it("list applies NFC-normalized ILIKE search for titles", async () => {
+  it('list applies NFC-normalized ILIKE search for titles', async () => {
     runWebappPgTextMock.mockResolvedValueOnce({ rows: [] });
     const port = createPgLfkExercisesPort();
-    await port.list({ search: "Южный", includeArchived: true });
-    const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
-    expect(sql).toContain("normalize(e.title, NFC)");
-    expect(sql).toContain("ILIKE");
+    await port.list({ search: 'Южный', includeArchived: true });
+    const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? '');
+    expect(sql).toContain('normalize(e.title, NFC)');
+    expect(sql).toContain('ILIKE');
     expect(sql).toContain("ESCAPE '\\'");
     const params = runWebappPgTextMock.mock.calls[0]?.[1] as unknown[] | undefined;
     expect(Array.isArray(params)).toBe(true);
-    expect(params?.some((p) => typeof p === "string" && p.includes("южный"))).toBe(true);
+    expect(params?.some((p) => typeof p === 'string' && p.includes('южный'))).toBe(true);
   });
 
-  it("getExerciseUsageSummary runs scalar subqueries and ref aggregates", async () => {
+  it('getExerciseUsageSummary runs scalar subqueries and ref aggregates', async () => {
     runWebappPgTextMock.mockResolvedValueOnce({
       rows: [
         {
@@ -139,15 +141,15 @@ describe("createPgLfkExercisesPort", () => {
     expect(u.activeTreatmentProgramInstanceCount).toBe(3);
     expect(u.completedTreatmentProgramInstanceCount).toBe(4);
     expect(u.publishedLfkComplexTemplateRefs).toEqual([]);
-    const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
-    expect(sql).toContain("published_lfk_template_refs");
-    expect(sql).toContain("jsonb_agg");
-    expect(sql).toContain("treatment_program_template_stage_items");
-    expect(sql).toContain("patient_lfk_assignments");
-    expect(sql).toContain("completed_tp_instances");
+    const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? '');
+    expect(sql).toContain('published_lfk_template_refs');
+    expect(sql).toContain('jsonb_agg');
+    expect(sql).toContain('treatment_program_template_stage_items');
+    expect(sql).toContain('patient_lfk_assignments');
+    expect(sql).toContain('completed_tp_instances');
   });
 
-  it("archive sets is_archived true when row updated", async () => {
+  it('archive sets is_archived true when row updated', async () => {
     runWebappPgTextMock.mockResolvedValueOnce({ rowCount: 1, rows: [] });
     const port = createPgLfkExercisesPort();
     const ok = await port.archive(exerciseId);
@@ -155,11 +157,11 @@ describe("createPgLfkExercisesPort", () => {
     expect(runWebappTransactionMock).toHaveBeenCalledTimes(1);
     const txCalls = runWebappPgTextMock.mock.calls.filter((c) => c[2] != null);
     expect(txCalls).toHaveLength(1);
-    const sql = String(txCalls[0]?.[0] ?? "");
-    expect(sql).toContain("is_archived = true");
+    const sql = String(txCalls[0]?.[0] ?? '');
+    expect(sql).toContain('is_archived = true');
   });
 
-  it("unarchive updates is_archived to false", async () => {
+  it('unarchive updates is_archived to false', async () => {
     runWebappPgTextMock.mockResolvedValueOnce({ rowCount: 1, rows: [] });
     const port = createPgLfkExercisesPort();
     const ok = await port.unarchive(exerciseId);
@@ -167,61 +169,61 @@ describe("createPgLfkExercisesPort", () => {
     expect(runWebappTransactionMock).toHaveBeenCalledTimes(1);
     const txCalls = runWebappPgTextMock.mock.calls.filter((c) => c[2] != null);
     expect(txCalls).toHaveLength(1);
-    const sql = String(txCalls[0]?.[0] ?? "");
-    expect(sql).toContain("is_archived = false");
+    const sql = String(txCalls[0]?.[0] ?? '');
+    expect(sql).toContain('is_archived = false');
   });
 
-  it("create inserts exercise in transaction then loads media", async () => {
+  it('create inserts exercise in transaction then loads media', async () => {
     runWebappPgTextMock
       .mockResolvedValueOnce({ rows: [exerciseDbRow()] })
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] });
     const port = createPgLfkExercisesPort();
-    const ex = await port.create({ title: "Присед" }, null);
-    expect(ex.title).toBe("Присед");
+    const ex = await port.create({ title: 'Присед' }, null);
+    expect(ex.title).toBe('Присед');
     expect(runWebappTransactionMock).toHaveBeenCalledTimes(1);
     const txSql = runWebappPgTextMock.mock.calls
       .filter((c) => c[2] != null)
       .map((c) => String(c[0]))
-      .join("\n");
-    expect(txSql).toContain("INSERT INTO lfk_exercises");
-    expect(txSql).toContain("catalog_scope");
-    expect(ex.catalogScope).toBe("catalog");
+      .join('\n');
+    expect(txSql).toContain('INSERT INTO lfk_exercises');
+    expect(txSql).toContain('catalog_scope');
+    expect(ex.catalogScope).toBe('catalog');
   });
 
-  it("update returns null when exercise not found", async () => {
+  it('update returns null when exercise not found', async () => {
     runWebappPgTextMock.mockResolvedValueOnce({ rows: [] });
     const port = createPgLfkExercisesPort();
-    const out = await port.update(exerciseId, { title: "X" });
+    const out = await port.update(exerciseId, { title: 'X' });
     expect(out).toBeNull();
     expect(runWebappTransactionMock).toHaveBeenCalledTimes(1);
   });
 
-  it("update applies title patch in transaction and reloads row", async () => {
+  it('update applies title patch in transaction and reloads row', async () => {
     runWebappPgTextMock
       .mockResolvedValueOnce({ rows: [{ id: exerciseId }] })
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [exerciseDbRow({ title: "Новое" })] });
+      .mockResolvedValueOnce({ rows: [exerciseDbRow({ title: 'Новое' })] });
     const port = createPgLfkExercisesPort();
-    const out = await port.update(exerciseId, { title: "Новое" });
-    expect(out?.title).toBe("Новое");
+    const out = await port.update(exerciseId, { title: 'Новое' });
+    expect(out?.title).toBe('Новое');
     const txCalls = runWebappPgTextMock.mock.calls.filter((c) => c[2] != null);
-    expect(txCalls.some((c) => String(c[0]).includes("UPDATE lfk_exercises"))).toBe(true);
+    expect(txCalls.some((c) => String(c[0]).includes('UPDATE lfk_exercises'))).toBe(true);
   });
 
-  it("listTitlesByIds passes ids as single uuid[] param", async () => {
+  it('listTitlesByIds passes ids as single uuid[] param', async () => {
     runWebappPgTextMock.mockResolvedValueOnce({
-      rows: [{ id: exerciseId, title: "Присед" }],
+      rows: [{ id: exerciseId, title: 'Присед' }],
     });
     const port = createPgLfkExercisesPort();
     const out = await port.listTitlesByIds([
       exerciseId,
       exerciseId,
-      " 1fcb7fb7-3f85-4388-a607-5f008be4e3f1 ",
+      ' 1fcb7fb7-3f85-4388-a607-5f008be4e3f1 ',
     ]);
-    expect(out.get(exerciseId)).toBe("Присед");
-    const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
+    expect(out.get(exerciseId)).toBe('Присед');
+    const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? '');
     expect(sql).toContain(
       "organization_id = COALESCE(app.current_org_id(), NULLIF(current_setting('app.org', true), '')::uuid)",
     );

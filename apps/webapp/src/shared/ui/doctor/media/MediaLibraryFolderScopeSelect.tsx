@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import {
   Select,
@@ -6,11 +6,11 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/ui/doctor/primitives/select";
-import type { MediaFolderRecord } from "@/modules/media/types";
-import { CLIENT_FILES_ROOT_FOLDER_NAME } from "@/modules/media/clientFilesFolders";
-import { cn } from "@/lib/utils";
-import { mediaFolderPathLabel, sortMediaFoldersByPathRu } from "./mediaFolderScopeUtils";
+} from '@/shared/ui/doctor/primitives/select';
+import type { MediaFolderRecord } from '@/modules/media/types';
+import { CLIENT_FILES_ROOT_FOLDER_NAME } from '@/modules/media/clientFilesFolders';
+import { cn } from '@/lib/utils';
+import { mediaFolderPathLabel, sortMediaFoldersByPathRu } from './mediaFolderScopeUtils';
 
 /** `undefined` — все папки в выдаче API; `null` — только корень; uuid — конкретная папка. */
 export type MediaFolderScopeValue = string | null | undefined;
@@ -32,14 +32,14 @@ export type MediaLibraryFolderScopeSelectProps = {
 };
 
 function selectItemValue(value: MediaFolderScopeValue): string {
-  if (value === undefined) return "__all__";
-  if (value === null) return "__root__";
+  if (value === undefined) return '__all__';
+  if (value === null) return '__root__';
   return value;
 }
 
 function scopeFromSelectItem(v: string): MediaFolderScopeValue {
-  if (v === "__all__") return undefined;
-  if (v === "__root__") return null;
+  if (v === '__all__') return undefined;
+  if (v === '__root__') return null;
   return v;
 }
 
@@ -49,12 +49,12 @@ function displayLabel(
   foldersLoaded: boolean,
   clientFilesRootId: string | null | undefined,
 ): string {
-  if (value === undefined) return "Все папки";
-  if (value === null) return "Корень";
+  if (value === undefined) return 'Все папки';
+  if (value === null) return 'Корень';
   if (clientFilesRootId && value === clientFilesRootId) return CLIENT_FILES_ROOT_FOLDER_NAME;
   const f = folders.find((x) => x.id === value);
   if (f) return mediaFolderPathLabel(f, folders);
-  return foldersLoaded ? value : "Загрузка…";
+  return foldersLoaded ? value : 'Загрузка…';
 }
 
 /**
@@ -72,7 +72,7 @@ export function MediaLibraryFolderScopeSelect({
   allowAllFolders = true,
   disabled,
   className,
-  label = "Папка",
+  label = 'Папка',
   triggerClassName,
 }: MediaLibraryFolderScopeSelectProps) {
   const sorted = sortMediaFoldersByPathRu(folders);
@@ -80,17 +80,21 @@ export function MediaLibraryFolderScopeSelect({
   const labelText = displayLabel(value, folders, foldersLoaded, clientFilesRootId);
 
   return (
-    <div className={cn("flex min-w-[10rem] flex-1 flex-col gap-1", className)}>
+    <div className={cn('flex min-w-[10rem] flex-1 flex-col gap-1', className)}>
       <span className="text-xs text-muted-foreground">{label}</span>
       <Select
         value={internalValue}
         disabled={disabled}
         onValueChange={(v) => {
-          if (v == null || typeof v !== "string") return;
+          if (v == null || typeof v !== 'string') return;
           onChange(scopeFromSelectItem(v));
         }}
       >
-        <SelectTrigger id={id} size="sm" className={cn("w-full max-w-full min-w-0 text-left", triggerClassName)}>
+        <SelectTrigger
+          id={id}
+          size="sm"
+          className={cn('w-full max-w-full min-w-0 text-left', triggerClassName)}
+        >
           <SelectValue placeholder={label}>{labelText}</SelectValue>
         </SelectTrigger>
         <SelectContent>

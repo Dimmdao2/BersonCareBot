@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import type { ExerciseMedia } from "@/modules/lfk-exercises/types";
-import { cn } from "@/lib/utils";
-import { MediaThumb } from "./MediaThumb";
-import { exerciseMediaToPreviewUi } from "./mediaPreviewUiModel";
+import type { ExerciseMedia } from '@/modules/lfk-exercises/types';
+import { cn } from '@/lib/utils';
+import { MediaThumb } from './MediaThumb';
+import { exerciseMediaToPreviewUi } from './mediaPreviewUiModel';
 
 export type ExerciseListCatalogThumbProps = {
   media: ExerciseMedia | null | undefined;
@@ -16,12 +16,12 @@ export type ExerciseListCatalogThumbProps = {
  */
 export function ExerciseListCatalogThumb({ media, className }: ExerciseListCatalogThumbProps) {
   if (!media) {
-    return <div className={cn("h-9 w-9 shrink-0 rounded bg-muted", className)} aria-hidden />;
+    return <div className={cn('h-9 w-9 shrink-0 rounded bg-muted', className)} aria-hidden />;
   }
   return (
     <div
       className={cn(
-        "relative h-9 w-9 shrink-0 overflow-hidden rounded border border-border/40 bg-muted/30",
+        'relative h-9 w-9 shrink-0 overflow-hidden rounded border border-border/40 bg-muted/30',
         className,
       )}
     >

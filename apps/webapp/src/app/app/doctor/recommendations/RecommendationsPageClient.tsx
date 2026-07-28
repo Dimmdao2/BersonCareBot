@@ -1,63 +1,67 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Card, CardContent } from "@/shared/ui/doctor/primitives/card";
-import type { ReferenceItem } from "@/modules/references/types";
-import type { ReferenceItemDto } from "@/modules/references/referenceCache";
+import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Card, CardContent } from '@/shared/ui/doctor/primitives/card';
+import type { ReferenceItem } from '@/modules/references/types';
+import type { ReferenceItemDto } from '@/modules/references/referenceCache';
 import type {
   Recommendation,
   RecommendationMediaItem,
   RecommendationUsageSnapshot,
-} from "@/modules/recommendations/types";
-import type { RecommendationDomain } from "@/modules/recommendations/recommendationDomain";
-import { cn } from "@/lib/utils";
-import { useViewportMinWidth } from "@/shared/hooks/useViewportMinWidth";
+} from '@/modules/recommendations/types';
+import type { RecommendationDomain } from '@/modules/recommendations/recommendationDomain';
+import { cn } from '@/lib/utils';
+import { useViewportMinWidth } from '@/shared/hooks/useViewportMinWidth';
 import {
   doctorCatalogViewStorageKey,
   readDoctorCatalogViewPreference,
   writeDoctorCatalogViewPreference,
-} from "@/shared/lib/doctorCatalogViewPreference";
-import { type RecommendationListFilterScope } from "@/shared/lib/doctorCatalogListStatus";
-import { MediaThumb } from "@/shared/ui/doctor/media/MediaThumb";
-import { recommendationMediaItemToPreviewUi } from "@/shared/ui/doctor/media/mediaPreviewUiModel";
-import { VirtualizedItemGrid } from "@/shared/ui/doctor/catalog/VirtualizedItemGrid";
-import { DoctorCatalogMasterListHeader } from "@/shared/ui/doctor/DoctorCatalogMasterListHeader";
+} from '@/shared/lib/doctorCatalogViewPreference';
+import { type RecommendationListFilterScope } from '@/shared/lib/doctorCatalogListStatus';
+import { MediaThumb } from '@/shared/ui/doctor/media/MediaThumb';
+import { recommendationMediaItemToPreviewUi } from '@/shared/ui/doctor/media/mediaPreviewUiModel';
+import { VirtualizedItemGrid } from '@/shared/ui/doctor/catalog/VirtualizedItemGrid';
+import { DoctorCatalogMasterListHeader } from '@/shared/ui/doctor/DoctorCatalogMasterListHeader';
 import {
   doctorCatalogToolbarPrimaryActionClassName,
   DoctorCatalogFiltersToolbar,
   DoctorCatalogToolbarFiltersSlot,
-} from "@/shared/ui/doctor/DoctorCatalogFiltersToolbar";
-import { CatalogLeftPane } from "@/shared/ui/doctor/catalog/CatalogLeftPane";
-import { CatalogRightPane } from "@/shared/ui/doctor/catalog/CatalogRightPane";
-import { CatalogSplitLayout } from "@/shared/ui/doctor/catalog/CatalogSplitLayout";
-import { DoctorCatalogPageLayout } from "@/shared/ui/doctor/catalog/DoctorCatalogPageLayout";
+} from '@/shared/ui/doctor/DoctorCatalogFiltersToolbar';
+import { CatalogLeftPane } from '@/shared/ui/doctor/catalog/CatalogLeftPane';
+import { CatalogRightPane } from '@/shared/ui/doctor/catalog/CatalogRightPane';
+import { CatalogSplitLayout } from '@/shared/ui/doctor/catalog/CatalogSplitLayout';
+import { DoctorCatalogPageLayout } from '@/shared/ui/doctor/catalog/DoctorCatalogPageLayout';
 import {
   DoctorCatalogFiltersForm,
   type DoctorCatalogTertiaryFilter,
   type DoctorCatalogToolbarLayout,
-} from "@/shared/ui/doctor/DoctorCatalogFiltersForm";
+} from '@/shared/ui/doctor/DoctorCatalogFiltersForm';
 import {
   DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_EXPANDED,
   DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE,
-} from "@/shared/ui/doctor/doctorWorkspaceLayout";
-import { RecommendationForm } from "./RecommendationForm";
-import { archiveRecommendationInline, saveRecommendationInline, unarchiveRecommendationInline } from "./actionsInline";
-import { useDoctorCatalogDisplayList } from "@/shared/hooks/useDoctorCatalogDisplayList";
-import { useDoctorCatalogClientFilterMerge } from "@/shared/hooks/useDoctorCatalogClientFilterMerge";
+} from '@/shared/ui/doctor/doctorWorkspaceLayout';
+import { RecommendationForm } from './RecommendationForm';
+import {
+  archiveRecommendationInline,
+  saveRecommendationInline,
+  unarchiveRecommendationInline,
+} from './actionsInline';
+import { useDoctorCatalogDisplayList } from '@/shared/hooks/useDoctorCatalogDisplayList';
+import { useDoctorCatalogClientFilterMerge } from '@/shared/hooks/useDoctorCatalogClientFilterMerge';
 import {
   doctorCatalogListEmptyClass,
   doctorCatalogListEmptyTilesClass,
   doctorInteractiveSurfaceButtonClass,
   doctorCatalogRowActiveClass,
   doctorCatalogRowClass,
-} from "@/shared/ui/doctor/doctorVisual";
-export type RecommendationsViewMode = "tiles" | "list";
-export type RecommendationTitleSort = "asc" | "desc";
+} from '@/shared/ui/doctor/doctorVisual';
+export type RecommendationsViewMode = 'tiles' | 'list';
+export type RecommendationTitleSort = 'asc' | 'desc';
 
 const LIST_ROW_VISIBILITY_STYLE = {
-  contentVisibility: "auto",
-  containIntrinsicSize: "52px",
+  contentVisibility: 'auto',
+  containIntrinsicSize: '52px',
 } as const;
 
 type Props = {
@@ -108,15 +112,15 @@ function RecommendationCatalogMediaThumb({
   imgClassName?: string;
   sizes?: string;
 }) {
-  if (media.mediaType === "video") {
+  if (media.mediaType === 'video') {
     return (
-      <div className={cn("relative overflow-hidden bg-muted/30", className)}>
+      <div className={cn('relative overflow-hidden bg-muted/30', className)}>
         <video
           src={media.mediaUrl}
           muted
           playsInline
           preload="metadata"
-          className={cn("size-full object-cover", imgClassName)}
+          className={cn('size-full object-cover', imgClassName)}
           aria-hidden
         />
       </div>
@@ -150,23 +154,23 @@ function RecommendationTileCard({
       variant="ghost"
       className={cn(
         doctorInteractiveSurfaceButtonClass,
-        "flex w-full cursor-pointer justify-center rounded-[calc(var(--radius-xl)*0.5)] text-left",
+        'flex w-full cursor-pointer justify-center rounded-[calc(var(--radius-xl)*0.5)] text-left',
       )}
       onClick={() => onSelect(r.id)}
     >
       <Card
         size="sm"
         className={cn(
-          "h-full w-full min-w-0 rounded-[calc(var(--radius-xl)*0.5)] transition-shadow data-[size=sm]:py-1.5",
-          isActive && "ring-1 ring-primary/50 ring-offset-1 ring-offset-background",
+          'h-full w-full min-w-0 rounded-[calc(var(--radius-xl)*0.5)] transition-shadow data-[size=sm]:py-1.5',
+          isActive && 'ring-1 ring-primary/50 ring-offset-1 ring-offset-background',
         )}
       >
         <CardContent className="flex h-full flex-col gap-1 py-px group-data-[size=sm]/card:px-1.5">
           {firstMedia ? (
             <div
               className={cn(
-                "w-full overflow-hidden rounded-[calc(var(--radius-md)*0.5)] border border-border/60 bg-muted/30",
-                squarePreview ? "aspect-square shrink-0" : "h-[135px]",
+                'w-full overflow-hidden rounded-[calc(var(--radius-md)*0.5)] border border-border/60 bg-muted/30',
+                squarePreview ? 'aspect-square shrink-0' : 'h-[135px]',
               )}
             >
               <RecommendationCatalogMediaThumb
@@ -202,7 +206,9 @@ function mediaThumbRow(r: Recommendation) {
   );
 }
 
-type RecommendationCatalogFiltersMerged = Props["filters"] & { titleSort: RecommendationTitleSort | null };
+type RecommendationCatalogFiltersMerged = Props['filters'] & {
+  titleSort: RecommendationTitleSort | null;
+};
 
 function RecommendationsContent({
   initialItems,
@@ -255,16 +261,14 @@ function RecommendationsContent({
 
   const getItemRegionCodes = useCallback(
     (r: Recommendation) =>
-      r.bodyRegionIds
-        .map((id) => bodyRegionIdToCode[id])
-        .filter((c): c is string => Boolean(c)),
+      r.bodyRegionIds.map((id) => bodyRegionIdToCode[id]).filter((c): c is string => Boolean(c)),
     [bodyRegionIdToCode],
   );
 
   const displayRecommendations = useDoctorCatalogDisplayList(
     initialItems,
     filters.q,
-    filters.titleSort === null ? "default" : filters.titleSort,
+    filters.titleSort === null ? 'default' : filters.titleSort,
     {
       regionCode: filters.regionCode,
       getItemRegionCodes,
@@ -295,7 +299,8 @@ function RecommendationsContent({
   const tileColsMobile = mobileRecommendationsTileColumns();
   const activeTileColumns = isDesktopViewport ? tileColsDesktop : tileColsMobile;
 
-  const formRecommendation = mobileSheet != null ? mobileSheet.recommendation : recommendationForDesktop;
+  const formRecommendation =
+    mobileSheet != null ? mobileSheet.recommendation : recommendationForDesktop;
 
   const usageForSelection = (() => {
     const current = formRecommendation;
@@ -307,12 +312,12 @@ function RecommendationsContent({
   const recommendationTertiaryFilter = useMemo((): DoctorCatalogTertiaryFilter => {
     return {
       items: domainFilterItems,
-      paramName: "domain",
+      paramName: 'domain',
       value: filters.domain ?? null,
-      label: "Тип",
-      placeholder: "Все типы",
-      clearLabel: "Все типы",
-      summaryLabel: "Тип",
+      label: 'Тип',
+      placeholder: 'Все типы',
+      clearLabel: 'Все типы',
+      summaryLabel: 'Тип',
     };
   }, [domainFilterItems, filters.domain]);
 
@@ -412,7 +417,7 @@ function RecommendationsContent({
           filters={
             <DoctorCatalogToolbarFiltersSlot>
               <DoctorCatalogFiltersForm
-                key={`rec-filters-${filters.listStatus}-${filters.invalidDomainQuery ? "1" : "0"}`}
+                key={`rec-filters-${filters.listStatus}-${filters.invalidDomainQuery ? '1' : '0'}`}
                 idPrefix="rec-filters"
                 q={filters.q}
                 regionCode={filters.regionCode}
@@ -450,7 +455,7 @@ function RecommendationsContent({
       ) : null}
       <CatalogSplitLayout
         className={cn(
-          filterToolbarLayout === "expanded"
+          filterToolbarLayout === 'expanded'
             ? DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_EXPANDED
             : DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE,
         )}
@@ -463,7 +468,7 @@ function RecommendationsContent({
               <DoctorCatalogMasterListHeader
                 summaryLine={
                   displayRecommendations.length === 0
-                    ? "Нет рекомендаций"
+                    ? 'Нет рекомендаций'
                     : `Рекомендаций: ${displayRecommendations.length}`
                 }
                 viewMode={toolbarViewMode}
@@ -481,12 +486,12 @@ function RecommendationsContent({
           >
             <div
               className={cn(
-                "min-h-0 flex-1 overflow-hidden transition-opacity",
-                isListPending && "opacity-80",
+                'min-h-0 flex-1 overflow-hidden transition-opacity',
+                isListPending && 'opacity-80',
               )}
               aria-busy={isListPending}
             >
-              {viewMode === "list"
+              {viewMode === 'list'
                 ? renderRecommendationList(displayRecommendations, {
                     activeId: desktopSelectedId,
                     onRowSelect: pickRow,
@@ -500,10 +505,15 @@ function RecommendationsContent({
           </CatalogLeftPane>
         }
         right={rightPanel}
-        mobileView={mobileSheet != null ? "detail" : "list"}
+        mobileView={mobileSheet != null ? 'detail' : 'list'}
         mobileBackSlot={
           mobileSheet != null ? (
-            <Button variant="ghost" type="button" className="mb-2 h-9 px-2" onClick={() => setMobileSheet(null)}>
+            <Button
+              variant="ghost"
+              type="button"
+              className="mb-2 h-9 px-2"
+              onClick={() => setMobileSheet(null)}
+            >
               ← Назад
             </Button>
           ) : null
@@ -529,9 +539,12 @@ export function RecommendationsPageClient({
   const [toolbarViewMode, setToolbarViewMode] = useState<RecommendationsViewMode>(initialViewMode);
   const [titleSort, setTitleSort] = useState<RecommendationTitleSort | null>(initialTitleSort);
   const [desktopSelectedId, setDesktopSelectedId] = useState<string | null>(null);
-  const [mobileSheet, setMobileSheet] = useState<{ recommendation: Recommendation | null } | null>(null);
+  const [mobileSheet, setMobileSheet] = useState<{ recommendation: Recommendation | null } | null>(
+    null,
+  );
   const [isListPending, startListTransition] = useTransition();
-  const [filterToolbarLayout, setFilterToolbarLayout] = useState<DoctorCatalogToolbarLayout>("compact");
+  const [filterToolbarLayout, setFilterToolbarLayout] =
+    useState<DoctorCatalogToolbarLayout>('compact');
   const onFilterToolbarLayoutChange = useCallback((layout: DoctorCatalogToolbarLayout) => {
     setFilterToolbarLayout(layout);
   }, []);
@@ -554,7 +567,7 @@ export function RecommendationsPageClient({
   }, [initialTitleSort]);
 
   const toggleViewMode = () => {
-    const next = toolbarViewMode === "tiles" ? "list" : "tiles";
+    const next = toolbarViewMode === 'tiles' ? 'list' : 'tiles';
     setToolbarViewMode(next);
     writeDoctorCatalogViewPreference(doctorCatalogViewStorageKey.recommendations, next);
     startListTransition(() => {

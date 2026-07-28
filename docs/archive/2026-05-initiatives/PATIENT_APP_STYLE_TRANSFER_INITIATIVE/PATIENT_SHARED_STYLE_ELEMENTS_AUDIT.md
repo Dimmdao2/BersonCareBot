@@ -26,14 +26,14 @@
 
 ## 2. Patient shell / общий фон
 
-| Элемент | Новая home / shell | Внутренние страницы | Статус |
-|---|---|---|---|
-| App root | `#app-shell-patient` | тот же shell | общий |
-| Page background | `--patient-page-bg: #ffffff` | тот же `#ffffff` | общий, но визуально почти не отличает страницу от карточек |
-| Card background | `--patient-card-bg: #ffffff` | тот же `#ffffff` | общий, но слабый контраст |
-| Mobile width | `max-w-[430px]` | `max-w-[430px]` | общий |
-| Desktop width | `lg:max-w-[min(1180px,calc(100vw-2rem))]` | тот же | общий |
-| Vertical rhythm | shell `gap-[var(--patient-gap)]`, `--patient-gap: 18px` | тот же shell, но page content often custom | частично общий |
+| Элемент         | Новая home / shell                                      | Внутренние страницы                        | Статус                                                     |
+| --------------- | ------------------------------------------------------- | ------------------------------------------ | ---------------------------------------------------------- |
+| App root        | `#app-shell-patient`                                    | тот же shell                               | общий                                                      |
+| Page background | `--patient-page-bg: #ffffff`                            | тот же `#ffffff`                           | общий, но визуально почти не отличает страницу от карточек |
+| Card background | `--patient-card-bg: #ffffff`                            | тот же `#ffffff`                           | общий, но слабый контраст                                  |
+| Mobile width    | `max-w-[430px]`                                         | `max-w-[430px]`                            | общий                                                      |
+| Desktop width   | `lg:max-w-[min(1180px,calc(100vw-2rem))]`               | тот же                                     | общий                                                      |
+| Vertical rhythm | shell `gap-[var(--patient-gap)]`, `--patient-gap: 18px` | тот же shell, но page content often custom | частично общий                                             |
 
 ### Gap
 
@@ -50,31 +50,31 @@
 
 Фактические tokens в `#app-shell-patient`:
 
-| Token | Value | Назначение |
-|---|---:|---|
-| `--patient-color-primary` | `#284da0` | основной синий accent |
-| `--patient-color-primary-soft` | `#e8eefb` | мягкий синий фон |
-| `--patient-color-success` | `#16a34a` | запись / success |
-| `--patient-color-success-soft` | `#ecfdf3` | фон записи |
-| `--patient-color-warning` | `#f59e0b` | напоминания |
-| `--patient-color-warning-soft` | `#fffaeb` | фон напоминания |
-| `--patient-color-danger` | `#ef4444` | SOS / destructive |
-| `--patient-color-danger-soft` | `#fef2f2` | фон SOS |
-| `--patient-text-primary` | `#111827` | основной текст |
-| `--patient-text-secondary` | `#667085` | вторичный текст |
-| `--patient-text-muted` | `#98a2b3` | приглушённый текст |
-| `--patient-block-heading` | `#172f62` | заголовки блоков home |
-| `--patient-block-caption` | `#465880` | подписи/описания home |
+| Token                          |     Value | Назначение            |
+| ------------------------------ | --------: | --------------------- |
+| `--patient-color-primary`      | `#284da0` | основной синий accent |
+| `--patient-color-primary-soft` | `#e8eefb` | мягкий синий фон      |
+| `--patient-color-success`      | `#16a34a` | запись / success      |
+| `--patient-color-success-soft` | `#ecfdf3` | фон записи            |
+| `--patient-color-warning`      | `#f59e0b` | напоминания           |
+| `--patient-color-warning-soft` | `#fffaeb` | фон напоминания       |
+| `--patient-color-danger`       | `#ef4444` | SOS / destructive     |
+| `--patient-color-danger-soft`  | `#fef2f2` | фон SOS               |
+| `--patient-text-primary`       | `#111827` | основной текст        |
+| `--patient-text-secondary`     | `#667085` | вторичный текст       |
+| `--patient-text-muted`         | `#98a2b3` | приглушённый текст    |
+| `--patient-block-heading`      | `#172f62` | заголовки блоков home |
+| `--patient-block-caption`      | `#465880` | подписи/описания home |
 
 **Semantic surface tones (шаг 3, 2026-05-01)** — централизованы в `#app-shell-patient`, без дубля hex в `patientVisual.ts`:
 
-| Token group | Назначение |
-|---|---|
-| `--patient-surface-neutral-{bg,border,text,accent}` | нейтральная карточка (как обычный card) |
-| `--patient-surface-info-{bg,border,text,accent}` | info = primary; `border` через `color-mix` от `--patient-color-primary` (см. комментарий в `globals.css`) |
-| `--patient-surface-success-*` | тон записи / success |
-| `--patient-surface-warning-*` | тон напоминаний / warning |
-| `--patient-surface-danger-*` | тон SOS / danger |
+| Token group                                         | Назначение                                                                                                |
+| --------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `--patient-surface-neutral-{bg,border,text,accent}` | нейтральная карточка (как обычный card)                                                                   |
+| `--patient-surface-info-{bg,border,text,accent}`    | info = primary; `border` через `color-mix` от `--patient-color-primary` (см. комментарий в `globals.css`) |
+| `--patient-surface-success-*`                       | тон записи / success                                                                                      |
+| `--patient-surface-warning-*`                       | тон напоминаний / warning                                                                                 |
+| `--patient-surface-danger-*`                        | тон SOS / danger                                                                                          |
 
 Примитивы в `patientVisual.ts`: `patientSurfaceNeutralClass`, `patientSurfaceInfoClass`, `patientSurfaceSuccessClass`, `patientSurfaceWarningClass`, `patientSurfaceDangerClass`. **Подключение на внутренних страницах — отдельно (шаг 4 по `ПОРЯДОК РАБОТ.md`), в этом шаге не выполнялось.**
 
@@ -161,13 +161,13 @@ Gap:
 
 ## 5. Тексты
 
-| Элемент | Current primitive | Style | Где подходит |
-|---|---|---|---|
-| Основной текст | `patientBodyTextClass` | `text-sm`, `--patient-text-primary` | текст внутри карточек / форм |
-| Приглушённый текст | `patientMutedTextClass` | `text-sm`, `--patient-text-muted` | подписи, empty states, helper text |
-| Home caption | `patientHomeBlockBodySmClass` | `text-sm leading-5`, `--patient-block-caption` | подписи внутри home cards |
-| Home small caption | `patientHomeBlockCaptionTypographyClass` | `12px`, medium, `--patient-block-caption` | подписи под situation icons |
-| Hero summary | `patientHomeHeroSummaryClampClass` | mobile `12–13px`, desktop `15px`, `--patient-text-secondary` | только hero |
+| Элемент            | Current primitive                        | Style                                                        | Где подходит                       |
+| ------------------ | ---------------------------------------- | ------------------------------------------------------------ | ---------------------------------- |
+| Основной текст     | `patientBodyTextClass`                   | `text-sm`, `--patient-text-primary`                          | текст внутри карточек / форм       |
+| Приглушённый текст | `patientMutedTextClass`                  | `text-sm`, `--patient-text-muted`                            | подписи, empty states, helper text |
+| Home caption       | `patientHomeBlockBodySmClass`            | `text-sm leading-5`, `--patient-block-caption`               | подписи внутри home cards          |
+| Home small caption | `patientHomeBlockCaptionTypographyClass` | `12px`, medium, `--patient-block-caption`                    | подписи под situation icons        |
+| Hero summary       | `patientHomeHeroSummaryClampClass`       | mobile `12–13px`, desktop `15px`, `--patient-text-secondary` | только hero                        |
 
 ### Gap
 
@@ -275,15 +275,15 @@ Gap:
 
 Эти элементы выглядят как кандидаты на reuse, но не все можно переносить напрямую.
 
-| Home element | Primitive | Current style | Reuse recommendation |
-|---|---|---|---|
-| Hero card | `patientHomeCardHeroClass` / `patientHomeHeroCardGeometryClass` | gradient, purple border, fixed image slot, fixed heights | не переносить целиком; только как inspiration для future `patientHeroSurfaceClass` |
-| Booking / success card | `patientHomeCardSuccessClass` | green soft bg, green border, same radius/shadow | **Тон вынесен:** `patientSurfaceSuccessClass` + `--patient-surface-success-*` в `globals.css` (home-класс не меняли) |
-| Reminder / warning card | `patientHomeCardWarningClass` / `patientHomeReminderCardGeometryClass` | warning soft bg/border; geometry fixed | **Тон вынесен:** `patientSurfaceWarningClass` + `--patient-surface-warning-*`; геометрия reminder — home-only |
-| SOS / danger card | `patientHomeCardDangerClass` | danger soft bg/border | **Тон вынесен:** `patientSurfaceDangerClass` + `--patient-surface-danger-*` |
-| Booking / info (soft blue) | (раньше только через home) | primary-soft + синяя рамка | **Тон вынесен:** `patientSurfaceInfoClass` + `--patient-surface-info-*` (= primary, см. CSS-комментарий) |
-| Mood gradient | `patientHomeMoodCheckinShellClass` / gradient warm legacy | special responsive behavior | keep home-specific |
-| Useful post cover | `patientHomeUsefulPostCardShellClass` | full-bleed cover card | keep content-card-specific |
+| Home element               | Primitive                                                              | Current style                                            | Reuse recommendation                                                                                                 |
+| -------------------------- | ---------------------------------------------------------------------- | -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Hero card                  | `patientHomeCardHeroClass` / `patientHomeHeroCardGeometryClass`        | gradient, purple border, fixed image slot, fixed heights | не переносить целиком; только как inspiration для future `patientHeroSurfaceClass`                                   |
+| Booking / success card     | `patientHomeCardSuccessClass`                                          | green soft bg, green border, same radius/shadow          | **Тон вынесен:** `patientSurfaceSuccessClass` + `--patient-surface-success-*` в `globals.css` (home-класс не меняли) |
+| Reminder / warning card    | `patientHomeCardWarningClass` / `patientHomeReminderCardGeometryClass` | warning soft bg/border; geometry fixed                   | **Тон вынесен:** `patientSurfaceWarningClass` + `--patient-surface-warning-*`; геометрия reminder — home-only        |
+| SOS / danger card          | `patientHomeCardDangerClass`                                           | danger soft bg/border                                    | **Тон вынесен:** `patientSurfaceDangerClass` + `--patient-surface-danger-*`                                          |
+| Booking / info (soft blue) | (раньше только через home)                                             | primary-soft + синяя рамка                               | **Тон вынесен:** `patientSurfaceInfoClass` + `--patient-surface-info-*` (= primary, см. CSS-комментарий)             |
+| Mood gradient              | `patientHomeMoodCheckinShellClass` / gradient warm legacy              | special responsive behavior                              | keep home-specific                                                                                                   |
+| Useful post cover          | `patientHomeUsefulPostCardShellClass`                                  | full-bleed cover card                                    | keep content-card-specific                                                                                           |
 
 ### Important split needed
 
@@ -298,17 +298,17 @@ For reuse on internal pages, extract only tone/surface pieces, not fixed home ge
 
 ### Current shared primitives
 
-| Primitive | Style / role |
-|---|---|
-| `patientButtonPrimaryClass` | blue primary, full-width by default, min touch height |
-| `patientButtonSuccessClass` | green success/appointment action |
-| `patientButtonSecondaryClass` | white bordered secondary |
-| `patientButtonGhostLinkClass` | ghost/link action |
-| `patientButtonDangerOutlineClass` | danger outline |
-| `patientButtonWarningOutlineClass` | warning outline |
-| `patientPrimaryActionClass` | alias primary |
-| `patientSecondaryActionClass` | alias secondary |
-| `patientDangerActionClass` | alias danger |
+| Primitive                          | Style / role                                          |
+| ---------------------------------- | ----------------------------------------------------- |
+| `patientButtonPrimaryClass`        | blue primary, full-width by default, min touch height |
+| `patientButtonSuccessClass`        | green success/appointment action                      |
+| `patientButtonSecondaryClass`      | white bordered secondary                              |
+| `patientButtonGhostLinkClass`      | ghost/link action                                     |
+| `patientButtonDangerOutlineClass`  | danger outline                                        |
+| `patientButtonWarningOutlineClass` | warning outline                                       |
+| `patientPrimaryActionClass`        | alias primary                                         |
+| `patientSecondaryActionClass`      | alias secondary                                       |
+| `patientDangerActionClass`         | alias danger                                          |
 
 Status:
 
@@ -420,16 +420,16 @@ Candidates:
 
 ## 12. Comparison: old/internal pages vs new home
 
-| Area | New home | Internal pages after transfer | Difference visible to user |
-|---|---|---|---|
-| Background | white shell + white cards | same white shell + white cards | low contrast; changes are subtle |
-| Cards | tokenized, sometimes colored/semantic | mostly white card/list surfaces | inner pages lack semantic tones |
-| Page title | suppressed; greeting/content-led | shell title strip `h1 text-base` | no unified page heading system with home |
-| Layout | strong dashboard grid | local flex/grid per page | no single inner page grid rhythm |
-| Buttons | patient action classes on home cards | mixed patient classes + shadcn Button | partial consistency |
-| Text | home uses block heading/caption taxonomy | mostly muted/body primitives | less rich hierarchy |
-| Badges | rich home badge classes | shadcn Badge / patientPill / custom spans | inconsistent status/tone model |
-| Icons | strong leading icon circles / media slots | ad hoc icons or none | less visual continuity |
+| Area       | New home                                  | Internal pages after transfer             | Difference visible to user               |
+| ---------- | ----------------------------------------- | ----------------------------------------- | ---------------------------------------- |
+| Background | white shell + white cards                 | same white shell + white cards            | low contrast; changes are subtle         |
+| Cards      | tokenized, sometimes colored/semantic     | mostly white card/list surfaces           | inner pages lack semantic tones          |
+| Page title | suppressed; greeting/content-led          | shell title strip `h1 text-base`          | no unified page heading system with home |
+| Layout     | strong dashboard grid                     | local flex/grid per page                  | no single inner page grid rhythm         |
+| Buttons    | patient action classes on home cards      | mixed patient classes + shadcn Button     | partial consistency                      |
+| Text       | home uses block heading/caption taxonomy  | mostly muted/body primitives              | less rich hierarchy                      |
+| Badges     | rich home badge classes                   | shadcn Badge / patientPill / custom spans | inconsistent status/tone model           |
+| Icons      | strong leading icon circles / media slots | ad hoc icons or none                      | less visual continuity                   |
 
 ## 13. Main reusable elements already available
 
@@ -525,4 +525,3 @@ Suggested order:
    - button consistency;
    - text hierarchy.
 5. Only then expand to deferred routes.
-

@@ -1,14 +1,17 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import toast from "react-hot-toast";
-import { MessageSquare } from "lucide-react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { cn } from "@/lib/utils";
-import type { TreatmentProgramInstanceStatus } from "@/modules/treatment-program/types";
-import { isProgramInstanceEditLocked } from "./programInstanceMutationGuard";
-import { useInstanceEditorDraft } from "./InstanceEditorDraftContext";
-import { tplToolbarTextBtnClass, INSTANCE_EDITOR_TOOLBAR_STICKY_CLASS } from "./treatmentProgramConstructorShellStyles";
+import Link from 'next/link';
+import toast from 'react-hot-toast';
+import { MessageSquare } from 'lucide-react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { cn } from '@/lib/utils';
+import type { TreatmentProgramInstanceStatus } from '@/modules/treatment-program/types';
+import { isProgramInstanceEditLocked } from './programInstanceMutationGuard';
+import { useInstanceEditorDraft } from './InstanceEditorDraftContext';
+import {
+  tplToolbarTextBtnClass,
+  INSTANCE_EDITOR_TOOLBAR_STICKY_CLASS,
+} from './treatmentProgramConstructorShellStyles';
 
 export function InstanceEditorToolbar(props: {
   programTitle: string;
@@ -32,12 +35,12 @@ export function InstanceEditorToolbar(props: {
   } = props;
   const { isDirty, saving, saveDraft, discardDraft } = useInstanceEditorDraft();
   const editLocked = isProgramInstanceEditLocked(programStatus);
-  const statusLabel = programStatus === "completed" ? "Завершена" : "Активно";
+  const statusLabel = programStatus === 'completed' ? 'Завершена' : 'Активно';
 
   const handleSave = () => {
     void saveDraft().then((r) => {
       if (r.ok) {
-        toast.success("Изменения сохранены");
+        toast.success('Изменения сохранены');
       } else if (!r.cancelled && r.error) {
         toast.error(r.error);
       }
@@ -50,7 +53,7 @@ export function InstanceEditorToolbar(props: {
       data-testid="instance-editor-toolbar"
       className={cn(
         INSTANCE_EDITOR_TOOLBAR_STICKY_CLASS,
-        isDirty && !editLocked && "border-amber-500/40 bg-amber-500/5",
+        isDirty && !editLocked && 'border-amber-500/40 bg-amber-500/5',
       )}
     >
       <div className="flex flex-col gap-2 lg:grid lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:items-center lg:gap-3">
@@ -66,10 +69,10 @@ export function InstanceEditorToolbar(props: {
           ) : null}
           <span
             className={cn(
-              "rounded-md px-1.5 py-0.5 text-xs font-medium uppercase tracking-wide",
-              programStatus === "completed"
-                ? "bg-muted text-muted-foreground"
-                : "bg-primary/10 text-primary",
+              'rounded-md px-1.5 py-0.5 text-xs font-medium uppercase tracking-wide',
+              programStatus === 'completed'
+                ? 'bg-muted text-muted-foreground'
+                : 'bg-primary/10 text-primary',
             )}
           >
             {statusLabel}
@@ -120,12 +123,23 @@ export function InstanceEditorToolbar(props: {
             Изменить порядок
           </Button>
           {isDirty && !editLocked ? (
-            <Button type="button" size="sm" variant="outline" disabled={saving} onClick={() => discardDraft()}>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={saving}
+              onClick={() => discardDraft()}
+            >
               Отменить
             </Button>
           ) : null}
-          <Button type="button" size="sm" disabled={editLocked || !isDirty || saving} onClick={handleSave}>
-            {saving ? "Сохранение…" : "Сохранить изменения"}
+          <Button
+            type="button"
+            size="sm"
+            disabled={editLocked || !isDirty || saving}
+            onClick={handleSave}
+          >
+            {saving ? 'Сохранение…' : 'Сохранить изменения'}
           </Button>
         </div>
       </div>

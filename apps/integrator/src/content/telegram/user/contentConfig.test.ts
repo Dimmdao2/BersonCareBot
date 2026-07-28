@@ -26,13 +26,19 @@ describe('telegram user static content', () => {
     expect(menu).toBeTruthy();
     const editStep = menu?.steps?.find(
       (step) =>
-        step.action === 'message.edit'
-        && (step.params as { _when?: { and?: Array<{ path?: string }> } })?._when?.and?.[0]?.path === 'facts.links.webappCabinetUrl',
+        step.action === 'message.edit' &&
+        (step.params as { _when?: { and?: Array<{ path?: string }> } })?._when?.and?.[0]?.path ===
+          'facts.links.webappCabinetUrl',
     );
     expect(editStep?.params?.inlineKeyboard).toEqual([
       [{ textTemplateKey: 'telegram:bookingMenu.my', webAppUrlFact: 'links.webappCabinetUrl' }],
       [{ textTemplateKey: 'telegram:bookingsScreen.prepare', callbackData: 'info.prepare' }],
-      [{ textTemplateKey: 'telegram:bookingsScreen.address', webAppUrlFact: 'links.webappAddressUrl' }],
+      [
+        {
+          textTemplateKey: 'telegram:bookingsScreen.address',
+          webAppUrlFact: 'links.webappAddressUrl',
+        },
+      ],
     ]);
   });
 
@@ -43,14 +49,21 @@ describe('telegram user static content', () => {
     }>;
     const booking = scripts.find((s) => s.id === 'telegram.booking.open');
     expect(booking).toBeTruthy();
-    const sendStep = booking?.steps?.find((step) =>
-      step.action === 'message.send'
-      && (step.params as { _when?: { and?: Array<{ path?: string; truthy?: boolean }> } })?._when?.and?.[0]?.path === 'facts.links.webappCabinetUrl'
+    const sendStep = booking?.steps?.find(
+      (step) =>
+        step.action === 'message.send' &&
+        (step.params as { _when?: { and?: Array<{ path?: string; truthy?: boolean }> } })?._when
+          ?.and?.[0]?.path === 'facts.links.webappCabinetUrl',
     );
     expect(sendStep?.params?.inlineKeyboard).toEqual([
       [{ textTemplateKey: 'telegram:bookingMenu.my', webAppUrlFact: 'links.webappCabinetUrl' }],
       [{ textTemplateKey: 'telegram:bookingsScreen.prepare', callbackData: 'info.prepare' }],
-      [{ textTemplateKey: 'telegram:bookingsScreen.address', webAppUrlFact: 'links.webappAddressUrl' }],
+      [
+        {
+          textTemplateKey: 'telegram:bookingsScreen.address',
+          webAppUrlFact: 'links.webappAddressUrl',
+        },
+      ],
     ]);
   });
 
@@ -65,20 +78,25 @@ describe('telegram user static content', () => {
     expect(start?.priority).toBe(56);
     expect(start?.match).toMatchObject({ input: { action: 'start.phoneauth' } });
     const stateStep = start?.steps?.find((s) => s.action === 'user.state.set');
-    expect((stateStep?.params as { state?: string })?.state).toBe('await_phoneauth:{{input.authSecret}}');
+    expect((stateStep?.params as { state?: string })?.state).toBe(
+      'await_phoneauth:{{input.authSecret}}',
+    );
 
     const contact = scripts.find((s) => s.id === 'telegram.contact.phoneauth');
     expect(contact?.priority).toBe(54);
     expect(contact?.steps?.[0]?.action).toBe('webapp.phoneMessengerBind.complete');
 
     const onboarding = scripts.find((s) => s.id === 'telegram.start.onboarding');
-    const exclude = (onboarding?.match as { input?: { excludeActions?: string[] } })?.input?.excludeActions;
+    const exclude = (onboarding?.match as { input?: { excludeActions?: string[] } })?.input
+      ?.excludeActions;
     expect(exclude).toContain('start.phoneauth');
   });
 
   it('menu.json main — одна строка: запись и приложение (webapp)', () => {
     const menus = JSON.parse(readFileSync(join(dir, 'menu.json'), 'utf8')) as {
-      main: Array<Array<{ textTemplateKey?: string; callbackData?: string; webAppUrlFact?: string }>>;
+      main: Array<
+        Array<{ textTemplateKey?: string; callbackData?: string; webAppUrlFact?: string }>
+      >;
     };
     expect(menus.main).toHaveLength(1);
     expect(menus.main[0]).toEqual([

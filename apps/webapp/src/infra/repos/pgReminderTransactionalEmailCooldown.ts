@@ -1,12 +1,12 @@
-import { and, eq, sql } from "drizzle-orm";
-import { getDrizzle } from "@/app-layer/db/drizzle";
-import { emailSendCooldowns } from "../../../db/schema/schema";
+import { and, eq, sql } from 'drizzle-orm';
+import { getDrizzle } from '@/app-layer/db/drizzle';
+import { emailSendCooldowns } from '../../../db/schema/schema';
 
 /**
  * Резервный ключ в `email_send_cooldowns.email_normalized` для интервала между
  * **transactional** письмами напоминаний (не OTP — не конфликтует с реальным email).
  */
-export const REMINDER_TRANSACTIONAL_EMAIL_COOLDOWN_EMAIL_KEY = "!reminder_txn_v1";
+export const REMINDER_TRANSACTIONAL_EMAIL_COOLDOWN_EMAIL_KEY = '!reminder_txn_v1';
 
 const DEFAULT_MIN_INTERVAL_SEC = 45;
 

@@ -1,36 +1,38 @@
 #!/usr/bin/env node
 
-import { buildRlsDescriptors } from "./rls-descriptor-model.mjs";
+import { buildRlsDescriptors } from './rls-descriptor-model.mjs';
 import {
   renderBootstrapHybridOrgGatedPolicyStatements,
   renderBootstrapHybridPolicyStatements,
-} from "./rls-sql-renderer.mjs";
+} from './rls-sql-renderer.mjs';
 
-export const p086PolicyName = "saas_bootstrap_hybrid_p0_8_6";
+export const p086PolicyName = 'saas_bootstrap_hybrid_p0_8_6';
 
 export const expectedP086BootstrapHybridTargets = Object.freeze([
-  "integrator.system_settings",
-  "public.platform_user_contacts",
-  "public.system_settings",
-  "public.system_settings_audit",
-  "public.user_phone_history",
+  'integrator.system_settings',
+  'public.platform_user_contacts',
+  'public.system_settings',
+  'public.system_settings_audit',
+  'public.user_phone_history',
 ]);
 
 const expectedTargetSet = new Set(expectedP086BootstrapHybridTargets);
 
 const expectedBootstrapHybridTables = new Set([
-  "integrator.system_settings",
-  "public.system_settings",
-  "public.system_settings_audit",
+  'integrator.system_settings',
+  'public.system_settings',
+  'public.system_settings_audit',
 ]);
 
 const expectedBootstrapHybridOrgGatedTables = new Set([
-  "public.platform_user_contacts",
-  "public.user_phone_history",
+  'public.platform_user_contacts',
+  'public.user_phone_history',
 ]);
 
 function setDiff(left, right) {
-  return Array.from(left).filter((value) => !right.has(value)).sort();
+  return Array.from(left)
+    .filter((value) => !right.has(value))
+    .sort();
 }
 
 function sortedDescriptors(descriptors) {
@@ -39,9 +41,10 @@ function sortedDescriptors(descriptors) {
 
 export function getP086BootstrapHybridDescriptors({ descriptors = buildRlsDescriptors() } = {}) {
   const targets = sortedDescriptors(
-    Array.from(descriptors.values()).filter((descriptor) =>
-      descriptor.scopingKind === "bootstrap_hybrid" ||
-      descriptor.scopingKind === "bootstrap_hybrid_org_gated"
+    Array.from(descriptors.values()).filter(
+      (descriptor) =>
+        descriptor.scopingKind === 'bootstrap_hybrid' ||
+        descriptor.scopingKind === 'bootstrap_hybrid_org_gated',
     ),
   );
 
@@ -59,7 +62,7 @@ export function assertP086BootstrapHybridTargets(targets) {
   }
 
   if (actualSet.size !== actualTables.length) {
-    throw new Error("P0.8.6 BOOTSTRAP hybrid targets contain duplicates");
+    throw new Error('P0.8.6 BOOTSTRAP hybrid targets contain duplicates');
   }
 
   const missing = setDiff(expectedTargetSet, actualSet);
@@ -67,64 +70,78 @@ export function assertP086BootstrapHybridTargets(targets) {
 
   if (missing.length > 0 || extra.length > 0) {
     throw new Error(
-      `P0.8.6 target set mismatch. Missing: ${missing.join(", ") || "<none>"}. Extra: ${
-        extra.join(", ") || "<none>"
+      `P0.8.6 target set mismatch. Missing: ${missing.join(', ') || '<none>'}. Extra: ${
+        extra.join(', ') || '<none>'
       }`,
     );
   }
 
   for (const descriptor of targets) {
-    if (descriptor.tier !== "BOOTSTRAP") {
-      throw new Error(`P0.8.6 target ${descriptor.table} must be BOOTSTRAP, got ${descriptor.tier}`);
+    if (descriptor.tier !== 'BOOTSTRAP') {
+      throw new Error(
+        `P0.8.6 target ${descriptor.table} must be BOOTSTRAP, got ${descriptor.tier}`,
+      );
     }
 
     const expectedScopingKind = expectedBootstrapHybridOrgGatedTables.has(descriptor.table)
-      ? "bootstrap_hybrid_org_gated"
-      : "bootstrap_hybrid";
+      ? 'bootstrap_hybrid_org_gated'
+      : 'bootstrap_hybrid';
 
     if (descriptor.scopingKind !== expectedScopingKind) {
-      throw new Error(`P0.8.6 target ${descriptor.table} must use ${expectedScopingKind}, got ${descriptor.scopingKind}`);
+      throw new Error(
+        `P0.8.6 target ${descriptor.table} must use ${expectedScopingKind}, got ${descriptor.scopingKind}`,
+      );
     }
 
-    if (descriptor.orgColumn !== "organization_id") {
+    if (descriptor.orgColumn !== 'organization_id') {
       throw new Error(`P0.8.6 target ${descriptor.table} must use nullable organization_id`);
     }
 
     const expectedPredicateTemplate = expectedBootstrapHybridOrgGatedTables.has(descriptor.table)
-      ? "org_gated_null_bootstrap"
-      : "organization_id_is_null_or_matches_app_org";
+      ? 'org_gated_null_bootstrap'
+      : 'organization_id_is_null_or_matches_app_org';
 
     if (descriptor.predicateTemplate !== expectedPredicateTemplate) {
-      throw new Error(`P0.8.6 target ${descriptor.table} has unexpected predicate template ${descriptor.predicateTemplate}`);
+      throw new Error(
+        `P0.8.6 target ${descriptor.table} has unexpected predicate template ${descriptor.predicateTemplate}`,
+      );
     }
   }
 
   const bootstrapHybridTables = new Set(
-    targets.filter((descriptor) => descriptor.scopingKind === "bootstrap_hybrid").map((descriptor) => descriptor.table),
+    targets
+      .filter((descriptor) => descriptor.scopingKind === 'bootstrap_hybrid')
+      .map((descriptor) => descriptor.table),
   );
   const bootstrapHybridOrgGatedTables = new Set(
-    targets.filter((descriptor) => descriptor.scopingKind === "bootstrap_hybrid_org_gated").map((descriptor) => descriptor.table),
+    targets
+      .filter((descriptor) => descriptor.scopingKind === 'bootstrap_hybrid_org_gated')
+      .map((descriptor) => descriptor.table),
   );
 
   if (
     setDiff(expectedBootstrapHybridTables, bootstrapHybridTables).length > 0 ||
     setDiff(bootstrapHybridTables, expectedBootstrapHybridTables).length > 0
   ) {
-    throw new Error("P0.8.6 bootstrap_hybrid table set mismatch");
+    throw new Error('P0.8.6 bootstrap_hybrid table set mismatch');
   }
 
   if (
     setDiff(expectedBootstrapHybridOrgGatedTables, bootstrapHybridOrgGatedTables).length > 0 ||
     setDiff(bootstrapHybridOrgGatedTables, expectedBootstrapHybridOrgGatedTables).length > 0
   ) {
-    throw new Error("P0.8.6 bootstrap_hybrid_org_gated table set mismatch");
+    throw new Error('P0.8.6 bootstrap_hybrid_org_gated table set mismatch');
   }
 }
 
-export function renderP086PolicyStatements({ descriptors = getP086BootstrapHybridDescriptors() } = {}) {
+export function renderP086PolicyStatements({
+  descriptors = getP086BootstrapHybridDescriptors(),
+} = {}) {
   return descriptors.flatMap((descriptor) => {
-    if (descriptor.scopingKind === "bootstrap_hybrid_org_gated") {
-      return renderBootstrapHybridOrgGatedPolicyStatements(descriptor, { policyName: p086PolicyName });
+    if (descriptor.scopingKind === 'bootstrap_hybrid_org_gated') {
+      return renderBootstrapHybridOrgGatedPolicyStatements(descriptor, {
+        policyName: p086PolicyName,
+      });
     }
 
     return renderBootstrapHybridPolicyStatements(descriptor, { policyName: p086PolicyName });
@@ -134,18 +151,18 @@ export function renderP086PolicyStatements({ descriptors = getP086BootstrapHybri
 function printCli(format) {
   const descriptors = getP086BootstrapHybridDescriptors();
 
-  if (format === "--json") {
+  if (format === '--json') {
     console.log(JSON.stringify(descriptors, null, 2));
     return;
   }
 
-  if (format === "--sql") {
-    console.log(renderP086PolicyStatements({ descriptors }).join("\n"));
+  if (format === '--sql') {
+    console.log(renderP086PolicyStatements({ descriptors }).join('\n'));
     return;
   }
 
-  if (format === "--targets" || format == null) {
-    console.log(descriptors.map((descriptor) => descriptor.table).join("\n"));
+  if (format === '--targets' || format == null) {
+    console.log(descriptors.map((descriptor) => descriptor.table).join('\n'));
     return;
   }
 

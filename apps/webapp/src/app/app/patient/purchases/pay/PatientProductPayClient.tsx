@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
-import { Button } from "@/shared/ui/patient/primitives/button";
-import { routePaths } from "@/app-layer/routes/paths";
+import { useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
+import { Button } from '@/shared/ui/patient/primitives/button';
+import { routePaths } from '@/app-layer/routes/paths';
 
 export function PatientProductPayClient(props: {
   purchaseId: string;
@@ -18,14 +18,14 @@ export function PatientProductPayClient(props: {
   function pay() {
     setError(null);
     startTransition(async () => {
-      const res = await fetch("/api/booking/products/payments/mock-complete", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const res = await fetch('/api/booking/products/payments/mock-complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ intentId: props.intentId }),
       });
       const json = (await res.json()) as { ok?: boolean; error?: string };
       if (!json.ok) {
-        setError(json.error ?? "payment_failed");
+        setError(json.error ?? 'payment_failed');
         return;
       }
       router.push(routePaths.purchases);
@@ -36,7 +36,7 @@ export function PatientProductPayClient(props: {
   return (
     <div className="flex flex-col gap-4 p-4">
       <p>
-        {props.title} — {(props.amountMinor / 100).toLocaleString("ru-RU")} ₽
+        {props.title} — {(props.amountMinor / 100).toLocaleString('ru-RU')} ₽
       </p>
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
       <Button type="button" disabled={pending} onClick={pay}>

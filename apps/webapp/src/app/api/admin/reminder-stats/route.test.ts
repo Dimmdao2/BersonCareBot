@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
   requireAdminModeSessionMock,
@@ -12,19 +12,19 @@ const {
   loadDoctorAnalyticsAudienceMock: vi.fn(),
 }));
 
-vi.mock("@/modules/auth/requireAdminMode", () => ({
+vi.mock('@/modules/auth/requireAdminMode', () => ({
   requireAdminModeSession: requireAdminModeSessionMock,
 }));
 
-vi.mock("@/app-layer/guards/requireRole", () => ({
+vi.mock('@/app-layer/guards/requireRole', () => ({
   requirePlatformOperationsApiContext: requirePlatformOperationsApiContextMock,
 }));
 
-vi.mock("@/app-layer/analytics/loadAnalyticsAudience", () => ({
+vi.mock('@/app-layer/analytics/loadAnalyticsAudience', () => ({
   loadDoctorAnalyticsAudience: loadDoctorAnalyticsAudienceMock,
 }));
-vi.mock("@/app-layer/stats/loadAdminReminderStats", async (importOriginal) => {
-  const mod = await importOriginal<typeof import("@/app-layer/stats/loadAdminReminderStats")>();
+vi.mock('@/app-layer/stats/loadAdminReminderStats', async (importOriginal) => {
+  const mod = await importOriginal<typeof import('@/app-layer/stats/loadAdminReminderStats')>();
   return {
     ...mod,
     loadContentEngagementStats: loadContentEngagementStatsMock,
@@ -32,7 +32,7 @@ vi.mock("@/app-layer/stats/loadAdminReminderStats", async (importOriginal) => {
   };
 });
 
-import { GET } from "./route";
+import { GET } from './route';
 
 const emptyPlaybackClient = (): {
   windowHours: number;
@@ -70,20 +70,20 @@ const emptyPlaybackClient = (): {
 
 const samplePayload = {
   windowHours: 24,
-  displayTimezone: "Europe/Moscow",
+  displayTimezone: 'Europe/Moscow',
   reminderSendsLast24hClock: Array.from({ length: 24 }, (_, hour) => ({
     hour,
-    label: `${String(hour).padStart(2, "0")}:00`,
+    label: `${String(hour).padStart(2, '0')}:00`,
     sent: 0,
     failed: 0,
   })),
   reminderRulesEnabledCount: 12,
   peopleWithNotifications: {
     currentPeopleCount: 27,
-    daily: [{ bucket: "2026-05-27T00:00:00.000Z", peopleCount: 26 }],
+    daily: [{ bucket: '2026-05-27T00:00:00.000Z', peopleCount: 26 }],
     channelSegmentsToday: [
-      { segment: "only_push" as const, label: "Только Push", peopleCount: 12 },
-      { segment: "multiple" as const, label: "Несколько каналов", peopleCount: 8 },
+      { segment: 'only_push' as const, label: 'Только Push', peopleCount: 12 },
+      { segment: 'multiple' as const, label: 'Несколько каналов', peopleCount: 8 },
     ],
   },
   occurrenceHistoryHourly: [] as Array<{ bucket: string; sent: number; failed: number }>,
@@ -92,8 +92,18 @@ const samplePayload = {
   pushOpensHourly: [] as Array<{ bucket: string; opened: number; sent: number }>,
   pushOpensDaily: [] as Array<{ bucket: string; opened: number; sent: number }>,
   practiceBySource: { reminder: 3 } as Record<string, number>,
-  practiceTopPages: [] as Array<{ contentPageId: string; section: string; slug: string; count: number }>,
-  warmupVideoTopPages: [] as Array<{ contentPageId: string; section: string; slug: string; count: number }>,
+  practiceTopPages: [] as Array<{
+    contentPageId: string;
+    section: string;
+    slug: string;
+    count: number;
+  }>,
+  warmupVideoTopPages: [] as Array<{
+    contentPageId: string;
+    section: string;
+    slug: string;
+    count: number;
+  }>,
   warmupVideoEstimatedWatchMinutes: 0,
   videoPlaybackEstimatedWatchMinutes: 0,
   videoPlayback: {
@@ -105,12 +115,15 @@ const samplePayload = {
   videoPlaybackClient: emptyPlaybackClient(),
 };
 
-describe("GET /api/admin/reminder-stats", () => {
+describe('GET /api/admin/reminder-stats', () => {
   beforeEach(() => {
     requireAdminModeSessionMock.mockReset();
     requirePlatformOperationsApiContextMock.mockReset().mockResolvedValue({
       ok: true,
-      session: { user: { userId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", role: "admin" }, adminMode: true },
+      session: {
+        user: { userId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', role: 'admin' },
+        adminMode: true,
+      },
     });
     loadDoctorAnalyticsAudienceMock.mockReset();
     loadContentEngagementStatsMock.mockReset();
@@ -118,37 +131,37 @@ describe("GET /api/admin/reminder-stats", () => {
     loadContentEngagementStatsMock.mockResolvedValue(samplePayload);
   });
 
-  it("returns 403 before stats reads when the platform guard rejects a foreign audience", async () => {
+  it('returns 403 before stats reads when the platform guard rejects a foreign audience', async () => {
     requireAdminModeSessionMock.mockResolvedValue({
       ok: true,
-      session: { user: { userId: "a1", role: "admin" }, adminMode: true },
+      session: { user: { userId: 'a1', role: 'admin' }, adminMode: true },
     });
     requirePlatformOperationsApiContextMock.mockResolvedValue({
       ok: false,
-      response: new Response(JSON.stringify({ ok: false, error: "forbidden" }), { status: 403 }),
+      response: new Response(JSON.stringify({ ok: false, error: 'forbidden' }), { status: 403 }),
     });
-    const res = await GET(new Request("http://localhost/api/admin/reminder-stats"));
+    const res = await GET(new Request('http://localhost/api/admin/reminder-stats'));
     expect(res.status).toBe(403);
     expect(loadDoctorAnalyticsAudienceMock).not.toHaveBeenCalled();
     expect(loadContentEngagementStatsMock).not.toHaveBeenCalled();
   });
 
-  it("returns 403 when not admin mode", async () => {
+  it('returns 403 when not admin mode', async () => {
     requireAdminModeSessionMock.mockResolvedValue({
       ok: false,
       response: new Response(JSON.stringify({ ok: false }), { status: 403 }),
     });
-    const res = await GET(new Request("http://localhost/api/admin/reminder-stats"));
+    const res = await GET(new Request('http://localhost/api/admin/reminder-stats'));
     expect(res.status).toBe(403);
     expect(loadContentEngagementStatsMock).not.toHaveBeenCalled();
   });
 
-  it("returns JSON from loadContentEngagementStats", async () => {
+  it('returns JSON from loadContentEngagementStats', async () => {
     requireAdminModeSessionMock.mockResolvedValue({
       ok: true,
-      session: { user: { userId: "a1", role: "admin" }, adminMode: true },
+      session: { user: { userId: 'a1', role: 'admin' }, adminMode: true },
     });
-    const res = await GET(new Request("http://localhost/api/admin/reminder-stats?windowHours=48"));
+    const res = await GET(new Request('http://localhost/api/admin/reminder-stats?windowHours=48'));
     expect(res.status).toBe(200);
     const body = (await res.json()) as typeof samplePayload;
     expect(body.pushOpensSummary.opened).toBe(1);

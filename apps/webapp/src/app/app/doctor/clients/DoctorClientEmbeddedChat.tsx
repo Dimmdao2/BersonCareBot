@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { DoctorChatPanel } from "@/modules/messaging/components/DoctorChatPanel";
-import { useDoctorPatientSupportChat } from "./useDoctorPatientSupportChat";
-import { doctorClientStackedCardClass } from "./doctorClientCardChrome";
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { DoctorChatPanel } from '@/modules/messaging/components/DoctorChatPanel';
+import { useDoctorPatientSupportChat } from './useDoctorPatientSupportChat';
+import { doctorClientStackedCardClass } from './doctorClientCardChrome';
 
 type Props = {
   patientUserId: string;
@@ -15,7 +15,10 @@ export function DoctorClientEmbeddedChat({ patientUserId, onUnreadChange }: Prop
 
   if (chat.loading) {
     return (
-      <div className={`${doctorClientStackedCardClass} min-h-[280px] animate-pulse bg-muted/20`} aria-busy>
+      <div
+        className={`${doctorClientStackedCardClass} min-h-[280px] animate-pulse bg-muted/20`}
+        aria-busy
+      >
         <p className="sr-only">Загрузка чата…</p>
       </div>
     );
@@ -25,7 +28,13 @@ export function DoctorClientEmbeddedChat({ patientUserId, onUnreadChange }: Prop
     return (
       <div className={doctorClientStackedCardClass}>
         <p className="text-sm text-destructive">{chat.error}</p>
-        <Button type="button" variant="outline" size="sm" className="mt-2" onClick={() => void chat.retry()}>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="mt-2"
+          onClick={() => void chat.retry()}
+        >
           Повторить
         </Button>
       </div>
@@ -37,7 +46,9 @@ export function DoctorClientEmbeddedChat({ patientUserId, onUnreadChange }: Prop
   }
 
   return (
-    <div className={`${doctorClientStackedCardClass} flex min-h-[min(50vh,420px)] flex-col overflow-hidden p-0`}>
+    <div
+      className={`${doctorClientStackedCardClass} flex min-h-[min(50vh,420px)] flex-col overflow-hidden p-0`}
+    >
       <DoctorChatPanel
         key={chat.conversationId}
         conversationId={chat.conversationId}

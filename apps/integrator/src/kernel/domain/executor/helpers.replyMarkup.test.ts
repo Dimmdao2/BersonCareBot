@@ -19,25 +19,25 @@ const ctx: DomainContext = {
 
 describe('buildReplyMarkup urlFact', () => {
   it('inline keyboard urlFact resolves to ordinary url button', async () => {
-    const markup = await buildReplyMarkup({
+    const markup = (await buildReplyMarkup({
       params: {
         inlineKeyboard: [[{ text: 'Open', urlFact: 'links.webappHomeUrl' }]],
       },
       ctx,
       templatePort: undefined,
-    }) as { inline_keyboard: Array<Array<{ url?: string; web_app?: { url: string } }>> };
+    })) as { inline_keyboard: Array<Array<{ url?: string; web_app?: { url: string } }>> };
     expect(markup.inline_keyboard[0]?.[0]?.url).toBe('https://app.example/tg?t=abc');
     expect(markup.inline_keyboard[0]?.[0]?.web_app).toBeUndefined();
   });
 
   it('webAppUrlFact still produces web_app button', async () => {
-    const markup = await buildReplyMarkup({
+    const markup = (await buildReplyMarkup({
       params: {
         inlineKeyboard: [[{ text: 'App', webAppUrlFact: 'links.webappHomeUrl' }]],
       },
       ctx,
       templatePort: undefined,
-    }) as { inline_keyboard: Array<Array<{ web_app?: { url: string } }>> };
+    })) as { inline_keyboard: Array<Array<{ web_app?: { url: string } }>> };
     expect(markup.inline_keyboard[0]?.[0]?.web_app?.url).toBe('https://app.example/tg?t=abc');
   });
 });

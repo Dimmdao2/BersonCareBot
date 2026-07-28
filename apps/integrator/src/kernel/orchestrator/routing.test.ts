@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { BaseContext, ContentPort, ContextQueryPort, IncomingEvent } from '../contracts/index.js';
+import type {
+  BaseContext,
+  ContentPort,
+  ContextQueryPort,
+  IncomingEvent,
+} from '../contracts/index.js';
 import { buildPlan } from './resolver.js';
 
 type EventInput = {
@@ -50,7 +55,10 @@ describe('orchestrator routing', () => {
       getTemplate: vi.fn().mockResolvedValue(null),
     };
 
-    const plan = await buildPlan({ event: createEvent(), context: baseContext }, { contentPort, contextQueryPort });
+    const plan = await buildPlan(
+      { event: createEvent(), context: baseContext },
+      { contentPort, contextQueryPort },
+    );
 
     expect(contentPort.getScriptsBySource).toHaveBeenCalledWith('telegram');
     expect(plan.length).toBeGreaterThan(0);
@@ -157,7 +165,10 @@ describe('orchestrator routing', () => {
     };
 
     const plan = await buildPlan(
-      { event: createEvent({ source: 'provider-a', type: 'webhook.received' }), context: baseContext },
+      {
+        event: createEvent({ source: 'provider-a', type: 'webhook.received' }),
+        context: baseContext,
+      },
       { contentPort, contextQueryPort },
     );
 
@@ -194,7 +205,10 @@ describe('orchestrator routing', () => {
       getTemplate: vi.fn().mockResolvedValue(null),
     };
 
-    await buildPlan({ event: createEvent(), context: baseContext }, { contentPort, contextQueryPort });
+    await buildPlan(
+      { event: createEvent(), context: baseContext },
+      { contentPort, contextQueryPort },
+    );
 
     expect(getScripts).toHaveBeenCalledWith({ source: 'telegram', audience: 'user' });
   });
@@ -214,7 +228,10 @@ describe('orchestrator routing', () => {
     };
     const adminContext: BaseContext = { ...baseContext, actor: { isAdmin: true } };
 
-    await buildPlan({ event: createEvent(), context: adminContext }, { contentPort, contextQueryPort });
+    await buildPlan(
+      { event: createEvent(), context: adminContext },
+      { contentPort, contextQueryPort },
+    );
 
     expect(getScripts).toHaveBeenCalledWith({ source: 'telegram', audience: 'admin' });
   });
@@ -227,7 +244,11 @@ describe('orchestrator routing', () => {
         event: 'message.received',
         match: {
           actor: { isAdmin: false },
-          context: { conversationState: { $notIn: ['diary.symptom.awaiting_title', 'diary.lfk.awaiting_title'] } },
+          context: {
+            conversationState: {
+              $notIn: ['diary.symptom.awaiting_title', 'diary.lfk.awaiting_title'],
+            },
+          },
           input: { textPresent: true },
         },
         steps: [{ action: 'event.log', params: { selected: 'menu.default' } }],
@@ -275,7 +296,11 @@ describe('orchestrator routing', () => {
         event: 'message.received',
         match: {
           actor: { isAdmin: false },
-          context: { conversationState: { $notIn: ['diary.symptom.awaiting_title', 'diary.lfk.awaiting_title'] } },
+          context: {
+            conversationState: {
+              $notIn: ['diary.symptom.awaiting_title', 'diary.lfk.awaiting_title'],
+            },
+          },
           input: { textPresent: true },
         },
         steps: [{ action: 'event.log', params: { selected: 'menu.default' } }],
@@ -312,7 +337,9 @@ describe('orchestrator routing', () => {
         source: 'max',
         event: 'message.received',
         match: {
-          context: { conversationState: { $notStartsWith: ['await_phoneauth:', 'await_contact:'] } },
+          context: {
+            conversationState: { $notStartsWith: ['await_phoneauth:', 'await_contact:'] },
+          },
           input: { phonePresent: true },
         },
         steps: [{ action: 'user.phone.link', params: {} }],

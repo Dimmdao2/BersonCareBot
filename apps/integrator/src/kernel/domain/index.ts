@@ -30,7 +30,8 @@ function normalizeMessageStep(step: Step): Step {
     delivery: {
       ...(payload.delivery ?? {}),
       ...(channelsFromPayload.length > 0 ? { channels: channelsFromPayload } : {}),
-      maxAttempts: typeof payload.delivery?.maxAttempts === 'number' ? payload.delivery.maxAttempts : 3,
+      maxAttempts:
+        typeof payload.delivery?.maxAttempts === 'number' ? payload.delivery.maxAttempts : 3,
     },
   };
   return { ...step, payload: normalizedPayload };

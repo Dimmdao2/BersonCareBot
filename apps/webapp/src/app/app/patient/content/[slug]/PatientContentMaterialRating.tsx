@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { useCallback, useState } from "react";
-import { MaterialRatingBlock } from "@/shared/ui/patient/material-rating/MaterialRatingBlock";
-import { PatientWarmupRatingFeedbackDialog } from "./PatientWarmupRatingFeedbackDialog";
+import { useCallback, useState } from 'react';
+import { MaterialRatingBlock } from '@/shared/ui/patient/material-rating/MaterialRatingBlock';
+import { PatientWarmupRatingFeedbackDialog } from './PatientWarmupRatingFeedbackDialog';
 
 export function PatientContentMaterialRating(props: {
   contentPageId: string;

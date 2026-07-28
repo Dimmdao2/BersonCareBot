@@ -1,5 +1,5 @@
-import { logger } from "@/infra/logging/logger";
-import type { EmptyAudienceEvent } from "./emptyAudience";
+import { logger } from '@/infra/logging/logger';
+import type { EmptyAudienceEvent } from './emptyAudience';
 
 /**
  * Точка входа для доменного слоя (design D-b).
@@ -32,26 +32,30 @@ export function resetEmptyAudienceReporterForTests(): void {
 export async function reportEmptyAudience(event: EmptyAudienceEvent): Promise<void> {
   logger.warn(
     {
-      scope: "notification_delivery",
-      event: "notification_audience_empty",
+      scope: 'notification_delivery',
+      event: 'notification_audience_empty',
       topic: event.topic,
       severity: event.severity,
       channels: event.channels,
       ...(event.context ?? {}),
     },
-    "notification resolved to an empty audience",
+    'notification resolved to an empty audience',
   );
   if (!reporter) {
     logger.warn(
-      { scope: "notification_delivery", event: "empty_audience_reporter_unregistered", topic: event.topic },
-      "empty audience reporter is not registered; only the log survives",
+      {
+        scope: 'notification_delivery',
+        event: 'empty_audience_reporter_unregistered',
+        topic: event.topic,
+      },
+      'empty audience reporter is not registered; only the log survives',
     );
     return;
   }
   try {
     await reporter(event);
   } catch (err) {
-    logger.warn({ err, topic: event.topic }, "empty audience reporter failed");
+    logger.warn({ err, topic: event.topic }, 'empty audience reporter failed');
   }
 }
 

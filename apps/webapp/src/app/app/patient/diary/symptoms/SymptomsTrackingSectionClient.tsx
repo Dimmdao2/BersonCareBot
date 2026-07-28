@@ -1,12 +1,12 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import { SymptomTrackingRow } from "./SymptomTrackingRow";
+import { useEffect, useState } from 'react';
+import { SymptomTrackingRow } from './SymptomTrackingRow';
 import {
   patientMutedTextClass,
   patientSectionSurfaceClass,
   patientSectionTitleClass,
-} from "@/shared/ui/patient/patientVisual";
+} from '@/shared/ui/patient/patientVisual';
 
 export function SymptomsTrackingSectionClient({
   trackings,
@@ -20,18 +20,17 @@ export function SymptomsTrackingSectionClient({
   }, [trackings]);
 
   return (
-    <section
-      id="patient-symptoms-tracking-section"
-      className={patientSectionSurfaceClass}
-    >
+    <section id="patient-symptoms-tracking-section" className={patientSectionSurfaceClass}>
       <h2 className={patientSectionTitleClass}>Отслеживаемые симптомы</h2>
-      {rows.length > 0 ?
+      {rows.length > 0 ? (
         <ul id="patient-symptoms-tracking-list" className="m-0 list-none space-y-3 p-0">
           {rows.map((t) => (
-            <SymptomTrackingRow key={t.id} id={t.id} title={t.symptomTitle ?? "—"} />
+            <SymptomTrackingRow key={t.id} id={t.id} title={t.symptomTitle ?? '—'} />
           ))}
         </ul>
-      : <p className={patientMutedTextClass}>Отслеживания симптомов назначает врач.</p>}
+      ) : (
+        <p className={patientMutedTextClass}>Отслеживания симптомов назначает врач.</p>
+      )}
     </section>
   );
 }

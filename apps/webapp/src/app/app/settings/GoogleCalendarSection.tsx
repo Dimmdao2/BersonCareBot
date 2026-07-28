@@ -1,12 +1,18 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useState, useTransition } from "react";
-import { useSearchParams } from "next/navigation";
-import { apiJson } from "@/shared/lib/apiJson";
-import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/ui/doctor/primitives/select";
-import { LabeledSwitch } from "@/components/common/form/LabeledSwitch";
+import { useCallback, useEffect, useState, useTransition } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { apiJson } from '@/shared/lib/apiJson';
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/shared/ui/doctor/primitives/select';
+import { LabeledSwitch } from '@/components/common/form/LabeledSwitch';
 
 type GoogleCalendarSectionProps = {
   platformOAuthConfigured: boolean;
@@ -19,30 +25,30 @@ type GoogleCalendarSectionProps = {
 type CalendarItem = { id: string; summary: string; primary: boolean };
 
 const GCAL_ERROR_REASON_LABELS: Record<string, string> = {
-  csrf: "сессия или state не совпали — нажмите «Подключить Google» ещё раз",
-  no_code: "Google не вернул код авторизации",
+  csrf: 'сессия или state не совпали — нажмите «Подключить Google» ещё раз',
+  no_code: 'Google не вернул код авторизации',
   no_refresh_token:
-    "нет refresh token: отзовите доступ к приложению в аккаунте Google и подключите снова",
-  exchange_failed: "не удалось обменять код на токены",
-  not_configured: "OAuth credentials не заполнены в настройках",
-  unauthorized: "нужна сессия администратора",
-  integration_disabled: "платформа выключила интеграцию Google Calendar",
-  access_denied: "доступ отклонён в окне Google",
+    'нет refresh token: отзовите доступ к приложению в аккаунте Google и подключите снова',
+  exchange_failed: 'не удалось обменять код на токены',
+  not_configured: 'OAuth credentials не заполнены в настройках',
+  unauthorized: 'нужна сессия администратора',
+  integration_disabled: 'платформа выключила интеграцию Google Calendar',
+  access_denied: 'доступ отклонён в окне Google',
 };
 
 function formatGcalErrorMessage(reason: string | null): string {
-  if (!reason) return "Ошибка подключения Google Calendar";
+  if (!reason) return 'Ошибка подключения Google Calendar';
   const mapped = GCAL_ERROR_REASON_LABELS[reason];
   if (mapped) return `Ошибка: ${mapped}`;
-  const safe = reason.slice(0, 120).replace(/[^\w.\-]/g, "");
-  return safe.length > 0 ? `Ошибка (${safe})` : "Ошибка подключения Google Calendar";
+  const safe = reason.slice(0, 120).replace(/[^\w.\-]/g, '');
+  return safe.length > 0 ? `Ошибка (${safe})` : 'Ошибка подключения Google Calendar';
 }
 
 async function patchSetting(key: string, value: unknown): Promise<boolean> {
   try {
-    await apiJson<{ ok: boolean }>("/api/admin/settings", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+    await apiJson<{ ok: boolean }>('/api/admin/settings', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ key, value: { value } }),
     });
     return true;
@@ -59,8 +65,8 @@ export function GoogleCalendarSection({
   googleConnectedEmail,
 }: GoogleCalendarSectionProps) {
   const searchParams = useSearchParams();
-  const gcalStatus = searchParams.get("gcal");
-  const gcalReason = searchParams.get("reason");
+  const gcalStatus = searchParams.get('gcal');
+  const gcalReason = searchParams.get('reason');
 
   const [calendarId, setCalendarId] = useState(googleCalendarId);
   const [enabled, setEnabled] = useState(googleCalendarEnabled);
@@ -76,18 +82,21 @@ export function GoogleCalendarSection({
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
-    if (gcalStatus === "connected") setConnectMsg("Google Calendar успешно подключён");
-    else if (gcalStatus === "error") setConnectMsg(formatGcalErrorMessage(gcalReason));
+    if (gcalStatus === 'connected') setConnectMsg('Google Calendar успешно подключён');
+    else if (gcalStatus === 'error') setConnectMsg(formatGcalErrorMessage(gcalReason));
   }, [gcalStatus, gcalReason]);
 
   const startOAuth = useCallback(() => {
     setConnectMsg(null);
     startTransition(async () => {
       try {
-        const data = await apiJson<{ ok: boolean; authUrl: string }>("/api/admin/google-calendar/start", { method: "POST" });
+        const data = await apiJson<{ ok: boolean; authUrl: string }>(
+          '/api/admin/google-calendar/start',
+          { method: 'POST' },
+        );
         window.location.href = data.authUrl;
       } catch (e) {
-        setConnectMsg(e instanceof Error ? e.message : "Не удалось начать подключение");
+        setConnectMsg(e instanceof Error ? e.message : 'Не удалось начать подключение');
       }
     });
   }, []);
@@ -97,41 +106,49 @@ export function GoogleCalendarSection({
     setLoadingCalendars(true);
     startTransition(async () => {
       try {
-        const data = await apiJson<{ ok: boolean; calendars: CalendarItem[] }>("/api/admin/google-calendar/calendars");
+        const data = await apiJson<{ ok: boolean; calendars: CalendarItem[] }>(
+          '/api/admin/google-calendar/calendars',
+        );
         setCalendars(data.calendars);
       } catch (e) {
-        setCalError(e instanceof Error ? e.message : "Не удалось загрузить календари");
+        setCalError(e instanceof Error ? e.message : 'Не удалось загрузить календари');
       } finally {
         setLoadingCalendars(false);
       }
     });
   }, []);
 
-  const selectCalendar = useCallback((id: string) => {
-    const previous = calendarId;
-    setCalendarId(id);
-    setCalendarSaveError(null);
-    startTransition(async () => {
-      const ok = await patchSetting("google_calendar_id", id);
-      if (!ok) {
-        setCalendarId(previous);
-        setCalendarSaveError("Не удалось сохранить выбранный календарь");
-      }
-    });
-  }, [calendarId]);
+  const selectCalendar = useCallback(
+    (id: string) => {
+      const previous = calendarId;
+      setCalendarId(id);
+      setCalendarSaveError(null);
+      startTransition(async () => {
+        const ok = await patchSetting('google_calendar_id', id);
+        if (!ok) {
+          setCalendarId(previous);
+          setCalendarSaveError('Не удалось сохранить выбранный календарь');
+        }
+      });
+    },
+    [calendarId],
+  );
 
-  const toggleEnabled = useCallback((val: boolean) => {
-    const previous = enabled;
-    setEnabled(val);
-    setToggleError(null);
-    startTransition(async () => {
-      const ok = await patchSetting("google_calendar_enabled", val);
-      if (!ok) {
-        setEnabled(previous);
-        setToggleError("Не удалось сохранить переключатель синхронизации");
-      }
-    });
-  }, [enabled]);
+  const toggleEnabled = useCallback(
+    (val: boolean) => {
+      const previous = enabled;
+      setEnabled(val);
+      setToggleError(null);
+      startTransition(async () => {
+        const ok = await patchSetting('google_calendar_enabled', val);
+        if (!ok) {
+          setEnabled(previous);
+          setToggleError('Не удалось сохранить переключатель синхронизации');
+        }
+      });
+    },
+    [enabled],
+  );
 
   return (
     <Card className="border-border">
@@ -140,7 +157,9 @@ export function GoogleCalendarSection({
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
         {connectMsg && (
-          <p className={`text-sm ${gcalStatus === "connected" ? "text-green-600" : "text-destructive"}`}>
+          <p
+            className={`text-sm ${gcalStatus === 'connected' ? 'text-green-600' : 'text-destructive'}`}
+          >
             {connectMsg}
           </p>
         )}
@@ -151,7 +170,7 @@ export function GoogleCalendarSection({
             <div className="flex items-center gap-2">
               <span className="inline-block h-2 w-2 rounded-full bg-green-500" />
               <span className="text-sm">
-                Подключено{connectedEmail ? ` (${connectedEmail})` : ""}
+                Подключено{connectedEmail ? ` (${connectedEmail})` : ''}
               </span>
             </div>
           ) : (
@@ -159,16 +178,16 @@ export function GoogleCalendarSection({
           )}
           <Button
             size="sm"
-            variant={hasRefreshToken ? "outline" : "default"}
+            variant={hasRefreshToken ? 'outline' : 'default'}
             onClick={startOAuth}
             disabled={isPending || !platformOAuthConfigured}
           >
-            {hasRefreshToken ? "Переподключить Google" : "Подключить Google"}
+            {hasRefreshToken ? 'Переподключить Google' : 'Подключить Google'}
           </Button>
           {!platformOAuthConfigured && (
             <p className="text-xs text-muted-foreground">
-              Платформа ещё не настроила Google OAuth. Попросите глобального администратора заполнить Client ID,
-              secret и redirect URI для Calendar.
+              Платформа ещё не настроила Google OAuth. Попросите глобального администратора
+              заполнить Client ID, secret и redirect URI для Calendar.
             </p>
           )}
         </section>
@@ -183,13 +202,17 @@ export function GoogleCalendarSection({
                 onClick={loadCalendars}
                 disabled={isPending || loadingCalendars}
               >
-                {loadingCalendars ? "Загрузка..." : "Загрузить список"}
+                {loadingCalendars ? 'Загрузка...' : 'Загрузить список'}
               </Button>
             </div>
             {calError && <p className="text-xs text-destructive">{calError}</p>}
             {calendarSaveError && <p className="text-xs text-destructive">{calendarSaveError}</p>}
             {calendars.length > 0 && (
-              <Select value={calendarId} onValueChange={(v) => selectCalendar(v ?? "")} disabled={isPending}>
+              <Select
+                value={calendarId}
+                onValueChange={(v) => selectCalendar(v ?? '')}
+                disabled={isPending}
+              >
                 <SelectTrigger className="w-full font-mono text-xs">
                   <SelectValue />
                 </SelectTrigger>
@@ -197,7 +220,8 @@ export function GoogleCalendarSection({
                   <SelectItem value="">— выберите календарь —</SelectItem>
                   {calendars.map((c) => (
                     <SelectItem key={c.id} value={c.id}>
-                      {c.summary}{c.primary ? " (основной)" : ""}
+                      {c.summary}
+                      {c.primary ? ' (основной)' : ''}
                     </SelectItem>
                   ))}
                 </SelectContent>

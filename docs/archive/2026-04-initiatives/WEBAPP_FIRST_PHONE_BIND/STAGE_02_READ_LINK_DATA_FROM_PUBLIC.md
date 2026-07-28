@@ -14,13 +14,13 @@
 
 ## Какие поля сейчас отдаёт `getLinkDataByIdentity` (и зачем)
 
-| Поле | Смысл | Где живёт сейчас | В webapp `public`? |
-|------|--------|------------------|---------------------|
-| `userId` | ID пользователя **integrator** (`integrator.users`) | `identities.user_id` | **Нет** (это integrator-сущность; в `public` свой `platform_users.id`) |
-| `channelId` / `chatId` | Внешний id канала (Telegram user id и т.д.) | `identities.external_id` | В binding: `external_id` + `channel_code` |
-| `phoneNormalized` | E164 для сценариев, `linkedPhone`, админ-логика | `contacts.value_normalized` при `label = resource` | **Да** — целевой канон: `platform_users.phone_normalized` (по `user_id` из binding) |
-| `userState` | Черновики/шаги Telegram | `telegram_state.state` | **Нет** (остаётся в integrator) |
-| `username` | `@username` Telegram | `telegram_state.username` | **Нет** (остаётся в integrator; при желании позже дублировать в проекции — отдельная задача) |
+| Поле                   | Смысл                                               | Где живёт сейчас                                   | В webapp `public`?                                                                           |
+| ---------------------- | --------------------------------------------------- | -------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `userId`               | ID пользователя **integrator** (`integrator.users`) | `identities.user_id`                               | **Нет** (это integrator-сущность; в `public` свой `platform_users.id`)                       |
+| `channelId` / `chatId` | Внешний id канала (Telegram user id и т.д.)         | `identities.external_id`                           | В binding: `external_id` + `channel_code`                                                    |
+| `phoneNormalized`      | E164 для сценариев, `linkedPhone`, админ-логика     | `contacts.value_normalized` при `label = resource` | **Да** — целевой канон: `platform_users.phone_normalized` (по `user_id` из binding)          |
+| `userState`            | Черновики/шаги Telegram                             | `telegram_state.state`                             | **Нет** (остаётся в integrator)                                                              |
+| `username`             | `@username` Telegram                                | `telegram_state.username`                          | **Нет** (остаётся в integrator; при желании позже дублировать в проекции — отдельная задача) |
 
 Итого: **переносить в этапе 2** имеет смысл в первую очередь **`phoneNormalized`** (и логику «есть доверенный/привязанный телефон для канала») на **`public`**. **`userId` в ответе** по-прежнему — integrator `users.id` из `identities`, пока контракт call sites не меняется. Связь **integrator user ↔ platform user** остаётся предметом согласованности (поле `platform_users.integrator_user_id`, binding и т.д.) — при расхождении возможны **другие** баги, не только «linked phone».
 

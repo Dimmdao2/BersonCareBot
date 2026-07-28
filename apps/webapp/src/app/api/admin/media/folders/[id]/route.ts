@@ -1,86 +1,88 @@
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
-import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
-import { pgFolderExists } from "@/app-layer/media/mediaFoldersRepo";
-import { isSystemManagedMediaFolder, pgValidateManualFolderParent, pgValidatePatientFolderRename } from "@/app-layer/media/clientMediaFolders";
-import { pgGetMediaFolderById } from "@/app-layer/media/mediaFoldersRepo";
-import { getCurrentSession } from "@/modules/auth/service";
-import { canAccessDoctor } from "@/modules/roles/service";
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
+import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import { pgFolderExists } from '@/app-layer/media/mediaFoldersRepo';
+import {
+  isSystemManagedMediaFolder,
+  pgValidateManualFolderParent,
+  pgValidatePatientFolderRename,
+} from '@/app-layer/media/clientMediaFolders';
+import { pgGetMediaFolderById } from '@/app-layer/media/mediaFoldersRepo';
+import { getCurrentSession } from '@/modules/auth/service';
+import { canAccessDoctor } from '@/modules/roles/service';
 
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const patchBodySchema = z
   .object({
     name: z.string().min(1).max(180).optional(),
     parentId: z.union([z.string().uuid(), z.null()]).optional(),
   })
-  .refine((d) => d.name !== undefined || d.parentId !== undefined, { message: "no_fields" });
+  .refine((d) => d.name !== undefined || d.parentId !== undefined, { message: 'no_fields' });
 
-export async function PATCH(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const gate = await requireDoctorWorkspaceApiContext();
   if (!gate.ok) return gate.response;
 
   const { id } = await params;
   if (!UUID_RE.test(id)) {
-    return NextResponse.json({ ok: false, error: "invalid_id" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_id' }, { status: 400 });
   }
 
   const raw = await request.json().catch(() => null);
   const parsed = patchBodySchema.safeParse(raw);
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
 
   const deps = buildAppDeps();
   const existing = await pgGetMediaFolderById(id);
   if (!existing) {
-    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+    return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
 
   // Granular system-folder gate (rules 2 + 4):
   // - client_files_root: all changes forbidden
   // - client_patient: name change allowed; parentId change always forbidden
   // - standard: no gate
-  if (parsed.data.name !== undefined && existing.kind === "client_files_root") {
-    return NextResponse.json({ ok: false, error: "system_folder_readonly" }, { status: 409 });
+  if (parsed.data.name !== undefined && existing.kind === 'client_files_root') {
+    return NextResponse.json({ ok: false, error: 'system_folder_readonly' }, { status: 409 });
   }
-  if (parsed.data.name !== undefined && existing.kind === "client_patient") {
+  if (parsed.data.name !== undefined && existing.kind === 'client_patient') {
     try {
       await pgValidatePatientFolderRename(id, parsed.data.name);
     } catch {
-      return NextResponse.json({ ok: false, error: "system_folder_readonly" }, { status: 409 });
+      return NextResponse.json({ ok: false, error: 'system_folder_readonly' }, { status: 409 });
     }
   }
-  if (parsed.data.parentId !== undefined && existing.kind === "client_files_root") {
-    return NextResponse.json({ ok: false, error: "system_folder_readonly" }, { status: 409 });
+  if (parsed.data.parentId !== undefined && existing.kind === 'client_files_root') {
+    return NextResponse.json({ ok: false, error: 'system_folder_readonly' }, { status: 409 });
   }
-  if (parsed.data.parentId !== undefined && existing.kind === "client_patient") {
-    return NextResponse.json({ ok: false, error: "patient_folder_move_out" }, { status: 409 });
+  if (parsed.data.parentId !== undefined && existing.kind === 'client_patient') {
+    return NextResponse.json({ ok: false, error: 'patient_folder_move_out' }, { status: 409 });
   }
 
   if (parsed.data.parentId !== undefined) {
     const parentId = parsed.data.parentId;
     if (parentId !== null) {
       if (parentId === id) {
-        return NextResponse.json({ ok: false, error: "invalid_parent" }, { status: 400 });
+        return NextResponse.json({ ok: false, error: 'invalid_parent' }, { status: 400 });
       }
       const parentGate = await pgValidateManualFolderParent(parentId);
       if (!parentGate.ok) {
         const status =
-          parentGate.error === "folder_not_found" ? 404
-          : parentGate.error === "system_folder_readonly" ? 409
-          : 400;
+          parentGate.error === 'folder_not_found'
+            ? 404
+            : parentGate.error === 'system_folder_readonly'
+              ? 409
+              : 400;
         return NextResponse.json({ ok: false, error: parentGate.error }, { status });
       }
       const exists = await pgFolderExists(parentId);
       if (!exists) {
-        return NextResponse.json({ ok: false, error: "parent_not_found" }, { status: 404 });
+        return NextResponse.json({ ok: false, error: 'parent_not_found' }, { status: 404 });
       }
     }
     try {
@@ -88,10 +90,10 @@ export async function PATCH(
         deps.media.moveFolder(id, parentId),
       );
       if (!ok) {
-        return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+        return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
       }
     } catch {
-      return NextResponse.json({ ok: false, error: "move_failed" }, { status: 409 });
+      return NextResponse.json({ ok: false, error: 'move_failed' }, { status: 409 });
     }
   }
 
@@ -101,31 +103,28 @@ export async function PATCH(
       deps.media.renameFolder(id, name),
     );
     if (!ok) {
-      return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+      return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
     }
   }
 
   return NextResponse.json({ ok: true, id });
 }
 
-export async function DELETE(
-  _request: Request,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const gate = await requireDoctorWorkspaceApiContext();
   if (!gate.ok) return gate.response;
 
   const { id } = await params;
   if (!UUID_RE.test(id)) {
-    return NextResponse.json({ ok: false, error: "invalid_id" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_id' }, { status: 400 });
   }
 
   const existing = await pgGetMediaFolderById(id);
   if (!existing) {
-    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+    return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
   if (isSystemManagedMediaFolder(existing.kind)) {
-    return NextResponse.json({ ok: false, error: "system_folder_readonly" }, { status: 409 });
+    return NextResponse.json({ ok: false, error: 'system_folder_readonly' }, { status: 409 });
   }
 
   const deps = buildAppDeps();

@@ -15,22 +15,22 @@
 
 Запись считается **полностью совместимой**, если после входящего Rubitime webhook:
 
-| Поле в `patient_bookings` | Обязательность | Источник |
-|---|---|---|
-| `id` | required | UUID (gen при compat-create) |
-| `user_id` | required | resolveByPhone(clientPhone) или null (unlinked) |
-| `rubitime_id` | required | webhook `record.id` |
-| `status` | required | mapped из Rubitime lifecycle (confirmed/cancelled/etc.) |
-| `slot_start` | required | `record.dateTimeStart` (ISO) |
-| `slot_end` | best-effort | `record.dateTimeEnd` или `slot_start + default_duration` |
-| `source` | required | `'rubitime_projection'` |
-| `branch_service_id` | best-effort | lookup по `rubitime_branch_id` + `rubitime_service_id` |
-| `city_title` | best-effort | из `branchName` или lookup каталога |
-| `service_title` | best-effort | из `serviceName` или lookup каталога |
-| `branch_title` | best-effort | из `branchName` payload |
-| `rubitime_branch_id` | best-effort | `record.branchId` из webhook |
-| `rubitime_service_id` | best-effort | `record.serviceId` из webhook |
-| `compat_quality` | required | `'full'` / `'partial'` / `'minimal'` (см. ниже; **не декларативный** — вычисляется из факта lookup + полей) |
+| Поле в `patient_bookings` | Обязательность | Источник                                                                                                    |
+| ------------------------- | -------------- | ----------------------------------------------------------------------------------------------------------- |
+| `id`                      | required       | UUID (gen при compat-create)                                                                                |
+| `user_id`                 | required       | resolveByPhone(clientPhone) или null (unlinked)                                                             |
+| `rubitime_id`             | required       | webhook `record.id`                                                                                         |
+| `status`                  | required       | mapped из Rubitime lifecycle (confirmed/cancelled/etc.)                                                     |
+| `slot_start`              | required       | `record.dateTimeStart` (ISO)                                                                                |
+| `slot_end`                | best-effort    | `record.dateTimeEnd` или `slot_start + default_duration`                                                    |
+| `source`                  | required       | `'rubitime_projection'`                                                                                     |
+| `branch_service_id`       | best-effort    | lookup по `rubitime_branch_id` + `rubitime_service_id`                                                      |
+| `city_title`              | best-effort    | из `branchName` или lookup каталога                                                                         |
+| `service_title`           | best-effort    | из `serviceName` или lookup каталога                                                                        |
+| `branch_title`            | best-effort    | из `branchName` payload                                                                                     |
+| `rubitime_branch_id`      | best-effort    | `record.branchId` из webhook                                                                                |
+| `rubitime_service_id`     | best-effort    | `record.serviceId` из webhook                                                                               |
+| `compat_quality`          | required       | `'full'` / `'partial'` / `'minimal'` (см. ниже; **не декларативный** — вычисляется из факта lookup + полей) |
 
 ### Уровни `compat_quality`
 
@@ -50,12 +50,12 @@
 
 ## Lifecycle mapping
 
-| Rubitime event | patient_bookings.status |
-|---|---|
-| record.created | `confirmed` |
-| record.updated | `confirmed` (или `rescheduled` если slot изменился) |
-| record.cancelled | `cancelled` |
-| record.completed | `completed` |
+| Rubitime event   | patient_bookings.status                             |
+| ---------------- | --------------------------------------------------- |
+| record.created   | `confirmed`                                         |
+| record.updated   | `confirmed` (или `rescheduled` если slot изменился) |
+| record.cancelled | `cancelled`                                         |
+| record.completed | `completed`                                         |
 
 ## Видимость в patient history
 
@@ -109,10 +109,10 @@ WHERE source = 'rubitime_projection'
 
 **Цель:** временные сбои (сеть, таймаут, HTTP 5xx, 503 от webapp) не переводят событие в финальный `dead` с первой попытки.
 
-| Класс | Примеры | Поведение |
-|-------|---------|-----------|
-| **Recoverable** | `status 0`, `5xx`, `503`, `429`, `408` | `projection_outbox`: увеличить `attempts_done`, `next_try_at` с экспоненциальным backoff (база 30s, верхняя граница 3600s), повторить emit. |
-| **Non-recoverable** | `4xx` кроме 429/408 (в т.ч. `422` для ошибок валидации в `/api/integrator/events`) | Немедленный переход в `dead` без исчерпания retry (исправление данных или кода). |
+| Класс               | Примеры                                                                            | Поведение                                                                                                                                   |
+| ------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Recoverable**     | `status 0`, `5xx`, `503`, `429`, `408`                                             | `projection_outbox`: увеличить `attempts_done`, `next_try_at` с экспоненциальным backoff (база 30s, верхняя граница 3600s), повторить emit. |
+| **Non-recoverable** | `4xx` кроме 429/408 (в т.ч. `422` для ошибок валидации в `/api/integrator/events`) | Немедленный переход в `dead` без исчерпания retry (исправление данных или кода).                                                            |
 
 **Idempotency:** ключ `idempotency_key` в `projection_outbox` + payload-hash в ключе для `appointment.record.upserted` — повторная доставка не дублирует бизнес-запись (UPSERT/ON CONFLICT на стороне webapp).
 

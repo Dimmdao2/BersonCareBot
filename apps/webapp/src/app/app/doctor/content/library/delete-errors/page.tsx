@@ -1,18 +1,18 @@
-import Link from "next/link";
-import { redirect } from "next/navigation";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
-import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
-import { listMediaDeleteErrors } from "@/infra/repos/s3MediaStorage";
-import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
-import { PageSection } from "@/components/common/layout/PageSection";
-import { doctorSectionTitleClass } from "@/shared/ui/doctor/doctorVisual";
+import Link from 'next/link';
+import { redirect } from 'next/navigation';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
+import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
+import { listMediaDeleteErrors } from '@/infra/repos/s3MediaStorage';
+import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
+import { PageSection } from '@/components/common/layout/PageSection';
+import { doctorSectionTitleClass } from '@/shared/ui/doctor/doctorVisual';
 
-const CONTENT_LIBRARY = "/app/doctor/content/library";
+const CONTENT_LIBRARY = '/app/doctor/content/library';
 
 export default async function MediaDeleteErrorsPage() {
   const workspace = await requireDoctorWorkspaceContext();
   const session = workspace.session;
-  if (session.user.role !== "admin" || !session.adminMode) {
+  if (session.user.role !== 'admin' || !session.adminMode) {
     redirect(CONTENT_LIBRARY);
   }
   const { items, total } = await withDoctorWorkspacePrincipal(workspace, () =>
@@ -29,8 +29,12 @@ export default async function MediaDeleteErrorsPage() {
           <h2 className={`m-0 ${doctorSectionTitleClass}`}>Очередь удаления: сбои S3 ({total})</h2>
         </div>
         <p className="text-sm text-muted-foreground">
-          Файлы в статусе очереди на удаление, где повторные попытки удаления из хранилища не прошли.
-          Проверьте доступность MinIO и cron для <code className="rounded bg-muted px-1">POST /api/internal/media-pending-delete/purge</code>.
+          Файлы в статусе очереди на удаление, где повторные попытки удаления из хранилища не
+          прошли. Проверьте доступность MinIO и cron для{' '}
+          <code className="rounded bg-muted px-1">
+            POST /api/internal/media-pending-delete/purge
+          </code>
+          .
         </p>
         {items.length === 0 ? (
           <p className="text-sm">Нет записей с ошибками удаления.</p>
@@ -52,7 +56,7 @@ export default async function MediaDeleteErrorsPage() {
                     <td className="p-2 font-mono text-xs">{row.id}</td>
                     <td className="p-2">{row.original_name}</td>
                     <td className="p-2">{row.delete_attempts}</td>
-                    <td className="p-2 text-muted-foreground">{row.next_attempt_at ?? "—"}</td>
+                    <td className="p-2 text-muted-foreground">{row.next_attempt_at ?? '—'}</td>
                     <td className="p-2 text-muted-foreground">{row.created_at}</td>
                   </tr>
                 ))}

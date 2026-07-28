@@ -15,16 +15,19 @@
 **Файл:** `apps/webapp/src/app/app/patient/profile/ProfileForm.tsx`
 
 **Добавить импорт:**
+
 ```tsx
-import { useRouter } from "next/navigation";
+import { useRouter } from 'next/navigation';
 ```
 
 **В компоненте добавить:**
+
 ```tsx
 const router = useRouter();
 ```
 
 **В `handleSaveName`, после `setSaved(true)` добавить:**
+
 ```tsx
 router.refresh();
 ```

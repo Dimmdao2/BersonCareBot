@@ -1,13 +1,13 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 const mockGetCurrentSession = vi.hoisted(() => vi.fn());
 const mockRecordPushOpen = vi.hoisted(() => vi.fn());
 
-vi.mock("@/modules/auth/service", () => ({
+vi.mock('@/modules/auth/service', () => ({
   getCurrentSession: mockGetCurrentSession,
 }));
 
-vi.mock("@/app-layer/di/buildAppDeps", () => ({
+vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: () => ({
     productAnalytics: {
       recordPushOpen: mockRecordPushOpen,
@@ -15,12 +15,12 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
   }),
 }));
 
-import { POST } from "./route";
+import { POST } from './route';
 
-const USER_ID = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
-const TRACKING_ID = "11111111-2222-4333-8444-555555555555";
+const USER_ID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+const TRACKING_ID = '11111111-2222-4333-8444-555555555555';
 
-describe("POST /api/patient/analytics/push-open", () => {
+describe('POST /api/patient/analytics/push-open', () => {
   beforeEach(() => {
     mockGetCurrentSession.mockReset();
     mockRecordPushOpen.mockReset();
@@ -28,41 +28,41 @@ describe("POST /api/patient/analytics/push-open", () => {
     mockRecordPushOpen.mockResolvedValue({ deduped: false });
   });
 
-  it("returns 400 for invalid body", async () => {
+  it('returns 400 for invalid body', async () => {
     const res = await POST(
-      new Request("http://localhost/api/patient/analytics/push-open", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pushTrackingId: "not-uuid" }),
+      new Request('http://localhost/api/patient/analytics/push-open', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pushTrackingId: 'not-uuid' }),
       }),
     );
     expect(res.status).toBe(400);
   });
 
-  it("records open without session user id", async () => {
+  it('records open without session user id', async () => {
     const res = await POST(
-      new Request("http://localhost/api/patient/analytics/push-open", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pushTrackingId: TRACKING_ID, entryChannel: "pwa" }),
+      new Request('http://localhost/api/patient/analytics/push-open', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pushTrackingId: TRACKING_ID, entryChannel: 'pwa' }),
       }),
     );
     expect(res.status).toBe(200);
     expect(mockRecordPushOpen).toHaveBeenCalledWith({
       pushTrackingId: TRACKING_ID,
       userId: null,
-      entryChannel: "pwa",
+      entryChannel: 'pwa',
     });
   });
 
-  it("passes session user id when present", async () => {
+  it('passes session user id when present', async () => {
     mockGetCurrentSession.mockResolvedValue({
-      user: { userId: USER_ID, role: "client" },
+      user: { userId: USER_ID, role: 'client' },
     });
     const res = await POST(
-      new Request("http://localhost/api/patient/analytics/push-open", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      new Request('http://localhost/api/patient/analytics/push-open', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pushTrackingId: TRACKING_ID }),
       }),
     );
@@ -70,16 +70,16 @@ describe("POST /api/patient/analytics/push-open", () => {
     expect(mockRecordPushOpen).toHaveBeenCalledWith({
       pushTrackingId: TRACKING_ID,
       userId: USER_ID,
-      entryChannel: "pwa",
+      entryChannel: 'pwa',
     });
   });
 
-  it("returns deduped flag from service", async () => {
+  it('returns deduped flag from service', async () => {
     mockRecordPushOpen.mockResolvedValue({ deduped: true });
     const res = await POST(
-      new Request("http://localhost/api/patient/analytics/push-open", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      new Request('http://localhost/api/patient/analytics/push-open', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pushTrackingId: TRACKING_ID }),
       }),
     );

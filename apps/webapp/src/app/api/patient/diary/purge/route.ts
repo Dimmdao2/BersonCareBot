@@ -1,17 +1,17 @@
-import { NextResponse } from "next/server";
-import { revalidatePath } from "next/cache";
-import { logger } from "@/app-layer/logging/logger";
-import { z } from "zod";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { ensureAuthModulePortsBound } from "@/app-layer/di/bindAuthModulePorts";
-import { routePaths } from "@/app-layer/routes/paths";
+import { NextResponse } from 'next/server';
+import { revalidatePath } from 'next/cache';
+import { logger } from '@/app-layer/logging/logger';
+import { z } from 'zod';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { ensureAuthModulePortsBound } from '@/app-layer/di/bindAuthModulePorts';
+import { routePaths } from '@/app-layer/routes/paths';
 import {
   AUTH_CONFIRM_RATE_LIMIT_SEC,
   checkAuthConfirmRateLimit,
-} from "@/modules/auth/authConfirmRateLimit";
-import { clearDiaryPurgeReauth } from "@/modules/auth/service";
-import { normalizePhone } from "@/modules/auth/phoneNormalize";
-import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
+} from '@/modules/auth/authConfirmRateLimit';
+import { clearDiaryPurgeReauth } from '@/modules/auth/service';
+import { normalizePhone } from '@/modules/auth/phoneNormalize';
+import { requirePatientApiBusinessAccess } from '@/app-layer/guards/requireRole';
 
 // SECURITY: PIN re-auth temporarily disabled with patient profile PIN UI removal (2026-05-10).
 // Destructive purge is protected by single-factor OTP only (SMS challenge).
@@ -27,15 +27,15 @@ const bodySchema = z.object({
  */
 export async function POST(request: Request) {
   ensureAuthModulePortsBound();
-  const rateLimit = await checkAuthConfirmRateLimit(request, "patient_diary_purge");
+  const rateLimit = await checkAuthConfirmRateLimit(request, 'patient_diary_purge');
   if (rateLimit.limited) {
-    if (rateLimit.reason === "proxy_configuration") {
-      return NextResponse.json({ ok: false, error: "proxy_configuration" }, { status: 503 });
+    if (rateLimit.reason === 'proxy_configuration') {
+      return NextResponse.json({ ok: false, error: 'proxy_configuration' }, { status: 503 });
     }
     // Same shape this route already returns below for `result.code === "too_many_attempts"`.
     return NextResponse.json(
-      { ok: false, error: "rate_limited", retryAfterSeconds: AUTH_CONFIRM_RATE_LIMIT_SEC },
-      { status: 429, headers: { "Retry-After": String(AUTH_CONFIRM_RATE_LIMIT_SEC) } },
+      { ok: false, error: 'rate_limited', retryAfterSeconds: AUTH_CONFIRM_RATE_LIMIT_SEC },
+      { status: 429, headers: { 'Retry-After': String(AUTH_CONFIRM_RATE_LIMIT_SEC) } },
     );
   }
 
@@ -46,8 +46,8 @@ export async function POST(request: Request) {
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {
     return NextResponse.json(
-      { ok: false, error: "invalid_body", message: "Укажите challengeId и код" },
-      { status: 400 }
+      { ok: false, error: 'invalid_body', message: 'Укажите challengeId и код' },
+      { status: 400 },
     );
   }
 
@@ -55,7 +55,7 @@ export async function POST(request: Request) {
   const result = await deps.auth.confirmPhoneAuth(parsed.data.challengeId, parsed.data.code);
 
   if (!result.ok) {
-    const status = result.code === "too_many_attempts" ? 429 : 400;
+    const status = result.code === 'too_many_attempts' ? 429 : 400;
     return NextResponse.json(
       {
         ok: false,
@@ -65,27 +65,40 @@ export async function POST(request: Request) {
       {
         status,
         ...(result.retryAfterSeconds != null && {
-          headers: { "Retry-After": String(result.retryAfterSeconds) },
+          headers: { 'Retry-After': String(result.retryAfterSeconds) },
         }),
-      }
+      },
     );
   }
 
   if (result.user.userId !== session.user.userId) {
-    return NextResponse.json({ ok: false, error: "identity_mismatch", message: "Неверный код" }, { status: 403 });
+    return NextResponse.json(
+      { ok: false, error: 'identity_mismatch', message: 'Неверный код' },
+      { status: 403 },
+    );
   }
 
   const sessionPhone = session.user.phone?.trim();
   const confirmedPhone = result.user.phone?.trim();
-  if (sessionPhone && confirmedPhone && normalizePhone(sessionPhone) !== normalizePhone(confirmedPhone)) {
-    return NextResponse.json({ ok: false, error: "phone_mismatch", message: "Неверный код" }, { status: 403 });
+  if (
+    sessionPhone &&
+    confirmedPhone &&
+    normalizePhone(sessionPhone) !== normalizePhone(confirmedPhone)
+  ) {
+    return NextResponse.json(
+      { ok: false, error: 'phone_mismatch', message: 'Неверный код' },
+      { status: 403 },
+    );
   }
 
   try {
     await deps.diaries.purgeAllDiaryDataForUser(session.user.userId);
   } catch (e) {
-    logger.error({ err: e }, "[patient/diary/purge] purgeAllDiaryDataForUser failed");
-    return NextResponse.json({ ok: false, error: "purge_failed", message: "Не удалось удалить данные" }, { status: 500 });
+    logger.error({ err: e }, '[patient/diary/purge] purgeAllDiaryDataForUser failed');
+    return NextResponse.json(
+      { ok: false, error: 'purge_failed', message: 'Не удалось удалить данные' },
+      { status: 500 },
+    );
   }
 
   await clearDiaryPurgeReauth();

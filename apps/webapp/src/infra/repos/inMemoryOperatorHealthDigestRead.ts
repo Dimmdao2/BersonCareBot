@@ -1,4 +1,4 @@
-import type { OperatorHealthDigestReadPort } from "@/modules/operator-health/digestPorts";
+import type { OperatorHealthDigestReadPort } from '@/modules/operator-health/digestPorts';
 
 export const inMemoryOperatorHealthDigestReadPort: OperatorHealthDigestReadPort = {
   async countAuditErrorsInWindow() {

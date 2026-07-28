@@ -1,5 +1,5 @@
-import Link from "next/link";
-import type { ReactElement, ReactNode } from "react";
+import Link from 'next/link';
+import type { ReactElement, ReactNode } from 'react';
 import {
   doctorMetricLabelClass,
   doctorMetricValueClass,
@@ -7,20 +7,16 @@ import {
   doctorStatCardInteractiveClass,
   doctorStatCardShellClass,
   doctorStatCardShellWarningClass,
-} from "@/shared/ui/doctor/doctorVisual";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/shared/ui/doctor/primitives/tooltip";
-import { cn } from "@/lib/utils";
+} from '@/shared/ui/doctor/doctorVisual';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/shared/ui/doctor/primitives/tooltip';
+import { cn } from '@/lib/utils';
 
 type Props = {
   id: string;
   title: string;
   value: ReactNode;
-  tone?: "neutral" | "warning";
+  tone?: 'neutral' | 'warning';
   hint?: string;
   tooltip?: string;
   selected?: boolean;
@@ -34,7 +30,7 @@ export function DoctorStatCard({
   id,
   title,
   value,
-  tone = "neutral",
+  tone = 'neutral',
   hint,
   tooltip,
   selected,
@@ -44,18 +40,24 @@ export function DoctorStatCard({
   valueClassName,
 }: Props) {
   const shellClass = cn(
-    tone === "warning" ? doctorStatCardShellWarningClass : doctorStatCardShellClass,
+    tone === 'warning' ? doctorStatCardShellWarningClass : doctorStatCardShellClass,
     (href || onClick) && doctorStatCardInteractiveClass,
     selected &&
-      "border-primary/35 bg-primary/15 text-primary ring-1 ring-primary/25 hover:border-primary/40 hover:bg-primary/20",
+      'border-primary/35 bg-primary/15 text-primary ring-1 ring-primary/25 hover:border-primary/40 hover:bg-primary/20',
     className,
   );
 
   const inner = (
     <>
-      <p className={cn(doctorMetricLabelClass, selected && "text-primary")}>{title}</p>
-      <div className={cn("mt-0.5", doctorMetricValueClass, selected && "text-primary", valueClassName)}>{value}</div>
-      {hint ? <p className="mt-0.5 text-[10px] leading-snug text-muted-foreground">{hint}</p> : null}
+      <p className={cn(doctorMetricLabelClass, selected && 'text-primary')}>{title}</p>
+      <div
+        className={cn('mt-0.5', doctorMetricValueClass, selected && 'text-primary', valueClassName)}
+      >
+        {value}
+      </div>
+      {hint ? (
+        <p className="mt-0.5 text-[10px] leading-snug text-muted-foreground">{hint}</p>
+      ) : null}
     </>
   );
 
@@ -73,7 +75,11 @@ export function DoctorStatCard({
         id={id}
         type="button"
         variant="ghost"
-        className={cn(doctorInteractiveSurfaceButtonClass, shellClass, "w-full justify-start text-left")}
+        className={cn(
+          doctorInteractiveSurfaceButtonClass,
+          shellClass,
+          'w-full justify-start text-left',
+        )}
         onClick={onClick}
         aria-pressed={selected}
       >

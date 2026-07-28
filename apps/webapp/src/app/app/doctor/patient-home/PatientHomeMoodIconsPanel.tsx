@@ -1,23 +1,23 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
+import { useState } from 'react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
 import {
   doctorClientOverviewPrimaryCardClass,
   doctorClientSectionTitleClass,
-} from "../clients/doctorClientCardChrome";
-import { MediaLibraryPickerDialog } from "@/app/app/doctor/content/MediaLibraryPickerDialog";
-import { savePatientHomeMoodIconsAction } from "./patientHomeDoctorSettingsActions";
-import type { PatientHomeMoodIconOption } from "@/modules/patient-home/patientHomeMoodIcons";
+} from '../clients/doctorClientCardChrome';
+import { MediaLibraryPickerDialog } from '@/app/app/doctor/content/MediaLibraryPickerDialog';
+import { savePatientHomeMoodIconsAction } from './patientHomeDoctorSettingsActions';
+import type { PatientHomeMoodIconOption } from '@/modules/patient-home/patientHomeMoodIcons';
 
 type Row = { score: 1 | 2 | 3 | 4 | 5; label: string; imageUrl: string | null };
 
 const FALLBACK_LABEL_BY_SCORE: Record<1 | 2 | 3 | 4 | 5, string> = {
-  1: "Очень плохо",
-  2: "Скорее плохо",
-  3: "Нейтрально",
-  4: "Хорошо",
-  5: "Отлично",
+  1: 'Очень плохо',
+  2: 'Скорее плохо',
+  3: 'Нейтрально',
+  4: 'Хорошо',
+  5: 'Отлично',
 };
 
 function toRows(options: readonly PatientHomeMoodIconOption[]): Row[] {
@@ -28,14 +28,18 @@ function toRows(options: readonly PatientHomeMoodIconOption[]): Row[] {
   }));
 }
 
-export function PatientHomeMoodIconsPanel(props: { initialOptions: readonly PatientHomeMoodIconOption[] }) {
+export function PatientHomeMoodIconsPanel(props: {
+  initialOptions: readonly PatientHomeMoodIconOption[];
+}) {
   const [rows, setRows] = useState<Row[]>(() => toRows(props.initialOptions));
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   function setImage(score: 1 | 2 | 3 | 4 | 5, url: string) {
-    setRows((prev) => prev.map((r) => (r.score === score ? { ...r, imageUrl: url.trim() || null } : r)));
+    setRows((prev) =>
+      prev.map((r) => (r.score === score ? { ...r, imageUrl: url.trim() || null } : r)),
+    );
   }
 
   async function onSave() {
@@ -51,10 +55,10 @@ export function PatientHomeMoodIconsPanel(props: { initialOptions: readonly Pati
         })),
       );
       if (!res.ok) {
-        setError("Не удалось сохранить.");
+        setError('Не удалось сохранить.');
         return;
       }
-      setMessage("Сохранено");
+      setMessage('Сохранено');
     } finally {
       setPending(false);
     }
@@ -78,16 +82,18 @@ export function PatientHomeMoodIconsPanel(props: { initialOptions: readonly Pati
             className="flex min-w-0 flex-col items-center gap-2 rounded-lg border border-border/70 bg-background/50 p-2 text-center sm:p-3"
           >
             <div className="flex size-14 items-center justify-center overflow-hidden rounded-full border border-border bg-muted/30 sm:size-16">
-              {r.imageUrl ?
+              {r.imageUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element -- doctor preview for selected CMS media URL
                 <img src={r.imageUrl} alt="" className="size-full object-cover" loading="lazy" />
-              : <span className="text-base font-semibold text-muted-foreground">{r.score}</span>}
+              ) : (
+                <span className="text-base font-semibold text-muted-foreground">{r.score}</span>
+              )}
             </div>
             <div className="text-xs font-semibold text-foreground">{r.score}</div>
             <div className="flex justify-center">
               <MediaLibraryPickerDialog
                 kind="image"
-                value={r.imageUrl ?? ""}
+                value={r.imageUrl ?? ''}
                 onChange={(url) => setImage(r.score, url)}
                 pickerTitle={`Иконка самочувствия ${r.score}`}
                 selectButtonLabel="Выбрать иконку"
@@ -99,7 +105,7 @@ export function PatientHomeMoodIconsPanel(props: { initialOptions: readonly Pati
       </div>
       <div className="mt-4">
         <Button type="button" onClick={() => void onSave()} disabled={pending}>
-          {pending ? "Сохранение…" : "Сохранить"}
+          {pending ? 'Сохранение…' : 'Сохранить'}
         </Button>
       </div>
       {error ? (

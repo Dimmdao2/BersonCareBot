@@ -1,12 +1,15 @@
-"use client";
+'use client';
 
-import { useRouter } from "next/navigation";
-import { useCallback, useMemo, useState } from "react";
-import type { PatientReminderRuleJson } from "@/app/api/patient/reminders/reminderPatientJson";
-import type { LfkComplex, LfkComplexExerciseLine } from "@/modules/diaries/types";
-import { ReminderCreateDialog } from "@/modules/reminders/components/ReminderCreateDialog";
-import { patientSectionSurfaceClass, patientSectionTitleClass } from "@/shared/ui/patient/patientVisual";
-import { LfkComplexCard } from "./LfkComplexCard";
+import { useRouter } from 'next/navigation';
+import { useCallback, useMemo, useState } from 'react';
+import type { PatientReminderRuleJson } from '@/app/api/patient/reminders/reminderPatientJson';
+import type { LfkComplex, LfkComplexExerciseLine } from '@/modules/diaries/types';
+import { ReminderCreateDialog } from '@/modules/reminders/components/ReminderCreateDialog';
+import {
+  patientSectionSurfaceClass,
+  patientSectionTitleClass,
+} from '@/shared/ui/patient/patientVisual';
+import { LfkComplexCard } from './LfkComplexCard';
 
 export function LfkDiarySectionClient({
   complexes,
@@ -41,10 +44,7 @@ export function LfkDiarySectionClient({
 
   return (
     <>
-      <section
-        id="patient-lfk-complexes-section"
-        className={patientSectionSurfaceClass}
-      >
+      <section id="patient-lfk-complexes-section" className={patientSectionSurfaceClass}>
         <h2 className={patientSectionTitleClass}>Комплексы</h2>
         <ul id="patient-lfk-complexes-list" className="m-0 list-none space-y-3 p-0">
           {complexes.map((c) => {
@@ -74,7 +74,7 @@ export function LfkDiarySectionClient({
           }}
           linkedObjectType="lfk_complex"
           linkedObjectId={activeComplex.id}
-          contextTitle={activeComplex.title?.trim() || "ЛФК"}
+          contextTitle={activeComplex.title?.trim() || 'ЛФК'}
           existingRule={activeReminder}
           onSaved={refresh}
         />

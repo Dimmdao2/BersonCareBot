@@ -1,40 +1,40 @@
 /** @vitest-environment jsdom */
 
-import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { AdminMergeAccountsPanel } from "./AdminMergeAccountsPanel";
+import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { AdminMergeAccountsPanel } from './AdminMergeAccountsPanel';
 
-vi.mock("next/navigation", () => ({
+vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: vi.fn(), push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
 }));
 
-const T1 = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
-const T2 = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+const T1 = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const T2 = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 
-describe("AdminMergeAccountsPanel", () => {
+describe('AdminMergeAccountsPanel', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
   });
 
-  it("renders nothing when disabled", () => {
+  it('renders nothing when disabled', () => {
     const { container } = render(<AdminMergeAccountsPanel anchorUserId={T1} enabled={false} />);
     expect(container.firstChild).toBeNull();
   });
 
-  it("shows hard blockers and disables merge when mergeAllowed is false", async () => {
+  it('shows hard blockers and disables merge when mergeAllowed is false', async () => {
     const user = userEvent.setup();
-    vi.spyOn(globalThis, "fetch").mockImplementation(async (input: RequestInfo | URL) => {
-      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-      if (url.includes("/merge-candidates")) {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      if (url.includes('/merge-candidates')) {
         return new Response(
           JSON.stringify({
             ok: true,
             candidates: [
               {
                 id: T2,
-                displayName: "B",
-                phoneNormalized: "+7900",
+                displayName: 'B',
+                phoneNormalized: '+7900',
                 email: null,
                 integratorUserId: null,
                 createdAt: new Date().toISOString(),
@@ -44,7 +44,7 @@ describe("AdminMergeAccountsPanel", () => {
           { status: 200 },
         );
       }
-      if (url.includes("/merge-preview")) {
+      if (url.includes('/merge-preview')) {
         return new Response(
           JSON.stringify({
             ok: true,
@@ -53,8 +53,8 @@ describe("AdminMergeAccountsPanel", () => {
             target: {
               id: T1,
               phoneNormalized: null,
-              integratorUserId: "1",
-              displayName: "A",
+              integratorUserId: '1',
+              displayName: 'A',
               firstName: null,
               lastName: null,
               email: null,
@@ -63,8 +63,8 @@ describe("AdminMergeAccountsPanel", () => {
             duplicate: {
               id: T2,
               phoneNormalized: null,
-              integratorUserId: "2",
-              displayName: "B",
+              integratorUserId: '2',
+              displayName: 'B',
               firstName: null,
               lastName: null,
               email: null,
@@ -113,28 +113,28 @@ describe("AdminMergeAccountsPanel", () => {
             recommendation: {
               suggestedTargetId: T1,
               suggestedDuplicateId: T2,
-              basis: "pick_merge_target_heuristic",
-              defaultWinnerBias: "older_created_at",
+              basis: 'pick_merge_target_heuristic',
+              defaultWinnerBias: 'older_created_at',
             },
             mergeAllowed: false,
             v1MergeEngineCallable: false,
             platformUserMergeV2Enabled: false,
             integratorUserPresence: {
-              target: { webappIntegratorUserId: "1", rowExistsInIntegratorDb: true },
-              duplicate: { webappIntegratorUserId: "2", rowExistsInIntegratorDb: true },
-              checkStatus: "ok",
+              target: { webappIntegratorUserId: '1', rowExistsInIntegratorDb: true },
+              duplicate: { webappIntegratorUserId: '2', rowExistsInIntegratorDb: true },
+              checkStatus: 'ok',
             },
             hardBlockers: [
               {
-                code: "different_non_null_integrator_user_id",
-                message: "blocked",
+                code: 'different_non_null_integrator_user_id',
+                message: 'blocked',
               },
             ],
           }),
           { status: 200 },
         );
       }
-      return new Response("not found", { status: 404 });
+      return new Response('not found', { status: 404 });
     });
 
     render(<AdminMergeAccountsPanel anchorUserId={T1} enabled />);
@@ -144,35 +144,35 @@ describe("AdminMergeAccountsPanel", () => {
     await waitFor(() => {
       // candidates loaded when fetch has been called with merge-candidates
       expect(fetch).toHaveBeenCalledWith(
-        expect.stringContaining("/merge-candidates"),
+        expect.stringContaining('/merge-candidates'),
         expect.anything(),
       );
     });
     // Open the Select dropdown and click the candidate option
     await user.click(trigger);
-    const candidateOption = await screen.findByRole("option", { name: new RegExp(T2.slice(0, 8)) });
+    const candidateOption = await screen.findByRole('option', { name: new RegExp(T2.slice(0, 8)) });
     await user.click(candidateOption);
 
-    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
     expect(screen.getByText(/жёсткие блокировки/i)).toBeInTheDocument();
 
-    const mergeBtn = screen.getByRole("button", { name: /выполнить merge/i });
+    const mergeBtn = screen.getByRole('button', { name: /выполнить merge/i });
     expect(mergeBtn).toBeDisabled();
   });
 
-  it("does not offer the auto/both option for a real channel conflict", async () => {
+  it('does not offer the auto/both option for a real channel conflict', async () => {
     const user = userEvent.setup();
-    vi.spyOn(globalThis, "fetch").mockImplementation(async (input: RequestInfo | URL) => {
-      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-      if (url.includes("/merge-candidates")) {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      if (url.includes('/merge-candidates')) {
         return new Response(
           JSON.stringify({
             ok: true,
             candidates: [
               {
                 id: T2,
-                displayName: "B",
-                phoneNormalized: "+7900",
+                displayName: 'B',
+                phoneNormalized: '+7900',
                 email: null,
                 integratorUserId: null,
                 createdAt: new Date().toISOString(),
@@ -182,7 +182,7 @@ describe("AdminMergeAccountsPanel", () => {
           { status: 200 },
         );
       }
-      if (url.includes("/merge-preview")) {
+      if (url.includes('/merge-preview')) {
         return new Response(
           JSON.stringify({
             ok: true,
@@ -192,7 +192,7 @@ describe("AdminMergeAccountsPanel", () => {
               id: T1,
               phoneNormalized: null,
               integratorUserId: null,
-              displayName: "A",
+              displayName: 'A',
               firstName: null,
               lastName: null,
               email: null,
@@ -202,14 +202,26 @@ describe("AdminMergeAccountsPanel", () => {
               id: T2,
               phoneNormalized: null,
               integratorUserId: null,
-              displayName: "B",
+              displayName: 'B',
               firstName: null,
               lastName: null,
               email: null,
               createdAt: new Date().toISOString(),
             },
-            targetBindings: [{ channelCode: "telegram", externalId: "tg-target", createdAt: new Date().toISOString() }],
-            duplicateBindings: [{ channelCode: "telegram", externalId: "tg-dup", createdAt: new Date().toISOString() }],
+            targetBindings: [
+              {
+                channelCode: 'telegram',
+                externalId: 'tg-target',
+                createdAt: new Date().toISOString(),
+              },
+            ],
+            duplicateBindings: [
+              {
+                channelCode: 'telegram',
+                externalId: 'tg-dup',
+                createdAt: new Date().toISOString(),
+              },
+            ],
             dependentCounts: {
               target: {
                 patientBookings: 0,
@@ -247,11 +259,11 @@ describe("AdminMergeAccountsPanel", () => {
             scalarConflicts: [],
             channelConflicts: [
               {
-                channelCode: "telegram",
-                targetExternalId: "tg-target",
-                duplicateExternalId: "tg-dup",
-                recommendedWinner: "target",
-                reason: "older_created_at_preferred",
+                channelCode: 'telegram',
+                targetExternalId: 'tg-target',
+                duplicateExternalId: 'tg-dup',
+                recommendedWinner: 'target',
+                reason: 'older_created_at_preferred',
               },
             ],
             oauthConflicts: [],
@@ -259,8 +271,8 @@ describe("AdminMergeAccountsPanel", () => {
             recommendation: {
               suggestedTargetId: T1,
               suggestedDuplicateId: T2,
-              basis: "pick_merge_target_heuristic",
-              defaultWinnerBias: "older_created_at",
+              basis: 'pick_merge_target_heuristic',
+              defaultWinnerBias: 'older_created_at',
             },
             mergeAllowed: true,
             v1MergeEngineCallable: true,
@@ -268,14 +280,14 @@ describe("AdminMergeAccountsPanel", () => {
             integratorUserPresence: {
               target: { webappIntegratorUserId: null, rowExistsInIntegratorDb: null },
               duplicate: { webappIntegratorUserId: null, rowExistsInIntegratorDb: null },
-              checkStatus: "ok",
+              checkStatus: 'ok',
             },
             hardBlockers: [],
           }),
           { status: 200 },
         );
       }
-      return new Response("not found", { status: 404 });
+      return new Response('not found', { status: 404 });
     });
 
     render(<AdminMergeAccountsPanel anchorUserId={T1} enabled />);
@@ -283,20 +295,22 @@ describe("AdminMergeAccountsPanel", () => {
     // Wait for candidates to load
     await waitFor(() => {
       expect(fetch).toHaveBeenCalledWith(
-        expect.stringContaining("/merge-candidates"),
+        expect.stringContaining('/merge-candidates'),
         expect.anything(),
       );
     });
     // Open Select dropdown and pick candidate
     const trigger2 = screen.getByLabelText(/вторая запись/i);
     await user.click(trigger2);
-    const candidateOption2 = await screen.findByRole("option", { name: new RegExp(T2.slice(0, 8)) });
+    const candidateOption2 = await screen.findByRole('option', {
+      name: new RegExp(T2.slice(0, 8)),
+    });
     await user.click(candidateOption2);
 
     await screen.findByText(/Каналы \(telegram \/ max \/ vk\)/i);
     // RadioGroup for telegram channel conflict renders 2 radio items (целевой / дубликат)
     // The channel row is a grid div containing CH_LABELS text and the RadioGroup
-    const telegramRow = screen.getByText("Telegram").closest('[class*="grid"]');
+    const telegramRow = screen.getByText('Telegram').closest('[class*="grid"]');
     expect(telegramRow).not.toBeNull();
     const radioItems = telegramRow!.querySelectorAll('[data-slot="radio-group-item"]');
     expect(radioItems).toHaveLength(2);

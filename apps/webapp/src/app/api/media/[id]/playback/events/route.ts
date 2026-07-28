@@ -1,36 +1,39 @@
-import { NextResponse } from "next/server";
-import { getCurrentSession } from "@/modules/auth/service";
-import { getMediaAccessRow } from "@/app-layer/media/s3MediaStorage";
-import { assertMediaPlaybackAccess } from "@/modules/media/assertMediaPlaybackAccess";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
-import { requireDoctorWorkspaceApiContext, requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
-import { canAccessDoctor } from "@/modules/roles/service";
-import type { AppSession } from "@/shared/types/session";
-import { resolvePlatformLfkMediaAccess } from "@/app-layer/media/resolvePlatformLfkMediaAccess";
+import { NextResponse } from 'next/server';
+import { getCurrentSession } from '@/modules/auth/service';
+import { getMediaAccessRow } from '@/app-layer/media/s3MediaStorage';
+import { assertMediaPlaybackAccess } from '@/modules/media/assertMediaPlaybackAccess';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
+import {
+  requireDoctorWorkspaceApiContext,
+  requirePatientApiBusinessAccess,
+} from '@/app-layer/guards/requireRole';
+import { canAccessDoctor } from '@/modules/roles/service';
+import type { AppSession } from '@/shared/types/session';
+import { resolvePlatformLfkMediaAccess } from '@/app-layer/media/resolvePlatformLfkMediaAccess';
 import {
   recordPlaybackClientEvent,
   type PlaybackClientDelivery,
   type PlaybackClientEventClass,
-} from "@/app-layer/media/playbackClientEvents";
+} from '@/app-layer/media/playbackClientEvents';
 
 const KNOWN_EVENTS: PlaybackClientEventClass[] = [
-  "hls_fatal",
-  "video_error",
-  "hls_import_failed",
-  "playback_refetch_failed",
-  "playback_refetch_exception",
-  "hls_js_unsupported",
+  'hls_fatal',
+  'video_error',
+  'hls_import_failed',
+  'playback_refetch_failed',
+  'playback_refetch_exception',
+  'hls_js_unsupported',
 ];
 
 function asPlaybackEventClass(value: unknown): PlaybackClientEventClass | null {
-  if (typeof value !== "string") return null;
+  if (typeof value !== 'string') return null;
   return KNOWN_EVENTS.includes(value as PlaybackClientEventClass)
     ? (value as PlaybackClientEventClass)
     : null;
 }
 
 function asDelivery(value: unknown): PlaybackClientDelivery | null {
-  if (value === "hls" || value === "mp4" || value === "file") return value;
+  if (value === 'hls' || value === 'mp4' || value === 'file') return value;
   return null;
 }
 
@@ -41,52 +44,56 @@ function asDelivery(value: unknown): PlaybackClientDelivery | null {
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!id) {
-    return NextResponse.json({ error: "missing id" }, { status: 400 });
+    return NextResponse.json({ error: 'missing id' }, { status: 400 });
   }
 
   const initialSession = await getCurrentSession();
   if (!assertMediaPlaybackAccess(initialSession)) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   }
 
   const record = async (session: AppSession): Promise<Response> => {
+    const body = await request.json().catch(() => null);
+    const eventClass = asPlaybackEventClass((body as { eventClass?: unknown } | null)?.eventClass);
+    const delivery = asDelivery((body as { delivery?: unknown } | null)?.delivery);
+    const errorDetail =
+      typeof (body as { errorDetail?: unknown } | null)?.errorDetail === 'string'
+        ? (body as { errorDetail?: string }).errorDetail
+        : null;
 
-  const body = await request.json().catch(() => null);
-  const eventClass = asPlaybackEventClass((body as { eventClass?: unknown } | null)?.eventClass);
-  const delivery = asDelivery((body as { delivery?: unknown } | null)?.delivery);
-  const errorDetail =
-    typeof (body as { errorDetail?: unknown } | null)?.errorDetail === "string"
-      ? (body as { errorDetail?: string }).errorDetail
-      : null;
+    if (!eventClass) {
+      return NextResponse.json({ error: 'invalid_event_class' }, { status: 400 });
+    }
 
-  if (!eventClass) {
-    return NextResponse.json({ error: "invalid_event_class" }, { status: 400 });
-  }
+    let allowPlatformBase = false;
+    let accessRow = await getMediaAccessRow(id);
+    if (!accessRow) {
+      allowPlatformBase = await resolvePlatformLfkMediaAccess(id);
+      if (allowPlatformBase) accessRow = await getMediaAccessRow(id, { allowPlatformBase: true });
+    }
+    if (!accessRow) return NextResponse.json({ error: 'not found' }, { status: 404 });
+    if (
+      !assertMediaPlaybackAccess(session, {
+        usagePurpose: accessRow.usage_purpose,
+        uploadedBy: accessRow.uploaded_by,
+      })
+    ) {
+      return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+    }
+    if (accessRow.usage_purpose === 'program_item_submission') {
+      return NextResponse.json({ ok: true, skipped: true });
+    }
 
-  let allowPlatformBase = false;
-  let accessRow = await getMediaAccessRow(id);
-  if (!accessRow) {
-    allowPlatformBase = await resolvePlatformLfkMediaAccess(id);
-    if (allowPlatformBase) accessRow = await getMediaAccessRow(id, { allowPlatformBase: true });
-  }
-  if (!accessRow) return NextResponse.json({ error: "not found" }, { status: 404 });
-  if (!assertMediaPlaybackAccess(session, { usagePurpose: accessRow.usage_purpose, uploadedBy: accessRow.uploaded_by })) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  }
-  if (accessRow.usage_purpose === "program_item_submission") {
-    return NextResponse.json({ ok: true, skipped: true });
-  }
+    await recordPlaybackClientEvent({
+      mediaId: id,
+      userId: session.user.userId,
+      eventClass,
+      delivery: delivery ?? undefined,
+      errorDetail,
+      userAgent: request.headers.get('user-agent'),
+    });
 
-  await recordPlaybackClientEvent({
-    mediaId: id,
-    userId: session.user.userId,
-    eventClass,
-    delivery: delivery ?? undefined,
-    errorDetail,
-    userAgent: request.headers.get("user-agent"),
-  });
-
-  return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true });
   };
 
   if (canAccessDoctor(initialSession.user.role)) {

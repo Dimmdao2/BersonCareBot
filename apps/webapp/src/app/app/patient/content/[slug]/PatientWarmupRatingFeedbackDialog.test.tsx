@@ -1,19 +1,19 @@
 /** @vitest-environment jsdom */
 
-import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { PatientWarmupRatingFeedbackDialog } from "./PatientWarmupRatingFeedbackDialog";
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { PatientWarmupRatingFeedbackDialog } from './PatientWarmupRatingFeedbackDialog';
 
-const PAGE_ID = "550e8400-e29b-41d4-a716-446655440099";
+const PAGE_ID = '550e8400-e29b-41d4-a716-446655440099';
 
-describe("PatientWarmupRatingFeedbackDialog", () => {
+describe('PatientWarmupRatingFeedbackDialog', () => {
   beforeEach(() => {
     vi.stubGlobal(
-      "fetch",
+      'fetch',
       vi.fn(async () => ({
         ok: true,
-        json: async () => ({ ok: true, id: "fb-1" }),
+        json: async () => ({ ok: true, id: 'fb-1' }),
       })) as unknown as typeof fetch,
     );
   });
@@ -22,7 +22,7 @@ describe("PatientWarmupRatingFeedbackDialog", () => {
     vi.unstubAllGlobals();
   });
 
-  it("disables submit until reason or comment provided", async () => {
+  it('disables submit until reason or comment provided', async () => {
     render(
       <PatientWarmupRatingFeedbackDialog
         open
@@ -31,12 +31,12 @@ describe("PatientWarmupRatingFeedbackDialog", () => {
         ratingValue={2}
       />,
     );
-    expect(screen.getByRole("button", { name: "Отправить" })).toBeDisabled();
-    await userEvent.click(screen.getByRole("button", { name: "Слишком сложно" }));
-    expect(screen.getByRole("button", { name: "Отправить" })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Отправить' })).toBeDisabled();
+    await userEvent.click(screen.getByRole('button', { name: 'Слишком сложно' }));
+    expect(screen.getByRole('button', { name: 'Отправить' })).toBeEnabled();
   });
 
-  it("submits feedback and closes", async () => {
+  it('submits feedback and closes', async () => {
     const onOpenChange = vi.fn();
     render(
       <PatientWarmupRatingFeedbackDialog
@@ -46,21 +46,21 @@ describe("PatientWarmupRatingFeedbackDialog", () => {
         ratingValue={1}
       />,
     );
-    await userEvent.click(screen.getByRole("button", { name: "Качество видео" }));
-    await userEvent.click(screen.getByRole("button", { name: "Отправить" }));
+    await userEvent.click(screen.getByRole('button', { name: 'Качество видео' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Отправить' }));
     await waitFor(() => {
       expect(onOpenChange).toHaveBeenCalledWith(false);
     });
     expect(fetch).toHaveBeenCalledWith(
-      expect.stringContaining("/api/patient/material-ratings/feedback"),
+      expect.stringContaining('/api/patient/material-ratings/feedback'),
       expect.objectContaining({
-        method: "POST",
+        method: 'POST',
         body: expect.stringContaining(PAGE_ID),
       }),
     );
   });
 
-  it("skip closes without submit", async () => {
+  it('skip closes without submit', async () => {
     const onOpenChange = vi.fn();
     render(
       <PatientWarmupRatingFeedbackDialog
@@ -70,12 +70,12 @@ describe("PatientWarmupRatingFeedbackDialog", () => {
         ratingValue={3}
       />,
     );
-    await userEvent.click(screen.getByRole("button", { name: "Пропустить" }));
+    await userEvent.click(screen.getByRole('button', { name: 'Пропустить' }));
     expect(onOpenChange).toHaveBeenCalledWith(false);
     expect(fetch).not.toHaveBeenCalled();
   });
 
-  it("close button closes without submit", async () => {
+  it('close button closes without submit', async () => {
     const onOpenChange = vi.fn();
     render(
       <PatientWarmupRatingFeedbackDialog
@@ -85,12 +85,12 @@ describe("PatientWarmupRatingFeedbackDialog", () => {
         ratingValue={2}
       />,
     );
-    await userEvent.click(screen.getByRole("button", { name: "Close" }));
+    await userEvent.click(screen.getByRole('button', { name: 'Close' }));
     expect(onOpenChange).toHaveBeenCalledWith(false);
     expect(fetch).not.toHaveBeenCalled();
   });
 
-  it("click outside closes without submit", async () => {
+  it('click outside closes without submit', async () => {
     const onOpenChange = vi.fn();
     render(
       <PatientWarmupRatingFeedbackDialog

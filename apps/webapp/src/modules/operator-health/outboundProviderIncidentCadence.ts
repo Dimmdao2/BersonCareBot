@@ -1,9 +1,9 @@
-import type { OperatorIncidentOpenRow } from "./ports";
-import { OUTBOUND_PROVIDER_FAILURE_DIRECTION } from "./criticalHealthSignals";
+import type { OperatorIncidentOpenRow } from './ports';
+import { OUTBOUND_PROVIDER_FAILURE_DIRECTION } from './criticalHealthSignals';
 
 export const OUTBOUND_PROVIDER_REPEAT_AFTER_MS = 60 * 60 * 1_000;
 
-export type OutboundProviderIncidentAlertPhase = "initial" | "one_hour_repeat";
+export type OutboundProviderIncidentAlertPhase = 'initial' | 'one_hour_repeat';
 
 /**
  * `alert_sent_at` is the durable last-alert marker on the existing incident row.
@@ -18,13 +18,13 @@ export function outboundProviderIncidentAlertPhase(
 
   const openedAtMs = Date.parse(incident.openedAt);
   if (!Number.isFinite(openedAtMs) || nowMs < openedAtMs) return null;
-  if (incident.alertSentAt === null) return "initial";
+  if (incident.alertSentAt === null) return 'initial';
 
   const lastAlertedAtMs = Date.parse(incident.alertSentAt);
-  if (!Number.isFinite(lastAlertedAtMs)) return "initial";
+  if (!Number.isFinite(lastAlertedAtMs)) return 'initial';
   const repeatBoundaryMs = openedAtMs + OUTBOUND_PROVIDER_REPEAT_AFTER_MS;
   if (lastAlertedAtMs < repeatBoundaryMs && nowMs >= repeatBoundaryMs) {
-    return "one_hour_repeat";
+    return 'one_hour_repeat';
   }
   return null;
 }
@@ -33,5 +33,7 @@ export function listDueOutboundProviderIncidents(
   incidents: OperatorIncidentOpenRow[],
   nowMs: number,
 ): OperatorIncidentOpenRow[] {
-  return incidents.filter((incident) => outboundProviderIncidentAlertPhase(incident, nowMs) !== null);
+  return incidents.filter(
+    (incident) => outboundProviderIncidentAlertPhase(incident, nowMs) !== null,
+  );
 }

@@ -1,12 +1,12 @@
 /**
  * POST /api/doctor/clients — создать organization-owned клиента; #806 permits an explicit no-contact card.
  */
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { createDoctorClient } from "@/app-layer/doctor/createDoctorClient";
-import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { createDoctorClient } from '@/app-layer/doctor/createDoctorClient';
+import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 
 const bodySchema = z.object({
   requestId: z.string().uuid().optional(),
@@ -23,20 +23,20 @@ export async function POST(request: Request) {
 
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
   const noContact = !parsed.data.phone?.trim() && !parsed.data.email?.trim();
   if (noContact && !parsed.data.requestId) {
-    return NextResponse.json({ ok: false, error: "invalid_request_id" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_request_id' }, { status: 400 });
   }
 
   const deps = buildAppDeps();
   const patientOrganization = deps.patientOrganization;
   if (!patientOrganization) {
-    return NextResponse.json({ ok: false, error: "client_creation_unavailable" }, { status: 503 });
+    return NextResponse.json({ ok: false, error: 'client_creation_unavailable' }, { status: 503 });
   }
 
-  const result = await withDoctorWorkspacePrincipal(gate.ctx, "doctor.clients.create", () =>
+  const result = await withDoctorWorkspacePrincipal(gate.ctx, 'doctor.clients.create', () =>
     createDoctorClient(
       {
         organizationId: gate.ctx.organizationId,
@@ -57,7 +57,7 @@ export async function POST(request: Request) {
 
   if (!result.ok) {
     const status =
-      result.error === "email_conflict" ? 409 : result.error.startsWith("invalid_") ? 400 : 409;
+      result.error === 'email_conflict' ? 409 : result.error.startsWith('invalid_') ? 400 : 409;
     return NextResponse.json({ ok: false, error: result.error }, { status });
   }
 

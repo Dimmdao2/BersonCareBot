@@ -26,7 +26,12 @@ const recordedCalls: RecordedCall[] = [];
 type FetchInput = Parameters<typeof fetch>[0];
 type FetchInit = Parameters<typeof fetch>[1];
 const mockFetch: typeof fetch = async (input: FetchInput, init?: FetchInit) => {
-  const url = typeof input === 'string' ? input : input instanceof URL ? input.href : (input as { url: string }).url;
+  const url =
+    typeof input === 'string'
+      ? input
+      : input instanceof URL
+        ? input.href
+        : (input as { url: string }).url;
   const path = new URL(url).pathname;
   const method = path.replace(/^\/bot[^/]+\//, '') || 'unknown';
   let body: unknown = init?.body;
@@ -46,7 +51,12 @@ const mockFetch: typeof fetch = async (input: FetchInput, init?: FetchInit) => {
 
 const originalFetch = globalThis.fetch;
 globalThis.fetch = (input: FetchInput, init?: FetchInit) => {
-  const url = typeof input === 'string' ? input : input instanceof URL ? input.href : (input as { url: string }).url;
+  const url =
+    typeof input === 'string'
+      ? input
+      : input instanceof URL
+        ? input.href
+        : (input as { url: string }).url;
   if (String(url).includes('api.telegram.org')) return mockFetch(input, init);
   return originalFetch(input, init);
 };
@@ -60,15 +70,19 @@ function clearRecordedCalls(): void {
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
-  return typeof value === 'object' && value !== null ? value as Record<string, unknown> : {};
+  return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {};
 }
 
-function buildQueuedJob(task: { kind: string; payload: Record<string, unknown> }, suffix: string): DeliveryJob {
+function buildQueuedJob(
+  task: { kind: string; payload: Record<string, unknown> },
+  suffix: string,
+): DeliveryJob {
   const retry = asRecord(task.payload.retry);
   const maxAttemptsRaw = retry.maxAttempts;
-  const maxAttempts = typeof maxAttemptsRaw === 'number' && Number.isFinite(maxAttemptsRaw)
-    ? Math.max(1, Math.trunc(maxAttemptsRaw))
-    : 1;
+  const maxAttempts =
+    typeof maxAttemptsRaw === 'number' && Number.isFinite(maxAttemptsRaw)
+      ? Math.max(1, Math.trunc(maxAttemptsRaw))
+      : 1;
   return {
     id: `scenario-job:${suffix}`,
     kind: task.kind,
@@ -188,9 +202,10 @@ const dbWritePort = {
 
     if (mutation.type === 'user.phone.link') {
       const channelUserId = asChannelUserId(mutation.params.channelUserId);
-      const phoneNormalized = typeof mutation.params.phoneNormalized === 'string'
-        ? mutation.params.phoneNormalized
-        : null;
+      const phoneNormalized =
+        typeof mutation.params.phoneNormalized === 'string'
+          ? mutation.params.phoneNormalized
+          : null;
       if (channelUserId && phoneNormalized) {
         inMemoryState.phones.set(channelUserId, phoneNormalized);
       }
@@ -210,7 +225,8 @@ let dispatchPort: DispatchPort;
 
 async function main(): Promise<void> {
   idempotencyKeys.clear();
-  const { createTelegramDeliveryAdapter } = await import('../src/integrations/telegram/deliveryAdapter.js');
+  const { createTelegramDeliveryAdapter } =
+    await import('../src/integrations/telegram/deliveryAdapter.js');
   dispatchPort = createDefaultDispatchPort({
     adapters: [createTelegramDeliveryAdapter()],
   });
@@ -269,7 +285,9 @@ async function main(): Promise<void> {
       console.log(`  ✓ ${name}`);
       passed++;
     } else {
-      console.error(`  ✗ ${name} (status=${res.statusCode}, tgCalls=${recordedCalls.length}, first=${recordedCalls[0]?.method ?? '-'})`);
+      console.error(
+        `  ✗ ${name} (status=${res.statusCode}, tgCalls=${recordedCalls.length}, first=${recordedCalls[0]?.method ?? '-'})`,
+      );
       failed++;
     }
   }
@@ -280,7 +298,10 @@ async function main(): Promise<void> {
     const wrongRes = (await app.inject({
       method: 'POST',
       url: '/webhook/telegram',
-      headers: { 'content-type': 'application/json', 'x-telegram-bot-api-secret-token': 'wrong-secret' },
+      headers: {
+        'content-type': 'application/json',
+        'x-telegram-bot-api-secret-token': 'wrong-secret',
+      },
       payload: fixtures[0]!.payload as object,
     })) as InjectRes;
     const wrongOk = wrongRes.statusCode === 403 && recordedCalls.length === 0;

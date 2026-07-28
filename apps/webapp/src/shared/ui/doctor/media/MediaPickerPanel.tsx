@@ -1,52 +1,64 @@
-"use client";
+'use client';
 
-import { type ChangeEvent, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
+import { type ChangeEvent, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/ui/doctor/primitives/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/ui/doctor/primitives/tabs";
-import { MediaPickerList, type MediaListItem } from "@/shared/ui/doctor/media/MediaPickerList";
-import { buildAdminMediaListUrl, invalidateMediaLibraryPickerListCache } from "@/shared/ui/doctor/media/useMediaLibraryPickerItems";
-import type { MediaLibraryPickerKindFilter } from "@/shared/ui/doctor/media/useMediaLibraryPickerItems";
-import { MediaPickerListFooter } from "@/shared/ui/doctor/media/MediaPickerListFooter";
-import { useMediaPickerFilteredList } from "@/shared/ui/doctor/media/useMediaPickerFilteredList";
-import type { MediaExerciseUsageEntry, MediaFolderRecord } from "@/modules/media/types";
-import { cn } from "@/lib/utils";
-import { PickerSearchField } from "@/shared/ui/doctor/PickerSearchField";
-import { fetchAdminMediaListItem } from "@/shared/ui/doctor/media/fetchAdminMediaListItem";
-import { UploadRequestError, uploadWithProgress } from "@/shared/ui/doctor/media/uploadWithProgress";
-import { FILE_INPUT_ACCEPT } from "@/modules/media/uploadAllowedMime";
-import { MediaLibraryFolderScopeSelect } from "@/shared/ui/doctor/media/MediaLibraryFolderScopeSelect";
-import { mediaFolderPathLabel } from "@/shared/ui/doctor/media/mediaFolderScopeUtils";
+} from '@/shared/ui/doctor/primitives/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/doctor/primitives/tabs';
+import { MediaPickerList, type MediaListItem } from '@/shared/ui/doctor/media/MediaPickerList';
+import {
+  buildAdminMediaListUrl,
+  invalidateMediaLibraryPickerListCache,
+} from '@/shared/ui/doctor/media/useMediaLibraryPickerItems';
+import type { MediaLibraryPickerKindFilter } from '@/shared/ui/doctor/media/useMediaLibraryPickerItems';
+import { MediaPickerListFooter } from '@/shared/ui/doctor/media/MediaPickerListFooter';
+import { useMediaPickerFilteredList } from '@/shared/ui/doctor/media/useMediaPickerFilteredList';
+import type { MediaExerciseUsageEntry, MediaFolderRecord } from '@/modules/media/types';
+import { cn } from '@/lib/utils';
+import { PickerSearchField } from '@/shared/ui/doctor/PickerSearchField';
+import { fetchAdminMediaListItem } from '@/shared/ui/doctor/media/fetchAdminMediaListItem';
+import {
+  UploadRequestError,
+  uploadWithProgress,
+} from '@/shared/ui/doctor/media/uploadWithProgress';
+import { FILE_INPUT_ACCEPT } from '@/modules/media/uploadAllowedMime';
+import { MediaLibraryFolderScopeSelect } from '@/shared/ui/doctor/media/MediaLibraryFolderScopeSelect';
+import { mediaFolderPathLabel } from '@/shared/ui/doctor/media/mediaFolderScopeUtils';
 import {
   findClientFilesRootFolder,
   foldersForLibraryScopeSelect,
-} from "@/modules/media/clientFilesFolders";
+} from '@/modules/media/clientFilesFolders';
 import {
   MEDIA_LIBRARY_LIST_SORT_OPTIONS,
   type MediaLibraryListSortPreset,
   mediaLibraryListSortLabel,
   parseMediaLibraryListSortPreset,
-} from "@/shared/ui/doctor/media/mediaLibraryListSortOptions";
+} from '@/shared/ui/doctor/media/mediaLibraryListSortOptions';
 
-function kindFromMimeForListItem(mimeType: string): MediaListItem["kind"] {
+function kindFromMimeForListItem(mimeType: string): MediaListItem['kind'] {
   const lower = mimeType.toLowerCase();
-  if (lower.startsWith("image/")) return "image";
-  if (lower.startsWith("video/")) return "video";
-  if (lower.startsWith("audio/")) return "audio";
-  return "file";
+  if (lower.startsWith('image/')) return 'image';
+  if (lower.startsWith('video/')) return 'video';
+  if (lower.startsWith('audio/')) return 'audio';
+  return 'file';
 }
 
 type UploadOkSingle = {
   ok?: boolean;
   mediaId?: string;
   url?: string;
-  uploaded?: Array<{ mediaId: string; url: string; filename: string; mimeType: string; size: number }>;
+  uploaded?: Array<{
+    mediaId: string;
+    url: string;
+    filename: string;
+    mimeType: string;
+    size: number;
+  }>;
   error?: string;
 };
 
@@ -58,61 +70,64 @@ function resolveUploadTargetFolderId(listFolderId: string | null | undefined): s
 
 function appendFolderIdToFormData(fd: FormData, folderId: string | null) {
   if (folderId === null) {
-    fd.set("folderId", "root");
+    fd.set('folderId', 'root');
     return;
   }
-  fd.set("folderId", folderId);
+  fd.set('folderId', folderId);
 }
 
-function isPickedRowAllowedForKind(item: MediaListItem, kind: MediaLibraryPickerKindFilter): boolean {
-  if (kind === "all") return true;
-  if (kind === "image") return item.kind === "image";
-  if (kind === "video") return item.kind === "video";
-  if (kind === "image_or_video") return item.kind === "image" || item.kind === "video";
+function isPickedRowAllowedForKind(
+  item: MediaListItem,
+  kind: MediaLibraryPickerKindFilter,
+): boolean {
+  if (kind === 'all') return true;
+  if (kind === 'image') return item.kind === 'image';
+  if (kind === 'video') return item.kind === 'video';
+  if (kind === 'image_or_video') return item.kind === 'image' || item.kind === 'video';
   return true;
 }
 
 function uploadKindRejectedRuMessage(kind: MediaLibraryPickerKindFilter): string {
   switch (kind) {
-    case "image":
-      return "Для этого поля можно прикрепить только изображение.";
-    case "video":
-      return "Для этого поля можно прикрепить только видео.";
-    case "image_or_video":
-      return "Для этого поля можно прикрепить только изображение или видео.";
+    case 'image':
+      return 'Для этого поля можно прикрепить только изображение.';
+    case 'video':
+      return 'Для этого поля можно прикрепить только видео.';
+    case 'image_or_video':
+      return 'Для этого поля можно прикрепить только изображение или видео.';
     default:
-      return "Этот тип файла здесь нельзя использовать.";
+      return 'Этот тип файла здесь нельзя использовать.';
   }
 }
 
 function mapUploadErrorByCode(code: string | undefined): string {
   const m: Record<string, string> = {
-    mime_not_allowed: "Тип файла не разрешён для загрузки.",
-    file_signature_mismatch: "Содержимое файла не совпадает с заявленным типом.",
-    file_too_large: "Файл слишком большой.",
-    empty_file: "Пустой файл.",
-    missing_file: "Файл не передан.",
-    invalid_folder_id: "Некорректный идентификатор папки.",
-    folder_not_found: "Папка не найдена.",
-    forbidden: "Нет прав на загрузку.",
-    upload_failed: "Загрузка не удалась.",
-    expected_multipart: "Неверный формат запроса.",
-    invalid_body: "Некорректное тело запроса.",
+    mime_not_allowed: 'Тип файла не разрешён для загрузки.',
+    file_signature_mismatch: 'Содержимое файла не совпадает с заявленным типом.',
+    file_too_large: 'Файл слишком большой.',
+    empty_file: 'Пустой файл.',
+    missing_file: 'Файл не передан.',
+    invalid_folder_id: 'Некорректный идентификатор папки.',
+    folder_not_found: 'Папка не найдена.',
+    forbidden: 'Нет прав на загрузку.',
+    upload_failed: 'Загрузка не удалась.',
+    expected_multipart: 'Неверный формат запроса.',
+    invalid_body: 'Некорректное тело запроса.',
   };
   if (code && m[code]) return m[code];
   if (code) return `Не удалось загрузить (${code}).`;
-  return "Не удалось загрузить файл.";
+  return 'Не удалось загрузить файл.';
 }
 
 function fileInputAcceptForPickerKind(kind: MediaLibraryPickerKindFilter): string | undefined {
   switch (kind) {
-    case "image":
-      return "image/*,.heic,.heif,.avif,.tiff,.tif,.svg";
-    case "video":
-      return "video/*";
-    case "image_or_video":
-      return "image/*,video/*,.heic,.heif,.avif,.tiff,.tif";
-    case "all":
+    case 'image':
+      return 'image/*,.heic,.heif,.avif,.tiff,.tif,.svg';
+    case 'video':
+      return 'video/*';
+    case 'image_or_video':
+      return 'image/*,video/*,.heic,.heif,.avif,.tiff,.tif';
+    case 'all':
       return FILE_INPUT_ACCEPT;
     default:
       return undefined;
@@ -149,8 +164,8 @@ export function MediaPickerPanel({
   showSort,
   showFolderScope = true,
 }: MediaPickerPanelProps) {
-  const [query, setQuery] = useState("");
-  const [listSortPreset, setListSortPreset] = useState<MediaLibraryListSortPreset>("date:desc");
+  const [query, setQuery] = useState('');
+  const [listSortPreset, setListSortPreset] = useState<MediaLibraryListSortPreset>('date:desc');
   const [folders, setFolders] = useState<MediaFolderRecord[]>([]);
   const [foldersLoaded, setFoldersLoaded] = useState(false);
   const [newOnly, setNewOnly] = useState(false);
@@ -178,8 +193,8 @@ export function MediaPickerPanel({
       buildAdminMediaListUrl({
         apiKind,
         folderId,
-        sortBy: showSort ? listSortBy : "date",
-        sortDir: showSort ? listSortDir : "desc",
+        sortBy: showSort ? listSortBy : 'date',
+        sortDir: showSort ? listSortDir : 'desc',
       }),
     [apiKind, folderId, listSortBy, listSortDir, showSort],
   );
@@ -206,7 +221,7 @@ export function MediaPickerPanel({
   const usageRequestRef = useRef(0);
 
   useEffect(() => {
-    if (!open) setQuery("");
+    if (!open) setQuery('');
   }, [open]);
 
   useEffect(() => {
@@ -221,10 +236,10 @@ export function MediaPickerPanel({
     queueMicrotask(() => {
       setFoldersLoaded(false);
     });
-    fetch("/api/admin/media/folders?flat=true", { credentials: "same-origin", signal: ac.signal })
+    fetch('/api/admin/media/folders?flat=true', { credentials: 'same-origin', signal: ac.signal })
       .then(async (res) => {
         const data = (await res.json()) as { ok?: boolean; items?: MediaFolderRecord[] };
-        if (!res.ok || !data.ok) throw new Error("folders_failed");
+        if (!res.ok || !data.ok) throw new Error('folders_failed');
         return data.items ?? [];
       })
       .then((list) => {
@@ -265,10 +280,10 @@ export function MediaPickerPanel({
 
     const runUsageFetch = () => {
       if (ac.signal.aborted || requestId !== usageRequestRef.current) return;
-      fetch("/api/admin/media/exercise-usage", {
-        method: "POST",
-        credentials: "same-origin",
-        headers: { "Content-Type": "application/json" },
+      fetch('/api/admin/media/exercise-usage', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ids }),
         signal: ac.signal,
       })
@@ -278,7 +293,7 @@ export function MediaPickerPanel({
             usage?: Record<string, MediaExerciseUsageEntry[]>;
             error?: string;
           };
-          if (!res.ok || !data.ok) throw new Error(data.error ?? "usage_failed");
+          if (!res.ok || !data.ok) throw new Error(data.error ?? 'usage_failed');
           return data.usage ?? {};
         })
         .then((raw) => {
@@ -299,7 +314,7 @@ export function MediaPickerPanel({
 
     let idleCallbackId: number | undefined;
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
-    if (typeof window !== "undefined" && "requestIdleCallback" in window) {
+    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
       idleCallbackId = window.requestIdleCallback(runUsageFetch, { timeout: 400 });
     } else {
       timeoutId = setTimeout(runUsageFetch, 0);
@@ -307,7 +322,11 @@ export function MediaPickerPanel({
 
     return () => {
       ac.abort();
-      if (idleCallbackId !== undefined && typeof window !== "undefined" && "cancelIdleCallback" in window) {
+      if (
+        idleCallbackId !== undefined &&
+        typeof window !== 'undefined' &&
+        'cancelIdleCallback' in window
+      ) {
         window.cancelIdleCallback(idleCallbackId);
       }
       if (timeoutId !== undefined) clearTimeout(timeoutId);
@@ -325,7 +344,7 @@ export function MediaPickerPanel({
   const uploadTargetFolderId = useMemo(() => resolveUploadTargetFolderId(folderId), [folderId]);
 
   const uploadDestinationPhrase = useMemo(() => {
-    if (uploadTargetFolderId === null) return "корень библиотеки";
+    if (uploadTargetFolderId === null) return 'корень библиотеки';
     const f = folders.find((x) => x.id === uploadTargetFolderId);
     const path = f ? mediaFolderPathLabel(f, folders) : uploadTargetFolderId;
     return `папку «${path}»`;
@@ -338,10 +357,10 @@ export function MediaPickerPanel({
       setUploadProgress(0);
       try {
         const fd = new FormData();
-        fd.set("file", file);
+        fd.set('file', file);
         appendFolderIdToFormData(fd, uploadTargetFolderId);
         const data = await uploadWithProgress<UploadOkSingle>({
-          url: "/api/media/upload",
+          url: '/api/media/upload',
           formData: fd,
           onProgress: (loaded, total) => {
             if (total > 0) setUploadProgress(Math.round((100 * loaded) / total));
@@ -355,7 +374,7 @@ export function MediaPickerPanel({
         if (!row) {
           const u = data.url;
           const up = data.uploaded?.[0];
-          const mime = up?.mimeType ?? file.type ?? "application/octet-stream";
+          const mime = up?.mimeType ?? file.type ?? 'application/octet-stream';
           if (u) {
             row = {
               id: data.mediaId,
@@ -370,7 +389,9 @@ export function MediaPickerPanel({
           }
         }
         if (!row) {
-          setUploadError("Файл загружен, но не удалось получить данные для выбора. Обновите список в библиотеке.");
+          setUploadError(
+            'Файл загружен, но не удалось получить данные для выбора. Обновите список в библиотеке.',
+          );
           return;
         }
         if (!isPickedRowAllowedForKind(row, kind)) {
@@ -383,7 +404,7 @@ export function MediaPickerPanel({
       } catch (e) {
         if (e instanceof UploadRequestError) {
           if (e.status === 0) {
-            setUploadError("Сеть недоступна. Проверьте подключение и попробуйте снова.");
+            setUploadError('Сеть недоступна. Проверьте подключение и попробуйте снова.');
           } else {
             const body = e.data as { error?: string } | null | undefined;
             setUploadError(mapUploadErrorByCode(body?.error));
@@ -394,7 +415,7 @@ export function MediaPickerPanel({
       } finally {
         setUploading(false);
         setUploadProgress(0);
-        if (fileInputRef.current) fileInputRef.current.value = "";
+        if (fileInputRef.current) fileInputRef.current.value = '';
       }
     },
     [onPick, uploadTargetFolderId, kind, listUrl],
@@ -450,7 +471,7 @@ export function MediaPickerPanel({
           </div>
         ) : null}
 
-        {(showFolderScope || exercisePicker) ? (
+        {showFolderScope || exercisePicker ? (
           <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end">
             {showFolderScope ? (
               <MediaLibraryFolderScopeSelect
@@ -470,8 +491,10 @@ export function MediaPickerPanel({
                     type="button"
                     variant="ghost"
                     className={cn(
-                      "rounded px-1.5 py-0.5 transition-colors",
-                      !newOnly ? "bg-background font-medium shadow-sm" : "text-muted-foreground hover:text-foreground",
+                      'rounded px-1.5 py-0.5 transition-colors',
+                      !newOnly
+                        ? 'bg-background font-medium shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground',
                     )}
                     onClick={() => setNewOnly(false)}
                   >
@@ -482,8 +505,10 @@ export function MediaPickerPanel({
                     type="button"
                     variant="ghost"
                     className={cn(
-                      "rounded px-1.5 py-0.5 transition-colors",
-                      newOnly ? "bg-background font-medium shadow-sm" : "text-muted-foreground hover:text-foreground",
+                      'rounded px-1.5 py-0.5 transition-colors',
+                      newOnly
+                        ? 'bg-background font-medium shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground',
                     )}
                     onClick={() => setNewOnly(true)}
                   >
@@ -521,7 +546,7 @@ export function MediaPickerPanel({
 
       <TabsContent value="upload" className="mt-0 flex flex-col gap-3 outline-none">
         <p className="text-sm text-muted-foreground">
-          Файл будет загружен в{" "}
+          Файл будет загружен в{' '}
           <span className="font-medium text-foreground">{uploadDestinationPhrase}</span>.
         </p>
         {folderId === undefined ? (

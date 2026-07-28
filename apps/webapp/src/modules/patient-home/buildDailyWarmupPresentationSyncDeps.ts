@@ -1,13 +1,13 @@
-import type { DailyWarmupPresentationSyncDeps } from "@/modules/patient-home/ensureDailyWarmupPresentationSynced";
+import type { DailyWarmupPresentationSyncDeps } from '@/modules/patient-home/ensureDailyWarmupPresentationSynced';
 
 export function buildDailyWarmupPresentationSyncDeps(deps: {
-  patientHomeBlocks: DailyWarmupPresentationSyncDeps["patientHomeBlocks"];
-  contentPages: DailyWarmupPresentationSyncDeps["contentPages"];
-  contentSections: DailyWarmupPresentationSyncDeps["contentSections"];
-  systemSettings: DailyWarmupPresentationSyncDeps["systemSettings"];
-  patientDailyWarmupPresentation: DailyWarmupPresentationSyncDeps["patientDailyWarmupPresentation"];
-  patientPractice: DailyWarmupPresentationSyncDeps["patientPractice"];
-  patientCalendarTimezone: DailyWarmupPresentationSyncDeps["patientCalendarTimezone"];
+  patientHomeBlocks: DailyWarmupPresentationSyncDeps['patientHomeBlocks'];
+  contentPages: DailyWarmupPresentationSyncDeps['contentPages'];
+  contentSections: DailyWarmupPresentationSyncDeps['contentSections'];
+  systemSettings: DailyWarmupPresentationSyncDeps['systemSettings'];
+  patientDailyWarmupPresentation: DailyWarmupPresentationSyncDeps['patientDailyWarmupPresentation'];
+  patientPractice: DailyWarmupPresentationSyncDeps['patientPractice'];
+  patientCalendarTimezone: DailyWarmupPresentationSyncDeps['patientCalendarTimezone'];
 }): DailyWarmupPresentationSyncDeps {
   return {
     patientHomeBlocks: deps.patientHomeBlocks,

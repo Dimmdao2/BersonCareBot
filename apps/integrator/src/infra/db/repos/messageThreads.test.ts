@@ -70,47 +70,59 @@ describe('messageThreads repo', () => {
     const { db, execute } = createDbMock();
     execute
       .mockResolvedValueOnce({
-        rows: [{
-          id: 'draft-1',
-          identity_id: '77',
-          source: 'telegram',
-          external_chat_id: '123',
-          external_message_id: '55',
-          draft_text_current: 'hello',
-          state: 'pending_confirmation',
-          created_at: '2026-03-10T12:00:00.000Z',
-          updated_at: '2026-03-10T12:00:00.000Z',
-          channel_id: '123',
-          username: 'alice',
-          first_name: 'Alice',
-          last_name: 'Example',
-          phone_normalized: '+79990001122',
-        }],
+        rows: [
+          {
+            id: 'draft-1',
+            identity_id: '77',
+            source: 'telegram',
+            external_chat_id: '123',
+            external_message_id: '55',
+            draft_text_current: 'hello',
+            state: 'pending_confirmation',
+            created_at: '2026-03-10T12:00:00.000Z',
+            updated_at: '2026-03-10T12:00:00.000Z',
+            channel_id: '123',
+            username: 'alice',
+            first_name: 'Alice',
+            last_name: 'Example',
+            phone_normalized: '+79990001122',
+          },
+        ],
         rowCount: 1,
       } as DbQueryResult)
       .mockResolvedValueOnce({
-        rows: [{
-          id: 'conv-1',
-          source: 'telegram',
-          user_identity_id: '77',
-          admin_scope: 'default',
-          status: 'waiting_admin',
-          opened_at: '2026-03-10T12:00:00.000Z',
-          last_message_at: '2026-03-10T12:00:00.000Z',
-          closed_at: null,
-          close_reason: null,
-          user_channel_id: '123',
-          user_chat_id: null,
-          username: 'alice',
-          first_name: 'Alice',
-          last_name: 'Example',
-          phone_normalized: '+79990001122',
-        }],
+        rows: [
+          {
+            id: 'conv-1',
+            source: 'telegram',
+            user_identity_id: '77',
+            admin_scope: 'default',
+            status: 'waiting_admin',
+            opened_at: '2026-03-10T12:00:00.000Z',
+            last_message_at: '2026-03-10T12:00:00.000Z',
+            closed_at: null,
+            close_reason: null,
+            user_channel_id: '123',
+            user_chat_id: null,
+            username: 'alice',
+            first_name: 'Alice',
+            last_name: 'Example',
+            phone_normalized: '+79990001122',
+          },
+        ],
         rowCount: 1,
       } as DbQueryResult);
 
-    const draft = await getActiveDraftByIdentity(db, { resource: 'telegram', externalId: '123', source: 'telegram' });
-    const conversation = await getOpenConversationByIdentity(db, { resource: 'telegram', externalId: '123', source: 'telegram' });
+    const draft = await getActiveDraftByIdentity(db, {
+      resource: 'telegram',
+      externalId: '123',
+      source: 'telegram',
+    });
+    const conversation = await getOpenConversationByIdentity(db, {
+      resource: 'telegram',
+      externalId: '123',
+      source: 'telegram',
+    });
 
     expect(draft?.draft_text_current).toBe('hello');
     expect(conversation?.id).toBe('conv-1');
@@ -134,45 +146,49 @@ describe('messageThreads repo', () => {
       .mockResolvedValueOnce({ rows: [], rowCount: 1 } as DbQueryResult)
       .mockResolvedValueOnce({ rows: [], rowCount: 1 } as DbQueryResult)
       .mockResolvedValueOnce({
-        rows: [{
-          id: 'conv-1',
-          source: 'telegram',
-          user_identity_id: '77',
-          admin_scope: 'default',
-          status: 'waiting_user',
-          opened_at: '2026-03-10T12:00:00.000Z',
-          last_message_at: '2026-03-10T12:01:00.000Z',
-          closed_at: null,
-          close_reason: null,
-          user_channel_id: '123',
-          user_chat_id: null,
-          username: 'alice',
-          first_name: 'Alice',
-          last_name: 'Example',
-          phone_normalized: '+79990001122',
-          last_message_text: 'reply',
-          last_sender_role: 'admin',
-        }],
+        rows: [
+          {
+            id: 'conv-1',
+            source: 'telegram',
+            user_identity_id: '77',
+            admin_scope: 'default',
+            status: 'waiting_user',
+            opened_at: '2026-03-10T12:00:00.000Z',
+            last_message_at: '2026-03-10T12:01:00.000Z',
+            closed_at: null,
+            close_reason: null,
+            user_channel_id: '123',
+            user_chat_id: null,
+            username: 'alice',
+            first_name: 'Alice',
+            last_name: 'Example',
+            phone_normalized: '+79990001122',
+            last_message_text: 'reply',
+            last_sender_role: 'admin',
+          },
+        ],
         rowCount: 1,
       } as DbQueryResult)
       .mockResolvedValueOnce({
-        rows: [{
-          id: 'conv-1',
-          source: 'telegram',
-          user_identity_id: '77',
-          admin_scope: 'default',
-          status: 'waiting_user',
-          opened_at: '2026-03-10T12:00:00.000Z',
-          last_message_at: '2026-03-10T12:01:00.000Z',
-          closed_at: null,
-          close_reason: null,
-          user_channel_id: '123',
-          user_chat_id: null,
-          username: 'alice',
-          first_name: 'Alice',
-          last_name: 'Example',
-          phone_normalized: '+79990001122',
-        }],
+        rows: [
+          {
+            id: 'conv-1',
+            source: 'telegram',
+            user_identity_id: '77',
+            admin_scope: 'default',
+            status: 'waiting_user',
+            opened_at: '2026-03-10T12:00:00.000Z',
+            last_message_at: '2026-03-10T12:01:00.000Z',
+            closed_at: null,
+            close_reason: null,
+            user_channel_id: '123',
+            user_chat_id: null,
+            username: 'alice',
+            first_name: 'Alice',
+            last_name: 'Example',
+            phone_normalized: '+79990001122',
+          },
+        ],
         rowCount: 1,
       } as DbQueryResult);
 
@@ -218,13 +234,17 @@ describe('messageThreads repo', () => {
     expect(insertMessageSql).toContain('INSERT INTO conversation_messages');
     expect(insertMessageSql).toContain('organization_id');
     expect(insertMessageSql).toContain('SELECT organization_id FROM conversations');
-    expect(drizzleSqlFragmentToApproximateSql(execute.mock.calls[2]?.[0])).toContain('UPDATE conversations');
+    expect(drizzleSqlFragmentToApproximateSql(execute.mock.calls[2]?.[0])).toContain(
+      'UPDATE conversations',
+    );
     const listOpenSql = drizzleSqlFragmentToApproximateSql(execute.mock.calls[3]?.[0]);
     expect(listOpenSql).toContain('LEFT JOIN LATERAL');
     expect(listOpenSql).toContain('ORDER BY c.last_message_at DESC');
     expect(listOpenSql).toContain('10');
 
-    expect(drizzleSqlFragmentToApproximateSql(execute.mock.calls[4]?.[0])).toContain('WHERE c.id = ');
+    expect(drizzleSqlFragmentToApproximateSql(execute.mock.calls[4]?.[0])).toContain(
+      'WHERE c.id = ',
+    );
     expect(drizzleSqlFragmentToApproximateSql(execute.mock.calls[4]?.[0])).toContain('conv-1');
   });
 

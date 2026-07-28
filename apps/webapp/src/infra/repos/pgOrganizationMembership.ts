@@ -1,5 +1,5 @@
-import { and, asc, eq, sql } from "drizzle-orm";
-import { getDrizzle } from "@/app-layer/db/drizzle";
+import { and, asc, eq, sql } from 'drizzle-orm';
+import { getDrizzle } from '@/app-layer/db/drizzle';
 import type {
   OrganizationMembership,
   OrganizationMemberDirectoryRecord,
@@ -7,13 +7,13 @@ import type {
   OrganizationMembershipRole,
   OrganizationMembershipStatus,
   OrganizationSpecialistDirectoryRecord,
-} from "@/modules/organization-membership/ports";
+} from '@/modules/organization-membership/ports';
 import {
   ORGANIZATION_MEMBERSHIP_ROLES,
   ORGANIZATION_MEMBERSHIP_STATUSES,
-} from "@/modules/organization-membership/ports";
-import { platformUsers } from "../../../db/schema/schema";
-import { beOrganizationMembers, beSpecialists } from "../../../db/schema/bookingEngine";
+} from '@/modules/organization-membership/ports';
+import { platformUsers } from '../../../db/schema/schema';
+import { beOrganizationMembers, beSpecialists } from '../../../db/schema/bookingEngine';
 
 type OrganizationMembershipRow = typeof beOrganizationMembers.$inferSelect;
 
@@ -121,7 +121,7 @@ export function createPgOrganizationMembershipPort(): OrganizationMembershipPort
         .where(
           and(
             eq(beOrganizationMembers.platformUserId, platformUserId),
-            eq(beOrganizationMembers.status, "active"),
+            eq(beOrganizationMembers.status, 'active'),
           ),
         )
         .orderBy(asc(beOrganizationMembers.createdAt), asc(beOrganizationMembers.organizationId));
@@ -219,7 +219,9 @@ export function createPgOrganizationMembershipPort(): OrganizationMembershipPort
       const rows = await db
         .select()
         .from(beSpecialists)
-        .where(and(eq(beSpecialists.organizationId, organizationId), eq(beSpecialists.id, specialistId)))
+        .where(
+          and(eq(beSpecialists.organizationId, organizationId), eq(beSpecialists.id, specialistId)),
+        )
         .orderBy(asc(beSpecialists.sortOrder), asc(beSpecialists.fullName));
       return rows[0] ? mapOrganizationSpecialistDirectoryRow(rows[0]) : null;
     },

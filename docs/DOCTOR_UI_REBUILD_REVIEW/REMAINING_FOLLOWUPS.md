@@ -16,7 +16,6 @@
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-
 - [ ] **F3 — прод-катовер на canonical** (главное). Деплой+миграция `0119` → diagnose → ручной разбор конфликтов → `backfill … --commit --delete-test --collapse-dups --drop-stale-from-csv [--drop-legacy=…]` → флип `booking_doctor_appointments_read_source` → `canonical`. **Зона: владелец/прод-доступ.** Полная инструкция: [`../OPERATIONS/BOOKING_CANONICAL_CUTOVER.md`](../OPERATIONS/BOOKING_CANONICAL_CUTOVER.md).
 - [ ] **Ручной разбор конфликтов на проде** — двойные брони и ошибочные `admin_manual` записи (инстансы overlap-бага) решаются руками по Rubitime CSV (какая запись реальна; ошибочную ручную — удалить через кабинет). Часть F3. Детали + dev-пример: [`../OPERATIONS/BOOKING_CANONICAL_CUTOVER.md` §Ручная обработка](../OPERATIONS/BOOKING_CANONICAL_CUTOVER.md).
 - [ ] **GCal + напоминания → читать из canonical** (до отключения Rubitime). Сейчас синхронизируются из сырого Rubitime-вебхука в интеграторе, не из canonical. **Зона: интегратор / `BOOKING_REWORK`.** Детали: [`APPOINTMENTS_PARITY_S0.md`](APPOINTMENTS_PARITY_S0.md) (G4/G5), [`../OPERATIONS/BOOKING_CANONICAL_CUTOVER.md` §После cutover](../OPERATIONS/BOOKING_CANONICAL_CUTOVER.md).
@@ -30,7 +29,6 @@
 > **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
-
 
 - [ ] **Замечания по реализованным страницам** (shell/«Сегодня»/«Пациенты»/«Расписание»/«Коммуникации») — полный worklist: [`REVIEW_2026-06-13.md`](REVIEW_2026-06-13.md); план по этапам: [`ROADMAP.md`](ROADMAP.md).
 - [ ] **Жест «пометить непрочитанным»** в комментариях (свайп/правый клик) — **backlog**, после ядра. См. [`ROADMAP.md` §0 D3](ROADMAP.md).

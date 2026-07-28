@@ -54,13 +54,15 @@ const UNCONFIGURED_SMTP = {
 
 const fakeDb = {} as import('../../kernel/contracts/index.js').DbPort;
 
-function makeEmailIntent(overrides: Partial<{
-  to: string;
-  subject: string;
-  text: string;
-  html: string;
-  fromOverride: string;
-}>): OutgoingIntent {
+function makeEmailIntent(
+  overrides: Partial<{
+    to: string;
+    subject: string;
+    text: string;
+    html: string;
+    fromOverride: string;
+  }>,
+): OutgoingIntent {
   const { to = 'patient@example.com', subject, text, html, fromOverride } = overrides;
   return {
     type: 'message.send',
@@ -109,7 +111,11 @@ describe('createEmailDeliveryAdapter — canHandle', () => {
     const intent: OutgoingIntent = {
       type: 'message.send',
       meta: { eventId: 'e', occurredAt: '2026-06-17T00:00:00.000Z', source: 'telegram' },
-      payload: { recipient: { chatId: 123 }, message: { text: 'hi' }, delivery: { channels: ['telegram'] } },
+      payload: {
+        recipient: { chatId: 123 },
+        message: { text: 'hi' },
+        delivery: { channels: ['telegram'] },
+      },
     };
     expect(adapter.canHandle(intent)).toBe(false);
   });
@@ -139,7 +145,9 @@ describe('EmailDeliveryAdapter — send() in production (no redirect)', () => {
     const adapter = createEmailDeliveryAdapter({ getDb: () => fakeDb });
     const port = createDefaultDispatchPort({ adapters: [adapter] });
 
-    await port.dispatchOutgoing(makeEmailIntent({ to: 'patient@example.com', subject: 'Hello', text: 'Body text' }));
+    await port.dispatchOutgoing(
+      makeEmailIntent({ to: 'patient@example.com', subject: 'Hello', text: 'Body text' }),
+    );
 
     expect(mockSendMail).toHaveBeenCalledTimes(1);
     expect(mockSendMail).toHaveBeenCalledWith(
@@ -156,12 +164,14 @@ describe('EmailDeliveryAdapter — send() in production (no redirect)', () => {
     const adapter = createEmailDeliveryAdapter({ getDb: () => fakeDb });
     const port = createDefaultDispatchPort({ adapters: [adapter] });
 
-    await port.dispatchOutgoing(makeEmailIntent({
-      to: 'patient@example.com',
-      subject: 'From specialist',
-      text: 'Body',
-      fromOverride: 'dr.smith@clinic.example',
-    }));
+    await port.dispatchOutgoing(
+      makeEmailIntent({
+        to: 'patient@example.com',
+        subject: 'From specialist',
+        text: 'Body',
+        fromOverride: 'dr.smith@clinic.example',
+      }),
+    );
 
     expect(mockSendMail).toHaveBeenCalledWith(
       CONFIGURED_SMTP,
@@ -179,7 +189,9 @@ describe('EmailDeliveryAdapter — send() in production (no redirect)', () => {
     const callArgs = mockSendMail.mock.calls[0]![1] as Record<string, unknown>;
     expect(callArgs['from']).toBeUndefined();
     // And the SMTP config passed has the system fromAddress
-    expect((mockSendMail.mock.calls[0]![0] as { fromAddress: string }).fromAddress).toBe('system@example.com');
+    expect((mockSendMail.mock.calls[0]![0] as { fromAddress: string }).fromAddress).toBe(
+      'system@example.com',
+    );
   });
 
   it('passes html body when present', async () => {
@@ -221,9 +233,9 @@ describe('EmailDeliveryAdapter — send() errors in production', () => {
     mockResolveSmtp.mockResolvedValue(UNCONFIGURED_SMTP);
     const adapter = createEmailDeliveryAdapter({ getDb: () => fakeDb });
 
-    await expect(
-      adapter.send(makeEmailIntent({ to: 'p@e.com', text: 'body' })),
-    ).rejects.toThrow('EMAIL_NOT_CONFIGURED');
+    await expect(adapter.send(makeEmailIntent({ to: 'p@e.com', text: 'body' }))).rejects.toThrow(
+      'EMAIL_NOT_CONFIGURED',
+    );
     expect(mockSendMail).not.toHaveBeenCalled();
   });
 
@@ -273,7 +285,9 @@ describe('EmailDeliveryAdapter — DoD-2: DEV_DELIVERY_REDIRECT per-channel redi
     const emailAdapter = createEmailDeliveryAdapter({ getDb: () => fakeDb });
     const port = createDefaultDispatchPort({ adapters: [emailAdapter] });
 
-    await port.dispatchOutgoing(makeEmailIntent({ to: 'realclient@example.com', subject: 'Reminder', text: 'Hello' }));
+    await port.dispatchOutgoing(
+      makeEmailIntent({ to: 'realclient@example.com', subject: 'Reminder', text: 'Hello' }),
+    );
 
     // sendMail IS called — email adapter is reached (channel preserved).
     expect(mockSendMail).toHaveBeenCalledTimes(1);

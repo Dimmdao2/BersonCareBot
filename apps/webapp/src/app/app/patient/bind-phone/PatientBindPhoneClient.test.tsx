@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
-import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
-import { PatientBindPhoneClient } from "./PatientBindPhoneClient";
+import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
+import { PatientBindPhoneClient } from './PatientBindPhoneClient';
 
 const navMocks = vi.hoisted(() => ({
   router: { refresh: vi.fn() },
@@ -11,42 +11,42 @@ const gateMocks = vi.hoisted(() => ({
   getDetail: vi.fn(),
 }));
 
-vi.mock("next/navigation", () => ({
+vi.mock('next/navigation', () => ({
   useRouter: () => navMocks.router,
 }));
 
-vi.mock("@/shared/lib/miniAppSessionRecovery", () => ({
+vi.mock('@/shared/lib/miniAppSessionRecovery', () => ({
   ensureMessengerMiniAppWebappSession: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock("@/shared/lib/patientMessengerContactGate", () => ({
+vi.mock('@/shared/lib/patientMessengerContactGate', () => ({
   getPatientMessengerContactGateDetail: () => gateMocks.getDetail(),
-  resolveBotHrefAfterMessengerSessionLoss: vi.fn().mockResolvedValue("https://t.me/fallback"),
-  resolveMessengerContactGateBotHref: vi.fn().mockResolvedValue("https://t.me/gate"),
+  resolveBotHrefAfterMessengerSessionLoss: vi.fn().mockResolvedValue('https://t.me/fallback'),
+  resolveMessengerContactGateBotHref: vi.fn().mockResolvedValue('https://t.me/gate'),
 }));
 
-vi.mock("@/shared/lib/messengerMiniApp", () => ({
+vi.mock('@/shared/lib/messengerMiniApp', () => ({
   closeMessengerMiniApp: vi.fn(),
   inferMessengerChannelForRequestContact: vi.fn(),
   isMessengerMiniAppHost: vi.fn(() => true),
 }));
 
-vi.mock("@/shared/lib/patientMessengerContactClient", () => ({
-  postPatientMessengerRequestContact: vi.fn().mockResolvedValue({ ok: false, error: "unknown" }),
+vi.mock('@/shared/lib/patientMessengerContactClient', () => ({
+  postPatientMessengerRequestContact: vi.fn().mockResolvedValue({ ok: false, error: 'unknown' }),
 }));
 
-vi.mock("@/shared/ui/patient/PatientPhonePromptChromeContext", () => ({
+vi.mock('@/shared/ui/patient/PatientPhonePromptChromeContext', () => ({
   usePatientPhonePromptChrome: () => null,
 }));
 
-describe("PatientBindPhoneClient", () => {
+describe('PatientBindPhoneClient', () => {
   beforeEach(() => {
     navMocks.router.refresh.mockClear();
     gateMocks.getDetail.mockReset();
   });
 
-  it("при ошибке recovery показывает панель me_unavailable вместо вечной загрузки", async () => {
-    gateMocks.getDetail.mockRejectedValueOnce(new Error("network"));
+  it('при ошибке recovery показывает панель me_unavailable вместо вечной загрузки', async () => {
+    gateMocks.getDetail.mockRejectedValueOnce(new Error('network'));
 
     render(
       <PatientBindPhoneClient
@@ -58,15 +58,15 @@ describe("PatientBindPhoneClient", () => {
     );
 
     await waitFor(() => {
-      expect(screen.queryByRole("status")).not.toBeInTheDocument();
+      expect(screen.queryByRole('status')).not.toBeInTheDocument();
     });
 
-    expect(screen.getByRole("alert")).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toBeInTheDocument();
     expect(screen.getByText(/Не удалось проверить статус аккаунта/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Предоставить контакт/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Предоставить контакт/i })).toBeInTheDocument();
   });
 
-  it("не показывает отключённые способы привязки", () => {
+  it('не показывает отключённые способы привязки', () => {
     render(
       <PatientBindPhoneClient
         telegramId=""
@@ -74,8 +74,8 @@ describe("PatientBindPhoneClient", () => {
         channelPolicy={{ email: true, sms: false, telegram: false, max: false }}
       />,
     );
-    expect(screen.getByText("Привязка через мессенджеры сейчас недоступна.")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Телеграм" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Макс" })).not.toBeInTheDocument();
+    expect(screen.getByText('Привязка через мессенджеры сейчас недоступна.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Телеграм' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Макс' })).not.toBeInTheDocument();
   });
 });

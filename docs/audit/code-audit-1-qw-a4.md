@@ -1,4 +1,5 @@
 # Code Audit 1 — QW-A4
+
 **Аудитор:** code-auditor-1  
 **Дата:** 2026-06-19  
 **Ветка:** auto/qw-a4  
@@ -11,6 +12,7 @@
 **PASS**
 
 Как проверено:
+
 - `git show auto/qw-a4:.../PatientProgramStageItemPageClient.tsx | grep -n "Dialog\|discussionOpen\|openDiscussion\|markDiscussion"` — нет совпадений по модальным именам. Единственные `Dialog` — `ProgramItemSubmissionSourceDialog` (для медиапикера) и `modalSnapshotTitle` (вспомогательная функция заголовка).
 - State `discussionDialogOpen` (было: `useState(false)`) — удалён (строка 310 diff).
 - Callback `markDiscussionRead` — удалён полностью (13 строк).
@@ -28,6 +30,7 @@
 **PASS**
 
 Как проверено:
+
 - Вызов в родителе (строки ~912–919 PatientProgramStageItemPageClient.tsx):
   ```
   <ProgramItemDiscussionInline
@@ -52,6 +55,7 @@
 **PASS**
 
 Как проверено:
+
 - `basePath` в `ProgramItemDiscussionInline.tsx` (строки 57–60):
   `/api/patient/treatment-program-instances/${encodeURIComponent(instanceId)}/items/${encodeURIComponent(itemId)}/discussion`
 - Совпадает с `basePath` из старого `ProgramItemDiscussionDialog.tsx` — те же 2 строки идентичного кода.
@@ -67,6 +71,7 @@
 **PASS**
 
 Как проверено:
+
 - `sendText()` (строки ~152–183 ProgramItemDiscussionInline.tsx):
   - Guard: `if (!body || sending) return` — защита от двойной отправки и пустого сообщения.
   - Кнопка disabled при `draft.trim().length === 0` — дополнительная UI-защита.
@@ -84,6 +89,7 @@
 **PASS**
 
 Как проверено:
+
 - `grep -n "console\.\|TODO\|FIXME\|HACK\|debugger\|alert(" ProgramItemDiscussionInline.tsx` — нет результатов.
 - Нет захардкоженных тестовых строк или плейсхолдеров кроме UI-копий на русском.
 - `"use client"` директива присутствует.
@@ -97,6 +103,7 @@
 **PASS**
 
 Как проверено:
+
 - Импорты `Button`, `Textarea` — из `@/shared/ui/patient/primitives/*` (patient zone), не из `@/components/ui/**`. Правило `patient-doctor-ui-isolation.mdc` соблюдено.
 - Стили из `patientVisual.ts`: `patientChatComposerTextareaClass`, `patientChatMetaLineClass`, `patientMutedTextClass`, `patientPrimaryActionClass` — все экспорты подтверждены в `apps/webapp/src/shared/ui/patient/patientVisual.ts`.
 - `ProgramItemDiscussionMediaPicker` — существующий shared компонент (не новый кастом).
@@ -113,6 +120,7 @@
 **PASS**
 
 Как проверено:
+
 - **Загрузка:** `loading ? "Загрузка..." : "Пока нет комментариев."` в блоке пустого списка.
 - **Ошибка сети (GET):** `setError(msg)` в catch bootstrap() → рендерит `<p>` с текстом ошибки.
 - **Ошибка сети (POST):** `setError("Ошибка сети")` в catch sendText().
@@ -129,12 +137,15 @@
 **FAIL**
 
 DoD из `docs/SCHEDULE_REDESIGN_2026-06-19.md`:
+
 > «Exercise item page shows full comment thread + reply input without opening any modal; **unread count badge still visible**; screenshot.»
 
 Что было (старый код):
+
 - Превью-блок (строки 880–914 PatientProgramStageItemPageClient.tsx) показывал `"новых: {discussionPreview.unreadCount}"` (красный span) перед открытием модалки.
 
 Что сейчас:
+
 - `ProgramItemDiscussionInline` не получает и не отображает `unreadCount` из API. Тип `DiscussionPageResponse` не включает поле `unreadCount` (только `messages`, `pageInfo`, `peerLastReadAt`).
 - API GET возвращает `unreadCount` (подтверждено в route.ts строка 185), но компонент его не использует.
 - Компонент вызывает `markRead()` при монтировании, что немедленно сбрасывает счётчик непрочитанных, не показав его пользователю.
@@ -168,17 +179,17 @@ DoD из `docs/SCHEDULE_REDESIGN_2026-06-19.md`:
 
 ## OVERALL: FAIL+2
 
-| # | Клауза | Статус |
-|---|--------|--------|
-| 1 | Старая модалка полностью удалена | ✅ PASS |
-| 2 | Inline компонент подключён с верными пропсами | ✅ PASS |
-| 3 | API endpoint и auth корректны | ✅ PASS |
-| 4 | Submit handler + POST корректны | ✅ PASS |
-| 5 | Нет console.log, dev-артефактов | ✅ PASS |
-| 6 | Patient primitives, изоляция соблюдена | ✅ PASS |
-| 7 | Edge cases: empty, loading, error, pagination | ✅ PASS |
-| 8 | DoD: «unread count badge still visible» | ❌ FAIL — badge отсутствует; API возвращает unreadCount но компонент его игнорирует |
-| 9 | Тестовое покрытие нового компонента | ❌ FAIL (minor) — нет test файла |
+| #   | Клауза                                        | Статус                                                                              |
+| --- | --------------------------------------------- | ----------------------------------------------------------------------------------- |
+| 1   | Старая модалка полностью удалена              | ✅ PASS                                                                             |
+| 2   | Inline компонент подключён с верными пропсами | ✅ PASS                                                                             |
+| 3   | API endpoint и auth корректны                 | ✅ PASS                                                                             |
+| 4   | Submit handler + POST корректны               | ✅ PASS                                                                             |
+| 5   | Нет console.log, dev-артефактов               | ✅ PASS                                                                             |
+| 6   | Patient primitives, изоляция соблюдена        | ✅ PASS                                                                             |
+| 7   | Edge cases: empty, loading, error, pagination | ✅ PASS                                                                             |
+| 8   | DoD: «unread count badge still visible»       | ❌ FAIL — badge отсутствует; API возвращает unreadCount но компонент его игнорирует |
+| 9   | Тестовое покрытие нового компонента           | ❌ FAIL (minor) — нет test файла                                                    |
 
 **ИТОГ: FAIL+2**  
 Критическая блокировка: **Clause 8** (DoD gap — unread badge). Clause 9 — minor, не блокирует.

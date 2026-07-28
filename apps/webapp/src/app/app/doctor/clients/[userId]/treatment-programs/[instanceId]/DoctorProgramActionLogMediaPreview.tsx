@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import type { MediaPlaybackPayload } from "@/modules/media/playbackPayloadTypes";
-import { DoctorMediaPlaybackVideo } from "@/shared/ui/doctor/media/DoctorMediaPlaybackVideo";
+import { useEffect, useState } from 'react';
+import type { MediaPlaybackPayload } from '@/modules/media/playbackPayloadTypes';
+import { DoctorMediaPlaybackVideo } from '@/shared/ui/doctor/media/DoctorMediaPlaybackVideo';
 
 export function DoctorProgramActionLogMediaPreview(props: { mediaFileId: string }) {
   const { mediaFileId } = props;
@@ -15,7 +15,7 @@ export function DoctorProgramActionLogMediaPreview(props: { mediaFileId: string 
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (cancelled) return;
-        if (data && typeof data === "object" && "mediaId" in data) {
+        if (data && typeof data === 'object' && 'mediaId' in data) {
           setPlayback(data as MediaPlaybackPayload);
         } else {
           setFailed(true);
@@ -29,7 +29,7 @@ export function DoctorProgramActionLogMediaPreview(props: { mediaFileId: string 
     };
   }, [mediaFileId]);
 
-  const isVideo = playback?.delivery === "mp4" || playback?.delivery === "hls";
+  const isVideo = playback?.delivery === 'mp4' || playback?.delivery === 'hls';
 
   if (isVideo) {
     return (

@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 
-import { writeFileSync } from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { writeFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-import { getP083PublicDirectOrgDescriptors, p083PolicyName } from "./p0-8-3-policy-targets.mjs";
-import { getP084PublicPathDescriptors, p084PolicyName } from "./p0-8-4-policy-targets.mjs";
-import { getP085IntegratorScopedDescriptors, p085PolicyName } from "./p0-8-5-policy-targets.mjs";
-import { getP086BootstrapHybridDescriptors, p086PolicyName } from "./p0-8-6-policy-targets.mjs";
-import { buildRlsDescriptors } from "./rls-descriptor-model.mjs";
+import { getP083PublicDirectOrgDescriptors, p083PolicyName } from './p0-8-3-policy-targets.mjs';
+import { getP084PublicPathDescriptors, p084PolicyName } from './p0-8-4-policy-targets.mjs';
+import { getP085IntegratorScopedDescriptors, p085PolicyName } from './p0-8-5-policy-targets.mjs';
+import { getP086BootstrapHybridDescriptors, p086PolicyName } from './p0-8-6-policy-targets.mjs';
+import { buildRlsDescriptors } from './rls-descriptor-model.mjs';
 import {
   hasAnyPatientOwnership,
   dormantCompatibilityPredicate,
@@ -22,33 +22,36 @@ import {
   renderOrgPredicate,
   renderPatientPredicateForDescriptor,
   renderStaffActorCheck,
-} from "./rls-sql-renderer.mjs";
+} from './rls-sql-renderer.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const repoRoot = path.resolve(__dirname, "..", "..", "..", "..");
+const repoRoot = path.resolve(__dirname, '..', '..', '..', '..');
 
-export const phase4LockedPolicyArtifactPath = "deploy/postgres/phase4-locked-helper-rls-policies.sql";
+export const phase4LockedPolicyArtifactPath =
+  'deploy/postgres/phase4-locked-helper-rls-policies.sql';
 
-const s5RuntimePolicyName = "s5_runtime_settings_isolation";
-const s5RuntimeAuditPolicyName = "s5_runtime_settings_audit_staff";
+const s5RuntimePolicyName = 's5_runtime_settings_isolation';
+const s5RuntimeAuditPolicyName = 's5_runtime_settings_audit_staff';
 
 export function getS5RuntimeSettingsTargets() {
   const descriptors = buildRlsDescriptors();
-  const runtime = descriptors.get("public.app_runtime_settings");
-  const audit = descriptors.get("public.app_runtime_settings_audit");
+  const runtime = descriptors.get('public.app_runtime_settings');
+  const audit = descriptors.get('public.app_runtime_settings_audit');
 
-  if (runtime?.scopingKind !== "bootstrap_runtime_audience") {
-    throw new Error("S5 runtime settings descriptor is missing its audience-aware classification");
+  if (runtime?.scopingKind !== 'bootstrap_runtime_audience') {
+    throw new Error('S5 runtime settings descriptor is missing its audience-aware classification');
   }
-  if (audit?.scopingKind !== "bootstrap_runtime_audit") {
-    throw new Error("S5 runtime settings audit descriptor is missing its staff-only classification");
+  if (audit?.scopingKind !== 'bootstrap_runtime_audit') {
+    throw new Error(
+      'S5 runtime settings audit descriptor is missing its staff-only classification',
+    );
   }
 
   return [
     {
       descriptor: runtime,
       policyName: s5RuntimePolicyName,
-      legacyPolicyNames: ["app_runtime_settings_safe_read", "app_runtime_settings_staff_write"],
+      legacyPolicyNames: ['app_runtime_settings_safe_read', 'app_runtime_settings_staff_write'],
     },
     { descriptor: audit, policyName: s5RuntimeAuditPolicyName, legacyPolicyNames: [] },
   ];
@@ -60,10 +63,22 @@ function compareTable(left, right) {
 
 export function getPhase4LockedPolicyTargets() {
   const targets = [
-    ...getP083PublicDirectOrgDescriptors().map((descriptor) => ({ descriptor, policyName: p083PolicyName })),
-    ...getP084PublicPathDescriptors().map((descriptor) => ({ descriptor, policyName: p084PolicyName })),
-    ...getP085IntegratorScopedDescriptors().map((descriptor) => ({ descriptor, policyName: p085PolicyName })),
-    ...getP086BootstrapHybridDescriptors().map((descriptor) => ({ descriptor, policyName: p086PolicyName })),
+    ...getP083PublicDirectOrgDescriptors().map((descriptor) => ({
+      descriptor,
+      policyName: p083PolicyName,
+    })),
+    ...getP084PublicPathDescriptors().map((descriptor) => ({
+      descriptor,
+      policyName: p084PolicyName,
+    })),
+    ...getP085IntegratorScopedDescriptors().map((descriptor) => ({
+      descriptor,
+      policyName: p085PolicyName,
+    })),
+    ...getP086BootstrapHybridDescriptors().map((descriptor) => ({
+      descriptor,
+      policyName: p086PolicyName,
+    })),
     ...getS5RuntimeSettingsTargets(),
   ].sort(compareTable);
 
@@ -71,7 +86,11 @@ export function getPhase4LockedPolicyTargets() {
   const uniqueKeys = new Set(keys);
   const uniqueTables = new Set(targets.map(({ descriptor }) => descriptor.table));
 
-  if (targets.length !== 168 || uniqueKeys.size !== targets.length || uniqueTables.size !== targets.length) {
+  if (
+    targets.length !== 168 ||
+    uniqueKeys.size !== targets.length ||
+    uniqueTables.size !== targets.length
+  ) {
     throw new Error(
       `Expected 168 unique phase4 locked policy targets, got targets=${targets.length}, uniquePolicyPairs=${uniqueKeys.size}, uniqueTables=${uniqueTables.size}`,
     );
@@ -81,48 +100,48 @@ export function getPhase4LockedPolicyTargets() {
 }
 
 export function renderPhase4StrictPredicate(descriptor) {
-  if (descriptor.scopingKind === "bootstrap_runtime_audience") {
+  if (descriptor.scopingKind === 'bootstrap_runtime_audience') {
     const orgPredicate = renderBootstrapHybridPredicate({ orgColumn: descriptor.orgColumn });
     return `((current_user = 'app_staff' AND ${orgPredicate}) OR (current_user = 'app_patient' AND "audience" IN ('public', 'authenticated_client') AND ${orgPredicate}) OR (current_user = 'app_runtime_nonstaff_login' AND "audience" = 'public' AND ${orgPredicate}) OR (pg_has_role(current_user, 'app_worker', 'member') AND "audience" = 'server' AND "organization_id" IS NULL AND app.current_org_id() IS NULL))`;
   }
 
-  if (descriptor.scopingKind === "bootstrap_runtime_audit") {
+  if (descriptor.scopingKind === 'bootstrap_runtime_audit') {
     return `(current_user = 'app_staff' AND ${renderBootstrapHybridPredicate({ orgColumn: descriptor.orgColumn })})`;
   }
 
-  if (descriptor.scopingKind === "bootstrap_hybrid_org_gated") {
+  if (descriptor.scopingKind === 'bootstrap_hybrid_org_gated') {
     return renderBootstrapHybridOrgGatedPredicate({ orgColumn: descriptor.orgColumn });
   }
 
-  if (descriptor.scopingKind === "bootstrap_hybrid") {
+  if (descriptor.scopingKind === 'bootstrap_hybrid') {
     return renderBootstrapHybridPredicate({ orgColumn: descriptor.orgColumn });
   }
 
   const orgPredicate =
-    descriptor.scopingKind === "fk_path"
-      ? renderFkPathPredicate(descriptor, { mode: "enforce" })
-      : renderOrgPredicate(descriptor, { mode: "enforce" });
+    descriptor.scopingKind === 'fk_path'
+      ? renderFkPathPredicate(descriptor, { mode: 'enforce' })
+      : renderOrgPredicate(descriptor, { mode: 'enforce' });
   const staffOrgPredicate = `(${renderStaffActorCheck()} AND ${orgPredicate})`;
 
   if (!hasAnyPatientOwnership(descriptor)) {
     return staffOrgPredicate;
   }
 
-  if (descriptor.scopingKind === "fk_path") {
+  if (descriptor.scopingKind === 'fk_path') {
     return `(${staffOrgPredicate} OR ${renderFkPathPatientPredicate(descriptor)})`;
   }
 
-  return `(${staffOrgPredicate} OR ${renderPatientPredicateForDescriptor(descriptor, { patientMode: "enforce" })})`;
+  return `(${staffOrgPredicate} OR ${renderPatientPredicateForDescriptor(descriptor, { patientMode: 'enforce' })})`;
 }
 
 export function renderPhase4DormantCompatPredicate(descriptor) {
   const strictPredicate = renderPhase4StrictPredicate(descriptor);
 
   if (
-    descriptor.dormantMode === "strict" ||
-    descriptor.scopingKind === "bootstrap_hybrid" ||
-    descriptor.scopingKind === "bootstrap_runtime_audience" ||
-    descriptor.scopingKind === "bootstrap_runtime_audit"
+    descriptor.dormantMode === 'strict' ||
+    descriptor.scopingKind === 'bootstrap_hybrid' ||
+    descriptor.scopingKind === 'bootstrap_runtime_audience' ||
+    descriptor.scopingKind === 'bootstrap_runtime_audit'
   ) {
     return strictPredicate;
   }
@@ -139,52 +158,56 @@ export function renderPhase4PolicyReplacement({ descriptor, policyName, legacyPo
     `-- ${target} (${policyName})`,
     renderEnableRowLevelSecurity(target),
     renderDropPolicy({ policyName, target }),
-    ...legacyPolicyNames.map((legacyPolicyName) => renderDropPolicy({ policyName: legacyPolicyName, target })),
-    "\\if :phase4_enforce_locked_context",
+    ...legacyPolicyNames.map((legacyPolicyName) =>
+      renderDropPolicy({ policyName: legacyPolicyName, target }),
+    ),
+    '\\if :phase4_enforce_locked_context',
     renderCreatePolicy({ policyName, target, predicate: strictPredicate }),
-    "\\else",
+    '\\else',
     renderCreatePolicy({ policyName, target, predicate: dormantCompatPredicate }),
-    "\\endif",
-  ].join("\n");
+    '\\endif',
+  ].join('\n');
 }
 
-export function renderPhase4LockedPolicyArtifact({ targets = getPhase4LockedPolicyTargets() } = {}) {
-  const body = targets.map(renderPhase4PolicyReplacement).join("\n\n");
+export function renderPhase4LockedPolicyArtifact({
+  targets = getPhase4LockedPolicyTargets(),
+} = {}) {
+  const body = targets.map(renderPhase4PolicyReplacement).join('\n\n');
 
   return `${[
-    "-- Phase 4 locked-helper RLS policy replacement.",
-    "--",
-    "-- Default mode is dormant-compatible: existing non-context legacy sessions keep working, but",
-    "-- predicates no longer trust raw app.org/app.patient_user_id/app.integrator_user_id GUCs.",
-    "--",
-    "-- Cutover mode:",
-    "--   psql <approved-cutover-connection> -v ON_ERROR_STOP=1 -v phase4_enforce_locked_context=1 \\",
-    "--     -f deploy/postgres/phase4-locked-helper-rls-policies.sql",
-    "--   psql <approved-cutover-connection> -v ON_ERROR_STOP=1 -f deploy/postgres/phase4-force-rls-cutover.sql",
-    "--",
-    "-- Dormant compatibility mode (default, no flip):",
-    "--   psql <approved-cutover-connection> -v ON_ERROR_STOP=1 \\",
-    "--     -f deploy/postgres/phase4-locked-helper-rls-policies.sql",
-    "--",
-    "-- Requires deploy/postgres/p2-b-protected-principal-context.sql first. This artifact intentionally",
-    "-- contains no environment references or database names.",
-    "",
-    "\\set ON_ERROR_STOP on",
-    "",
-    "\\if :{?phase4_enforce_locked_context}",
-    "\\else",
-    "\\set phase4_enforce_locked_context 0",
-    "\\endif",
-    "",
+    '-- Phase 4 locked-helper RLS policy replacement.',
+    '--',
+    '-- Default mode is dormant-compatible: existing non-context legacy sessions keep working, but',
+    '-- predicates no longer trust raw app.org/app.patient_user_id/app.integrator_user_id GUCs.',
+    '--',
+    '-- Cutover mode:',
+    '--   psql <approved-cutover-connection> -v ON_ERROR_STOP=1 -v phase4_enforce_locked_context=1 \\',
+    '--     -f deploy/postgres/phase4-locked-helper-rls-policies.sql',
+    '--   psql <approved-cutover-connection> -v ON_ERROR_STOP=1 -f deploy/postgres/phase4-force-rls-cutover.sql',
+    '--',
+    '-- Dormant compatibility mode (default, no flip):',
+    '--   psql <approved-cutover-connection> -v ON_ERROR_STOP=1 \\',
+    '--     -f deploy/postgres/phase4-locked-helper-rls-policies.sql',
+    '--',
+    '-- Requires deploy/postgres/p2-b-protected-principal-context.sql first. This artifact intentionally',
+    '-- contains no environment references or database names.',
+    '',
+    '\\set ON_ERROR_STOP on',
+    '',
+    '\\if :{?phase4_enforce_locked_context}',
+    '\\else',
+    '\\set phase4_enforce_locked_context 0',
+    '\\endif',
+    '',
     "SELECT 1 / (:'phase4_enforce_locked_context' IN ('0', '1'))::int AS phase4_enforce_locked_context_is_valid;",
-    "",
-    "BEGIN;",
-    "",
+    '',
+    'BEGIN;',
+    '',
     body,
-    "",
-    "COMMIT;",
-    "",
-  ].join("\n")}`;
+    '',
+    'COMMIT;',
+    '',
+  ].join('\n')}`;
 }
 
 function printSummary() {
@@ -202,16 +225,16 @@ function printSummary() {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const command = process.argv[2] ?? "--stdout";
+  const command = process.argv[2] ?? '--stdout';
   const artifact = renderPhase4LockedPolicyArtifact();
 
-  if (command === "--stdout") {
+  if (command === '--stdout') {
     process.stdout.write(artifact);
-  } else if (command === "--write") {
+  } else if (command === '--write') {
     const targetPath = path.join(repoRoot, phase4LockedPolicyArtifactPath);
     writeFileSync(targetPath, artifact);
     console.log(`wrote ${phase4LockedPolicyArtifactPath}`);
-  } else if (command === "--summary") {
+  } else if (command === '--summary') {
     printSummary();
   } else {
     throw new Error(`Unsupported command ${command}. Use --stdout, --write, or --summary.`);

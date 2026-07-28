@@ -64,14 +64,16 @@ describe('insertDeliveryAttemptLog failure visibility', () => {
       },
     } as unknown as DbPort;
 
-    await expect(insertDeliveryAttemptLog(db, {
-      intentType: 'message.send',
-      intentEventId: 'otp:email:redacted',
-      channel: 'email',
-      status: 'success',
-      attempt: 1,
-      payload: { kind: 'otp_redacted' },
-    })).rejects.toBe(insertError);
+    await expect(
+      insertDeliveryAttemptLog(db, {
+        intentType: 'message.send',
+        intentEventId: 'otp:email:redacted',
+        channel: 'email',
+        status: 'success',
+        attempt: 1,
+        payload: { kind: 'otp_redacted' },
+      }),
+    ).rejects.toBe(insertError);
 
     expect(errorMock).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -97,7 +99,8 @@ describe('insertDeliveryAttemptLog failure visibility', () => {
         attempt: 1,
         payload: { kind: 'otp_redacted' },
         occurredAt: '2026-07-28T00:00:00.000Z',
-      }));
+      }),
+    );
 
     expect(query).toHaveBeenCalledOnce();
     expect(query).toHaveBeenCalledWith(

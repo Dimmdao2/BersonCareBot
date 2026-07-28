@@ -4,5 +4,5 @@
 export {
   createInMemoryTreatmentProgramInstancePort,
   createInMemoryTreatmentProgramPersistence,
-} from "@/infra/repos/inMemoryTreatmentProgramInstance";
-export { createInMemoryTreatmentProgramItemSnapshotPort } from "@/infra/repos/inMemoryTreatmentProgramItemSnapshot";
+} from '@/infra/repos/inMemoryTreatmentProgramInstance';
+export { createInMemoryTreatmentProgramItemSnapshotPort } from '@/infra/repos/inMemoryTreatmentProgramItemSnapshot';

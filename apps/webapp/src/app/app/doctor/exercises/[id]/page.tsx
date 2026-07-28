@@ -1,10 +1,10 @@
-import { notFound } from "next/navigation";
-import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
-import { requireEntitlementForReadAction } from "@/app-layer/guards/requireEntitlement";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
-import { doctorCatalogEditorSectionClass } from "@/shared/ui/doctor/doctorVisual";
-import { ExerciseForm } from "../ExerciseForm";
+import { notFound } from 'next/navigation';
+import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
+import { requireEntitlementForReadAction } from '@/app-layer/guards/requireEntitlement';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
+import { doctorCatalogEditorSectionClass } from '@/shared/ui/doctor/doctorVisual';
+import { ExerciseForm } from '../ExerciseForm';
 
 type PageProps = { params: Promise<{ id: string }> };
 
@@ -13,20 +13,21 @@ export default async function DoctorExerciseEditPage({ params }: PageProps) {
   const session = workspace.session;
   const { id } = await params;
   const deps = buildAppDeps();
-  const includePlatformBase = (
-    await requireEntitlementForReadAction(workspace, "exercise_catalog")
-  ).ok;
+  const includePlatformBase = (await requireEntitlementForReadAction(workspace, 'exercise_catalog'))
+    .ok;
   const exercise = await deps.lfkExercises.getExercise(id, { includePlatformBase });
   if (!exercise) {
     notFound();
   }
-  const usage = exercise.ownerKind === "organization" ? await deps.lfkExercises.getExerciseUsage(exercise.id) : undefined;
+  const usage =
+    exercise.ownerKind === 'organization'
+      ? await deps.lfkExercises.getExerciseUsage(exercise.id)
+      : undefined;
 
   return (
     <DoctorAppShell
       title="Редактирование упражнения"
       user={session.user}
-     
       backHref="/app/doctor/exercises"
     >
       <section className={doctorCatalogEditorSectionClass}>

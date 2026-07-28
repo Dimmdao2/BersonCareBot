@@ -1,11 +1,15 @@
 #!/usr/bin/env node
 
-import { readFileSync } from "node:fs";
-import { readActualBaseTables } from "./actual-schema-tables.mjs";
-import { postPhase4StrictPolicyExceptions } from "./post-phase4-strict-policy-exceptions.mjs";
-import { preScopedDirectOrgTables, readBeFkPathRows, readTierRows } from "./rls-descriptor-model.mjs";
+import { readFileSync } from 'node:fs';
+import { readActualBaseTables } from './actual-schema-tables.mjs';
+import { postPhase4StrictPolicyExceptions } from './post-phase4-strict-policy-exceptions.mjs';
+import {
+  preScopedDirectOrgTables,
+  readBeFkPathRows,
+  readTierRows,
+} from './rls-descriptor-model.mjs';
 
-const root = "docs/_TODO/SAAS_FOUNDATION/scope-derivation";
+const root = 'docs/_TODO/SAAS_FOUNDATION/scope-derivation';
 
 const paths = {
   needsOrg: `${root}/needs-orgid-FINAL.txt`,
@@ -25,11 +29,13 @@ function fail(message) {
 }
 
 function readLines(path) {
-  return readFileSync(path, "utf8").trimEnd().split("\n").filter(Boolean);
+  return readFileSync(path, 'utf8').trimEnd().split('\n').filter(Boolean);
 }
 
 function setDiff(left, right) {
-  return Array.from(left).filter((value) => !right.has(value)).sort();
+  return Array.from(left)
+    .filter((value) => !right.has(value))
+    .sort();
 }
 
 function assertSameSet({ actual, expected, label }) {
@@ -37,7 +43,9 @@ function assertSameSet({ actual, expected, label }) {
   const extra = setDiff(actual, expected);
 
   if (missing.length > 0 || extra.length > 0) {
-    fail(`${label} mismatch. Missing: ${missing.join(", ") || "<none>"}. Extra: ${extra.join(", ") || "<none>"}`);
+    fail(
+      `${label} mismatch. Missing: ${missing.join(', ') || '<none>'}. Extra: ${extra.join(', ') || '<none>'}`,
+    );
   }
 }
 
@@ -54,7 +62,7 @@ function assertUnique(values, label) {
   }
 
   if (duplicates.size > 0) {
-    fail(`${label} contains duplicates: ${Array.from(duplicates).sort().join(", ")}`);
+    fail(`${label} contains duplicates: ${Array.from(duplicates).sort().join(', ')}`);
   }
 }
 
@@ -71,23 +79,33 @@ function assertGroundedInActualSchema({ tierTableSet, actualTableSet }) {
   if (inCodeNoTier.length > 0 || inTsvNoCode.length > 0) {
     fail(
       [
-        "tiers-218.tsv is not grounded in the actual schema (code + migrations).",
-        `IN CODE, NO TIER (${inCodeNoTier.length}): ${inCodeNoTier.join(", ") || "<none>"}.`,
-        `IN TSV, NO CODE (${inTsvNoCode.length}): ${inTsvNoCode.join(", ") || "<none>"}.`,
-      ].join(" "),
+        'tiers-218.tsv is not grounded in the actual schema (code + migrations).',
+        `IN CODE, NO TIER (${inCodeNoTier.length}): ${inCodeNoTier.join(', ') || '<none>'}.`,
+        `IN TSV, NO CODE (${inTsvNoCode.length}): ${inTsvNoCode.join(', ') || '<none>'}.`,
+      ].join(' '),
     );
   }
 }
 
-function assertPostPhase4StrictPolicyExceptions({ tierTableSet, actualTableSet, exceptionTableSet }) {
+function assertPostPhase4StrictPolicyExceptions({
+  tierTableSet,
+  actualTableSet,
+  exceptionTableSet,
+}) {
   const missingFromSchema = setDiff(exceptionTableSet, actualTableSet);
-  const overlappingTierRows = Array.from(exceptionTableSet).filter((table) => tierTableSet.has(table)).sort();
+  const overlappingTierRows = Array.from(exceptionTableSet)
+    .filter((table) => tierTableSet.has(table))
+    .sort();
 
   if (missingFromSchema.length > 0) {
-    fail(`Post-Phase-4 strict-policy exception is missing from actual schema: ${missingFromSchema.join(", ")}`);
+    fail(
+      `Post-Phase-4 strict-policy exception is missing from actual schema: ${missingFromSchema.join(', ')}`,
+    );
   }
   if (overlappingTierRows.length > 0) {
-    fail(`Post-Phase-4 strict-policy exceptions must not overlap historical tier rows: ${overlappingTierRows.join(", ")}`);
+    fail(
+      `Post-Phase-4 strict-policy exceptions must not overlap historical tier rows: ${overlappingTierRows.join(', ')}`,
+    );
   }
 }
 
@@ -99,12 +117,12 @@ function readBatchTables() {
   const lines = readLines(paths.batches);
   const header = lines.shift();
 
-  if (header !== "batch\ttable\torg_resolution\timplementation_note") {
+  if (header !== 'batch\ttable\torg_resolution\timplementation_note') {
     fail(`Unexpected header in ${paths.batches}: ${header}`);
   }
 
   return lines.map((line) => {
-    const fields = line.split("\t");
+    const fields = line.split('\t');
 
     if (fields.length !== 4 || !fields[1]) {
       fail(`Unexpected P0.4 batch row: ${line}`);
@@ -133,15 +151,15 @@ function buildP0101Facts() {
   for (const { tier, table } of tierRows) {
     tierCounts.set(tier, (tierCounts.get(tier) ?? 0) + 1);
 
-    if (tier === "SCOPED") {
+    if (tier === 'SCOPED') {
       scopedTables.push(table);
     }
   }
 
   const scopedTableSet = new Set(scopedTables);
-  const scopedBeTables = scopedTables.filter((table) => table.startsWith("public.be_"));
+  const scopedBeTables = scopedTables.filter((table) => table.startsWith('public.be_'));
   const scopedNeedingOrgMaterialization = scopedTables.filter(
-    (table) => !table.startsWith("public.be_") && !preScopedDirectOrgTables.has(table),
+    (table) => !table.startsWith('public.be_') && !preScopedDirectOrgTables.has(table),
   );
 
   return {
@@ -182,10 +200,10 @@ function runP0101Invariant({
   scopedBeTables,
   scopedNeedingOrgMaterialization,
 }) {
-  assertUnique(tierTables, "tiers-218.tsv");
-  assertUnique(needsOrgTables, "needs-orgid-FINAL.txt");
-  assertUnique(batchTables, "p0-4-batches.tsv");
-  assertUnique(beFkPathTables, "p0-4-be-fk-paths.tsv");
+  assertUnique(tierTables, 'tiers-218.tsv');
+  assertUnique(needsOrgTables, 'needs-orgid-FINAL.txt');
+  assertUnique(batchTables, 'p0-4-batches.tsv');
+  assertUnique(beFkPathTables, 'p0-4-be-fk-paths.tsv');
 
   assertPostPhase4StrictPolicyExceptions({
     tierTableSet,
@@ -205,10 +223,12 @@ function runP0101Invariant({
     }
   }
 
-  const unexpectedTiers = Array.from(tierCounts.keys()).filter((tier) => expectedTierCounts[tier] == null).sort();
+  const unexpectedTiers = Array.from(tierCounts.keys())
+    .filter((tier) => expectedTierCounts[tier] == null)
+    .sort();
 
   if (unexpectedTiers.length > 0) {
-    fail(`Unexpected tier(s): ${unexpectedTiers.join(", ")}`);
+    fail(`Unexpected tier(s): ${unexpectedTiers.join(', ')}`);
   }
 
   if (scopedTables.length !== 162) {
@@ -220,31 +240,35 @@ function runP0101Invariant({
   }
 
   if (scopedNeedingOrgMaterialization.length !== 115) {
-    fail(`Expected 115 SCOPED non-be tables needing organization_id materialization, got ${scopedNeedingOrgMaterialization.length}`);
+    fail(
+      `Expected 115 SCOPED non-be tables needing organization_id materialization, got ${scopedNeedingOrgMaterialization.length}`,
+    );
   }
 
   assertSameSet({
     actual: needsOrgSet,
     expected: new Set(scopedNeedingOrgMaterialization),
-    label: "needs-orgid-FINAL.txt vs SCOPED non-be tables",
+    label: 'needs-orgid-FINAL.txt vs SCOPED non-be tables',
   });
 
   assertSameSet({
     actual: batchTableSet,
     expected: needsOrgSet,
-    label: "p0-4-batches.tsv vs needs-orgid-FINAL.txt",
+    label: 'p0-4-batches.tsv vs needs-orgid-FINAL.txt',
   });
 
   const beFkPathInNeedsOrg = beFkPathTables.filter((table) => needsOrgSet.has(table));
 
   if (beFkPathInNeedsOrg.length > 0) {
-    fail(`P0.4.BE FK-path tables must stay outside needs-orgid-FINAL.txt: ${beFkPathInNeedsOrg.join(", ")}`);
+    fail(
+      `P0.4.BE FK-path tables must stay outside needs-orgid-FINAL.txt: ${beFkPathInNeedsOrg.join(', ')}`,
+    );
   }
 
   const beFkPathNotScoped = beFkPathTables.filter((table) => !scopedTableSet.has(table));
 
   if (beFkPathNotScoped.length > 0) {
-    fail(`P0.4.BE FK-path tables must stay SCOPED: ${beFkPathNotScoped.join(", ")}`);
+    fail(`P0.4.BE FK-path tables must stay SCOPED: ${beFkPathNotScoped.join(', ')}`);
   }
 
   if (beFkPathSet.size !== 2) {
@@ -308,7 +332,7 @@ function expectFailure(label, facts, mutate, pattern) {
 
 function runSelfTest() {
   expectFailure(
-    "duplicate tier row",
+    'duplicate tier row',
     groundedFacts(),
     (facts) => {
       facts.tierTables.push(facts.tierTables[0]);
@@ -317,17 +341,17 @@ function runSelfTest() {
   );
 
   expectFailure(
-    "actual-schema mismatch",
+    'actual-schema mismatch',
     groundedFacts(),
     (facts) => {
       facts.actualTableSet.delete(facts.actualTables[0]);
-      facts.actualTableSet.add("public.synthetic_missing_from_tiers");
+      facts.actualTableSet.add('public.synthetic_missing_from_tiers');
     },
     /not grounded in the actual schema.*IN CODE, NO TIER.*public\.synthetic_missing_from_tiers.*IN TSV, NO CODE/s,
   );
 
   expectFailure(
-    "needs-org mismatch",
+    'needs-org mismatch',
     groundedFacts(),
     (facts) => {
       facts.needsOrgSet.delete(facts.scopedNeedingOrgMaterialization[0]);
@@ -336,7 +360,7 @@ function runSelfTest() {
   );
 
   expectFailure(
-    "fk path in needs-org",
+    'fk path in needs-org',
     groundedFacts(),
     (facts) => {
       facts.needsOrgSet.add(facts.beFkPathTables[0]);
@@ -348,7 +372,7 @@ function runSelfTest() {
   // Prove the historical grounding still fails closed against a real tier row;
   // post-Phase-4 strict-policy exceptions stay independently validated above.
   expectFailure(
-    "real schema drift is caught (tier row removed)",
+    'real schema drift is caught (tier row removed)',
     cloneFacts(buildP0101Facts()),
     (facts) => {
       const [droppedTable] = facts.tierTables;
@@ -357,10 +381,10 @@ function runSelfTest() {
     /not grounded in the actual schema.*IN CODE, NO TIER/s,
   );
 
-  console.log("P0.10.1 tier completeness self-test OK.");
+  console.log('P0.10.1 tier completeness self-test OK.');
 }
 
-if (process.argv.includes("--self-test")) {
+if (process.argv.includes('--self-test')) {
   runSelfTest();
 } else {
   const facts = buildP0101Facts();
@@ -368,11 +392,11 @@ if (process.argv.includes("--self-test")) {
 
   console.log(
     [
-      "P0.10.1 tier completeness invariant OK:",
-      "historical tiers-218.tsv rows plus reviewed post-Phase-4 strict-policy exceptions match the actual schema;",
-      "needs-orgid-FINAL=115 SCOPED non-be tables;",
-      "P0.4 batches cover needs-org exactly;",
-      "P0.4.BE FK-path tables stay outside needs-org.",
-    ].join(" "),
+      'P0.10.1 tier completeness invariant OK:',
+      'historical tiers-218.tsv rows plus reviewed post-Phase-4 strict-policy exceptions match the actual schema;',
+      'needs-orgid-FINAL=115 SCOPED non-be tables;',
+      'P0.4 batches cover needs-org exactly;',
+      'P0.4.BE FK-path tables stay outside needs-org.',
+    ].join(' '),
   );
 }

@@ -5,5 +5,8 @@ export type PatientBroadcastView = {
 };
 
 export type PatientBroadcastsPort = {
-  getBroadcastForPatient(auditId: string, platformUserId: string): Promise<PatientBroadcastView | null>;
+  getBroadcastForPatient(
+    auditId: string,
+    platformUserId: string,
+  ): Promise<PatientBroadcastView | null>;
 };

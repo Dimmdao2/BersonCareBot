@@ -288,7 +288,13 @@
       "context": { "replyMode": true },
       "input": {
         "relayContentPresent": true,
-        "excludeActions": ["admin.dialogs.open", "admin.stats.bookings", "admin.stats.users", "admin.questions.unanswered", "questions.mark_all_answered"],
+        "excludeActions": [
+          "admin.dialogs.open",
+          "admin.stats.bookings",
+          "admin.stats.users",
+          "admin.questions.unanswered",
+          "questions.mark_all_answered"
+        ],
         "excludeTexts": ["/start"]
       },
       "actor": { "isAdmin": true }

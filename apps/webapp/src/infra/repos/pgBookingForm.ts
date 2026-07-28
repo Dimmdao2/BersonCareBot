@@ -1,7 +1,10 @@
-import { and, asc, eq } from "drizzle-orm";
-import { getDrizzle } from "@/app-layer/db/drizzle";
-import { beBookingFormFields, beBookingFormSubmissions } from "../../../db/schema/bookingScheduling";
-import type { BookingFormFieldRecord, BookingFormPort } from "@/modules/booking-form/ports";
+import { and, asc, eq } from 'drizzle-orm';
+import { getDrizzle } from '@/app-layer/db/drizzle';
+import {
+  beBookingFormFields,
+  beBookingFormSubmissions,
+} from '../../../db/schema/bookingScheduling';
+import type { BookingFormFieldRecord, BookingFormPort } from '@/modules/booking-form/ports';
 
 function mapField(row: typeof beBookingFormFields.$inferSelect): BookingFormFieldRecord {
   return {
@@ -30,7 +33,7 @@ export function createPgBookingFormPort(): BookingFormPort {
           and(
             eq(beBookingFormFields.organizationId, organizationId),
             eq(beBookingFormFields.isActive, true),
-            audience === "patient"
+            audience === 'patient'
               ? eq(beBookingFormFields.visibleToPatient, true)
               : eq(beBookingFormFields.visibleToStaff, true),
           ),
@@ -69,7 +72,12 @@ export function createPgBookingFormPort(): BookingFormPort {
               isActive: input.isActive,
               updatedAt: now,
             })
-            .where(and(eq(beBookingFormFields.id, fieldId), eq(beBookingFormFields.organizationId, organizationId)))
+            .where(
+              and(
+                eq(beBookingFormFields.id, fieldId),
+                eq(beBookingFormFields.organizationId, organizationId),
+              ),
+            )
             .returning(),
         );
         return mapField(updated[0]!);

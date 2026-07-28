@@ -1,10 +1,10 @@
-import { randomUUID } from "node:crypto";
-import type { MaterialRatingFeedbackPort } from "@/modules/material-rating-feedback/ports";
-import type { MaterialRatingFeedbackRow } from "@/modules/material-rating-feedback/ports";
+import { randomUUID } from 'node:crypto';
+import type { MaterialRatingFeedbackPort } from '@/modules/material-rating-feedback/ports';
+import type { MaterialRatingFeedbackRow } from '@/modules/material-rating-feedback/ports';
 import {
   MATERIAL_RATING_FEEDBACK_REASON_CODES,
   type MaterialRatingFeedbackReasonCode,
-} from "@/modules/material-rating-feedback/reasonCodes";
+} from '@/modules/material-rating-feedback/reasonCodes';
 
 const rows: MaterialRatingFeedbackRow[] = [];
 

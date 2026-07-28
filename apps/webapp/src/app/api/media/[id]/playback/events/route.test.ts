@@ -1,38 +1,40 @@
 /** @vitest-environment node */
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const getSessionMock = vi.fn();
 const recordPlaybackClientEventMock = vi.fn();
 const getMediaAccessRowMock = vi.fn();
 const requirePatientApiBusinessAccessMock = vi.fn();
 
-vi.mock("@/modules/auth/service", () => ({
+vi.mock('@/modules/auth/service', () => ({
   getCurrentSession: () => getSessionMock(),
 }));
 
-vi.mock("@/app-layer/media/playbackClientEvents", () => ({
+vi.mock('@/app-layer/media/playbackClientEvents', () => ({
   recordPlaybackClientEvent: (...args: unknown[]) => recordPlaybackClientEventMock(...args),
 }));
 
-vi.mock("@/app-layer/media/s3MediaStorage", () => ({
+vi.mock('@/app-layer/media/s3MediaStorage', () => ({
   getMediaAccessRow: (...args: unknown[]) => getMediaAccessRowMock(...args),
 }));
-vi.mock("@/app-layer/media/resolvePlatformLfkMediaAccess", () => ({
+vi.mock('@/app-layer/media/resolvePlatformLfkMediaAccess', () => ({
   resolvePlatformLfkMediaAccess: vi.fn(async () => false),
 }));
 
-vi.mock("@/app-layer/guards/requireRole", () => ({
+vi.mock('@/app-layer/guards/requireRole', () => ({
   requireDoctorWorkspaceApiContext: vi.fn(),
   requirePatientApiBusinessAccess: () => requirePatientApiBusinessAccessMock(),
 }));
 
-import { POST } from "./route";
+import { POST } from './route';
 
-const mid = "00000000-0000-4000-8000-000000000099";
-const patientSession = { user: { userId: "u1", role: "client" as const, displayName: "U", bindings: {} } };
+const mid = '00000000-0000-4000-8000-000000000099';
+const patientSession = {
+  user: { userId: 'u1', role: 'client' as const, displayName: 'U', bindings: {} },
+};
 
-describe("POST /api/media/[id]/playback/events", () => {
+describe('POST /api/media/[id]/playback/events', () => {
   beforeEach(() => {
     getSessionMock.mockReset();
     recordPlaybackClientEventMock.mockReset();
@@ -42,30 +44,30 @@ describe("POST /api/media/[id]/playback/events", () => {
     requirePatientApiBusinessAccessMock.mockResolvedValue({ ok: true, session: patientSession });
     recordPlaybackClientEventMock.mockResolvedValue(undefined);
     getMediaAccessRowMock.mockResolvedValue({
-      usage_purpose: "lfk_exercise",
-      uploaded_by: "u1",
-      mime_type: "video/mp4",
+      usage_purpose: 'lfk_exercise',
+      uploaded_by: 'u1',
+      mime_type: 'video/mp4',
     });
   });
 
-  it("returns 401 for anonymous", async () => {
+  it('returns 401 for anonymous', async () => {
     getSessionMock.mockResolvedValue(null);
     const res = await POST(
       new Request(`http://localhost/api/media/${mid}/playback/events`, {
-        method: "POST",
-        body: JSON.stringify({ eventClass: "hls_fatal" }),
+        method: 'POST',
+        body: JSON.stringify({ eventClass: 'hls_fatal' }),
       }),
       { params: Promise.resolve({ id: mid }) },
     );
     expect(res.status).toBe(401);
   });
 
-  it("returns 400 for unknown event class", async () => {
+  it('returns 400 for unknown event class', async () => {
     const res = await POST(
       new Request(`http://localhost/api/media/${mid}/playback/events`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ eventClass: "unknown" }),
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventClass: 'unknown' }),
       }),
       { params: Promise.resolve({ id: mid }) },
     );
@@ -73,15 +75,15 @@ describe("POST /api/media/[id]/playback/events", () => {
     expect(recordPlaybackClientEventMock).not.toHaveBeenCalled();
   });
 
-  it("writes client playback event", async () => {
+  it('writes client playback event', async () => {
     const res = await POST(
       new Request(`http://localhost/api/media/${mid}/playback/events`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "User-Agent": "Vitest UA" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'User-Agent': 'Vitest UA' },
         body: JSON.stringify({
-          eventClass: "hls_fatal",
-          delivery: "hls",
-          errorDetail: "network_error",
+          eventClass: 'hls_fatal',
+          delivery: 'hls',
+          errorDetail: 'network_error',
         }),
       }),
       { params: Promise.resolve({ id: mid }) },
@@ -90,25 +92,25 @@ describe("POST /api/media/[id]/playback/events", () => {
     expect(recordPlaybackClientEventMock).toHaveBeenCalledWith(
       expect.objectContaining({
         mediaId: mid,
-        userId: "u1",
-        eventClass: "hls_fatal",
-        delivery: "hls",
-        errorDetail: "network_error",
+        userId: 'u1',
+        eventClass: 'hls_fatal',
+        delivery: 'hls',
+        errorDetail: 'network_error',
       }),
     );
   });
 
-  it("skips telemetry for program_item_submission media", async () => {
+  it('skips telemetry for program_item_submission media', async () => {
     getMediaAccessRowMock.mockResolvedValue({
-      usage_purpose: "program_item_submission",
-      uploaded_by: "u1",
-      mime_type: "video/mp4",
+      usage_purpose: 'program_item_submission',
+      uploaded_by: 'u1',
+      mime_type: 'video/mp4',
     });
     const res = await POST(
       new Request(`http://localhost/api/media/${mid}/playback/events`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ eventClass: "video_error", delivery: "mp4" }),
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventClass: 'video_error', delivery: 'mp4' }),
       }),
       { params: Promise.resolve({ id: mid }) },
     );

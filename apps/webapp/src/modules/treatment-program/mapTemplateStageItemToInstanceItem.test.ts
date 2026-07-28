@@ -1,25 +1,25 @@
-import { describe, expect, it } from "vitest";
-import { mapTemplateStageItemToInstanceStageItemId } from "./mapTemplateStageItemToInstanceItem";
-import type { TreatmentProgramInstanceDetail, TreatmentProgramTemplateDetail } from "./types";
+import { describe, expect, it } from 'vitest';
+import { mapTemplateStageItemToInstanceStageItemId } from './mapTemplateStageItemToInstanceItem';
+import type { TreatmentProgramInstanceDetail, TreatmentProgramTemplateDetail } from './types';
 
-describe("mapTemplateStageItemToInstanceStageItemId", () => {
-  it("maps by stage + group + item fields", () => {
+describe('mapTemplateStageItemToInstanceStageItemId', () => {
+  it('maps by stage + group + item fields', () => {
     const template = {
-      id: "tpl",
-      title: "T",
+      id: 'tpl',
+      title: 'T',
       description: null,
-      status: "published" as const,
+      status: 'published' as const,
       stageCount: 1,
       itemCount: 1,
       listPreviewMedia: null,
       createdBy: null,
-      createdAt: "",
-      updatedAt: "",
+      createdAt: '',
+      updatedAt: '',
       stages: [
         {
-          id: "st1",
-          templateId: "tpl",
-          title: "S1",
+          id: 'st1',
+          templateId: 'tpl',
+          title: 'S1',
           description: null,
           sortOrder: 1,
           goals: null,
@@ -28,9 +28,9 @@ describe("mapTemplateStageItemToInstanceStageItemId", () => {
           expectedDurationText: null,
           groups: [
             {
-              id: "tg1",
-              stageId: "st1",
-              title: "G",
+              id: 'tg1',
+              stageId: 'st1',
+              title: 'G',
               description: null,
               scheduleText: null,
               sortOrder: 0,
@@ -39,14 +39,14 @@ describe("mapTemplateStageItemToInstanceStageItemId", () => {
           ],
           items: [
             {
-              id: "ti1",
-              stageId: "st1",
-              itemType: "exercise" as const,
-              itemRefId: "ex1",
+              id: 'ti1',
+              stageId: 'st1',
+              itemType: 'exercise' as const,
+              itemRefId: 'ex1',
               sortOrder: 0,
               comment: null,
               settings: null,
-              groupId: "tg1",
+              groupId: 'tg1',
             },
           ],
         },
@@ -54,27 +54,27 @@ describe("mapTemplateStageItemToInstanceStageItemId", () => {
     } satisfies TreatmentProgramTemplateDetail;
 
     const instance = {
-      id: "inst",
-      patientUserId: "p1",
-      templateId: "tpl",
+      id: 'inst',
+      patientUserId: 'p1',
+      templateId: 'tpl',
       assignedBy: null,
-      assignmentSource: "promo" as const,
-      title: "I",
-      status: "active" as const,
-      createdAt: "",
-      updatedAt: "",
+      assignmentSource: 'promo' as const,
+      title: 'I',
+      status: 'active' as const,
+      createdAt: '',
+      updatedAt: '',
       patientPlanLastOpenedAt: null,
       stages: [
         {
-          id: "is1",
-          instanceId: "inst",
-          sourceStageId: "st1",
-          title: "S1",
+          id: 'is1',
+          instanceId: 'inst',
+          sourceStageId: 'st1',
+          title: 'S1',
           description: null,
           sortOrder: 1,
           localComment: null,
           skipReason: null,
-          status: "available" as const,
+          status: 'available' as const,
           startedAt: null,
           goals: null,
           objectives: null,
@@ -82,10 +82,10 @@ describe("mapTemplateStageItemToInstanceStageItemId", () => {
           expectedDurationText: null,
           groups: [
             {
-              id: "ig1",
-              stageId: "is1",
-              sourceGroupId: "tg1",
-              title: "G",
+              id: 'ig1',
+              stageId: 'is1',
+              sourceGroupId: 'tg1',
+              title: 'G',
               description: null,
               scheduleText: null,
               sortOrder: 0,
@@ -94,10 +94,10 @@ describe("mapTemplateStageItemToInstanceStageItemId", () => {
           ],
           items: [
             {
-              id: "ii1",
-              stageId: "is1",
-              itemType: "exercise" as const,
-              itemRefId: "ex1",
+              id: 'ii1',
+              stageId: 'is1',
+              itemType: 'exercise' as const,
+              itemRefId: 'ex1',
               sortOrder: 0,
               comment: null,
               localComment: null,
@@ -105,9 +105,9 @@ describe("mapTemplateStageItemToInstanceStageItemId", () => {
               snapshot: {},
               completedAt: null,
               isActionable: true,
-              status: "active" as const,
-              groupId: "ig1",
-              createdAt: "",
+              status: 'active' as const,
+              groupId: 'ig1',
+              createdAt: '',
               lastViewedAt: null,
               effectiveComment: null,
             },
@@ -116,38 +116,38 @@ describe("mapTemplateStageItemToInstanceStageItemId", () => {
       ],
     } satisfies TreatmentProgramInstanceDetail;
 
-    expect(mapTemplateStageItemToInstanceStageItemId(template, instance, "ti1")).toBe("ii1");
+    expect(mapTemplateStageItemToInstanceStageItemId(template, instance, 'ti1')).toBe('ii1');
   });
 
-  it("returns null for unknown template item id", () => {
+  it('returns null for unknown template item id', () => {
     const template = {
-      id: "tpl",
-      title: "T",
+      id: 'tpl',
+      title: 'T',
       description: null,
-      status: "published" as const,
+      status: 'published' as const,
       stageCount: 0,
       itemCount: 0,
       listPreviewMedia: null,
       createdBy: null,
-      createdAt: "",
-      updatedAt: "",
+      createdAt: '',
+      updatedAt: '',
       stages: [],
     } satisfies TreatmentProgramTemplateDetail;
 
     const instance = {
-      id: "inst",
-      patientUserId: "p1",
-      templateId: "tpl",
+      id: 'inst',
+      patientUserId: 'p1',
+      templateId: 'tpl',
       assignedBy: null,
-      assignmentSource: "promo" as const,
-      title: "I",
-      status: "active" as const,
-      createdAt: "",
-      updatedAt: "",
+      assignmentSource: 'promo' as const,
+      title: 'I',
+      status: 'active' as const,
+      createdAt: '',
+      updatedAt: '',
       patientPlanLastOpenedAt: null,
       stages: [],
     } satisfies TreatmentProgramInstanceDetail;
 
-    expect(mapTemplateStageItemToInstanceStageItemId(template, instance, "nope")).toBeNull();
+    expect(mapTemplateStageItemToInstanceStageItemId(template, instance, 'nope')).toBeNull();
   });
 });

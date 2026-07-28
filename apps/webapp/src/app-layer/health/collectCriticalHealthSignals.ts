@@ -1,15 +1,15 @@
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getCurrentCorrelationIdHeader } from "@bersoncare/db-principal";
-import { loadAdminTranscodeHealthMetricsSafe } from "@/app-layer/media/adminTranscodeHealthMetrics";
-import { env } from "@/config/env";
-import { proxyIntegratorProjectionHealth } from "@/app-layer/health/proxyIntegratorProjectionHealth";
-import { classifyVideoTranscodeSystemHealthStatus } from "@/modules/operator-health/adminHealthThresholds";
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { getCurrentCorrelationIdHeader } from '@bersoncare/db-principal';
+import { loadAdminTranscodeHealthMetricsSafe } from '@/app-layer/media/adminTranscodeHealthMetrics';
+import { env } from '@/config/env';
+import { proxyIntegratorProjectionHealth } from '@/app-layer/health/proxyIntegratorProjectionHealth';
+import { classifyVideoTranscodeSystemHealthStatus } from '@/modules/operator-health/adminHealthThresholds';
 import {
   OPERATOR_HEALTH_JOB_FAMILY,
   OPERATOR_MEDIA_JOB_FAMILY,
   OPERATOR_MEDIA_TRANSCODE_RECONCILE_JOB_KEY,
   OPERATOR_OUTBOUND_PROBE_JOB_KEY,
-} from "@/modules/operator-health/reconcileJobKeys";
+} from '@/modules/operator-health/reconcileJobKeys';
 import type {
   CriticalHealthProjectionInput,
   CriticalHealthSignalsInput,
@@ -18,24 +18,27 @@ import type {
   OperatorHealthBannerInput,
   ProjectionProbeStatus,
   VideoTranscodeHealthStatus,
-} from "@/modules/operator-health/criticalHealthSignals";
+} from '@/modules/operator-health/criticalHealthSignals';
 import {
   countRecentOutboundProviderFailureIncidents,
   isOperatorProbeFailureIncident,
-} from "@/modules/operator-health/criticalHealthSignals";
-import { readProbeConsecutiveFailRuns } from "@/modules/operator-health/probeOutboundMeta";
-import { WEBHOOK_BURST_MIN_COUNT, WEBHOOK_BURST_WINDOW_MINUTES } from "@/modules/operator-health/webhookBurst";
-import { getConfigBool } from "@/modules/system-settings/configAdapter";
-import { getCurrentWebappPoolRoutingMetrics } from "@/infra/db/client";
+} from '@/modules/operator-health/criticalHealthSignals';
+import { readProbeConsecutiveFailRuns } from '@/modules/operator-health/probeOutboundMeta';
+import {
+  WEBHOOK_BURST_MIN_COUNT,
+  WEBHOOK_BURST_WINDOW_MINUTES,
+} from '@/modules/operator-health/webhookBurst';
+import { getConfigBool } from '@/modules/system-settings/configAdapter';
+import { getCurrentWebappPoolRoutingMetrics } from '@/infra/db/client';
 import {
   observeTenantIsolationCanary,
   observeTenantIsolationDiagnostics,
   observeTenantIsolationRuntimeCounters,
-} from "@/modules/operator-health/tenantIsolationCriticalHealth";
+} from '@/modules/operator-health/tenantIsolationCriticalHealth';
 import {
   readEmptyAudienceSignal,
   readOperatorHeartbeatVerdicts,
-} from "@/app-layer/health/deliveryHeartbeatObserver";
+} from '@/app-layer/health/deliveryHeartbeatObserver';
 
 const INTEGRATOR_TIMEOUT_MS = 8_000;
 
@@ -45,41 +48,41 @@ type ProjectionSnapshot = {
 };
 
 function asObject(value: unknown): Record<string, unknown> | null {
-  return value !== null && typeof value === "object" ? (value as Record<string, unknown>) : null;
+  return value !== null && typeof value === 'object' ? (value as Record<string, unknown>) : null;
 }
 
 function toProjectionProbeStatus(snapshot: ProjectionSnapshot): ProjectionProbeStatus {
-  const deadCount = typeof snapshot.deadCount === "number" ? snapshot.deadCount : 0;
+  const deadCount = typeof snapshot.deadCount === 'number' ? snapshot.deadCount : 0;
   const retriesOverThreshold =
-    typeof snapshot.retriesOverThreshold === "number" ? snapshot.retriesOverThreshold : 0;
-  if (deadCount > 0 || retriesOverThreshold > 0) return "degraded";
-  return "ok";
+    typeof snapshot.retriesOverThreshold === 'number' ? snapshot.retriesOverThreshold : 0;
+  if (deadCount > 0 || retriesOverThreshold > 0) return 'degraded';
+  return 'ok';
 }
 
 async function probeWebappDb(): Promise<DbStatus> {
   try {
     const dbOk = await buildAppDeps().health.checkDbHealth();
-    return dbOk ? "up" : "down";
+    return dbOk ? 'up' : 'down';
   } catch {
-    return "down";
+    return 'down';
   }
 }
 
 async function probeIntegratorApi(): Promise<IntegratorApiStatus> {
-  const base = (env.INTEGRATOR_API_URL ?? "").replace(/\/$/, "");
-  if (!base) return "error";
+  const base = (env.INTEGRATOR_API_URL ?? '').replace(/\/$/, '');
+  if (!base) return 'error';
   try {
     const res = await fetch(`${base}/health`, {
-      method: "GET",
-      headers: { Accept: "application/json", ...getCurrentCorrelationIdHeader() },
-      cache: "no-store",
+      method: 'GET',
+      headers: { Accept: 'application/json', ...getCurrentCorrelationIdHeader() },
+      cache: 'no-store',
       signal: AbortSignal.timeout(INTEGRATOR_TIMEOUT_MS),
     });
     const body = asObject(await res.json().catch(() => null));
-    if (res.ok && body?.ok === true) return "ok";
-    return "error";
+    if (res.ok && body?.ok === true) return 'ok';
+    return 'error';
   } catch {
-    return "unreachable";
+    return 'unreachable';
   }
 }
 
@@ -88,39 +91,42 @@ async function probeProjection(): Promise<CriticalHealthProjectionInput> {
     const response = await proxyIntegratorProjectionHealth();
     const payload = asObject(await response.json().catch(() => null));
     if (!response.ok || payload == null) {
-      const code = typeof payload?.error === "string" ? payload.error : "projection_probe_failed";
+      const code = typeof payload?.error === 'string' ? payload.error : 'projection_probe_failed';
       return {
-        probeStatus: code.includes("unreachable") ? "unreachable" : "error",
+        probeStatus: code.includes('unreachable') ? 'unreachable' : 'error',
         deadCount: 0,
         retriesOverThreshold: 0,
       };
     }
     const snapshot = payload as ProjectionSnapshot;
-    const deadCount = typeof snapshot.deadCount === "number" ? snapshot.deadCount : 0;
+    const deadCount = typeof snapshot.deadCount === 'number' ? snapshot.deadCount : 0;
     const retriesOverThreshold =
-      typeof snapshot.retriesOverThreshold === "number" ? snapshot.retriesOverThreshold : 0;
+      typeof snapshot.retriesOverThreshold === 'number' ? snapshot.retriesOverThreshold : 0;
     return {
       probeStatus: toProjectionProbeStatus(snapshot),
       deadCount,
       retriesOverThreshold,
     };
   } catch {
-    return { probeStatus: "error", deadCount: 0, retriesOverThreshold: 0 };
+    return { probeStatus: 'error', deadCount: 0, retriesOverThreshold: 0 };
   }
 }
 
 async function probeVideoTranscodeStatus(): Promise<VideoTranscodeHealthStatus> {
   try {
     const [pipelineEnabled, reconcileEnabled] = await Promise.all([
-      getConfigBool("video_hls_pipeline_enabled", false),
-      getConfigBool("video_hls_reconcile_enabled", false),
+      getConfigBool('video_hls_pipeline_enabled', false),
+      getConfigBool('video_hls_reconcile_enabled', false),
     ]);
     const read = buildAppDeps().operatorHealthRead;
     const [metrics, tickRow] = await Promise.all([
       loadAdminTranscodeHealthMetricsSafe(),
-      read.getOperatorJobStatus(OPERATOR_MEDIA_JOB_FAMILY, OPERATOR_MEDIA_TRANSCODE_RECONCILE_JOB_KEY),
+      read.getOperatorJobStatus(
+        OPERATOR_MEDIA_JOB_FAMILY,
+        OPERATOR_MEDIA_TRANSCODE_RECONCILE_JOB_KEY,
+      ),
     ]);
-    if (!metrics) return pipelineEnabled ? "error" : "ok";
+    if (!metrics) return pipelineEnabled ? 'error' : 'ok';
     return classifyVideoTranscodeSystemHealthStatus({
       pipelineEnabled,
       reconcileEnabled,
@@ -131,12 +137,12 @@ async function probeVideoTranscodeStatus(): Promise<VideoTranscodeHealthStatus> 
       reconcileLastStatus: tickRow?.lastStatus ?? null,
     });
   } catch {
-    return "error";
+    return 'error';
   }
 }
 
 async function loadBackupJobsMap(
-  read: ReturnType<typeof buildAppDeps>["operatorHealthRead"],
+  read: ReturnType<typeof buildAppDeps>['operatorHealthRead'],
 ): Promise<Record<string, { lastStatus: string }>> {
   const rows = await read.listBackupJobStatus();
   const backupJobs: Record<string, { lastStatus: string }> = {};
@@ -148,7 +154,7 @@ async function loadBackupJobsMap(
 
 /** Shared lightweight probes (without media/playback/engagement or isolation state). */
 async function collectCriticalHealthSignalsBase(
-  read: ReturnType<typeof buildAppDeps>["operatorHealthRead"],
+  read: ReturnType<typeof buildAppDeps>['operatorHealthRead'],
 ): Promise<CriticalHealthSignalsInput> {
   const [
     webappDb,
@@ -180,7 +186,7 @@ async function collectCriticalHealthSignalsBase(
     readEmptyAudienceSignal().catch(() => undefined),
   ]);
   const outboundProviderIncidents = operatorIncidents.filter(
-    (incident) => incident.direction === "outbound_delivery_provider",
+    (incident) => incident.direction === 'outbound_delivery_provider',
   );
 
   return {
@@ -227,7 +233,10 @@ export async function collectCriticalHealthSignals(): Promise<CriticalHealthSign
   return {
     ...base,
     tenantIsolation: {
-      runtime: observeTenantIsolationRuntimeCounters(getCurrentWebappPoolRoutingMetrics(), observedAt),
+      runtime: observeTenantIsolationRuntimeCounters(
+        getCurrentWebappPoolRoutingMetrics(),
+        observedAt,
+      ),
       diagnostics: observeTenantIsolationDiagnostics(isolationDiagnostics, observedAt),
       wentDark: observeTenantIsolationCanary(isolationCanary, observedAt),
     },

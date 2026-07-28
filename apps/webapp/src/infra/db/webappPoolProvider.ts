@@ -1,5 +1,5 @@
-import { Pool } from "pg";
-import type { PoolClient, PoolConfig } from "pg";
+import { Pool } from 'pg';
+import type { PoolClient, PoolConfig } from 'pg';
 import {
   applyDbPrincipalToConnection,
   assertDbPrincipalRequestPoolCheckoutAllowedForPrincipal,
@@ -9,13 +9,13 @@ import {
   getCurrentDbPrincipal,
   resetDbOperationalRuntimeRole,
   setDbOperationalRuntimeRole,
-} from "@bersoncare/db-principal";
-import { reportSaasIsolationEventBestEffort } from "@/infra/saasIsolationReporterRuntime";
-import { classifyPostgresIsolationDenial } from "@/infra/db/saasIsolationDbFailureReporting";
-import { getCurrentWebappDbOperationFamily } from "@/infra/db/saasIsolationOperationContext";
+} from '@bersoncare/db-principal';
+import { reportSaasIsolationEventBestEffort } from '@/infra/saasIsolationReporterRuntime';
+import { classifyPostgresIsolationDenial } from '@/infra/db/saasIsolationDbFailureReporting';
+import { getCurrentWebappDbOperationFamily } from '@/infra/db/saasIsolationOperationContext';
 
 function currentWebappDbSourceOperation() {
-  return getCurrentWebappDbOperationFamily() ?? "webapp_db_request";
+  return getCurrentWebappDbOperationFamily() ?? 'webapp_db_request';
 }
 
 type WebappPoolProviderConfig = {
@@ -26,9 +26,9 @@ type WebappPoolProviderConfig = {
   poolFactory?: (config: PoolConfig) => Pool;
 };
 
-type WebappRuntimePoolKind = "staff" | "nonstaff" | "web-push-reminder";
+type WebappRuntimePoolKind = 'staff' | 'nonstaff' | 'web-push-reminder';
 
-export const WEB_PUSH_REMINDER_INFRA_SOURCE = "api/internal/reminders/web-push-only/tick:POST";
+export const WEB_PUSH_REMINDER_INFRA_SOURCE = 'api/internal/reminders/web-push-only/tick:POST';
 
 export type WebappPoolRoutingMetrics = {
   staffSelections: number;
@@ -45,13 +45,17 @@ function prepareWebappPoolClient(_client: PoolClient): void {
   // Dormant SAAS hook: future per-process DB principal setup belongs here.
 }
 
-function createWebappPool(connectionString: string, max: number, poolFactory: (config: PoolConfig) => Pool): Pool {
+function createWebappPool(
+  connectionString: string,
+  max: number,
+  poolFactory: (config: PoolConfig) => Pool,
+): Pool {
   const pool = poolFactory({
     connectionString,
     max,
   });
   const metrics = createEmptyRoutingMetrics();
-  pool.on("connect", prepareWebappPoolClient);
+  pool.on('connect', prepareWebappPoolClient);
   installPrincipalAwarePoolQuery(pool, metrics);
   poolRoutingMetrics.set(pool, metrics);
   return pool;
@@ -59,30 +63,37 @@ function createWebappPool(connectionString: string, max: number, poolFactory: (c
 
 function isWebPushReminderInfraPrincipal(): boolean {
   const principal = getCurrentDbPrincipal();
-  return principal?.kind === "infra" && principal.source === WEB_PUSH_REMINDER_INFRA_SOURCE;
+  return principal?.kind === 'infra' && principal.source === WEB_PUSH_REMINDER_INFRA_SOURCE;
 }
 
-function createWebPushReminderPool(connectionString: string, poolFactory: (config: PoolConfig) => Pool): Pool {
+function createWebPushReminderPool(
+  connectionString: string,
+  poolFactory: (config: PoolConfig) => Pool,
+): Pool {
   const rawPool = poolFactory({ connectionString, max: 2 });
   const connect = async (): Promise<PoolClient> => {
     if (!isWebPushReminderInfraPrincipal()) {
-      throw new Error("Web Push reminder operational DB pool requires the exact infra principal source");
+      throw new Error(
+        'Web Push reminder operational DB pool requires the exact infra principal source',
+      );
     }
     const principal = getCurrentDbPrincipal();
     const client = await rawPool.connect();
     try {
-      await setDbOperationalRuntimeRole(client, "app_operational_web_push_reminder");
+      await setDbOperationalRuntimeRole(client, 'app_operational_web_push_reminder');
       await client.query("SELECT set_config('app.org', $1, false)", [
-        principal?.kind === "infra" ? (principal.organizationId ?? "") : "",
+        principal?.kind === 'infra' ? (principal.organizationId ?? '') : '',
       ]);
     } catch (error) {
-      client.release(error instanceof Error ? error : new Error("Web Push reminder DB setup failed"));
+      client.release(
+        error instanceof Error ? error : new Error('Web Push reminder DB setup failed'),
+      );
       throw error;
     }
     let released = false;
     return new Proxy(client, {
       get(target, prop, receiver): unknown {
-        if (prop === "release") {
+        if (prop === 'release') {
           return async (error?: Error): Promise<void> => {
             if (released) return;
             released = true;
@@ -91,7 +102,8 @@ function createWebPushReminderPool(connectionString: string, poolFactory: (confi
               await target.query("SELECT set_config('app.org', '', false)");
               await resetDbOperationalRuntimeRole(target);
             } catch (err) {
-              cleanupError = err instanceof Error ? err : new Error("Web Push reminder DB cleanup failed");
+              cleanupError =
+                err instanceof Error ? err : new Error('Web Push reminder DB cleanup failed');
             } finally {
               target.release(cleanupError);
             }
@@ -99,16 +111,18 @@ function createWebPushReminderPool(connectionString: string, poolFactory: (confi
           };
         }
         const value = Reflect.get(target, prop, receiver);
-        return typeof value === "function" ? value.bind(target) : value;
+        return typeof value === 'function' ? value.bind(target) : value;
       },
     }) as PoolClient;
   };
-  const query = async (...args: Parameters<Pool["query"]>): Promise<Awaited<ReturnType<Pool["query"]>>> => {
+  const query = async (
+    ...args: Parameters<Pool['query']>
+  ): Promise<Awaited<ReturnType<Pool['query']>>> => {
     const client = await connect();
     try {
       const bound = client.query.bind(client) as unknown as (
-        ...inner: Parameters<Pool["query"]>
-      ) => ReturnType<Pool["query"]>;
+        ...inner: Parameters<Pool['query']>
+      ) => ReturnType<Pool['query']>;
       return await bound(...args);
     } finally {
       await client.release();
@@ -116,10 +130,10 @@ function createWebPushReminderPool(connectionString: string, poolFactory: (confi
   };
   return new Proxy(rawPool, {
     get(target, prop, receiver): unknown {
-      if (prop === "connect") return connect;
-      if (prop === "query") return query;
+      if (prop === 'connect') return connect;
+      if (prop === 'query') return query;
       const value = Reflect.get(target, prop, receiver);
-      return typeof value === "function" ? value.bind(target) : value;
+      return typeof value === 'function' ? value.bind(target) : value;
     },
   }) as Pool;
 }
@@ -130,22 +144,27 @@ function releasePoolClient(client: PoolClient, cleanupError?: unknown): void {
     return;
   }
 
-  client.release(cleanupError instanceof Error ? cleanupError : new Error("DB principal cleanup failed"));
+  client.release(
+    cleanupError instanceof Error ? cleanupError : new Error('DB principal cleanup failed'),
+  );
 }
 
 function installPrincipalAwarePoolQuery(pool: Pool, metrics: WebappPoolRoutingMetrics): void {
   const queryWithPrincipal = async (
     principalSnapshot: DbPrincipal | undefined,
-    ...args: Parameters<Pool["query"]>
-  ): Promise<Awaited<ReturnType<Pool["query"]>>> => {
+    ...args: Parameters<Pool['query']>
+  ): Promise<Awaited<ReturnType<Pool['query']>>> => {
     const principalApplyOptions = buildDbPrincipalApplyOptionsFromEnv(process.env);
     if (!principalSnapshot) metrics.missingPrincipalSelections += 1;
     try {
-      assertDbPrincipalRequestPoolCheckoutAllowedForPrincipal(principalSnapshot, principalApplyOptions);
+      assertDbPrincipalRequestPoolCheckoutAllowedForPrincipal(
+        principalSnapshot,
+        principalApplyOptions,
+      );
     } catch (error) {
       void reportSaasIsolationEventBestEffort({
-        eventClass: "missing_principal",
-        sourceService: "webapp",
+        eventClass: 'missing_principal',
+        sourceService: 'webapp',
         sourceOperation: currentWebappDbSourceOperation(),
       });
       throw error;
@@ -156,15 +175,15 @@ function installPrincipalAwarePoolQuery(pool: Pool, metrics: WebappPoolRoutingMe
         await applyDbPrincipalToConnection(client, principalSnapshot, principalApplyOptions);
       } catch (error) {
         await reportSaasIsolationEventBestEffort({
-          eventClass: "invalid_signature_or_install",
-          sourceService: "webapp",
+          eventClass: 'invalid_signature_or_install',
+          sourceService: 'webapp',
           sourceOperation: currentWebappDbSourceOperation(),
         });
         throw error;
       }
       const query = client.query.bind(client) as unknown as (
-        ...innerArgs: Parameters<Pool["query"]>
-      ) => ReturnType<Pool["query"]>;
+        ...innerArgs: Parameters<Pool['query']>
+      ) => ReturnType<Pool['query']>;
       try {
         return await query(...args);
       } catch (error) {
@@ -172,7 +191,7 @@ function installPrincipalAwarePoolQuery(pool: Pool, metrics: WebappPoolRoutingMe
         if (eventClass) {
           await reportSaasIsolationEventBestEffort({
             eventClass,
-            sourceService: "webapp",
+            sourceService: 'webapp',
             sourceOperation: currentWebappDbSourceOperation(),
           });
         }
@@ -185,8 +204,8 @@ function installPrincipalAwarePoolQuery(pool: Pool, metrics: WebappPoolRoutingMe
       } catch (err) {
         cleanupError = err;
         await reportSaasIsolationEventBestEffort({
-          eventClass: "cleanup_failure",
-          sourceService: "webapp",
+          eventClass: 'cleanup_failure',
+          sourceService: 'webapp',
           sourceOperation: currentWebappDbSourceOperation(),
         });
         throw err;
@@ -196,13 +215,13 @@ function installPrincipalAwarePoolQuery(pool: Pool, metrics: WebappPoolRoutingMe
     }
   };
 
-  pool.query = ((...args: Parameters<Pool["query"]>) => {
-    if (typeof args.at(-1) === "function") {
-      throw new Error("Callback-form pool.query is forbidden; use the promise-form DB chokepoint");
+  pool.query = ((...args: Parameters<Pool['query']>) => {
+    if (typeof args.at(-1) === 'function') {
+      throw new Error('Callback-form pool.query is forbidden; use the promise-form DB chokepoint');
     }
     // One snapshot must drive both credential routing and role/context install across async checkout.
     return queryWithPrincipal(getCurrentDbPrincipal(), ...args);
-  }) as unknown as Pool["query"];
+  }) as unknown as Pool['query'];
 }
 
 function choosePoolKindForPrincipal(
@@ -212,14 +231,14 @@ function choosePoolKindForPrincipal(
   // This is the routing decision, not an independent record of the pool checkout.
   // Actual role/pool failures are reported only from the PostgreSQL 42501 classifier.
   const poolKind: WebappRuntimePoolKind =
-    principal?.kind === "organization" ||
-    principal?.kind === "staff" ||
-    principal?.kind === "clinicBilling" ||
-    principal?.kind === "platform"
-      ? "staff"
-      : "nonstaff";
+    principal?.kind === 'organization' ||
+    principal?.kind === 'staff' ||
+    principal?.kind === 'clinicBilling' ||
+    principal?.kind === 'platform'
+      ? 'staff'
+      : 'nonstaff';
 
-  if (poolKind === "staff") {
+  if (poolKind === 'staff') {
     metrics.staffSelections += 1;
   } else {
     metrics.nonstaffSelections += 1;
@@ -227,9 +246,9 @@ function choosePoolKindForPrincipal(
 
   if (!principal) {
     metrics.missingPrincipalSelections += 1;
-  } else if (principal.kind === "bootstrap") {
+  } else if (principal.kind === 'bootstrap') {
     metrics.bootstrapSelections += 1;
-  } else if (principal.kind === "infra") {
+  } else if (principal.kind === 'infra') {
     metrics.infraSelections += 1;
   }
 
@@ -247,11 +266,11 @@ function assertRoutedWebappPoolCheckoutAllowed(
     if (!principal) {
       metrics.missingPrincipalSelections += 1;
       void reportSaasIsolationEventBestEffort({
-        eventClass: "missing_principal",
-        sourceService: "webapp",
+        eventClass: 'missing_principal',
+        sourceService: 'webapp',
         sourceOperation: currentWebappDbSourceOperation(),
       });
-    } else if (principal.kind === "infra") {
+    } else if (principal.kind === 'infra') {
       metrics.infraSelections += 1;
     }
     throw error;
@@ -266,53 +285,63 @@ function createRoutedWebappPool(input: {
 }): Pool {
   let routedPool: Pool;
   const selectPool = (principal: DbPrincipal | undefined): Pool => {
-    if (principal?.kind === "infra" && principal.source === WEB_PUSH_REMINDER_INFRA_SOURCE) {
+    if (principal?.kind === 'infra' && principal.source === WEB_PUSH_REMINDER_INFRA_SOURCE) {
       if (!input.webPushReminderPool) {
-        throw new Error("DATABASE_URL_WEB_PUSH_REMINDER is required for the Web Push reminder infra principal");
+        throw new Error(
+          'DATABASE_URL_WEB_PUSH_REMINDER is required for the Web Push reminder infra principal',
+        );
       }
       input.metrics.webPushReminderSelections += 1;
       return input.webPushReminderPool;
     }
     assertRoutedWebappPoolCheckoutAllowed(principal, input.metrics);
-    return choosePoolKindForPrincipal(principal, input.metrics) === "staff" ? input.staffPool : input.nonstaffPool;
+    return choosePoolKindForPrincipal(principal, input.metrics) === 'staff'
+      ? input.staffPool
+      : input.nonstaffPool;
   };
 
   const routedConnect = (): Promise<PoolClient> => selectPool(getCurrentDbPrincipal()).connect();
-  const routedQuery = async (...args: Parameters<Pool["query"]>): Promise<Awaited<ReturnType<Pool["query"]>>> => {
+  const routedQuery = async (
+    ...args: Parameters<Pool['query']>
+  ): Promise<Awaited<ReturnType<Pool['query']>>> => {
     // Do not re-read the mutable request cell between pool selection and the raw pool chokepoint.
     const principalSnapshot = getCurrentDbPrincipal();
     return selectPool(principalSnapshot).query(...args);
   };
   const routedEnd = async (): Promise<void> => {
-    await Promise.all([input.staffPool.end(), input.nonstaffPool.end(), input.webPushReminderPool?.end()]);
+    await Promise.all([
+      input.staffPool.end(),
+      input.nonstaffPool.end(),
+      input.webPushReminderPool?.end(),
+    ]);
   };
 
   routedPool = new Proxy(input.nonstaffPool, {
     get(target, prop, receiver): unknown {
       switch (prop) {
-        case "connect":
+        case 'connect':
           return routedConnect;
-        case "query":
+        case 'query':
           return routedQuery;
-        case "end":
+        case 'end':
           return routedEnd;
-        case "totalCount":
+        case 'totalCount':
           return input.staffPool.totalCount + input.nonstaffPool.totalCount;
-        case "idleCount":
+        case 'idleCount':
           return input.staffPool.idleCount + input.nonstaffPool.idleCount;
-        case "waitingCount":
+        case 'waitingCount':
           return input.staffPool.waitingCount + input.nonstaffPool.waitingCount;
-        case "on":
-        case "once":
-        case "off":
-        case "removeListener":
-          return (...args: Parameters<Pool["on"]>) => {
+        case 'on':
+        case 'once':
+        case 'off':
+        case 'removeListener':
+          return (...args: Parameters<Pool['on']>) => {
             const staffMethod = Reflect.get(input.staffPool, prop, input.staffPool);
             const nonstaffMethod = Reflect.get(input.nonstaffPool, prop, input.nonstaffPool);
-            if (typeof staffMethod === "function") {
+            if (typeof staffMethod === 'function') {
               staffMethod.apply(input.staffPool, args);
             }
-            if (typeof nonstaffMethod === "function") {
+            if (typeof nonstaffMethod === 'function') {
               nonstaffMethod.apply(input.nonstaffPool, args);
             }
             return routedPool;
@@ -347,7 +376,7 @@ export function createWebappPoolProvider(config: WebappPoolProviderConfig): Pool
 
   if (!staffConnectionString && !nonstaffConnectionString && !webPushReminderConnectionString) {
     if (!singleConnectionString) {
-      throw new Error("Webapp database connection string is not set");
+      throw new Error('Webapp database connection string is not set');
     }
     return createWebappPool(singleConnectionString, 5, poolFactory);
   }
@@ -356,11 +385,14 @@ export function createWebappPoolProvider(config: WebappPoolProviderConfig): Pool
   const resolvedNonstaffConnectionString = nonstaffConnectionString || singleConnectionString;
   if (!resolvedStaffConnectionString || !resolvedNonstaffConnectionString) {
     throw new Error(
-      "DATABASE_URL_STAFF and DATABASE_URL_NONSTAFF must both be set, or DATABASE_URL must be set as fallback",
+      'DATABASE_URL_STAFF and DATABASE_URL_NONSTAFF must both be set, or DATABASE_URL must be set as fallback',
     );
   }
 
-  if (resolvedStaffConnectionString === resolvedNonstaffConnectionString && !webPushReminderConnectionString) {
+  if (
+    resolvedStaffConnectionString === resolvedNonstaffConnectionString &&
+    !webPushReminderConnectionString
+  ) {
     return createWebappPool(resolvedStaffConnectionString, 5, poolFactory);
   }
 
@@ -369,7 +401,10 @@ export function createWebappPoolProvider(config: WebappPoolProviderConfig): Pool
     nonstaffPool: createWebappPool(resolvedNonstaffConnectionString, 2, poolFactory),
     ...(webPushReminderConnectionString
       ? {
-          webPushReminderPool: createWebPushReminderPool(webPushReminderConnectionString, poolFactory),
+          webPushReminderPool: createWebPushReminderPool(
+            webPushReminderConnectionString,
+            poolFactory,
+          ),
         }
       : {}),
     metrics: createEmptyRoutingMetrics(),

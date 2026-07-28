@@ -21,11 +21,11 @@ export type PatientMoodCheckinState = {
   lastEntry: PatientMoodLastEntry | null;
 };
 
-export type PatientMoodIntent = "auto" | "replace_last" | "new_instant";
+export type PatientMoodIntent = 'auto' | 'replace_last' | 'new_instant';
 
 export type PatientMoodSubmitResult =
   | ({ ok: true } & PatientMoodCheckinState)
-  | { ok: false; error: "invalid_score" };
+  | { ok: false; error: 'invalid_score' };
 
 /** One local calendar day in app TZ (for home sparkline / weekly strip). */
 export type PatientMoodWeekDay = {

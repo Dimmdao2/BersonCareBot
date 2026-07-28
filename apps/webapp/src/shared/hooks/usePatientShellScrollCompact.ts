@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
+import { useEffect, useState } from 'react';
 
 /**
  * Тот же порог, что и компактное меню {@link PatientTopNav}: после него скрывается
@@ -14,8 +14,8 @@ export function usePatientShellScrollCompact(): boolean {
   useEffect(() => {
     const onScroll = () => setCompact(window.scrollY > PATIENT_SHELL_SCROLL_COMPACT_PX);
     onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
   }, []);
   return compact;
 }

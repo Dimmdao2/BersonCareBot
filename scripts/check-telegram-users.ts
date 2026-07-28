@@ -18,7 +18,9 @@ async function main() {
   try {
     const [tg, ident, withPhone, applied] = await Promise.all([
       db.query<{ count: string }>('SELECT COUNT(*)::text AS count FROM telegram_users'),
-      db.query<{ count: string }>("SELECT COUNT(*)::text AS count FROM identities WHERE resource = 'telegram'"),
+      db.query<{ count: string }>(
+        "SELECT COUNT(*)::text AS count FROM identities WHERE resource = 'telegram'",
+      ),
       db.query<{ count: string }>(`
         SELECT COUNT(DISTINCT i.user_id)::text AS count
         FROM identities i
@@ -37,7 +39,10 @@ async function main() {
     console.log('telegram_users rows:        ', tg.rows[0]?.count ?? '?');
     console.log('identities (resource=telegram):', ident.rows[0]?.count ?? '?');
     console.log('identities telegram with phone:', withPhone.rows[0]?.count ?? '?');
-    console.log('Applied backfill migrations:', applied.rows.map((r) => r.version).join(', ') || 'none');
+    console.log(
+      'Applied backfill migrations:',
+      applied.rows.map((r) => r.version).join(', ') || 'none',
+    );
   } finally {
     await db.end();
   }

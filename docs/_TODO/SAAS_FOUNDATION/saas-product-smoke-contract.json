@@ -258,9 +258,7 @@
       "jsonExpectation": {
         "type": "object",
         "requireSuccess": true,
-        "allowedValues": [
-          { "path": "specialistSignupEnabled", "values": [true] }
-        ]
+        "allowedValues": [{ "path": "specialistSignupEnabled", "values": [true] }]
       }
     },
     {

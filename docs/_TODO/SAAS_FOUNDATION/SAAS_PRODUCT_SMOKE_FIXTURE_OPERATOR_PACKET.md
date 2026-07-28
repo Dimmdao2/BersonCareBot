@@ -115,8 +115,8 @@ pnpm run smoke:saas-product -- \
 ```
 
 3. Record evidence aggregate-only: command, exit code, selected scenario/category counts, pass/fail totals,
-failure-code counts, and request/correlation IDs when present. Do not record fixture values, cookies, headers,
-opaque ref values, response bodies, patient data, or credential-bearing URLs.
+   failure-code counts, and request/correlation IDs when present. Do not record fixture values, cookies, headers,
+   opaque ref values, response bodies, patient data, or credential-bearing URLs.
 
 ## Prohibited Actions
 

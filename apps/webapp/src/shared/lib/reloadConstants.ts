@@ -1,11 +1,11 @@
 const autoReloadEnv = process.env.NEXT_PUBLIC_AUTO_RELOAD_ENABLED?.trim().toLowerCase();
 
 export const AUTO_RELOAD_ENABLED =
-  autoReloadEnv === "true"
+  autoReloadEnv === 'true'
     ? true
-    : autoReloadEnv === "false"
+    : autoReloadEnv === 'false'
       ? false
-      : process.env.NODE_ENV === "production";
+      : process.env.NODE_ENV === 'production';
 
 export const RELOAD_COOLDOWN_MS = 120_000;
 export const RELOAD_WINDOW_MS = 600_000;
@@ -18,6 +18,6 @@ export const WATCHER_BASE_INTERVAL_MS = 60_000;
 export const WATCHER_MAX_INTERVAL_MS = 10 * 60_000;
 export const WATCHER_MAX_CONSECUTIVE_ERRORS = 5;
 
-export const RELOAD_STATE_KEY = "bcb:reload";
-export const RELOAD_PENDING_LOCK_KEY = "bcb:reload:pending";
-export const BUILD_ID_META_NAME = "x-build-id";
+export const RELOAD_STATE_KEY = 'bcb:reload';
+export const RELOAD_PENDING_LOCK_KEY = 'bcb:reload:pending';
+export const BUILD_ID_META_NAME = 'x-build-id';

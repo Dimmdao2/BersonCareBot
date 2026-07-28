@@ -1,19 +1,19 @@
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
-import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
-import { getDrizzle } from "@/app-layer/db/drizzle";
-import { runDrizzleMutationTransaction } from "@/infra/db/drizzleMutationTx";
+import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
+import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
+import { getDrizzle } from '@/app-layer/db/drizzle';
+import { runDrizzleMutationTransaction } from '@/infra/db/drizzleMutationTx';
 import {
   programItemDiscussionMessages,
   programItemDiscussionReads,
-} from "../../../db/schema/programItemDiscussion";
-import { supportConversationMessages, supportConversations } from "../../../db/schema/schema";
+} from '../../../db/schema/programItemDiscussion';
+import { supportConversationMessages, supportConversations } from '../../../db/schema/schema';
 import {
   treatmentProgramInstanceStageItems,
   treatmentProgramInstanceStages,
   treatmentProgramInstances,
-} from "../../../db/schema/treatmentProgramInstances";
-import { extractPatientExerciseCommentReplyBody } from "@/modules/messaging/programNoteReplyContext";
-import type { ProgramItemDiscussionPort } from "@/modules/program-item-discussion/ports";
+} from '../../../db/schema/treatmentProgramInstances';
+import { extractPatientExerciseCommentReplyBody } from '@/modules/messaging/programNoteReplyContext';
+import type { ProgramItemDiscussionPort } from '@/modules/program-item-discussion/ports';
 import type {
   DoctorExerciseCommentCursor,
   DoctorExerciseCommentRow,
@@ -26,9 +26,11 @@ import type {
   ProgramItemDiscussionOrigin,
   ProgramItemDiscussionSenderRole,
   StageItemViewerUnreadCount,
-} from "@/modules/program-item-discussion/types";
+} from '@/modules/program-item-discussion/types';
 
-function mapMessage(row: typeof programItemDiscussionMessages.$inferSelect): ProgramItemDiscussionMessage {
+function mapMessage(
+  row: typeof programItemDiscussionMessages.$inferSelect,
+): ProgramItemDiscussionMessage {
   return {
     id: row.id,
     instanceStageItemId: row.instanceStageItemId,
@@ -49,9 +51,11 @@ function currentWriteOrganizationId(...fallbacks: (string | null | undefined)[])
   const hasFallbackMismatch = fallbackOrganizationIds.some((id) => id !== fallbackOrganizationId);
   if (
     hasFallbackMismatch ||
-    (principalOrganizationId && fallbackOrganizationId && principalOrganizationId !== fallbackOrganizationId)
+    (principalOrganizationId &&
+      fallbackOrganizationId &&
+      principalOrganizationId !== fallbackOrganizationId)
   ) {
-    throw new Error("organization_principal_mismatch");
+    throw new Error('organization_principal_mismatch');
   }
   return principalOrganizationId ?? fallbackOrganizationId;
 }
@@ -82,8 +86,8 @@ function mapMessageFields(row: {
 
 function stageItemSnapshotTitle(snapshot: Record<string, unknown>): string {
   const raw = snapshot.title;
-  if (typeof raw === "string" && raw.trim() !== "") return raw.trim();
-  return "Упражнение";
+  if (typeof raw === 'string' && raw.trim() !== '') return raw.trim();
+  return 'Упражнение';
 }
 
 /**
@@ -119,7 +123,7 @@ async function queryDoctorExerciseComments(
   //   - Answered threads (doctor replied after) still surface: we look at the latest
   //     patient message, not the latest overall. No outer senderRole check needed.
   //   - unreadOnly uses createdAt > lastReadAt on the latest patient comment.
-  const latestCte = db.$with("latest").as(
+  const latestCte = db.$with('latest').as(
     db
       .selectDistinctOn([programItemDiscussionMessages.instanceStageItemId], {
         id: programItemDiscussionMessages.id,
@@ -135,7 +139,7 @@ async function queryDoctorExerciseComments(
         // ВАЖНО: явный алиас instance_id — иначе колонка тоже зовётся "id" и
         // CTE получает дубликат столбца "id" (вместе с messages.id) → Postgres падает
         // ("Failed query … select "id", …, "id", …"). См. TODO#3 fix.
-        instanceId: sql<string>`${treatmentProgramInstances.id}`.as("instance_id"),
+        instanceId: sql<string>`${treatmentProgramInstances.id}`.as('instance_id'),
         lastReadAt: programItemDiscussionReads.lastReadAt,
       })
       .from(programItemDiscussionMessages)
@@ -148,10 +152,7 @@ async function queryDoctorExerciseComments(
       )
       .innerJoin(
         treatmentProgramInstanceStages,
-        eq(
-          treatmentProgramInstanceStages.id,
-          treatmentProgramInstanceStageItems.stageId,
-        ),
+        eq(treatmentProgramInstanceStages.id, treatmentProgramInstanceStageItems.stageId),
       )
       .innerJoin(
         treatmentProgramInstances,
@@ -171,12 +172,12 @@ async function queryDoctorExerciseComments(
         and(
           patientScopeCondition,
           organizationId ? eq(treatmentProgramInstances.organizationId, organizationId) : undefined,
-          eq(treatmentProgramInstances.status, "active"),
+          eq(treatmentProgramInstances.status, 'active'),
           sql`${treatmentProgramInstances.assignmentSource} = ANY(ARRAY['doctor','course']::text[])`,
-          eq(treatmentProgramInstanceStageItems.itemType, "exercise"),
-          eq(treatmentProgramInstanceStageItems.status, "active"),
+          eq(treatmentProgramInstanceStageItems.itemType, 'exercise'),
+          eq(treatmentProgramInstanceStageItems.status, 'active'),
           // Only patient text messages inside CTE — so DISTINCT ON picks latest patient comment.
-          eq(programItemDiscussionMessages.senderRole, "patient"),
+          eq(programItemDiscussionMessages.senderRole, 'patient'),
           sql`${programItemDiscussionMessages.mediaFileId} IS NULL`,
         ),
       )
@@ -220,7 +221,9 @@ async function queryDoctorExerciseComments(
 
 export function createPgProgramItemDiscussionPort(): ProgramItemDiscussionPort {
   return {
-    async insertMessage(input: ProgramItemDiscussionMessageInsert): Promise<ProgramItemDiscussionMessage> {
+    async insertMessage(
+      input: ProgramItemDiscussionMessageInsert,
+    ): Promise<ProgramItemDiscussionMessage> {
       try {
         return await runDrizzleMutationTransaction(async (tx) => {
           const stageItem = await tx.query.treatmentProgramInstanceStageItems.findFirst({
@@ -240,12 +243,15 @@ export function createPgProgramItemDiscussionPort(): ProgramItemDiscussionPort {
               createdAt: input.createdAt ?? new Date().toISOString(),
             })
             .returning();
-          if (!row) throw new Error("program_item_discussion_insert_failed");
+          if (!row) throw new Error('program_item_discussion_insert_failed');
           return mapMessage(row);
         });
       } catch (error) {
-        const code = typeof error === "object" && error && "code" in error ? (error as { code?: string }).code : null;
-        if (code === "23505" && input.supportMessageId) {
+        const code =
+          typeof error === 'object' && error && 'code' in error
+            ? (error as { code?: string }).code
+            : null;
+        if (code === '23505' && input.supportMessageId) {
           const db = getDrizzle();
           const [existing] = await db
             .select()
@@ -258,7 +264,11 @@ export function createPgProgramItemDiscussionPort(): ProgramItemDiscussionPort {
       }
     },
 
-    async listMessagesForStageItem(stageItemId: string, limit = 200, offset = 0): Promise<ProgramItemDiscussionMessage[]> {
+    async listMessagesForStageItem(
+      stageItemId: string,
+      limit = 200,
+      offset = 0,
+    ): Promise<ProgramItemDiscussionMessage[]> {
       const db = getDrizzle();
       const safeLimit = Math.max(1, Math.trunc(limit));
       const safeOffset = Math.max(0, Math.trunc(offset));
@@ -266,7 +276,10 @@ export function createPgProgramItemDiscussionPort(): ProgramItemDiscussionPort {
         .select()
         .from(programItemDiscussionMessages)
         .where(eq(programItemDiscussionMessages.instanceStageItemId, stageItemId))
-        .orderBy(asc(programItemDiscussionMessages.createdAt), asc(programItemDiscussionMessages.id))
+        .orderBy(
+          asc(programItemDiscussionMessages.createdAt),
+          asc(programItemDiscussionMessages.id),
+        )
         .limit(safeLimit)
         .offset(safeOffset);
       return rows.map(mapMessage);
@@ -294,7 +307,7 @@ export function createPgProgramItemDiscussionPort(): ProgramItemDiscussionPort {
 
       return ids.map((stageItemId) => {
         const latest = latestByItem.get(stageItemId);
-        if (!latest || latest.senderRole !== "patient") {
+        if (!latest || latest.senderRole !== 'patient') {
           return { stageItemId, comments: 0, media: 0 };
         }
         return {
@@ -305,13 +318,15 @@ export function createPgProgramItemDiscussionPort(): ProgramItemDiscussionPort {
       });
     },
 
-    async listMessagesPage(input: ProgramItemDiscussionListPageInput): Promise<ProgramItemDiscussionMessage[]> {
+    async listMessagesPage(
+      input: ProgramItemDiscussionListPageInput,
+    ): Promise<ProgramItemDiscussionMessage[]> {
       const db = getDrizzle();
       const safeLimit = Math.max(1, Math.trunc(input.limit));
       const stageItemId = input.stageItemId;
       const cursor = input.cursor;
 
-      if (input.direction === "forward") {
+      if (input.direction === 'forward') {
         const conditions = [eq(programItemDiscussionMessages.instanceStageItemId, stageItemId)];
         if (cursor) {
           conditions.push(
@@ -322,7 +337,10 @@ export function createPgProgramItemDiscussionPort(): ProgramItemDiscussionPort {
           .select()
           .from(programItemDiscussionMessages)
           .where(and(...conditions))
-          .orderBy(asc(programItemDiscussionMessages.createdAt), asc(programItemDiscussionMessages.id))
+          .orderBy(
+            asc(programItemDiscussionMessages.createdAt),
+            asc(programItemDiscussionMessages.id),
+          )
           .limit(safeLimit);
         return rows.map(mapMessage);
       }
@@ -337,7 +355,10 @@ export function createPgProgramItemDiscussionPort(): ProgramItemDiscussionPort {
         .select()
         .from(programItemDiscussionMessages)
         .where(and(...conditions))
-        .orderBy(desc(programItemDiscussionMessages.createdAt), desc(programItemDiscussionMessages.id))
+        .orderBy(
+          desc(programItemDiscussionMessages.createdAt),
+          desc(programItemDiscussionMessages.id),
+        )
         .limit(safeLimit);
       return rows.map(mapMessage).reverse();
     },
@@ -353,7 +374,9 @@ export function createPgProgramItemDiscussionPort(): ProgramItemDiscussionPort {
       return Number(row?.count ?? 0);
     },
 
-    async countLegacyAdminRepliesForStageItem(input: ProgramItemDiscussionLegacyMergeInput): Promise<number> {
+    async countLegacyAdminRepliesForStageItem(
+      input: ProgramItemDiscussionLegacyMergeInput,
+    ): Promise<number> {
       const exerciseTitle = input.exerciseTitle.trim();
       if (!exerciseTitle) return 0;
 
@@ -386,7 +409,7 @@ export function createPgProgramItemDiscussionPort(): ProgramItemDiscussionPort {
           .where(
             and(
               eq(supportConversations.platformUserId, input.patientUserId),
-              eq(supportConversationMessages.senderRole, "admin"),
+              eq(supportConversationMessages.senderRole, 'admin'),
             ),
           )
           .orderBy(asc(supportConversationMessages.createdAt), asc(supportConversationMessages.id))
@@ -411,7 +434,9 @@ export function createPgProgramItemDiscussionPort(): ProgramItemDiscussionPort {
       return count;
     },
 
-    async mergeLegacyAdminReplies(input: ProgramItemDiscussionLegacyMergeInput): Promise<ProgramItemDiscussionMessage[]> {
+    async mergeLegacyAdminReplies(
+      input: ProgramItemDiscussionLegacyMergeInput,
+    ): Promise<ProgramItemDiscussionMessage[]> {
       const db = getDrizzle();
       const targetLimit = Math.max(1, Math.trunc(input.limit ?? 200));
       const safeOffset = Math.max(0, Math.trunc(input.offset ?? 0));
@@ -448,7 +473,7 @@ export function createPgProgramItemDiscussionPort(): ProgramItemDiscussionPort {
           .where(
             and(
               eq(supportConversations.platformUserId, input.patientUserId),
-              eq(supportConversationMessages.senderRole, "admin"),
+              eq(supportConversationMessages.senderRole, 'admin'),
             ),
           )
           .orderBy(asc(supportConversationMessages.createdAt), asc(supportConversationMessages.id))
@@ -474,8 +499,8 @@ export function createPgProgramItemDiscussionPort(): ProgramItemDiscussionPort {
             id: `legacy:${row.id}`,
             instanceStageItemId: input.stageItemId,
             patientUserId: input.patientUserId,
-            senderRole: "admin",
-            origin: "support_admin_reply",
+            senderRole: 'admin',
+            origin: 'support_admin_reply',
             body,
             mediaFileId: null,
             supportMessageId: row.id,
@@ -488,7 +513,11 @@ export function createPgProgramItemDiscussionPort(): ProgramItemDiscussionPort {
       return merged;
     },
 
-    async markRead(params: { patientUserId: string; stageItemId: string; lastReadAt?: string }): Promise<void> {
+    async markRead(params: {
+      patientUserId: string;
+      stageItemId: string;
+      lastReadAt?: string;
+    }): Promise<void> {
       const lastReadAt = params.lastReadAt ?? new Date().toISOString();
       await runDrizzleMutationTransaction(async (tx) => {
         const stageItem = await tx.query.treatmentProgramInstanceStageItems.findFirst({
@@ -503,7 +532,10 @@ export function createPgProgramItemDiscussionPort(): ProgramItemDiscussionPort {
             lastReadAt,
           })
           .onConflictDoUpdate({
-            target: [programItemDiscussionReads.patientUserId, programItemDiscussionReads.instanceStageItemId],
+            target: [
+              programItemDiscussionReads.patientUserId,
+              programItemDiscussionReads.instanceStageItemId,
+            ],
             set: {
               lastReadAt: sql`GREATEST(${programItemDiscussionReads.lastReadAt}, ${lastReadAt}::timestamptz)`,
             },
@@ -522,20 +554,26 @@ export function createPgProgramItemDiscussionPort(): ProgramItemDiscussionPort {
           programItemDiscussionReads,
           and(
             eq(programItemDiscussionReads.patientUserId, params.patientUserId),
-            eq(programItemDiscussionReads.instanceStageItemId, programItemDiscussionMessages.instanceStageItemId),
+            eq(
+              programItemDiscussionReads.instanceStageItemId,
+              programItemDiscussionMessages.instanceStageItemId,
+            ),
           ),
         )
         .where(
           and(
             eq(programItemDiscussionMessages.instanceStageItemId, params.stageItemId),
-            eq(programItemDiscussionMessages.senderRole, "admin"),
+            eq(programItemDiscussionMessages.senderRole, 'admin'),
             sql`${programItemDiscussionMessages.createdAt} > COALESCE(${programItemDiscussionReads.lastReadAt}, '-infinity'::timestamptz)`,
           ),
         );
       return Number(row?.count ?? 0);
     },
 
-    async getLastReadAt(params: { patientUserId: string; stageItemId: string }): Promise<string | null> {
+    async getLastReadAt(params: {
+      patientUserId: string;
+      stageItemId: string;
+    }): Promise<string | null> {
       const db = getDrizzle();
       const [row] = await db
         .select({ lastReadAt: programItemDiscussionReads.lastReadAt })
@@ -583,10 +621,12 @@ export function createPgProgramItemDiscussionPort(): ProgramItemDiscussionPort {
         );
       return rows
         .map((row) => row.supportMessageId)
-        .filter((id): id is string => typeof id === "string" && id.length > 0);
+        .filter((id): id is string => typeof id === 'string' && id.length > 0);
     },
 
-    async countLegacyUnreadAdminReplies(input: ProgramItemDiscussionLegacyUnreadInput): Promise<number> {
+    async countLegacyUnreadAdminReplies(
+      input: ProgramItemDiscussionLegacyUnreadInput,
+    ): Promise<number> {
       const db = getDrizzle();
       const exerciseTitle = input.exerciseTitle.trim();
       if (!exerciseTitle) return 0;
@@ -610,7 +650,7 @@ export function createPgProgramItemDiscussionPort(): ProgramItemDiscussionPort {
           .where(
             and(
               eq(supportConversations.platformUserId, input.patientUserId),
-              eq(supportConversationMessages.senderRole, "admin"),
+              eq(supportConversationMessages.senderRole, 'admin'),
             ),
           )
           .orderBy(asc(supportConversationMessages.createdAt), asc(supportConversationMessages.id))
@@ -678,14 +718,12 @@ export function createPgProgramItemDiscussionPort(): ProgramItemDiscussionPort {
       return queryDoctorExerciseComments(input, { unreadOnly: false });
     },
 
-    async listAllExerciseCommentsForDoctor(
-      input: {
-        viewerUserId: string;
-        organizationId?: string;
-        limit: number;
-        cursor?: DoctorExerciseCommentCursor | null;
-      },
-    ): Promise<DoctorExerciseCommentRow[]> {
+    async listAllExerciseCommentsForDoctor(input: {
+      viewerUserId: string;
+      organizationId?: string;
+      limit: number;
+      cursor?: DoctorExerciseCommentCursor | null;
+    }): Promise<DoctorExerciseCommentRow[]> {
       // Doctor-wide all-comments: no patient-ID fanout, shows answered threads.
       return queryDoctorExerciseComments(
         {
@@ -718,7 +756,7 @@ export function createPgProgramItemDiscussionPort(): ProgramItemDiscussionPort {
         .where(
           and(
             inArray(programItemDiscussionMessages.instanceStageItemId, input.stageItemIds),
-            eq(programItemDiscussionMessages.senderRole, "patient"),
+            eq(programItemDiscussionMessages.senderRole, 'patient'),
           ),
         )
         .groupBy(programItemDiscussionMessages.instanceStageItemId);
@@ -753,13 +791,15 @@ export function createPgProgramItemDiscussionPort(): ProgramItemDiscussionPort {
         .where(
           and(
             inArray(programItemDiscussionMessages.instanceStageItemId, input.stageItemIds),
-            eq(programItemDiscussionMessages.senderRole, "patient"),
+            eq(programItemDiscussionMessages.senderRole, 'patient'),
           ),
         )
         .groupBy(programItemDiscussionMessages.instanceStageItemId);
 
       // Build per-item result (unread = total unless lastReadAt is set)
-      const unreadCountMap = new Map<string, number>(unreadCounts.map((r) => [r.stageItemId, r.unread]));
+      const unreadCountMap = new Map<string, number>(
+        unreadCounts.map((r) => [r.stageItemId, r.unread]),
+      );
 
       // For items where lastReadAt is set, we need the real unread count (messages after lastReadAt)
       const itemsWithRead = input.stageItemIds.filter((id) => readMap.has(id));
@@ -773,7 +813,7 @@ export function createPgProgramItemDiscussionPort(): ProgramItemDiscussionPort {
           .where(
             and(
               inArray(programItemDiscussionMessages.instanceStageItemId, itemsWithRead),
-              eq(programItemDiscussionMessages.senderRole, "patient"),
+              eq(programItemDiscussionMessages.senderRole, 'patient'),
               sql`${programItemDiscussionMessages.createdAt} > (
                 SELECT last_read_at FROM program_item_discussion_reads
                 WHERE instance_stage_item_id = ${programItemDiscussionMessages.instanceStageItemId}
@@ -825,7 +865,7 @@ export function createPgProgramItemDiscussionPort(): ProgramItemDiscussionPort {
         .where(
           and(
             eq(treatmentProgramInstances.patientUserId, patientUserId),
-            eq(treatmentProgramInstances.assignmentSource, "doctor"),
+            eq(treatmentProgramInstances.assignmentSource, 'doctor'),
             sql`trim(${treatmentProgramInstanceStageItems.snapshot}->>'title') = ${title}`,
           ),
         );

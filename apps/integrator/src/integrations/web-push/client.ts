@@ -67,16 +67,20 @@ const SAFE_PROVIDER_CODES = new Set([
 
 function readSafeProviderErrorCode(error: unknown): string | undefined {
   const body = (error as { body?: unknown } | null)?.body;
-  const bodyText = Buffer.isBuffer(body) ? body.toString("utf8") : typeof body === "string" ? body : "";
+  const bodyText = Buffer.isBuffer(body)
+    ? body.toString('utf8')
+    : typeof body === 'string'
+      ? body
+      : '';
   if (!bodyText || bodyText.length > 4096) return undefined;
 
   let candidate = bodyText.trim();
   try {
     const parsed = JSON.parse(candidate) as unknown;
-    if (parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)) {
+    if (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) {
       const record = parsed as Record<string, unknown>;
       const value = record.reason ?? record.code ?? record.error;
-      candidate = typeof value === "string" ? value.trim() : "";
+      candidate = typeof value === 'string' ? value.trim() : '';
     }
   } catch {
     // Plain provider reason tokens are accepted by the same strict allowlist below.

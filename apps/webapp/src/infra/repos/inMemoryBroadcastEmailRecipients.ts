@@ -2,7 +2,7 @@
  * In-memory реализация BroadcastEmailRecipientsPort — для тестов.
  * Этап 4a (2026-06-13).
  */
-import type { BroadcastEmailRecipientsPort } from "@/modules/doctor-broadcasts/fanOutBroadcastEmail";
+import type { BroadcastEmailRecipientsPort } from '@/modules/doctor-broadcasts/fanOutBroadcastEmail';
 
 export function createInMemoryBroadcastEmailRecipientsPort(
   emailsByUserId: Record<string, string> = {},

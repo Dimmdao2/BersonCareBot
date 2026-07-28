@@ -22,25 +22,25 @@
 
 ## 3. Проверка запроса аудита
 
-| Проверка | Результат |
-|-----------|-----------|
-| **Hero больше не generic image-on-top** | `PatientHomeDailyWarmupCard` использует `patientHomeCardHeroClass` (градиент, `overflow-hidden`, min-height), контент слева, медиа/декор **справа снизу** (`absolute bottom-0 right-0`), не паттерн «картинка сверху + текст» как у `FeatureCard`. |
-| **Hero: безопасное image / fallback** | При `imageUrl`: `<img loading="lazy" alt="">` (декоративно), `object-contain`, ограничение контейнера; без URL — декоративный блок `Sparkles` + `aria-hidden`. Текстовый столбец с **`pr-[min(42%,140px)]`** снижает риск перекрытия на 320–390px (§10.2). |
-| **Booking success + href / auth** | `patientHomeCardSuccessClass` + success/secondary из `patientVisual`; **guestMode**: оба CTA → `/app?next=…` на `routePaths.patient`; иначе `bookingHref` / `cabinetHref` из `page.tsx`. |
-| **Situations: CMS-driven, без slug color mapping** | Данные — `ContentSectionRow[]` (тот же источник, что `listVisible` на странице); плитки **нейтральные** `bg-muted/80`, без ветвлений по `slug`/`title`. **§10.4 `imageUrl`**: в типе раздела поля нет — иконки CMS не подключены (`LOG.md`); fallback — инициалы из `title`. |
-| **Layout при отсутствии блоков** | `PatientHomeTodayLayout`: правая колонка только если `situations != null`; hero/booking опциональны. Placeholder-hero при `materials` и пустом списке (§11). |
-| **Тесты** | Шесть файлов: layout, sort, warmup, booking, situations, greeting (в т.ч. **4 ветки** `greetingPrefixFromHour` + гость/имя). По `LOG.md` — **15 passed** при EXEC; интеграционного рендера async `PatientHomeToday` с моком TZ **нет** — minor. |
-| **Нет утечки data/service** | Новые компоненты **не** добавляют вызовов портов БД из `PatientHome*`; `PatientHomeToday` использует **`getAppDisplayTimeZone`** и тип `ContentSectionRow`; загрузка разделов по-прежнему в `page.tsx` через `deps.contentSections.listVisible` без изменения порта в Phase 3. Таблицы `patient_home_blocks` / `patient_home_block_items` **не** затрагивались. |
+| Проверка                                           | Результат                                                                                                                                                                                                                                                                                                                                                       |
+| -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Hero больше не generic image-on-top**            | `PatientHomeDailyWarmupCard` использует `patientHomeCardHeroClass` (градиент, `overflow-hidden`, min-height), контент слева, медиа/декор **справа снизу** (`absolute bottom-0 right-0`), не паттерн «картинка сверху + текст» как у `FeatureCard`.                                                                                                              |
+| **Hero: безопасное image / fallback**              | При `imageUrl`: `<img loading="lazy" alt="">` (декоративно), `object-contain`, ограничение контейнера; без URL — декоративный блок `Sparkles` + `aria-hidden`. Текстовый столбец с **`pr-[min(42%,140px)]`** снижает риск перекрытия на 320–390px (§10.2).                                                                                                      |
+| **Booking success + href / auth**                  | `patientHomeCardSuccessClass` + success/secondary из `patientVisual`; **guestMode**: оба CTA → `/app?next=…` на `routePaths.patient`; иначе `bookingHref` / `cabinetHref` из `page.tsx`.                                                                                                                                                                        |
+| **Situations: CMS-driven, без slug color mapping** | Данные — `ContentSectionRow[]` (тот же источник, что `listVisible` на странице); плитки **нейтральные** `bg-muted/80`, без ветвлений по `slug`/`title`. **§10.4 `imageUrl`**: в типе раздела поля нет — иконки CMS не подключены (`LOG.md`); fallback — инициалы из `title`.                                                                                    |
+| **Layout при отсутствии блоков**                   | `PatientHomeTodayLayout`: правая колонка только если `situations != null`; hero/booking опциональны. Placeholder-hero при `materials` и пустом списке (§11).                                                                                                                                                                                                    |
+| **Тесты**                                          | Шесть файлов: layout, sort, warmup, booking, situations, greeting (в т.ч. **4 ветки** `greetingPrefixFromHour` + гость/имя). По `LOG.md` — **15 passed** при EXEC; интеграционного рендера async `PatientHomeToday` с моком TZ **нет** — minor.                                                                                                                 |
+| **Нет утечки data/service**                        | Новые компоненты **не** добавляют вызовов портов БД из `PatientHome*`; `PatientHomeToday` использует **`getAppDisplayTimeZone`** и тип `ContentSectionRow`; загрузка разделов по-прежнему в `page.tsx` через `deps.contentSections.listVisible` без изменения порта в Phase 3. Таблицы `patient_home_blocks` / `patient_home_block_items` **не** затрагивались. |
 
 ---
 
 ## 4. Соответствие `03_HOME_PRIMARY_PLAN.md` (дополнительно)
 
-| Пункт плана | Статус |
-|-------------|--------|
+| Пункт плана                          | Статус                                                                                                                                                                                                                           |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Имя `filterAndSortPatientHomeBlocks` | В коде — **`sortPatientContentSectionsForHome`** для **`content_sections`**, не для `patient_home_blocks` (склейка CMS workflow с patient home в дереве **ещё не** на этой странице). Соответствует `LOG.md` / `PLAN_INVENTORY`. |
-| Субтитул | **`Готовы к разминке?`** по `03`; **§10.1** предлагает другой starter copy — допустимое отклонение. |
-| `page.tsx` вне списка allowed `03` | Минимальная склейка — зафиксировано в `LOG.md`. |
+| Субтитул                             | **`Готовы к разминке?`** по `03`; **§10.1** предлагает другой starter copy — допустимое отклонение.                                                                                                                              |
+| `page.tsx` вне списка allowed `03`   | Минимальная склейка — зафиксировано в `LOG.md`.                                                                                                                                                                                  |
 
 ---
 
@@ -55,10 +55,10 @@
 
 ## 6. Tests / CI
 
-| Проверка | Статус |
-|-----------|--------|
+| Проверка                               | Статус                                    |
+| -------------------------------------- | ----------------------------------------- |
 | Targeted vitest Phase 3 (см. `LOG.md`) | **15 passed** задокументировано при EXEC. |
-| **Root `pnpm run ci`** | **Не запускался** по запросу аудита. |
+| **Root `pnpm run ci`**                 | **Не запускался** по запросу аудита.      |
 
 ---
 

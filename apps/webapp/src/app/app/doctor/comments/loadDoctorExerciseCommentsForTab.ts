@@ -14,22 +14,22 @@
  *
  * Намеренное расхождение с «Сегодня» зафиксировано как допустимое.
  */
-import type { DoctorClientsFilters } from "@/modules/doctor-clients/ports";
+import type { DoctorClientsFilters } from '@/modules/doctor-clients/ports';
 import type {
   DoctorExerciseCommentCursor,
   DoctorExerciseCommentRow,
   ListDoctorExerciseCommentsInput,
-} from "@/modules/program-item-discussion/types";
-import type { TodayExerciseCommentAttentionItem } from "../loadDoctorExerciseCommentAttention";
-import { formatDateTimeRu } from "../doctorTodayFormat";
-import { patientProgramInstanceHref } from "../patients/patientProgramInstanceHref";
+} from '@/modules/program-item-discussion/types';
+import type { TodayExerciseCommentAttentionItem } from '../loadDoctorExerciseCommentAttention';
+import { formatDateTimeRu } from '../doctorTodayFormat';
+import { patientProgramInstanceHref } from '../patients/patientProgramInstanceHref';
 
 export const DOCTOR_EXERCISE_COMMENTS_TAB_PAGE_SIZE = 50;
 
 export type LoadDoctorExerciseCommentsForTabDeps = {
   doctorClientsPort: {
     listClients(
-      filters: Pick<DoctorClientsFilters, "supportStatus" | "organizationId">,
+      filters: Pick<DoctorClientsFilters, 'supportStatus' | 'organizationId'>,
       audience?: { excludedUserIds?: string[] },
     ): Promise<Array<{ userId: string; displayName: string }>>;
   };
@@ -50,13 +50,12 @@ export async function loadDoctorExerciseCommentsForTab(
   hasMore: boolean;
 }> {
   const limit = options?.limit ?? DOCTOR_EXERCISE_COMMENTS_TAB_PAGE_SIZE;
-  const audience =
-    context.excludedUserIds?.length
-      ? { excludedUserIds: context.excludedUserIds }
-      : undefined;
+  const audience = context.excludedUserIds?.length
+    ? { excludedUserIds: context.excludedUserIds }
+    : undefined;
 
   const onSupport = await deps.doctorClientsPort.listClients(
-    { supportStatus: "on", organizationId: context.organizationId },
+    { supportStatus: 'on', organizationId: context.organizationId },
     audience,
   );
   if (onSupport.length === 0) {
@@ -64,7 +63,7 @@ export async function loadDoctorExerciseCommentsForTab(
   }
 
   const nameById = new Map<string, string>(
-    onSupport.map((c) => [c.userId.trim(), c.displayName.trim() || "—"]),
+    onSupport.map((c) => [c.userId.trim(), c.displayName.trim() || '—']),
   );
   const patientUserIds = [...nameById.keys()];
 
@@ -81,10 +80,10 @@ export async function loadDoctorExerciseCommentsForTab(
 
   const items: TodayExerciseCommentAttentionItem[] = pageRows.map((row) => ({
     patientUserId: row.patientUserId,
-    patientDisplayName: nameById.get(row.patientUserId) ?? "—",
+    patientDisplayName: nameById.get(row.patientUserId) ?? '—',
     instanceId: row.instanceId,
     stageItemId: row.stageItemId,
-    stageItemTitle: row.stageItemTitle || "Упражнение",
+    stageItemTitle: row.stageItemTitle || 'Упражнение',
     latestMessage: row.latestMessage,
     latestMessageAtLabel: formatDateTimeRu(row.latestMessage.createdAt),
     href: patientProgramInstanceHref(row.patientUserId, row.instanceId, {
@@ -94,9 +93,7 @@ export async function loadDoctorExerciseCommentsForTab(
 
   const lastRow = pageRows[pageRows.length - 1];
   const nextCursor: DoctorExerciseCommentCursor | null =
-    hasMore && lastRow
-      ? { createdAt: lastRow.createdAt, id: lastRow.latestMessage.id }
-      : null;
+    hasMore && lastRow ? { createdAt: lastRow.createdAt, id: lastRow.latestMessage.id } : null;
 
   return { items, nextCursor, hasMore };
 }

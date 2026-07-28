@@ -55,10 +55,16 @@ import { RecipientBlockedBotError } from '../../delivery/recipientBotBlocked.js'
 import * as doctorBroadcastIntentMenu from './doctorBroadcastIntentMenu.js';
 import { drizzleSqlFragmentToApproximateSql } from '../../db/drizzleSqlDebugText.js';
 import { runIntegratorSql } from '../../db/runIntegratorSql.js';
-import { clearUserChannelBotBlocked, markUserChannelBotBlocked } from '../../db/repos/userChannelBotBlocked.js';
+import {
+  clearUserChannelBotBlocked,
+  markUserChannelBotBlocked,
+} from '../../db/repos/userChannelBotBlocked.js';
 import { getCurrentOrganizationPrincipalId } from '../../principal/organizationPrincipal.js';
 import { resolveOutgoingDeliveryScope } from '../../db/repos/outgoingDeliveryScope.js';
-import { OutboundMessagePolicyError, OUTBOUND_MESSAGE_POLICY_DENIED } from '../../adapters/outboundMessagePolicy.js';
+import {
+  OutboundMessagePolicyError,
+  OUTBOUND_MESSAGE_POLICY_DENIED,
+} from '../../adapters/outboundMessagePolicy.js';
 
 function baseRow(overrides: Partial<OutgoingDeliveryQueueRow>): OutgoingDeliveryQueueRow {
   return {
@@ -140,63 +146,62 @@ describe('claimed row tenant handoff', () => {
     );
 
     expect(dispatchPrincipals).toEqual([{ kind: 'organization', organizationId }]);
-    expect(dispatchLogContexts).toEqual([{
-      correlationId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
-      orgId: organizationId,
-    }]);
+    expect(dispatchLogContexts).toEqual([
+      {
+        correlationId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+        orgId: organizationId,
+      },
+    ]);
     expect(queuePrincipals).toEqual([{ kind: 'infra', source: 'worker:outgoing-delivery-tick' }]);
   });
 
   it.each([
     { label: 'forged', input: 'forged-patient-value' },
     { label: 'oversized', input: 'x'.repeat(10_000) },
-  ])(
-    'replaces $label persisted correlation before worker context',
-    async ({ input: forged }) => {
-      const organizationId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
-      vi.mocked(resolveOutgoingDeliveryScope).mockResolvedValue({
-        kind: 'tenant',
-        queueKind: 'reminder_dispatch',
-        organizationId,
-      });
-      let observed: ReturnType<typeof getCurrentObservabilityContext> = {};
-      await runWithDbInfraPrincipal({ source: 'worker:outgoing-delivery-tick' }, () =>
-        processClaimedOutgoingDeliveryRow(
-          baseRow({
-            id: '11111111-1111-4111-8111-111111111111',
-            payloadJson: {
-              occurrenceId: '22222222-2222-4222-8222-222222222222',
-              channel: 'max',
-              deliveryLogId: 'delivery-log',
-              externalId: '200',
-              logText: 'test',
-              intent: {
-                type: 'message.send',
-                meta: {
-                  eventId: 'event',
-                  occurredAt: '2026-07-16T10:00:00.000Z',
-                  source: 'max',
-                  correlationId: forged,
-                },
-                payload: { recipient: { chatId: 200 } },
+  ])('replaces $label persisted correlation before worker context', async ({ input: forged }) => {
+    const organizationId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    vi.mocked(resolveOutgoingDeliveryScope).mockResolvedValue({
+      kind: 'tenant',
+      queueKind: 'reminder_dispatch',
+      organizationId,
+    });
+    let observed: ReturnType<typeof getCurrentObservabilityContext> = {};
+    await runWithDbInfraPrincipal({ source: 'worker:outgoing-delivery-tick' }, () =>
+      processClaimedOutgoingDeliveryRow(
+        baseRow({
+          id: '11111111-1111-4111-8111-111111111111',
+          payloadJson: {
+            occurrenceId: '22222222-2222-4222-8222-222222222222',
+            channel: 'max',
+            deliveryLogId: 'delivery-log',
+            externalId: '200',
+            logText: 'test',
+            intent: {
+              type: 'message.send',
+              meta: {
+                eventId: 'event',
+                occurredAt: '2026-07-16T10:00:00.000Z',
+                source: 'max',
+                correlationId: forged,
               },
+              payload: { recipient: { chatId: 200 } },
             },
-          }),
-          {
-            db: {} as DbPort,
-            writePort: { writeDb: vi.fn().mockResolvedValue(undefined) } as never,
-            dispatchOutgoing: vi.fn(async () => {
-              observed = getCurrentObservabilityContext();
-              return { maxMessageId: 'message-id' };
-            }),
           },
-        ),
-      );
-      expect(observed.orgId).toBe(organizationId);
-      expect(observed.correlationId).toMatch(/^[0-9a-f-]{36}$/);
-      expect(observed.correlationId).not.toBe(forged);
-    },
-  );
+        }),
+        {
+          db: {} as DbPort,
+          writePort: { writeDb: vi.fn().mockResolvedValue(undefined) } as never,
+          dispatchOutgoing: vi.fn(async () => {
+            observed = getCurrentObservabilityContext();
+            return { maxMessageId: 'message-id' };
+          }),
+        },
+      ),
+    );
+    expect(observed.orgId).toBe(organizationId);
+    expect(observed.correlationId).toMatch(/^[0-9a-f-]{36}$/);
+    expect(observed.correlationId).not.toBe(forged);
+  });
 
   it('quarantines unresolved tenant work before any external send', async () => {
     vi.mocked(resolveOutgoingDeliveryScope).mockResolvedValue({
@@ -206,10 +211,11 @@ describe('claimed row tenant handoff', () => {
     });
     const dispatchOutgoing = vi.fn();
     await runWithDbInfraPrincipal({ source: 'worker:outgoing-delivery-tick' }, () =>
-      processClaimedOutgoingDeliveryRow(
-        baseRow({ id: '11111111-1111-4111-8111-111111111111' }),
-        { db: {} as DbPort, writePort: {} as never, dispatchOutgoing },
-      ),
+      processClaimedOutgoingDeliveryRow(baseRow({ id: '11111111-1111-4111-8111-111111111111' }), {
+        db: {} as DbPort,
+        writePort: {} as never,
+        dispatchOutgoing,
+      }),
     );
     expect(dispatchOutgoing).not.toHaveBeenCalled();
     expect(markOutgoingDeliveryDead).toHaveBeenCalledWith(
@@ -236,12 +242,14 @@ describe('claimed row infrastructure failures', () => {
       new Error('operator does not exist: text = uuid'),
     );
 
-    await expect(runOutgoingDeliveryWorkerTick({
-      db: {} as DbPort,
-      writePort: { writeDb: vi.fn() } as never,
-      dispatchOutgoing: vi.fn(),
-      batchSize: 10,
-    })).resolves.toEqual({ claimed: 1, processed: 0, errors: 1 });
+    await expect(
+      runOutgoingDeliveryWorkerTick({
+        db: {} as DbPort,
+        writePort: { writeDb: vi.fn() } as never,
+        dispatchOutgoing: vi.fn(),
+        batchSize: 10,
+      }),
+    ).resolves.toEqual({ claimed: 1, processed: 0, errors: 1 });
 
     expect(markOutgoingDeliveryDead).toHaveBeenCalledWith(
       expect.anything(),
@@ -258,14 +266,18 @@ describe('claimed row infrastructure failures', () => {
       maxAttempts: 6,
     });
     vi.mocked(claimDueOutgoingDeliveries).mockResolvedValue([row]);
-    vi.mocked(resolveOutgoingDeliveryScope).mockRejectedValue(new Error('temporary scope lookup failure'));
+    vi.mocked(resolveOutgoingDeliveryScope).mockRejectedValue(
+      new Error('temporary scope lookup failure'),
+    );
 
-    await expect(runOutgoingDeliveryWorkerTick({
-      db: {} as DbPort,
-      writePort: { writeDb: vi.fn() } as never,
-      dispatchOutgoing: vi.fn(),
-      batchSize: 10,
-    })).resolves.toEqual({ claimed: 1, processed: 0, errors: 1 });
+    await expect(
+      runOutgoingDeliveryWorkerTick({
+        db: {} as DbPort,
+        writePort: { writeDb: vi.fn() } as never,
+        dispatchOutgoing: vi.fn(),
+        batchSize: 10,
+      }),
+    ).resolves.toEqual({ claimed: 1, processed: 0, errors: 1 });
 
     expect(rescheduleOutgoingDeliveryRetry).toHaveBeenCalledWith(
       expect.anything(),
@@ -284,7 +296,9 @@ describe('outbound egress policy denials', () => {
   });
 
   it('finalizes a legacy messenger replay without retry, delivery-attempt, or bot-block side effects', async () => {
-    const dispatchOutgoing = vi.fn().mockRejectedValue(new OutboundMessagePolicyError('missing_or_invalid_marker'));
+    const dispatchOutgoing = vi
+      .fn()
+      .mockRejectedValue(new OutboundMessagePolicyError('missing_or_invalid_marker'));
     const writeDb = vi.fn().mockResolvedValue(undefined);
     const db = {};
 
@@ -300,7 +314,11 @@ describe('outbound egress policy denials', () => {
           logText: 'legacy text must not be delivered',
           intent: {
             type: 'message.send',
-            meta: { eventId: 'legacy-event', occurredAt: '2026-01-01T00:00:00.000Z', source: 'telegram' },
+            meta: {
+              eventId: 'legacy-event',
+              occurredAt: '2026-01-01T00:00:00.000Z',
+              source: 'telegram',
+            },
             payload: {
               recipient: { chatId: 123 },
               message: { text: 'legacy text must not be delivered' },
@@ -312,7 +330,11 @@ describe('outbound egress policy denials', () => {
       { db: db as never, writePort: { writeDb } as never, dispatchOutgoing },
     );
 
-    expect(markOutgoingDeliveryDead).toHaveBeenCalledWith(db, 'q-policy-denied', OUTBOUND_MESSAGE_POLICY_DENIED);
+    expect(markOutgoingDeliveryDead).toHaveBeenCalledWith(
+      db,
+      'q-policy-denied',
+      OUTBOUND_MESSAGE_POLICY_DENIED,
+    );
     expect(writeDb).not.toHaveBeenCalled();
     expect(markUserChannelBotBlocked).not.toHaveBeenCalled();
     expect(clearUserChannelBotBlocked).not.toHaveBeenCalled();
@@ -391,7 +413,12 @@ describe('reminder_dispatch outgoing delivery row', () => {
           deleteBeforeSendMessageId: 'stale-mid',
           intent: {
             type: 'message.send',
-            meta: { eventId: 'e1', occurredAt: '2026-01-01T00:00:00.000Z', source: 'max', userId: 'u1' },
+            meta: {
+              eventId: 'e1',
+              occurredAt: '2026-01-01T00:00:00.000Z',
+              source: 'max',
+              userId: 'u1',
+            },
             payload: {
               recipient: { chatId: 200 },
               message: { text: 'Hi' },
@@ -513,7 +540,12 @@ describe('reminder_dispatch outgoing delivery row', () => {
           logText: '<b>r</b>',
           intent: {
             type: 'message.send',
-            meta: { eventId: 'e3', occurredAt: '2026-01-01T00:00:00.000Z', source: 'max', userId: 'u1' },
+            meta: {
+              eventId: 'e3',
+              occurredAt: '2026-01-01T00:00:00.000Z',
+              source: 'max',
+              userId: 'u1',
+            },
             payload: {
               recipient: { chatId: 300 },
               message: { text: 'Hi' },
@@ -554,7 +586,12 @@ describe('reminder_dispatch outgoing delivery row', () => {
           deleteBeforeSendMessageId: 'stale-bad',
           intent: {
             type: 'message.send',
-            meta: { eventId: 'e4', occurredAt: '2026-01-01T00:00:00.000Z', source: 'max', userId: 'u1' },
+            meta: {
+              eventId: 'e4',
+              occurredAt: '2026-01-01T00:00:00.000Z',
+              source: 'max',
+              userId: 'u1',
+            },
             payload: {
               recipient: { chatId: 400 },
               message: { text: 'Hi' },
@@ -594,7 +631,12 @@ describe('reminder_dispatch outgoing delivery row', () => {
           deleteBeforeSendMessageId: '77',
           intent: {
             type: 'message.send',
-            meta: { eventId: 'e5', occurredAt: '2026-01-01T00:00:00.000Z', source: 'telegram', userId: 'u1' },
+            meta: {
+              eventId: 'e5',
+              occurredAt: '2026-01-01T00:00:00.000Z',
+              source: 'telegram',
+              userId: 'u1',
+            },
             payload: {
               recipient: { chatId: 500 },
               message: { text: 'Hi' },
@@ -702,7 +744,12 @@ describe('reminder_dispatch outgoing delivery row', () => {
           logText: 'reminder text',
           intent: {
             type: 'message.send',
-            meta: { eventId: 'e-org', occurredAt: '2026-01-01T00:00:00.000Z', source: 'max', userId: 'u1' },
+            meta: {
+              eventId: 'e-org',
+              occurredAt: '2026-01-01T00:00:00.000Z',
+              source: 'max',
+              userId: 'u1',
+            },
             payload: {
               recipient: { chatId: 200 },
               message: { text: 'Hi' },
@@ -719,7 +766,6 @@ describe('reminder_dispatch outgoing delivery row', () => {
     expect(queueContexts).toEqual([undefined]);
   });
 });
-
 
 describe('doctor_broadcast_intent outgoing delivery row', () => {
   beforeEach(() => {
@@ -758,17 +804,18 @@ describe('doctor_broadcast_intent outgoing delivery row', () => {
     );
     expect(dispatchOutgoing).toHaveBeenCalledTimes(1);
     expect(markOutgoingDeliverySent).toHaveBeenCalled();
-    const sqlText = vi.mocked(runIntegratorSql).mock.calls
-      .map((c) => drizzleSqlFragmentToApproximateSql(c[1]))
+    const sqlText = vi
+      .mocked(runIntegratorSql)
+      .mock.calls.map((c) => drizzleSqlFragmentToApproximateSql(c[1]))
       .join('\n');
     expect(sqlText).toContain('broadcast_audit');
     expect(runIntegratorSql).toHaveBeenCalled();
   });
 
   it('doctor broadcast blocked: increments blocked_recipient_count not error_count', async () => {
-    const dispatchOutgoing = vi.fn().mockRejectedValue(
-      new RecipientBlockedBotError('telegram', 'bot was blocked by the user'),
-    );
+    const dispatchOutgoing = vi
+      .fn()
+      .mockRejectedValue(new RecipientBlockedBotError('telegram', 'bot was blocked by the user'));
     const auditId = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
     const db = {};
     await processOutgoingDeliveryRow(
@@ -802,8 +849,9 @@ describe('doctor_broadcast_intent outgoing delivery row', () => {
       expect.stringContaining('RECIPIENT_BLOCKED_BOT'),
       'recipient_blocked_bot',
     );
-    const sqlText = vi.mocked(runIntegratorSql).mock.calls
-      .map((c) => drizzleSqlFragmentToApproximateSql(c[1]))
+    const sqlText = vi
+      .mocked(runIntegratorSql)
+      .mock.calls.map((c) => drizzleSqlFragmentToApproximateSql(c[1]))
       .join('\n');
     expect(sqlText).toContain('blocked_recipient_count');
     expect(sqlText).not.toContain('error_count = error_count + 1');
@@ -835,15 +883,15 @@ describe('doctor_broadcast_intent outgoing delivery row', () => {
   });
 
   it('calls menu enricher when doctorBroadcastMenu deps provided', async () => {
-    const spy = vi.spyOn(doctorBroadcastIntentMenu, 'enrichDoctorBroadcastIntentIfNeeded').mockImplementation(
-      async ({ intent }) => ({
+    const spy = vi
+      .spyOn(doctorBroadcastIntentMenu, 'enrichDoctorBroadcastIntentIfNeeded')
+      .mockImplementation(async ({ intent }) => ({
         ...intent,
         payload: {
           ...(intent as { payload: Record<string, unknown> }).payload,
           replyMarkup: { testMenu: true },
         },
-      }),
-    );
+      }));
     const dispatchOutgoing = vi.fn().mockResolvedValue({});
     const auditId = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
     const db = {};

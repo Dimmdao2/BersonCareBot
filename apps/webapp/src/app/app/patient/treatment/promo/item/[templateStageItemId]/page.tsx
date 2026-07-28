@@ -1,12 +1,15 @@
-import { redirect, notFound } from "next/navigation";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getOptionalPatientSession, patientRscPersonalDataGate } from "@/app-layer/guards/requireRole";
-import { routePaths } from "@/app-layer/routes/paths";
-import { PatientAppShell } from "@/shared/ui/patient/PatientAppShell";
-import { patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
-import { pickActivePlanInstance } from "@/modules/treatment-program/pickActivePlanInstance";
-import { mapTemplateStageItemToInstanceStageItemId } from "@/modules/treatment-program/mapTemplateStageItemToInstanceItem";
-import { resolvePlanStartLessonPathForPatient } from "@/app/app/patient/go/resolvePatientReminderGoTargets";
+import { redirect, notFound } from 'next/navigation';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import {
+  getOptionalPatientSession,
+  patientRscPersonalDataGate,
+} from '@/app-layer/guards/requireRole';
+import { routePaths } from '@/app-layer/routes/paths';
+import { PatientAppShell } from '@/shared/ui/patient/PatientAppShell';
+import { patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
+import { pickActivePlanInstance } from '@/modules/treatment-program/pickActivePlanInstance';
+import { mapTemplateStageItemToInstanceStageItemId } from '@/modules/treatment-program/mapTemplateStageItemToInstanceItem';
+import { resolvePlanStartLessonPathForPatient } from '@/app/app/patient/go/resolvePatientReminderGoTargets';
 
 type Props = { params: Promise<{ templateStageItemId: string }> };
 
@@ -21,10 +24,18 @@ export default async function PatientTreatmentPromoItemPage({ params }: Props) {
     );
   }
 
-  const dataGate = await patientRscPersonalDataGate(session, routePaths.patientTreatmentPromoDefault);
-  if (dataGate === "guest") {
+  const dataGate = await patientRscPersonalDataGate(
+    session,
+    routePaths.patientTreatmentPromoDefault,
+  );
+  if (dataGate === 'guest') {
     return (
-      <PatientAppShell title="Пункт" user={session.user} backHref={routePaths.patient} backLabel="Меню">
+      <PatientAppShell
+        title="Пункт"
+        user={session.user}
+        backHref={routePaths.patient}
+        backLabel="Меню"
+      >
         <p className={patientMutedTextClass}>Раздел доступен после входа.</p>
       </PatientAppShell>
     );
@@ -43,7 +54,7 @@ export default async function PatientTreatmentPromoItemPage({ params }: Props) {
   } catch {
     notFound();
   }
-  if (tpl.status !== "published") notFound();
+  if (tpl.status !== 'published') notFound();
 
   const tplItem = tpl.stages.flatMap((st) => st.items).find((i) => i.id === templateStageItemId);
   if (!tplItem) notFound();
@@ -60,7 +71,7 @@ export default async function PatientTreatmentPromoItemPage({ params }: Props) {
   if (detail) {
     const mapped = mapTemplateStageItemToInstanceStageItemId(tpl, detail, templateStageItemId);
     if (mapped) {
-      redirect(routePaths.patientTreatmentProgramItem(picked.id, mapped, "exec", "program"));
+      redirect(routePaths.patientTreatmentProgramItem(picked.id, mapped, 'exec', 'program'));
     }
   }
 

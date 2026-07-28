@@ -1,29 +1,29 @@
 ---
 name: Wave2 Phase01 Integrator tail SQL
-overview: "Wave 2 I: перевести ядро integrator tail (очередь доставки, bookingProfilesRepo, settings sync, audit/attempts, worker SQL) на runIntegratorSql; мелкие repos/config reads — отдельный backlog (см. Закрытие)."
+overview: 'Wave 2 I: перевести ядро integrator tail (очередь доставки, bookingProfilesRepo, settings sync, audit/attempts, worker SQL) на runIntegratorSql; мелкие repos/config reads — отдельный backlog (см. Закрытие).'
 status: completed
 isProject: false
 todos:
   - id: p01-inventory-scope
-    content: "Сверить scope с [RAW_SQL_INVENTORY.md](../../../../INTEGRATOR_DRIZZLE_MIGRATION/RAW_SQL_INVENTORY.md) §1.2–1.3; зафиксировать список файлов этапа: outgoingDeliveryQueue, bookingProfilesRepo, messengerPhoneBindAudit, platformUserDeliveryPhone, patientHomeMorningPing repo/handler, idempotencyKeys, adminStats, linkedPhoneSource, resolvePlatformUserIdForRubitimeBooking, canonicalUserId, integrationDataQualityIncidents, settings/config reads и outgoingDeliveryWorker; не расширять на P4-репо без причины."
+    content: 'Сверить scope с [RAW_SQL_INVENTORY.md](../../../../INTEGRATOR_DRIZZLE_MIGRATION/RAW_SQL_INVENTORY.md) §1.2–1.3; зафиксировать список файлов этапа: outgoingDeliveryQueue, bookingProfilesRepo, messengerPhoneBindAudit, platformUserDeliveryPhone, patientHomeMorningPing repo/handler, idempotencyKeys, adminStats, linkedPhoneSource, resolvePlatformUserIdForRubitimeBooking, canonicalUserId, integrationDataQualityIncidents, settings/config reads и outgoingDeliveryWorker; не расширять на P4-репо без причины.'
     status: completed
   - id: p01-outgoing-delivery
-    content: "outgoingDeliveryQueue.ts: Drizzle insert/update/reschedule/mark*; claim CTE+SKIP LOCKED — либо оставить execute(sql), либо перенос только с EXPLAIN+тестом конкуренции; обновить/добавить unit-тесты порта."
+    content: 'outgoingDeliveryQueue.ts: Drizzle insert/update/reschedule/mark*; claim CTE+SKIP LOCKED — либо оставить execute(sql), либо перенос только с EXPLAIN+тестом конкуренции; обновить/добавить unit-тесты порта.'
     status: completed
   - id: p01-booking-profiles
-    content: "bookingProfilesRepo.ts: поэтапно заменить db.query на getIntegratorDrizzleSession + builder/+sql поверх текущих integrator.rubitime_*; cutover на public.booking_* и дедуп rubitime_* НЕ входят в этап."
+    content: 'bookingProfilesRepo.ts: поэтапно заменить db.query на getIntegratorDrizzleSession + builder/+sql поверх текущих integrator.rubitime_*; cutover на public.booking_* и дедуп rubitime_* НЕ входят в этап.'
     status: completed
   - id: p01-small-repos
-    content: "Мелкие repos/config reads — полный перенос вынесен из фактического scope закрытия; см. todo p01-small-repos-backlog и Закрытие."
+    content: 'Мелкие repos/config reads — полный перенос вынесен из фактического scope закрытия; см. todo p01-small-repos-backlog и Закрытие.'
     status: cancelled
   - id: p01-small-repos-backlog
-    content: "Backlog (не блокирует закрытие этапа): platformUserDeliveryPhone, canonicalUserId, linkedPhoneSource, resolvePlatformUserIdForRubitimeBooking, patientHomeMorningPing, idempotencyKeys, adminStats, integrationDataQualityIncidents, branchTimezone, adminIncidentAlertRelay, smtpOutbound, messengerStaffIds, operationalVerboseLog — остаются db.query; перенос при касании или отдельный под-этап Wave 2+."
+    content: 'Backlog (не блокирует закрытие этапа): platformUserDeliveryPhone, canonicalUserId, linkedPhoneSource, resolvePlatformUserIdForRubitimeBooking, patientHomeMorningPing, idempotencyKeys, adminStats, integrationDataQualityIncidents, branchTimezone, adminIncidentAlertRelay, smtpOutbound, messengerStaffIds, operationalVerboseLog — остаются db.query; перенос при касании или отдельный под-этап Wave 2+.'
     status: cancelled
   - id: p01-settings-sync-route
-    content: "settingsSyncRoute.ts: insert onConflict через Drizzle; HTTP sync и зеркало integrator.system_settings сохраняются, проверяются инвалидации кэшей и правила system-settings-integrator-mirror."
+    content: 'settingsSyncRoute.ts: insert onConflict через Drizzle; HTTP sync и зеркало integrator.system_settings сохраняются, проверяются инвалидации кэшей и правила system-settings-integrator-mirror.'
     status: completed
   - id: p01-verify
-    content: "pnpm --dir apps/integrator run typecheck && pnpm --dir apps/integrator run test; точечный rg на оставшийся db.query в зоне этапа."
+    content: 'pnpm --dir apps/integrator run typecheck && pnpm --dir apps/integrator run test; точечный rg на оставшийся db.query в зоне этапа.'
     status: completed
 ---
 

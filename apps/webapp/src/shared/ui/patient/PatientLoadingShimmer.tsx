@@ -1,24 +1,32 @@
-import type { ReactNode } from "react";
-import { cn } from "@/lib/utils";
+import type { ReactNode } from 'react';
+import { cn } from '@/lib/utils';
 import {
   PATIENT_SHELL_CONTAINER_CLASS,
   PATIENT_SHELL_DESKTOP_MAX_CLASS,
   PATIENT_SHELL_MOBILE_MAX_CLASS,
   patientShellMaxWidthDataAttribute,
-} from "@/shared/ui/patient/pwaLayoutClasses";
+} from '@/shared/ui/patient/pwaLayoutClasses';
 
 /** Классы из `patient.css` (#app-shell-patient); не дублировать keyframes в route-файлах. */
-export const patientShimmerSheenClass = "patient-shimmer-sheen patient-shimmer-sheen-motion";
+export const patientShimmerSheenClass = 'patient-shimmer-sheen patient-shimmer-sheen-motion';
 
-type DivProps = Omit<React.ComponentProps<"div">, "children">;
+type DivProps = Omit<React.ComponentProps<'div'>, 'children'>;
 
 function PatientShimmerBox({ className, ...rest }: DivProps) {
-  return <div className={cn(patientShimmerSheenClass, "overflow-hidden", className)} aria-hidden {...rest} />;
+  return (
+    <div
+      className={cn(patientShimmerSheenClass, 'overflow-hidden', className)}
+      aria-hidden
+      {...rest}
+    />
+  );
 }
 
 /** Одна строка-плейсхолдер. */
 export function PatientShimmerLine({ className }: { className?: string }) {
-  return <PatientShimmerBox className={cn("h-3.5 w-full max-w-full rounded-md md:h-4", className)} />;
+  return (
+    <PatientShimmerBox className={cn('h-3.5 w-full max-w-full rounded-md md:h-4', className)} />
+  );
 }
 
 /** Карточка-плейсхолдер (surface как у patient-карточки). */
@@ -26,8 +34,8 @@ export function PatientShimmerCard({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        "overflow-hidden rounded-[var(--patient-card-radius-mobile)] border border-[var(--patient-border)] md:rounded-[var(--patient-card-radius-desktop)]",
-        "shadow-[var(--patient-shadow-card-mobile)] md:shadow-[var(--patient-shadow-card-desktop)]",
+        'overflow-hidden rounded-[var(--patient-card-radius-mobile)] border border-[var(--patient-border)] md:rounded-[var(--patient-card-radius-desktop)]',
+        'shadow-[var(--patient-shadow-card-mobile)] md:shadow-[var(--patient-shadow-card-desktop)]',
         className,
       )}
       aria-hidden
@@ -37,12 +45,12 @@ export function PatientShimmerCard({ className }: { className?: string }) {
   );
 }
 
-export type PatientLoadingPattern = "gridCards" | "heroList" | "formRows" | "cardBlocks";
+export type PatientLoadingPattern = 'gridCards' | 'heroList' | 'formRows' | 'cardBlocks';
 
 /** Контентная часть skeleton без оболочки shell (для Suspense внутри уже смонтированного `AppShell`). */
 export function PatientLoadingPatternBody({ pattern }: { pattern: PatientLoadingPattern }) {
   switch (pattern) {
-    case "gridCards":
+    case 'gridCards':
       return (
         <div className="grid gap-3 sm:grid-cols-2">
           {Array.from({ length: 6 }, (_, i) => (
@@ -50,7 +58,7 @@ export function PatientLoadingPatternBody({ pattern }: { pattern: PatientLoading
           ))}
         </div>
       );
-    case "heroList":
+    case 'heroList':
       return (
         <div className="flex flex-col gap-[var(--patient-gap)]">
           <PatientShimmerCard className="min-h-[12rem]" />
@@ -65,7 +73,7 @@ export function PatientLoadingPatternBody({ pattern }: { pattern: PatientLoading
           </div>
         </div>
       );
-    case "formRows":
+    case 'formRows':
       return (
         <div className="flex flex-col gap-4">
           {Array.from({ length: 5 }, (_, i) => (
@@ -76,7 +84,7 @@ export function PatientLoadingPatternBody({ pattern }: { pattern: PatientLoading
           ))}
         </div>
       );
-    case "cardBlocks":
+    case 'cardBlocks':
       return (
         <div className="flex flex-col gap-[var(--patient-gap)]">
           <PatientShimmerCard className="min-h-[7rem]" />
@@ -100,7 +108,7 @@ export function PatientLoadingPatternBody({ pattern }: { pattern: PatientLoading
  */
 export function PatientRouteLoadingShell({
   pattern,
-  navLabel = "Загрузка",
+  navLabel = 'Загрузка',
 }: {
   pattern: PatientLoadingPattern;
   /** Краткая подпись для `aria-label` (видимого текста нет). */
@@ -112,14 +120,17 @@ export function PatientRouteLoadingShell({
       {...patientShellMaxWidthDataAttribute()}
       className={cn(
         PATIENT_SHELL_CONTAINER_CLASS,
-        "gap-3 safe-padding-patient",
+        'gap-3 safe-padding-patient',
         PATIENT_SHELL_MOBILE_MAX_CLASS,
         PATIENT_SHELL_DESKTOP_MAX_CLASS,
       )}
       aria-busy="true"
       aria-label={navLabel}
     >
-      <div className="z-50 flex h-[52px] shrink-0 items-center justify-between gap-2 px-1 sm:h-14" aria-hidden>
+      <div
+        className="z-50 flex h-[52px] shrink-0 items-center justify-between gap-2 px-1 sm:h-14"
+        aria-hidden
+      >
         <PatientShimmerLine className="h-9 w-9 shrink-0 rounded-lg" />
         <div className="flex min-w-0 flex-1 justify-center gap-2 sm:gap-3">
           {Array.from({ length: 5 }, (_, i) => (
@@ -129,7 +140,10 @@ export function PatientRouteLoadingShell({
         <PatientShimmerLine className="h-9 w-9 shrink-0 rounded-lg" />
       </div>
 
-      <div className="shrink-0 border-b border-[var(--patient-border)] bg-white px-4 py-3" aria-hidden>
+      <div
+        className="shrink-0 border-b border-[var(--patient-border)] bg-white px-4 py-3"
+        aria-hidden
+      >
         <PatientShimmerLine className="h-6 w-2/3 max-w-[14rem]" />
       </div>
 

@@ -21,7 +21,10 @@ export function invalidateGoogleCalendarConfigCache(organizationId?: string): vo
   else configCache.clear();
 }
 
-async function readDbSetting(key: string, organizationId: string | null = null): Promise<string | null> {
+async function readDbSetting(
+  key: string,
+  organizationId: string | null = null,
+): Promise<string | null> {
   try {
     const db = createDbPort();
     return await readPublicSystemSettingString(db, key, 'admin', { organizationId });
@@ -49,24 +52,12 @@ async function mergeConfigFromDbWithEnv(
       refreshToken,
       platformAvailable,
     ] = await Promise.all([
-      readExactOrganizationPublicSystemSettingString(
-        db,
-        'google_calendar_enabled',
-        organizationId,
-      ),
+      readExactOrganizationPublicSystemSettingString(db, 'google_calendar_enabled', organizationId),
       readDbSetting('google_client_id'),
       readDbSetting('google_client_secret'),
       readDbSetting('google_redirect_uri'),
-      readExactOrganizationPublicSystemSettingString(
-        db,
-        'google_calendar_id',
-        organizationId,
-      ),
-      readExactOrganizationPublicSystemSettingString(
-        db,
-        'google_refresh_token',
-        organizationId,
-      ),
+      readExactOrganizationPublicSystemSettingString(db, 'google_calendar_id', organizationId),
+      readExactOrganizationPublicSystemSettingString(db, 'google_refresh_token', organizationId),
       isPlatformIntegrationAvailable(db, 'google_calendar'),
     ]);
     return {
@@ -105,7 +96,9 @@ export async function listGoogleCalendarProbeOrganizationIds(): Promise<string[]
 /** @deprecated env fallback — use DB (system_settings admin) via webapp Settings UI */
 const envFallback = googleCalendarConfig;
 
-export async function getGoogleCalendarConfig(organizationId: string | null | undefined = null): Promise<GoogleCalendarConfig> {
+export async function getGoogleCalendarConfig(
+  organizationId: string | null | undefined = null,
+): Promise<GoogleCalendarConfig> {
   const normalizedOrganizationId = organizationId?.trim() ?? '';
   if (!normalizedOrganizationId) {
     return { ...envFallback, enabled: false, calendarId: '', refreshToken: '' };

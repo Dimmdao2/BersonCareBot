@@ -8,46 +8,50 @@ describe('OperatorHealthProbeSettingsSection', () => {
   it('renders current and code-default values', async () => {
     vi.stubGlobal(
       'fetch',
-      vi
-        .fn()
-        .mockResolvedValue({
-          ok: true,
-          text: () =>
-            Promise.resolve(
-              JSON.stringify({
-                ok: true,
-                settings: [
-                  {
-                    key: 'operator_health_probe_config',
-                    valueJson: {
-                      value: {
-                        max: {
-                          enabled: true,
-                          intervalMs: 900000,
-                          timeoutMs: 6000,
-                          consecutiveFailures: 3,
-                        },
-                        telegram: {
-                          enabled: true,
-                          intervalMs: 600000,
-                          timeoutMs: 5000,
-                          consecutiveFailures: 2,
-                        },
-                        google_calendar: {
-                          enabled: false,
-                          intervalMs: 600000,
-                          timeoutMs: 5000,
-                          consecutiveFailures: 2,
-                        },
-                        email: { intervalMs: 900000, timeoutMs: 60000, roundTripDeadlineMs: 300000, retentionMs: 604800000, cleanupIntervalMs: 86400000 },
-                        quietUntil: null,
+      vi.fn().mockResolvedValue({
+        ok: true,
+        text: () =>
+          Promise.resolve(
+            JSON.stringify({
+              ok: true,
+              settings: [
+                {
+                  key: 'operator_health_probe_config',
+                  valueJson: {
+                    value: {
+                      max: {
+                        enabled: true,
+                        intervalMs: 900000,
+                        timeoutMs: 6000,
+                        consecutiveFailures: 3,
                       },
+                      telegram: {
+                        enabled: true,
+                        intervalMs: 600000,
+                        timeoutMs: 5000,
+                        consecutiveFailures: 2,
+                      },
+                      google_calendar: {
+                        enabled: false,
+                        intervalMs: 600000,
+                        timeoutMs: 5000,
+                        consecutiveFailures: 2,
+                      },
+                      email: {
+                        intervalMs: 900000,
+                        timeoutMs: 60000,
+                        roundTripDeadlineMs: 300000,
+                        retentionMs: 604800000,
+                        cleanupIntervalMs: 86400000,
+                      },
+                      quietUntil: null,
                     },
                   },
-                ],
-              }),
-            ),
-        }),
+                },
+              ],
+            }),
+          ),
+      }),
     );
     render(<OperatorHealthProbeSettingsSection />);
     await waitFor(() => expect(screen.getByDisplayValue('15')).toBeInTheDocument());

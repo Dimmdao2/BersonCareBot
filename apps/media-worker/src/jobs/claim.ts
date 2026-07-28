@@ -1,6 +1,6 @@
-import type { Pool } from "pg";
-import type { Logger } from "../logger.js";
-import { startMediaWorkerTransaction } from "../withClient.js";
+import type { Pool } from 'pg';
+import type { Logger } from '../logger.js';
+import { startMediaWorkerTransaction } from '../withClient.js';
 
 export type ClaimedJob = {
   id: string;
@@ -31,7 +31,7 @@ export async function reclaimStaleProcessing(
   );
   const n = r.rowCount ?? 0;
   if (n > 0) {
-    log.info({ reclaimed: n, staleLockMinutes }, "reclaimed stale transcode jobs");
+    log.info({ reclaimed: n, staleLockMinutes }, 'reclaimed stale transcode jobs');
   }
   return n;
 }
@@ -64,7 +64,11 @@ export async function claimNextJob(pool: Pool, lockedBy: string): Promise<Claime
       await tx.rollback();
       return null;
     }
-    if (!row.job_organization_id?.trim() || !row.media_organization_id?.trim() || row.job_organization_id !== row.media_organization_id) {
+    if (
+      !row.job_organization_id?.trim() ||
+      !row.media_organization_id?.trim() ||
+      row.job_organization_id !== row.media_organization_id
+    ) {
       await client.query(
         `UPDATE media_transcode_jobs
          SET status = 'failed',

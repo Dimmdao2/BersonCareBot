@@ -7,9 +7,9 @@
  * The public widget never used either field (see `shared/publicBook/usePublicCreateBooking.ts`), so
  * they are dropped rather than masked. One function, so a new public surface cannot forget.
  */
-import type { PatientBookingRecord } from "@/modules/patient-booking/types";
+import type { PatientBookingRecord } from '@/modules/patient-booking/types';
 
-export type PublicBookingRecordView = Omit<PatientBookingRecord, "userId">;
+export type PublicBookingRecordView = Omit<PatientBookingRecord, 'userId'>;
 
 export function redactPublicBookingRecord(booking: PatientBookingRecord): PublicBookingRecordView {
   const { userId: _userId, ...rest } = booking;

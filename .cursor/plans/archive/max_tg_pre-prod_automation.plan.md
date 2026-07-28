@@ -1,25 +1,25 @@
 ---
 name: MAX TG pre-prod automation
-overview: "До ручного прод-смоука: (1) webhook-тест при parse OK и fromMax === null; (2) executeAction-тест postOccurrenceSkip при skip preset none; (3) it.each в mapIn.test для update_type без ветки в fromMax; (4) корневой pnpm ci; (5) без eslint-disable: правки тестов под no-secrets (messengerStartParse, outgoingDeliveryWorker). Документация: docs/ARCHITECTURE/MAX_PREPROD_AUTOMATION_LOG.md + правки MAX_SETUP / MAX_CAPABILITY_MATRIX / docs/README. Прод вне DoD."
+overview: 'До ручного прод-смоука: (1) webhook-тест при parse OK и fromMax === null; (2) executeAction-тест postOccurrenceSkip при skip preset none; (3) it.each в mapIn.test для update_type без ветки в fromMax; (4) корневой pnpm ci; (5) без eslint-disable: правки тестов под no-secrets (messengerStartParse, outgoingDeliveryWorker). Документация: docs/ARCHITECTURE/MAX_PREPROD_AUTOMATION_LOG.md + правки MAX_SETUP / MAX_CAPABILITY_MATRIX / docs/README. Прод вне DoD.'
 status: completed
 todos:
   - id: max-webhook-frommax-null
-    content: "webhook.test.ts — валидное тело message_edited, fromMax→null: 200, ok:true, eventGateway не вызывается"
+    content: 'webhook.test.ts — валидное тело message_edited, fromMax→null: 200, ok:true, eventGateway не вызывается'
     status: completed
   - id: reminders-post-occurrence-skip
     content: executeAction.test.ts — reminders.skip.applyPreset reason none + мок postOccurrenceSkip до markSkippedLocal
     status: completed
   - id: mapin-ignored-update-types-table
-    content: "mapIn.test.ts — it.each по семи update_type без ветки в fromMax; без дублирования message_edited/message_removed"
+    content: 'mapIn.test.ts — it.each по семи update_type без ветки в fromMax; без дублирования message_edited/message_removed'
     status: completed
   - id: integrator-lint-no-secrets-tests
-    content: "Тесты integrator без eslint-disable no-secrets: сборка setphone-литерала по частям; переименование describe в outgoingDeliveryWorker.test"
+    content: 'Тесты integrator без eslint-disable no-secrets: сборка setphone-литерала по частям; переименование describe в outgoingDeliveryWorker.test'
     status: completed
   - id: root-ci-barrier
     content: Корень репо — pnpm install --frozen-lockfile && pnpm run ci
     status: completed
   - id: docs-sync-max-preprod
-    content: "MAX_PREPROD_AUTOMATION_LOG.md, MAX_CAPABILITY_MATRIX, MAX_SETUP, docs/README; archive README — ссылка на план"
+    content: 'MAX_PREPROD_AUTOMATION_LOG.md, MAX_CAPABILITY_MATRIX, MAX_SETUP, docs/README; archive README — ссылка на план'
     status: completed
 isProject: false
 ---

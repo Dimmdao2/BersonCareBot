@@ -18,17 +18,17 @@
 
 **Рекомендуемые поля (имена финализировать в PR):**
 
-| Поле | Назначение |
-|------|------------|
-| `video_processing_status` | `none` / `pending` / `processing` / `ready` / `failed` (transcode) |
-| `video_processing_error` | TEXT nullable, краткий код/сообщение |
-| `video_source_s3_key` | optional denormalization; если всегда = `s3_key` для video, можно не вводить |
-| `hls_master_playlist_s3_key` | ключ master `.m3u8` |
-| `hls_variant_prefix` или только master | зависит от layout phase-03 |
-| `poster_s3_key` | JPEG/WEBP превью |
-| `video_duration_seconds` | INTEGER nullable |
-| `available_qualities_json` | JSONB: `[{ renditionId, height, bandwidth }] ` |
-| `video_delivery_override` | nullable enum text: `mp4` / `hls` / `auto` per file (опционально) |
+| Поле                                   | Назначение                                                                   |
+| -------------------------------------- | ---------------------------------------------------------------------------- |
+| `video_processing_status`              | `none` / `pending` / `processing` / `ready` / `failed` (transcode)           |
+| `video_processing_error`               | TEXT nullable, краткий код/сообщение                                         |
+| `video_source_s3_key`                  | optional denormalization; если всегда = `s3_key` для video, можно не вводить |
+| `hls_master_playlist_s3_key`           | ключ master `.m3u8`                                                          |
+| `hls_variant_prefix` или только master | зависит от layout phase-03                                                   |
+| `poster_s3_key`                        | JPEG/WEBP превью                                                             |
+| `video_duration_seconds`               | INTEGER nullable                                                             |
+| `available_qualities_json`             | JSONB: `[{ renditionId, height, bandwidth }] `                               |
+| `video_delivery_override`              | nullable enum text: `mp4` / `hls` / `auto` per file (опционально)            |
 
 - TypeScript: расширить `MediaRecord` / row types в `modules/media/types.ts` и репозитории **только чтение** для админки (опционально в этой фазе).
 

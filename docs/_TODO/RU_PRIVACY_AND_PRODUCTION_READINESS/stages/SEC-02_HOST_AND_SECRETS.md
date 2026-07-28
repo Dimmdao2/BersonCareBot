@@ -22,7 +22,6 @@ application domain code и любые production mutations до отдельно
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-
 Агенты сейчас могут подготовить repository patch, tests, preflight и rollback; применять на PROD можно только в
 короткое окно `G-11`. Новый encrypted host не является причиной оставлять критические текущие gaps открытыми.
 
@@ -61,7 +60,6 @@ application domain code и любые production mutations до отдельно
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-
 - [ ] Сверить Selectel SG, listening sockets, nginx upstreams, SSH users/keys и whitelist sudo.
 - [ ] Сформировать default-deny matrix: public 80/443; SSH только утверждённые sources; DB/app ports не public.
 - [ ] Реализовать один `nftables` ruleset и rollback timer; доказать persistence после reboot на TEST/disposable.
@@ -75,7 +73,6 @@ application domain code и любые production mutations до отдельно
 > **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
-
 
 - [ ] Разделить service users и write paths; deploy не должен иметь путь к root через изменяемый unit/script.
 - [ ] Зафиксировать `User/Group`, `NoNewPrivileges`, `PrivateTmp`, filesystem capabilities и необходимые исключения.
@@ -92,7 +89,6 @@ application domain code и любые production mutations до отдельно
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-
 - [ ] Реестр secret names: purpose, owner, producer/consumer, storage, created/last-rotated, rotation/revoke path.
 - [ ] Удалить дубли после S5 migration только по доказанному usage census; значения в лог/git не выводить.
 - [ ] Выполнить TEST rotation drill для session/M2M/integration/DB credentials с rollback и session-impact report.
@@ -106,7 +102,6 @@ application domain code и любые production mutations до отдельно
 > **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
-
 
 - [ ] От модели угроз построить detection coverage: что видят `auditd`, AppArmor, systemd/journal, network/SSH
       alerts и external monitoring; какие host/process/file/network техники остаются невидимыми.

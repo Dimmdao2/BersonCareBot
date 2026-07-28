@@ -3,26 +3,26 @@
  *
  *   USE_REAL_DATABASE=1 RUN_DOCTOR_PHASE_13D_DEV_DB=1 pnpm exec vitest run src/infra/repos/pgDoctorPhase13d.devDb.integration.test.ts
  */
-import { afterAll, describe, expect, it } from "vitest";
-import pg from "pg";
-import { createPgDoctorMotivationQuotesEditorPort } from "@/infra/repos/pgDoctorMotivationQuotesEditor";
-import { createPgDoctorProactiveInsightsPort } from "@/infra/repos/pgDoctorProactiveInsights";
+import { afterAll, describe, expect, it } from 'vitest';
+import pg from 'pg';
+import { createPgDoctorMotivationQuotesEditorPort } from '@/infra/repos/pgDoctorMotivationQuotesEditor';
+import { createPgDoctorProactiveInsightsPort } from '@/infra/repos/pgDoctorProactiveInsights';
 
 async function assertDevDb(client: pg.PoolClient): Promise<void> {
   const r = await client.query<{ n: string }>(`SELECT current_database() AS n`);
-  const n = r.rows[0]?.n ?? "";
-  const ok = /_dev$/i.test(n) || n === "bcb_webapp_dev";
+  const n = r.rows[0]?.n ?? '';
+  const ok = /_dev$/i.test(n) || n === 'bcb_webapp_dev';
   if (!ok) {
     throw new Error(`refusing: current_database="${n}" — expected dev DB`);
   }
 }
 
 const enabled =
-  process.env.RUN_DOCTOR_PHASE_13D_DEV_DB === "1" &&
-  process.env.USE_REAL_DATABASE === "1" &&
-  Boolean((process.env.DATABASE_URL ?? "").trim());
+  process.env.RUN_DOCTOR_PHASE_13D_DEV_DB === '1' &&
+  process.env.USE_REAL_DATABASE === '1' &&
+  Boolean((process.env.DATABASE_URL ?? '').trim());
 
-describe.skipIf(!enabled)("Wave 3 phase 13D (dev DB, opt-in read-only)", () => {
+describe.skipIf(!enabled)('Wave 3 phase 13D (dev DB, opt-in read-only)', () => {
   const pool = new pg.Pool({
     connectionString: process.env.DATABASE_URL,
     max: 2,
@@ -32,7 +32,7 @@ describe.skipIf(!enabled)("Wave 3 phase 13D (dev DB, opt-in read-only)", () => {
     await pool.end();
   });
 
-  it("motivation editor listQuotesForEditor returns an array", async () => {
+  it('motivation editor listQuotesForEditor returns an array', async () => {
     const client = await pool.connect();
     try {
       await assertDevDb(client);
@@ -45,9 +45,9 @@ describe.skipIf(!enabled)("Wave 3 phase 13D (dev DB, opt-in read-only)", () => {
     expect(Array.isArray(rows)).toBe(true);
   });
 
-  it("proactive insights queryInsights returns paginated shape", async () => {
+  it('proactive insights queryInsights returns paginated shape', async () => {
     const client = await pool.connect();
-    let organizationId = "00000000-0000-0000-0000-000000000000";
+    let organizationId = '00000000-0000-0000-0000-000000000000';
     try {
       await assertDevDb(client);
       const result = await client.query<{ organization_id: string }>(
@@ -64,10 +64,10 @@ describe.skipIf(!enabled)("Wave 3 phase 13D (dev DB, opt-in read-only)", () => {
     const port = createPgDoctorProactiveInsightsPort();
     const result = await port.queryInsights({
       limit: 5,
-      displayIana: "Europe/Moscow",
+      displayIana: 'Europe/Moscow',
       organizationId,
     });
     expect(Array.isArray(result.items)).toBe(true);
-    expect(typeof result.totalCount).toBe("number");
+    expect(typeof result.totalCount).toBe('number');
   });
 });

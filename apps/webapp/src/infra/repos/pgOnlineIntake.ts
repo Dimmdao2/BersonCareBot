@@ -1,21 +1,21 @@
-import { randomUUID } from "node:crypto";
-import { toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
-import type { PoolClient } from "pg";
+import { randomUUID } from 'node:crypto';
+import { toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
+import type { PoolClient } from 'pg';
 /**
  * Wave 3 phase 12A + R0/S3P — multipart tx with shared advisory lock per user id.
  * Checkout/tx control goes through `withPoolTransaction`.
  * Domain SQL — `runWebappPgText` / `getWebappSqlFromPgClient`.
  * Wave 3 phase 15G — getDoctorStats migrated from pool.query to Drizzle db.execute(sql).
  */
-import { sql } from "drizzle-orm";
-import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
-import { getDrizzle } from "@/app-layer/db/drizzle";
-import { getPool } from "@/infra/db/client";
-import { pgAdvisoryXactLockShared } from "@/infra/db/pgAdvisoryLock";
-import { getWebappSqlFromPgClient, runWebappPgText } from "@/infra/db/runWebappSql";
-import { withPoolTransaction } from "@/infra/db/withClient";
-import { resolveMediaFileForLfkAttachment } from "@/infra/repos/pgMediaFileIntakeResolve";
-import type { OnlineIntakePort, ListIntakeQuery } from "@/modules/online-intake/ports";
+import { sql } from 'drizzle-orm';
+import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
+import { getDrizzle } from '@/app-layer/db/drizzle';
+import { getPool } from '@/infra/db/client';
+import { pgAdvisoryXactLockShared } from '@/infra/db/pgAdvisoryLock';
+import { getWebappSqlFromPgClient, runWebappPgText } from '@/infra/db/runWebappSql';
+import { withPoolTransaction } from '@/infra/db/withClient';
+import { resolveMediaFileForLfkAttachment } from '@/infra/repos/pgMediaFileIntakeResolve';
+import type { OnlineIntakePort, ListIntakeQuery } from '@/modules/online-intake/ports';
 import type {
   ChangeIntakeStatusInput,
   CreateLfkIntakeInput,
@@ -30,7 +30,7 @@ import type {
   IntakeStatus,
   IntakeStatusHistoryEntry,
   IntakeType,
-} from "@/modules/online-intake/types";
+} from '@/modules/online-intake/types';
 
 type RequestRow = {
   id: string;
@@ -84,7 +84,9 @@ type RequestRowWithIdentity = RequestRow & {
   first_name: string;
 };
 
-function mapRequestWithPatientIdentity(row: RequestRowWithIdentity): IntakeRequestWithPatientIdentity {
+function mapRequestWithPatientIdentity(
+  row: RequestRowWithIdentity,
+): IntakeRequestWithPatientIdentity {
   return {
     ...mapRequest(row),
     patientName: row.patient_name,
@@ -124,7 +126,7 @@ function mapAttachment(row: AttachmentRow): IntakeAttachment {
     id: row.id,
     requestId: row.request_id,
     organizationId: row.organization_id ?? null,
-    attachmentType: row.attachment_type as "file" | "url",
+    attachmentType: row.attachment_type as 'file' | 'url',
     s3Key: row.s3_key,
     url: row.url,
     mimeType: row.mime_type,
@@ -162,14 +164,19 @@ function currentWriteOrganizationId(...fallbacks: (string | null | undefined)[])
   const hasFallbackMismatch = fallbackOrganizationIds.some((id) => id !== fallbackOrganizationId);
   if (
     hasFallbackMismatch ||
-    (principalOrganizationId && fallbackOrganizationId && principalOrganizationId !== fallbackOrganizationId)
+    (principalOrganizationId &&
+      fallbackOrganizationId &&
+      principalOrganizationId !== fallbackOrganizationId)
   ) {
-    throw new Error("organization_principal_mismatch");
+    throw new Error('organization_principal_mismatch');
   }
   return principalOrganizationId ?? fallbackOrganizationId;
 }
 
-async function resolveWriteOrganizationIdForUser(client: PoolClient, userId: string): Promise<string | null> {
+async function resolveWriteOrganizationIdForUser(
+  client: PoolClient,
+  userId: string,
+): Promise<string | null> {
   const principalOrganizationId = getCurrentDbPrincipalOrganizationId();
   if (principalOrganizationId) return principalOrganizationId;
 
@@ -186,9 +193,13 @@ async function resolveWriteOrganizationIdForUser(client: PoolClient, userId: str
   return rows[0]?.organization_id ?? null;
 }
 
-function principalWhereClause(columnSql: string, params: unknown[], idx: number): { clause: string; nextIdx: number } {
+function principalWhereClause(
+  columnSql: string,
+  params: unknown[],
+  idx: number,
+): { clause: string; nextIdx: number } {
   const principalOrganizationId = getCurrentDbPrincipalOrganizationId();
-  if (!principalOrganizationId) return { clause: "", nextIdx: idx };
+  if (!principalOrganizationId) return { clause: '', nextIdx: idx };
   params.push(principalOrganizationId);
   return { clause: `${columnSql} = $${idx++}::uuid`, nextIdx: idx };
 }
@@ -295,8 +306,8 @@ export function createPgOnlineIntakePort(): OnlineIntakePort {
 
     async getById(id: string): Promise<IntakeRequestFull | null> {
       const reqParams: unknown[] = [id];
-      const reqPrincipal = principalWhereClause("organization_id", reqParams, 2);
-      const reqOrgWhere = reqPrincipal.clause ? ` AND ${reqPrincipal.clause}` : "";
+      const reqPrincipal = principalWhereClause('organization_id', reqParams, 2);
+      const reqOrgWhere = reqPrincipal.clause ? ` AND ${reqPrincipal.clause}` : '';
       const { rows: reqRows } = await runWebappPgText<RequestRow>(
         `SELECT * FROM online_intake_requests WHERE id = $1${reqOrgWhere}`,
         reqParams,
@@ -304,8 +315,8 @@ export function createPgOnlineIntakePort(): OnlineIntakePort {
       if (!reqRows[0]) return null;
       const request = mapRequest(reqRows[0]);
       const childParams: unknown[] = [id];
-      const childPrincipal = principalWhereClause("organization_id", childParams, 2);
-      const childOrgWhere = childPrincipal.clause ? ` AND ${childPrincipal.clause}` : "";
+      const childPrincipal = principalWhereClause('organization_id', childParams, 2);
+      const childOrgWhere = childPrincipal.clause ? ` AND ${childPrincipal.clause}` : '';
 
       const { rows: ansRows } = await runWebappPgText<AnswerRow>(
         `SELECT * FROM online_intake_answers WHERE request_id = $1${childOrgWhere} ORDER BY ordinal`,
@@ -330,8 +341,8 @@ export function createPgOnlineIntakePort(): OnlineIntakePort {
 
     async getByIdForDoctor(id: string): Promise<IntakeRequestFullWithPatientIdentity | null> {
       const reqParams: unknown[] = [id];
-      const reqPrincipal = principalWhereClause("r.organization_id", reqParams, 2);
-      const reqOrgWhere = reqPrincipal.clause ? ` AND ${reqPrincipal.clause}` : "";
+      const reqPrincipal = principalWhereClause('r.organization_id', reqParams, 2);
+      const reqOrgWhere = reqPrincipal.clause ? ` AND ${reqPrincipal.clause}` : '';
       const { rows: reqRows } = await runWebappPgText<RequestRowWithIdentity>(
         `SELECT r.*, COALESCE(pu.display_name, '') AS patient_name, COALESCE(pu.phone_normalized, '') AS patient_phone,
                 COALESCE(pu.last_name, '') AS last_name, COALESCE(pu.first_name, '') AS first_name
@@ -348,8 +359,8 @@ export function createPgOnlineIntakePort(): OnlineIntakePort {
       const lastName = reqRow.last_name;
       const firstName = reqRow.first_name;
       const childParams: unknown[] = [id];
-      const childPrincipal = principalWhereClause("organization_id", childParams, 2);
-      const childOrgWhere = childPrincipal.clause ? ` AND ${childPrincipal.clause}` : "";
+      const childPrincipal = principalWhereClause('organization_id', childParams, 2);
+      const childOrgWhere = childPrincipal.clause ? ` AND ${childPrincipal.clause}` : '';
 
       const { rows: ansRows } = await runWebappPgText<AnswerRow>(
         `SELECT * FROM online_intake_answers WHERE request_id = $1${childOrgWhere} ORDER BY ordinal`,
@@ -393,13 +404,13 @@ export function createPgOnlineIntakePort(): OnlineIntakePort {
         conditions.push(`status = $${idx++}`);
         params.push(query.status);
       }
-      const principal = principalWhereClause("organization_id", params, idx);
+      const principal = principalWhereClause('organization_id', params, idx);
       if (principal.clause) {
         conditions.push(principal.clause);
         idx = principal.nextIdx;
       }
 
-      const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+      const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
       const limit = query.limit ?? 20;
       const offset = query.offset ?? 0;
 
@@ -438,13 +449,13 @@ export function createPgOnlineIntakePort(): OnlineIntakePort {
         conditions.push(`r.status = $${idx++}`);
         params.push(query.status);
       }
-      const principal = principalWhereClause("r.organization_id", params, idx);
+      const principal = principalWhereClause('r.organization_id', params, idx);
       if (principal.clause) {
         conditions.push(principal.clause);
         idx = principal.nextIdx;
       }
 
-      const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+      const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
       const limit = query.limit ?? 20;
       const offset = query.offset ?? 0;
 
@@ -484,7 +495,7 @@ export function createPgOnlineIntakePort(): OnlineIntakePort {
           `SELECT * FROM online_intake_requests WHERE id = $1 FOR UPDATE`,
           [input.requestId],
         );
-        if (!cur[0]) throw Object.assign(new Error("not_found"), { code: "NOT_FOUND" });
+        if (!cur[0]) throw Object.assign(new Error('not_found'), { code: 'NOT_FOUND' });
 
         const organizationId = currentWriteOrganizationId(cur[0].organization_id);
         const fromStatus = cur[0].status;
@@ -538,8 +549,8 @@ export function createPgOnlineIntakePort(): OnlineIntakePort {
         total += count;
       }
 
-      const booked = byStatus["booked"] ?? 0;
-      const rejected = byStatus["rejected"] ?? 0;
+      const booked = byStatus['booked'] ?? 0;
+      const rejected = byStatus['rejected'] ?? 0;
       const denominator = booked + rejected;
       const conversionRate = denominator > 0 ? booked / denominator : null;
 

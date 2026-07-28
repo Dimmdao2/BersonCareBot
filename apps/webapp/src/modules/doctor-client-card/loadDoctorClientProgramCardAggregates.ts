@@ -1,14 +1,18 @@
-import { pickActivePlanInstance } from "@/modules/treatment-program/pickActivePlanInstance";
-import type { TreatmentProgramInstanceDetail, TreatmentProgramInstanceSummary, TreatmentProgramEventRow } from "@/modules/treatment-program/types";
-import { buildDoctorClientActiveProgramTree } from "./buildDoctorClientActiveProgramTree";
-import { buildDoctorClientCarePlanOverview } from "./buildDoctorClientCarePlanOverview";
-import { buildDoctorClientRecentProgramChanges } from "./buildDoctorClientRecentProgramChanges";
+import { pickActivePlanInstance } from '@/modules/treatment-program/pickActivePlanInstance';
+import type {
+  TreatmentProgramInstanceDetail,
+  TreatmentProgramInstanceSummary,
+  TreatmentProgramEventRow,
+} from '@/modules/treatment-program/types';
+import { buildDoctorClientActiveProgramTree } from './buildDoctorClientActiveProgramTree';
+import { buildDoctorClientCarePlanOverview } from './buildDoctorClientCarePlanOverview';
+import { buildDoctorClientRecentProgramChanges } from './buildDoctorClientRecentProgramChanges';
 import type {
   DoctorClientProgramCardAggregates,
   DoctorClientProgramCardData,
   DoctorClientProgramInboxRow,
   DoctorClientRecentProgramChangeRow,
-} from "./types";
+} from './types';
 
 export type LoadDoctorClientProgramCardAggregatesDeps = {
   treatmentProgramInstance: {
@@ -43,22 +47,20 @@ const EMPTY_DATA: DoctorClientProgramCardData = {
 
 function snapshotTitle(snapshot: Record<string, unknown>, itemType: string): string {
   const t = snapshot.title;
-  if (typeof t === "string" && t.trim() !== "") return t.trim();
+  if (typeof t === 'string' && t.trim() !== '') return t.trim();
   return itemType;
 }
 
 async function collectAttentionForActiveItems(
   detail: TreatmentProgramInstanceDetail,
   instanceId: string,
-  listAttentionSummaryForStageItems: LoadDoctorClientProgramCardAggregatesDeps["programItemDiscussion"]["listAttentionSummaryForStageItems"],
+  listAttentionSummaryForStageItems: LoadDoctorClientProgramCardAggregatesDeps['programItemDiscussion']['listAttentionSummaryForStageItems'],
 ): Promise<{
-  aggregates: Pick<DoctorClientProgramCardAggregates, "newCommentsCount" | "patientMediaCount">;
+  aggregates: Pick<DoctorClientProgramCardAggregates, 'newCommentsCount' | 'patientMediaCount'>;
   programInbox: DoctorClientProgramInboxRow[];
 }> {
   const activeItems = detail.stages.flatMap((s) =>
-    s.items
-      .filter((i) => i.status === "active")
-      .map((i) => ({ ...i, stageId: s.id })),
+    s.items.filter((i) => i.status === 'active').map((i) => ({ ...i, stageId: s.id })),
   );
 
   if (activeItems.length === 0) {
@@ -73,8 +75,7 @@ async function collectAttentionForActiveItems(
   let newCommentsCount = 0;
   let patientMediaCount = 0;
   const programInbox: DoctorClientProgramInboxRow[] = [];
-  const title = (it: (typeof activeItems)[number]) =>
-    snapshotTitle(it.snapshot, it.itemType);
+  const title = (it: (typeof activeItems)[number]) => snapshotTitle(it.snapshot, it.itemType);
 
   for (const item of activeItems) {
     const summary = summaryByItem.get(item.id) ?? { comments: 0, media: 0 };
@@ -85,7 +86,7 @@ async function collectAttentionForActiveItems(
         stageItemId: item.id,
         instanceId,
         title: title(item),
-        kind: "comment",
+        kind: 'comment',
       });
     }
     if (summary.media > 0) {
@@ -93,12 +94,14 @@ async function collectAttentionForActiveItems(
         stageItemId: item.id,
         instanceId,
         title: title(item),
-        kind: "media",
+        kind: 'media',
       });
     }
   }
 
-  programInbox.sort((a, b) => a.title.localeCompare(b.title, "ru") || a.stageItemId.localeCompare(b.stageItemId));
+  programInbox.sort(
+    (a, b) => a.title.localeCompare(b.title, 'ru') || a.stageItemId.localeCompare(b.stageItemId),
+  );
 
   return { aggregates: { newCommentsCount, patientMediaCount }, programInbox };
 }
@@ -144,11 +147,12 @@ export async function loadDoctorClientProgramCardData(
   };
   const stageTitle = (id: string) => detail.stages.find((s) => s.id === id)?.title ?? undefined;
 
-  const recentProgramChanges: DoctorClientRecentProgramChangeRow[] = buildDoctorClientRecentProgramChanges({
-    events,
-    itemTitle,
-    stageTitle,
-  });
+  const recentProgramChanges: DoctorClientRecentProgramChangeRow[] =
+    buildDoctorClientRecentProgramChanges({
+      events,
+      itemTitle,
+      stageTitle,
+    });
 
   const { aggregates: attention, programInbox } = await collectAttentionForActiveItems(
     detail,

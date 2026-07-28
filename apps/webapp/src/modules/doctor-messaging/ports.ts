@@ -7,7 +7,7 @@ export type MessageLogEntry = {
   category: string;
   channelBindingsUsed: Record<string, string>;
   sentAt: string;
-  outcome: "sent" | "partial" | "failed";
+  outcome: 'sent' | 'partial' | 'failed';
   errorMessage?: string | null;
 };
 
@@ -32,7 +32,10 @@ export type MessageLogListResult = {
 };
 
 export type MessageLogPort = {
-  append(entry: Omit<MessageLogEntry, "id" | "sentAt">): Promise<MessageLogEntry>;
-  listByUser(userId: string, params?: Omit<MessageLogListParams, "filters">): Promise<MessageLogListResult>;
+  append(entry: Omit<MessageLogEntry, 'id' | 'sentAt'>): Promise<MessageLogEntry>;
+  listByUser(
+    userId: string,
+    params?: Omit<MessageLogListParams, 'filters'>,
+  ): Promise<MessageLogListResult>;
   listAll(params?: MessageLogListParams): Promise<MessageLogListResult>;
 };

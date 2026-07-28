@@ -1,21 +1,21 @@
-import Link from "next/link";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requirePatientAccess } from "@/app-layer/guards/requireRole";
-import { routePaths } from "@/app-layer/routes/paths";
-import { PatientAppShell } from "@/shared/ui/patient/PatientAppShell";
-import { ConnectMessengersBlock } from "@/shared/ui/patient/ConnectMessengersBlock";
+import Link from 'next/link';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { requirePatientAccess } from '@/app-layer/guards/requireRole';
+import { routePaths } from '@/app-layer/routes/paths';
+import { PatientAppShell } from '@/shared/ui/patient/PatientAppShell';
+import { ConnectMessengersBlock } from '@/shared/ui/patient/ConnectMessengersBlock';
 import {
   patientInnerPageStackClass,
   patientMutedTextClass,
   patientSectionSurfaceClass,
   patientSectionTitleClass,
-} from "@/shared/ui/patient/patientVisual";
-import { getSupportContactUrl } from "@/modules/system-settings/supportContactUrl";
-import { LogoutSection } from "./LogoutSection";
-import { PatientCalendarTimezoneSection } from "./PatientCalendarTimezoneSection";
-import { PatientProfileHero } from "./PatientProfileHero";
-import { formatPatientGreetingName, type StructuredFio } from "@/shared/lib/fio";
-import { getAuthChannelPolicy } from "@/modules/auth/authChannelPolicy";
+} from '@/shared/ui/patient/patientVisual';
+import { getSupportContactUrl } from '@/modules/system-settings/supportContactUrl';
+import { LogoutSection } from './LogoutSection';
+import { PatientCalendarTimezoneSection } from './PatientCalendarTimezoneSection';
+import { PatientProfileHero } from './PatientProfileHero';
+import { formatPatientGreetingName, type StructuredFio } from '@/shared/lib/fio';
+import { getAuthChannelPolicy } from '@/modules/auth/authChannelPolicy';
 
 /** Профиль в onboarding-allowlist: `requirePatientAccess`, не `WithPhone` — см. `patientRouteApiPolicy.ts` (`patientPageMinAccessTier` → onboarding). */
 export default async function PatientProfilePage() {
@@ -38,10 +38,15 @@ export default async function PatientProfilePage() {
   const fallbackDisplayName =
     (emailFields.email && emailFields.email.trim()) ||
     (session.user.phone && session.user.phone.trim()) ||
-    ".";
+    '.';
 
   return (
-    <PatientAppShell title="Мой профиль" user={session.user} backHref={routePaths.patient} backLabel="Меню">
+    <PatientAppShell
+      title="Мой профиль"
+      user={session.user}
+      backHref={routePaths.patient}
+      backLabel="Меню"
+    >
       <div className={patientInnerPageStackClass}>
         <PatientProfileHero
           displayName={formatPatientGreetingName(
@@ -50,7 +55,7 @@ export default async function PatientProfilePage() {
               firstName: session.user.firstName ?? null,
               patronymic: session.user.patronymic ?? null,
             } satisfies StructuredFio,
-            session.user.displayName ?? "",
+            session.user.displayName ?? '',
           )}
           phone={session.user.phone ?? null}
           supportContactHref={supportContactHref}
@@ -62,7 +67,8 @@ export default async function PatientProfilePage() {
         <section className={patientSectionSurfaceClass}>
           <h2 className={patientSectionTitleClass}>Организации</h2>
           <p className={patientMutedTextClass}>
-            Здесь можно посмотреть доступные организации и выбрать, чьи данные открывать в приложении.
+            Здесь можно посмотреть доступные организации и выбрать, чьи данные открывать в
+            приложении.
           </p>
           <Link
             href={routePaths.patientOrganizations}

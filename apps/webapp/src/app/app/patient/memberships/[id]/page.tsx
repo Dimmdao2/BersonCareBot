@@ -1,4 +1,4 @@
-import { PatientPackageDetailClient } from "./PatientPackageDetailClient";
+import { PatientPackageDetailClient } from './PatientPackageDetailClient';
 
 type Props = { params: Promise<{ id: string }> };
 

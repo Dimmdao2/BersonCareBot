@@ -4,20 +4,26 @@ import {
   truncateToUtcHour,
   userHourlyDeltaFromEvent,
   userHourlyPageKeyForEvent,
-} from "@/modules/product-analytics/aggregateKeys";
+} from '@/modules/product-analytics/aggregateKeys';
 import {
   buildAdminDashboard,
   productAnalyticsWindowStartHour,
-} from "@/modules/product-analytics/buildAdminDashboard";
-import type { ProductAnalyticsPort, ProductAnalyticsPurgeOptions } from "@/modules/product-analytics/ports";
+} from '@/modules/product-analytics/buildAdminDashboard';
+import type {
+  ProductAnalyticsPort,
+  ProductAnalyticsPurgeOptions,
+} from '@/modules/product-analytics/ports';
 import type {
   CreatePushNotificationInput,
   ListRegistrationEventsParams,
   ListRegistrationEventsResult,
   ProductAnalyticsIngestEvent,
   RecordPushOpenInput,
-} from "@/modules/product-analytics/types";
-import { AUTH_REGISTRATION_EVENT_TYPES, PRODUCT_ANALYTICS_DIM_ALL } from "@/modules/product-analytics/types";
+} from '@/modules/product-analytics/types';
+import {
+  AUTH_REGISTRATION_EVENT_TYPES,
+  PRODUCT_ANALYTICS_DIM_ALL,
+} from '@/modules/product-analytics/types';
 type HourlyKey = string;
 type UserHourlyKey = string;
 
@@ -30,11 +36,18 @@ function hourlyKey(
   pushKind: string,
   warmupSloganKey: string,
 ): HourlyKey {
-  return [bucketHour, eventType, entryChannel, pageKey, topicCode, pushKind, warmupSloganKey].join("\0");
+  return [bucketHour, eventType, entryChannel, pageKey, topicCode, pushKind, warmupSloganKey].join(
+    '\0',
+  );
 }
 
-function userHourlyKey(bucketHour: string, userId: string, entryChannel: string, pageKey: string): UserHourlyKey {
-  return [bucketHour, userId, entryChannel, pageKey].join("\0");
+function userHourlyKey(
+  bucketHour: string,
+  userId: string,
+  entryChannel: string,
+  pageKey: string,
+): UserHourlyKey {
+  return [bucketHour, userId, entryChannel, pageKey].join('\0');
 }
 
 export function createInMemoryProductAnalyticsPort(): ProductAnalyticsPort {
@@ -104,7 +117,7 @@ export function createInMemoryProductAnalyticsPort(): ProductAnalyticsPort {
   return {
     async recordEventsBatch(events) {
       for (const event of events) {
-        if (event.eventType === "push_open" && event.pushTrackingId) {
+        if (event.eventType === 'push_open' && event.pushTrackingId) {
           if (pushOpenTrackingIds.has(event.pushTrackingId)) continue;
           pushOpenTrackingIds.add(event.pushTrackingId);
         }
@@ -115,8 +128,8 @@ export function createInMemoryProductAnalyticsPort(): ProductAnalyticsPort {
     async createPushNotification(row) {
       pushNotifications.set(row.id, row);
       ingestOne({
-        eventType: "push_sent",
-        entryChannel: PRODUCT_ANALYTICS_DIM_ALL as ProductAnalyticsIngestEvent["entryChannel"],
+        eventType: 'push_sent',
+        entryChannel: PRODUCT_ANALYTICS_DIM_ALL as ProductAnalyticsIngestEvent['entryChannel'],
         occurredAt: row.createdAt,
         topicCode: row.topicCode ?? null,
         pushKind: row.pushKind ?? null,
@@ -130,8 +143,8 @@ export function createInMemoryProductAnalyticsPort(): ProductAnalyticsPort {
       }
       const push = pushNotifications.get(input.pushTrackingId);
       const event: ProductAnalyticsIngestEvent = {
-        eventType: "push_open",
-        entryChannel: input.entryChannel ?? "pwa",
+        eventType: 'push_open',
+        entryChannel: input.entryChannel ?? 'pwa',
         occurredAt: input.occurredAt,
         userId: input.userId ?? push?.userId ?? null,
         pushTrackingId: input.pushTrackingId,
@@ -148,7 +161,7 @@ export function createInMemoryProductAnalyticsPort(): ProductAnalyticsPort {
       const startHour = productAnalyticsWindowStartHour(windowHours);
       const hourlyRows = [...hourly.entries()].map(([key, eventCount]) => {
         const [bucketHour, eventType, entryChannel, pageKey, topicCode, pushKind, warmupSloganKey] =
-          key.split("\0");
+          key.split('\0');
         return {
           bucketHour: bucketHour!,
           eventType: eventType!,
@@ -161,7 +174,7 @@ export function createInMemoryProductAnalyticsPort(): ProductAnalyticsPort {
         };
       });
       const userHourlyRows = [...userHourly.entries()].map(([key, counters]) => {
-        const [bucketHour, userId, entryChannel, pageKey] = key.split("\0");
+        const [bucketHour, userId, entryChannel, pageKey] = key.split('\0');
         return {
           bucketHour: bucketHour!,
           userId: userId!,
@@ -173,7 +186,7 @@ export function createInMemoryProductAnalyticsPort(): ProductAnalyticsPort {
       const windowStartMs = new Date(startHour).getTime();
       const warmupSloganSamples = [...pushNotifications.values()]
         .filter((p) => {
-          if (p.pushKind !== "warmup" || !p.warmupSloganKey) return false;
+          if (p.pushKind !== 'warmup' || !p.warmupSloganKey) return false;
           if (!p.createdAt) return true;
           return new Date(p.createdAt).getTime() >= windowStartMs;
         })
@@ -183,7 +196,7 @@ export function createInMemoryProductAnalyticsPort(): ProductAnalyticsPort {
         }));
       return buildAdminDashboard({
         windowHours,
-        displayTimezone: "Europe/Moscow",
+        displayTimezone: 'Europe/Moscow',
         startHourInclusive: startHour,
         hourlyRows,
         userHourlyRows,
@@ -211,7 +224,7 @@ export function createInMemoryProductAnalyticsPort(): ProductAnalyticsPort {
     async purgeUserHourlyOlderThan(days, options?: ProductAnalyticsPurgeOptions) {
       const cutoffMs = Date.now() - days * 24 * 60 * 60 * 1000;
       const keys = [...userHourly.keys()].filter((k) => {
-        const bucketHour = k.split("\0")[0]!;
+        const bucketHour = k.split('\0')[0]!;
         return new Date(bucketHour).getTime() < cutoffMs;
       });
       if (options?.dryRun) return { deleted: keys.length };
@@ -222,7 +235,7 @@ export function createInMemoryProductAnalyticsPort(): ProductAnalyticsPort {
     async purgeHourlyOlderThan(days, options?: ProductAnalyticsPurgeOptions) {
       const cutoffMs = Date.now() - days * 24 * 60 * 60 * 1000;
       const keys = [...hourly.keys()].filter((k) => {
-        const bucketHour = k.split("\0")[0]!;
+        const bucketHour = k.split('\0')[0]!;
         return new Date(bucketHour).getTime() < cutoffMs;
       });
       if (options?.dryRun) return { deleted: keys.length };
@@ -242,13 +255,16 @@ export function createInMemoryProductAnalyticsPort(): ProductAnalyticsPort {
       return { deleted: ids.length };
     },
 
-    async listRegistrationEvents(params: ListRegistrationEventsParams): Promise<ListRegistrationEventsResult> {
+    async listRegistrationEvents(
+      params: ListRegistrationEventsParams,
+    ): Promise<ListRegistrationEventsResult> {
       const startMs = new Date(params.startIso).getTime();
       const endMs = new Date(params.endExclusiveIso).getTime();
       let filtered = recent.filter((row) => {
         const t = new Date(row.occurredAt).getTime();
         if (t < startMs || t >= endMs) return false;
-        if (!(AUTH_REGISTRATION_EVENT_TYPES as readonly string[]).includes(row.eventType)) return false;
+        if (!(AUTH_REGISTRATION_EVENT_TYPES as readonly string[]).includes(row.eventType))
+          return false;
         if (params.eventType && row.eventType !== params.eventType) return false;
         const meta = row.metadata ?? {};
         if (params.authMethod?.trim() && meta.authMethod !== params.authMethod.trim()) return false;
@@ -265,8 +281,9 @@ export function createInMemoryProductAnalyticsPort(): ProductAnalyticsPort {
         items: pageItems.map((row) => ({
           id: row.id,
           occurredAt: row.occurredAt,
-          eventType: row.eventType as ListRegistrationEventsResult["items"][number]["eventType"],
-          entryChannel: row.entryChannel as ListRegistrationEventsResult["items"][number]["entryChannel"],
+          eventType: row.eventType as ListRegistrationEventsResult['items'][number]['eventType'],
+          entryChannel:
+            row.entryChannel as ListRegistrationEventsResult['items'][number]['entryChannel'],
           userId: row.userId ?? null,
           metadata: (row.metadata ?? {}) as Record<string, unknown>,
         })),

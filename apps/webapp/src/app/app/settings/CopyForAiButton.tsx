@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { useCallback, useState } from "react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
+import { useCallback, useState } from 'react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
 
 type CopyForAiButtonProps = {
   payload: Record<string, unknown>;
@@ -9,7 +9,11 @@ type CopyForAiButtonProps = {
   className?: string;
 };
 
-export function CopyForAiButton({ payload, label = "Скопировать для ИИ", className }: CopyForAiButtonProps) {
+export function CopyForAiButton({
+  payload,
+  label = 'Скопировать для ИИ',
+  className,
+}: CopyForAiButtonProps) {
   const [copied, setCopied] = useState(false);
 
   const onCopy = useCallback(
@@ -36,7 +40,7 @@ export function CopyForAiButton({ payload, label = "Скопировать дл�
       onClick={(e) => void onCopy(e)}
       aria-label={label}
     >
-      {copied ? "Скопировано" : label}
+      {copied ? 'Скопировано' : label}
     </Button>
   );
 }

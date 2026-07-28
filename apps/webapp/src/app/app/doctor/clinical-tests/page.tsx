@@ -1,20 +1,23 @@
-import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
-import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
-import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
-import { doctorCatalogViewFromSearchParams } from "@/shared/lib/doctorCatalogViewPreference";
+import { requireDoctorAccess } from '@/app-layer/guards/requireRole';
+import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
+import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
+import { doctorCatalogViewFromSearchParams } from '@/shared/lib/doctorCatalogViewPreference';
 import {
   clinicalTestListArchiveScopeFromRecommendationFilter,
   parseRecommendationListFilterScope,
-} from "@/shared/lib/doctorCatalogListStatus";
-import { isDoctorCatalogMissingFilterToken } from "@/shared/lib/doctorCatalogEmptyFieldFilter";
-import { parseDoctorCatalogRegionQueryParam, resolveBodyRegionRefIdFromCatalogCode } from "@/shared/lib/doctorCatalogRegionQuery";
-import { doctorCatalogClientFilterUrlHints } from "@/shared/lib/doctorCatalogClientUrlSync";
+} from '@/shared/lib/doctorCatalogListStatus';
+import { isDoctorCatalogMissingFilterToken } from '@/shared/lib/doctorCatalogEmptyFieldFilter';
+import {
+  parseDoctorCatalogRegionQueryParam,
+  resolveBodyRegionRefIdFromCatalogCode,
+} from '@/shared/lib/doctorCatalogRegionQuery';
+import { doctorCatalogClientFilterUrlHints } from '@/shared/lib/doctorCatalogClientUrlSync';
 import {
   CLINICAL_ASSESSMENT_KIND_CATEGORY_CODE,
   assessmentKindWriteAllowSet,
   referenceItemsToAssessmentKindFilterDto,
-} from "@/modules/tests/clinicalTestAssessmentKind";
-import type { ClinicalTestTitleSort } from "./ClinicalTestsPageClient";
+} from '@/modules/tests/clinicalTestAssessmentKind';
+import type { ClinicalTestTitleSort } from './ClinicalTestsPageClient';
 
 type PageProps = {
   searchParams?: Promise<{
@@ -30,27 +33,28 @@ type PageProps = {
 
 export default async function DoctorClinicalTestsPage({ searchParams }: PageProps) {
   const session = await requireDoctorAccess();
-  const { buildAppDeps } = await import("@/app-layer/di/buildAppDeps");
+  const { buildAppDeps } = await import('@/app-layer/di/buildAppDeps');
   const deps = buildAppDeps();
   /** Параллельно с запросами данных подтягиваем клиентский чанк каталога. */
-  const clinicalTestsClientPromise = import("./ClinicalTestsPageClient");
+  const clinicalTestsClientPromise = import('./ClinicalTestsPageClient');
   const sp = (await searchParams) ?? {};
-  const q = typeof sp.q === "string" ? sp.q : "";
+  const q = typeof sp.q === 'string' ? sp.q : '';
   const regionParsed = parseDoctorCatalogRegionQueryParam(sp.region);
-  const assessmentRaw = typeof sp.assessment === "string" ? sp.assessment.trim() : "";
+  const assessmentRaw = typeof sp.assessment === 'string' ? sp.assessment.trim() : '';
   const [assessmentRefItems, bodyRegionItems] = await Promise.all([
     deps.references.listActiveItemsByCategoryCode(CLINICAL_ASSESSMENT_KIND_CATEGORY_CODE),
-    deps.references.listActiveItemsByCategoryCode("body_region"),
+    deps.references.listActiveItemsByCategoryCode('body_region'),
   ]);
   const assessmentAllow = assessmentKindWriteAllowSet(assessmentRefItems);
   const assessmentKind =
-    assessmentRaw && (assessmentAllow.has(assessmentRaw) || isDoctorCatalogMissingFilterToken(assessmentRaw))
+    assessmentRaw &&
+    (assessmentAllow.has(assessmentRaw) || isDoctorCatalogMissingFilterToken(assessmentRaw))
       ? assessmentRaw
       : undefined;
   const titleSort: ClinicalTestTitleSort | null =
-    sp.titleSort === "asc" || sp.titleSort === "desc" ? sp.titleSort : null;
+    sp.titleSort === 'asc' || sp.titleSort === 'desc' ? sp.titleSort : null;
 
-  const listStatus = parseRecommendationListFilterScope(sp, "active");
+  const listStatus = parseRecommendationListFilterScope(sp, 'active');
   const archiveScope = clinicalTestListArchiveScopeFromRecommendationFilter(listStatus);
 
   const regionRefIdForList = resolveBodyRegionRefIdFromCatalogCode(
@@ -64,13 +68,15 @@ export default async function DoctorClinicalTestsPage({ searchParams }: PageProp
   });
   const bodyRegionIdToCode = Object.fromEntries(bodyRegionItems.map((it) => [it.id, it.code]));
 
-  const rawSelected = typeof sp.selected === "string" ? sp.selected.trim() : "";
+  const rawSelected = typeof sp.selected === 'string' ? sp.selected.trim() : '';
   const initialSelectedId =
     rawSelected && items.some((t) => t.id === rawSelected) ? rawSelected : null;
   const initialSelectedUsageSnapshot =
-    initialSelectedId != null ? await deps.clinicalTests.getClinicalTestUsage(initialSelectedId) : null;
+    initialSelectedId != null
+      ? await deps.clinicalTests.getClinicalTestUsage(initialSelectedId)
+      : null;
   const { initialViewMode, viewLockedByUrl } = doctorCatalogViewFromSearchParams(
-    typeof sp.view === "string" ? sp.view : undefined,
+    typeof sp.view === 'string' ? sp.view : undefined,
   );
 
   const assessmentKindFilterItems = referenceItemsToAssessmentKindFilterDto(assessmentRefItems);
@@ -94,7 +100,7 @@ export default async function DoctorClinicalTestsPage({ searchParams }: PageProp
           q,
           regionCode: regionParsed.regionCode,
           assessmentKind,
-          invalidAssessmentQuery: assessmentRaw !== "" && !assessmentKind,
+          invalidAssessmentQuery: assessmentRaw !== '' && !assessmentKind,
           listStatus,
           ...doctorCatalogClientFilterUrlHints(sp),
         }}

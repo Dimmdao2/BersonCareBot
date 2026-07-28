@@ -1,35 +1,35 @@
-"use client";
+'use client';
 
-import { useCallback, useState } from "react";
-import toast from "react-hot-toast";
-import { Button } from "@/shared/ui/patient/primitives/button";
-import { probePushSupported } from "@/shared/lib/webPush/pushCapability";
-import { isStandalonePwa } from "@/shared/lib/webPush/pwaDisplay";
-import { subscribePatientWebPush } from "@/shared/lib/webPush/subscribePatientWebPush";
-import { webPushSubscribeFailureMessage } from "@/shared/lib/webPush/webPushSubscribeFeedback";
+import { useCallback, useState } from 'react';
+import toast from 'react-hot-toast';
+import { Button } from '@/shared/ui/patient/primitives/button';
+import { probePushSupported } from '@/shared/lib/webPush/pushCapability';
+import { isStandalonePwa } from '@/shared/lib/webPush/pwaDisplay';
+import { subscribePatientWebPush } from '@/shared/lib/webPush/subscribePatientWebPush';
+import { webPushSubscribeFailureMessage } from '@/shared/lib/webPush/webPushSubscribeFeedback';
 
 export function WebPushOptInControls() {
   const [busy, setBusy] = useState(false);
 
   const onEnable = useCallback(async () => {
     if (!(await probePushSupported()) && !isStandalonePwa()) {
-      toast.error("Сначала откройте приложение с иконки на главном экране");
+      toast.error('Сначала откройте приложение с иконки на главном экране');
       return;
     }
     if (!(await probePushSupported())) {
-      toast.error("Уведомления не поддерживаются");
+      toast.error('Уведомления не поддерживаются');
       return;
     }
     setBusy(true);
     try {
       const result = await subscribePatientWebPush();
       if (result.ok) {
-        toast.success("Готово");
+        toast.success('Готово');
         return;
       }
       toast.error(webPushSubscribeFailureMessage(result.reason));
     } catch {
-      toast.error("Ошибка");
+      toast.error('Ошибка');
     } finally {
       setBusy(false);
     }

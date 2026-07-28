@@ -11,20 +11,20 @@
  * The output is owner-facing aggregate JSON for R1 decisions only. It does not
  * authorize cleanup, R2, table drops or runtime removal.
  */
-import { existsSync, readFileSync } from "node:fs";
-import { spawnSync } from "node:child_process";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { existsSync, readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const repoRoot = path.resolve(__dirname, "../../../..");
+const repoRoot = path.resolve(__dirname, '../../../..');
 const DEFAULT_ENV_FILES = [
-  path.join(repoRoot, ".env"),
-  path.join(repoRoot, "apps/webapp/.env.dev"),
+  path.join(repoRoot, '.env'),
+  path.join(repoRoot, 'apps/webapp/.env.dev'),
 ];
 const DEFAULT_CSV =
-  "/home/dev/.codex/attachments/93a21b5a-de4f-4138-9bac-7ff81cf31aaa/records-2.csv";
-const TEST_BLOCK_NAME_MARKERS = ["тест", "test", "блок окна"];
+  '/home/dev/.codex/attachments/93a21b5a-de4f-4138-9bac-7ff81cf31aaa/records-2.csv';
+const TEST_BLOCK_NAME_MARKERS = ['тест', 'test', 'блок окна'];
 
 function usage() {
   console.log(`Usage:
@@ -40,12 +40,12 @@ The script prints aggregate JSON only. It refuses non-dev DBs and never writes.
 function parseArgs(argv) {
   const args = { csvPath: DEFAULT_CSV, allowTestTarget: false, help: false };
   for (const arg of argv) {
-    if (arg === "--help" || arg === "-h") args.help = true;
-    else if (arg === "--allow-test-target") args.allowTestTarget = true;
-    else if (arg.startsWith("--csv=")) args.csvPath = arg.slice("--csv=".length).trim();
+    if (arg === '--help' || arg === '-h') args.help = true;
+    else if (arg === '--allow-test-target') args.allowTestTarget = true;
+    else if (arg.startsWith('--csv=')) args.csvPath = arg.slice('--csv='.length).trim();
     else throw new Error(`Unknown argument: ${arg}`);
   }
-  if (!args.csvPath) throw new Error("--csv path is empty");
+  if (!args.csvPath) throw new Error('--csv path is empty');
   return args;
 }
 
@@ -53,9 +53,9 @@ function parseEnvFile(content) {
   const parsed = {};
   for (const rawLine of content.split(/\r?\n/)) {
     const line = rawLine.trim();
-    if (!line || line.startsWith("#")) continue;
-    const normalized = line.startsWith("export ") ? line.slice("export ".length).trim() : line;
-    const eqIdx = normalized.indexOf("=");
+    if (!line || line.startsWith('#')) continue;
+    const normalized = line.startsWith('export ') ? line.slice('export '.length).trim() : line;
+    const eqIdx = normalized.indexOf('=');
     if (eqIdx <= 0) continue;
     const key = normalized.slice(0, eqIdx).trim();
     let value = normalized.slice(eqIdx + 1).trim();
@@ -78,12 +78,12 @@ function loadLocalEnv() {
   const loaded = [];
   for (const file of DEFAULT_ENV_FILES) {
     if (!existsSync(file)) continue;
-    if (path.resolve(file).startsWith("/opt/")) {
+    if (path.resolve(file).startsWith('/opt/')) {
       throw new Error(`Refusing to load production env path: ${file}`);
     }
-    const parsed = parseEnvFile(readFileSync(file, "utf8"));
+    const parsed = parseEnvFile(readFileSync(file, 'utf8'));
     for (const [key, value] of Object.entries(parsed)) {
-      if (process.env[key] == null || process.env[key] === "") process.env[key] = value;
+      if (process.env[key] == null || process.env[key] === '') process.env[key] = value;
     }
     loaded.push(path.relative(repoRoot, file));
   }
@@ -91,9 +91,9 @@ function loadLocalEnv() {
 }
 
 function assertNoOptEnvReferences() {
-  for (const key of ["BASH_ENV", "DOTENV_CONFIG_PATH", "ENV_FILE", "PGPASSFILE", "PGSERVICEFILE"]) {
+  for (const key of ['BASH_ENV', 'DOTENV_CONFIG_PATH', 'ENV_FILE', 'PGPASSFILE', 'PGSERVICEFILE']) {
     const value = process.env[key];
-    if (value && path.resolve(value).startsWith("/opt/")) {
+    if (value && path.resolve(value).startsWith('/opt/')) {
       throw new Error(`Refusing to use /opt-backed environment reference: ${key}`);
     }
   }
@@ -104,10 +104,10 @@ function databaseInfo(databaseUrl) {
   try {
     url = new URL(databaseUrl);
   } catch {
-    throw new Error("DATABASE_URL is not a valid URL");
+    throw new Error('DATABASE_URL is not a valid URL');
   }
   return {
-    database: url.pathname.replace(/^\//, ""),
+    database: url.pathname.replace(/^\//, ''),
     host: url.hostname,
     port: url.port || null,
   };
@@ -115,18 +115,21 @@ function databaseInfo(databaseUrl) {
 
 function assertDevDatabase(info, allowTestTarget) {
   const normalized = info.database.toLowerCase();
-  const isTest = /(^|[_-])test($|[_-])/i.test(normalized) || normalized.endsWith("_test");
-  if (allowTestTarget && isTest && !["127.0.0.1", "localhost", "::1"].includes(info.host)) {
-    throw new Error(`Refusing non-loopback TEST database host: ${info.host || "<empty>"}`);
+  const isTest = /(^|[_-])test($|[_-])/i.test(normalized) || normalized.endsWith('_test');
+  if (allowTestTarget && isTest && !['127.0.0.1', 'localhost', '::1'].includes(info.host)) {
+    throw new Error(`Refusing non-loopback TEST database host: ${info.host || '<empty>'}`);
   }
-  if (normalized.includes("prod") || (!normalized.includes("dev") && !(allowTestTarget && isTest))) {
+  if (
+    normalized.includes('prod') ||
+    (!normalized.includes('dev') && !(allowTestTarget && isTest))
+  ) {
     throw new Error(`Refusing to query non-dev database name: ${info.database}`);
   }
 }
 
 function parseCsv(text) {
   const rows = [];
-  let field = "";
+  let field = '';
   let inQuotes = false;
   let row = [];
   if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
@@ -145,15 +148,15 @@ function parseCsv(text) {
       }
     } else if (ch === '"') {
       inQuotes = true;
-    } else if (ch === ";") {
+    } else if (ch === ';') {
       row.push(field);
-      field = "";
-    } else if (ch === "\n") {
+      field = '';
+    } else if (ch === '\n') {
       row.push(field);
       rows.push(row);
       row = [];
-      field = "";
-    } else if (ch !== "\r") {
+      field = '';
+    } else if (ch !== '\r') {
       field += ch;
     }
   }
@@ -165,33 +168,35 @@ function parseCsv(text) {
 }
 
 function parseRuDay(raw) {
-  const match = String(raw ?? "").trim().match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+  const match = String(raw ?? '')
+    .trim()
+    .match(/^(\d{2})\/(\d{2})\/(\d{4})/);
   if (!match) return null;
   return Date.UTC(Number(match[3]), Number(match[2]) - 1, Number(match[1]));
 }
 
 function loadCsvShape(csvPath) {
   if (!existsSync(csvPath)) throw new Error(`CSV not found: ${csvPath}`);
-  const content = readFileSync(csvPath, "utf8");
+  const content = readFileSync(csvPath, 'utf8');
   const rows = parseCsv(content);
   const ids = new Set();
   let minDay = Infinity;
   let maxDay = -Infinity;
   for (const row of rows.slice(1)) {
-    const id = String(row[0] ?? "").trim();
+    const id = String(row[0] ?? '').trim();
     if (id) ids.add(id);
-    const day = parseRuDay(row[10] ?? "");
+    const day = parseRuDay(row[10] ?? '');
     if (day != null) {
       minDay = Math.min(minDay, day);
       maxDay = Math.max(maxDay, day);
     }
   }
   if (ids.size === 0 || !Number.isFinite(minDay) || !Number.isFinite(maxDay)) {
-    throw new Error("CSV has no parseable Rubitime ids/date span");
+    throw new Error('CSV has no parseable Rubitime ids/date span');
   }
   return {
     basename: path.basename(csvPath),
-    physicalLines: content.endsWith("\n")
+    physicalLines: content.endsWith('\n')
       ? content.split(/\r?\n/).length - 1
       : content.split(/\r?\n/).length,
     headerFields: rows[0]?.length ?? 0,
@@ -212,13 +217,13 @@ function jsonDollar(value) {
 }
 
 function sqlTextArray(values) {
-  return `ARRAY[${values.map((value) => sqlString(value)).join(", ")}]::text[]`;
+  return `ARRAY[${values.map((value) => sqlString(value)).join(', ')}]::text[]`;
 }
 
 function runPsql(databaseUrl, sql) {
-  const result = spawnSync("psql", ["-X", "-q", "-v", "ON_ERROR_STOP=1", databaseUrl], {
+  const result = spawnSync('psql', ['-X', '-q', '-v', 'ON_ERROR_STOP=1', databaseUrl], {
     input: sql,
-    encoding: "utf8",
+    encoding: 'utf8',
     maxBuffer: 20 * 1024 * 1024,
   });
   if (result.error) throw result.error;
@@ -240,11 +245,14 @@ SELECT jsonb_build_object('current_database', current_database())::text;
 ROLLBACK;
 `;
   const parsed = JSON.parse(runPsql(databaseUrl, sql));
-  const currentDatabase = String(parsed.current_database ?? "");
+  const currentDatabase = String(parsed.current_database ?? '');
   const normalized = currentDatabase.toLowerCase();
-  const isTest = /(^|[_-])test($|[_-])/i.test(normalized) || normalized.endsWith("_test");
-  if (normalized.includes("prod") || (!normalized.includes("dev") && !(allowTestTarget && isTest))) {
-    throw new Error(`Refusing connected non-dev database: ${currentDatabase || "<empty>"}`);
+  const isTest = /(^|[_-])test($|[_-])/i.test(normalized) || normalized.endsWith('_test');
+  if (
+    normalized.includes('prod') ||
+    (!normalized.includes('dev') && !(allowTestTarget && isTest))
+  ) {
+    throw new Error(`Refusing connected non-dev database: ${currentDatabase || '<empty>'}`);
   }
   return currentDatabase;
 }
@@ -607,7 +615,7 @@ function main() {
   assertNoOptEnvReferences();
   const loadedEnvFiles = loadLocalEnv();
   const databaseUrl = process.env.DATABASE_URL?.trim();
-  if (!databaseUrl) throw new Error("DATABASE_URL is not set after loading local env files");
+  if (!databaseUrl) throw new Error('DATABASE_URL is not set after loading local env files');
   const info = databaseInfo(databaseUrl);
   assertDevDatabase(info, args.allowTestTarget);
   const connectedDatabase = verifyConnectedDevDatabase(databaseUrl, args.allowTestTarget);

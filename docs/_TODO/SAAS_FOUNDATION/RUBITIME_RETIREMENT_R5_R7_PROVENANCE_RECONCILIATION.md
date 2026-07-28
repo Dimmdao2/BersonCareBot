@@ -61,82 +61,82 @@ Status vocabulary:
 
 ### R3-CATALOG
 
-| ID | Atomic owner row | Status | Code/test/runtime evidence | Remaining gate |
-| --- | --- | --- | --- | --- |
-| `R3C-01` | disposition for `booking_cities` | `PASS-repo` | `RUBITIME_RETIREMENT_R3_CATALOG_PROOF.md` table disposition | none for this row |
-| `R3C-02` | disposition for `booking_branches` | `PASS-repo` | same table disposition | none for this row |
-| `R3C-03` | disposition for `booking_branch_services` | `PASS-repo` | canonical SSA + compatibility mapping recorded | compatibility drain is `R3C-11` |
-| `R3C-04` | disposition for `booking_services` | `PASS-repo` | same table disposition | none for this row |
-| `R3C-05` | disposition for `booking_specialists` | `PASS-repo` | same table disposition | none for this row |
-| `R3C-06` | public catalog reads `be_*`/approved views | `PASS-repo` | saved catalog proof; `RR-PROOF-05` | generic public catalog still intentionally fails closed without org source |
-| `R3C-07` | public slots use canonical catalog ids | `PASS-repo` | primary `branchId+serviceId`; compatibility input remains | `R3C-11` |
-| `R3C-08` | public create uses canonical catalog ids | `PASS-repo` | primary `branchId+serviceId`; compatibility input remains | `R3C-11` |
-| `R3C-09` | legacy ids removed from primary contract | `PASS-repo` | legacy id is no longer primary | `R3C-11` still accepts it as fallback input |
-| `R3C-10` | no patient/public read of public `booking_*` | `PASS-repo` | saved proof and canonical mapping path; this is the exact `RR-PROOF-05` claim | none for table-read claim |
-| `R3C-11` | compatibility removed by bounded deadline | `OPEN-owner` | deadline `2026-07-21` expired; source census still finds `branchServiceId` in public/patient schemas, URLs, slots/create and RSC paths | owner must approve a new exact cutoff after old-link/row drain evidence, or explicitly defer/rebaseline with date and rollback boundary |
+| ID       | Atomic owner row                             | Status       | Code/test/runtime evidence                                                                                                             | Remaining gate                                                                                                                          |
+| -------- | -------------------------------------------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `R3C-01` | disposition for `booking_cities`             | `PASS-repo`  | `RUBITIME_RETIREMENT_R3_CATALOG_PROOF.md` table disposition                                                                            | none for this row                                                                                                                       |
+| `R3C-02` | disposition for `booking_branches`           | `PASS-repo`  | same table disposition                                                                                                                 | none for this row                                                                                                                       |
+| `R3C-03` | disposition for `booking_branch_services`    | `PASS-repo`  | canonical SSA + compatibility mapping recorded                                                                                         | compatibility drain is `R3C-11`                                                                                                         |
+| `R3C-04` | disposition for `booking_services`           | `PASS-repo`  | same table disposition                                                                                                                 | none for this row                                                                                                                       |
+| `R3C-05` | disposition for `booking_specialists`        | `PASS-repo`  | same table disposition                                                                                                                 | none for this row                                                                                                                       |
+| `R3C-06` | public catalog reads `be_*`/approved views   | `PASS-repo`  | saved catalog proof; `RR-PROOF-05`                                                                                                     | generic public catalog still intentionally fails closed without org source                                                              |
+| `R3C-07` | public slots use canonical catalog ids       | `PASS-repo`  | primary `branchId+serviceId`; compatibility input remains                                                                              | `R3C-11`                                                                                                                                |
+| `R3C-08` | public create uses canonical catalog ids     | `PASS-repo`  | primary `branchId+serviceId`; compatibility input remains                                                                              | `R3C-11`                                                                                                                                |
+| `R3C-09` | legacy ids removed from primary contract     | `PASS-repo`  | legacy id is no longer primary                                                                                                         | `R3C-11` still accepts it as fallback input                                                                                             |
+| `R3C-10` | no patient/public read of public `booking_*` | `PASS-repo`  | saved proof and canonical mapping path; this is the exact `RR-PROOF-05` claim                                                          | none for table-read claim                                                                                                               |
+| `R3C-11` | compatibility removed by bounded deadline    | `OPEN-owner` | deadline `2026-07-21` expired; source census still finds `branchServiceId` in public/patient schemas, URLs, slots/create and RSC paths | owner must approve a new exact cutoff after old-link/row drain evidence, or explicitly defer/rebaseline with date and rollback boundary |
 
 ### R5
 
-| ID | Atomic owner row | Status | Code/test/runtime evidence | Remaining gate |
-| --- | --- | --- | --- | --- |
-| `R5-01` | no webapp v1 slots requests | `PASS-repo` | R5 non-prod proof/runtime inventory | live traffic window remains `R5-07` |
-| `R5-02` | no webapp v1 create requests | `PASS-repo` | R5 non-prod proof/runtime inventory | live traffic window remains `R5-07` |
-| `R5-03` | online LFK/nutrition path retired/unrelated | `PASS-repo` | categories use canonical online booking | none for this row |
-| `R5-04` | TEST retired v1 routes are negative/unmounted | `OPEN-runtime` | supersedes removed-flag unit proof; no TEST window/route observation | integrated-SHA incremental TEST deploy and declared negative-route evidence |
-| `R5-05` | retired v1 slots/create requests have declared negative/unmounted result | `OPEN-runtime` | supersedes historical `legacy_resolve_disabled` route test | record actual TEST result without inferring a response code |
-| `R5-06` | canonical/current paths unaffected | `PASS-repo` | v2 explicit-id route proof | live acceptance remains open |
-| `R5-07` | evidence window has no v1 requests | `OPEN-owner` | no approved TEST/live monitoring window output | approve timing/window, then capture aggregate counts |
-| `R5-08` | TEST negative/unmounted observation and aggregate counts recorded | `OPEN-runtime` | no declared TEST window/counts | record window, integrated SHA and aggregate-only counts |
-| `R5-09` | TEST rollback boundary avoids re-enabling removed resolver | `OPEN-runtime` | historical flag restore is superseded | record compatible incremental fallback boundary; otherwise stop for owner/R7 rollback decision |
+| ID      | Atomic owner row                                                         | Status         | Code/test/runtime evidence                                           | Remaining gate                                                                                 |
+| ------- | ------------------------------------------------------------------------ | -------------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `R5-01` | no webapp v1 slots requests                                              | `PASS-repo`    | R5 non-prod proof/runtime inventory                                  | live traffic window remains `R5-07`                                                            |
+| `R5-02` | no webapp v1 create requests                                             | `PASS-repo`    | R5 non-prod proof/runtime inventory                                  | live traffic window remains `R5-07`                                                            |
+| `R5-03` | online LFK/nutrition path retired/unrelated                              | `PASS-repo`    | categories use canonical online booking                              | none for this row                                                                              |
+| `R5-04` | TEST retired v1 routes are negative/unmounted                            | `OPEN-runtime` | supersedes removed-flag unit proof; no TEST window/route observation | integrated-SHA incremental TEST deploy and declared negative-route evidence                    |
+| `R5-05` | retired v1 slots/create requests have declared negative/unmounted result | `OPEN-runtime` | supersedes historical `legacy_resolve_disabled` route test           | record actual TEST result without inferring a response code                                    |
+| `R5-06` | canonical/current paths unaffected                                       | `PASS-repo`    | v2 explicit-id route proof                                           | live acceptance remains open                                                                   |
+| `R5-07` | evidence window has no v1 requests                                       | `OPEN-owner`   | no approved TEST/live monitoring window output                       | approve timing/window, then capture aggregate counts                                           |
+| `R5-08` | TEST negative/unmounted observation and aggregate counts recorded        | `OPEN-runtime` | no declared TEST window/counts                                       | record window, integrated SHA and aggregate-only counts                                        |
+| `R5-09` | TEST rollback boundary avoids re-enabling removed resolver               | `OPEN-runtime` | historical flag restore is superseded                                | record compatible incremental fallback boundary; otherwise stop for owner/R7 rollback decision |
 
 ### R6
 
-| ID | Atomic owner row | Status | Code/test/runtime evidence | Remaining gate |
-| --- | --- | --- | --- | --- |
-| `R6-01` | provider cutoff announced | `OPEN-owner` | absent | approve and record exact cutoff timestamp |
-| `R6-02` | outbound bridge disabled | `OPEN-owner` | repository staff/patient paths are retired, but no owner-approved provider/live confirmation exists | owner/operator confirmation in `RR-PROOF-09` |
-| `R6-03` | external webhook ingress disabled | `OPEN-owner` | route literals are statically zero; external provider registration state is unknown | owner/operator confirmation in `RR-PROOF-09` |
-| `R6-04` | `projection_outbox` drained | `OPEN-runtime` | no approved drain snapshot | runbook Section 1 after approval |
-| `R6-05` | retry jobs drained/archived | `OPEN-runtime` | provider-neutral queue still uses legacy physical storage; no approved snapshot/decision | runbook Section 1 plus owner treatment for residue |
-| `R6-06` | no pending/dead projection jobs | `OPEN-runtime` | no approved queue evidence | runbook Section 1 plus owner waivers if non-zero |
-| `R6-07` | final post-cutoff reconciliation | `OPEN-runtime` | absent | fresh post-cutoff CSV, existing read-only tooling |
-| `R6-08` | CSV-present missing delta zero/waived | `OPEN-owner` | absent; fresh CSV remains canon | owner approves result/waivers; integrator-only rows stay audit-only |
-| `R6-09` | doctor Rubitime proxy routes removed | `PROVENANCE-only` | source removal recorded in plan | do not close phase row until `R6-01..08` and `RR-PROOF-09` pass |
-| `R6-10` | staff create skips legacy mapping | `PROVENANCE-only` | C0/R6 repository implementation | same prerequisite; no restoration inferred |
-| `R6-11` | patient/public create has no mirror branch | `PROVENANCE-only` | repository implementation and static proof | same prerequisite |
-| `R6-12` | cancel/reschedule skips outbound mirror | `PROVENANCE-only` | repository implementation | same prerequisite |
-| `R6-13` | webhook route unmounted | `PROVENANCE-only` | static mounted-route category `0` | external ingress confirmation still `R6-03` |
-| `R6-14` | `/slots` unmounted | `PROVENANCE-only` | static mounted-route category `0` | `RR-PROOF-09` |
-| `R6-15` | `/create-record` unmounted | `PROVENANCE-only` | static mounted-route category `0` | `RR-PROOF-09` |
-| `R6-16` | update/cancel/remove unmounted | `PROVENANCE-only` | static mounted-route category `0` | `RR-PROOF-09` |
-| `R6-17` | provider-neutral lifecycle works | `PROVENANCE-only` | R4/R6 route-split proof | final live lifecycle-only acceptance remains gated |
-| `R6-18` | handler/schema outside Rubitime registrar | `PROVENANCE-only` | repository implementation | compatibility/live acceptance remains gated |
-| `R6-19` | connector/api2/throttle code removed | `PROVENANCE-only` | runtime token category `0` | `RR-PROOF-09`; historical migrations/ops refs remain |
-| `R6-20` | post-create projection removed | `PROVENANCE-only` | runtime token category `0` | `RR-PROOF-09` |
-| `R6-21` | runtime env/config retired/archived | `OPEN-owner` | no owner-approved env/archive evidence | R5/R6 operator decision; no env action by agents |
-| `R6-22` | integrator checks pass | `OPEN-runtime` | historical focused checks exist; no milestone check tied to completed `RR-PROOF-09` | run after valid R6 gate/branch state |
-| `R6-23` | webapp booking checks pass | `OPEN-runtime` | historical focused checks exist; the current R0 aggregate gate is green, but no exact integrated-SHA R6 check exists | run the required R6 checks on the exact integrated SHA after the valid R6 gate |
+| ID      | Atomic owner row                           | Status            | Code/test/runtime evidence                                                                                           | Remaining gate                                                                 |
+| ------- | ------------------------------------------ | ----------------- | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `R6-01` | provider cutoff announced                  | `OPEN-owner`      | absent                                                                                                               | approve and record exact cutoff timestamp                                      |
+| `R6-02` | outbound bridge disabled                   | `OPEN-owner`      | repository staff/patient paths are retired, but no owner-approved provider/live confirmation exists                  | owner/operator confirmation in `RR-PROOF-09`                                   |
+| `R6-03` | external webhook ingress disabled          | `OPEN-owner`      | route literals are statically zero; external provider registration state is unknown                                  | owner/operator confirmation in `RR-PROOF-09`                                   |
+| `R6-04` | `projection_outbox` drained                | `OPEN-runtime`    | no approved drain snapshot                                                                                           | runbook Section 1 after approval                                               |
+| `R6-05` | retry jobs drained/archived                | `OPEN-runtime`    | provider-neutral queue still uses legacy physical storage; no approved snapshot/decision                             | runbook Section 1 plus owner treatment for residue                             |
+| `R6-06` | no pending/dead projection jobs            | `OPEN-runtime`    | no approved queue evidence                                                                                           | runbook Section 1 plus owner waivers if non-zero                               |
+| `R6-07` | final post-cutoff reconciliation           | `OPEN-runtime`    | absent                                                                                                               | fresh post-cutoff CSV, existing read-only tooling                              |
+| `R6-08` | CSV-present missing delta zero/waived      | `OPEN-owner`      | absent; fresh CSV remains canon                                                                                      | owner approves result/waivers; integrator-only rows stay audit-only            |
+| `R6-09` | doctor Rubitime proxy routes removed       | `PROVENANCE-only` | source removal recorded in plan                                                                                      | do not close phase row until `R6-01..08` and `RR-PROOF-09` pass                |
+| `R6-10` | staff create skips legacy mapping          | `PROVENANCE-only` | C0/R6 repository implementation                                                                                      | same prerequisite; no restoration inferred                                     |
+| `R6-11` | patient/public create has no mirror branch | `PROVENANCE-only` | repository implementation and static proof                                                                           | same prerequisite                                                              |
+| `R6-12` | cancel/reschedule skips outbound mirror    | `PROVENANCE-only` | repository implementation                                                                                            | same prerequisite                                                              |
+| `R6-13` | webhook route unmounted                    | `PROVENANCE-only` | static mounted-route category `0`                                                                                    | external ingress confirmation still `R6-03`                                    |
+| `R6-14` | `/slots` unmounted                         | `PROVENANCE-only` | static mounted-route category `0`                                                                                    | `RR-PROOF-09`                                                                  |
+| `R6-15` | `/create-record` unmounted                 | `PROVENANCE-only` | static mounted-route category `0`                                                                                    | `RR-PROOF-09`                                                                  |
+| `R6-16` | update/cancel/remove unmounted             | `PROVENANCE-only` | static mounted-route category `0`                                                                                    | `RR-PROOF-09`                                                                  |
+| `R6-17` | provider-neutral lifecycle works           | `PROVENANCE-only` | R4/R6 route-split proof                                                                                              | final live lifecycle-only acceptance remains gated                             |
+| `R6-18` | handler/schema outside Rubitime registrar  | `PROVENANCE-only` | repository implementation                                                                                            | compatibility/live acceptance remains gated                                    |
+| `R6-19` | connector/api2/throttle code removed       | `PROVENANCE-only` | runtime token category `0`                                                                                           | `RR-PROOF-09`; historical migrations/ops refs remain                           |
+| `R6-20` | post-create projection removed             | `PROVENANCE-only` | runtime token category `0`                                                                                           | `RR-PROOF-09`                                                                  |
+| `R6-21` | runtime env/config retired/archived        | `OPEN-owner`      | no owner-approved env/archive evidence                                                                               | R5/R6 operator decision; no env action by agents                               |
+| `R6-22` | integrator checks pass                     | `OPEN-runtime`    | historical focused checks exist; no milestone check tied to completed `RR-PROOF-09`                                  | run after valid R6 gate/branch state                                           |
+| `R6-23` | webapp booking checks pass                 | `OPEN-runtime`    | historical focused checks exist; the current R0 aggregate gate is green, but no exact integrated-SHA R6 check exists | run the required R6 checks on the exact integrated SHA after the valid R6 gate |
 
 ### R7
 
-| ID | Atomic owner row | Status | Code/test/runtime evidence | Remaining gate |
-| --- | --- | --- | --- | --- |
-| `R7-01` | R1-R6 complete | `OPEN-owner` | R5/R6 final proofs absent | complete preceding gates |
-| `R7-02` | fresh metadata inventory has no drop refs | `OPEN-runtime` | static inventory still has `21 hits / 6 files` raw refs | approved schema audit and migration/defer packet |
-| `R7-03` | archive/drop decision recorded | `OPEN-owner` | prepared disposition is not final owner decision | approve archive/drop or explicit defer |
-| `R7-04` | raw provider archive/export completed | `OPEN-owner` | absent | approve target, retention and execution |
-| `R7-05` | `appointment_records` decision completed | `OPEN-owner` | prepared `archive_before_drop` only | owner final decision/proof |
-| `R7-06` | `rubitime_records` decision completed | `OPEN-owner` | prepared `archive_before_drop` only | owner final decision/proof |
-| `R7-07` | `rubitime_events` decision completed | `OPEN-owner` | prepared `archive_before_drop` only | owner final decision/proof |
-| `R7-08` | `booking_calendar_map` kept/migrated | `PASS-repo` | disposition `keep_until_replacement` | do not drop while GCal is live |
-| `R7-09` | `patient_bookings` kept | `PASS-repo` | disposition `keep` | none |
-| `R7-10` | `be_external_entity_mappings` kept | `PASS-repo` | disposition `keep` | Rubitime-row traceability remains separate owner policy |
-| `R7-11` | public `booking_*` not dropped early | `PASS-repo` | disposition `defer_drop` | R3C-11 must close before later catalog drop planning |
-| `R7-12` | drop/defer migration generated | `OPEN-owner` | intentionally absent | R6 proof + owner decision first |
-| `R7-13` | migration tested on TEST/disposable | `OPEN-owner` | absent | explicit non-prod destructive authorization and generated migration |
-| `R7-14` | fresh restore+migrate proof | `OPEN-runtime` | absent | valid migration/defer state and approved fresh-copy run |
-| `R7-15` | no code refs to dropped tables | `OPEN-runtime` | nothing has been dropped; raw refs remain visible | post-migration static/schema proof |
-| `R7-16` | rollback archive through horizon | `OPEN-owner` | absent | approve retention/rollback horizon and capture checksums |
+| ID      | Atomic owner row                          | Status         | Code/test/runtime evidence                              | Remaining gate                                                      |
+| ------- | ----------------------------------------- | -------------- | ------------------------------------------------------- | ------------------------------------------------------------------- |
+| `R7-01` | R1-R6 complete                            | `OPEN-owner`   | R5/R6 final proofs absent                               | complete preceding gates                                            |
+| `R7-02` | fresh metadata inventory has no drop refs | `OPEN-runtime` | static inventory still has `21 hits / 6 files` raw refs | approved schema audit and migration/defer packet                    |
+| `R7-03` | archive/drop decision recorded            | `OPEN-owner`   | prepared disposition is not final owner decision        | approve archive/drop or explicit defer                              |
+| `R7-04` | raw provider archive/export completed     | `OPEN-owner`   | absent                                                  | approve target, retention and execution                             |
+| `R7-05` | `appointment_records` decision completed  | `OPEN-owner`   | prepared `archive_before_drop` only                     | owner final decision/proof                                          |
+| `R7-06` | `rubitime_records` decision completed     | `OPEN-owner`   | prepared `archive_before_drop` only                     | owner final decision/proof                                          |
+| `R7-07` | `rubitime_events` decision completed      | `OPEN-owner`   | prepared `archive_before_drop` only                     | owner final decision/proof                                          |
+| `R7-08` | `booking_calendar_map` kept/migrated      | `PASS-repo`    | disposition `keep_until_replacement`                    | do not drop while GCal is live                                      |
+| `R7-09` | `patient_bookings` kept                   | `PASS-repo`    | disposition `keep`                                      | none                                                                |
+| `R7-10` | `be_external_entity_mappings` kept        | `PASS-repo`    | disposition `keep`                                      | Rubitime-row traceability remains separate owner policy             |
+| `R7-11` | public `booking_*` not dropped early      | `PASS-repo`    | disposition `defer_drop`                                | R3C-11 must close before later catalog drop planning                |
+| `R7-12` | drop/defer migration generated            | `OPEN-owner`   | intentionally absent                                    | R6 proof + owner decision first                                     |
+| `R7-13` | migration tested on TEST/disposable       | `OPEN-owner`   | absent                                                  | explicit non-prod destructive authorization and generated migration |
+| `R7-14` | fresh restore+migrate proof               | `OPEN-runtime` | absent                                                  | valid migration/defer state and approved fresh-copy run             |
+| `R7-15` | no code refs to dropped tables            | `OPEN-runtime` | nothing has been dropped; raw refs remain visible       | post-migration static/schema proof                                  |
+| `R7-16` | rollback archive through horizon          | `OPEN-owner`   | absent                                                  | approve retention/rollback horizon and capture checksums            |
 
 ## Exact owner questions
 

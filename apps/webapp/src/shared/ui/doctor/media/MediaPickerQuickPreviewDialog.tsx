@@ -1,14 +1,19 @@
-"use client";
+'use client';
 
-import { ImageOff } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/shared/ui/doctor/primitives/dialog";
-import { cn } from "@/lib/utils";
-import { DoctorMediaPlaybackVideo } from "@/shared/ui/doctor/media/DoctorMediaPlaybackVideo";
-import type { MediaListItem } from "@/shared/ui/doctor/media/MediaPickerList";
+import { ImageOff } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/shared/ui/doctor/primitives/dialog';
+import { cn } from '@/lib/utils';
+import { DoctorMediaPlaybackVideo } from '@/shared/ui/doctor/media/DoctorMediaPlaybackVideo';
+import type { MediaListItem } from '@/shared/ui/doctor/media/MediaPickerList';
 
 function canRenderInlineImage(mimeType: string): boolean {
   const mime = mimeType.trim().toLowerCase();
-  return mime.startsWith("image/") && mime !== "image/svg+xml";
+  return mime.startsWith('image/') && mime !== 'image/svg+xml';
 }
 
 type Props = {
@@ -23,13 +28,11 @@ type Props = {
  * Выбор файла — отдельно кнопкой «Выбрать» на карточке.
  */
 export function MediaPickerQuickPreviewDialog({ item, open, onOpenChange }: Props) {
-  const title = item ? item.displayName?.trim() || item.filename : "";
+  const title = item ? item.displayName?.trim() || item.filename : '';
 
   const imagePreviewSrc =
-    item?.kind === "image" &&
-    item.previewStatus === "ready" &&
-    canRenderInlineImage(item.mimeType)
-      ? (item.previewMdUrl?.trim() || item.previewSmUrl?.trim() || null)
+    item?.kind === 'image' && item.previewStatus === 'ready' && canRenderInlineImage(item.mimeType)
+      ? item.previewMdUrl?.trim() || item.previewSmUrl?.trim() || null
       : null;
 
   return (
@@ -41,7 +44,7 @@ export function MediaPickerQuickPreviewDialog({ item, open, onOpenChange }: Prop
         {!item ? null : (
           <>
             <div className="min-h-0 min-w-0 flex-1">
-              {item.kind === "image" && canRenderInlineImage(item.mimeType) ? (
+              {item.kind === 'image' && canRenderInlineImage(item.mimeType) ? (
                 imagePreviewSrc ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
@@ -49,23 +52,26 @@ export function MediaPickerQuickPreviewDialog({ item, open, onOpenChange }: Prop
                     alt=""
                     className="mx-auto max-h-[65vh] w-auto max-w-full rounded-md object-contain"
                   />
-                ) : item.previewStatus === "failed" || item.previewStatus === "skipped" ? (
+                ) : item.previewStatus === 'failed' || item.previewStatus === 'skipped' ? (
                   <div
                     className={cn(
-                      "flex min-h-[35vh] flex-col items-center justify-center gap-2 rounded-md bg-muted/20 p-6 text-sm text-muted-foreground",
+                      'flex min-h-[35vh] flex-col items-center justify-center gap-2 rounded-md bg-muted/20 p-6 text-sm text-muted-foreground',
                     )}
                   >
                     <ImageOff className="h-12 w-12 opacity-60" aria-hidden />
                     <span>
-                      {item.previewStatus === "skipped"
-                        ? "Превью для этого файла не создаётся"
-                        : "Превью изображения недоступно"}
+                      {item.previewStatus === 'skipped'
+                        ? 'Превью для этого файла не создаётся'
+                        : 'Превью изображения недоступно'}
                     </span>
                   </div>
                 ) : (
-                  <div className="h-[45vh] max-h-[65vh] w-full animate-pulse rounded-md bg-muted/50" aria-hidden />
+                  <div
+                    className="h-[45vh] max-h-[65vh] w-full animate-pulse rounded-md bg-muted/50"
+                    aria-hidden
+                  />
                 )
-              ) : item.kind === "video" ? (
+              ) : item.kind === 'video' ? (
                 <DoctorMediaPlaybackVideo
                   mediaId={item.id}
                   mp4Url={`/api/media/${encodeURIComponent(item.id)}`}
@@ -73,12 +79,17 @@ export function MediaPickerQuickPreviewDialog({ item, open, onOpenChange }: Prop
                   initialPlayback={null}
                   shellClassName="relative aspect-video w-full max-h-[65vh] overflow-hidden rounded-md bg-black"
                 />
-              ) : item.kind === "audio" ? (
+              ) : item.kind === 'audio' ? (
                 <audio controls preload="metadata" className="w-full">
                   <source src={item.url} />
                 </audio>
               ) : (
-                <a className="text-primary underline" href={item.url} target="_blank" rel="noreferrer">
+                <a
+                  className="text-primary underline"
+                  href={item.url}
+                  target="_blank"
+                  rel="noreferrer"
+                >
                   Открыть файл в новой вкладке
                 </a>
               )}

@@ -1,5 +1,5 @@
-import type { TestSetUsageRef, TestSetUsageSnapshot } from "@/modules/tests/types";
-import { vNaForm } from "@/app/app/doctor/exercises/exerciseUsageSummaryText";
+import type { TestSetUsageRef, TestSetUsageSnapshot } from '@/modules/tests/types';
+import { vNaForm } from '@/app/app/doctor/exercises/exerciseUsageSummaryText';
 
 export function testSetUsageHasAnyReference(u: TestSetUsageSnapshot): boolean {
   return (
@@ -23,12 +23,12 @@ export function testSetUsageSections(u: TestSetUsageSnapshot): TestSetUsageSecti
   const sections: TestSetUsageSection[] = [];
   if (u.publishedTreatmentProgramTemplateCount > 0) {
     sections.push({
-      key: "published_tp_tpl",
+      key: 'published_tp_tpl',
       summary: vNaForm(
         u.publishedTreatmentProgramTemplateCount,
-        "опубликованном шаблоне программ лечения",
-        "опубликованных шаблонах программ лечения",
-        "опубликованных шаблонах программ лечения",
+        'опубликованном шаблоне программ лечения',
+        'опубликованных шаблонах программ лечения',
+        'опубликованных шаблонах программ лечения',
       ),
       refs: u.publishedTreatmentProgramTemplateRefs,
       total: u.publishedTreatmentProgramTemplateCount,
@@ -36,12 +36,12 @@ export function testSetUsageSections(u: TestSetUsageSnapshot): TestSetUsageSecti
   }
   if (u.draftTreatmentProgramTemplateCount > 0) {
     sections.push({
-      key: "draft_tp_tpl",
+      key: 'draft_tp_tpl',
       summary: vNaForm(
         u.draftTreatmentProgramTemplateCount,
-        "черновом шаблоне программ лечения",
-        "черновых шаблонах программ лечения",
-        "черновых шаблонах программ лечения",
+        'черновом шаблоне программ лечения',
+        'черновых шаблонах программ лечения',
+        'черновых шаблонах программ лечения',
       ),
       refs: u.draftTreatmentProgramTemplateRefs,
       total: u.draftTreatmentProgramTemplateCount,
@@ -49,12 +49,12 @@ export function testSetUsageSections(u: TestSetUsageSnapshot): TestSetUsageSecti
   }
   if (u.archivedTreatmentProgramTemplateCount > 0) {
     sections.push({
-      key: "archived_tp_tpl",
+      key: 'archived_tp_tpl',
       summary: vNaForm(
         u.archivedTreatmentProgramTemplateCount,
-        "архивном шаблоне программ лечения (история)",
-        "архивных шаблонах программ лечения (история)",
-        "архивных шаблонах программ лечения (история)",
+        'архивном шаблоне программ лечения (история)',
+        'архивных шаблонах программ лечения (история)',
+        'архивных шаблонах программ лечения (история)',
       ),
       refs: u.archivedTreatmentProgramTemplateRefs,
       total: u.archivedTreatmentProgramTemplateCount,
@@ -62,12 +62,12 @@ export function testSetUsageSections(u: TestSetUsageSnapshot): TestSetUsageSecti
   }
   if (u.activeTreatmentProgramInstanceCount > 0) {
     sections.push({
-      key: "active_tp_inst",
+      key: 'active_tp_inst',
       summary: vNaForm(
         u.activeTreatmentProgramInstanceCount,
-        "активной программе у пациентов",
-        "активных программах у пациентов",
-        "активных программах у пациентов",
+        'активной программе у пациентов',
+        'активных программах у пациентов',
+        'активных программах у пациентов',
       ),
       refs: u.activeTreatmentProgramInstanceRefs,
       total: u.activeTreatmentProgramInstanceCount,
@@ -75,12 +75,12 @@ export function testSetUsageSections(u: TestSetUsageSnapshot): TestSetUsageSecti
   }
   if (u.completedTreatmentProgramInstanceCount > 0) {
     sections.push({
-      key: "completed_tp_inst",
+      key: 'completed_tp_inst',
       summary: vNaForm(
         u.completedTreatmentProgramInstanceCount,
-        "завершённой программе у пациентов (история)",
-        "завершённых программах у пациентов (история)",
-        "завершённых программах у пациентов (история)",
+        'завершённой программе у пациентов (история)',
+        'завершённых программах у пациентов (история)',
+        'завершённых программах у пациентов (история)',
       ),
       refs: u.completedTreatmentProgramInstanceRefs,
       total: u.completedTreatmentProgramInstanceCount,
@@ -88,7 +88,7 @@ export function testSetUsageSections(u: TestSetUsageSnapshot): TestSetUsageSecti
   }
   if (u.testAttemptsRecordedCount > 0) {
     sections.push({
-      key: "test_attempts_history",
+      key: 'test_attempts_history',
       summary: `Зафиксировано попыток прохождения блока набора в программах: ${u.testAttemptsRecordedCount}`,
       refs: [],
       total: u.testAttemptsRecordedCount,

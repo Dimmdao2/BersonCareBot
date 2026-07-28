@@ -1,8 +1,8 @@
-import { requireAdminDoctorPage } from "@/app/app/settings/requireAdminDoctorPage";
-import { parseHealthArchiveProbeParam } from "@/app/app/settings/adminSettingsData";
-import { HealthFailureArchiveSection } from "./HealthFailureArchiveSection";
-import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
-import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
+import { requireAdminDoctorPage } from '@/app/app/settings/requireAdminDoctorPage';
+import { parseHealthArchiveProbeParam } from '@/app/app/settings/adminSettingsData';
+import { HealthFailureArchiveSection } from './HealthFailureArchiveSection';
+import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
+import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
 
 export default async function DoctorHealthArchivePage({
   searchParams,
@@ -16,7 +16,7 @@ export default async function DoctorHealthArchivePage({
   return (
     <DoctorAppShell title="Архив сбоев">
       <DoctorPageHeader title="Архив сбоев" />
-      <HealthFailureArchiveSection initialProbe={healthArchiveProbe ?? "all"} />
+      <HealthFailureArchiveSection initialProbe={healthArchiveProbe ?? 'all'} />
     </DoctorAppShell>
   );
 }

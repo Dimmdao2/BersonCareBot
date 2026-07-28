@@ -1,37 +1,37 @@
-import { createHash, randomBytes } from "node:crypto";
-import { env } from "@/config/env";
-import { integratorWebhookSecret } from "@/config/env";
+import { createHash, randomBytes } from 'node:crypto';
+import { env } from '@/config/env';
+import { integratorWebhookSecret } from '@/config/env';
 import type {
   PhoneMessengerBindChannel,
   PhoneMessengerBindPurpose,
   PhoneMessengerBindPort,
   PhoneMessengerBindStatus,
-} from "./phoneMessengerBind.ports";
-import { normalizeMaxBotNicknameInput } from "@/modules/system-settings/maxLoginBotNickname";
-import type { ChannelContext } from "./channelContext";
-import { createPhoneOtpChallenge, type PhoneAuthDeps } from "./phoneAuth";
-import { normalizePhone } from "./phoneNormalize";
-import { isValidPhoneE164 } from "./phoneValidation";
-import { normalizeRuPhoneE164 } from "@/shared/phone/normalizeRuPhoneE164";
-import { logger } from "@/infra/logging/logger";
+} from './phoneMessengerBind.ports';
+import { normalizeMaxBotNicknameInput } from '@/modules/system-settings/maxLoginBotNickname';
+import type { ChannelContext } from './channelContext';
+import { createPhoneOtpChallenge, type PhoneAuthDeps } from './phoneAuth';
+import { normalizePhone } from './phoneNormalize';
+import { isValidPhoneE164 } from './phoneValidation';
+import { normalizeRuPhoneE164 } from '@/shared/phone/normalizeRuPhoneE164';
+import { logger } from '@/infra/logging/logger';
 
 const SECRET_TTL_MIN = 15;
 
 function phoneSuffixForLog(phoneNormalized: string): string {
-  const digits = phoneNormalized.replace(/\D/g, "");
-  return digits.length >= 4 ? digits.slice(-4) : "****";
+  const digits = phoneNormalized.replace(/\D/g, '');
+  return digits.length >= 4 ? digits.slice(-4) : '****';
 }
 
 export type {
   PhoneMessengerBindPurpose,
   PhoneMessengerBindChannel,
   PhoneMessengerBindStatus,
-} from "./phoneMessengerBind.ports";
+} from './phoneMessengerBind.ports';
 
 function hashToken(token: string): string {
-  return createHash("sha256")
-    .update(`${token}:${integratorWebhookSecret() || "dev-phone-messenger-bind"}`)
-    .digest("hex");
+  return createHash('sha256')
+    .update(`${token}:${integratorWebhookSecret() || 'dev-phone-messenger-bind'}`)
+    .digest('hex');
 }
 
 function buildDeepLink(params: {
@@ -40,22 +40,22 @@ function buildDeepLink(params: {
   botUsername: string;
   maxBotNickname?: string;
 }): { url: string; manualCommand?: string } {
-  if (params.channelCode === "telegram") {
+  if (params.channelCode === 'telegram') {
     return {
       url: `https://t.me/${params.botUsername}?start=${encodeURIComponent(params.startPayload)}`,
     };
   }
-  const nick = normalizeMaxBotNicknameInput(params.maxBotNickname ?? "");
+  const nick = normalizeMaxBotNicknameInput(params.maxBotNickname ?? '');
   if (nick && params.startPayload.length <= 128) {
     try {
       const u = new URL(`https://max.ru/${encodeURIComponent(nick)}`);
-      u.searchParams.set("start", params.startPayload);
+      u.searchParams.set('start', params.startPayload);
       return { url: u.toString(), manualCommand: `/start ${params.startPayload}` };
     } catch {
       /* fall through */
     }
   }
-  return { url: "https://max.ru/", manualCommand: `/start ${params.startPayload}` };
+  return { url: 'https://max.ru/', manualCommand: `/start ${params.startPayload}` };
 }
 
 let registeredPhoneMessengerBindPort: PhoneMessengerBindPort | null = null;
@@ -94,17 +94,17 @@ export async function startPhoneMessengerBind(
 ): Promise<StartPhoneMessengerBindResult> {
   const phoneNormalized = normalizePhone(params.phone);
   if (!isValidPhoneE164(phoneNormalized)) {
-    return { ok: false, code: "invalid_phone" };
+    return { ok: false, code: 'invalid_phone' };
   }
 
-  const plain = randomBytes(24).toString("base64url");
+  const plain = randomBytes(24).toString('base64url');
   const startPayload = `auth_${plain}`;
   const setupToken = startPayload;
   const expiresAt = new Date(Date.now() + SECRET_TTL_MIN * 60 * 1000);
   const link = buildDeepLink({
     channelCode: params.channelCode,
     startPayload,
-    botUsername: params.botUsername.replace(/^@/, ""),
+    botUsername: params.botUsername.replace(/^@/, ''),
     maxBotNickname: params.maxBotNickname,
   });
 
@@ -120,11 +120,13 @@ export async function startPhoneMessengerBind(
 
   const port = resolveBindPort(bindPort);
   if (!port) {
-    return { ok: false, code: "database_unavailable" };
+    return { ok: false, code: 'database_unavailable' };
   }
 
   const userId =
-    params.purpose === "profile_bind" && params.sessionUserId?.trim() ? params.sessionUserId.trim() : null;
+    params.purpose === 'profile_bind' && params.sessionUserId?.trim()
+      ? params.sessionUserId.trim()
+      : null;
 
   await port.deletePending(phoneNormalized, params.channelCode, params.purpose);
   await port.insertSecret({
@@ -137,8 +139,8 @@ export async function startPhoneMessengerBind(
   });
 
   logger.info({
-    event: "phone_messenger_bind_start",
-    metric: "phone_messenger_bind_start",
+    event: 'phone_messenger_bind_start',
+    metric: 'phone_messenger_bind_start',
     purpose: params.purpose,
     channelCode: params.channelCode,
     phoneSuffix: phoneSuffixForLog(phoneNormalized),
@@ -156,13 +158,13 @@ export async function startPhoneMessengerBind(
 export type CompletePhoneMessengerBindResult =
   | {
       ok: true;
-      purpose: "login";
+      purpose: 'login';
       otpCode: string;
       accountCreated: boolean;
       challengeId: string;
       replay?: boolean;
     }
-  | { ok: true; purpose: "profile_bind"; replay?: boolean }
+  | { ok: true; purpose: 'profile_bind'; replay?: boolean }
   | { ok: false; code: string };
 
 export async function completePhoneMessengerBindFromIntegrator(
@@ -177,69 +179,69 @@ export async function completePhoneMessengerBindFromIntegrator(
 ): Promise<CompletePhoneMessengerBindResult> {
   const trimmed = params.setupToken.trim();
   if (!/^auth_[A-Za-z0-9_-]+$/.test(trimmed)) {
-    return { ok: false, code: "invalid_token" };
+    return { ok: false, code: 'invalid_token' };
   }
 
   if (!env.DATABASE_URL?.trim()) {
-    return { ok: false, code: "database_unavailable" };
+    return { ok: false, code: 'database_unavailable' };
   }
 
   const contactPhone = normalizeRuPhoneE164(params.contactPhoneNormalized);
   if (!contactPhone || !isValidPhoneE164(contactPhone)) {
-    return { ok: false, code: "invalid_contact_phone" };
+    return { ok: false, code: 'invalid_contact_phone' };
   }
 
   const port = resolveBindPort(bindPort);
   if (!port) {
-    return { ok: false, code: "database_unavailable" };
+    return { ok: false, code: 'database_unavailable' };
   }
 
   const row = await port.findByTokenHash(hashToken(trimmed));
   if (!row) {
-    return { ok: false, code: "unknown_or_expired" };
+    return { ok: false, code: 'unknown_or_expired' };
   }
 
-  if (row.consumed_at || row.status === "consumed") {
-    return { ok: false, code: "used_token" };
+  if (row.consumed_at || row.status === 'consumed') {
+    return { ok: false, code: 'used_token' };
   }
 
   if (new Date(row.expires_at).getTime() < Date.now()) {
     await port.updateExpired(row.id);
-    return { ok: false, code: "expired" };
+    return { ok: false, code: 'expired' };
   }
 
   if (row.channel_code !== params.channelCode) {
-    return { ok: false, code: "channel_mismatch" };
+    return { ok: false, code: 'channel_mismatch' };
   }
 
   if (contactPhone !== row.phone_normalized) {
-    await port.updateFailed(row.id, "phone_mismatch");
-    return { ok: false, code: "phone_mismatch" };
+    await port.updateFailed(row.id, 'phone_mismatch');
+    return { ok: false, code: 'phone_mismatch' };
   }
 
   const bindPurpose = row.purpose as PhoneMessengerBindPurpose;
 
-  if (row.status === "otp_ready" && row.challenge_id) {
-    if (bindPurpose === "profile_bind") {
+  if (row.status === 'otp_ready' && row.challenge_id) {
+    if (bindPurpose === 'profile_bind') {
       await port.markConsumed(row.id);
       logger.info({
-        event: "phone_messenger_bind_complete_ok",
-        metric: "phone_messenger_bind_complete_ok",
+        event: 'phone_messenger_bind_complete_ok',
+        metric: 'phone_messenger_bind_complete_ok',
         channelCode: params.channelCode,
         purpose: bindPurpose,
         replay: true,
         phoneSuffix: phoneSuffixForLog(contactPhone),
       });
-      return { ok: true, purpose: "profile_bind", replay: true };
+      return { ok: true, purpose: 'profile_bind', replay: true };
     }
     const stored = await phoneAuthDeps.challengeStore.get(row.challenge_id);
     const nowSec = Math.floor(Date.now() / 1000);
     if (!stored?.code || stored.expiresAt < nowSec) {
-      return { ok: false, code: "challenge_expired" };
+      return { ok: false, code: 'challenge_expired' };
     }
     logger.info({
-      event: "phone_messenger_bind_complete_ok",
-      metric: "phone_messenger_bind_complete_ok",
+      event: 'phone_messenger_bind_complete_ok',
+      metric: 'phone_messenger_bind_complete_ok',
       channelCode: params.channelCode,
       purpose: bindPurpose,
       replay: true,
@@ -247,7 +249,7 @@ export async function completePhoneMessengerBindFromIntegrator(
     });
     return {
       ok: true,
-      purpose: "login",
+      purpose: 'login',
       otpCode: stored.code,
       accountCreated: false,
       challengeId: row.challenge_id,
@@ -278,12 +280,12 @@ export async function completePhoneMessengerBindFromIntegrator(
             channelCode: params.channelCode,
             externalId: params.externalId.trim(),
             phoneNormalized: contactPhone,
-            source: "webapp.phone_messenger_bind",
+            source: 'webapp.phone_messenger_bind',
           });
         }
         logger.warn({
-          event: "phone_messenger_bind_complete_fail",
-          metric: "phone_messenger_bind_complete_fail",
+          event: 'phone_messenger_bind_complete_fail',
+          metric: 'phone_messenger_bind_complete_fail',
           channelCode: params.channelCode,
           purpose: bindPurpose,
           failure_code: pre.code,
@@ -292,18 +294,18 @@ export async function completePhoneMessengerBindFromIntegrator(
         return { ok: false as const, code: pre.code };
       }
 
-      if (bindPurpose === "profile_bind") {
+      if (bindPurpose === 'profile_bind') {
         await port.markConsumed(row.id, client);
         logger.info({
-          event: "phone_messenger_bind_complete_ok",
-          metric: "phone_messenger_bind_complete_ok",
+          event: 'phone_messenger_bind_complete_ok',
+          metric: 'phone_messenger_bind_complete_ok',
           channelCode: params.channelCode,
           purpose: bindPurpose,
           replay: false,
           accountCreated: false,
           phoneSuffix: phoneSuffixForLog(contactPhone),
         });
-        return { ok: true as const, purpose: "profile_bind" };
+        return { ok: true as const, purpose: 'profile_bind' };
       }
 
       const challenge = await createPhoneOtpChallenge(contactPhone, context, phoneAuthDeps, {
@@ -313,8 +315,8 @@ export async function completePhoneMessengerBindFromIntegrator(
       if (!challenge.ok) {
         await port.updateFailed(row.id, challenge.code, client);
         logger.warn({
-          event: "phone_messenger_bind_complete_fail",
-          metric: "phone_messenger_bind_complete_fail",
+          event: 'phone_messenger_bind_complete_fail',
+          metric: 'phone_messenger_bind_complete_fail',
           channelCode: params.channelCode,
           purpose: bindPurpose,
           failure_code: challenge.code,
@@ -326,8 +328,8 @@ export async function completePhoneMessengerBindFromIntegrator(
       await port.updateOtpReady(row.id, challenge.challengeId, client);
 
       logger.info({
-        event: "phone_messenger_bind_complete_ok",
-        metric: "phone_messenger_bind_complete_ok",
+        event: 'phone_messenger_bind_complete_ok',
+        metric: 'phone_messenger_bind_complete_ok',
         channelCode: params.channelCode,
         purpose: bindPurpose,
         replay: false,
@@ -337,7 +339,7 @@ export async function completePhoneMessengerBindFromIntegrator(
 
       return {
         ok: true as const,
-        purpose: "login",
+        purpose: 'login',
         otpCode: challenge.code,
         accountCreated: pre.accountCreated,
         challengeId: challenge.challengeId,
@@ -345,23 +347,23 @@ export async function completePhoneMessengerBindFromIntegrator(
     });
   } catch {
     logger.warn({
-      event: "phone_messenger_bind_complete_fail",
-      metric: "phone_messenger_bind_complete_fail",
+      event: 'phone_messenger_bind_complete_fail',
+      metric: 'phone_messenger_bind_complete_fail',
       channelCode: params.channelCode,
-      failure_code: "server_error",
+      failure_code: 'server_error',
     });
-    return { ok: false, code: "server_error" };
+    return { ok: false, code: 'server_error' };
   }
 }
 
 export type PhoneMessengerBindStatusResult =
   | {
       ok: true;
-      status: "pending_contact" | "otp_ready";
+      status: 'pending_contact' | 'otp_ready';
       challengeId?: string;
       retryAfterSeconds?: number;
     }
-  | { ok: true; status: "expired" | "failed" | "consumed"; error?: string }
+  | { ok: true; status: 'expired' | 'failed' | 'consumed'; error?: string }
   | { ok: false; code: string };
 
 export async function getPhoneMessengerBindStatus(
@@ -370,45 +372,45 @@ export async function getPhoneMessengerBindStatus(
 ): Promise<PhoneMessengerBindStatusResult> {
   const trimmed = setupToken.trim();
   if (!/^auth_[A-Za-z0-9_-]+$/.test(trimmed)) {
-    return { ok: false, code: "invalid_token" };
+    return { ok: false, code: 'invalid_token' };
   }
 
   if (!env.DATABASE_URL?.trim()) {
-    return { ok: false, code: "database_unavailable" };
+    return { ok: false, code: 'database_unavailable' };
   }
 
   const port = resolveBindPort(bindPort);
   if (!port) {
-    return { ok: false, code: "database_unavailable" };
+    return { ok: false, code: 'database_unavailable' };
   }
 
   const row = await port.findByTokenHash(hashToken(trimmed));
   if (!row) {
-    return { ok: false, code: "not_found" };
+    return { ok: false, code: 'not_found' };
   }
 
-  if (new Date(row.expires_at).getTime() < Date.now() && row.status !== "otp_ready") {
-    return { ok: true, status: "expired" };
+  if (new Date(row.expires_at).getTime() < Date.now() && row.status !== 'otp_ready') {
+    return { ok: true, status: 'expired' };
   }
 
-  if (row.status === "failed") {
-    return { ok: true, status: "failed", error: row.failure_code ?? "failed" };
+  if (row.status === 'failed') {
+    return { ok: true, status: 'failed', error: row.failure_code ?? 'failed' };
   }
 
-  if (row.status === "consumed") {
-    return { ok: true, status: "consumed" };
+  if (row.status === 'consumed') {
+    return { ok: true, status: 'consumed' };
   }
 
-  if (row.status === "otp_ready" && row.challenge_id) {
+  if (row.status === 'otp_ready' && row.challenge_id) {
     return {
       ok: true,
-      status: "otp_ready",
+      status: 'otp_ready',
       challengeId: row.challenge_id,
       retryAfterSeconds: 60,
     };
   }
 
-  return { ok: true, status: "pending_contact" };
+  return { ok: true, status: 'pending_contact' };
 }
 
 export type ResolvePhoneMessengerBindLoginChallengeResult =
@@ -426,47 +428,47 @@ export async function resolvePhoneMessengerBindLoginChallenge(
 ): Promise<ResolvePhoneMessengerBindLoginChallengeResult> {
   const trimmed = setupToken.trim();
   if (!/^auth_[A-Za-z0-9_-]+$/.test(trimmed)) {
-    return { ok: false, code: "invalid_token" };
+    return { ok: false, code: 'invalid_token' };
   }
 
   if (!env.DATABASE_URL?.trim()) {
-    return { ok: false, code: "database_unavailable" };
+    return { ok: false, code: 'database_unavailable' };
   }
 
   const port = resolveBindPort(bindPort);
   if (!port) {
-    return { ok: false, code: "database_unavailable" };
+    return { ok: false, code: 'database_unavailable' };
   }
 
   const row = await port.findByTokenHash(hashToken(trimmed));
   if (!row) {
-    return { ok: false, code: "not_found" };
+    return { ok: false, code: 'not_found' };
   }
 
-  if (row.purpose !== "login") {
-    return { ok: false, code: "wrong_purpose" };
+  if (row.purpose !== 'login') {
+    return { ok: false, code: 'wrong_purpose' };
   }
 
-  if (row.consumed_at || row.status === "consumed") {
-    return { ok: false, code: "already_consumed" };
+  if (row.consumed_at || row.status === 'consumed') {
+    return { ok: false, code: 'already_consumed' };
   }
 
-  if (row.status === "failed") {
-    return { ok: false, code: row.failure_code ?? "failed" };
+  if (row.status === 'failed') {
+    return { ok: false, code: row.failure_code ?? 'failed' };
   }
 
-  if (new Date(row.expires_at).getTime() < Date.now() && row.status !== "otp_ready") {
-    return { ok: false, code: "expired" };
+  if (new Date(row.expires_at).getTime() < Date.now() && row.status !== 'otp_ready') {
+    return { ok: false, code: 'expired' };
   }
 
-  if (row.status !== "otp_ready" || !row.challenge_id) {
-    return { ok: false, code: "not_ready" };
+  if (row.status !== 'otp_ready' || !row.challenge_id) {
+    return { ok: false, code: 'not_ready' };
   }
 
   const stored = await phoneAuthDeps.challengeStore.get(row.challenge_id);
   const nowSec = Math.floor(Date.now() / 1000);
   if (!stored?.code || stored.expiresAt < nowSec) {
-    return { ok: false, code: "challenge_expired" };
+    return { ok: false, code: 'challenge_expired' };
   }
 
   return { ok: true, challengeId: row.challenge_id, code: stored.code };
@@ -482,4 +484,4 @@ export async function markPhoneMessengerBindConsumedByChallenge(
   await port.markConsumedByChallenge(challengeId);
 }
 
-export type { PhoneMessengerBindPort } from "./phoneMessengerBind.ports";
+export type { PhoneMessengerBindPort } from './phoneMessengerBind.ports';

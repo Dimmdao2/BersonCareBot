@@ -1,19 +1,22 @@
-import Image from "next/image";
-import Link from "next/link";
-import { ArrowUpRight } from "lucide-react";
+import Image from 'next/image';
+import Link from 'next/link';
+import { ArrowUpRight } from 'lucide-react';
 import {
   landingBodySecondary,
   landingContainer,
   landingH3,
-} from "@/components/landing/landingTypography";
-import { cn } from "@/lib/utils";
+} from '@/components/landing/landingTypography';
+import { cn } from '@/lib/utils';
 
 const linkClass =
-  "inline-flex items-center gap-1.5 text-base font-semibold text-[#406CA7] transition hover:text-[#315A8D]";
+  'inline-flex items-center gap-1.5 text-base font-semibold text-[#406CA7] transition hover:text-[#315A8D]';
 
 export function SpecialistSection() {
   return (
-    <section id="specialist" className="scroll-mt-[80px] overflow-x-hidden bg-white py-12 sm:py-14 lg:py-16">
+    <section
+      id="specialist"
+      className="scroll-mt-[80px] overflow-x-hidden bg-white py-12 sm:py-14 lg:py-16"
+    >
       <div className={landingContainer}>
         <div className="relative mx-auto max-w-4xl overflow-hidden rounded-[24px] border border-[#E6ECF8] bg-white p-5 sm:p-7 lg:p-8">
           <div className="absolute bottom-0 right-0">
@@ -30,17 +33,17 @@ export function SpecialistSection() {
             <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-[#EAF1F8] px-3 py-0.5 text-xs font-semibold uppercase tracking-[0.08em] text-[#406CA7]">
               Об авторе
             </span>
-            <h3 className={cn(landingH3, "mt-2")}>Дмитрий Берсон</h3>
+            <h3 className={cn(landingH3, 'mt-2')}>Дмитрий Берсон</h3>
             <p className="mt-1 text-[0.9375rem] font-medium leading-6 text-[#406CA7]">
               Реабилитолог, кинезиолог, остеопат
             </p>
-            <p className={cn(landingBodySecondary, "mt-2.5")}>
-              С 2014 года занимается восстановлением при боли в спине, шее и суставах,
-              после травм и операций.
+            <p className={cn(landingBodySecondary, 'mt-2.5')}>
+              С 2014 года занимается восстановлением при боли в спине, шее и суставах, после травм и
+              операций.
             </p>
             <Link
               href="https://dmitryberson.ru"
-              className={cn(linkClass, "mt-4 inline-flex")}
+              className={cn(linkClass, 'mt-4 inline-flex')}
               target="_blank"
               rel="noreferrer"
             >

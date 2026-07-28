@@ -1,25 +1,30 @@
-"use client";
+'use client';
 
-import { lazy, Suspense } from "react";
-import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
-import type { InstanceStageRow } from "@/app/app/patient/treatment/program-detail/PatientProgramStagesTimeline";
-import { PatientProgramStagesTimeline } from "@/app/app/patient/treatment/program-detail/PatientProgramStagesTimeline";
-import { PatientProgramPassageStatisticsSection } from "@/app/app/patient/treatment/program-detail/PatientProgramPassageStatisticsSection";
-import { PatientProgramControlCard } from "@/app/app/patient/treatment/program-detail/PatientProgramControlCard";
-import { PatientLoadingPatternBody, patientInnerPageStackClass } from "@/shared/ui/patient/patientVisual";
-import { cn } from "@/lib/utils";
-import type { PatientPlanTab } from "@/app/app/patient/treatment/patientPlanTab";
+import { lazy, Suspense } from 'react';
+import type { TreatmentProgramInstanceDetail } from '@/modules/treatment-program/types';
+import type { InstanceStageRow } from '@/app/app/patient/treatment/program-detail/PatientProgramStagesTimeline';
+import { PatientProgramStagesTimeline } from '@/app/app/patient/treatment/program-detail/PatientProgramStagesTimeline';
+import { PatientProgramPassageStatisticsSection } from '@/app/app/patient/treatment/program-detail/PatientProgramPassageStatisticsSection';
+import { PatientProgramControlCard } from '@/app/app/patient/treatment/program-detail/PatientProgramControlCard';
+import {
+  PatientLoadingPatternBody,
+  patientInnerPageStackClass,
+} from '@/shared/ui/patient/patientVisual';
+import { cn } from '@/lib/utils';
+import type { PatientPlanTab } from '@/app/app/patient/treatment/patientPlanTab';
 
 const PatientTreatmentTabProgramLazy = lazy(() =>
-  import("@/app/app/patient/treatment/PatientTreatmentTabProgram").then((m) => ({ default: m.PatientTreatmentTabProgram })),
+  import('@/app/app/patient/treatment/PatientTreatmentTabProgram').then((m) => ({
+    default: m.PatientTreatmentTabProgram,
+  })),
 );
 const PatientTreatmentTabRecommendationsLazy = lazy(() =>
-  import("@/app/app/patient/treatment/PatientTreatmentTabRecommendations").then((m) => ({
+  import('@/app/app/patient/treatment/PatientTreatmentTabRecommendations').then((m) => ({
     default: m.PatientTreatmentTabRecommendations,
   })),
 );
 
-type StageRow = TreatmentProgramInstanceDetail["stages"][number];
+type StageRow = TreatmentProgramInstanceDetail['stages'][number];
 
 export function PatientPlanTabPanels(props: {
   activeTab: PatientPlanTab;
@@ -74,7 +79,11 @@ export function PatientPlanTabPanels(props: {
 
   return (
     <>
-      <div className={cn(activeTab !== "program" && "hidden")} role="tabpanel" aria-label="Программа">
+      <div
+        className={cn(activeTab !== 'program' && 'hidden')}
+        role="tabpanel"
+        aria-label="Программа"
+      >
         <Suspense fallback={<PatientLoadingPatternBody pattern="heroList" />}>
           <PatientTreatmentTabProgramLazy
             instanceId={detail.id}
@@ -94,7 +103,11 @@ export function PatientPlanTabPanels(props: {
         </Suspense>
       </div>
 
-      <div className={cn(activeTab !== "recommendations" && "hidden")} role="tabpanel" aria-label="Рекомендации">
+      <div
+        className={cn(activeTab !== 'recommendations' && 'hidden')}
+        role="tabpanel"
+        aria-label="Рекомендации"
+      >
         <Suspense fallback={<PatientLoadingPatternBody pattern="heroList" />}>
           <PatientTreatmentTabRecommendationsLazy
             instanceId={detail.id}
@@ -105,7 +118,11 @@ export function PatientPlanTabPanels(props: {
         </Suspense>
       </div>
 
-      <div className={cn(activeTab !== "progress" && "hidden")} role="tabpanel" aria-label="Прогресс">
+      <div
+        className={cn(activeTab !== 'progress' && 'hidden')}
+        role="tabpanel"
+        aria-label="Прогресс"
+      >
         <div className={patientInnerPageStackClass}>
           {stagesTimeline.length > 0 ? (
             <div className="min-w-0">

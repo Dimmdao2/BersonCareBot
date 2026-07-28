@@ -1,30 +1,30 @@
 ---
-name: "Own Booking Engine — Stage 6: Memberships / packages"
-overview: "Этап 6 закрыт (2026-05-29): составные абонементы, каталог и patient package, оплата (этап 5), reserve/consume/release/penalty, запись с patientPackageId, интеграция с политиками отмены (этап 4), UI admin/doctor/patient. Источник — STAGE_CHECKLISTS.md §Этап 6, ТЗ §11."
+name: 'Own Booking Engine — Stage 6: Memberships / packages'
+overview: 'Этап 6 закрыт (2026-05-29): составные абонементы, каталог и patient package, оплата (этап 5), reserve/consume/release/penalty, запись с patientPackageId, интеграция с политиками отмены (этап 4), UI admin/doctor/patient. Источник — STAGE_CHECKLISTS.md §Этап 6, ТЗ §11.'
 todos:
   - id: s6-model
-    content: "Drizzle 0094 + schema bookingMemberships; balanceCalculator (производный баланс)"
+    content: 'Drizzle 0094 + schema bookingMemberships; balanceCalculator (производный баланс)'
     status: completed
   - id: s6-manual
-    content: "Ручной абонемент + оплата (этап 5); активация при priceMinor=0"
+    content: 'Ручной абонемент + оплата (этап 5); активация при priceMinor=0'
     status: completed
   - id: s6-ready
-    content: "Каталог be_subscription_packages; offer/purchase; capture → activate"
+    content: 'Каталог be_subscription_packages; offer/purchase; capture → activate'
     status: completed
   - id: s6-usage
-    content: "auto_on_visit_confirmed (wrap transition); manual consume; cancel penalty/release"
+    content: 'auto_on_visit_confirmed (wrap transition); manual consume; cancel penalty/release'
     status: completed
   - id: s6-booking
-    content: "available + create patientPackageId; резерв до confirm; wizard ConfirmStepClient"
+    content: 'available + create patientPackageId; резерв до confirm; wizard ConfirmStepClient'
     status: completed
   - id: s6-ui
-    content: "§A11/B-package/C-package; деталь /app/patient/memberships/[id]"
+    content: '§A11/B-package/C-package; деталь /app/patient/memberships/[id]'
     status: completed
   - id: s6-verify
-    content: "vitest memberships/policy/routes/hooks; typecheck; api.md, LOG, DB_STRUCTURE"
+    content: 'vitest memberships/policy/routes/hooks; typecheck; api.md, LOG, DB_STRUCTURE'
     status: completed
   - id: s6-audit
-    content: "Ревью хвостов: policyResolver chargePackageSessionOnLate; FSM penalty; валидация create"
+    content: 'Ревью хвостов: policyResolver chargePackageSessionOnLate; FSM penalty; валидация create'
     status: completed
 isProject: false
 ---
@@ -48,17 +48,17 @@ isProject: false
 
 ## Реализация (канон)
 
-| Область | Пути |
-|--------|------|
-| Schema / migration | `apps/webapp/db/schema/bookingMemberships.ts`, `db/drizzle-migrations/0094_*` |
-| Domain | `apps/webapp/src/modules/memberships/` (`service`, `ports`, `balanceCalculator`, `packageValidity`) |
-| Infra | `apps/webapp/src/infra/repos/pgMemberships.ts` |
-| DI / hooks | `buildAppDeps.ts`, `app-layer/booking/wrapBookingEngineMembershipHooks.ts` |
-| Booking create | `modules/patient-booking/canonicalCreate.ts` (+ `patientPackageId`) |
-| Cancel | `patient-booking/service.ts`, `booking-appointment-lifecycle`, `policyResolver` |
-| Patient API | `app/api/booking/memberships/**` |
-| Staff API | `app/api/admin|doctor/booking-engine/packages`, `patient-packages`, `consume` |
-| UI | `BookingCatalogPackagesSection`, `BookingPatientPackagesSection`, `PatientMembershipsSection`, `ConfirmStepClient`, `/app/patient/memberships/pay`, `/app/patient/memberships/[id]` |
+| Область            | Пути                                                                                                                                                                                |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| Schema / migration | `apps/webapp/db/schema/bookingMemberships.ts`, `db/drizzle-migrations/0094_*`                                                                                                       |
+| Domain             | `apps/webapp/src/modules/memberships/` (`service`, `ports`, `balanceCalculator`, `packageValidity`)                                                                                 |
+| Infra              | `apps/webapp/src/infra/repos/pgMemberships.ts`                                                                                                                                      |
+| DI / hooks         | `buildAppDeps.ts`, `app-layer/booking/wrapBookingEngineMembershipHooks.ts`                                                                                                          |
+| Booking create     | `modules/patient-booking/canonicalCreate.ts` (+ `patientPackageId`)                                                                                                                 |
+| Cancel             | `patient-booking/service.ts`, `booking-appointment-lifecycle`, `policyResolver`                                                                                                     |
+| Patient API        | `app/api/booking/memberships/**`                                                                                                                                                    |
+| Staff API          | `app/api/admin                                                                                                                                                                      | doctor/booking-engine/packages`, `patient-packages`, `consume` |
+| UI                 | `BookingCatalogPackagesSection`, `BookingPatientPackagesSection`, `PatientMembershipsSection`, `ConfirmStepClient`, `/app/patient/memberships/pay`, `/app/patient/memberships/[id]` |
 
 ## API (пациент)
 

@@ -1,11 +1,8 @@
-import {
-  enterWithDbPatientPrincipal,
-  runWithDbPatientPrincipal,
-} from "@bersoncare/db-principal";
-import { isPlatformUserUuid } from "@/shared/platform-user/isPlatformUserUuid";
+import { enterWithDbPatientPrincipal, runWithDbPatientPrincipal } from '@bersoncare/db-principal';
+import { isPlatformUserUuid } from '@/shared/platform-user/isPlatformUserUuid';
 
 function assertCanonicalUserId(userId: string): void {
-  if (!isPlatformUserUuid(userId)) throw new Error("staff_security_canonical_user_required");
+  if (!isPlatformUserUuid(userId)) throw new Error('staff_security_canonical_user_required');
 }
 
 /**

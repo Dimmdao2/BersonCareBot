@@ -3,8 +3,12 @@ import type {
   SystemSettingsReadOptions,
   SystemSettingsUpsertRow,
   SystemSettingsWriteOptions,
-} from "@/modules/system-settings/ports";
-import type { SystemSetting, SystemSettingKey, SystemSettingScope } from "@/modules/system-settings/types";
+} from '@/modules/system-settings/ports';
+import type {
+  SystemSetting,
+  SystemSettingKey,
+  SystemSettingScope,
+} from '@/modules/system-settings/types';
 
 export function createInMemorySystemSettingsPort(): SystemSettingsPort {
   const store = new Map<string, SystemSetting>();
@@ -14,7 +18,7 @@ export function createInMemorySystemSettingsPort(): SystemSettingsPort {
   }
 
   function makeKey(key: string, scope: string, organizationId: string | null = null) {
-    return `${organizationId ?? "global"}:${scope}:${key}`;
+    return `${organizationId ?? 'global'}:${scope}:${key}`;
   }
 
   return {
@@ -25,29 +29,36 @@ export function createInMemorySystemSettingsPort(): SystemSettingsPort {
     ): Promise<SystemSetting | null> {
       const organizationId = normalizeOrganizationId(options.organizationId);
       if (organizationId) {
-        return store.get(makeKey(key, scope, organizationId)) ?? store.get(makeKey(key, scope)) ?? null;
+        return (
+          store.get(makeKey(key, scope, organizationId)) ?? store.get(makeKey(key, scope)) ?? null
+        );
       }
       return store.get(makeKey(key, scope)) ?? null;
     },
 
     async getWebPushVapidPublicKeyOnly(): Promise<string | null> {
-      const row = store.get(makeKey("web_push_vapid", "admin"));
+      const row = store.get(makeKey('web_push_vapid', 'admin'));
       const vj = row?.valueJson;
-      if (vj === null || typeof vj !== "object" || !("value" in (vj as Record<string, unknown>))) return null;
+      if (vj === null || typeof vj !== 'object' || !('value' in (vj as Record<string, unknown>)))
+        return null;
       const inner = (vj as Record<string, unknown>).value;
-      if (inner === null || typeof inner !== "object" || Array.isArray(inner)) return null;
+      if (inner === null || typeof inner !== 'object' || Array.isArray(inner)) return null;
       const pk = (inner as Record<string, unknown>).publicKey;
-      return typeof pk === "string" && pk.trim() ? pk.trim() : null;
+      return typeof pk === 'string' && pk.trim() ? pk.trim() : null;
     },
 
     async isCurrentPatientTestAccount(): Promise<boolean> {
       return false;
     },
 
-    async getByScope(scope: SystemSettingScope, options: SystemSettingsReadOptions = {}): Promise<SystemSetting[]> {
+    async getByScope(
+      scope: SystemSettingScope,
+      options: SystemSettingsReadOptions = {},
+    ): Promise<SystemSetting[]> {
       const organizationId = normalizeOrganizationId(options.organizationId);
       const rows = Array.from(store.values()).filter(
-        (s) => s.scope === scope && (s.organizationId === null || s.organizationId === organizationId),
+        (s) =>
+          s.scope === scope && (s.organizationId === null || s.organizationId === organizationId),
       );
       const byKey = new Map<string, SystemSetting>();
       for (const row of rows) {
@@ -77,14 +88,7 @@ export function createInMemorySystemSettingsPort(): SystemSettingsPort {
       return setting;
     },
 
-    async compareAndSwap(
-      key,
-      scope,
-      valueJson,
-      updatedBy,
-      expectedUpdatedAt,
-      options = {},
-    ) {
+    async compareAndSwap(key, scope, valueJson, updatedBy, expectedUpdatedAt, options = {}) {
       const organizationId = normalizeOrganizationId(options.organizationId);
       const identity = makeKey(key, scope, organizationId);
       const current = store.get(identity) ?? null;
@@ -117,7 +121,9 @@ export function createInMemorySystemSettingsPort(): SystemSettingsPort {
       }
       return out;
     },
-    async delete(key, scope, _updatedBy, options = {}) { return store.delete(makeKey(key, scope, normalizeOrganizationId(options.organizationId))); },
+    async delete(key, scope, _updatedBy, options = {}) {
+      return store.delete(makeKey(key, scope, normalizeOrganizationId(options.organizationId)));
+    },
   };
 }
 

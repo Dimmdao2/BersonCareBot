@@ -1,13 +1,16 @@
 /** Wave 3 phase 13B — domain SQL via `runWebappPgText`. */
-import { randomUUID } from "node:crypto";
-import { nullableToIsoStringSafe, toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
-import { runWebappPgText } from "@/infra/db/runWebappSql";
-import type { PatientBookingsPort, CreatePendingPatientBookingInput } from "@/modules/patient-booking/ports";
+import { randomUUID } from 'node:crypto';
+import { nullableToIsoStringSafe, toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
+import { runWebappPgText } from '@/infra/db/runWebappSql';
+import type {
+  PatientBookingsPort,
+  CreatePendingPatientBookingInput,
+} from '@/modules/patient-booking/ports';
 import type {
   CanonicalInPersonBookingContext,
   PatientBookingRecord,
   PatientBookingStatus,
-} from "@/modules/patient-booking/types";
+} from '@/modules/patient-booking/types';
 
 type Row = {
   id: string;
@@ -46,12 +49,12 @@ function mapRow(row: Row): PatientBookingRecord {
   return {
     id: row.id,
     userId: row.platform_user_id ?? null,
-    bookingType: row.booking_type as PatientBookingRecord["bookingType"],
+    bookingType: row.booking_type as PatientBookingRecord['bookingType'],
     city: row.city,
-    category: row.category as PatientBookingRecord["category"],
+    category: row.category as PatientBookingRecord['category'],
     slotStart: toIsoStringSafe(row.slot_start),
     slotEnd: toIsoStringSafe(row.slot_end),
-    status: row.status as PatientBookingRecord["status"],
+    status: row.status as PatientBookingRecord['status'],
     cancelledAt: nullableToIsoStringSafe(row.cancelled_at),
     cancelReason: row.cancel_reason,
     gcalEventId: row.gcal_event_id,
@@ -92,19 +95,19 @@ function mapRow(row: Row): PatientBookingRecord {
  * snapshots are never used as canonical navigation or display inputs.
  */
 async function listCurrentPatientBookingRows(
-  kind: "upcoming" | "history",
+  kind: 'upcoming' | 'history',
   nowIso: string,
 ): Promise<PatientBookingRecord[]> {
   const patientRowsCapabilitySql = (() => {
     switch (kind) {
-      case "upcoming":
+      case 'upcoming':
         return `SELECT booking
                 FROM app.read_current_patient_booking_rows('upcoming', $1::timestamptz)`;
-      case "history":
+      case 'history':
         return `SELECT booking
                 FROM app.read_current_patient_booking_rows('history', $1::timestamptz)`;
       default:
-        throw new Error("Unsupported patient booking row kind");
+        throw new Error('Unsupported patient booking row kind');
     }
   })();
   const result = await runWebappPgText<{ booking: Row }>(patientRowsCapabilitySql, [nowIso]);
@@ -197,7 +200,7 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
     );
     const row = result.rows[0];
     if (!row) {
-      throw new Error("slot_overlap");
+      throw new Error('slot_overlap');
     }
     return mapRow(row);
   },
@@ -267,7 +270,7 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
   },
 
   async markCancelled(input) {
-    const status = input.status ?? "cancelled";
+    const status = input.status ?? 'cancelled';
     const result = await runWebappPgText<Row>(
       `UPDATE patient_bookings
        SET status = $2,
@@ -283,7 +286,7 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
   },
 
   async updateSlotsAfterReschedule(input) {
-    const status = input.status ?? "confirmed";
+    const status = input.status ?? 'confirmed';
     const result = await runWebappPgText<Row>(
       `UPDATE patient_bookings
        SET slot_start = $2::timestamptz,
@@ -308,7 +311,9 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
   },
 
   async getById(bookingId) {
-    const result = await runWebappPgText<Row>(`SELECT * FROM patient_bookings WHERE id = $1`, [bookingId]);
+    const result = await runWebappPgText<Row>(`SELECT * FROM patient_bookings WHERE id = $1`, [
+      bookingId,
+    ]);
     const row = result.rows[0];
     return row ? mapRow(row) : null;
   },
@@ -324,11 +329,11 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
 
   async listUpcomingByUser(userId, nowIso) {
     void userId;
-    return listCurrentPatientBookingRows("upcoming", nowIso);
+    return listCurrentPatientBookingRows('upcoming', nowIso);
   },
 
   async listHistoryByUser(userId, nowIso) {
     void userId;
-    return listCurrentPatientBookingRows("history", nowIso);
+    return listCurrentPatientBookingRows('history', nowIso);
   },
 };

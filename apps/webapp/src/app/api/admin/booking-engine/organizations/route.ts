@@ -1,6 +1,6 @@
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { requireAdminBookingEngine } from "../_requireAdminBookingEngine";
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { requireAdminBookingEngine } from '../_requireAdminBookingEngine';
 
 const PostSchema = z.object({
   title: z.string().min(1).max(200),
@@ -20,7 +20,8 @@ export async function POST(request: Request) {
   if (!gate.ok) return gate.response;
   const body = await request.json().catch(() => null);
   const parsed = PostSchema.safeParse(body);
-  if (!parsed.success) return NextResponse.json({ ok: false, error: "invalid_input" }, { status: 400 });
+  if (!parsed.success)
+    return NextResponse.json({ ok: false, error: 'invalid_input' }, { status: 400 });
   const organization = await gate.ctx.service.organization.upsertOrganization({
     id: gate.ctx.organizationId,
     title: parsed.data.title.trim(),

@@ -1,1 +1,1 @@
-export * from "@/shared/ui/primitives/radio-group"
+export * from '@/shared/ui/primitives/radio-group';

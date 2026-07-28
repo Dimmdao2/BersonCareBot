@@ -45,14 +45,14 @@
 
 **Согласовано**
 
-| Цель (02/03 / phase-01) | Реализация |
-|-------------------------|------------|
-| `media_files` + ключи master / prefix / poster | `hls_master_playlist_s3_key`, `hls_artifact_prefix`, `poster_s3_key` |
-| Статус обработки / ошибка | `video_processing_status`, `video_processing_error` |
-| Длительность, лестница качеств | `video_duration_seconds`, `available_qualities_json` |
-| Override режима выдачи | `video_delivery_override` (`mp4` / `hls` / `auto`) |
-| Индекс для выборки video / backfill | `idx_media_files_video_processing_status` с фильтром `mime_type ~~ 'video/%'` |
-| Source MP4 остаётся в `s3_key` | Не дублировали `video_source_s3_key` (как допускало phase-01) |
+| Цель (02/03 / phase-01)                        | Реализация                                                                    |
+| ---------------------------------------------- | ----------------------------------------------------------------------------- |
+| `media_files` + ключи master / prefix / poster | `hls_master_playlist_s3_key`, `hls_artifact_prefix`, `poster_s3_key`          |
+| Статус обработки / ошибка                      | `video_processing_status`, `video_processing_error`                           |
+| Длительность, лестница качеств                 | `video_duration_seconds`, `available_qualities_json`                          |
+| Override режима выдачи                         | `video_delivery_override` (`mp4` / `hls` / `auto`)                            |
+| Индекс для выборки video / backfill            | `idx_media_files_video_processing_status` с фильтром `mime_type ~~ 'video/%'` |
+| Source MP4 остаётся в `s3_key`                 | Не дублировали `video_source_s3_key` (как допускало phase-01)                 |
 
 **Расхождение документации (не блокер phase-01)**
 
@@ -105,12 +105,12 @@
 
 ## Закрытие аудита
 
-| Пункт запроса | Статус |
-|---------------|--------|
-| 1 Additive / откат кода | OK (с ops-оговоркой порядка migrate vs deploy) |
-| 2 MP4 path | OK |
-| 3 Согласование с 02/03 | OK, документ 02 выровнен с миграцией 0018 (FIX 2026-05-03) |
-| 4 Тесты выполнены | OK, повторный прогон зафиксирован в execution-log (FIX 2026-05-03) |
+| Пункт запроса           | Статус                                                             |
+| ----------------------- | ------------------------------------------------------------------ |
+| 1 Additive / откат кода | OK (с ops-оговоркой порядка migrate vs deploy)                     |
+| 2 MP4 path              | OK                                                                 |
+| 3 Согласование с 02/03  | OK, документ 02 выровнен с миграцией 0018 (FIX 2026-05-03)         |
+| 4 Тесты выполнены       | OK, повторный прогон зафиксирован в execution-log (FIX 2026-05-03) |
 
 **Gate phase-02:** открыт: словарь `video_processing_status` согласован с БД и `02-target-architecture.md` (см. **FIX 2026-05-03**); порядок migrate задокументирован в `deploy/HOST_DEPLOY_README.md`.
 

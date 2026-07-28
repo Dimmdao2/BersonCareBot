@@ -1,11 +1,11 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useState } from "react";
-import { Badge } from "@/shared/ui/doctor/primitives/badge";
-import { doctorClientSectionTitleClass } from "./doctorClientCardChrome";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { AuditLogMergeTarget } from "@/components/admin/AuditLogMergeTarget";
-import { auditActorShortLabel } from "@/infra/adminAuditLogPresentation";
+import { useCallback, useEffect, useState } from 'react';
+import { Badge } from '@/shared/ui/doctor/primitives/badge';
+import { doctorClientSectionTitleClass } from './doctorClientCardChrome';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { AuditLogMergeTarget } from '@/components/admin/AuditLogMergeTarget';
+import { auditActorShortLabel } from '@/infra/adminAuditLogPresentation';
 
 type AuditItem = {
   id: string;
@@ -14,7 +14,7 @@ type AuditItem = {
   target_id: string | null;
   conflict_key: string | null;
   details: Record<string, unknown>;
-  status: "ok" | "partial_failure" | "error";
+  status: 'ok' | 'partial_failure' | 'error';
   repeat_count: number;
   last_seen_at: string;
   resolved_at: string | null;
@@ -28,7 +28,11 @@ type Props = {
   suspendLoad?: boolean;
 };
 
-export function AdminClientAuditHistorySection({ platformUserId, enabled, suspendLoad = false }: Props) {
+export function AdminClientAuditHistorySection({
+  platformUserId,
+  enabled,
+  suspendLoad = false,
+}: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<AuditItem[]>([]);
@@ -39,20 +43,24 @@ export function AdminClientAuditHistorySection({ platformUserId, enabled, suspen
     setError(null);
     try {
       const qs = new URLSearchParams({
-        page: "1",
-        limit: "20",
+        page: '1',
+        limit: '20',
         involvesPlatformUserId: platformUserId,
       });
-      const res = await fetch(`/api/admin/audit-log?${qs.toString()}`, { credentials: "include" });
+      const res = await fetch(`/api/admin/audit-log?${qs.toString()}`, { credentials: 'include' });
       const json = (await res.json()) as { ok?: boolean; items?: AuditItem[]; error?: string };
       if (!res.ok || json.ok !== true) {
-        setError(res.status === 403 ? "Нужны роль admin и режим администратора." : json.error ?? "request_failed");
+        setError(
+          res.status === 403
+            ? 'Нужны роль admin и режим администратора.'
+            : (json.error ?? 'request_failed'),
+        );
         setItems([]);
         return;
       }
       setItems(json.items ?? []);
     } catch {
-      setError("network");
+      setError('network');
       setItems([]);
     } finally {
       setLoading(false);
@@ -67,17 +75,17 @@ export function AdminClientAuditHistorySection({ platformUserId, enabled, suspen
   function canManuallyResolveAuditRow(row: AuditItem): boolean {
     if (row.resolved_at != null) return false;
     return (
-      row.action === "auto_merge_conflict" ||
-      row.action === "auto_merge_conflict_anomaly" ||
-      row.action === "channel_link_ownership_conflict"
+      row.action === 'auto_merge_conflict' ||
+      row.action === 'auto_merge_conflict_anomaly' ||
+      row.action === 'channel_link_ownership_conflict'
     );
   }
 
   function isOpenConflictLabelRow(row: AuditItem): boolean {
     if (row.resolved_at != null) return false;
-    if (row.action === "auto_merge_conflict" && row.conflict_key) return true;
-    if (row.action === "auto_merge_conflict_anomaly") return true;
-    if (row.action === "channel_link_ownership_conflict") return true;
+    if (row.action === 'auto_merge_conflict' && row.conflict_key) return true;
+    if (row.action === 'auto_merge_conflict_anomaly') return true;
+    if (row.action === 'channel_link_ownership_conflict') return true;
     return false;
   }
 
@@ -92,7 +100,7 @@ export function AdminClientAuditHistorySection({ platformUserId, enabled, suspen
       </h2>
       {openConflictsHere.length > 0 ? (
         <p className="text-sm text-amber-800 dark:text-amber-300" role="status">
-          Открытых конфликтов среди загруженных строк:{" "}
+          Открытых конфликтов среди загруженных строк:{' '}
           <Badge variant="outline" className="font-mono">
             {openConflictsHere.length}
           </Badge>
@@ -116,26 +124,39 @@ export function AdminClientAuditHistorySection({ platformUserId, enabled, suspen
               className="rounded-md border border-border/60 bg-muted/20 px-3 py-2 text-xs flex flex-col gap-1"
             >
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-muted-foreground">{new Date(row.created_at).toLocaleString("ru-RU", { timeZone: "Europe/Moscow", dateStyle: "short", timeStyle: "short" })}</span>
+                <span className="text-muted-foreground">
+                  {new Date(row.created_at).toLocaleString('ru-RU', {
+                    timeZone: 'Europe/Moscow',
+                    dateStyle: 'short',
+                    timeStyle: 'short',
+                  })}
+                </span>
                 <Badge variant="outline" className="font-mono text-[10px]">
                   {row.action}
                 </Badge>
                 <Badge variant="secondary" className="text-[10px]">
                   {row.status}
                 </Badge>
-                <span className="text-muted-foreground">актор: {auditActorShortLabel(row.actor_id, row.action)}</span>
+                <span className="text-muted-foreground">
+                  актор: {auditActorShortLabel(row.actor_id, row.action)}
+                </span>
                 {isOpenConflictLabelRow(row) ? (
                   <span className="text-amber-700 dark:text-amber-400">открыт</span>
                 ) : null}
               </div>
               <div className="text-[11px] text-muted-foreground">Цель</div>
               <AuditLogMergeTarget row={row} />
-              {row.action === "auto_merge_conflict" && row.repeat_count > 1 ? (
+              {row.action === 'auto_merge_conflict' && row.repeat_count > 1 ? (
                 <span className="text-muted-foreground">Повторов: {row.repeat_count}</span>
               ) : null}
               {row.resolved_at ? (
                 <span className="text-muted-foreground">
-                  закрыт {new Date(row.resolved_at).toLocaleString("ru-RU", { timeZone: "Europe/Moscow", dateStyle: "short", timeStyle: "short" })}
+                  закрыт{' '}
+                  {new Date(row.resolved_at).toLocaleString('ru-RU', {
+                    timeZone: 'Europe/Moscow',
+                    dateStyle: 'short',
+                    timeStyle: 'short',
+                  })}
                 </span>
               ) : null}
               {canManuallyResolveAuditRow(row) ? (
@@ -149,10 +170,10 @@ export function AdminClientAuditHistorySection({ platformUserId, enabled, suspen
                     setResolvingId(row.id);
                     setError(null);
                     try {
-                      const res = await fetch("/api/admin/audit-log/resolve", {
-                        method: "POST",
-                        credentials: "include",
-                        headers: { "Content-Type": "application/json" },
+                      const res = await fetch('/api/admin/audit-log/resolve', {
+                        method: 'POST',
+                        credentials: 'include',
+                        headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ id: row.id }),
                       });
                       const json = (await res.json()) as { ok?: boolean; error?: string };

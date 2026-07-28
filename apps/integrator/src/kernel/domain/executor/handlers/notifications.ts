@@ -14,7 +14,9 @@ export async function handleNotifications(
 ): Promise<ActionResult> {
   if (action.type === 'notifications.get') {
     const settings = deps.readPort
-      ? await deps.readPort.readDb<import('../../../contracts/index.js').NotificationSettings | null>({
+      ? await deps.readPort.readDb<
+          import('../../../contracts/index.js').NotificationSettings | null
+        >({
           type: 'notifications.settings',
           params: {
             resource: ctx.event.meta.source,
@@ -30,24 +32,33 @@ export async function handleNotifications(
   }
 
   if (action.type === 'notifications.toggle') {
-    const currentSettings = readNotificationSettings(ctx)
-      ?? (deps.readPort
-        ? await deps.readPort.readDb<import('../../../contracts/index.js').NotificationSettings | null>({
+    const currentSettings =
+      readNotificationSettings(ctx) ??
+      (deps.readPort
+        ? ((await deps.readPort.readDb<
+            import('../../../contracts/index.js').NotificationSettings | null
+          >({
             type: 'notifications.settings',
             params: {
               resource: ctx.event.meta.source,
               channelUserId: action.params.channelUserId ?? action.params.channelId,
             },
-          }) ?? defaultNotificationSettings()
+          })) ?? defaultNotificationSettings())
         : defaultNotificationSettings());
     const toggleKey = asString(action.params.toggleKey);
     let nextSettings = { ...currentSettings };
     if (toggleKey === 'notify_toggle_spb') nextSettings.notify_spb = !currentSettings.notify_spb;
     if (toggleKey === 'notify_toggle_msk') nextSettings.notify_msk = !currentSettings.notify_msk;
-    if (toggleKey === 'notify_toggle_online') nextSettings.notify_online = !currentSettings.notify_online;
-    if (toggleKey === 'notify_toggle_bookings') nextSettings.notify_bookings = !currentSettings.notify_bookings;
+    if (toggleKey === 'notify_toggle_online')
+      nextSettings.notify_online = !currentSettings.notify_online;
+    if (toggleKey === 'notify_toggle_bookings')
+      nextSettings.notify_bookings = !currentSettings.notify_bookings;
     if (toggleKey === 'notify_toggle_all' && action.params.supportsToggleAll === true) {
-      const allEnabled = currentSettings.notify_spb && currentSettings.notify_msk && currentSettings.notify_online && currentSettings.notify_bookings;
+      const allEnabled =
+        currentSettings.notify_spb &&
+        currentSettings.notify_msk &&
+        currentSettings.notify_online &&
+        currentSettings.notify_bookings;
       nextSettings = {
         notify_spb: !allEnabled,
         notify_msk: !allEnabled,
@@ -55,17 +66,19 @@ export async function handleNotifications(
         notify_bookings: !allEnabled,
       };
     }
-    const writes = [{
-      type: 'notifications.update' as const,
-      params: {
-        resource: ctx.event.meta.source,
-        channelUserId: action.params.channelUserId ?? action.params.channelId,
-        notify_spb: nextSettings.notify_spb,
-        notify_msk: nextSettings.notify_msk,
-        notify_online: nextSettings.notify_online,
-        notify_bookings: nextSettings.notify_bookings,
+    const writes = [
+      {
+        type: 'notifications.update' as const,
+        params: {
+          resource: ctx.event.meta.source,
+          channelUserId: action.params.channelUserId ?? action.params.channelId,
+          notify_spb: nextSettings.notify_spb,
+          notify_msk: nextSettings.notify_msk,
+          notify_online: nextSettings.notify_online,
+          notify_bookings: nextSettings.notify_bookings,
+        },
       },
-    }];
+    ];
     await persistWrites(deps.writePort, writes);
     return {
       actionId: action.id,

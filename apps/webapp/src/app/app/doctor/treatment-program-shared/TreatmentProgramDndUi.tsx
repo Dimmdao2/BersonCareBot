@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import {
   DndContext,
@@ -12,22 +12,22 @@ import {
   type DragEndEvent,
   type DragOverEvent,
   type DragStartEvent,
-} from "@dnd-kit/core";
-import type { DraggableAttributes } from "@dnd-kit/core";
+} from '@dnd-kit/core';
+import type { DraggableAttributes } from '@dnd-kit/core';
 import {
   SortableContext,
   sortableKeyboardCoordinates,
   useSortable,
   type SortingStrategy,
   verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
-import { GripVertical } from "lucide-react";
-import { useEffect, useId, useState, type CSSProperties, type ReactNode } from "react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { cn } from "@/lib/utils";
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { GripVertical } from 'lucide-react';
+import { useEffect, useId, useState, type CSSProperties, type ReactNode } from 'react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { cn } from '@/lib/utils';
 
-type SortableListeners = NonNullable<ReturnType<typeof useSortable>["listeners"]>;
+type SortableListeners = NonNullable<ReturnType<typeof useSortable>['listeners']>;
 export type TreatmentProgramStageItemsDropPreview = { activeId: string; overId: string } | null;
 
 const noSortingDisplacementStrategy: SortingStrategy = () => null;
@@ -47,7 +47,7 @@ export function TreatmentProgramDragHandle({
   setActivatorNodeRef,
   disabled,
   className,
-  ariaLabel = "Перетащить",
+  ariaLabel = 'Перетащить',
 }: {
   attributes: DraggableAttributes;
   listeners: SortableListeners | undefined;
@@ -62,7 +62,10 @@ export function TreatmentProgramDragHandle({
       type="button"
       variant="outline"
       size="icon"
-      className={cn("size-7 shrink-0 cursor-grab touch-none select-none text-muted-foreground", className)}
+      className={cn(
+        'size-7 shrink-0 cursor-grab touch-none select-none text-muted-foreground',
+        className,
+      )}
       aria-label={ariaLabel}
       disabled={disabled}
       {...attributes}
@@ -95,7 +98,12 @@ export function TreatmentProgramPipelineStagesDnd({
   };
 
   return (
-    <DndContext id={dndContextId} sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+    <DndContext
+      id={dndContextId}
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragEnd={onDragEnd}
+    >
       <SortableContext items={stageIds} strategy={verticalListSortingStrategy} disabled={disabled}>
         {children}
       </SortableContext>
@@ -114,13 +122,20 @@ export function TreatmentProgramSortablePipelineStage({
   className?: string;
   children: (dragHandle: ReactNode) => ReactNode;
 }) {
-  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } =
-    useSortable({ id, disabled });
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id, disabled });
   const style: CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.85 : 1,
-    position: "relative",
+    position: 'relative',
     zIndex: isDragging ? 50 : undefined,
   };
   const dragHandle = (
@@ -133,7 +148,7 @@ export function TreatmentProgramSortablePipelineStage({
   );
 
   return (
-    <section ref={setNodeRef} style={style} className={cn(isDragging && "shadow-lg", className)}>
+    <section ref={setNodeRef} style={style} className={cn(isDragging && 'shadow-lg', className)}>
       {children(dragHandle)}
     </section>
   );
@@ -183,7 +198,7 @@ export function TreatmentProgramStageItemsDnd({
   };
 
   const renderChildren = (preview: TreatmentProgramStageItemsDropPreview) =>
-    typeof children === "function" ? children(preview) : children;
+    typeof children === 'function' ? children(preview) : children;
 
   const onDragStart = (_event: DragStartEvent) => {
     resetDragState();
@@ -223,7 +238,11 @@ export function TreatmentProgramStageItemsDnd({
       onDragEnd={onDragEnd}
       onDragCancel={onDragCancel}
     >
-      <SortableContext items={sortableItemIds} strategy={noSortingDisplacementStrategy} disabled={disabled}>
+      <SortableContext
+        items={sortableItemIds}
+        strategy={noSortingDisplacementStrategy}
+        disabled={disabled}
+      >
         {renderChildren(dropPreview)}
       </SortableContext>
     </DndContext>
@@ -241,13 +260,20 @@ export function TreatmentProgramSortableItemShell({
   className?: string;
   children: (dragHandle: ReactNode) => ReactNode;
 }) {
-  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } =
-    useSortable({ id, disabled });
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id, disabled });
   const style: CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.85 : 1,
-    position: "relative",
+    position: 'relative',
     zIndex: isDragging ? 50 : undefined,
   };
   const dragHandle = (
@@ -260,7 +286,11 @@ export function TreatmentProgramSortableItemShell({
   );
 
   return (
-    <li ref={setNodeRef} style={style} className={cn("list-none", isDragging && "shadow-lg", className)}>
+    <li
+      ref={setNodeRef}
+      style={style}
+      className={cn('list-none', isDragging && 'shadow-lg', className)}
+    >
       {children(dragHandle)}
     </li>
   );

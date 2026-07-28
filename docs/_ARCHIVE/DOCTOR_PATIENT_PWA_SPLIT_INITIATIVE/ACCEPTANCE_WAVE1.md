@@ -9,21 +9,21 @@
 
 ## Staff manual smoke (браузер)
 
-| # | Шаг | Ожидание |
-|---|-----|----------|
-| 1 | Login as **doctor** → `/app/doctor` | Кабинет, doctor chrome |
-| 2 | **Doctor** → `/app/patient` | Redirect `/app/doctor` |
-| 3 | **Client** → `/app/doctor/clients` | Redirect `/app/patient` |
-| 4 | **Admin** → `/app/settings`, `/app/admin/...` | Shell с doctor.css |
-| 5 | **Doctor** с сессией → `/app/tg` | Redirect `/app/doctor` |
+| #   | Шаг                                           | Ожидание                |
+| --- | --------------------------------------------- | ----------------------- |
+| 1   | Login as **doctor** → `/app/doctor`           | Кабинет, doctor chrome  |
+| 2   | **Doctor** → `/app/patient`                   | Redirect `/app/doctor`  |
+| 3   | **Client** → `/app/doctor/clients`            | Redirect `/app/patient` |
+| 4   | **Admin** → `/app/settings`, `/app/admin/...` | Shell с doctor.css      |
+| 5   | **Doctor** с сессией → `/app/tg`              | Redirect `/app/doctor`  |
 
 ## Patient regression (не изменилось)
 
-| # | Шаг | Ожидание |
-|---|-----|----------|
-| P1 | **Client** standalone PWA → `/app/patient` | Кабинет открывается |
-| P2 | **Client** browser → `/app/patient` | Install landing redirect |
-| P3 | `/api/patient/web-push/status` | Контракт без изменений |
+| #   | Шаг                                        | Ожидание                 |
+| --- | ------------------------------------------ | ------------------------ |
+| P1  | **Client** standalone PWA → `/app/patient` | Кабинет открывается      |
+| P2  | **Client** browser → `/app/patient`        | Install landing redirect |
+| P3  | `/api/patient/web-push/status`             | Контракт без изменений   |
 
 ## Automated
 

@@ -1,4 +1,4 @@
-import { isAppSupportPath } from "@/lib/url/isAppSupportPath";
+import { isAppSupportPath } from '@/lib/url/isAppSupportPath';
 
 /** Значение `support_contact_url` в админке: пусто, путь `/app/...` или http(s) URL. */
 export function isValidSupportContactSetting(raw: string): boolean {
@@ -7,7 +7,7 @@ export function isValidSupportContactSetting(raw: string): boolean {
   if (isAppSupportPath(t)) return true;
   try {
     const u = new URL(t);
-    return u.protocol === "https:" || u.protocol === "http:";
+    return u.protocol === 'https:' || u.protocol === 'http:';
   } catch {
     return false;
   }

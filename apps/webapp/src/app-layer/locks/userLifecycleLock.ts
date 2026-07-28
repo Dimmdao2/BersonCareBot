@@ -1,1 +1,1 @@
-export { withUserLifecycleLock } from "@/infra/userLifecycleLock";
+export { withUserLifecycleLock } from '@/infra/userLifecycleLock';

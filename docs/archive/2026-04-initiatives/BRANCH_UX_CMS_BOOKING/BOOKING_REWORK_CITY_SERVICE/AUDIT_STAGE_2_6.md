@@ -20,25 +20,25 @@
 
 **Этапы 2–5 (сводка):** все задачи в логе имеют `Status: done`; пост-аудитные правки Stage 3 и Stage 5 зафиксированы в логе в разделах **Stage 3 — audit remediation** и **Stage 5 — audit remediation**. Открытых пунктов по этим этапам нет.
 
-| Этап | Где искать детали закрытых замечаний |
-|------|-------------------------------------|
-| 1 | `EXECUTION_LOG.md` → Stage 1 → `Audit fixes` у S1.T01–S1.T05 |
-| 2 | `EXECUTION_LOG.md` → Stage 2 → `Audit fixes` у S2.T01, S2.T05, S2.T06 |
-| 3 | `EXECUTION_LOG.md` → **Stage 3 — audit remediation** |
-| 4 | `EXECUTION_LOG.md` → **Stage 4 — закрытие замечаний аудита** |
-| 5 | `EXECUTION_LOG.md` → **Stage 5 — audit remediation** |
+| Этап | Где искать детали закрытых замечаний                                  |
+| ---- | --------------------------------------------------------------------- |
+| 1    | `EXECUTION_LOG.md` → Stage 1 → `Audit fixes` у S1.T01–S1.T05          |
+| 2    | `EXECUTION_LOG.md` → Stage 2 → `Audit fixes` у S2.T01, S2.T05, S2.T06 |
+| 3    | `EXECUTION_LOG.md` → **Stage 3 — audit remediation**                  |
+| 4    | `EXECUTION_LOG.md` → **Stage 4 — закрытие замечаний аудита**          |
+| 5    | `EXECUTION_LOG.md` → **Stage 5 — audit remediation**                  |
 
 ---
 
 ## 3. Соответствие контрактам
 
-| Тема | Ожидание (документ) | Подтверждение |
-|------|---------------------|---------------|
-| DDL каталога + `patient_bookings` | Nullable v2 колонки, индексы, порядок миграций | `046_*`, `047_*` согласованы с `MIGRATION_CONTRACT_V2.md` |
-| In-person v2 M2M | `version: v2`, explicit `rubitime*Id`, без category/city в теле v2 | `internalContract.ts`, `schema.ts`, маршруты `recordM2mRoute.ts` |
-| `slotEnd` | Webapp не обязан слать в v2 create; длительность из услуги | Отражено в `API_CONTRACT_V2.md`; integrator принимает v2 без `slotEnd` в схеме |
-| Legacy resolve | Отключаемый путь v1 через env + v2 без профилей | `legacyResolveFlag.ts`, тесты `legacy_resolve_disabled` |
-| Idempotency / local booking | `localBookingId` опционально в v2 create | `RubitimeCreateRecordV2Schema` |
+| Тема                              | Ожидание (документ)                                                | Подтверждение                                                                  |
+| --------------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
+| DDL каталога + `patient_bookings` | Nullable v2 колонки, индексы, порядок миграций                     | `046_*`, `047_*` согласованы с `MIGRATION_CONTRACT_V2.md`                      |
+| In-person v2 M2M                  | `version: v2`, explicit `rubitime*Id`, без category/city в теле v2 | `internalContract.ts`, `schema.ts`, маршруты `recordM2mRoute.ts`               |
+| `slotEnd`                         | Webapp не обязан слать в v2 create; длительность из услуги         | Отражено в `API_CONTRACT_V2.md`; integrator принимает v2 без `slotEnd` в схеме |
+| Legacy resolve                    | Отключаемый путь v1 через env + v2 без профилей                    | `legacyResolveFlag.ts`, тесты `legacy_resolve_disabled`                        |
+| Idempotency / local booking       | `localBookingId` опционально в v2 create                           | `RubitimeCreateRecordV2Schema`                                                 |
 
 ---
 

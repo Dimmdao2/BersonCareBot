@@ -31,7 +31,7 @@ export type VideoTranscodeSystemHealthSignals = {
  */
 export function classifyVideoTranscodeSystemHealthStatus(
   s: VideoTranscodeSystemHealthSignals,
-): "ok" | "degraded" | "error" {
+): 'ok' | 'degraded' | 'error' {
   let rank = 0;
   const bump = (to: number) => {
     if (to > rank) rank = to;
@@ -49,13 +49,13 @@ export function classifyVideoTranscodeSystemHealthStatus(
     if (s.failedLast24h >= ADMIN_TRANSCODE_FAILED_LAST24H_DEGRADED) bump(1);
   }
 
-  if (s.reconcileEnabled && s.reconcileLastStatus === "failure") {
+  if (s.reconcileEnabled && s.reconcileLastStatus === 'failure') {
     bump(1);
   }
 
-  if (rank >= 2) return "error";
-  if (rank >= 1) return "degraded";
-  return "ok";
+  if (rank >= 2) return 'error';
+  if (rank >= 1) return 'degraded';
+  return 'ok';
 }
 
 /** Cron web-push-only tick: `last_success_at` старше — degraded (сек). */
@@ -75,9 +75,9 @@ export type WebPushOnlyReminderTickHealthSignals = {
  */
 export function classifyWebPushOnlyReminderTickSystemHealthStatus(
   s: WebPushOnlyReminderTickHealthSignals,
-): "ok" | "degraded" | "error" | "no_data" {
+): 'ok' | 'degraded' | 'error' | 'no_data' {
   if (s.lastStatus == null && s.lastSuccessAt == null && s.lastFailureAt == null) {
-    return "no_data";
+    return 'no_data';
   }
 
   let rank = 0;
@@ -85,7 +85,7 @@ export function classifyWebPushOnlyReminderTickSystemHealthStatus(
     if (to > rank) rank = to;
   };
 
-  if (s.lastStatus === "failure") {
+  if (s.lastStatus === 'failure') {
     bump(2);
   }
 
@@ -97,13 +97,13 @@ export function classifyWebPushOnlyReminderTickSystemHealthStatus(
     }
   }
 
-  const failedInSummary = typeof s.metaJson.failed === "number" ? s.metaJson.failed : 0;
+  const failedInSummary = typeof s.metaJson.failed === 'number' ? s.metaJson.failed : 0;
   if (failedInSummary > 0) {
     bump(1);
   }
 
   const consecutiveCronFailures =
-    typeof s.metaJson.consecutiveCronFailures === "number" ? s.metaJson.consecutiveCronFailures : 0;
+    typeof s.metaJson.consecutiveCronFailures === 'number' ? s.metaJson.consecutiveCronFailures : 0;
   if (consecutiveCronFailures >= 3) {
     bump(2);
   } else if (consecutiveCronFailures >= 1) {
@@ -116,11 +116,11 @@ export function classifyWebPushOnlyReminderTickSystemHealthStatus(
     if (ageSec > ADMIN_WEB_PUSH_ONLY_REMINDER_TICK_STALE_SEC) {
       bump(1);
     }
-  } else if (s.lastStatus !== "success") {
+  } else if (s.lastStatus !== 'success') {
     bump(1);
   }
 
-  if (rank >= 2) return "error";
-  if (rank >= 1) return "degraded";
-  return "ok";
+  if (rank >= 2) return 'error';
+  if (rank >= 1) return 'degraded';
+  return 'ok';
 }

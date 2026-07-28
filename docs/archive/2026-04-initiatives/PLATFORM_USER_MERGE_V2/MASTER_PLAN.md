@@ -36,12 +36,12 @@ webappManualMerge --> blockerRemoved[BlockerRemoved]
 
 Каждый деплой = merge PR в `main` → CI → `deploy/host/deploy-prod.sh` (бэкап **обеих** БД → миграции integrator → миграции webapp → рестарт API, worker, webapp). Подробно: [`CHECKLISTS.md`](CHECKLISTS.md), [`CUTOVER_RUNBOOK.md`](CUTOVER_RUNBOOK.md).
 
-| Deploy | Содержание | Webapp blocker |
-|--------|------------|----------------|
-| **1** | Integrator DDL: `users.merged_into_user_id` (+ CHECK, index), без изменения поведения | Сохранён |
-| **2** | Integrator canonical read/write перед enqueue и guards от записи в loser | Сохранён |
-| **3** | `mergeIntegratorUsers`, rewrite/dedup outbox, webapp realignment jobs/SQL | Сохранён до проверки данных |
-| **4** | `system_settings` feature flag, API/UI: integrator merge → webapp merge, снятие unconditional blocker | Управляется флагом |
+| Deploy | Содержание                                                                                            | Webapp blocker              |
+| ------ | ----------------------------------------------------------------------------------------------------- | --------------------------- |
+| **1**  | Integrator DDL: `users.merged_into_user_id` (+ CHECK, index), без изменения поведения                 | Сохранён                    |
+| **2**  | Integrator canonical read/write перед enqueue и guards от записи в loser                              | Сохранён                    |
+| **3**  | `mergeIntegratorUsers`, rewrite/dedup outbox, webapp realignment jobs/SQL                             | Сохранён до проверки данных |
+| **4**  | `system_settings` feature flag, API/UI: integrator merge → webapp merge, снятие unconditional blocker | Управляется флагом          |
 
 ## Readiness gates (перед включением флага)
 
@@ -66,15 +66,15 @@ webappManualMerge --> blockerRemoved[BlockerRemoved]
 
 ## Декомпозиция для агентов
 
-| Агент | Фокус |
-|-------|--------|
-| Docs / runbook | Эта папка + ссылки в `docs/README.md`, `PLATFORM_USER_MERGE.md` |
-| Integrator schema | STAGE_1 + миграция DDL |
-| Canonical write path | STAGE_2 + `writePort.ts`, repos |
-| Merge + outbox | STAGE_3 |
-| Webapp realignment | STAGE_4 |
-| Feature flag + UI | STAGE_5 + `ALLOWED_KEYS`, admin merge flow |
-| Release | STAGE_C + `CUTOVER_RUNBOOK` verification |
+| Агент                | Фокус                                                           |
+| -------------------- | --------------------------------------------------------------- |
+| Docs / runbook       | Эта папка + ссылки в `docs/README.md`, `PLATFORM_USER_MERGE.md` |
+| Integrator schema    | STAGE_1 + миграция DDL                                          |
+| Canonical write path | STAGE_2 + `writePort.ts`, repos                                 |
+| Merge + outbox       | STAGE_3                                                         |
+| Webapp realignment   | STAGE_4                                                         |
+| Feature flag + UI    | STAGE_5 + `ALLOWED_KEYS`, admin merge flow                      |
+| Release              | STAGE_C + `CUTOVER_RUNBOOK` verification                        |
 
 ## Связанные документы
 

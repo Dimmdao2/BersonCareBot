@@ -1,13 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from 'vitest';
 import {
   ADMIN_WEB_PUSH_ONLY_REMINDER_TICK_STALE_SEC,
   classifyWebPushOnlyReminderTickSystemHealthStatus,
-} from "./adminHealthThresholds";
+} from './adminHealthThresholds';
 
-describe("classifyWebPushOnlyReminderTickSystemHealthStatus", () => {
-  const nowMs = Date.parse("2026-05-20T12:00:00.000Z");
+describe('classifyWebPushOnlyReminderTickSystemHealthStatus', () => {
+  const nowMs = Date.parse('2026-05-20T12:00:00.000Z');
 
-  it("returns no_data when no tick row signals", () => {
+  it('returns no_data when no tick row signals', () => {
     expect(
       classifyWebPushOnlyReminderTickSystemHealthStatus({
         lastStatus: null,
@@ -16,91 +16,93 @@ describe("classifyWebPushOnlyReminderTickSystemHealthStatus", () => {
         metaJson: {},
         nowMs,
       }),
-    ).toBe("no_data");
+    ).toBe('no_data');
   });
 
-  it("returns ok for fresh success", () => {
+  it('returns ok for fresh success', () => {
     expect(
       classifyWebPushOnlyReminderTickSystemHealthStatus({
-        lastStatus: "success",
-        lastSuccessAt: "2026-05-20T11:58:00.000Z",
+        lastStatus: 'success',
+        lastSuccessAt: '2026-05-20T11:58:00.000Z',
         lastFailureAt: null,
         metaJson: { failed: 0 },
         nowMs,
       }),
-    ).toBe("ok");
+    ).toBe('ok');
   });
 
-  it("returns degraded when last success is stale", () => {
-    const staleIso = new Date(nowMs - (ADMIN_WEB_PUSH_ONLY_REMINDER_TICK_STALE_SEC + 60) * 1000).toISOString();
+  it('returns degraded when last success is stale', () => {
+    const staleIso = new Date(
+      nowMs - (ADMIN_WEB_PUSH_ONLY_REMINDER_TICK_STALE_SEC + 60) * 1000,
+    ).toISOString();
     expect(
       classifyWebPushOnlyReminderTickSystemHealthStatus({
-        lastStatus: "success",
+        lastStatus: 'success',
         lastSuccessAt: staleIso,
         lastFailureAt: null,
         metaJson: {},
         nowMs,
       }),
-    ).toBe("degraded");
+    ).toBe('degraded');
   });
 
-  it("returns error when last status is failure", () => {
+  it('returns error when last status is failure', () => {
     expect(
       classifyWebPushOnlyReminderTickSystemHealthStatus({
-        lastStatus: "failure",
-        lastSuccessAt: "2026-05-20T11:58:00.000Z",
-        lastFailureAt: "2026-05-20T12:00:00.000Z",
+        lastStatus: 'failure',
+        lastSuccessAt: '2026-05-20T11:58:00.000Z',
+        lastFailureAt: '2026-05-20T12:00:00.000Z',
         metaJson: {},
         nowMs,
       }),
-    ).toBe("error");
+    ).toBe('error');
   });
 
-  it("returns error when failure is newer than success", () => {
+  it('returns error when failure is newer than success', () => {
     expect(
       classifyWebPushOnlyReminderTickSystemHealthStatus({
-        lastStatus: "success",
-        lastSuccessAt: "2026-05-20T11:00:00.000Z",
-        lastFailureAt: "2026-05-20T12:00:00.000Z",
+        lastStatus: 'success',
+        lastSuccessAt: '2026-05-20T11:00:00.000Z',
+        lastFailureAt: '2026-05-20T12:00:00.000Z',
         metaJson: {},
         nowMs,
       }),
-    ).toBe("error");
+    ).toBe('error');
   });
 
-  it("returns degraded when last summary has failed > 0", () => {
+  it('returns degraded when last summary has failed > 0', () => {
     expect(
       classifyWebPushOnlyReminderTickSystemHealthStatus({
-        lastStatus: "success",
-        lastSuccessAt: "2026-05-20T11:59:00.000Z",
+        lastStatus: 'success',
+        lastSuccessAt: '2026-05-20T11:59:00.000Z',
         lastFailureAt: null,
         metaJson: { failed: 2 },
         nowMs,
       }),
-    ).toBe("degraded");
+    ).toBe('degraded');
   });
 
-  it("returns degraded when consecutiveCronFailures is 1", () => {
+  it('returns degraded when consecutiveCronFailures is 1', () => {
     expect(
       classifyWebPushOnlyReminderTickSystemHealthStatus({
-        lastStatus: "failure",
-        lastSuccessAt: "2026-05-20T11:00:00.000Z",
-        lastFailureAt: "2026-05-20T12:00:00.000Z",
+        lastStatus: 'failure',
+        lastSuccessAt: '2026-05-20T11:00:00.000Z',
+        lastFailureAt: '2026-05-20T12:00:00.000Z',
         metaJson: { consecutiveCronFailures: 1 },
         nowMs,
       }),
-    ).toBe("error");
+    ).toBe('error');
   });
 
-  it("returns error when consecutiveCronFailures >= 3", () => {
+  it('returns error when consecutiveCronFailures >= 3', () => {
     expect(
       classifyWebPushOnlyReminderTickSystemHealthStatus({
-        lastStatus: "failure",
+        lastStatus: 'failure',
         lastSuccessAt: null,
-        lastFailureAt: "2026-05-20T12:00:00.000Z",
+        lastFailureAt: '2026-05-20T12:00:00.000Z',
         metaJson: { consecutiveCronFailures: 3 },
         nowMs,
       }),
-    ).toBe("error");
+    ).toBe('error');
   });
 });

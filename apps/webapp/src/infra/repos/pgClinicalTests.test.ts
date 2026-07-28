@@ -1,23 +1,23 @@
-import { readFileSync } from "node:fs";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { readFileSync } from 'node:fs';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const queryMock = vi.hoisted(() => vi.fn());
 const getPoolMock = vi.hoisted(() => vi.fn(() => ({ query: queryMock, connect: vi.fn() })));
 const principalOrganizationIdMock = vi.hoisted(() => vi.fn());
 const rootRowsMock = vi.hoisted(() => vi.fn());
 
-const ORG_A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
-const ORG_B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+const ORG_A = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const ORG_B = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 
-vi.mock("@bersoncare/db-principal", () => ({
+vi.mock('@bersoncare/db-principal', () => ({
   getCurrentDbPrincipalOrganizationId: () => principalOrganizationIdMock(),
 }));
 
-vi.mock("@/infra/db/client", () => ({
+vi.mock('@/infra/db/client', () => ({
   getPool: getPoolMock,
 }));
 
-vi.mock("@/app-layer/db/drizzle", () => ({
+vi.mock('@/app-layer/db/drizzle', () => ({
   getDrizzle: vi.fn(() => ({
     select: vi.fn(() => ({
       from: vi.fn(() => ({
@@ -30,31 +30,31 @@ vi.mock("@/app-layer/db/drizzle", () => ({
     })),
     insert: vi.fn(() => ({
       values: vi.fn(() => ({
-        returning: vi.fn(async () => [{ id: "x" }]),
+        returning: vi.fn(async () => [{ id: 'x' }]),
       })),
     })),
     update: vi.fn(() => ({
       set: vi.fn(() => ({
         where: vi.fn(() => ({
-          returning: vi.fn(async () => [{ id: "x" }]),
+          returning: vi.fn(async () => [{ id: 'x' }]),
         })),
       })),
     })),
   })),
 }));
 
-import { createPgClinicalTestsPort } from "./pgClinicalTests";
+import { createPgClinicalTestsPort } from './pgClinicalTests';
 
-describe("createPgClinicalTestsPort usage summary", () => {
+describe('createPgClinicalTestsPort usage summary', () => {
   beforeEach(() => {
     queryMock.mockReset();
     principalOrganizationIdMock.mockReset();
     principalOrganizationIdMock.mockReturnValue(ORG_A);
     rootRowsMock.mockReset();
-    rootRowsMock.mockReturnValue([{ id: "00000000-0000-4000-8000-000000000099" }]);
+    rootRowsMock.mockReturnValue([{ id: '00000000-0000-4000-8000-000000000099' }]);
   });
 
-  it("getClinicalTestUsageSummary runs aggregate query with test_set_items chain", async () => {
+  it('getClinicalTestUsageSummary runs aggregate query with test_set_items chain', async () => {
     queryMock.mockResolvedValueOnce({
       rows: [
         {
@@ -77,49 +77,51 @@ describe("createPgClinicalTestsPort usage summary", () => {
       ],
     });
     const port = createPgClinicalTestsPort();
-    await port.getClinicalTestUsageSummary("00000000-0000-4000-8000-000000000099");
+    await port.getClinicalTestUsageSummary('00000000-0000-4000-8000-000000000099');
     expect(queryMock).toHaveBeenCalledTimes(1);
-    const sql = String(queryMock.mock.calls[0]?.[0] ?? "");
-    expect(sql).toContain("test_set_items");
+    const sql = String(queryMock.mock.calls[0]?.[0] ?? '');
+    expect(sql).toContain('test_set_items');
     expect(sql).toContain("item_type = 'clinical_test'");
-    expect(sql).toContain("test_results");
+    expect(sql).toContain('test_results');
     expect(sql).toContain("t.status = 'archived'");
-    expect(sql).toContain("organization_id = $2::uuid");
+    expect(sql).toContain('organization_id = $2::uuid');
     expect(new Set(queryMock.mock.calls[0]?.[1] as string[])).toEqual(
-      new Set(["00000000-0000-4000-8000-000000000099", ORG_A]),
+      new Set(['00000000-0000-4000-8000-000000000099', ORG_A]),
     );
   });
 
-  it("binds the same clinical-test usage id to the current organization and rejects a missing principal", async () => {
+  it('binds the same clinical-test usage id to the current organization and rejects a missing principal', async () => {
     queryMock.mockResolvedValue({ rows: [] });
     const port = createPgClinicalTestsPort();
-    await port.getClinicalTestUsageSummary("00000000-0000-4000-8000-000000000099");
+    await port.getClinicalTestUsageSummary('00000000-0000-4000-8000-000000000099');
     principalOrganizationIdMock.mockReturnValue(ORG_B);
-    await port.getClinicalTestUsageSummary("00000000-0000-4000-8000-000000000099");
+    await port.getClinicalTestUsageSummary('00000000-0000-4000-8000-000000000099');
     expect(queryMock.mock.calls.map((call) => new Set(call[1] as string[]))).toEqual([
-      new Set(["00000000-0000-4000-8000-000000000099", ORG_A]),
-      new Set(["00000000-0000-4000-8000-000000000099", ORG_B]),
+      new Set(['00000000-0000-4000-8000-000000000099', ORG_A]),
+      new Set(['00000000-0000-4000-8000-000000000099', ORG_B]),
     ]);
     principalOrganizationIdMock.mockReturnValue(null);
-    await expect(port.getClinicalTestUsageSummary("00000000-0000-4000-8000-000000000099")).rejects.toThrow(
-      "organization_principal_required",
-    );
+    await expect(
+      port.getClinicalTestUsageSummary('00000000-0000-4000-8000-000000000099'),
+    ).rejects.toThrow('organization_principal_required');
   });
 
-  it("does not load usage refs when the requested clinical test is foreign or NULL-owned", async () => {
+  it('does not load usage refs when the requested clinical test is foreign or NULL-owned', async () => {
     rootRowsMock.mockReturnValue([]);
     const port = createPgClinicalTestsPort();
-    await expect(port.getClinicalTestUsageSummary("00000000-0000-4000-8000-000000000099")).resolves.toMatchObject({
+    await expect(
+      port.getClinicalTestUsageSummary('00000000-0000-4000-8000-000000000099'),
+    ).resolves.toMatchObject({
       nonArchivedTestSetsContainingCount: 0,
       activeTreatmentProgramInstanceRefs: [],
     });
     expect(queryMock).not.toHaveBeenCalled();
   });
 
-  it("catalog writes use the Drizzle mutation transaction chokepoint", () => {
-    const src = readFileSync(new URL("./pgClinicalTests.ts", import.meta.url), "utf8");
-    expect(src).toContain("runDrizzleMutationTransaction");
+  it('catalog writes use the Drizzle mutation transaction chokepoint', () => {
+    const src = readFileSync(new URL('./pgClinicalTests.ts', import.meta.url), 'utf8');
+    expect(src).toContain('runDrizzleMutationTransaction');
     expect(src.match(/runDrizzleMutationTransaction/g)?.length ?? 0).toBeGreaterThanOrEqual(5);
-    expect(src).not.toContain("db.transaction");
+    expect(src).not.toContain('db.transaction');
   });
 });

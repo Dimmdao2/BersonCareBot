@@ -1,4 +1,4 @@
-import type { HealthFailureArchiveProbe } from "./healthFailureArchiveConstants";
+import type { HealthFailureArchiveProbe } from './healthFailureArchiveConstants';
 
 export type HealthFailureArchiveRow = {
   id: string;

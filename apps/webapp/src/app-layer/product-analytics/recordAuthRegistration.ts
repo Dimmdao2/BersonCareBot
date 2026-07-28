@@ -1,33 +1,33 @@
-import { randomUUID } from "node:crypto";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getPool } from "@/app-layer/db/client";
-import { writeAuditLog } from "@/app-layer/admin/auditLog";
-import type { AuthRegistrationContactType } from "@/modules/auth/maskContactHint";
-import { maskContactHint } from "@/modules/auth/maskContactHint";
+import { randomUUID } from 'node:crypto';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { getPool } from '@/app-layer/db/client';
+import { writeAuditLog } from '@/app-layer/admin/auditLog';
+import type { AuthRegistrationContactType } from '@/modules/auth/maskContactHint';
+import { maskContactHint } from '@/modules/auth/maskContactHint';
 import {
   classifyRegistrationErrorCode,
   type RegistrationErrorClass,
-} from "@/modules/auth/registrationErrorClass";
-import type { ProductAnalyticsEntryChannel } from "@/modules/product-analytics/types";
-import { isPlatformUserUuid } from "@/shared/platform-user/isPlatformUserUuid";
+} from '@/modules/auth/registrationErrorClass';
+import type { ProductAnalyticsEntryChannel } from '@/modules/product-analytics/types';
+import { isPlatformUserUuid } from '@/shared/platform-user/isPlatformUserUuid';
 
 export type AuthRegistrationAuthMethod =
-  | "email_password"
-  | "oauth_yandex"
-  | "oauth_google"
-  | "oauth_apple"
-  | "phone_otp"
-  | "messenger_bind"
-  | "telegram_init"
-  | "max_init"
-  | "integrator_exchange";
+  | 'email_password'
+  | 'oauth_yandex'
+  | 'oauth_google'
+  | 'oauth_apple'
+  | 'phone_otp'
+  | 'messenger_bind'
+  | 'telegram_init'
+  | 'max_init'
+  | 'integrator_exchange';
 
 export type AuthRegistrationStage =
-  | "start"
-  | "challenge_sent"
-  | "confirm"
-  | "callback"
-  | "session_set";
+  | 'start'
+  | 'challenge_sent'
+  | 'confirm'
+  | 'callback'
+  | 'session_set';
 
 export type RecordAuthRegistrationBase = {
   attemptId: string;
@@ -85,7 +85,7 @@ function buildMetadata(
 }
 
 async function writeRegistrationEvent(
-  eventType: "auth_register_attempt" | "auth_register_success" | "auth_register_failure",
+  eventType: 'auth_register_attempt' | 'auth_register_success' | 'auth_register_failure',
   params: RecordAuthRegistrationBase & {
     errorCode?: string;
     errorClass?: RegistrationErrorClass;
@@ -96,8 +96,7 @@ async function writeRegistrationEvent(
   if (!attemptId) return;
 
   const userId = params.userId?.trim();
-  const normalizedUserId =
-    userId && isPlatformUserUuid(userId) ? userId : undefined;
+  const normalizedUserId = userId && isPlatformUserUuid(userId) ? userId : undefined;
 
   try {
     const deps = buildAppDeps();
@@ -114,16 +113,16 @@ async function writeRegistrationEvent(
   }
 
   if (
-    eventType === "auth_register_failure" &&
-    (params.errorClass ?? classifyRegistrationErrorCode(params.errorCode ?? "")) === "system"
+    eventType === 'auth_register_failure' &&
+    (params.errorClass ?? classifyRegistrationErrorCode(params.errorCode ?? '')) === 'system'
   ) {
     try {
       const pool = getPool();
       await writeAuditLog(pool, {
         actorId: null,
-        action: "auth_register_failure",
+        action: 'auth_register_failure',
         targetId: attemptId,
-        status: "error",
+        status: 'error',
         details: buildMetadata(params),
       });
     } catch {
@@ -136,14 +135,14 @@ async function writeRegistrationEvent(
 export async function recordAuthRegistrationAttempt(
   params: RecordAuthRegistrationAttemptParams,
 ): Promise<void> {
-  await writeRegistrationEvent("auth_register_attempt", params);
+  await writeRegistrationEvent('auth_register_attempt', params);
 }
 
 /** Best-effort registration funnel: success (must not throw into auth flow). */
 export async function recordAuthRegistrationSuccess(
   params: RecordAuthRegistrationSuccessParams,
 ): Promise<void> {
-  await writeRegistrationEvent("auth_register_success", params);
+  await writeRegistrationEvent('auth_register_success', params);
 }
 
 /** Best-effort registration funnel: failure (must not throw into auth flow). */
@@ -151,5 +150,5 @@ export async function recordAuthRegistrationFailure(
   params: RecordAuthRegistrationFailureParams,
 ): Promise<void> {
   const errorClass = params.errorClass ?? classifyRegistrationErrorCode(params.errorCode);
-  await writeRegistrationEvent("auth_register_failure", { ...params, errorClass });
+  await writeRegistrationEvent('auth_register_failure', { ...params, errorClass });
 }

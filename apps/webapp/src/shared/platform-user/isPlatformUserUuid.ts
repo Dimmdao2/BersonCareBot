@@ -1,4 +1,4 @@
-import { isDbPrincipalPlatformUserId } from "@bersoncare/db-principal";
+import { isDbPrincipalPlatformUserId } from '@bersoncare/db-principal';
 
 /**
  * `platform_users.id` in webapp is UUID; legacy session ids (e.g. `tg:…`) are not.

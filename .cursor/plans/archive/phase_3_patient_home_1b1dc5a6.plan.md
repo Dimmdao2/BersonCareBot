@@ -1,6 +1,6 @@
 ---
 name: Phase 3 Patient Home
-overview: "Переписать `/app/patient` на мобильную витрину «Сегодня»: порядок и видимость секций строго из `patient_home_blocks` / `patient_home_block_items`, данные карточек — из разрешённых items и существующих портов (`todayConfig`, CMS, курсы, напоминания, программы). Прогресс и настроение — только заглушки; без новых сущностей и без хардкода редакционных slug-ов."
+overview: 'Переписать `/app/patient` на мобильную витрину «Сегодня»: порядок и видимость секций строго из `patient_home_blocks` / `patient_home_block_items`, данные карточек — из разрешённых items и существующих портов (`todayConfig`, CMS, курсы, напоминания, программы). Прогресс и настроение — только заглушки; без новых сущностей и без хардкода редакционных slug-ов.'
 status: completed
 todos:
   - id: dto-resolvers
@@ -10,7 +10,7 @@ todos:
     content: Реализовать PatientHomeToday + дочерние компоненты и диспетчер по sortOrder блоков из БД
     status: completed
   - id: page-wire
-    content: "Переписать patient/page.tsx: убрать legacy и миниапп-ветку, подключить PatientHomeToday + сессионные фильтры"
+    content: 'Переписать patient/page.tsx: убрать legacy и миниапп-ветку, подключить PatientHomeToday + сессионные фильтры'
     status: completed
   - id: remove-deprecated
     content: Удалить PatientMiniAppPatientHome, PatientHomeBrowserHero, PatientHomeExtraBlocks; grep и поправить импорты
@@ -52,27 +52,27 @@ isProject: false
 
 ## Принципы Phase 3 (сводка требований)
 
-| Требование | Реализация |
-|------------|------------|
-| Структура экрана из БД | Один запрос `deps.patientHomeBlocks.listBlocksWithItems()`, фильтр `block.isVisible`, сортировка по `block.sortOrder`; рендер **диспетчер по `block.code`**, без дублирующего «ручного» порядка секций в JSX. |
-| DailyWarmupCard | [todayConfig.ts](apps/webapp/src/modules/patient-home/todayConfig.ts) `getPatientHomeTodayConfig` — уже: первый видимый `content_page` в `daily_warmup`, учёт видимости блока. |
-| SituationsRow | Блок `situations`: все **видимые** items, `targetType === 'content_section'`, порядок `sortOrder`; разрешение метаданных через `contentSections` (slug = `targetRef`). |
-| SubscriptionCarousel | Блок `subscription_carousel`: все видимые items; типы `content_section` \| `content_page` \| `course` — полиморфное разрешение (см. ниже). |
-| SosCard | Блок `sos`: **первый** видимый item (`sortOrder`), типы `content_section` \| `content_page`; при отсутствии/битой ссылке — **не рендерить** карточку (как в README §3.3). |
-| Progress / Mood | Только заглушки (статический копирайт / placeholder UI); **не** подключать `patient_practice_completions`, `patient_daily_mood`, API Phase 5–6. `practiceTarget` из `getPatientHomeTodayConfig` можно передать в заглушку прогресса как «цель из настроек» без реального счётчика — опционально, без запросов к новым таблицам. |
-| BookingCard | Рендер **только** если блок `booking` существует и `isVisible`; внутри карточки — ссылки на `/app/patient/booking`, кабинет и т.д. по README (без лишних server queries). |
-| Без slug из CONTENT_PLAN | Любая логика и fixture-ы — по **типам** и произвольным тестовым slug/id; запрет `switch (slug === 'office-work')` и т.п.; при необходимости общий UI с админкой — только **DTO** (title, imageUrl, href), без ветвления по редакционным идентификаторам. |
-| Без Phase 5–6 сущностей | Не добавлять миграции/порты под прогресс и mood. |
+| Требование               | Реализация                                                                                                                                                                                                                                                                                                                      |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Структура экрана из БД   | Один запрос `deps.patientHomeBlocks.listBlocksWithItems()`, фильтр `block.isVisible`, сортировка по `block.sortOrder`; рендер **диспетчер по `block.code`**, без дублирующего «ручного» порядка секций в JSX.                                                                                                                   |
+| DailyWarmupCard          | [todayConfig.ts](apps/webapp/src/modules/patient-home/todayConfig.ts) `getPatientHomeTodayConfig` — уже: первый видимый `content_page` в `daily_warmup`, учёт видимости блока.                                                                                                                                                  |
+| SituationsRow            | Блок `situations`: все **видимые** items, `targetType === 'content_section'`, порядок `sortOrder`; разрешение метаданных через `contentSections` (slug = `targetRef`).                                                                                                                                                          |
+| SubscriptionCarousel     | Блок `subscription_carousel`: все видимые items; типы `content_section` \| `content_page` \| `course` — полиморфное разрешение (см. ниже).                                                                                                                                                                                      |
+| SosCard                  | Блок `sos`: **первый** видимый item (`sortOrder`), типы `content_section` \| `content_page`; при отсутствии/битой ссылке — **не рендерить** карточку (как в README §3.3).                                                                                                                                                       |
+| Progress / Mood          | Только заглушки (статический копирайт / placeholder UI); **не** подключать `patient_practice_completions`, `patient_daily_mood`, API Phase 5–6. `practiceTarget` из `getPatientHomeTodayConfig` можно передать в заглушку прогресса как «цель из настроек» без реального счётчика — опционально, без запросов к новым таблицам. |
+| BookingCard              | Рендер **только** если блок `booking` существует и `isVisible`; внутри карточки — ссылки на `/app/patient/booking`, кабинет и т.д. по README (без лишних server queries).                                                                                                                                                       |
+| Без slug из CONTENT_PLAN | Любая логика и fixture-ы — по **типам** и произвольным тестовым slug/id; запрет `switch (slug === 'office-work')` и т.п.; при необходимости общий UI с админкой — только **DTO** (title, imageUrl, href), без ветвления по редакционным идентификаторам.                                                                        |
+| Без Phase 5–6 сущностей  | Не добавлять миграции/порты под прогресс и mood.                                                                                                                                                                                                                                                                                |
 
 **Слот приветствия:** в seed [patient_home_blocks](apps/webapp/db/schema/schema.ts) нет блока `greeting`. Компонент `PatientHomeGreeting.tsx` (новый файл по README §3.1) — **фиксированно сверху** страницы (как README §3.2), затем цикл по видимым блокам из БД в порядке `sortOrder`.
 
 **Матрица сессий (README §3.2)** — фильтр в диспетчере **дополняет** `block.isVisible` из БД (не подменяет порядок оставшихся блоков):
 
-| Состояние | Блоки не рендерить (даже если в БД visible) | Особенности UI |
-|-----------|---------------------------------------------|-----------------|
-| Гость | `progress`, `mood_checkin`, `next_reminder`, `plan` | Без ПДн; DailyWarmup из админ-конфига; CTA «войти…» по README §3.2 |
-| Авторизован, нет tier `patient` | **Те же**, что у гостя: `progress`, `mood_checkin`, `next_reminder`, `plan` (README: «то же + …») | В **BookingCard** — «Активировать профиль» |
-| Tier `patient` | — | Все блоки из БД по `sortOrder`; `PlanCard` / `NextReminderCard` только при наличии данных |
+| Состояние                       | Блоки не рендерить (даже если в БД visible)                                                       | Особенности UI                                                                            |
+| ------------------------------- | ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| Гость                           | `progress`, `mood_checkin`, `next_reminder`, `plan`                                               | Без ПДн; DailyWarmup из админ-конфига; CTA «войти…» по README §3.2                        |
+| Авторизован, нет tier `patient` | **Те же**, что у гостя: `progress`, `mood_checkin`, `next_reminder`, `plan` (README: «то же + …») | В **BookingCard** — «Активировать профиль»                                                |
+| Tier `patient`                  | —                                                                                                 | Все блоки из БД по `sortOrder`; `PlanCard` / `NextReminderCard` только при наличии данных |
 
 **Один вызов разминки:** `getPatientHomeTodayConfig` вызывать **один раз** на запрос; в узле цикла для `daily_warmup` использовать уже полученный `{ dailyWarmupItem, practiceTarget }`, не дублировать выбор первого item в компоненте карточки.
 
@@ -152,16 +152,16 @@ isProject: false
 
 ## Тесты
 
-| Файл | Что проверять |
-|------|----------------|
-| `PatientHomeToday.test.tsx` | Три сессии: гость и «без tier» — **одинаково** скрыты `progress` / `mood` / `next_reminder` / `plan`; patient — они могут появиться; порядок секций = `sortOrder` mock-блоков; `booking` отсутствует в DOM, если блок `booking` в mock с `isVisible: false`. |
-| `PatientHomeBookingCard.test.tsx` (или внутри Today) | При tier ≠ patient — наличие CTA «Активировать профиль»; при patient tier — без этой CTA (или иная разметка по README). |
-| `patientHomeResolvers.test.ts` (имя по факту) | Юниты на resolvers: битый `target_ref`, пустые items, смешанный `subscription_carousel`; без slug из CONTENT_PLAN. |
-| `PatientHomeSituationsRow.test.tsx` | Пустой список → `null`; с DTO → ссылки `/app/patient/sections/<slug>`; fallback иконки без URL. |
-| `PatientHomeSubscriptionCarousel.test.tsx` | Смешанные типы; бейдж default «По подписке» при пустом `badgeLabel`; горизонтальный контейнер. |
-| `PatientHomeDailyWarmupCard.test.tsx` (опционально) | Fallback «Скоро…» при `null` из `todayConfig`. |
-| `PatientHomeSosCard.test.tsx` | Нет данных → не рендерится; есть → одна ссылка. |
-| Snapshot (как README §3.5) | Три состояния сессии для `PatientHomeToday` с фиксированными mock-блоками (**slug в fixture** — произвольные, не из CONTENT_PLAN). |
+| Файл                                                 | Что проверять                                                                                                                                                                                                                                                |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `PatientHomeToday.test.tsx`                          | Три сессии: гость и «без tier» — **одинаково** скрыты `progress` / `mood` / `next_reminder` / `plan`; patient — они могут появиться; порядок секций = `sortOrder` mock-блоков; `booking` отсутствует в DOM, если блок `booking` в mock с `isVisible: false`. |
+| `PatientHomeBookingCard.test.tsx` (или внутри Today) | При tier ≠ patient — наличие CTA «Активировать профиль»; при patient tier — без этой CTA (или иная разметка по README).                                                                                                                                      |
+| `patientHomeResolvers.test.ts` (имя по факту)        | Юниты на resolvers: битый `target_ref`, пустые items, смешанный `subscription_carousel`; без slug из CONTENT_PLAN.                                                                                                                                           |
+| `PatientHomeSituationsRow.test.tsx`                  | Пустой список → `null`; с DTO → ссылки `/app/patient/sections/<slug>`; fallback иконки без URL.                                                                                                                                                              |
+| `PatientHomeSubscriptionCarousel.test.tsx`           | Смешанные типы; бейдж default «По подписке» при пустом `badgeLabel`; горизонтальный контейнер.                                                                                                                                                               |
+| `PatientHomeDailyWarmupCard.test.tsx` (опционально)  | Fallback «Скоро…» при `null` из `todayConfig`.                                                                                                                                                                                                               |
+| `PatientHomeSosCard.test.tsx`                        | Нет данных → не рендерится; есть → одна ссылка.                                                                                                                                                                                                              |
+| Snapshot (как README §3.5)                           | Три состояния сессии для `PatientHomeToday` с фиксированными mock-блоками (**slug в fixture** — произвольные, не из CONTENT_PLAN).                                                                                                                           |
 
 Существующие тесты `todayConfig.test.ts` не ломать.
 

@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
-import { requireDoctorBookingEngine } from "../_requireDoctorBookingEngine";
+import { NextResponse } from 'next/server';
+import { requireDoctorBookingEngine } from '../_requireDoctorBookingEngine';
 
 // Read-only doctor overview: the minimal slice the schedule editor («График работы») needs
 // to bootstrap (organization title for labels, active branches, specialists). All catalog

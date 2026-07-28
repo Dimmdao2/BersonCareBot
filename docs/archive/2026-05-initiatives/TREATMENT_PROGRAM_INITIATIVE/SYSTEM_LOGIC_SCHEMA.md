@@ -119,13 +119,13 @@ locked ──► available ──► in_progress ──► completed
 
 ## 4. Типы элементов (item_type)
 
-| item_type | Ссылается на | Что хранится в snapshot |
-|-----------|-------------|------------------------|
-| `exercise` | `lfk_exercises.id` | title, description, media URLs, difficulty, load_type |
-| `lfk_complex` | `lfk_complex_templates.id` | title, description, список упражнений с reps/sets/side/comment |
-| `test_set` | `test_sets.id` | title, description, список тестов с scoring_config |
-| `recommendation` | `recommendations.id` | title, body_md, media URLs |
-| `lesson` | `content_pages.id` — секция **`lessons`** в каталоге CMS webapp; при совместимости допускается **`course_lessons`** | title, summary, body preview |
+| item_type        | Ссылается на                                                                                                        | Что хранится в snapshot                                        |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| `exercise`       | `lfk_exercises.id`                                                                                                  | title, description, media URLs, difficulty, load_type          |
+| `lfk_complex`    | `lfk_complex_templates.id`                                                                                          | title, description, список упражнений с reps/sets/side/comment |
+| `test_set`       | `test_sets.id`                                                                                                      | title, description, список тестов с scoring_config             |
+| `recommendation` | `recommendations.id`                                                                                                | title, body_md, media URLs                                     |
+| `lesson`         | `content_pages.id` — секция **`lessons`** в каталоге CMS webapp; при совместимости допускается **`course_lessons`** | title, summary, body preview                                   |
 
 **Повторение элементов:** один и тот же `item_ref_id` может встречаться в разных этапах без ограничений. Внутри одного этапа — допускается (разные `sort_order`).
 
@@ -212,6 +212,7 @@ treatment_program_events
 ```
 
 Типы событий:
+
 - `item_added` — добавлен элемент в этап
 - `item_removed` — удалён элемент из этапа
 - `item_replaced` — заменён элемент
@@ -298,6 +299,7 @@ infra/repos/pg*.ts           ← data access: реализация портов 
 **Пояснение:** основной путь для нового кода — сервис в `modules/*` вызывает порт; порт реализован в `infra/repos/*` и использует Drizzle + схему из `db/schema/`. Не помещать запросы к БД и бизнес-логику в `route.ts`. Формулировка «inline Drizzle» в старых обсуждениях **не** освобождает от `EXECUTION_RULES`: из `modules/*` по-прежнему недопустимы прямой `getPool` / импорт `@/infra/repos/*` (кроме явного legacy и переноса типов в `ports.ts`).
 
 **Запреты:**
+
 - `modules/*` не импортирует `@/infra/db/client`
 - `modules/*` не импортирует `@/infra/repos/*` (кроме типов портов из `modules/*/ports.ts`)
 - `route.ts` не содержит бизнес-логику
@@ -307,18 +309,18 @@ infra/repos/pg*.ts           ← data access: реализация портов 
 
 ## 13. Контрольная таблица соответствия ТЗ
 
-| Требование из ТЗ | Покрыто фазой | Проверка |
-|---|---|---|
-| Создавать библиотеку: упражнения | Уже есть | `lfk_exercises` |
-| Создавать библиотеку: комплексы | Уже есть | `lfk_complex_templates` |
-| Создавать библиотеку: тесты | Фаза 2 | `tests` + `test_sets` |
-| Создавать библиотеку: рекомендации | Фаза 2 | `recommendations` |
-| Создавать библиотеку: уроки | Уже есть (CMS) | `content_pages` |
-| Собирать шаблоны программ | Фаза 3 | `treatment_program_templates` + stages + items |
-| Назначать программу пациенту | Фаза 4 | `treatment_program_instances` |
-| Редактировать после назначения | Фаза 4 + 9 | API мутаций + events |
-| Поддерживать прохождение | Фаза 6 | Статусы этапов + test_attempts |
-| Фиксировать результаты тестов | Фаза 6 | `test_results` |
-| Продавать (курс → программа) | Фаза 8 | `courses` |
-| Хранить историю изменений | Фаза 7 | `treatment_program_events` |
-| Хранить результаты тестов | Фаза 6 | `test_results` |
+| Требование из ТЗ                   | Покрыто фазой  | Проверка                                       |
+| ---------------------------------- | -------------- | ---------------------------------------------- |
+| Создавать библиотеку: упражнения   | Уже есть       | `lfk_exercises`                                |
+| Создавать библиотеку: комплексы    | Уже есть       | `lfk_complex_templates`                        |
+| Создавать библиотеку: тесты        | Фаза 2         | `tests` + `test_sets`                          |
+| Создавать библиотеку: рекомендации | Фаза 2         | `recommendations`                              |
+| Создавать библиотеку: уроки        | Уже есть (CMS) | `content_pages`                                |
+| Собирать шаблоны программ          | Фаза 3         | `treatment_program_templates` + stages + items |
+| Назначать программу пациенту       | Фаза 4         | `treatment_program_instances`                  |
+| Редактировать после назначения     | Фаза 4 + 9     | API мутаций + events                           |
+| Поддерживать прохождение           | Фаза 6         | Статусы этапов + test_attempts                 |
+| Фиксировать результаты тестов      | Фаза 6         | `test_results`                                 |
+| Продавать (курс → программа)       | Фаза 8         | `courses`                                      |
+| Хранить историю изменений          | Фаза 7         | `treatment_program_events`                     |
+| Хранить результаты тестов          | Фаза 6         | `test_results`                                 |

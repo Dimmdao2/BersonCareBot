@@ -28,18 +28,78 @@ const MIGRATED_DOMAINS = [
 ] as const;
 
 export const LEGACY_CLEANUP_MATRIX: LegacyCleanupEntry[] = [
-  { domain: 'person', fileOrSymbol: 'repos/channelUsers.ts', category: 'shadow', stage13Action: 'keep' },
-  { domain: 'person', fileOrSymbol: 'repos/userLookup.ts', category: 'runtime', stage13Action: 'keep' },
-  { domain: 'communication', fileOrSymbol: 'repos/messageThreads.ts', category: 'runtime', stage13Action: 'keep' },
-  { domain: 'communication', fileOrSymbol: 'readPort conversation.*', category: 'legacy_product_read', stage13Action: 'remove_after_tests' },
-  { domain: 'reminders', fileOrSymbol: 'repos/reminders.ts', category: 'runtime', stage13Action: 'keep' },
-  { domain: 'reminders', fileOrSymbol: 'readPort reminders.rules.forUser', category: 'legacy_product_read', stage13Action: 'remove_after_tests' },
-  { domain: 'appointments', fileOrSymbol: 'readPort booking.*', category: 'legacy_product_read', stage13Action: 'remove_after_tests' },
-  { domain: 'subscription_mailing', fileOrSymbol: 'repos/topics.ts', category: 'legacy_product_write', stage13Action: 'freeze' },
-  { domain: 'subscription_mailing', fileOrSymbol: 'repos/subscriptions.ts', category: 'legacy_product_write', stage13Action: 'freeze' },
-  { domain: 'subscription_mailing', fileOrSymbol: 'mailing_topics', category: 'legacy_product_write', stage13Action: 'freeze' },
-  { domain: 'subscription_mailing', fileOrSymbol: 'user_subscriptions', category: 'legacy_product_write', stage13Action: 'freeze' },
-  { domain: 'subscription_mailing', fileOrSymbol: 'mailing_logs', category: 'shadow', stage13Action: 'keep' },
+  {
+    domain: 'person',
+    fileOrSymbol: 'repos/channelUsers.ts',
+    category: 'shadow',
+    stage13Action: 'keep',
+  },
+  {
+    domain: 'person',
+    fileOrSymbol: 'repos/userLookup.ts',
+    category: 'runtime',
+    stage13Action: 'keep',
+  },
+  {
+    domain: 'communication',
+    fileOrSymbol: 'repos/messageThreads.ts',
+    category: 'runtime',
+    stage13Action: 'keep',
+  },
+  {
+    domain: 'communication',
+    fileOrSymbol: 'readPort conversation.*',
+    category: 'legacy_product_read',
+    stage13Action: 'remove_after_tests',
+  },
+  {
+    domain: 'reminders',
+    fileOrSymbol: 'repos/reminders.ts',
+    category: 'runtime',
+    stage13Action: 'keep',
+  },
+  {
+    domain: 'reminders',
+    fileOrSymbol: 'readPort reminders.rules.forUser',
+    category: 'legacy_product_read',
+    stage13Action: 'remove_after_tests',
+  },
+  {
+    domain: 'appointments',
+    fileOrSymbol: 'readPort booking.*',
+    category: 'legacy_product_read',
+    stage13Action: 'remove_after_tests',
+  },
+  {
+    domain: 'subscription_mailing',
+    fileOrSymbol: 'repos/topics.ts',
+    category: 'legacy_product_write',
+    stage13Action: 'freeze',
+  },
+  {
+    domain: 'subscription_mailing',
+    fileOrSymbol: 'repos/subscriptions.ts',
+    category: 'legacy_product_write',
+    stage13Action: 'freeze',
+  },
+  {
+    domain: 'subscription_mailing',
+    fileOrSymbol: 'mailing_topics',
+    category: 'legacy_product_write',
+    stage13Action: 'freeze',
+  },
+  {
+    domain: 'subscription_mailing',
+    fileOrSymbol: 'user_subscriptions',
+    category: 'legacy_product_write',
+    stage13Action: 'freeze',
+  },
+  {
+    domain: 'subscription_mailing',
+    fileOrSymbol: 'mailing_logs',
+    category: 'shadow',
+    stage13Action: 'keep',
+  },
 ];
 
 export function getMigratedDomains(): readonly string[] {

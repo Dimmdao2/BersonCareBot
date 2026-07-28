@@ -1,18 +1,14 @@
-"use client";
+'use client';
 
-import "react-day-picker/style.css";
-import { useEffect, useState } from "react";
-import { DayPicker } from "react-day-picker";
-import { ru } from "react-day-picker/locale";
-import { DateTime } from "luxon";
-import { CalendarDays } from "lucide-react";
-import { buttonVariants } from "@/shared/ui/doctor/primitives/button-variants";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/shared/ui/doctor/primitives/popover";
+import 'react-day-picker/style.css';
+import { useEffect, useState } from 'react';
+import { DayPicker } from 'react-day-picker';
+import { ru } from 'react-day-picker/locale';
+import { DateTime } from 'luxon';
+import { CalendarDays } from 'lucide-react';
+import { buttonVariants } from '@/shared/ui/doctor/primitives/button-variants';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Popover, PopoverContent, PopoverTrigger } from '@/shared/ui/doctor/primitives/popover';
 import {
   Dialog,
   DialogContent,
@@ -20,10 +16,10 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/shared/ui/doctor/primitives/dialog";
-import { useIsMobileViewport } from "@/shared/ui/doctor/primitives/useIsMobileViewport";
-import { DoctorTimeColumn } from "@/shared/ui/doctor/DoctorTimeColumn";
-import { cn } from "@/lib/utils";
+} from '@/shared/ui/doctor/primitives/dialog';
+import { useIsMobileViewport } from '@/shared/ui/doctor/primitives/useIsMobileViewport';
+import { DoctorTimeColumn } from '@/shared/ui/doctor/DoctorTimeColumn';
+import { cn } from '@/lib/utils';
 
 /**
  * react-day-picker's own accent var, scoped to the popup content. `--primary` is themed
@@ -31,15 +27,16 @@ import { cn } from "@/lib/utils";
  * portals to `document.body` — outside that scope — so it must read the globally-scoped
  * brand token instead, or it silently falls back to the generic (non-DNA) shadcn default.
  */
-const RDP_ACCENT_STYLE = { ["--rdp-accent-color" as string]: "var(--bc-accent-500, #386fba)" } as const;
+const RDP_ACCENT_STYLE = {
+  ['--rdp-accent-color' as string]: 'var(--bc-accent-500, #386fba)',
+} as const;
 
 /**
  * react-day-picker only outlines the selected day by default (`--rdp-selected-border`);
  * it never fills it. Fill it with the brand primary + white text so it reads as an actual
  * selection, matching the filled pill DoctorTimeColumn already uses for its selected slot.
  */
-const RDP_SELECTED_DAY_CLASS =
-  "!bg-[var(--bc-accent-500,#386fba)] !text-white !border-transparent";
+const RDP_SELECTED_DAY_CLASS = '!bg-[var(--bc-accent-500,#386fba)] !text-white !border-transparent';
 
 /**
  * Shared canonical date-time picker (react-day-picker + brand time column).
@@ -51,7 +48,7 @@ type Props = {
   disabled?: boolean;
   placeholder?: string;
   /** Default keeps the existing datetime-local contract; time mode uses HH:mm. */
-  mode?: "date-time" | "time";
+  mode?: 'date-time' | 'time';
   id?: string;
   ariaLabel?: string;
   testId?: string;
@@ -63,7 +60,7 @@ export function DoctorDateTimePicker({
   onChange,
   disabled,
   placeholder,
-  mode = "date-time",
+  mode = 'date-time',
   id,
   ariaLabel,
   testId,
@@ -71,23 +68,24 @@ export function DoctorDateTimePicker({
 }: Props) {
   const [open, setOpen] = useState(false);
   const isMobile = useIsMobileViewport();
-  const isTimeOnly = mode === "time";
+  const isTimeOnly = mode === 'time';
   const dt = !isTimeOnly && value ? DateTime.fromISO(value) : null;
   const selectedDate = dt?.isValid ? dt.toJSDate() : undefined;
-  const time = isTimeOnly ? value : dt?.isValid ? dt.toFormat("HH:mm") : "";
-  const resolvedPlaceholder = placeholder ?? (isTimeOnly ? "Выберите время" : "Выберите дату и время");
+  const time = isTimeOnly ? value : dt?.isValid ? dt.toFormat('HH:mm') : '';
+  const resolvedPlaceholder =
+    placeholder ?? (isTimeOnly ? 'Выберите время' : 'Выберите дату и время');
   const label = isTimeOnly
     ? value || resolvedPlaceholder
     : dt?.isValid
-      ? dt.setLocale("ru").toFormat("d MMMM yyyy, HH:mm")
+      ? dt.setLocale('ru').toFormat('d MMMM yyyy, HH:mm')
       : resolvedPlaceholder;
 
   const commit = (date: DateTime, hhmm: string) => {
-    const [h, m] = hhmm.split(":").map((n) => Number.parseInt(n, 10));
+    const [h, m] = hhmm.split(':').map((n) => Number.parseInt(n, 10));
     onChange(
-      date.set({ hour: Number.isFinite(h) ? h : 9, minute: Number.isFinite(m) ? m : 0 }).toFormat(
-        "yyyy-MM-dd'T'HH:mm",
-      ),
+      date
+        .set({ hour: Number.isFinite(h) ? h : 9, minute: Number.isFinite(m) ? m : 0 })
+        .toFormat("yyyy-MM-dd'T'HH:mm"),
     );
   };
 
@@ -110,17 +108,17 @@ export function DoctorDateTimePicker({
     if (isTimeOnly) {
       if (draftTime) onChange(draftTime);
     } else if (draftDate) {
-      commit(DateTime.fromJSDate(draftDate), draftTime || "09:00");
+      commit(DateTime.fromJSDate(draftDate), draftTime || '09:00');
     }
     setOpen(false);
   };
 
   const triggerClassName = cn(
-    buttonVariants({ variant: "outline", size: isTimeOnly ? "sm" : "default" }),
+    buttonVariants({ variant: 'outline', size: isTimeOnly ? 'sm' : 'default' }),
     isTimeOnly
-      ? "h-8 justify-center font-normal tabular-nums"
-      : "w-full justify-start gap-2 font-normal",
-    !isTimeOnly && !dt?.isValid && "text-muted-foreground",
+      ? 'h-8 justify-center font-normal tabular-nums'
+      : 'w-full justify-start gap-2 font-normal',
+    !isTimeOnly && !dt?.isValid && 'text-muted-foreground',
     className,
   );
 
@@ -144,12 +142,9 @@ export function DoctorDateTimePicker({
         >
           {triggerContent}
         </DialogTrigger>
-        <DialogContent
-          className="max-h-[85dvh] gap-0 overflow-hidden p-0"
-          style={RDP_ACCENT_STYLE}
-        >
+        <DialogContent className="max-h-[85dvh] gap-0 overflow-hidden p-0" style={RDP_ACCENT_STYLE}>
           <DialogHeader className="shrink-0 border-b border-border px-4 pt-4 pb-3 pr-12">
-            <DialogTitle>{isTimeOnly ? "Выберите время" : "Выберите дату и время"}</DialogTitle>
+            <DialogTitle>{isTimeOnly ? 'Выберите время' : 'Выберите дату и время'}</DialogTitle>
           </DialogHeader>
           <div className="min-h-0 flex-1 overflow-y-auto">
             {isTimeOnly ? (
@@ -241,7 +236,7 @@ export function DoctorDateTimePicker({
               defaultMonth={selectedDate}
               onSelect={(d) => {
                 if (!d) return;
-                commit(DateTime.fromJSDate(d), time || "09:00");
+                commit(DateTime.fromJSDate(d), time || '09:00');
               }}
               classNames={{ selected: RDP_SELECTED_DAY_CLASS }}
               className="p-3"

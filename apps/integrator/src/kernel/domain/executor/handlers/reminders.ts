@@ -1,5 +1,14 @@
-import type { Action, ActionResult, DbWriteMutation, DomainContext } from '../../../contracts/index.js';
-import type { DueReminderOccurrence, ReminderCategory, ReminderRuleRecord } from '../../../contracts/reminders.js';
+import type {
+  Action,
+  ActionResult,
+  DbWriteMutation,
+  DomainContext,
+} from '../../../contracts/index.js';
+import type {
+  DueReminderOccurrence,
+  ReminderCategory,
+  ReminderRuleRecord,
+} from '../../../contracts/reminders.js';
 import type { ExecutorDeps } from '../helpers.js';
 import {
   asNumber,
@@ -46,7 +55,10 @@ import {
   reminderIntentPrimaryLabel,
   reminderLinkKeyboardButton,
 } from '../../reminders/reminderInlineKeyboard.js';
-import type { InlineKeyboardButton, ReminderOpenLinkSpec } from '../../reminders/reminderInlineKeyboard.js';
+import type {
+  InlineKeyboardButton,
+  ReminderOpenLinkSpec,
+} from '../../reminders/reminderInlineKeyboard.js';
 import { buildExerciseReminderWebAppUrls } from '../../reminders/reminderMessengerWebAppUrls.js';
 import { maxBindingRecipient } from '../../../../integrations/max/maxRecipient.js';
 import { getAppBaseUrl } from '../../../../config/appBaseUrl.js';
@@ -161,9 +173,8 @@ async function persistWritesByOrganization(
   buckets: Map<string, OrganizationWriteBucket>,
 ): Promise<void> {
   for (const bucket of buckets.values()) {
-    await runWithOptionalOrganizationPrincipal(
-      bucket.organizationId,
-      () => persistWrites(writePort, bucket.writes),
+    await runWithOptionalOrganizationPrincipal(bucket.organizationId, () =>
+      persistWrites(writePort, bucket.writes),
     );
   }
 }
@@ -232,39 +243,67 @@ export async function handleReminders(
   deps: ExecutorDeps,
 ): Promise<ActionResult> {
   if (action.type === 'reminders.rules.get') {
-    if (!deps.readPort) return { actionId: action.id, status: 'skipped', error: 'reminders.rules.get: no readPort' };
+    if (!deps.readPort)
+      return { actionId: action.id, status: 'skipped', error: 'reminders.rules.get: no readPort' };
     const channelUserId = asNumericString(action.params.channelUserId) ?? readExternalActorId(ctx);
     const resource = asString(action.params.resource) ?? ctx.event.meta.source ?? 'telegram';
-    if (!channelUserId) return { actionId: action.id, status: 'failed', error: 'reminders.rules.get: missing channelUserId' };
+    if (!channelUserId)
+      return {
+        actionId: action.id,
+        status: 'failed',
+        error: 'reminders.rules.get: missing channelUserId',
+      };
     const link = await deps.readPort.readDb<{ userId?: string } | null>({
       type: 'user.byIdentity',
       params: { resource, externalId: channelUserId },
     });
-    const userId = link && typeof link === 'object' && typeof link.userId === 'string' ? link.userId : null;
+    const userId =
+      link && typeof link === 'object' && typeof link.userId === 'string' ? link.userId : null;
     if (!userId) return { actionId: action.id, status: 'success', values: { reminderRules: [] } };
     const rules = await deps.readPort.readDb<ReminderRuleRecord[]>({
       type: 'reminders.rules.forUser',
       params: { userId },
     });
     const list = Array.isArray(rules) ? rules : [];
-    return { actionId: action.id, status: 'success', values: { reminderRules: list, reminderUserId: userId } };
+    return {
+      actionId: action.id,
+      status: 'success',
+      values: { reminderRules: list, reminderUserId: userId },
+    };
   }
 
   if (action.type === 'reminders.rule.toggle') {
-    if (!deps.readPort || !deps.writePort) return { actionId: action.id, status: 'skipped', error: 'reminders.rule.toggle: missing port' };
+    if (!deps.readPort || !deps.writePort)
+      return {
+        actionId: action.id,
+        status: 'skipped',
+        error: 'reminders.rule.toggle: missing port',
+      };
     let userId = asString(action.params.userId);
     if (!userId) {
-      const channelUserId = asNumericString(action.params.channelUserId) ?? readExternalActorId(ctx);
+      const channelUserId =
+        asNumericString(action.params.channelUserId) ?? readExternalActorId(ctx);
       const resource = asString(action.params.resource) ?? ctx.event.meta.source ?? 'telegram';
-      if (!channelUserId) return { actionId: action.id, status: 'failed', error: 'reminders.rule.toggle: missing userId or channelUserId' };
+      if (!channelUserId)
+        return {
+          actionId: action.id,
+          status: 'failed',
+          error: 'reminders.rule.toggle: missing userId or channelUserId',
+        };
       const link = await deps.readPort.readDb<{ userId?: string } | null>({
         type: 'user.byIdentity',
         params: { resource, externalId: channelUserId },
       });
-      userId = link && typeof link === 'object' && typeof link.userId === 'string' ? link.userId : null;
+      userId =
+        link && typeof link === 'object' && typeof link.userId === 'string' ? link.userId : null;
     }
     const category = asString(action.params.category) as ReminderCategory | null;
-    if (!userId || !category) return { actionId: action.id, status: 'failed', error: 'reminders.rule.toggle: missing userId or category' };
+    if (!userId || !category)
+      return {
+        actionId: action.id,
+        status: 'failed',
+        error: 'reminders.rule.toggle: missing userId or category',
+      };
     const existing = await deps.readPort.readDb<ReminderRuleRecord | null>({
       type: 'reminders.rule.forUserAndCategory',
       params: { userId, category },
@@ -277,49 +316,71 @@ export async function handleReminders(
     } else {
       const dbPort = createDbPort();
       const tz = await getAppDisplayTimezone(
-        deps.dispatchPort
-          ? { db: dbPort, dispatchPort: deps.dispatchPort }
-          : { db: dbPort },
+        deps.dispatchPort ? { db: dbPort, dispatchPort: deps.dispatchPort } : { db: dbPort },
       );
       record = buildDefaultReminderRule({ id: ruleId, userId, category, timezone: tz });
     }
-    const writes = [{
-      type: 'reminders.rule.upsert' as const,
-      params: {
-        id: ruleId,
-        userId,
-        category,
-        isEnabled: nextEnabled,
-        scheduleType: record.scheduleType,
-        timezone: record.timezone,
-        intervalMinutes: record.intervalMinutes,
-        windowStartMinute: record.windowStartMinute,
-        windowEndMinute: record.windowEndMinute,
-        daysMask: record.daysMask,
-        contentMode: record.contentMode,
-        quietHoursStartMinute: record.quietHoursStartMinute ?? null,
-        quietHoursEndMinute: record.quietHoursEndMinute ?? null,
+    const writes = [
+      {
+        type: 'reminders.rule.upsert' as const,
+        params: {
+          id: ruleId,
+          userId,
+          category,
+          isEnabled: nextEnabled,
+          scheduleType: record.scheduleType,
+          timezone: record.timezone,
+          intervalMinutes: record.intervalMinutes,
+          windowStartMinute: record.windowStartMinute,
+          windowEndMinute: record.windowEndMinute,
+          daysMask: record.daysMask,
+          contentMode: record.contentMode,
+          quietHoursStartMinute: record.quietHoursStartMinute ?? null,
+          quietHoursEndMinute: record.quietHoursEndMinute ?? null,
+        },
       },
-    }];
+    ];
     await persistWrites(deps.writePort, writes);
-    return { actionId: action.id, status: 'success', writes, values: { reminderRule: { ...record, isEnabled: nextEnabled } } };
+    return {
+      actionId: action.id,
+      status: 'success',
+      writes,
+      values: { reminderRule: { ...record, isEnabled: nextEnabled } },
+    };
   }
 
   if (action.type === 'reminders.rule.cyclePreset') {
-    if (!deps.readPort || !deps.writePort) return { actionId: action.id, status: 'skipped', error: 'reminders.rule.cyclePreset: missing port' };
+    if (!deps.readPort || !deps.writePort)
+      return {
+        actionId: action.id,
+        status: 'skipped',
+        error: 'reminders.rule.cyclePreset: missing port',
+      };
     let userId = asString(action.params.userId);
     if (!userId) {
-      const channelUserId = asNumericString(action.params.channelUserId) ?? readExternalActorId(ctx);
+      const channelUserId =
+        asNumericString(action.params.channelUserId) ?? readExternalActorId(ctx);
       const resource = asString(action.params.resource) ?? ctx.event.meta.source ?? 'telegram';
-      if (!channelUserId) return { actionId: action.id, status: 'failed', error: 'reminders.rule.cyclePreset: missing userId or channelUserId' };
+      if (!channelUserId)
+        return {
+          actionId: action.id,
+          status: 'failed',
+          error: 'reminders.rule.cyclePreset: missing userId or channelUserId',
+        };
       const link = await deps.readPort.readDb<{ userId?: string } | null>({
         type: 'user.byIdentity',
         params: { resource, externalId: channelUserId },
       });
-      userId = link && typeof link === 'object' && typeof link.userId === 'string' ? link.userId : null;
+      userId =
+        link && typeof link === 'object' && typeof link.userId === 'string' ? link.userId : null;
     }
     const category = asString(action.params.category) as ReminderCategory | null;
-    if (!userId || !category) return { actionId: action.id, status: 'failed', error: 'reminders.rule.cyclePreset: missing userId or category' };
+    if (!userId || !category)
+      return {
+        actionId: action.id,
+        status: 'failed',
+        error: 'reminders.rule.cyclePreset: missing userId or category',
+      };
     const existing = await deps.readPort.readDb<ReminderRuleRecord | null>({
       type: 'reminders.rule.forUserAndCategory',
       params: { userId, category },
@@ -334,32 +395,37 @@ export async function handleReminders(
     } else {
       const dbPort = createDbPort();
       const tz = await getAppDisplayTimezone(
-        deps.dispatchPort
-          ? { db: dbPort, dispatchPort: deps.dispatchPort }
-          : { db: dbPort },
+        deps.dispatchPort ? { db: dbPort, dispatchPort: deps.dispatchPort } : { db: dbPort },
       );
       record = buildDefaultReminderRule({ id: ruleId, userId, category, timezone: tz });
     }
-    const writes = [{
-      type: 'reminders.rule.upsert' as const,
-      params: {
-        id: ruleId,
-        userId,
-        category,
-        isEnabled: record.isEnabled,
-        scheduleType: record.scheduleType,
-        timezone: record.timezone,
-        intervalMinutes: config.intervalMinutes,
-        windowStartMinute: config.windowStartMinute,
-        windowEndMinute: config.windowEndMinute,
-        daysMask: record.daysMask,
-        contentMode: record.contentMode,
-        quietHoursStartMinute: record.quietHoursStartMinute ?? null,
-        quietHoursEndMinute: record.quietHoursEndMinute ?? null,
+    const writes = [
+      {
+        type: 'reminders.rule.upsert' as const,
+        params: {
+          id: ruleId,
+          userId,
+          category,
+          isEnabled: record.isEnabled,
+          scheduleType: record.scheduleType,
+          timezone: record.timezone,
+          intervalMinutes: config.intervalMinutes,
+          windowStartMinute: config.windowStartMinute,
+          windowEndMinute: config.windowEndMinute,
+          daysMask: record.daysMask,
+          contentMode: record.contentMode,
+          quietHoursStartMinute: record.quietHoursStartMinute ?? null,
+          quietHoursEndMinute: record.quietHoursEndMinute ?? null,
+        },
       },
-    }];
+    ];
     await persistWrites(deps.writePort, writes);
-    return { actionId: action.id, status: 'success', writes, values: { reminderPreset: nextPreset } };
+    return {
+      actionId: action.id,
+      status: 'success',
+      writes,
+      values: { reminderPreset: nextPreset },
+    };
   }
 
   if (action.type === 'reminders.planDue') {
@@ -401,7 +467,12 @@ export async function handleReminders(
   }
 
   if (action.type === 'reminders.dispatchDue') {
-    if (!deps.readPort || !deps.writePort) return { actionId: action.id, status: 'skipped', error: 'reminders.dispatchDue: missing port' };
+    if (!deps.readPort || !deps.writePort)
+      return {
+        actionId: action.id,
+        status: 'skipped',
+        error: 'reminders.dispatchDue: missing port',
+      };
     const dueNowIso = asString(action.params.nowIso) ?? nowIso(ctx);
     const limit = asNumber(action.params.limit) ?? 50;
     const dueList = await deps.readPort.readDb<DueReminderOccurrence[]>({
@@ -420,9 +491,12 @@ export async function handleReminders(
     const catalogDb = process.env.NODE_ENV === 'test' ? null : createDbPort();
     const reminderAuxDb = createDbPort();
 
-    async function resolveLinkedTitle(rule: ReminderRuleRecord | undefined): Promise<string | null> {
+    async function resolveLinkedTitle(
+      rule: ReminderRuleRecord | undefined,
+    ): Promise<string | null> {
       if (!catalogDb || !rule?.linkedObjectType || !rule?.linkedObjectId) return null;
-      if (rule.linkedObjectType !== 'content_page' && rule.linkedObjectType !== 'content_section') return null;
+      if (rule.linkedObjectType !== 'content_page' && rule.linkedObjectType !== 'content_section')
+        return null;
       const cacheKey = `${rule.linkedObjectType}:${rule.linkedObjectId}`;
       if (linkedTitleCache.has(cacheKey)) return linkedTitleCache.get(cacheKey) ?? null;
       try {
@@ -459,7 +533,10 @@ export async function handleReminders(
     }
 
     const rulesCache = new Map<string, Map<string, ReminderRuleRecord>>();
-    async function rulesForUser(userId: string, organizationId: string): Promise<Map<string, ReminderRuleRecord>> {
+    async function rulesForUser(
+      userId: string,
+      organizationId: string,
+    ): Promise<Map<string, ReminderRuleRecord>> {
       const cacheKey = `${organizationId}:${userId}`;
       const hit = rulesCache.get(cacheKey);
       if (hit) return hit;
@@ -492,9 +569,7 @@ export async function handleReminders(
       const categoryKey = REMINDER_BY_CATEGORY[occ.category] ?? 'telegram:reminder.exercise';
       const categoryTemplateId = categoryKey.replace(/^telegram:/, '').replace(/^max:/, '');
       const linkedTitle = await resolveLinkedTitle(rule);
-      type ReminderTitleMode =
-        | { kind: 'fixed'; title: string }
-        | { kind: 'template' };
+      type ReminderTitleMode = { kind: 'fixed'; title: string } | { kind: 'template' };
       let titleMode: ReminderTitleMode;
       if (rule?.customTitle?.trim()) {
         titleMode = { kind: 'fixed', title: rule.customTitle.trim() };
@@ -515,14 +590,18 @@ export async function handleReminders(
       });
       const computedOpenIsOrganizationGo = computedOpen.includes('/app/patient/go/');
       const openUrl =
-        reminderDispatchUsesIntentOpenTarget(rule?.reminderIntent ?? null) || computedOpenIsOrganizationGo ? computedOpen
-        : (rule?.deepLink?.trim() && rule.deepLink.trim().length > 0 ? rule.deepLink.trim() : computedOpen) ||
-          buildPatientReminderDeepLink({
-            linkedObjectType: null,
-            linkedObjectId: null,
-            reminderIntent: null,
-            organizationId: occurrenceOrganizationId,
-          });
+        reminderDispatchUsesIntentOpenTarget(rule?.reminderIntent ?? null) ||
+        computedOpenIsOrganizationGo
+          ? computedOpen
+          : (rule?.deepLink?.trim() && rule.deepLink.trim().length > 0
+              ? rule.deepLink.trim()
+              : computedOpen) ||
+            buildPatientReminderDeepLink({
+              linkedObjectType: null,
+              linkedObjectId: null,
+              reminderIntent: null,
+              organizationId: occurrenceOrganizationId,
+            });
 
       let remindersEditUrl: string | undefined;
       try {
@@ -538,23 +617,39 @@ export async function handleReminders(
         params: { userId: occ.userId },
       });
 
-      const channelsToSend: Array<{ channel: 'telegram' | 'max'; chatId: number; externalId: string }> = [];
+      const channelsToSend: Array<{
+        channel: 'telegram' | 'max';
+        chatId: number;
+        externalId: string;
+      }> = [];
       if (occ.chatId > 0) {
-        channelsToSend.push({ channel: 'telegram', chatId: occ.chatId, externalId: String(occ.chatId) });
+        channelsToSend.push({
+          channel: 'telegram',
+          chatId: occ.chatId,
+          externalId: String(occ.chatId),
+        });
       }
       if (Array.isArray(allIdentities)) {
         for (const identity of allIdentities) {
           if (identity.resource === 'max' && identity.chatId > 0) {
-            channelsToSend.push({ channel: 'max', chatId: identity.chatId, externalId: identity.externalId });
+            channelsToSend.push({
+              channel: 'max',
+              chatId: identity.chatId,
+              externalId: identity.externalId,
+            });
           }
         }
       }
 
       const topicCode = reminderOccurrenceTopicCode(rule, occ.category);
       let sendChannels = channelsToSend;
-      let deliveryTargetsFetched: Awaited<
-        ReturnType<NonNullable<ExecutorDeps['deliveryTargetsPort']>['getTargetsByChannelBinding']>
-      > | undefined;
+      let deliveryTargetsFetched:
+        | Awaited<
+            ReturnType<
+              NonNullable<ExecutorDeps['deliveryTargetsPort']>['getTargetsByChannelBinding']
+            >
+          >
+        | undefined;
       if (topicCode && deps.deliveryTargetsPort) {
         const tg = channelsToSend.find((c) => c.channel === 'telegram');
         const maxCh = channelsToSend.find((c) => c.channel === 'max');
@@ -564,16 +659,25 @@ export async function handleReminders(
           topic: string;
           integratorUserId: string;
           organizationId: string;
-        } = { topic: topicCode, integratorUserId: occ.userId, organizationId: occurrenceOrganizationId };
+        } = {
+          topic: topicCode,
+          integratorUserId: occ.userId,
+          organizationId: occurrenceOrganizationId,
+        };
         if (tg && tg.chatId > 0) bindingParams.telegramId = String(tg.chatId);
         if (maxCh?.externalId) bindingParams.maxId = maxCh.externalId;
-        deliveryTargetsFetched = await deps.deliveryTargetsPort.getTargetsByChannelBinding(bindingParams);
+        deliveryTargetsFetched =
+          await deps.deliveryTargetsPort.getTargetsByChannelBinding(bindingParams);
         const fetched = deliveryTargetsFetched;
         if (!fetched) {
-          throw new Error(`reminders.dispatchDue delivery target unavailable for occurrence ${occ.id}`);
+          throw new Error(
+            `reminders.dispatchDue delivery target unavailable for occurrence ${occ.id}`,
+          );
         }
         if (fetched?.tenantDenied) {
-          throw new Error(`reminders.dispatchDue delivery target tenant denied for occurrence ${occ.id}`);
+          throw new Error(
+            `reminders.dispatchDue delivery target tenant denied for occurrence ${occ.id}`,
+          );
         }
         const bindings = fetched?.channelBindings;
         if (fetched?.resolution) {
@@ -594,8 +698,7 @@ export async function handleReminders(
           );
         }
         const hasResolvedTopicBindings =
-          bindings &&
-          (Boolean(bindings.telegramId?.trim()) || Boolean(bindings.maxId?.trim()));
+          bindings && (Boolean(bindings.telegramId?.trim()) || Boolean(bindings.maxId?.trim()));
         if (fetched?.resolution?.selectedChannels) {
           // Apply selectedChannels filter unconditionally when a resolution exists.
           // If selectedChannels is empty for messenger channels, sendChannels becomes [] for those channels
@@ -702,7 +805,10 @@ export async function handleReminders(
           'reminders.dispatchDue: notify-channels start',
         );
         try {
-          const r = await deps.webappEventsPort.notifyPatientReminderChannels({ body, idempotencyKey });
+          const r = await deps.webappEventsPort.notifyPatientReminderChannels({
+            body,
+            idempotencyKey,
+          });
           logger.info(
             {
               event: REMINDER_DISPATCH_NOTIFY_LOG_EVENT.result,
@@ -789,16 +895,16 @@ export async function handleReminders(
 
         const text = deps.templatePort
           ? (
-            await deps.templatePort.renderTemplate({
-              source: channel,
-              templateId: 'reminder.dispatch',
-              vars: {
-                reminderTitle: escapeReminderHtml(reminderTitle),
-                reminderBody,
-              },
-              audience: 'user',
-            })
-          ).text
+              await deps.templatePort.renderTemplate({
+                source: channel,
+                templateId: 'reminder.dispatch',
+                vars: {
+                  reminderTitle: escapeReminderHtml(reminderTitle),
+                  reminderBody,
+                },
+                audience: 'user',
+              })
+            ).text
           : `${escapeReminderHtml(reminderTitle)}${reminderBody ? `\n\n${reminderBody}` : ''}`;
         const deliveryLogId = `rdl:${occ.id}:${channel}`;
         const intent = {
@@ -853,31 +959,47 @@ export async function handleReminders(
 
   if (action.type === 'reminders.snooze.callback') {
     if (!deps.readPort || !deps.writePort) {
-      return { actionId: action.id, status: 'skipped', error: 'reminders.snooze.callback: missing port' };
+      return {
+        actionId: action.id,
+        status: 'skipped',
+        error: 'reminders.snooze.callback: missing port',
+      };
     }
     const occurrenceId = asString(action.params.occurrenceId);
     const mp = action.params.minutes;
     const minutesParsed = Number(
-      typeof mp === 'number' && Number.isFinite(mp) ? mp : (typeof mp === 'string' ? mp.trim() : ''),
+      typeof mp === 'number' && Number.isFinite(mp) ? mp : typeof mp === 'string' ? mp.trim() : '',
     );
     const channelUserId = asNumericString(action.params.channelUserId) ?? readExternalActorId(ctx);
     const resource = asString(action.params.resource) ?? ctx.event.meta.source ?? 'telegram';
     if (!occurrenceId || !channelUserId) {
-      return { actionId: action.id, status: 'failed', error: 'reminders.snooze.callback: missing ids' };
+      return {
+        actionId: action.id,
+        status: 'failed',
+        error: 'reminders.snooze.callback: missing ids',
+      };
     }
     const minutesRounded = Math.round(minutesParsed);
     if (
-      !Number.isFinite(minutesRounded)
-      || minutesRounded < 1
-      || minutesRounded > 720
-      || minutesRounded !== minutesParsed
+      !Number.isFinite(minutesRounded) ||
+      minutesRounded < 1 ||
+      minutesRounded > 720 ||
+      minutesRounded !== minutesParsed
     ) {
-      return { actionId: action.id, status: 'failed', error: 'reminders.snooze.callback: bad minutes' };
+      return {
+        actionId: action.id,
+        status: 'failed',
+        error: 'reminders.snooze.callback: bad minutes',
+      };
     }
     const minutes = minutesRounded;
     const userId = await resolveIntegratorUserId(deps.readPort, channelUserId, resource);
     if (!userId || !(await assertOccurrenceOwnedByUser(deps.readPort, occurrenceId, userId))) {
-      return { actionId: action.id, status: 'failed', error: 'reminders.snooze.callback: forbidden' };
+      return {
+        actionId: action.id,
+        status: 'failed',
+        error: 'reminders.snooze.callback: forbidden',
+      };
     }
     let plannedUntil = new Date(Date.now() + minutes * 60_000).toISOString();
     if (deps.remindersWebappWritesPort) {
@@ -888,29 +1010,36 @@ export async function handleReminders(
       });
       if (w.ok) plannedUntil = w.snoozedUntil;
     }
-    const writes: import('../../../contracts/index.js').DbWriteMutation[] = [{
-      type: 'reminders.occurrence.reschedulePlanned',
-      params: { occurrenceId, plannedAt: plannedUntil },
-    }];
+    const writes: import('../../../contracts/index.js').DbWriteMutation[] = [
+      {
+        type: 'reminders.occurrence.reschedulePlanned',
+        params: { occurrenceId, plannedAt: plannedUntil },
+      },
+    ];
     await persistWrites(deps.writePort, writes);
     const tplSource = resource === 'max' ? 'max' : 'telegram';
     const ack = deps.templatePort
-      ? (await deps.templatePort.renderTemplate({
-        source: tplSource,
-        templateId: 'reminder.snoozeAck',
-        vars: { minutes: String(minutes) },
-        audience: 'user',
-      })).text
+      ? (
+          await deps.templatePort.renderTemplate({
+            source: tplSource,
+            templateId: 'reminder.snoozeAck',
+            vars: { minutes: String(minutes) },
+            audience: 'user',
+          })
+        ).text
       : `Ок, напомню позже через ${minutes} мин.`;
-    const chatId =
-      asNumber(action.params.chatId)
-      ?? asNumber(readIncoming(ctx).chatId);
+    const chatId = asNumber(action.params.chatId) ?? asNumber(readIncoming(ctx).chatId);
     const src = resource === 'max' ? 'max' : 'telegram';
     if (chatId === null) {
-      return { actionId: action.id, status: 'failed', error: 'reminders.snooze.callback: missing chatId' };
+      return {
+        actionId: action.id,
+        status: 'failed',
+        error: 'reminders.snooze.callback: missing chatId',
+      };
     }
     const messageId = action.params.messageId ?? readIncoming(ctx).messageId;
-    const callbackQueryId = asString(action.params.callbackQueryId) ?? asString(readIncoming(ctx).callbackQueryId);
+    const callbackQueryId =
+      asString(action.params.callbackQueryId) ?? asString(readIncoming(ctx).callbackQueryId);
     const intents = buildReminderCallbackAckIntents(action, ctx, {
       chatId,
       messageId,
@@ -922,31 +1051,48 @@ export async function handleReminders(
   }
 
   if (action.type === 'reminders.skip.reasonPrompt') {
-    if (!deps.readPort) return { actionId: action.id, status: 'skipped', error: 'reminders.skip.reasonPrompt: no readPort' };
+    if (!deps.readPort)
+      return {
+        actionId: action.id,
+        status: 'skipped',
+        error: 'reminders.skip.reasonPrompt: no readPort',
+      };
     const occurrenceId = asString(action.params.occurrenceId);
     const channelUserId = asNumericString(action.params.channelUserId) ?? readExternalActorId(ctx);
     const resource = asString(action.params.resource) ?? ctx.event.meta.source ?? 'telegram';
     const chatId = asNumber(action.params.chatId) ?? asNumber(readIncoming(ctx).chatId);
     if (!occurrenceId || !channelUserId || chatId === null) {
-      return { actionId: action.id, status: 'failed', error: 'reminders.skip.reasonPrompt: missing params' };
+      return {
+        actionId: action.id,
+        status: 'failed',
+        error: 'reminders.skip.reasonPrompt: missing params',
+      };
     }
     const userId = await resolveIntegratorUserId(deps.readPort, channelUserId, resource);
     if (!userId || !(await assertOccurrenceOwnedByUser(deps.readPort, occurrenceId, userId))) {
-      return { actionId: action.id, status: 'failed', error: 'reminders.skip.reasonPrompt: forbidden' };
+      return {
+        actionId: action.id,
+        status: 'failed',
+        error: 'reminders.skip.reasonPrompt: forbidden',
+      };
     }
     const tplSource = resource === 'max' ? 'max' : 'telegram';
     const title = deps.templatePort
-      ? (await deps.templatePort.renderTemplate({
-        source: tplSource,
-        templateId: 'reminder.skip.promptTitle',
-        vars: {},
-        audience: 'user',
-      })).text
+      ? (
+          await deps.templatePort.renderTemplate({
+            source: tplSource,
+            templateId: 'reminder.skip.promptTitle',
+            vars: {},
+            audience: 'user',
+          })
+        ).text
       : 'Почему пропускаете?';
     const replyMarkup = buildReminderSkipReasonInlineKeyboard(occurrenceId);
     const src = resource === 'max' ? 'max' : 'telegram';
-    const messageId = asMessageId(action.params.messageId) ?? asMessageId(readIncoming(ctx).messageId);
-    const callbackQueryId = asString(action.params.callbackQueryId) ?? asString(readIncoming(ctx).callbackQueryId);
+    const messageId =
+      asMessageId(action.params.messageId) ?? asMessageId(readIncoming(ctx).messageId);
+    const callbackQueryId =
+      asString(action.params.callbackQueryId) ?? asString(readIncoming(ctx).callbackQueryId);
     const intents: import('../../../contracts/index.js').OutgoingIntent[] = [];
     if (callbackQueryId) {
       intents.push({
@@ -989,7 +1135,11 @@ export async function handleReminders(
 
   if (action.type === 'reminders.skip.applyPreset') {
     if (!deps.readPort || !deps.writePort) {
-      return { actionId: action.id, status: 'skipped', error: 'reminders.skip.applyPreset: missing port' };
+      return {
+        actionId: action.id,
+        status: 'skipped',
+        error: 'reminders.skip.applyPreset: missing port',
+      };
     }
     const occurrenceId = asString(action.params.occurrenceId);
     const reasonCode = asString(action.params.reasonCode);
@@ -997,31 +1147,45 @@ export async function handleReminders(
     const resource = asString(action.params.resource) ?? ctx.event.meta.source ?? 'telegram';
     const chatId = asNumber(action.params.chatId) ?? asNumber(readIncoming(ctx).chatId);
     if (!occurrenceId || !reasonCode || !channelUserId || chatId === null) {
-      return { actionId: action.id, status: 'failed', error: 'reminders.skip.applyPreset: missing params' };
+      return {
+        actionId: action.id,
+        status: 'failed',
+        error: 'reminders.skip.applyPreset: missing params',
+      };
     }
     const userId = await resolveIntegratorUserId(deps.readPort, channelUserId, resource);
     if (!userId || !(await assertOccurrenceOwnedByUser(deps.readPort, occurrenceId, userId))) {
-      return { actionId: action.id, status: 'failed', error: 'reminders.skip.applyPreset: forbidden' };
+      return {
+        actionId: action.id,
+        status: 'failed',
+        error: 'reminders.skip.applyPreset: forbidden',
+      };
     }
 
     if (reasonCode === 'other') {
-      const writes: import('../../../contracts/index.js').DbWriteMutation[] = [{
-        type: 'user.state.set',
-        params: { channelUserId, state: `waiting_skip_reason:${occurrenceId}` },
-      }];
+      const writes: import('../../../contracts/index.js').DbWriteMutation[] = [
+        {
+          type: 'user.state.set',
+          params: { channelUserId, state: `waiting_skip_reason:${occurrenceId}` },
+        },
+      ];
       await persistWrites(deps.writePort, writes);
       const tplSourceOther = resource === 'max' ? 'max' : 'telegram';
       const prompt = deps.templatePort
-        ? (await deps.templatePort.renderTemplate({
-          source: tplSourceOther,
-          templateId: 'reminder.skip.askOther',
-          vars: {},
-          audience: 'user',
-        })).text
+        ? (
+            await deps.templatePort.renderTemplate({
+              source: tplSourceOther,
+              templateId: 'reminder.skip.askOther',
+              vars: {},
+              audience: 'user',
+            })
+          ).text
         : 'Кратко опишите причину (одним сообщением).';
       const src = resource === 'max' ? 'max' : 'telegram';
-      const messageId = asMessageId(action.params.messageId) ?? asMessageId(readIncoming(ctx).messageId);
-      const callbackQueryId = asString(action.params.callbackQueryId) ?? asString(readIncoming(ctx).callbackQueryId);
+      const messageId =
+        asMessageId(action.params.messageId) ?? asMessageId(readIncoming(ctx).messageId);
+      const callbackQueryId =
+        asString(action.params.callbackQueryId) ?? asString(readIncoming(ctx).callbackQueryId);
       const intents: import('../../../contracts/index.js').OutgoingIntent[] = [];
       if (callbackQueryId) {
         intents.push({
@@ -1065,7 +1229,11 @@ export async function handleReminders(
 
     const journalReason = SKIP_PRESET_REASON[reasonCode];
     if (journalReason === undefined && reasonCode !== 'none') {
-      return { actionId: action.id, status: 'failed', error: 'reminders.skip.applyPreset: bad code' };
+      return {
+        actionId: action.id,
+        status: 'failed',
+        error: 'reminders.skip.applyPreset: bad code',
+      };
     }
     const reasonForApi = reasonCode === 'none' ? null : (journalReason ?? null);
     if (deps.remindersWebappWritesPort) {
@@ -1081,16 +1249,19 @@ export async function handleReminders(
     await persistWrites(deps.writePort, writes);
     const tplSaved = resource === 'max' ? 'max' : 'telegram';
     const ack = deps.templatePort
-      ? (await deps.templatePort.renderTemplate({
-        source: tplSaved,
-        templateId: 'reminder.skip.saved',
-        vars: {},
-        audience: 'user',
-      })).text
+      ? (
+          await deps.templatePort.renderTemplate({
+            source: tplSaved,
+            templateId: 'reminder.skip.saved',
+            vars: {},
+            audience: 'user',
+          })
+        ).text
       : 'Все ок, один пропуск — не проблема. Сделаешь, когда сможешь 👌';
     const src = resource === 'max' ? 'max' : 'telegram';
     const messageId = action.params.messageId ?? readIncoming(ctx).messageId;
-    const callbackQueryId = asString(action.params.callbackQueryId) ?? asString(readIncoming(ctx).callbackQueryId);
+    const callbackQueryId =
+      asString(action.params.callbackQueryId) ?? asString(readIncoming(ctx).callbackQueryId);
     const intents = buildReminderCallbackAckIntents(action, ctx, {
       chatId,
       messageId,
@@ -1108,12 +1279,20 @@ export async function handleReminders(
 
   if (action.type === 'reminders.skip.applyFreeText') {
     if (!deps.readPort || !deps.writePort) {
-      return { actionId: action.id, status: 'skipped', error: 'reminders.skip.applyFreeText: missing port' };
+      return {
+        actionId: action.id,
+        status: 'skipped',
+        error: 'reminders.skip.applyFreeText: missing port',
+      };
     }
     const state = ctx.base.conversationState ?? '';
     const prefix = 'waiting_skip_reason:';
     if (!state.startsWith(prefix)) {
-      return { actionId: action.id, status: 'skipped', error: 'reminders.skip.applyFreeText: wrong state' };
+      return {
+        actionId: action.id,
+        status: 'skipped',
+        error: 'reminders.skip.applyFreeText: wrong state',
+      };
     }
     const occurrenceId = state.slice(prefix.length).trim();
     const text = (readIncomingText(ctx) ?? '').trim().slice(0, 500);
@@ -1121,11 +1300,19 @@ export async function handleReminders(
     const resource = asString(action.params.resource) ?? ctx.event.meta.source ?? 'telegram';
     const chatId = asNumber(action.params.chatId) ?? asNumber(readIncoming(ctx).chatId);
     if (!occurrenceId || !channelUserId || chatId === null) {
-      return { actionId: action.id, status: 'failed', error: 'reminders.skip.applyFreeText: missing params' };
+      return {
+        actionId: action.id,
+        status: 'failed',
+        error: 'reminders.skip.applyFreeText: missing params',
+      };
     }
     const userId = await resolveIntegratorUserId(deps.readPort, channelUserId, resource);
     if (!userId || !(await assertOccurrenceOwnedByUser(deps.readPort, occurrenceId, userId))) {
-      return { actionId: action.id, status: 'failed', error: 'reminders.skip.applyFreeText: forbidden' };
+      return {
+        actionId: action.id,
+        status: 'failed',
+        error: 'reminders.skip.applyFreeText: forbidden',
+      };
     }
     if (deps.remindersWebappWritesPort) {
       await deps.remindersWebappWritesPort.postOccurrenceSkip({
@@ -1142,12 +1329,14 @@ export async function handleReminders(
     const resourceFt = asString(action.params.resource) ?? ctx.event.meta.source ?? 'telegram';
     const tplFt = resourceFt === 'max' ? 'max' : 'telegram';
     const ack = deps.templatePort
-      ? (await deps.templatePort.renderTemplate({
-        source: tplFt,
-        templateId: 'reminder.skip.saved',
-        vars: {},
-        audience: 'user',
-      })).text
+      ? (
+          await deps.templatePort.renderTemplate({
+            source: tplFt,
+            templateId: 'reminder.skip.saved',
+            vars: {},
+            audience: 'user',
+          })
+        ).text
       : 'Все ок, один пропуск — не проблема. Сделаешь, когда сможешь 👌';
     const src = resourceFt === 'max' ? 'max' : 'telegram';
     const incoming = readIncoming(ctx);
@@ -1161,16 +1350,18 @@ export async function handleReminders(
             text: ack,
             channel: src,
           })
-        : [{
-            type: 'message.send' as const,
-            meta: buildIntentMeta(action, ctx),
-            payload: {
-              recipient: { chatId },
-              message: { text: ack },
-              parse_mode: 'HTML' as const,
-              delivery: { channels: [src], maxAttempts: 1 },
+        : [
+            {
+              type: 'message.send' as const,
+              meta: buildIntentMeta(action, ctx),
+              payload: {
+                recipient: { chatId },
+                message: { text: ack },
+                parse_mode: 'HTML' as const,
+                delivery: { channels: [src], maxAttempts: 1 },
+              },
             },
-          }];
+          ];
     return {
       actionId: action.id,
       status: 'success',
@@ -1182,34 +1373,51 @@ export async function handleReminders(
 
   if (action.type === 'reminders.done.callback') {
     if (!deps.readPort) {
-      return { actionId: action.id, status: 'skipped', error: 'reminders.done.callback: missing readPort' };
+      return {
+        actionId: action.id,
+        status: 'skipped',
+        error: 'reminders.done.callback: missing readPort',
+      };
     }
     const occurrenceId = asString(action.params.occurrenceId);
     const channelUserId = asNumericString(action.params.channelUserId) ?? readExternalActorId(ctx);
     const resource = asString(action.params.resource) ?? ctx.event.meta.source ?? 'telegram';
     const chatId = asNumber(action.params.chatId) ?? asNumber(readIncoming(ctx).chatId);
     if (!occurrenceId || !channelUserId || chatId === null) {
-      return { actionId: action.id, status: 'failed', error: 'reminders.done.callback: missing params' };
+      return {
+        actionId: action.id,
+        status: 'failed',
+        error: 'reminders.done.callback: missing params',
+      };
     }
     const userId = await resolveIntegratorUserId(deps.readPort, channelUserId, resource);
     if (!userId || !(await assertOccurrenceOwnedByUser(deps.readPort, occurrenceId, userId))) {
       return { actionId: action.id, status: 'failed', error: 'reminders.done.callback: forbidden' };
     }
     if (!deps.remindersWebappWritesPort) {
-      return { actionId: action.id, status: 'skipped', error: 'reminders.done.callback: no remindersWebappWritesPort' };
+      return {
+        actionId: action.id,
+        status: 'skipped',
+        error: 'reminders.done.callback: no remindersWebappWritesPort',
+      };
     }
     const web = await deps.remindersWebappWritesPort.postOccurrenceDone({
       integratorUserId: userId,
       occurrenceId,
     });
     if (!web.ok) {
-      return { actionId: action.id, status: 'failed', error: `reminders.done.callback: ${web.error}` };
+      return {
+        actionId: action.id,
+        status: 'failed',
+        error: `reminders.done.callback: ${web.error}`,
+      };
     }
 
     const tplSrc = resource === 'max' ? 'max' : 'telegram';
     const src = resource === 'max' ? 'max' : 'telegram';
     const messageId = action.params.messageId ?? readIncoming(ctx).messageId;
-    const callbackQueryId = asString(action.params.callbackQueryId) ?? asString(readIncoming(ctx).callbackQueryId);
+    const callbackQueryId =
+      asString(action.params.callbackQueryId) ?? asString(readIncoming(ctx).callbackQueryId);
     const mid = asMessageId(messageId);
 
     const intents: import('../../../contracts/index.js').OutgoingIntent[] = [];
@@ -1234,12 +1442,14 @@ export async function handleReminders(
     if (web.firstDoneForOccurrence && web.dayFullyDone && web.daySentTotal > 0) {
       const vars = { done: String(web.dayDoneCount), total: String(web.daySentTotal) };
       const celebration = deps.templatePort
-        ? (await deps.templatePort.renderTemplate({
-            source: tplSrc,
-            templateId: 'reminder.dayAllDone',
-            vars,
-            audience: 'user',
-          })).text
+        ? (
+            await deps.templatePort.renderTemplate({
+              source: tplSrc,
+              templateId: 'reminder.dayAllDone',
+              vars,
+              audience: 'user',
+            })
+          ).text
         : `Супер! Сегодня вы выполнили ${vars.done} из ${vars.total} запланированных активностей!\n\nПродолжайте делать разминки и упражнения, и ваше здоровье скажет вам спасибо!`;
       intents.push({
         type: 'message.send',
@@ -1257,18 +1467,26 @@ export async function handleReminders(
 
   if (action.type === 'reminders.mute.callback') {
     if (!deps.readPort) {
-      return { actionId: action.id, status: 'skipped', error: 'reminders.mute.callback: missing readPort' };
+      return {
+        actionId: action.id,
+        status: 'skipped',
+        error: 'reminders.mute.callback: missing readPort',
+      };
     }
     const mutePreset = asString(action.params.mutePreset) === 'tomorrow' ? 'tomorrow' : null;
     const mp = action.params.minutes;
     const minutesParsed = Number(
-      typeof mp === 'number' && Number.isFinite(mp) ? mp : (typeof mp === 'string' ? mp.trim() : ''),
+      typeof mp === 'number' && Number.isFinite(mp) ? mp : typeof mp === 'string' ? mp.trim() : '',
     );
     const channelUserId = asNumericString(action.params.channelUserId) ?? readExternalActorId(ctx);
     const resource = asString(action.params.resource) ?? ctx.event.meta.source ?? 'telegram';
     const chatId = asNumber(action.params.chatId) ?? asNumber(readIncoming(ctx).chatId);
     if (!channelUserId || chatId === null) {
-      return { actionId: action.id, status: 'failed', error: 'reminders.mute.callback: missing params' };
+      return {
+        actionId: action.id,
+        status: 'failed',
+        error: 'reminders.mute.callback: missing params',
+      };
     }
     const userId = await resolveIntegratorUserId(deps.readPort, channelUserId, resource);
     if (!userId) {
@@ -1282,21 +1500,25 @@ export async function handleReminders(
     if (mutePreset === 'tomorrow') {
       const dbPort = createDbPort();
       const appTz = await getAppDisplayTimezone(
-        deps.dispatchPort
-          ? { db: dbPort, dispatchPort: deps.dispatchPort }
-          : { db: dbPort },
+        deps.dispatchPort ? { db: dbPort, dispatchPort: deps.dispatchPort } : { db: dbPort },
       );
-      mutedUntilIso = DateTime.now().setZone(appTz).plus({ days: 1 }).startOf('day').toUTC().toISO() ?? new Date().toISOString();
+      mutedUntilIso =
+        DateTime.now().setZone(appTz).plus({ days: 1 }).startOf('day').toUTC().toISO() ??
+        new Date().toISOString();
       templateId = 'reminder.mute.savedTomorrow';
     } else {
       const minutesRounded = Math.round(minutesParsed);
       if (
-        !Number.isFinite(minutesRounded)
-        || minutesRounded < 1
-        || minutesRounded > 1440
-        || minutesRounded !== minutesParsed
+        !Number.isFinite(minutesRounded) ||
+        minutesRounded < 1 ||
+        minutesRounded > 1440 ||
+        minutesRounded !== minutesParsed
       ) {
-        return { actionId: action.id, status: 'failed', error: 'reminders.mute.callback: bad minutes' };
+        return {
+          actionId: action.id,
+          status: 'failed',
+          error: 'reminders.mute.callback: bad minutes',
+        };
       }
       mutedUntilIso = new Date(Date.now() + minutesRounded * 60_000).toISOString();
       templateVars = { minutes: String(minutesRounded) };
@@ -1310,18 +1532,21 @@ export async function handleReminders(
     }
     const tplMs = resource === 'max' ? 'max' : 'telegram';
     const ack = deps.templatePort
-      ? (await deps.templatePort.renderTemplate({
-          source: tplMs,
-          templateId,
-          vars: templateVars,
-          audience: 'user',
-        })).text
+      ? (
+          await deps.templatePort.renderTemplate({
+            source: tplMs,
+            templateId,
+            vars: templateVars,
+            audience: 'user',
+          })
+        ).text
       : mutePreset === 'tomorrow'
         ? 'Не вопрос, без напоминаний до завтра.'
         : `Не вопрос, замолкаю на ${templateVars.minutes ?? '?'} мин.`;
     const src = resource === 'max' ? 'max' : 'telegram';
     const messageId = action.params.messageId ?? readIncoming(ctx).messageId;
-    const callbackQueryId = asString(action.params.callbackQueryId) ?? asString(readIncoming(ctx).callbackQueryId);
+    const callbackQueryId =
+      asString(action.params.callbackQueryId) ?? asString(readIncoming(ctx).callbackQueryId);
     const intents = buildReminderCallbackAckIntents(action, ctx, {
       chatId,
       messageId,
@@ -1399,9 +1624,8 @@ export async function handleReminders(
       type: 'identities.allByUserId',
       params: { userId },
     });
-    const maxIdentity =
-      Array.isArray(identities)
-        ? identities.find((i) => i.resource === 'max' && i.externalId.trim().length > 0)
+    const maxIdentity = Array.isArray(identities)
+      ? identities.find((i) => i.resource === 'max' && i.externalId.trim().length > 0)
       : undefined;
 
     let maxExternal = maxIdentity?.externalId.trim() ?? '';
@@ -1463,26 +1687,44 @@ export async function handleReminders(
 
   if (action.type === 'reminders.snoozeMenu.callback') {
     if (!deps.readPort) {
-      return { actionId: action.id, status: 'skipped', error: 'reminders.snoozeMenu.callback: no readPort' };
+      return {
+        actionId: action.id,
+        status: 'skipped',
+        error: 'reminders.snoozeMenu.callback: no readPort',
+      };
     }
     const occurrenceId = asString(action.params.occurrenceId);
     const channelUserId = asNumericString(action.params.channelUserId) ?? readExternalActorId(ctx);
     const resource = asString(action.params.resource) ?? ctx.event.meta.source ?? 'telegram';
     const chatId = asNumber(action.params.chatId) ?? asNumber(readIncoming(ctx).chatId);
     if (!occurrenceId || !channelUserId || chatId === null) {
-      return { actionId: action.id, status: 'failed', error: 'reminders.snoozeMenu.callback: missing params' };
+      return {
+        actionId: action.id,
+        status: 'failed',
+        error: 'reminders.snoozeMenu.callback: missing params',
+      };
     }
     const userId = await resolveIntegratorUserId(deps.readPort, channelUserId, resource);
     if (!userId || !(await assertOccurrenceOwnedByUser(deps.readPort, occurrenceId, userId))) {
-      return { actionId: action.id, status: 'failed', error: 'reminders.snoozeMenu.callback: forbidden' };
+      return {
+        actionId: action.id,
+        status: 'failed',
+        error: 'reminders.snoozeMenu.callback: forbidden',
+      };
     }
     const src = resource === 'max' ? 'max' : 'telegram';
-    const messageId = asMessageId(action.params.messageId) ?? asMessageId(readIncoming(ctx).messageId);
-    const callbackQueryId = asString(action.params.callbackQueryId) ?? asString(readIncoming(ctx).callbackQueryId);
+    const messageId =
+      asMessageId(action.params.messageId) ?? asMessageId(readIncoming(ctx).messageId);
+    const callbackQueryId =
+      asString(action.params.callbackQueryId) ?? asString(readIncoming(ctx).callbackQueryId);
     const snoozeKb = buildReminderSnoozeMenuInlineKeyboard(occurrenceId);
     const intents: import('../../../contracts/index.js').OutgoingIntent[] = [];
     if (callbackQueryId) {
-      intents.push({ type: 'callback.answer', meta: buildIntentMeta(action, ctx), payload: { callbackQueryId } });
+      intents.push({
+        type: 'callback.answer',
+        meta: buildIntentMeta(action, ctx),
+        payload: { callbackQueryId },
+      });
     }
     if (messageId !== null) {
       intents.push({
@@ -1514,21 +1756,37 @@ export async function handleReminders(
 
   if (action.type === 'reminders.notifSettings.open.callback') {
     if (!deps.readPort) {
-      return { actionId: action.id, status: 'skipped', error: 'reminders.notifSettings.open.callback: no readPort' };
+      return {
+        actionId: action.id,
+        status: 'skipped',
+        error: 'reminders.notifSettings.open.callback: no readPort',
+      };
     }
     if (!deps.remindersWebappWritesPort) {
-      return { actionId: action.id, status: 'skipped', error: 'reminders.notifSettings.open.callback: no remindersWebappWritesPort' };
+      return {
+        actionId: action.id,
+        status: 'skipped',
+        error: 'reminders.notifSettings.open.callback: no remindersWebappWritesPort',
+      };
     }
     const occurrenceId = asString(action.params.occurrenceId);
     const channelUserId = asNumericString(action.params.channelUserId) ?? readExternalActorId(ctx);
     const resource = asString(action.params.resource) ?? ctx.event.meta.source ?? 'telegram';
     const chatId = asNumber(action.params.chatId) ?? asNumber(readIncoming(ctx).chatId);
     if (!occurrenceId || !channelUserId || chatId === null) {
-      return { actionId: action.id, status: 'failed', error: 'reminders.notifSettings.open.callback: missing params' };
+      return {
+        actionId: action.id,
+        status: 'failed',
+        error: 'reminders.notifSettings.open.callback: missing params',
+      };
     }
     const userId = await resolveIntegratorUserId(deps.readPort, channelUserId, resource);
     if (!userId || !(await assertOccurrenceOwnedByUser(deps.readPort, occurrenceId, userId))) {
-      return { actionId: action.id, status: 'failed', error: 'reminders.notifSettings.open.callback: forbidden' };
+      return {
+        actionId: action.id,
+        status: 'failed',
+        error: 'reminders.notifSettings.open.callback: forbidden',
+      };
     }
     const messengerChannel: 'telegram' | 'max' = resource === 'max' ? 'max' : 'telegram';
     const settingsResult = await deps.remindersWebappWritesPort.getNotificationSettings({
@@ -1538,12 +1796,19 @@ export async function handleReminders(
     const topics = settingsResult.ok ? settingsResult.topics : [];
     const notifKb = buildReminderNotifSettingsInlineKeyboard(topics);
     const src = messengerChannel;
-    const messageId = asMessageId(action.params.messageId) ?? asMessageId(readIncoming(ctx).messageId);
-    const callbackQueryId = asString(action.params.callbackQueryId) ?? asString(readIncoming(ctx).callbackQueryId);
-    const settingsText = 'Выберите, какие уведомления вы хотите видеть в боте.\n\nНастройки пуш-уведомлений и почты можно поменять в приложении bersoncare.ru';
+    const messageId =
+      asMessageId(action.params.messageId) ?? asMessageId(readIncoming(ctx).messageId);
+    const callbackQueryId =
+      asString(action.params.callbackQueryId) ?? asString(readIncoming(ctx).callbackQueryId);
+    const settingsText =
+      'Выберите, какие уведомления вы хотите видеть в боте.\n\nНастройки пуш-уведомлений и почты можно поменять в приложении bersoncare.ru';
     const intents: import('../../../contracts/index.js').OutgoingIntent[] = [];
     if (callbackQueryId) {
-      intents.push({ type: 'callback.answer', meta: buildIntentMeta(action, ctx), payload: { callbackQueryId } });
+      intents.push({
+        type: 'callback.answer',
+        meta: buildIntentMeta(action, ctx),
+        payload: { callbackQueryId },
+      });
     }
     if (messageId !== null) {
       intents.push({
@@ -1575,21 +1840,37 @@ export async function handleReminders(
 
   if (action.type === 'reminders.notifSettings.toggle.callback') {
     if (!deps.readPort) {
-      return { actionId: action.id, status: 'skipped', error: 'reminders.notifSettings.toggle.callback: no readPort' };
+      return {
+        actionId: action.id,
+        status: 'skipped',
+        error: 'reminders.notifSettings.toggle.callback: no readPort',
+      };
     }
     if (!deps.remindersWebappWritesPort) {
-      return { actionId: action.id, status: 'skipped', error: 'reminders.notifSettings.toggle.callback: no remindersWebappWritesPort' };
+      return {
+        actionId: action.id,
+        status: 'skipped',
+        error: 'reminders.notifSettings.toggle.callback: no remindersWebappWritesPort',
+      };
     }
     const topicCode = asString(action.params.topicCode);
     const channelUserId = asNumericString(action.params.channelUserId) ?? readExternalActorId(ctx);
     const resource = asString(action.params.resource) ?? ctx.event.meta.source ?? 'telegram';
     const chatId = asNumber(action.params.chatId) ?? asNumber(readIncoming(ctx).chatId);
     if (!topicCode || !channelUserId || chatId === null) {
-      return { actionId: action.id, status: 'failed', error: 'reminders.notifSettings.toggle.callback: missing params' };
+      return {
+        actionId: action.id,
+        status: 'failed',
+        error: 'reminders.notifSettings.toggle.callback: missing params',
+      };
     }
     const userId = await resolveIntegratorUserId(deps.readPort, channelUserId, resource);
     if (!userId) {
-      return { actionId: action.id, status: 'failed', error: 'reminders.notifSettings.toggle.callback: user not found' };
+      return {
+        actionId: action.id,
+        status: 'failed',
+        error: 'reminders.notifSettings.toggle.callback: user not found',
+      };
     }
     const messengerChannel: 'telegram' | 'max' = resource === 'max' ? 'max' : 'telegram';
     await deps.remindersWebappWritesPort.toggleNotificationTopic({
@@ -1604,12 +1885,19 @@ export async function handleReminders(
     const topics = settingsResult.ok ? settingsResult.topics : [];
     const notifKb = buildReminderNotifSettingsInlineKeyboard(topics);
     const src = messengerChannel;
-    const messageId = asMessageId(action.params.messageId) ?? asMessageId(readIncoming(ctx).messageId);
-    const callbackQueryId = asString(action.params.callbackQueryId) ?? asString(readIncoming(ctx).callbackQueryId);
-    const settingsText = 'Выберите, какие уведомления вы хотите видеть в боте.\n\nНастройки пуш-уведомлений и почты можно поменять в приложении bersoncare.ru';
+    const messageId =
+      asMessageId(action.params.messageId) ?? asMessageId(readIncoming(ctx).messageId);
+    const callbackQueryId =
+      asString(action.params.callbackQueryId) ?? asString(readIncoming(ctx).callbackQueryId);
+    const settingsText =
+      'Выберите, какие уведомления вы хотите видеть в боте.\n\nНастройки пуш-уведомлений и почты можно поменять в приложении bersoncare.ru';
     const intents: import('../../../contracts/index.js').OutgoingIntent[] = [];
     if (callbackQueryId) {
-      intents.push({ type: 'callback.answer', meta: buildIntentMeta(action, ctx), payload: { callbackQueryId } });
+      intents.push({
+        type: 'callback.answer',
+        meta: buildIntentMeta(action, ctx),
+        payload: { callbackQueryId },
+      });
     }
     if (messageId !== null) {
       intents.push({

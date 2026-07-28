@@ -16,10 +16,11 @@
 
 ## 1. Сводка
 
-После закрытия всех этапов A1–A5 и B1–B7+D1–D4 (D5 — на паузе у owner, D6 — финальный сводный аудит):  
-- **Домен программы лечения полностью реализован** — модель, копирование template→instance, прогресс, action_log, бейджи.  
-- **Каталоги назначений приведены в порядок** — типизация тестов, регион, комментарии в наборах и шаблонах, LFK UX, рекомендации расширены.  
-- **Пациентский UI** даёт полный рабочий путь: открыть программу, увидеть Этап 0/Общие рекомендации, бейджи «Новое» и «Plan обновлён», выполнить чек-лист, отправить тест с числовым score.  
+После закрытия всех этапов A1–A5 и B1–B7+D1–D4 (D5 — на паузе у owner, D6 — финальный сводный аудит):
+
+- **Домен программы лечения полностью реализован** — модель, копирование template→instance, прогресс, action_log, бейджи.
+- **Каталоги назначений приведены в порядок** — типизация тестов, регион, комментарии в наборах и шаблонах, LFK UX, рекомендации расширены.
+- **Пациентский UI** даёт полный рабочий путь: открыть программу, увидеть Этап 0/Общие рекомендации, бейджи «Новое» и «Plan обновлён», выполнить чек-лист, отправить тест с числовым score.
 - Выявлено **2 UX-блокера** и **4 UX-долга** без критических дефектов в логике (блокеры и долги UX-01–04 закрыты в ходе фиксов 2026-05-04; см. статусы в §4–§5). Конструктор шаблонов (B6) имеет хвосты, не блокирующие базовый сценарий, но снижающие удобство работы врача. Карточка пациента у врача (этап 6 PLAN_DOCTOR_CABINET) заморожена — список функций из §7 не реализован, что ощущается при работе с программами.
 
 > **Обновление 2026-05-04 (инженерный fix):** закрыт **UX-02** — read API `GET …/action-log` + лента на экземпляре врача (`TreatmentProgramInstanceDetailClient`). Ранее (UI-агент): BLOCK-01/02, UX-01/03/04, §6 B6. Остаётся этап 6 PLAN_DOCTOR_CABINET (hero/табы).
@@ -28,16 +29,16 @@
 
 ## 2. Сценарий и фактические шаги
 
-| Шаг | Описание | Воспроизведено |
-|-----|----------|----------------|
-| 1 | ВРАЧ: создать шаблон программы с двумя стадиями + рекомендация с kind/body_region/quantity/frequency/duration + комментарий к элементу | **PASS** — конструктор помечает этап с `sort_order=0`, диалог «Новый этап» допускает цель/задачи и явный порядок (2026-05-04) |
-| 2 | ВРАЧ: назначить шаблон пациенту | **PASS** — `PatientTreatmentProgramsPanel` + POST `/api/doctor/clients/[userId]/treatment-program-instances` |
-| 3 | ПАЦИЕНТ: `/app/patient/treatment-programs/[instanceId]` — Stage 0, «Новое», `local_comment`, locked-стадии | **PASS** — все четыре пункта реализованы в `PatientTreatmentProgramDetailClient.tsx` |
-| 4a | ПАЦИЕНТ: ЛФК-сессия (чек-лист, форма difficulty+note) | **PASS** — чек-лист и тело этапа используют `PatientLfkChecklistRow` → `/progress/lfk-session` (2026-05-04, BLOCK-02) |
-| 4b | ПАЦИЕНТ: клинический тест с числовым score | **PASS** — `TestSetBlock` + `scoringAllowsNumericDecisionInference` → POST `/progress/test-result` → `test_attempts` + `program_action_log` |
-| 5 | ВРАЧ: инбокс «К проверке» — появились тесты по шагу 4b | **PASS** — `ClientProfileCard` → `pendingProgramTestEvaluations` → `listPendingTestEvaluationsForPatient` (decided_by IS NULL) |
-| 5a | ВРАЧ: увидеть LFK-сессию в action_log | **PASS** — на экземпляре программы секция «Дневник занятий» (`GET /api/doctor/treatment-program-instances/[id]/action-log` + SSR `listProgramActionLogForInstance`, 2026-05-04, UX-02) |
-| 6 | ВРАЧ: карточка пациента → программа → прогресс/бейджи | **Частично** — `PatientTreatmentProgramsPanel` + `TreatmentProgramInstanceDetailClient` есть; hero/табы/бейдж прогресса — не реализованы (заморожены в этапе 6 PLAN_DOCTOR_CABINET) |
+| Шаг | Описание                                                                                                                               | Воспроизведено                                                                                                                                                                         |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | ВРАЧ: создать шаблон программы с двумя стадиями + рекомендация с kind/body_region/quantity/frequency/duration + комментарий к элементу | **PASS** — конструктор помечает этап с `sort_order=0`, диалог «Новый этап» допускает цель/задачи и явный порядок (2026-05-04)                                                          |
+| 2   | ВРАЧ: назначить шаблон пациенту                                                                                                        | **PASS** — `PatientTreatmentProgramsPanel` + POST `/api/doctor/clients/[userId]/treatment-program-instances`                                                                           |
+| 3   | ПАЦИЕНТ: `/app/patient/treatment-programs/[instanceId]` — Stage 0, «Новое», `local_comment`, locked-стадии                             | **PASS** — все четыре пункта реализованы в `PatientTreatmentProgramDetailClient.tsx`                                                                                                   |
+| 4a  | ПАЦИЕНТ: ЛФК-сессия (чек-лист, форма difficulty+note)                                                                                  | **PASS** — чек-лист и тело этапа используют `PatientLfkChecklistRow` → `/progress/lfk-session` (2026-05-04, BLOCK-02)                                                                  |
+| 4b  | ПАЦИЕНТ: клинический тест с числовым score                                                                                             | **PASS** — `TestSetBlock` + `scoringAllowsNumericDecisionInference` → POST `/progress/test-result` → `test_attempts` + `program_action_log`                                            |
+| 5   | ВРАЧ: инбокс «К проверке» — появились тесты по шагу 4b                                                                                 | **PASS** — `ClientProfileCard` → `pendingProgramTestEvaluations` → `listPendingTestEvaluationsForPatient` (decided_by IS NULL)                                                         |
+| 5a  | ВРАЧ: увидеть LFK-сессию в action_log                                                                                                  | **PASS** — на экземпляре программы секция «Дневник занятий» (`GET /api/doctor/treatment-program-instances/[id]/action-log` + SSR `listProgramActionLogForInstance`, 2026-05-04, UX-02) |
+| 6   | ВРАЧ: карточка пациента → программа → прогресс/бейджи                                                                                  | **Частично** — `PatientTreatmentProgramsPanel` + `TreatmentProgramInstanceDetailClient` есть; hero/табы/бейдж прогресса — не реализованы (заморожены в этапе 6 PLAN_DOCTOR_CABINET)    |
 
 ---
 
@@ -82,25 +83,25 @@
 
 ### B1–B7 — каталоги назначений
 
-| Этап | Артефакт | Статус |
-|------|----------|--------|
-| B1 | `doctorCatalogListStatus.ts`: `listPubArch`, `parseDoctorCatalogPubArchQuery`; UI `DoctorCatalogFiltersForm` на LFK/test-sets/templates | PASS |
-| B2 | `clinical_tests`: `assessment_kind`, `body_region_id`, `scoring JSONB`; `CreatableComboboxInput`; `clinical_test_measure_kinds`; `ClinicalTestForm` с 4 schema_type | PASS |
-| B3 | `TestSetItemsForm` переписан — список карточек, `comment` на `test_set_items`, без UUID-textarea | PASS |
-| B4 | `recommendations`: `body_region_id`, `quantity_text`, `frequency_text`, `duration_text`; расширен enum `domain`; UI «Тип» | PASS |
-| B5 | LFK-глаз исправлен; список с статусами pub×arch; карточка-редактор с CTA | PASS |
-| B6 | Двухколоночный конструктор; превьюшки в диалоге «Элемент из библиотеки`; CTA «Сохранить черновик»/«Опубликовать»/«Архивировать»; `TreatmentProgramTemplateStatusBadge` | PASS (с хвостами — §6) |
-| B7 | `template_comment` + `local_comment` на template_stage_items (и lfk_complex_exercises); `effectiveInstanceStageItemComment`; placeholder «Из шаблона»; override в instance | PASS |
+| Этап | Артефакт                                                                                                                                                                   | Статус                 |
+| ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- |
+| B1   | `doctorCatalogListStatus.ts`: `listPubArch`, `parseDoctorCatalogPubArchQuery`; UI `DoctorCatalogFiltersForm` на LFK/test-sets/templates                                    | PASS                   |
+| B2   | `clinical_tests`: `assessment_kind`, `body_region_id`, `scoring JSONB`; `CreatableComboboxInput`; `clinical_test_measure_kinds`; `ClinicalTestForm` с 4 schema_type        | PASS                   |
+| B3   | `TestSetItemsForm` переписан — список карточек, `comment` на `test_set_items`, без UUID-textarea                                                                           | PASS                   |
+| B4   | `recommendations`: `body_region_id`, `quantity_text`, `frequency_text`, `duration_text`; расширен enum `domain`; UI «Тип»                                                  | PASS                   |
+| B5   | LFK-глаз исправлен; список с статусами pub×arch; карточка-редактор с CTA                                                                                                   | PASS                   |
+| B6   | Двухколоночный конструктор; превьюшки в диалоге «Элемент из библиотеки`; CTA «Сохранить черновик»/«Опубликовать»/«Архивировать»; `TreatmentProgramTemplateStatusBadge`     | PASS (с хвостами — §6) |
+| B7   | `template_comment` + `local_comment` на template_stage_items (и lfk_complex_exercises); `effectiveInstanceStageItemComment`; placeholder «Из шаблона»; override в instance | PASS                   |
 
 ### D1–D4 — defer-wave
 
-| Этап | Тема | Статус |
-|------|------|--------|
-| D1 | `measure_kinds` UI управления | PASS |
-| D2 | `assessmentKind` → справочник в БД | PASS |
-| D3 | Типы рекомендаций → справочник в БД | PASS |
-| D4 | `qualitative` в инстансе (select итога + fix `scoringConfigIsQualitative`) | PASS |
-| D5 | `domain` → `kind` | **DEFERRED (owner pause)** |
+| Этап | Тема                                                                       | Статус                     |
+| ---- | -------------------------------------------------------------------------- | -------------------------- |
+| D1   | `measure_kinds` UI управления                                              | PASS                       |
+| D2   | `assessmentKind` → справочник в БД                                         | PASS                       |
+| D3   | Типы рекомендаций → справочник в БД                                        | PASS                       |
+| D4   | `qualitative` в инстансе (select итога + fix `scoringConfigIsQualitative`) | PASS                       |
+| D5   | `domain` → `kind`                                                          | **DEFERRED (owner pause)** |
 
 ---
 
@@ -108,9 +109,10 @@
 
 ### BLOCK-01 — Конструктор не сигнализирует о Stage 0 как «Общие рекомендации»
 
-**Симптом:** При создании первого этапа в шаблоне он получает `sort_order = 0` (см. `pgTreatmentProgram.ts:504-508`: `coalesce(max, -1) + 1 = 0`). Пациент видит его в специальной секции «Общие рекомендации» с `ignoreStageLockForContent = true`, без FSM. Врач в конструкторе не видит никакого индикатора — это обычный этап без пометки.  
+**Симптом:** При создании первого этапа в шаблоне он получает `sort_order = 0` (см. `pgTreatmentProgram.ts:504-508`: `coalesce(max, -1) + 1 = 0`). Пациент видит его в специальной секции «Общие рекомендации» с `ignoreStageLockForContent = true`, без FSM. Врач в конструкторе не видит никакого индикатора — это обычный этап без пометки.
 
 **Файлы:**
+
 - `apps/webapp/src/infra/repos/pgTreatmentProgram.ts:502-508` — автоприсвоение sort_order.
 - `apps/webapp/src/app/app/doctor/treatment-program-templates/[id]/TreatmentProgramConstructorClient.tsx` — нет `isStageZero`-label в рендере этапа (проверен поиском `isStageZero`, `Общие`, `stage zero` — 0 совпадений).
 - `apps/webapp/src/app/app/patient/treatment-programs/PatientTreatmentProgramDetailClient.tsx:621-645` — patient-side корректно рендерит Stage 0.
@@ -134,6 +136,7 @@
 **Симптом:** В `PatientInstanceStageItemCard` для `itemType === "lfk_complex"` (в секции этапа, не в чек-листе) рендерится обычная кнопка «Отметить выполненным», которая вызывает `/progress/complete` (→ `patientCompleteSimpleItem`). Это НЕ то же, что `PatientLfkChecklistRow` с difficulty-select + note → `/progress/lfk-session`. Пациент нажимает «Отметить выполненным» на ЛФК-комплекс в теле этапа и не видит формы «Как прошло занятие?».
 
 **Файлы:**
+
 - `apps/webapp/src/app/app/patient/treatment-programs/PatientTreatmentProgramDetailClient.tsx:203-243` — в `PatientInstanceStageItemCard`: test_set → `TestSetBlock`, остальное (включая lfk_complex) → кнопка «Отметить выполненным».
 - `apps/webapp/src/app/api/patient/treatment-program-instances/[instanceId]/items/[itemId]/progress/complete/route.ts` — не вызывает `patientSubmitLfkPostSession`.
 - `PatientLfkChecklistRow` (строки 346-434) — форма есть, но только в checklist-секции.
@@ -220,27 +223,28 @@
 
 ## 8. Рекомендации по приоритету
 
-| Приоритет | Что делать | Агент | Размер |
-|-----------|-----------|-------|--------|
-| **P0** | Нет (критических блокеров CI нет; prod-миграции D-wave — ops-хвост) | — | — |
-| **P1** | ~~BLOCK-01~~ … | ~~Sonnet 4.6~~ | ~~S~~ — **fixed 2026-05-04** |
-| **P1** | ~~BLOCK-02~~ … | ~~Sonnet 4.6~~ | ~~S~~ — **fixed 2026-05-04** |
-| **P1** | ~~UX-03~~ … | ~~Sonnet 4.6~~ | ~~S~~ — **fixed 2026-05-04** |
-| **P2** | ~~UX-02: добавить раздел «Занятия» (feed `program_action_log` per instance)~~ … | ~~Composer-2~~ | ~~M~~ — **fixed 2026-05-04** (порт `listForInstance`, GET `action-log`, UI «Дневник занятий») |
-| **P2** | ~~B6: добавить `sortOrder` selector при создании этапа~~ … | ~~Sonnet 4.6~~ | ~~S~~ — **fixed 2026-05-04** (диалог «Новый этап») |
-| **P2** | ~~B6: goals/objectives в диалоге «Добавить этап»~~ … | ~~Sonnet 4.6~~ | ~~S~~ — **fixed 2026-05-04** (см. UX-04) |
-| **P2** | ~~UX-01~~ … | ~~Sonnet 4.6~~ | ~~S~~ — **fixed 2026-05-04** (кнопка «Снять «Новое»») |
-| **P2** | ~~B6: предупреждение при смене порядка этапа 0~~ … | ~~Sonnet 4.6~~ | ~~S~~ — **fixed 2026-05-04** (`confirm` в `handleMoveStage`) |
-| **P2** | Этап 6 PLAN_DOCTOR_CABINET: hero программы + tab-layout в карточке пациента | Composer-2 | L |
-| **P3** | Prod-деплой миграции `0040` DROP scoring_config | shell / ops | — | **✅ closed** owner 2026-06-01 |
-| **P3** | D5: `domain` → `kind` | Codex 5.3 | M | **TODO** [`docs/TODO.md`](../TODO.md) — не блокирует архив |
-| **P3** | Cross-patient inbox «К проверке» на Today врача | Sonnet 4.6 / Composer-2 | M |
+| Приоритет | Что делать                                                                      | Агент                   | Размер                                                                                        |
+| --------- | ------------------------------------------------------------------------------- | ----------------------- | --------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| **P0**    | Нет (критических блокеров CI нет; prod-миграции D-wave — ops-хвост)             | —                       | —                                                                                             |
+| **P1**    | ~~BLOCK-01~~ …                                                                  | ~~Sonnet 4.6~~          | ~~S~~ — **fixed 2026-05-04**                                                                  |
+| **P1**    | ~~BLOCK-02~~ …                                                                  | ~~Sonnet 4.6~~          | ~~S~~ — **fixed 2026-05-04**                                                                  |
+| **P1**    | ~~UX-03~~ …                                                                     | ~~Sonnet 4.6~~          | ~~S~~ — **fixed 2026-05-04**                                                                  |
+| **P2**    | ~~UX-02: добавить раздел «Занятия» (feed `program_action_log` per instance)~~ … | ~~Composer-2~~          | ~~M~~ — **fixed 2026-05-04** (порт `listForInstance`, GET `action-log`, UI «Дневник занятий») |
+| **P2**    | ~~B6: добавить `sortOrder` selector при создании этапа~~ …                      | ~~Sonnet 4.6~~          | ~~S~~ — **fixed 2026-05-04** (диалог «Новый этап»)                                            |
+| **P2**    | ~~B6: goals/objectives в диалоге «Добавить этап»~~ …                            | ~~Sonnet 4.6~~          | ~~S~~ — **fixed 2026-05-04** (см. UX-04)                                                      |
+| **P2**    | ~~UX-01~~ …                                                                     | ~~Sonnet 4.6~~          | ~~S~~ — **fixed 2026-05-04** (кнопка «Снять «Новое»»)                                         |
+| **P2**    | ~~B6: предупреждение при смене порядка этапа 0~~ …                              | ~~Sonnet 4.6~~          | ~~S~~ — **fixed 2026-05-04** (`confirm` в `handleMoveStage`)                                  |
+| **P2**    | Этап 6 PLAN_DOCTOR_CABINET: hero программы + tab-layout в карточке пациента     | Composer-2              | L                                                                                             |
+| **P3**    | Prod-деплой миграции `0040` DROP scoring_config                                 | shell / ops             | —                                                                                             | **✅ closed** owner 2026-06-01                             |
+| **P3**    | D5: `domain` → `kind`                                                           | Codex 5.3               | M                                                                                             | **TODO** [`docs/TODO.md`](../TODO.md) — не блокирует архив |
+| **P3**    | Cross-patient inbox «К проверке» на Today врача                                 | Sonnet 4.6 / Composer-2 | M                                                                                             |
 
 ---
 
 ## 9. Что намеренно не делали
 
 В рамках данной приёмки намеренно **не производилось** (согласно условию задачи):
+
 - Никаких правок кода, миграций, конфигурации, env, system_settings, .cursor/rules, package.json.
 - Подключение к prod-БД.
 - Запуск `pnpm run ci`, `pnpm build`, `drizzle-kit migrate`.
@@ -255,6 +259,7 @@
 **Обновление 2026-05-04 (узкий fix):** `eslint` (2 TSX), `pnpm --dir apps/webapp exec tsc --noEmit`, `vitest run src/app/app/patient/treatment-programs/PatientTreatmentProgramDetailClient.test.tsx` (4 passed). Полный `pnpm run ci` не запускался.
 
 **ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/LOG.md (2026-05-04, D6 FIX):**
+
 ```
 pnpm --dir apps/webapp exec vitest run src/modules/treatment-program/progress-service.test.ts src/modules/treatment-program/testSetSnapshotView.test.ts
 → 26 passed
@@ -262,11 +267,13 @@ pnpm --dir apps/webapp exec tsc --noEmit → ok
 ```
 
 **PROGRAM_PATIENT_SHAPE_INITIATIVE/AUDIT_GLOBAL.md (2026-05-03, Global fix):**
+
 ```
 pnpm install --frozen-lockfile && pnpm run ci → PASS
 ```
 
 Для верификации BLOCK-01 и BLOCK-02 достаточно следующих команд (не запускались в этом проходе, для future reference):
+
 ```bash
 pnpm --dir apps/webapp exec vitest run src/modules/treatment-program/patient-program-actions.test.ts
 pnpm --dir apps/webapp exec vitest run src/modules/treatment-program/progress-service.test.ts
@@ -276,36 +283,36 @@ pnpm --dir apps/webapp exec vitest run src/modules/treatment-program/progress-se
 
 ## Appendix A: Карта артефактов A1–A5 в коде
 
-| Артефакт | Файл (ключевые) |
-|----------|----------------|
-| `goals/objectives/expected_duration_*` (template) | `db/schema/treatmentProgramTemplates.ts:59-66` |
-| `goals/objectives/expected_duration_*` (instance) | `db/schema/treatmentProgramInstances.ts` |
-| `is_actionable` | `db/schema/treatmentProgramInstances.ts:163` |
-| `status` active/disabled | `db/schema/treatmentProgramInstances.ts:153` |
-| `last_viewed_at` | `db/schema/treatmentProgramInstances.ts:174` |
-| `local_comment` | `db/schema/treatmentProgramInstances.ts:154` |
-| `template_stage_groups` | `db/schema/treatmentProgramTemplates.ts:84-104` |
-| `instance_stage_groups` | `db/schema/treatmentProgramInstances.ts:115-141` |
-| `program_action_log` | `db/schema/programActionLog.ts`; read: `ProgramActionLogPort.listForInstance`, GET `…/action-log` |
-| `isStageZero` + FSM exclusion | `src/modules/treatment-program/stage-semantics.ts` |
-| `buildPatientProgramChecklistRows` | `src/modules/treatment-program/patient-program-actions.ts:67` |
-| `patientSubmitLfkPostSession` | `src/modules/treatment-program/patient-program-actions.ts:195` |
-| `patientPlanUpdatedBadgeForInstance` | `src/modules/treatment-program/` (AUDIT_GLOBAL A5) |
-| Patient UI — Stage 0, groups, new badge, comment | `src/app/app/patient/treatment-programs/PatientTreatmentProgramDetailClient.tsx` |
-| Inbox «К проверке» | `src/app/app/doctor/clients/ClientProfileCard.tsx:298-328` |
-| `PatientHomePlanCard` + `planUpdatedLabel` | `src/app/app/patient/home/PatientHomePlanCard.tsx:27-29,99-101` |
+| Артефакт                                          | Файл (ключевые)                                                                                   |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `goals/objectives/expected_duration_*` (template) | `db/schema/treatmentProgramTemplates.ts:59-66`                                                    |
+| `goals/objectives/expected_duration_*` (instance) | `db/schema/treatmentProgramInstances.ts`                                                          |
+| `is_actionable`                                   | `db/schema/treatmentProgramInstances.ts:163`                                                      |
+| `status` active/disabled                          | `db/schema/treatmentProgramInstances.ts:153`                                                      |
+| `last_viewed_at`                                  | `db/schema/treatmentProgramInstances.ts:174`                                                      |
+| `local_comment`                                   | `db/schema/treatmentProgramInstances.ts:154`                                                      |
+| `template_stage_groups`                           | `db/schema/treatmentProgramTemplates.ts:84-104`                                                   |
+| `instance_stage_groups`                           | `db/schema/treatmentProgramInstances.ts:115-141`                                                  |
+| `program_action_log`                              | `db/schema/programActionLog.ts`; read: `ProgramActionLogPort.listForInstance`, GET `…/action-log` |
+| `isStageZero` + FSM exclusion                     | `src/modules/treatment-program/stage-semantics.ts`                                                |
+| `buildPatientProgramChecklistRows`                | `src/modules/treatment-program/patient-program-actions.ts:67`                                     |
+| `patientSubmitLfkPostSession`                     | `src/modules/treatment-program/patient-program-actions.ts:195`                                    |
+| `patientPlanUpdatedBadgeForInstance`              | `src/modules/treatment-program/` (AUDIT_GLOBAL A5)                                                |
+| Patient UI — Stage 0, groups, new badge, comment  | `src/app/app/patient/treatment-programs/PatientTreatmentProgramDetailClient.tsx`                  |
+| Inbox «К проверке»                                | `src/app/app/doctor/clients/ClientProfileCard.tsx:298-328`                                        |
+| `PatientHomePlanCard` + `planUpdatedLabel`        | `src/app/app/patient/home/PatientHomePlanCard.tsx:27-29,99-101`                                   |
 
 ## Appendix B: Карта артефактов B1–B7 в коде
 
-| Артефакт | Файл (ключевые) |
-|----------|----------------|
-| `doctorCatalogListStatus.ts` pub×arch | `src/shared/lib/doctorCatalogListStatus.ts` |
-| `DoctorCatalogFiltersForm` | `src/shared/ui/doctor/` |
-| `clinical_test_measure_kinds` | `db/schema/clinicalTests.ts`; API `app/api/doctor/measure-kinds` |
-| `CreatableComboboxInput` | `src/shared/ui/CreatableComboboxInput.tsx` |
-| `recommendations.body_region_id/quantity_text/…` | `db/schema/recommendations.ts` |
-| `TemplateStageItemCommentBlock` | `TreatmentProgramConstructorClient.tsx:174-207` |
-| `effectiveInstanceStageItemComment` | `src/modules/treatment-program/types.ts` |
-| `scoringAllowsNumericDecisionInference` | `src/modules/treatment-program/progress-scoring.ts` |
-| `scoringConfigIsQualitative` + FIX-D4-L1 | `progress-scoring.ts`, `progress-service.ts` |
-| `testSetSnapshotView.ts` (comment in snapshot) | `src/modules/treatment-program/testSetSnapshotView.ts` |
+| Артефакт                                         | Файл (ключевые)                                                  |
+| ------------------------------------------------ | ---------------------------------------------------------------- |
+| `doctorCatalogListStatus.ts` pub×arch            | `src/shared/lib/doctorCatalogListStatus.ts`                      |
+| `DoctorCatalogFiltersForm`                       | `src/shared/ui/doctor/`                                          |
+| `clinical_test_measure_kinds`                    | `db/schema/clinicalTests.ts`; API `app/api/doctor/measure-kinds` |
+| `CreatableComboboxInput`                         | `src/shared/ui/CreatableComboboxInput.tsx`                       |
+| `recommendations.body_region_id/quantity_text/…` | `db/schema/recommendations.ts`                                   |
+| `TemplateStageItemCommentBlock`                  | `TreatmentProgramConstructorClient.tsx:174-207`                  |
+| `effectiveInstanceStageItemComment`              | `src/modules/treatment-program/types.ts`                         |
+| `scoringAllowsNumericDecisionInference`          | `src/modules/treatment-program/progress-scoring.ts`              |
+| `scoringConfigIsQualitative` + FIX-D4-L1         | `progress-scoring.ts`, `progress-service.ts`                     |
+| `testSetSnapshotView.ts` (comment in snapshot)   | `src/modules/treatment-program/testSetSnapshotView.ts`           |

@@ -1,22 +1,22 @@
 /** Sentinel for rollup dimensions not applicable to a row (hourly composite PK). */
-export const PRODUCT_ANALYTICS_DIM_ALL = "__all__";
+export const PRODUCT_ANALYTICS_DIM_ALL = '__all__';
 
 export const PRODUCT_ANALYTICS_EVENT_TYPES = [
-  "auth_login",
-  "auth_register_attempt",
-  "auth_register_success",
-  "auth_register_failure",
-  "app_open",
-  "page_view",
-  "push_open",
-  "heartbeat",
-  "push_sent",
+  'auth_login',
+  'auth_register_attempt',
+  'auth_register_success',
+  'auth_register_failure',
+  'app_open',
+  'page_view',
+  'push_open',
+  'heartbeat',
+  'push_sent',
 ] as const;
 
 export const AUTH_REGISTRATION_EVENT_TYPES = [
-  "auth_register_attempt",
-  "auth_register_success",
-  "auth_register_failure",
+  'auth_register_attempt',
+  'auth_register_success',
+  'auth_register_failure',
 ] as const;
 
 export type AuthRegistrationEventType = (typeof AUTH_REGISTRATION_EVENT_TYPES)[number];
@@ -34,7 +34,7 @@ export type ListRegistrationEventsParams = {
   startIso: string;
   endExclusiveIso: string;
   eventType?: AuthRegistrationEventType;
-  errorClass?: "user" | "system";
+  errorClass?: 'user' | 'system';
   authMethod?: string;
   page: number;
   limit: number;
@@ -49,7 +49,7 @@ export type ListRegistrationEventsResult = {
 
 export type ProductAnalyticsEventType = (typeof PRODUCT_ANALYTICS_EVENT_TYPES)[number];
 
-export const PRODUCT_ANALYTICS_ENTRY_CHANNELS = ["pwa", "telegram", "max", "browser"] as const;
+export const PRODUCT_ANALYTICS_ENTRY_CHANNELS = ['pwa', 'telegram', 'max', 'browser'] as const;
 
 export type ProductAnalyticsEntryChannel = (typeof PRODUCT_ANALYTICS_ENTRY_CHANNELS)[number];
 

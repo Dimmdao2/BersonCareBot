@@ -120,12 +120,11 @@ describe('DoctorTodayMiniCalendar', () => {
         />,
       );
       expect(screen.getByRole('heading', { name: 'пн, 9 июня' })).toBeInTheDocument();
-      expect(screen.queryByRole('heading', { name: 'Расписание на сегодня' })).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('heading', { name: 'Расписание на сегодня' }),
+      ).not.toBeInTheDocument();
       const scheduleLink = screen.getByRole('link', { name: 'Открыть расписание' });
-      expect(scheduleLink).toHaveAttribute(
-        'href',
-        '/app/doctor/schedule?tab=calendar',
-      );
+      expect(scheduleLink).toHaveAttribute('href', '/app/doctor/schedule?tab=calendar');
       expect(scheduleLink).toHaveClass('h-8');
       expect(scheduleLink).toHaveClass('rounded-[var(--doctor-control-radius,24px)]');
     });

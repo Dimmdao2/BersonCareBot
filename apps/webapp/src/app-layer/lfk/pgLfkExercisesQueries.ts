@@ -1,1 +1,1 @@
-export { pgListExerciseUsageForMediaIds } from "@/infra/repos/pgLfkExercises";
+export { pgListExerciseUsageForMediaIds } from '@/infra/repos/pgLfkExercises';

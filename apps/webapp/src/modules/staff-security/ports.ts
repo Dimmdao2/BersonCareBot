@@ -1,6 +1,6 @@
 export type StaffSecurityProfile = {
   userId: string;
-  factorType: "totp" | null;
+  factorType: 'totp' | null;
   totpSecretCiphertext: string | null;
   pendingTotpSecretCiphertext: string | null;
   factorVerifiedAt: string | null;

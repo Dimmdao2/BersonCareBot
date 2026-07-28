@@ -28,16 +28,16 @@ canon, not stale integrator residue.
 
 Doctor-facing appointment reads now use canonical data at runtime:
 
-| Surface | Runtime source after R2 |
-| --- | --- |
-| Doctor appointments list API | `be_appointments` through `pgDoctorCanonicalAppointments` |
-| Doctor Today/KPI | `be_appointments` through canonical KPI queries |
-| Doctor schedule/calendar | canonical booking calendar, unchanged |
-| Doctor dashboard appointment metrics | canonical port through the R2 read switch |
-| Doctor appointment analytics metric account lists | canonical SQL, independent of the retired setting |
-| Admin booking overview read-source display | reports doctor read source as `canonical` |
-| Settings UI | no longer offers Rubitime legacy for doctor appointment reads |
-| Settings API | rejects `booking_doctor_appointments_read_source=rubitime_legacy` |
+| Surface                                           | Runtime source after R2                                           |
+| ------------------------------------------------- | ----------------------------------------------------------------- |
+| Doctor appointments list API                      | `be_appointments` through `pgDoctorCanonicalAppointments`         |
+| Doctor Today/KPI                                  | `be_appointments` through canonical KPI queries                   |
+| Doctor schedule/calendar                          | canonical booking calendar, unchanged                             |
+| Doctor dashboard appointment metrics              | canonical port through the R2 read switch                         |
+| Doctor appointment analytics metric account lists | canonical SQL, independent of the retired setting                 |
+| Admin booking overview read-source display        | reports doctor read source as `canonical`                         |
+| Settings UI                                       | no longer offers Rubitime legacy for doctor appointment reads     |
+| Settings API                                      | rejects `booking_doctor_appointments_read_source=rubitime_legacy` |
 
 The old DB setting row may still exist for rollback/audit, but it no longer changes doctor-facing runtime behavior.
 
@@ -47,21 +47,21 @@ R2 does not drop `appointment_records`. The table remains a deprecated projectio
 
 Current non-R2 consumers are assigned as follows:
 
-| Consumer area | Disposition |
-| --- | --- |
-| Projection writes and cleanup (`pgAppointmentProjection`, Rubitime bridge/backfill scripts) | Keep until R6/R7 cutoff, archive, and drop proof. |
-| Patient booking history UI (`/app/patient/booking/new`) | Migrated to `patientBooking.listMyBookings` / `patient_bookings`; no longer calls `patientCabinet.getPastAppointments` or `appointment_records` projection. |
-| Doctor analytics contact breakdown (`pgDoctorClients.getClientContactBreakdown`) | Migrated to canonical `be_appointments` for patients-vs-subscribers classification. |
-| Doctor dashboard patient metrics (`pgDoctorClients.getDashboardPatientMetrics`) | Migrated visited/new/former/subscriber/cancellation buckets to canonical `be_appointments`. |
-| Doctor client list badges and filters (`pgDoctorClients.listClients`) | Migrated history/upcoming/visited/cancellation badges to canonical `be_appointments`; reschedule badge uses `be_appointment_reschedules` as the existing canonical lifecycle source of truth. |
-| Doctor patient card header stats (`pgDoctorClients.getPatientCardHeader`) | Migrated total/first/last/next/cancellation counters to canonical `be_appointments`; reschedule count uses `be_appointment_reschedules`. |
-| Doctor patient appointment tab (`pgDoctorClients.listPatientAppointments`) | Migrated to canonical `be_appointments`; service/branch/duration/package data now comes from canonical booking tables. |
-| Doctor clinical booking link (`pgPatientClinical`) | Added `clinical_visit.canonical_appointment_id`, backfilled it from legacy links, and moved new visit linking/package enrichment to canonical appointment ids. Legacy `appointment_record_id` stays nullable compat/archive until R7. |
-| Membership/package appointment status/session accounting (`pgMemberships`) | Migrated appointment verdicts to canonical `be_appointments`; package session accounting no longer reads `appointment_records`. |
-| Doctor analytics metric account lists (`pgDoctorAnalyticsMetricAccounts`) | Removed unreachable Rubitime legacy branches; appointment metric lists use canonical `be_appointments` / canonical lifecycle tables. |
-| Staff delete/purge tombstone filter (`doctorAppointmentPurgeFilter`) | Migrated to canonical `be_appointments.deleted_at`; staff/admin delete now stamps canonical `deleted_at` when a canonical appointment id or mapping is available. Legacy `appointment_records` tombstones remain archive/compat state only. |
-| Legacy doctor appointments port (`pgDoctorAppointments`) | Frozen archive/test artifact only; PG runtime DI no longer creates it as fallback. If the canonical port is unavailable, doctor appointment reads fail closed instead of reading `appointment_records`. |
-| Legacy booking calendar port | Frozen compatibility only; doctor schedule calendar currently uses canonical feed. |
+| Consumer area                                                                               | Disposition                                                                                                                                                                                                                                 |
+| ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Projection writes and cleanup (`pgAppointmentProjection`, Rubitime bridge/backfill scripts) | Keep until R6/R7 cutoff, archive, and drop proof.                                                                                                                                                                                           |
+| Patient booking history UI (`/app/patient/booking/new`)                                     | Migrated to `patientBooking.listMyBookings` / `patient_bookings`; no longer calls `patientCabinet.getPastAppointments` or `appointment_records` projection.                                                                                 |
+| Doctor analytics contact breakdown (`pgDoctorClients.getClientContactBreakdown`)            | Migrated to canonical `be_appointments` for patients-vs-subscribers classification.                                                                                                                                                         |
+| Doctor dashboard patient metrics (`pgDoctorClients.getDashboardPatientMetrics`)             | Migrated visited/new/former/subscriber/cancellation buckets to canonical `be_appointments`.                                                                                                                                                 |
+| Doctor client list badges and filters (`pgDoctorClients.listClients`)                       | Migrated history/upcoming/visited/cancellation badges to canonical `be_appointments`; reschedule badge uses `be_appointment_reschedules` as the existing canonical lifecycle source of truth.                                               |
+| Doctor patient card header stats (`pgDoctorClients.getPatientCardHeader`)                   | Migrated total/first/last/next/cancellation counters to canonical `be_appointments`; reschedule count uses `be_appointment_reschedules`.                                                                                                    |
+| Doctor patient appointment tab (`pgDoctorClients.listPatientAppointments`)                  | Migrated to canonical `be_appointments`; service/branch/duration/package data now comes from canonical booking tables.                                                                                                                      |
+| Doctor clinical booking link (`pgPatientClinical`)                                          | Added `clinical_visit.canonical_appointment_id`, backfilled it from legacy links, and moved new visit linking/package enrichment to canonical appointment ids. Legacy `appointment_record_id` stays nullable compat/archive until R7.       |
+| Membership/package appointment status/session accounting (`pgMemberships`)                  | Migrated appointment verdicts to canonical `be_appointments`; package session accounting no longer reads `appointment_records`.                                                                                                             |
+| Doctor analytics metric account lists (`pgDoctorAnalyticsMetricAccounts`)                   | Removed unreachable Rubitime legacy branches; appointment metric lists use canonical `be_appointments` / canonical lifecycle tables.                                                                                                        |
+| Staff delete/purge tombstone filter (`doctorAppointmentPurgeFilter`)                        | Migrated to canonical `be_appointments.deleted_at`; staff/admin delete now stamps canonical `deleted_at` when a canonical appointment id or mapping is available. Legacy `appointment_records` tombstones remain archive/compat state only. |
+| Legacy doctor appointments port (`pgDoctorAppointments`)                                    | Frozen archive/test artifact only; PG runtime DI no longer creates it as fallback. If the canonical port is unavailable, doctor appointment reads fail closed instead of reading `appointment_records`.                                     |
+| Legacy booking calendar port                                                                | Frozen compatibility only; doctor schedule calendar currently uses canonical feed.                                                                                                                                                          |
 
 This assignment is the R2 boundary: doctor-facing read-source is canonical-only, while destructive cleanup of the legacy
 projection table is blocked until R7.
@@ -104,19 +104,19 @@ Code/test validation for this R2 patch passed:
 
 Commands:
 
-| Command | Result |
-| --- | --- |
-| `pnpm -C apps/webapp exec vitest run src/infra/repos/doctorAppointmentsReadSwitch.test.ts src/infra/repos/pgDoctorAnalyticsMetricAccounts.test.ts src/infra/repos/pgDoctorAnalyticsMetricAccounts.parity.test.ts src/app/api/admin/booking-engine/overview/route.test.ts src/app/api/admin/settings/route.test.ts` | PASS, 5 files / 142 tests |
-| `pnpm --dir apps/webapp exec vitest run src/infra/repos/pgDoctorClients.repo.test.ts` | PASS, 1 file / 16 tests |
-| `pnpm --dir apps/webapp exec vitest run src/infra/repos/pgDoctorClients.repo.test.ts src/infra/repos/pgPatientClinical.test.ts src/infra/repos/patientResidualPrincipalOrgStamp.test.ts src/app/api/doctor/patients/[userId]/appointments/unlinked/route.test.ts src/app/api/doctor/patients/[userId]/visits/route.test.ts` | PASS, 5 files / 31 tests |
-| `pnpm --dir apps/webapp exec vitest run src/infra/repos/pgMemberships.test.ts src/modules/memberships/service.test.ts` | PASS, 2 files / 48 tests |
-| `pnpm --dir apps/webapp exec vitest run src/infra/repos/pgDoctorAnalyticsMetricAccounts.test.ts src/infra/repos/pgDoctorAnalyticsMetricAccounts.parity.test.ts` | PASS, 2 files / 37 tests |
-| `pnpm -C apps/webapp run typecheck` | PASS |
-| `pnpm -C apps/webapp run lint` | PASS |
-| `pnpm --dir apps/webapp exec drizzle-kit check --config=drizzle.config.ts` | PASS |
-| `pnpm run check:rubitime-doctor-client-no-legacy-reads` | PASS, 924 runtime files scanned |
-| `pnpm run check:rubitime-retirement-r0` | PASS |
-| `git diff --check` | PASS |
+| Command                                                                                                                                                                                                                                                                                                                     | Result                          |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| `pnpm -C apps/webapp exec vitest run src/infra/repos/doctorAppointmentsReadSwitch.test.ts src/infra/repos/pgDoctorAnalyticsMetricAccounts.test.ts src/infra/repos/pgDoctorAnalyticsMetricAccounts.parity.test.ts src/app/api/admin/booking-engine/overview/route.test.ts src/app/api/admin/settings/route.test.ts`          | PASS, 5 files / 142 tests       |
+| `pnpm --dir apps/webapp exec vitest run src/infra/repos/pgDoctorClients.repo.test.ts`                                                                                                                                                                                                                                       | PASS, 1 file / 16 tests         |
+| `pnpm --dir apps/webapp exec vitest run src/infra/repos/pgDoctorClients.repo.test.ts src/infra/repos/pgPatientClinical.test.ts src/infra/repos/patientResidualPrincipalOrgStamp.test.ts src/app/api/doctor/patients/[userId]/appointments/unlinked/route.test.ts src/app/api/doctor/patients/[userId]/visits/route.test.ts` | PASS, 5 files / 31 tests        |
+| `pnpm --dir apps/webapp exec vitest run src/infra/repos/pgMemberships.test.ts src/modules/memberships/service.test.ts`                                                                                                                                                                                                      | PASS, 2 files / 48 tests        |
+| `pnpm --dir apps/webapp exec vitest run src/infra/repos/pgDoctorAnalyticsMetricAccounts.test.ts src/infra/repos/pgDoctorAnalyticsMetricAccounts.parity.test.ts`                                                                                                                                                             | PASS, 2 files / 37 tests        |
+| `pnpm -C apps/webapp run typecheck`                                                                                                                                                                                                                                                                                         | PASS                            |
+| `pnpm -C apps/webapp run lint`                                                                                                                                                                                                                                                                                              | PASS                            |
+| `pnpm --dir apps/webapp exec drizzle-kit check --config=drizzle.config.ts`                                                                                                                                                                                                                                                  | PASS                            |
+| `pnpm run check:rubitime-doctor-client-no-legacy-reads`                                                                                                                                                                                                                                                                     | PASS, 924 runtime files scanned |
+| `pnpm run check:rubitime-retirement-r0`                                                                                                                                                                                                                                                                                     | PASS                            |
+| `git diff --check`                                                                                                                                                                                                                                                                                                          | PASS                            |
 
 Runtime/API smoke for the same canonical doctor surfaces was already recorded in
 `RUBITIME_RETIREMENT_R1_DOCTOR_UI_SMOKE.md` after the fresh CSV/canonical data proof:

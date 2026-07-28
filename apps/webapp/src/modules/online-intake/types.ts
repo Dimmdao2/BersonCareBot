@@ -1,8 +1,8 @@
-export type IntakeType = "lfk" | "nutrition";
+export type IntakeType = 'lfk' | 'nutrition';
 
-export type IntakeStatus = "new" | "in_review" | "contacted" | "booked" | "rejected" | "closed";
+export type IntakeStatus = 'new' | 'in_review' | 'contacted' | 'booked' | 'rejected' | 'closed';
 
-export type IntakeAttachmentType = "file" | "url";
+export type IntakeAttachmentType = 'file' | 'url';
 
 export type IntakeRequest = {
   id: string;
@@ -87,12 +87,12 @@ export type CreateNutritionIntakeInput = {
 
 /** Подписи вопросов для отображения заявок нутрициологии (в т.ч. legacy-строки в БД). */
 export const NUTRITION_ANSWER_LABELS: Record<string, string> = {
-  nutrition_description: "Описание запроса",
-  q1: "Ваш возраст?",
-  q2: "Ваш вес (кг) и рост (см)?",
-  q3: "Есть ли хронические заболевания или ограничения в питании?",
-  q4: "Ваша цель (weight_loss / weight_gain / healthy_eating / other)?",
-  q5: "Опишите текущий рацион и ваш запрос к нутрициологу",
+  nutrition_description: 'Описание запроса',
+  q1: 'Ваш возраст?',
+  q2: 'Ваш вес (кг) и рост (см)?',
+  q3: 'Есть ли хронические заболевания или ограничения в питании?',
+  q4: 'Ваша цель (weight_loss / weight_gain / healthy_eating / other)?',
+  q5: 'Опишите текущий рацион и ваш запрос к нутрициологу',
 };
 
 export type ChangeIntakeStatusInput = {
@@ -103,11 +103,11 @@ export type ChangeIntakeStatusInput = {
 };
 
 export const VALID_STATUS_TRANSITIONS: Record<IntakeStatus, IntakeStatus[]> = {
-  new: ["in_review", "contacted", "booked", "rejected", "closed"],
-  in_review: ["contacted", "booked", "rejected", "closed"],
-  contacted: ["booked", "rejected", "closed"],
-  booked: ["closed"],
-  rejected: ["closed"],
+  new: ['in_review', 'contacted', 'booked', 'rejected', 'closed'],
+  in_review: ['contacted', 'booked', 'rejected', 'closed'],
+  contacted: ['booked', 'rejected', 'closed'],
+  booked: ['closed'],
+  rejected: ['closed'],
   closed: [],
 };
 

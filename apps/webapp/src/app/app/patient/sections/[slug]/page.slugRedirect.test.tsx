@@ -1,36 +1,36 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const permanentRedirectMock = vi.hoisted(() => vi.fn());
 const resolveMock = vi.hoisted(() => vi.fn());
 const listBySectionMock = vi.hoisted(() => vi.fn(async () => []));
 const listBlocksWithItemsMock = vi.hoisted(() => vi.fn(async () => []));
 
-vi.mock("next/navigation", () => ({
+vi.mock('next/navigation', () => ({
   notFound: vi.fn(() => {
-    throw new Error("NEXT_NOT_FOUND");
+    throw new Error('NEXT_NOT_FOUND');
   }),
   permanentRedirect: (url: string) => {
     permanentRedirectMock(url);
-    throw new Error("NEXT_REDIRECT");
+    throw new Error('NEXT_REDIRECT');
   },
 }));
 
-vi.mock("@/infra/repos/resolvePatientContentSectionSlug", () => ({
+vi.mock('@/infra/repos/resolvePatientContentSectionSlug', () => ({
   resolvePatientContentSectionSlug: (...args: unknown[]) => resolveMock(...args),
 }));
 
-vi.mock("@/app-layer/guards/requireRole", () => ({
+vi.mock('@/app-layer/guards/requireRole', () => ({
   getOptionalPatientSession: vi.fn(async () => null),
   patientRscPersonalDataGate: vi.fn(),
 }));
 
-vi.mock("@/app-layer/platform-access", () => ({
+vi.mock('@/app-layer/platform-access', () => ({
   resolvePatientCanViewAuthOnlyContent: vi.fn(async () => false),
   canViewPatientAuthOnlySection: vi.fn(async () => true),
   filterPatientSectionPages: vi.fn(async (_session: unknown, pages: unknown[]) => pages),
 }));
 
-vi.mock("@/app-layer/di/buildAppDeps", () => ({
+vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: () => ({
     contentSections: {
       getBySlug: vi.fn(),
@@ -50,13 +50,13 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
   }),
 }));
 
-import PatientSectionPage from "./page";
+import PatientSectionPage from './page';
 
 const sectionRow = {
-  id: "00000000-0000-4000-8000-000000000101",
-  slug: "canonical",
-  title: "Title",
-  description: "",
+  id: '00000000-0000-4000-8000-000000000101',
+  slug: 'canonical',
+  title: 'Title',
+  description: '',
   sortOrder: 0,
   isVisible: true,
   requiresAuth: false,
@@ -64,7 +64,7 @@ const sectionRow = {
   iconImageUrl: null,
 };
 
-describe("PatientSectionPage slug redirect", () => {
+describe('PatientSectionPage slug redirect', () => {
   beforeEach(() => {
     permanentRedirectMock.mockClear();
     resolveMock.mockReset();
@@ -72,30 +72,30 @@ describe("PatientSectionPage slug redirect", () => {
     listBlocksWithItemsMock.mockClear();
   });
 
-  it("calls permanentRedirect when canonical slug differs from URL", async () => {
+  it('calls permanentRedirect when canonical slug differs from URL', async () => {
     resolveMock.mockResolvedValue({
-      canonicalSlug: "canonical",
+      canonicalSlug: 'canonical',
       section: sectionRow,
     });
 
-    await expect(PatientSectionPage({ params: Promise.resolve({ slug: "legacy" }) })).rejects.toThrow(
-      "NEXT_REDIRECT",
-    );
+    await expect(
+      PatientSectionPage({ params: Promise.resolve({ slug: 'legacy' }) }),
+    ).rejects.toThrow('NEXT_REDIRECT');
 
-    expect(permanentRedirectMock).toHaveBeenCalledWith("/app/patient/sections/canonical");
+    expect(permanentRedirectMock).toHaveBeenCalledWith('/app/patient/sections/canonical');
     expect(resolveMock).toHaveBeenCalled();
   });
 
-  it("uses canonical slug when URL slug is current", async () => {
+  it('uses canonical slug when URL slug is current', async () => {
     resolveMock.mockResolvedValue({
-      canonicalSlug: "canonical",
+      canonicalSlug: 'canonical',
       section: sectionRow,
     });
 
-    await PatientSectionPage({ params: Promise.resolve({ slug: "canonical" }) });
+    await PatientSectionPage({ params: Promise.resolve({ slug: 'canonical' }) });
 
     expect(permanentRedirectMock).not.toHaveBeenCalled();
-    expect(listBySectionMock).toHaveBeenCalledWith("canonical", { viewAuthOnlyPages: true });
+    expect(listBySectionMock).toHaveBeenCalledWith('canonical', { viewAuthOnlyPages: true });
     expect(listBlocksWithItemsMock).toHaveBeenCalled();
   });
 });

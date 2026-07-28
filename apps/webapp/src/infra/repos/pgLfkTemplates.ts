@@ -2,11 +2,11 @@ import {
   runWebappPgText,
   runWebappTransaction,
   type WebappSqlTransactionExecutor,
-} from "@/infra/db/runWebappSql";
-import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
-import type { ExerciseMedia, ExerciseMediaType } from "@/modules/lfk-exercises/types";
-import type { MediaPreviewStatus } from "@/modules/media/types";
-import type { LfkTemplatesPort } from "@/modules/lfk-templates/ports";
+} from '@/infra/db/runWebappSql';
+import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
+import type { ExerciseMedia, ExerciseMediaType } from '@/modules/lfk-exercises/types';
+import type { MediaPreviewStatus } from '@/modules/media/types';
+import type { LfkTemplatesPort } from '@/modules/lfk-templates/ports';
 import type {
   CreateTemplateInput,
   LfkTemplateUsageRef,
@@ -18,17 +18,17 @@ import type {
   TemplateFilter,
   TemplateStatus,
   UpdateTemplateInput,
-} from "@/modules/lfk-templates/types";
+} from '@/modules/lfk-templates/types';
 import {
   EMPTY_LFK_TEMPLATE_USAGE_SNAPSHOT,
   LFK_TEMPLATE_USAGE_DETAIL_LIMIT,
-} from "@/modules/lfk-templates/types";
-import { mediaPreviewUrlById } from "@/shared/lib/mediaPreviewUrls";
-import { toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
+} from '@/modules/lfk-templates/types';
+import { mediaPreviewUrlById } from '@/shared/lib/mediaPreviewUrls';
+import { toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
 
 function requireOrganizationPrincipal(): void {
   if (!getCurrentDbPrincipalOrganizationId()) {
-    throw new Error("Organization principal is required for the exercise template library");
+    throw new Error('Organization principal is required for the exercise template library');
   }
 }
 
@@ -62,11 +62,11 @@ function mapTemplateRow(
     updated_at: Date | string;
   },
   exercises: TemplateExercise[],
-  exerciseCount?: number
+  exerciseCount?: number,
 ): Template {
   return {
     id: String(row.id),
-    ownerKind: row.owner_kind === "platform" ? "platform" : "organization",
+    ownerKind: row.owner_kind === 'platform' ? 'platform' : 'organization',
     title: row.title,
     description: row.description,
     status: row.status as TemplateStatus,
@@ -114,11 +114,11 @@ type TemplateListExerciseJoinRow = {
   preview_status: string | null;
 };
 
-function mapListThumbMediaRow(row: Omit<TemplateListThumbRow, "template_id">): ExerciseMedia {
+function mapListThumbMediaRow(row: Omit<TemplateListThumbRow, 'template_id'>): ExerciseMedia {
   const mid = row.media_file_id ? String(row.media_file_id) : null;
-  const previewSmUrl = mid && row.preview_sm_key?.trim() ? mediaPreviewUrlById(mid, "sm") : null;
-  const previewMdUrl = mid && row.preview_md_key?.trim() ? mediaPreviewUrlById(mid, "md") : null;
-  const previewStatus = (row.preview_status ?? "pending") as MediaPreviewStatus;
+  const previewSmUrl = mid && row.preview_sm_key?.trim() ? mediaPreviewUrlById(mid, 'sm') : null;
+  const previewMdUrl = mid && row.preview_md_key?.trim() ? mediaPreviewUrlById(mid, 'md') : null;
+  const previewStatus = (row.preview_status ?? 'pending') as MediaPreviewStatus;
   return {
     id: String(row.id),
     exerciseId: String(row.exercise_id),
@@ -136,7 +136,7 @@ function parseLfkTemplateUsageRefs(raw: unknown): LfkTemplateUsageRef[] {
   if (raw == null) return [];
   let arr: unknown[];
   if (Array.isArray(raw)) arr = raw;
-  else if (typeof raw === "string") {
+  else if (typeof raw === 'string') {
     try {
       const p = JSON.parse(raw) as unknown;
       arr = Array.isArray(p) ? p : [];
@@ -147,19 +147,20 @@ function parseLfkTemplateUsageRefs(raw: unknown): LfkTemplateUsageRef[] {
 
   const out: LfkTemplateUsageRef[] = [];
   for (const x of arr) {
-    if (!x || typeof x !== "object") continue;
+    if (!x || typeof x !== 'object') continue;
     const o = x as Record<string, unknown>;
     const kind = o.kind;
     const id = o.id;
     const title = o.title;
     const patientUserId = o.patientUserId;
-    if (kind === "treatment_program_template") {
-      if (typeof id !== "string" || typeof title !== "string") continue;
+    if (kind === 'treatment_program_template') {
+      if (typeof id !== 'string' || typeof title !== 'string') continue;
       out.push({ kind, id, title });
       continue;
     }
-    if (kind === "treatment_program_instance" || kind === "patient_lfk_assignment_client") {
-      if (typeof id !== "string" || typeof title !== "string" || typeof patientUserId !== "string") continue;
+    if (kind === 'treatment_program_instance' || kind === 'patient_lfk_assignment_client') {
+      if (typeof id !== 'string' || typeof title !== 'string' || typeof patientUserId !== 'string')
+        continue;
       out.push({ kind, id, title, patientUserId });
     }
   }
@@ -198,28 +199,28 @@ async function loadTemplateUsageSummary(templateId: string): Promise<LfkTemplate
           FROM treatment_program_template_stage_items si
           INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
           INNER JOIN treatment_program_templates t ON t.id = st.template_id
-         WHERE ${sqlTpStageItemUsesLfkComplexTemplate("si")}
+         WHERE ${sqlTpStageItemUsesLfkComplexTemplate('si')}
            AND t.organization_id = ${ORG_ID_EXPR}
            AND t.status = 'published') AS published_tp_templates,
        (SELECT COUNT(DISTINCT t.id)::int
           FROM treatment_program_template_stage_items si
           INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
           INNER JOIN treatment_program_templates t ON t.id = st.template_id
-         WHERE ${sqlTpStageItemUsesLfkComplexTemplate("si")}
+         WHERE ${sqlTpStageItemUsesLfkComplexTemplate('si')}
            AND t.organization_id = ${ORG_ID_EXPR}
            AND t.status = 'draft') AS draft_tp_templates,
        (SELECT COUNT(DISTINCT i.id)::int
           FROM treatment_program_instance_stage_items sii
           INNER JOIN treatment_program_instance_stages ist ON ist.id = sii.stage_id
           INNER JOIN treatment_program_instances i ON i.id = ist.instance_id
-         WHERE ${sqlTpStageItemUsesLfkComplexTemplate("sii")}
+         WHERE ${sqlTpStageItemUsesLfkComplexTemplate('sii')}
            AND i.organization_id = ${ORG_ID_EXPR}
            AND i.status = 'active') AS active_tp_instances,
        (SELECT COUNT(DISTINCT i.id)::int
           FROM treatment_program_instance_stage_items sii
           INNER JOIN treatment_program_instance_stages ist ON ist.id = sii.stage_id
           INNER JOIN treatment_program_instances i ON i.id = ist.instance_id
-         WHERE ${sqlTpStageItemUsesLfkComplexTemplate("sii")}
+         WHERE ${sqlTpStageItemUsesLfkComplexTemplate('sii')}
            AND i.organization_id = ${ORG_ID_EXPR}
            AND i.status = 'completed') AS completed_tp_instances,
        (SELECT COALESCE(jsonb_agg(q.obj), '[]'::jsonb)
@@ -255,7 +256,7 @@ async function loadTemplateUsageSummary(templateId: string): Promise<LfkTemplate
             FROM treatment_program_template_stage_items si
             INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
             INNER JOIN treatment_program_templates t ON t.id = st.template_id
-            WHERE ${sqlTpStageItemUsesLfkComplexTemplate("si")}
+            WHERE ${sqlTpStageItemUsesLfkComplexTemplate('si')}
               AND t.organization_id = ${ORG_ID_EXPR}
               AND t.status = 'published'
             ORDER BY t.id, t.title ASC
@@ -272,7 +273,7 @@ async function loadTemplateUsageSummary(templateId: string): Promise<LfkTemplate
             FROM treatment_program_template_stage_items si
             INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
             INNER JOIN treatment_program_templates t ON t.id = st.template_id
-            WHERE ${sqlTpStageItemUsesLfkComplexTemplate("si")}
+            WHERE ${sqlTpStageItemUsesLfkComplexTemplate('si')}
               AND t.organization_id = ${ORG_ID_EXPR}
               AND t.status = 'draft'
             ORDER BY t.id, t.title ASC
@@ -291,7 +292,7 @@ async function loadTemplateUsageSummary(templateId: string): Promise<LfkTemplate
             INNER JOIN treatment_program_instance_stages ist ON ist.id = sii.stage_id
             INNER JOIN treatment_program_instances i ON i.id = ist.instance_id
             LEFT JOIN treatment_program_templates tpl ON tpl.id = i.template_id
-            WHERE ${sqlTpStageItemUsesLfkComplexTemplate("sii")}
+            WHERE ${sqlTpStageItemUsesLfkComplexTemplate('sii')}
               AND i.organization_id = ${ORG_ID_EXPR}
               AND i.status = 'active'
             ORDER BY i.id, i.title ASC
@@ -310,7 +311,7 @@ async function loadTemplateUsageSummary(templateId: string): Promise<LfkTemplate
             INNER JOIN treatment_program_instance_stages ist ON ist.id = sii.stage_id
             INNER JOIN treatment_program_instances i ON i.id = ist.instance_id
             LEFT JOIN treatment_program_templates tpl ON tpl.id = i.template_id
-            WHERE ${sqlTpStageItemUsesLfkComplexTemplate("sii")}
+            WHERE ${sqlTpStageItemUsesLfkComplexTemplate('sii')}
               AND i.organization_id = ${ORG_ID_EXPR}
               AND i.status = 'completed'
             ORDER BY i.id, i.title ASC
@@ -325,7 +326,7 @@ async function loadTemplateUsageSummary(templateId: string): Promise<LfkTemplate
   if (!row) return { ...EMPTY_LFK_TEMPLATE_USAGE_SNAPSHOT };
   const n = (v: string | number | null | undefined) => {
     if (v == null) return 0;
-    if (typeof v === "number") return v;
+    if (typeof v === 'number') return v;
     const parsed = Number.parseInt(String(v), 10);
     return Number.isFinite(parsed) ? parsed : 0;
   };
@@ -336,27 +337,29 @@ async function loadTemplateUsageSummary(templateId: string): Promise<LfkTemplate
     activeTreatmentProgramInstanceCount: n(row.active_tp_instances),
     completedTreatmentProgramInstanceCount: n(row.completed_tp_instances),
     activePatientLfkAssignmentRefs: parseLfkTemplateUsageRefs(row.active_patient_lfk_refs),
-    publishedTreatmentProgramTemplateRefs: parseLfkTemplateUsageRefs(row.published_tp_template_refs),
+    publishedTreatmentProgramTemplateRefs: parseLfkTemplateUsageRefs(
+      row.published_tp_template_refs,
+    ),
     draftTreatmentProgramTemplateRefs: parseLfkTemplateUsageRefs(row.draft_tp_template_refs),
     activeTreatmentProgramInstanceRefs: parseLfkTemplateUsageRefs(row.active_tp_instance_refs),
-    completedTreatmentProgramInstanceRefs: parseLfkTemplateUsageRefs(row.completed_tp_instance_refs),
+    completedTreatmentProgramInstanceRefs: parseLfkTemplateUsageRefs(
+      row.completed_tp_instance_refs,
+    ),
   };
 }
 
-function mapTeRow(
-  row: {
-    id: string;
-    template_id: string;
-    exercise_id: string;
-    sort_order: number;
-    reps: number | null;
-    sets: number | null;
-    side: string | null;
-    max_pain_0_10: number | null;
-    comment: string | null;
-    exercise_title?: string | null;
-  }
-): TemplateExercise {
+function mapTeRow(row: {
+  id: string;
+  template_id: string;
+  exercise_id: string;
+  sort_order: number;
+  reps: number | null;
+  sets: number | null;
+  side: string | null;
+  max_pain_0_10: number | null;
+  comment: string | null;
+  exercise_title?: string | null;
+}): TemplateExercise {
   return {
     id: String(row.id),
     templateId: String(row.template_id),
@@ -365,7 +368,7 @@ function mapTeRow(
     sortOrder: row.sort_order,
     reps: row.reps,
     sets: row.sets,
-    side: (row.side as TemplateExercise["side"]) ?? null,
+    side: (row.side as TemplateExercise['side']) ?? null,
     maxPain0_10: row.max_pain_0_10,
     comment: row.comment,
   };
@@ -392,7 +395,7 @@ function firstMediaFromListJoinRow(row: TemplateListExerciseJoinRow): ExerciseMe
     id: row.em_id,
     exercise_id: row.exercise_id,
     media_url: row.em_media_url,
-    media_type: row.em_media_type as ExerciseMedia["mediaType"],
+    media_type: row.em_media_type as ExerciseMedia['mediaType'],
     sort_order: row.em_sort_order ?? 0,
     created_at: row.em_created_at,
     media_file_id: row.media_file_id,
@@ -423,7 +426,7 @@ export function createPgLfkTemplatesPort(): LfkTemplatesPort {
         params.push(filter.status);
       } else if (filter.statusIn && filter.statusIn.length > 0) {
         const statusPlaceholders = filter.statusIn.map(() => `$${i++}`);
-        conds.push(`t.status IN (${statusPlaceholders.join(", ")})`);
+        conds.push(`t.status IN (${statusPlaceholders.join(', ')})`);
         params.push(...filter.statusIn);
       }
       if (filter.search?.trim()) {
@@ -439,7 +442,7 @@ export function createPgLfkTemplatesPort(): LfkTemplatesPort {
           FROM lfk_complex_template_exercises
           GROUP BY template_id
         ) c ON c.template_id = t.id
-        WHERE ${conds.join(" AND ")}
+        WHERE ${conds.join(' AND ')}
         ORDER BY t.updated_at DESC`;
       const r = await runWebappPgText<TemplateListDbRow>(sql, params);
       const templates = r.rows.map((row) =>
@@ -610,7 +613,7 @@ export function createPgLfkTemplatesPort(): LfkTemplatesPort {
              (owner_kind = 'organization' AND organization_id = ${ORG_ID_EXPR})
              OR ($2::boolean AND owner_kind = 'platform' AND organization_id IS NULL)
            )`,
-        [id, options.includePlatformBase === true]
+        [id, options.includePlatformBase === true],
       );
       if (!tr.rows[0]) return null;
       const er = await runWebappPgText<TemplateExerciseDbRow>(
@@ -628,7 +631,11 @@ export function createPgLfkTemplatesPort(): LfkTemplatesPort {
            AND te.owner_kind = $2
            AND te.organization_id IS NOT DISTINCT FROM $3::uuid
          ORDER BY te.sort_order ASC, te.id ASC`,
-        [id, tr.rows[0].owner_kind, tr.rows[0].owner_kind === "platform" ? null : getCurrentDbPrincipalOrganizationId()]
+        [
+          id,
+          tr.rows[0].owner_kind,
+          tr.rows[0].owner_kind === 'platform' ? null : getCurrentDbPrincipalOrganizationId(),
+        ],
       );
       const exercises = er.rows.map(mapTeRow);
       return mapTemplateRow(tr.rows[0], exercises);
@@ -650,7 +657,7 @@ export function createPgLfkTemplatesPort(): LfkTemplatesPort {
 
     async update(id: string, input: UpdateTemplateInput): Promise<Template | null> {
       requireOrganizationPrincipal();
-      const sets: string[] = ["updated_at = now()"];
+      const sets: string[] = ['updated_at = now()'];
       const vals: unknown[] = [];
       let n = 1;
       if (input.title !== undefined) {
@@ -665,7 +672,7 @@ export function createPgLfkTemplatesPort(): LfkTemplatesPort {
       const r = await runWebappTransaction((tx) =>
         txPgText<TemplateHeaderDbRow>(
           tx,
-          `UPDATE lfk_complex_templates SET ${sets.join(", ")}
+          `UPDATE lfk_complex_templates SET ${sets.join(', ')}
            WHERE id = $${n}
              AND organization_id = ${ORG_ID_EXPR}
            RETURNING id, owner_kind, title, description, status, created_by, created_at, updated_at`,
@@ -718,7 +725,7 @@ export function createPgLfkTemplatesPort(): LfkTemplatesPort {
             ],
           );
           if ((inserted.rowCount ?? 0) !== 1) {
-            throw new Error("Exercise is outside the current organization library");
+            throw new Error('Exercise is outside the current organization library');
           }
           order += 1;
         }

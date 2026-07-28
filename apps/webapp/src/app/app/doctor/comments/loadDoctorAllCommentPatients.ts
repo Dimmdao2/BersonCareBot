@@ -11,14 +11,14 @@
  *
  * Безопасность: только пациенты этого врача (listClients скоупирован на doctor-сессию).
  */
-import type { DoctorClientsFilters } from "@/modules/doctor-clients/ports";
-import type { ListDoctorExerciseCommentsInput } from "@/modules/program-item-discussion/types";
-import type { CommentPatientRow } from "./loadDoctorCommentPatients";
+import type { DoctorClientsFilters } from '@/modules/doctor-clients/ports';
+import type { ListDoctorExerciseCommentsInput } from '@/modules/program-item-discussion/types';
+import type { CommentPatientRow } from './loadDoctorCommentPatients';
 
 export type LoadDoctorAllCommentPatientsDeps = {
   doctorClientsPort: {
     listClients(
-      filters: Pick<DoctorClientsFilters, "supportStatus" | "organizationId">,
+      filters: Pick<DoctorClientsFilters, 'supportStatus' | 'organizationId'>,
       audience?: { excludedUserIds?: string[] },
     ): Promise<
       Array<{
@@ -34,9 +34,11 @@ export type LoadDoctorAllCommentPatientsDeps = {
     listExerciseCommentsForDoctor(
       input: ListDoctorExerciseCommentsInput,
     ): Promise<Array<{ patientUserId: string; stageItemId: string }>>;
-    listAllExerciseCommentsForDoctor(
-      input: { viewerUserId: string; organizationId?: string; limit: number },
-    ): Promise<Array<{ patientUserId: string; stageItemId: string }>>;
+    listAllExerciseCommentsForDoctor(input: {
+      viewerUserId: string;
+      organizationId?: string;
+      limit: number;
+    }): Promise<Array<{ patientUserId: string; stageItemId: string }>>;
     listUnreadCountsForViewerByStageItems(input: {
       stageItemIds: string[];
       viewerUserId: string;
@@ -100,7 +102,7 @@ export async function loadDoctorAllCommentPatients(
     allClients.map((c) => [
       c.userId.trim(),
       {
-        displayName: c.displayName.trim() || "—",
+        displayName: c.displayName.trim() || '—',
         phone: c.phone ?? null,
         telegramId: c.bindings?.telegramId ?? null,
         maxId: c.bindings?.maxId ?? null,
@@ -129,7 +131,7 @@ export async function loadDoctorAllCommentPatients(
   result.sort(
     (a, b) =>
       b.unreadCount - a.unreadCount ||
-      a.displayName.localeCompare(b.displayName, "ru", { sensitivity: "base" }),
+      a.displayName.localeCompare(b.displayName, 'ru', { sensitivity: 'base' }),
   );
 
   return result;

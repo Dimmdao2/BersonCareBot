@@ -24,7 +24,10 @@ async function fetchDeliveryTargets(
 
   const pathname = '/api/integrator/delivery-targets';
   const search = new URLSearchParams(
-    Object.entries(query).filter(([, v]) => v != null && String(v).trim() !== '') as [string, string][],
+    Object.entries(query).filter(([, v]) => v != null && String(v).trim() !== '') as [
+      string,
+      string,
+    ][],
   ).toString();
   const url = `${baseUrl.replace(/\/$/, '')}${pathname}${search ? `?${search}` : ''}`;
   const canonicalGet = `GET ${pathname}${search ? `?${search}` : ''}`;
@@ -54,7 +57,9 @@ async function fetchDeliveryTargets(
   }
 }
 
-export function createDeliveryTargetsPort(deps: { getAppBaseUrl: () => Promise<string> }): DeliveryTargetsPort {
+export function createDeliveryTargetsPort(deps: {
+  getAppBaseUrl: () => Promise<string>;
+}): DeliveryTargetsPort {
   const { getAppBaseUrl } = deps;
   return {
     async getTargetsByPhone(

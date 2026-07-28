@@ -1,4 +1,4 @@
-import type { SpecialistTaskPatientSummary, SpecialistTaskRow } from "./types";
+import type { SpecialistTaskPatientSummary, SpecialistTaskRow } from './types';
 
 export type CreateSpecialistTaskInput = {
   ownerUserId: string;
@@ -29,10 +29,17 @@ export type SpecialistTasksPort = {
   }): Promise<SpecialistTaskRow[]>;
   getByIdForOwner(taskId: string, ownerUserId: string): Promise<SpecialistTaskRow | null>;
   create(input: CreateSpecialistTaskInput): Promise<SpecialistTaskRow>;
-  update(taskId: string, ownerUserId: string, patch: UpdateSpecialistTaskInput): Promise<SpecialistTaskRow | null>;
+  update(
+    taskId: string,
+    ownerUserId: string,
+    patch: UpdateSpecialistTaskInput,
+  ): Promise<SpecialistTaskRow | null>;
   complete(taskId: string, ownerUserId: string): Promise<SpecialistTaskRow | null>;
   delete(taskId: string, ownerUserId: string): Promise<boolean>;
-  getPatientSummary(ownerUserId: string, patientUserId: string): Promise<SpecialistTaskPatientSummary>;
+  getPatientSummary(
+    ownerUserId: string,
+    patientUserId: string,
+  ): Promise<SpecialistTaskPatientSummary>;
   listDueReminders(nowIso: string, limit: number): Promise<SpecialistTaskRow[]>;
   markReminderSent(taskId: string, sentAtIso: string): Promise<void>;
 };

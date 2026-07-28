@@ -1,15 +1,13 @@
-"use client";
+'use client';
 
-import { useCallback, useState } from "react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import {
-  MATERIAL_RATING_FEEDBACK_REASON_LABELS,
-} from "@/modules/material-rating-feedback/reasonCodes";
-import type { MaterialRatingFeedbackDoctorSummary } from "@/modules/material-rating-feedback/ports";
+import { useCallback, useState } from 'react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { MATERIAL_RATING_FEEDBACK_REASON_LABELS } from '@/modules/material-rating-feedback/reasonCodes';
+import type { MaterialRatingFeedbackDoctorSummary } from '@/modules/material-rating-feedback/ports';
 
 const PAGE_SIZE = 20;
 
-type FeedbackRow = MaterialRatingFeedbackDoctorSummary["recent"][number];
+type FeedbackRow = MaterialRatingFeedbackDoctorSummary['recent'][number];
 
 export function MaterialRatingFeedbackDoctorCommentsClient({
   contentPageId,
@@ -37,16 +35,18 @@ export function MaterialRatingFeedbackDoctorCommentsClient({
         limit: String(PAGE_SIZE),
         offset: String(offset),
       });
-      const res = await fetch(`/api/doctor/material-ratings/feedback?${q.toString()}`, { cache: "no-store" });
+      const res = await fetch(`/api/doctor/material-ratings/feedback?${q.toString()}`, {
+        cache: 'no-store',
+      });
       const json = (await res.json()) as { ok?: boolean; rows?: FeedbackRow[]; error?: string };
       if (!res.ok || !json.ok || !json.rows) {
-        setError(json.error ?? "load_failed");
+        setError(json.error ?? 'load_failed');
         return;
       }
       setRows((prev) => [...prev, ...json.rows!]);
       setOffset((prev) => prev + json.rows!.length);
     } catch {
-      setError("network");
+      setError('network');
     } finally {
       setLoading(false);
     }
@@ -75,11 +75,16 @@ export function MaterialRatingFeedbackDoctorCommentsClient({
                 <td className="px-3 py-2">{row.displayLabel}</td>
                 <td className="px-3 py-2 tabular-nums">{row.ratingValue}</td>
                 <td className="px-3 py-2 text-muted-foreground">
-                  {row.reasonCodes.map((code) => MATERIAL_RATING_FEEDBACK_REASON_LABELS[code]).join(", ") ||
-                    "—"}
+                  {row.reasonCodes
+                    .map((code) => MATERIAL_RATING_FEEDBACK_REASON_LABELS[code])
+                    .join(', ') || '—'}
                 </td>
-                <td className="max-w-xs px-3 py-2 text-muted-foreground">{row.comment?.trim() || "—"}</td>
-                <td className="px-3 py-2 font-mono text-xs text-muted-foreground">{row.createdAt}</td>
+                <td className="max-w-xs px-3 py-2 text-muted-foreground">
+                  {row.comment?.trim() || '—'}
+                </td>
+                <td className="px-3 py-2 font-mono text-xs text-muted-foreground">
+                  {row.createdAt}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -87,8 +92,14 @@ export function MaterialRatingFeedbackDoctorCommentsClient({
       </div>
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
       {hasMore ? (
-        <Button type="button" size="sm" variant="outline" disabled={loading} onClick={() => void loadMore()}>
-          {loading ? "Загрузка…" : "Показать ещё"}
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={loading}
+          onClick={() => void loadMore()}
+        >
+          {loading ? 'Загрузка…' : 'Показать ещё'}
         </Button>
       ) : null}
     </div>

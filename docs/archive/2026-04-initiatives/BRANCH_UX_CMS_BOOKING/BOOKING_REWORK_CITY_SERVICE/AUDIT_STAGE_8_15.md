@@ -33,7 +33,7 @@ Scope: `docs/BRANCH_UX_CMS_BOOKING/BOOKING_REWORK_CITY_SERVICE/` (Stages 8-15)
 
 Ниже — **результаты проверки кода и контрактов** на дату первичного аудита (§1). Они **не** отменяют закрытие docs-контура variant B (§3, §6a).
 
-- Stage 8 (policy legacy-off, docs-sync, SHA traceability): **partially passed** (policy present). *До remediation F-05:* docs-sync/traceability считались неполными; *после variant B (Stage 6 F-05):* docs SSOT — §6a.
+- Stage 8 (policy legacy-off, docs-sync, SHA traceability): **partially passed** (policy present). _До remediation F-05:_ docs-sync/traceability считались неполными; _после variant B (Stage 6 F-05):_ docs SSOT — §6a.
 - Stage 9-10 (online intake contracts + migrations + API): **implemented partially**, several contract-to-code mismatches.
 - Stage 11 (compat-sync Rubitime -> patient_bookings): **implemented partially**, critical gap for unlinked records + missing promised enrichment.
 - Stage 12 (patient online wizard LFK + nutrition): **UI flows present**, but relies on Stage 9-10 backend pieces that are incomplete.
@@ -121,7 +121,7 @@ Scope: `docs/BRANCH_UX_CMS_BOOKING/BOOKING_REWORK_CITY_SERVICE/` (Stages 8-15)
 
 ### [major] F-05 - Stage 8 docs-sync and Stage 15 SHA traceability are incomplete
 
-- **Status:** addressed (variant B, Stage 6 GLOBAL_FIX): индекс в `README.md` приведён к фактам; `EXECUTION_LOG.md` содержит таблицу SHA+CI для Stages 8–15; `CHECKLISTS.md` §7 закрыт; `COMPATIBILITY_RUBITIME_WEBAPP.md` без ссылки на несуществующий `STAGE_11_*.md`.
+- **Status:** addressed (variant B, Stage 6 GLOBAL*FIX): индекс в `README.md` приведён к фактам; `EXECUTION_LOG.md` содержит таблицу SHA+CI для Stages 8–15; `CHECKLISTS.md` §7 закрыт; `COMPATIBILITY_RUBITIME_WEBAPP.md` без ссылки на несуществующий `STAGE_11*\*.md`.
 - Where (historical):
   - `docs/BRANCH_UX_CMS_BOOKING/BOOKING_REWORK_CITY_SERVICE/README.md`
   - `docs/BRANCH_UX_CMS_BOOKING/BOOKING_REWORK_CITY_SERVICE/CHECKLISTS.md`
@@ -175,13 +175,13 @@ Rationale: критическая и major находки по compat-sync и к
 
 Ниже — краткая карта Stages 8–15 без отдельных `STAGE_N_*.md` (кроме Stage 9). Полные задачи и CI — в `EXECUTION_LOG.md`.
 
-| Stage | Scope | Что сделано (репозиторий) | Evidence |
-|------|--------|---------------------------|----------|
-| 8 | Policy legacy-off, индексы docs, SHA-шаблон | Policy в `STAGE_5_INTEGRATOR_BRIDGE_AND_CUTOVER.md` / `CUTOVER_RUNBOOK` §6; записи в `EXECUTION_LOG` §Stage 8; `COMPATIBILITY_RUBITIME_WEBAPP.md` | §Stage 8 в `EXECUTION_LOG.md` |
-| 9 | Online intake спека + контракты | `STAGE_9_ONLINE_INTAKE.md`, `API_CONTRACT_ONLINE_INTAKE_V1.md`, `MIGRATION_CONTRACT_ONLINE_INTAKE_V1.md` | Файлы + §Stage 9 в `EXECUTION_LOG.md` |
-| 10 | DB + service + API intake | `048_online_intake.sql`, `online-intake` module, routes patient/doctor | §Stage 10 в `EXECUTION_LOG.md` |
-| 11 | Compat-sync | `049_patient_bookings_compat_source.sql`, `events.ts`, `pgPatientBookings.ts`, integrator connector/writePort | `COMPATIBILITY_RUBITIME_WEBAPP.md`, §Stage 11 |
-| 12 | Patient wizard online | Intake LFK/nutrition, `CabinetIntakeHistory`, ссылки из booking wizard | §Stage 12 |
-| 13 | Doctor inbox + notifications | `DoctorOnlineIntakeClient`, `intakeNotificationRelay` | §Stage 13 |
-| 14 | Hardening | `CHECKLISTS` / `CUTOVER_RUNBOOK` monitoring, limitations | §Stage 14 |
-| 15 | Final CI | Полный `pnpm run ci`, зафиксировано в логе | §Stage 15, таблица SHA+CI |
+| Stage | Scope                                       | Что сделано (репозиторий)                                                                                                                         | Evidence                                      |
+| ----- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| 8     | Policy legacy-off, индексы docs, SHA-шаблон | Policy в `STAGE_5_INTEGRATOR_BRIDGE_AND_CUTOVER.md` / `CUTOVER_RUNBOOK` §6; записи в `EXECUTION_LOG` §Stage 8; `COMPATIBILITY_RUBITIME_WEBAPP.md` | §Stage 8 в `EXECUTION_LOG.md`                 |
+| 9     | Online intake спека + контракты             | `STAGE_9_ONLINE_INTAKE.md`, `API_CONTRACT_ONLINE_INTAKE_V1.md`, `MIGRATION_CONTRACT_ONLINE_INTAKE_V1.md`                                          | Файлы + §Stage 9 в `EXECUTION_LOG.md`         |
+| 10    | DB + service + API intake                   | `048_online_intake.sql`, `online-intake` module, routes patient/doctor                                                                            | §Stage 10 в `EXECUTION_LOG.md`                |
+| 11    | Compat-sync                                 | `049_patient_bookings_compat_source.sql`, `events.ts`, `pgPatientBookings.ts`, integrator connector/writePort                                     | `COMPATIBILITY_RUBITIME_WEBAPP.md`, §Stage 11 |
+| 12    | Patient wizard online                       | Intake LFK/nutrition, `CabinetIntakeHistory`, ссылки из booking wizard                                                                            | §Stage 12                                     |
+| 13    | Doctor inbox + notifications                | `DoctorOnlineIntakeClient`, `intakeNotificationRelay`                                                                                             | §Stage 13                                     |
+| 14    | Hardening                                   | `CHECKLISTS` / `CUTOVER_RUNBOOK` monitoring, limitations                                                                                          | §Stage 14                                     |
+| 15    | Final CI                                    | Полный `pnpm run ci`, зафиксировано в логе                                                                                                        | §Stage 15, таблица SHA+CI                     |

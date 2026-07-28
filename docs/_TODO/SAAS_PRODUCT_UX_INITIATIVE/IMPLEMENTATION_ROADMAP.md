@@ -1,6 +1,6 @@
 # UX-09 — implementation roadmap
 
-> RE-VERIFIED 2026-07-23 (all [x] audited vs code): see docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/PRODUCTION_READINESS_LEDGER_2026-07-23.md
+> RE-VERIFIED 2026-07-23 (all [x] audited vs code): see docs/\_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/PRODUCTION_READINESS_LEDGER_2026-07-23.md
 
 **Статус:** active execution on `feat/doctor-ui-rebuild`. C0-C3, C2F writer/display scope and the shared S4/S5
 foundation are integrated; C4 is in progress. Exact completion and owner-acceptance remain recorded per stage in
@@ -21,7 +21,6 @@ foundation/tenant/enforcement scope.
 > **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
-
 
 План доводит проверенный UX-03…08 contract до последовательности самостоятельных implementation stages. В конце
 реализации должны существовать единые capability-gated поверхности для platform, organization management,
@@ -49,7 +48,6 @@ states, aliases и shared account surfaces остаются ровно таки�
 > **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
-
 
 При конфликте действует следующий порядок:
 
@@ -83,20 +81,19 @@ states, aliases и shared account surfaces остаются ровно таки�
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-
 ### 3.1 Два независимых трека
 
 `SAAS_FOUNDATION/SEQUENCE.md` остаётся единственным источником порядка текущей TEST-first foundation/enforcement
 работы. UX-09 не вставляет свои stages между его этапами и не переименовывает их. UX implementation может начинаться
 только отдельным разрешённым workstream после stage-level readiness review.
 
-| Foundation/enforcement gate | Что UX-09 может делать до него | Что запрещено до него |
-|---|---|---|
-| Membership/principal/capability contracts подтверждены текущим foundation | Документировать port/API contract, UI composition и fail-closed states | Создавать второй membership resolver, обходить role/GUC/RLS path, закреплять coarse `adminMode` как target auth |
-| Settings-root split завершён и patient-readable settings contract доказан | Разделять UI ownership PLAT/MGMT/ACC, описывать consumer payload | Добавлять новые per-flag bypass/read whitelist или читать secret-bearing settings из patient/public UI |
-| Enforced role/principal coverage и two-org negatives доказаны для затронутых paths | Реализовывать чистые presentation components поверх уже sanctioned ports | Переносить route/API и объявлять tenant-safe без реального-role direct/list/count/search/export/write proof |
-| Organization provisioning/ownership contract утверждён | Делать shell и state composition на существующих read models | Изобретать параллельные organization/branding/invite tables или client-provided `organizationId` authority |
-| UX stage прошёл собственный audit | Подготовить интеграционный handoff | Засчитывать UX audit как D3/D4/E1/E2/G1 evidence или наоборот |
+| Foundation/enforcement gate                                                        | Что UX-09 может делать до него                                           | Что запрещено до него                                                                                           |
+| ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| Membership/principal/capability contracts подтверждены текущим foundation          | Документировать port/API contract, UI composition и fail-closed states   | Создавать второй membership resolver, обходить role/GUC/RLS path, закреплять coarse `adminMode` как target auth |
+| Settings-root split завершён и patient-readable settings contract доказан          | Разделять UI ownership PLAT/MGMT/ACC, описывать consumer payload         | Добавлять новые per-flag bypass/read whitelist или читать secret-bearing settings из patient/public UI          |
+| Enforced role/principal coverage и two-org negatives доказаны для затронутых paths | Реализовывать чистые presentation components поверх уже sanctioned ports | Переносить route/API и объявлять tenant-safe без реального-role direct/list/count/search/export/write proof     |
+| Organization provisioning/ownership contract утверждён                             | Делать shell и state composition на существующих read models             | Изобретать параллельные organization/branding/invite tables или client-provided `organizationId` authority      |
+| UX stage прошёл собственный audit                                                  | Подготовить интеграционный handoff                                       | Засчитывать UX audit как D3/D4/E1/E2/G1 evidence или наоборот                                                   |
 
 ### 3.2 Integration handoff gate
 
@@ -121,7 +118,6 @@ states, aliases и shared account surfaces остаются ровно таки�
 > **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
-
 
 - Tenant = `Organization`; staff имеет ровно одно активное organization membership, patient может иметь несколько
   enrollments. UI selection не является authorization.
@@ -158,27 +154,26 @@ states, aliases и shared account surfaces остаются ровно таки�
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-
 Все двенадцать ответов пакета 16.07 классифицированы в dated rulings artifact. Review 18.07 добавил новые final
 decisions и branch-local decision gates. Execution gate теперь означает `0 unclassified owner decisions`, а не
 ложное `0 unresolved`: каждый открытый вопрос обязан иметь owner, зависимую ветку и безопасный stop. `Resolved
 future capability` не означает initial scope; engineering configuration и research backlog не являются owner
 decisions.
 
-| Decision | Current classification | Initial-release execution | Implementation policy / non-blocking backlog |
-|---|---|---|---|
-| UX08-01 card/history/`Мои` | resolved launch | U5B implements one org card, visit relation and own-events default | Record-class authorization policy, not a product decision gate |
-| UX08-02 transfer premise | rejected premise | No transfer lifecycle stage; solo/manual visit path stays in U3B/U5B | Another-specialist booking belongs only to a future clinic extension |
-| UX08-03 assistant scope | resolved launch absence | No role/workspace/grants implemented at launch | Future clinic design is outside current scope; no owner gate |
-| UX08-04 dual-role navigation | resolved launch | U2 provides one login and a simple management destination | Menu entry versus explicit mode switch is implementation choice |
-| UX08-05 patient neutral start | resolved launch | U5A restores last active org and shows switcher | None beyond normal implementation design |
-| UX08-06 public launch scope | resolved launch | U6A/U6B include landing/profile/booking/join; directory absent | Directory is future-deferred, not blocked launch work |
-| UX08-07 brand depth | resolved future capability | U7 implements core org identity/shared layout; full org brand waits for U8 origin | Own domain or platform subdomain + org name/logo; no per-clinic design fork |
-| UX08-08 domain/org-app direction | resolved staged future capability | U8A/B absent from initial DAG; platform web app first | Generated org PWA later; separate native org app is research backlog only |
-| UX08-09 custom-sender failure | resolved direction, future feature | If U8C is later built: standards-backed bounded retry within `expires_at`, expiry and owner alerts; never platform fallback | Configurable engineering defaults, not owner gate |
-| UX08-10 global-admin patient workflow | rejected premise | U9 implements diagnostics/reports only; no patient workflow branch | None |
-| UX08-11 patient relationship premise | rejected old invite-first premise; replacement resolved launch | U3B creates card + scheduled/walk-in visit, then links verified portal identity | Detailed matching/conflict policy |
-| UX08-12 communication topology | resolved launch; future scope excluded | Existing solo chat is unchanged; no clinic communication stage in launch | Architecture reservation only; no owner gate |
+| Decision                              | Current classification                                         | Initial-release execution                                                                                                   | Implementation policy / non-blocking backlog                                |
+| ------------------------------------- | -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| UX08-01 card/history/`Мои`            | resolved launch                                                | U5B implements one org card, visit relation and own-events default                                                          | Record-class authorization policy, not a product decision gate              |
+| UX08-02 transfer premise              | rejected premise                                               | No transfer lifecycle stage; solo/manual visit path stays in U3B/U5B                                                        | Another-specialist booking belongs only to a future clinic extension        |
+| UX08-03 assistant scope               | resolved launch absence                                        | No role/workspace/grants implemented at launch                                                                              | Future clinic design is outside current scope; no owner gate                |
+| UX08-04 dual-role navigation          | resolved launch                                                | U2 provides one login and a simple management destination                                                                   | Menu entry versus explicit mode switch is implementation choice             |
+| UX08-05 patient neutral start         | resolved launch                                                | U5A restores last active org and shows switcher                                                                             | None beyond normal implementation design                                    |
+| UX08-06 public launch scope           | resolved launch                                                | U6A/U6B include landing/profile/booking/join; directory absent                                                              | Directory is future-deferred, not blocked launch work                       |
+| UX08-07 brand depth                   | resolved future capability                                     | U7 implements core org identity/shared layout; full org brand waits for U8 origin                                           | Own domain or platform subdomain + org name/logo; no per-clinic design fork |
+| UX08-08 domain/org-app direction      | resolved staged future capability                              | U8A/B absent from initial DAG; platform web app first                                                                       | Generated org PWA later; separate native org app is research backlog only   |
+| UX08-09 custom-sender failure         | resolved direction, future feature                             | If U8C is later built: standards-backed bounded retry within `expires_at`, expiry and owner alerts; never platform fallback | Configurable engineering defaults, not owner gate                           |
+| UX08-10 global-admin patient workflow | rejected premise                                               | U9 implements diagnostics/reports only; no patient workflow branch                                                          | None                                                                        |
+| UX08-11 patient relationship premise  | rejected old invite-first premise; replacement resolved launch | U3B creates card + scheduled/walk-in visit, then links verified portal identity                                             | Detailed matching/conflict policy                                           |
+| UX08-12 communication topology        | resolved launch; future scope excluded                         | Existing solo chat is unchanged; no clinic communication stage in launch                                                    | Architecture reservation only; no owner gate                                |
 
 Ответ владельца переносится в предусмотренный roadmap датированный rulings artifact; только после этого gate в этом
 файле обновляется ссылкой на источник. Recommendation из packet нельзя переносить как ruling.
@@ -211,22 +206,21 @@ stage assumption or trigger an ad hoc decision document.
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-
 ### 6.1 Canonical screen ownership
 
 This table is the UX-09 projection of the exact UX-06 registry; ranges are inclusive and expand to `57` IDs.
 
-| Canonical IDs | Count | Primary implementation owner | Conditional owner |
-|---|---:|---|---|
-| `PUB-01…06` | 6 | U6A | `PUB-06` is a reserved deferred ID and is absent from initial release by ruling |
-| `ORG-PUB-01…03` | 3 | U6B | U8A/B adds only approved origin variants |
-| `PLAT-01…09` | 9 | U9 | PLAT-09 is support reports/escalation only; no patient intervention |
-| `MGMT-01…09` | 9 | U2 | U6B owns publication behavior; U7/U8 owns brand/domain/sender panels |
-| `CLIN-01…11` | 11 | U2/U5B | U3B manual patient/visit; CLIN-05 is future-reserved; existing solo chat remains as-is; launch modules converge in U10 |
-| `OPS-01…04` | 4 | Future clinic plan | Reserved IDs; assistant/receptionist not initial scope |
-| `PAT-01…11` | 11 | U5A | U3B activation/install; existing solo PAT-05 remains as-is; launch modules converge in U10 |
-| `ACC-01…04` | 4 | U2 | U3S launch security; future U3A/U8B only if separately activated |
-| **Total** | **57** | | |
+| Canonical IDs   |  Count | Primary implementation owner | Conditional owner                                                                                                      |
+| --------------- | -----: | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `PUB-01…06`     |      6 | U6A                          | `PUB-06` is a reserved deferred ID and is absent from initial release by ruling                                        |
+| `ORG-PUB-01…03` |      3 | U6B                          | U8A/B adds only approved origin variants                                                                               |
+| `PLAT-01…09`    |      9 | U9                           | PLAT-09 is support reports/escalation only; no patient intervention                                                    |
+| `MGMT-01…09`    |      9 | U2                           | U6B owns publication behavior; U7/U8 owns brand/domain/sender panels                                                   |
+| `CLIN-01…11`    |     11 | U2/U5B                       | U3B manual patient/visit; CLIN-05 is future-reserved; existing solo chat remains as-is; launch modules converge in U10 |
+| `OPS-01…04`     |      4 | Future clinic plan           | Reserved IDs; assistant/receptionist not initial scope                                                                 |
+| `PAT-01…11`     |     11 | U5A                          | U3B activation/install; existing solo PAT-05 remains as-is; launch modules converge in U10                             |
+| `ACC-01…04`     |      4 | U2                           | U3S launch security; future U3A/U8B only if separately activated                                                       |
+| **Total**       | **57** |                              |                                                                                                                        |
 
 Flow/state aliases remain non-canonical: `MGMT-SETUP`, `MGMT-TEAM`, `MGMT-INVITE`, `CLIN-PAT-INVITE`,
 `ACC-FIRST`, `PAT-INSTALL`, `ORG-PUB-04` and all `ACQ/STF/PIN/SMS/PBK/MOR/ERR` IDs. `OPS-05` remains obsolete;
@@ -234,22 +228,22 @@ none of them may create a new screen family.
 
 ### 6.2 Reuse and gaps
 
-| Area | Reuse | Gap, который stage должен доказать или закрыть |
-|---|---|---|
-| Signup/auth | Public auth, registration/start-confirm, email challenge, patient email setup | Specialist binding deferred; patient target passwordless compatibility; persona collision/privacy/session retry; complete 2FA recovery |
-| Future clinic staff invite | Current members/invite UI and token mechanics as historical reuse evidence | Deferred; no initial implementation. Exact future staffing/grants require a later clinic contract |
-| Manual patient + portal linking | Existing patient identity/enrollment, calendar/booking and delivery primitives | Manual card + scheduled/walk-in visit and identity-to-existing-card linking are incomplete; invite/proof remains separate |
-| SMS | Existing notification channel infrastructure | Patient invite SMS lifecycle absent; SMS must remain transport-only and consent/suppression-aware |
-| Public booking | Existing booking wizard and appointment/payment primitives | Success does not prove atomic enrollment/app continuation; internal `userId` authority/leak and identity ambiguity need removal |
-| Staff capabilities | Current role/admin/doctor gates and membership resolver | Launch owner/admin/specialist capability/object parity is not evidenced; assistant is absent rather than assigned provisional grants |
-| Patient context | Enrollment resolver and patient screens | Chooser/switcher contract incomplete; Patient Today currently exposes `organization_principal_required` defect |
-| Card/history | Patient workbench, visits/program components | Ruled one-card/visit relation needs entry visibility/private-class and list/direct/count/search/export enforcement |
-| Future clinic visit coordination | Existing specialist/appointment relations | Deferred; launch uses current-specialist manual/scheduled/walk-in visits only |
-| Management | Clinic members/settings, booking/admin tabs, mixed `/app/settings` | No coherent MGMT shell; personal/org/platform settings and booking setup are mixed |
-| Public/profile | Current patient-first landing, booking and legal pages | Specialist-first landing, published org projection, trusted join and directory release boundary incomplete |
-| Branding/domain/sender | Some settings/content/preview/PWA primitives | No complete org brand resolver, publication version, hostname base/binding UI, authenticated sender readiness or per-origin PWA |
-| Platform admin | Analytics, health, audit, settings and aggregate identity-integrity diagnostics | Current doctor/admin shell and `adminMode` mix platform/org/clinical ownership; patient merge/name-match pages are not reusable platform-admin product surfaces |
-| Routes | 152 current pages classified, many reusable components | 57 canonical target IDs are logical; route moves need guard-equivalent redirects, link census and no duplicate trees |
+| Area                             | Reuse                                                                           | Gap, который stage должен доказать или закрыть                                                                                                                  |
+| -------------------------------- | ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Signup/auth                      | Public auth, registration/start-confirm, email challenge, patient email setup   | Specialist binding deferred; patient target passwordless compatibility; persona collision/privacy/session retry; complete 2FA recovery                          |
+| Future clinic staff invite       | Current members/invite UI and token mechanics as historical reuse evidence      | Deferred; no initial implementation. Exact future staffing/grants require a later clinic contract                                                               |
+| Manual patient + portal linking  | Existing patient identity/enrollment, calendar/booking and delivery primitives  | Manual card + scheduled/walk-in visit and identity-to-existing-card linking are incomplete; invite/proof remains separate                                       |
+| SMS                              | Existing notification channel infrastructure                                    | Patient invite SMS lifecycle absent; SMS must remain transport-only and consent/suppression-aware                                                               |
+| Public booking                   | Existing booking wizard and appointment/payment primitives                      | Success does not prove atomic enrollment/app continuation; internal `userId` authority/leak and identity ambiguity need removal                                 |
+| Staff capabilities               | Current role/admin/doctor gates and membership resolver                         | Launch owner/admin/specialist capability/object parity is not evidenced; assistant is absent rather than assigned provisional grants                            |
+| Patient context                  | Enrollment resolver and patient screens                                         | Chooser/switcher contract incomplete; Patient Today currently exposes `organization_principal_required` defect                                                  |
+| Card/history                     | Patient workbench, visits/program components                                    | Ruled one-card/visit relation needs entry visibility/private-class and list/direct/count/search/export enforcement                                              |
+| Future clinic visit coordination | Existing specialist/appointment relations                                       | Deferred; launch uses current-specialist manual/scheduled/walk-in visits only                                                                                   |
+| Management                       | Clinic members/settings, booking/admin tabs, mixed `/app/settings`              | No coherent MGMT shell; personal/org/platform settings and booking setup are mixed                                                                              |
+| Public/profile                   | Current patient-first landing, booking and legal pages                          | Specialist-first landing, published org projection, trusted join and directory release boundary incomplete                                                      |
+| Branding/domain/sender           | Some settings/content/preview/PWA primitives                                    | No complete org brand resolver, publication version, hostname base/binding UI, authenticated sender readiness or per-origin PWA                                 |
+| Platform admin                   | Analytics, health, audit, settings and aggregate identity-integrity diagnostics | Current doctor/admin shell and `adminMode` mix platform/org/clinical ownership; patient merge/name-match pages are not reusable platform-admin product surfaces |
+| Routes                           | 152 current pages classified, many reusable components                          | 57 canonical target IDs are logical; route moves need guard-equivalent redirects, link census and no duplicate trees                                            |
 
 Любой gap, который предполагает новую persistence shape, сначала получает reviewed data/API contract. Название
 будущей таблицы или поля не является частью этого roadmap.
@@ -273,22 +267,22 @@ Settings use only `createSystemSettingsService().updateSetting` and its matching
 `isMechanicEnabled` behind `requireEntitlement`; they are currently default-on/dormant and therefore do **not**
 prove a feature entitlement wall.
 
-| §6 gap | Current fact / ownership | Missing contract → stage/task gate | Safe default |
-|---|---|---|---|
-| Signup/auth | Global identity; staff org comes from membership; specialist binding is separate. | Binding, first-run, 2FA/recovery → **U3S**. `#855` is unblocked by the 2026-07-19 FIO ruling: separate structured registration creates a new patient; passwordless «Войти по коду» is existing-account login. | Do not ask FIO before every OTP login; implementation remains pending. |
-| Future staff invite | Current member/invite mechanics are reuse; assistant has no launch workspace. | Clinic grants/seats → future **U3A/C4A** after S4-0/S4-1. | Unentitled team route/API absent or denied. |
-| Manual patient/linking | Global patient; org-scoped relationship/enrollment; exact-org booking resolver exists. | Card + scheduled/walk-in + verified link → **U3B**, consuming **U5A**. | Delivery/auth creates neither enrollment nor merge. |
-| SMS | Notification infrastructure is transport, not identity authority. | Attempt/consent/suppression lifecycle → **U3B SMS-01…03**; custom sender → future **U8C**. | Email-bound route; no SMS elevation or real send. |
-| Public booking | Exact-org/canonical-phone path exists; response currently exposes `userId`. | Atomic booking+enrollment and narrow continuation → **U3B**, publication → **U6B**. | Booking may complete without portal access; never use internal ID as authority. |
-| Staff capabilities | Membership/role guards exist; management and clinical binding are distinct. | Real-principal object/capability parity → **U1**; C4 stays Foundation S4-owned. | Missing binding/capability denies; entitlement never expands access. |
-| Patient context | Enrollment resolver exists; Today has recorded `organization_principal_required` defect. | Last-active/chooser/switch/deep link → **U5A**. | Neutral chooser/recovery, never arbitrary/global org fallback. |
-| Card/history | Workbench/visit/program surfaces are reuse only. | One card, visit relation and all parity paths → **U5B**. | Missing class → own/assigned subset only. |
-| Future clinic visits | Current appointment relation only; transfer premise rejected. | Future ordinary clinic contract → absent **U5C**. | No transfer queue/hierarchy/cross-org movement. |
-| Management | Members/settings/booking and `/app/settings` are mixed. | MGMT/ACC shell → **U2**; team/billing bodies → **C4/C5**. | No second settings tree; absent body stays fail-closed. |
-| Public/profile | Existing landing is patient-first; route name is not publication proof. | Landing **U6A**, published profile/trusted join **U6B**. | Directory absent; unknown context fails closed. |
-| Branding/domain/sender | DB-backed org-aware settings exists; TEST integrator mirror lacks locked-mode principal stamping. | Brand resolver → **U7**; origin/PWA/sender → future **U8A/B/C**. | No env secret path; configured custom channel holds/expires, never platform-falls-back. |
-| Platform admin | Current shell mixes platform/org/clinical ownership. | Aggregate diagnostics/config boundary → **U9**. | No patient browse/merge/repair/impersonation. |
-| Routes | `152` current pages are classified; `57` IDs are logical screen ownership. | Guard-equivalent migration/link census → later owners, converged **U10**. | Preserve guarded compatibility; no duplicate route tree. |
+| §6 gap                 | Current fact / ownership                                                                          | Missing contract → stage/task gate                                                                                                                                                                            | Safe default                                                                            |
+| ---------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Signup/auth            | Global identity; staff org comes from membership; specialist binding is separate.                 | Binding, first-run, 2FA/recovery → **U3S**. `#855` is unblocked by the 2026-07-19 FIO ruling: separate structured registration creates a new patient; passwordless «Войти по коду» is existing-account login. | Do not ask FIO before every OTP login; implementation remains pending.                  |
+| Future staff invite    | Current member/invite mechanics are reuse; assistant has no launch workspace.                     | Clinic grants/seats → future **U3A/C4A** after S4-0/S4-1.                                                                                                                                                     | Unentitled team route/API absent or denied.                                             |
+| Manual patient/linking | Global patient; org-scoped relationship/enrollment; exact-org booking resolver exists.            | Card + scheduled/walk-in + verified link → **U3B**, consuming **U5A**.                                                                                                                                        | Delivery/auth creates neither enrollment nor merge.                                     |
+| SMS                    | Notification infrastructure is transport, not identity authority.                                 | Attempt/consent/suppression lifecycle → **U3B SMS-01…03**; custom sender → future **U8C**.                                                                                                                    | Email-bound route; no SMS elevation or real send.                                       |
+| Public booking         | Exact-org/canonical-phone path exists; response currently exposes `userId`.                       | Atomic booking+enrollment and narrow continuation → **U3B**, publication → **U6B**.                                                                                                                           | Booking may complete without portal access; never use internal ID as authority.         |
+| Staff capabilities     | Membership/role guards exist; management and clinical binding are distinct.                       | Real-principal object/capability parity → **U1**; C4 stays Foundation S4-owned.                                                                                                                               | Missing binding/capability denies; entitlement never expands access.                    |
+| Patient context        | Enrollment resolver exists; Today has recorded `organization_principal_required` defect.          | Last-active/chooser/switch/deep link → **U5A**.                                                                                                                                                               | Neutral chooser/recovery, never arbitrary/global org fallback.                          |
+| Card/history           | Workbench/visit/program surfaces are reuse only.                                                  | One card, visit relation and all parity paths → **U5B**.                                                                                                                                                      | Missing class → own/assigned subset only.                                               |
+| Future clinic visits   | Current appointment relation only; transfer premise rejected.                                     | Future ordinary clinic contract → absent **U5C**.                                                                                                                                                             | No transfer queue/hierarchy/cross-org movement.                                         |
+| Management             | Members/settings/booking and `/app/settings` are mixed.                                           | MGMT/ACC shell → **U2**; team/billing bodies → **C4/C5**.                                                                                                                                                     | No second settings tree; absent body stays fail-closed.                                 |
+| Public/profile         | Existing landing is patient-first; route name is not publication proof.                           | Landing **U6A**, published profile/trusted join **U6B**.                                                                                                                                                      | Directory absent; unknown context fails closed.                                         |
+| Branding/domain/sender | DB-backed org-aware settings exists; TEST integrator mirror lacks locked-mode principal stamping. | Brand resolver → **U7**; origin/PWA/sender → future **U8A/B/C**.                                                                                                                                              | No env secret path; configured custom channel holds/expires, never platform-falls-back. |
+| Platform admin         | Current shell mixes platform/org/clinical ownership.                                              | Aggregate diagnostics/config boundary → **U9**.                                                                                                                                                               | No patient browse/merge/repair/impersonation.                                           |
+| Routes                 | `152` current pages are classified; `57` IDs are logical screen ownership.                        | Guard-equivalent migration/link census → later owners, converged **U10**.                                                                                                                                     | Preserve guarded compatibility; no duplicate route tree.                                |
 
 **Present/missing migration and API boundary.** P0.11 already provides org-aware settings storage/read/write and the
 webapp service chokepoint; the mirror principal defect is a Foundation follow-up, not a UX workaround. Existing
@@ -304,15 +298,15 @@ remaining stage-specific implementation is tracked below. C4C5-08 is explicitly 
 
 ### 6.3 Journey ownership registry
 
-| UX-04 journey | Implementation owner | Convergence/acceptance |
-|---|---|---|
-| J1 specialist self-signup | U3S (`ACQ-01…05`) | U4 shared auth/session/privacy review; U6A truthful acquisition entry |
-| J2 clinic staff invite | Future U3A (`STF-01…08`) | Deferred; not part of launch U4 acceptance |
-| J3 patient email invite | U3B (`PIN-01…09`) | Requires completed U5A; U4 convergence |
-| J4 patient SMS fallback | U3B (`SMS-01…03`) | Same invite/enrollment as J3; U4 verifies no auth elevation |
-| J5 public booking continuation | U3B (`PBK-01…08`) | U4 identity/enrollment convergence; U6B public projection |
-| J6 returning multi-org patient | U5A (`MOR-01…05`) | U3B consumes resolver; U4 verifies invite/install continuation |
-| J7 terminal/wrong-recipient/replay recovery | Launch U3S/U3B; future U3A separately | U4 owns launch `ERR-*` consistency and redaction |
+| UX-04 journey                               | Implementation owner                  | Convergence/acceptance                                                |
+| ------------------------------------------- | ------------------------------------- | --------------------------------------------------------------------- |
+| J1 specialist self-signup                   | U3S (`ACQ-01…05`)                     | U4 shared auth/session/privacy review; U6A truthful acquisition entry |
+| J2 clinic staff invite                      | Future U3A (`STF-01…08`)              | Deferred; not part of launch U4 acceptance                            |
+| J3 patient email invite                     | U3B (`PIN-01…09`)                     | Requires completed U5A; U4 convergence                                |
+| J4 patient SMS fallback                     | U3B (`SMS-01…03`)                     | Same invite/enrollment as J3; U4 verifies no auth elevation           |
+| J5 public booking continuation              | U3B (`PBK-01…08`)                     | U4 identity/enrollment convergence; U6B public projection             |
+| J6 returning multi-org patient              | U5A (`MOR-01…05`)                     | U3B consumes resolver; U4 verifies invite/install continuation        |
+| J7 terminal/wrong-recipient/replay recovery | Launch U3S/U3B; future U3A separately | U4 owns launch `ERR-*` consistency and redaction                      |
 
 This registry assigns implementation ownership; it does not collapse staff membership, patient enrollment, delivery
 or authentication policies into one object.
@@ -326,19 +320,18 @@ or authentication policies into one object.
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-
 ### 7.1 Meaningful phases
 
-| Phase | Full worker scope | Stages | Exit |
-|---|---|---|---|
-| P0 — contract readiness | Один цельный inventory/contract pass, без product UI | U0 | Все gaps имеют owner/path; docs-only phase check at U0 |
-| P1 — authorization and solo workspace spine | Capability enforcement and launch shells; future OPS absent | U1, U2 | Direct-route matrix + one launch shell; full CI after U2 |
-| P2 — context and relationship acquisition | Ранний patient resolver, specialist signup, patient journeys и общий launch convergence | U5A, U3S, U3B, U4 | ACQ/PIN/SMS/PBK/MOR separation green; full CI after U4 |
-| P3 — solo clinical policy | One card/history, manual/scheduled/walk-in visit relation; existing solo chat unchanged | U5B | Solo launch path proven; full CI after U5B |
-| P4 — public acquisition | Platform entry и org profile/booking/join | U6A, U6B | Published projection/trusted continuation; full CI after U6B |
-| P5 — core presentation and platform operations | Base brand plus core PLAT shell/config/reliability/org ops | U7, U9 | One sanctioned platform ops/config path; full CI after U9 |
-| P6 — deferred future branches | Staff/team invite, multi-specialist visit coordination, clinic communications, domain/PWA/sender work; all absent from initial release | U3A, U5C, U5D, U8A, U8B, U8C | Not a launch dependency; approved domain/generated-PWA work needs future commercial/implementation activation, readiness and audit; native org app remains research-only |
-| P7 — final convergence | Route, responsive, visual and acceptance consolidation | U10 | 57/57, 152/152 and final full CI after U10 |
+| Phase                                          | Full worker scope                                                                                                                      | Stages                       | Exit                                                                                                                                                                     |
+| ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| P0 — contract readiness                        | Один цельный inventory/contract pass, без product UI                                                                                   | U0                           | Все gaps имеют owner/path; docs-only phase check at U0                                                                                                                   |
+| P1 — authorization and solo workspace spine    | Capability enforcement and launch shells; future OPS absent                                                                            | U1, U2                       | Direct-route matrix + one launch shell; full CI after U2                                                                                                                 |
+| P2 — context and relationship acquisition      | Ранний patient resolver, specialist signup, patient journeys и общий launch convergence                                                | U5A, U3S, U3B, U4            | ACQ/PIN/SMS/PBK/MOR separation green; full CI after U4                                                                                                                   |
+| P3 — solo clinical policy                      | One card/history, manual/scheduled/walk-in visit relation; existing solo chat unchanged                                                | U5B                          | Solo launch path proven; full CI after U5B                                                                                                                               |
+| P4 — public acquisition                        | Platform entry и org profile/booking/join                                                                                              | U6A, U6B                     | Published projection/trusted continuation; full CI after U6B                                                                                                             |
+| P5 — core presentation and platform operations | Base brand plus core PLAT shell/config/reliability/org ops                                                                             | U7, U9                       | One sanctioned platform ops/config path; full CI after U9                                                                                                                |
+| P6 — deferred future branches                  | Staff/team invite, multi-specialist visit coordination, clinic communications, domain/PWA/sender work; all absent from initial release | U3A, U5C, U5D, U8A, U8B, U8C | Not a launch dependency; approved domain/generated-PWA work needs future commercial/implementation activation, readiness and audit; native org app remains research-only |
+| P7 — final convergence                         | Route, responsive, visual and acceptance consolidation                                                                                 | U10                          | 57/57, 152/152 and final full CI after U10                                                                                                                               |
 
 Не объединять U0–U10 в один megastage и не дробить stage на двухстрочные fixes. Один worker получает весь stage и
 его checklist. Этап может занять 5–20 минут и дольше; статус-проверка не является timeout или failure.
@@ -849,30 +842,30 @@ Status детального plan, taskdb и этот registry обновляют
 Umbrella/index, Foundation helper-checklists и Rubitime production runbooks не прибавляются к этому denominator как
 равноправные stages: они проверяются вместе с owning leaf plan и не превращаются в отдельную очередь.
 
-| Leaf plan | Current class | Current truth / task mapping |
-|---|---|---|
-| [`SAAS_FOUNDATION/RUBITIME_RETIREMENT_EXECUTION_PLAN.md`](../SAAS_FOUNDATION/RUBITIME_RETIREMENT_EXECUTION_PLAN.md) | gated | R0–R4 имеют code/proof; R5–R7 требуют operational/owner gates. Полный checklist provenance дополнительно сверяется перед следующим Rubitime action. |
-| [`DOCTOR_UI_REWORK_2026-07-20/PLAN.md`](../DOCTOR_UI_REWORK_2026-07-20/PLAN.md) | gated | Atomic tracker является authority; закрытые UI-6 A/B/D slices сохранены, но `#963` исправлен из false `done` в owner-blocked до exact contract/defer для «Самые активные»/new counters/hiding. `#977`, `#971→#796`, `#964` и `#848` owner-blocked; public Online live proof — U6B `#926`, Voice `#922` post-production. |
-| [`EDITOR_TIPTAP_MIGRATION_PLAN.md`](../EDITOR_TIPTAP_MIGRATION_PLAN.md) | partial slice | Repository migration, compatibility audit и milestone CI закрыты; `#931` исправлен из false `done` в owner-blocked, потому что mandatory live TEST verification каждого discovery-manifest screen остаётся `[ ]`. |
-| [`.cursor/plans/fio_identity_cleanup.plan.md`](../../../.cursor/plans/fio_identity_cleanup.plan.md) | gated | Phases 0–8 закрыты; `#857` production backfill и `#858` parser audit/retirement остаются gated. |
-| [`STABILITY_SECURITY_HARDENING_PLAN_2026-07-21.md`](../STABILITY_SECURITY_HARDENING_PLAN_2026-07-21.md) | open | C1 `#969` repository dark launch закрыт through `ad398fe36`, terminal audit PASS; host activation осталась `SEC-02/PR-04` gate. D1 `#970` ждёт TTL/admin/SLA ruling; D2 `#973/#974` закрыт through `2d3c98acc`. E2 `#975/#976` repository-complete through `63de21030`, independent re-audit `0/0/0` и accumulated full CI зелёные. E3 source contract `#980` terminal-audited `0/0/0` through `08418ecbc`; cumulative code candidate `55d1e9359` прошёл E3-01…10, но fresh terminal audit `0/1/0` повторно получил два 4 KiB p95 run выше frozen `1.05`, поэтому E3-11/12, `#980/#982` и overall E3 blocked до owner-разрешения третьей optimization attempt. A4/A2/E1/post-launch residual идут только по собственным gates. |
-| [`SAAS_FOUNDATION/ADMIN_BASELINE_AND_SUPPORT_CHAT_DESIGN.md`](../SAAS_FOUNDATION/ADMIN_BASELINE_AND_SUPPORT_CHAT_DESIGN.md) | gated | Leaf plan был потерян из registry. Единственный contract audit остановил `#808` с `0/2/2`: четыре source-contract замечания требуют прямого разрешения владельца на один bounded correction и fresh audit. Schema/code не начинались; Phase 3–5, TEST и owner wording/notification decisions также gated. |
-| [`UNSUPPORTED_CLIENT_FALLBACK_PLAN.md`](../UNSUPPORTED_CLIENT_FALLBACK_PLAN.md) | partial slice | Закрыт только Ф0 repository slice `#936`; Ф1/Ф2/guard не объявляются завершёнными. |
-| [`OUTBOUND_DELIVERY_ALERTING_PLAN.md`](../OUTBOUND_DELIVERY_ALERTING_PLAN.md) | gated | P1 и repository P2/P3/P4 закрыты through `1fd6bf66e`; P0/P-guard и owner TEST fault-injection acceptance остаются в `#950`. |
-| [`SECURITY_CI_STACK_PLAN.md`](../SECURITY_CI_STACK_PLAN.md) | gated | `#881` owner-waiting; dependency refresh не закрывает Security CI checklist. |
-| [`PR-00_SCOPE_LOCK.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/PR-00_SCOPE_LOCK.md) | gated | Частичный registry готов; owner/legal inputs остаются в `#899`. |
-| [`PR-01_PROCESSING_REGISTER.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/PR-01_PROCESSING_REGISTER.md) | gated | Factual register готов; ответственные/юрист/Selectel/РКН остаются owner/legal inputs `#899`. |
-| [`SEC-02_HOST_AND_SECRETS.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/SEC-02_HOST_AND_SECRETS.md) | gated | `#900` contract audit остановил R1 с `0/2/0`: неполная owner-row traceability и unsafe raw `systemctl cat`; task owner-blocked на разрешение одного bounded correction-pass. Host/TEST/PROD mutations отдельно gated. |
-| [`DR-01_BACKUP_AND_RECOVERY.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/DR-01_BACKUP_AND_RECOVERY.md) | partial slice | `#901` закрыл repository backup-safety; реальные keys/offsite/PITR/restore/RPO/RTO не закрыты. |
-| [`CRYPTO-01_DATA_AND_KEY_ENCRYPTION.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/CRYPTO-01_DATA_AND_KEY_ENCRYPTION.md) | open | ADR/ports/tests разрешены; application/migration ждут stable dependency/legal/owner gates. |
-| [`INFRA-01_ENCRYPTED_PROD_MIGRATION.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/INFRA-01_ENCRYPTED_PROD_MIGRATION.md) | gated | Planning/dark-target/cutover под umbrella `#898/#900/#901`; production только owner window. |
-| [`NTF-01_APP_PUSH_AND_MESSENGER_AUTH_ONLY.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/NTF-01_APP_PUSH_AND_MESSENGER_AUTH_ONLY.md) | gated | N0/N1/N1A/N1B0 закрыты; `#913` owner-blocked на exact field matrix, а native-push ждёт MOB gates. Старый staff deep-link `#816` остаётся blocked внутри N3/N4 до фактического push-only replacement; только дубль `#822` поглощён N4 без отдельной реализации. |
-| [`LOG-01_SENSITIVE_PAYLOAD_HYGIENE.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/LOG-01_SENSITIVE_PAYLOAD_HYGIENE.md) | gated | L1 serializer guard закрыт через `1cbac7e16`, но единственный L0 contract audit остановил `#914` с `0/3/1`: пропущенные logging/error paths, persistent families и exact test manifest требуют прямого разрешения владельца на один bounded correction и fresh audit. L2 schema/retention ждёт G-03 + NTF census. |
-| [`PR-02_HEALTH_CONSENT.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/PR-02_HEALTH_CONSENT.md) | gated | `#907` ждёт D4/S5-7/legal text. |
-| [`PR-03_DATA_RIGHTS_AND_RETENTION.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/PR-03_DATA_RIGHTS_AND_RETENTION.md) | gated | Закрыт только PR-03A0; broad `#905` ждёт PR-02, payment slice — billing freeze. |
-| [`SEC-03_CLINICAL_ACCESS_AUDIT.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/SEC-03_CLINICAL_ACCESS_AUDIT.md) | gated | `#908` ждёт D4. |
-| [`SEC-04_GOVERNANCE_AND_INCIDENTS.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/SEC-04_GOVERNANCE_AND_INCIDENTS.md) | gated | `#906` ждёт SEC-03 и DR/log/break-glass gates. |
-| [`PR-04_ISPDN_RELEASE_GATE.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/PR-04_ISPDN_RELEASE_GATE.md) | gated | `#909`, финальный owner/external release gate. |
+| Leaf plan                                                                                                                                | Current class | Current truth / task mapping                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| ---------------------------------------------------------------------------------------------------------------------------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [`SAAS_FOUNDATION/RUBITIME_RETIREMENT_EXECUTION_PLAN.md`](../SAAS_FOUNDATION/RUBITIME_RETIREMENT_EXECUTION_PLAN.md)                      | gated         | R0–R4 имеют code/proof; R5–R7 требуют operational/owner gates. Полный checklist provenance дополнительно сверяется перед следующим Rubitime action.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| [`DOCTOR_UI_REWORK_2026-07-20/PLAN.md`](../DOCTOR_UI_REWORK_2026-07-20/PLAN.md)                                                          | gated         | Atomic tracker является authority; закрытые UI-6 A/B/D slices сохранены, но `#963` исправлен из false `done` в owner-blocked до exact contract/defer для «Самые активные»/new counters/hiding. `#977`, `#971→#796`, `#964` и `#848` owner-blocked; public Online live proof — U6B `#926`, Voice `#922` post-production.                                                                                                                                                                                                                                                                                                                                                                                                        |
+| [`EDITOR_TIPTAP_MIGRATION_PLAN.md`](../EDITOR_TIPTAP_MIGRATION_PLAN.md)                                                                  | partial slice | Repository migration, compatibility audit и milestone CI закрыты; `#931` исправлен из false `done` в owner-blocked, потому что mandatory live TEST verification каждого discovery-manifest screen остаётся `[ ]`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| [`.cursor/plans/fio_identity_cleanup.plan.md`](../../../.cursor/plans/fio_identity_cleanup.plan.md)                                      | gated         | Phases 0–8 закрыты; `#857` production backfill и `#858` parser audit/retirement остаются gated.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| [`STABILITY_SECURITY_HARDENING_PLAN_2026-07-21.md`](../STABILITY_SECURITY_HARDENING_PLAN_2026-07-21.md)                                  | open          | C1 `#969` repository dark launch закрыт through `ad398fe36`, terminal audit PASS; host activation осталась `SEC-02/PR-04` gate. D1 `#970` ждёт TTL/admin/SLA ruling; D2 `#973/#974` закрыт through `2d3c98acc`. E2 `#975/#976` repository-complete through `63de21030`, independent re-audit `0/0/0` и accumulated full CI зелёные. E3 source contract `#980` terminal-audited `0/0/0` through `08418ecbc`; cumulative code candidate `55d1e9359` прошёл E3-01…10, но fresh terminal audit `0/1/0` повторно получил два 4 KiB p95 run выше frozen `1.05`, поэтому E3-11/12, `#980/#982` и overall E3 blocked до owner-разрешения третьей optimization attempt. A4/A2/E1/post-launch residual идут только по собственным gates. |
+| [`SAAS_FOUNDATION/ADMIN_BASELINE_AND_SUPPORT_CHAT_DESIGN.md`](../SAAS_FOUNDATION/ADMIN_BASELINE_AND_SUPPORT_CHAT_DESIGN.md)              | gated         | Leaf plan был потерян из registry. Единственный contract audit остановил `#808` с `0/2/2`: четыре source-contract замечания требуют прямого разрешения владельца на один bounded correction и fresh audit. Schema/code не начинались; Phase 3–5, TEST и owner wording/notification decisions также gated.                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| [`UNSUPPORTED_CLIENT_FALLBACK_PLAN.md`](../UNSUPPORTED_CLIENT_FALLBACK_PLAN.md)                                                          | partial slice | Закрыт только Ф0 repository slice `#936`; Ф1/Ф2/guard не объявляются завершёнными.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| [`OUTBOUND_DELIVERY_ALERTING_PLAN.md`](../OUTBOUND_DELIVERY_ALERTING_PLAN.md)                                                            | gated         | P1 и repository P2/P3/P4 закрыты through `1fd6bf66e`; P0/P-guard и owner TEST fault-injection acceptance остаются в `#950`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| [`SECURITY_CI_STACK_PLAN.md`](../SECURITY_CI_STACK_PLAN.md)                                                                              | gated         | `#881` owner-waiting; dependency refresh не закрывает Security CI checklist.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| [`PR-00_SCOPE_LOCK.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/PR-00_SCOPE_LOCK.md)                                               | gated         | Частичный registry готов; owner/legal inputs остаются в `#899`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| [`PR-01_PROCESSING_REGISTER.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/PR-01_PROCESSING_REGISTER.md)                             | gated         | Factual register готов; ответственные/юрист/Selectel/РКН остаются owner/legal inputs `#899`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| [`SEC-02_HOST_AND_SECRETS.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/SEC-02_HOST_AND_SECRETS.md)                                 | gated         | `#900` contract audit остановил R1 с `0/2/0`: неполная owner-row traceability и unsafe raw `systemctl cat`; task owner-blocked на разрешение одного bounded correction-pass. Host/TEST/PROD mutations отдельно gated.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| [`DR-01_BACKUP_AND_RECOVERY.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/DR-01_BACKUP_AND_RECOVERY.md)                             | partial slice | `#901` закрыл repository backup-safety; реальные keys/offsite/PITR/restore/RPO/RTO не закрыты.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| [`CRYPTO-01_DATA_AND_KEY_ENCRYPTION.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/CRYPTO-01_DATA_AND_KEY_ENCRYPTION.md)             | open          | ADR/ports/tests разрешены; application/migration ждут stable dependency/legal/owner gates.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| [`INFRA-01_ENCRYPTED_PROD_MIGRATION.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/INFRA-01_ENCRYPTED_PROD_MIGRATION.md)             | gated         | Planning/dark-target/cutover под umbrella `#898/#900/#901`; production только owner window.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| [`NTF-01_APP_PUSH_AND_MESSENGER_AUTH_ONLY.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/NTF-01_APP_PUSH_AND_MESSENGER_AUTH_ONLY.md) | gated         | N0/N1/N1A/N1B0 закрыты; `#913` owner-blocked на exact field matrix, а native-push ждёт MOB gates. Старый staff deep-link `#816` остаётся blocked внутри N3/N4 до фактического push-only replacement; только дубль `#822` поглощён N4 без отдельной реализации.                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| [`LOG-01_SENSITIVE_PAYLOAD_HYGIENE.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/LOG-01_SENSITIVE_PAYLOAD_HYGIENE.md)               | gated         | L1 serializer guard закрыт через `1cbac7e16`, но единственный L0 contract audit остановил `#914` с `0/3/1`: пропущенные logging/error paths, persistent families и exact test manifest требуют прямого разрешения владельца на один bounded correction и fresh audit. L2 schema/retention ждёт G-03 + NTF census.                                                                                                                                                                                                                                                                                                                                                                                                              |
+| [`PR-02_HEALTH_CONSENT.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/PR-02_HEALTH_CONSENT.md)                                       | gated         | `#907` ждёт D4/S5-7/legal text.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| [`PR-03_DATA_RIGHTS_AND_RETENTION.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/PR-03_DATA_RIGHTS_AND_RETENTION.md)                 | gated         | Закрыт только PR-03A0; broad `#905` ждёт PR-02, payment slice — billing freeze.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| [`SEC-03_CLINICAL_ACCESS_AUDIT.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/SEC-03_CLINICAL_ACCESS_AUDIT.md)                       | gated         | `#908` ждёт D4.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| [`SEC-04_GOVERNANCE_AND_INCIDENTS.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/SEC-04_GOVERNANCE_AND_INCIDENTS.md)                 | gated         | `#906` ждёт SEC-03 и DR/log/break-glass gates.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| [`PR-04_ISPDN_RELEASE_GATE.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/PR-04_ISPDN_RELEASE_GATE.md)                               | gated         | `#909`, финальный owner/external release gate.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 
 Исторически доказанный completion/checklist shortcut: частичные Doctor UI slices были представлены как blanket
 baseline полного parent scope; это исправлено atomic tracker в `1987d0b9a`. Для Rubitime execution plan и DB cleanup sequence существуют code/proof artifacts, но LOG/taskdb не
@@ -998,7 +991,6 @@ Taskdb хранит status/owner/acceptance links, а не копию требо
 > **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
-
 
 ### U0 — contract, ownership and data-gap readiness
 
@@ -1786,7 +1778,6 @@ responsive, accessibility and visual acceptance.
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-
 ```text
 Foundation handoff -> U0 -> U1 -> U2
 U1 -> U5A
@@ -1827,27 +1818,27 @@ The registry below is the machine-check source for stage DAG. The diagram is its
 `Dependencies`/`Merge dependency` may add external foundation, owner-ruling or infrastructure gates but may not add a
 reverse stage edge.
 
-| Stage | Direct stage dependencies | Initial-release inclusion |
-|---|---|---|
-| U0 | none (foundation handoff is external) | included |
-| U1 | U0 | included |
-| U2 | U1 | included |
-| U5A | U0, U1 | included |
-| U3S | U0, U1, U2 | included |
-| U3A | U0, U1, U2 | absent optional node; dependencies apply only if future-activated |
-| U3B | U1, U5A | included |
-| U4 | U2, U3S, U3B, U5A | included |
-| U5B | U1, U5A | included |
-| U5C | U1, U3B, U5B | absent optional node; dependencies apply only if future-activated |
-| U5D | U1, U5A, U5B | absent optional node; dependencies apply only if future-activated |
-| U6A | U1, U3S | included |
-| U6B | U2, U4 | included |
-| U7 | U2, U6B | included conservative presentation only |
-| U9 | U1, U7 | included |
-| U8A | U6B, U7, U9 | absent optional node; dependencies apply only if future-activated |
-| U8B | U3B, U5A, U7, U8A, U9 | absent optional node; dependencies apply only if future-activated |
-| U8C | U3B, U7, U9 | absent optional node; dependencies apply only if future-activated |
-| U10 | every launch-included audited stage | included; absent optional nodes are not dependencies |
+| Stage | Direct stage dependencies             | Initial-release inclusion                                         |
+| ----- | ------------------------------------- | ----------------------------------------------------------------- |
+| U0    | none (foundation handoff is external) | included                                                          |
+| U1    | U0                                    | included                                                          |
+| U2    | U1                                    | included                                                          |
+| U5A   | U0, U1                                | included                                                          |
+| U3S   | U0, U1, U2                            | included                                                          |
+| U3A   | U0, U1, U2                            | absent optional node; dependencies apply only if future-activated |
+| U3B   | U1, U5A                               | included                                                          |
+| U4    | U2, U3S, U3B, U5A                     | included                                                          |
+| U5B   | U1, U5A                               | included                                                          |
+| U5C   | U1, U3B, U5B                          | absent optional node; dependencies apply only if future-activated |
+| U5D   | U1, U5A, U5B                          | absent optional node; dependencies apply only if future-activated |
+| U6A   | U1, U3S                               | included                                                          |
+| U6B   | U2, U4                                | included                                                          |
+| U7    | U2, U6B                               | included conservative presentation only                           |
+| U9    | U1, U7                                | included                                                          |
+| U8A   | U6B, U7, U9                           | absent optional node; dependencies apply only if future-activated |
+| U8B   | U3B, U5A, U7, U8A, U9                 | absent optional node; dependencies apply only if future-activated |
+| U8C   | U3B, U7, U9                           | absent optional node; dependencies apply only if future-activated |
+| U10   | every launch-included audited stage   | included; absent optional nodes are not dependencies              |
 
 ## 10. Validation tiers
 
@@ -1858,16 +1849,15 @@ reverse stage edge.
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-
-| Risk | Required evidence |
-|---|---|
-| Documentation/contract only | ID/dependency/decision/link consistency, current-state evidence, `git diff --check` |
-| UI composition without behavior/data change | targeted component/navigation tests, typecheck/lint, affected build, role smoke, desktop/mobile screenshots, accessibility basics |
-| Auth/invite/capability/patient context | unit + integration + concurrency/replay, direct/list/count/search/export/write parity, real-role two-org/two-patient negatives, typecheck/lint/build, DB/migration proof, runtime smoke |
-| Migration/backfill | reviewed ownership/schema contract, forward/rollback, idempotency, zero unexplained NULL/orphan/foreign-parent/ambiguous rows, compatibility window, scratch then authorized TEST evidence |
-| Delivery/domain/origin/PWA | send-safe provider/mock, DNS/TLS/routing/origin/browser matrices, secret/PII redaction, canonical fallback, fail injection and recovery |
-| Stage checkpoint | worker checklist + full independent audit + integrated correction + full re-audit when needed |
-| Phase/final checkpoint | accumulated relevant gates and full CI; U10 adds source-bound screenshot manifests and two independent visual/usability seals |
+| Risk                                        | Required evidence                                                                                                                                                                          |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Documentation/contract only                 | ID/dependency/decision/link consistency, current-state evidence, `git diff --check`                                                                                                        |
+| UI composition without behavior/data change | targeted component/navigation tests, typecheck/lint, affected build, role smoke, desktop/mobile screenshots, accessibility basics                                                          |
+| Auth/invite/capability/patient context      | unit + integration + concurrency/replay, direct/list/count/search/export/write parity, real-role two-org/two-patient negatives, typecheck/lint/build, DB/migration proof, runtime smoke    |
+| Migration/backfill                          | reviewed ownership/schema contract, forward/rollback, idempotency, zero unexplained NULL/orphan/foreign-parent/ambiguous rows, compatibility window, scratch then authorized TEST evidence |
+| Delivery/domain/origin/PWA                  | send-safe provider/mock, DNS/TLS/routing/origin/browser matrices, secret/PII redaction, canonical fallback, fail injection and recovery                                                    |
+| Stage checkpoint                            | worker checklist + full independent audit + integrated correction + full re-audit when needed                                                                                              |
+| Phase/final checkpoint                      | accumulated relevant gates and full CI; U10 adds source-bound screenshot manifests and two independent visual/usability seals                                                              |
 
 Тесты не повторяются после каждой мелкой правки. Targeted checks идут один раз на цельный stage; full CI — на
 крупном phase/integration/final gate или после существенного накопленного пакета.
@@ -1880,7 +1870,6 @@ reverse stage edge.
 > **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
-
 
 - `MGMT-SETUP`, `MGMT-TEAM`, `MGMT-INVITE`, `CLIN-PAT-INVITE`, `ACC-FIRST`, `PAT-INSTALL` — state/flow aliases,
   не новые screen IDs.
@@ -1907,7 +1896,6 @@ component ownership. Новый параллельный route/component доп�
 > **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
-
 
 План реализации можно считать выполненным только когда:
 

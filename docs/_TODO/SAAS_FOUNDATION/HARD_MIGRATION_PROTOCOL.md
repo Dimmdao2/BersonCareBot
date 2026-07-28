@@ -68,13 +68,13 @@ be updated in the same change.
 
 ## Roles
 
-| Role class | TEST example | Purpose | End-state |
-| --- | --- | --- | --- |
-| Runtime owner / migration owner | `bersoncarebot_test` | Owns restored tables and runs owner-only DDL/backfills | `NOBYPASSRLS`; no temporary owner membership remains |
-| Webapp migrator login | role from `webapp.test` `DATABASE_URL` | Invokes `pnpm migrate` through deploy env | No lingering membership in the runtime owner role |
-| Superuser/operator | `postgres` | Restore, owner assertions, temporary grants, cleanup assertions | Not used as app runtime |
-| App owner | `app_owner` in #667 model | Future protected helper/schema owner | `NOLOGIN`; migration owner membership is temporary only |
-| Staff/patient runtime | `app_staff`, `app_patient` | Future locked runtime roles | `NOBYPASSRLS`; not owners |
+| Role class                      | TEST example                           | Purpose                                                         | End-state                                               |
+| ------------------------------- | -------------------------------------- | --------------------------------------------------------------- | ------------------------------------------------------- |
+| Runtime owner / migration owner | `bersoncarebot_test`                   | Owns restored tables and runs owner-only DDL/backfills          | `NOBYPASSRLS`; no temporary owner membership remains    |
+| Webapp migrator login           | role from `webapp.test` `DATABASE_URL` | Invokes `pnpm migrate` through deploy env                       | No lingering membership in the runtime owner role       |
+| Superuser/operator              | `postgres`                             | Restore, owner assertions, temporary grants, cleanup assertions | Not used as app runtime                                 |
+| App owner                       | `app_owner` in #667 model              | Future protected helper/schema owner                            | `NOLOGIN`; migration owner membership is temporary only |
+| Staff/patient runtime           | `app_staff`, `app_patient`             | Future locked runtime roles                                     | `NOBYPASSRLS`; not owners                               |
 
 ## Allowed TEST sequence
 

@@ -4,13 +4,13 @@
 
 Counted from commit `e501709a3` by exact `page.tsx` inventory and rechecked against current UI evidence commit `a537e74df6e5e38d589dd7dc0ec8549dcf848756`:
 
-| Surface | Page files |
-|---|---:|
-| `/app/doctor/**` | 78 |
-| `/app/patient/**` | 49 |
-| Other `/app/**` pages | 8 |
-| `/book/**` | 12 |
-| `/` + `/legal/**` | 3 |
+| Surface               | Page files |
+| --------------------- | ---------: |
+| `/app/doctor/**`      |         78 |
+| `/app/patient/**`     |         49 |
+| Other `/app/**` pages |          8 |
+| `/book/**`            |         12 |
+| `/` + `/legal/**`     |          3 |
 
 Auth/onboarding is not represented only by pages: baseline also contains 43 `/api/auth/**/route.ts` files. Clinic staff invitation contains 5 `/api/clinic/invites/**/route.ts` files. The audit may group coherent dynamic/wizard families, but every page file must be traceable to exactly one inventory row/family or to an explicit exclusion with reason.
 
@@ -55,16 +55,16 @@ UX-01 is complete only when a fresh auditor confirms:
 
 Fix run `UX01-EVIDENCE-FIX-20260715T142736Z` does not change the independent verdict. It records the mechanical allocation that the auditor requested:
 
-| Allocation | Page files |
-|---|---:|
-| Specialist inventory: `/app/doctor/**` | 78 |
-| Specialist inventory: `/app/settings` + `/app/settings/patient-home` | 2 |
-| Specialist inventory: legacy `/app/admin/promo` redirect in promo family | 1 |
-| Patient/public inventory: `/app/patient/**` | 49 |
-| Patient/public inventory: `/book/**` | 12 |
-| Patient/public inventory: `/` + `/legal/**` | 3 |
-| Patient/public inventory: `/app`, `/app/tg`, `/app/max`, `/app/auth/email-setup`, `/app/contact-support` | 5 |
-| **Total, each page allocated once** | **150/150** |
+| Allocation                                                                                               |  Page files |
+| -------------------------------------------------------------------------------------------------------- | ----------: |
+| Specialist inventory: `/app/doctor/**`                                                                   |          78 |
+| Specialist inventory: `/app/settings` + `/app/settings/patient-home`                                     |           2 |
+| Specialist inventory: legacy `/app/admin/promo` redirect in promo family                                 |           1 |
+| Patient/public inventory: `/app/patient/**`                                                              |          49 |
+| Patient/public inventory: `/book/**`                                                                     |          12 |
+| Patient/public inventory: `/` + `/legal/**`                                                              |           3 |
+| Patient/public inventory: `/app`, `/app/tg`, `/app/max`, `/app/auth/email-setup`, `/app/contact-support` |           5 |
+| **Total, each page allocated once**                                                                      | **150/150** |
 
 ## Current reconciliation — 2026-07-15
 

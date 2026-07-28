@@ -158,4 +158,3 @@ Do not run root `pnpm run ci`.
 - Subscription badge remains visual only.
 - Tests updated and targeted checks pass or failures are fixed.
 - `LOG.md` updated.
-

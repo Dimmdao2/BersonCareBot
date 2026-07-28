@@ -1,208 +1,252 @@
 #!/usr/bin/env node
-import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 
 // Invariant: p2-b must NOT self-grant USAGE on schema app_ext — on the real deploy p2-b runs as the
 // non-superuser migrator, so that owner-only GRANT must live in the superuser deploy step
 // (scripts/deploy-saas-667.sh Step 1), not here. Regressed twice; this guard catches it.
 {
-  const p2b = readFileSync("deploy/postgres/p2-b-protected-principal-context.sql", "utf8");
+  const p2b = readFileSync('deploy/postgres/p2-b-protected-principal-context.sql', 'utf8');
   if (/GRANT\s+USAGE\s+ON\s+SCHEMA\s+app_ext/i.test(p2b)) {
     console.error(
       "check-saas-db-regression: FAILED p2-b invariant — 'GRANT USAGE ON SCHEMA app_ext' must not be in p2-b " +
-        "(it breaks the non-superuser migrator deploy; keep it in deploy-saas-667.sh Step 1).",
+        '(it breaks the non-superuser migrator deploy; keep it in deploy-saas-667.sh Step 1).',
     );
     process.exit(1);
   }
-  console.log("check-saas-db-regression: p2-b app_ext-grant invariant OK");
+  console.log('check-saas-db-regression: p2-b app_ext-grant invariant OK');
 }
 
 const checks = [
   {
-    label: "DB chokepoint guard",
-    command: ["node", "scripts/check-db-chokepoint.mjs"],
+    label: 'DB chokepoint guard',
+    command: ['node', 'scripts/check-db-chokepoint.mjs'],
   },
   {
-    label: "DB chokepoint synthetic offender self-test",
-    command: ["node", "scripts/check-db-chokepoint.mjs", "--self-test"],
+    label: 'DB chokepoint synthetic offender self-test',
+    command: ['node', 'scripts/check-db-chokepoint.mjs', '--self-test'],
   },
   {
-    label: "T0 DB access surface inventory",
-    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-t0-db-access-surface.mjs"],
+    label: 'T0 DB access surface inventory',
+    command: ['node', 'docs/_TODO/SAAS_FOUNDATION/scripts/check-t0-db-access-surface.mjs'],
   },
   {
-    label: "T0 DB access surface inventory self-test",
-    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-t0-db-access-surface.mjs", "--self-test"],
+    label: 'T0 DB access surface inventory self-test',
+    command: [
+      'node',
+      'docs/_TODO/SAAS_FOUNDATION/scripts/check-t0-db-access-surface.mjs',
+      '--self-test',
+    ],
   },
   {
-    label: "system_settings accessor guard",
-    command: ["node", "apps/webapp/scripts/check-system-settings-accessors.mjs"],
+    label: 'system_settings accessor guard',
+    command: ['node', 'apps/webapp/scripts/check-system-settings-accessors.mjs'],
   },
   {
-    label: "SAAS P0.4 batch manifest",
-    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-4-batches.mjs"],
+    label: 'SAAS P0.4 batch manifest',
+    command: ['node', 'docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-4-batches.mjs'],
   },
   {
-    label: "SAAS P0.4.BE FK-path manifest",
-    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-4-be-fk-paths.mjs"],
+    label: 'SAAS P0.4.BE FK-path manifest',
+    command: ['node', 'docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-4-be-fk-paths.mjs'],
   },
   {
-    label: "SAAS P0.5 role split contract/proof artifacts",
-    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-5-role-split.mjs"],
+    label: 'SAAS P0.5 role split contract/proof artifacts',
+    command: ['node', 'docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-5-role-split.mjs'],
   },
   {
-    label: "SAAS P0.8.1 RLS descriptor model",
-    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-8-rls-descriptors.mjs"],
+    label: 'SAAS P0.8.1 RLS descriptor model',
+    command: ['node', 'docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-8-rls-descriptors.mjs'],
   },
   {
-    label: "SAAS new public org-table RLS coverage",
-    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-new-table-rls-coverage.mjs"],
+    label: 'SAAS new public org-table RLS coverage',
+    command: ['node', 'docs/_TODO/SAAS_FOUNDATION/scripts/check-new-table-rls-coverage.mjs'],
   },
   {
-    label: "SAAS new public org-table RLS coverage self-test",
-    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-new-table-rls-coverage.mjs", "--self-test"],
+    label: 'SAAS new public org-table RLS coverage self-test',
+    command: [
+      'node',
+      'docs/_TODO/SAAS_FOUNDATION/scripts/check-new-table-rls-coverage.mjs',
+      '--self-test',
+    ],
   },
   {
-    label: "SAAS P0.8.2 RLS SQL renderer predicates",
-    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-8-sql-renderer.mjs"],
+    label: 'SAAS P0.8.2 RLS SQL renderer predicates',
+    command: ['node', 'docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-8-sql-renderer.mjs'],
   },
   {
-    label: "SAAS P0.8.3 public direct-org policy generator",
-    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-8-3-policy-generator.mjs"],
+    label: 'SAAS P0.8.3 public direct-org policy generator',
+    command: ['node', 'docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-8-3-policy-generator.mjs'],
   },
   {
-    label: "SAAS P0.8.4 public FK/denorm path policy generator",
-    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-8-4-policy-generator.mjs"],
+    label: 'SAAS P0.8.4 public FK/denorm path policy generator',
+    command: ['node', 'docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-8-4-policy-generator.mjs'],
   },
   {
-    label: "SAAS P0.8.5 integrator SCOPED policy generator",
-    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-8-5-policy-generator.mjs"],
+    label: 'SAAS P0.8.5 integrator SCOPED policy generator',
+    command: ['node', 'docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-8-5-policy-generator.mjs'],
   },
   {
-    label: "SAAS P0.8.6 BOOTSTRAP hybrid policy generator",
-    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-8-6-policy-generator.mjs"],
+    label: 'SAAS P0.8.6 BOOTSTRAP hybrid policy generator',
+    command: ['node', 'docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-8-6-policy-generator.mjs'],
   },
   {
-    label: "SAAS P0.8.7 explicit exemptions and unsupported user-ref denial",
-    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-8-7-explicit-exemptions.mjs"],
+    label: 'SAAS P0.8.7 explicit exemptions and unsupported user-ref denial',
+    command: ['node', 'docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-8-7-explicit-exemptions.mjs'],
   },
   {
-    label: "SAAS P0.9.1 default-deny enforce descriptors",
-    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-9-enforce-descriptors.mjs"],
+    label: 'SAAS P0.9.1 default-deny enforce descriptors',
+    command: ['node', 'docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-9-enforce-descriptors.mjs'],
   },
   {
-    label: "SAAS P0.10.1 tier completeness invariant",
-    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-10-tier-completeness.mjs"],
+    label: 'SAAS P0.10.1 tier completeness invariant',
+    command: ['node', 'docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-10-tier-completeness.mjs'],
   },
   {
-    label: "SAAS P0.10.2 user-reference tier guard",
-    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-10-user-reference-tier-guard.mjs"],
+    label: 'SAAS P0.10.2 user-reference tier guard',
+    command: [
+      'node',
+      'docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-10-user-reference-tier-guard.mjs',
+    ],
   },
   {
-    label: "SAAS P0.10.3 scoped tenant semantics invariant",
-    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-10-scoped-tenant-semantics.mjs"],
+    label: 'SAAS P0.10.3 scoped tenant semantics invariant',
+    command: ['node', 'docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-10-scoped-tenant-semantics.mjs'],
   },
   {
-    label: "SAAS P0.11.1 system_settings storage shape",
-    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-11-system-settings-storage.mjs"],
+    label: 'SAAS P0.11.1 system_settings storage shape',
+    command: ['node', 'docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-11-system-settings-storage.mjs'],
   },
   {
-    label: "SAAS P0.11.2 system_settings read path",
-    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-11-system-settings-read-path.mjs"],
+    label: 'SAAS P0.11.2 system_settings read path',
+    command: [
+      'node',
+      'docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-11-system-settings-read-path.mjs',
+    ],
   },
   {
-    label: "SAAS P0.11.3 system_settings write path",
-    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-11-system-settings-write-path.mjs"],
+    label: 'SAAS P0.11.3 system_settings write path',
+    command: [
+      'node',
+      'docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-11-system-settings-write-path.mjs',
+    ],
   },
   {
-    label: "SAAS P0.11.4 system_settings UI/rules/docs",
-    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-11-system-settings-docs-rules.mjs"],
+    label: 'SAAS P0.11.4 system_settings UI/rules/docs',
+    command: [
+      'node',
+      'docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-11-system-settings-docs-rules.mjs',
+    ],
   },
   {
-    label: "SAAS P0.12.1 polymorphic reference resolver coverage",
-    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-12-polymorphic-references.mjs"],
+    label: 'SAAS P0.12.1 polymorphic reference resolver coverage',
+    command: ['node', 'docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-12-polymorphic-references.mjs'],
   },
   {
-    label: "SAAS P0.12.2 JSON payload PII classification",
-    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-12-json-payloads.mjs"],
+    label: 'SAAS P0.12.2 JSON payload PII classification',
+    command: ['node', 'docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-12-json-payloads.mjs'],
   },
   {
-    label: "SAAS P0.13.1 synthetic isolation fixture factory",
-    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-13-synthetic-fixtures.mjs"],
+    label: 'SAAS P0.13.1 synthetic isolation fixture factory',
+    command: ['node', 'docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-13-synthetic-fixtures.mjs'],
   },
   {
-    label: "SAAS P0.13.2 DB isolation assertions",
-    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-13-db-isolation.mjs"],
+    label: 'SAAS P0.13.2 DB isolation assertions',
+    command: ['node', 'docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-13-db-isolation.mjs'],
   },
   {
-    label: "SAAS P0.13.3 app-level dormant smoke",
-    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-13-app-dormant-smoke.mjs"],
+    label: 'SAAS P0.13.3 app-level dormant smoke',
+    command: ['node', 'docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-13-app-dormant-smoke.mjs'],
   },
   {
-    label: "SAAS P2-B protected context SQL artifact",
-    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p2-b-protected-context-sql.mjs"],
+    label: 'SAAS P2-B protected context SQL artifact',
+    command: ['node', 'docs/_TODO/SAAS_FOUNDATION/scripts/check-p2-b-protected-context-sql.mjs'],
   },
   {
-    label: "SAAS B4 locked principal runtime wiring",
-    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-b4-locked-runtime-wiring.mjs"],
+    label: 'SAAS B4 locked principal runtime wiring',
+    command: ['node', 'docs/_TODO/SAAS_FOUNDATION/scripts/check-b4-locked-runtime-wiring.mjs'],
   },
   {
-    label: "SAAS C1 webapp dual-pool fanout",
-    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-c1-webapp-dual-pool-fanout.mjs"],
+    label: 'SAAS C1 webapp dual-pool fanout',
+    command: ['node', 'docs/_TODO/SAAS_FOUNDATION/scripts/check-c1-webapp-dual-pool-fanout.mjs'],
   },
   {
-    label: "SAAS Phase 4 FORCE RLS cutover guard",
-    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-phase4-force-cutover-sql.mjs"],
+    label: 'SAAS Phase 4 FORCE RLS cutover guard',
+    command: ['node', 'docs/_TODO/SAAS_FOUNDATION/scripts/check-phase4-force-cutover-sql.mjs'],
   },
   {
-    label: "SAAS Phase 4 locked-helper RLS policy artifact",
-    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-phase4-locked-policy-artifact.mjs"],
+    label: 'SAAS Phase 4 locked-helper RLS policy artifact',
+    command: ['node', 'docs/_TODO/SAAS_FOUNDATION/scripts/check-phase4-locked-policy-artifact.mjs'],
   },
   {
-    label: "SAAS S5-2 settings RLS/grants/config-reader contract",
-    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-s5-2-settings-security.mjs"],
+    label: 'SAAS S5-2 settings RLS/grants/config-reader contract',
+    command: ['node', 'docs/_TODO/SAAS_FOUNDATION/scripts/check-s5-2-settings-security.mjs'],
   },
   {
-    label: "SAAS Phase 4 prod-copy DB-state safety self-test",
-    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-phase4-prod-copy-db-state.mjs", "--self-test-safety"],
+    label: 'SAAS Phase 4 prod-copy DB-state safety self-test',
+    command: [
+      'node',
+      'docs/_TODO/SAAS_FOUNDATION/scripts/check-phase4-prod-copy-db-state.mjs',
+      '--self-test-safety',
+    ],
   },
   {
-    label: "SAAS P2-C1 patient value guard SQL artifact",
-    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p2-c1-patient-value-guards-sql.mjs"],
+    label: 'SAAS P2-C1 patient value guard SQL artifact',
+    command: [
+      'node',
+      'docs/_TODO/SAAS_FOUNDATION/scripts/check-p2-c1-patient-value-guards-sql.mjs',
+    ],
   },
   {
-    label: "SAAS P2-C2 patient value guard SQL artifact",
-    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p2-c2-patient-value-guards-sql.mjs"],
+    label: 'SAAS P2-C2 patient value guard SQL artifact',
+    command: [
+      'node',
+      'docs/_TODO/SAAS_FOUNDATION/scripts/check-p2-c2-patient-value-guards-sql.mjs',
+    ],
   },
   {
-    label: "SAAS P2-C3 patient booking/LFK guard SQL artifact",
-    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p2-c3-patient-booking-lfk-guards-sql.mjs"],
+    label: 'SAAS P2-C3 patient booking/LFK guard SQL artifact',
+    command: [
+      'node',
+      'docs/_TODO/SAAS_FOUNDATION/scripts/check-p2-c3-patient-booking-lfk-guards-sql.mjs',
+    ],
   },
   {
-    label: "E1 webapp safe runtime-config closure",
-    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-e1-webapp-runtime-config.mjs"],
+    label: 'E1 webapp safe runtime-config closure',
+    command: ['node', 'docs/_TODO/SAAS_FOUNDATION/scripts/check-e1-webapp-runtime-config.mjs'],
   },
   {
-    label: "E1 webapp safe runtime-config closure self-test",
-    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-e1-webapp-runtime-config.mjs", "--self-test"],
+    label: 'E1 webapp safe runtime-config closure self-test',
+    command: [
+      'node',
+      'docs/_TODO/SAAS_FOUNDATION/scripts/check-e1-webapp-runtime-config.mjs',
+      '--self-test',
+    ],
   },
   {
-    label: "Integrator DB-backed server-runtime config closure",
-    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-integrator-server-runtime-config.mjs"],
+    label: 'Integrator DB-backed server-runtime config closure',
+    command: [
+      'node',
+      'docs/_TODO/SAAS_FOUNDATION/scripts/check-integrator-server-runtime-config.mjs',
+    ],
   },
   {
-    label: "Integrator DB-backed server-runtime config closure self-test",
-    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-integrator-server-runtime-config.mjs", "--self-test"],
+    label: 'Integrator DB-backed server-runtime config closure self-test',
+    command: [
+      'node',
+      'docs/_TODO/SAAS_FOUNDATION/scripts/check-integrator-server-runtime-config.mjs',
+      '--self-test',
+    ],
   },
 ];
 
 for (const check of checks) {
   console.log(`check-saas-db-regression: ${check.label}`);
   const [bin, ...args] = check.command;
-  const result = spawnSync(bin, args, { stdio: "inherit" });
+  const result = spawnSync(bin, args, { stdio: 'inherit' });
 
   if (result.error) {
-    console.error(`check-saas-db-regression: failed to start ${check.command.join(" ")}`);
+    console.error(`check-saas-db-regression: failed to start ${check.command.join(' ')}`);
     console.error(result.error.message);
     process.exit(1);
   }
@@ -213,4 +257,4 @@ for (const check of checks) {
   }
 }
 
-console.log("check-saas-db-regression: OK");
+console.log('check-saas-db-regression: OK');

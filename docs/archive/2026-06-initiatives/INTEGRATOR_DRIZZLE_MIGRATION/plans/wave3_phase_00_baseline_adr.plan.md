@@ -5,19 +5,19 @@ status: completed
 isProject: false
 todos:
   - id: w3-p00-rg-baseline
-    content: "rg baseline: integrator db.query, webapp pool/client.query, media-worker, packages — counts в LOG."
+    content: 'rg baseline: integrator db.query, webapp pool/client.query, media-worker, packages — counts в LOG.'
     status: completed
   - id: w3-p00-raw-sql-class
-    content: "RAW_SQL_INVENTORY: колонка/секция Class A|B|C; дата снимка 2026-06-05+."
+    content: 'RAW_SQL_INVENTORY: колонка/секция Class A|B|C; дата снимка 2026-06-05+.'
     status: completed
   - id: w3-p00-adr-permanent
-    content: "LOG §Wave3: ADR platform-merge, booking-rubitime-sync, claim, migrate, projectionHealthCore."
+    content: 'LOG §Wave3: ADR platform-merge, booking-rubitime-sync, claim, migrate, projectionHealthCore.'
     status: completed
   - id: w3-p00-scope-confirm
-    content: "Записать в LOG зафиксированные решения: полный webapp scope + messengerPhoneHttpBindExecute мигрируется в phase15 + staging smoke обязателен в phase17."
+    content: 'Записать в LOG зафиксированные решения: полный webapp scope + messengerPhoneHttpBindExecute мигрируется в phase15 + staging smoke обязателен в phase17.'
     status: completed
   - id: w3-p00-index
-    content: "plans/README.md + DRIZZLE_TRANSITION_PLAN ссылка на wave3_INDEX + phase08 schema reduction + phase16 legacy cutover."
+    content: 'plans/README.md + DRIZZLE_TRANSITION_PLAN ссылка на wave3_INDEX + phase08 schema reduction + phase16 legacy cutover.'
     status: completed
 ---
 
@@ -63,12 +63,12 @@ rg -c '\.query\(' packages/booking-rubitime-sync/src --glob '*.ts'
 
 ## Ожидаемые цифры (2026-06-05, для сверки)
 
-| Зона | Метрика |
-|------|---------|
-| Integrator P1+ files | **20** prod-файлов с `await db.query` |
-| Webapp | **78** prod-файлов `pool\|client.query` |
-| media-worker | claim **8** + process* **18** + settings **2** |
-| platform-merge | **~92** query() |
+| Зона                 | Метрика                                         |
+| -------------------- | ----------------------------------------------- |
+| Integrator P1+ files | **20** prod-файлов с `await db.query`           |
+| Webapp               | **78** prod-файлов `pool\|client.query`         |
+| media-worker         | claim **8** + process\* **18** + settings **2** |
+| platform-merge       | **~92** query()                                 |
 
 ## ADR permanent (текст для LOG)
 

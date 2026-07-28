@@ -1,4 +1,4 @@
-import { runWebappPgText } from "@/infra/db/runWebappSql";
+import { runWebappPgText } from '@/infra/db/runWebappSql';
 
 export async function loadPatientTelegramUsername(platformUserId: string): Promise<string | null> {
   const result = await runWebappPgText<{ username: string | null }>(

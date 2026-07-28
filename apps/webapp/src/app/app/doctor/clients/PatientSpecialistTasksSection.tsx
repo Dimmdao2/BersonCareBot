@@ -1,11 +1,14 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useState, useTransition } from "react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import type { SpecialistTaskRow } from "@/modules/specialist-tasks/types";
-import { doctorClientOverviewPrimaryCardClass, doctorClientSectionTitleClass } from "./doctorClientCardChrome";
-import { SpecialistTaskFormDialog } from "./SpecialistTaskFormDialog";
-import { SpecialistTaskRow as TaskRow } from "./SpecialistTaskRow";
+import { useCallback, useEffect, useState, useTransition } from 'react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import type { SpecialistTaskRow } from '@/modules/specialist-tasks/types';
+import {
+  doctorClientOverviewPrimaryCardClass,
+  doctorClientSectionTitleClass,
+} from './doctorClientCardChrome';
+import { SpecialistTaskFormDialog } from './SpecialistTaskFormDialog';
+import { SpecialistTaskRow as TaskRow } from './SpecialistTaskRow';
 
 type Props = {
   patientUserId: string;
@@ -24,7 +27,7 @@ export function PatientSpecialistTasksSection({ patientUserId }: Props) {
       setLoadError(null);
       const res = await fetch(`/api/doctor/clients/${encodeURIComponent(patientUserId)}/tasks`);
       if (!res.ok) {
-        setLoadError("Не удалось загрузить задачи");
+        setLoadError('Не удалось загрузить задачи');
         return;
       }
       const data = (await res.json()) as { tasks?: SpecialistTaskRow[] };
@@ -55,7 +58,7 @@ export function PatientSpecialistTasksSection({ patientUserId }: Props) {
 
   function handleComplete(taskId: string) {
     startTransition(async () => {
-      await fetch(`/api/doctor/tasks/${encodeURIComponent(taskId)}/complete`, { method: "POST" });
+      await fetch(`/api/doctor/tasks/${encodeURIComponent(taskId)}/complete`, { method: 'POST' });
       setCompletedTasks(null);
       reloadOpen();
     });

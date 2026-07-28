@@ -1,9 +1,9 @@
-import type { IntegrationWebhookLastStatusRow } from "./ports";
+import type { IntegrationWebhookLastStatusRow } from './ports';
 import {
   readProbeIntegrationOutcome,
   type ProbeIntegrationKey,
   type ProbeIntegrationOutcome,
-} from "./probeOutboundMeta";
+} from './probeOutboundMeta';
 
 export type IntegrationOutboundHealth = {
   status: ProbeIntegrationOutcome;
@@ -40,7 +40,9 @@ function outboundFromProbe(
   };
 }
 
-function inboundFromRow(row: IntegrationWebhookLastStatusRow | undefined): IntegrationInboundHealth {
+function inboundFromRow(
+  row: IntegrationWebhookLastStatusRow | undefined,
+): IntegrationInboundHealth {
   if (!row) {
     return {
       receivedAt: null,
@@ -78,15 +80,15 @@ export function buildIntegrationsHealthSnapshot(input: {
 
   return {
     telegram: {
-      outbound: outboundFromProbe(meta, "telegram", lastFinishedAt),
-      inbound: inboundFromRow(bySource.get("telegram")),
+      outbound: outboundFromProbe(meta, 'telegram', lastFinishedAt),
+      inbound: inboundFromRow(bySource.get('telegram')),
     },
     max: {
-      outbound: outboundFromProbe(meta, "max", lastFinishedAt),
-      inbound: inboundFromRow(bySource.get("max")),
+      outbound: outboundFromProbe(meta, 'max', lastFinishedAt),
+      inbound: inboundFromRow(bySource.get('max')),
     },
     google_calendar: {
-      outbound: outboundFromProbe(meta, "google_calendar", lastFinishedAt),
+      outbound: outboundFromProbe(meta, 'google_calendar', lastFinishedAt),
     },
   };
 }

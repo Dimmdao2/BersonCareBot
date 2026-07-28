@@ -25,11 +25,11 @@
 
 ### 1.3 Согласование кода с контрактом ingestion
 
-| Требование Stage A / архитектуры | Где подтверждено |
-|----------------------------------|------------------|
+| Требование Stage A / архитектуры                                                            | Где подтверждено                                                                                                                                                                                    |
+| ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Merge-class (`MergeConflictError` / `MergeDependentConflictError`) → не бесконечный **503** | `apps/webapp/src/modules/integrator/events.ts` — `acceptAfterMergeConflict`; production `apps/webapp/src/app/api/integrator/events/route.ts` — `conflictAudit` + **HTTP 202** при `result.accepted` |
-| `appointment.record.upserted` без ambiguous fallback после конфликта | `events.ts`: `appointmentMergeConflict`, отключение `findByPhone` / `findByIntegratorId`; телефон из top-level и `payloadJson` |
-| Аудит конфликтов | `route.ts`: `upsertOpenConflictLog` / `writeAuditLog` для `auto_merge_conflict` / `auto_merge_conflict_anomaly` |
+| `appointment.record.upserted` без ambiguous fallback после конфликта                        | `events.ts`: `appointmentMergeConflict`, отключение `findByPhone` / `findByIntegratorId`; телефон из top-level и `payloadJson`                                                                      |
+| Аудит конфликтов                                                                            | `route.ts`: `upsertOpenConflictLog` / `writeAuditLog` для `auto_merge_conflict` / `auto_merge_conflict_anomaly`                                                                                     |
 
 ### 1.4 Автотесты (целевой набор v1)
 
@@ -65,12 +65,12 @@ pnpm --dir apps/webapp exec vitest run \
 
 ### 2.1 Документация
 
-| Документ | Формулировка |
-|----------|--------------|
-| [`STAGE_A_V1_STABILIZATION.md`](STAGE_A_V1_STABILIZATION.md) | Явно: hard blocker **остаётся до завершения v2** |
-| [`MASTER_PLAN.md`](MASTER_PLAN.md) | v1 запрещает merge при разных non-null `integrator_user_id` (`different_non_null_integrator_user_id`); v2 снимает разрыв через integrator-side canonical merge |
-| [`../ARCHITECTURE/PLATFORM_USER_MERGE.md`](../ARCHITECTURE/PLATFORM_USER_MERGE.md) | Таблица hard blockers: код `different_non_null_integrator_user_id`, снятие **только в v2** |
-| [`AGENT_EXECUTION_LOG.md`](AGENT_EXECUTION_LOG.md) (2026-04-10) | Findings: blocker остаётся до v2, согласован с кодом и MASTER_PLAN |
+| Документ                                                                           | Формулировка                                                                                                                                                   |
+| ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`STAGE_A_V1_STABILIZATION.md`](STAGE_A_V1_STABILIZATION.md)                       | Явно: hard blocker **остаётся до завершения v2**                                                                                                               |
+| [`MASTER_PLAN.md`](MASTER_PLAN.md)                                                 | v1 запрещает merge при разных non-null `integrator_user_id` (`different_non_null_integrator_user_id`); v2 снимает разрыв через integrator-side canonical merge |
+| [`../ARCHITECTURE/PLATFORM_USER_MERGE.md`](../ARCHITECTURE/PLATFORM_USER_MERGE.md) | Таблица hard blockers: код `different_non_null_integrator_user_id`, снятие **только в v2**                                                                     |
+| [`AGENT_EXECUTION_LOG.md`](AGENT_EXECUTION_LOG.md) (2026-04-10)                    | Findings: blocker остаётся до v2, согласован с кодом и MASTER_PLAN                                                                                             |
 
 ### 2.2 Код (исполняемый контракт)
 
@@ -84,7 +84,7 @@ pnpm --dir apps/webapp exec vitest run \
   }
 ```
 
-*(Номера строк — на момент повторного аудита; при сдвигах искать по тексту ошибки и условию `iA && iB`.)*
+_(Номера строк — на момент повторного аудита; при сдвигах искать по тексту ошибки и условию `iA && iB`.)_
 
 **Preview (admin UI)** — тот же смысл под кодом `different_non_null_integrator_user_id`:
 
@@ -111,14 +111,14 @@ pnpm --dir apps/webapp exec vitest run \
 
 Проверено наличие **всех** ожидаемых элементов в записи от **2026-04-10**:
 
-| Элемент | Статус |
-|---------|--------|
-| Scope и ссылки на Stage A / MASTER_PLAN / PLATFORM_USER_MERGE / execution log | OK |
-| **Checks performed** (нумерованный список) | OK |
-| **Findings** (включая blocker до v2, ограничения v1, прод не проверялся, CI) | OK |
-| **Gate verdict** | OK (PASS; CI — зелёный после follow-up, подтверждён pass 2) |
-| Запись **follow-up** (CI / `MediaCardActionsMenu`) | OK |
-| Запись **повторного аудита** pass 2 | OK (после добавления в `AGENT_EXECUTION_LOG`) |
+| Элемент                                                                       | Статус                                                      |
+| ----------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| Scope и ссылки на Stage A / MASTER_PLAN / PLATFORM_USER_MERGE / execution log | OK                                                          |
+| **Checks performed** (нумерованный список)                                    | OK                                                          |
+| **Findings** (включая blocker до v2, ограничения v1, прод не проверялся, CI)  | OK                                                          |
+| **Gate verdict**                                                              | OK (PASS; CI — зелёный после follow-up, подтверждён pass 2) |
+| Запись **follow-up** (CI / `MediaCardActionsMenu`)                            | OK                                                          |
+| Запись **повторного аудита** pass 2                                           | OK (после добавления в `AGENT_EXECUTION_LOG`)               |
 
 **Вердикт по п.3:** записи **полные** относительно целей Stage A в репозитории (первичный аудит + follow-up + pass 2).
 
@@ -126,11 +126,11 @@ pnpm --dir apps/webapp exec vitest run \
 
 ## 4) Итоговый verdict аудита Stage A
 
-| Критерий | Статус |
-|----------|--------|
+| Критерий                                                            | Статус                                                 |
+| ------------------------------------------------------------------- | ------------------------------------------------------ |
 | Evidence стабильности v1 (код + тесты + журналы в repo + полный CI) | **Удовлетворён**, оговорка: прод-наблюдение оператором |
-| Явная фиксация `different_non_null_integrator_user_id` до v2 | **Удовлетворён** |
-| Полная запись в `AGENT_EXECUTION_LOG.md` | **Удовлетворён** |
+| Явная фиксация `different_non_null_integrator_user_id` до v2        | **Удовлетворён**                                       |
+| Полная запись в `AGENT_EXECUTION_LOG.md`                            | **Удовлетворён**                                       |
 
 **Общий verdict:** **PASS (repository + CI)** — v1 merge/purge/conflict регрессий не выявлено; полный CI зелёный после закрытия typecheck-замечания. Остаётся операторский контур Stage A на проде (MANDATORY FIX п.2). **Подтверждено повторным аудитом (§5).**
 
@@ -142,31 +142,31 @@ pnpm --dir apps/webapp exec vitest run \
 
 ### 5.1 Чек-лист против Stage A
 
-| Пункт Stage A | Проверка (pass 2) | Результат |
-|---------------|-------------------|-----------|
-| Сигналы `user_purge`, `user_merge`, `user_purge_external_retry` в коде / UI | `strictPlatformUserPurge.ts`, `manualPlatformUserMerge.ts`; dropdown действий в `AdminAuditLogSection.tsx` | OK |
-| `auto_merge_conflict`, `auto_merge_conflict_anomaly`, `openAutoMergeConflictCount` | `integrator/events/route.ts` + `adminAuditLog.ts`; бейдж в `AdminAuditLogSection.tsx` | OK |
-| Ingestion merge-class → не 503-loop, **202** + аудит | `events.ts` (`acceptAfterMergeConflict`, `appointmentMergeConflict`); `route.ts` строка статуса `202` при `accepted` | OK |
-| Фиксация результата в журнале | `AGENT_EXECUTION_LOG.md` — три связанные записи (первичный, follow-up, pass 2) | OK |
-| Явно: **hard blocker `different_non_null_integrator_user_id` до v2** | `STAGE_A_V1_STABILIZATION.md` §фиксация; `PLATFORM_USER_MERGE.md`; `pgPlatformUserMerge.ts` + preview | OK |
-| Gate: нет экстренного hotfix по v1 merge/purge/conflict | Статический обзор + тесты + CI — новых дефектов не найдено | OK (repo) |
-| Gate: команда готова к 4-шаговому деплою | Организационный критерий | **Вне scope репозитория** — подтверждает команда |
+| Пункт Stage A                                                                      | Проверка (pass 2)                                                                                                    | Результат                                        |
+| ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| Сигналы `user_purge`, `user_merge`, `user_purge_external_retry` в коде / UI        | `strictPlatformUserPurge.ts`, `manualPlatformUserMerge.ts`; dropdown действий в `AdminAuditLogSection.tsx`           | OK                                               |
+| `auto_merge_conflict`, `auto_merge_conflict_anomaly`, `openAutoMergeConflictCount` | `integrator/events/route.ts` + `adminAuditLog.ts`; бейдж в `AdminAuditLogSection.tsx`                                | OK                                               |
+| Ingestion merge-class → не 503-loop, **202** + аудит                               | `events.ts` (`acceptAfterMergeConflict`, `appointmentMergeConflict`); `route.ts` строка статуса `202` при `accepted` | OK                                               |
+| Фиксация результата в журнале                                                      | `AGENT_EXECUTION_LOG.md` — три связанные записи (первичный, follow-up, pass 2)                                       | OK                                               |
+| Явно: **hard blocker `different_non_null_integrator_user_id` до v2**               | `STAGE_A_V1_STABILIZATION.md` §фиксация; `PLATFORM_USER_MERGE.md`; `pgPlatformUserMerge.ts` + preview                | OK                                               |
+| Gate: нет экстренного hotfix по v1 merge/purge/conflict                            | Статический обзор + тесты + CI — новых дефектов не найдено                                                           | OK (repo)                                        |
+| Gate: команда готова к 4-шаговому деплою                                           | Организационный критерий                                                                                             | **Вне scope репозитория** — подтверждает команда |
 
 ### 5.2 Правки первого аудита (MANDATORY FIX §1)
 
-| Ожидание | Факт в дереве |
-|----------|----------------|
-| Нет `DropdownMenuItem asChild` для «Открыть в новой вкладке» | `MediaCardActionsMenu.tsx`: `onClick` → `window.open(..., "noopener,noreferrer")` | OK |
-| Webapp typecheck / полный CI | `pnpm install --frozen-lockfile && pnpm run ci` из корня — **OK** (pass 2) | OK |
+| Ожидание                                                     | Факт в дереве                                                                     |
+| ------------------------------------------------------------ | --------------------------------------------------------------------------------- | --- |
+| Нет `DropdownMenuItem asChild` для «Открыть в новой вкладке» | `MediaCardActionsMenu.tsx`: `onClick` → `window.open(..., "noopener,noreferrer")` | OK  |
+| Webapp typecheck / полный CI                                 | `pnpm install --frozen-lockfile && pnpm run ci` из корня — **OK** (pass 2)        | OK  |
 
 ### 5.3 Документация (дрифт после первого аудита)
 
-| Документ | Действие pass 2 |
-|----------|-----------------|
-| `AUDIT_STAGE_A.md` §1.1 | Уточнены формулировки (не оставлять «красный CI» как текущее состояние без контекста); добавлены pass 2 и ссылка на §5 |
-| `AUDIT_STAGE_A.md` §3 | Таблица дополнена строками follow-up и pass 2 |
-| `AUDIT_STAGE_A.md` §2.2 | Примечание о номерах строк при сдвигах |
-| `AGENT_EXECUTION_LOG.md` | Новая запись «повторный аудит pass 2» |
+| Документ                 | Действие pass 2                                                                                                        |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| `AUDIT_STAGE_A.md` §1.1  | Уточнены формулировки (не оставлять «красный CI» как текущее состояние без контекста); добавлены pass 2 и ссылка на §5 |
+| `AUDIT_STAGE_A.md` §3    | Таблица дополнена строками follow-up и pass 2                                                                          |
+| `AUDIT_STAGE_A.md` §2.2  | Примечание о номерах строк при сдвигах                                                                                 |
+| `AGENT_EXECUTION_LOG.md` | Новая запись «повторный аудит pass 2»                                                                                  |
 
 ### 5.4 Автоматические проверки (pass 2)
 
@@ -181,14 +181,14 @@ pnpm --dir apps/webapp exec vitest run \
 
 ## MANDATORY FIX INSTRUCTIONS
 
-1. **~~Восстановить зелёный `pnpm run ci` (webapp typecheck).~~ — ВЫПОЛНЕНО в дереве**  
-   - **Файл:** `apps/webapp/src/app/app/doctor/content/library/MediaCardActionsMenu.tsx`  
-   - **Решение:** пункт «Открыть в новой вкладке» — `DropdownMenuItem` с `onClick` → `window.open(item.url, "_blank", "noopener,noreferrer")` (без `asChild`; UI-kit — `@base-ui/react` `Menu.Item` через обёртку проекта).  
+1. **~~Восстановить зелёный `pnpm run ci` (webapp typecheck).~~ — ВЫПОЛНЕНО в дереве**
+   - **Файл:** `apps/webapp/src/app/app/doctor/content/library/MediaCardActionsMenu.tsx`
+   - **Решение:** пункт «Открыть в новой вкладке» — `DropdownMenuItem` с `onClick` → `window.open(item.url, "_blank", "noopener,noreferrer")` (без `asChild`; UI-kit — `@base-ui/react` `Menu.Item` через обёртку проекта).
    - **Проверка:** `pnpm install --frozen-lockfile && pnpm run ci` из корня — **OK** (follow-up 2026-04-10). При локальных сбоях `next build` сначала удалить `apps/webapp/.next` и не запускать два `next build` параллельно.
 
-2. **Операционный контур Stage A (если ещё не закрыт).**  
-   - Разобрать открытые `auto_merge_conflict` по политике продукта.  
-   - При подозрении на 503-loop: логи webapp-prod + сверка с `events.ts` / `integrator/events/route.ts`.  
+2. **Операционный контур Stage A (если ещё не закрыт).**
+   - Разобрать открытые `auto_merge_conflict` по политике продукта.
+   - При подозрении на 503-loop: логи webapp-prod + сверка с `events.ts` / `integrator/events/route.ts`.
    - Убедиться, что новые классы ошибок strict purge / manual merge сопровождаются записями в `admin_audit_log` (см. [`STAGE_A_V1_STABILIZATION.md`](STAGE_A_V1_STABILIZATION.md)).
 
 3. **Не снимать** hard blocker `different_non_null_integrator_user_id` в webapp до завершения соответствующего этапа v2 (integrator DDL + canonical merge + realignment + feature flag по MASTER_PLAN). Любой PR, ослабляющий этот guard без v2, считается **недопустимым**.
@@ -197,8 +197,8 @@ pnpm --dir apps/webapp exec vitest run \
 
 ## Ссылки
 
-- [`AGENT_EXECUTION_LOG.md`](AGENT_EXECUTION_LOG.md)  
-- [`STAGE_A_V1_STABILIZATION.md`](STAGE_A_V1_STABILIZATION.md)  
-- [`MASTER_PLAN.md`](MASTER_PLAN.md)  
-- [`../ARCHITECTURE/PLATFORM_USER_MERGE.md`](../ARCHITECTURE/PLATFORM_USER_MERGE.md)  
+- [`AGENT_EXECUTION_LOG.md`](AGENT_EXECUTION_LOG.md)
+- [`STAGE_A_V1_STABILIZATION.md`](STAGE_A_V1_STABILIZATION.md)
+- [`MASTER_PLAN.md`](MASTER_PLAN.md)
+- [`../ARCHITECTURE/PLATFORM_USER_MERGE.md`](../ARCHITECTURE/PLATFORM_USER_MERGE.md)
 - [`../REPORTS/STRICT_PURGE_MANUAL_MERGE_EXECUTION_LOG.md`](../REPORTS/STRICT_PURGE_MANUAL_MERGE_EXECUTION_LOG.md)

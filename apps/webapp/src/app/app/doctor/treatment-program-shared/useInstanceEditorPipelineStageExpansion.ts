@@ -1,17 +1,21 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   pickDefaultExpandedPipelineStageId,
   type PipelineStageForDefaultExpand,
-} from "./instanceEditorDefaultExpandedStageId";
+} from './instanceEditorDefaultExpandedStageId';
 
-function buildInitialExpandedStageIds(pipelineStages: PipelineStageForDefaultExpand[]): Set<string> {
+function buildInitialExpandedStageIds(
+  pipelineStages: PipelineStageForDefaultExpand[],
+): Set<string> {
   const defaultId = pickDefaultExpandedPipelineStageId(pipelineStages);
   return defaultId ? new Set([defaultId]) : new Set();
 }
 
-export function useInstanceEditorPipelineStageExpansion(pipelineStages: PipelineStageForDefaultExpand[]) {
+export function useInstanceEditorPipelineStageExpansion(
+  pipelineStages: PipelineStageForDefaultExpand[],
+) {
   const deferredInitRef = useRef(pipelineStages.length === 0);
   const [expandedStageIds, setExpandedStageIds] = useState<Set<string>>(() =>
     pipelineStages.length > 0 ? buildInitialExpandedStageIds(pipelineStages) : new Set(),
@@ -36,7 +40,10 @@ export function useInstanceEditorPipelineStageExpansion(pipelineStages: Pipeline
     });
   }, []);
 
-  const isStageExpanded = useCallback((stageId: string) => expandedStageIds.has(stageId), [expandedStageIds]);
+  const isStageExpanded = useCallback(
+    (stageId: string) => expandedStageIds.has(stageId),
+    [expandedStageIds],
+  );
 
   return { expandedStageIds, isStageExpanded, setStageExpanded };
 }

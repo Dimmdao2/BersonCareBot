@@ -14,16 +14,16 @@ Minor notes после follow-up остаются только по documented d
 
 ## 2. Style-Only Scope Check
 
-| Вопрос (`AUDIT_TEMPLATE.md` §2) | Глобальный результат |
-|----------------------------------|----------------------|
-| Did content/copy stay unchanged? | **Да по проверенному diff инициативы.** Spot-check semantic diff по patient UI показывает замены классов/примитивов вокруг тех же строк; обнаруженные русскоязычные строки в diff сохраняют прежний текст, меняется `className`/wrapper. |
-| Did page order/structure/flow stay unchanged? | **Да.** Нет новых route/page flows в scope Style Transfer; фазы 2–4 меняли визуальные wrappers карточек, списков, форм, wizard/cabinet surfaces. |
-| Did links/routes/query params stay unchanged? | **Да.** Booking `router.push`, `routePaths`, confirm query и diary `?tab=` spot-check сохранены; изменения визуальные. |
-| Did data fetching stay unchanged? | **Да.** Существующие client fetch/API calls в patient components сохранены; новых API fetches ради style-transfer не найдено. |
-| Did services/repos/API routes/migrations stay untouched? | **Да.** `git diff --name-only 839d35d1..HEAD` по `apps/webapp/src/app/api`, `apps/webapp/db`, `apps/webapp/src/modules`, `apps/integrator`, `deploy`, env examples, `package.json`, `pnpm-lock.yaml` — без файлов. |
-| Did doctor/admin stay untouched? | **Да.** Diff инициативы по doctor/admin/settings/shared doctor files пустой. Shared `FeatureCard` затрагивает patient/home consumers, но не doctor/admin. |
-| Were patient primitives used instead of one-off styling? | **В целом да.** `patientVisual.ts` содержит reusable patient card/list/form/text/pill/action/link primitives; Phase 2–4 routes массово используют эти exports. |
-| Did home-specific geometry stay out of unrelated pages? | **Да.** `patientHomeCardStyles` imports найдены только внутри `app/app/patient/home/**`; вне `home/` переносов hero/mood/fixed geometry не найдено. |
+| Вопрос (`AUDIT_TEMPLATE.md` §2)                          | Глобальный результат                                                                                                                                                                                                                     |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Did content/copy stay unchanged?                         | **Да по проверенному diff инициативы.** Spot-check semantic diff по patient UI показывает замены классов/примитивов вокруг тех же строк; обнаруженные русскоязычные строки в diff сохраняют прежний текст, меняется `className`/wrapper. |
+| Did page order/structure/flow stay unchanged?            | **Да.** Нет новых route/page flows в scope Style Transfer; фазы 2–4 меняли визуальные wrappers карточек, списков, форм, wizard/cabinet surfaces.                                                                                         |
+| Did links/routes/query params stay unchanged?            | **Да.** Booking `router.push`, `routePaths`, confirm query и diary `?tab=` spot-check сохранены; изменения визуальные.                                                                                                                   |
+| Did data fetching stay unchanged?                        | **Да.** Существующие client fetch/API calls в patient components сохранены; новых API fetches ради style-transfer не найдено.                                                                                                            |
+| Did services/repos/API routes/migrations stay untouched? | **Да.** `git diff --name-only 839d35d1..HEAD` по `apps/webapp/src/app/api`, `apps/webapp/db`, `apps/webapp/src/modules`, `apps/integrator`, `deploy`, env examples, `package.json`, `pnpm-lock.yaml` — без файлов.                       |
+| Did doctor/admin stay untouched?                         | **Да.** Diff инициативы по doctor/admin/settings/shared doctor files пустой. Shared `FeatureCard` затрагивает patient/home consumers, но не doctor/admin.                                                                                |
+| Were patient primitives used instead of one-off styling? | **В целом да.** `patientVisual.ts` содержит reusable patient card/list/form/text/pill/action/link primitives; Phase 2–4 routes массово используют эти exports.                                                                           |
+| Did home-specific geometry stay out of unrelated pages?  | **Да.** `patientHomeCardStyles` imports найдены только внутри `app/app/patient/home/**`; вне `home/` переносов hero/mood/fixed geometry не найдено.                                                                                      |
 
 ## 3. Mandatory Fixes
 

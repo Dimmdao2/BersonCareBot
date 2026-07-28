@@ -1,17 +1,17 @@
-import { DateTime } from "luxon";
-import type { ReminderLinkedObjectType, ReminderRule } from "@/modules/reminders/types";
-import type { SlotsV1ScheduleData } from "@/modules/reminders/scheduleSlots";
-import { isMinuteOfDayInQuietHours } from "@/modules/reminders/quietHours";
-import { isWarmupsContentSectionReminderRule } from "@/modules/reminders/warmupsReminderRuleMatch";
+import { DateTime } from 'luxon';
+import type { ReminderLinkedObjectType, ReminderRule } from '@/modules/reminders/types';
+import type { SlotsV1ScheduleData } from '@/modules/reminders/scheduleSlots';
+import { isMinuteOfDayInQuietHours } from '@/modules/reminders/quietHours';
+import { isWarmupsContentSectionReminderRule } from '@/modules/reminders/warmupsReminderRuleMatch';
 
 /** Rules that participate in home «next reminder» + daily planned counts. */
 const LINKED_TYPES: ReminderLinkedObjectType[] = [
-  "lfk_complex",
-  "content_section",
-  "content_page",
-  "custom",
-  "rehab_program",
-  "treatment_program_item",
+  'lfk_complex',
+  'content_section',
+  'content_page',
+  'custom',
+  'rehab_program',
+  'treatment_program_item',
 ];
 
 function parseHhMmToMinuteOfDay(s: string): number | null {
@@ -25,28 +25,33 @@ function parseHhMmToMinuteOfDay(s: string): number | null {
 }
 
 function localDateKeyLuxon(dt: DateTime): string {
-  return dt.toFormat("yyyy-LL-dd");
+  return dt.toFormat('yyyy-LL-dd');
 }
 
-function isDayActiveSlotsV1(data: SlotsV1ScheduleData, rule: ReminderRule, day: DateTime, tz: string): boolean {
+function isDayActiveSlotsV1(
+  data: SlotsV1ScheduleData,
+  rule: ReminderRule,
+  day: DateTime,
+  tz: string,
+): boolean {
   const weekdayIndex0 = day.weekday - 1;
-  if (data.dayFilter === "weekdays") {
+  if (data.dayFilter === 'weekdays') {
     return weekdayIndex0 >= 0 && weekdayIndex0 <= 4;
   }
-  if (data.dayFilter === "weekly_mask") {
-    const mask = (data.daysMask ?? rule.daysMask ?? "1111111").padStart(7, "0").slice(0, 7);
-    return mask[weekdayIndex0] === "1";
+  if (data.dayFilter === 'weekly_mask') {
+    const mask = (data.daysMask ?? rule.daysMask ?? '1111111').padStart(7, '0').slice(0, 7);
+    return mask[weekdayIndex0] === '1';
   }
-  if (data.dayFilter === "every_n_days") {
+  if (data.dayFilter === 'every_n_days') {
     const n = data.everyNDays ?? 1;
-    const anchor = (data.anchorDate ?? "").trim();
+    const anchor = (data.anchorDate ?? '').trim();
     if (!anchor || n < 1) return false;
     const todayKey = localDateKeyLuxon(day);
     let diff = 0;
     try {
       const b = DateTime.fromISO(`${todayKey}T12:00:00`, { zone: tz });
       const a = DateTime.fromISO(`${anchor}T12:00:00`, { zone: tz });
-      diff = Math.round(b.diff(a, "days").days);
+      diff = Math.round(b.diff(a, 'days').days);
     } catch {
       return false;
     }
@@ -58,11 +63,13 @@ function isDayActiveSlotsV1(data: SlotsV1ScheduleData, rule: ReminderRule, day: 
 
 function localDaysTouchingUtcRange(rangeStart: Date, rangeEnd: Date, tz: string): DateTime[] {
   const out: DateTime[] = [];
-  let d = DateTime.fromJSDate(rangeStart, { zone: "utc" }).setZone(tz).startOf("day");
+  let d = DateTime.fromJSDate(rangeStart, { zone: 'utc' }).setZone(tz).startOf('day');
   const endFloor =
-    rangeEnd.getTime() <= rangeStart.getTime() ?
-      d
-    : DateTime.fromJSDate(new Date(rangeEnd.getTime() - 1), { zone: "utc" }).setZone(tz).startOf("day");
+    rangeEnd.getTime() <= rangeStart.getTime()
+      ? d
+      : DateTime.fromJSDate(new Date(rangeEnd.getTime() - 1), { zone: 'utc' })
+          .setZone(tz)
+          .startOf('day');
   while (d <= endFloor) {
     out.push(d);
     d = d.plus({ days: 1 });
@@ -70,8 +77,12 @@ function localDaysTouchingUtcRange(rangeStart: Date, rangeEnd: Date, tz: string)
   return out;
 }
 
-function countIntervalWindowOccurrencesInRange(rule: ReminderRule, rangeStart: Date, rangeEnd: Date): number {
-  const tz = rule.timezone?.trim() || "UTC";
+function countIntervalWindowOccurrencesInRange(
+  rule: ReminderRule,
+  rangeStart: Date,
+  rangeEnd: Date,
+): number {
+  const tz = rule.timezone?.trim() || 'UTC';
   const intervalMin = Math.max(1, rule.intervalMinutes ?? 60);
   const mask = rule.daysMask;
   if (!/^[01]{7}$/.test(mask)) return 0;
@@ -81,9 +92,10 @@ function countIntervalWindowOccurrencesInRange(rule: ReminderRule, rangeStart: D
   let count = 0;
   for (const day of localDaysTouchingUtcRange(rangeStart, rangeEnd, tz)) {
     const weekdayIdx = day.weekday - 1;
-    if (mask[weekdayIdx] !== "1") continue;
+    if (mask[weekdayIdx] !== '1') continue;
     for (let m = winStart; m <= winEnd; m += intervalMin) {
-      if (isMinuteOfDayInQuietHours(m, rule.quietHoursStartMinute, rule.quietHoursEndMinute)) continue;
+      if (isMinuteOfDayInQuietHours(m, rule.quietHoursStartMinute, rule.quietHoursEndMinute))
+        continue;
       const slot = day.set({
         hour: Math.floor(m / 60),
         minute: m % 60,
@@ -97,17 +109,23 @@ function countIntervalWindowOccurrencesInRange(rule: ReminderRule, rangeStart: D
   return count;
 }
 
-function countSlotsV1OccurrencesInRange(rule: ReminderRule, rangeStart: Date, rangeEnd: Date): number {
+function countSlotsV1OccurrencesInRange(
+  rule: ReminderRule,
+  rangeStart: Date,
+  rangeEnd: Date,
+): number {
   const data = rule.scheduleData;
   if (!data || !Array.isArray(data.timesLocal)) return 0;
-  const tz = rule.timezone?.trim() || "UTC";
+  const tz = rule.timezone?.trim() || 'UTC';
   let count = 0;
   for (const day of localDaysTouchingUtcRange(rangeStart, rangeEnd, tz)) {
     if (!isDayActiveSlotsV1(data, rule, day, tz)) continue;
     for (const tl of data.timesLocal) {
-      const minuteOfDay = parseHhMmToMinuteOfDay(typeof tl === "string" ? tl : "");
+      const minuteOfDay = parseHhMmToMinuteOfDay(typeof tl === 'string' ? tl : '');
       if (minuteOfDay === null) continue;
-      if (isMinuteOfDayInQuietHours(minuteOfDay, rule.quietHoursStartMinute, rule.quietHoursEndMinute)) {
+      if (
+        isMinuteOfDayInQuietHours(minuteOfDay, rule.quietHoursStartMinute, rule.quietHoursEndMinute)
+      ) {
         continue;
       }
       const slot = day.set({
@@ -126,14 +144,14 @@ function countSlotsV1OccurrencesInRange(rule: ReminderRule, rangeStart: Date, ra
 /** Слоты напоминаний с заданным {@link ReminderRule.reminderIntent} в UTC-окне (без fallback). */
 export function countReminderIntentSlotsInUtcRange(
   rules: ReminderRule[],
-  intent: ReminderRule["reminderIntent"],
+  intent: ReminderRule['reminderIntent'],
   rangeStart: Date,
   rangeEnd: Date,
 ): number {
   let n = 0;
   for (const rule of rules) {
     if (!rule.enabled || rule.reminderIntent !== intent) continue;
-    if (rule.scheduleType === "slots_v1" && rule.scheduleData) {
+    if (rule.scheduleType === 'slots_v1' && rule.scheduleData) {
       n += countSlotsV1OccurrencesInRange(rule, rangeStart, rangeEnd);
     } else {
       n += countIntervalWindowOccurrencesInRange(rule, rangeStart, rangeEnd);
@@ -149,8 +167,12 @@ export function countReminderIntentSlotsInUtcRange(
  *
  * Если подходящих слотов нет (`0`), возвращает **3** — минимальная шкала делений по спеке дневника пациента (`diary.md`).
  */
-export function countWarmupReminderSlotsInUtcRange(rules: ReminderRule[], rangeStart: Date, rangeEnd: Date): number {
-  const n = countReminderIntentSlotsInUtcRange(rules, "warmup", rangeStart, rangeEnd);
+export function countWarmupReminderSlotsInUtcRange(
+  rules: ReminderRule[],
+  rangeStart: Date,
+  rangeEnd: Date,
+): number {
+  const n = countReminderIntentSlotsInUtcRange(rules, 'warmup', rangeStart, rangeEnd);
   return n === 0 ? 3 : n;
 }
 
@@ -168,7 +190,7 @@ export function countPlannedHomeLinkedReminderOccurrencesWithPredicate(
     if (!rule.enabled) continue;
     if (!rule.linkedObjectType || !LINKED_TYPES.includes(rule.linkedObjectType)) continue;
     if (!predicate(rule)) continue;
-    if (rule.scheduleType === "slots_v1" && rule.scheduleData) {
+    if (rule.scheduleType === 'slots_v1' && rule.scheduleData) {
       n += countSlotsV1OccurrencesInRange(rule, rangeStart, rangeEnd);
     } else {
       n += countIntervalWindowOccurrencesInRange(rule, rangeStart, rangeEnd);
@@ -186,7 +208,12 @@ export function countPlannedHomeReminderOccurrencesInUtcRange(
   rangeStart: Date,
   rangeEnd: Date,
 ): number {
-  return countPlannedHomeLinkedReminderOccurrencesWithPredicate(rules, () => true, rangeStart, rangeEnd);
+  return countPlannedHomeLinkedReminderOccurrencesWithPredicate(
+    rules,
+    () => true,
+    rangeStart,
+    rangeEnd,
+  );
 }
 
 function computeNextSlotsV1OccurrenceUtc(
@@ -201,13 +228,15 @@ function computeNextSlotsV1OccurrenceUtc(
   if (!nowDt.isValid) return null;
 
   for (let dayOffset = 0; dayOffset < 14; dayOffset += 1) {
-    const day = nowDt.startOf("day").plus({ days: dayOffset });
+    const day = nowDt.startOf('day').plus({ days: dayOffset });
     if (!isDayActiveSlotsV1(data, rule, day, tz)) continue;
     const sortedTimes = [...data.timesLocal].sort();
     for (const tl of sortedTimes) {
-      const minuteOfDay = parseHhMmToMinuteOfDay(typeof tl === "string" ? tl : "");
+      const minuteOfDay = parseHhMmToMinuteOfDay(typeof tl === 'string' ? tl : '');
       if (minuteOfDay === null) continue;
-      if (isMinuteOfDayInQuietHours(minuteOfDay, rule.quietHoursStartMinute, rule.quietHoursEndMinute)) {
+      if (
+        isMinuteOfDayInQuietHours(minuteOfDay, rule.quietHoursStartMinute, rule.quietHoursEndMinute)
+      ) {
         continue;
       }
       const slot = day.set({
@@ -233,7 +262,7 @@ export function computeNextOccurrenceUtcForRule(
   now: Date,
   appFallbackTimezone: string,
 ): Date | null {
-  if (rule.scheduleType === "slots_v1" && rule.scheduleData) {
+  if (rule.scheduleType === 'slots_v1' && rule.scheduleData) {
     return computeNextSlotsV1OccurrenceUtc(rule, now, appFallbackTimezone);
   }
 
@@ -250,12 +279,13 @@ export function computeNextOccurrenceUtcForRule(
   if (!nowDt.isValid) return null;
 
   for (let dayOffset = 0; dayOffset < 14; dayOffset += 1) {
-    const day = nowDt.startOf("day").plus({ days: dayOffset });
+    const day = nowDt.startOf('day').plus({ days: dayOffset });
     const weekdayIdx = day.weekday - 1;
-    if (mask[weekdayIdx] !== "1") continue;
+    if (mask[weekdayIdx] !== '1') continue;
 
     for (let m = winStart; m <= winEnd; m += intervalMin) {
-      if (isMinuteOfDayInQuietHours(m, rule.quietHoursStartMinute, rule.quietHoursEndMinute)) continue;
+      if (isMinuteOfDayInQuietHours(m, rule.quietHoursStartMinute, rule.quietHoursEndMinute))
+        continue;
       const hour = Math.floor(m / 60);
       const minute = m % 60;
       const slot = day.set({ hour, minute, second: 0, millisecond: 0 });
@@ -271,7 +301,10 @@ export function computeNextOccurrenceUtcForRule(
  * Момент, с которого считаем «следующее по расписанию», если глобально заглушены push:
  * не раньше окончания `reminder_muted_until`, иначе показывали бы слот во время паузы.
  */
-export function reminderScheduleEvaluationInstant(now: Date, mutedUntilIso: string | null | undefined): Date {
+export function reminderScheduleEvaluationInstant(
+  now: Date,
+  mutedUntilIso: string | null | undefined,
+): Date {
   const trimmed = mutedUntilIso?.trim();
   if (!trimmed) return now;
   const until = new Date(trimmed);
@@ -302,53 +335,57 @@ export function pickNextHomeReminder(
 /** Short label in app display timezone (e.g. «Пн, 09:15»). */
 export function formatNextReminderLabel(nextAt: Date, displayTimeZone: string): string {
   const dt = DateTime.fromMillis(nextAt.getTime()).setZone(displayTimeZone);
-  if (!dt.isValid) return "";
-  return dt.setLocale("ru").toFormat("ccc, HH:mm");
+  if (!dt.isValid) return '';
+  return dt.setLocale('ru').toFormat('ccc, HH:mm');
 }
 
 function ruMinuteWord(n: number): string {
   const mod100 = n % 100;
-  if (mod100 >= 11 && mod100 <= 14) return "минут";
+  if (mod100 >= 11 && mod100 <= 14) return 'минут';
   const mod10 = n % 10;
-  if (mod10 === 1) return "минуту";
-  if (mod10 >= 2 && mod10 <= 4) return "минуты";
-  return "минут";
+  if (mod10 === 1) return 'минуту';
+  if (mod10 >= 2 && mod10 <= 4) return 'минуты';
+  return 'минут';
 }
 
 function ruHourWordHeadline(n: number): string {
   const mod100 = n % 100;
-  if (mod100 >= 11 && mod100 <= 14) return "часов";
+  if (mod100 >= 11 && mod100 <= 14) return 'часов';
   const mod10 = n % 10;
-  if (mod10 === 1) return "час";
-  if (mod10 >= 2 && mod10 <= 4) return "часа";
-  return "часов";
+  if (mod10 === 1) return 'час';
+  if (mod10 >= 2 && mod10 <= 4) return 'часа';
+  return 'часов';
 }
 
 function ruDayWordMute(n: number): string {
   const mod100 = n % 100;
-  if (mod100 >= 11 && mod100 <= 14) return "дней";
+  if (mod100 >= 11 && mod100 <= 14) return 'дней';
   const mod10 = n % 10;
-  if (mod10 === 1) return "день";
-  if (mod10 >= 2 && mod10 <= 4) return "дня";
-  return "дней";
+  if (mod10 === 1) return 'день';
+  if (mod10 >= 2 && mod10 <= 4) return 'дня';
+  return 'дней';
 }
 
 /**
  * Главная строка карточки «Следующее напоминание»: относительное время сегодня,
  * «Завтра в …», либо «В …» с днём недели.
  */
-export function formatPatientHomeNextReminderHeadline(nextAt: Date, now: Date, displayTimeZone: string): string {
+export function formatPatientHomeNextReminderHeadline(
+  nextAt: Date,
+  now: Date,
+  displayTimeZone: string,
+): string {
   const dtNext = DateTime.fromMillis(nextAt.getTime()).setZone(displayTimeZone);
   const dtNow = DateTime.fromMillis(now.getTime()).setZone(displayTimeZone);
   if (!dtNext.isValid || !dtNow.isValid) return formatNextReminderLabel(nextAt, displayTimeZone);
 
-  const diffMinutes = Math.max(0, Math.ceil(dtNext.diff(dtNow, "minutes").minutes));
+  const diffMinutes = Math.max(0, Math.ceil(dtNext.diff(dtNow, 'minutes').minutes));
 
-  const tomorrowStart = dtNow.plus({ days: 1 }).startOf("day");
+  const tomorrowStart = dtNow.plus({ days: 1 }).startOf('day');
   const isTomorrow = dtNext >= tomorrowStart && dtNext < tomorrowStart.plus({ days: 1 });
 
-  if (dtNext.hasSame(dtNow, "day")) {
-    if (diffMinutes < 1) return "Скоро";
+  if (dtNext.hasSame(dtNow, 'day')) {
+    if (diffMinutes < 1) return 'Скоро';
     if (diffMinutes < 60) {
       return `Через ${diffMinutes} ${ruMinuteWord(diffMinutes)}`;
     }
@@ -357,23 +394,23 @@ export function formatPatientHomeNextReminderHeadline(nextAt: Date, now: Date, d
   }
 
   if (isTomorrow) {
-    return `Завтра в ${dtNext.toFormat("HH:mm")}`;
+    return `Завтра в ${dtNext.toFormat('HH:mm')}`;
   }
 
   /** «В понедельник» / «Во вторник» / «В среду» … (предложный падеж после «в/во»). */
   const accusativeWeekday: Record<number, string> = {
-    1: "понедельник",
-    2: "вторник",
-    3: "среду",
-    4: "четверг",
-    5: "пятницу",
-    6: "субботу",
-    7: "воскресенье",
+    1: 'понедельник',
+    2: 'вторник',
+    3: 'среду',
+    4: 'четверг',
+    5: 'пятницу',
+    6: 'субботу',
+    7: 'воскресенье',
   };
   const w = dtNext.weekday;
-  const dayRu = accusativeWeekday[w] ?? dtNext.setLocale("ru").toFormat("cccc");
-  const prep = w === 2 ? "Во" : "В";
-  return `${prep} ${dayRu} в ${dtNext.toFormat("HH:mm")}`;
+  const dayRu = accusativeWeekday[w] ?? dtNext.setLocale('ru').toFormat('cccc');
+  const prep = w === 2 ? 'Во' : 'В';
+  return `${prep} ${dayRu} в ${dtNext.toFormat('HH:mm')}`;
 }
 
 /**
@@ -381,9 +418,9 @@ export function formatPatientHomeNextReminderHeadline(nextAt: Date, now: Date, d
  */
 export function formatReminderMuteRemainingRu(mutedUntilIso: string, now: Date): string {
   const endMs = Date.parse(mutedUntilIso.trim());
-  if (!Number.isFinite(endMs)) return "";
+  if (!Number.isFinite(endMs)) return '';
   const minsTotal = Math.max(0, Math.ceil((endMs - now.getTime()) / 60_000));
-  if (minsTotal < 1) return "меньше минуты";
+  if (minsTotal < 1) return 'меньше минуты';
   if (minsTotal < 60) {
     return `${minsTotal} ${ruMinuteWord(minsTotal)}`;
   }
@@ -396,7 +433,10 @@ export function formatReminderMuteRemainingRu(mutedUntilIso: string, now: Date):
 }
 
 /** Enabled reminder on warmups CMS section (`content_section` + resolved section slug). */
-export function hasEnabledWarmupsSectionReminder(rules: ReminderRule[], warmupsLinkedId: string): boolean {
+export function hasEnabledWarmupsSectionReminder(
+  rules: ReminderRule[],
+  warmupsLinkedId: string,
+): boolean {
   return rules.some((r) => r.enabled && isWarmupsContentSectionReminderRule(r, warmupsLinkedId));
 }
 

@@ -18,15 +18,15 @@
 
 ### 1.1 Покрытие таблиц
 
-| Таблица | Мутация в `realign_webapp_integrator_user_id.sql` | Строка в gate (`diagnostics_webapp_integrator_user_id.sql`) |
-|---------|---------------------------------------------------|-------------------------------------------------------------|
-| `user_subscriptions_webapp` | `DELETE` (dedup) + `UPDATE` | да |
-| `mailing_logs_webapp` | `DELETE` (dedup) + `UPDATE` | да |
-| `reminder_rules` | `UPDATE` | да |
-| `reminder_occurrence_history` | `UPDATE` | да |
-| `reminder_delivery_events` | `UPDATE` | да |
-| `content_access_grants_webapp` | `UPDATE` | да |
-| `support_conversations` | `UPDATE` (`IS NOT NULL` на loser) | да |
+| Таблица                        | Мутация в `realign_webapp_integrator_user_id.sql` | Строка в gate (`diagnostics_webapp_integrator_user_id.sql`) |
+| ------------------------------ | ------------------------------------------------- | ----------------------------------------------------------- |
+| `user_subscriptions_webapp`    | `DELETE` (dedup) + `UPDATE`                       | да                                                          |
+| `mailing_logs_webapp`          | `DELETE` (dedup) + `UPDATE`                       | да                                                          |
+| `reminder_rules`               | `UPDATE`                                          | да                                                          |
+| `reminder_occurrence_history`  | `UPDATE`                                          | да                                                          |
+| `reminder_delivery_events`     | `UPDATE`                                          | да                                                          |
+| `content_access_grants_webapp` | `UPDATE`                                          | да                                                          |
+| `support_conversations`        | `UPDATE` (`IS NOT NULL` на loser)                 | да                                                          |
 
 **Вывод:** набор таблиц в **realign** и **gate** совпадает; для подписок/рассылок перед `UPDATE` выполняется **dedup**, согласованный с integrator `mergeIntegratorUsers` (удаление loser-строк при уже существующей паре у winner по topic / mailing).
 
@@ -70,22 +70,22 @@ Gate **не** включает раскомментированный запро
 
 ### 2.4 Сводка по регрессии
 
-| Поток | Вердикт | Замечание |
-|-------|---------|-----------|
+| Поток                      | Вердикт  | Замечание                                                                        |
+| -------------------------- | -------- | -------------------------------------------------------------------------------- |
 | Reminders / content access | **PASS** | Ключи — `integrator_*` id; user id в payload должен быть каноническим (Stage 2). |
-| Support | **PASS** | Rekey `support_conversations` достаточен для перечисленных ingestion-путей. |
-| Subscriptions / mailing | **PASS** | Dedup + rekey зеркалят integrator merge по смыслу UNIQUE. |
+| Support                    | **PASS** | Rekey `support_conversations` достаточен для перечисленных ingestion-путей.      |
+| Subscriptions / mailing    | **PASS** | Dedup + rekey зеркалят integrator merge по смыслу UNIQUE.                        |
 
 ---
 
 ## 3) SQL gates воспроизводимы
 
-| Критерий | Факт | Вердикт |
-|----------|------|---------|
-| Единый стиль параметров psql | `\set loser_id '…'`, `\set winner_id '…'` + подстановка `:'loser_id'` / `:'winner_id'` документированы в [`sql/README.md`](sql/README.md) | **PASS** |
-| Production подключение | В README ссылка на префикс env из [`SERVER CONVENTIONS.md`](../ARCHITECTURE/SERVER%20CONVENTIONS.md) / [`CUTOVER_RUNBOOK.md`](CUTOVER_RUNBOOK.md) (webapp `DATABASE_URL`) | **PASS** |
-| Эквивалент job ↔ SQL | `realign-webapp-integrator-user-projection.ts` с `--commit` повторяет порядок: dedup subscriptions/mailing → те же `UPDATE` | **PASS** |
-| Дрейф списка таблиц | `WEBAPP_INTEGRATOR_USER_ID_GATE_TABLE_SPECS` задаёт gate UNION; `WEBAPP_INTEGRATOR_USER_REALIGNMENT_UPDATE_TABLES` + тест проверяют равенство множеств имён; job использует `buildWebappLoserIntegratorUserIdDiagnosticsSqlNodePg()` | **PASS** |
+| Критерий                                 | Факт                                                                                                                                                                                                                                                                     | Вердикт  |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------- |
+| Единый стиль параметров psql             | `\set loser_id '…'`, `\set winner_id '…'` + подстановка `:'loser_id'` / `:'winner_id'` документированы в [`sql/README.md`](sql/README.md)                                                                                                                                | **PASS** |
+| Production подключение                   | В README ссылка на префикс env из [`SERVER CONVENTIONS.md`](../ARCHITECTURE/SERVER%20CONVENTIONS.md) / [`CUTOVER_RUNBOOK.md`](CUTOVER_RUNBOOK.md) (webapp `DATABASE_URL`)                                                                                                | **PASS** |
+| Эквивалент job ↔ SQL                     | `realign-webapp-integrator-user-projection.ts` с `--commit` повторяет порядок: dedup subscriptions/mailing → те же `UPDATE`                                                                                                                                              | **PASS** |
+| Дрейф списка таблиц                      | `WEBAPP_INTEGRATOR_USER_ID_GATE_TABLE_SPECS` задаёт gate UNION; `WEBAPP_INTEGRATOR_USER_REALIGNMENT_UPDATE_TABLES` + тест проверяют равенство множеств имён; job использует `buildWebappLoserIntegratorUserIdDiagnosticsSqlNodePg()`                                     | **PASS** |
 | Полный паритет gate-UNION ↔ job ↔ `.sql` | Единый билдер в [`webappIntegratorUserProjectionRealignment.ts`](../../apps/webapp/src/infra/ops/webappIntegratorUserProjectionRealignment.ts); `diagnostics_webapp_integrator_user_id.sql` совпадает с `fullDiagnosticsWebappIntegratorUserIdSqlFileContent()` (vitest) | **PASS** |
 
 **Вывод §3:** воспроизводимость для оператора — **PASS**; рассинхрон gate между `.sql` и job **снимается CI-тестом**.
@@ -94,13 +94,13 @@ Gate **не** включает раскомментированный запро
 
 ## 4) CI evidence
 
-| Проверка | Результат (зафиксировано при аудите) |
-|----------|--------------------------------------|
-| Полный pipeline из корня | `pnpm install --frozen-lockfile && pnpm run ci` — **exit 0** |
-| Integrator tests | **646 passed**, 6 skipped |
-| Webapp tests | **1397 passed**, 5 skipped (после follow-up единого gate SQL) |
-| Сборки | `apps/integrator` + `apps/webapp` production build — **OK** |
-| Audit prod dependencies | `pnpm audit --prod` — **No known vulnerabilities** |
+| Проверка                 | Результат (зафиксировано при аудите)                          |
+| ------------------------ | ------------------------------------------------------------- |
+| Полный pipeline из корня | `pnpm install --frozen-lockfile && pnpm run ci` — **exit 0**  |
+| Integrator tests         | **646 passed**, 6 skipped                                     |
+| Webapp tests             | **1397 passed**, 5 skipped (после follow-up единого gate SQL) |
+| Сборки                   | `apps/integrator` + `apps/webapp` production build — **OK**   |
+| Audit prod dependencies  | `pnpm audit --prod` — **No known vulnerabilities**            |
 
 **Воспроизведение:**
 
@@ -117,12 +117,12 @@ pnpm run ci
 
 ## 5) Сводный вердикт по запросу аудита
 
-| # | Вопрос | Вердикт |
-|---|--------|---------|
-| 1 | После realignment loser отсутствует в целевых projection-таблицах (gate = 0) | **PASS** |
-| 2 | Нет регрессии для ingestion reminders / support / subscriptions (статическая совместимость) | **PASS** (при каноническом user id из integrator, Stage 2) |
-| 3 | SQL gates воспроизводимы | **PASS** (единый билдер + тест совпадения файла) |
-| 4 | CI evidence есть | **PASS** |
+| #   | Вопрос                                                                                      | Вердикт                                                    |
+| --- | ------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| 1   | После realignment loser отсутствует в целевых projection-таблицах (gate = 0)                | **PASS**                                                   |
+| 2   | Нет регрессии для ingestion reminders / support / subscriptions (статическая совместимость) | **PASS** (при каноническом user id из integrator, Stage 2) |
+| 3   | SQL gates воспроизводимы                                                                    | **PASS** (единый билдер + тест совпадения файла)           |
+| 4   | CI evidence есть                                                                            | **PASS**                                                   |
 
 **Общий вердикт Stage 4 (репозиторий):** **PASS** по целевому чеклисту аудита.
 
@@ -188,11 +188,11 @@ pnpm run ci
 
 ## 8) Follow-up 2026-04-10 — единый источник gate SQL
 
-| Тема | Сделано |
-|------|---------|
-| GAP §3 дублирование UNION | `WEBAPP_INTEGRATOR_USER_ID_GATE_TABLE_SPECS`, `buildWebappLoserIntegratorUserIdGateUnionSql`, `buildWebappLoserIntegratorUserIdDiagnosticsSqlNodePg`; job импортирует билдер вместо встроенной строки `loserCountSql`. |
-| Совпадение с `diagnostics_webapp_integrator_user_id.sql` | `fullDiagnosticsWebappIntegratorUserIdSqlFileContent()` + vitest «matches canonical builder»; в каждой ветке UNION явный `AS tbl` и `COUNT(*)::bigint`. |
-| Согласованность множеств таблиц | Тест: множество имён из gate specs = множество из `WEBAPP_INTEGRATOR_USER_REALIGNMENT_UPDATE_TABLES`. |
+| Тема                                                     | Сделано                                                                                                                                                                                                                |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GAP §3 дублирование UNION                                | `WEBAPP_INTEGRATOR_USER_ID_GATE_TABLE_SPECS`, `buildWebappLoserIntegratorUserIdGateUnionSql`, `buildWebappLoserIntegratorUserIdDiagnosticsSqlNodePg`; job импортирует билдер вместо встроенной строки `loserCountSql`. |
+| Совпадение с `diagnostics_webapp_integrator_user_id.sql` | `fullDiagnosticsWebappIntegratorUserIdSqlFileContent()` + vitest «matches canonical builder»; в каждой ветке UNION явный `AS tbl` и `COUNT(*)::bigint`.                                                                |
+| Согласованность множеств таблиц                          | Тест: множество имён из gate specs = множество из `WEBAPP_INTEGRATOR_USER_REALIGNMENT_UPDATE_TABLES`.                                                                                                                  |
 
 **CI:** `pnpm install --frozen-lockfile && pnpm run ci` — **OK** (integrator **646** passed, webapp **1397** passed, build, `pnpm audit --prod`); журнал — [`AGENT_EXECUTION_LOG.md`](AGENT_EXECUTION_LOG.md) (запись follow-up AUDIT Stage 4).
 

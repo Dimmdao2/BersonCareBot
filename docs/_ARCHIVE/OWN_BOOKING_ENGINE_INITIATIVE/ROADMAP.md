@@ -8,25 +8,25 @@
 
 Декомпозированные планы для исполнителя (Composer) — в `.cursor/plans/archive/own_booking_stage*.plan.md`.
 
-| # | Этап | Статус | Зависит от | Можно параллелить с | План |
-|---|------|--------|-----------|---------------------|------|
-| 0 | Инфраструктура инициативы (docs) | `done` | — | — | — |
-| 1 | Каноническая модель данных | `done` | 0 | — (фундамент) | [`stage1`](../../.cursor/plans/archive/own_booking_stage1_canonical_model.plan.md) |
-| 2 | Базовая запись пациента | `done` | 1 | — | [`stage2`](../../.cursor/plans/archive/own_booking_stage2_patient_booking.plan.md) |
-| 3 | Публичный виджет / страница записи | `done` | 2 | 4 (после общего ядра записи) | [`stage3`](../../.cursor/plans/archive/own_booking_stage3_public_widget.plan.md) |
-| 4 | Переносы и отмены | `done` | 2 | 3 | [`stage4`](../../.cursor/plans/archive/own_booking_stage4_reschedule_cancel.plan.md) |
-| 5 | Предоплата и базовые оплаты | `done` | 1, 2 | 6 (модель), но активация после 5 | [`stage5`](../../.cursor/plans/archive/own_booking_stage5_prepayment_payments.plan.md) |
-| 6 | Абонементы | `done` | 1, 2, 4, 5 | 7 (модель продуктов) | [`stage6`](../../.cursor/plans/archive/own_booking_stage6_memberships.plan.md) |
-| 7 | Продукты, акции, подписки, курсы | `done` | 5, 6 | — | [`stage7`](../../.cursor/plans/archive/own_booking_stage7_products_courses.plan.md) |
-| 8 | Календарь | `done` | 1, 2, 4 | 5–7 (отображение статусов/оплат добавляется по мере готовности) | [`stage8`](../../.cursor/plans/archive/own_booking_stage8_calendar.plan.md) |
-| 9 | Карточка клиента и полная история | `done` | 1–8 (события) | — (потребитель таймлайна) | [`stage9`](../../.cursor/plans/archive/own_booking_stage9_client_card_history.plan.md) |
+| #   | Этап                               | Статус | Зависит от    | Можно параллелить с                                             | План                                                                                   |
+| --- | ---------------------------------- | ------ | ------------- | --------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| 0   | Инфраструктура инициативы (docs)   | `done` | —             | —                                                               | —                                                                                      |
+| 1   | Каноническая модель данных         | `done` | 0             | — (фундамент)                                                   | [`stage1`](../../.cursor/plans/archive/own_booking_stage1_canonical_model.plan.md)     |
+| 2   | Базовая запись пациента            | `done` | 1             | —                                                               | [`stage2`](../../.cursor/plans/archive/own_booking_stage2_patient_booking.plan.md)     |
+| 3   | Публичный виджет / страница записи | `done` | 2             | 4 (после общего ядра записи)                                    | [`stage3`](../../.cursor/plans/archive/own_booking_stage3_public_widget.plan.md)       |
+| 4   | Переносы и отмены                  | `done` | 2             | 3                                                               | [`stage4`](../../.cursor/plans/archive/own_booking_stage4_reschedule_cancel.plan.md)   |
+| 5   | Предоплата и базовые оплаты        | `done` | 1, 2          | 6 (модель), но активация после 5                                | [`stage5`](../../.cursor/plans/archive/own_booking_stage5_prepayment_payments.plan.md) |
+| 6   | Абонементы                         | `done` | 1, 2, 4, 5    | 7 (модель продуктов)                                            | [`stage6`](../../.cursor/plans/archive/own_booking_stage6_memberships.plan.md)         |
+| 7   | Продукты, акции, подписки, курсы   | `done` | 5, 6          | —                                                               | [`stage7`](../../.cursor/plans/archive/own_booking_stage7_products_courses.plan.md)    |
+| 8   | Календарь                          | `done` | 1, 2, 4       | 5–7 (отображение статусов/оплат добавляется по мере готовности) | [`stage8`](../../.cursor/plans/archive/own_booking_stage8_calendar.plan.md)            |
+| 9   | Карточка клиента и полная история  | `done` | 1–8 (события) | — (потребитель таймлайна)                                       | [`stage9`](../../.cursor/plans/archive/own_booking_stage9_client_card_history.plan.md) |
 
 ## Post-stage: переход Rubitime (закрыт 2026-05-30)
 
 Отдельный план после этапов 1–9 — не новый «этап 10», а стабилизация production cutover:
 
-| План | Статус | Суть |
-|------|--------|------|
+| План                                                                                                 | Статус | Суть                                                                                                                                                                          |
+| ---------------------------------------------------------------------------------------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [`rubitime_transition_stabilize`](../../.cursor/plans/archive/rubitime_transition_stabilize.plan.md) | `done` | Defaults read sources (`0099`/`0100` + integrator mirror); календарь на `appointment_records`; Rubitime-first create; UI working hours / scoped blocks; docs + targeted tests |
 
 Журнал: [`LOG.md`](LOG.md) §2026-05-30 Rubitime transition stabilize.
@@ -42,6 +42,7 @@
 ## Gate каждого этапа (общий)
 
 Этап считается `done`, только когда:
+
 1. Все пункты чек-листа этапа в `STAGE_CHECKLISTS.md` выполнены или явно `cancelled` с причиной в `SCOPE_DECISIONS.md`.
 2. Применимые сквозные C1–C10 закрыты.
 3. UI-поверхности этапа присутствуют и работают во всех затронутых кабинетах.

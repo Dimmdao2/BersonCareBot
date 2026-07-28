@@ -1,13 +1,13 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import toast from "react-hot-toast";
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import toast from 'react-hot-toast';
 import type {
   TreatmentProgramEventRow,
   TreatmentProgramInstanceDetail,
   TreatmentProgramTestResultDetailRow,
-} from "@/modules/treatment-program/types";
+} from '@/modules/treatment-program/types';
 import {
   isInstanceStageItemShownOnPatientProgramSurfaces,
   isPersistentRecommendation,
@@ -17,30 +17,36 @@ import {
   countPatientCompletedPipelineStages,
   resolvePatientProgramControlRemainderDaysForPatientUi,
   expectedStageControlDeadlineIsoForPatientUi,
-} from "@/modules/treatment-program/stage-semantics";
-import { patientPersonalProgramCtaShouldRenderOnPlanScreen } from "@/modules/treatment-program/patientPersonalProgramCtaEligible";
-import { resolveProgramTabStageForPatientDetail } from "@/modules/treatment-program/resolveProgramTabStageForPatientDetail";
+} from '@/modules/treatment-program/stage-semantics';
+import { patientPersonalProgramCtaShouldRenderOnPlanScreen } from '@/modules/treatment-program/patientPersonalProgramCtaEligible';
+import { resolveProgramTabStageForPatientDetail } from '@/modules/treatment-program/resolveProgramTabStageForPatientDetail';
 import {
   normalizeChecklistCountMap,
   normalizeChecklistLastMap,
-} from "@/app/app/patient/treatment/normalizeTreatmentProgramChecklistMaps";
-import { routePaths } from "@/app-layer/routes/paths";
-import { parsePatientPlanTab, type PatientPlanTab } from "@/app/app/patient/treatment/patientPlanTab";
-import { patientInnerPageStackClass } from "@/shared/ui/patient/patientVisual";
-import { DateTime } from "luxon";
-import { formatBookingDateLongRu } from "@/shared/lib/formatBusinessDateTime";
-import { flatExecIds, flatTestSlots } from "@/app/app/patient/treatment/patientProgramItemNavLists";
+} from '@/app/app/patient/treatment/normalizeTreatmentProgramChecklistMaps';
+import { routePaths } from '@/app-layer/routes/paths';
+import {
+  parsePatientPlanTab,
+  type PatientPlanTab,
+} from '@/app/app/patient/treatment/patientPlanTab';
+import { patientInnerPageStackClass } from '@/shared/ui/patient/patientVisual';
+import { DateTime } from 'luxon';
+import { formatBookingDateLongRu } from '@/shared/lib/formatBusinessDateTime';
+import { flatExecIds, flatTestSlots } from '@/app/app/patient/treatment/patientProgramItemNavLists';
 import {
   buildProgressTabProgramDaysLabel,
   sortByOrderThenId,
-} from "@/app/app/patient/treatment/program-detail/patientPlanDetailFormatters";
-import { PatientPlanHeroActive, PatientPlanHeroCompleted } from "@/app/app/patient/treatment/program-detail/PatientPlanHero";
-import { PatientPlanTabStrip } from "@/app/app/patient/treatment/program-detail/PatientPlanTabStrip";
-import { PatientPlanTabPanels } from "@/app/app/patient/treatment/program-detail/PatientPlanTabPanels";
-import type { PatientPlanTodayRemindersCardProps } from "@/app/app/patient/treatment/program-detail/PatientPlanTodayRemindersCard";
-import { PatientPlanTodayRemindersCard } from "@/app/app/patient/treatment/program-detail/PatientPlanTodayRemindersCard";
-import { PatientPlanPersonalProgramCtaCard } from "@/app/app/patient/treatment/program-detail/PatientPlanPersonalProgramCtaCard";
-import { PatientPlanSupportCard } from "@/app/app/patient/treatment/program-detail/PatientPlanSupportCard";
+} from '@/app/app/patient/treatment/program-detail/patientPlanDetailFormatters';
+import {
+  PatientPlanHeroActive,
+  PatientPlanHeroCompleted,
+} from '@/app/app/patient/treatment/program-detail/PatientPlanHero';
+import { PatientPlanTabStrip } from '@/app/app/patient/treatment/program-detail/PatientPlanTabStrip';
+import { PatientPlanTabPanels } from '@/app/app/patient/treatment/program-detail/PatientPlanTabPanels';
+import type { PatientPlanTodayRemindersCardProps } from '@/app/app/patient/treatment/program-detail/PatientPlanTodayRemindersCard';
+import { PatientPlanTodayRemindersCard } from '@/app/app/patient/treatment/program-detail/PatientPlanTodayRemindersCard';
+import { PatientPlanPersonalProgramCtaCard } from '@/app/app/patient/treatment/program-detail/PatientPlanPersonalProgramCtaCard';
+import { PatientPlanSupportCard } from '@/app/app/patient/treatment/program-detail/PatientPlanSupportCard';
 
 export function PatientTreatmentProgramDetailClient(props: {
   initial: TreatmentProgramInstanceDetail;
@@ -64,7 +70,7 @@ export function PatientTreatmentProgramDetailClient(props: {
     programDescription = null,
     initialProgramEvents = [],
     patientCalendarDayIana,
-    initialPlanTab = "program",
+    initialPlanTab = 'program',
     planReminderStrip = null,
     planItemDoneRepeatCooldownMinutes,
     programCommentsInteraction = { visible: false, enabled: false },
@@ -75,12 +81,11 @@ export function PatientTreatmentProgramDetailClient(props: {
   const [activeTab, setActiveTab] = useState<PatientPlanTab>(() => initialPlanTab);
   const [detail, setDetail] = useState(props.initial);
 
-  const planTabQs = searchParams.get("tab");
+  const planTabQs = searchParams.get('tab');
   useEffect(() => {
-    if (detail.status !== "active") return;
+    if (detail.status !== 'active') return;
     /** Без `?tab=` канонически «Программа»; не подставлять `initialPlanTab` — после replace он устаревает. */
-    const next =
-      planTabQs != null && planTabQs !== "" ? parsePatientPlanTab(planTabQs) : "program";
+    const next = planTabQs != null && planTabQs !== '' ? parsePatientPlanTab(planTabQs) : 'program';
     setActiveTab(next);
   }, [planTabQs, detail.status, detail.id]);
 
@@ -92,8 +97,8 @@ export function PatientTreatmentProgramDetailClient(props: {
   );
 
   useEffect(() => {
-    void import("@/app/app/patient/treatment/PatientTreatmentTabProgram");
-    void import("@/app/app/patient/treatment/PatientTreatmentTabRecommendations");
+    void import('@/app/app/patient/treatment/PatientTreatmentTabProgram');
+    void import('@/app/app/patient/treatment/PatientTreatmentTabRecommendations');
   }, []);
   const [_testResults, setTestResults] = useState(props.initialTestResults);
   const [programEvents, setProgramEvents] = useState(initialProgramEvents);
@@ -114,15 +119,24 @@ export function PatientTreatmentProgramDetailClient(props: {
       fetch(`/api/patient/treatment-program-instances/${encodeURIComponent(id)}/checklist-today`),
       fetch(`/api/patient/treatment-program-instances/${encodeURIComponent(id)}/events`),
     ]);
-    const data = (await instRes.json().catch(() => null)) as { ok?: boolean; item?: TreatmentProgramInstanceDetail };
+    const data = (await instRes.json().catch(() => null)) as {
+      ok?: boolean;
+      item?: TreatmentProgramInstanceDetail;
+    };
     if (!instRes.ok || !data.ok || !data.item) {
-      reportError("Не удалось обновить данные");
+      reportError('Не удалось обновить данные');
       return;
     }
     setDetail(data.item);
-    const trData = (await trRes.json().catch(() => null)) as { ok?: boolean; results?: TreatmentProgramTestResultDetailRow[] };
+    const trData = (await trRes.json().catch(() => null)) as {
+      ok?: boolean;
+      results?: TreatmentProgramTestResultDetailRow[];
+    };
     if (trRes.ok && trData.ok && trData.results) setTestResults(trData.results);
-    const evData = (await evRes.json().catch(() => null)) as { ok?: boolean; events?: TreatmentProgramEventRow[] };
+    const evData = (await evRes.json().catch(() => null)) as {
+      ok?: boolean;
+      events?: TreatmentProgramEventRow[];
+    };
     if (evRes.ok && evData.ok && Array.isArray(evData.events)) setProgramEvents(evData.events);
     const chData = (await checklistRes.json().catch(() => null)) as {
       ok?: boolean;
@@ -130,7 +144,7 @@ export function PatientTreatmentProgramDetailClient(props: {
       doneTodayCountByItemId?: unknown;
       lastDoneAtIsoByItemId?: unknown;
     };
-    if (data.item.status !== "active") {
+    if (data.item.status !== 'active') {
       setDoneItemIds([]);
       setDoneTodayCountByItemId({});
       setLastDoneAtIsoByItemId({});
@@ -144,7 +158,7 @@ export function PatientTreatmentProgramDetailClient(props: {
 
   useEffect(() => {
     void (async () => {
-      if (detail.status !== "active") {
+      if (detail.status !== 'active') {
         setDoneItemIds([]);
         setDoneTodayCountByItemId({});
         setLastDoneAtIsoByItemId({});
@@ -168,10 +182,13 @@ export function PatientTreatmentProgramDetailClient(props: {
   }, [detail.id, detail.status]);
 
   useEffect(() => {
-    if (detail.status !== "active") return;
-    void fetch(`/api/patient/treatment-program-instances/${encodeURIComponent(detail.id)}/plan-opened`, {
-      method: "POST",
-    }).catch(() => {});
+    if (detail.status !== 'active') return;
+    void fetch(
+      `/api/patient/treatment-program-instances/${encodeURIComponent(detail.id)}/plan-opened`,
+      {
+        method: 'POST',
+      },
+    ).catch(() => {});
   }, [detail.id, detail.status]);
 
   const { stageZeroStages, currentWorkingStage } = useMemo(() => {
@@ -183,10 +200,7 @@ export function PatientTreatmentProgramDetailClient(props: {
     };
   }, [detail.stages]);
 
-  const programTabStage = useMemo(
-    () => resolveProgramTabStageForPatientDetail(detail),
-    [detail],
-  );
+  const programTabStage = useMemo(() => resolveProgramTabStageForPatientDetail(detail), [detail]);
 
   const stagesTimeline = useMemo(() => {
     const { archive, pipeline } = splitPatientProgramStagesForDetailUi(detail.stages);
@@ -197,9 +211,9 @@ export function PatientTreatmentProgramDetailClient(props: {
   const stageCountNonZero = stagesTimeline.length;
 
   const awaitsStart =
-    detail.status === "active" &&
+    detail.status === 'active' &&
     currentWorkingStage != null &&
-    currentWorkingStage.status === "available";
+    currentWorkingStage.status === 'available';
 
   const pipelineLength = useMemo(
     () => detail.stages.filter((s) => s.sortOrder > 0).length,
@@ -208,12 +222,14 @@ export function PatientTreatmentProgramDetailClient(props: {
 
   /** Первый пункт в порядке `nav=exec` (как на странице пункта), а не только composition modal. */
   const firstPendingProgramItemId = useMemo(() => {
-    if (!programTabStage || detail.status !== "active") return null;
+    if (!programTabStage || detail.status !== 'active') return null;
     const itemInteraction =
-      programTabStage.status === "completed" || programTabStage.status === "skipped" ? "readOnly" : "full";
+      programTabStage.status === 'completed' || programTabStage.status === 'skipped'
+        ? 'readOnly'
+        : 'full';
     let ordered = flatExecIds(programTabStage, itemInteraction);
-    if (ordered.length === 0 && itemInteraction === "full") {
-      ordered = flatExecIds(programTabStage, "readOnly");
+    if (ordered.length === 0 && itemInteraction === 'full') {
+      ordered = flatExecIds(programTabStage, 'readOnly');
     }
     const pending = ordered.find((id) => !doneItemIds.includes(id));
     return pending ?? ordered[0] ?? null;
@@ -221,11 +237,17 @@ export function PatientTreatmentProgramDetailClient(props: {
 
   /** Вкладка «Прогресс» → первый тест в плоском списке (`nav=tests` + `testId`). */
   const progressCardTestsHref = useMemo(() => {
-    if (!currentWorkingStage || detail.status !== "active") return null;
+    if (!currentWorkingStage || detail.status !== 'active') return null;
     const slots = flatTestSlots(currentWorkingStage);
     if (slots.length === 0) return null;
     const first = slots[0]!;
-    return routePaths.patientTreatmentProgramItem(detail.id, first.itemId, "tests", "progress", first.testId);
+    return routePaths.patientTreatmentProgramItem(
+      detail.id,
+      first.itemId,
+      'tests',
+      'progress',
+      first.testId,
+    );
   }, [currentWorkingStage, detail.status, detail.id]);
 
   /** Согласовано с вкладкой «Рекомендации»: persistent на рабочем этапе + persistent этапа 0 с фильтром «на поверхностях программы». */
@@ -244,12 +266,16 @@ export function PatientTreatmentProgramDetailClient(props: {
   }, [currentWorkingStage, stageZeroStages]);
 
   const programTabSubtitle = useMemo(() => {
-    if (!programTabStage) return "—";
-    if (programTabStage.sortOrder === 0) return "Общие рекомендации";
+    if (!programTabStage) return '—';
+    if (programTabStage.sortOrder === 0) return 'Общие рекомендации';
     return `Этап ${programTabStage.sortOrder} из ${pipelineLength}`;
   }, [programTabStage, pipelineLength]);
 
-  const progressTabProgramDaysLabel = buildProgressTabProgramDaysLabel(detail, patientCalendarDayIana, appDisplayTimeZone);
+  const progressTabProgramDaysLabel = buildProgressTabProgramDaysLabel(
+    detail,
+    patientCalendarDayIana,
+    appDisplayTimeZone,
+  );
 
   const controlRemainderDaysForCard = resolvePatientProgramControlRemainderDaysForPatientUi(
     detail,
@@ -257,15 +283,21 @@ export function PatientTreatmentProgramDetailClient(props: {
     patientCalendarDayIana,
   );
   const controlDeadlineIso = currentWorkingStage
-    ? expectedStageControlDeadlineIsoForPatientUi(currentWorkingStage, DateTime.now(), patientCalendarDayIana)
+    ? expectedStageControlDeadlineIsoForPatientUi(
+        currentWorkingStage,
+        DateTime.now(),
+        patientCalendarDayIana,
+      )
     : null;
   const controlDateLine =
-    controlDeadlineIso && appDisplayTimeZone ? formatBookingDateLongRu(controlDeadlineIso, appDisplayTimeZone) : null;
+    controlDeadlineIso && appDisplayTimeZone
+      ? formatBookingDateLongRu(controlDeadlineIso, appDisplayTimeZone)
+      : null;
   const controlFallbackMessage =
-    currentWorkingStage?.expectedDurationText?.trim() || "Срок консультации уточняется у врача.";
+    currentWorkingStage?.expectedDurationText?.trim() || 'Срок консультации уточняется у врача.';
   /** Карточка контроля: после старта этапа (не «ожидает старта»), даже если нет срока в днях для расчёта даты. */
   const showNextControlCard =
-    detail.status === "active" && currentWorkingStage != null && !awaitsStart;
+    detail.status === 'active' && currentWorkingStage != null && !awaitsStart;
 
   const selectTab = useCallback(
     (tab: PatientPlanTab) => {
@@ -275,7 +307,7 @@ export function PatientTreatmentProgramDetailClient(props: {
     [replacePlanTabInUrl],
   );
 
-  if (detail.status === "completed") {
+  if (detail.status === 'completed') {
     const passedStages = countPatientCompletedPipelineStages(detail.stages);
     return (
       <div className={patientInnerPageStackClass}>
@@ -297,7 +329,7 @@ export function PatientTreatmentProgramDetailClient(props: {
   return (
     <div className={patientInnerPageStackClass}>
       <div className="flex flex-col gap-2">
-        {detail.status === "active" && planReminderStrip ? (
+        {detail.status === 'active' && planReminderStrip ? (
           <PatientPlanTodayRemindersCard
             {...planReminderStrip}
             trailingAccessory={<PatientPlanSupportCard />}

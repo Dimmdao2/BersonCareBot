@@ -1,14 +1,14 @@
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
-import { routePaths } from "@/app-layer/routes/paths";
-import { exerciseTitleFromSnapshot } from "@/modules/messaging/programNoteReplyContext";
-import { assertPatientProgramCommentsAllowed } from "@/modules/doctor-clients/assertPatientProgramInteraction";
-import { listDiscussionPageMerged } from "@/modules/program-item-discussion/listDiscussionPage";
-import { isPatientProgramDiscussionUiEnabled } from "@/modules/program-item-discussion/discussionFeatureGates";
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { requirePatientApiBusinessAccess } from '@/app-layer/guards/requireRole';
+import { routePaths } from '@/app-layer/routes/paths';
+import { exerciseTitleFromSnapshot } from '@/modules/messaging/programNoteReplyContext';
+import { assertPatientProgramCommentsAllowed } from '@/modules/doctor-clients/assertPatientProgramInteraction';
+import { listDiscussionPageMerged } from '@/modules/program-item-discussion/listDiscussionPage';
+import { isPatientProgramDiscussionUiEnabled } from '@/modules/program-item-discussion/discussionFeatureGates';
 
-const directionSchema = z.enum(["backward", "forward"]);
+const directionSchema = z.enum(['backward', 'forward']);
 const postBodySchema = z.object({
   body: z.string().min(1).max(4000),
 });
@@ -23,7 +23,7 @@ type CursorPayload = z.infer<typeof cursorPayloadSchema>;
 
 function decodeCursor(raw: string): CursorPayload | null {
   try {
-    const decoded = Buffer.from(raw, "base64url").toString("utf8");
+    const decoded = Buffer.from(raw, 'base64url').toString('utf8');
     const parsed = JSON.parse(decoded) as unknown;
     const validated = cursorPayloadSchema.safeParse(parsed);
     return validated.success ? validated.data : null;
@@ -33,7 +33,7 @@ function decodeCursor(raw: string): CursorPayload | null {
 }
 
 function normalizeLimit(raw: string | null): number | null {
-  if (raw == null || raw.trim() === "") return 30;
+  if (raw == null || raw.trim() === '') return 30;
   if (!/^\d+$/.test(raw.trim())) return null;
   return Math.min(100, Math.max(1, Number.parseInt(raw, 10)));
 }
@@ -48,18 +48,22 @@ function getLastDoneSummary(params: {
   itemId: string;
 }) {
   const row = params.actionLogRows.find(
-    (x) => x.instanceStageItemId === params.itemId && x.actionType === "done",
+    (x) => x.instanceStageItemId === params.itemId && x.actionType === 'done',
   );
   if (!row) return null;
   const payload = row.payload ?? {};
-  const reps = typeof payload.reps === "number" && Number.isFinite(payload.reps) ? payload.reps : null;
-  const sets = typeof payload.sets === "number" && Number.isFinite(payload.sets) ? payload.sets : null;
+  const reps =
+    typeof payload.reps === 'number' && Number.isFinite(payload.reps) ? payload.reps : null;
+  const sets =
+    typeof payload.sets === 'number' && Number.isFinite(payload.sets) ? payload.sets : null;
   const weightKg =
-    typeof payload.weightKg === "number" && Number.isFinite(payload.weightKg) ? payload.weightKg : null;
+    typeof payload.weightKg === 'number' && Number.isFinite(payload.weightKg)
+      ? payload.weightKg
+      : null;
   const perceivedDifficulty =
-    payload.perceivedDifficulty === "easy" ||
-    payload.perceivedDifficulty === "medium" ||
-    payload.perceivedDifficulty === "hard"
+    payload.perceivedDifficulty === 'easy' ||
+    payload.perceivedDifficulty === 'medium' ||
+    payload.perceivedDifficulty === 'hard'
       ? payload.perceivedDifficulty
       : null;
   return {
@@ -81,14 +85,14 @@ async function resolveItemContext(params: {
     params.patientUserId,
     params.instanceId,
   );
-  if (!detail) return { ok: false as const, error: "not_found" as const };
-  if (detail.assignmentSource !== "doctor") {
-    return { ok: false as const, error: "program_not_doctor_assigned" as const };
+  if (!detail) return { ok: false as const, error: 'not_found' as const };
+  if (detail.assignmentSource !== 'doctor') {
+    return { ok: false as const, error: 'program_not_doctor_assigned' as const };
   }
   const item = detail.stages.flatMap((s) => s.items).find((x) => x.id === params.itemId) ?? null;
-  if (!item) return { ok: false as const, error: "not_found" as const };
+  if (!item) return { ok: false as const, error: 'not_found' as const };
   const organizationId = detail.organizationId?.trim();
-  if (!organizationId) return { ok: false as const, error: "not_found" as const };
+  if (!organizationId) return { ok: false as const, error: 'not_found' as const };
   return {
     ok: true as const,
     deps,
@@ -106,27 +110,30 @@ export async function GET(
   if (!gate.ok) return gate.response;
 
   const { instanceId, itemId } = await context.params;
-  if (!z.string().uuid().safeParse(instanceId).success || !z.string().uuid().safeParse(itemId).success) {
-    return NextResponse.json({ ok: false, error: "invalid_id" }, { status: 400 });
+  if (
+    !z.string().uuid().safeParse(instanceId).success ||
+    !z.string().uuid().safeParse(itemId).success
+  ) {
+    return NextResponse.json({ ok: false, error: 'invalid_id' }, { status: 400 });
   }
 
   const url = new URL(request.url);
-  const limit = normalizeLimit(url.searchParams.get("limit"));
+  const limit = normalizeLimit(url.searchParams.get('limit'));
   if (limit == null) {
-    return NextResponse.json({ ok: false, error: "invalid_limit" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_limit' }, { status: 400 });
   }
 
-  const directionRaw = url.searchParams.get("direction");
-  const directionParsed = directionSchema.safeParse(directionRaw ?? "backward");
+  const directionRaw = url.searchParams.get('direction');
+  const directionParsed = directionSchema.safeParse(directionRaw ?? 'backward');
   if (!directionParsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_direction" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_direction' }, { status: 400 });
   }
   const direction = directionParsed.data;
 
-  const rawCursor = url.searchParams.get("cursor");
+  const rawCursor = url.searchParams.get('cursor');
   const cursor = rawCursor ? decodeCursor(rawCursor) : null;
   if (rawCursor && !cursor) {
-    return NextResponse.json({ ok: false, error: "invalid_cursor" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_cursor' }, { status: 400 });
   }
 
   const itemContext = await resolveItemContext({
@@ -135,15 +142,17 @@ export async function GET(
     itemId,
   });
   if (!itemContext.ok) {
-    const status = itemContext.error === "not_found" ? 404 : 400;
+    const status = itemContext.error === 'not_found' ? 404 : 400;
     return NextResponse.json({ ok: false, error: itemContext.error }, { status });
   }
 
-  if (!(await isPatientProgramDiscussionUiEnabled(itemContext.deps, {
-    patientUserId: gate.session.user.userId,
-    organizationId: itemContext.organizationId,
-  }))) {
-    return NextResponse.json({ ok: false, error: "feature_disabled" }, { status: 403 });
+  if (
+    !(await isPatientProgramDiscussionUiEnabled(itemContext.deps, {
+      patientUserId: gate.session.user.userId,
+      organizationId: itemContext.organizationId,
+    }))
+  ) {
+    return NextResponse.json({ ok: false, error: 'feature_disabled' }, { status: 403 });
   }
 
   const supportGate = await assertPatientProgramCommentsAllowed(
@@ -182,7 +191,7 @@ export async function GET(
   const { page, nextCursor, hasMore, totalCount } = pageResult;
   const lastMessage =
     page.length > 0
-      ? direction === "backward"
+      ? direction === 'backward'
         ? page[page.length - 1]!
         : page[page.length - 1]!
       : null;
@@ -212,19 +221,22 @@ export async function POST(
   if (!gate.ok) return gate.response;
 
   const { instanceId, itemId } = await context.params;
-  if (!z.string().uuid().safeParse(instanceId).success || !z.string().uuid().safeParse(itemId).success) {
-    return NextResponse.json({ ok: false, error: "invalid_id" }, { status: 400 });
+  if (
+    !z.string().uuid().safeParse(instanceId).success ||
+    !z.string().uuid().safeParse(itemId).success
+  ) {
+    return NextResponse.json({ ok: false, error: 'invalid_id' }, { status: 400 });
   }
 
   let bodyJson: unknown;
   try {
     bodyJson = await request.json();
   } catch {
-    return NextResponse.json({ ok: false, error: "invalid_json" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_json' }, { status: 400 });
   }
   const parsed = postBodySchema.safeParse(bodyJson);
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
 
   const itemContext = await resolveItemContext({
@@ -233,15 +245,17 @@ export async function POST(
     itemId,
   });
   if (!itemContext.ok) {
-    const status = itemContext.error === "not_found" ? 404 : 400;
+    const status = itemContext.error === 'not_found' ? 404 : 400;
     return NextResponse.json({ ok: false, error: itemContext.error }, { status });
   }
 
-  if (!(await isPatientProgramDiscussionUiEnabled(itemContext.deps, {
-    patientUserId: gate.session.user.userId,
-    organizationId: itemContext.organizationId,
-  }))) {
-    return NextResponse.json({ ok: false, error: "feature_disabled" }, { status: 403 });
+  if (
+    !(await isPatientProgramDiscussionUiEnabled(itemContext.deps, {
+      patientUserId: gate.session.user.userId,
+      organizationId: itemContext.organizationId,
+    }))
+  ) {
+    return NextResponse.json({ ok: false, error: 'feature_disabled' }, { status: 403 });
   }
 
   const supportGate = await assertPatientProgramCommentsAllowed(
@@ -254,16 +268,17 @@ export async function POST(
   }
 
   try {
-    const message = await itemContext.deps.treatmentProgramPatientActions.patientAppendObservationNote({
-      patientUserId: gate.session.user.userId,
-      instanceId,
-      stageItemId: itemId,
-      note: parsed.data.body,
-    });
+    const message =
+      await itemContext.deps.treatmentProgramPatientActions.patientAppendObservationNote({
+        patientUserId: gate.session.user.userId,
+        instanceId,
+        stageItemId: itemId,
+        note: parsed.data.body,
+      });
     return NextResponse.json({ ok: true, message });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "error";
-    const status = msg.includes("не найден") ? 404 : 400;
+    const msg = e instanceof Error ? e.message : 'error';
+    const status = msg.includes('не найден') ? 404 : 400;
     return NextResponse.json({ ok: false, error: msg }, { status });
   }
 }

@@ -1,6 +1,6 @@
 ---
 name: phase1 support model
-overview: "Фаза 1 закрыта (2026-06-02): модель «На сопровождении», гейты комментариев/медиа, списки «Сегодня» и фильтры клиентов."
+overview: 'Фаза 1 закрыта (2026-06-02): модель «На сопровождении», гейты комментариев/медиа, списки «Сегодня» и фильтры клиентов.'
 todos:
   - id: phase1-data-model
     content: Add Drizzle support profile table and backfill active doctor-program patients to on_support=true
@@ -45,6 +45,7 @@ isProject: false
 ## Scope Boundaries
 
 Разрешено менять:
+
 - `apps/webapp/db/schema/doctorPatientSupport.ts` и Drizzle migration в `apps/webapp/db/drizzle-migrations/`.
 - `apps/webapp/src/modules/doctor-clients/*` и infra implementation для нового support profile через Drizzle (`getDrizzle`).
 - `apps/webapp/src/app/api/doctor/clients/[userId]/**` для PATCH/GET support settings.
@@ -53,6 +54,7 @@ isProject: false
 - Relevant docs: `docs/ARCHITECTURE/DOCTOR_DASHBOARD_METRICS.md`, initiative `LOG.md`, `docs/TODO.md`.
 
 Вне scope:
+
 - Настоящая multi-doctor ownership model.
 - Переработка карточки врача из фазы 2.
 - Новая inbox/feed логика из фаз 5+.

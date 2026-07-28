@@ -70,7 +70,9 @@ function parseEnvFile(content: string): Record<string, string> {
   return parsed;
 }
 
-export function loadProjectionHealthCutoverEnv(env: ProjectionHealthCliEnv = process.env): LoadedEnv {
+export function loadProjectionHealthCutoverEnv(
+  env: ProjectionHealthCliEnv = process.env,
+): LoadedEnv {
   const repoRoot = resolveRepoRootFromThisFile();
   const explicitPath = env.CUTOVER_ENV_FILE;
   const candidates = explicitPath
@@ -80,14 +82,18 @@ export function loadProjectionHealthCutoverEnv(env: ProjectionHealthCliEnv = pro
         path.join(repoRoot, '.env.cutover.dev'),
         path.join(repoRoot, '.env.cutover'),
       ];
-  const resolvedPath = candidates.find((candidate) => candidate && existsSync(candidate)) ?? candidates[0] ?? null;
+  const resolvedPath =
+    candidates.find((candidate) => candidate && existsSync(candidate)) ?? candidates[0] ?? null;
   if (!resolvedPath || !existsSync(resolvedPath)) {
     return { loaded: false, path: resolvedPath };
   }
 
   const parsed = parseEnvFile(readFileSync(resolvedPath, 'utf8'));
   for (const [key, value] of Object.entries(parsed)) {
-    if (env[key as keyof ProjectionHealthCliEnv] == null || env[key as keyof ProjectionHealthCliEnv] === '') {
+    if (
+      env[key as keyof ProjectionHealthCliEnv] == null ||
+      env[key as keyof ProjectionHealthCliEnv] === ''
+    ) {
       env[key as keyof ProjectionHealthCliEnv] = value;
     }
   }
@@ -112,7 +118,8 @@ export async function runProjectionHealthCli(deps: ProjectionHealthCliDeps = {})
 
   const createPool =
     deps.createPool ??
-    ((connectionString: string): ProjectionHealthPool => createProjectionHealthPoolProvider(connectionString));
+    ((connectionString: string): ProjectionHealthPool =>
+      createProjectionHealthPoolProvider(connectionString));
   const pool = createPool(url);
   try {
     const snapshot = await readProjectionHealthSnapshot(pool);

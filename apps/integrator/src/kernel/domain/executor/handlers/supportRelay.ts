@@ -3,7 +3,13 @@
  * Isolated from executeAction; uses only helpers and template keys.
  */
 import { randomUUID } from 'node:crypto';
-import type { Action, ActionResult, DbWriteMutation, DomainContext, OutgoingIntent } from '../../../contracts/index.js';
+import type {
+  Action,
+  ActionResult,
+  DbWriteMutation,
+  DomainContext,
+  OutgoingIntent,
+} from '../../../contracts/index.js';
 import type { ExecutorDeps } from '../helpers.js';
 import {
   asNumber,
@@ -41,7 +47,8 @@ function resolvePatientMessengerRecipient(
     if (!channelUserId) return null;
     return maxUserRecipient(channelUserId);
   }
-  const userChatIdRaw = asString(conversation.user_chat_id) || asString(conversation.user_channel_id);
+  const userChatIdRaw =
+    asString(conversation.user_chat_id) || asString(conversation.user_channel_id);
   const userChatId = userChatIdRaw ? Number(userChatIdRaw) : Number.NaN;
   if (!Number.isFinite(userChatId)) return null;
   return { chatId: userChatId };
@@ -84,44 +91,40 @@ export async function buildDoctorPatientMessageNotificationIntents(input: {
   username?: string | null | undefined;
   channelId?: string | null | undefined;
 }): Promise<OutgoingIntent[]> {
-  const {
-    action,
-    ctx,
-    deps,
-    source,
-    externalId,
-    conversationId,
-    integratorMessageId,
-  } = input;
+  const { action, ctx, deps, source, externalId, conversationId, integratorMessageId } = input;
   const platformUserId = await resolvePlatformUserIdForChannel(deps, source, externalId);
-  const platformConversationKey = platformUserId ? webappPlatformConversationId(platformUserId) : null;
+  const platformConversationKey = platformUserId
+    ? webappPlatformConversationId(platformUserId)
+    : null;
   if (
     platformUserId &&
     platformConversationKey &&
     platformConversationKey !== conversationId &&
     deps.writePort
   ) {
-    await persistWrites(deps.writePort, [{
-      type: 'conversation.mergeLegacyToPlatform',
-      params: {
-        platformConversationId: platformConversationKey,
-        legacyConversationId: conversationId,
-        resource: source,
-        externalId,
+    await persistWrites(deps.writePort, [
+      {
+        type: 'conversation.mergeLegacyToPlatform',
+        params: {
+          platformConversationId: platformConversationKey,
+          legacyConversationId: conversationId,
+          resource: source,
+          externalId,
+        },
       },
-    }]);
+    ]);
   }
 
   const messageText = input.messageText.trim();
   const mirrored =
     platformUserId && messageText
       ? await mirrorPatientUserMessageToWebapp(deps, {
-        platformUserId,
-        integratorMessageId,
-        text: messageText,
-        source,
-        createdAt: ctx.nowIso,
-      })
+          platformUserId,
+          integratorMessageId,
+          text: messageText,
+          source,
+          createdAt: ctx.nowIso,
+        })
       : false;
   if (mirrored) {
     // The webapp notification path owns sender-name resolution, the safety gate,
@@ -143,22 +146,28 @@ export async function buildDoctorPatientMessageNotificationIntents(input: {
     displayName: fallbackLabel,
   });
   const replyButtonText = deps.templatePort
-    ? (await renderText({ templateKey: ADMIN.REPLY_BUTTON, ctx, templatePort: deps.templatePort })) || 'Ответить'
+    ? (await renderText({
+        templateKey: ADMIN.REPLY_BUTTON,
+        ctx,
+        templatePort: deps.templatePort,
+      })) || 'Ответить'
     : 'Ответить';
-  return [{
-    type: 'message.send',
-    meta: buildIntentMeta(action, ctx),
-    payload: {
-      recipient: { chatId: adminChatId },
-      message: { text: notificationText },
-      replyMarkup: {
-        inline_keyboard: [[
-          { text: replyButtonText, callback_data: `admin_reply:${conversationId}` },
-        ]],
+  return [
+    {
+      type: 'message.send',
+      meta: buildIntentMeta(action, ctx),
+      payload: {
+        recipient: { chatId: adminChatId },
+        message: { text: notificationText },
+        replyMarkup: {
+          inline_keyboard: [
+            [{ text: replyButtonText, callback_data: `admin_reply:${conversationId}` }],
+          ],
+        },
+        delivery: channelDeliveryPayload(ctx.event.meta.source),
       },
-      delivery: channelDeliveryPayload(ctx.event.meta.source),
     },
-  }];
+  ];
 }
 
 function getUnsupportedUserRelayText(source: string): string {
@@ -175,7 +184,10 @@ function getUnsupportedAdminRelayText(source: string): string {
   return 'Такой тип сообщения нельзя переслать пользователю. Используйте текст, фото или документ.';
 }
 
-function adminContinueCallbackData(conversationId: string, programNoteStageItemId: string | null): string {
+function adminContinueCallbackData(
+  conversationId: string,
+  programNoteStageItemId: string | null,
+): string {
   if (programNoteStageItemId) {
     return `program_reply:${programNoteStageItemId}`;
   }
@@ -191,10 +203,12 @@ async function persistAdminMessengerUserState(
   const channelUserId = readExternalActorId(ctx);
   const resource = ctx.event.meta.source;
   if (!channelUserId || !resource || !deps.writePort) return [];
-  const writes: DbWriteMutation[] = [{
-    type: 'user.state.set',
-    params: { resource, channelUserId, state },
-  }];
+  const writes: DbWriteMutation[] = [
+    {
+      type: 'user.state.set',
+      params: { resource, channelUserId, state },
+    },
+  ];
   await persistWrites(deps.writePort, writes);
   return writes;
 }
@@ -208,9 +222,14 @@ export async function handleConversationUserMessage(
     return { actionId: action.id, status: 'skipped', error: 'READ_PORT_REQUIRED' };
   }
   /** Reminder skip free-text must never be relayed to admin (S3.T07). Defense in depth if routing mis-orders scripts. */
-  const convState = typeof ctx.base.conversationState === 'string' ? ctx.base.conversationState : '';
+  const convState =
+    typeof ctx.base.conversationState === 'string' ? ctx.base.conversationState : '';
   if (convState.startsWith('waiting_skip_reason:')) {
-    return { actionId: action.id, status: 'skipped', error: 'CONVERSATION_USER_BLOCKED_SKIP_REASON' };
+    return {
+      actionId: action.id,
+      status: 'skipped',
+      error: 'CONVERSATION_USER_BLOCKED_SKIP_REASON',
+    };
   }
   const externalId = readExternalActorId(ctx);
   const source = asString(action.params.source) ?? ctx.event.meta.source;
@@ -219,10 +238,18 @@ export async function handleConversationUserMessage(
   const relayMessageType = readRelayMessageType(ctx) ?? 'text';
   const effectiveRelayType = explicitText !== null ? 'text' : relayMessageType;
   if (!externalId || !source) {
-    return { actionId: action.id, status: 'skipped', error: 'CONVERSATION_USER_MESSAGE_INPUT_MISSING' };
+    return {
+      actionId: action.id,
+      status: 'skipped',
+      error: 'CONVERSATION_USER_MESSAGE_INPUT_MISSING',
+    };
   }
   if (effectiveRelayType === 'text' && !text) {
-    return { actionId: action.id, status: 'skipped', error: 'CONVERSATION_USER_MESSAGE_INPUT_MISSING' };
+    return {
+      actionId: action.id,
+      status: 'skipped',
+      error: 'CONVERSATION_USER_MESSAGE_INPUT_MISSING',
+    };
   }
   const conversation = await deps.readPort.readDb<Record<string, unknown> | null>({
     type: 'conversation.openByIdentity',
@@ -240,21 +267,28 @@ export async function handleConversationUserMessage(
   const policy = deps.supportRelayPolicy;
   if (policy && !policy.isAllowedUserToAdmin(effectiveRelayType)) {
     const refusalChatId = asNumber(readIncoming(ctx).chatId);
-    const refusalText = source !== 'max' && deps.templatePort
-      ? (await renderText({ templateKey: RELAY_USER.UNSUPPORTED_TYPE, ctx, templatePort: deps.templatePort }))
-        || getUnsupportedUserRelayText(source)
-      : getUnsupportedUserRelayText(source);
-    const refusalIntents: OutgoingIntent[] = refusalChatId !== null
-      ? [{
-        type: 'message.send',
-        meta: buildIntentMeta(action, ctx),
-        payload: {
-          recipient: { chatId: refusalChatId },
-          message: { text: refusalText },
-          delivery: channelDeliveryPayload(source),
-        },
-      }]
-      : [];
+    const refusalText =
+      source !== 'max' && deps.templatePort
+        ? (await renderText({
+            templateKey: RELAY_USER.UNSUPPORTED_TYPE,
+            ctx,
+            templatePort: deps.templatePort,
+          })) || getUnsupportedUserRelayText(source)
+        : getUnsupportedUserRelayText(source);
+    const refusalIntents: OutgoingIntent[] =
+      refusalChatId !== null
+        ? [
+            {
+              type: 'message.send',
+              meta: buildIntentMeta(action, ctx),
+              payload: {
+                recipient: { chatId: refusalChatId },
+                message: { text: refusalText },
+                delivery: channelDeliveryPayload(source),
+              },
+            },
+          ]
+        : [];
     return { actionId: action.id, status: 'success', intents: refusalIntents };
   }
   const writes: DbWriteMutation[] = [
@@ -327,34 +361,48 @@ export async function handleConversationAdminReply(
   const adminMessageIdFinite =
     rawMsgId !== null && Number.isFinite(Number(rawMsgId)) ? Number(rawMsgId) : null;
   if (!conversationId) {
-    return { actionId: action.id, status: 'skipped', error: 'CONVERSATION_ADMIN_REPLY_INPUT_MISSING' };
+    return {
+      actionId: action.id,
+      status: 'skipped',
+      error: 'CONVERSATION_ADMIN_REPLY_INPUT_MISSING',
+    };
   }
   const isTextReply = relayMessageType === 'text' || !relayMessageType;
   if (isTextReply && !text) {
-    return { actionId: action.id, status: 'skipped', error: 'CONVERSATION_ADMIN_REPLY_INPUT_MISSING' };
+    return {
+      actionId: action.id,
+      status: 'skipped',
+      error: 'CONVERSATION_ADMIN_REPLY_INPUT_MISSING',
+    };
   }
   if (!isTextReply && adminMessageIdFinite === null) {
-    return { actionId: action.id, status: 'skipped', error: 'CONVERSATION_ADMIN_REPLY_INPUT_MISSING' };
+    return {
+      actionId: action.id,
+      status: 'skipped',
+      error: 'CONVERSATION_ADMIN_REPLY_INPUT_MISSING',
+    };
   }
 
   if (isWebappPlatformConversationId(conversationId)) {
     if (!isTextReply || !text) {
       // eslint-disable-next-line no-secrets/no-secrets -- stable executor error code, not a credential
-      return { actionId: action.id, status: 'skipped', error: 'CONVERSATION_ADMIN_REPLY_WEBAPP_TEXT_ONLY' };
+      return {
+        actionId: action.id,
+        status: 'skipped',
+        error: 'CONVERSATION_ADMIN_REPLY_WEBAPP_TEXT_ONLY',
+      };
     }
     const programNoteStageItemId =
       typeof ctx.base.programNoteStageItemId === 'string' && ctx.base.programNoteStageItemId.trim()
         ? ctx.base.programNoteStageItemId.trim()
         : null;
     const incoming = readIncoming(ctx);
-    const senderDisplayName = [
-      asString(incoming.channelFirstName),
-      asString(incoming.channelLastName),
-    ]
-      .filter((part): part is string => Boolean(part))
-      .join(' ')
-      .replace(/\s+/g, ' ')
-      .trim() || undefined;
+    const senderDisplayName =
+      [asString(incoming.channelFirstName), asString(incoming.channelLastName)]
+        .filter((part): part is string => Boolean(part))
+        .join(' ')
+        .replace(/\s+/g, ' ')
+        .trim() || undefined;
     const applyResult = await applyWebappAdminReplyFromMessenger(deps, {
       integratorConversationId: conversationId,
       text,
@@ -370,7 +418,9 @@ export async function handleConversationAdminReply(
         meta: buildIntentMeta(action, ctx),
         payload: {
           recipient: { chatId: adminChatId },
-          message: { text: 'Не удалось отправить ответ в чат приложения. Попробуйте в кабинете врача.' },
+          message: {
+            text: 'Не удалось отправить ответ в чат приложения. Попробуйте в кабинете врача.',
+          },
           delivery: channelDeliveryPayload(adminChannel),
         },
       });
@@ -380,25 +430,43 @@ export async function handleConversationAdminReply(
     const nextAdminState = programNoteStageItemId
       ? buildProgramNoteReplyState(conversationId, programNoteStageItemId)
       : 'idle';
-    writes.push(...await persistAdminMessengerUserState(deps, ctx, nextAdminState));
+    writes.push(...(await persistAdminMessengerUserState(deps, ctx, nextAdminState)));
     if (adminChatId !== null) {
       const sentText = deps.templatePort
-        ? (await renderText({ templateKey: ADMIN.REPLY_SENT, ctx, templatePort: deps.templatePort })) || 'Сообщение отправлено.'
+        ? (await renderText({
+            templateKey: ADMIN.REPLY_SENT,
+            ctx,
+            templatePort: deps.templatePort,
+          })) || 'Сообщение отправлено.'
         : 'Сообщение отправлено.';
       const continueButtonText = deps.templatePort
-        ? (await renderText({ templateKey: ADMIN.REPLY_CONTINUE_BUTTON, ctx, templatePort: deps.templatePort })) || 'Дополнить ответ'
+        ? (await renderText({
+            templateKey: ADMIN.REPLY_CONTINUE_BUTTON,
+            ctx,
+            templatePort: deps.templatePort,
+          })) || 'Дополнить ответ'
         : 'Дополнить ответ';
       const closeButtonText = deps.templatePort
-        ? (await renderText({ templateKey: ADMIN.DIALOG_CLOSE_BUTTON, ctx, templatePort: deps.templatePort }))?.trim() ?? ''
+        ? ((
+            await renderText({
+              templateKey: ADMIN.DIALOG_CLOSE_BUTTON,
+              ctx,
+              templatePort: deps.templatePort,
+            })
+          )?.trim() ?? '')
         : '';
       const replyRows: Array<Array<{ text: string; callback_data: string }>> = [
-        [{
-          text: continueButtonText,
-          callback_data: adminContinueCallbackData(conversationId, programNoteStageItemId),
-        }],
+        [
+          {
+            text: continueButtonText,
+            callback_data: adminContinueCallbackData(conversationId, programNoteStageItemId),
+          },
+        ],
       ];
       if (closeButtonText) {
-        replyRows.push([{ text: closeButtonText, callback_data: `admin_close_dialog:${conversationId}` }]);
+        replyRows.push([
+          { text: closeButtonText, callback_data: `admin_close_dialog:${conversationId}` },
+        ]);
       }
       intents.push({
         type: 'message.send',
@@ -429,27 +497,36 @@ export async function handleConversationAdminReply(
     params: { id: conversationId },
   });
   const sourceForConversation = asString(conversation?.source) ?? ctx.event.meta.source;
-  const patientRecipient = conversation ? resolvePatientMessengerRecipient(sourceForConversation, conversation) : null;
+  const patientRecipient = conversation
+    ? resolvePatientMessengerRecipient(sourceForConversation, conversation)
+    : null;
   if (!conversation || !patientRecipient) {
     return { actionId: action.id, status: 'skipped', error: 'CONVERSATION_NOT_FOUND' };
   }
   const policy = deps.supportRelayPolicy;
   if (policy && !policy.isAllowedAdminToUser(relayMessageType)) {
-    const refusalText = sourceForConversation !== 'max' && deps.templatePort
-      ? (await renderText({ templateKey: ADMIN.RELAY_UNSUPPORTED_ADMIN, ctx, templatePort: deps.templatePort }))
-        || getUnsupportedAdminRelayText(sourceForConversation)
-      : getUnsupportedAdminRelayText(sourceForConversation);
-    const refusalIntents: OutgoingIntent[] = adminChatId !== null
-      ? [{
-        type: 'message.send',
-        meta: buildIntentMeta(action, ctx),
-        payload: {
-          recipient: { chatId: adminChatId },
-          message: { text: refusalText },
-          delivery: channelDeliveryPayload(adminChannel),
-        },
-      }]
-      : [];
+    const refusalText =
+      sourceForConversation !== 'max' && deps.templatePort
+        ? (await renderText({
+            templateKey: ADMIN.RELAY_UNSUPPORTED_ADMIN,
+            ctx,
+            templatePort: deps.templatePort,
+          })) || getUnsupportedAdminRelayText(sourceForConversation)
+        : getUnsupportedAdminRelayText(sourceForConversation);
+    const refusalIntents: OutgoingIntent[] =
+      adminChatId !== null
+        ? [
+            {
+              type: 'message.send',
+              meta: buildIntentMeta(action, ctx),
+              payload: {
+                recipient: { chatId: adminChatId },
+                message: { text: refusalText },
+                delivery: channelDeliveryPayload(adminChannel),
+              },
+            },
+          ]
+        : [];
     return { actionId: action.id, status: 'success', intents: refusalIntents };
   }
   const messageTextForDb = isTextReply ? (text ?? '') : `[${relayMessageType}]`;
@@ -532,22 +609,43 @@ export async function handleConversationAdminReply(
       },
     });
   }
-  writes.push(...await persistAdminMessengerUserState(deps, ctx, 'idle'));
+  writes.push(...(await persistAdminMessengerUserState(deps, ctx, 'idle')));
   if (adminChatId !== null) {
     const sentText = deps.templatePort
-      ? (await renderText({ templateKey: ADMIN.REPLY_SENT, ctx, templatePort: deps.templatePort })) || 'Сообщение отправлено.'
+      ? (await renderText({
+          templateKey: ADMIN.REPLY_SENT,
+          ctx,
+          templatePort: deps.templatePort,
+        })) || 'Сообщение отправлено.'
       : 'Сообщение отправлено.';
     const continueButtonText = deps.templatePort
-      ? (await renderText({ templateKey: ADMIN.REPLY_CONTINUE_BUTTON, ctx, templatePort: deps.templatePort })) || 'Дополнить ответ'
+      ? (await renderText({
+          templateKey: ADMIN.REPLY_CONTINUE_BUTTON,
+          ctx,
+          templatePort: deps.templatePort,
+        })) || 'Дополнить ответ'
       : 'Дополнить ответ';
     const closeButtonText = deps.templatePort
-      ? (await renderText({ templateKey: ADMIN.DIALOG_CLOSE_BUTTON, ctx, templatePort: deps.templatePort }))?.trim() ?? ''
+      ? ((
+          await renderText({
+            templateKey: ADMIN.DIALOG_CLOSE_BUTTON,
+            ctx,
+            templatePort: deps.templatePort,
+          })
+        )?.trim() ?? '')
       : '';
     const replyRows: Array<Array<{ text: string; callback_data: string }>> = [
-      [{ text: continueButtonText, callback_data: adminContinueCallbackData(conversationId, null) }],
+      [
+        {
+          text: continueButtonText,
+          callback_data: adminContinueCallbackData(conversationId, null),
+        },
+      ],
     ];
     if (closeButtonText) {
-      replyRows.push([{ text: closeButtonText, callback_data: `admin_close_dialog:${conversationId}` }]);
+      replyRows.push([
+        { text: closeButtonText, callback_data: `admin_close_dialog:${conversationId}` },
+      ]);
     }
     intents.push({
       type: 'message.send',

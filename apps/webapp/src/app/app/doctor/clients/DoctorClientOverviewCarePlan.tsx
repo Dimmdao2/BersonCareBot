@@ -1,27 +1,27 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { Activity, BookOpen, ChevronRight, ClipboardList, FileText } from "lucide-react";
-import { Badge } from "@/shared/ui/doctor/primitives/badge";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { buttonVariants } from "@/shared/ui/doctor/primitives/button-variants";
+import Link from 'next/link';
+import { Activity, BookOpen, ChevronRight, ClipboardList, FileText } from 'lucide-react';
+import { Badge } from '@/shared/ui/doctor/primitives/badge';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { buttonVariants } from '@/shared/ui/doctor/primitives/button-variants';
 import {
   primaryMediaForStageItem,
   primaryMediaForTestSnapshotLine,
   recommendationBodyMdPreviewPlain,
-} from "@/app/app/patient/treatment/stageItemSnapshot";
-import { pickActivePlanInstance } from "@/modules/treatment-program/pickActivePlanInstance";
-import type { TreatmentProgramInstanceSummary } from "@/modules/treatment-program/types";
-import type { TreatmentProgramItemType } from "@/modules/treatment-program/types";
-import type { DoctorClientOverviewCarePlanModel } from "@/modules/doctor-client-card/types";
-import { DoctorCatalogMediaStaticThumb } from "@/shared/ui/doctor/media/DoctorCatalogMediaStaticThumb";
-import { doctorClientTreatmentProgramInstanceHref } from "./doctorClientInstanceHref";
+} from '@/app/app/patient/treatment/stageItemSnapshot';
+import { pickActivePlanInstance } from '@/modules/treatment-program/pickActivePlanInstance';
+import type { TreatmentProgramInstanceSummary } from '@/modules/treatment-program/types';
+import type { TreatmentProgramItemType } from '@/modules/treatment-program/types';
+import type { DoctorClientOverviewCarePlanModel } from '@/modules/doctor-client-card/types';
+import { DoctorCatalogMediaStaticThumb } from '@/shared/ui/doctor/media/DoctorCatalogMediaStaticThumb';
+import { doctorClientTreatmentProgramInstanceHref } from './doctorClientInstanceHref';
 import {
   doctorClientInsetListRowClass,
   doctorClientOverviewPrimaryCardClass,
   doctorClientSectionTitleClass,
-} from "./doctorClientCardChrome";
-import { cn } from "@/lib/utils";
+} from './doctorClientCardChrome';
+import { cn } from '@/lib/utils';
 
 type Props = {
   userId: string;
@@ -32,14 +32,14 @@ type Props = {
   onAssignClick: () => void;
 };
 
-function carePlanItemPreview(item: DoctorClientOverviewCarePlanModel["items"][number]) {
-  if (item.itemType === "clinical_test") {
+function carePlanItemPreview(item: DoctorClientOverviewCarePlanModel['items'][number]) {
+  if (item.itemType === 'clinical_test') {
     const fromTest = primaryMediaForTestSnapshotLine(item.snapshot, item.itemRefId);
     if (fromTest) return fromTest;
   }
   return primaryMediaForStageItem({
     id: item.id,
-    stageId: "",
+    stageId: '',
     itemType: item.itemType as TreatmentProgramItemType,
     itemRefId: item.itemRefId,
     sortOrder: 0,
@@ -49,9 +49,9 @@ function carePlanItemPreview(item: DoctorClientOverviewCarePlanModel["items"][nu
     snapshot: item.snapshot,
     completedAt: null,
     isActionable: null,
-    status: "active",
+    status: 'active',
     groupId: null,
-    createdAt: "",
+    createdAt: '',
     lastViewedAt: null,
     effectiveComment: null,
   });
@@ -71,7 +71,7 @@ export function DoctorClientOverviewCarePlan({
   assignEnabled,
   onAssignClick,
 }: Props) {
-  const scopeQs = profileListScope ? `?scope=${encodeURIComponent(profileListScope)}` : "";
+  const scopeQs = profileListScope ? `?scope=${encodeURIComponent(profileListScope)}` : '';
   const activeFallback = instances ? pickActivePlanInstance(instances) : null;
   const instanceId = carePlan?.instanceId ?? activeFallback?.id ?? null;
   const instanceHref = instanceId
@@ -80,11 +80,11 @@ export function DoctorClientOverviewCarePlan({
 
   const itemTypeIcon = (itemType: string) => {
     switch (itemType) {
-      case "exercise":
+      case 'exercise':
         return Activity;
-      case "lesson":
+      case 'lesson':
         return BookOpen;
-      case "clinical_test":
+      case 'clinical_test':
         return ClipboardList;
       default:
         return FileText;
@@ -137,7 +137,9 @@ export function DoctorClientOverviewCarePlan({
               <p className="line-clamp-2 text-xs text-muted-foreground">{objectivesLine}</p>
             ) : null}
             {carePlan.expectedDurationText?.trim() ? (
-              <p className="text-xs text-muted-foreground">{carePlan.expectedDurationText.trim()}</p>
+              <p className="text-xs text-muted-foreground">
+                {carePlan.expectedDurationText.trim()}
+              </p>
             ) : null}
           </div>
           {carePlan.items.length > 0 ? (
@@ -155,7 +157,7 @@ export function DoctorClientOverviewCarePlan({
                 return (
                   <li key={item.id}>
                     {rowHref ? (
-                      <Link href={rowHref} className={cn(doctorClientInsetListRowClass, "group")}>
+                      <Link href={rowHref} className={cn(doctorClientInsetListRowClass, 'group')}>
                         {media ? (
                           <DoctorCatalogMediaStaticThumb
                             media={media}
@@ -203,7 +205,7 @@ export function DoctorClientOverviewCarePlan({
           {instanceHref ? (
             <Link
               href={instanceHref}
-              className={cn(buttonVariants({ variant: "default", size: "sm" }), "mt-auto w-fit")}
+              className={cn(buttonVariants({ variant: 'default', size: 'sm' }), 'mt-auto w-fit')}
             >
               Открыть программу
             </Link>
@@ -214,7 +216,7 @@ export function DoctorClientOverviewCarePlan({
           <p className="text-sm font-medium">{activeFallback.title}</p>
           <Link
             href={instanceHref}
-            className={cn(buttonVariants({ variant: "default", size: "sm" }), "w-fit")}
+            className={cn(buttonVariants({ variant: 'default', size: 'sm' }), 'w-fit')}
           >
             Открыть программу
           </Link>
@@ -223,7 +225,13 @@ export function DoctorClientOverviewCarePlan({
         <div className="flex flex-col gap-2">
           <p className="text-sm text-muted-foreground">Нет активной программы</p>
           {assignEnabled ? (
-            <Button type="button" variant="outline" size="sm" className="w-fit" onClick={onAssignClick}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="w-fit"
+              onClick={onAssignClick}
+            >
               Назначить программу
             </Button>
           ) : null}

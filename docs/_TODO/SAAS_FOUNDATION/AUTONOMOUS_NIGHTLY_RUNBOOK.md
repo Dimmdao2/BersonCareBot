@@ -8,7 +8,7 @@ Purpose: preserve the Phase 0 autonomous execution rules and evidence. For new T
 > even though line 3/137 above already disowned them. Now: the 44 boxes inside "Next Stage Plans" (P0.7.5
 > through P0.13, the self-disowned section) are `- [-]` ↪️ ВЫТЕСНЕНО; the 7 boxes in "Start Checklist"
 > are `- [-]` 🧊 ЗАМОРОЖЕНО as a per-run procedure template (this file's own line 5 keeps them valid as
-> *discipline*, not as unstarted work). Why: `docs/_TODO/BACKLOG_CONSOLIDATION_2026-07-26.md` §6.3 canon —
+> _discipline_, not as unstarted work). Why: `docs/_TODO/BACKLOG_CONSOLIDATION_2026-07-26.md` §6.3 canon —
 > dead/superseded boxes must leave both the open and done counts, never silently stay `[ ]`.
 >
 > **Correction 2026-07-27 (post-audit).** The first pass wrote one generic pointer

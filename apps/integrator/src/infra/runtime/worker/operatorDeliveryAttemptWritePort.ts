@@ -14,14 +14,16 @@ export function createOperatorAwareDeliveryAttemptWritePort(input: {
         return;
       }
       if (
-        principal?.kind === 'organization'
-        || principal?.kind === 'staff'
-        || principal?.kind === 'patient'
-        || principal?.kind === 'integrator'
+        principal?.kind === 'organization' ||
+        principal?.kind === 'staff' ||
+        principal?.kind === 'patient' ||
+        principal?.kind === 'integrator'
       ) {
         return await input.tenantWritePort.writeDb(mutation);
       }
-      throw new Error('Delivery attempt logging requires tenant/integrator or exact delivery-worker principal');
+      throw new Error(
+        'Delivery attempt logging requires tenant/integrator or exact delivery-worker principal',
+      );
     },
   };
 }

@@ -1,21 +1,21 @@
 /**
  * Компактная карточка подписчика: контакты, уведомления, счётчики по журналу сообщений.
  */
-import Link from "next/link";
-import type { ClientProfile } from "@/modules/doctor-clients/service";
-import { cn } from "@/lib/utils";
-import type { MessageLogEntry } from "@/modules/doctor-messaging/ports";
-import { AdminDangerActions } from "../clients/AdminDangerActions";
-import { DoctorClientPrimaryContacts } from "../clients/DoctorClientPrimaryContacts";
-import { DoctorNotesPanel } from "../clients/DoctorNotesPanel";
-import { ClientBookingHistoryPanel } from "../clients/ClientBookingHistoryPanel";
-import { SubscriberBlockPanel } from "../clients/SubscriberBlockPanel";
+import Link from 'next/link';
+import type { ClientProfile } from '@/modules/doctor-clients/service';
+import { cn } from '@/lib/utils';
+import type { MessageLogEntry } from '@/modules/doctor-messaging/ports';
+import { AdminDangerActions } from '../clients/AdminDangerActions';
+import { DoctorClientPrimaryContacts } from '../clients/DoctorClientPrimaryContacts';
+import { DoctorNotesPanel } from '../clients/DoctorNotesPanel';
+import { ClientBookingHistoryPanel } from '../clients/ClientBookingHistoryPanel';
+import { SubscriberBlockPanel } from '../clients/SubscriberBlockPanel';
 import {
   doctorClientBackLinkClass,
   doctorClientOverviewPrimaryCardClass,
   doctorClientSectionTitleClass,
-} from "../clients/doctorClientCardChrome";
-import { doctorInlineLinkClass } from "@/shared/ui/doctor/doctorVisual";
+} from '../clients/doctorClientCardChrome';
+import { doctorInlineLinkClass } from '@/shared/ui/doctor/doctorVisual';
 
 type Props = {
   profile: ClientProfile;
@@ -49,10 +49,15 @@ export function SubscriberProfileCard({
 
   return (
     <>
-      <section className={doctorClientOverviewPrimaryCardClass} id="doctor-subscriber-compact-contacts">
+      <section
+        className={doctorClientOverviewPrimaryCardClass}
+        id="doctor-subscriber-compact-contacts"
+      >
         <h2 className={doctorClientSectionTitleClass}>Контакты</h2>
         <DoctorClientPrimaryContacts identity={identity} />
-        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Каналы доставки</p>
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          Каналы доставки
+        </p>
         <ul className="m-0 flex flex-wrap list-none gap-2 p-0">
           {channelCards.map((ch) => (
             <li key={ch.code}>
@@ -67,7 +72,7 @@ export function SubscriberProfileCard({
                 </a>
               ) : (
                 <span>
-                  {ch.title}: {ch.isLinked ? "подключён" : "не подключён"}
+                  {ch.title}: {ch.isLinked ? 'подключён' : 'не подключён'}
                 </span>
               )}
             </li>
@@ -75,21 +80,29 @@ export function SubscriberProfileCard({
         </ul>
       </section>
 
-      <section className={doctorClientOverviewPrimaryCardClass} id="doctor-subscriber-notifications-summary">
+      <section
+        className={doctorClientOverviewPrimaryCardClass}
+        id="doctor-subscriber-notifications-summary"
+      >
         <h2 className={doctorClientSectionTitleClass}>Уведомления</h2>
         <ul className="list-none p-0 text-sm">
           {channelCards.map((ch) => (
             <li key={`n-${ch.code}`}>
-              {ch.title}: уведомления {ch.isEnabledForNotifications ? "вкл." : "выкл."}
+              {ch.title}: уведомления {ch.isEnabledForNotifications ? 'вкл.' : 'выкл.'}
             </li>
           ))}
         </ul>
       </section>
 
-      <section className={doctorClientOverviewPrimaryCardClass} id="doctor-subscriber-channel-msg-counts">
+      <section
+        className={doctorClientOverviewPrimaryCardClass}
+        id="doctor-subscriber-channel-msg-counts"
+      >
         <h2 className={doctorClientSectionTitleClass}>Сообщения специалиста (журнал)</h2>
         {Object.keys(counts).length === 0 ? (
-          <p className="text-muted-foreground text-sm">Нет данных по каналам в последних сообщениях.</p>
+          <p className="text-muted-foreground text-sm">
+            Нет данных по каналам в последних сообщениях.
+          </p>
         ) : (
           <ul className="text-sm" id="doctor-subscriber-channel-counts-list">
             {Object.entries(counts).map(([code, n]) => (
@@ -103,7 +116,11 @@ export function SubscriberProfileCard({
 
       <section className={doctorClientOverviewPrimaryCardClass}>
         <h2 className={doctorClientSectionTitleClass}>Чат поддержки</h2>
-        <Link href="/app/doctor/messages" className={doctorInlineLinkClass} id="doctor-open-support-chat-link">
+        <Link
+          href="/app/doctor/messages"
+          className={doctorInlineLinkClass}
+          id="doctor-open-support-chat-link"
+        >
           Открыть раздел сообщений
         </Link>
       </section>
@@ -120,7 +137,7 @@ export function SubscriberProfileCard({
       ) : null}
 
       <p>
-        <Link href={listBasePath} className={cn(doctorClientBackLinkClass, "shrink-0")}>
+        <Link href={listBasePath} className={cn(doctorClientBackLinkClass, 'shrink-0')}>
           К списку подписчиков
         </Link>
       </p>

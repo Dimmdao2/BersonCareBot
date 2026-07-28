@@ -1,17 +1,17 @@
 ---
 name: Patient tablet breakpoint md
-overview: "ЗАКРЫТО в коде. Порог patient shell / PatientTopNav / главная «Сегодня» и home — `md`; доки/JSDoc/LOG по плану. Дубликаты в Cursor Plan Store (имена вида patient_tablet_breakpoint_md_*.plan.md) закрыть вручную, если мешают."
+overview: 'ЗАКРЫТО в коде. Порог patient shell / PatientTopNav / главная «Сегодня» и home — `md`; доки/JSDoc/LOG по плану. Дубликаты в Cursor Plan Store (имена вида patient_tablet_breakpoint_md_*.plan.md) закрыть вручную, если мешают.'
 status: completed
 completed_at: 2026-05-10
 todos:
   - id: shell-nav-shimmer
-    content: "AppShell patient + PatientTopNav + PatientLoadingShimmer: только ветки lg/max-lg → md/max-md (база без префикса не трогать)"
+    content: 'AppShell patient + PatientTopNav + PatientLoadingShimmer: только ветки lg/max-lg → md/max-md (база без префикса не трогать)'
     status: completed
   - id: home-today-grid
-    content: "PatientHomeTodayLayout: lg→md для grid/col-span/order + data-* атрибуты/тесты"
+    content: 'PatientHomeTodayLayout: lg→md для grid/col-span/order + data-* атрибуты/тесты'
     status: completed
   - id: home-cards-sweep
-    content: "patientHomeCardStyles и home: только пары max-lg/lg (порог shell) → max-md/md; не менять sm/базу"
+    content: 'patientHomeCardStyles и home: только пары max-lg/lg (порог shell) → max-md/md; не менять sm/базу'
     status: completed
   - id: docs-log
     content: PATIENT_APP_UI_STYLE_GUIDE + JSDoc (AppShell/PatientTopNav); docs/.../LOG.md по ходу работ
@@ -95,12 +95,12 @@ flowchart LR
 
 Выполнить на **реальном браузере** (или devtools device mode с корректным DPR):
 
-| Ширина | Ожидание |
-|--------|----------|
-| **360–430px** | Как до изменений: узкая колонка `max-w-[430px]`, mobile top nav, одноколоночная главная, те же отступы карточек home |
-| **768px** (`md`) | Широкий shell до лимита, desktop top nav, 12-col dashboard на главной, нет «полоски на всю ширину экрана + узкая колонка контента» |
-| **1024px** (`lg`) | Нет второго «скачка» shell/nav (поведение уже как у широкого режима с `md`) |
-| **≥1280px** | Контент ограничен `min(1180px, 100vw-2rem)`, без горизонтального переполнения |
+| Ширина            | Ожидание                                                                                                                           |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| **360–430px**     | Как до изменений: узкая колонка `max-w-[430px]`, mobile top nav, одноколоночная главная, те же отступы карточек home               |
+| **768px** (`md`)  | Широкий shell до лимита, desktop top nav, 12-col dashboard на главной, нет «полоски на всю ширину экрана + узкая колонка контента» |
+| **1024px** (`lg`) | Нет второго «скачка» shell/nav (поведение уже как у широкого режима с `md`)                                                        |
+| **≥1280px**       | Контент ограничен `min(1180px, 100vw-2rem)`, без горизонтального переполнения                                                      |
 
 Дополнительно: экраны с **`patientHideBottomNav`** / **`patientEmbedMain`** — отдельная проверка ширины shell на **`md`**.
 

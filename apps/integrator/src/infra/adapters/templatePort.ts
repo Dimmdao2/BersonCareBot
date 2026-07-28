@@ -66,10 +66,14 @@ function interpolateTemplate(text: string, vars: Record<string, unknown>): strin
       .join('');
   });
 
-  const ifBlock = /\{\{\s*#if\s+([\w.]+)\s*\}\}([\s\S]*?)\{\{\s*else\s*\}\}([\s\S]*?)\{\{\s*\/if\s*\}\}/g;
+  const ifBlock =
+    /\{\{\s*#if\s+([\w.]+)\s*\}\}([\s\S]*?)\{\{\s*else\s*\}\}([\s\S]*?)\{\{\s*\/if\s*\}\}/g;
   result = result.replace(ifBlock, (_, path, thenBlock, elseBlock) => {
     const val = getPathValue(vars, path);
-    const block = val && (typeof val === 'string' ? val.trim().length > 0 : true) ? thenBlock : (elseBlock ?? '');
+    const block =
+      val && (typeof val === 'string' ? val.trim().length > 0 : true)
+        ? thenBlock
+        : (elseBlock ?? '');
     return interpolateTemplate(block, vars);
   });
   const ifBlockNoElse = /\{\{\s*#if\s+([\w.]+)\s*\}\}([\s\S]*?)\{\{\s*\/if\s*\}\}/g;
@@ -90,11 +94,12 @@ function interpolateTemplate(text: string, vars: Record<string, unknown>): strin
 export function createTemplatePort(input: { contentPort: ContentPort }): TemplatePort {
   return {
     async renderTemplate({ source, templateId, vars = {}, audience }): Promise<{ text: string }> {
-      const template = audience !== undefined
-        ? await input.contentPort.getTemplate({ source, audience }, templateId)
-        : (input.contentPort.getTemplateByKey
-          ? await input.contentPort.getTemplateByKey(`${source}:${templateId}`)
-          : null);
+      const template =
+        audience !== undefined
+          ? await input.contentPort.getTemplate({ source, audience }, templateId)
+          : input.contentPort.getTemplateByKey
+            ? await input.contentPort.getTemplateByKey(`${source}:${templateId}`)
+            : null;
       if (!template || typeof template.text !== 'string') return { text: '' };
       return { text: interpolateTemplate(template.text, vars) };
     },

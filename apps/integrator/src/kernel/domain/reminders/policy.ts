@@ -6,10 +6,7 @@ import {
   type ReminderSchedulePreset,
 } from '../../contracts/reminders.js';
 
-export type ReminderOccurrenceDraft = Pick<
-  ReminderOccurrenceRecord,
-  'occurrenceKey' | 'plannedAt'
->;
+export type ReminderOccurrenceDraft = Pick<ReminderOccurrenceRecord, 'occurrenceKey' | 'plannedAt'>;
 
 type ZonedDateParts = {
   year: number;
@@ -102,14 +99,9 @@ function zonedLocalDateTimeToUtc(input: {
   second?: number;
   timeZone: string;
 }): Date {
-  const guess = new Date(Date.UTC(
-    input.year,
-    input.month - 1,
-    input.day,
-    input.hour,
-    input.minute,
-    input.second ?? 0,
-  ));
+  const guess = new Date(
+    Date.UTC(input.year, input.month - 1, input.day, input.hour, input.minute, input.second ?? 0),
+  );
   const offsetMs = getTimeZoneOffsetMs(guess, input.timeZone);
   return new Date(guess.getTime() - offsetMs);
 }
@@ -146,16 +138,15 @@ export function reminderPresetConfig(preset: ReminderSchedulePreset): {
   }
 }
 
-export function detectReminderPreset(rule: Pick<
-  ReminderRuleRecord,
-  'intervalMinutes' | 'windowStartMinute' | 'windowEndMinute'
->): ReminderSchedulePreset {
+export function detectReminderPreset(
+  rule: Pick<ReminderRuleRecord, 'intervalMinutes' | 'windowStartMinute' | 'windowEndMinute'>,
+): ReminderSchedulePreset {
   for (const preset of REMINDER_SCHEDULE_PRESETS) {
     const config = reminderPresetConfig(preset);
     if (
-      config.intervalMinutes === rule.intervalMinutes
-      && config.windowStartMinute === rule.windowStartMinute
-      && config.windowEndMinute === rule.windowEndMinute
+      config.intervalMinutes === rule.intervalMinutes &&
+      config.windowStartMinute === rule.windowStartMinute &&
+      config.windowEndMinute === rule.windowEndMinute
     ) {
       return preset;
     }
@@ -167,9 +158,7 @@ export function cycleReminderPreset(
   current: ReminderSchedulePreset | null | undefined,
 ): ReminderSchedulePreset {
   const currentIndex = REMINDER_SCHEDULE_PRESETS.indexOf(current ?? 'daily');
-  const nextIndex = currentIndex >= 0
-    ? (currentIndex + 1) % REMINDER_SCHEDULE_PRESETS.length
-    : 0;
+  const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % REMINDER_SCHEDULE_PRESETS.length : 0;
   return REMINDER_SCHEDULE_PRESETS[nextIndex] ?? 'daily';
 }
 
@@ -280,7 +269,10 @@ function isDayActiveForSlots(
   return false;
 }
 
-function planSlotsV1DueOccurrences(rule: ReminderRuleRecord, nowIso: string): ReminderOccurrenceDraft[] {
+function planSlotsV1DueOccurrences(
+  rule: ReminderRuleRecord,
+  nowIso: string,
+): ReminderOccurrenceDraft[] {
   const data = parseSlotsV1Data(rule.scheduleData);
   if (!data) return [];
   const now = new Date(nowIso);
@@ -292,7 +284,9 @@ function planSlotsV1DueOccurrences(rule: ReminderRuleRecord, nowIso: string): Re
   for (const tl of data.timesLocal) {
     const minuteOfDay = parseHhMmToMinuteOfDay(typeof tl === 'string' ? tl : '');
     if (minuteOfDay === null) continue;
-    if (isMinuteOfDayInQuietHours(minuteOfDay, rule.quietHoursStartMinute, rule.quietHoursEndMinute)) {
+    if (
+      isMinuteOfDayInQuietHours(minuteOfDay, rule.quietHoursStartMinute, rule.quietHoursEndMinute)
+    ) {
       continue;
     }
     const slotUtc = zonedLocalDateTimeToUtc({

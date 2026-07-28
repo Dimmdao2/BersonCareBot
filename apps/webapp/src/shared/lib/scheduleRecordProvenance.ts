@@ -1,4 +1,4 @@
 /**
  * Единый нейтральный префикс для записей, импортированных из внешнего расписания.
  */
-export const SCHEDULE_RECORD_PROVENANCE_PREFIX = "Из расписания · ";
+export const SCHEDULE_RECORD_PROVENANCE_PREFIX = 'Из расписания · ';

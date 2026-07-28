@@ -1,13 +1,15 @@
-"use client";
+'use client';
 
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
 
 type PatientPhonePromptChromeContextValue = {
   suppressPatientHeader: boolean;
   setSuppressPatientHeader: (value: boolean) => void;
 };
 
-const PatientPhonePromptChromeContext = createContext<PatientPhonePromptChromeContextValue | null>(null);
+const PatientPhonePromptChromeContext = createContext<PatientPhonePromptChromeContextValue | null>(
+  null,
+);
 
 export function PatientPhonePromptChromeProvider({ children }: { children: ReactNode }) {
   const [suppressPatientHeader, setSuppressState] = useState(false);
@@ -19,7 +21,9 @@ export function PatientPhonePromptChromeProvider({ children }: { children: React
     [suppressPatientHeader, setSuppressPatientHeader],
   );
   return (
-    <PatientPhonePromptChromeContext.Provider value={value}>{children}</PatientPhonePromptChromeContext.Provider>
+    <PatientPhonePromptChromeContext.Provider value={value}>
+      {children}
+    </PatientPhonePromptChromeContext.Provider>
   );
 }
 

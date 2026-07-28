@@ -74,22 +74,22 @@ inactive source, обязательный deactivation preflight и неизме
 
 ## 3. Acceptance trace
 
-| Проверка | Результат |
-|---|---|
-| Все роли: global admin, owner, admin, specialist, assistant, patient, onboarding, public | PASS |
-| Staff one-org и patient multi-org не смешаны | PASS |
-| Owner/admin с specialist binding и без него имеют разные safe surfaces | PASS |
-| Solo и clinic — одна account model, разная capability-driven композиция | PASS |
-| Одна org-card — только recommended candidate; alternatives не скрыты | PASS |
-| `Мои / Вся доступная / specialist X` применяются после authorization | PASS |
-| List/direct/count/search/export parity задана | PASS |
-| Private/shared record classes не раскрываются entitlement или UI filter | PASS |
-| Primary assignment, care team, work item и cross-org transfer разделены | PASS |
-| Pending/accept/reject/cancel/expire/deactivation recovery покрыты | PASS |
-| Capability и entitlement имеют разные denial/recovery states | PASS |
-| Global-admin analytics и support intervention разделены без запрета DB authority | PASS |
-| Unresolved rows сопоставлены с owner decision packet и safe defaults | PASS |
-| Owner decision packet минимален и приоритизирован по downstream block | PASS |
+| Проверка                                                                                 | Результат |
+| ---------------------------------------------------------------------------------------- | --------- |
+| Все роли: global admin, owner, admin, specialist, assistant, patient, onboarding, public | PASS      |
+| Staff one-org и patient multi-org не смешаны                                             | PASS      |
+| Owner/admin с specialist binding и без него имеют разные safe surfaces                   | PASS      |
+| Solo и clinic — одна account model, разная capability-driven композиция                  | PASS      |
+| Одна org-card — только recommended candidate; alternatives не скрыты                     | PASS      |
+| `Мои / Вся доступная / specialist X` применяются после authorization                     | PASS      |
+| List/direct/count/search/export parity задана                                            | PASS      |
+| Private/shared record classes не раскрываются entitlement или UI filter                  | PASS      |
+| Primary assignment, care team, work item и cross-org transfer разделены                  | PASS      |
+| Pending/accept/reject/cancel/expire/deactivation recovery покрыты                        | PASS      |
+| Capability и entitlement имеют разные denial/recovery states                             | PASS      |
+| Global-admin analytics и support intervention разделены без запрета DB authority         | PASS      |
+| Unresolved rows сопоставлены с owner decision packet и safe defaults                     | PASS      |
+| Owner decision packet минимален и приоритизирован по downstream block                    | PASS      |
 
 ## 4. Проверка owner decision packet
 

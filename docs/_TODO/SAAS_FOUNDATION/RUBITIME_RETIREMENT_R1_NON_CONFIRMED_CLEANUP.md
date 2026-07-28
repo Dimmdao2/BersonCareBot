@@ -8,14 +8,14 @@ Owner approval basis: cancellations, moves/reschedules and any statuses that are
 
 ## Environment
 
-| Field | Value |
-| --- | --- |
-| Worktree | `/home/dev/dev-projects/BersonCareBot` |
-| Branch | `feat/doctor-ui-rebuild` |
-| Starting HEAD | `03e2f941c85ca1573a57504e8b3adecebcf6207f` |
-| Database | `bcb_webapp_dev` on `127.0.0.1:5432` |
-| Env source | `/home/dev/dev-projects/BersonCareBot/.env` + `/home/dev/dev-projects/BersonCareBot/apps/webapp/.env.dev` |
-| Telegram token | process-local non-secret placeholder, only for config parsing |
+| Field          | Value                                                                                                     |
+| -------------- | --------------------------------------------------------------------------------------------------------- |
+| Worktree       | `/home/dev/dev-projects/BersonCareBot`                                                                    |
+| Branch         | `feat/doctor-ui-rebuild`                                                                                  |
+| Starting HEAD  | `03e2f941c85ca1573a57504e8b3adecebcf6207f`                                                                |
+| Database       | `bcb_webapp_dev` on `127.0.0.1:5432`                                                                      |
+| Env source     | `/home/dev/dev-projects/BersonCareBot/.env` + `/home/dev/dev-projects/BersonCareBot/apps/webapp/.env.dev` |
+| Telegram token | process-local non-secret placeholder, only for config parsing                                             |
 
 ## Scripted cleanup path
 
@@ -27,11 +27,11 @@ Implemented flag:
 
 Conservative status policy:
 
-| Class | Statuses | Action |
-| --- | --- | --- |
-| non-confirmed cleanup | `canceled`, `awaiting_confirmation`, `in_cart`, `moved_awaiting` | soft-delete legacy row; soft-delete mapped canonical row only when `be_appointments.source='rubitime_projection'` |
-| kept as valid/active history | `recorded`, `in_service`, `completed`, `awaiting_prepayment` | no cleanup |
-| ambiguous / unknown | any unresolved legacy status | no cleanup |
+| Class                        | Statuses                                                         | Action                                                                                                            |
+| ---------------------------- | ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| non-confirmed cleanup        | `canceled`, `awaiting_confirmation`, `in_cart`, `moved_awaiting` | soft-delete legacy row; soft-delete mapped canonical row only when `be_appointments.source='rubitime_projection'` |
+| kept as valid/active history | `recorded`, `in_service`, `completed`, `awaiting_prepayment`     | no cleanup                                                                                                        |
+| ambiguous / unknown          | any unresolved legacy status                                     | no cleanup                                                                                                        |
 
 The flag is write-capable only with explicit `--commit`. It does not imply `--drop-stale-from-csv`, `--drop-legacy`, `--collapse-dups`, or R2.
 
@@ -102,44 +102,44 @@ node docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r1-dual-source-audit.mjs \
 
 ## Before and after
 
-| Check | Before | After |
-| --- | ---: | ---: |
-| Legacy live rows | 364 | 317 |
-| Canonical `rubitime_projection` live rows | 241 | 207 |
-| Unmapped legacy total | 112 | 99 |
-| Unmapped test/block | 0 | 0 |
-| Unmapped canceled | 13 | 0 |
-| Unmapped real active | 99 | 99 |
-| Unmapped future | 0 | 0 |
-| Duplicate clusters | 3 | 3 |
-| Duplicate clusters with multiple canonical rows | 0 | 0 |
-| Stale vs owner CSV `records-2.csv` | 29 | 28 |
-| Non-confirmed cleanup candidates | 47 | 0 |
+| Check                                           | Before | After |
+| ----------------------------------------------- | -----: | ----: |
+| Legacy live rows                                |    364 |   317 |
+| Canonical `rubitime_projection` live rows       |    241 |   207 |
+| Unmapped legacy total                           |    112 |    99 |
+| Unmapped test/block                             |      0 |     0 |
+| Unmapped canceled                               |     13 |     0 |
+| Unmapped real active                            |     99 |    99 |
+| Unmapped future                                 |      0 |     0 |
+| Duplicate clusters                              |      3 |     3 |
+| Duplicate clusters with multiple canonical rows |      0 |     0 |
+| Stale vs owner CSV `records-2.csv`              |     29 |    28 |
+| Non-confirmed cleanup candidates                |     47 |     0 |
 
 Commit effects:
 
-| Action | Count |
-| --- | ---: |
-| Non-confirmed legacy rows soft-deleted | 47 |
-| Mapped canonical `rubitime_projection` rows soft-deleted | 34 |
-| `canceled` status rows in this cleanup | 45 |
-| `moved_awaiting` status rows in this cleanup | 2 |
+| Action                                                   | Count |
+| -------------------------------------------------------- | ----: |
+| Non-confirmed legacy rows soft-deleted                   |    47 |
+| Mapped canonical `rubitime_projection` rows soft-deleted |    34 |
+| `canceled` status rows in this cleanup                   |    45 |
+| `moved_awaiting` status rows in this cleanup             |     2 |
 
 ## Post-run dual-source audit
 
-| Check | Count |
-| --- | ---: |
-| raw-only records | 0 |
-| legacy-only records | 312 |
-| status mismatches | 4 |
-| `record_at` mismatches over 5 minutes | 2 |
-| raw mapping coverage | 91 of 91 |
-| legacy mapping coverage | 274 of 403 |
-| legacy unmapped | 129 |
-| raw mappings to soft-deleted canonical appointments | 17 |
-| legacy mappings to soft-deleted canonical appointments | 56 |
-| unexpected canonical source | 6 |
-| missing expected mapping metadata | 6 |
+| Check                                                  |      Count |
+| ------------------------------------------------------ | ---------: |
+| raw-only records                                       |          0 |
+| legacy-only records                                    |        312 |
+| status mismatches                                      |          4 |
+| `record_at` mismatches over 5 minutes                  |          2 |
+| raw mapping coverage                                   |   91 of 91 |
+| legacy mapping coverage                                | 274 of 403 |
+| legacy unmapped                                        |        129 |
+| raw mappings to soft-deleted canonical appointments    |         17 |
+| legacy mappings to soft-deleted canonical appointments |         56 |
+| unexpected canonical source                            |          6 |
+| missing expected mapping metadata                      |          6 |
 
 Interpretation: the owner-approved non-confirmed category is now exhausted in the dev DB snapshot. This does not make R1 pass.
 

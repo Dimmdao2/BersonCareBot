@@ -1,4 +1,4 @@
-import type { ProactiveInsightKind, ProactiveInsightRow } from "./types";
+import type { ProactiveInsightKind, ProactiveInsightRow } from './types';
 
 export type DoctorProactiveInsightsQueryResult = {
   items: ProactiveInsightRow[];

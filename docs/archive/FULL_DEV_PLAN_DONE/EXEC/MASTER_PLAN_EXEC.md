@@ -33,16 +33,16 @@ PACK G: Final Stubs & E2E ──────────────── (по
 
 ## Пакеты
 
-| Пакет | Файл инструкций | Сложность | Рекомендация по агенту | Шагов | Миграции |
-|-------|-----------------|-----------|----------------------|-------|----------|
-| **H** | `EXEC_H_HOTFIX_UI_AUTH.md` | Высокий | Auto; H.1.4 → API-модель | 5 секций (H.1–H.5) | — |
-| **A** | `EXEC_A_QUICK_FIXES.md` | Простой | Auto (пул) | 5 | — |
-| **B** | `EXEC_B_SETTINGS_ADMIN!!.md` | Высокий | Auto (пул); при проблемах → API-модель | 6 | `031_system_settings.sql` |
-| **C** | `EXEC_C_RELAY_OUTBOUND!.md` | Средний | Auto (пул) | 3 | — |
-| **D** | `EXEC_D_REMINDERS!!.md` | Высокий | Auto (пул); шаги 12.3/12.5 → API-модель при проблемах | 5 | `032_reminder_seen_status.sql` |
-| **E** | `EXEC_E_INTEGRATIONS!!.md` | Очень высокий | Auto первые 4 шага; шаги 13.5–13.6 → API-модель | 7 | — (integrator DB) |
-| **F** | `EXEC_F_LFK!.md` | Средне-высокий | Auto (пул) | 7 | `033_lfk_exercises.sql`, `034_lfk_templates.sql` |
-| **G** | `EXEC_G_FINAL_STUBS.md` | Простой | Auto (пул) | 2 | — |
+| Пакет | Файл инструкций              | Сложность      | Рекомендация по агенту                                | Шагов              | Миграции                                         |
+| ----- | ---------------------------- | -------------- | ----------------------------------------------------- | ------------------ | ------------------------------------------------ |
+| **H** | `EXEC_H_HOTFIX_UI_AUTH.md`   | Высокий        | Auto; H.1.4 → API-модель                              | 5 секций (H.1–H.5) | —                                                |
+| **A** | `EXEC_A_QUICK_FIXES.md`      | Простой        | Auto (пул)                                            | 5                  | —                                                |
+| **B** | `EXEC_B_SETTINGS_ADMIN!!.md` | Высокий        | Auto (пул); при проблемах → API-модель                | 6                  | `031_system_settings.sql`                        |
+| **C** | `EXEC_C_RELAY_OUTBOUND!.md`  | Средний        | Auto (пул)                                            | 3                  | —                                                |
+| **D** | `EXEC_D_REMINDERS!!.md`      | Высокий        | Auto (пул); шаги 12.3/12.5 → API-модель при проблемах | 5                  | `032_reminder_seen_status.sql`                   |
+| **E** | `EXEC_E_INTEGRATIONS!!.md`   | Очень высокий  | Auto первые 4 шага; шаги 13.5–13.6 → API-модель       | 7                  | — (integrator DB)                                |
+| **F** | `EXEC_F_LFK!.md`             | Средне-высокий | Auto (пул)                                            | 7                  | `033_lfk_exercises.sql`, `034_lfk_templates.sql` |
+| **G** | `EXEC_G_FINAL_STUBS.md`      | Простой        | Auto (пул)                                            | 2                  | —                                                |
 
 ---
 
@@ -59,12 +59,12 @@ PACK G: Final Stubs & E2E ──────────────── (по
 
 ### Рекомендованные точки глубокого аудита
 
-| После чего | Фокус аудита |
-|-----------|-------------|
-| PACK B + C | security: admin mode, relay HMAC, role guards |
-| PACK E | integrations: контракты, подписи, idempotency, nock-покрытие |
-| PACK F (опционально) | data: FK chain exercises → templates → assignments → diary |
-| PACK G (финальный) | full regression: `pnpm run ci` + ручной smoke |
+| После чего           | Фокус аудита                                                 |
+| -------------------- | ------------------------------------------------------------ |
+| PACK B + C           | security: admin mode, relay HMAC, role guards                |
+| PACK E               | integrations: контракты, подписи, idempotency, nock-покрытие |
+| PACK F (опционально) | data: FK chain exercises → templates → assignments → diary   |
+| PACK G (финальный)   | full regression: `pnpm run ci` + ручной smoke                |
 
 ---
 
@@ -72,12 +72,12 @@ PACK G: Final Stubs & E2E ──────────────── (по
 
 Текущая последняя: `030_news_and_motivation.sql`
 
-| Номер | Пакет | Содержание |
-|-------|-------|-----------|
-| 031 | B | `system_settings` + seed |
-| 032 | D | `reminder_seen_status` (seen_at / seen events) |
-| 033 | F | `lfk_exercises` + `lfk_exercise_media` |
-| 034 | F | `lfk_complex_templates` + `lfk_complex_template_exercises` + `patient_lfk_assignments` |
+| Номер | Пакет | Содержание                                                                             |
+| ----- | ----- | -------------------------------------------------------------------------------------- |
+| 031   | B     | `system_settings` + seed                                                               |
+| 032   | D     | `reminder_seen_status` (seen_at / seen events)                                         |
+| 033   | F     | `lfk_exercises` + `lfk_exercise_media`                                                 |
+| 034   | F     | `lfk_complex_templates` + `lfk_complex_template_exercises` + `patient_lfk_assignments` |
 
 ---
 
@@ -89,14 +89,14 @@ PACK G: Final Stubs & E2E ──────────────── (по
 
 ## Статус пакетов
 
-| Пакет | Статус |
-|-------|--------|
-| **H** | **`done`** — Hotfix UI + Auth flow |
-| **I** | **`done`** — UI Review правки владельца — аудит PASS |
-| **A** | **`done`** — Quick Fixes (A.1–A.5) + code review |
-| **B** | **`done`** — Settings/Admin + code review |
-| **C** | **`done`** — Relay Outbound + code review + QA |
-| **D** | **`done`** — Reminders + code review + верификация D.3 |
-| **E** | **`done`** — Integrations + code review + 6 волн remediation |
-| **F** | **`done`** — LFK + code review + повторное выполнение |
+| Пакет | Статус                                                                  |
+| ----- | ----------------------------------------------------------------------- |
+| **H** | **`done`** — Hotfix UI + Auth flow                                      |
+| **I** | **`done`** — UI Review правки владельца — аудит PASS                    |
+| **A** | **`done`** — Quick Fixes (A.1–A.5) + code review                        |
+| **B** | **`done`** — Settings/Admin + code review                               |
+| **C** | **`done`** — Relay Outbound + code review + QA                          |
+| **D** | **`done`** — Reminders + code review + верификация D.3                  |
+| **E** | **`done`** — Integrations + code review + 6 волн remediation            |
+| **F** | **`done`** — LFK + code review + повторное выполнение                   |
 | **G** | **`done`** — Final Stubs & E2E + code review — финальная регрессия PASS |

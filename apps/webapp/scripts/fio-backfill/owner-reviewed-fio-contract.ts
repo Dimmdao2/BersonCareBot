@@ -1,7 +1,8 @@
-import { createHash } from "node:crypto";
+import { createHash } from 'node:crypto';
 
-export const OWNER_REVIEWED_FIO_SCHEMA = "bersoncare.fio-owner-review.test/v1" as const;
-export const OWNER_REVIEWED_FIO_ROLLBACK_SCHEMA = "bersoncare.fio-owner-review.test-rollback/v1" as const;
+export const OWNER_REVIEWED_FIO_SCHEMA = 'bersoncare.fio-owner-review.test/v1' as const;
+export const OWNER_REVIEWED_FIO_ROLLBACK_SCHEMA =
+  'bersoncare.fio-owner-review.test-rollback/v1' as const;
 
 export type FioNameState = {
   displayName: string;
@@ -26,14 +27,14 @@ export type OwnerReviewedFioManifestRow = {
  * manifest can never be replayed against a cutover database and vice versa — the target gate
  * (`assertFioApplyTarget`) requires the manifest environment and the database target to agree.
  */
-export type FioReviewEnvironment = "TEST" | "PROD";
+export type FioReviewEnvironment = 'TEST' | 'PROD';
 
 const FIO_APPROVAL_DECISION_BY_ENVIRONMENT = {
-  TEST: "approved_for_test",
-  PROD: "approved_for_prod",
+  TEST: 'approved_for_test',
+  PROD: 'approved_for_prod',
 } as const satisfies Record<FioReviewEnvironment, string>;
 
-export const TEST_FIO_TARGET_DATABASE = "bersoncarebot_test";
+export const TEST_FIO_TARGET_DATABASE = 'bersoncarebot_test';
 
 export type OwnerReviewedFioManifestPayload = {
   schemaVersion: typeof OWNER_REVIEWED_FIO_SCHEMA;
@@ -94,10 +95,14 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3
 const SHA256_PATTERN = /^[0-9a-f]{64}$/;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function assertExactKeys(value: Record<string, unknown>, keys: readonly string[], label: string): void {
+function assertExactKeys(
+  value: Record<string, unknown>,
+  keys: readonly string[],
+  label: string,
+): void {
   const actual = Object.keys(value).sort();
   const expected = [...keys].sort();
   if (actual.length !== expected.length || actual.some((key, index) => key !== expected[index])) {
@@ -106,7 +111,7 @@ function assertExactKeys(value: Record<string, unknown>, keys: readonly string[]
 }
 
 function assertString(value: unknown, label: string): asserts value is string {
-  if (typeof value !== "string") throw new Error(`${label} must be a string`);
+  if (typeof value !== 'string') throw new Error(`${label} must be a string`);
 }
 
 function assertNonEmptyString(value: unknown, label: string): asserts value is string {
@@ -115,7 +120,8 @@ function assertNonEmptyString(value: unknown, label: string): asserts value is s
 }
 
 function assertNullableString(value: unknown, label: string): asserts value is string | null {
-  if (value !== null && typeof value !== "string") throw new Error(`${label} must be a string or null`);
+  if (value !== null && typeof value !== 'string')
+    throw new Error(`${label} must be a string or null`);
 }
 
 function assertIsoTimestamp(value: unknown, label: string): asserts value is string {
@@ -137,7 +143,7 @@ function assertSha256(value: unknown, label: string): asserts value is string {
 
 function parseNameState(value: unknown, label: string): FioNameState {
   if (!isRecord(value)) throw new Error(`${label} must be an object`);
-  assertExactKeys(value, ["displayName", "firstName", "lastName", "patronymic"], label);
+  assertExactKeys(value, ['displayName', 'firstName', 'lastName', 'patronymic'], label);
   assertString(value.displayName, `${label}.displayName`);
   assertNullableString(value.firstName, `${label}.firstName`);
   assertNullableString(value.lastName, `${label}.lastName`);
@@ -152,7 +158,11 @@ function parseNameState(value: unknown, label: string): FioNameState {
 
 function parseIdentityState(value: unknown, label: string): FioIdentityState {
   if (!isRecord(value)) throw new Error(`${label} must be an object`);
-  assertExactKeys(value, ["displayName", "firstName", "lastName", "patronymic", "mergedIntoId"], label);
+  assertExactKeys(
+    value,
+    ['displayName', 'firstName', 'lastName', 'patronymic', 'mergedIntoId'],
+    label,
+  );
   const names = parseNameState(
     {
       displayName: value.displayName,
@@ -168,69 +178,73 @@ function parseIdentityState(value: unknown, label: string): FioIdentityState {
 }
 
 export function canonicalJson(value: unknown): string {
-  if (value === null || typeof value === "string" || typeof value === "boolean") return JSON.stringify(value);
-  if (typeof value === "number") {
-    if (!Number.isFinite(value)) throw new Error("canonical JSON does not allow non-finite numbers");
+  if (value === null || typeof value === 'string' || typeof value === 'boolean')
+    return JSON.stringify(value);
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value))
+      throw new Error('canonical JSON does not allow non-finite numbers');
     return JSON.stringify(value);
   }
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
   if (isRecord(value)) {
     return `{${Object.keys(value)
       .sort()
       .map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`)
-      .join(",")}}`;
+      .join(',')}}`;
   }
-  throw new Error("canonical JSON contains an unsupported value");
+  throw new Error('canonical JSON contains an unsupported value');
 }
 
 export function sha256Canonical(value: unknown): string {
-  return createHash("sha256").update(canonicalJson(value), "utf8").digest("hex");
+  return createHash('sha256').update(canonicalJson(value), 'utf8').digest('hex');
 }
 
 export function parseManifestPayload(value: unknown): OwnerReviewedFioManifestPayload {
-  if (!isRecord(value)) throw new Error("manifest must be an object");
+  if (!isRecord(value)) throw new Error('manifest must be an object');
   assertExactKeys(
     value,
     [
-      "schemaVersion",
-      "environment",
-      "runId",
-      "createdAt",
-      "reviewSourceSha256",
-      "approval",
-      "exceptions",
-      "rows",
+      'schemaVersion',
+      'environment',
+      'runId',
+      'createdAt',
+      'reviewSourceSha256',
+      'approval',
+      'exceptions',
+      'rows',
     ],
-    "manifest payload",
+    'manifest payload',
   );
-  if (value.schemaVersion !== OWNER_REVIEWED_FIO_SCHEMA) throw new Error("unsupported manifest schemaVersion");
-  if (value.environment !== "TEST" && value.environment !== "PROD") {
-    throw new Error("manifest environment must be TEST or PROD");
+  if (value.schemaVersion !== OWNER_REVIEWED_FIO_SCHEMA)
+    throw new Error('unsupported manifest schemaVersion');
+  if (value.environment !== 'TEST' && value.environment !== 'PROD') {
+    throw new Error('manifest environment must be TEST or PROD');
   }
   const environment: FioReviewEnvironment = value.environment;
-  assertUuid(value.runId, "manifest.runId");
-  assertIsoTimestamp(value.createdAt, "manifest.createdAt");
-  assertSha256(value.reviewSourceSha256, "manifest.reviewSourceSha256");
+  assertUuid(value.runId, 'manifest.runId');
+  assertIsoTimestamp(value.createdAt, 'manifest.createdAt');
+  assertSha256(value.reviewSourceSha256, 'manifest.reviewSourceSha256');
 
-  if (!isRecord(value.approval)) throw new Error("manifest.approval must be an object");
-  assertExactKeys(value.approval, ["decision", "approvedAt", "reference"], "manifest.approval");
+  if (!isRecord(value.approval)) throw new Error('manifest.approval must be an object');
+  assertExactKeys(value.approval, ['decision', 'approvedAt', 'reference'], 'manifest.approval');
   // The approval decision must match the declared environment exactly: a TEST-approved review can
   // never be presented as a PROD approval (and vice versa), and both are inside the hashed payload.
   const expectedDecision = FIO_APPROVAL_DECISION_BY_ENVIRONMENT[environment];
   if (value.approval.decision !== expectedDecision) {
     throw new Error(`manifest approval is not for ${environment}`);
   }
-  assertIsoTimestamp(value.approval.approvedAt, "manifest.approval.approvedAt");
-  assertNonEmptyString(value.approval.reference, "manifest.approval.reference");
+  assertIsoTimestamp(value.approval.approvedAt, 'manifest.approval.approvedAt');
+  assertNonEmptyString(value.approval.reference, 'manifest.approval.reference');
 
-  if (!Array.isArray(value.rows) || value.rows.length === 0) throw new Error("manifest.rows must be non-empty");
+  if (!Array.isArray(value.rows) || value.rows.length === 0)
+    throw new Error('manifest.rows must be non-empty');
   const ids = new Set<string>();
   const rows = value.rows.map((rawRow, index): OwnerReviewedFioManifestRow => {
     const label = `manifest.rows[${index}]`;
     if (!isRecord(rawRow)) throw new Error(`${label} must be an object`);
-    assertExactKeys(rawRow, ["id", "expectedBefore", "desiredAfter"], label);
+    assertExactKeys(rawRow, ['id', 'expectedBefore', 'desiredAfter'], label);
     assertUuid(rawRow.id, `${label}.id`);
-    if (ids.has(rawRow.id)) throw new Error("manifest contains duplicate IDs");
+    if (ids.has(rawRow.id)) throw new Error('manifest contains duplicate IDs');
     ids.add(rawRow.id);
     return {
       id: rawRow.id,
@@ -239,52 +253,60 @@ export function parseManifestPayload(value: unknown): OwnerReviewedFioManifestPa
     };
   });
 
-  if (!isRecord(value.exceptions)) throw new Error("manifest.exceptions must be an object");
-  assertExactKeys(value.exceptions, ["expectedMissing", "preserveCurrent"], "manifest.exceptions");
-  if (!Array.isArray(value.exceptions.expectedMissing) || !Array.isArray(value.exceptions.preserveCurrent)) {
-    throw new Error("manifest exception lists must be arrays");
+  if (!isRecord(value.exceptions)) throw new Error('manifest.exceptions must be an object');
+  assertExactKeys(value.exceptions, ['expectedMissing', 'preserveCurrent'], 'manifest.exceptions');
+  if (
+    !Array.isArray(value.exceptions.expectedMissing) ||
+    !Array.isArray(value.exceptions.preserveCurrent)
+  ) {
+    throw new Error('manifest exception lists must be arrays');
   }
   const rowIds = new Set(rows.map((row) => row.id));
   const exceptionIds = new Set<string>();
   const expectedMissing = value.exceptions.expectedMissing.map((rawException, index) => {
     const label = `manifest.exceptions.expectedMissing[${index}]`;
     if (!isRecord(rawException)) throw new Error(`${label} must be an object`);
-    assertExactKeys(rawException, ["id", "reference"], label);
+    assertExactKeys(rawException, ['id', 'reference'], label);
     assertUuid(rawException.id, `${label}.id`);
     assertNonEmptyString(rawException.reference, `${label}.reference`);
-    if (!rowIds.has(rawException.id)) throw new Error("manifest exception ID must exist in rows");
-    if (exceptionIds.has(rawException.id)) throw new Error("manifest contains duplicate exception IDs");
+    if (!rowIds.has(rawException.id)) throw new Error('manifest exception ID must exist in rows');
+    if (exceptionIds.has(rawException.id))
+      throw new Error('manifest contains duplicate exception IDs');
     exceptionIds.add(rawException.id);
     return { id: rawException.id, reference: rawException.reference };
   });
   const preserveCurrent = value.exceptions.preserveCurrent.map((rawException, index) => {
     const label = `manifest.exceptions.preserveCurrent[${index}]`;
     if (!isRecord(rawException)) throw new Error(`${label} must be an object`);
-    assertExactKeys(rawException, ["id", "exactCurrent", "reference"], label);
+    assertExactKeys(rawException, ['id', 'exactCurrent', 'reference'], label);
     assertUuid(rawException.id, `${label}.id`);
     assertNonEmptyString(rawException.reference, `${label}.reference`);
-    if (!rowIds.has(rawException.id)) throw new Error("manifest exception ID must exist in rows");
-    if (exceptionIds.has(rawException.id)) throw new Error("manifest contains duplicate exception IDs");
+    if (!rowIds.has(rawException.id)) throw new Error('manifest exception ID must exist in rows');
+    if (exceptionIds.has(rawException.id))
+      throw new Error('manifest contains duplicate exception IDs');
     exceptionIds.add(rawException.id);
     const exactCurrent = parseIdentityState(rawException.exactCurrent, `${label}.exactCurrent`);
     const row = rows.find((candidate) => candidate.id === rawException.id)!;
     if (sameIdentityState(exactCurrent, row.expectedBefore)) {
-      throw new Error("preserve-current exception must differ from expectedBefore");
+      throw new Error('preserve-current exception must differ from expectedBefore');
     }
-    if (sameNameState(exactCurrent, row.desiredAfter) && exactCurrent.mergedIntoId === row.expectedBefore.mergedIntoId) {
-      throw new Error("preserve-current exception must differ from desiredAfter");
+    if (
+      sameNameState(exactCurrent, row.desiredAfter) &&
+      exactCurrent.mergedIntoId === row.expectedBefore.mergedIntoId
+    ) {
+      throw new Error('preserve-current exception must differ from desiredAfter');
     }
     return { id: rawException.id, exactCurrent, reference: rawException.reference };
   });
 
   return {
     schemaVersion: OWNER_REVIEWED_FIO_SCHEMA,
-    environment: "TEST",
+    environment: 'TEST',
     runId: value.runId,
     createdAt: value.createdAt,
     reviewSourceSha256: value.reviewSourceSha256,
     approval: {
-      decision: "approved_for_test",
+      decision: 'approved_for_test',
       approvedAt: value.approval.approvedAt,
       reference: value.approval.reference,
     },
@@ -294,27 +316,27 @@ export function parseManifestPayload(value: unknown): OwnerReviewedFioManifestPa
 }
 
 export function parseAndVerifyManifest(value: unknown): OwnerReviewedFioManifest {
-  if (!isRecord(value)) throw new Error("manifest must be an object");
+  if (!isRecord(value)) throw new Error('manifest must be an object');
   assertExactKeys(
     value,
     [
-      "schemaVersion",
-      "environment",
-      "runId",
-      "createdAt",
-      "reviewSourceSha256",
-      "approval",
-      "exceptions",
-      "rows",
-      "manifestSha256",
+      'schemaVersion',
+      'environment',
+      'runId',
+      'createdAt',
+      'reviewSourceSha256',
+      'approval',
+      'exceptions',
+      'rows',
+      'manifestSha256',
     ],
-    "manifest",
+    'manifest',
   );
-  assertSha256(value.manifestSha256, "manifest.manifestSha256");
+  assertSha256(value.manifestSha256, 'manifest.manifestSha256');
   const { manifestSha256, ...rawPayload } = value;
   const payload = parseManifestPayload(rawPayload);
   const computed = sha256Canonical(payload);
-  if (computed !== manifestSha256) throw new Error("manifest SHA-256 mismatch");
+  if (computed !== manifestSha256) throw new Error('manifest SHA-256 mismatch');
   return { ...payload, manifestSha256 };
 }
 
@@ -325,7 +347,7 @@ export function buildManifest(value: unknown): OwnerReviewedFioManifest {
 
 export function buildRollbackArtifact(
   manifest: OwnerReviewedFioManifest,
-  updates: FioPlan["updates"],
+  updates: FioPlan['updates'],
   createdAt: string,
   /** Exact `current_database()` this apply runs against; defaults to the historical TEST database. */
   targetDatabase: string = TEST_FIO_TARGET_DATABASE,
@@ -356,45 +378,47 @@ export function buildRollbackArtifact(
 }
 
 export function parseAndVerifyRollbackArtifact(value: unknown): OwnerReviewedFioRollbackArtifact {
-  if (!isRecord(value)) throw new Error("rollback artifact must be an object");
+  if (!isRecord(value)) throw new Error('rollback artifact must be an object');
   assertExactKeys(
     value,
     [
-      "schemaVersion",
-      "environment",
-      "runId",
-      "createdAt",
-      "sourceManifestSha256",
-      "sourceReviewSha256",
-      "targetDatabase",
-      "rows",
-      "artifactSha256",
+      'schemaVersion',
+      'environment',
+      'runId',
+      'createdAt',
+      'sourceManifestSha256',
+      'sourceReviewSha256',
+      'targetDatabase',
+      'rows',
+      'artifactSha256',
     ],
-    "rollback artifact",
+    'rollback artifact',
   );
-  if (value.schemaVersion !== OWNER_REVIEWED_FIO_ROLLBACK_SCHEMA) throw new Error("unsupported rollback schema");
-  if (value.environment !== "TEST" && value.environment !== "PROD") {
-    throw new Error("rollback artifact environment must be TEST or PROD");
+  if (value.schemaVersion !== OWNER_REVIEWED_FIO_ROLLBACK_SCHEMA)
+    throw new Error('unsupported rollback schema');
+  if (value.environment !== 'TEST' && value.environment !== 'PROD') {
+    throw new Error('rollback artifact environment must be TEST or PROD');
   }
-  assertNonEmptyString(value.targetDatabase, "rollback.targetDatabase");
+  assertNonEmptyString(value.targetDatabase, 'rollback.targetDatabase');
   // A TEST artifact is pinned to the TEST database by name; a cutover artifact carries whatever database
   // it was produced against, and the rollback command re-checks it against live current_database().
-  if (value.environment === "TEST" && value.targetDatabase !== TEST_FIO_TARGET_DATABASE) {
+  if (value.environment === 'TEST' && value.targetDatabase !== TEST_FIO_TARGET_DATABASE) {
     throw new Error(`rollback artifact is not for ${TEST_FIO_TARGET_DATABASE}`);
   }
-  assertUuid(value.runId, "rollback.runId");
-  assertIsoTimestamp(value.createdAt, "rollback.createdAt");
-  assertSha256(value.sourceManifestSha256, "rollback.sourceManifestSha256");
-  assertSha256(value.sourceReviewSha256, "rollback.sourceReviewSha256");
-  assertSha256(value.artifactSha256, "rollback.artifactSha256");
-  if (!Array.isArray(value.rows) || value.rows.length === 0) throw new Error("rollback.rows must be non-empty");
+  assertUuid(value.runId, 'rollback.runId');
+  assertIsoTimestamp(value.createdAt, 'rollback.createdAt');
+  assertSha256(value.sourceManifestSha256, 'rollback.sourceManifestSha256');
+  assertSha256(value.sourceReviewSha256, 'rollback.sourceReviewSha256');
+  assertSha256(value.artifactSha256, 'rollback.artifactSha256');
+  if (!Array.isArray(value.rows) || value.rows.length === 0)
+    throw new Error('rollback.rows must be non-empty');
   const ids = new Set<string>();
   const rows = value.rows.map((rawRow, index): OwnerReviewedFioRollbackRow => {
     const label = `rollback.rows[${index}]`;
     if (!isRecord(rawRow)) throw new Error(`${label} must be an object`);
-    assertExactKeys(rawRow, ["id", "restoreBefore", "expectedPostApply"], label);
+    assertExactKeys(rawRow, ['id', 'restoreBefore', 'expectedPostApply'], label);
     assertUuid(rawRow.id, `${label}.id`);
-    if (ids.has(rawRow.id)) throw new Error("rollback artifact contains duplicate IDs");
+    if (ids.has(rawRow.id)) throw new Error('rollback artifact contains duplicate IDs');
     ids.add(rawRow.id);
     return {
       id: rawRow.id,
@@ -412,7 +436,8 @@ export function parseAndVerifyRollbackArtifact(value: unknown): OwnerReviewedFio
     targetDatabase: value.targetDatabase,
     rows,
   };
-  if (sha256Canonical(payload) !== value.artifactSha256) throw new Error("rollback artifact SHA-256 mismatch");
+  if (sha256Canonical(payload) !== value.artifactSha256)
+    throw new Error('rollback artifact SHA-256 mismatch');
   return { ...payload, artifactSha256: value.artifactSha256 };
 }
 
@@ -429,10 +454,15 @@ export function sameIdentityState(left: FioIdentityState, right: FioIdentityStat
   return sameNameState(left, right) && left.mergedIntoId === right.mergedIntoId;
 }
 
-export function planManifest(manifest: OwnerReviewedFioManifest, currentRows: CurrentFioRow[]): FioPlan {
+export function planManifest(
+  manifest: OwnerReviewedFioManifest,
+  currentRows: CurrentFioRow[],
+): FioPlan {
   const byId = new Map(currentRows.map((row) => [row.id, row]));
   const expectedMissingIds = new Set(manifest.exceptions.expectedMissing.map((item) => item.id));
-  const preserveById = new Map(manifest.exceptions.preserveCurrent.map((item) => [item.id, item.exactCurrent]));
+  const preserveById = new Map(
+    manifest.exceptions.preserveCurrent.map((item) => [item.id, item.exactCurrent]),
+  );
   const plan: FioPlan = {
     updates: [],
     alreadyMatched: [],
@@ -450,14 +480,18 @@ export function planManifest(manifest: OwnerReviewedFioManifest, currentRows: Cu
     }
     const preserved = preserveById.get(row.id);
     if (preserved) {
-      if (current && sameIdentityState(current, preserved)) plan.preservedCurrent.push({ manifest: row, current });
+      if (current && sameIdentityState(current, preserved))
+        plan.preservedCurrent.push({ manifest: row, current });
       else if (!current) plan.unexpectedMissing.push(row);
       else plan.unexpectedDrift.push({ manifest: row, current });
       continue;
     }
     if (!current) {
       plan.unexpectedMissing.push(row);
-    } else if (sameNameState(current, row.desiredAfter) && current.mergedIntoId === row.expectedBefore.mergedIntoId) {
+    } else if (
+      sameNameState(current, row.desiredAfter) &&
+      current.mergedIntoId === row.expectedBefore.mergedIntoId
+    ) {
       plan.alreadyMatched.push(row);
     } else if (sameIdentityState(current, row.expectedBefore)) {
       plan.updates.push({ manifest: row, current });
@@ -469,26 +503,35 @@ export function planManifest(manifest: OwnerReviewedFioManifest, currentRows: Cu
 }
 
 export function enforceFailClosedPlan(plan: FioPlan): void {
-  if (plan.unexpectedMissing.length > 0) throw new Error(`unexpected missing rows (${plan.unexpectedMissing.length})`);
-  if (plan.unexpectedDrift.length > 0) throw new Error(`unexpected row drift (${plan.unexpectedDrift.length})`);
+  if (plan.unexpectedMissing.length > 0)
+    throw new Error(`unexpected missing rows (${plan.unexpectedMissing.length})`);
+  if (plan.unexpectedDrift.length > 0)
+    throw new Error(`unexpected row drift (${plan.unexpectedDrift.length})`);
 }
 
-export function assertTestTarget(databaseUrl: string | undefined, databaseName: string, explicitTest: boolean): void {
-  if (!explicitTest) throw new Error("explicit --test flag is required");
-  if (!databaseUrl) throw new Error("DATABASE_URL is required");
+export function assertTestTarget(
+  databaseUrl: string | undefined,
+  databaseName: string,
+  explicitTest: boolean,
+): void {
+  if (!explicitTest) throw new Error('explicit --test flag is required');
+  if (!databaseUrl) throw new Error('DATABASE_URL is required');
   let parsed: URL;
   try {
     parsed = new URL(databaseUrl);
   } catch {
-    throw new Error("DATABASE_URL is invalid");
+    throw new Error('DATABASE_URL is invalid');
   }
-  if (parsed.protocol !== "postgres:" && parsed.protocol !== "postgresql:") {
-    throw new Error("DATABASE_URL must use PostgreSQL");
+  if (parsed.protocol !== 'postgres:' && parsed.protocol !== 'postgresql:') {
+    throw new Error('DATABASE_URL must use PostgreSQL');
   }
-  if (parsed.hostname !== "127.0.0.1") throw new Error("TEST FIO operation requires exact loopback host 127.0.0.1");
-  const urlDatabase = decodeURIComponent(parsed.pathname.replace(/^\//, ""));
-  if (urlDatabase !== "bersoncarebot_test") throw new Error("DATABASE_URL must target bersoncarebot_test");
-  if (databaseName !== "bersoncarebot_test") throw new Error("current_database() must equal bersoncarebot_test");
+  if (parsed.hostname !== '127.0.0.1')
+    throw new Error('TEST FIO operation requires exact loopback host 127.0.0.1');
+  const urlDatabase = decodeURIComponent(parsed.pathname.replace(/^\//, ''));
+  if (urlDatabase !== 'bersoncarebot_test')
+    throw new Error('DATABASE_URL must target bersoncarebot_test');
+  if (databaseName !== 'bersoncarebot_test')
+    throw new Error('current_database() must equal bersoncarebot_test');
 }
 
 export type FioApplyTargetOptions = {
@@ -518,43 +561,45 @@ export function assertFioApplyTarget(
   manifestEnvironment: FioReviewEnvironment,
   options: FioApplyTargetOptions,
 ): FioReviewEnvironment {
-  if (!databaseUrl) throw new Error("DATABASE_URL is required");
+  if (!databaseUrl) throw new Error('DATABASE_URL is required');
   let parsed: URL;
   try {
     parsed = new URL(databaseUrl);
   } catch {
-    throw new Error("DATABASE_URL is invalid");
+    throw new Error('DATABASE_URL is invalid');
   }
-  if (parsed.protocol !== "postgres:" && parsed.protocol !== "postgresql:") {
-    throw new Error("DATABASE_URL must use PostgreSQL");
+  if (parsed.protocol !== 'postgres:' && parsed.protocol !== 'postgresql:') {
+    throw new Error('DATABASE_URL must use PostgreSQL');
   }
   // Never relaxed by the cutover flag: the apply always runs against a loopback database.
-  if (parsed.hostname !== "127.0.0.1") throw new Error("FIO operation requires exact loopback host 127.0.0.1");
-  const urlDatabase = decodeURIComponent(parsed.pathname.replace(/^\//, ""));
-  if (urlDatabase !== databaseName) throw new Error("DATABASE_URL and current_database() must agree");
+  if (parsed.hostname !== '127.0.0.1')
+    throw new Error('FIO operation requires exact loopback host 127.0.0.1');
+  const urlDatabase = decodeURIComponent(parsed.pathname.replace(/^\//, ''));
+  if (urlDatabase !== databaseName)
+    throw new Error('DATABASE_URL and current_database() must agree');
 
   if (options.allowAuthorizedProdTarget === true) {
     if (!options.authorizedProdDatabase) {
-      throw new Error("authorized cutover target requires the expected database name");
+      throw new Error('authorized cutover target requires the expected database name');
     }
     if (databaseName !== options.authorizedProdDatabase) {
-      throw new Error("authorized cutover target does not match current_database()");
+      throw new Error('authorized cutover target does not match current_database()');
     }
-    if (manifestEnvironment !== "PROD") {
-      throw new Error("cutover target requires a PROD-approved manifest");
+    if (manifestEnvironment !== 'PROD') {
+      throw new Error('cutover target requires a PROD-approved manifest');
     }
-    return "PROD";
+    return 'PROD';
   }
 
   // Default path — identical to the historical TEST-only gate.
-  if (!options.explicitTest) throw new Error("explicit --test flag is required");
+  if (!options.explicitTest) throw new Error('explicit --test flag is required');
   if (databaseName !== TEST_FIO_TARGET_DATABASE) {
     throw new Error(`current_database() must equal ${TEST_FIO_TARGET_DATABASE}`);
   }
-  if (manifestEnvironment !== "TEST") {
-    throw new Error("TEST target requires a TEST-approved manifest");
+  if (manifestEnvironment !== 'TEST') {
+    throw new Error('TEST target requires a TEST-approved manifest');
   }
-  return "TEST";
+  return 'TEST';
 }
 
 export function summarizePlan(plan: FioPlan): Record<string, number> {

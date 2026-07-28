@@ -17,7 +17,11 @@
  * can surface the misconfiguration without a silent no-op.
  */
 import type { DbPort } from '../../kernel/contracts/index.js';
-import type { DeliveryAdapter, DeliverySendResult, OutgoingIntent } from '../../kernel/contracts/index.js';
+import type {
+  DeliveryAdapter,
+  DeliverySendResult,
+  OutgoingIntent,
+} from '../../kernel/contracts/index.js';
 import { readChannel } from '../../infra/adapters/channelRouting.js';
 import { resolveSmtpOutboundConfig } from '../../config/smtpOutbound.js';
 import { sendMail } from './mailer.js';

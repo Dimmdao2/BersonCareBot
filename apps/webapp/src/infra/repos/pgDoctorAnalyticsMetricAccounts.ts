@@ -1,31 +1,31 @@
-import { runWebappPgText } from "@/infra/db/runWebappSql";
+import { runWebappPgText } from '@/infra/db/runWebappSql';
 import {
   MIN_REGISTRATION_STATS_INCLUSIVE_DAYS,
   resolveAdminStatsLocalRange,
-} from "@/modules/admin-platform-stats/registrationTimeRange";
+} from '@/modules/admin-platform-stats/registrationTimeRange';
 import type {
   DoctorAnalyticsMetricAccountItem,
   DoctorAnalyticsMetricAccountsPort,
   DoctorAnalyticsMetricKey,
-} from "@/modules/doctor-analytics-metric-accounts/ports";
-import { localDayRangeBoundsIso } from "@/shared/datetime/localDayRangeBounds";
-import { resolveAppointmentStatsBounds } from "@/modules/doctor-appointments/resolveAppointmentStatsBounds";
+} from '@/modules/doctor-analytics-metric-accounts/ports';
+import { localDayRangeBoundsIso } from '@/shared/datetime/localDayRangeBounds';
+import { resolveAppointmentStatsBounds } from '@/modules/doctor-appointments/resolveAppointmentStatsBounds';
 import {
   sqlActiveMaxBinding,
   sqlActiveMessengerBinding,
   sqlActiveTelegramBinding,
-} from "@/modules/doctor-clients/activeMessengerBindingSql";
-import { PURGED_CANONICAL_APPOINTMENT_NOT_EXISTS_SQL } from "@/infra/repos/doctorAppointmentPurgeFilter";
+} from '@/modules/doctor-clients/activeMessengerBindingSql';
+import { PURGED_CANONICAL_APPOINTMENT_NOT_EXISTS_SQL } from '@/infra/repos/doctorAppointmentPurgeFilter';
 
 /** Exclude staff-purged canonical appointments from calendar-like KPI slices. */
 const CANONICAL_PURGED_FILTER_SQL = `
                AND ${PURGED_CANONICAL_APPOINTMENT_NOT_EXISTS_SQL}`;
 
 const CANCELLED_BE_STATUSES = [
-  "cancelled_by_patient",
-  "cancelled_by_specialist",
-  "late_cancellation",
-  "no_show",
+  'cancelled_by_patient',
+  'cancelled_by_specialist',
+  'late_cancellation',
+  'no_show',
 ] as const;
 
 type ListRow = {
@@ -38,7 +38,7 @@ type ListRow = {
 
 function sqlExcludeUsers(excludedUserIds: string[], baseParams: unknown[], userIdExpr: string) {
   if (excludedUserIds.length === 0) {
-    return { andSql: "", params: baseParams };
+    return { andSql: '', params: baseParams };
   }
   const idx = baseParams.length + 1;
   return {
@@ -50,7 +50,7 @@ function sqlExcludeUsers(excludedUserIds: string[], baseParams: unknown[], userI
 function mapRow(row: ListRow): DoctorAnalyticsMetricAccountItem {
   return {
     userId: row.user_id,
-    displayName: row.display_name?.trim() || "Клиент",
+    displayName: row.display_name?.trim() || 'Клиент',
     phone: row.phone_normalized,
     eventAt: row.event_at,
     eventLabel: row.event_label,
@@ -59,7 +59,7 @@ function mapRow(row: ListRow): DoctorAnalyticsMetricAccountItem {
 
 export function createPgDoctorAnalyticsMetricAccountsPort(
   getDefaultOrganizationId: () => Promise<string>,
-  resolveReadSource: () => Promise<unknown> = async () => "canonical",
+  resolveReadSource: () => Promise<unknown> = async () => 'canonical',
 ): DoctorAnalyticsMetricAccountsPort {
   void resolveReadSource;
   return {
@@ -76,13 +76,13 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
       const safeOffset = Math.max(0, Math.floor(offset) || 0);
       const orgId = await getDefaultOrganizationId();
       const excluded = excludedUserIds;
-      const canonicalUser = "COALESCE(pu.merged_into_id, pu.id)";
+      const canonicalUser = 'COALESCE(pu.merged_into_id, pu.id)';
       const range = resolveAdminStatsLocalRange(
         iana,
         period.preset,
         period.customFrom,
         period.customTo,
-        period.preset === "custom"
+        period.preset === 'custom'
           ? { enforceMinInclusiveDays: MIN_REGISTRATION_STATS_INCLUSIVE_DAYS }
           : undefined,
       );
@@ -91,7 +91,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
       const notifHours = Math.min(720, Math.max(1, Math.floor(windowHours ?? 168) || 168));
 
       const queryByMetric = async (metricKey: DoctorAnalyticsMetricKey): Promise<ListRow[]> => {
-        if (metricKey === "appointments_past_visits") {
+        if (metricKey === 'appointments_past_visits') {
           const ex = sqlExcludeUsers(
             excluded,
             [orgId, start, endExclusive, [...CANCELLED_BE_STATUSES], safeLimit + 1, safeOffset],
@@ -118,7 +118,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           );
           return r.rows;
         }
-        if (metricKey === "appointments_cancelled_visits") {
+        if (metricKey === 'appointments_cancelled_visits') {
           const ex = sqlExcludeUsers(
             excluded,
             [orgId, start, endExclusive, [...CANCELLED_BE_STATUSES], safeLimit + 1, safeOffset],
@@ -145,8 +145,8 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           );
           return r.rows;
         }
-        if (metricKey === "appointments_bookings_created") {
-                    const ex = sqlExcludeUsers(
+        if (metricKey === 'appointments_bookings_created') {
+          const ex = sqlExcludeUsers(
             excluded,
             [orgId, start, endExclusive, safeLimit + 1, safeOffset],
             canonicalUser,
@@ -171,8 +171,8 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           );
           return r.rows;
         }
-        if (metricKey === "appointments_cancellation_actions") {
-                    const ex = sqlExcludeUsers(
+        if (metricKey === 'appointments_cancellation_actions') {
+          const ex = sqlExcludeUsers(
             excluded,
             [orgId, start, endExclusive, safeLimit + 1, safeOffset],
             canonicalUser,
@@ -198,8 +198,8 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           );
           return r.rows;
         }
-        if (metricKey === "appointments_reschedule_actions") {
-                    const ex = sqlExcludeUsers(
+        if (metricKey === 'appointments_reschedule_actions') {
+          const ex = sqlExcludeUsers(
             excluded,
             [orgId, start, endExclusive, safeLimit + 1, safeOffset],
             canonicalUser,
@@ -225,12 +225,8 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           );
           return r.rows;
         }
-        if (metricKey === "clients_total") {
-          const clientEx = sqlExcludeUsers(
-            excluded,
-            [safeLimit + 1, safeOffset],
-            "pu.id",
-          );
+        if (metricKey === 'clients_total') {
+          const clientEx = sqlExcludeUsers(excluded, [safeLimit + 1, safeOffset], 'pu.id');
           const r = await runWebappPgText<ListRow>(
             `SELECT
                pu.id::text AS user_id,
@@ -249,12 +245,8 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           );
           return r.rows;
         }
-        if (metricKey === "clients_phone_only") {
-          const clientEx = sqlExcludeUsers(
-            excluded,
-            [safeLimit + 1, safeOffset],
-            "pu.id",
-          );
+        if (metricKey === 'clients_phone_only') {
+          const clientEx = sqlExcludeUsers(excluded, [safeLimit + 1, safeOffset], 'pu.id');
           const r = await runWebappPgText<ListRow>(
             `SELECT
                pu.id::text AS user_id,
@@ -269,7 +261,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
                AND pu.phone_normalized IS NOT NULL
                AND btrim(pu.phone_normalized) <> ''
                AND pu.email_verified_at IS NULL
-               AND NOT ${sqlActiveMessengerBinding("pu.id")}
+               AND NOT ${sqlActiveMessengerBinding('pu.id')}
              ${clientEx.andSql}
              ORDER BY pu.display_name ASC, pu.id ASC
              LIMIT $1::int OFFSET $2::int`,
@@ -277,12 +269,8 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           );
           return r.rows;
         }
-        if (metricKey === "clients_app_guests") {
-          const clientEx = sqlExcludeUsers(
-            excluded,
-            [safeLimit + 1, safeOffset],
-            "pu.id",
-          );
+        if (metricKey === 'clients_app_guests') {
+          const clientEx = sqlExcludeUsers(excluded, [safeLimit + 1, safeOffset], 'pu.id');
           const r = await runWebappPgText<ListRow>(
             `SELECT
                pu.id::text AS user_id,
@@ -296,7 +284,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
                AND COALESCE(pu.is_archived, false) = false
                AND (pu.phone_normalized IS NULL OR btrim(pu.phone_normalized) = '')
                AND pu.email_verified_at IS NULL
-               AND NOT ${sqlActiveMessengerBinding("pu.id")}
+               AND NOT ${sqlActiveMessengerBinding('pu.id')}
              ${clientEx.andSql}
              ORDER BY pu.display_name ASC, pu.id ASC
              LIMIT $1::int OFFSET $2::int`,
@@ -304,12 +292,8 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           );
           return r.rows;
         }
-        if (metricKey === "clients_segment_telegram_only") {
-          const clientEx = sqlExcludeUsers(
-            excluded,
-            [safeLimit + 1, safeOffset],
-            "pu.id",
-          );
+        if (metricKey === 'clients_segment_telegram_only') {
+          const clientEx = sqlExcludeUsers(excluded, [safeLimit + 1, safeOffset], 'pu.id');
           const r = await runWebappPgText<ListRow>(
             `SELECT
                pu.id::text AS user_id,
@@ -321,8 +305,8 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
              WHERE pu.role = 'client'
                AND pu.merged_into_id IS NULL
                AND COALESCE(pu.is_archived, false) = false
-               AND ${sqlActiveTelegramBinding("pu.id")}
-               AND NOT ${sqlActiveMaxBinding("pu.id")}
+               AND ${sqlActiveTelegramBinding('pu.id')}
+               AND NOT ${sqlActiveMaxBinding('pu.id')}
                AND pu.email_verified_at IS NULL
              ${clientEx.andSql}
              ORDER BY pu.display_name ASC, pu.id ASC
@@ -331,12 +315,8 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           );
           return r.rows;
         }
-        if (metricKey === "clients_segment_max_only") {
-          const clientEx = sqlExcludeUsers(
-            excluded,
-            [safeLimit + 1, safeOffset],
-            "pu.id",
-          );
+        if (metricKey === 'clients_segment_max_only') {
+          const clientEx = sqlExcludeUsers(excluded, [safeLimit + 1, safeOffset], 'pu.id');
           const r = await runWebappPgText<ListRow>(
             `SELECT
                pu.id::text AS user_id,
@@ -348,8 +328,8 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
              WHERE pu.role = 'client'
                AND pu.merged_into_id IS NULL
                AND COALESCE(pu.is_archived, false) = false
-               AND ${sqlActiveMaxBinding("pu.id")}
-               AND NOT ${sqlActiveTelegramBinding("pu.id")}
+               AND ${sqlActiveMaxBinding('pu.id')}
+               AND NOT ${sqlActiveTelegramBinding('pu.id')}
                AND pu.email_verified_at IS NULL
              ${clientEx.andSql}
              ORDER BY pu.display_name ASC, pu.id ASC
@@ -358,12 +338,8 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           );
           return r.rows;
         }
-        if (metricKey === "clients_segment_email_only") {
-          const clientEx = sqlExcludeUsers(
-            excluded,
-            [safeLimit + 1, safeOffset],
-            "pu.id",
-          );
+        if (metricKey === 'clients_segment_email_only') {
+          const clientEx = sqlExcludeUsers(excluded, [safeLimit + 1, safeOffset], 'pu.id');
           const r = await runWebappPgText<ListRow>(
             `SELECT
                pu.id::text AS user_id,
@@ -377,7 +353,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
                AND COALESCE(pu.is_archived, false) = false
                AND pu.email_verified_at IS NOT NULL
                AND (pu.phone_normalized IS NULL OR btrim(pu.phone_normalized) = '')
-               AND NOT ${sqlActiveMessengerBinding("pu.id")}
+               AND NOT ${sqlActiveMessengerBinding('pu.id')}
              ${clientEx.andSql}
              ORDER BY pu.display_name ASC, pu.id ASC
              LIMIT $1::int OFFSET $2::int`,
@@ -385,12 +361,8 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           );
           return r.rows;
         }
-        if (metricKey === "clients_segment_telegram_email") {
-          const clientEx = sqlExcludeUsers(
-            excluded,
-            [safeLimit + 1, safeOffset],
-            "pu.id",
-          );
+        if (metricKey === 'clients_segment_telegram_email') {
+          const clientEx = sqlExcludeUsers(excluded, [safeLimit + 1, safeOffset], 'pu.id');
           const r = await runWebappPgText<ListRow>(
             `SELECT
                pu.id::text AS user_id,
@@ -403,8 +375,8 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
                AND pu.merged_into_id IS NULL
                AND COALESCE(pu.is_archived, false) = false
                AND pu.email_verified_at IS NOT NULL
-               AND ${sqlActiveTelegramBinding("pu.id")}
-               AND NOT ${sqlActiveMaxBinding("pu.id")}
+               AND ${sqlActiveTelegramBinding('pu.id')}
+               AND NOT ${sqlActiveMaxBinding('pu.id')}
              ${clientEx.andSql}
              ORDER BY pu.display_name ASC, pu.id ASC
              LIMIT $1::int OFFSET $2::int`,
@@ -412,12 +384,8 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           );
           return r.rows;
         }
-        if (metricKey === "clients_segment_max_email") {
-          const clientEx = sqlExcludeUsers(
-            excluded,
-            [safeLimit + 1, safeOffset],
-            "pu.id",
-          );
+        if (metricKey === 'clients_segment_max_email') {
+          const clientEx = sqlExcludeUsers(excluded, [safeLimit + 1, safeOffset], 'pu.id');
           const r = await runWebappPgText<ListRow>(
             `SELECT
                pu.id::text AS user_id,
@@ -430,8 +398,8 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
                AND pu.merged_into_id IS NULL
                AND COALESCE(pu.is_archived, false) = false
                AND pu.email_verified_at IS NOT NULL
-               AND ${sqlActiveMaxBinding("pu.id")}
-               AND NOT ${sqlActiveTelegramBinding("pu.id")}
+               AND ${sqlActiveMaxBinding('pu.id')}
+               AND NOT ${sqlActiveTelegramBinding('pu.id')}
              ${clientEx.andSql}
              ORDER BY pu.display_name ASC, pu.id ASC
              LIMIT $1::int OFFSET $2::int`,
@@ -439,12 +407,8 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           );
           return r.rows;
         }
-        if (metricKey === "clients_segment_phone_email_no_messenger") {
-          const clientEx = sqlExcludeUsers(
-            excluded,
-            [safeLimit + 1, safeOffset],
-            "pu.id",
-          );
+        if (metricKey === 'clients_segment_phone_email_no_messenger') {
+          const clientEx = sqlExcludeUsers(excluded, [safeLimit + 1, safeOffset], 'pu.id');
           const r = await runWebappPgText<ListRow>(
             `SELECT
                pu.id::text AS user_id,
@@ -459,7 +423,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
                AND pu.email_verified_at IS NOT NULL
                AND pu.phone_normalized IS NOT NULL
                AND btrim(pu.phone_normalized) <> ''
-               AND NOT ${sqlActiveMessengerBinding("pu.id")}
+               AND NOT ${sqlActiveMessengerBinding('pu.id')}
              ${clientEx.andSql}
              ORDER BY pu.display_name ASC, pu.id ASC
              LIMIT $1::int OFFSET $2::int`,
@@ -467,7 +431,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           );
           return r.rows;
         }
-        if (metricKey === "registrations") {
+        if (metricKey === 'registrations') {
           const ex = sqlExcludeUsers(
             excluded,
             [start, endExclusive, safeLimit + 1, safeOffset],
@@ -493,7 +457,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           );
           return r.rows;
         }
-        if (metricKey === "registrations_merges") {
+        if (metricKey === 'registrations_merges') {
           const ex = sqlExcludeUsers(
             excluded,
             [start, endExclusive, safeLimit + 1, safeOffset],
@@ -519,11 +483,11 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           );
           return r.rows;
         }
-        if (metricKey === "registrations_combined") {
+        if (metricKey === 'registrations_combined') {
           const ex = sqlExcludeUsers(
             excluded,
             [start, endExclusive, safeLimit + 1, safeOffset],
-            "q.user_id::uuid",
+            'q.user_id::uuid',
           );
           const r = await runWebappPgText<ListRow>(
             `SELECT * FROM (
@@ -560,9 +524,9 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           );
           return r.rows;
         }
-        if (metricKey === "today_appointments_today") {
-          const { from, to } = localDayRangeBoundsIso("today", iana);
-                    const ex = sqlExcludeUsers(
+        if (metricKey === 'today_appointments_today') {
+          const { from, to } = localDayRangeBoundsIso('today', iana);
+          const ex = sqlExcludeUsers(
             excluded,
             [orgId, from, to, [...CANCELLED_BE_STATUSES], safeLimit + 1, safeOffset],
             canonicalUser,
@@ -587,9 +551,12 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           );
           return r.rows;
         }
-        if (metricKey === "today_appointments_week") {
-          const { from, toExclusive } = resolveAppointmentStatsBounds({ kind: "range", range: "week" }, iana);
-                    const ex = sqlExcludeUsers(
+        if (metricKey === 'today_appointments_week') {
+          const { from, toExclusive } = resolveAppointmentStatsBounds(
+            { kind: 'range', range: 'week' },
+            iana,
+          );
+          const ex = sqlExcludeUsers(
             excluded,
             [orgId, from, toExclusive, [...CANCELLED_BE_STATUSES], safeLimit + 1, safeOffset],
             canonicalUser,
@@ -614,8 +581,8 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           );
           return r.rows;
         }
-        if (metricKey === "today_cancellations_30d") {
-                    const ex = sqlExcludeUsers(
+        if (metricKey === 'today_cancellations_30d') {
+          const ex = sqlExcludeUsers(
             excluded,
             [orgId, [...CANCELLED_BE_STATUSES], safeLimit + 1, safeOffset],
             canonicalUser,
@@ -639,9 +606,13 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           );
           return r.rows;
         }
-        if (metricKey === "clients_messenger_bot_blocked_telegram" || metricKey === "clients_messenger_bot_blocked_max") {
-          const channel = metricKey === "clients_messenger_bot_blocked_telegram" ? "telegram" : "max";
-          const clientEx = sqlExcludeUsers(excluded, [channel, safeLimit + 1, safeOffset], "pu.id");
+        if (
+          metricKey === 'clients_messenger_bot_blocked_telegram' ||
+          metricKey === 'clients_messenger_bot_blocked_max'
+        ) {
+          const channel =
+            metricKey === 'clients_messenger_bot_blocked_telegram' ? 'telegram' : 'max';
+          const clientEx = sqlExcludeUsers(excluded, [channel, safeLimit + 1, safeOffset], 'pu.id');
           const r = await runWebappPgText<ListRow>(
             `SELECT
                pu.id::text AS user_id,
@@ -664,13 +635,13 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           );
           return r.rows;
         }
-        if (metricKey === "notif_reminders_sent" || metricKey === "notif_reminders_failed") {
-          const status = metricKey === "notif_reminders_sent" ? "sent" : "failed";
-          const eventLabel = metricKey === "notif_reminders_sent" ? "Отправлено" : "Ошибка";
+        if (metricKey === 'notif_reminders_sent' || metricKey === 'notif_reminders_failed') {
+          const status = metricKey === 'notif_reminders_sent' ? 'sent' : 'failed';
+          const eventLabel = metricKey === 'notif_reminders_sent' ? 'Отправлено' : 'Ошибка';
           const ex = sqlExcludeUsers(
             excluded,
             [notifHours, status, safeLimit + 1, safeOffset],
-            "COALESCE(rr.platform_user_id, pu.id)",
+            'COALESCE(rr.platform_user_id, pu.id)',
           );
           const r = await runWebappPgText<ListRow>(
             `SELECT
@@ -696,11 +667,11 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           );
           return r.rows;
         }
-        if (metricKey === "notif_push_opened") {
+        if (metricKey === 'notif_push_opened') {
           const ex = sqlExcludeUsers(
             excluded,
             [notifHours, safeLimit + 1, safeOffset],
-            "e.user_id",
+            'e.user_id',
           );
           const r = await runWebappPgText<ListRow>(
             `SELECT
@@ -721,11 +692,11 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           );
           return r.rows;
         }
-        if (metricKey === "subscribers_total") {
+        if (metricKey === 'subscribers_total') {
           const clientEx = sqlExcludeUsers(
             excluded,
             [endExclusive, safeLimit + 1, safeOffset],
-            "pu.id",
+            'pu.id',
           );
           const r = await runWebappPgText<ListRow>(
             `SELECT
@@ -753,13 +724,13 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           );
           return r.rows;
         }
-        if (metricKey !== "subscribers_delta") {
-          throw new Error("unsupported_metric");
+        if (metricKey !== 'subscribers_delta') {
+          throw new Error('unsupported_metric');
         }
         const clientEx = sqlExcludeUsers(
           excluded,
           [start, endExclusive, safeLimit + 1, safeOffset],
-          "pu.id",
+          'pu.id',
         );
         const r = await runWebappPgText<ListRow>(
           `SELECT

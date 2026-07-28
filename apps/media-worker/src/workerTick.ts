@@ -1,18 +1,18 @@
-import type { Pool } from "pg";
-import { runWithObservabilityContext } from "@bersoncare/db-principal";
-import type { ClaimedJob } from "./jobs/claim.js";
-import { claimNextJob, reclaimStaleProcessing } from "./jobs/claim.js";
-import type { Logger } from "./logger.js";
-import { processTranscodeJob, type TranscodeContext } from "./processTranscodeJob.js";
-import { readPipelineEnabled } from "./pipelineEnabled.js";
-import { runWithMediaWorkerInfraPrincipal } from "./runMediaWorkerSql.js";
+import type { Pool } from 'pg';
+import { runWithObservabilityContext } from '@bersoncare/db-principal';
+import type { ClaimedJob } from './jobs/claim.js';
+import { claimNextJob, reclaimStaleProcessing } from './jobs/claim.js';
+import type { Logger } from './logger.js';
+import { processTranscodeJob, type TranscodeContext } from './processTranscodeJob.js';
+import { readPipelineEnabled } from './pipelineEnabled.js';
+import { runWithMediaWorkerInfraPrincipal } from './runMediaWorkerSql.js';
 
 export type MediaWorkerTickContext = TranscodeContext & {
   lockId: string;
   staleLockMinutes: number;
 };
 
-export type MediaWorkerTickResult = "disabled" | "idle" | "processed";
+export type MediaWorkerTickResult = 'disabled' | 'idle' | 'processed';
 
 export type MediaWorkerTickDeps = {
   readPipelineEnabled?: (pool: Pool) => Promise<boolean>;
@@ -25,7 +25,7 @@ export async function runMediaWorkerTick(
   ctx: MediaWorkerTickContext,
   deps: MediaWorkerTickDeps = {},
 ): Promise<MediaWorkerTickResult> {
-  return runWithMediaWorkerInfraPrincipal("media-worker:tick", async () => {
+  return runWithMediaWorkerInfraPrincipal('media-worker:tick', async () => {
     const readEnabled = deps.readPipelineEnabled ?? readPipelineEnabled;
     const reclaimStale = deps.reclaimStaleProcessing ?? reclaimStaleProcessing;
     const claimJob = deps.claimNextJob ?? claimNextJob;
@@ -33,22 +33,25 @@ export async function runMediaWorkerTick(
 
     const enabled = await readEnabled(ctx.pool);
     if (!enabled) {
-      ctx.log.debug("video_hls_pipeline_enabled is false; idle");
-      return "disabled";
+      ctx.log.debug('video_hls_pipeline_enabled is false; idle');
+      return 'disabled';
     }
 
     await reclaimStale(ctx.pool, ctx.staleLockMinutes, ctx.log);
     const job = await claimJob(ctx.pool, ctx.lockId);
     if (!job) {
-      return "idle";
+      return 'idle';
     }
 
     return runWithObservabilityContext(
       { correlationId: job.id, organizationId: job.organizationId },
       async () => {
-        ctx.log.info({ jobId: job.id, mediaId: job.mediaId, attempt: job.attempts }, "processing transcode job");
+        ctx.log.info(
+          { jobId: job.id, mediaId: job.mediaId, attempt: job.attempts },
+          'processing transcode job',
+        );
         await processJob(ctx, job);
-        return "processed" as const;
+        return 'processed' as const;
       },
     );
   });

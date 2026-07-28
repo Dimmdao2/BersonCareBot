@@ -1,12 +1,12 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 const assertMock = vi.hoisted(() => vi.fn());
-vi.mock("@/app-layer/integrator/assertIntegratorGetRequest", () => ({
+vi.mock('@/app-layer/integrator/assertIntegratorGetRequest', () => ({
   assertIntegratorGetRequest: assertMock,
 }));
 
 const mockGetRule = vi.hoisted(() => vi.fn().mockResolvedValue(null));
-vi.mock("@/app-layer/di/buildAppDeps", () => ({
+vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: () => ({
     reminderProjection: {
       listRulesByIntegratorUserId: vi.fn(),
@@ -20,71 +20,76 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
   }),
 }));
 
-import { GET } from "./route";
+import { GET } from './route';
 import {
   integratorGetSignedHeadersOk,
   wireDefaultAssertIntegratorGetForRouteTests,
-} from "../../../testUtils/wireAssertIntegratorGetForRouteTests";
+} from '../../../testUtils/wireAssertIntegratorGetForRouteTests';
 
-describe("GET /api/integrator/reminders/rules/by-category", () => {
+describe('GET /api/integrator/reminders/rules/by-category', () => {
   beforeEach(() => {
     wireDefaultAssertIntegratorGetForRouteTests(assertMock);
   });
 
-  it("returns 400 when missing headers", async () => {
-    const res = await GET(new Request("http://localhost/api/integrator/reminders/rules/by-category"));
+  it('returns 400 when missing headers', async () => {
+    const res = await GET(
+      new Request('http://localhost/api/integrator/reminders/rules/by-category'),
+    );
     expect(res.status).toBe(400);
   });
 
-  it("returns 401 when signature invalid", async () => {
+  it('returns 401 when signature invalid', async () => {
     const res = await GET(
       new Request(
-        "http://localhost/api/integrator/reminders/rules/by-category?integratorUserId=42&category=exercise",
+        'http://localhost/api/integrator/reminders/rules/by-category?integratorUserId=42&category=exercise',
         {
-          headers: { "x-bersoncare-timestamp": "1700000000", "x-bersoncare-signature": "bad" },
-        }
-      )
+          headers: { 'x-bersoncare-timestamp': '1700000000', 'x-bersoncare-signature': 'bad' },
+        },
+      ),
     );
     expect(res.status).toBe(401);
   });
 
-  it("returns 400 when integratorUserId or category missing", async () => {
+  it('returns 400 when integratorUserId or category missing', async () => {
     const res = await GET(
-      new Request("http://localhost/api/integrator/reminders/rules/by-category?integratorUserId=42", {
-        headers: integratorGetSignedHeadersOk,
-      })
+      new Request(
+        'http://localhost/api/integrator/reminders/rules/by-category?integratorUserId=42',
+        {
+          headers: integratorGetSignedHeadersOk,
+        },
+      ),
     );
     expect(res.status).toBe(400);
   });
 
-  it("returns 200 with rule or null", async () => {
+  it('returns 200 with rule or null', async () => {
     mockGetRule.mockResolvedValue({
-      id: "rule-1",
-      userId: "42",
-      category: "exercise",
+      id: 'rule-1',
+      userId: '42',
+      category: 'exercise',
       isEnabled: true,
-      scheduleType: "daily",
-      timezone: "UTC",
+      scheduleType: 'daily',
+      timezone: 'UTC',
       intervalMinutes: 60,
       windowStartMinute: 0,
       windowEndMinute: 1440,
-      daysMask: "1111111",
-      contentMode: "none",
+      daysMask: '1111111',
+      contentMode: 'none',
       linkedObjectType: null,
       linkedObjectId: null,
       customTitle: null,
       customText: null,
-      deepLink: "http://127.0.0.1:5200/app/patient/reminders?from=reminder",
+      deepLink: 'http://127.0.0.1:5200/app/patient/reminders?from=reminder',
     });
     const res = await GET(
       new Request(
-        "http://localhost/api/integrator/reminders/rules/by-category?integratorUserId=42&category=exercise",
-        { headers: integratorGetSignedHeadersOk }
-      )
+        'http://localhost/api/integrator/reminders/rules/by-category?integratorUserId=42&category=exercise',
+        { headers: integratorGetSignedHeadersOk },
+      ),
     );
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json).toMatchObject({ ok: true, rule: expect.any(Object) });
-    expect(json.rule.category).toBe("exercise");
+    expect(json.rule.category).toBe('exercise');
   });
 });

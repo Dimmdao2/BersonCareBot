@@ -1,5 +1,5 @@
-import { createPgWebPushSubscriptionsPort } from "@/infra/repos/pgWebPushSubscriptions";
-import type { WebPushSubscriptionPayloadV1 } from "@/modules/web-push/ports";
+import { createPgWebPushSubscriptionsPort } from '@/infra/repos/pgWebPushSubscriptions';
+import type { WebPushSubscriptionPayloadV1 } from '@/modules/web-push/ports';
 
 const webPushSubscriptionsPort = createPgWebPushSubscriptionsPort();
 
@@ -9,6 +9,9 @@ export function listActiveWebPushSubscriptionsForIntegrator(
   return webPushSubscriptionsPort.listActiveByUserId(userId);
 }
 
-export function deleteWebPushSubscriptionByEndpointForIntegrator(userId: string, endpoint: string): Promise<boolean> {
+export function deleteWebPushSubscriptionByEndpointForIntegrator(
+  userId: string,
+  endpoint: string,
+): Promise<boolean> {
   return webPushSubscriptionsPort.deleteByEndpointIfExists(userId, endpoint);
 }

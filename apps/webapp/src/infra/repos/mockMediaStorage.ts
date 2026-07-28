@@ -3,8 +3,8 @@
  * MVP mock: stores buffers in process memory; URLs are /api/media/:id.
  * Replace with disk/S3 implementation for production.
  */
-import type { MediaStoragePort } from "@/modules/media/ports";
-import type { MediaFolderRecord, MediaRecord, MediaUsageRef } from "@/modules/media/types";
+import type { MediaStoragePort } from '@/modules/media/ports';
+import type { MediaFolderRecord, MediaRecord, MediaUsageRef } from '@/modules/media/types';
 
 type StoredMedia = {
   record: MediaRecord;
@@ -16,19 +16,22 @@ const folders = new Map<string, MediaFolderRecord>();
 let idCounter = 1;
 let folderCounter = 1;
 
-const MEDIA_PATH_PREFIX = "/api/media";
+const MEDIA_PATH_PREFIX = '/api/media';
 
-function kindFromMime(mimeType: string): MediaRecord["kind"] {
+function kindFromMime(mimeType: string): MediaRecord['kind'] {
   const lower = mimeType.toLowerCase();
-  if (lower.startsWith("image/")) return "image";
-  if (lower.startsWith("audio/")) return "audio";
-  if (lower.startsWith("video/")) return "video";
-  return "file";
+  if (lower.startsWith('image/')) return 'image';
+  if (lower.startsWith('audio/')) return 'audio';
+  if (lower.startsWith('video/')) return 'video';
+  return 'file';
 }
 
 export const mockMediaStoragePort: MediaStoragePort = {
   async upload(params) {
-    const body = params.body instanceof ArrayBuffer ? params.body : new Uint8Array(params.body).buffer as ArrayBuffer;
+    const body =
+      params.body instanceof ArrayBuffer
+        ? params.body
+        : (new Uint8Array(params.body).buffer as ArrayBuffer);
     const id = `media-${idCounter++}`;
     const now = new Date().toISOString();
     const record: MediaRecord = {
@@ -58,14 +61,15 @@ export const mockMediaStoragePort: MediaStoragePort = {
   },
 
   async list(params) {
-    const q = params.query?.trim().toLowerCase() ?? "";
+    const q = params.query?.trim().toLowerCase() ?? '';
     const filtered = [...store.values()]
       .map((item) => item.record)
       .filter((item) => {
-        if (params.kind && params.kind !== "all" && item.kind !== params.kind) return false;
+        if (params.kind && params.kind !== 'all' && item.kind !== params.kind) return false;
         if (params.excludeClientFiles !== false && params.folderId === undefined) {
           const folder = item.folderId ? folders.get(item.folderId) : null;
-          if (folder?.kind === "client_files_root" || folder?.kind === "client_patient") return false;
+          if (folder?.kind === 'client_files_root' || folder?.kind === 'client_patient')
+            return false;
         }
         if (params.folderId !== undefined) {
           if (params.folderId === null) {
@@ -94,9 +98,10 @@ export const mockMediaStoragePort: MediaStoragePort = {
         return true;
       });
 
-    const sortBy = params.sortBy ?? "createdAt";
-    const sortDir = params.sortDir === "asc" ? 1 : -1;
-    const displayLabel = (item: (typeof filtered)[number]) => item.displayName?.trim() || item.filename;
+    const sortBy = params.sortBy ?? 'createdAt';
+    const sortDir = params.sortDir === 'asc' ? 1 : -1;
+    const displayLabel = (item: (typeof filtered)[number]) =>
+      item.displayName?.trim() || item.filename;
     const nameGroup = (label: string) => {
       const lower = label.toLowerCase();
       if (/^[0-9]/.test(lower)) return 0;
@@ -105,14 +110,14 @@ export const mockMediaStoragePort: MediaStoragePort = {
       return 3;
     };
     filtered.sort((a, b) => {
-      if (sortBy === "size") return (a.size - b.size) * sortDir;
-      if (sortBy === "kind") return a.kind.localeCompare(b.kind) * sortDir;
-      if (sortBy === "name") {
+      if (sortBy === 'size') return (a.size - b.size) * sortDir;
+      if (sortBy === 'kind') return a.kind.localeCompare(b.kind) * sortDir;
+      if (sortBy === 'name') {
         const la = displayLabel(a);
         const lb = displayLabel(b);
         const g = (nameGroup(la) - nameGroup(lb)) * sortDir;
         if (g !== 0) return g;
-        return la.localeCompare(lb, "ru") * sortDir;
+        return la.localeCompare(lb, 'ru') * sortDir;
       }
       return (new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()) * sortDir;
     });
@@ -122,13 +127,13 @@ export const mockMediaStoragePort: MediaStoragePort = {
     const total = filtered.length;
     const items = filtered.slice(offset, offset + limit).map((r) => {
       const base = `${MEDIA_PATH_PREFIX}/${r.id}`;
-      const visual = r.kind === "image" || r.kind === "video";
+      const visual = r.kind === 'image' || r.kind === 'video';
       return {
         ...r,
         url: base,
-        previewStatus: visual ? ("ready" as const) : ("skipped" as const),
+        previewStatus: visual ? ('ready' as const) : ('skipped' as const),
         previewSmUrl: visual ? base : null,
-        previewMdUrl: r.kind === "image" ? base : null,
+        previewMdUrl: r.kind === 'image' ? base : null,
         sourceWidth: null,
         sourceHeight: null,
       };
@@ -210,12 +215,13 @@ export const mockMediaStoragePort: MediaStoragePort = {
 
   async deleteFolder(folderId) {
     for (const f of folders.values()) {
-      if (f.parentId === folderId) return { ok: false as const, error: "not_empty" as const };
+      if (f.parentId === folderId) return { ok: false as const, error: 'not_empty' as const };
     }
     for (const s of store.values()) {
-      if (s.record.folderId === folderId) return { ok: false as const, error: "not_empty" as const };
+      if (s.record.folderId === folderId)
+        return { ok: false as const, error: 'not_empty' as const };
     }
-    if (!folders.delete(folderId)) return { ok: false as const, error: "not_empty" as const };
+    if (!folders.delete(folderId)) return { ok: false as const, error: 'not_empty' as const };
     return { ok: true as const };
   },
 
@@ -238,7 +244,7 @@ export function getStoredMediaBody(id: string): { body: ArrayBuffer; mimeType: s
  */
 export function seedFolderForTest(
   name: string,
-  kind: MediaFolderRecord["kind"],
+  kind: MediaFolderRecord['kind'],
   parentId: string | null,
 ): MediaFolderRecord {
   const id = `folder-seed-${folderCounter++}`;

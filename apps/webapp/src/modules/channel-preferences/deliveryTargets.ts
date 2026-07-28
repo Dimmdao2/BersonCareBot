@@ -3,16 +3,16 @@
  * resolver as webapp M2M (web_push / email).
  */
 
-import type { ChannelBindings } from "@/shared/types/session";
+import type { ChannelBindings } from '@/shared/types/session';
 import {
   attachResolutionIdentity,
   type ResolvedNotificationChannels,
-} from "@/modules/patient-notifications/notificationChannelContract";
-import type { NotificationTopicGate } from "@/modules/patient-notifications/resolveNotificationChannels";
-import { resolvePatientNotificationChannels } from "@/modules/patient-notifications/resolveNotificationChannels";
-import type { PatientNotificationChannelAvailability } from "@/modules/patient-notifications/resolveNotificationChannels";
-import type { TopicChannelPrefsPort } from "@/modules/patient-notifications/topicChannelPrefsPort";
-import type { ChannelPreferencesPort } from "./ports";
+} from '@/modules/patient-notifications/notificationChannelContract';
+import type { NotificationTopicGate } from '@/modules/patient-notifications/resolveNotificationChannels';
+import { resolvePatientNotificationChannels } from '@/modules/patient-notifications/resolveNotificationChannels';
+import type { PatientNotificationChannelAvailability } from '@/modules/patient-notifications/resolveNotificationChannels';
+import type { TopicChannelPrefsPort } from '@/modules/patient-notifications/topicChannelPrefsPort';
+import type { ChannelPreferencesPort } from './ports';
 
 export type DeliveryTargets = {
   channelBindings: ChannelBindings;
@@ -33,13 +33,13 @@ export type DeliveryTargetsResolveInput = {
 
 function bindingsFromResolution(
   bindings: ChannelBindings,
-  selectedChannels: ResolvedNotificationChannels["selectedChannels"],
+  selectedChannels: ResolvedNotificationChannels['selectedChannels'],
 ): ChannelBindings {
   const out: ChannelBindings = {};
-  if (selectedChannels.includes("telegram") && bindings.telegramId?.trim()) {
+  if (selectedChannels.includes('telegram') && bindings.telegramId?.trim()) {
     out.telegramId = bindings.telegramId.trim();
   }
-  if (selectedChannels.includes("max") && bindings.maxId?.trim()) {
+  if (selectedChannels.includes('max') && bindings.maxId?.trim()) {
     out.maxId = bindings.maxId.trim();
   }
   return out;
@@ -84,13 +84,13 @@ export async function getDeliveryTargetsForUser(
   const channelBindings: ChannelBindings = {};
 
   if (bindings.telegramId) {
-    const p = byCode.get("telegram");
+    const p = byCode.get('telegram');
     if (p?.isEnabledForNotifications !== false) {
       channelBindings.telegramId = bindings.telegramId;
     }
   }
   if (bindings.maxId) {
-    const p = byCode.get("max");
+    const p = byCode.get('max');
     if (p?.isEnabledForNotifications !== false) {
       channelBindings.maxId = bindings.maxId;
     }

@@ -1,4 +1,4 @@
-> STATUS (verified 2026-07-23, code-reconciled): see docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/CHECKPOINT_2026-07-23_STATE_AND_BACKEND_WORK_ORDER.md
+> STATUS (verified 2026-07-23, code-reconciled): see docs/\_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/CHECKPOINT_2026-07-23_STATE_AND_BACKEND_WORK_ORDER.md
 
 # P0.2 Membership Resolver And Doctor Workspace Contract
 
@@ -73,8 +73,7 @@ type OrganizationResolution =
         canManageAllSpecialists: boolean;
       };
     }
-  | { ok: false; reason: "no_active_membership" }
-;
+  | { ok: false; reason: 'no_active_membership' };
 ```
 
 Behavior:
@@ -170,7 +169,7 @@ Implementation checklist:
 - [x] Map resolver outcomes to RSC redirects or API responses: (✓ requireRole.ts:265-293 — no_active_membership → denied; multiple propagates)
   - `no_active_membership` -> forbidden / access denied.
   - duplicate active staff memberships propagate as `multiple_active_staff_memberships` data-integrity failures.
-- [x] Replace `bookingEngine.organization.getDefaultOrganizationId()` in doctor/admin booking-engine gates with resolved `organizationId`. (✓ _requireDoctorBookingEngine.ts:22,36 | _requireAdminBookingEngine.ts:37,51,79 use gate.ctx.organizationId)
+- [x] Replace `bookingEngine.organization.getDefaultOrganizationId()` in doctor/admin booking-engine gates with resolved `organizationId`. (✓ \_requireDoctorBookingEngine.ts:22,36 | \_requireAdminBookingEngine.ts:37,51,79 use gate.ctx.organizationId)
 - [x] Add `membershipRole`, `membershipId`, `specialistId`, and permission flags to the new gate context. (✓ requireRole.ts:181-182,281-293)
 - [x] Preserve current single-clinic behavior in tests. (✓ requireRole.doctorWorkspaceContext.test.ts | requireRole.doctorStaffAccess.test.ts)
 

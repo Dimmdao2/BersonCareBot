@@ -54,11 +54,11 @@
 
 **Статус:** OK
 
-| Ограничение | Где зафиксировано |
-|-------------|-------------------|
-| PIN скрыт в публичном login | `auth.md` (публичный поток), `docs/AUTH_RESTRUCTURE/auth.md`, комментарий в `AuthFlowV2.tsx` |
-| OAuth backend-only, не в публичном UI | `auth.md`, `checkPhoneMethods.ts` (комментарий к `oauth`), `AuthProvidersSection` (админка; ранее `RuntimeConfigSection`) |
-| Email не единственный публичный вход; канал в профиле / OTP | `auth.md`, `docs/AUTH_RESTRUCTURE/auth.md`, `otpChannelUi` (публичный flow без email) |
+| Ограничение                                                 | Где зафиксировано                                                                                                         |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| PIN скрыт в публичном login                                 | `auth.md` (публичный поток), `docs/AUTH_RESTRUCTURE/auth.md`, комментарий в `AuthFlowV2.tsx`                              |
+| OAuth backend-only, не в публичном UI                       | `auth.md`, `checkPhoneMethods.ts` (комментарий к `oauth`), `AuthProvidersSection` (админка; ранее `RuntimeConfigSection`) |
+| Email не единственный публичный вход; канал в профиле / OTP | `auth.md`, `docs/AUTH_RESTRUCTURE/auth.md`, `otpChannelUi` (публичный flow без email)                                     |
 
 ---
 
@@ -75,8 +75,8 @@
 
 **Статус:** OK
 
-| Команда | Результат |
-|---------|-----------|
+| Команда                                         | Результат               |
+| ----------------------------------------------- | ----------------------- |
 | `pnpm install --frozen-lockfile && pnpm run ci` | **exit 0** (2026-04-04) |
 
 ---
@@ -108,6 +108,6 @@
 
 **Рекомендуется закрыть minor из этого аудита:**
 
-1. Обновить **`docs/AUTH_RESTRUCTURE/MASTER_PLAN.md`** раздел **«Текущее состояние»**: либо заменить на краткое описание **текущего** поведения (Telegram Login Widget, `InternationalPhoneInput`, SMS только РФ, без дублирования устаревших проблем), либо явно пометить блок как *исторический снимок на старт инициативы* и дать ссылку на `apps/webapp/src/modules/auth/auth.md` как на актуальный канон.
+1. Обновить **`docs/AUTH_RESTRUCTURE/MASTER_PLAN.md`** раздел **«Текущее состояние»**: либо заменить на краткое описание **текущего** поведения (Telegram Login Widget, `InternationalPhoneInput`, SMS только РФ, без дублирования устаревших проблем), либо явно пометить блок как _исторический снимок на старт инициативы_ и дать ссылку на `apps/webapp/src/modules/auth/auth.md` как на актуальный канон.
 
 После правки — при необходимости одна проверка `pnpm run ci` (ожидается зелёный).

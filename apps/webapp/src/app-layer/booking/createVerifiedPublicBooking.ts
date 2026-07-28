@@ -11,20 +11,20 @@
  * This keeps the three-way agreement (slug → organisation, branch+service → organisation, resolved
  * context → organisation) that already defends the cross-organisation case.
  */
-import { getPool } from "@/app-layer/db/client";
-import { withExplicitOrganizationPrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
-import { resolveOrCreateUserByPhone } from "@/app-layer/platform-user/resolveOrCreateUserByPhone";
-import { recordPublicBookingMergeCandidates } from "@/app-layer/platform-user/recordPublicBookingMergeCandidates";
+import { getPool } from '@/app-layer/db/client';
+import { withExplicitOrganizationPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
+import { resolveOrCreateUserByPhone } from '@/app-layer/platform-user/resolveOrCreateUserByPhone';
+import { recordPublicBookingMergeCandidates } from '@/app-layer/platform-user/recordPublicBookingMergeCandidates';
 import {
   InPersonBookingResolveError,
   resolveInPersonBookingContext,
-} from "@/modules/patient-booking/inPersonBookingResolve";
+} from '@/modules/patient-booking/inPersonBookingResolve';
 import type {
   CreatePatientBookingInput,
   PatientBookingRecord,
-} from "@/modules/patient-booking/types";
-import type { PublicBookingIntent } from "@/modules/public-booking/publicBookingIntent";
-import type { BookingAttribution } from "@/modules/booking-attribution/types";
+} from '@/modules/patient-booking/types';
+import type { PublicBookingIntent } from '@/modules/public-booking/publicBookingIntent';
+import type { BookingAttribution } from '@/modules/booking-attribution/types';
 
 type CreateVerifiedPublicBookingDeps = Parameters<typeof resolveInPersonBookingContext>[0] & {
   patientBooking: {
@@ -40,7 +40,7 @@ export async function createVerifiedPublicBooking(
   const result = await withExplicitOrganizationPrincipal(
     {
       organizationId: intent.organizationId,
-      source: "api/booking/public/create/confirm:POST",
+      source: 'api/booking/public/create/confirm:POST',
     },
     async () => {
       const ctx = await resolveInPersonBookingContext(deps, {
@@ -48,7 +48,7 @@ export async function createVerifiedPublicBooking(
         serviceId: intent.serviceId,
       });
       if (ctx.organizationId !== intent.organizationId) {
-        throw new InPersonBookingResolveError("ambiguous_booking_tenant");
+        throw new InPersonBookingResolveError('ambiguous_booking_tenant');
       }
       const user = await resolveOrCreateUserByPhone(
         intent.contactPhone,
@@ -60,13 +60,13 @@ export async function createVerifiedPublicBooking(
       }
       const branch = await deps.bookingEngine?.catalog.getBranch(ctx.branchId);
       const cityCode = branch?.cityCode.trim().toLowerCase();
-      if (!cityCode) throw new InPersonBookingResolveError("branch_not_found");
+      if (!cityCode) throw new InPersonBookingResolveError('branch_not_found');
       const booking = await deps.patientBooking.createBooking({
         userId: user.userId,
         organizationId: ctx.organizationId,
-        bookingChannel: "public_widget" as const,
+        bookingChannel: 'public_widget' as const,
         attribution: intent.attribution as BookingAttribution | undefined,
-        type: "in_person" as const,
+        type: 'in_person' as const,
         branchId: ctx.branchId,
         serviceId: ctx.serviceId,
         cityCode,

@@ -58,16 +58,16 @@
 
 ## 1) Сводный verdict
 
-| Область | Вердикт | Комментарий |
-|---------|---------|-------------|
-| Stage A | **PASS** | v1 blocker и ingestion/audit-контур сохранены |
-| Stage 1 | **PASS** | DDL `users.merged_into_user_id` на месте |
-| Stage 2 | **PASS** | canonical write path реализован |
-| Stage 3 | **PASS** | transactional merge + outbox rewrite/dedup реализованы |
-| Stage 4 | **PASS** | webapp realignment SQL/job/gate реализованы |
-| Stage 5 | **PASS** | feature flag, integrator-first flow, rollback через Settings подтверждены |
-| Stage C (repo closeout) | **PASS** | closeout docs, runbook и regression evidence на уровне репозитория присутствуют |
-| Финальная merge-ready / closeout-ready оценка | **PASS** | final audit привязан к audited tree, входной audit trail полный |
+| Область                                       | Вердикт  | Комментарий                                                                     |
+| --------------------------------------------- | -------- | ------------------------------------------------------------------------------- |
+| Stage A                                       | **PASS** | v1 blocker и ingestion/audit-контур сохранены                                   |
+| Stage 1                                       | **PASS** | DDL `users.merged_into_user_id` на месте                                        |
+| Stage 2                                       | **PASS** | canonical write path реализован                                                 |
+| Stage 3                                       | **PASS** | transactional merge + outbox rewrite/dedup реализованы                          |
+| Stage 4                                       | **PASS** | webapp realignment SQL/job/gate реализованы                                     |
+| Stage 5                                       | **PASS** | feature flag, integrator-first flow, rollback через Settings подтверждены       |
+| Stage C (repo closeout)                       | **PASS** | closeout docs, runbook и regression evidence на уровне репозитория присутствуют |
+| Финальная merge-ready / closeout-ready оценка | **PASS** | final audit привязан к audited tree, входной audit trail полный                 |
 
 ---
 
@@ -90,15 +90,15 @@
 
 ### 3.1 Реализованы Stage A, 1, 2, 3, 4, 5, C
 
-| Stage | Evidence | Вердикт |
-|-------|----------|---------|
-| A | `platformUserMergePreview.ts`, `pgPlatformUserMerge.ts`, `events.ts`, stage audit и targeted tests | **PASS** |
-| 1 | `apps/integrator/src/infra/db/migrations/core/20260410_0001_users_merged_into_user_id.sql` | **PASS** |
-| 2 | `canonicalUserId.ts`, `writePort.ts`, canonicalization before enqueue/write | **PASS** |
-| 3 | `mergeIntegratorUsers.ts`, `projectionOutboxMergePolicy.ts`, `projectionHealth.ts` | **PASS** |
-| 4 | `sql/realign_webapp_integrator_user_id.sql`, `sql/diagnostics_webapp_integrator_user_id.sql`, `webappIntegratorUserProjectionRealignment.ts`, job script | **PASS** |
-| 5 | `platform_user_merge_v2_enabled` in `system_settings`, `manualMergeIntegratorGate.ts`, `integrator-merge` route, integrator M2M routes | **PASS** |
-| C | `STAGE_C_CLOSEOUT.md`, `AUDIT_STAGE_C.md`, `docs/README.md`, rerun CI and targeted checks | **PASS** |
+| Stage | Evidence                                                                                                                                                 | Вердикт  |
+| ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| A     | `platformUserMergePreview.ts`, `pgPlatformUserMerge.ts`, `events.ts`, stage audit и targeted tests                                                       | **PASS** |
+| 1     | `apps/integrator/src/infra/db/migrations/core/20260410_0001_users_merged_into_user_id.sql`                                                               | **PASS** |
+| 2     | `canonicalUserId.ts`, `writePort.ts`, canonicalization before enqueue/write                                                                              | **PASS** |
+| 3     | `mergeIntegratorUsers.ts`, `projectionOutboxMergePolicy.ts`, `projectionHealth.ts`                                                                       | **PASS** |
+| 4     | `sql/realign_webapp_integrator_user_id.sql`, `sql/diagnostics_webapp_integrator_user_id.sql`, `webappIntegratorUserProjectionRealignment.ts`, job script | **PASS** |
+| 5     | `platform_user_merge_v2_enabled` in `system_settings`, `manualMergeIntegratorGate.ts`, `integrator-merge` route, integrator M2M routes                   | **PASS** |
+| C     | `STAGE_C_CLOSEOUT.md`, `AUDIT_STAGE_C.md`, `docs/README.md`, rerun CI and targeted checks                                                                | **PASS** |
 
 ### 3.2 Нет gap между docs и кодом
 
@@ -107,12 +107,12 @@
 
 ### 3.3 Readiness gates реально закрыты
 
-| Gate из `MASTER_PLAN.md` | Статус | Комментарий |
-|--------------------------|--------|-------------|
-| Нет loser `integrator_user_id` в webapp projection | **PASS (repo)** | SQL/job/gate есть; production evidence остаётся операторским per-merge шагом по runbook |
-| `projection_outbox` согласован после merge | **PASS (repo)** | merge + rewrite/dedup + `cancelledCount` подтверждены кодом и тестами |
-| E2E сценарий двух integrator id | **PASS (repo contract)** | подтверждён stub-flow + route/API tests; full browser + two live DB не входит в обязательный контракт |
-| Regression / CI / targeted checks | **PASS** | перепроверено в этом аудите |
+| Gate из `MASTER_PLAN.md`                           | Статус                   | Комментарий                                                                                           |
+| -------------------------------------------------- | ------------------------ | ----------------------------------------------------------------------------------------------------- |
+| Нет loser `integrator_user_id` в webapp projection | **PASS (repo)**          | SQL/job/gate есть; production evidence остаётся операторским per-merge шагом по runbook               |
+| `projection_outbox` согласован после merge         | **PASS (repo)**          | merge + rewrite/dedup + `cancelledCount` подтверждены кодом и тестами                                 |
+| E2E сценарий двух integrator id                    | **PASS (repo contract)** | подтверждён stub-flow + route/API tests; full browser + two live DB не входит в обязательный контракт |
+| Regression / CI / targeted checks                  | **PASS**                 | перепроверено в этом аудите                                                                           |
 
 **Вывод:** readiness gates закрыты **на уровне audited repository tree и принятого Stage C контракта**.
 
@@ -153,8 +153,10 @@
 - **Триггер:** запускается новый final audit по v2-like инициативе.
 - **files:** `PROMPTS_EXEC_AUDIT_FIX.md`, `AUDIT_FINAL.md`, `STAGE_C_CLOSEOUT.md`
 - **Действия:**
+
 1. Явно фиксировать baseline: branch diff или audited working tree.
 2. Если `git diff main...HEAD` пустой, обязательно прикладывать `git status --short --branch` как часть evidence.
+
 - **Критерий done:** финальный audit однозначно привязан к конкретному состоянию дерева.
 
 ### MANDATORY FIX §2 — Поддерживать полный pre-deploy audit trail
@@ -163,8 +165,10 @@
 - **Триггер:** добавляется новый deploy-slice или переписывается существующий flow Deploy 1..4.
 - **files:** `docs/PLATFORM_USER_MERGE_V2/AUDIT_PRE_DEPLOY_*.md`, `README.md`, `AGENT_EXECUTION_LOG.md`
 - **Действия:**
+
 1. Обновить соответствующий `AUDIT_PRE_DEPLOY_<N>.md`.
 2. Не оставлять final audit со ссылками на отсутствующие pre-deploy артефакты.
+
 - **Критерий done:** все audit-файлы, на которые ссылается пакет v2, реально существуют и актуальны.
 
 ### MANDATORY FIX §3 — При изменении merge/outbox/flag путей повторять финальный proof set
@@ -173,9 +177,11 @@
 - **Триггер:** меняются `mergeIntegratorUsers`, Stage 4 SQL/job, Stage 5 flag/M2M flow или closeout docs.
 - **files:** соответствующий код + `STAGE_C_CLOSEOUT.md` + `AUDIT_FINAL.md` + `AGENT_EXECUTION_LOG.md`
 - **Действия:**
+
 1. Повторить targeted tests.
 2. Повторить `pnpm install --frozen-lockfile && pnpm run ci`.
 3. Обновить test counts / gate verdict в docs.
+
 - **Критерий done:** docs и фактические проверки снова совпадают.
 
 ---

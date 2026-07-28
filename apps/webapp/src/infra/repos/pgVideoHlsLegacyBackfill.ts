@@ -1,10 +1,10 @@
-import type { Pool } from "pg";
-import { getPool } from "@/infra/db/client";
-import { runPgPoolPgText } from "@/infra/db/runWebappSql";
+import type { Pool } from 'pg';
+import { getPool } from '@/infra/db/client';
+import { runPgPoolPgText } from '@/infra/db/runWebappSql';
 import {
   legacyHlsBackfillCandidateWhereClause,
   mediaReadableSql,
-} from "@/infra/repos/mediaHlsLegacySqlFilters";
+} from '@/infra/repos/mediaHlsLegacySqlFilters';
 
 export type VideoHlsLegacyBackfillCandidateRow = {
   id: string;
@@ -32,10 +32,12 @@ export type VideoHlsLegacyBackfillReadRepo = {
   loadFailedReasons(): Promise<VideoHlsLegacyFailedReasonRow[]>;
 };
 
-export function createPgVideoHlsLegacyBackfillReadRepo(pool: Pool = getPool()): VideoHlsLegacyBackfillReadRepo {
+export function createPgVideoHlsLegacyBackfillReadRepo(
+  pool: Pool = getPool(),
+): VideoHlsLegacyBackfillReadRepo {
   return {
     async fetchBatch(opts) {
-      const coreWhere = legacyHlsBackfillCandidateWhereClause("m", opts.includeFailed);
+      const coreWhere = legacyHlsBackfillCandidateWhereClause('m', opts.includeFailed);
       const r = await runPgPoolPgText<VideoHlsLegacyBackfillCandidateRow>(
         pool,
         `SELECT m.id::text AS id, m.size_bytes::text AS size_bytes
@@ -60,7 +62,7 @@ export function createPgVideoHlsLegacyBackfillReadRepo(pool: Pool = getPool()): 
         `SELECT COALESCE(m.video_processing_status::text, '(null)') AS status, COUNT(*)::text AS count
          FROM media_files m
          WHERE m.mime_type ILIKE 'video/%'
-           AND ${mediaReadableSql("m")}
+           AND ${mediaReadableSql('m')}
          GROUP BY 1
          ORDER BY 1`,
       );
@@ -73,7 +75,7 @@ export function createPgVideoHlsLegacyBackfillReadRepo(pool: Pool = getPool()): 
         `SELECT m.video_processing_error, COUNT(*)::text AS count
          FROM media_files m
          WHERE m.mime_type ILIKE 'video/%'
-           AND ${mediaReadableSql("m")}
+           AND ${mediaReadableSql('m')}
            AND m.video_processing_status = 'failed'
          GROUP BY 1
          ORDER BY COUNT(*) DESC

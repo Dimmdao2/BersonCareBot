@@ -1,6 +1,6 @@
-import { runWebappPgText } from "@/infra/db/runWebappSql";
-import { toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
-import { WELLBEING_GENERAL_MIRROR_NOTE } from "@/modules/diaries/wellbeingGeneralMirrorNote";
+import { runWebappPgText } from '@/infra/db/runWebappSql';
+import { toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
+import { WELLBEING_GENERAL_MIRROR_NOTE } from '@/modules/diaries/wellbeingGeneralMirrorNote';
 import {
   detectProgramInactivityInsights,
   detectWellbeingLowStreakInsights,
@@ -8,15 +8,15 @@ import {
   type ProactivePatientRef,
   type ProactiveProgramActivity,
   type ProactiveWellbeingEntry,
-} from "@/modules/doctor-proactive-insights/computeProactiveInsights";
+} from '@/modules/doctor-proactive-insights/computeProactiveInsights';
 import {
   DOCTOR_TODAY_PROACTIVE_INSIGHTS_PREVIEW_LIMIT,
   PROACTIVE_PROGRAM_INACTIVITY_DAYS,
   PROACTIVE_WELLBEING_LOW_STREAK_DAYS,
-} from "@/modules/doctor-proactive-insights/constants";
-import type { DoctorProactiveInsightsPort } from "@/modules/doctor-proactive-insights/ports";
-import type { ProactiveInsightRow } from "@/modules/doctor-proactive-insights/types";
-import { DateTime } from "luxon";
+} from '@/modules/doctor-proactive-insights/constants';
+import type { DoctorProactiveInsightsPort } from '@/modules/doctor-proactive-insights/ports';
+import type { ProactiveInsightRow } from '@/modules/doctor-proactive-insights/types';
+import { DateTime } from 'luxon';
 
 const BUILD_INSIGHTS_CAP = 500;
 
@@ -36,7 +36,7 @@ async function listOnSupportPatients(organizationId: string): Promise<ProactiveP
   );
   return res.rows.map((r) => ({
     patientUserId: r.id,
-    displayName: r.display_name?.trim() || "—",
+    displayName: r.display_name?.trim() || '—',
   }));
 }
 
@@ -74,7 +74,10 @@ async function listWellbeingEntries(
   }));
 }
 
-async function listProgramActivity(patientIds: string[], organizationId: string): Promise<ProactiveProgramActivity[]> {
+async function listProgramActivity(
+  patientIds: string[],
+  organizationId: string,
+): Promise<ProactiveProgramActivity[]> {
   if (patientIds.length === 0) return [];
 
   const activeRes = await runWebappPgText<{ patient_user_id: string; instance_id: string }>(
@@ -97,7 +100,10 @@ async function listProgramActivity(patientIds: string[], organizationId: string)
 
   const lastDoneByInstance = new Map<string, string>();
   if (instanceIds.length > 0) {
-    const doneRes = await runWebappPgText<{ instance_id: string; last_done_at: Date | string | null }>(
+    const doneRes = await runWebappPgText<{
+      instance_id: string;
+      last_done_at: Date | string | null;
+    }>(
       `SELECT pal.instance_id::text AS instance_id, MAX(pal.created_at) AS last_done_at
        FROM program_action_log pal
        WHERE pal.instance_id = ANY($1::uuid[])
@@ -145,7 +151,7 @@ async function getOnSupportPatientRef(
   if (!row) return null;
   return {
     patientUserId: row.id,
-    displayName: row.display_name?.trim() || "—",
+    displayName: row.display_name?.trim() || '—',
   };
 }
 
@@ -172,10 +178,10 @@ async function buildInsights(
   const now = DateTime.now().setZone(displayIana);
   const wellbeingFrom = now
     .minus({ days: PROACTIVE_WELLBEING_LOW_STREAK_DAYS + 1 })
-    .startOf("day")
+    .startOf('day')
     .toUTC()
     .toISO()!;
-  const wellbeingTo = now.plus({ days: 1 }).startOf("day").toUTC().toISO()!;
+  const wellbeingTo = now.plus({ days: 1 }).startOf('day').toUTC().toISO()!;
 
   const [entries, activity] = await Promise.all([
     listWellbeingEntries(patientIds, wellbeingFrom, wellbeingTo, organizationId),

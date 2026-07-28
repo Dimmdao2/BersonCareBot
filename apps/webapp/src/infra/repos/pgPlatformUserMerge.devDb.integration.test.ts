@@ -9,17 +9,20 @@
  *   DELETE FROM user_channel_bindings WHERE user_id IN (SELECT id FROM platform_users WHERE display_name LIKE '[dev-smoke-merge]%');
  *   DELETE FROM platform_users WHERE display_name LIKE '[dev-smoke-merge]%';
  */
-import { afterAll, describe, expect, it } from "vitest";
-import pg from "pg";
-import { mergePlatformUsersInTransaction, pickMergeTargetId } from "@/infra/repos/pgPlatformUserMerge";
+import { afterAll, describe, expect, it } from 'vitest';
+import pg from 'pg';
+import {
+  mergePlatformUsersInTransaction,
+  pickMergeTargetId,
+} from '@/infra/repos/pgPlatformUserMerge';
 
-const MARKER = "[dev-smoke-merge]";
-const PHONE = "+79991110099";
+const MARKER = '[dev-smoke-merge]';
+const PHONE = '+79991110099';
 
 async function assertDevDb(client: pg.PoolClient): Promise<string> {
   const r = await client.query<{ n: string }>(`SELECT current_database() AS n`);
-  const n = r.rows[0]?.n ?? "";
-  const ok = /_dev$/i.test(n) || n === "bcb_webapp_dev";
+  const n = r.rows[0]?.n ?? '';
+  const ok = /_dev$/i.test(n) || n === 'bcb_webapp_dev';
   if (!ok) {
     throw new Error(
       `refusing: current_database="${n}" — ожидается dev (например *_dev или bcb_webapp_dev).`,
@@ -40,11 +43,11 @@ async function cleanup(client: pg.PoolClient): Promise<void> {
 }
 
 const enabled =
-  process.env.RUN_PG_MERGE_DEV_DB === "1" &&
-  process.env.USE_REAL_DATABASE === "1" &&
-  Boolean((process.env.DATABASE_URL ?? "").trim());
+  process.env.RUN_PG_MERGE_DEV_DB === '1' &&
+  process.env.USE_REAL_DATABASE === '1' &&
+  Boolean((process.env.DATABASE_URL ?? '').trim());
 
-describe.skipIf(!enabled)("pgPlatformUserMerge (dev DB, opt-in)", () => {
+describe.skipIf(!enabled)('pgPlatformUserMerge (dev DB, opt-in)', () => {
   const pool = new pg.Pool({
     connectionString: process.env.DATABASE_URL,
     max: 2,
@@ -54,12 +57,12 @@ describe.skipIf(!enabled)("pgPlatformUserMerge (dev DB, opt-in)", () => {
     await pool.end();
   });
 
-  it("projection merge: trusted phone на каноне, дубликат без телефона → merged_into_id", async () => {
+  it('projection merge: trusted phone на каноне, дубликат без телефона → merged_into_id', async () => {
     const client = await pool.connect();
     try {
       await assertDevDb(client);
 
-      await client.query("BEGIN");
+      await client.query('BEGIN');
       await cleanup(client);
 
       const insA = await client.query<{ id: string }>(
@@ -104,7 +107,7 @@ describe.skipIf(!enabled)("pgPlatformUserMerge (dev DB, opt-in)", () => {
         },
       );
 
-      await mergePlatformUsersInTransaction(client, picked.target, picked.duplicate, "projection");
+      await mergePlatformUsersInTransaction(client, picked.target, picked.duplicate, 'projection');
 
       const verify = await client.query<{
         id: string;
@@ -122,9 +125,9 @@ describe.skipIf(!enabled)("pgPlatformUserMerge (dev DB, opt-in)", () => {
       expect(tgtRow?.phone_normalized?.trim()).toBe(PHONE);
       expect(tgtRow?.patient_phone_trust_at).toBeTruthy();
 
-      await client.query("ROLLBACK");
+      await client.query('ROLLBACK');
     } catch (e) {
-      await client.query("ROLLBACK").catch(() => {});
+      await client.query('ROLLBACK').catch(() => {});
       throw e;
     } finally {
       client.release();

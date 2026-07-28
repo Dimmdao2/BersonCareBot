@@ -8,14 +8,14 @@
 
 ## Что уже есть в unified-ветке (готовые компоненты и утилиты)
 
-| Артефакт | Путь | Статус |
-| -------- | ---- | ------ |
-| Drizzle migration | `apps/webapp/db/drizzle-migrations/0012_content_section_slug_history.sql` | ✅ применима |
-| Drizzle schema | `apps/webapp/db/schema/schema.ts` (`contentSectionSlugHistory`) | ✅ |
-| Resolver function | `apps/webapp/src/infra/repos/resolvePatientContentSectionSlug.ts` | ✅ + unit-test |
-| Slug validation | `apps/webapp/src/shared/lib/contentSectionSlug.ts` | ✅ + unit-test |
-| Rename Dialog UI | `apps/webapp/src/app/app/doctor/content/sections/SectionSlugRenameDialog.tsx` | ✅ компилируется |
-| Stub action | `apps/webapp/src/app/app/doctor/content/sections/actions.ts` (`renameContentSectionSlug`) | 🟡 stub, возвращает ошибку |
+| Артефакт          | Путь                                                                                      | Статус                     |
+| ----------------- | ----------------------------------------------------------------------------------------- | -------------------------- |
+| Drizzle migration | `apps/webapp/db/drizzle-migrations/0012_content_section_slug_history.sql`                 | ✅ применима               |
+| Drizzle schema    | `apps/webapp/db/schema/schema.ts` (`contentSectionSlugHistory`)                           | ✅                         |
+| Resolver function | `apps/webapp/src/infra/repos/resolvePatientContentSectionSlug.ts`                         | ✅ + unit-test             |
+| Slug validation   | `apps/webapp/src/shared/lib/contentSectionSlug.ts`                                        | ✅ + unit-test             |
+| Rename Dialog UI  | `apps/webapp/src/app/app/doctor/content/sections/SectionSlugRenameDialog.tsx`             | ✅ компилируется           |
+| Stub action       | `apps/webapp/src/app/app/doctor/content/sections/actions.ts` (`renameContentSectionSlug`) | 🟡 stub, возвращает ошибку |
 
 ## Что нужно сделать
 
@@ -24,6 +24,7 @@
 Файл: `apps/webapp/src/app/app/doctor/content/sections/actions.ts`.
 
 Заменить stub на полную реализацию (atomic transaction):
+
 1. Валидировать `oldSlug`/`newSlug` через `validateContentSectionSlug`.
 2. В транзакции:
    - Проверить, что `content_sections.slug = oldSlug` существует.
@@ -42,10 +43,12 @@
 Файл: `apps/webapp/src/infra/repos/pgContentSections.ts`.
 
 Добавить методы:
+
 - `getRedirectNewSlugForOldSlug(oldSlug: string): Promise<string | null>` — `SELECT new_slug FROM content_section_slug_history WHERE old_slug = $1 LIMIT 1`.
 - `renameSectionSlug(oldSlug, newSlug): Promise<RenameSectionSlugResult>` (использовать в action).
 
 Также добавить метод в `ContentPagesPort` (`apps/webapp/src/infra/repos/pgContentPages.ts`):
+
 - `countPagesWithSectionSlug(sectionSlug: string): Promise<number>` — для `pagesAffectedCount` props в Dialog.
 
 Эталоны — visual-tip версии файлов.
@@ -55,6 +58,7 @@
 Файл: `apps/webapp/src/app/app/doctor/content/sections/SectionForm.tsx`.
 
 В режиме `isEdit`:
+
 - Принять `pagesInSection: number` props.
 - Рендерить `<SectionSlugRenameDialog oldSlug={section.slug} pagesAffectedCount={pagesInSection} />` в области slug-display (рядом с disabled inputом).
 
@@ -67,6 +71,7 @@
 Файл: `apps/webapp/src/app/app/patient/sections/[slug]/page.tsx`.
 
 Заменить прямой `deps.contentSections.getBySlug(slug)` на:
+
 ```ts
 const result = await resolvePatientContentSectionSlug(
   {

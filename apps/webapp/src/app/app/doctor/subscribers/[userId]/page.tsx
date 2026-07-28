@@ -1,8 +1,8 @@
 /**
  * Legacy route: редирект карточки подписчика в единый профиль клиента.
  */
-import { redirect } from "next/navigation";
-import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
+import { redirect } from 'next/navigation';
+import { requireDoctorAccess } from '@/app-layer/guards/requireRole';
 
 type Props = { params: Promise<{ userId: string }> };
 

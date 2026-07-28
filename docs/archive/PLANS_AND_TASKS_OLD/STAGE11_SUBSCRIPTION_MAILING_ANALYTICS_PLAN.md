@@ -11,11 +11,13 @@
 Объединённый этап для двух связанных доменов:
 
 **Subscription/mailing stack:**
+
 - `mailing_topics` (product-level категории подписок) и `user_subscriptions` (выбор пользователя) — перенести в webapp как product/preferences; проекция из integrator.
 - `mailings` — runtime queue → **остаётся в integrator** (не трогать).
 - `mailing_logs` — audit → проекция в webapp.
 
 **Channel analytics и SMS delivery accounting:**
+
 - Журнал отправок (delivery attempt logs) уже проецируется в webapp через `support.delivery.attempt.logged` и таблицу `support_delivery_events` (миграция 009). Этап 11: убедиться, что данных достаточно для отчётности; при необходимости добавить API или агрегаты для специалиста/админки.
 
 **Результат:** product-level подписки (topics, user_subscriptions) и аудит рассылок (mailing_logs) управляются/читаются через webapp; delivery-аналитика опирается на webapp; runtime queues и transport facts остаются в integrator.
@@ -45,28 +47,28 @@
 
 ## Затронутые файлы (сводка)
 
-| Файл / зона | Задачи |
-|-------------|--------|
-| `apps/integrator/src/kernel/contracts/projectionEventTypes.ts` | T1 |
-| `apps/integrator/src/kernel/contracts/index.ts` | T1 |
-| `apps/webapp/migrations/012_subscription_mailing.sql` (новый) | T2 |
-| `apps/webapp/src/infra/repos/pgSubscriptionMailingProjection.ts` (новый) | T3 |
-| `apps/webapp/src/infra/repos/inMemorySubscriptionMailingProjection.ts` (новый) | T3 |
-| `apps/webapp/src/modules/integrator/events.ts` | T4 |
-| `apps/webapp/src/app/api/integrator/events/route.ts` | T4 |
-| `apps/integrator/src/infra/db/writePort.ts` | T5 |
-| `apps/webapp/src/app/api/integrator/subscriptions/topics/route.ts` (новый) | T6 |
-| `apps/webapp/src/app/api/integrator/subscriptions/for-user/route.ts` (новый) | T6 |
-| `apps/webapp/src/app/api/integrator/subscriptions/mailing-logs/route.ts` (новый, опционально) | T6 |
-| `apps/integrator/src/kernel/contracts/ports.ts` (SubscriptionMailingReadsPort) | T7 |
-| `apps/integrator/src/infra/adapters/subscriptionMailingReadsPort.ts` (новый) | T7 |
-| `apps/integrator/src/infra/db/readPort.ts` | T7 |
-| `apps/integrator/src/app/di.ts` | T7 |
-| `apps/webapp/src/app-layer/di/buildAppDeps.ts` | T6, T8 |
-| `apps/webapp/scripts/backfill-subscription-mailing-domain.mjs` (новый) | T9 |
-| `apps/webapp/scripts/reconcile-subscription-mailing-domain.mjs` (новый) | T9 |
-| Тесты (unit + API route + ingest) | T10 |
-| `scripts/stage11-release-gate.mjs` (новый) | T10 |
+| Файл / зона                                                                                   | Задачи |
+| --------------------------------------------------------------------------------------------- | ------ |
+| `apps/integrator/src/kernel/contracts/projectionEventTypes.ts`                                | T1     |
+| `apps/integrator/src/kernel/contracts/index.ts`                                               | T1     |
+| `apps/webapp/migrations/012_subscription_mailing.sql` (новый)                                 | T2     |
+| `apps/webapp/src/infra/repos/pgSubscriptionMailingProjection.ts` (новый)                      | T3     |
+| `apps/webapp/src/infra/repos/inMemorySubscriptionMailingProjection.ts` (новый)                | T3     |
+| `apps/webapp/src/modules/integrator/events.ts`                                                | T4     |
+| `apps/webapp/src/app/api/integrator/events/route.ts`                                          | T4     |
+| `apps/integrator/src/infra/db/writePort.ts`                                                   | T5     |
+| `apps/webapp/src/app/api/integrator/subscriptions/topics/route.ts` (новый)                    | T6     |
+| `apps/webapp/src/app/api/integrator/subscriptions/for-user/route.ts` (новый)                  | T6     |
+| `apps/webapp/src/app/api/integrator/subscriptions/mailing-logs/route.ts` (новый, опционально) | T6     |
+| `apps/integrator/src/kernel/contracts/ports.ts` (SubscriptionMailingReadsPort)                | T7     |
+| `apps/integrator/src/infra/adapters/subscriptionMailingReadsPort.ts` (новый)                  | T7     |
+| `apps/integrator/src/infra/db/readPort.ts`                                                    | T7     |
+| `apps/integrator/src/app/di.ts`                                                               | T7     |
+| `apps/webapp/src/app-layer/di/buildAppDeps.ts`                                                | T6, T8 |
+| `apps/webapp/scripts/backfill-subscription-mailing-domain.mjs` (новый)                        | T9     |
+| `apps/webapp/scripts/reconcile-subscription-mailing-domain.mjs` (новый)                       | T9     |
+| Тесты (unit + API route + ingest)                                                             | T10    |
+| `scripts/stage11-release-gate.mjs` (новый)                                                    | T10    |
 
 ---
 
@@ -212,6 +214,7 @@ CREATE INDEX IF NOT EXISTS idx_mailing_logs_webapp_mailing ON mailing_logs_webap
 **Файл:** создать `apps/webapp/src/infra/repos/pgSubscriptionMailingProjection.ts`
 
 **Содержимое (сокращённый каркас):**
+
 - Тип `SubscriptionMailingProjectionPort` с методами:
   - `upsertTopicFromProjection(params: { integratorTopicId: number; code: string; title: string; key: string; isActive: boolean; updatedAt: string }) => Promise<void>`
   - `upsertUserSubscriptionFromProjection(params: { integratorUserId: number; integratorTopicId: number; isActive: boolean; updatedAt: string }) => Promise<void>`
@@ -259,6 +262,7 @@ CREATE INDEX IF NOT EXISTS idx_mailing_logs_webapp_mailing ON mailing_logs_webap
 **Файл:** `apps/webapp/src/modules/integrator/events.ts`
 
 **Действие:** добавить константы для типов событий; после обработки `appointment.record.upserted` (и перед `return { accepted: false, reason: 'durable ingest is not implemented' }`) добавить блоки:
+
 - если `deps.subscriptionMailingProjection` и `event.eventType === 'mailing.topic.upserted'`: извлечь из payload integratorTopicId, code, title, key, isActive, updatedAt (все строки или число для id — bigint-safe); вызвать `upsertTopicFromProjection`; при ошибке — `return { accepted: false, reason: '...' }`.
 - аналогично для `user.subscription.upserted` (integratorUserId, integratorTopicId, isActive, updatedAt) и `mailing.log.sent` (integratorUserId, integratorMailingId, status, sentAt, errorText).
 
@@ -527,6 +531,7 @@ CREATE INDEX IF NOT EXISTS idx_mailing_logs_webapp_mailing ON mailing_logs_webap
 **Критерий успеха:** полный CI зелёный.
 
 **DoD этапа 11:**
+
 - Контракт событий проекции subscription/mailing добавлен (T1).
 - Миграция webapp 012 создана (T2).
 - Порт проекции и pg/inMemory реализации с тестами (T3).

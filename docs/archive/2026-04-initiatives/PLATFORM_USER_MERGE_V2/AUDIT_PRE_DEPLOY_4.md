@@ -9,14 +9,14 @@
 
 ## Проверка readiness
 
-| Критерий | Статус | Комментарий |
-|----------|--------|-------------|
-| Scope соответствует Deploy 4 | **PASS** | feature flag, preview/gate/UI/API flow switch; без новых schema требований |
-| Миграции/код в правильных местах | **PASS** | `system_settings` key, webapp routes/UI, integrator M2M routes |
-| Rollback-путь описан | **PASS** | флаг `platform_user_merge_v2_enabled` выключается через Settings без redeploy |
-| SQL gates подготовлены | **PASS** | используется Stage 4 gate как post-merge evidence; ссылки есть в runbook/closeout |
-| Нет нарушений server conventions | **PASS** | новых env для бизнес-логики не добавлено; флаг хранится в `system_settings` |
-| `pnpm run ci` зелёный | **PASS** | подтверждено в `AGENT_EXECUTION_LOG.md` и повторно в финальном fix-pass |
+| Критерий                         | Статус   | Комментарий                                                                       |
+| -------------------------------- | -------- | --------------------------------------------------------------------------------- |
+| Scope соответствует Deploy 4     | **PASS** | feature flag, preview/gate/UI/API flow switch; без новых schema требований        |
+| Миграции/код в правильных местах | **PASS** | `system_settings` key, webapp routes/UI, integrator M2M routes                    |
+| Rollback-путь описан             | **PASS** | флаг `platform_user_merge_v2_enabled` выключается через Settings без redeploy     |
+| SQL gates подготовлены           | **PASS** | используется Stage 4 gate как post-merge evidence; ссылки есть в runbook/closeout |
+| Нет нарушений server conventions | **PASS** | новых env для бизнес-логики не добавлено; флаг хранится в `system_settings`       |
+| `pnpm run ci` зелёный            | **PASS** | подтверждено в `AGENT_EXECUTION_LOG.md` и повторно в финальном fix-pass           |
 
 ## Особая оговорка
 

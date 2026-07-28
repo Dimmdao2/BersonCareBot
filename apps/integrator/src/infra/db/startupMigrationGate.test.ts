@@ -15,7 +15,10 @@ function migration(fileName: string): MigrationFile {
   };
 }
 
-type FakeQueryHandler = (text: string, values: unknown[] | undefined) => Promise<{ rows: object[] }>;
+type FakeQueryHandler = (
+  text: string,
+  values: unknown[] | undefined,
+) => Promise<{ rows: object[] }>;
 
 class FakeMigrationDb implements MigrationDbClient {
   readonly queries: string[] = [];
@@ -76,7 +79,9 @@ describe('integrator startup migration gate', () => {
     });
 
     expect(db.ended).toBe(true);
-    expect(db.queries.some((query) => query.startsWith('CREATE ') || query === 'BEGIN')).toBe(false);
+    expect(db.queries.some((query) => query.startsWith('CREATE ') || query === 'BEGIN')).toBe(
+      false,
+    );
   });
 
   it('locked mode fails when the integrator migration ledger is missing', async () => {
@@ -115,9 +120,12 @@ describe('integrator startup migration gate', () => {
   });
 
   it('locked mode treats ledger SELECT permission denied as fatal', async () => {
-    const permissionDenied = Object.assign(new Error('permission denied for table schema_migrations'), {
-      code: '42501',
-    });
+    const permissionDenied = Object.assign(
+      new Error('permission denied for table schema_migrations'),
+      {
+        code: '42501',
+      },
+    );
     const db = new FakeMigrationDb(async (text) => {
       if (text === 'SELECT to_regclass($1) AS ledger_regclass') {
         return { rows: [{ ledger_regclass: 'integrator.schema_migrations' }] };

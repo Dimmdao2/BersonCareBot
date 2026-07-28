@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Bar,
   BarChart,
@@ -11,30 +11,30 @@ import {
   ResponsiveContainer,
   XAxis,
   YAxis,
-} from "recharts";
-import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
+} from 'recharts';
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/ui/doctor/primitives/select";
-import { DOCTOR_ANALYTICS_WINDOW_HOUR_PRESETS } from "@/app/app/doctor/analytics/shared/analyticsWindowHourPresets";
-import type { ContentEngagementStatsResponse } from "@/app-layer/stats/loadAdminReminderStats";
-import { DoctorStatCard } from "@/app/app/doctor/analytics/clients/DoctorStatCard";
-import { DoctorRechartsTooltip } from "@/shared/ui/doctor/DoctorRechartsTooltip";
+} from '@/shared/ui/doctor/primitives/select';
+import { DOCTOR_ANALYTICS_WINDOW_HOUR_PRESETS } from '@/app/app/doctor/analytics/shared/analyticsWindowHourPresets';
+import type { ContentEngagementStatsResponse } from '@/app-layer/stats/loadAdminReminderStats';
+import { DoctorStatCard } from '@/app/app/doctor/analytics/clients/DoctorStatCard';
+import { DoctorRechartsTooltip } from '@/shared/ui/doctor/DoctorRechartsTooltip';
 
 const PRESETS = DOCTOR_ANALYTICS_WINDOW_HOUR_PRESETS;
 
-const FILL_PRACTICE = "hsl(142 45% 42% / 0.9)";
-const FILL_WARMUP_VIDEO = "hsl(215 55% 48% / 0.9)";
-const FILL_EXERCISE_VIDEO = "hsl(280 45% 50% / 0.9)";
+const FILL_PRACTICE = 'hsl(142 45% 42% / 0.9)';
+const FILL_WARMUP_VIDEO = 'hsl(215 55% 48% / 0.9)';
+const FILL_EXERCISE_VIDEO = 'hsl(280 45% 50% / 0.9)';
 
 const VIDEO_DELIVERY_COLORS: Record<string, string> = {
-  HLS: "hsl(215 60% 52%)",
-  MP4: "hsl(38 75% 52%)",
-  Файл: "hsl(142 45% 48%)",
+  HLS: 'hsl(215 60% 52%)',
+  MP4: 'hsl(38 75% 52%)',
+  Файл: 'hsl(142 45% 48%)',
 };
 
 const CHART_H_ROWS = 200;
@@ -85,7 +85,7 @@ function TopPagesHorizontalBarChart({
             type="category"
             dataKey="label"
             width={168}
-            tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+            tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
           />
           <DoctorRechartsTooltip />
           <Bar dataKey="count" name={barName} fill={fill} radius={[0, 4, 4, 0]} />
@@ -97,9 +97,9 @@ function TopPagesHorizontalBarChart({
 
 function VideoDeliveryPie({ hls, mp4, file }: { hls: number; mp4: number; file: number }) {
   const slices = [
-    { name: "HLS", value: hls },
-    { name: "MP4", value: mp4 },
-    { name: "Файл", value: file },
+    { name: 'HLS', value: hls },
+    { name: 'MP4', value: mp4 },
+    { name: 'Файл', value: file },
   ].filter((s) => s.value > 0);
 
   if (slices.length === 0) {
@@ -121,12 +121,13 @@ function VideoDeliveryPie({ hls, mp4, file }: { hls: number; mp4: number; file: 
               dataKey="value"
             >
               {slices.map((s) => (
-                <Cell key={s.name} fill={VIDEO_DELIVERY_COLORS[s.name] ?? "hsl(var(--muted-foreground))"} />
+                <Cell
+                  key={s.name}
+                  fill={VIDEO_DELIVERY_COLORS[s.name] ?? 'hsl(var(--muted-foreground))'}
+                />
               ))}
             </Pie>
-            <DoctorRechartsTooltip
-              formatter={(v) => [String(v), ""]}
-            />
+            <DoctorRechartsTooltip formatter={(v) => [String(v), '']} />
           </PieChart>
         </ResponsiveContainer>
       </div>
@@ -157,17 +158,17 @@ export function MaterialContentStatsClient() {
     setError(null);
     try {
       const res = await fetch(`/api/doctor/content-stats?windowHours=${hours}`, {
-        credentials: "include",
+        credentials: 'include',
       });
       if (!res.ok) {
-        setError(res.status === 403 ? "Доступ запрещён" : `Ошибка ${res.status}`);
+        setError(res.status === 403 ? 'Доступ запрещён' : `Ошибка ${res.status}`);
         setData(null);
         return;
       }
       const json = (await res.json()) as ContentEngagementStatsResponse;
       setData(json);
     } catch {
-      setError("Не удалось загрузить");
+      setError('Не удалось загрузить');
       setData(null);
     } finally {
       setLoading(false);
@@ -206,7 +207,7 @@ export function MaterialContentStatsClient() {
         <Select
           value={String(windowHours)}
           onValueChange={(v) => {
-            if (v == null || v === "") return;
+            if (v == null || v === '') return;
             const n = Number.parseInt(v, 10);
             if (Number.isFinite(n)) setWindowHours(n);
           }}
@@ -233,7 +234,11 @@ export function MaterialContentStatsClient() {
               <CardTitle className="text-sm">Завершения практики по страницам (топ)</CardTitle>
             </CardHeader>
             <CardContent>
-              <TopPagesHorizontalBarChart data={practiceChartData} barName="Завершений" fill={FILL_PRACTICE} />
+              <TopPagesHorizontalBarChart
+                data={practiceChartData}
+                barName="Завершений"
+                fill={FILL_PRACTICE}
+              />
             </CardContent>
           </Card>
 
@@ -248,7 +253,11 @@ export function MaterialContentStatsClient() {
                 value={data.warmupVideoEstimatedWatchMinutes}
                 hint="оценка по длительности роликов"
               />
-              <TopPagesHorizontalBarChart data={warmupVideoChartData} barName="Просмотров" fill={FILL_WARMUP_VIDEO} />
+              <TopPagesHorizontalBarChart
+                data={warmupVideoChartData}
+                barName="Просмотров"
+                fill={FILL_WARMUP_VIDEO}
+              />
             </CardContent>
           </Card>
 
@@ -273,7 +282,9 @@ export function MaterialContentStatsClient() {
 
           <Card className="h-full">
             <CardHeader className="py-2">
-              <CardTitle className="text-sm">Видео упражнений: назначенные программы (топ)</CardTitle>
+              <CardTitle className="text-sm">
+                Видео упражнений: назначенные программы (топ)
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <DoctorStatCard
@@ -321,20 +332,20 @@ export function MaterialContentStatsClient() {
                   id="content-stats-video-fallback"
                   title="Fallback на MP4"
                   value={data.videoPlayback.fallbackTotal}
-                  hint={data.videoPlayback.fallbackTotal > 0 ? "HLS → MP4" : "не потребовался"}
+                  hint={data.videoPlayback.fallbackTotal > 0 ? 'HLS → MP4' : 'не потребовался'}
                   href="/app/admin/system-health"
                 />
                 <DoctorStatCard
                   id="content-stats-video-errors"
                   title="Ошибок плеера"
                   value={data.videoPlaybackClient.totalErrors}
-                  tone={data.videoPlaybackClient.totalErrors > 0 ? "warning" : "neutral"}
+                  tone={data.videoPlaybackClient.totalErrors > 0 ? 'warning' : 'neutral'}
                   hint={
                     data.videoPlaybackClient.likelyLooping
-                      ? "признак цикла hls_fatal"
+                      ? 'признак цикла hls_fatal'
                       : data.videoPlaybackClient.totalErrorsLast1h > 0
                         ? `за 1 ч: ${data.videoPlaybackClient.totalErrorsLast1h}`
-                        : "за 1 ч: 0"
+                        : 'за 1 ч: 0'
                   }
                   href="/app/admin/system-health"
                 />
@@ -352,8 +363,8 @@ export function MaterialContentStatsClient() {
               ) : null}
 
               <p className="text-xs text-muted-foreground">
-                При выключенной выдаче видео в настройках счётчики могут быть нулевыми — это не показатель интереса к
-                контенту.
+                При выключенной выдаче видео в настройках счётчики могут быть нулевыми — это не
+                показатель интереса к контенту.
               </p>
             </CardContent>
           </Card>

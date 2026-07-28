@@ -1,12 +1,16 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
-import { Dialog, DialogContent } from "@/shared/ui/doctor/primitives/dialog";
-import { DoctorCalendarEventPanel } from "./calendar/DoctorCalendarEventPanel";
-import type { CalendarAppointmentEvent, CalendarFilterMeta, CalendarEvent } from "@/modules/booking-calendar/types";
-import type { CalendarCreateActiveFilters } from "@/modules/booking-calendar/calendarCreateFieldMode";
+import { useState, useEffect } from 'react';
+import { Dialog, DialogContent } from '@/shared/ui/doctor/primitives/dialog';
+import { DoctorCalendarEventPanel } from './calendar/DoctorCalendarEventPanel';
+import type {
+  CalendarAppointmentEvent,
+  CalendarFilterMeta,
+  CalendarEvent,
+} from '@/modules/booking-calendar/types';
+import type { CalendarCreateActiveFilters } from '@/modules/booking-calendar/calendarCreateFieldMode';
 
-const API_BASE = "/api/doctor/booking-engine";
+const API_BASE = '/api/doctor/booking-engine';
 
 const EMPTY_FILTER_META: CalendarFilterMeta = {
   specialists: [],
@@ -57,14 +61,14 @@ export function TodayAppointmentFullModal({
     }
     let cancelled = false;
     setLoading(true);
-    const qs = new URLSearchParams({ view: "day", from: todayIso, to: todayIso }).toString();
+    const qs = new URLSearchParams({ view: 'day', from: todayIso, to: todayIso }).toString();
     fetch(`${API_BASE}/calendar?${qs}`)
       .then((r) => r.json())
       .then((data: CalendarApiResponse) => {
         if (cancelled) return;
         if (data.ok && Array.isArray(data.events)) {
           const found = data.events.find(
-            (e): e is CalendarAppointmentEvent => e.kind === "appointment" && e.id === apptId,
+            (e): e is CalendarAppointmentEvent => e.kind === 'appointment' && e.id === apptId,
           );
           if (found) setEvent(found);
         }
@@ -86,7 +90,12 @@ export function TodayAppointmentFullModal({
   }
 
   return (
-    <Dialog open={apptId !== null} onOpenChange={(open) => { if (!open) onClose(); }}>
+    <Dialog
+      open={apptId !== null}
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
       <DialogContent className="max-w-sm overflow-hidden p-0 [&>[data-slot=dialog-close]]:size-10 [&>[data-slot=dialog-close]>svg]:size-5">
         <div className="overflow-y-auto max-h-[90dvh]">
           {loading ? (

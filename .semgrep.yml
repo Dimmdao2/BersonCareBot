@@ -16,7 +16,7 @@ rules:
       (SEC-01: real prod creds previously leaked via committed config.)
     metadata:
       category: security
-      cwe: "CWE-798: Use of Hard-coded Credentials"
+      cwe: 'CWE-798: Use of Hard-coded Credentials'
     patterns:
       - pattern-regex: (?i)(api[_-]?key|secret|passw(or)?d|token|private[_-]?key)\s*[:=]\s*['"][A-Za-z0-9/_+\-]{16,}['"]
       - pattern-not-regex: (?i)(changeme|example|placeholder|dummy|your[-_]?(token|key|secret)|process\.env|<[^>]+>|x{6,})
@@ -29,7 +29,7 @@ rules:
       Use an argv array and avoid shell:true with untrusted input.
     metadata:
       category: security
-      cwe: "CWE-78: OS Command Injection"
+      cwe: 'CWE-78: OS Command Injection'
     patterns:
       - pattern-either:
           - pattern: child_process.exec($CMD + ...)
@@ -39,10 +39,10 @@ rules:
   - id: bcb-no-eval
     languages: [javascript, typescript]
     severity: ERROR
-    message: "Avoid eval() / Function(string) — code-injection risk."
+    message: 'Avoid eval() / Function(string) — code-injection risk.'
     metadata:
       category: security
-      cwe: "CWE-95: Eval Injection"
+      cwe: 'CWE-95: Eval Injection'
     patterns:
       - pattern-either:
           - pattern: eval(...)
@@ -51,16 +51,16 @@ rules:
   - id: bcb-tls-reject-unauthorized-disabled
     languages: [javascript, typescript]
     severity: ERROR
-    message: "TLS certificate verification disabled (rejectUnauthorized:false) — MITM risk."
+    message: 'TLS certificate verification disabled (rejectUnauthorized:false) — MITM risk.'
     metadata:
       category: security
-      cwe: "CWE-295: Improper Certificate Validation"
-    pattern: "rejectUnauthorized: false"
+      cwe: 'CWE-295: Improper Certificate Validation'
+    pattern: 'rejectUnauthorized: false'
 
   - id: bcb-node-tls-env-bypass
     languages: [javascript, typescript]
     severity: ERROR
-    message: "NODE_TLS_REJECT_UNAUTHORIZED disabled at runtime — disables all TLS verification."
+    message: 'NODE_TLS_REJECT_UNAUTHORIZED disabled at runtime — disables all TLS verification.'
     metadata:
       category: security
     pattern-regex: NODE_TLS_REJECT_UNAUTHORIZED['"]?\]?\s*=\s*['"]0['"]

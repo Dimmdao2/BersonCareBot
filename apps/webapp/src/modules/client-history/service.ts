@@ -1,5 +1,5 @@
-import type { ClientHistoryPort } from "./ports";
-import type { UpsertPatientBookingProfileInput } from "./types";
+import type { ClientHistoryPort } from './ports';
+import type { UpsertPatientBookingProfileInput } from './types';
 
 export function createClientHistoryService(port: ClientHistoryPort) {
   return {
@@ -41,7 +41,7 @@ export function createClientHistoryService(port: ClientHistoryPort) {
 
     assertSelfServiceBookingAllowed(organizationId: string, platformUserId: string) {
       return port.isBookingBlocked(organizationId, platformUserId).then((blocked) => {
-        if (blocked) throw new Error("booking_blocked");
+        if (blocked) throw new Error('booking_blocked');
       });
     },
 
@@ -49,9 +49,9 @@ export function createClientHistoryService(port: ClientHistoryPort) {
       return port.listAppointmentComments(organizationId, appointmentId);
     },
 
-    createAppointmentComment(input: Parameters<ClientHistoryPort["createAppointmentComment"]>[0]) {
+    createAppointmentComment(input: Parameters<ClientHistoryPort['createAppointmentComment']>[0]) {
       const body = input.body.trim();
-      if (!body) throw new Error("empty_comment");
+      if (!body) throw new Error('empty_comment');
       return port.createAppointmentComment({ ...input, body });
     },
   };

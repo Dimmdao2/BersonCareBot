@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { buildRlsDescriptors } from "./rls-descriptor-model.mjs";
+import { buildRlsDescriptors } from './rls-descriptor-model.mjs';
 import {
   hasAnyPatientOwnership,
   renderBootstrapHybridOrgGatedPredicate,
@@ -15,22 +15,22 @@ import {
   renderOrgPredicate,
   renderStaffActorCheck,
   renderStaffOrPatientPredicateForDescriptor,
-} from "./rls-sql-renderer.mjs";
+} from './rls-sql-renderer.mjs';
 
-export const p09PolicyName = "saas_enforce_default_deny_p0_9_1";
+export const p09PolicyName = 'saas_enforce_default_deny_p0_9_1';
 
 export const p09EnforceActions = new Set([
-  "scoped_org",
-  "scoped_fk_path",
-  "scoped_pending_default_deny",
-  "bootstrap_hybrid",
-  "bootstrap_hybrid_org_gated",
-  "bootstrap_runtime_audience",
-  "bootstrap_runtime_audit",
-  "bootstrap_global_read",
-  "explicit_global",
-  "legacy_frozen_deny",
-  "deny",
+  'scoped_org',
+  'scoped_fk_path',
+  'scoped_pending_default_deny',
+  'bootstrap_hybrid',
+  'bootstrap_hybrid_org_gated',
+  'bootstrap_runtime_audience',
+  'bootstrap_runtime_audit',
+  'bootstrap_global_read',
+  'explicit_global',
+  'legacy_frozen_deny',
+  'deny',
 ]);
 
 export const expectedP09EnforceActionCounts = Object.freeze({
@@ -46,19 +46,19 @@ export const expectedP09EnforceActionCounts = Object.freeze({
   legacy_frozen_deny: 9,
 });
 
-const orgColumnScopedKinds = new Set(["direct_org_column", "denorm_org_column", "self_org_id"]);
+const orgColumnScopedKinds = new Set(['direct_org_column', 'denorm_org_column', 'self_org_id']);
 
-function defaultDenyDescriptor(table = "<unknown>", reason = "missing_or_unknown_descriptor") {
+function defaultDenyDescriptor(table = '<unknown>', reason = 'missing_or_unknown_descriptor') {
   return {
     table,
-    tier: "UNKNOWN",
-    scopingKind: "missing_descriptor",
-    predicateTemplate: "deny_all",
+    tier: 'UNKNOWN',
+    scopingKind: 'missing_descriptor',
+    predicateTemplate: 'deny_all',
     source: reason,
     enforceMode: {
-      action: "deny",
+      action: 'deny',
       failClosed: true,
-      fallback: "deny",
+      fallback: 'deny',
       reason,
     },
   };
@@ -73,143 +73,150 @@ export function buildP09EnforceDescriptor(descriptor) {
     ...descriptor,
     enforceMode: {
       failClosed: true,
-      fallback: "deny",
+      fallback: 'deny',
     },
   };
 
-  if (descriptor.tier === "SCOPED") {
+  if (descriptor.tier === 'SCOPED') {
     if (orgColumnScopedKinds.has(descriptor.scopingKind)) {
       return {
         ...base,
-        predicateTemplate: "org_column_matches_app_org_enforce",
+        predicateTemplate: 'org_column_matches_app_org_enforce',
         enforceMode: {
           ...base.enforceMode,
-          action: "scoped_org",
-          reason: "scoped_row_requires_matching_app_org",
+          action: 'scoped_org',
+          reason: 'scoped_row_requires_matching_app_org',
         },
       };
     }
 
-    if (descriptor.scopingKind === "fk_path") {
+    if (descriptor.scopingKind === 'fk_path') {
       return {
         ...base,
-        predicateTemplate: "fk_path_parent_org_matches_app_org_enforce",
+        predicateTemplate: 'fk_path_parent_org_matches_app_org_enforce',
         enforceMode: {
           ...base.enforceMode,
-          action: "scoped_fk_path",
-          reason: "scoped_fk_path_requires_matching_app_org",
+          action: 'scoped_fk_path',
+          reason: 'scoped_fk_path_requires_matching_app_org',
         },
       };
     }
 
-    if (descriptor.scopingKind === "polymorphic_resolver") {
+    if (descriptor.scopingKind === 'polymorphic_resolver') {
       return {
         ...base,
-        predicateTemplate: "deny_all",
+        predicateTemplate: 'deny_all',
         enforceMode: {
           ...base.enforceMode,
-          action: "scoped_pending_default_deny",
-          reason: "polymorphic_resolver_requires_p0_12_1_before_enforce",
+          action: 'scoped_pending_default_deny',
+          reason: 'polymorphic_resolver_requires_p0_12_1_before_enforce',
         },
       };
     }
   }
 
-  if (descriptor.tier === "BOOTSTRAP") {
-    if (descriptor.scopingKind === "bootstrap_hybrid") {
+  if (descriptor.tier === 'BOOTSTRAP') {
+    if (descriptor.scopingKind === 'bootstrap_hybrid') {
       return {
         ...base,
-        predicateTemplate: "organization_id_is_null_or_matches_app_org",
+        predicateTemplate: 'organization_id_is_null_or_matches_app_org',
         enforceMode: {
           ...base.enforceMode,
-          action: "bootstrap_hybrid",
-          reason: "global_rows_readable_pre_context_org_rows_require_matching_app_org",
+          action: 'bootstrap_hybrid',
+          reason: 'global_rows_readable_pre_context_org_rows_require_matching_app_org',
         },
       };
     }
 
-    if (descriptor.scopingKind === "bootstrap_hybrid_org_gated") {
+    if (descriptor.scopingKind === 'bootstrap_hybrid_org_gated') {
       return {
         ...base,
-        predicateTemplate: "org_gated_null_bootstrap",
+        predicateTemplate: 'org_gated_null_bootstrap',
         enforceMode: {
           ...base.enforceMode,
-          action: "bootstrap_hybrid_org_gated",
-          reason: "null_rows_readable_only_to_contextless_bootstrap_org_rows_require_matching_app_org",
+          action: 'bootstrap_hybrid_org_gated',
+          reason:
+            'null_rows_readable_only_to_contextless_bootstrap_org_rows_require_matching_app_org',
         },
       };
     }
 
-    if (descriptor.scopingKind === "bootstrap_runtime_audience") {
+    if (descriptor.scopingKind === 'bootstrap_runtime_audience') {
       return {
         ...base,
-        predicateTemplate: "safe_audience_global_or_tenant_row",
+        predicateTemplate: 'safe_audience_global_or_tenant_row',
         enforceMode: {
           ...base.enforceMode,
-          action: "bootstrap_runtime_audience",
-          reason: "runtime_rows_require_safe_audience_and_global_or_matching_org",
+          action: 'bootstrap_runtime_audience',
+          reason: 'runtime_rows_require_safe_audience_and_global_or_matching_org',
         },
       };
     }
-    if (descriptor.scopingKind === "bootstrap_runtime_audit") {
+    if (descriptor.scopingKind === 'bootstrap_runtime_audit') {
       return {
         ...base,
-        predicateTemplate: "staff_global_or_exact_org_audit",
+        predicateTemplate: 'staff_global_or_exact_org_audit',
         enforceMode: {
           ...base.enforceMode,
-          action: "bootstrap_runtime_audit",
-          reason: "runtime_audit_rows_require_staff_and_global_or_matching_org",
+          action: 'bootstrap_runtime_audit',
+          reason: 'runtime_audit_rows_require_staff_and_global_or_matching_org',
         },
       };
     }
 
-    if (descriptor.scopingKind === "bootstrap_global") {
+    if (descriptor.scopingKind === 'bootstrap_global') {
       return {
         ...base,
-        predicateTemplate: "allow_all_explicit_bootstrap_global",
+        predicateTemplate: 'allow_all_explicit_bootstrap_global',
         enforceMode: {
           ...base.enforceMode,
-          action: "bootstrap_global_read",
-          reason: "identity_bootstrap_readable_before_org_context",
+          action: 'bootstrap_global_read',
+          reason: 'identity_bootstrap_readable_before_org_context',
         },
       };
     }
   }
 
-  if (descriptor.tier === "INFRA" || descriptor.tier === "TELEMETRY") {
+  if (descriptor.tier === 'INFRA' || descriptor.tier === 'TELEMETRY') {
     return {
       ...base,
-      predicateTemplate: "allow_all_explicit_global_exemption",
+      predicateTemplate: 'allow_all_explicit_global_exemption',
       enforceMode: {
         ...base.enforceMode,
-        action: "explicit_global",
+        action: 'explicit_global',
         reason: descriptor.source,
       },
     };
   }
 
-  if (descriptor.tier === "LEGACY") {
+  if (descriptor.tier === 'LEGACY') {
     return {
       ...base,
-      predicateTemplate: "deny_all",
+      predicateTemplate: 'deny_all',
       enforceMode: {
         ...base.enforceMode,
-        action: "legacy_frozen_deny",
-        reason: "legacy_frozen_until_sunset_no_enforce_read_path",
+        action: 'legacy_frozen_deny',
+        reason: 'legacy_frozen_until_sunset_no_enforce_read_path',
       },
     };
   }
 
-  return defaultDenyDescriptor(descriptor.table, "unsupported_descriptor_state");
+  return defaultDenyDescriptor(descriptor.table, 'unsupported_descriptor_state');
 }
 
 export function buildP09EnforceDescriptors({ descriptors = buildRlsDescriptors() } = {}) {
   return new Map(
-    Array.from(descriptors.entries()).map(([table, descriptor]) => [table, buildP09EnforceDescriptor(descriptor)]),
+    Array.from(descriptors.entries()).map(([table, descriptor]) => [
+      table,
+      buildP09EnforceDescriptor(descriptor),
+    ]),
   );
 }
 
-export function getP09EnforceDescriptorByTable(table, { descriptors = buildRlsDescriptors() } = {}) {
+export function getP09EnforceDescriptorByTable(
+  table,
+  { descriptors = buildRlsDescriptors() } = {},
+) {
   return buildP09EnforceDescriptors({ descriptors }).get(table) ?? defaultDenyDescriptor(table);
 }
 
@@ -218,7 +225,9 @@ function sortedDescriptors(descriptors) {
 }
 
 export function getP09EnforceDescriptors({ descriptors = buildRlsDescriptors() } = {}) {
-  const enforceDescriptors = sortedDescriptors(Array.from(buildP09EnforceDescriptors({ descriptors }).values()));
+  const enforceDescriptors = sortedDescriptors(
+    Array.from(buildP09EnforceDescriptors({ descriptors }).values()),
+  );
 
   assertP09EnforceDescriptors(enforceDescriptors);
 
@@ -245,7 +254,7 @@ export function assertP09EnforceDescriptors(descriptors) {
   }
 
   if (actualSet.size !== actualTables.length) {
-    throw new Error("P0.9 enforce descriptors contain duplicate tables");
+    throw new Error('P0.9 enforce descriptors contain duplicate tables');
   }
 
   const counts = countP09EnforceActions(descriptors);
@@ -269,7 +278,10 @@ export function assertP09EnforceDescriptors(descriptors) {
   }
 
   for (const descriptor of descriptors) {
-    if (descriptor.enforceMode?.failClosed !== true || descriptor.enforceMode?.fallback !== "deny") {
+    if (
+      descriptor.enforceMode?.failClosed !== true ||
+      descriptor.enforceMode?.fallback !== 'deny'
+    ) {
       throw new Error(`${descriptor.table} must declare fail-closed enforce fallback`);
     }
   }
@@ -281,10 +293,10 @@ export function assertP09EnforceDescriptors(descriptors) {
 // wall automatically. Staff (org-wide, variant A) is unaffected — the staff-actor check always
 // bypasses the patient branch.
 export function renderP09EnforcePredicate(descriptor) {
-  const action = descriptor?.enforceMode?.action ?? "deny";
+  const action = descriptor?.enforceMode?.action ?? 'deny';
 
-  if (action === "scoped_org") {
-    const orgPredicate = renderOrgPredicate(descriptor, { mode: "enforce" });
+  if (action === 'scoped_org') {
+    const orgPredicate = renderOrgPredicate(descriptor, { mode: 'enforce' });
 
     if (!hasAnyPatientOwnership(descriptor)) {
       return orgPredicate;
@@ -293,8 +305,8 @@ export function renderP09EnforcePredicate(descriptor) {
     return `(${orgPredicate} AND ${renderStaffOrPatientPredicateForDescriptor(descriptor)})`;
   }
 
-  if (action === "scoped_fk_path") {
-    const orgPredicate = renderFkPathPredicate(descriptor, { mode: "enforce" });
+  if (action === 'scoped_fk_path') {
+    const orgPredicate = renderFkPathPredicate(descriptor, { mode: 'enforce' });
 
     if (!descriptor.patientColumn) {
       return orgPredicate;
@@ -305,41 +317,41 @@ export function renderP09EnforcePredicate(descriptor) {
     return `(${orgPredicate} AND ${staffOrPatient})`;
   }
 
-  if (action === "bootstrap_hybrid") {
+  if (action === 'bootstrap_hybrid') {
     return renderBootstrapHybridPredicate({ orgColumn: descriptor.orgColumn });
   }
 
-  if (action === "bootstrap_hybrid_org_gated") {
+  if (action === 'bootstrap_hybrid_org_gated') {
     return renderBootstrapHybridOrgGatedPredicate({ orgColumn: descriptor.orgColumn });
   }
 
-  if (action === "bootstrap_runtime_audience") {
+  if (action === 'bootstrap_runtime_audience') {
     return renderBootstrapRuntimeAudiencePredicate({
       orgColumn: descriptor.orgColumn,
       audienceColumn: descriptor.audienceColumn,
       safeAudiences: descriptor.safeAudiences,
     });
   }
-  if (action === "bootstrap_runtime_audit") {
+  if (action === 'bootstrap_runtime_audit') {
     return `(${renderStaffActorCheck()} AND ${renderBootstrapHybridPredicate({ orgColumn: descriptor.orgColumn })})`;
   }
 
-  if (action === "bootstrap_global_read" || action === "explicit_global") {
-    return "true";
+  if (action === 'bootstrap_global_read' || action === 'explicit_global') {
+    return 'true';
   }
 
-  return "false";
+  return 'false';
 }
 
 export function renderP09EnforcePolicyStatements(descriptor, { policyName = p09PolicyName } = {}) {
-  if (typeof policyName !== "string" || policyName.length === 0) {
-    throw new Error("Policy name must be a non-empty string");
+  if (typeof policyName !== 'string' || policyName.length === 0) {
+    throw new Error('Policy name must be a non-empty string');
   }
 
   const target = descriptor?.table;
 
-  if (typeof target !== "string" || target.length === 0 || target === "<unknown>") {
-    throw new Error("P0.9 enforce policy requires a concrete table name");
+  if (typeof target !== 'string' || target.length === 0 || target === '<unknown>') {
+    throw new Error('P0.9 enforce policy requires a concrete table name');
   }
 
   const predicate = renderP09EnforcePredicate(descriptor);
@@ -353,24 +365,30 @@ export function renderP09EnforcePolicyStatements(descriptor, { policyName = p09P
 }
 
 export function renderP09EnforcePolicySql({ descriptors = getP09EnforceDescriptors() } = {}) {
-  return descriptors.flatMap((descriptor) => renderP09EnforcePolicyStatements(descriptor)).join("\n");
+  return descriptors
+    .flatMap((descriptor) => renderP09EnforcePolicyStatements(descriptor))
+    .join('\n');
 }
 
 function printCli(format) {
   const descriptors = getP09EnforceDescriptors();
 
-  if (format === "--json") {
+  if (format === '--json') {
     console.log(JSON.stringify(descriptors, null, 2));
     return;
   }
 
-  if (format === "--sql") {
+  if (format === '--sql') {
     console.log(renderP09EnforcePolicySql({ descriptors }));
     return;
   }
 
-  if (format === "--targets" || format == null) {
-    console.log(descriptors.map((descriptor) => `${descriptor.enforceMode.action}\t${descriptor.table}`).join("\n"));
+  if (format === '--targets' || format == null) {
+    console.log(
+      descriptors
+        .map((descriptor) => `${descriptor.enforceMode.action}\t${descriptor.table}`)
+        .join('\n'),
+    );
     return;
   }
 

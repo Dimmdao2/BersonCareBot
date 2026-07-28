@@ -1,7 +1,7 @@
 import type { DeliveryDefaultsPort, DomainContext } from '../../contracts/index.js';
 
 function asRecord(value: unknown): Record<string, unknown> {
-  return typeof value === 'object' && value !== null ? value as Record<string, unknown> : {};
+  return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {};
 }
 
 function asString(value: unknown): string | null {
@@ -38,7 +38,10 @@ export async function applyMessageSendDeliveryPolicy(
   const options: { eventType?: string; inputAction?: string } = {};
   if (ctx.event.type) options.eventType = ctx.event.type;
   if (inputAction != null) options.inputAction = inputAction;
-  const defaults = await deliveryDefaultsPort.getDeliveryDefaults(source, Object.keys(options).length > 0 ? options : undefined);
+  const defaults = await deliveryDefaultsPort.getDeliveryDefaults(
+    source,
+    Object.keys(options).length > 0 ? options : undefined,
+  );
   if (!defaults) return params;
 
   const delivery = asRecord(params.delivery);
@@ -49,13 +52,13 @@ export async function applyMessageSendDeliveryPolicy(
   const hasDelivery = Object.keys(delivery).length > 0;
   const hasRetry = Object.keys(retry).length > 0;
   const hasOnFail = Object.keys(onFail).length > 0;
-  const hasPreferredLinkedChannels = asStringArray(recipientPolicy.preferredLinkedChannels).length > 0;
+  const hasPreferredLinkedChannels =
+    asStringArray(recipientPolicy.preferredLinkedChannels).length > 0;
 
   if (hasDelivery && hasRetry && hasOnFail && hasPreferredLinkedChannels) return params;
 
-  const defaultChannels = defaults.defaultChannels && defaults.defaultChannels.length > 0
-    ? defaults.defaultChannels
-    : [];
+  const defaultChannels =
+    defaults.defaultChannels && defaults.defaultChannels.length > 0 ? defaults.defaultChannels : [];
   const retryProfile = defaults.retry ?? { maxAttempts: 1, backoffSeconds: [] };
   const maxAttempts = hasDelivery
     ? Math.max(1, Math.trunc(asNumber(delivery.maxAttempts) ?? 1))
@@ -65,7 +68,9 @@ export async function applyMessageSendDeliveryPolicy(
     ...params,
     recipientPolicy: {
       ...recipientPolicy,
-      ...(hasPreferredLinkedChannels ? {} : { preferredLinkedChannels: defaults.preferredLinkedChannels ?? [] }),
+      ...(hasPreferredLinkedChannels
+        ? {}
+        : { preferredLinkedChannels: defaults.preferredLinkedChannels ?? [] }),
     },
     ...(hasDelivery ? {} : { delivery: { channels: defaultChannels, maxAttempts } }),
     ...(hasRetry ? {} : { retry: { maxAttempts, backoffSeconds: retryProfile.backoffSeconds } }),

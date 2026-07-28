@@ -11,13 +11,13 @@
 
 ### Фаза 0 — Подготовка (уже выполнено в Stage 2)
 
-| Шаг | Что | Проверка |
-|-----|-----|----------|
-| 0.1 | Применить `046_booking_catalog_v2.sql` | `SELECT count(*) FROM booking_branch_services` > 0 |
-| 0.2 | Применить `047_patient_bookings_v2_refs.sql` | `\d patient_bookings` — видны новые nullable колонки |
-| 0.3 | Запустить `pnpm seed-booking-catalog` | COUNT: 2 cities, 2 branches, 2 specialists, 3 services, 5 branch_services |
-| 0.4 | Запустить `pnpm backfill-patient-bookings-v2` (dry-run) | Отчёт без критических ошибок |
-| 0.5 | Запустить `pnpm backfill-patient-bookings-v2 --commit` | `updated > 0`, `conflicts` задокументированы |
+| Шаг | Что                                                     | Проверка                                                                  |
+| --- | ------------------------------------------------------- | ------------------------------------------------------------------------- |
+| 0.1 | Применить `046_booking_catalog_v2.sql`                  | `SELECT count(*) FROM booking_branch_services` > 0                        |
+| 0.2 | Применить `047_patient_bookings_v2_refs.sql`            | `\d patient_bookings` — видны новые nullable колонки                      |
+| 0.3 | Запустить `pnpm seed-booking-catalog`                   | COUNT: 2 cities, 2 branches, 2 specialists, 3 services, 5 branch_services |
+| 0.4 | Запустить `pnpm backfill-patient-bookings-v2` (dry-run) | Отчёт без критических ошибок                                              |
+| 0.5 | Запустить `pnpm backfill-patient-bookings-v2 --commit`  | `updated > 0`, `conflicts` задокументированы                              |
 
 ---
 
@@ -38,6 +38,7 @@
 ```
 
 **Критерий завершения фазы 1:**
+
 ```sql
 SELECT count(*) FROM patient_bookings
 WHERE branch_service_id IS NOT NULL
@@ -62,6 +63,7 @@ WHERE branch_service_id IS NOT NULL
 ```
 
 **Критерий завершения фазы 2:**
+
 - Тест: mixed data (legacy + v2 записи) рендерится без ошибок.
 - `branch_service_id IS NOT NULL` — у всех новых записей (созданных после фазы 1).
 
@@ -83,6 +85,7 @@ WHERE branch_service_id IS NOT NULL
 ```
 
 **Переключение:**
+
 1. Задеплоить webapp с флагом `BOOKING_V2_ONLY=true` (или убрать v1 fallback).
 2. Задеплоить integrator с отключённым legacy `bookingScheduleMapping`.
 3. Проверить: новые записи — `branch_service_id IS NOT NULL`.

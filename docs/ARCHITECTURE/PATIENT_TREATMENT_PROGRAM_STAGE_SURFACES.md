@@ -14,9 +14,9 @@
 
 ## Два фильтра
 
-| Функция | Назначение |
-|--------|------------|
-| `isInstanceStageItemShownOnPatientProgramSurfaces` | Экраны программы пациента: карточка плана, список пунктов этапа, модалка выбранного пункта (`PatientProgramStageItemModal`). Показываются все активные типы элементов, включая **`clinical_test`**. Скрыты только элементы со статусом `disabled`. |
+| Функция                                             | Назначение                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `isInstanceStageItemShownOnPatientProgramSurfaces`  | Экраны программы пациента: карточка плана, список пунктов этапа, модалка выбранного пункта (`PatientProgramStageItemModal`). Показываются все активные типы элементов, включая **`clinical_test`**. Скрыты только элементы со статусом `disabled`.                                                                                                                                                                                                                     |
 | `isInstanceStageItemShownInPatientCompositionModal` | Модалка «Состав этапа» (timeline): активные элементы, но **без** **`clinical_test`**, чтобы не дублировать тесты в компактном таймлайне. Дополнительно **исключаются** элементы, чей `group_id` указывает на системную группу экземпляра (`system_kind` «Рекомендации» / «Тесты»), чтобы не смешивать их с блоком «упражнения» — у рекомендаций и тестов отдельные блоки UI. Пункты **`clinical_test`** остаются на основных поверхностях программы (см. строку выше). |
 
 Инвариант: исключение **`clinical_test`** из composition modal **не** означает, что тесты «только на отдельной странице» — они перечисляются в контенте этапа и открываются в универсальной модалке пункта / на странице прохождения.
@@ -35,11 +35,11 @@
 
 Только **`assignment_source === doctor`**. Rollout: **`patient_program_discussion_ui_enabled`**; медиа — дополнительно **`patient_program_discussion_media_submission_enabled`**.
 
-| Поверхность | Поведение |
-|-------------|-----------|
-| Секция «Программа этапа» / item page | «Комментарии», badge/unread, «Камера» → `ProgramItemDiscussionDialog` / `ProgramItemDiscussionMediaPicker` |
-| Thread UI | Источник правды — `program_item_discussion_messages`; legacy admin replies — read-time merge из support-чата |
-| ACL медиа submission | `usage_purpose=program_item_submission` — uploader + doctor/admin ([`MEDIA_HTTP_ACCESS_AUTHORIZATION.md`](MEDIA_HTTP_ACCESS_AUTHORIZATION.md)) |
+| Поверхность                          | Поведение                                                                                                                                      |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Секция «Программа этапа» / item page | «Комментарии», badge/unread, «Камера» → `ProgramItemDiscussionDialog` / `ProgramItemDiscussionMediaPicker`                                     |
+| Thread UI                            | Источник правды — `program_item_discussion_messages`; legacy admin replies — read-time merge из support-чата                                   |
+| ACL медиа submission                 | `usage_purpose=program_item_submission` — uploader + doctor/admin ([`MEDIA_HTTP_ACCESS_AUTHORIZATION.md`](MEDIA_HTTP_ACCESS_AUTHORIZATION.md)) |
 
 Канон API и UX: [`program-detail/README.md`](../../../apps/webapp/src/app/app/patient/treatment/program-detail/README.md), инициатива [`PROGRAM_ITEM_DISCUSSION_INITIATIVE/README.md`](../archive/2026-05-initiatives/PROGRAM_ITEM_DISCUSSION_INITIATIVE/README.md), HTTP-реестр — [`api.md`](../../../apps/webapp/src/app/api/api.md).
 
@@ -47,11 +47,11 @@
 
 Отдельная страница пункта (не модалка) использует те же правила видимости элемента, что и остальной пациентский UI программы, и задаёт **контекст навигации** через query-параметры:
 
-| Параметр | Назначение |
-|----------|------------|
-| `nav` | Режим списка для prev/next и допустимого состава: `default` (тело этапа), `program` (composition modal), **`exec`** (выполняемые пункты без **`clinical_test`** и без persistent-рекомендаций — как секция «Программа этапа»), **`rec-read`** (единый список persistent: рабочий этап, затем этап 0), `rec-stage` / `rec-zero` / `rec-persist`, **`tests`** (плоский обход тестов по всем активным **`clinical_test`** рабочего этапа). Разбор: `parsePatientProgramItemNavMode` в `patientProgramItemPageResolve.ts`. |
-| `planTab` | Вкладка детали программы при возврате (`program` / `recommendations` / …): `parsePatientPlanTab`. |
-| `testId` | Только при `nav=tests`: uuid теста из `snapshot.tests[]` снимка элемента **`clinical_test`** (один ожидаемый тест; при необходимости массив `tests[]` совместим с legacy). RSC при несовпадении с каноном **редиректит** на пару `(itemId, testId)` первого слота или найденного по `testId` (см. `item/[itemId]/page.tsx`). |
+| Параметр  | Назначение                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `nav`     | Режим списка для prev/next и допустимого состава: `default` (тело этапа), `program` (composition modal), **`exec`** (выполняемые пункты без **`clinical_test`** и без persistent-рекомендаций — как секция «Программа этапа»), **`rec-read`** (единый список persistent: рабочий этап, затем этап 0), `rec-stage` / `rec-zero` / `rec-persist`, **`tests`** (плоский обход тестов по всем активным **`clinical_test`** рабочего этапа). Разбор: `parsePatientProgramItemNavMode` в `patientProgramItemPageResolve.ts`. |
+| `planTab` | Вкладка детали программы при возврате (`program` / `recommendations` / …): `parsePatientPlanTab`.                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `testId`  | Только при `nav=tests`: uuid теста из `snapshot.tests[]` снимка элемента **`clinical_test`** (один ожидаемый тест; при необходимости массив `tests[]` совместим с legacy). RSC при несовпадении с каноном **редиректит** на пару `(itemId, testId)` первого слота или найденного по `testId` (см. `item/[itemId]/page.tsx`).                                                                                                                                                                                           |
 
 Единый источник порядка id/слотов для ссылок в UI и для серверного `resolvePatientProgramItemPage`: **`patientProgramItemNavLists.ts`** — `flatExecIds`, `flatRecReadIds`, `flatTestSlots`.
 

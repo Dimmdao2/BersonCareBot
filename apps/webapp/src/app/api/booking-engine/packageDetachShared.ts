@@ -1,10 +1,10 @@
-import { NextResponse } from "next/server";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { emitPackageCalendarSync } from "@/app-layer/booking/emitPackageCalendarSync";
-import { createBookingSyncPort } from "@/modules/integrator/bookingM2mApi";
-import { withDefaultCancellationPolicy } from "@/modules/booking-policies/service";
-import type { PackageDetachOutcome } from "@/modules/memberships/service";
-import { membershipErrorResponse } from "./patientPackagesRouteShared";
+import { NextResponse } from 'next/server';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { emitPackageCalendarSync } from '@/app-layer/booking/emitPackageCalendarSync';
+import { createBookingSyncPort } from '@/modules/integrator/bookingM2mApi';
+import { withDefaultCancellationPolicy } from '@/modules/booking-policies/service';
+import type { PackageDetachOutcome } from '@/modules/memberships/service';
+import { membershipErrorResponse } from './patientPackagesRouteShared';
 
 const DETACH_ERROR_STATUS: Record<string, number> = {
   appointment_not_found: 404,
@@ -25,12 +25,12 @@ export async function runPackageDetach(params: {
 }) {
   const deps = buildAppDeps();
   if (!deps.memberships || !deps.bookingEngine) {
-    return NextResponse.json({ ok: false, error: "memberships_unavailable" }, { status: 503 });
+    return NextResponse.json({ ok: false, error: 'memberships_unavailable' }, { status: 503 });
   }
 
   const appt = await deps.bookingEngine.getAppointment(params.appointmentId);
   if (!appt) {
-    return NextResponse.json({ ok: false, error: "appointment_not_found" }, { status: 404 });
+    return NextResponse.json({ ok: false, error: 'appointment_not_found' }, { status: 404 });
   }
 
   const policyCtx = {
@@ -43,14 +43,14 @@ export async function runPackageDetach(params: {
   const policy = withDefaultCancellationPolicy(resolved ?? null, params.organizationId);
 
   const allowPastRow = await deps.systemSettings?.getSetting(
-    "booking_allow_doctor_unlink_past_package_sessions",
-    "admin",
+    'booking_allow_doctor_unlink_past_package_sessions',
+    'admin',
   );
   const allowPastUnlink =
     allowPastRow?.valueJson === true ||
-    (typeof allowPastRow?.valueJson === "object" &&
+    (typeof allowPastRow?.valueJson === 'object' &&
       allowPastRow?.valueJson !== null &&
-      "value" in (allowPastRow.valueJson as object) &&
+      'value' in (allowPastRow.valueJson as object) &&
       (allowPastRow.valueJson as { value?: unknown }).value === true);
 
   try {
@@ -72,14 +72,14 @@ export async function runPackageDetach(params: {
       await emitPackageCalendarSync({
         syncPort: createBookingSyncPort(),
         appointment,
-        eventType: "booking.package_unlinked",
+        eventType: 'booking.package_unlinked',
       });
     }
     return NextResponse.json({ ok: true, result });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "detach_failed";
+    const msg = e instanceof Error ? e.message : 'detach_failed';
     const status = DETACH_ERROR_STATUS[msg] ?? 400;
-    if (status === 400 && msg !== "detach_failed") {
+    if (status === 400 && msg !== 'detach_failed') {
       return NextResponse.json({ ok: false, error: msg }, { status });
     }
     return membershipErrorResponse(e);

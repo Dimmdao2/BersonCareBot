@@ -1,20 +1,17 @@
 #!/usr/bin/env node
 
-import assert from "node:assert/strict";
-import { createRequire } from "node:module";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
+import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
-const standaloneRoot = path.resolve(scriptDir, "../.next/standalone");
-const standaloneSharp = path.join(
-  standaloneRoot,
-  "node_modules/.pnpm/node_modules/sharp",
-);
+const standaloneRoot = path.resolve(scriptDir, '../.next/standalone');
+const standaloneSharp = path.join(standaloneRoot, 'node_modules/.pnpm/node_modules/sharp');
 const require = createRequire(import.meta.url);
 const sharp = require(standaloneSharp);
 
-assert.equal(sharp.versions.sharp, "0.35.3");
+assert.equal(sharp.versions.sharp, '0.35.3');
 
 const original = await sharp({
   create: {
@@ -28,7 +25,7 @@ const original = await sharp({
   .toBuffer();
 const preview = await sharp(original)
   .rotate()
-  .resize(16, 16, { fit: "inside" })
+  .resize(16, 16, { fit: 'inside' })
   .jpeg({ quality: 82 })
   .toBuffer();
 const metadata = await sharp(preview).metadata();
@@ -41,7 +38,7 @@ assert.deepEqual(
     channels: metadata.channels,
   },
   {
-    format: "jpeg",
+    format: 'jpeg',
     width: 16,
     height: 12,
     channels: 3,

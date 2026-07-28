@@ -10,20 +10,20 @@
  * Возвращает массив точек `ExerciseMetricPoint[]` (reps, weightKg, sets, difficulty)
  * за последние 7 дней (UTC). Только записи `action_type = done`.
  */
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
-import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
-import { resolveDoctorInstanceInWorkspace } from "@/app/api/doctor/treatment-program-instances/_doctorInstanceWorkspace";
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
+import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import { resolveDoctorInstanceInWorkspace } from '@/app/api/doctor/treatment-program-instances/_doctorInstanceWorkspace';
 
 const querySchema = z.object({
   instanceId: z.string().uuid(),
   stageItemId: z.string().uuid(),
   windowDays: z
-    .enum(["7", "30"])
+    .enum(['7', '30'])
     .optional()
-    .transform((v) => (v === "30" ? 30 : 7) as 7 | 30),
+    .transform((v) => (v === '30' ? 30 : 7) as 7 | 30),
 });
 
 export async function GET(request: Request) {
@@ -32,12 +32,12 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const parsed = querySchema.safeParse({
-    instanceId: searchParams.get("instanceId"),
-    stageItemId: searchParams.get("stageItemId"),
-    windowDays: searchParams.get("windowDays") ?? undefined,
+    instanceId: searchParams.get('instanceId'),
+    stageItemId: searchParams.get('stageItemId'),
+    windowDays: searchParams.get('windowDays') ?? undefined,
   });
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_query" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_query' }, { status: 400 });
   }
 
   const { instanceId, stageItemId, windowDays } = parsed.data;
@@ -51,7 +51,7 @@ export async function GET(request: Request) {
       stage.items.some((item) => item.id === stageItemId),
     );
     if (!itemBelongsToInstance) {
-      return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+      return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
     }
 
     const points = await withDoctorWorkspacePrincipal(gate.ctx, () =>
@@ -63,6 +63,6 @@ export async function GET(request: Request) {
     );
     return NextResponse.json({ ok: true, points });
   } catch {
-    return NextResponse.json({ ok: false, error: "server_error" }, { status: 500 });
+    return NextResponse.json({ ok: false, error: 'server_error' }, { status: 500 });
   }
 }

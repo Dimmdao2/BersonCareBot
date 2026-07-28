@@ -1,23 +1,23 @@
-"use client";
+'use client';
 
-import { useEffect, useState, useTransition } from "react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { DoctorModal } from "@/shared/ui/doctor/DoctorModal";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
-import { LabeledSwitch } from "@/shared/ui/doctor/primitives/labeled-switch";
-import type { SpecialistTaskRow } from "@/modules/specialist-tasks/types";
-import { DoctorDateTimePicker } from "@/shared/ui/doctor/DoctorDateTimePicker";
+import { useEffect, useState, useTransition } from 'react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
+import { LabeledSwitch } from '@/shared/ui/doctor/primitives/labeled-switch';
+import type { SpecialistTaskRow } from '@/modules/specialist-tasks/types';
+import { DoctorDateTimePicker } from '@/shared/ui/doctor/DoctorDateTimePicker';
 import {
   DoctorCalendarPatientSearch,
   type CalendarPatientOption,
-} from "@/app/app/doctor/calendar/DoctorCalendarPatientSearch";
+} from '@/app/app/doctor/calendar/DoctorCalendarPatientSearch';
 
 function toLocalInput(iso: string | null): string {
-  if (!iso) return "";
+  if (!iso) return '';
   const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  const pad = (n: number) => String(n).padStart(2, "0");
+  if (Number.isNaN(d.getTime())) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
@@ -41,8 +41,8 @@ type FormFieldsProps = {
 };
 
 function SpecialistTaskFormContent({ patientUserId, editing, onSaved, onClose }: FormFieldsProps) {
-  const [title, setTitle] = useState(editing?.title ?? "");
-  const [description, setDescription] = useState(editing?.description ?? "");
+  const [title, setTitle] = useState(editing?.title ?? '');
+  const [description, setDescription] = useState(editing?.description ?? '');
   const [dueAt, setDueAt] = useState(() => toLocalInput(editing?.dueAt ?? null));
   const [remindAt, setRemindAt] = useState(() => toLocalInput(editing?.remindAt ?? null));
   const [isImportant, setIsImportant] = useState(editing?.isImportant ?? false);
@@ -58,7 +58,7 @@ function SpecialistTaskFormContent({ patientUserId, editing, onSaved, onClose }:
     if (editing?.patientUserId) {
       // We only have the id; display name won't be available here without an API call.
       // Render with a placeholder label — the picker will let doctor re-select if needed.
-      return { id: editing.patientUserId, displayName: "Загрузка…", phone: null };
+      return { id: editing.patientUserId, displayName: 'Загрузка…', phone: null };
     }
     return null;
   });
@@ -93,9 +93,7 @@ function SpecialistTaskFormContent({ patientUserId, editing, onSaved, onClose }:
 
   function handleSubmit() {
     setError(null);
-    const effectivePatientUserId = isGlobal
-      ? (linkedPatient?.id ?? null)
-      : patientUserId;
+    const effectivePatientUserId = isGlobal ? (linkedPatient?.id ?? null) : patientUserId;
 
     const body = {
       title,
@@ -111,24 +109,22 @@ function SpecialistTaskFormContent({ patientUserId, editing, onSaved, onClose }:
           ? `/api/doctor/tasks/${encodeURIComponent(editing.id)}`
           : effectivePatientUserId
             ? `/api/doctor/clients/${encodeURIComponent(effectivePatientUserId)}/tasks`
-            : "/api/doctor/tasks";
+            : '/api/doctor/tasks';
         const res = await fetch(url, {
-          method: editing ? "PATCH" : "POST",
-          headers: { "Content-Type": "application/json" },
+          method: editing ? 'PATCH' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(
-            isGlobal && !editing
-              ? { ...body, patientUserId: effectivePatientUserId }
-              : body,
+            isGlobal && !editing ? { ...body, patientUserId: effectivePatientUserId } : body,
           ),
         });
         if (!res.ok) {
-          setError("Не удалось сохранить");
+          setError('Не удалось сохранить');
           return;
         }
         onSaved();
         onClose();
       } catch {
-        setError("Ошибка сети");
+        setError('Ошибка сети');
       }
     });
   }
@@ -175,7 +171,7 @@ function SpecialistTaskFormContent({ patientUserId, editing, onSaved, onClose }:
           Отмена
         </Button>
         <Button type="button" onClick={handleSubmit} disabled={isPending || !title.trim()}>
-          {isPending ? "Сохранение…" : "Сохранить"}
+          {isPending ? 'Сохранение…' : 'Сохранить'}
         </Button>
       </div>
     </div>
@@ -201,12 +197,12 @@ export function SpecialistTaskFormDialog({
     <DoctorModal
       open={open}
       onClose={() => onOpenChange(false)}
-      title={editing ? "Изменить задачу" : "Новая задача"}
+      title={editing ? 'Изменить задачу' : 'Новая задача'}
       size="sm"
     >
       {open ? (
         <SpecialistTaskFormContent
-          key={editing?.id ?? "new"}
+          key={editing?.id ?? 'new'}
           patientUserId={patientUserId}
           editing={editing}
           onSaved={onSaved}

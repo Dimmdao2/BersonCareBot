@@ -56,11 +56,13 @@ This targets `[userId]/page.tsx` (confirmed present at `apps/webapp/src/app/app/
 **PASS**
 
 **как проверено:** File lines 34–36:
+
 ```ts
 if (!z.string().uuid().safeParse(userId).success) {
   notFound();
 }
 ```
+
 UUID check executes before the `find` logic (lines 39–42). Order is correct: invalid userId triggers `notFound()` before any redirect is attempted. Zod's `.uuid()` validator is the canonical repo-wide pattern for UUID validation.
 
 ---
@@ -70,6 +72,7 @@ UUID check executes before the `find` logic (lines 39–42). Order is correct: i
 **PASS**
 
 **как проверено:** Directory structure confirms (from `find` output):
+
 ```
 [userId]/
   page.tsx                        (exact match: /patients/<id>)
@@ -93,14 +96,14 @@ There is also a `tabs/` directory with component files only (no `page.tsx`), so 
 
 ## Summary table
 
-| Clause | Verdict | Key evidence |
-|--------|---------|--------------|
-| 1. Execution trace — all 5 cases | PASS | Logic trace on file lines 39–42 |
-| 2. Security — VALID_TABS bypass | PASS | Set is const, 8 literals, no mutation |
-| 3. Redirect destination correctness | PASS | `routePaths.doctorPatients` = `/app/doctor/patients`; page.tsx reads `?tab=` |
-| 4. UUID validation present and ordered | PASS | Lines 34–36, executes before find |
-| 5. Route precedence preserved | PASS | `programs/[instanceId]` static-prefix wins; no `page.tsx` in `tabs/` |
-| 6. §6 compliance | PASS | No SQL, no drizzle, no duplication, TSC clean |
+| Clause                                 | Verdict | Key evidence                                                                 |
+| -------------------------------------- | ------- | ---------------------------------------------------------------------------- |
+| 1. Execution trace — all 5 cases       | PASS    | Logic trace on file lines 39–42                                              |
+| 2. Security — VALID_TABS bypass        | PASS    | Set is const, 8 literals, no mutation                                        |
+| 3. Redirect destination correctness    | PASS    | `routePaths.doctorPatients` = `/app/doctor/patients`; page.tsx reads `?tab=` |
+| 4. UUID validation present and ordered | PASS    | Lines 34–36, executes before find                                            |
+| 5. Route precedence preserved          | PASS    | `programs/[instanceId]` static-prefix wins; no `page.tsx` in `tabs/`         |
+| 6. §6 compliance                       | PASS    | No SQL, no drizzle, no duplication, TSC clean                                |
 
 ---
 

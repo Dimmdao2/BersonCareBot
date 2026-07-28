@@ -1,7 +1,7 @@
 /**
  * @deprecated Для списков на пациентских страницах используйте `/app/patient/sections/[slug]` и `content_pages`.
  */
-import type { ContentPagesPort } from "@/infra/repos/pgContentPages";
+import type { ContentPagesPort } from '@/infra/repos/pgContentPages';
 
 export type EmergencyTopic = {
   id: string;
@@ -11,26 +11,28 @@ export type EmergencyTopic = {
 
 const hardcodedTopics: EmergencyTopic[] = [
   {
-    id: "back-pain",
-    title: "Острая боль в спине",
-    summary: "Быстрые рекомендации и безопасные первые шаги перед обращением к специалисту.",
+    id: 'back-pain',
+    title: 'Острая боль в спине',
+    summary: 'Быстрые рекомендации и безопасные первые шаги перед обращением к специалисту.',
   },
   {
-    id: "neck-pain",
-    title: "Острая боль в шее",
-    summary: "Короткие рекомендации для снижения нагрузки и наблюдения за симптомами.",
+    id: 'neck-pain',
+    title: 'Острая боль в шее',
+    summary: 'Короткие рекомендации для снижения нагрузки и наблюдения за симптомами.',
   },
   {
-    id: "panic-attack",
-    title: "Паническая атака",
-    summary: "Поддерживающий сценарий с базовым дыханием и переходом к записи на прием.",
+    id: 'panic-attack',
+    title: 'Паническая атака',
+    summary: 'Поддерживающий сценарий с базовым дыханием и переходом к записи на прием.',
   },
 ];
 
-export async function listEmergencyTopics(contentPages?: ContentPagesPort): Promise<EmergencyTopic[]> {
+export async function listEmergencyTopics(
+  contentPages?: ContentPagesPort,
+): Promise<EmergencyTopic[]> {
   if (contentPages) {
     try {
-      const rows = await contentPages.listBySection("emergency");
+      const rows = await contentPages.listBySection('emergency');
       if (rows.length > 0) {
         return rows.map((r) => ({
           id: r.slug,
@@ -39,7 +41,7 @@ export async function listEmergencyTopics(contentPages?: ContentPagesPort): Prom
         }));
       }
     } catch (err) {
-      console.error("content DB fallback:", err);
+      console.error('content DB fallback:', err);
       // fallback to hardcoded data
     }
   }

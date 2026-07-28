@@ -16,7 +16,10 @@ const parsed = z
     DATABASE_URL_DIAGNOSTIC: z.string().optional().default(''),
     DATABASE_URL_DELIVERY_WORKER: z.string().optional().default(''),
     DATABASE_URL_SCHEDULER: z.string().optional().default(''),
-    DB_PRINCIPAL_CONTEXT_MODE: z.enum(['legacy-guc', 'shadow', 'locked']).optional().default('legacy-guc'),
+    DB_PRINCIPAL_CONTEXT_MODE: z
+      .enum(['legacy-guc', 'shadow', 'locked'])
+      .optional()
+      .default('legacy-guc'),
     DB_PRINCIPAL_SIGNING_SECRET: z
       .string()
       .optional()
@@ -50,7 +53,8 @@ const parsed = z
   .parse(process.env);
 
 if (
-  (parsed.DB_PRINCIPAL_CONTEXT_MODE === 'shadow' || parsed.DB_PRINCIPAL_CONTEXT_MODE === 'locked') &&
+  (parsed.DB_PRINCIPAL_CONTEXT_MODE === 'shadow' ||
+    parsed.DB_PRINCIPAL_CONTEXT_MODE === 'locked') &&
   !parsed.DB_PRINCIPAL_SIGNING_SECRET
 ) {
   throw new Error(

@@ -1,17 +1,17 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { DoctorModal } from "@/shared/ui/doctor/DoctorModal";
-import { Label } from "@/shared/ui/doctor/primitives/label";
-import type { ReferenceItemDto } from "@/modules/references/referenceCache";
-import { ReferenceSelect } from "@/shared/ui/doctor/ReferenceSelect";
-import type { ProgramItemDiscussionMessage } from "@/modules/program-item-discussion/types";
-import { DoctorProgramDiscussionMessagesPanel } from "./DoctorProgramDiscussionMessagesPanel";
-import { markDoctorProgramDiscussionReadForStageItems } from "@/app/app/doctor/doctorProgramDiscussionMarkRead";
-import { sendDoctorProgramDiscussionReply } from "./doctorProgramDiscussionReply";
-import { deleteDoctorProgramDiscussionMediaMessage } from "./doctorProgramDiscussionDeleteMedia";
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
+import { Label } from '@/shared/ui/doctor/primitives/label';
+import type { ReferenceItemDto } from '@/modules/references/referenceCache';
+import { ReferenceSelect } from '@/shared/ui/doctor/ReferenceSelect';
+import type { ProgramItemDiscussionMessage } from '@/modules/program-item-discussion/types';
+import { DoctorProgramDiscussionMessagesPanel } from './DoctorProgramDiscussionMessagesPanel';
+import { markDoctorProgramDiscussionReadForStageItems } from '@/app/app/doctor/doctorProgramDiscussionMarkRead';
+import { sendDoctorProgramDiscussionReply } from './doctorProgramDiscussionReply';
+import { deleteDoctorProgramDiscussionMediaMessage } from './doctorProgramDiscussionDeleteMedia';
 
-export const DOCTOR_INSTANCE_DISCUSSION_ALL_ITEMS = "__all__";
+export const DOCTOR_INSTANCE_DISCUSSION_ALL_ITEMS = '__all__';
 
 export type DoctorProgramInstanceDiscussionItemOption = {
   id: string;
@@ -46,20 +46,25 @@ export function DoctorProgramInstanceDiscussionDialog(props: {
   onOpenChange: (open: boolean) => void;
 }) {
   const { instanceId, programItems, open, onOpenChange } = props;
-  const [filterStageItemId, setFilterStageItemId] = useState<string>(DOCTOR_INSTANCE_DISCUSSION_ALL_ITEMS);
+  const [filterStageItemId, setFilterStageItemId] = useState<string>(
+    DOCTOR_INSTANCE_DISCUSSION_ALL_ITEMS,
+  );
   const [messages, setMessages] = useState<ProgramItemDiscussionMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [messageCountByItemId, setMessageCountByItemId] = useState<Record<string, number>>({});
-  const [peerLastReadAtByStageItemId, setPeerLastReadAtByStageItemId] = useState<Record<string, string | null>>(
-    {},
-  );
+  const [peerLastReadAtByStageItemId, setPeerLastReadAtByStageItemId] = useState<
+    Record<string, string | null>
+  >({});
   const loadGenerationRef = useRef(0);
   const filterStageItemIdRef = useRef(filterStageItemId);
 
-  const itemLabelById = useMemo(() => new Map(programItems.map((item) => [item.id, item.label])), [programItems]);
+  const itemLabelById = useMemo(
+    () => new Map(programItems.map((item) => [item.id, item.label])),
+    [programItems],
+  );
 
   const formatItemOptionLabel = useCallback(
     (item: DoctorProgramInstanceDiscussionItemOption) => {
@@ -93,17 +98,17 @@ export function DoctorProgramInstanceDiscussionDialog(props: {
       generation: number,
     ): Promise<ProgramItemDiscussionMessage[] | null> => {
       const url = new URL(basePath, window.location.origin);
-      url.searchParams.set("direction", "backward");
-      url.searchParams.set("limit", "50");
+      url.searchParams.set('direction', 'backward');
+      url.searchParams.set('limit', '50');
       if (stageItemId !== DOCTOR_INSTANCE_DISCUSSION_ALL_ITEMS) {
-        url.searchParams.set("stageItemId", stageItemId);
+        url.searchParams.set('stageItemId', stageItemId);
       }
-      if (cursor) url.searchParams.set("cursor", cursor);
+      if (cursor) url.searchParams.set('cursor', cursor);
       const res = await fetch(url.toString());
       const data = (await res.json().catch(() => null)) as DiscussionPageResponse | null;
       if (generation !== loadGenerationRef.current) return null;
       if (!res.ok || !data?.ok || !Array.isArray(data.messages)) {
-        throw new Error(data?.error ?? "Не удалось загрузить обсуждения");
+        throw new Error(data?.error ?? 'Не удалось загрузить обсуждения');
       }
       const loaded = data.messages;
       setMessages((prev) => {
@@ -112,9 +117,14 @@ export function DoctorProgramInstanceDiscussionDialog(props: {
         for (const msg of loaded) map.set(msg.id, msg);
         return [...map.values()].sort(compareMessages);
       });
-      setNextCursor(typeof data.pageInfo?.nextCursor === "string" ? data.pageInfo.nextCursor : null);
+      setNextCursor(
+        typeof data.pageInfo?.nextCursor === 'string' ? data.pageInfo.nextCursor : null,
+      );
       if (data.peerLastReadAtByStageItemId) {
-        setPeerLastReadAtByStageItemId((prev) => ({ ...prev, ...data.peerLastReadAtByStageItemId }));
+        setPeerLastReadAtByStageItemId((prev) => ({
+          ...prev,
+          ...data.peerLastReadAtByStageItemId,
+        }));
       }
       return loaded;
     },
@@ -146,7 +156,7 @@ export function DoctorProgramInstanceDiscussionDialog(props: {
       }
     } catch (e) {
       if (generation !== loadGenerationRef.current) return;
-      const msg = e instanceof Error ? e.message : "Не удалось загрузить обсуждения";
+      const msg = e instanceof Error ? e.message : 'Не удалось загрузить обсуждения';
       setError(msg);
     } finally {
       if (generation === loadGenerationRef.current) {
@@ -155,29 +165,32 @@ export function DoctorProgramInstanceDiscussionDialog(props: {
     }
   }, [filterStageItemId, loadPage, markVisibleDiscussionRead]);
 
-  const refreshSummary = useCallback(async (generation: number = loadGenerationRef.current) => {
-    try {
-      const url = new URL(`${basePath}/summary`, window.location.origin);
-      const res = await fetch(url.toString());
-      const data = (await res.json().catch(() => null)) as {
-        ok?: boolean;
-        summaryByStageItemId?: Record<string, { totalCount?: number }>;
-      } | null;
-      if (!res.ok || !data?.ok || !data.summaryByStageItemId) return;
-      if (generation !== loadGenerationRef.current) return;
-      const next: Record<string, number> = {};
-      for (const [id, summary] of Object.entries(data.summaryByStageItemId)) {
-        const count = summary?.totalCount;
-        if (typeof count === "number" && Number.isFinite(count) && count > 0) {
-          next[id] = Math.floor(count);
+  const refreshSummary = useCallback(
+    async (generation: number = loadGenerationRef.current) => {
+      try {
+        const url = new URL(`${basePath}/summary`, window.location.origin);
+        const res = await fetch(url.toString());
+        const data = (await res.json().catch(() => null)) as {
+          ok?: boolean;
+          summaryByStageItemId?: Record<string, { totalCount?: number }>;
+        } | null;
+        if (!res.ok || !data?.ok || !data.summaryByStageItemId) return;
+        if (generation !== loadGenerationRef.current) return;
+        const next: Record<string, number> = {};
+        for (const [id, summary] of Object.entries(data.summaryByStageItemId)) {
+          const count = summary?.totalCount;
+          if (typeof count === 'number' && Number.isFinite(count) && count > 0) {
+            next[id] = Math.floor(count);
+          }
         }
+        if (generation !== loadGenerationRef.current) return;
+        setMessageCountByItemId(next);
+      } catch {
+        // summary prefetch is best-effort
       }
-      if (generation !== loadGenerationRef.current) return;
-      setMessageCountByItemId(next);
-    } catch {
-      // summary prefetch is best-effort
-    }
-  }, [basePath]);
+    },
+    [basePath],
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -210,15 +223,18 @@ export function DoctorProgramInstanceDiscussionDialog(props: {
     if (!open) return;
     const refreshPeerRead = async () => {
       const url = new URL(basePath, window.location.origin);
-      url.searchParams.set("direction", "backward");
-      url.searchParams.set("limit", "1");
+      url.searchParams.set('direction', 'backward');
+      url.searchParams.set('limit', '1');
       if (filterStageItemIdRef.current !== DOCTOR_INSTANCE_DISCUSSION_ALL_ITEMS) {
-        url.searchParams.set("stageItemId", filterStageItemIdRef.current);
+        url.searchParams.set('stageItemId', filterStageItemIdRef.current);
       }
       const res = await fetch(url.toString());
       const data = (await res.json().catch(() => null)) as DiscussionPageResponse | null;
       if (res.ok && data?.ok && data.peerLastReadAtByStageItemId) {
-        setPeerLastReadAtByStageItemId((prev) => ({ ...prev, ...data.peerLastReadAtByStageItemId }));
+        setPeerLastReadAtByStageItemId((prev) => ({
+          ...prev,
+          ...data.peerLastReadAtByStageItemId,
+        }));
       }
     };
     const id = window.setInterval(() => void refreshPeerRead(), 15000);
@@ -235,92 +251,102 @@ export function DoctorProgramInstanceDiscussionDialog(props: {
       size="content"
     >
       <div className="flex min-h-0 flex-1 flex-col gap-3">
-          <div className="grid gap-2">
-            <Label htmlFor="doctor-instance-discussion-item-filter">Пункт программы</Label>
-            <div data-testid="doctor-instance-discussion-item-filter">
-              <ReferenceSelect
-                id="doctor-instance-discussion-item-filter"
-                prefetchedItems={filterItems}
-                valueMatch="id"
-                submitField="id"
-                value={filterStageItemId === DOCTOR_INSTANCE_DISCUSSION_ALL_ITEMS ? null : filterStageItemId}
-                onChange={(nextValue) => {
-                  setFilterStageItemId(nextValue ?? DOCTOR_INSTANCE_DISCUSSION_ALL_ITEMS);
-                }}
-                placeholder="Все пункты"
-                clearOptionLabel="Все пункты"
-                showAllOnFocus
-              />
-            </div>
+        <div className="grid gap-2">
+          <Label htmlFor="doctor-instance-discussion-item-filter">Пункт программы</Label>
+          <div data-testid="doctor-instance-discussion-item-filter">
+            <ReferenceSelect
+              id="doctor-instance-discussion-item-filter"
+              prefetchedItems={filterItems}
+              valueMatch="id"
+              submitField="id"
+              value={
+                filterStageItemId === DOCTOR_INSTANCE_DISCUSSION_ALL_ITEMS
+                  ? null
+                  : filterStageItemId
+              }
+              onChange={(nextValue) => {
+                setFilterStageItemId(nextValue ?? DOCTOR_INSTANCE_DISCUSSION_ALL_ITEMS);
+              }}
+              placeholder="Все пункты"
+              clearOptionLabel="Все пункты"
+              showAllOnFocus
+            />
           </div>
-          <DoctorProgramDiscussionMessagesPanel
-            messages={messages}
-            loading={loading}
-            loadingOlder={loadingOlder}
-            error={error}
-            nextCursor={nextCursor}
-            peerLastReadAtByStageItemId={peerLastReadAtByStageItemId}
-            itemLabelById={showItemLabels ? itemLabelById : undefined}
-            onSelectItemFilter={(stageItemId) => setFilterStageItemId(stageItemId)}
-            onSendReply={async (stageItemId, text) => {
-              const sendResult = await sendDoctorProgramDiscussionReply({
-                instanceId,
-                stageItemId,
-                text,
-              });
-              if (!sendResult.ok) return sendResult;
-
-              const generation = loadGenerationRef.current;
-              const currentFilter = filterStageItemIdRef.current;
-              const shouldReloadThread =
-                currentFilter === DOCTOR_INSTANCE_DISCUSSION_ALL_ITEMS || currentFilter === stageItemId;
-              try {
-                if (shouldReloadThread) {
-                  await loadPage(null, false, currentFilter, generation);
-                }
-              } catch {
-                if (generation === loadGenerationRef.current) {
-                  setError("Ответ отправлен, но список не обновился. Откройте обсуждение заново.");
-                }
-              }
-              void refreshSummary(generation);
-              return { ok: true as const };
-            }}
-            onDeleteMediaMessage={async (messageId) => {
-              const deleteResult = await deleteDoctorProgramDiscussionMediaMessage({ instanceId, messageId });
-              if (!deleteResult.ok) return deleteResult;
-              const generation = loadGenerationRef.current;
-              const currentFilter = filterStageItemIdRef.current;
-              try {
-                await loadPage(null, false, currentFilter, generation);
-              } catch {
-                if (generation === loadGenerationRef.current) {
-                  setError("Файл удалён из чата, но список не обновился. Откройте обсуждение заново.");
-                }
-              }
-              void refreshSummary(generation);
-              return { ok: true as const };
-            }}
-            onLoadOlder={() => {
-              if (!nextCursor) return;
-              const generation = loadGenerationRef.current;
-              setLoadingOlder(true);
-              void loadPage(nextCursor, true, filterStageItemId, generation)
-                .then((loaded) => {
-                  if (loaded) markVisibleDiscussionRead(loaded, filterStageItemId);
-                })
-                .catch((e) => {
-                  if (generation !== loadGenerationRef.current) return;
-                  setError(e instanceof Error ? e.message : "Не удалось загрузить обсуждения");
-                })
-                .finally(() => {
-                  if (generation === loadGenerationRef.current) {
-                    setLoadingOlder(false);
-                  }
-                });
-            }}
-          />
         </div>
+        <DoctorProgramDiscussionMessagesPanel
+          messages={messages}
+          loading={loading}
+          loadingOlder={loadingOlder}
+          error={error}
+          nextCursor={nextCursor}
+          peerLastReadAtByStageItemId={peerLastReadAtByStageItemId}
+          itemLabelById={showItemLabels ? itemLabelById : undefined}
+          onSelectItemFilter={(stageItemId) => setFilterStageItemId(stageItemId)}
+          onSendReply={async (stageItemId, text) => {
+            const sendResult = await sendDoctorProgramDiscussionReply({
+              instanceId,
+              stageItemId,
+              text,
+            });
+            if (!sendResult.ok) return sendResult;
+
+            const generation = loadGenerationRef.current;
+            const currentFilter = filterStageItemIdRef.current;
+            const shouldReloadThread =
+              currentFilter === DOCTOR_INSTANCE_DISCUSSION_ALL_ITEMS ||
+              currentFilter === stageItemId;
+            try {
+              if (shouldReloadThread) {
+                await loadPage(null, false, currentFilter, generation);
+              }
+            } catch {
+              if (generation === loadGenerationRef.current) {
+                setError('Ответ отправлен, но список не обновился. Откройте обсуждение заново.');
+              }
+            }
+            void refreshSummary(generation);
+            return { ok: true as const };
+          }}
+          onDeleteMediaMessage={async (messageId) => {
+            const deleteResult = await deleteDoctorProgramDiscussionMediaMessage({
+              instanceId,
+              messageId,
+            });
+            if (!deleteResult.ok) return deleteResult;
+            const generation = loadGenerationRef.current;
+            const currentFilter = filterStageItemIdRef.current;
+            try {
+              await loadPage(null, false, currentFilter, generation);
+            } catch {
+              if (generation === loadGenerationRef.current) {
+                setError(
+                  'Файл удалён из чата, но список не обновился. Откройте обсуждение заново.',
+                );
+              }
+            }
+            void refreshSummary(generation);
+            return { ok: true as const };
+          }}
+          onLoadOlder={() => {
+            if (!nextCursor) return;
+            const generation = loadGenerationRef.current;
+            setLoadingOlder(true);
+            void loadPage(nextCursor, true, filterStageItemId, generation)
+              .then((loaded) => {
+                if (loaded) markVisibleDiscussionRead(loaded, filterStageItemId);
+              })
+              .catch((e) => {
+                if (generation !== loadGenerationRef.current) return;
+                setError(e instanceof Error ? e.message : 'Не удалось загрузить обсуждения');
+              })
+              .finally(() => {
+                if (generation === loadGenerationRef.current) {
+                  setLoadingOlder(false);
+                }
+              });
+          }}
+        />
+      </div>
     </DoctorModal>
   );
 }

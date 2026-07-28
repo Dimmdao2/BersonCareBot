@@ -6,4 +6,4 @@
  * can drift. EXECUTE is limited to the platform-operations DB principal; clinic roles cannot ask
  * it for an arbitrary organization's count.
  */
-export const CMS_PAGES_USAGE_SQL = "app.cms_pages_snapshot_usage($1::uuid)::int";
+export const CMS_PAGES_USAGE_SQL = 'app.cms_pages_snapshot_usage($1::uuid)::int';

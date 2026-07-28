@@ -1,4 +1,4 @@
 export {
   AppRechartsTooltip as DoctorRechartsTooltip,
   appRechartsTooltipContentStyle as doctorRechartsTooltipContentStyle,
-} from "@/shared/ui/charts/AppRechartsTooltip";
+} from '@/shared/ui/charts/AppRechartsTooltip';

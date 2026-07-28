@@ -1,19 +1,19 @@
-import Link from "next/link";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requirePatientAccessWithPhone } from "@/app-layer/guards/requireRole";
-import { routePaths } from "@/app-layer/routes/paths";
-import { PatientAppShell } from "@/shared/ui/patient/PatientAppShell";
-import { Badge } from "@/shared/ui/patient/primitives/badge";
-import { Card, CardContent } from "@/shared/ui/patient/primitives/card";
-import { cn } from "@/lib/utils";
-import { patientInlineLinkClass, patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
+import Link from 'next/link';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { requirePatientAccessWithPhone } from '@/app-layer/guards/requireRole';
+import { routePaths } from '@/app-layer/routes/paths';
+import { PatientAppShell } from '@/shared/ui/patient/PatientAppShell';
+import { Badge } from '@/shared/ui/patient/primitives/badge';
+import { Card, CardContent } from '@/shared/ui/patient/primitives/card';
+import { cn } from '@/lib/utils';
+import { patientInlineLinkClass, patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
 
 type Props = { params: Promise<{ ruleId: string }> };
 
 const ACTION_LABEL: Record<string, string> = {
-  done: "Выполнено",
-  skipped: "Пропущено",
-  snoozed: "Отложено",
+  done: 'Выполнено',
+  skipped: 'Пропущено',
+  snoozed: 'Отложено',
 };
 
 export default async function PatientReminderJournalPage({ params }: Props) {
@@ -29,7 +29,6 @@ export default async function PatientReminderJournalPage({ params }: Props) {
         user={session.user}
         backHref={routePaths.patientReminders}
         backLabel="Напоминания"
-       
       >
         <p className={patientMutedTextClass}>Журнал недоступен в этой среде.</p>
       </PatientAppShell>
@@ -44,9 +43,8 @@ export default async function PatientReminderJournalPage({ params }: Props) {
       user={session.user}
       backHref={routePaths.patientReminders}
       backLabel="Напоминания"
-     
     >
-      <p className={cn(patientMutedTextClass, "mb-4")}>
+      <p className={cn(patientMutedTextClass, 'mb-4')}>
         События за всё время по выбранному правилу (отметки из бота и приложения).
       </p>
 
@@ -58,22 +56,24 @@ export default async function PatientReminderJournalPage({ params }: Props) {
             <li key={e.id}>
               <Card
                 className={cn(
-                  "rounded-[var(--patient-card-radius-mobile)] border border-[var(--patient-border)] bg-[var(--patient-card-bg)] !py-0 text-[var(--patient-text-primary)] shadow-[var(--patient-shadow-card-mobile)] ring-0 lg:rounded-[var(--patient-card-radius-desktop)] lg:shadow-[var(--patient-shadow-card-desktop)]",
+                  'rounded-[var(--patient-card-radius-mobile)] border border-[var(--patient-border)] bg-[var(--patient-card-bg)] !py-0 text-[var(--patient-text-primary)] shadow-[var(--patient-shadow-card-mobile)] ring-0 lg:rounded-[var(--patient-card-radius-desktop)] lg:shadow-[var(--patient-shadow-card-desktop)]',
                 )}
               >
                 <CardContent className="flex flex-wrap items-center justify-between gap-2 py-3">
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge variant="secondary">{ACTION_LABEL[e.action] ?? e.action}</Badge>
-                    <time className={cn(patientMutedTextClass, "text-xs")} dateTime={e.createdAt}>
-                      {new Date(e.createdAt).toLocaleString("ru-RU")}
+                    <time className={cn(patientMutedTextClass, 'text-xs')} dateTime={e.createdAt}>
+                      {new Date(e.createdAt).toLocaleString('ru-RU')}
                     </time>
                   </div>
                   {e.skipReason ? (
-                    <p className={cn(patientMutedTextClass, "w-full text-xs")}>Причина: {e.skipReason}</p>
+                    <p className={cn(patientMutedTextClass, 'w-full text-xs')}>
+                      Причина: {e.skipReason}
+                    </p>
                   ) : null}
                   {e.snoozeUntil ? (
-                    <p className={cn(patientMutedTextClass, "w-full text-xs")}>
-                      До: {new Date(e.snoozeUntil).toLocaleString("ru-RU")}
+                    <p className={cn(patientMutedTextClass, 'w-full text-xs')}>
+                      До: {new Date(e.snoozeUntil).toLocaleString('ru-RU')}
                     </p>
                   ) : null}
                 </CardContent>
@@ -84,7 +84,7 @@ export default async function PatientReminderJournalPage({ params }: Props) {
       )}
 
       <p className="mt-6 text-center">
-        <Link href={routePaths.patientReminders} className={cn(patientInlineLinkClass, "text-sm")}>
+        <Link href={routePaths.patientReminders} className={cn(patientInlineLinkClass, 'text-sm')}>
           К списку напоминаний
         </Link>
       </p>

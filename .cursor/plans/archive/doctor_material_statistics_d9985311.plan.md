@@ -4,22 +4,22 @@ overview: Переименовать кабинет врача «Оценки м
 status: completed
 todos:
   - id: loader-refactor
-    content: "Файл loadAdminReminderStats.ts: переименовать экспорт в loadContentEngagementStats; тип ContentEngagementStatsResponse + export type AdminReminderStatsResponse = …; добавить reminderRulesEnabledCount (один Drizzle count в Promise.all); сохранить parseReminderStatsWindowHours"
+    content: 'Файл loadAdminReminderStats.ts: переименовать экспорт в loadContentEngagementStats; тип ContentEngagementStatsResponse + export type AdminReminderStatsResponse = …; добавить reminderRulesEnabledCount (один Drizzle count в Promise.all); сохранить parseReminderStatsWindowHours'
     status: completed
   - id: admin-route-wire
-    content: "GET /api/admin/reminder-stats: только замена импорта/вызова на новый loader; поведение и контракт ответа не ломать"
+    content: 'GET /api/admin/reminder-stats: только замена импорта/вызова на новый loader; поведение и контракт ответа не ломать'
     status: completed
   - id: doctor-api
-    content: "Новый apps/webapp/src/app/api/doctor/content-stats/route.ts: getCurrentSession + canAccessDoctor + parseReminderStatsWindowHours + JSON; route.test.ts"
+    content: 'Новый apps/webapp/src/app/api/doctor/content-stats/route.ts: getCurrentSession + canAccessDoctor + parseReminderStatsWindowHours + JSON; route.test.ts'
     status: completed
   - id: doctor-ui-charts
-    content: "Новый client-компонент (рядом с material-ratings): fetch /api/doctor/content-stats, пресеты 168/720 ч, recharts (daily sent/failed, hourly UTC, journal KPI, practiceTopPages bar); подписи семантики метрик"
+    content: 'Новый client-компонент (рядом с material-ratings): fetch /api/doctor/content-stats, пресеты 168/720 ч, recharts (daily sent/failed, hourly UTC, journal KPI, practiceTopPages bar); подписи семантики метрик'
     status: completed
   - id: doctor-page-shell
-    content: "material-ratings/page.tsx + [kind]/[id]/page.tsx: AppShell title/backLabel; вставить блок статистики под или над таблицей оценок"
+    content: 'material-ratings/page.tsx + [kind]/[id]/page.tsx: AppShell title/backLabel; вставить блок статистики под или над таблицей оценок'
     status: completed
   - id: admin-reminder-kpi
-    content: "ReminderStatsSection.tsx: одна строка KPI reminderRulesEnabledCount + краткая расшифровка"
+    content: 'ReminderStatsSection.tsx: одна строка KPI reminderRulesEnabledCount + краткая расшифровка'
     status: completed
   - id: nav-docs-api-md
     content: doctorNavLinks.ts; MATERIAL_RATINGS.md; api.md — новый endpoint, общий loader, предупреждение про глобальность агрегатов
@@ -62,14 +62,14 @@ isProject: false
 
 ## 3. Семантика метрик (честные подписи в UI)
 
-| Блок | Источник | Что показываем врачу | Подпись в UI (обязательно) |
-|------|----------|----------------------|----------------------------|
-| Оценки 1–5 | `material_ratings` | Как сейчас, по материалу | Локально по материалу |
-| Отправки напоминаний | `reminder_occurrence_history` | `sent` / `failed` по дням и часам | **Ось времени UTC** (как сейчас в loader: `date_trunc` от `occurred_at`) |
-| Реакции | `reminder_journal` | `done` / `skipped` / `snoozed` за окно | За выбранное окно, вся платформа |
-| Завершения практики | `patient_practice_completions` + join `content_pages` | Топ страниц | Не «открытия», а **завершения/фиксации практики** |
-| Видео | `media_playback_stats_hourly` + `media_playback_user_video_first_resolve` | Суммы как в [`loadAdminPlaybackHealthMetrics`](apps/webapp/src/app-layer/media/adminPlaybackHealthMetrics.ts) | **Глобально по приложению**; при `video_playback_api_enabled === false` числа могут быть нулевыми — не выдавать за «отсутствие интереса» (см. [`SystemHealthSection`](apps/webapp/src/app/app/settings/SystemHealthSection.tsx) copy) |
-| Ошибки плеера | `loadAdminPlaybackClientHealthMetrics` | Поле уже в payload | Опционально компактная строка «ошибки клиента за окно» с тем же предупреждением про выключенный API |
+| Блок                 | Источник                                                                  | Что показываем врачу                                                                                          | Подпись в UI (обязательно)                                                                                                                                                                                                            |
+| -------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Оценки 1–5           | `material_ratings`                                                        | Как сейчас, по материалу                                                                                      | Локально по материалу                                                                                                                                                                                                                 |
+| Отправки напоминаний | `reminder_occurrence_history`                                             | `sent` / `failed` по дням и часам                                                                             | **Ось времени UTC** (как сейчас в loader: `date_trunc` от `occurred_at`)                                                                                                                                                              |
+| Реакции              | `reminder_journal`                                                        | `done` / `skipped` / `snoozed` за окно                                                                        | За выбранное окно, вся платформа                                                                                                                                                                                                      |
+| Завершения практики  | `patient_practice_completions` + join `content_pages`                     | Топ страниц                                                                                                   | Не «открытия», а **завершения/фиксации практики**                                                                                                                                                                                     |
+| Видео                | `media_playback_stats_hourly` + `media_playback_user_video_first_resolve` | Суммы как в [`loadAdminPlaybackHealthMetrics`](apps/webapp/src/app-layer/media/adminPlaybackHealthMetrics.ts) | **Глобально по приложению**; при `video_playback_api_enabled === false` числа могут быть нулевыми — не выдавать за «отсутствие интереса» (см. [`SystemHealthSection`](apps/webapp/src/app/app/settings/SystemHealthSection.tsx) copy) |
+| Ошибки плеера        | `loadAdminPlaybackClientHealthMetrics`                                    | Поле уже в payload                                                                                            | Опционально компактная строка «ошибки клиента за окно» с тем же предупреждением про выключенный API                                                                                                                                   |
 
 **Продуктовое решение (зафиксировать в docs):** врач видит **те же платформенные** агрегаты, что оператор в админке по вкладке «Статистика» — не фильтр «только мои пациенты». Если позже понадобится сужение — отдельный порт с фильтром по `doctor_id`.
 
@@ -109,7 +109,7 @@ flowchart LR
 ### 5.1 Loader (`loadContentEngagementStats`)
 
 - [x] Переименовать основной экспорт; оставить **`export type AdminReminderStatsResponse = ContentEngagementStatsResponse`** (или `export { loadAdminReminderStats as loadContentEngagementStats }` + алиас функции обратно — выбрать один вариант, чтобы не сломать внешние импорты grep’ом).
-- [x] Расширить тип ответа полем **`reminderRulesEnabledCount: number`**: `count(*)` из `reminder_rules` где `is_enabled = true`. Документировать в JSDoc: *«число включённых правил в webapp-таблице»* (без дедупа по пациенту на этом шаге).
+- [x] Расширить тип ответа полем **`reminderRulesEnabledCount: number`**: `count(*)` из `reminder_rules` где `is_enabled = true`. Документировать в JSDoc: _«число включённых правил в webapp-таблице»_ (без дедупа по пациенту на этом шаге).
 - [x] `Promise.all` не распухать вторыми тяжёлыми проходами по тем же таблицам; один count-запрос.
 - [x] Проверка: `rg loadAdminReminderStats` в `apps/webapp` — все импорты обновлены или алиас покрывает.
 
@@ -144,11 +144,11 @@ flowchart LR
 
 ## 6. Риски и смягчение
 
-| Риск | Смягчение |
-|------|-----------|
+| Риск                                                    | Смягчение                                                               |
+| ------------------------------------------------------- | ----------------------------------------------------------------------- |
 | Врач интерпретирует глобальные цифры как «мои пациенты» | Короткая подпись под блоком дашборда + фиксация в `MATERIAL_RATINGS.md` |
-| Нулевые `videoPlayback` при выключенном API | Текст как в System Health: не путать с отсутствием данных |
-| Рост JS на странице | Один client-остров; не тянуть тяжёлые зависимости кроме recharts |
+| Нулевые `videoPlayback` при выключенном API             | Текст как в System Health: не путать с отсутствием данных               |
+| Рост JS на странице                                     | Один client-остров; не тянуть тяжёлые зависимости кроме recharts        |
 
 ## 7. Definition of Done
 

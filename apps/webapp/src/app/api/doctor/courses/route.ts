@@ -1,11 +1,14 @@
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireEntitlementForRead, requireEntitlementForMutation } from "@/app-layer/guards/requireEntitlement";
-import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import {
+  requireEntitlementForRead,
+  requireEntitlementForMutation,
+} from '@/app-layer/guards/requireEntitlement';
+import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 
-const courseStatusSchema = z.enum(["draft", "published", "archived"]);
+const courseStatusSchema = z.enum(['draft', 'published', 'archived']);
 
 const listQuerySchema = z.object({
   status: courseStatusSchema.optional(),
@@ -26,17 +29,17 @@ const postBodySchema = z.object({
 export async function GET(request: Request) {
   const auth = await requireDoctorWorkspaceApiContext();
   if (!auth.ok) return auth.response;
-  const entitlement = await requireEntitlementForRead(auth.ctx, "courses");
+  const entitlement = await requireEntitlementForRead(auth.ctx, 'courses');
   if (!entitlement.ok) return entitlement.response;
 
   const { searchParams } = new URL(request.url);
   const parsed = listQuerySchema.safeParse(Object.fromEntries(searchParams));
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_query" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_query' }, { status: 400 });
   }
 
   const deps = buildAppDeps();
-  const items = await withDoctorWorkspacePrincipal(auth.ctx, "doctor.courses.list", () =>
+  const items = await withDoctorWorkspacePrincipal(auth.ctx, 'doctor.courses.list', () =>
     deps.courses.listCoursesForDoctor({
       status: parsed.data.status ?? null,
       includeArchived: parsed.data.includeArchived ?? false,
@@ -53,14 +56,14 @@ export async function POST(request: Request) {
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = postBodySchema.safeParse(raw);
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
-  const entitlement = await requireEntitlementForMutation(auth.ctx, "courses");
+  const entitlement = await requireEntitlementForMutation(auth.ctx, 'courses');
   if (!entitlement.ok) return entitlement.response;
 
   const deps = buildAppDeps();
   try {
-    const item = await withDoctorWorkspacePrincipal(workspace, "doctor.courses.create", () =>
+    const item = await withDoctorWorkspacePrincipal(workspace, 'doctor.courses.create', () =>
       deps.courses.createCourse(
         {
           title: parsed.data.title,
@@ -73,16 +76,17 @@ export async function POST(request: Request) {
           currency: parsed.data.currency,
         },
         {
-          runCourseWrite: (fn) => withDoctorWorkspacePrincipal(workspace, "doctor.courses.create", fn),
+          runCourseWrite: (fn) =>
+            withDoctorWorkspacePrincipal(workspace, 'doctor.courses.create', fn),
         },
       ),
     );
     return NextResponse.json({ ok: true, item });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "error";
-    if (msg.includes("saas_quota_reached:courses")) {
+    const msg = e instanceof Error ? e.message : 'error';
+    if (msg.includes('saas_quota_reached:courses')) {
       return NextResponse.json(
-        { ok: false, error: "quota_reached", mechanic: "courses" },
+        { ok: false, error: 'quota_reached', mechanic: 'courses' },
         { status: 403 },
       );
     }

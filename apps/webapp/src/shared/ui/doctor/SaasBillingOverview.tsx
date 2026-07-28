@@ -1,62 +1,62 @@
-import type { SaasBillingOverview as SaasBillingOverviewData } from "@/modules/saas-billing/ports";
-import { DoctorEmptyState } from "@/shared/ui/doctor/DoctorEmptyState";
+import type { SaasBillingOverview as SaasBillingOverviewData } from '@/modules/saas-billing/ports';
+import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
 import {
   DoctorSection,
   DoctorSectionHeader,
   DoctorSectionTitle,
-} from "@/shared/ui/doctor/DoctorSection";
+} from '@/shared/ui/doctor/DoctorSection';
 import {
   doctorDnaFlatListClass,
   doctorDnaFlatListMetaClass,
   doctorDnaFlatListPrimaryClass,
   doctorDnaFlatListRowClass,
-} from "@/shared/ui/doctor/DoctorDnaFlatListRow";
-import { Badge } from "@/shared/ui/doctor/primitives/badge";
+} from '@/shared/ui/doctor/DoctorDnaFlatListRow';
+import { Badge } from '@/shared/ui/doctor/primitives/badge';
 
 const SUBSCRIPTION_STATUS_LABELS = {
-  pending_payment: "Ожидает оплаты",
-  active: "Активна",
-  expired: "Истекла",
-  cancelled: "Отменена",
+  pending_payment: 'Ожидает оплаты',
+  active: 'Активна',
+  expired: 'Истекла',
+  cancelled: 'Отменена',
 } as const;
 
 const SUBSCRIPTION_SOURCE_LABELS = {
-  manual: "Назначена вручную",
-  paid_subscription: "Платная подписка",
+  manual: 'Назначена вручную',
+  paid_subscription: 'Платная подписка',
 } as const;
 
 const LIFECYCLE_LABELS = {
-  active: "Активна",
-  grace: "Льготный период",
-  read_only: "Только чтение",
-  blocked: "Заблокирована",
+  active: 'Активна',
+  grace: 'Льготный период',
+  read_only: 'Только чтение',
+  blocked: 'Заблокирована',
 } as const;
 
 const INVOICE_STATUS_LABELS = {
-  draft: "Черновик",
-  pending: "Ожидает оплаты",
-  paid: "Оплачен",
-  failed: "Ошибка оплаты",
-  void: "Аннулирован",
+  draft: 'Черновик',
+  pending: 'Ожидает оплаты',
+  paid: 'Оплачен',
+  failed: 'Ошибка оплаты',
+  void: 'Аннулирован',
 } as const;
 
 function formatDate(value: string): string {
-  return new Intl.DateTimeFormat("ru-RU", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
+  return new Intl.DateTimeFormat('ru-RU', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
   }).format(new Date(value));
 }
 
 function formatAmount(amountMinor: number, currency: string): string {
   try {
-    return new Intl.NumberFormat("ru-RU", {
-      style: "currency",
+    return new Intl.NumberFormat('ru-RU', {
+      style: 'currency',
       currency,
       maximumFractionDigits: 2,
     }).format(amountMinor / 100);
   } catch {
-    return `${new Intl.NumberFormat("ru-RU").format(amountMinor / 100)} ${currency}`;
+    return `${new Intl.NumberFormat('ru-RU').format(amountMinor / 100)} ${currency}`;
   }
 }
 
@@ -99,8 +99,8 @@ export function SaasBillingOverview({
                       {SUBSCRIPTION_SOURCE_LABELS[subscription.source]}
                     </span>
                     <span className={doctorDnaFlatListMetaClass}>
-                      {period ? `Период: ${period}` : "Период не задан"}
-                      {subscription.providerId ? ` · ${subscription.providerId}` : ""}
+                      {period ? `Период: ${period}` : 'Период не задан'}
+                      {subscription.providerId ? ` · ${subscription.providerId}` : ''}
                     </span>
                   </span>
                   <span className="flex flex-wrap justify-end gap-1">
@@ -132,9 +132,9 @@ export function SaasBillingOverview({
                 <span>
                   <span className={doctorDnaFlatListPrimaryClass}>{invoice.tariffName}</span>
                   <span className={doctorDnaFlatListMetaClass}>
-                    {formatDate(invoice.servicePeriodStartsAt)} —{" "}
+                    {formatDate(invoice.servicePeriodStartsAt)} —{' '}
                     {formatDate(invoice.servicePeriodEndsAt)}
-                    {" · "}
+                    {' · '}
                     {invoice.providerId}
                   </span>
                 </span>
@@ -142,7 +142,7 @@ export function SaasBillingOverview({
                   <span className="block text-sm font-medium text-foreground">
                     {formatAmount(invoice.amountMinor, invoice.currency)}
                   </span>
-                  <Badge variant={invoice.status === "failed" ? "destructive" : "outline"}>
+                  <Badge variant={invoice.status === 'failed' ? 'destructive' : 'outline'}>
                     {INVOICE_STATUS_LABELS[invoice.status]}
                   </Badge>
                 </span>
@@ -170,8 +170,8 @@ export function SaasBillingOverview({
                       {event.providerId} · {event.providerEventId} · {formatDate(event.createdAt)}
                     </span>
                   </span>
-                  <Badge variant={event.processedAt ? "secondary" : "outline"}>
-                    {event.processedAt ? "Обработано" : "Ожидает обработки"}
+                  <Badge variant={event.processedAt ? 'secondary' : 'outline'}>
+                    {event.processedAt ? 'Обработано' : 'Ожидает обработки'}
                   </Badge>
                 </li>
               ))}

@@ -1,16 +1,19 @@
 /**
  * Просмотр диалогов поддержки врачом (MVP: все открытые диалоги из projection).
  */
-import type { SupportCommunicationPort } from "@/infra/repos/pgSupportCommunication";
-import type { AdminConversationListRow, SupportConversationMessageRow } from "@/infra/repos/pgSupportCommunication";
-import { isSupportChatMessage } from "@/shared/lib/supportMessageKinds";
-import { logger, serializeError } from "@/infra/logging/logger";
-import { relayOutbound, type RelayOutboundDeps } from "./relayOutbound";
+import type { SupportCommunicationPort } from '@/infra/repos/pgSupportCommunication';
+import type {
+  AdminConversationListRow,
+  SupportConversationMessageRow,
+} from '@/infra/repos/pgSupportCommunication';
+import { isSupportChatMessage } from '@/shared/lib/supportMessageKinds';
+import { logger, serializeError } from '@/infra/logging/logger';
+import { relayOutbound, type RelayOutboundDeps } from './relayOutbound';
 import {
   buildPatientMessagesOpenUrl,
   buildPersonalChatNotificationText,
   type NotifyPatientDoctorReplyParams,
-} from "./notifyPatientDoctorReply";
+} from './notifyPatientDoctorReply';
 
 const MAX_LEN = 4000;
 
@@ -44,12 +47,16 @@ export function createDoctorSupportMessagingService(
       const { id } = await port.ensureWebappConversationForUser(platformUserId);
       const messages = await port.listMessagesSince(id, { sinceCreatedAt: null, limit: 100 });
       const unreadFromUserCount = await port.countUnreadUserMessagesForAdminByConversation(id);
-      return { conversationId: id, messages: messages.filter(isSupportChatMessage), unreadFromUserCount };
+      return {
+        conversationId: id,
+        messages: messages.filter(isSupportChatMessage),
+        unreadFromUserCount,
+      };
     },
 
     async getMessages(
       conversationId: string,
-      params: { sinceCreatedAt?: string | null; limit?: number; organizationId?: string }
+      params: { sinceCreatedAt?: string | null; limit?: number; organizationId?: string },
     ): Promise<{ messages: SupportConversationMessageRow[] } | null> {
       const exists = await port.conversationExists(conversationId, params.organizationId);
       if (!exists) return null;
@@ -68,10 +75,10 @@ export function createDoctorSupportMessagingService(
       senderDisplayName?: string,
     ): Promise<{ ok: true } | { ok: false; error: string }> {
       const convInfo = await port.getConversationRelayInfo(conversationId, organizationId);
-      if (!convInfo) return { ok: false, error: "not_found" };
+      if (!convInfo) return { ok: false, error: 'not_found' };
       const trimmed = text.trim();
-      if (!trimmed) return { ok: false, error: "empty" };
-      if (trimmed.length > MAX_LEN) return { ok: false, error: "too_long" };
+      if (!trimmed) return { ok: false, error: 'empty' };
+      if (trimmed.length > MAX_LEN) return { ok: false, error: 'too_long' };
       const integratorMessageId = `webapp-msg:${crypto.randomUUID()}`;
       const now = new Date().toISOString();
       const channelCode = convInfo.channelCode ?? null;
@@ -81,9 +88,9 @@ export function createDoctorSupportMessagingService(
       await port.appendWebappMessage({
         conversationId,
         integratorMessageId,
-        senderRole: "admin",
+        senderRole: 'admin',
         text: trimmed,
-        source: "webapp",
+        source: 'webapp',
         createdAt: now,
         ...(organizationId ? { organizationId } : {}),
       });
@@ -98,7 +105,7 @@ export function createDoctorSupportMessagingService(
             senderDisplayName: senderDisplayName?.trim() || undefined,
           })
           .catch((err: unknown) => {
-            logger.error({ err: serializeError(err) }, "[doctorSupport] patient notify error");
+            logger.error({ err: serializeError(err) }, '[doctorSupport] patient notify error');
           });
       } else if (channelCode && channelExternalId) {
         // Legacy: диалог без platform_user_id — только канал из projection
@@ -109,12 +116,12 @@ export function createDoctorSupportMessagingService(
             recipient: channelExternalId,
             text: `${buildPersonalChatNotificationText(
               senderDisplayName,
-              "specialist",
+              'specialist',
             )}\n\n${buildPatientMessagesOpenUrl()}`,
           },
           opts,
         ).catch((err: unknown) => {
-          logger.error({ err: serializeError(err) }, "[doctorSupport] relay error");
+          logger.error({ err: serializeError(err) }, '[doctorSupport] relay error');
         });
       }
 

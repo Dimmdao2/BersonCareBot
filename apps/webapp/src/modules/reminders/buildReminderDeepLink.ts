@@ -1,18 +1,18 @@
-import { routePaths } from "@/app-layer/routes/paths";
-import { getAppBaseUrlSync } from "@/modules/system-settings/integrationRuntime";
+import { routePaths } from '@/app-layer/routes/paths';
+import { getAppBaseUrlSync } from '@/modules/system-settings/integrationRuntime';
 import {
   isWarmupsContentSectionLinkedId,
   type ReminderIntentSectionLookup,
-} from "./resolveReminderIntentForLinkedObject";
-import type { ReminderLinkedObjectType } from "./types";
+} from './resolveReminderIntentForLinkedObject';
+import type { ReminderLinkedObjectType } from './types';
 
 const KNOWN: ReminderLinkedObjectType[] = [
-  "lfk_complex",
-  "content_section",
-  "content_page",
-  "custom",
-  "rehab_program",
-  "treatment_program_item",
+  'lfk_complex',
+  'content_section',
+  'content_page',
+  'custom',
+  'rehab_program',
+  'treatment_program_item',
 ];
 
 function narrowLinkedType(raw: string | null): ReminderLinkedObjectType | null {
@@ -26,9 +26,9 @@ export type BuildReminderDeepLinkOptions = {
 };
 
 function buildReminderGoPath(path: string, organizationId: string | null | undefined): string {
-  const search = new URLSearchParams({ from: "reminder" });
+  const search = new URLSearchParams({ from: 'reminder' });
   const targetOrganizationId = organizationId?.trim();
-  if (targetOrganizationId) search.set("organizationId", targetOrganizationId);
+  if (targetOrganizationId) search.set('organizationId', targetOrganizationId);
   return `${path}?${search.toString()}`;
 }
 
@@ -54,37 +54,37 @@ export function buildReminderDeepLink(
   },
   opts?: BuildReminderDeepLinkOptions,
 ): string {
-  const base = getAppBaseUrlSync().replace(/\/$/, "");
-  const intentRaw = typeof params.reminderIntent === "string" ? params.reminderIntent.trim() : "";
-  if (intentRaw === "warmup") {
+  const base = getAppBaseUrlSync().replace(/\/$/, '');
+  const intentRaw = typeof params.reminderIntent === 'string' ? params.reminderIntent.trim() : '';
+  if (intentRaw === 'warmup') {
     return `${base}${buildReminderGoPath(routePaths.patientGoDailyWarmup, params.organizationId)}`;
   }
-  if (intentRaw === "exercises" || intentRaw === "stretch") {
+  if (intentRaw === 'exercises' || intentRaw === 'stretch') {
     return `${base}${buildReminderGoPath(routePaths.patientGoPlanStartLesson, params.organizationId)}`;
   }
   const linkedObjectType = narrowLinkedType(
-    typeof params.linkedObjectType === "string" ? params.linkedObjectType : null,
+    typeof params.linkedObjectType === 'string' ? params.linkedObjectType : null,
   );
   const { linkedObjectId } = params;
   if (!linkedObjectType || !linkedObjectId?.trim()) {
     return `${base}/app/patient/reminders?from=reminder`;
   }
   const id = encodeURIComponent(linkedObjectId.trim());
-  if (linkedObjectType === "content_section" && isWarmupsSectionDeepLink(linkedObjectId, opts)) {
+  if (linkedObjectType === 'content_section' && isWarmupsSectionDeepLink(linkedObjectId, opts)) {
     return `${base}${buildReminderGoPath(routePaths.patientGoDailyWarmup, params.organizationId)}`;
   }
   switch (linkedObjectType) {
-    case "lfk_complex":
+    case 'lfk_complex':
       return `${base}/app/patient/diary/lfk/journal?complexId=${id}&from=reminder`;
-    case "content_section":
+    case 'content_section':
       return `${base}/app/patient/sections/${id}?from=reminder`;
-    case "content_page":
+    case 'content_page':
       return `${base}/app/patient/content/${id}?from=reminder`;
-    case "rehab_program":
+    case 'rehab_program':
       return `${base}/app/patient/treatment/${id}?from=reminder`;
-    case "treatment_program_item": {
+    case 'treatment_program_item': {
       const raw = linkedObjectId.trim();
-      const colon = raw.indexOf(":");
+      const colon = raw.indexOf(':');
       if (colon <= 0 || colon >= raw.length - 1) {
         return `${base}/app/patient/reminders?from=reminder`;
       }
@@ -92,7 +92,7 @@ export function buildReminderDeepLink(
       const itemId = encodeURIComponent(raw.slice(colon + 1));
       return `${base}/app/patient/treatment/${instanceId}/item/${itemId}?nav=exec&from=reminder`;
     }
-    case "custom":
+    case 'custom':
     default:
       return `${base}/app/patient/reminders?from=reminder`;
   }
@@ -109,19 +109,19 @@ export async function buildReminderDeepLinkAsync(
   lookup?: ReminderIntentSectionLookup,
   opts?: BuildReminderDeepLinkOptions,
 ): Promise<string> {
-  const intentRaw = typeof params.reminderIntent === "string" ? params.reminderIntent.trim() : "";
-  if (intentRaw === "warmup" || intentRaw === "exercises" || intentRaw === "stretch") {
+  const intentRaw = typeof params.reminderIntent === 'string' ? params.reminderIntent.trim() : '';
+  if (intentRaw === 'warmup' || intentRaw === 'exercises' || intentRaw === 'stretch') {
     return buildReminderDeepLink(params, opts);
   }
   const linkedObjectType = narrowLinkedType(
-    typeof params.linkedObjectType === "string" ? params.linkedObjectType : null,
+    typeof params.linkedObjectType === 'string' ? params.linkedObjectType : null,
   );
-  const linkedObjectId = params.linkedObjectId?.trim() ?? "";
-  if (linkedObjectType === "content_section" && linkedObjectId && lookup) {
+  const linkedObjectId = params.linkedObjectId?.trim() ?? '';
+  if (linkedObjectType === 'content_section' && linkedObjectId && lookup) {
     if (!isWarmupsSectionDeepLink(linkedObjectId, opts)) {
       const sec = await lookup.getBySlug(linkedObjectId);
-      if (sec?.systemParentCode === "warmups") {
-        const base = getAppBaseUrlSync().replace(/\/$/, "");
+      if (sec?.systemParentCode === 'warmups') {
+        const base = getAppBaseUrlSync().replace(/\/$/, '');
         return `${base}${buildReminderGoPath(routePaths.patientGoDailyWarmup, params.organizationId)}`;
       }
     }

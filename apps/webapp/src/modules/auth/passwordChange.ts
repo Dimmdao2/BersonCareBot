@@ -1,14 +1,17 @@
-import type { SessionUser } from "@/shared/types/session";
-import { normalizeEmail } from "@/modules/auth/emailAuth";
-import type { UserByPhonePort } from "@/modules/auth/userByPhonePort";
-import type { StaffSecurityService } from "@/modules/staff-security/service";
+import type { SessionUser } from '@/shared/types/session';
+import { normalizeEmail } from '@/modules/auth/emailAuth';
+import type { UserByPhonePort } from '@/modules/auth/userByPhonePort';
+import type { StaffSecurityService } from '@/modules/staff-security/service';
 import {
   waitForPasswordFailureDelay,
   type PasswordVerificationResult,
-} from "@/modules/auth/passwordLoginProtection";
+} from '@/modules/auth/passwordLoginProtection';
 
 type PasswordCredentialsPort = {
-  tryVerifyLogin(emailNormalized: string, plainPassword: string): Promise<PasswordVerificationResult>;
+  tryVerifyLogin(
+    emailNormalized: string,
+    plainPassword: string,
+  ): Promise<PasswordVerificationResult>;
   recordFailedPasswordAttempt(userId: string): Promise<void>;
   resetFailedPasswordAttempts(userId: string, emailNormalized: string): Promise<void>;
   updatePasswordHash(userId: string, passwordHash: string): Promise<void>;
@@ -18,9 +21,9 @@ type PasswordChangeDeps = {
   credentials: PasswordCredentialsPort;
   users: Pick<
     UserByPhonePort,
-    "getVerifiedEmailForUser" | "invalidateSessionsForSelf" | "findByUserId"
+    'getVerifiedEmailForUser' | 'invalidateSessionsForSelf' | 'findByUserId'
   >;
-  staffSecurity: Pick<StaffSecurityService, "getStatus" | "revokeSessions">;
+  staffSecurity: Pick<StaffSecurityService, 'getStatus' | 'revokeSessions'>;
   hashPassword: (plainPassword: string) => Promise<string>;
 };
 
@@ -29,9 +32,9 @@ export type PasswordChangeResult =
   | {
       ok: false;
       error:
-        | "password_login_unavailable"
-        | "wrong_current_password"
-        | "password_temporarily_locked";
+        | 'password_login_unavailable'
+        | 'wrong_current_password'
+        | 'password_temporarily_locked';
       retryAfterSeconds?: number;
     };
 
@@ -44,7 +47,7 @@ export function createPasswordChangeService(deps: PasswordChangeDeps) {
     }): Promise<PasswordChangeResult> {
       const verifiedEmail = await deps.users.getVerifiedEmailForUser(input.userId);
       if (!verifiedEmail) {
-        return { ok: false, error: "password_login_unavailable" };
+        return { ok: false, error: 'password_login_unavailable' };
       }
 
       const emailNormalized = normalizeEmail(verifiedEmail);
@@ -53,11 +56,7 @@ export function createPasswordChangeService(deps: PasswordChangeDeps) {
         input.currentPassword,
       );
       if (!verified.ok || verified.userId !== input.userId || !verified.emailVerified) {
-        if (
-          !verified.ok &&
-          verified.passwordChecked &&
-          verified.accountUserId === input.userId
-        ) {
+        if (!verified.ok && verified.passwordChecked && verified.accountUserId === input.userId) {
           await deps.credentials.recordFailedPasswordAttempt(input.userId);
         }
         if (!verified.ok) {
@@ -65,12 +64,12 @@ export function createPasswordChangeService(deps: PasswordChangeDeps) {
           if (verified.locked) {
             return {
               ok: false,
-              error: "password_temporarily_locked",
+              error: 'password_temporarily_locked',
               retryAfterSeconds: verified.retryAfterSeconds,
             };
           }
         }
-        return { ok: false, error: "wrong_current_password" };
+        return { ok: false, error: 'wrong_current_password' };
       }
       await deps.credentials.resetFailedPasswordAttempts(input.userId, emailNormalized);
 
@@ -87,7 +86,7 @@ export function createPasswordChangeService(deps: PasswordChangeDeps) {
 
       const user = await deps.users.findByUserId(input.userId);
       if (!user) {
-        throw new Error("password_change_user_missing_after_session_revocation");
+        throw new Error('password_change_user_missing_after_session_revocation');
       }
       return { ok: true, user };
     },

@@ -53,7 +53,9 @@ function defaultConfig(): AdminIncidentAlertConfig {
 }
 
 /** Align with webapp admin incident alert JSON (unknown topic keys ignored). */
-export function parseAdminIncidentAlertConfigIntegrator(valueJson: unknown): AdminIncidentAlertConfig {
+export function parseAdminIncidentAlertConfigIntegrator(
+  valueJson: unknown,
+): AdminIncidentAlertConfig {
   const out = defaultConfig();
   const inner = extractSystemSettingInnerValue(valueJson);
   const root = inner === undefined ? valueJson : inner;
@@ -87,7 +89,9 @@ function clip(s: string, max: number): string {
 
 const MAX_LINE = 500;
 
-export type MessengerPhoneBindIncidentTopic = 'messenger_phone_bind_blocked' | 'messenger_phone_bind_anomaly';
+export type MessengerPhoneBindIncidentTopic =
+  | 'messenger_phone_bind_blocked'
+  | 'messenger_phone_bind_anomaly';
 
 /**
  * Relay identity incident for messenger phone bind (integrator path), after durable audit + `insertedFirst`.
@@ -127,12 +131,20 @@ export async function relayMessengerPhoneBindAdminIncident(input: {
     }
     if (telegramIds.length === 0) {
       logger.info(
-        { scope: 'admin_incident', event: 'admin_incident_alert_skipped_no_recipients', channel: 'telegram' },
+        {
+          scope: 'admin_incident',
+          event: 'admin_incident_alert_skipped_no_recipients',
+          channel: 'telegram',
+        },
         'skipped',
       );
     } else if (!dispatch) {
       logger.info(
-        { scope: 'admin_incident', event: 'admin_incident_alert_skipped_no_dispatch', channel: 'telegram' },
+        {
+          scope: 'admin_incident',
+          event: 'admin_incident_alert_skipped_no_dispatch',
+          channel: 'telegram',
+        },
         'skipped',
       );
     } else {
@@ -182,12 +194,20 @@ export async function relayMessengerPhoneBindAdminIncident(input: {
     }
     if (maxIds.length === 0) {
       logger.info(
-        { scope: 'admin_incident', event: 'admin_incident_alert_skipped_no_recipients', channel: 'max' },
+        {
+          scope: 'admin_incident',
+          event: 'admin_incident_alert_skipped_no_recipients',
+          channel: 'max',
+        },
         'skipped',
       );
     } else if (!dispatch) {
       logger.info(
-        { scope: 'admin_incident', event: 'admin_incident_alert_skipped_no_dispatch', channel: 'max' },
+        {
+          scope: 'admin_incident',
+          event: 'admin_incident_alert_skipped_no_dispatch',
+          channel: 'max',
+        },
         'skipped',
       );
     } else {

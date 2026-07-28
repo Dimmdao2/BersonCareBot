@@ -1,28 +1,28 @@
-"use client";
+'use client';
 
-import { useCallback, useMemo, useState } from "react";
-import { DateTime } from "luxon";
+import { useCallback, useMemo, useState } from 'react';
+import { DateTime } from 'luxon';
 
 import type {
   ClientContactBreakdown,
   ClientContactPieSegment,
-} from "@/modules/doctor-clients/clientContactSegments";
-import type { AdminStatsTimePreset } from "@/modules/admin-platform-stats/types";
-import type { DoctorAnalyticsMetricKey } from "@/modules/doctor-analytics-metric-accounts/ports";
-import { DoctorMetricList } from "@/shared/ui/doctor/DoctorMetricList";
-import { DoctorSection, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
+} from '@/modules/doctor-clients/clientContactSegments';
+import type { AdminStatsTimePreset } from '@/modules/admin-platform-stats/types';
+import type { DoctorAnalyticsMetricKey } from '@/modules/doctor-analytics-metric-accounts/ports';
+import { DoctorMetricList } from '@/shared/ui/doctor/DoctorMetricList';
+import { DoctorSection, DoctorSectionTitle } from '@/shared/ui/doctor/DoctorSection';
 
-import { AnalyticsPeriodToolbar } from "./AnalyticsPeriodToolbar";
-import { ClientContactPieChart } from "./ClientContactPieChart";
-import { DoctorAnalyticsAppointmentsSection } from "./DoctorAnalyticsAppointmentsSection";
-import { DoctorStatCard } from "./DoctorStatCard";
-import { MetricAccountsDialog } from "./MetricAccountsDialog";
+import { AnalyticsPeriodToolbar } from './AnalyticsPeriodToolbar';
+import { ClientContactPieChart } from './ClientContactPieChart';
+import { DoctorAnalyticsAppointmentsSection } from './DoctorAnalyticsAppointmentsSection';
+import { DoctorStatCard } from './DoctorStatCard';
+import { MetricAccountsDialog } from './MetricAccountsDialog';
 import {
   resolveAnalyticsPeriodLabel,
   validateCustomAnalyticsPeriod,
   ymdMinusDays,
   type AnalyticsPeriodValue,
-} from "./analyticsPeriodUi";
+} from './analyticsPeriodUi';
 
 type ClientsSnapshot = {
   total: number;
@@ -35,17 +35,17 @@ type ClientsSnapshot = {
 
 /** Срез «сейчас» — список клиентов не зависит от периода в тулбаре. */
 const CLIENT_SNAPSHOT_METRICS = new Set<DoctorAnalyticsMetricKey>([
-  "clients_total",
-  "clients_phone_only",
-  "clients_app_guests",
-  "clients_segment_telegram_only",
-  "clients_segment_max_only",
-  "clients_segment_email_only",
-  "clients_segment_telegram_email",
-  "clients_segment_max_email",
-  "clients_segment_phone_email_no_messenger",
-  "clients_messenger_bot_blocked_telegram",
-  "clients_messenger_bot_blocked_max",
+  'clients_total',
+  'clients_phone_only',
+  'clients_app_guests',
+  'clients_segment_telegram_only',
+  'clients_segment_max_only',
+  'clients_segment_email_only',
+  'clients_segment_telegram_email',
+  'clients_segment_max_email',
+  'clients_segment_phone_email_no_messenger',
+  'clients_messenger_bot_blocked_telegram',
+  'clients_messenger_bot_blocked_max',
 ]);
 
 type Props = {
@@ -56,20 +56,26 @@ type Props = {
   patientGenPlural?: string;
 };
 
-export function DoctorAnalyticsClientsPageClient({ calendarTodayYmd, displayIana, clients, patientPluralLabel = "Клиенты", patientGenPlural = "клиентов" }: Props) {
-  const [preset, setPreset] = useState<AdminStatsTimePreset>("week");
-  const [customFrom, setCustomFrom] = useState("");
-  const [customTo, setCustomTo] = useState("");
+export function DoctorAnalyticsClientsPageClient({
+  calendarTodayYmd,
+  displayIana,
+  clients,
+  patientPluralLabel = 'Клиенты',
+  patientGenPlural = 'клиентов',
+}: Props) {
+  const [preset, setPreset] = useState<AdminStatsTimePreset>('week');
+  const [customFrom, setCustomFrom] = useState('');
+  const [customTo, setCustomTo] = useState('');
   const [appliedPeriod, setAppliedPeriod] = useState<AnalyticsPeriodValue>({
-    preset: "week",
-    customFrom: "",
-    customTo: "",
+    preset: 'week',
+    customFrom: '',
+    customTo: '',
   });
   const [periodError, setPeriodError] = useState<string | null>(null);
   const [periodReady, setPeriodReady] = useState(true);
   const [metricDialogOpen, setMetricDialogOpen] = useState(false);
   const [selectedMetric, setSelectedMetric] = useState<DoctorAnalyticsMetricKey | null>(null);
-  const [selectedMetricTitle, setSelectedMetricTitle] = useState("");
+  const [selectedMetricTitle, setSelectedMetricTitle] = useState('');
 
   const period = useMemo<AnalyticsPeriodValue>(
     () => ({ preset, customFrom, customTo }),
@@ -82,40 +88,38 @@ export function DoctorAnalyticsClientsPageClient({ calendarTodayYmd, displayIana
   );
 
   const metricDialogPeriod = useMemo(
-    () => (selectedMetric && CLIENT_SNAPSHOT_METRICS.has(selectedMetric) ? undefined : appliedPeriod),
+    () =>
+      selectedMetric && CLIENT_SNAPSHOT_METRICS.has(selectedMetric) ? undefined : appliedPeriod,
     [selectedMetric, appliedPeriod],
   );
 
-  const applyPeriod = useCallback(
-    (next: AnalyticsPeriodValue) => {
-      const err = validateCustomAnalyticsPeriod(next);
-      if (err) {
-        setPeriodError(err);
-        setPeriodReady(false);
-        return;
-      }
-      setPeriodError(null);
-      setPeriodReady(true);
-      setAppliedPeriod(next);
-    },
-    [],
-  );
+  const applyPeriod = useCallback((next: AnalyticsPeriodValue) => {
+    const err = validateCustomAnalyticsPeriod(next);
+    if (err) {
+      setPeriodError(err);
+      setPeriodReady(false);
+      return;
+    }
+    setPeriodError(null);
+    setPeriodReady(true);
+    setAppliedPeriod(next);
+  }, []);
 
   const handlePresetChange = useCallback(
     (next: AdminStatsTimePreset) => {
       setPreset(next);
-      if (next === "custom") {
-        const t = calendarTodayYmd.trim() || DateTime.now().setZone(displayIana).toISODate() || "";
+      if (next === 'custom') {
+        const t = calendarTodayYmd.trim() || DateTime.now().setZone(displayIana).toISODate() || '';
         const from = ymdMinusDays(t, 6);
         const to = t;
         setCustomFrom(from);
         setCustomTo(to);
-        applyPeriod({ preset: "custom", customFrom: from, customTo: to });
+        applyPeriod({ preset: 'custom', customFrom: from, customTo: to });
         return;
       }
-      setCustomFrom("");
-      setCustomTo("");
-      applyPeriod({ preset: next, customFrom: "", customTo: "" });
+      setCustomFrom('');
+      setCustomTo('');
+      applyPeriod({ preset: next, customFrom: '', customTo: '' });
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps -- displayIana стабилен в рамках сессии (TZ-проброс отложен владельцем)
     [applyPeriod, calendarTodayYmd],
@@ -144,12 +148,12 @@ export function DoctorAnalyticsClientsPageClient({ calendarTodayYmd, displayIana
   const openContactSegment = useCallback(
     (segment: ClientContactPieSegment, label: string) => {
       const map: Record<ClientContactPieSegment, DoctorAnalyticsMetricKey> = {
-        telegram_only: "clients_segment_telegram_only",
-        max_only: "clients_segment_max_only",
-        email_only: "clients_segment_email_only",
-        telegram_email: "clients_segment_telegram_email",
-        max_email: "clients_segment_max_email",
-        phone_email_no_messenger: "clients_segment_phone_email_no_messenger",
+        telegram_only: 'clients_segment_telegram_only',
+        max_only: 'clients_segment_max_only',
+        email_only: 'clients_segment_email_only',
+        telegram_email: 'clients_segment_telegram_email',
+        max_email: 'clients_segment_max_email',
+        phone_email_no_messenger: 'clients_segment_phone_email_no_messenger',
       };
       openMetric(map[segment], `Каналы связи: ${label}`);
     },
@@ -170,12 +174,19 @@ export function DoctorAnalyticsClientsPageClient({ calendarTodayYmd, displayIana
 
       <DoctorSection id="doctor-stats-clients-section">
         <DoctorSectionTitle>{patientPluralLabel}</DoctorSectionTitle>
-        <p className="text-muted-foreground text-sm">Срез на текущий момент, без привязки к периоду выше.</p>
+        <p className="text-muted-foreground text-sm">
+          Срез на текущий момент, без привязки к периоду выше.
+        </p>
         <div className="mt-3 grid gap-3 lg:grid-cols-2">
           <div className="order-1 rounded-lg border border-border/60 bg-card p-3 overflow-visible lg:min-h-[260px]">
-            <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Каналы связи</p>
+            <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+              Каналы связи
+            </p>
             <div className="mt-2 overflow-visible">
-              <ClientContactPieChart breakdown={clients.contactBreakdown} onSegmentClick={openContactSegment} />
+              <ClientContactPieChart
+                breakdown={clients.contactBreakdown}
+                onSegmentClick={openContactSegment}
+              />
             </div>
           </div>
           <div className="order-2">
@@ -187,54 +198,63 @@ export function DoctorAnalyticsClientsPageClient({ calendarTodayYmd, displayIana
                 id="doctor-stats-clients-patients"
                 title={patientPluralLabel}
                 value={clients.patientsCount}
-                onClick={() => openMetric("clients_total", `${patientPluralLabel} (с записями)`)}
+                onClick={() => openMetric('clients_total', `${patientPluralLabel} (с записями)`)}
               />
               <DoctorStatCard
                 id="doctor-stats-clients-potential"
                 title="Потенциальных"
                 value={clients.subscribersOnlyCount}
-                onClick={() => openMetric("clients_total", "Потенциальные (без записей)")}
+                onClick={() => openMetric('clients_total', 'Потенциальные (без записей)')}
               />
               <DoctorStatCard
                 id="doctor-stats-clients-total"
                 title={`Всего ${patientGenPlural}`}
                 value={clients.total}
-                onClick={() => openMetric("clients_total", `Все ${patientGenPlural}`)}
+                onClick={() => openMetric('clients_total', `Все ${patientGenPlural}`)}
               />
               <DoctorStatCard
                 id="doctor-stats-clients-phone-only"
                 title="Только телефон"
                 value={clients.phoneOnly}
                 tone="warning"
-                onClick={() => openMetric("clients_phone_only", `${patientPluralLabel}: только телефон`)}
+                onClick={() =>
+                  openMetric('clients_phone_only', `${patientPluralLabel}: только телефон`)
+                }
               />
               <DoctorStatCard
                 id="doctor-stats-clients-app-guests"
                 title="Гости приложения"
                 value={clients.appGuests}
                 tone="warning"
-                onClick={() => openMetric("clients_app_guests", "Гости приложения")}
+                onClick={() => openMetric('clients_app_guests', 'Гости приложения')}
               />
               <DoctorStatCard
                 id="doctor-stats-clients-bot-blocked-telegram"
                 title="ТГ: бот заблокирован"
                 value={clients.contactBreakdown.messengerBotBlocked.telegram}
                 onClick={() =>
-                  openMetric("clients_messenger_bot_blocked_telegram", "Telegram: бот заблокирован")
+                  openMetric('clients_messenger_bot_blocked_telegram', 'Telegram: бот заблокирован')
                 }
               />
               <DoctorStatCard
                 id="doctor-stats-clients-bot-blocked-max"
                 title="MAX: бот заблокирован"
                 value={clients.contactBreakdown.messengerBotBlocked.max}
-                onClick={() => openMetric("clients_messenger_bot_blocked_max", "MAX: бот заблокирован")}
+                onClick={() =>
+                  openMetric('clients_messenger_bot_blocked_max', 'MAX: бот заблокирован')
+                }
               />
             </DoctorMetricList>
           </div>
         </div>
       </DoctorSection>
 
-      <DoctorAnalyticsAppointmentsSection period={appliedPeriod} ready={periodReady} onMetricClick={openMetric} patientGenPlural={patientGenPlural} />
+      <DoctorAnalyticsAppointmentsSection
+        period={appliedPeriod}
+        ready={periodReady}
+        onMetricClick={openMetric}
+        patientGenPlural={patientGenPlural}
+      />
 
       <MetricAccountsDialog
         open={metricDialogOpen}

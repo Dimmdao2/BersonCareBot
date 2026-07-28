@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { useActionState, useId, useState } from "react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Checkbox } from "@/shared/ui/doctor/primitives/checkbox";
+import { useActionState, useId, useState } from 'react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Checkbox } from '@/shared/ui/doctor/primitives/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -11,9 +11,9 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/shared/ui/doctor/primitives/dialog";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { renameContentSectionSlug, type RenameContentSectionSlugState } from "./actions";
+} from '@/shared/ui/doctor/primitives/dialog';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { renameContentSectionSlug, type RenameContentSectionSlugState } from './actions';
 
 type Props = {
   oldSlug: string;
@@ -22,16 +22,24 @@ type Props = {
   disabledReason?: string;
 };
 
-export function SectionSlugRenameDialog({ oldSlug, pagesAffectedCount, disabled, disabledReason }: Props) {
+export function SectionSlugRenameDialog({
+  oldSlug,
+  pagesAffectedCount,
+  disabled,
+  disabledReason,
+}: Props) {
   const [open, setOpen] = useState(false);
-  const [state, formAction, pending] = useActionState(renameContentSectionSlug, null as RenameContentSectionSlugState | null);
+  const [state, formAction, pending] = useActionState(
+    renameContentSectionSlug,
+    null as RenameContentSectionSlugState | null,
+  );
   const newSlugFieldId = useId();
   const confirmId = useId();
 
   if (disabled) {
     return (
       <p className="max-w-sm text-xs text-muted-foreground">
-        {disabledReason ?? "Переименование slug для этого раздела недоступно."}
+        {disabledReason ?? 'Переименование slug для этого раздела недоступно.'}
       </p>
     );
   }
@@ -45,15 +53,17 @@ export function SectionSlugRenameDialog({ oldSlug, pagesAffectedCount, disabled,
         <DialogHeader>
           <DialogTitle>Переименование slug раздела</DialogTitle>
           <DialogDescription>
-            Текущий slug: <span className="font-mono text-foreground">{oldSlug}</span>. Будут обновлены ссылки в
-            страницах контента и история редиректов для пациентских URL. Действие необратимо по смыслу (старый slug
-            остаётся только как запись в истории).
+            Текущий slug: <span className="font-mono text-foreground">{oldSlug}</span>. Будут
+            обновлены ссылки в страницах контента и история редиректов для пациентских URL. Действие
+            необратимо по смыслу (старый slug остаётся только как запись в истории).
           </DialogDescription>
         </DialogHeader>
         <form action={formAction} className="flex flex-col gap-3">
           <input type="hidden" name="old_slug" value={oldSlug} />
           <label className="flex flex-col gap-1" htmlFor={newSlugFieldId}>
-            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Новый slug</span>
+            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Новый slug
+            </span>
             <Input
               id={newSlugFieldId}
               name="new_slug"
@@ -65,11 +75,15 @@ export function SectionSlugRenameDialog({ oldSlug, pagesAffectedCount, disabled,
             />
           </label>
           <p className="text-sm text-muted-foreground">
-            Затронуто страниц контента в этом разделе: <span className="font-medium text-foreground">{pagesAffectedCount}</span>
+            Затронуто страниц контента в этом разделе:{' '}
+            <span className="font-medium text-foreground">{pagesAffectedCount}</span>
           </p>
           <label className="flex items-start gap-2 text-sm">
             <Checkbox name="confirm_rename" value="on" id={confirmId} className="mt-1" required />
-            <span id={`${confirmId}-label`}>Я понимаю, что ссылки и URL раздела изменятся; старый адрес будет перенаправлять на новый.</span>
+            <span id={`${confirmId}-label`}>
+              Я понимаю, что ссылки и URL раздела изменятся; старый адрес будет перенаправлять на
+              новый.
+            </span>
           </label>
           {state && state.ok === false ? (
             <p role="alert" className="text-sm text-destructive">
@@ -78,7 +92,7 @@ export function SectionSlugRenameDialog({ oldSlug, pagesAffectedCount, disabled,
           ) : null}
           <DialogFooter className="border-0 bg-transparent p-0 sm:justify-end">
             <Button type="submit" disabled={pending}>
-              {pending ? "Переименование…" : "Переименовать"}
+              {pending ? 'Переименование…' : 'Переименовать'}
             </Button>
           </DialogFooter>
         </form>

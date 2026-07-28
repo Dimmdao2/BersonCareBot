@@ -1,1 +1,1 @@
-export { runStrictPurgePlatformUser } from "@/infra/strictPlatformUserPurge";
+export { runStrictPurgePlatformUser } from '@/infra/strictPlatformUserPurge';

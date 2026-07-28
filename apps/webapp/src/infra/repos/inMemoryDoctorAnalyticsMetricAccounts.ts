@@ -1,4 +1,4 @@
-import type { DoctorAnalyticsMetricAccountsPort } from "@/modules/doctor-analytics-metric-accounts/ports";
+import type { DoctorAnalyticsMetricAccountsPort } from '@/modules/doctor-analytics-metric-accounts/ports';
 
 export const inMemoryDoctorAnalyticsMetricAccountsPort: DoctorAnalyticsMetricAccountsPort = {
   async listMetricAccounts({ offset }) {

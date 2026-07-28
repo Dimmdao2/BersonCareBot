@@ -31,6 +31,7 @@ tenancy ENTIRELY on the new `be_*` engine + clinical tables; freeze & drop legac
 `patient_bookings`/`appointment_records`; do not scope them.
 
 ### Ground truth (measured, not assumed)
+
 - **Pooling:** app connects DIRECTLY to Postgres `127.0.0.1:5432`; NO pgbouncer (no process, no
   deploy/compose reference). → the per-request **pinned-connection + session `SET` + `RESET ALL`**
   model is viable; no transaction-pooler constraint. (Re-confirm the prod box before T0.)
@@ -42,7 +43,7 @@ tenancy ENTIRELY on the new `be_*` engine + clinical tables; freeze & drop legac
   - **Corrected dormant strategy:** (1) split into a **migration/owner role** + a **non-owner app
     role**; (2) `ENABLE` + **`FORCE ROW LEVEL SECURITY`** on scoped tables; (3) policies are
     **GUC-gated permissive**: `USING ( current_setting('app.enforce_tenancy', true) IS DISTINCT FROM
-    'on' OR <tenant predicate> )`. GUC unset today → permissive → zero behavior change; T0 = default
+'on' OR <tenant predicate> )`. GUC unset today → permissive → zero behavior change; T0 = default
     the GUC `on` per request. Policies present, testable, inert. (Note: any role may set custom `app.*`
     GUCs, incl. non-superuser — the context mechanism works.)
 - **Tenancy data is trivially small:** exactly **1 organization** (`a0000000-…-0001`, "Точка Здоровья"),
@@ -55,13 +56,14 @@ tenancy ENTIRELY on the new `be_*` engine + clinical tables; freeze & drop legac
 ### Phase 0 — ordered, E1 FIRST
 
 **Block 1 — E1: identity→organization bridge (THE unblocker).**
+
 - Create `be_organization_members(organization_id FK, platform_user_id FK, role text
-  [owner|admin|doctor|assistant], specialist_id uuid NULL FK be_specialists, status, created_at,
-  UNIQUE(organization_id, platform_user_id))`.
+[owner|admin|doctor|assistant], specialist_id uuid NULL FK be_specialists, status, created_at,
+UNIQUE(organization_id, platform_user_id))`.
 - Seed (tiny): map the 1 doctor + 5 admins → the single org with roles; link `specialist_id` for the
   doctor where a `be_specialists` row matches.
 - `Principal` derivation: logged-in `platform_user_id` → membership → `{ doctor, userId,
-  organizationId, role }`; single membership → that org; multiple → active-org in session.
+organizationId, role }`; single membership → that org; multiple → active-org in session.
 - The real single-tenant lever is **`getDefaultOrganizationId()`** — ONE resolver returning the same
   default org for everyone, called in **62 files** (only the 2 `require*BookingEngine` gates are real
   chokepoints; the rest — patient RSC, `api/booking/public`, memberships, products, payments,
@@ -93,6 +95,7 @@ soft-delete; isolation test fixtures (2 orgs + a shared patient).
 no near-term gain.
 
 ### Re-verification corrections (2026-06-16) — what changed after re-checking
+
 - **Mirror is fresh** (newest client 2026-06-13) → dev measurements trustworthy; prod-box role +
   pooling parity still to confirm before T0 (NOT before Block 1 — E1 doesn't enable RLS).
 - **Specialist duplication is live:** two `be_specialists` both "Дмитрий Берсон" — active (`518e…`,
@@ -105,9 +108,11 @@ no near-term gain.
   and `specialistId` (already org-scoped, not a hole).
 
 ### Org resolution by channel + authz layering (2026-06-16 — owner direction)
+
 Entry is **web/PWA/browser-first**; the bot is delivery + phone-verification (+ a trimmed miniApp,
 likely owner-only). So "org = bot" is NOT the primary mechanism. Org resolves per channel, then flows
 into the SAME request context; the channel-resolved org carries **zero authority**:
+
 - **Authenticated** (PWA / returning patient / doctor) → org from **session/membership** (dominant).
 - **Anonymous public booking** (cold first contact, narrow surface) → **custom domain (Host)** /
   **embeddable widget publishable-key** / **QR-short-link → token → 302 → cookie**.
@@ -123,6 +128,7 @@ construction, NOT duplicated per endpoint. Phase 0 (solo, web-first): resolver r
 channel binding for public booking is built when public multi-tenant booking actually ships.
 
 ### Sizing delta vs §13
+
 - Backfill risk DOWN (1 org / 241 patients — tiny). E1 added as a small, clean Phase-0 block. Dormant
   RLS mechanism corrected (FORCE + GUC-gated + role split) — same effort, now actually correct.
 - **Phase 0 ≈ 3–4.5 wk** (E1 added, persons-split removed, trivial backfill — roughly nets out). T0
@@ -136,10 +142,10 @@ channel binding for public booking is built when public multi-tenant booking act
 1. **Zero behavior change today.** Every new column is nullable + backfilled to a single default
    Cabinet/Person/Region. Every new table has exactly one seeded default row. RLS ships present but
    not enforced for the prod role. i18n ships with one active locale.
-2. **Flip-on, not rewrite — with one honest exception (v2).** The *dormant scaffolding* is additive
+2. **Flip-on, not rewrite — with one honest exception (v2).** The _dormant scaffolding_ is additive
    and flag-gated (§1). BUT enforcing tenancy isolation is **not** a flag: it needs a one-time
    **enforcement cutover (T0)** — a bounded multi-week refactor (per-request connection model, 4
-   process entrypoints, DB-role split, session schema). The scaffolding flips; *enforcement* is cut
+   process entrypoints, DB-role split, session schema). The scaffolding flips; _enforcement_ is cut
    over once. See §12.C1–C3.
 3. **Default-deny by construction once enabled.** You cannot obtain a DB handle without a Principal;
    the DB (RLS) enforces isolation even if an app query forgets a WHERE.
@@ -152,14 +158,14 @@ channel binding for public booking is built when public multi-tenant booking act
 
 ## 1. The flip points (the "two lines" made honest)
 
-| Flag (default) | What flipping it does | Pre-built behind it |
-|---|---|---|
-| `TENANCY_ENFORCED=false` | Request edge builds a **real** Principal (patient→active cabinet from session; doctor→cabinet membership) instead of the system/bypass principal; DB connects as a **non-BYPASSRLS** role | Principal type, `withTenantContext`, RLS policies, scope columns |
-| `ONBOARDING_ENABLED=false` | Exposes signup / cabinet-provisioning / invite routes | Provisioning service + routes (route-guarded off) |
-| `LOCALES=ru` → `ru,en` | Adds EN to the allowlist; UI + content fall back ru→en | i18n provider, message catalogs, content translation shape |
-| `APP_REGION=ru` + directory live | App runs as a regional cell; gateway routes by identity→region | region columns, RegionGuard, DirectoryPort |
+| Flag (default)                   | What flipping it does                                                                                                                                                                     | Pre-built behind it                                              |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `TENANCY_ENFORCED=false`         | Request edge builds a **real** Principal (patient→active cabinet from session; doctor→cabinet membership) instead of the system/bypass principal; DB connects as a **non-BYPASSRLS** role | Principal type, `withTenantContext`, RLS policies, scope columns |
+| `ONBOARDING_ENABLED=false`       | Exposes signup / cabinet-provisioning / invite routes                                                                                                                                     | Provisioning service + routes (route-guarded off)                |
+| `LOCALES=ru` → `ru,en`           | Adds EN to the allowlist; UI + content fall back ru→en                                                                                                                                    | i18n provider, message catalogs, content translation shape       |
+| `APP_REGION=ru` + directory live | App runs as a regional cell; gateway routes by identity→region                                                                                                                            | region columns, RegionGuard, DirectoryPort                       |
 
-Honest framing (revised v2): the *scaffolding* is ~4 flags in front of dormant, tested code. But
+Honest framing (revised v2): the _scaffolding_ is ~4 flags in front of dormant, tested code. But
 `TENANCY_ENFORCED` specifically sits behind the **T0 enforcement cutover** (§12.C1–C3) — a multi-week
 refactor, not a switch. The other three (onboarding, locales, region) are genuine flags once their
 dormant code lands.
@@ -182,15 +188,16 @@ Two Postgres schemas to make the directory/PII split structural:
   - `app.enrollments(id PK, person_id, cabinet_id, region, status, created_at, UNIQUE(person_id,cabinet_id))`
     — **the join + clinical root**. Net-new (no patient↔doctor table exists today).
 
-**Scope columns on the ~23 clinical/patient-owned tables** (symptom_entries, lfk_sessions,
+**Scope columns on the ~23 clinical/patient-owned tables** (symptom*entries, lfk_sessions,
 lfk_complexes, media_files, user_channel_preferences, doctor_notes, message_log, broadcast_audit,
-support_*, …): add `enrollment_id` + **denormalized** `cabinet_id` + `region` (all nullable now).
+support*\*, …): add `enrollment_id` + **denormalized** `cabinet_id` + `region` (all nullable now).
 
 > Denormalization is deliberate: RLS policies must be a cheap equality on an **indexed** column, not
 > a per-row subquery/join. `cabinet_id`/`region` ride on every scoped row. Enrollments do not move
 > between cabinets (a re-enrollment is a new row), so the denorm never drifts.
 
 **Backfill (idempotent, batched):**
+
 1. One `directory.persons` + `app.person_profiles` per existing patient (`platform_users` role=patient), `home_region='ru'`.
 2. One default `app.cabinets` (the current clinic), owner = the canonical specialist (see specialist-consolidation).
 3. `cabinet_members` ← existing specialists/admins.
@@ -302,7 +309,7 @@ CREATE POLICY p_doctor ON app.symptom_entries FOR ALL
    `person_id` **must** have RLS enabled + ≥1 policy, else the build fails. Keeps default-deny true as
    the schema grows.
 2. **Append-only clinical audit:** trigger-based `app.clinical_audit(actor, action, table, row_id,
-   at)` on scoped clinical tables (medico-legal / 152-FZ / GDPR). Cheap now, lossy if added later.
+at)` on scoped clinical tables (medico-legal / 152-FZ / GDPR). Cheap now, lossy if added later.
 3. **Soft-delete:** `deleted_at` on clinical tables; the scoping layer filters it.
 4. **Transactional outbox:** `app.outbox(...)` + relay worker; booking write + side-effect enqueue in
    one tx; relay delivers to Telegram/Rubitime/GCal. Closes the desync class that already leaked an
@@ -362,6 +369,7 @@ Findings from a code-grounded adversarial review, with resolutions folded into t
 brackets. Evidence paths are real and verified against the repo.
 
 ### C1 [CRITICAL] — Shared `pg.Pool` + Drizzle per-statement checkout breaks ambient `SET LOCAL`.
+
 The app runs every statement against a **shared pool** (`infra/db/client.ts` `new Pool({max:5})`),
 through Drizzle (`app-layer/db/drizzle.ts`) and a default executor `runWebappPgText` (`infra/db/
 runWebappSql.ts`). A connection is checked out **per statement** and released immediately, so
@@ -376,6 +384,7 @@ the pinned client from `AsyncLocalStorage`) — **not** 590 hand-edits, but the 
 plan's "ports unchanged / flip is a flag" claim is **retracted** for enforcement.
 
 ### C2 [CRITICAL] — Non-request processes have no edge to wrap (4 entrypoints).
+
 `buildAppDeps` is not "the single edge." Long-running processes build `dbPort = createDbPort()` once
 at boot (`integrator/app/di.ts`) and never see an HTTP request: the **bot** (per-update via
 `handleUpdate/handleMessage/handleCallback`), the **delivery/projection worker**
@@ -386,16 +395,18 @@ or run as BYPASSRLS → the silent leak §11 warns about.
 cabinet from the inbound update / job row / tick. This is real work in T0, per process.
 
 ### C3 [CRITICAL] — Session has no `activeCabinetId`; the patient principal is unbuildable.
+
 `shared/types/session.ts` `AppSession`/`SessionUser` carry no tenant/cabinet/region field.
 **Resolution:** Add `activeCabinetId`+`region` to the session (land the field **dormant** in Phase 0),
 plus a cabinet-selection UX for multi-enrolled patients and default-cabinet resolution for the
 single-cabinet case. Live use is T0.
 
 ### C4 [CRITICAL] — A conflicting tenant axis already exists (`beOrganizations`/`organization_id`).
+
 The booking engine already scopes by organization: `getDefaultOrganizationId` used **109×**,
 `organization_id` **36×**, a `beOrganizations` table with CRUD, default from
 `system_settings.booking_default_organization_id` (`infra/repos/pgBookingEngine.ts`). Introducing
-`Cabinet` as a *new* tenant axis would create two parallel dimensions → drift + double-scoping bugs.
+`Cabinet` as a _new_ tenant axis would create two parallel dimensions → drift + double-scoping bugs.
 **Resolution (DECIDED 2026-06-16):** **Cabinet ≡ Organization** — reuse `be_organizations`; do NOT add
 a parallel `cabinet_id`. Verified against the canonical booking engine (migration `0086`): it already
 models `be_organizations → be_branches → be_rooms`, with `be_specialists` **owned by an org**
@@ -410,6 +421,7 @@ org specialist sees every org patient; optional `assigned` = only via appointmen
 launch solo with `all`.
 
 ### H1 [HIGH] — Scoped surface is ~95 tables / 148 migrations / 5 dirs, not 23 / 106.
+
 Real counts: ~**95 tables**, **148 migration files** across **5 roots** (webapp 91, integrator 1,
 telegram 14, rubitime 7, …). Omitted clinical tables include `online_intake_*`,
 `patient_lfk_assignments`, `conversations`/`conversation_messages`, `question_messages`/
@@ -419,6 +431,7 @@ telegram 14, rubitime 7, …). Omitted clinical tables include `online_intake_*`
 clinical tables; the §8.1 CI invariant and every `ENABLE RLS` must cover all 5 migration roots.
 
 ### H2 [HIGH] — BYPASSRLS-until-flip leaves prod superuser paths; one shared DB role today.
+
 Migrations run on **every boot** (`integrator/main.ts` → `runMigrations()`) under the **same single
 role** as the app (`deploy/env/*`, one role, no separate migration role). If that role has BYPASSRLS,
 RLS is **never** enforced. 39 dedicated-client + 132 raw-query paths (advisory locks, uploads, purges,
@@ -428,6 +441,7 @@ role** (two `DATABASE_URL`s). Prefer `FORCE ROW LEVEL SECURITY` + a **narrow, en
 used only by listed jobs, over "app role has BYPASSRLS." Classify the 39+132 paths during T0.
 
 ### H3 [HIGH] — File storage is not isolated (single bucket, flat keys, shared creds).
+
 `infra/s3/client.ts` keys are `${S3_KEY_PREFIX}/${mediaId}/${file}` — no cabinet/region; one bucket,
 one credential set. A presign/key-guess bug crosses tenants; a physical EU split can't "just deploy a
 cell" because objects are region-less.
@@ -436,6 +450,7 @@ objects are physically partitioned; document legacy re-keying before any region 
 covers per-cabinet bucket/prefix, not only credentials.
 
 ### H4 [HIGH] — Cross-schema FKs `app.* → directory.*` won't survive a physical region split.
+
 Intra-DB FKs (`app.person_profiles.person_id → directory.persons`) cannot exist once EU is a separate
 physical DB (the §7 end-state). RLS is same-DB only; cross-region isolation depends entirely on the
 unbuilt gateway/DirectoryPort.
@@ -444,6 +459,7 @@ FK-severance migration at split. Stop marketing the schema split as making EU a 
 logical tidiness, not physical portability.
 
 ### M1 [MED] — Backfill assumes clean patient→cabinet→enrollment; data says otherwise.
+
 Specialist consolidation is incomplete (`scripts/consolidate-specialist-identity.ts`) and
 NULL-specialist appointments exist; such rows can't be deterministically assigned a cabinet. Writes
 never stop (bot+workers), so rows land during the backfill window with NULL scope.
@@ -451,17 +467,20 @@ never stop (bot+workers), so rows land during the backfill window with NULL scop
 DEFAULT/trigger stamping `cabinet_id` on rows inserted during the window; only then add NOT-NULL.
 
 ### M2 [MED] — Integrator reads use bare `pool.query`; `tx()` is opt-in → uneven outbox guarantees.
+
 Verify the motivating overlap-leak booking path actually runs inside `tx()` before relying on the
 §8.4 outbox.
 
 ### M3 [MED] — `next-intl` locale resolution assumes middleware; repo uses `proxy.ts` (no middleware).
+
 Landing the provider is easy; wiring cookie/`Accept-Language` resolution through the proxy-not-
 middleware constraint is the real, currently-unscoped work.
 
 ### Missing workstreams (the plan built isolation, not tenant lifecycle)
+
 - **Per-tenant rate-limit / quotas** (noisy-neighbor) — none today.
 - **Tenant offboarding / deletion / export** — only user-level purge exists; nothing cabinet-scoped.
-- **SaaS billing / provisioning lifecycle** — existing `subscriptions`/`memberships` are *patient*
+- **SaaS billing / provisioning lifecycle** — existing `subscriptions`/`memberships` are _patient_
   product subs, **not** tenant billing; `ONBOARDING_ENABLED` has no plan/payment model behind it.
 - **Per-tenant inbound bot/webhook routing** — hard requirement; one Telegram secret today; routing an
   update to the owning cabinet's bot **gates multi-tenant Telegram entirely**.
@@ -471,6 +490,7 @@ middleware constraint is the real, currently-unscoped work.
   ports; a process-wide singleton DI graph clashes with per-request tenant context. Must resolve.
 
 ### Verdict (folded in)
+
 The **dormant, additive half is sound and landable now with zero behavior change** (nullable scope
 columns, `directory/app` split with soft refs, seeded default cabinet, RLS present-but-bypassed, i18n
 provider, SecretsResolver+env fallback, region columns, S3 key scheme, dormant session field, CI
@@ -482,13 +502,13 @@ reconciliation. Plan reframed accordingly.
 
 ## 13. Revised sizing (v2)
 
-| Block | What | Eng-weeks |
-|---|---|---|
+| Block                                                                  | What                                                                                                                                                                                                                                                                                                                                                                                                                                 | Eng-weeks          |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------ |
 | **Phase 0 — dormant scaffolding** (zero behavior change, landable now) | ~50-table nullable scope + backfill across 5 migration roots · `directory/app` split with **soft refs** · **two DB roles now** · RLS policies under `FORCE`+narrow-bypass · CI RLS invariant · SecretsResolver+env fallback · i18n provider (proxy-based) · region cols · **S3 cabinet/region key scheme** · dormant `activeCabinetId` session field · outbox/audit/soft-delete/isolation fixtures · **decide Cabinet≡Organization** | **~2.5–4** 🟢 safe |
-| **T0 — enforcement cutover** (the refactor; run when ready to enforce) | per-request pinned-connection model hooked at `runWebappPgText` + audit 39 dedicated + 132 raw paths · wrap **4 process entrypoints** · session live + cabinet-selection UX · swap to non-bypass app role + classify bypass paths · shadow-enforcement period | **~6–9** 🔴 |
-| **Tenant lifecycle** (the SaaS itself) | onboarding/provisioning + plan/billing · **per-tenant inbound bot routing** · offboarding/deletion/export · per-tenant quotas/rate-limit · per-tenant observability · `/admin` boundary | **~5–8** 🟠 |
-| **i18n activation (EN)** | unchanged | **~3–4.5** 🟡 |
-| **Multi-region (EU cell)** | unchanged + FK-severance | **~7–11** 🟠 infra |
+| **T0 — enforcement cutover** (the refactor; run when ready to enforce) | per-request pinned-connection model hooked at `runWebappPgText` + audit 39 dedicated + 132 raw paths · wrap **4 process entrypoints** · session live + cabinet-selection UX · swap to non-bypass app role + classify bypass paths · shadow-enforcement period                                                                                                                                                                        | **~6–9** 🔴        |
+| **Tenant lifecycle** (the SaaS itself)                                 | onboarding/provisioning + plan/billing · **per-tenant inbound bot routing** · offboarding/deletion/export · per-tenant quotas/rate-limit · per-tenant observability · `/admin` boundary                                                                                                                                                                                                                                              | **~5–8** 🟠        |
+| **i18n activation (EN)**                                               | unchanged                                                                                                                                                                                                                                                                                                                                                                                                                            | **~3–4.5** 🟡      |
+| **Multi-region (EU cell)**                                             | unchanged + FK-severance                                                                                                                                                                                                                                                                                                                                                                                                             | **~7–11** 🟠 infra |
 
 **Near-term safe step:** Phase 0 (~2.5–4 wk), entirely dormant.
 **To actually be a single-region multi-tenant SaaS:** Phase 0 + T0 + lifecycle ≈ **~14–21 wk**

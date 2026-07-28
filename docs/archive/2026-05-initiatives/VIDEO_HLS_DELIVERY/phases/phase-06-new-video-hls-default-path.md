@@ -8,7 +8,7 @@
 
 ## Поведение
 
-- После успешного `confirm` или `multipart complete`, если `mime` ∈ video/* и `video_hls_new_uploads_auto_transcode=true` и `video_hls_pipeline_enabled=true`:
+- После успешного `confirm` или `multipart complete`, если `mime` ∈ video/\* и `video_hls_new_uploads_auto_transcode=true` и `video_hls_pipeline_enabled=true`:
   - `INSERT media_transcode_jobs` (или обновление статуса на `pending`).
 - Существующие файлы: **не** трогать автоматически.
 

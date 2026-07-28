@@ -1,28 +1,28 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Label } from "@/shared/ui/doctor/primitives/label";
+import { useState } from 'react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Label } from '@/shared/ui/doctor/primitives/label';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/ui/doctor/primitives/select";
-import { isStaffDeletableCancelledStatus } from "@/modules/booking-calendar/appointmentStatusLabels";
-import { DoctorDateTimePicker } from "@/shared/ui/doctor/DoctorDateTimePicker";
+} from '@/shared/ui/doctor/primitives/select';
+import { isStaffDeletableCancelledStatus } from '@/modules/booking-calendar/appointmentStatusLabels';
+import { DoctorDateTimePicker } from '@/shared/ui/doctor/DoctorDateTimePicker';
 
-const API_BASE = "/api/doctor/booking-engine";
+const API_BASE = '/api/doctor/booking-engine';
 
 const CANCEL_TYPES = [
-  { value: "free", label: "Бесплатная" },
-  { value: "penalized", label: "Штрафная" },
-  { value: "package_charged", label: "Со списанием" },
-  { value: "no_package_charge", label: "Без списания" },
-  { value: "retain_prepayment", label: "Удержание предоплаты" },
-  { value: "refund_prepayment", label: "Возврат предоплаты" },
-  { value: "custom", label: "Индивидуально" },
+  { value: 'free', label: 'Бесплатная' },
+  { value: 'penalized', label: 'Штрафная' },
+  { value: 'package_charged', label: 'Со списанием' },
+  { value: 'no_package_charge', label: 'Без списания' },
+  { value: 'retain_prepayment', label: 'Удержание предоплаты' },
+  { value: 'refund_prepayment', label: 'Возврат предоплаты' },
+  { value: 'custom', label: 'Индивидуально' },
 ] as const;
 
 type Props = {
@@ -36,23 +36,25 @@ function isCanonicalAppointmentId(id: string): boolean {
 }
 
 function actionErrorLabel(error: string | undefined): string {
-  if (!error) return "unknown";
-  if (error === "not_cancelled") return "Сначала отмените запись.";
+  if (!error) return 'unknown';
+  if (error === 'not_cancelled') return 'Сначала отмените запись.';
   return error;
 }
 
 export function DoctorAppointmentActions({ recordId, status, onChanged }: Props) {
-  const [pending, setPending] = useState<"cancel" | "reschedule" | "delete" | "noshow" | null>(null);
-  const [note, setNote] = useState<string>("");
-  const [cancelType, setCancelType] = useState("free");
+  const [pending, setPending] = useState<'cancel' | 'reschedule' | 'delete' | 'noshow' | null>(
+    null,
+  );
+  const [note, setNote] = useState<string>('');
+  const [cancelType, setCancelType] = useState('free');
   const [rescheduleOpen, setRescheduleOpen] = useState(false);
-  const [newStartLocal, setNewStartLocal] = useState("");
-  const [newEndLocal, setNewEndLocal] = useState("");
+  const [newStartLocal, setNewStartLocal] = useState('');
+  const [newEndLocal, setNewEndLocal] = useState('');
 
   async function callApi(path: string, body: Record<string, unknown>) {
     const res = await fetch(path, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
       body: JSON.stringify(body),
     });
     const json = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
@@ -63,19 +65,19 @@ export function DoctorAppointmentActions({ recordId, status, onChanged }: Props)
 
   async function onCancel() {
     if (!isCanonicalAppointmentId(recordId)) {
-      setNote("Запись без канонического id — откройте календарь.");
+      setNote('Запись без канонического id — откройте календарь.');
       return;
     }
-    setPending("cancel");
-    setNote("");
+    setPending('cancel');
+    setNote('');
     try {
       await callApi(`${API_BASE}/appointments/${encodeURIComponent(recordId)}/manual-cancel`, {
         decisionType: cancelType,
       });
-      setNote("Отменено.");
+      setNote('Отменено.');
       onChanged?.();
     } catch (err) {
-      setNote(`Ошибка отмены: ${err instanceof Error ? actionErrorLabel(err.message) : "unknown"}`);
+      setNote(`Ошибка отмены: ${err instanceof Error ? actionErrorLabel(err.message) : 'unknown'}`);
     } finally {
       setPending(null);
     }
@@ -83,19 +85,19 @@ export function DoctorAppointmentActions({ recordId, status, onChanged }: Props)
 
   async function onNoShow() {
     if (!isCanonicalAppointmentId(recordId)) {
-      setNote("Запись без канонического id — откройте календарь.");
+      setNote('Запись без канонического id — откройте календарь.');
       return;
     }
-    if (!window.confirm("Отметить как «не пришёл»?")) return;
-    setPending("noshow");
-    setNote("");
+    if (!window.confirm('Отметить как «не пришёл»?')) return;
+    setPending('noshow');
+    setNote('');
     try {
       await callApi(`${API_BASE}/appointments/${encodeURIComponent(recordId)}/manual-no-show`, {});
-      setNote("Отмечено: не пришёл.");
+      setNote('Отмечено: не пришёл.');
       onChanged?.();
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "unknown";
-      const label = msg === "state_conflict" ? "Уже отмечено как «не пришёл»." : msg;
+      const msg = err instanceof Error ? err.message : 'unknown';
+      const label = msg === 'state_conflict' ? 'Уже отмечено как «не пришёл».' : msg;
       setNote(`Ошибка: ${label}`);
     } finally {
       setPending(null);
@@ -104,18 +106,20 @@ export function DoctorAppointmentActions({ recordId, status, onChanged }: Props)
 
   async function onDelete() {
     if (!isCanonicalAppointmentId(recordId)) {
-      setNote("Запись без канонического id — откройте календарь.");
+      setNote('Запись без канонического id — откройте календарь.');
       return;
     }
-    if (!window.confirm("Удалить запись из списка и кабинета пациента?")) return;
-    setPending("delete");
-    setNote("");
+    if (!window.confirm('Удалить запись из списка и кабинета пациента?')) return;
+    setPending('delete');
+    setNote('');
     try {
       await callApi(`${API_BASE}/appointments/${encodeURIComponent(recordId)}/delete`, {});
-      setNote("Удалено.");
+      setNote('Удалено.');
       onChanged?.();
     } catch (err) {
-      setNote(`Ошибка удаления: ${err instanceof Error ? actionErrorLabel(err.message) : "unknown"}`);
+      setNote(
+        `Ошибка удаления: ${err instanceof Error ? actionErrorLabel(err.message) : 'unknown'}`,
+      );
     } finally {
       setPending(null);
     }
@@ -123,8 +127,8 @@ export function DoctorAppointmentActions({ recordId, status, onChanged }: Props)
 
   async function onRescheduleSubmit() {
     if (!isCanonicalAppointmentId(recordId) || !newStartLocal || !newEndLocal) return;
-    setPending("reschedule");
-    setNote("");
+    setPending('reschedule');
+    setNote('');
     try {
       const newStartAt = new Date(newStartLocal).toISOString();
       const newEndAt = new Date(newEndLocal).toISOString();
@@ -137,11 +141,11 @@ export function DoctorAppointmentActions({ recordId, status, onChanged }: Props)
         newEndAt,
         durationMinutes,
       });
-      setNote("Перенесено.");
+      setNote('Перенесено.');
       setRescheduleOpen(false);
       onChanged?.();
     } catch (err) {
-      setNote(`Ошибка переноса: ${err instanceof Error ? err.message : "unknown"}`);
+      setNote(`Ошибка переноса: ${err instanceof Error ? err.message : 'unknown'}`);
     } finally {
       setPending(null);
     }
@@ -160,10 +164,8 @@ export function DoctorAppointmentActions({ recordId, status, onChanged }: Props)
         >
           Перенести
         </Button>
-        <Select value={cancelType} onValueChange={(v) => setCancelType(v ?? "free")}>
-          <SelectTrigger
-            className="h-8 w-[9rem]"
-          >
+        <Select value={cancelType} onValueChange={(v) => setCancelType(v ?? 'free')}>
+          <SelectTrigger className="h-8 w-[9rem]">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -184,7 +186,7 @@ export function DoctorAppointmentActions({ recordId, status, onChanged }: Props)
         >
           Отменить
         </Button>
-        {status === "confirmed" ? (
+        {status === 'confirmed' ? (
           <Button
             type="button"
             variant="outline"

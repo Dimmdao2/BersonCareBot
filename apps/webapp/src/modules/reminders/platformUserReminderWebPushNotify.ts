@@ -22,32 +22,35 @@
  * (not a send path). All payload fields (including `trackingId`) are forwarded via
  * `metadata.pushExtras` so the integrator adapter includes them in the push body.
  */
-import { logger } from "@/infra/logging/logger";
-import type { ChannelPreferencesPort } from "@/modules/channel-preferences/ports";
-import type { NotificationDeliveryService } from "@/modules/notification-delivery/service";
-import type { TopicChannelPrefsPort } from "@/modules/patient-notifications/topicChannelPrefsPort";
+import { logger } from '@/infra/logging/logger';
+import type { ChannelPreferencesPort } from '@/modules/channel-preferences/ports';
+import type { NotificationDeliveryService } from '@/modules/notification-delivery/service';
+import type { TopicChannelPrefsPort } from '@/modules/patient-notifications/topicChannelPrefsPort';
 import {
   resolvePatientNotificationChannels,
   type NotificationTopicGate,
-} from "@/modules/patient-notifications/resolveNotificationChannels";
-import type { SystemSettingsService } from "@/modules/system-settings/service";
-import type { WarmupPushDynamicContext } from "@/modules/web-push/pushNotificationCopy";
-import { createTrackedWebPushPayload } from "@/app-layer/product-analytics/createTrackedWebPushPayload";
+} from '@/modules/patient-notifications/resolveNotificationChannels';
+import type { SystemSettingsService } from '@/modules/system-settings/service';
+import type { WarmupPushDynamicContext } from '@/modules/web-push/pushNotificationCopy';
+import { createTrackedWebPushPayload } from '@/app-layer/product-analytics/createTrackedWebPushPayload';
 import {
   resolveReminderWebPushPayload,
   type ReminderWebPushPayload,
-} from "@/modules/web-push/resolveReminderWebPushPayload";
-import type { WebPushSubscriptionsPort } from "@/modules/web-push/ports";
-import { relayOutbound } from "@/modules/messaging/relayOutbound";
+} from '@/modules/web-push/resolveReminderWebPushPayload';
+import type { WebPushSubscriptionsPort } from '@/modules/web-push/ports';
+import { relayOutbound } from '@/modules/messaging/relayOutbound';
 
-const PATIENT_REMINDER_INTENT_TYPE = "patient_reminder";
+const PATIENT_REMINDER_INTENT_TYPE = 'patient_reminder';
 
 export type PlatformUserReminderWebPushNotifyDeps = {
   channelPreferences: ChannelPreferencesPort;
   topicChannelPrefs: TopicChannelPrefsPort;
   webPushSubscriptions: WebPushSubscriptionsPort;
-  systemSettings: Pick<SystemSettingsService, "getWebPushVapidPublicKeyOnly">;
-  readReminderNotifyGate: (platformUserId: string, topicCode: string) => Promise<NotificationTopicGate>;
+  systemSettings: Pick<SystemSettingsService, 'getWebPushVapidPublicKeyOnly'>;
+  readReminderNotifyGate: (
+    platformUserId: string,
+    topicCode: string,
+  ) => Promise<NotificationTopicGate>;
   notificationDelivery?: NotificationDeliveryService;
 };
 
@@ -79,12 +82,14 @@ export type PlatformUserReminderWebPushNotifyResult =
 
 function stripHtmlLight(s: string): string {
   return s
-    .replace(/<[^>]*>/g, "")
-    .replace(/\s+/g, " ")
+    .replace(/<[^>]*>/g, '')
+    .replace(/\s+/g, ' ')
     .trim();
 }
 
-function resolvePushPayload(input: PlatformUserReminderWebPushNotifyInput): ReminderWebPushPayload | null {
+function resolvePushPayload(
+  input: PlatformUserReminderWebPushNotifyInput,
+): ReminderWebPushPayload | null {
   if (input.ruleMeta) {
     return resolveReminderWebPushPayload({
       stableKey: input.occurrenceId,
@@ -98,14 +103,14 @@ function resolvePushPayload(input: PlatformUserReminderWebPushNotifyInput): Remi
       warmupContext: input.warmupContext,
     });
   }
-  const title = stripHtmlLight(input.title ?? "").slice(0, 200);
-  const textBody = stripHtmlLight(input.bodyText ?? "").slice(0, 500);
+  const title = stripHtmlLight(input.title ?? '').slice(0, 200);
+  const textBody = stripHtmlLight(input.bodyText ?? '').slice(0, 500);
   if (!title && !textBody) return null;
   return {
-    title: title || "Напоминание",
+    title: title || 'Напоминание',
     body: textBody || title,
     tag: `reminder:${input.occurrenceId}`,
-    pushKind: "custom",
+    pushKind: 'custom',
     warmupSloganKey: null,
   };
 }
@@ -116,7 +121,7 @@ export async function runPlatformUserReminderWebPushNotify(
 ): Promise<PlatformUserReminderWebPushNotifyResult> {
   const gate = await deps.readReminderNotifyGate(input.platformUserId, input.topicCode);
   if (gate.muted) {
-    return { ok: true, delivered: 0, skipped: "muted" };
+    return { ok: true, delivered: 0, skipped: 'muted' };
   }
 
   const prefs = await deps.channelPreferences.getPreferences(input.platformUserId);
@@ -140,9 +145,9 @@ export async function runPlatformUserReminderWebPushNotify(
     gate,
   });
 
-  if (!resolved.selectedChannels.includes("web_push")) {
-    const skip = resolved.skippedChannels.find((s) => s.channel === "web_push");
-    return { ok: true, delivered: 0, skipped: skip?.reason ?? "web_push_not_selected" };
+  if (!resolved.selectedChannels.includes('web_push')) {
+    const skip = resolved.skippedChannels.find((s) => s.channel === 'web_push');
+    return { ok: true, delivered: 0, skipped: skip?.reason ?? 'web_push_not_selected' };
   }
 
   if (!vapidPublicKey) {
@@ -150,12 +155,12 @@ export async function runPlatformUserReminderWebPushNotify(
       userId: input.platformUserId,
       topicCode: input.topicCode,
       intentType: PATIENT_REMINDER_INTENT_TYPE,
-      channel: "web_push",
-      status: "skipped",
-      reason: "vapid_missing",
+      channel: 'web_push',
+      status: 'skipped',
+      reason: 'vapid_missing',
       occurrenceId: input.occurrenceId,
     });
-    return { ok: true, delivered: 0, skipped: "vapid_missing" };
+    return { ok: true, delivered: 0, skipped: 'vapid_missing' };
   }
 
   if (subs.length === 0) {
@@ -163,12 +168,12 @@ export async function runPlatformUserReminderWebPushNotify(
       userId: input.platformUserId,
       topicCode: input.topicCode,
       intentType: PATIENT_REMINDER_INTENT_TYPE,
-      channel: "web_push",
-      status: "skipped",
-      reason: "no_active_subscriptions",
+      channel: 'web_push',
+      status: 'skipped',
+      reason: 'no_active_subscriptions',
       occurrenceId: input.occurrenceId,
     });
-    return { ok: true, delivered: 0, skipped: "no_active_subscriptions" };
+    return { ok: true, delivered: 0, skipped: 'no_active_subscriptions' };
   }
 
   const pushPayload = resolvePushPayload(input);
@@ -177,12 +182,12 @@ export async function runPlatformUserReminderWebPushNotify(
       userId: input.platformUserId,
       topicCode: input.topicCode,
       intentType: PATIENT_REMINDER_INTENT_TYPE,
-      channel: "web_push",
-      status: "skipped",
-      reason: "push_copy_skipped",
+      channel: 'web_push',
+      status: 'skipped',
+      reason: 'push_copy_skipped',
       occurrenceId: input.occurrenceId,
     });
-    return { ok: true, delivered: 0, skipped: "push_copy_skipped" };
+    return { ok: true, delivered: 0, skipped: 'push_copy_skipped' };
   }
 
   // Register product-analytics tracking record and build the push payload with trackingId.
@@ -210,7 +215,7 @@ export async function runPlatformUserReminderWebPushNotify(
   const result = await relayOutbound({
     messageId,
     organizationId: input.organizationId,
-    channel: "web_push",
+    channel: 'web_push',
     recipient: input.platformUserId,
     text: trackedPayload.body,
     metadata: {
@@ -222,7 +227,9 @@ export async function runPlatformUserReminderWebPushNotify(
         ...(trackedPayload.topicCode != null ? { topicCode: trackedPayload.topicCode } : {}),
         ...(trackedPayload.intentType != null ? { intentType: trackedPayload.intentType } : {}),
         ...(trackedPayload.pushKind != null ? { pushKind: trackedPayload.pushKind } : {}),
-        ...(trackedPayload.warmupSloganKey != null ? { warmupSloganKey: trackedPayload.warmupSloganKey } : {}),
+        ...(trackedPayload.warmupSloganKey != null
+          ? { warmupSloganKey: trackedPayload.warmupSloganKey }
+          : {}),
       },
     },
   }).catch((err: unknown) => {
@@ -233,9 +240,9 @@ export async function runPlatformUserReminderWebPushNotify(
         occurrenceId: input.occurrenceId,
         topicCode: input.topicCode,
       },
-      "platform user reminder web push relay failed",
+      'platform user reminder web push relay failed',
     );
-    return { ok: false as const, reason: "relay_error" };
+    return { ok: false as const, reason: 'relay_error' };
   });
 
   if (!result.ok) {
@@ -243,23 +250,23 @@ export async function runPlatformUserReminderWebPushNotify(
       userId: input.platformUserId,
       topicCode: input.topicCode,
       intentType: PATIENT_REMINDER_INTENT_TYPE,
-      channel: "web_push",
-      status: "failed",
-      reason: "relay_failed",
+      channel: 'web_push',
+      status: 'failed',
+      reason: 'relay_failed',
       occurrenceId: input.occurrenceId,
     });
-    return { ok: false, error: "web_push_relay_failed" };
+    return { ok: false, error: 'web_push_relay_failed' };
   }
 
   logger.info(
     {
-      event: "web_push_only_reminder.relay_dispatched",
+      event: 'web_push_only_reminder.relay_dispatched',
       platformUserId: input.platformUserId,
       occurrenceId: input.occurrenceId,
       topicCode: input.topicCode,
       relayStatus: result.status,
     },
-    "web push-only reminder relayed to integrator",
+    'web push-only reminder relayed to integrator',
   );
 
   return { ok: true, delivered: 1 };

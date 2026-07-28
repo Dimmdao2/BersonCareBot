@@ -1,43 +1,43 @@
-"use client";
+'use client';
 
-import { Check, CornerDownLeft, SendHorizontal } from "lucide-react";
-import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
-import { DoctorModal } from "@/shared/ui/doctor/DoctorModal";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
-import { proactiveInsightKindLabelRu } from "@/modules/doctor-proactive-insights/computeProactiveInsights";
-import { doctorInlineLinkClass, doctorSectionItemClass } from "@/shared/ui/doctor/doctorVisual";
-import { cn } from "@/lib/utils";
-import { sendDoctorProgramDiscussionReply } from "@/app/app/doctor/clients/[userId]/treatment-programs/[instanceId]/doctorProgramDiscussionReply";
-import type { TodayPendingProgramTestItem } from "./mapPendingProgramTestsForToday";
-import type { TodayProactiveInsightItem } from "./mapProactiveInsightsForToday";
-import { markDoctorProgramDiscussionRead } from "./doctorProgramDiscussionMarkRead";
-import type { TodayExerciseCommentAttentionItem } from "./loadDoctorExerciseCommentAttention";
-import { ExerciseCommentPreviewItemContent } from "./comments/ExerciseCommentPreviewItem";
-import type { TodayIntakeItem, TodayUnreadConversationItem } from "./loadDoctorTodayDashboard";
+import { Check, CornerDownLeft, SendHorizontal } from 'lucide-react';
+import Link from 'next/link';
+import { useEffect, useRef, useState } from 'react';
+import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
+import { proactiveInsightKindLabelRu } from '@/modules/doctor-proactive-insights/computeProactiveInsights';
+import { doctorInlineLinkClass, doctorSectionItemClass } from '@/shared/ui/doctor/doctorVisual';
+import { cn } from '@/lib/utils';
+import { sendDoctorProgramDiscussionReply } from '@/app/app/doctor/clients/[userId]/treatment-programs/[instanceId]/doctorProgramDiscussionReply';
+import type { TodayPendingProgramTestItem } from './mapPendingProgramTestsForToday';
+import type { TodayProactiveInsightItem } from './mapProactiveInsightsForToday';
+import { markDoctorProgramDiscussionRead } from './doctorProgramDiscussionMarkRead';
+import type { TodayExerciseCommentAttentionItem } from './loadDoctorExerciseCommentAttention';
+import { ExerciseCommentPreviewItemContent } from './comments/ExerciseCommentPreviewItem';
+import type { TodayIntakeItem, TodayUnreadConversationItem } from './loadDoctorTodayDashboard';
 
 export type DoctorTodayAttentionKind =
-  | "intake"
-  | "messages"
-  | "pendingTests"
-  | "proactive"
-  | "exerciseComments";
+  | 'intake'
+  | 'messages'
+  | 'pendingTests'
+  | 'proactive'
+  | 'exerciseComments';
 
 const TITLES: Record<DoctorTodayAttentionKind, string> = {
-  intake: "Онлайн-заявки",
-  messages: "Сообщения",
-  pendingTests: "Тесты к проверке",
-  proactive: "Сигналы пациентов",
-  exerciseComments: "Новые комментарии по упражнениям",
+  intake: 'Онлайн-заявки',
+  messages: 'Сообщения',
+  pendingTests: 'Тесты к проверке',
+  proactive: 'Сигналы пациентов',
+  exerciseComments: 'Новые комментарии по упражнениям',
 };
 
 const EMPTY_MESSAGES: Record<DoctorTodayAttentionKind, string> = {
-  intake: "Новых заявок нет",
-  messages: "Непрочитанных сообщений нет",
-  pendingTests: "Нет тестов, ожидающих оценки",
-  proactive: "Нет сигналов по самочувствию и активности программы",
-  exerciseComments: "Нет новых комментариев по упражнениям",
+  intake: 'Новых заявок нет',
+  messages: 'Непрочитанных сообщений нет',
+  pendingTests: 'Нет тестов, ожидающих оценки',
+  proactive: 'Нет сигналов по самочувствию и активности программы',
+  exerciseComments: 'Нет новых комментариев по упражнениям',
 };
 
 type Props = {
@@ -65,7 +65,7 @@ function ExerciseCommentAttentionRow(props: {
 }) {
   const { item, onResolved } = props;
   const [activeReply, setActiveReply] = useState(false);
-  const [replyDraft, setReplyDraft] = useState("");
+  const [replyDraft, setReplyDraft] = useState('');
   const [replySending, setReplySending] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [touchActionVisible, setTouchActionVisible] = useState(false);
@@ -79,18 +79,18 @@ function ExerciseCommentAttentionRow(props: {
   const ignoreTapRef = useRef(false);
 
   useEffect(() => {
-    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
-    const hoverMedia = window.matchMedia("(hover: hover)");
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+    const hoverMedia = window.matchMedia('(hover: hover)');
     const sync = () => {
       setSupportsHover(hoverMedia.matches);
-      setTouchEnabled((typeof navigator !== "undefined" ? navigator.maxTouchPoints : 0) > 0);
+      setTouchEnabled((typeof navigator !== 'undefined' ? navigator.maxTouchPoints : 0) > 0);
     };
     sync();
-    if (typeof hoverMedia.addEventListener === "function") {
-      hoverMedia.addEventListener("change", sync);
-      return () => hoverMedia.removeEventListener("change", sync);
+    if (typeof hoverMedia.addEventListener === 'function') {
+      hoverMedia.addEventListener('change', sync);
+      return () => hoverMedia.removeEventListener('change', sync);
     }
-    if (typeof hoverMedia.addListener === "function") {
+    if (typeof hoverMedia.addListener === 'function') {
       hoverMedia.addListener(sync);
       return () => hoverMedia.removeListener(sync);
     }
@@ -99,7 +99,7 @@ function ExerciseCommentAttentionRow(props: {
 
   const openReplyComposer = () => {
     setActiveReply(true);
-    setReplyDraft("");
+    setReplyDraft('');
     setActionError(null);
     setTouchActionVisible(false);
   };
@@ -127,7 +127,7 @@ function ExerciseCommentAttentionRow(props: {
     if (replySending) return;
     const text = replyDraft.trim();
     if (!text) {
-      setActionError("Введите ответ");
+      setActionError('Введите ответ');
       return;
     }
     setReplySending(true);
@@ -152,7 +152,7 @@ function ExerciseCommentAttentionRow(props: {
 
   return (
     <li
-      className={cn("group/row relative flex flex-col gap-1", doctorSectionItemClass)}
+      className={cn('group/row relative flex flex-col gap-1', doctorSectionItemClass)}
       onClick={() => {
         if (!touchEnabled || supportsHover) return;
         if (ignoreTapRef.current) {
@@ -218,12 +218,12 @@ function ExerciseCommentAttentionRow(props: {
 
       <div
         className={cn(
-          "absolute right-2 bottom-2 flex items-center gap-1 transition-opacity",
+          'absolute right-2 bottom-2 flex items-center gap-1 transition-opacity',
           touchEnabled && !supportsHover
             ? actionVisible
-              ? "opacity-100"
-              : "pointer-events-none opacity-0"
-            : "pointer-events-none opacity-0 group-hover/row:pointer-events-auto group-hover/row:opacity-100",
+              ? 'opacity-100'
+              : 'pointer-events-none opacity-0'
+            : 'pointer-events-none opacity-0 group-hover/row:pointer-events-auto group-hover/row:opacity-100',
         )}
       >
         <Button
@@ -310,184 +310,191 @@ export function DoctorTodayAttentionDialog({
   exerciseCommentAttentionTruncated,
   onExerciseCommentResolved,
 }: Props) {
-  const title = kind ? TITLES[kind] : "";
+  const title = kind ? TITLES[kind] : '';
   return (
     <DoctorModal open={open} onClose={() => onOpenChange(false)} title={title} size="lg">
       <div className="max-h-[65vh] overflow-y-auto pr-1">
-          {kind === "intake" ? (
-            <>
-              {newIntakeRequests.length === 0 ? (
-                <p className="text-sm text-muted-foreground">{EMPTY_MESSAGES.intake}</p>
-              ) : (
-                <ul className="m-0 list-none space-y-2 p-0">
-                  {newIntakeRequests.map((r) => (
-                    <li key={r.id} className={doctorSectionItemClass}>
-                      <p className="font-medium text-foreground">{r.patientName}</p>
-                      <p className="mt-0.5 text-xs text-muted-foreground">Тел.: {r.patientPhone}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {r.typeLabel} · {r.createdAtLabel}
+        {kind === 'intake' ? (
+          <>
+            {newIntakeRequests.length === 0 ? (
+              <p className="text-sm text-muted-foreground">{EMPTY_MESSAGES.intake}</p>
+            ) : (
+              <ul className="m-0 list-none space-y-2 p-0">
+                {newIntakeRequests.map((r) => (
+                  <li key={r.id} className={doctorSectionItemClass}>
+                    <p className="font-medium text-foreground">{r.patientName}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">Тел.: {r.patientPhone}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {r.typeLabel} · {r.createdAtLabel}
+                    </p>
+                    {r.summaryPreview ? (
+                      <p className="mt-2 line-clamp-3 whitespace-pre-wrap text-muted-foreground">
+                        {r.summaryPreview}
                       </p>
-                      {r.summaryPreview ? (
-                        <p className="mt-2 line-clamp-3 whitespace-pre-wrap text-muted-foreground">
-                          {r.summaryPreview}
-                        </p>
-                      ) : null}
-                      <p className="mt-2">
-                        <Link href={r.href} className={doctorInlineLinkClass}>
-                          Открыть заявку
-                        </Link>
-                      </p>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <p className="mt-3">
-                <Link href="/app/doctor/online-intake" className={`${doctorInlineLinkClass} text-sm`}>
-                  Открыть все заявки
-                </Link>
+                    ) : null}
+                    <p className="mt-2">
+                      <Link href={r.href} className={doctorInlineLinkClass}>
+                        Открыть заявку
+                      </Link>
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <p className="mt-3">
+              <Link href="/app/doctor/online-intake" className={`${doctorInlineLinkClass} text-sm`}>
+                Открыть все заявки
+              </Link>
+            </p>
+          </>
+        ) : null}
+
+        {kind === 'messages' ? (
+          <>
+            {unreadTotal > 0 ? (
+              <p className="mb-2 text-xs text-muted-foreground">
+                Всего непрочитанных: {unreadTotal}
               </p>
-            </>
-          ) : null}
-
-          {kind === "messages" ? (
-            <>
-              {unreadTotal > 0 ? (
-                <p className="mb-2 text-xs text-muted-foreground">Всего непрочитанных: {unreadTotal}</p>
-              ) : null}
-              {unreadConversations.length === 0 ? (
-                <p className="text-sm text-muted-foreground">{EMPTY_MESSAGES.messages}</p>
-              ) : (
-                <ul className="m-0 list-none space-y-2 p-0">
-                  {unreadConversations.map((c) => (
-                    <li key={c.conversationId} className={doctorSectionItemClass}>
-                      <div className="flex flex-wrap items-baseline justify-between gap-2">
-                        <p className="font-medium text-foreground">{c.displayName}</p>
-                        <span className="tabular-nums rounded-full border border-border bg-muted/50 px-2 py-0.5 text-xs font-medium">
-                          {c.unreadFromUserCount}
-                        </span>
-                      </div>
-                      {c.phoneNormalized ? (
-                        <p className="mt-0.5 text-xs text-muted-foreground">Тел.: {c.phoneNormalized}</p>
-                      ) : null}
-                      <p className="mt-1 text-xs text-muted-foreground">{c.lastMessageAtLabel}</p>
-                      {c.lastMessagePreview ? (
-                        <p className="mt-2 line-clamp-2 whitespace-pre-wrap text-muted-foreground">
-                          {c.lastMessagePreview}
-                        </p>
-                      ) : null}
-                      <p className="mt-2">
-                        <Link href={c.href} className={doctorInlineLinkClass}>
-                          Открыть сообщения
-                        </Link>
+            ) : null}
+            {unreadConversations.length === 0 ? (
+              <p className="text-sm text-muted-foreground">{EMPTY_MESSAGES.messages}</p>
+            ) : (
+              <ul className="m-0 list-none space-y-2 p-0">
+                {unreadConversations.map((c) => (
+                  <li key={c.conversationId} className={doctorSectionItemClass}>
+                    <div className="flex flex-wrap items-baseline justify-between gap-2">
+                      <p className="font-medium text-foreground">{c.displayName}</p>
+                      <span className="tabular-nums rounded-full border border-border bg-muted/50 px-2 py-0.5 text-xs font-medium">
+                        {c.unreadFromUserCount}
+                      </span>
+                    </div>
+                    {c.phoneNormalized ? (
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        Тел.: {c.phoneNormalized}
                       </p>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <p className="mt-3">
-                <Link href="/app/doctor/messages" className={`${doctorInlineLinkClass} text-sm`}>
-                  Открыть все сообщения
-                </Link>
+                    ) : null}
+                    <p className="mt-1 text-xs text-muted-foreground">{c.lastMessageAtLabel}</p>
+                    {c.lastMessagePreview ? (
+                      <p className="mt-2 line-clamp-2 whitespace-pre-wrap text-muted-foreground">
+                        {c.lastMessagePreview}
+                      </p>
+                    ) : null}
+                    <p className="mt-2">
+                      <Link href={c.href} className={doctorInlineLinkClass}>
+                        Открыть сообщения
+                      </Link>
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <p className="mt-3">
+              <Link href="/app/doctor/messages" className={`${doctorInlineLinkClass} text-sm`}>
+                Открыть все сообщения
+              </Link>
+            </p>
+          </>
+        ) : null}
+
+        {kind === 'pendingTests' ? (
+          <>
+            {pendingProgramTestsTotal > 0 ? (
+              <p className="mb-2 text-xs text-muted-foreground">
+                Попыток без оценки: {pendingProgramTestsTotal}
               </p>
-            </>
-          ) : null}
+            ) : null}
+            {pendingProgramTests.length === 0 ? (
+              <p className="text-sm text-muted-foreground">{EMPTY_MESSAGES.pendingTests}</p>
+            ) : (
+              <ul className="m-0 list-none space-y-2 p-0">
+                {pendingProgramTests.map((item) => (
+                  <li key={item.attemptId} className={doctorSectionItemClass}>
+                    <p className="font-medium text-foreground">{item.patientDisplayName}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {item.instanceTitle} · {item.stageTitle}
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {item.submittedAtLabel} · без оценки: {item.pendingCount}
+                    </p>
+                    <p className="mt-2">
+                      <Link href={item.href} className={doctorInlineLinkClass}>
+                        Оценить
+                      </Link>
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {pendingProgramTestsTruncated ? (
+              <p className="mt-2 text-xs text-muted-foreground">
+                Показаны первые {pendingProgramTests.length} из {pendingProgramTestsTotal}
+              </p>
+            ) : null}
+          </>
+        ) : null}
 
-          {kind === "pendingTests" ? (
-            <>
-              {pendingProgramTestsTotal > 0 ? (
-                <p className="mb-2 text-xs text-muted-foreground">
-                  Попыток без оценки: {pendingProgramTestsTotal}
-                </p>
-              ) : null}
-              {pendingProgramTests.length === 0 ? (
-                <p className="text-sm text-muted-foreground">{EMPTY_MESSAGES.pendingTests}</p>
-              ) : (
-                <ul className="m-0 list-none space-y-2 p-0">
-                  {pendingProgramTests.map((item) => (
-                    <li key={item.attemptId} className={doctorSectionItemClass}>
-                      <p className="font-medium text-foreground">{item.patientDisplayName}</p>
-                      <p className="mt-0.5 text-xs text-muted-foreground">
-                        {item.instanceTitle} · {item.stageTitle}
-                      </p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {item.submittedAtLabel} · без оценки: {item.pendingCount}
-                      </p>
-                      <p className="mt-2">
-                        <Link href={item.href} className={doctorInlineLinkClass}>
-                          Оценить
-                        </Link>
-                      </p>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {pendingProgramTestsTruncated ? (
-                <p className="mt-2 text-xs text-muted-foreground">
-                  Показаны первые {pendingProgramTests.length} из {pendingProgramTestsTotal}
-                </p>
-              ) : null}
-            </>
-          ) : null}
+        {kind === 'proactive' ? (
+          <>
+            {proactiveInsightsTotal > 0 ? (
+              <p className="mb-2 text-xs text-muted-foreground">
+                На сопровождении: {proactiveInsightsTotal}
+              </p>
+            ) : null}
+            {proactiveInsights.length === 0 ? (
+              <p className="text-sm text-muted-foreground">{EMPTY_MESSAGES.proactive}</p>
+            ) : (
+              <ul className="m-0 list-none space-y-2 p-0">
+                {proactiveInsights.map((item) => (
+                  <li key={`${item.kind}-${item.patientUserId}`} className={doctorSectionItemClass}>
+                    <p className="font-medium text-foreground">{item.patientDisplayName}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {proactiveInsightKindLabelRu(item.kind)} · {item.summary}
+                    </p>
+                    <p className="mt-2">
+                      <Link href={item.href} className={doctorInlineLinkClass}>
+                        Открыть карточку
+                      </Link>
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {proactiveInsightsTruncated ? (
+              <p className="mt-2 text-xs text-muted-foreground">
+                Показаны первые {proactiveInsights.length} из {proactiveInsightsTotal}
+              </p>
+            ) : null}
+          </>
+        ) : null}
 
-          {kind === "proactive" ? (
-            <>
-              {proactiveInsightsTotal > 0 ? (
-                <p className="mb-2 text-xs text-muted-foreground">На сопровождении: {proactiveInsightsTotal}</p>
-              ) : null}
-              {proactiveInsights.length === 0 ? (
-                <p className="text-sm text-muted-foreground">{EMPTY_MESSAGES.proactive}</p>
-              ) : (
-                <ul className="m-0 list-none space-y-2 p-0">
-                  {proactiveInsights.map((item) => (
-                    <li key={`${item.kind}-${item.patientUserId}`} className={doctorSectionItemClass}>
-                      <p className="font-medium text-foreground">{item.patientDisplayName}</p>
-                      <p className="mt-0.5 text-xs text-muted-foreground">
-                        {proactiveInsightKindLabelRu(item.kind)} · {item.summary}
-                      </p>
-                      <p className="mt-2">
-                        <Link href={item.href} className={doctorInlineLinkClass}>
-                          Открыть карточку
-                        </Link>
-                      </p>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {proactiveInsightsTruncated ? (
-                <p className="mt-2 text-xs text-muted-foreground">
-                  Показаны первые {proactiveInsights.length} из {proactiveInsightsTotal}
-                </p>
-              ) : null}
-            </>
-          ) : null}
-
-          {kind === "exerciseComments" ? (
-            <>
-              {exerciseCommentAttentionTotal > 0 ? (
-                <p className="mb-2 text-xs text-muted-foreground">
-                  Новых комментариев: {exerciseCommentAttentionTotal}
-                </p>
-              ) : null}
-              {exerciseCommentAttentionItems.length === 0 ? (
-                <p className="text-sm text-muted-foreground">{EMPTY_MESSAGES.exerciseComments}</p>
-              ) : (
-                <ul className="m-0 list-none space-y-2 p-0">
-                  {exerciseCommentAttentionItems.map((item) => (
-                    <ExerciseCommentAttentionRow
-                      key={item.stageItemId}
-                      item={item}
-                      onResolved={onExerciseCommentResolved}
-                    />
-                  ))}
-                </ul>
-              )}
-              {exerciseCommentAttentionTruncated ? (
-                <p className="mt-2 text-xs text-muted-foreground">
-                  Показаны первые {exerciseCommentAttentionItems.length} из {exerciseCommentAttentionTotal}
-                </p>
-              ) : null}
-            </>
-          ) : null}
+        {kind === 'exerciseComments' ? (
+          <>
+            {exerciseCommentAttentionTotal > 0 ? (
+              <p className="mb-2 text-xs text-muted-foreground">
+                Новых комментариев: {exerciseCommentAttentionTotal}
+              </p>
+            ) : null}
+            {exerciseCommentAttentionItems.length === 0 ? (
+              <p className="text-sm text-muted-foreground">{EMPTY_MESSAGES.exerciseComments}</p>
+            ) : (
+              <ul className="m-0 list-none space-y-2 p-0">
+                {exerciseCommentAttentionItems.map((item) => (
+                  <ExerciseCommentAttentionRow
+                    key={item.stageItemId}
+                    item={item}
+                    onResolved={onExerciseCommentResolved}
+                  />
+                ))}
+              </ul>
+            )}
+            {exerciseCommentAttentionTruncated ? (
+              <p className="mt-2 text-xs text-muted-foreground">
+                Показаны первые {exerciseCommentAttentionItems.length} из{' '}
+                {exerciseCommentAttentionTotal}
+              </p>
+            ) : null}
+          </>
+        ) : null}
       </div>
     </DoctorModal>
   );

@@ -1,13 +1,13 @@
-import type { SQL } from "drizzle-orm";
-import { sql } from "drizzle-orm";
-import { PgDialect } from "drizzle-orm/pg-core";
-import type { Pool, QueryResultRow } from "pg";
+import type { SQL } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
+import { PgDialect } from 'drizzle-orm/pg-core';
+import type { Pool, QueryResultRow } from 'pg';
 import {
   getCurrentDbPrincipal,
   getCurrentDbPrincipalOrganizationId,
   runWithDbInfraPrincipal,
-} from "@bersoncare/db-principal";
-import { startMediaWorkerTransaction } from "./withClient.js";
+} from '@bersoncare/db-principal';
+import { startMediaWorkerTransaction } from './withClient.js';
 
 const pgDialect = new PgDialect();
 
@@ -21,7 +21,7 @@ function toMediaWorkerQueryResult<T extends QueryResultRow>(r: {
   rowCount?: number | null;
 }): MediaWorkerQueryResult<T> {
   const out: MediaWorkerQueryResult<T> = { rows: r.rows ?? [] };
-  if (typeof r.rowCount === "number") {
+  if (typeof r.rowCount === 'number') {
     out.rowCount = r.rowCount;
   }
   return out;
@@ -61,7 +61,7 @@ export async function runMediaWorkerSql<T extends QueryResultRow = QueryResultRo
 
 export function runWithMediaWorkerInfraPrincipal<T>(source: string, fn: () => T): T {
   const principal = getCurrentDbPrincipal();
-  if (principal?.kind === "infra") {
+  if (principal?.kind === 'infra') {
     return fn();
   }
   return runWithDbInfraPrincipal({ source }, fn);
@@ -96,7 +96,7 @@ export function mediaWorkerSqlFromPgText(queryText: string, values: readonly unk
   if (segments.length === 1) {
     return segments[0]!;
   }
-  return sql.join(segments, sql.raw(""));
+  return sql.join(segments, sql.raw(''));
 }
 
 export async function runMediaWorkerPgText<T extends QueryResultRow = QueryResultRow>(

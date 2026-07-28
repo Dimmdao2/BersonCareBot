@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { useEffect, useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   DndContext,
   KeyboardSensor,
@@ -10,17 +10,17 @@ import {
   useSensor,
   useSensors,
   type DragEndEvent,
-} from "@dnd-kit/core";
+} from '@dnd-kit/core';
 import {
   SortableContext,
   arrayMove,
   sortableKeyboardCoordinates,
   useSortable,
   verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Input } from "@/shared/ui/doctor/primitives/input";
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Input } from '@/shared/ui/doctor/primitives/input';
 import {
   Dialog,
   DialogContent,
@@ -28,14 +28,14 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/shared/ui/doctor/primitives/dialog";
-import { cn } from "@/lib/utils";
-import { doctorPageTitleClass } from "@/shared/ui/doctor/doctorVisual";
+} from '@/shared/ui/doctor/primitives/dialog';
+import { cn } from '@/lib/utils';
+import { doctorPageTitleClass } from '@/shared/ui/doctor/doctorVisual';
 import {
   DOCTOR_CATALOG_STICKY_BAR_CLASS,
   DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS,
-} from "@/shared/ui/doctor/doctorWorkspaceLayout";
-import { MEASURE_KINDS_CATALOG_CHANGED_EVENT } from "@/modules/tests/measureKindsClientEvent";
+} from '@/shared/ui/doctor/doctorWorkspaceLayout';
+import { MEASURE_KINDS_CATALOG_CHANGED_EVENT } from '@/modules/tests/measureKindsClientEvent';
 
 type MeasureKindsJsonBody = { ok?: boolean; error?: string; items?: unknown; item?: unknown };
 
@@ -49,18 +49,26 @@ async function readMeasureKindsJsonBody(res: Response): Promise<{
   try {
     text = await res.text();
   } catch {
-    return { httpOk: res.ok, body: { error: "Ошибка соединения с сервером" }, transportError: true };
+    return {
+      httpOk: res.ok,
+      body: { error: 'Ошибка соединения с сервером' },
+      transportError: true,
+    };
   }
   if (!text.trim()) {
     return { httpOk: res.ok, body: {}, transportError: false };
   }
   try {
-    return { httpOk: res.ok, body: JSON.parse(text) as MeasureKindsJsonBody, transportError: false };
+    return {
+      httpOk: res.ok,
+      body: JSON.parse(text) as MeasureKindsJsonBody,
+      transportError: false,
+    };
   } catch {
     return {
       httpOk: res.ok,
       body: {
-        error: res.ok ? "Некорректный ответ сервера" : `Ответ не JSON (HTTP ${res.status})`,
+        error: res.ok ? 'Некорректный ответ сервера' : `Ответ не JSON (HTTP ${res.status})`,
       },
       transportError: false,
     };
@@ -69,7 +77,13 @@ async function readMeasureKindsJsonBody(res: Response): Promise<{
 
 type Row = { id: string; code: string; label: string; sortOrder: number };
 
-function DragHandle({ listeners, attributes }: { listeners: Record<string, unknown>; attributes: Record<string, unknown> }) {
+function DragHandle({
+  listeners,
+  attributes,
+}: {
+  listeners: Record<string, unknown>;
+  attributes: Record<string, unknown>;
+}) {
   return (
     <Button
       type="button"
@@ -98,7 +112,9 @@ function SortableRow({
   index: number;
   onLabelChange: (id: string, label: string) => void;
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: row.id });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: row.id,
+  });
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -113,7 +129,11 @@ function SortableRow({
       </td>
       <td className="px-2 py-2 font-mono text-xs text-muted-foreground">{row.code}</td>
       <td className="px-2 py-2">
-        <Input value={row.label} onChange={(e) => onLabelChange(row.id, e.target.value)} aria-label="Подпись вида измерения" />
+        <Input
+          value={row.label}
+          onChange={(e) => onLabelChange(row.id, e.target.value)}
+          aria-label="Подпись вида измерения"
+        />
       </td>
     </tr>
   );
@@ -126,14 +146,17 @@ type Props = {
 export function MeasureKindsTableClient({ initialItems }: Props) {
   const router = useRouter();
   const normalized = useMemo(
-    () => [...initialItems].sort((a, b) => a.sortOrder - b.sortOrder || a.label.localeCompare(b.label, "ru")),
+    () =>
+      [...initialItems].sort(
+        (a, b) => a.sortOrder - b.sortOrder || a.label.localeCompare(b.label, 'ru'),
+      ),
     [initialItems],
   );
   const [rows, setRows] = useState<Row[]>(normalized);
   const [isPending, startTransition] = useTransition();
   const [errorOpen, setErrorOpen] = useState(false);
-  const [errorText, setErrorText] = useState("");
-  const [newLabel, setNewLabel] = useState("");
+  const [errorText, setErrorText] = useState('');
+  const [newLabel, setNewLabel] = useState('');
   const [saveBusy, setSaveBusy] = useState(false);
   const [addBusy, setAddBusy] = useState(false);
 
@@ -172,15 +195,15 @@ export function MeasureKindsTableClient({ initialItems }: Props) {
 
   const onSave = () => {
     if (rows.some((r) => !r.label.trim())) {
-      fail("Подпись не может быть пустой (проверьте все строки).");
+      fail('Подпись не может быть пустой (проверьте все строки).');
       return;
     }
     startTransition(async () => {
       setSaveBusy(true);
       try {
-        const res = await fetch("/api/doctor/measure-kinds", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
+        const res = await fetch('/api/doctor/measure-kinds', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             items: rows.map((r, i) => ({
               id: r.id,
@@ -191,7 +214,7 @@ export function MeasureKindsTableClient({ initialItems }: Props) {
         });
         const { httpOk, body, transportError } = await readMeasureKindsJsonBody(res);
         if (transportError) {
-          fail(body.error ?? "Ошибка соединения с сервером");
+          fail(body.error ?? 'Ошибка соединения с сервером');
           return;
         }
         if (!httpOk) {
@@ -199,13 +222,13 @@ export function MeasureKindsTableClient({ initialItems }: Props) {
           return;
         }
         if (!body.ok) {
-          fail(body.error ?? "Не удалось сохранить");
+          fail(body.error ?? 'Не удалось сохранить');
           return;
         }
         window.dispatchEvent(new CustomEvent(MEASURE_KINDS_CATALOG_CHANGED_EVENT));
         router.refresh();
       } catch {
-        fail("Ошибка соединения с сервером");
+        fail('Ошибка соединения с сервером');
       } finally {
         setSaveBusy(false);
       }
@@ -215,20 +238,20 @@ export function MeasureKindsTableClient({ initialItems }: Props) {
   const onAdd = () => {
     const t = newLabel.trim();
     if (!t) {
-      fail("Введите подпись нового вида измерения.");
+      fail('Введите подпись нового вида измерения.');
       return;
     }
     startTransition(async () => {
       setAddBusy(true);
       try {
-        const res = await fetch("/api/doctor/measure-kinds", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+        const res = await fetch('/api/doctor/measure-kinds', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ label: t }),
         });
         const { httpOk, body, transportError } = await readMeasureKindsJsonBody(res);
         if (transportError) {
-          fail(body.error ?? "Ошибка соединения с сервером");
+          fail(body.error ?? 'Ошибка соединения с сервером');
           return;
         }
         if (!httpOk) {
@@ -236,14 +259,14 @@ export function MeasureKindsTableClient({ initialItems }: Props) {
           return;
         }
         if (!body.ok) {
-          fail(body.error ?? "Не удалось создать");
+          fail(body.error ?? 'Не удалось создать');
           return;
         }
-        setNewLabel("");
+        setNewLabel('');
         window.dispatchEvent(new CustomEvent(MEASURE_KINDS_CATALOG_CHANGED_EVENT));
         router.refresh();
       } catch {
-        fail("Ошибка соединения с сервером");
+        fail('Ошибка соединения с сервером');
       } finally {
         setAddBusy(false);
       }
@@ -269,14 +292,14 @@ export function MeasureKindsTableClient({ initialItems }: Props) {
       <div
         className={cn(
           DOCTOR_CATALOG_STICKY_BAR_CLASS,
-          "flex flex-col gap-3 bg-card pb-3 pt-1 supports-backdrop-filter:bg-card/90",
+          'flex flex-col gap-3 bg-card pb-3 pt-1 supports-backdrop-filter:bg-card/90',
           DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS,
         )}
       >
         <h1 className={doctorPageTitleClass}>Виды измерений (клинические тесты)</h1>
         <p className="text-sm text-muted-foreground">
-          Системный справочник для строк измерений в форме теста. Код генерируется при создании и не меняется; здесь
-          можно править подписи и порядок в списке.
+          Системный справочник для строк измерений в форме теста. Код генерируется при создании и не
+          меняется; здесь можно править подписи и порядок в списке.
         </p>
         <div className="flex flex-wrap items-center gap-2">
           <Button type="button" onClick={onSave} disabled={isPending || !isDirty || saveBusy}>
@@ -286,7 +309,9 @@ export function MeasureKindsTableClient({ initialItems }: Props) {
       </div>
 
       {rows.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Пока нет записей. Добавьте первый вид ниже или из формы клинического теста.</p>
+        <p className="text-sm text-muted-foreground">
+          Пока нет записей. Добавьте первый вид ниже или из формы клинического теста.
+        </p>
       ) : (
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
           <SortableContext items={rows.map((r) => r.id)} strategy={verticalListSortingStrategy}>

@@ -69,7 +69,8 @@ function evaluateWhen(when: StepWhen, vars: Record<string, unknown>): boolean {
   if (when.not) return !evaluateWhen(when.not, vars);
 
   const value = when.path ? getPathValue(vars, when.path) : undefined;
-  if (typeof when.exists === 'boolean') return when.exists ? value !== undefined : value === undefined;
+  if (typeof when.exists === 'boolean')
+    return when.exists ? value !== undefined : value === undefined;
   if (typeof when.truthy === 'boolean') return when.truthy ? !!value : !value;
   if (Object.prototype.hasOwnProperty.call(when, 'equals')) return value === when.equals;
   if (Object.prototype.hasOwnProperty.call(when, 'notEquals')) return value !== when.notEquals;
@@ -145,7 +146,8 @@ function matchesScriptPattern(actual: unknown, expected: unknown): boolean {
       continue;
     }
     if (key === 'phonePresent') {
-      const hasPhone = isTruthyString(actualRecord.phone) || isTruthyString(actualRecord.contactPhone);
+      const hasPhone =
+        isTruthyString(actualRecord.phone) || isTruthyString(actualRecord.contactPhone);
       if (Boolean(value) !== hasPhone) return false;
       continue;
     }
@@ -162,7 +164,8 @@ function matchesScriptPattern(actual: unknown, expected: unknown): boolean {
     if (key === 'excludeTextPrefixes') {
       if (!Array.isArray(value)) return false;
       const text = typeof actualRecord.text === 'string' ? actualRecord.text.trim() : '';
-      if (value.some((prefix: unknown) => typeof prefix === 'string' && text.startsWith(prefix))) return false;
+      if (value.some((prefix: unknown) => typeof prefix === 'string' && text.startsWith(prefix)))
+        return false;
       continue;
     }
     if (!matchesScriptPattern(actualRecord[key], value)) return false;
@@ -170,7 +173,10 @@ function matchesScriptPattern(actual: unknown, expected: unknown): boolean {
   return true;
 }
 
-function scriptMatches(script: ScriptShape, input: OrchestratorInput): { matched: boolean; specificity: number } {
+function scriptMatches(
+  script: ScriptShape,
+  input: OrchestratorInput,
+): { matched: boolean; specificity: number } {
   if (script.enabled === false) return { matched: false, specificity: Number.NEGATIVE_INFINITY };
   if (typeof script.source === 'string' && script.source !== input.event.meta.source) {
     return { matched: false, specificity: Number.NEGATIVE_INFINITY };
@@ -211,8 +217,15 @@ async function runContextQueries(
   return results;
 }
 
-function toPlanStep(step: ScriptStep, input: OrchestratorInput, index: number, vars: Record<string, unknown>): OrchestratorPlanStep {
-  const interpolated = interpolateTemplate(step.params ?? {}, vars, { preserveUnresolvedValues: true }) as Record<string, unknown>;
+function toPlanStep(
+  step: ScriptStep,
+  input: OrchestratorInput,
+  index: number,
+  vars: Record<string, unknown>,
+): OrchestratorPlanStep {
+  const interpolated = interpolateTemplate(step.params ?? {}, vars, {
+    preserveUnresolvedValues: true,
+  }) as Record<string, unknown>;
   // Логгирование параметров шага для callback-сценариев (debug, уровень LOG_LEVEL)
   if (input.event.type === 'callback.received') {
     logger.debug(
@@ -244,7 +257,9 @@ async function resolveBusinessScript(
 
   const scripts: ScriptShape[] = contentPort.getScripts
     ? ((await contentPort.getScripts(scope)) as ScriptShape[])
-    : (contentPort.getScriptsBySource ? (await contentPort.getScriptsBySource(source)) as ScriptShape[] : []);
+    : contentPort.getScriptsBySource
+      ? ((await contentPort.getScriptsBySource(source)) as ScriptShape[])
+      : [];
 
   if (scripts.length === 0) return null;
 
@@ -302,7 +317,10 @@ function buildLinkedPhoneMessageMenuGatePlan(input: OrchestratorInput): Orchestr
   if (isTruthyString(inc.phone) || isTruthyString(inc.contactPhone)) return null;
   if (input.context.hasActiveDraft === true) return null;
   if (conv === 'waiting_for_question') return null;
-  if (typeof conv === 'string' && (conv.startsWith('diary.') || conv.startsWith('waiting_skip_reason:'))) {
+  if (
+    typeof conv === 'string' &&
+    (conv.startsWith('diary.') || conv.startsWith('waiting_skip_reason:'))
+  ) {
     return null;
   }
   if (isTruthyString(inc.relayMessageType)) return null;
@@ -327,7 +345,9 @@ function buildLinkedPhoneMessageMenuGatePlan(input: OrchestratorInput): Orchestr
               recipient: { chatId: '{{actor.chatId}}' },
               templateKey: 'max:confirmPhoneForBooking',
               delivery: { channels: ['max'], maxAttempts: 1 },
-              inlineKeyboard: [[{ textTemplateKey: 'max:requestContact.button', requestPhone: true }]],
+              inlineKeyboard: [
+                [{ textTemplateKey: 'max:requestContact.button', requestPhone: true }],
+              ],
             },
           },
         ]
@@ -346,7 +366,9 @@ function buildLinkedPhoneMessageMenuGatePlan(input: OrchestratorInput): Orchestr
             params: {
               chatId: '{{actor.chatId}}',
               templateKey: 'telegram:confirmPhoneForBooking',
-              keyboard: [[{ textTemplateKey: 'telegram:requestContact.button', requestPhone: true }]],
+              keyboard: [
+                [{ textTemplateKey: 'telegram:requestContact.button', requestPhone: true }],
+              ],
               resizeKeyboard: true,
               oneTimeKeyboard: true,
             },
@@ -390,7 +412,9 @@ function buildLinkedPhoneCallbackGatePlan(input: OrchestratorInput): Orchestrato
               recipient: { chatId: '{{actor.chatId}}' },
               templateKey: 'max:confirmPhoneForBooking',
               delivery: { channels: ['max'], maxAttempts: 1 },
-              inlineKeyboard: [[{ textTemplateKey: 'max:requestContact.button', requestPhone: true }]],
+              inlineKeyboard: [
+                [{ textTemplateKey: 'max:requestContact.button', requestPhone: true }],
+              ],
             },
           },
           {
@@ -415,7 +439,9 @@ function buildLinkedPhoneCallbackGatePlan(input: OrchestratorInput): Orchestrato
               params: {
                 chatId: '{{actor.chatId}}',
                 templateKey: 'telegram:confirmPhoneForBooking',
-                keyboard: [[{ textTemplateKey: 'telegram:requestContact.button', requestPhone: true }]],
+                keyboard: [
+                  [{ textTemplateKey: 'telegram:requestContact.button', requestPhone: true }],
+                ],
                 resizeKeyboard: true,
                 oneTimeKeyboard: true,
               },
@@ -483,7 +509,10 @@ export async function buildPlan(
     const payload = stepResult.payload as Record<string, unknown> | undefined;
     if (bundle?.menus && payload && typeof payload.menu === 'string') {
       const menuId = payload.menu;
-      const menuKeyboard = isRecord(bundle.menus[menuId]) || Array.isArray(bundle.menus[menuId]) ? bundle.menus[menuId] : undefined;
+      const menuKeyboard =
+        isRecord(bundle.menus[menuId]) || Array.isArray(bundle.menus[menuId])
+          ? bundle.menus[menuId]
+          : undefined;
       if (menuKeyboard !== undefined) {
         payload.inlineKeyboard = menuKeyboard;
         delete payload.menu;

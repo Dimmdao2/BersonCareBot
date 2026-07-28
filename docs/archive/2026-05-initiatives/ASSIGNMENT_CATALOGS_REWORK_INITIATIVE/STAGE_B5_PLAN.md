@@ -68,6 +68,7 @@ pnpm --dir apps/webapp exec tsc --noEmit
 ```
 
 Manual smoke minimum:
+
 - draft -> publish -> archived -> restore;
 - status chip/иконка в list и в editor совпадают после каждого action.
 

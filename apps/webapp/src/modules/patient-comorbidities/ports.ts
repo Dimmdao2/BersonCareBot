@@ -15,7 +15,7 @@ export type Comorbidity = {
   text: string;
   /** Человекочитаемая строка даты/периода (напр. «с 2017», «с рождения»). Может быть пустой. */
   since: string | null;
-  status: "active" | "removed";
+  status: 'active' | 'removed';
   createdAt: string;
   removedAt: string | null;
 };
@@ -43,7 +43,7 @@ export interface PatientComorbiditiesPort {
   /** Список записей по пациенту. status=all — все; иначе фильтр по статусу. */
   listByPatient(
     patientUserId: string,
-    status: "active" | "removed" | "all",
+    status: 'active' | 'removed' | 'all',
   ): Promise<Comorbidity[]>;
 
   /** Добавить запись. Возвращает созданную запись. */

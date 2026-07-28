@@ -110,9 +110,7 @@ export async function resolveGoogleCalendarDescriptionContext(
   return {
     phoneNormalized: normalizedPhone,
     staffComment:
-      staffCommentRes.rows[0]?.body?.trim()
-      || profile?.problematic_note?.trim()
-      || null,
+      staffCommentRes.rows[0]?.body?.trim() || profile?.problematic_note?.trim() || null,
     isProblematic: profile?.is_problematic === true,
     supportProgramTitle: supportRes.rows[0]?.title?.trim() || null,
   };

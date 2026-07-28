@@ -2,7 +2,7 @@ import {
   BE_PRODUCT_TYPES,
   type BeProductType,
   type ProductPurchaseStatus,
-} from "../../../db/schema/bookingProducts";
+} from '../../../db/schema/bookingProducts';
 
 export { BE_PRODUCT_TYPES };
 
@@ -69,7 +69,7 @@ export type ProductPurchaseRecord = {
 };
 
 export type ProductPurchaseListItem = ProductPurchaseRecord & {
-  product?: Pick<ProductRecord, "title" | "productType">;
+  product?: Pick<ProductRecord, 'title' | 'productType'>;
 };
 
 export type UpsertProductInput = {

@@ -11,6 +11,7 @@
 ## Что исправлено в рамках полировки
 
 ### 1) `SEC-05` (уменьшение attack surface login token)
+
 - Файл: `apps/webapp/src/app/api/auth/messenger/start/route.ts`
 - Убрано поле `token` из JSON-ответа `messenger/start`; остается `deepLink`.
 - Обновлены тесты под новый контракт:
@@ -19,6 +20,7 @@
   - `apps/webapp/e2e/auth-stage5-inprocess.test.ts` (токен извлекается из deepLink).
 
 ### 2) `SEC-04` (валидация content signature)
+
 - Файл: `apps/webapp/src/app/api/media/upload/route.ts`
 - Добавлена проверка magic-bytes для разрешенных MIME:
   - JPEG, PNG, GIF, WEBP, MP4, MP3, WAV, PDF.
@@ -27,24 +29,29 @@
   - `apps/webapp/src/app/api/media/upload/route.test.ts` обновлен (валидная JPEG сигнатура + новый тест mismatch).
 
 ### 3) `ARCH-04` (прозрачность relay-заглушки)
+
 - Файл: `apps/webapp/src/modules/messaging/relayOutbound.ts`
 - Добавлен явный warning, если `INTEGRATOR_API_URL` задан, но outbound relay не реализован.
 
 ### 4) `QA-06` (защита от невалидного UUID в `selected`)
+
 - Файл: `apps/webapp/src/app/app/doctor/clients/page.tsx`
 - Добавлена валидация `selected` через `z.string().uuid()`, при невалидном значении выполняется `redirect("/app/doctor/clients")`.
 
 ### 5) `QA-04` (UX-подсказка в поиске клиентов)
+
 - Файл: `apps/webapp/src/app/app/doctor/clients/DoctorClientsPanel.tsx`
 - Добавлена подсказка "Введите еще N симв." при длине запроса 1-2 символа.
 
 ### 6) `PERF-05` (оптимизация выборки цитаты дня)
+
 - Файл: `apps/webapp/src/modules/patient-home/newsMotivation.ts`
 - Вместо загрузки всей таблицы:
   - сначала `COUNT(*)`;
   - затем `LIMIT 1 OFFSET idx` для детерминированной записи дня.
 
 ### 7) `TEST-02` (реальные поведенческие тесты polling hook)
+
 - Файл: `apps/webapp/src/modules/messaging/hooks/useMessagePolling.test.ts`
 - Добавлены тесты поведения:
   - немедленный тик;
@@ -80,12 +87,14 @@
 Решения владельца зафиксированы в `docs/FULL_DEV_PLAN/USER_TODO_STAGE.md` и должны считаться source of truth для следующих этапов реализации.
 
 ### Подтвержденные решения по интеграциям и auth
+
 - SMTP provider для production: оставить `reg.ru`.
 - Max-канал: считать рабочим и поддерживаемым (для пользователя канал остается опциональным).
 - Конфликт email auto-bind: блокировать автопривязку, уведомлять пользователя, уведомлять администратора.
 - Инвалидация сессии: только при смене телефона.
 
 ### Подтвержденные решения по relay контракту (STUB-02)
+
 - Выбран `Вариант B`.
 - Один endpoint для outbound relay.
 - HMAC-подпись.
@@ -95,6 +104,7 @@
 - SLA: принять целевое `95% < 30 сек`.
 
 ### Подтвержденные решения по reminders/fallback
+
 - Запись на прием: fallback включен.
 - Reminders ЛФК: fallback включен.
 - Чат: fallback включен.
@@ -106,6 +116,7 @@
 - Лимит отправок: `20/день` на пользователя (количество каналов не влияет).
 
 ### Подтвержденные решения по Settings/Admin
+
 - `debug_forward_to_admin`: включается админом.
 - Audit log изменений флагов/ключей: обязателен.
 - Авто-таймаут admin-mode: не нужен.

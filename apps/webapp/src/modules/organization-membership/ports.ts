@@ -1,7 +1,7 @@
-export const ORGANIZATION_MEMBERSHIP_ROLES = ["owner", "admin", "doctor", "assistant"] as const;
+export const ORGANIZATION_MEMBERSHIP_ROLES = ['owner', 'admin', 'doctor', 'assistant'] as const;
 export type OrganizationMembershipRole = (typeof ORGANIZATION_MEMBERSHIP_ROLES)[number];
 
-export const ORGANIZATION_MEMBERSHIP_STATUSES = ["active", "invited", "disabled"] as const;
+export const ORGANIZATION_MEMBERSHIP_STATUSES = ['active', 'invited', 'disabled'] as const;
 export type OrganizationMembershipStatus = (typeof ORGANIZATION_MEMBERSHIP_STATUSES)[number];
 
 export type OrganizationMembership = {
@@ -39,7 +39,9 @@ export type OrganizationMembershipPort = {
     organizationId: string;
     membershipId: string;
   }): Promise<OrganizationMemberDirectoryRecord | null>;
-  listSpecialistsByOrganization(organizationId: string): Promise<OrganizationSpecialistDirectoryRecord[]>;
+  listSpecialistsByOrganization(
+    organizationId: string,
+  ): Promise<OrganizationSpecialistDirectoryRecord[]>;
   getSpecialistByOrganization(params: {
     organizationId: string;
     specialistId: string;

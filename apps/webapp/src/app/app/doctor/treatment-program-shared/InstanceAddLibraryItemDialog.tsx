@@ -1,8 +1,17 @@
-"use client";
+'use client';
 
-import { Activity, BookOpen, Check, ClipboardList, ImageIcon, Layers, MessageSquare, Plus } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
+import {
+  Activity,
+  BookOpen,
+  Check,
+  ClipboardList,
+  ImageIcon,
+  Layers,
+  MessageSquare,
+  Plus,
+} from 'lucide-react';
+import { useCallback, useMemo, useState } from 'react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
 import {
   Dialog,
   DialogContent,
@@ -10,38 +19,41 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/shared/ui/doctor/primitives/dialog";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { Label } from "@/shared/ui/doctor/primitives/label";
-import { cn } from "@/lib/utils";
-import { MarkdownEditor } from "@/shared/ui/doctor/markdown/MarkdownEditor";
-import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
-import { Checkbox } from "@/shared/ui/doctor/primitives/checkbox";
-import { Card, CardContent } from "@/shared/ui/doctor/primitives/card";
-import { DoctorDifficulty1to10Slider } from "@/shared/ui/doctor/DoctorDifficulty1to10Slider";
-import { ReferenceMultiSelect } from "@/shared/ui/doctor/ReferenceMultiSelect";
-import { ReferenceSelect } from "@/shared/ui/doctor/ReferenceSelect";
-import { EXERCISE_LOAD_TYPE_CATEGORY_CODE } from "@/modules/lfk-exercises/exerciseLoadTypeReference";
-import { putWithProgress } from "@/shared/ui/doctor/media/uploadWithProgress";
-import type { TreatmentProgramLibraryPickType } from "@/modules/treatment-program/types";
-import type { TreatmentProgramInstanceStageItemView } from "@/modules/treatment-program/types";
+} from '@/shared/ui/doctor/primitives/dialog';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { Label } from '@/shared/ui/doctor/primitives/label';
+import { cn } from '@/lib/utils';
+import { MarkdownEditor } from '@/shared/ui/doctor/markdown/MarkdownEditor';
+import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
+import { Checkbox } from '@/shared/ui/doctor/primitives/checkbox';
+import { Card, CardContent } from '@/shared/ui/doctor/primitives/card';
+import { DoctorDifficulty1to10Slider } from '@/shared/ui/doctor/DoctorDifficulty1to10Slider';
+import { ReferenceMultiSelect } from '@/shared/ui/doctor/ReferenceMultiSelect';
+import { ReferenceSelect } from '@/shared/ui/doctor/ReferenceSelect';
+import { EXERCISE_LOAD_TYPE_CATEGORY_CODE } from '@/modules/lfk-exercises/exerciseLoadTypeReference';
+import { putWithProgress } from '@/shared/ui/doctor/media/uploadWithProgress';
+import type { TreatmentProgramLibraryPickType } from '@/modules/treatment-program/types';
+import type { TreatmentProgramInstanceStageItemView } from '@/modules/treatment-program/types';
 import {
   DoctorCatalogFiltersToolbar,
   DoctorCatalogToolbarFiltersSlot,
-} from "@/shared/ui/doctor/DoctorCatalogFiltersToolbar";
-import { DoctorCatalogFiltersForm } from "@/shared/ui/doctor/DoctorCatalogFiltersForm";
-import { CatalogLeftPane } from "@/shared/ui/doctor/catalog/CatalogLeftPane";
-import { CatalogRightPane } from "@/shared/ui/doctor/catalog/CatalogRightPane";
-import { CatalogSplitLayout } from "@/shared/ui/doctor/catalog/CatalogSplitLayout";
-import { VirtualizedItemGrid } from "@/shared/ui/doctor/catalog/VirtualizedItemGrid";
-import { doctorInteractiveSurfaceButtonClass } from "@/shared/ui/doctor/doctorVisual";
-import type { TreatmentProgramLibraryPickers, TreatmentProgramLibraryRow } from "./treatmentProgramLibraryTypes";
-import { useTreatmentProgramLibraryPickerList } from "./useTreatmentProgramLibraryPickerList";
-import { useInstanceEditorDraft } from "./InstanceEditorDraftContext";
+} from '@/shared/ui/doctor/DoctorCatalogFiltersToolbar';
+import { DoctorCatalogFiltersForm } from '@/shared/ui/doctor/DoctorCatalogFiltersForm';
+import { CatalogLeftPane } from '@/shared/ui/doctor/catalog/CatalogLeftPane';
+import { CatalogRightPane } from '@/shared/ui/doctor/catalog/CatalogRightPane';
+import { CatalogSplitLayout } from '@/shared/ui/doctor/catalog/CatalogSplitLayout';
+import { VirtualizedItemGrid } from '@/shared/ui/doctor/catalog/VirtualizedItemGrid';
+import { doctorInteractiveSurfaceButtonClass } from '@/shared/ui/doctor/doctorVisual';
+import type {
+  TreatmentProgramLibraryPickers,
+  TreatmentProgramLibraryRow,
+} from './treatmentProgramLibraryTypes';
+import { useTreatmentProgramLibraryPickerList } from './useTreatmentProgramLibraryPickerList';
+import { useInstanceEditorDraft } from './InstanceEditorDraftContext';
 import {
   freeformRecommendationDraftSnapshot,
   libraryRowToItemDraftSnapshot,
-} from "./treatmentProgramLibraryDraftSnapshot";
+} from './treatmentProgramLibraryDraftSnapshot';
 
 /** Квадратная кнопка «+» в шапке группы / этапа 0 — как в конструкторе шаблона. */
 export function TreatmentProgramAddItemSquareButton({
@@ -74,17 +86,17 @@ function LibraryMediaThumb({
   itemType: TreatmentProgramLibraryPickType;
 }) {
   const shell =
-    "flex h-[135px] w-full shrink-0 items-center justify-center overflow-hidden rounded-[calc(var(--radius-md)*0.5)] border border-border/60 bg-muted/40";
+    'flex h-[135px] w-full shrink-0 items-center justify-center overflow-hidden rounded-[calc(var(--radius-md)*0.5)] border border-border/60 bg-muted/40';
   const icon =
-    itemType === "recommendation" ? (
+    itemType === 'recommendation' ? (
       <MessageSquare className="size-7 text-muted-foreground" aria-hidden />
-    ) : itemType === "clinical_test" ? (
+    ) : itemType === 'clinical_test' ? (
       <ClipboardList className="size-7 text-muted-foreground" aria-hidden />
-    ) : itemType === "lesson" ? (
+    ) : itemType === 'lesson' ? (
       <BookOpen className="size-7 text-muted-foreground" aria-hidden />
-    ) : itemType === "lfk_complex" ? (
+    ) : itemType === 'lfk_complex' ? (
       <Layers className="size-7 text-muted-foreground" aria-hidden />
-    ) : itemType === "exercise" ? (
+    ) : itemType === 'exercise' ? (
       <Activity className="size-7 text-muted-foreground" aria-hidden />
     ) : (
       <ImageIcon className="size-7 text-muted-foreground" aria-hidden />
@@ -107,7 +119,7 @@ function LibraryMediaThumb({
 }
 
 function sameContainerGroupId(
-  item: Pick<TreatmentProgramInstanceStageItemView, "groupId">,
+  item: Pick<TreatmentProgramInstanceStageItemView, 'groupId'>,
   groupId: string | null,
 ): boolean {
   return (item.groupId ?? null) === groupId;
@@ -134,7 +146,7 @@ function firstCurrentGroupLibraryItem(
 function currentGroupExpandedItemIds(
   items: TreatmentProgramInstanceStageItemView[],
   input: {
-    itemType: "exercise" | "clinical_test";
+    itemType: 'exercise' | 'clinical_test';
     itemRefIds: readonly string[];
     groupId: string | null;
   },
@@ -154,10 +166,10 @@ function currentGroupExpandedItemIds(
 }
 
 export type InstanceAddLibraryItemContext =
-  | "phase_zero_recommendations"
-  | "stage_system_recommendations"
-  | "stage_system_tests"
-  | "custom_group";
+  | 'phase_zero_recommendations'
+  | 'stage_system_recommendations'
+  | 'stage_system_tests'
+  | 'custom_group';
 
 export type InstanceAddLibraryItemSpec = {
   stageId: string;
@@ -175,53 +187,53 @@ export function InstanceAddLibraryItemDialog(props: {
 }) {
   const { open, onOpenChange, spec, library, editLocked } = props;
   const { addItemCreate, deleteItem, displayDetail } = useInstanceEditorDraft();
-  const [itemSearch, setItemSearch] = useState("");
+  const [itemSearch, setItemSearch] = useState('');
   const [selectedRegionCode, setSelectedRegionCode] = useState<string | null>(null);
   const [selectedLoadType, setSelectedLoadType] = useState<string | null>(null);
-  const [customKind, setCustomKind] = useState<"exercise" | "lfk_complex">("exercise");
-  const [testsAddMode, setTestsAddMode] = useState<"expand_set" | "single_test">("expand_set");
+  const [customKind, setCustomKind] = useState<'exercise' | 'lfk_complex'>('exercise');
+  const [testsAddMode, setTestsAddMode] = useState<'expand_set' | 'single_test'>('expand_set');
   const [error, setError] = useState<string | null>(null);
-  const [phaseZeroSource, setPhaseZeroSource] = useState<"catalog" | "freeform">("catalog");
-  const [freeformTitle, setFreeformTitle] = useState("");
-  const [freeformBody, setFreeformBody] = useState("");
-  const [customSource, setCustomSource] = useState<"catalog" | "new">("catalog");
-  const [individualTitle, setIndividualTitle] = useState("");
-  const [individualDescription, setIndividualDescription] = useState("");
+  const [phaseZeroSource, setPhaseZeroSource] = useState<'catalog' | 'freeform'>('catalog');
+  const [freeformTitle, setFreeformTitle] = useState('');
+  const [freeformBody, setFreeformBody] = useState('');
+  const [customSource, setCustomSource] = useState<'catalog' | 'new'>('catalog');
+  const [individualTitle, setIndividualTitle] = useState('');
+  const [individualDescription, setIndividualDescription] = useState('');
   const [individualRegionRefIds, setIndividualRegionRefIds] = useState<string[]>([]);
   const [individualLoadType, setIndividualLoadType] = useState<string | null>(null);
   const [individualDifficulty, setIndividualDifficulty] = useState(5);
-  const [individualContraindications, setIndividualContraindications] = useState("");
-  const [individualTags, setIndividualTags] = useState("");
+  const [individualContraindications, setIndividualContraindications] = useState('');
+  const [individualTags, setIndividualTags] = useState('');
   const [individualVideo, setIndividualVideo] = useState<File | null>(null);
   const [individualSaveToCatalog, setIndividualSaveToCatalog] = useState(false);
-  const [individualReps, setIndividualReps] = useState("");
-  const [individualSets, setIndividualSets] = useState("");
-  const [individualMaxPain, setIndividualMaxPain] = useState("");
+  const [individualReps, setIndividualReps] = useState('');
+  const [individualSets, setIndividualSets] = useState('');
+  const [individualMaxPain, setIndividualMaxPain] = useState('');
   const [individualBusy, setIndividualBusy] = useState(false);
 
   const resetDialogForm = useCallback(() => {
-    setItemSearch("");
+    setItemSearch('');
     setSelectedRegionCode(null);
     setSelectedLoadType(null);
-    setCustomKind("exercise");
-    setTestsAddMode("expand_set");
+    setCustomKind('exercise');
+    setTestsAddMode('expand_set');
     setError(null);
-    setPhaseZeroSource("catalog");
-    setFreeformTitle("");
-    setFreeformBody("");
-    setCustomSource("catalog");
-    setIndividualTitle("");
-    setIndividualDescription("");
+    setPhaseZeroSource('catalog');
+    setFreeformTitle('');
+    setFreeformBody('');
+    setCustomSource('catalog');
+    setIndividualTitle('');
+    setIndividualDescription('');
     setIndividualRegionRefIds([]);
     setIndividualLoadType(null);
     setIndividualDifficulty(5);
-    setIndividualContraindications("");
-    setIndividualTags("");
+    setIndividualContraindications('');
+    setIndividualTags('');
     setIndividualVideo(null);
     setIndividualSaveToCatalog(false);
-    setIndividualReps("");
-    setIndividualSets("");
-    setIndividualMaxPain("");
+    setIndividualReps('');
+    setIndividualSets('');
+    setIndividualMaxPain('');
     setIndividualBusy(false);
   }, []);
 
@@ -234,32 +246,32 @@ export function InstanceAddLibraryItemDialog(props: {
   );
 
   const resolvedItemType: TreatmentProgramLibraryPickType = useMemo(() => {
-    if (!spec) return "exercise";
+    if (!spec) return 'exercise';
     switch (spec.context) {
-      case "phase_zero_recommendations":
-      case "stage_system_recommendations":
-        return "recommendation";
-      case "stage_system_tests":
-        return "clinical_test";
-      case "custom_group":
+      case 'phase_zero_recommendations':
+      case 'stage_system_recommendations':
+        return 'recommendation';
+      case 'stage_system_tests':
+        return 'clinical_test';
+      case 'custom_group':
         return customKind;
       default:
-        return "exercise";
+        return 'exercise';
     }
   }, [spec, customKind]);
 
   const pickerBaseList = useMemo((): TreatmentProgramLibraryRow[] => {
-    if (spec?.context === "stage_system_tests") {
-      return testsAddMode === "expand_set" ? library.testSets : library.clinicalTests;
+    if (spec?.context === 'stage_system_tests') {
+      return testsAddMode === 'expand_set' ? library.testSets : library.clinicalTests;
     }
     switch (resolvedItemType) {
-      case "exercise":
+      case 'exercise':
         return library.exercises;
-      case "lfk_complex":
+      case 'lfk_complex':
         return library.lfkComplexes;
-      case "clinical_test":
+      case 'clinical_test':
         return library.clinicalTests;
-      case "recommendation":
+      case 'recommendation':
         return library.recommendations;
       default:
         return [];
@@ -271,7 +283,7 @@ export function InstanceAddLibraryItemDialog(props: {
     return displayDetail.stages.find((stage) => stage.id === spec.stageId)?.items ?? [];
   }, [displayDetail.stages, spec]);
 
-  const targetGroupId = spec?.context === "custom_group" ? (spec.customGroupId ?? null) : null;
+  const targetGroupId = spec?.context === 'custom_group' ? (spec.customGroupId ?? null) : null;
 
   const { filteredRows: pickerList, emptyMessage } = useTreatmentProgramLibraryPickerList({
     rows: pickerBaseList,
@@ -283,19 +295,19 @@ export function InstanceAddLibraryItemDialog(props: {
 
   function selectedItemIdsForRow(row: TreatmentProgramLibraryRow): string[] {
     if (!spec) return [];
-    if (spec.context === "stage_system_tests" && testsAddMode === "expand_set") {
+    if (spec.context === 'stage_system_tests' && testsAddMode === 'expand_set') {
       const refs = (row.expandLines ?? []).map((line) => line.itemRefId);
       const ids = currentGroupExpandedItemIds(currentStageItems, {
-        itemType: "clinical_test",
+        itemType: 'clinical_test',
         itemRefIds: refs,
         groupId: targetGroupId,
       });
       return refs.length > 0 && ids.length === refs.length ? ids : [];
     }
-    if (resolvedItemType === "lfk_complex") {
+    if (resolvedItemType === 'lfk_complex') {
       const refs = (row.expandLines ?? []).map((line) => line.itemRefId);
       const ids = currentGroupExpandedItemIds(currentStageItems, {
-        itemType: "exercise",
+        itemType: 'exercise',
         itemRefIds: refs,
         groupId: targetGroupId,
       });
@@ -311,9 +323,9 @@ export function InstanceAddLibraryItemDialog(props: {
 
   function togglePick(row: TreatmentProgramLibraryRow) {
     if (!spec || editLocked) return;
-    if (spec.context === "custom_group") {
+    if (spec.context === 'custom_group') {
       if (!spec.customGroupId?.trim()) {
-        setError("Не задана группа");
+        setError('Не задана группа');
         return;
       }
     }
@@ -325,14 +337,14 @@ export function InstanceAddLibraryItemDialog(props: {
       return;
     }
 
-    if (spec.context === "stage_system_tests" && testsAddMode === "expand_set") {
+    if (spec.context === 'stage_system_tests' && testsAddMode === 'expand_set') {
       const lines = row.expandLines ?? [];
       if (lines.length === 0) {
-        setError("Набор пуст или нет данных для добавления");
+        setError('Набор пуст или нет данных для добавления');
         return;
       }
       addItemCreate({
-        kind: "test_set_expand",
+        kind: 'test_set_expand',
         stageId: spec.stageId,
         testSetId: row.id,
         items: lines.map((line) => ({
@@ -344,18 +356,18 @@ export function InstanceAddLibraryItemDialog(props: {
       return;
     }
 
-    if (resolvedItemType === "lfk_complex") {
+    if (resolvedItemType === 'lfk_complex') {
       if (!spec.customGroupId?.trim()) {
-        setError("Не задана группа");
+        setError('Не задана группа');
         return;
       }
       const lines = row.expandLines ?? [];
       if (lines.length === 0) {
-        setError("Комплекс пуст или нет данных для разворота");
+        setError('Комплекс пуст или нет данных для разворота');
         return;
       }
       addItemCreate({
-        kind: "lfk_complex_expand",
+        kind: 'lfk_complex_expand',
         stageId: spec.stageId,
         groupId: spec.customGroupId,
         complexTemplateId: row.id,
@@ -369,10 +381,10 @@ export function InstanceAddLibraryItemDialog(props: {
     }
 
     const groupId =
-      spec.context === "custom_group" && spec.customGroupId ? spec.customGroupId : undefined;
+      spec.context === 'custom_group' && spec.customGroupId ? spec.customGroupId : undefined;
 
     addItemCreate({
-      kind: "library_item",
+      kind: 'library_item',
       stageId: spec.stageId,
       itemType: resolvedItemType,
       itemRefId: row.id,
@@ -383,16 +395,16 @@ export function InstanceAddLibraryItemDialog(props: {
 
   function submitFreeform() {
     if (!spec || editLocked) return;
-    if (spec.context !== "phase_zero_recommendations") return;
+    if (spec.context !== 'phase_zero_recommendations') return;
     const title = freeformTitle.trim();
     if (!title) {
-      setError("Укажите заголовок");
+      setError('Укажите заголовок');
       return;
     }
     setError(null);
     const bodyMd = freeformBody.trim();
     addItemCreate({
-      kind: "freeform_recommendation",
+      kind: 'freeform_recommendation',
       stageId: spec.stageId,
       title,
       bodyMd,
@@ -415,54 +427,60 @@ export function InstanceAddLibraryItemDialog(props: {
     const presign = await fetch(
       `/api/doctor/treatment-program-instances/${encodeURIComponent(displayDetail.id)}/media-presign`,
       {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ filename: file.name, mimeType: file.type, size: file.size }),
       },
     );
-    const presignData = (await presign.json().catch(() => null)) as
-      | { ok?: boolean; mediaId?: string; uploadUrl?: string; error?: string }
-      | null;
+    const presignData = (await presign.json().catch(() => null)) as {
+      ok?: boolean;
+      mediaId?: string;
+      uploadUrl?: string;
+      error?: string;
+    } | null;
     if (!presign.ok || !presignData?.ok || !presignData.mediaId || !presignData.uploadUrl) {
-      throw new Error(presignData?.error ?? "Не удалось подготовить загрузку видео");
+      throw new Error(presignData?.error ?? 'Не удалось подготовить загрузку видео');
     }
     await putWithProgress({
       url: presignData.uploadUrl,
       body: file,
       contentType: file.type,
     });
-    const confirm = await fetch("/api/media/confirm", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+    const confirm = await fetch('/api/media/confirm', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ mediaId: presignData.mediaId }),
     });
-    const confirmData = (await confirm.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
+    const confirmData = (await confirm.json().catch(() => null)) as {
+      ok?: boolean;
+      error?: string;
+    } | null;
     if (!confirm.ok || !confirmData?.ok) {
-      throw new Error(confirmData?.error ?? "Не удалось подтвердить загрузку видео");
+      throw new Error(confirmData?.error ?? 'Не удалось подтвердить загрузку видео');
     }
     return presignData.mediaId;
   }
 
   async function submitIndividualExercise() {
-    if (!spec || spec.context !== "custom_group" || !spec.customGroupId || editLocked) return;
+    if (!spec || spec.context !== 'custom_group' || !spec.customGroupId || editLocked) return;
     const title = individualTitle.trim();
     if (!title) {
-      setError("Укажите название упражнения");
+      setError('Укажите название упражнения');
       return;
     }
     setIndividualBusy(true);
     setError(null);
     try {
-      const reps = optionalInteger(individualReps, 1, 999, "Повторы");
-      const sets = optionalInteger(individualSets, 1, 99, "Подходы");
-      const maxPain = optionalInteger(individualMaxPain, 0, 10, "Макс. боль");
+      const reps = optionalInteger(individualReps, 1, 999, 'Повторы');
+      const sets = optionalInteger(individualSets, 1, 99, 'Подходы');
+      const maxPain = optionalInteger(individualMaxPain, 0, 10, 'Макс. боль');
       const mediaId = individualVideo ? await uploadIndividualVideo(individualVideo) : null;
       const tags = individualTags
-        .split(",")
+        .split(',')
         .map((tag) => tag.trim())
         .filter(Boolean);
       addItemCreate({
-        kind: "individual_exercise",
+        kind: 'individual_exercise',
         stageId: spec.stageId,
         groupId: spec.customGroupId,
         title,
@@ -476,43 +494,50 @@ export function InstanceAddLibraryItemDialog(props: {
         saveToCatalog: individualSaveToCatalog,
         loadSettings: { reps, sets, maxPain },
         snapshot: {
-          itemType: "exercise",
-          id: "draft",
+          itemType: 'exercise',
+          id: 'draft',
           title,
           description: individualDescription.trim() || null,
           contraindications: individualContraindications.trim() || null,
           difficulty: individualDifficulty,
           loadType: individualLoadType,
-          exerciseScope: individualSaveToCatalog ? "catalog" : "personal",
-          ...(mediaId ? { media: [{ url: `/api/media/${mediaId}`, type: "video", sortOrder: 0 }] } : {}),
+          exerciseScope: individualSaveToCatalog ? 'catalog' : 'personal',
+          ...(mediaId
+            ? { media: [{ url: `/api/media/${mediaId}`, type: 'video', sortOrder: 0 }] }
+            : {}),
         },
       });
       handleOpenChange(false);
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : "Не удалось создать упражнение");
+      setError(
+        submitError instanceof Error ? submitError.message : 'Не удалось создать упражнение',
+      );
     } finally {
       setIndividualBusy(false);
     }
   }
 
-  const showCustomKindToggle = spec?.context === "custom_group";
-  const showIndividualExerciseForm = showCustomKindToggle && customKind === "exercise" && customSource === "new";
-  const isPhaseZero = spec?.context === "phase_zero_recommendations";
+  const showCustomKindToggle = spec?.context === 'custom_group';
+  const showIndividualExerciseForm =
+    showCustomKindToggle && customKind === 'exercise' && customSource === 'new';
+  const isPhaseZero = spec?.context === 'phase_zero_recommendations';
   const targetLabel =
-    spec?.context === "custom_group"
-      ? "Текущая группа этапа"
-      : spec?.context === "stage_system_tests"
-        ? "Блок тестов этапа"
+    spec?.context === 'custom_group'
+      ? 'Текущая группа этапа'
+      : spec?.context === 'stage_system_tests'
+        ? 'Блок тестов этапа'
         : isPhaseZero
-          ? "Общие рекомендации"
-          : "Системная группа этапа";
-  const selectedRowsCount = pickerBaseList.filter((row) => selectedItemIdsForRow(row).length > 0).length;
+          ? 'Общие рекомендации'
+          : 'Системная группа этапа';
+  const selectedRowsCount = pickerBaseList.filter(
+    (row) => selectedItemIdsForRow(row).length > 0,
+  ).length;
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="grid max-h-[calc(100dvh-2rem)] grid-rows-[auto_auto_minmax(0,1fr)_auto] overflow-hidden sm:h-[min(760px,calc(100dvh-2rem))] sm:max-w-6xl">
         <DialogHeader>
-          <DialogTitle>{isPhaseZero ? "Рекомендация" : "Элемент из библиотеки"}</DialogTitle>
+          <DialogTitle>{isPhaseZero ? 'Рекомендация' : 'Элемент из библиотеки'}</DialogTitle>
           {!isPhaseZero ? (
             <DialogDescription>
               Выберите позицию каталога для добавления в программу пациента.
@@ -533,16 +558,16 @@ export function InstanceAddLibraryItemDialog(props: {
             <Button
               type="button"
               role="radio"
-              aria-checked={phaseZeroSource === "catalog"}
+              aria-checked={phaseZeroSource === 'catalog'}
               variant="ghost"
               className={cn(
-                "text-xs font-medium transition-colors",
-                phaseZeroSource === "catalog"
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-transparent text-foreground hover:bg-muted/60",
+                'text-xs font-medium transition-colors',
+                phaseZeroSource === 'catalog'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-transparent text-foreground hover:bg-muted/60',
               )}
               onClick={() => {
-                setPhaseZeroSource("catalog");
+                setPhaseZeroSource('catalog');
                 setError(null);
               }}
             >
@@ -551,18 +576,18 @@ export function InstanceAddLibraryItemDialog(props: {
             <Button
               type="button"
               role="radio"
-              aria-checked={phaseZeroSource === "freeform"}
+              aria-checked={phaseZeroSource === 'freeform'}
               variant="ghost"
               className={cn(
-                "text-xs font-medium transition-colors",
-                phaseZeroSource === "freeform"
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-transparent text-foreground hover:bg-muted/60",
+                'text-xs font-medium transition-colors',
+                phaseZeroSource === 'freeform'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-transparent text-foreground hover:bg-muted/60',
               )}
               onClick={() => {
-                setPhaseZeroSource("freeform");
-                setFreeformTitle("");
-                setFreeformBody("");
+                setPhaseZeroSource('freeform');
+                setFreeformTitle('');
+                setFreeformBody('');
                 setError(null);
               }}
             >
@@ -570,7 +595,7 @@ export function InstanceAddLibraryItemDialog(props: {
             </Button>
           </div>
         ) : null}
-        {isPhaseZero && phaseZeroSource === "freeform" ? (
+        {isPhaseZero && phaseZeroSource === 'freeform' ? (
           <div className="flex flex-col gap-3">
             <div className="flex flex-col gap-2">
               <Label htmlFor="tp-freeform-title">Заголовок</Label>
@@ -599,7 +624,12 @@ export function InstanceAddLibraryItemDialog(props: {
           </div>
         ) : showIndividualExerciseForm ? (
           <div className="flex min-h-0 flex-col gap-4 overflow-y-auto pr-1">
-            <Button type="button" variant="outline" className="self-start" onClick={() => setCustomSource("catalog")}>
+            <Button
+              type="button"
+              variant="outline"
+              className="self-start"
+              onClick={() => setCustomSource('catalog')}
+            >
               Вернуться в каталог
             </Button>
             <div className="grid gap-4 sm:grid-cols-2">
@@ -688,15 +718,30 @@ export function InstanceAddLibraryItemDialog(props: {
               <div className="grid gap-3 sm:col-span-2 sm:grid-cols-3">
                 <div className="flex flex-col gap-2">
                   <Label htmlFor="tp-individual-reps">Повторы</Label>
-                  <Input id="tp-individual-reps" inputMode="numeric" value={individualReps} onChange={(event) => setIndividualReps(event.target.value)} />
+                  <Input
+                    id="tp-individual-reps"
+                    inputMode="numeric"
+                    value={individualReps}
+                    onChange={(event) => setIndividualReps(event.target.value)}
+                  />
                 </div>
                 <div className="flex flex-col gap-2">
                   <Label htmlFor="tp-individual-sets">Подходы</Label>
-                  <Input id="tp-individual-sets" inputMode="numeric" value={individualSets} onChange={(event) => setIndividualSets(event.target.value)} />
+                  <Input
+                    id="tp-individual-sets"
+                    inputMode="numeric"
+                    value={individualSets}
+                    onChange={(event) => setIndividualSets(event.target.value)}
+                  />
                 </div>
                 <div className="flex flex-col gap-2">
                   <Label htmlFor="tp-individual-pain">Макс. боль</Label>
-                  <Input id="tp-individual-pain" inputMode="numeric" value={individualMaxPain} onChange={(event) => setIndividualMaxPain(event.target.value)} />
+                  <Input
+                    id="tp-individual-pain"
+                    inputMode="numeric"
+                    value={individualMaxPain}
+                    onChange={(event) => setIndividualMaxPain(event.target.value)}
+                  />
                 </div>
               </div>
             </div>
@@ -708,267 +753,278 @@ export function InstanceAddLibraryItemDialog(props: {
               />
               Сохранить также в каталог организации
             </label>
-            <Button type="button" disabled={editLocked || individualBusy} onClick={() => void submitIndividualExercise()}>
-              {individualBusy ? "Загрузка и добавление…" : "Добавить упражнение"}
+            <Button
+              type="button"
+              disabled={editLocked || individualBusy}
+              onClick={() => void submitIndividualExercise()}
+            >
+              {individualBusy ? 'Загрузка и добавление…' : 'Добавить упражнение'}
             </Button>
           </div>
         ) : (
           <div className="flex min-h-0 flex-col gap-3 overflow-hidden">
-          {showCustomKindToggle ? (
-            <div className="flex flex-col gap-2">
-              <Label>Тип элемента</Label>
+            {showCustomKindToggle ? (
+              <div className="flex flex-col gap-2">
+                <Label>Тип элемента</Label>
+                <div
+                  className="grid h-9 grid-cols-2 overflow-hidden rounded-md border border-input p-px"
+                  role="radiogroup"
+                  aria-label="Тип элемента"
+                >
+                  <Button
+                    type="button"
+                    role="radio"
+                    aria-checked={customKind === 'exercise'}
+                    variant="ghost"
+                    className={cn(
+                      'text-xs font-medium transition-colors',
+                      customKind === 'exercise'
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-transparent text-foreground hover:bg-muted/60',
+                    )}
+                    onClick={() => {
+                      setCustomKind('exercise');
+                      setItemSearch('');
+                      setSelectedRegionCode(null);
+                      setSelectedLoadType(null);
+                    }}
+                  >
+                    Упражнение ЛФК
+                  </Button>
+                  <Button
+                    type="button"
+                    role="radio"
+                    aria-checked={customKind === 'lfk_complex'}
+                    variant="ghost"
+                    className={cn(
+                      'text-xs font-medium transition-colors',
+                      customKind === 'lfk_complex'
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-transparent text-foreground hover:bg-muted/60',
+                    )}
+                    onClick={() => {
+                      setCustomKind('lfk_complex');
+                      setItemSearch('');
+                      setSelectedRegionCode(null);
+                      setSelectedLoadType(null);
+                    }}
+                  >
+                    Комплекс ЛФК
+                  </Button>
+                </div>
+              </div>
+            ) : null}
+            {showCustomKindToggle && customKind === 'exercise' ? (
               <div
                 className="grid h-9 grid-cols-2 overflow-hidden rounded-md border border-input p-px"
                 role="radiogroup"
-                aria-label="Тип элемента"
+                aria-label="Источник упражнения"
               >
                 <Button
                   type="button"
                   role="radio"
-                  aria-checked={customKind === "exercise"}
+                  aria-checked={customSource === 'catalog'}
                   variant="ghost"
                   className={cn(
-                    "text-xs font-medium transition-colors",
-                    customKind === "exercise"
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-transparent text-foreground hover:bg-muted/60",
+                    'text-xs font-medium transition-colors',
+                    customSource === 'catalog'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-transparent text-foreground hover:bg-muted/60',
                   )}
-                  onClick={() => {
-                    setCustomKind("exercise");
-                    setItemSearch("");
-                    setSelectedRegionCode(null);
-                    setSelectedLoadType(null);
-                  }}
+                  onClick={() => setCustomSource('catalog')}
                 >
-                  Упражнение ЛФК
+                  Каталог
                 </Button>
                 <Button
                   type="button"
                   role="radio"
-                  aria-checked={customKind === "lfk_complex"}
+                  aria-checked={customSource === 'new'}
                   variant="ghost"
                   className={cn(
-                    "text-xs font-medium transition-colors",
-                    customKind === "lfk_complex"
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-transparent text-foreground hover:bg-muted/60",
+                    'text-xs font-medium transition-colors',
+                    customSource === 'new'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-transparent text-foreground hover:bg-muted/60',
                   )}
                   onClick={() => {
-                    setCustomKind("lfk_complex");
-                    setItemSearch("");
-                    setSelectedRegionCode(null);
-                    setSelectedLoadType(null);
+                    setCustomSource('new');
+                    setError(null);
                   }}
                 >
-                  Комплекс ЛФК
+                  Создать новое
                 </Button>
               </div>
-            </div>
-          ) : null}
-          {showCustomKindToggle && customKind === "exercise" ? (
-            <div
-              className="grid h-9 grid-cols-2 overflow-hidden rounded-md border border-input p-px"
-              role="radiogroup"
-              aria-label="Источник упражнения"
-            >
-              <Button
-                type="button"
-                role="radio"
-                aria-checked={customSource === "catalog"}
-                variant="ghost"
-                className={cn(
-                  "text-xs font-medium transition-colors",
-                  customSource === "catalog"
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-transparent text-foreground hover:bg-muted/60",
-                )}
-                onClick={() => setCustomSource("catalog")}
-              >
-                Каталог
-              </Button>
-              <Button
-                type="button"
-                role="radio"
-                aria-checked={customSource === "new"}
-                variant="ghost"
-                className={cn(
-                  "text-xs font-medium transition-colors",
-                  customSource === "new"
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-transparent text-foreground hover:bg-muted/60",
-                )}
-                onClick={() => {
-                  setCustomSource("new");
-                  setError(null);
-                }}
-              >
-                Создать новое
-              </Button>
-            </div>
-          ) : null}
-          {spec?.context === "stage_system_tests" ? (
-            <div className="flex flex-col gap-2">
-              <Label>Добавить</Label>
-              <div
-                className="grid h-9 grid-cols-2 overflow-hidden rounded-md border border-input p-px"
-                role="radiogroup"
-                aria-label="Режим добавления тестов"
-              >
-                <Button
-                  type="button"
-                  role="radio"
-                  aria-checked={testsAddMode === "expand_set"}
-                  variant="ghost"
-                  className={cn(
-                    "text-xs font-medium transition-colors",
-                    testsAddMode === "expand_set"
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-transparent text-foreground hover:bg-muted/60",
-                  )}
-                  onClick={() => {
-                    setTestsAddMode("expand_set");
-                    setItemSearch("");
-                  }}
+            ) : null}
+            {spec?.context === 'stage_system_tests' ? (
+              <div className="flex flex-col gap-2">
+                <Label>Добавить</Label>
+                <div
+                  className="grid h-9 grid-cols-2 overflow-hidden rounded-md border border-input p-px"
+                  role="radiogroup"
+                  aria-label="Режим добавления тестов"
                 >
-                  Набор тестов
-                </Button>
-                <Button
-                  type="button"
-                  role="radio"
-                  aria-checked={testsAddMode === "single_test"}
-                  variant="ghost"
-                  className={cn(
-                    "text-xs font-medium transition-colors",
-                    testsAddMode === "single_test"
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-transparent text-foreground hover:bg-muted/60",
-                  )}
-                  onClick={() => {
-                    setTestsAddMode("single_test");
-                    setItemSearch("");
-                  }}
-                >
-                  Один тест
-                </Button>
+                  <Button
+                    type="button"
+                    role="radio"
+                    aria-checked={testsAddMode === 'expand_set'}
+                    variant="ghost"
+                    className={cn(
+                      'text-xs font-medium transition-colors',
+                      testsAddMode === 'expand_set'
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-transparent text-foreground hover:bg-muted/60',
+                    )}
+                    onClick={() => {
+                      setTestsAddMode('expand_set');
+                      setItemSearch('');
+                    }}
+                  >
+                    Набор тестов
+                  </Button>
+                  <Button
+                    type="button"
+                    role="radio"
+                    aria-checked={testsAddMode === 'single_test'}
+                    variant="ghost"
+                    className={cn(
+                      'text-xs font-medium transition-colors',
+                      testsAddMode === 'single_test'
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-transparent text-foreground hover:bg-muted/60',
+                    )}
+                    onClick={() => {
+                      setTestsAddMode('single_test');
+                      setItemSearch('');
+                    }}
+                  >
+                    Один тест
+                  </Button>
+                </div>
               </div>
-            </div>
-          ) : null}
-          <DoctorCatalogFiltersToolbar
-            className="static rounded-lg border border-border/60 bg-card shadow-none"
-            filters={
-              <DoctorCatalogToolbarFiltersSlot>
-                <DoctorCatalogFiltersForm
-                  idPrefix="inst-lib"
-                  q={itemSearch}
-                  regionCode={selectedRegionCode ?? undefined}
-                  loadType={selectedLoadType ?? undefined}
-                  onFiltersChange={({ q, regionCode, loadType }) => {
-                    setItemSearch(q);
-                    setSelectedRegionCode(regionCode);
-                    setSelectedLoadType(loadType);
-                  }}
-                />
-              </DoctorCatalogToolbarFiltersSlot>
-            }
-          />
-          <CatalogSplitLayout
-            className="min-h-0 flex-1 lg:min-h-0"
-            mobileView="list"
-            desktopColsClassName="lg:grid-cols-[minmax(0,3fr)_minmax(16rem,1fr)]"
-            left={
-              <CatalogLeftPane
-                stickySplit={false}
-                className="h-full"
-                headerSlot={
-                  <div className="flex items-center justify-between gap-2 border-b border-border/60 pb-2 text-xs text-muted-foreground">
-                    <span>{pickerList.length === 0 ? "Нет позиций" : `Позиций: ${pickerList.length}`}</span>
-                    <span className="truncate">В группу: {targetLabel}</span>
-                  </div>
-                }
-              >
-                {pickerList.length === 0 ? (
-                  <p className="m-0 flex flex-1 items-center justify-center rounded-md border border-dashed px-3 py-6 text-center text-sm text-muted-foreground">
-                    {emptyMessage}
-                  </p>
-                ) : (
-                  <VirtualizedItemGrid
-                    items={pickerList}
-                    columns={2}
-                    estimatedRowHeight={206}
-                    overscan={2}
-                    keyExtractor={(row) => row.id}
-                    containerClassName="h-full min-h-0"
-                    gridClassName="pb-2"
-                    renderItem={(row) => {
-                      const selected = selectedItemIdsForRow(row).length > 0;
-                      return (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          disabled={editLocked}
-                          aria-pressed={selected}
-                          onClick={() => togglePick(row)}
-                          className={cn(
-                            doctorInteractiveSurfaceButtonClass,
-                            "h-full w-full rounded-[calc(var(--radius-xl)*0.5)] p-0 text-left disabled:pointer-events-none disabled:opacity-50",
-                          )}
-                        >
-                          <Card
-                            size="sm"
-                            className={cn(
-                              "relative h-full w-full min-w-0 rounded-[calc(var(--radius-xl)*0.5)] transition-shadow data-[size=sm]:py-1.5",
-                              selected && "ring-1 ring-primary/60 ring-offset-1 ring-offset-background",
-                            )}
-                          >
-                            <CardContent className="flex h-full flex-col gap-2 py-px group-data-[size=sm]/card:px-1.5">
-                              <LibraryMediaThumb
-                                src={row.thumbUrl}
-                                itemType={
-                                  spec?.context === "stage_system_tests" && testsAddMode === "expand_set"
-                                    ? "clinical_test"
-                                    : resolvedItemType
-                                }
-                              />
-                              <span className="min-w-0 text-center">
-                                <span className="block line-clamp-2 text-xs font-medium leading-snug">{row.title}</span>
-                                {row.subtitle?.trim() ? (
-                                  <span className="mt-0.5 block line-clamp-2 text-xs text-muted-foreground">
-                                    {row.subtitle.trim()}
-                                  </span>
-                                ) : null}
-                              </span>
-                              {selected ? (
-                                <span className="absolute right-2 top-2 flex size-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
-                                  <Check className="size-3.5" aria-hidden />
-                                </span>
-                              ) : null}
-                            </CardContent>
-                          </Card>
-                        </Button>
-                      );
+            ) : null}
+            <DoctorCatalogFiltersToolbar
+              className="static rounded-lg border border-border/60 bg-card shadow-none"
+              filters={
+                <DoctorCatalogToolbarFiltersSlot>
+                  <DoctorCatalogFiltersForm
+                    idPrefix="inst-lib"
+                    q={itemSearch}
+                    regionCode={selectedRegionCode ?? undefined}
+                    loadType={selectedLoadType ?? undefined}
+                    onFiltersChange={({ q, regionCode, loadType }) => {
+                      setItemSearch(q);
+                      setSelectedRegionCode(regionCode);
+                      setSelectedLoadType(loadType);
                     }}
                   />
-                )}
-              </CatalogLeftPane>
-            }
-            right={
-              <CatalogRightPane className="h-full" contentClassName="p-4">
-                <div className="flex h-full flex-col gap-3">
-                  <div>
-                    <p className="text-sm font-medium">Добавление в программу</p>
-                    <p className="mt-1 text-sm text-muted-foreground">Цель: {targetLabel}.</p>
+                </DoctorCatalogToolbarFiltersSlot>
+              }
+            />
+            <CatalogSplitLayout
+              className="min-h-0 flex-1 lg:min-h-0"
+              mobileView="list"
+              desktopColsClassName="lg:grid-cols-[minmax(0,3fr)_minmax(16rem,1fr)]"
+              left={
+                <CatalogLeftPane
+                  stickySplit={false}
+                  className="h-full"
+                  headerSlot={
+                    <div className="flex items-center justify-between gap-2 border-b border-border/60 pb-2 text-xs text-muted-foreground">
+                      <span>
+                        {pickerList.length === 0 ? 'Нет позиций' : `Позиций: ${pickerList.length}`}
+                      </span>
+                      <span className="truncate">В группу: {targetLabel}</span>
+                    </div>
+                  }
+                >
+                  {pickerList.length === 0 ? (
+                    <p className="m-0 flex flex-1 items-center justify-center rounded-md border border-dashed px-3 py-6 text-center text-sm text-muted-foreground">
+                      {emptyMessage}
+                    </p>
+                  ) : (
+                    <VirtualizedItemGrid
+                      items={pickerList}
+                      columns={2}
+                      estimatedRowHeight={206}
+                      overscan={2}
+                      keyExtractor={(row) => row.id}
+                      containerClassName="h-full min-h-0"
+                      gridClassName="pb-2"
+                      renderItem={(row) => {
+                        const selected = selectedItemIdsForRow(row).length > 0;
+                        return (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            disabled={editLocked}
+                            aria-pressed={selected}
+                            onClick={() => togglePick(row)}
+                            className={cn(
+                              doctorInteractiveSurfaceButtonClass,
+                              'h-full w-full rounded-[calc(var(--radius-xl)*0.5)] p-0 text-left disabled:pointer-events-none disabled:opacity-50',
+                            )}
+                          >
+                            <Card
+                              size="sm"
+                              className={cn(
+                                'relative h-full w-full min-w-0 rounded-[calc(var(--radius-xl)*0.5)] transition-shadow data-[size=sm]:py-1.5',
+                                selected &&
+                                  'ring-1 ring-primary/60 ring-offset-1 ring-offset-background',
+                              )}
+                            >
+                              <CardContent className="flex h-full flex-col gap-2 py-px group-data-[size=sm]/card:px-1.5">
+                                <LibraryMediaThumb
+                                  src={row.thumbUrl}
+                                  itemType={
+                                    spec?.context === 'stage_system_tests' &&
+                                    testsAddMode === 'expand_set'
+                                      ? 'clinical_test'
+                                      : resolvedItemType
+                                  }
+                                />
+                                <span className="min-w-0 text-center">
+                                  <span className="block line-clamp-2 text-xs font-medium leading-snug">
+                                    {row.title}
+                                  </span>
+                                  {row.subtitle?.trim() ? (
+                                    <span className="mt-0.5 block line-clamp-2 text-xs text-muted-foreground">
+                                      {row.subtitle.trim()}
+                                    </span>
+                                  ) : null}
+                                </span>
+                                {selected ? (
+                                  <span className="absolute right-2 top-2 flex size-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                                    <Check className="size-3.5" aria-hidden />
+                                  </span>
+                                ) : null}
+                              </CardContent>
+                            </Card>
+                          </Button>
+                        );
+                      }}
+                    />
+                  )}
+                </CatalogLeftPane>
+              }
+              right={
+                <CatalogRightPane className="h-full" contentClassName="p-4">
+                  <div className="flex h-full flex-col gap-3">
+                    <div>
+                      <p className="text-sm font-medium">Добавление в программу</p>
+                      <p className="mt-1 text-sm text-muted-foreground">Цель: {targetLabel}.</p>
+                    </div>
+                    <div className="rounded-lg border border-border/60 bg-muted/30 p-3 text-sm">
+                      В этой группе выбрано: {selectedRowsCount}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Нажмите карточку, чтобы добавить позицию; повторный клик убирает её только из
+                      текущей группы.
+                    </p>
                   </div>
-                  <div className="rounded-lg border border-border/60 bg-muted/30 p-3 text-sm">
-                    В этой группе выбрано: {selectedRowsCount}
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Нажмите карточку, чтобы добавить позицию; повторный клик убирает её только из текущей группы.
-                  </p>
-                </div>
-              </CatalogRightPane>
-            }
-          />
-        </div>
+                </CatalogRightPane>
+              }
+            />
+          </div>
         )}
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>

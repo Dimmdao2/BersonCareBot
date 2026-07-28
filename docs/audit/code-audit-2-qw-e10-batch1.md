@@ -1,4 +1,5 @@
 # Code Audit 2 — QW-E10/batch1
+
 agentId: audit2-qw-e10-batch1
 Commit: a133048da297d3233a973aace1964d4ff00ef0e6
 Date: 2026-06-19
@@ -7,22 +8,22 @@ Date: 2026-06-19
 
 Tabulated apiJson-import / apiJson-call / raw-fetch / `res.ok|json.ok` checks across all 14 files:
 
-| Component | apiJson import | apiJson calls | raw fetch | res.ok/json.ok checks | verdict |
-|---|---|---|---|---|---|
-| AppointmentReminderSettingsSection | yes | 1 | 0 | 0 | OK |
-| BookingCatalogPackagesSection | yes | 3 | 0 | 0 | OK |
-| BookingCatalogProductsSection | yes | 3 | 0 | 0 | OK |
-| BookingEventNotificationsSection | yes | 1 | 0 | 0 | OK |
-| BookingFormFieldsSection | yes | 2 | 0 | 0 | OK |
-| BookingManualLifecycleSection | yes | 3 | 0 | 0 | OK |
-| BookingPrepaymentSection | yes | 3 | 0 | 0 | OK |
-| BookingWorkingHoursSection | yes | 4 | 0 | 0 | OK |
-| BookingPatientProductsSection | yes | 3 | 0 | 0 | OK |
-| BookingPoliciesSection | yes | 5 | 0 | 0 | OK |
-| **BookingMergeCandidatesSection** | **no** | **0** | **2** | **2** | **NOT CONVERTED** |
-| **BookingPatientPackagesSection** | **no** | **0** | **3** | **3** | **NOT CONVERTED** |
-| **BookingPublicWidgetSection** | **no** | **0** | **2** | **1** | **NOT CONVERTED** |
-| **BookingScheduleBlocksSection** | yes | 3 | **1** | 0 | **PARTIAL — 1 raw fetch left** |
+| Component                          | apiJson import | apiJson calls | raw fetch | res.ok/json.ok checks | verdict                        |
+| ---------------------------------- | -------------- | ------------- | --------- | --------------------- | ------------------------------ |
+| AppointmentReminderSettingsSection | yes            | 1             | 0         | 0                     | OK                             |
+| BookingCatalogPackagesSection      | yes            | 3             | 0         | 0                     | OK                             |
+| BookingCatalogProductsSection      | yes            | 3             | 0         | 0                     | OK                             |
+| BookingEventNotificationsSection   | yes            | 1             | 0         | 0                     | OK                             |
+| BookingFormFieldsSection           | yes            | 2             | 0         | 0                     | OK                             |
+| BookingManualLifecycleSection      | yes            | 3             | 0         | 0                     | OK                             |
+| BookingPrepaymentSection           | yes            | 3             | 0         | 0                     | OK                             |
+| BookingWorkingHoursSection         | yes            | 4             | 0         | 0                     | OK                             |
+| BookingPatientProductsSection      | yes            | 3             | 0         | 0                     | OK                             |
+| BookingPoliciesSection             | yes            | 5             | 0         | 0                     | OK                             |
+| **BookingMergeCandidatesSection**  | **no**         | **0**         | **2**     | **2**                 | **NOT CONVERTED**              |
+| **BookingPatientPackagesSection**  | **no**         | **0**         | **3**     | **3**                 | **NOT CONVERTED**              |
+| **BookingPublicWidgetSection**     | **no**         | **0**         | **2**     | **1**                 | **NOT CONVERTED**              |
+| **BookingScheduleBlocksSection**   | yes            | 3             | **1**     | 0                     | **PARTIAL — 1 raw fetch left** |
 
 10 of 14 are fully converted. Four fail the clause:
 
@@ -39,10 +40,12 @@ The DoD clause A1 explicitly lists these as in-scope and states "No component sh
 ## Clause A2 — No apiJson duplication — PASS
 
 `apps/webapp/src/app/app/settings/bookingSoloAdminApi.ts` lines 1-2:
+
 ```
 import { apiJson } from "@/shared/lib/apiJson";
 export { apiJson } from "@/shared/lib/apiJson";
 ```
+
 No local `apiJson` function definition remains. It imports and re-exports the shared helper. The component test (`BookingEventNotificationsSection.test.tsx`) even asserts `fromApi === fromShared` (same function identity), confirming it is a true re-export, not a copy. PASS.
 
 Note: `fetchSoloOverview` (lines 48-56) still uses raw fetch, but this is a legitimate exception — it needs to translate `booking_engine_unavailable` into a `null` return, which apiJson's throw-on-error contract cannot express. Out of scope for A2 (A2 is only about the apiJson helper itself).
@@ -50,6 +53,7 @@ Note: `fetchSoloOverview` (lines 48-56) still uses raw fetch, but this is a legi
 ## Clause A3 — deactivate() uses apiJson — PASS
 
 `BookingWorkingHoursSection.tsx` `deactivate()` (lines 161-171):
+
 ```js
 function deactivate(id: string) {
   startTransition(async () => {
@@ -63,6 +67,7 @@ function deactivate(id: string) {
   });
 }
 ```
+
 Uses apiJson + try/catch, surfaces the error message, and does NOT reload on failure (early return). PASS for this specific function.
 
 (Caveat: the structurally-identical `removeBlock()` in BookingScheduleBlocksSection was NOT given the same treatment — see A1.)
@@ -70,6 +75,7 @@ Uses apiJson + try/catch, surfaces the error message, and does NOT reload on fai
 ## Clause A4 — shared/lib/apiJson.ts correctness — PASS
 
 Helper (lines 5-22) correctly handles all required cases:
+
 - Reads `res.text()` first, then attempts `JSON.parse`.
 - On parse failure: throws `invalid_json` when `res.ok`, else `http_${status}` — so an HTML server-error page (e.g. 502 `<html>Bad Gateway</html>`) yields a clean `http_502` rather than a confusing JSON-parse stack trace. HTML on a 200 yields `invalid_json`.
 - On `!res.ok || body.ok === false`: throws `body.message ?? body.error ?? http_${status}`, preferring `message` over `error`.
@@ -81,6 +87,7 @@ Verified by the unit tests (all 6 pass), which explicitly cover HTML-on-502 → 
 The 10 fully-converted components consistently use `setError(e instanceof Error ? e.message : "<fallback>")` (verified in BookingWorkingHoursSection load/createRow/deactivate and BookingScheduleBlocksSection load/createBlock). No `setError(null)` on error and no silent swallow in those paths.
 
 Exception in the NOT-converted files (these are A1 failures, listed here for completeness):
+
 - BookingScheduleBlocksSection.removeBlock: silent `// ignore delete errors` — error never surfaced.
 - BookingMergeCandidatesSection.dismiss / BookingPublicWidgetSection: catch blocks set a generic "Ошибка сети" or silently leave selects empty.
 
@@ -92,6 +99,7 @@ For the components that were actually converted, A5 holds. PASS, scoped to the c
 - `BookingEventNotificationsSection.test.tsx` exists with 3 tests (re-export identity, http_503 on HTML, body.error passthrough). Note: it does not render the component; it re-tests apiJson + the re-export. Thin but valid.
 
 Test runs (vitest 4 — note: `--testPathPattern` is NOT supported by vitest 4; used positional filter instead):
+
 - `vitest --run apiJson` → Test Files 1 passed, Tests 6 passed.
 - `vitest --run BookingEventNotificationsSection` → Test Files 1 passed, Tests 3 passed.
 

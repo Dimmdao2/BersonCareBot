@@ -1,16 +1,16 @@
-"use client";
+'use client';
 
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { Label } from "@/shared/ui/doctor/primitives/label";
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { Label } from '@/shared/ui/doctor/primitives/label';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/ui/doctor/primitives/select";
-import type { CalendarCreateFieldMode } from "@/modules/booking-calendar/calendarCreateFieldMode";
-import type { CalendarFilterOption } from "@/modules/booking-calendar/types";
+} from '@/shared/ui/doctor/primitives/select';
+import type { CalendarCreateFieldMode } from '@/modules/booking-calendar/calendarCreateFieldMode';
+import type { CalendarFilterOption } from '@/modules/booking-calendar/types';
 
 type Props = {
   fieldLabel: string;
@@ -22,7 +22,7 @@ type Props = {
 };
 
 function noneValue() {
-  return "__none__";
+  return '__none__';
 }
 
 export function DoctorCalendarCreateFormField({
@@ -33,11 +33,11 @@ export function DoctorCalendarCreateFormField({
   noneLabel,
   onChange,
 }: Props) {
-  if (mode === "hidden") return null;
+  if (mode === 'hidden') return null;
 
-  const displayLabel = options.find((o) => o.id === value)?.label ?? "—";
+  const displayLabel = options.find((o) => o.id === value)?.label ?? '—';
 
-  if (mode === "fixed") {
+  if (mode === 'fixed') {
     return (
       <div className="space-y-1">
         <Label>{fieldLabel}</Label>

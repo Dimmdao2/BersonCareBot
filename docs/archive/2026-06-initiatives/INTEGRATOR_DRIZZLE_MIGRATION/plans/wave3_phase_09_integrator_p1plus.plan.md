@@ -5,22 +5,22 @@ status: completed
 isProject: false
 todos:
   - id: w3-p09a-settings-config
-    content: "09A: Settings/config readers после phase08: общий helper для чтения public.system_settings + Zod, без runtime-зависимости от integrator mirror."
+    content: '09A: Settings/config readers после phase08: общий helper для чтения public.system_settings + Zod, без runtime-зависимости от integrator mirror.'
     status: completed
   - id: w3-p09b-simple-repos
-    content: "09B: Простые repos (platformUserDeliveryPhone, resolvePlatformUserIdForRubitimeBooking, canonicalUserId, linkedPhoneSource, messengerStaffIds, adminIncidentAlertRelay) → runIntegratorSql/helper."
+    content: '09B: Простые repos (platformUserDeliveryPhone, resolvePlatformUserIdForRubitimeBooking, canonicalUserId, linkedPhoneSource, messengerStaffIds, adminIncidentAlertRelay) → runIntegratorSql/helper.'
     status: completed
   - id: w3-p09c-complex-repos
-    content: "09C: Сложные repos (idempotencyKeys, adminStats, integrationDataQualityIncidents, patientHomeMorningPing repo+handler, branchTimezone) с сохранением семантики."
+    content: '09C: Сложные repos (idempotencyKeys, adminStats, integrationDataQualityIncidents, patientHomeMorningPing repo+handler, branchTimezone) с сохранением семантики.'
     status: completed
   - id: w3-p09d-gcal
-    content: "09D: Google Calendar (calendarDescription, resolvePackageCalendarContext, runtimeConfig) + cache/invalidation parity."
+    content: '09D: Google Calendar (calendarDescription, resolvePackageCalendarContext, runtimeConfig) + cache/invalidation parity.'
     status: completed
   - id: w3-p09e-throttle
-    content: "09E: rubitimeApiThrottle: throttle row read/update через drizzle session на том же PoolClient (Class B), advisory semantics unchanged."
+    content: '09E: rubitimeApiThrottle: throttle row read/update через drizzle session на том же PoolClient (Class B), advisory semantics unchanged.'
     status: completed
   - id: w3-p09-verify
-    content: "После 09A-09E: rg integrator await db.query (exclude migrate/scripts/client health); targeted tests per batch + integrator typecheck."
+    content: 'После 09A-09E: rg integrator await db.query (exclude migrate/scripts/client health); targeted tests per batch + integrator typecheck.'
     status: completed
 ---
 
@@ -106,30 +106,30 @@ todos:
 
 ## Файловый чеклист (пересмотреть после phase08)
 
-| Файл | Подход |
-|------|--------|
-| `repos/idempotencyKeys.ts` | `runIntegratorSql` + `GATEWAY_IDEMPOTENCY_ALLOWED_TABLES` |
-| `infra/db/parseMessengerIdTokens.ts` | shared Zod id-list parser (post-audit) |
-| `infra/db/publicSystemSettings.ts` | `public.system_settings` read helper (09A) |
-| `repos/platformUserDeliveryPhone.ts` | `runIntegratorSql` |
-| `repos/patientHomeMorningPing.ts` | `runIntegratorSql` |
-| `handlers/patientHomeMorningPing.ts` | shared settings helper |
-| `repos/adminStats.ts` | `runIntegratorSql`; динамика — Class B |
-| `repos/linkedPhoneSource.ts` | `public.system_settings` helper + Zod |
-| `repos/resolvePlatformUserIdForRubitimeBooking.ts` | `runIntegratorSql` |
-| `repos/canonicalUserId.ts` | `runIntegratorSql` |
-| `repos/integrationDataQualityIncidents.ts` | `runIntegratorSql` |
-| `branchTimezone.ts` | `runIntegratorSql` join |
-| `messengerStaffIds.ts` | `public.system_settings` helper + Zod |
-| `adminIncidentAlertRelay.ts` | `public.system_settings` helper + Zod |
-| `config/smtpOutbound.ts` | `public.system_settings` helper + Zod |
-| `operationalVerboseLog.ts` | settings read |
-| `config/appBaseUrl.ts` | settings + cache |
-| `config/appTimezone.ts` | settings + cache |
-| `gcal/calendarDescription.ts` | `runIntegratorSql` |
-| `gcal/resolvePackageCalendarContext.ts` | `runIntegratorSql` |
-| `gcal/runtimeConfig.ts` | `public.system_settings` helper + Zod |
-| `rubitimeApiThrottle.ts` | `execute` on same client |
+| Файл                                               | Подход                                                    |
+| -------------------------------------------------- | --------------------------------------------------------- |
+| `repos/idempotencyKeys.ts`                         | `runIntegratorSql` + `GATEWAY_IDEMPOTENCY_ALLOWED_TABLES` |
+| `infra/db/parseMessengerIdTokens.ts`               | shared Zod id-list parser (post-audit)                    |
+| `infra/db/publicSystemSettings.ts`                 | `public.system_settings` read helper (09A)                |
+| `repos/platformUserDeliveryPhone.ts`               | `runIntegratorSql`                                        |
+| `repos/patientHomeMorningPing.ts`                  | `runIntegratorSql`                                        |
+| `handlers/patientHomeMorningPing.ts`               | shared settings helper                                    |
+| `repos/adminStats.ts`                              | `runIntegratorSql`; динамика — Class B                    |
+| `repos/linkedPhoneSource.ts`                       | `public.system_settings` helper + Zod                     |
+| `repos/resolvePlatformUserIdForRubitimeBooking.ts` | `runIntegratorSql`                                        |
+| `repos/canonicalUserId.ts`                         | `runIntegratorSql`                                        |
+| `repos/integrationDataQualityIncidents.ts`         | `runIntegratorSql`                                        |
+| `branchTimezone.ts`                                | `runIntegratorSql` join                                   |
+| `messengerStaffIds.ts`                             | `public.system_settings` helper + Zod                     |
+| `adminIncidentAlertRelay.ts`                       | `public.system_settings` helper + Zod                     |
+| `config/smtpOutbound.ts`                           | `public.system_settings` helper + Zod                     |
+| `operationalVerboseLog.ts`                         | settings read                                             |
+| `config/appBaseUrl.ts`                             | settings + cache                                          |
+| `config/appTimezone.ts`                            | settings + cache                                          |
+| `gcal/calendarDescription.ts`                      | `runIntegratorSql`                                        |
+| `gcal/resolvePackageCalendarContext.ts`            | `runIntegratorSql`                                        |
+| `gcal/runtimeConfig.ts`                            | `public.system_settings` helper + Zod                     |
+| `rubitimeApiThrottle.ts`                           | `execute` on same client                                  |
 
 ## Проверки
 
@@ -142,11 +142,11 @@ pnpm --dir apps/integrator run typecheck
 
 ## Риски
 
-| Риск | Митигация |
-|------|-----------|
-| Двойной канал settings | Те же таблицы/ключи; не трогать `settingsSyncRoute` write path |
-| branchTimezone data-quality | Сохранить fallback + incident hook |
-| idempotency dynamic SQL | `GATEWAY_IDEMPOTENCY_ALLOWED_TABLES` + `idempotencyKeys.test.ts` |
+| Риск                        | Митигация                                                        |
+| --------------------------- | ---------------------------------------------------------------- |
+| Двойной канал settings      | Те же таблицы/ключи; не трогать `settingsSyncRoute` write path   |
+| branchTimezone data-quality | Сохранить fallback + incident hook                               |
+| idempotency dynamic SQL     | `GATEWAY_IDEMPOTENCY_ALLOWED_TABLES` + `idempotencyKeys.test.ts` |
 
 ## Закрытие (2026-06-06)
 

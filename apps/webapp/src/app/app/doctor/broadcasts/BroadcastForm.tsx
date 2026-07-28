@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { useTransition, useState, useEffect, useRef } from "react";
-import { cn } from "@/lib/utils";
+import { useTransition, useState, useEffect, useRef } from 'react';
+import { cn } from '@/lib/utils';
 import type {
   BroadcastAuditEntry,
   BroadcastAudienceFilter,
@@ -9,24 +9,21 @@ import type {
   BroadcastChannel,
   BroadcastCommand,
   BroadcastPreviewResult,
-} from "@/modules/doctor-broadcasts/ports";
+} from '@/modules/doctor-broadcasts/ports';
 import {
   BROADCAST_ACTIVE_CHANNELS,
   BROADCAST_DEFAULT_CHANNELS,
-} from "@/modules/doctor-broadcasts/broadcastChannels";
-import {
-  BROADCAST_FORM_CATEGORIES,
-  isAudienceEstimateApproximate,
-} from "./labels";
-import { BroadcastAudienceSelect } from "./BroadcastAudienceSelect";
-import { BroadcastConfirmStep } from "./BroadcastConfirmStep";
-import { BroadcastSentMessage } from "./BroadcastSentMessage";
-import { MarkdownEditor } from "@/shared/ui/doctor/markdown/MarkdownEditor";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { MediaPickerPanel } from "@/shared/ui/doctor/media/MediaPickerPanel";
-import { MediaPickerShell } from "@/shared/ui/doctor/media/MediaPickerShell";
-import type { MediaListItem } from "@/shared/ui/doctor/media/MediaPickerList";
+} from '@/modules/doctor-broadcasts/broadcastChannels';
+import { BROADCAST_FORM_CATEGORIES, isAudienceEstimateApproximate } from './labels';
+import { BroadcastAudienceSelect } from './BroadcastAudienceSelect';
+import { BroadcastConfirmStep } from './BroadcastConfirmStep';
+import { BroadcastSentMessage } from './BroadcastSentMessage';
+import { MarkdownEditor } from '@/shared/ui/doctor/markdown/MarkdownEditor';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { MediaPickerPanel } from '@/shared/ui/doctor/media/MediaPickerPanel';
+import { MediaPickerShell } from '@/shared/ui/doctor/media/MediaPickerShell';
+import type { MediaListItem } from '@/shared/ui/doctor/media/MediaPickerList';
 import {
   previewBroadcastAction,
   executeBroadcastAction,
@@ -34,21 +31,21 @@ import {
   saveDraftAction,
   getChannelCountsAction,
   getChannelCountsByAudienceAction,
-} from "./actions";
-import { BROADCAST_DELIVERY_CAP_EXCEEDED_CODE } from "@/modules/doctor-broadcasts/deliveryQueueKind";
-import type { BroadcastChannelCounts } from "@/modules/doctor-broadcasts/draftPort";
+} from './actions';
+import { BROADCAST_DELIVERY_CAP_EXCEEDED_CODE } from '@/modules/doctor-broadcasts/deliveryQueueKind';
+import type { BroadcastChannelCounts } from '@/modules/doctor-broadcasts/draftPort';
 
-type Stage = "idle" | "previewing" | "previewed" | "confirming" | "sent" | "error";
+type Stage = 'idle' | 'previewing' | 'previewed' | 'confirming' | 'sent' | 'error';
 
 const CHANNEL_TILE_LABELS: Record<BroadcastChannel, string> = {
-  bot_message: "Telegram+MAX", // legacy
-  telegram: "Telegram",
-  max: "MAX",
-  sms: "SMS",
-  push: "Push",
-  email: "Email",
-  home_banner: "Баннер",
-  notification_bell: "Bell",
+  bot_message: 'Telegram+MAX', // legacy
+  telegram: 'Telegram',
+  max: 'MAX',
+  sms: 'SMS',
+  push: 'Push',
+  email: 'Email',
+  home_banner: 'Баннер',
+  notification_bell: 'Bell',
 };
 
 /** Параметры префилла формы из записи журнала. */
@@ -66,23 +63,25 @@ type Props = {
 
 export function BroadcastForm({ onBroadcastSent, prefill }: Props) {
   const [isPending, startTransition] = useTransition();
-  const [stage, setStage] = useState<Stage>("idle");
+  const [stage, setStage] = useState<Stage>('idle');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [preview, setPreview] = useState<BroadcastPreviewResult | null>(null);
   const [sentEntry, setSentEntry] = useState<BroadcastAuditEntry | null>(null);
 
-  const [category, setCategory] = useState<BroadcastCategory | "">("organizational");
-  const [audience, setAudience] = useState<BroadcastAudienceFilter | "">("");
+  const [category, setCategory] = useState<BroadcastCategory | ''>('organizational');
+  const [audience, setAudience] = useState<BroadcastAudienceFilter | ''>('');
   const [selectedChannels, setSelectedChannels] = useState<Set<BroadcastChannel>>(
     new Set(BROADCAST_DEFAULT_CHANNELS),
   );
-  const [title, setTitle] = useState("");
-  const [body, setBody] = useState("");
+  const [title, setTitle] = useState('');
+  const [body, setBody] = useState('');
   // RASSL-06 phase 1: опциональная прикреплённая картинка из медиабиблиотеки.
   const [mediaUrl, setMediaUrl] = useState<string | null>(null);
   const [mediaType, setMediaType] = useState<string | null>(null);
   const [mediaPickerOpen, setMediaPickerOpen] = useState(false);
-  const [mediaPickerFolderId, setMediaPickerFolderId] = useState<string | null | undefined>(undefined);
+  const [mediaPickerFolderId, setMediaPickerFolderId] = useState<string | null | undefined>(
+    undefined,
+  );
 
   const [channelCounts, setChannelCounts] = useState<BroadcastChannelCounts | null>(null);
   const [draftSaving, setDraftSaving] = useState(false);
@@ -120,9 +119,11 @@ export function BroadcastForm({ onBroadcastSent, prefill }: Props) {
   // Re-fetch channel counts filtered by selected audience so tiles reflect the segment.
   useEffect(() => {
     if (!audience) return;
-    void getChannelCountsByAudienceAction(audience).then((counts) => {
-      setChannelCounts(counts);
-    }).catch(() => undefined);
+    void getChannelCountsByAudienceAction(audience)
+      .then((counts) => {
+        setChannelCounts(counts);
+      })
+      .catch(() => undefined);
   }, [audience]);
 
   // Применяем префилл при изменении nonce (идемпотентно: повторный клик
@@ -132,7 +133,7 @@ export function BroadcastForm({ onBroadcastSent, prefill }: Props) {
     appliedPrefillNonceRef.current = prefill.nonce;
     const { entry } = prefill;
     // Сбрасываем форму в редактируемое состояние
-    setStage("idle");
+    setStage('idle');
     setSentEntry(null);
     setPreview(null);
     setErrorMsg(null);
@@ -147,10 +148,10 @@ export function BroadcastForm({ onBroadcastSent, prefill }: Props) {
     setBody(entry.messageBody);
     setMediaUrl(null);
     setMediaType(null);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prefill?.nonce]);
 
-  const isFormLocked = stage === "previewing" || stage === "confirming";
+  const isFormLocked = stage === 'previewing' || stage === 'confirming';
 
   function toggleChannel(ch: BroadcastChannel) {
     setSelectedChannels((prev) => {
@@ -161,7 +162,7 @@ export function BroadcastForm({ onBroadcastSent, prefill }: Props) {
     });
   }
 
-  function buildCommand(): Omit<BroadcastCommand, "actorId"> | null {
+  function buildCommand(): Omit<BroadcastCommand, 'actorId'> | null {
     if (!category || !audience || !title.trim() || body.trim().length < 10) return null;
     if (selectedChannels.size === 0) return null;
     const channels: BroadcastChannel[] = [...selectedChannels];
@@ -182,15 +183,15 @@ export function BroadcastForm({ onBroadcastSent, prefill }: Props) {
     const command = buildCommand();
     if (!command) return;
     setErrorMsg(null);
-    setStage("previewing");
+    setStage('previewing');
     startTransition(async () => {
       try {
         const result = await previewBroadcastAction(command);
         setPreview(result);
-        setStage("previewed");
+        setStage('previewed');
       } catch {
-        setStage("error");
-        setErrorMsg("Ошибка при получении предпросмотра. Попробуйте ещё раз.");
+        setStage('error');
+        setErrorMsg('Ошибка при получении предпросмотра. Попробуйте ещё раз.');
       }
     });
   }
@@ -198,26 +199,26 @@ export function BroadcastForm({ onBroadcastSent, prefill }: Props) {
   function handleConfirm() {
     const command = buildCommand();
     if (!command || !preview) return;
-    setStage("confirming");
+    setStage('confirming');
     startTransition(async () => {
       try {
         const { auditEntry } = await executeBroadcastAction(command);
         setSentEntry(auditEntry);
-        setStage("sent");
+        setStage('sent');
         onBroadcastSent?.(auditEntry);
       } catch (err) {
-        setStage("error");
+        setStage('error');
         setErrorMsg(
           err instanceof Error && err.message === BROADCAST_DELIVERY_CAP_EXCEEDED_CODE
-            ? "Слишком много сообщений в одной рассылке. Уменьшите аудиторию или каналы."
-            : "Ошибка при отправке рассылки. Попробуйте ещё раз.",
+            ? 'Слишком много сообщений в одной рассылке. Уменьшите аудиторию или каналы.'
+            : 'Ошибка при отправке рассылки. Попробуйте ещё раз.',
         );
       }
     });
   }
 
   function handlePickImage(item: MediaListItem) {
-    if (item.kind !== "image") return;
+    if (item.kind !== 'image') return;
     setMediaUrl(item.url);
     setMediaType(item.mimeType);
     setMediaPickerOpen(false);
@@ -230,21 +231,21 @@ export function BroadcastForm({ onBroadcastSent, prefill }: Props) {
 
   function handleCancelConfirm() {
     setPreview(null);
-    setStage("idle");
+    setStage('idle');
   }
 
   function handleReset() {
-    setCategory("organizational");
-    setAudience("");
+    setCategory('organizational');
+    setAudience('');
     setSelectedChannels(new Set(BROADCAST_DEFAULT_CHANNELS));
-    setTitle("");
-    setBody("");
+    setTitle('');
+    setBody('');
     setMediaUrl(null);
     setMediaType(null);
     setPreview(null);
     setSentEntry(null);
     setErrorMsg(null);
-    setStage("idle");
+    setStage('idle');
   }
 
   async function handleSaveDraft() {
@@ -267,23 +268,18 @@ export function BroadcastForm({ onBroadcastSent, prefill }: Props) {
     }
   }
 
-  if (stage === "sent" && preview && sentEntry) {
+  if (stage === 'sent' && preview && sentEntry) {
     return (
       <div className="flex flex-col gap-4">
         <BroadcastSentMessage preview={preview} />
-        <Button
-          type="button"
-          variant="outline"
-          onClick={handleReset}
-          className="self-start"
-        >
+        <Button type="button" variant="outline" onClick={handleReset} className="self-start">
           Создать новую рассылку
         </Button>
       </div>
     );
   }
 
-  if ((stage === "previewed" || stage === "confirming") && preview) {
+  if ((stage === 'previewed' || stage === 'confirming') && preview) {
     const command = buildCommand();
     if (!command) return null;
     return (
@@ -292,20 +288,20 @@ export function BroadcastForm({ onBroadcastSent, prefill }: Props) {
         command={command}
         onConfirm={handleConfirm}
         onCancel={handleCancelConfirm}
-        isLoading={isPending || stage === "confirming"}
+        isLoading={isPending || stage === 'confirming'}
       />
     );
   }
 
   return (
     <div id="broadcast-form" className="flex flex-col divide-y divide-border">
-      {(stage === "error" || errorMsg) && (
+      {(stage === 'error' || errorMsg) && (
         <div className="px-3 py-2">
           <p
             id="broadcast-error"
             className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive"
           >
-            {errorMsg ?? "Произошла ошибка."}
+            {errorMsg ?? 'Произошла ошибка.'}
           </p>
         </div>
       )}
@@ -347,13 +343,13 @@ export function BroadcastForm({ onBroadcastSent, prefill }: Props) {
               variant="ghost"
               size="sm"
               disabled={isFormLocked}
-              onClick={() => setCategory(category === v ? "" : v)}
+              onClick={() => setCategory(category === v ? '' : v)}
               className={cn(
-                "rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
+                'rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
                 category === v
-                  ? "bg-primary/15 text-primary"
-                  : "border border-border text-muted-foreground hover:bg-muted/40",
-                isFormLocked && "opacity-60",
+                  ? 'bg-primary/15 text-primary'
+                  : 'border border-border text-muted-foreground hover:bg-muted/40',
+                isFormLocked && 'opacity-60',
               )}
               aria-pressed={category === v}
             >
@@ -376,11 +372,11 @@ export function BroadcastForm({ onBroadcastSent, prefill }: Props) {
               <label
                 key={ch}
                 className={cn(
-                  "flex cursor-pointer flex-col items-center gap-0.5 rounded-lg border px-1.5 py-2.5 transition-colors",
+                  'flex cursor-pointer flex-col items-center gap-0.5 rounded-lg border px-1.5 py-2.5 transition-colors',
                   active
-                    ? "border-primary bg-primary/10"
-                    : "border-border bg-background hover:bg-muted/30",
-                  isFormLocked && "pointer-events-none opacity-60",
+                    ? 'border-primary bg-primary/10'
+                    : 'border-border bg-background hover:bg-muted/30',
+                  isFormLocked && 'pointer-events-none opacity-60',
                 )}
               >
                 <input
@@ -391,13 +387,23 @@ export function BroadcastForm({ onBroadcastSent, prefill }: Props) {
                   className="sr-only"
                 />
                 {count !== null ? (
-                  <span className={cn("text-sm font-bold leading-none", active ? "text-primary" : "text-foreground")}>
+                  <span
+                    className={cn(
+                      'text-sm font-bold leading-none',
+                      active ? 'text-primary' : 'text-foreground',
+                    )}
+                  >
                     {count}
                   </span>
                 ) : (
                   <span className="text-sm leading-none text-muted-foreground">—</span>
                 )}
-                <span className={cn("mt-0.5 text-[10px] font-medium leading-none", active ? "text-primary" : "text-muted-foreground")}>
+                <span
+                  className={cn(
+                    'mt-0.5 text-[10px] font-medium leading-none',
+                    active ? 'text-primary' : 'text-muted-foreground',
+                  )}
+                >
                   {CHANNEL_TILE_LABELS[ch]}
                 </span>
               </label>
@@ -430,7 +436,7 @@ export function BroadcastForm({ onBroadcastSent, prefill }: Props) {
       </div>
 
       {/* Body */}
-      <div className={`px-3 py-2.5${isFormLocked ? " pointer-events-none opacity-50" : ""}`}>
+      <div className={`px-3 py-2.5${isFormLocked ? ' pointer-events-none opacity-50' : ''}`}>
         {/* body is stored as Markdown; markdownToTelegramHtml converts it for Telegram/MAX at delivery time */}
         <MarkdownEditor
           name="broadcast-body"
@@ -443,7 +449,7 @@ export function BroadcastForm({ onBroadcastSent, prefill }: Props) {
       </div>
 
       {/* Image attachment (optional) — RASSL-06 phase 1 */}
-      <div className={`px-3 py-2.5${isFormLocked ? " pointer-events-none opacity-50" : ""}`}>
+      <div className={`px-3 py-2.5${isFormLocked ? ' pointer-events-none opacity-50' : ''}`}>
         <p className="mb-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
           Картинка · необязательно
         </p>
@@ -482,7 +488,7 @@ export function BroadcastForm({ onBroadcastSent, prefill }: Props) {
           title="Выбор картинки"
         >
           <MediaPickerPanel
-            key={mediaPickerOpen ? "broadcast-img-open" : "broadcast-img-closed"}
+            key={mediaPickerOpen ? 'broadcast-img-open' : 'broadcast-img-closed'}
             open={mediaPickerOpen}
             apiKind="image"
             folderId={mediaPickerFolderId}
@@ -504,7 +510,7 @@ export function BroadcastForm({ onBroadcastSent, prefill }: Props) {
           disabled={!isPreviewValid || isFormLocked || isPending}
           size="sm"
         >
-          {stage === "previewing" ? "Загрузка…" : "Предпросмотр"}
+          {stage === 'previewing' ? 'Загрузка…' : 'Предпросмотр'}
         </Button>
         <Button
           type="button"
@@ -513,7 +519,7 @@ export function BroadcastForm({ onBroadcastSent, prefill }: Props) {
           onClick={() => void handleSaveDraft()}
           disabled={draftSaving || isFormLocked}
         >
-          {draftSaving ? "Сохранение…" : draftSaved ? "Черновик сохранён ✓" : "Сохранить черновик"}
+          {draftSaving ? 'Сохранение…' : draftSaved ? 'Черновик сохранён ✓' : 'Сохранить черновик'}
         </Button>
       </div>
     </div>

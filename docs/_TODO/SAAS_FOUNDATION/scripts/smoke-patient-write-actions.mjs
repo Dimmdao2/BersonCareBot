@@ -111,9 +111,9 @@
  *     --expected-patient-user-id=<uuid> \
  *     --refs-file=<path with reminder occurrence ids>
  */
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from 'node:fs';
 
-const SESSION_COOKIE_NAME = "bersoncare_webapp_session";
+const SESSION_COOKIE_NAME = 'bersoncare_webapp_session';
 
 function fail(message) {
   console.error(`smoke-patient-write-actions: FATAL: ${message}`);
@@ -125,7 +125,7 @@ function parseArgs(argv) {
   const options = {
     baseUrl: null,
     auth: null,
-    fixtureFile: "/run/bersoncarebot/saas-smoke.fixture",
+    fixtureFile: '/run/bersoncarebot/saas-smoke.fixture',
     expectedPatientUserId: null,
     refsFile: null,
     includeIrreversible: false,
@@ -133,35 +133,38 @@ function parseArgs(argv) {
     timeoutMs: 15000,
   };
   for (const arg of argv) {
-    if (arg.startsWith("--base-url=")) options.baseUrl = arg.slice("--base-url=".length);
-    else if (arg.startsWith("--auth=")) options.auth = arg.slice("--auth=".length);
-    else if (arg.startsWith("--fixture-file=")) options.fixtureFile = arg.slice("--fixture-file=".length);
-    else if (arg.startsWith("--expected-patient-user-id="))
-      options.expectedPatientUserId = arg.slice("--expected-patient-user-id=".length);
-    else if (arg.startsWith("--refs-file=")) options.refsFile = arg.slice("--refs-file=".length);
-    else if (arg === "--include-irreversible-program-writes") options.includeIrreversible = true;
-    else if (arg.startsWith("--out-json=")) options.outJson = arg.slice("--out-json=".length);
-    else if (arg.startsWith("--timeout-ms=")) options.timeoutMs = Number(arg.slice("--timeout-ms=".length));
+    if (arg.startsWith('--base-url=')) options.baseUrl = arg.slice('--base-url='.length);
+    else if (arg.startsWith('--auth=')) options.auth = arg.slice('--auth='.length);
+    else if (arg.startsWith('--fixture-file='))
+      options.fixtureFile = arg.slice('--fixture-file='.length);
+    else if (arg.startsWith('--expected-patient-user-id='))
+      options.expectedPatientUserId = arg.slice('--expected-patient-user-id='.length);
+    else if (arg.startsWith('--refs-file=')) options.refsFile = arg.slice('--refs-file='.length);
+    else if (arg === '--include-irreversible-program-writes') options.includeIrreversible = true;
+    else if (arg.startsWith('--out-json=')) options.outJson = arg.slice('--out-json='.length);
+    else if (arg.startsWith('--timeout-ms='))
+      options.timeoutMs = Number(arg.slice('--timeout-ms='.length));
     else fail(`unknown argument: ${arg}`);
   }
-  if (!options.baseUrl) fail("--base-url=<url> is required");
-  if (options.auth !== "dev-bypass" && options.auth !== "fixture") {
-    fail("--auth=dev-bypass|fixture is required");
+  if (!options.baseUrl) fail('--base-url=<url> is required');
+  if (options.auth !== 'dev-bypass' && options.auth !== 'fixture') {
+    fail('--auth=dev-bypass|fixture is required');
   }
   if (!options.expectedPatientUserId?.trim()) {
     fail(
-      "--expected-patient-user-id=<uuid> is required — this script refuses to run against an " +
-        "unconfirmed identity (hard requirement, not a default).",
+      '--expected-patient-user-id=<uuid> is required — this script refuses to run against an ' +
+        'unconfirmed identity (hard requirement, not a default).',
     );
   }
-  options.baseUrl = options.baseUrl.replace(/\/+$/, "");
+  options.baseUrl = options.baseUrl.replace(/\/+$/, '');
   return options;
 }
 
 function loadRefs(refsFile) {
   if (!refsFile) return {};
-  const raw = JSON.parse(readFileSync(refsFile, "utf8"));
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) fail("refs-file must be a JSON object");
+  const raw = JSON.parse(readFileSync(refsFile, 'utf8'));
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+    fail('refs-file must be a JSON object');
   return raw;
 }
 
@@ -178,42 +181,45 @@ function firstSessionCookie(setCookieHeaders) {
 }
 
 async function acquireDevBypassPatientCookie(baseUrl) {
-  const response = await fetch(`${baseUrl}/api/auth/dev-bypass?token=${encodeURIComponent("dev:client")}`, {
-    redirect: "manual",
-  });
+  const response = await fetch(
+    `${baseUrl}/api/auth/dev-bypass?token=${encodeURIComponent('dev:client')}`,
+    {
+      redirect: 'manual',
+    },
+  );
   const setCookies = response.headers.getSetCookie ? response.headers.getSetCookie() : [];
   const cookie = firstSessionCookie(setCookies);
   const observedStatus = response.status;
-  const observedLocation = response.headers.get("location");
+  const observedLocation = response.headers.get('location');
   await response.arrayBuffer().catch(() => {});
   if (!cookie) {
     fail(
       `dev-bypass login failed closed for role=patient (token=dev:client, status=${observedStatus}, ` +
-        `location=${observedLocation ?? "(none)"}, no Set-Cookie). This DEV instance has no seeded ` +
+        `location=${observedLocation ?? '(none)'}, no Set-Cookie). This DEV instance has no seeded ` +
         `synthetic patient platform_user + messenger binding (see ` +
         `docs/ARCHITECTURE/LOCAL_DEV_AND_AGENT_TESTING.md §4.2.1). Zero writes attempted. Fixing this ` +
         `requires the one-time DEV seed preparation in that doc, not an ad hoc grant/insert from this ` +
         `script — the doc explicitly says not to invent a runtime account-creation path here.`,
     );
   }
-  console.log("auth: acquired dev-bypass session for role=patient (cookie not printed)");
+  console.log('auth: acquired dev-bypass session for role=patient (cookie not printed)');
   return { Cookie: cookie };
 }
 
 function loadFixturePatientHeaders(fixtureFile) {
   let raw;
   try {
-    raw = readFileSync(fixtureFile, "utf8");
+    raw = readFileSync(fixtureFile, 'utf8');
   } catch (error) {
     fail(`cannot read fixture file ${fixtureFile}: ${error.code ?? error.message}`);
   }
   const fixture = JSON.parse(raw);
-  if (fixture.schemaVersion !== 1) fail("fixture schemaVersion must be 1");
+  if (fixture.schemaVersion !== 1) fail('fixture schemaVersion must be 1');
   const headers = fixture.authProfiles?.patient?.headers;
   if (!headers || Object.keys(headers).length === 0) {
-    fail("fixture missing non-empty authProfiles.patient.headers");
+    fail('fixture missing non-empty authProfiles.patient.headers');
   }
-  console.log("auth: loaded fixture auth profile for role=patient (headers not printed)");
+  console.log('auth: loaded fixture auth profile for role=patient (headers not printed)');
   return { ...headers };
 }
 
@@ -237,9 +243,9 @@ async function fetchWithTimeout(url, init, timeoutMs) {
 
 async function callJson({ baseUrl, path, method, headers, body, timeoutMs }) {
   const url = `${baseUrl}${path}`;
-  const isMutation = method !== "GET" && method !== "HEAD";
+  const isMutation = method !== 'GET' && method !== 'HEAD';
   const reqHeaders = { ...headers, ...(isMutation ? mutationOriginHeader(baseUrl) : {}) };
-  if (body !== undefined) reqHeaders["Content-Type"] = "application/json";
+  if (body !== undefined) reqHeaders['Content-Type'] = 'application/json';
   try {
     const response = await fetchWithTimeout(
       url,
@@ -247,7 +253,7 @@ async function callJson({ baseUrl, path, method, headers, body, timeoutMs }) {
         method,
         headers: reqHeaders,
         ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
-        redirect: "manual",
+        redirect: 'manual',
       },
       timeoutMs,
     );
@@ -263,8 +269,8 @@ async function callJson({ baseUrl, path, method, headers, body, timeoutMs }) {
     return {
       status: null,
       json: null,
-      text: "",
-      requestError: error.name === "AbortError" ? "timeout" : (error.code ?? error.message),
+      text: '',
+      requestError: error.name === 'AbortError' ? 'timeout' : (error.code ?? error.message),
     };
   }
 }
@@ -273,8 +279,13 @@ async function callJson({ baseUrl, path, method, headers, body, timeoutMs }) {
 // Identity confirmation
 // ---------------------------------------------------------------------------
 
-async function confirmSyntheticPatientIdentity({ baseUrl, headers, expectedPatientUserId, timeoutMs }) {
-  const res = await callJson({ baseUrl, path: "/api/me", method: "GET", headers, timeoutMs });
+async function confirmSyntheticPatientIdentity({
+  baseUrl,
+  headers,
+  expectedPatientUserId,
+  timeoutMs,
+}) {
+  const res = await callJson({ baseUrl, path: '/api/me', method: 'GET', headers, timeoutMs });
   if (res.requestError) fail(`GET /api/me request failed: ${res.requestError}`);
   if (res.status !== 200 || !res.json?.ok) {
     fail(
@@ -287,15 +298,19 @@ async function confirmSyntheticPatientIdentity({ baseUrl, headers, expectedPatie
   const role = user?.role;
   if (userId !== expectedPatientUserId) {
     fail(
-      `identity mismatch: acquired session is userId=${userId ? "(redacted, does not match expected)" : "(missing)"}, ` +
+      `identity mismatch: acquired session is userId=${userId ? '(redacted, does not match expected)' : '(missing)'}, ` +
         `expected the confirmed synthetic patient (--expected-patient-user-id). Refusing to run any ` +
         `write against an unconfirmed identity.`,
     );
   }
-  if (role !== "client" && role !== "patient") {
-    fail(`identity confirmed userId matches, but session role="${role}" is not a patient role. Aborting.`);
+  if (role !== 'client' && role !== 'patient') {
+    fail(
+      `identity confirmed userId matches, but session role="${role}" is not a patient role. Aborting.`,
+    );
   }
-  console.log(`identity: confirmed acting session is the expected synthetic patient (role=${role})`);
+  console.log(
+    `identity: confirmed acting session is the expected synthetic patient (role=${role})`,
+  );
   return { userId, role };
 }
 
@@ -304,23 +319,24 @@ async function confirmSyntheticPatientIdentity({ baseUrl, headers, expectedPatie
 // ---------------------------------------------------------------------------
 
 function pgPermissionDenied(text) {
-  return /permission denied for table/i.test(text ?? "");
+  return /permission denied for table/i.test(text ?? '');
 }
 
 async function runSupportMarkRead({ baseUrl, headers, timeoutMs }) {
   const boot = await callJson({
     baseUrl,
-    path: "/api/patient/messages",
-    method: "GET",
+    path: '/api/patient/messages',
+    method: 'GET',
     headers,
     timeoutMs,
   });
   if (boot.requestError || boot.status !== 200 || !boot.json?.ok || !boot.json?.conversationId) {
     return {
-      id: "support.mark-read",
-      outcome: "BLOCKED",
-      reason: `bootstrap GET /api/patient/messages failed (status=${boot.status ?? "n/a"}, ` +
-        `requestError=${boot.requestError ?? "none"})`,
+      id: 'support.mark-read',
+      outcome: 'BLOCKED',
+      reason:
+        `bootstrap GET /api/patient/messages failed (status=${boot.status ?? 'n/a'}, ` +
+        `requestError=${boot.requestError ?? 'none'})`,
       httpStatus: boot.status,
       errorCode: null,
     };
@@ -328,24 +344,24 @@ async function runSupportMarkRead({ baseUrl, headers, timeoutMs }) {
   const conversationId = boot.json.conversationId;
   const res = await callJson({
     baseUrl,
-    path: "/api/patient/messages/read",
-    method: "POST",
+    path: '/api/patient/messages/read',
+    method: 'POST',
     headers,
     body: { conversationId },
     timeoutMs,
   });
   const pass = res.status === 200 && res.json?.ok === true;
   return {
-    id: "support.mark-read",
-    outcome: res.requestError ? "FAIL" : pass ? "PASS" : "FAIL",
+    id: 'support.mark-read',
+    outcome: res.requestError ? 'FAIL' : pass ? 'PASS' : 'FAIL',
     reason: res.requestError
       ? `request_failed:${res.requestError}`
       : pass
-        ? "ok"
+        ? 'ok'
         : `unexpected status/body (route has no try/catch around the DB write — a 500 here with no ` +
           `error code in the body is the exact original defect shape; body=${JSON.stringify(res.json ?? res.text).slice(0, 300)})`,
     httpStatus: res.status,
-    errorCode: res.json?.error ?? (res.status === 500 ? "500_no_code_in_body" : null),
+    errorCode: res.json?.error ?? (res.status === 500 ? '500_no_code_in_body' : null),
   };
 }
 
@@ -353,7 +369,7 @@ async function runReminderAction({ baseUrl, headers, timeoutMs, action, occurren
   if (!occurrenceId) {
     return {
       id: `reminders.${action}`,
-      outcome: "SKIPPED",
+      outcome: 'SKIPPED',
       reason:
         `missing refs-file key for this occurrence id — there is no HTTP-reachable "list my reminder ` +
         `occurrences" endpoint in this codebase to auto-discover one; operator must supply an ` +
@@ -362,20 +378,20 @@ async function runReminderAction({ baseUrl, headers, timeoutMs, action, occurren
       errorCode: null,
     };
   }
-  const res = await callJson({ baseUrl, path, method: "POST", headers, timeoutMs });
+  const res = await callJson({ baseUrl, path, method: 'POST', headers, timeoutMs });
   const pass = res.status === 200 && res.json?.ok === true;
   const ambiguous404 = res.status === 404;
   return {
     id: `reminders.${action}`,
-    outcome: res.requestError ? "FAIL" : pass ? "PASS" : ambiguous404 ? "FAIL" : "FAIL",
+    outcome: res.requestError ? 'FAIL' : pass ? 'PASS' : ambiguous404 ? 'FAIL' : 'FAIL',
     reason: res.requestError
       ? `request_failed:${res.requestError}`
       : pass
-        ? "ok"
+        ? 'ok'
         : ambiguous404
-          ? "404 not_found — pgReminderJournal swallows the underlying DB error into this SAME shape " +
-            "as a genuinely-nonexistent occurrence; this status alone does not prove a 42501, but does " +
-            "not prove the grant works either (ambiguous, see script header comment)"
+          ? '404 not_found — pgReminderJournal swallows the underlying DB error into this SAME shape ' +
+            'as a genuinely-nonexistent occurrence; this status alone does not prove a 42501, but does ' +
+            'not prove the grant works either (ambiguous, see script header comment)'
           : `unexpected status/body (body=${JSON.stringify(res.json ?? res.text).slice(0, 300)})`,
     httpStatus: res.status,
     errorCode: res.json?.error ?? null,
@@ -393,13 +409,20 @@ async function discoverTouchableAndCompletableItems({ baseUrl, headers, timeoutM
   }
   const list = await callJson({
     baseUrl,
-    path: "/api/patient/treatment-program-instances",
-    method: "GET",
+    path: '/api/patient/treatment-program-instances',
+    method: 'GET',
     headers,
     timeoutMs,
   });
-  if (list.requestError || list.status !== 200 || !list.json?.ok || !Array.isArray(list.json.items)) {
-    return { error: `GET /api/patient/treatment-program-instances failed (status=${list.status ?? "n/a"})` };
+  if (
+    list.requestError ||
+    list.status !== 200 ||
+    !list.json?.ok ||
+    !Array.isArray(list.json.items)
+  ) {
+    return {
+      error: `GET /api/patient/treatment-program-instances failed (status=${list.status ?? 'n/a'})`,
+    };
   }
   for (const summary of list.json.items) {
     const instanceId = summary?.id;
@@ -407,7 +430,7 @@ async function discoverTouchableAndCompletableItems({ baseUrl, headers, timeoutM
     const detail = await callJson({
       baseUrl,
       path: `/api/patient/treatment-program-instances/${instanceId}`,
-      method: "GET",
+      method: 'GET',
       headers,
       timeoutMs,
     });
@@ -417,11 +440,11 @@ async function discoverTouchableAndCompletableItems({ baseUrl, headers, timeoutM
     let completeItemId = null;
     for (const stage of stages) {
       for (const item of stage.items ?? []) {
-        if (!touchItemId && stage.status === "available") touchItemId = item.id;
+        if (!touchItemId && stage.status === 'available') touchItemId = item.id;
         if (
           !completeItemId &&
           item.completedAt == null &&
-          item.itemType !== "clinical_test" &&
+          item.itemType !== 'clinical_test' &&
           item.isPersistentRecommendation !== true &&
           item.active !== false
         ) {
@@ -433,31 +456,33 @@ async function discoverTouchableAndCompletableItems({ baseUrl, headers, timeoutM
       return { instanceId, touchItemId, completeItemId };
     }
   }
-  return { error: "no instance with a touchable/completable item found in the patient's own program list" };
+  return {
+    error: "no instance with a touchable/completable item found in the patient's own program list",
+  };
 }
 
 async function runProgramTouch({ baseUrl, headers, timeoutMs, instanceId, itemId }) {
   const res = await callJson({
     baseUrl,
     path: `/api/patient/treatment-program-instances/${instanceId}/items/${itemId}/progress/touch`,
-    method: "POST",
+    method: 'POST',
     headers,
     timeoutMs,
   });
   const pass = res.status === 200 && res.json?.ok === true;
   const denied = pgPermissionDenied(res.text);
   return {
-    id: "program.touch",
-    outcome: res.requestError ? "FAIL" : pass ? "PASS" : "FAIL",
+    id: 'program.touch',
+    outcome: res.requestError ? 'FAIL' : pass ? 'PASS' : 'FAIL',
     reason: res.requestError
       ? `request_failed:${res.requestError}`
       : pass
-        ? "ok"
+        ? 'ok'
         : denied
-          ? "permission_denied_for_table (raw pg error text present in body — this IS the 42501 signal)"
+          ? 'permission_denied_for_table (raw pg error text present in body — this IS the 42501 signal)'
           : `unexpected status/body (body=${JSON.stringify(res.json ?? res.text).slice(0, 300)})`,
     httpStatus: res.status,
-    errorCode: denied ? "permission_denied_for_table" : (res.json?.error ?? null),
+    errorCode: denied ? 'permission_denied_for_table' : (res.json?.error ?? null),
   };
 }
 
@@ -465,7 +490,7 @@ async function runProgramComplete({ baseUrl, headers, timeoutMs, instanceId, ite
   const res = await callJson({
     baseUrl,
     path: `/api/patient/treatment-program-instances/${instanceId}/items/${itemId}/progress/complete`,
-    method: "POST",
+    method: 'POST',
     headers,
     body: {},
     timeoutMs,
@@ -473,17 +498,17 @@ async function runProgramComplete({ baseUrl, headers, timeoutMs, instanceId, ite
   const pass = res.status === 200 && res.json?.ok === true;
   const denied = pgPermissionDenied(res.text);
   return {
-    id: "program.complete",
-    outcome: res.requestError ? "FAIL" : pass ? "PASS" : "FAIL",
+    id: 'program.complete',
+    outcome: res.requestError ? 'FAIL' : pass ? 'PASS' : 'FAIL',
     reason: res.requestError
       ? `request_failed:${res.requestError}`
       : pass
-        ? "ok (ONE-WAY: item.completedAt is now set; no uncomplete API exists)"
+        ? 'ok (ONE-WAY: item.completedAt is now set; no uncomplete API exists)'
         : denied
-          ? "permission_denied_for_table (raw pg error text present in body — this IS the 42501 signal)"
+          ? 'permission_denied_for_table (raw pg error text present in body — this IS the 42501 signal)'
           : `unexpected status/body (body=${JSON.stringify(res.json ?? res.text).slice(0, 300)})`,
     httpStatus: res.status,
-    errorCode: denied ? "permission_denied_for_table" : (res.json?.error ?? null),
+    errorCode: denied ? 'permission_denied_for_table' : (res.json?.error ?? null),
   };
 }
 
@@ -494,14 +519,17 @@ async function runProgramComplete({ baseUrl, headers, timeoutMs, instanceId, ite
 async function main() {
   const options = parseArgs(process.argv.slice(2));
 
-  if (options.auth === "dev-bypass" && !/^https?:\/\/(127\.0\.0\.1|localhost)(:|\/|$)/.test(options.baseUrl)) {
-    fail("--auth=dev-bypass refused against a non-loopback base URL; use --auth=fixture there.");
+  if (
+    options.auth === 'dev-bypass' &&
+    !/^https?:\/\/(127\.0\.0\.1|localhost)(:|\/|$)/.test(options.baseUrl)
+  ) {
+    fail('--auth=dev-bypass refused against a non-loopback base URL; use --auth=fixture there.');
   }
 
   const refs = loadRefs(options.refsFile);
 
   const headers =
-    options.auth === "dev-bypass"
+    options.auth === 'dev-bypass'
       ? await acquireDevBypassPatientCookie(options.baseUrl)
       : loadFixturePatientHeaders(options.fixtureFile);
 
@@ -514,14 +542,16 @@ async function main() {
 
   const results = [];
 
-  results.push(await runSupportMarkRead({ baseUrl: options.baseUrl, headers, timeoutMs: options.timeoutMs }));
+  results.push(
+    await runSupportMarkRead({ baseUrl: options.baseUrl, headers, timeoutMs: options.timeoutMs }),
+  );
 
   results.push(
     await runReminderAction({
       baseUrl: options.baseUrl,
       headers,
       timeoutMs: options.timeoutMs,
-      action: "done",
+      action: 'done',
       occurrenceId: refs.reminderDoneOccurrenceId ?? null,
       path: `/api/patient/reminders/${refs.reminderDoneOccurrenceId}/done`,
     }),
@@ -531,7 +561,7 @@ async function main() {
       baseUrl: options.baseUrl,
       headers,
       timeoutMs: options.timeoutMs,
-      action: "snooze",
+      action: 'snooze',
       occurrenceId: refs.reminderSnoozeOccurrenceId ?? null,
       path: `/api/patient/reminders/occurrences/${refs.reminderSnoozeOccurrenceId}/snooze`,
     }),
@@ -541,7 +571,7 @@ async function main() {
       baseUrl: options.baseUrl,
       headers,
       timeoutMs: options.timeoutMs,
-      action: "skip",
+      action: 'skip',
       occurrenceId: refs.reminderSkipOccurrenceId ?? null,
       path: `/api/patient/reminders/occurrences/${refs.reminderSkipOccurrenceId}/skip`,
     }),
@@ -549,20 +579,20 @@ async function main() {
 
   if (!options.includeIrreversible) {
     results.push({
-      id: "program.touch",
-      outcome: "SKIPPED",
+      id: 'program.touch',
+      outcome: 'SKIPPED',
       reason:
-        "irreversible one-way state change on synthetic fixture data; rerun with " +
-        "--include-irreversible-program-writes after the lead accepts that as safe collateral",
+        'irreversible one-way state change on synthetic fixture data; rerun with ' +
+        '--include-irreversible-program-writes after the lead accepts that as safe collateral',
       httpStatus: null,
       errorCode: null,
     });
     results.push({
-      id: "program.complete",
-      outcome: "SKIPPED",
+      id: 'program.complete',
+      outcome: 'SKIPPED',
       reason:
-        "irreversible one-way state change (no uncomplete API); rerun with " +
-        "--include-irreversible-program-writes after the lead accepts that as safe collateral",
+        'irreversible one-way state change (no uncomplete API); rerun with ' +
+        '--include-irreversible-program-writes after the lead accepts that as safe collateral',
       httpStatus: null,
       errorCode: null,
     });
@@ -575,15 +605,15 @@ async function main() {
     });
     if (discovered.error) {
       results.push({
-        id: "program.touch",
-        outcome: "BLOCKED",
+        id: 'program.touch',
+        outcome: 'BLOCKED',
         reason: discovered.error,
         httpStatus: null,
         errorCode: null,
       });
       results.push({
-        id: "program.complete",
-        outcome: "BLOCKED",
+        id: 'program.complete',
+        outcome: 'BLOCKED',
         reason: discovered.error,
         httpStatus: null,
         errorCode: null,
@@ -601,9 +631,9 @@ async function main() {
         );
       } else {
         results.push({
-          id: "program.touch",
-          outcome: "BLOCKED",
-          reason: "no item with stage.status=available found for this patient",
+          id: 'program.touch',
+          outcome: 'BLOCKED',
+          reason: 'no item with stage.status=available found for this patient',
           httpStatus: null,
           errorCode: null,
         });
@@ -620,9 +650,9 @@ async function main() {
         );
       } else {
         results.push({
-          id: "program.complete",
-          outcome: "BLOCKED",
-          reason: "no not-yet-completed, non-test, active item found for this patient",
+          id: 'program.complete',
+          outcome: 'BLOCKED',
+          reason: 'no not-yet-completed, non-test, active item found for this patient',
           httpStatus: null,
           errorCode: null,
         });
@@ -630,10 +660,10 @@ async function main() {
     }
   }
 
-  console.log("\n=== RESULTS ===");
+  console.log('\n=== RESULTS ===');
   for (const r of results) {
     console.log(
-      `${r.outcome.padEnd(8)} ${r.id.padEnd(20)} status=${r.httpStatus ?? "n/a"} errorCode=${r.errorCode ?? "none"} — ${r.reason}`,
+      `${r.outcome.padEnd(8)} ${r.id.padEnd(20)} status=${r.httpStatus ?? 'n/a'} errorCode=${r.errorCode ?? 'none'} — ${r.reason}`,
     );
   }
 
@@ -649,11 +679,13 @@ async function main() {
     console.log(`\nwrote JSON: ${options.outJson}`);
   }
 
-  const anyFail = results.some((r) => r.outcome === "FAIL");
+  const anyFail = results.some((r) => r.outcome === 'FAIL');
   if (anyFail) process.exitCode = 1;
 }
 
 main().catch((error) => {
-  console.error(`smoke-patient-write-actions: fatal: ${error instanceof Error ? error.message : String(error)}`);
+  console.error(
+    `smoke-patient-write-actions: fatal: ${error instanceof Error ? error.message : String(error)}`,
+  );
   process.exitCode = 1;
 });

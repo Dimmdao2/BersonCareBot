@@ -1,24 +1,24 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Input } from "@/shared/ui/doctor/primitives/input";
+import { useCallback, useEffect, useState } from 'react';
+import { Plus, Trash2 } from 'lucide-react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Input } from '@/shared/ui/doctor/primitives/input';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/ui/doctor/primitives/select";
+} from '@/shared/ui/doctor/primitives/select';
 import {
   doctorClientOverviewSecondaryCardClass,
   doctorClientSectionTitleClass,
-} from "./doctorClientCardChrome";
-import type { ReminderDayFilter } from "@/modules/reminders/scheduleSlots";
+} from './doctorClientCardChrome';
+import type { ReminderDayFilter } from '@/modules/reminders/scheduleSlots';
 
-const WEEKDAY_LABELS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"] as const;
-const DEFAULT_DAYS_MASK = "1111100"; // Mon–Fri
+const WEEKDAY_LABELS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'] as const;
+const DEFAULT_DAYS_MASK = '1111100'; // Mon–Fri
 
 type WarmupScheduleData = {
   timesLocal: string[];
@@ -40,14 +40,14 @@ type Props = {
 };
 
 const DAY_FILTER_OPTIONS: { value: ReminderDayFilter; label: string }[] = [
-  { value: "weekdays", label: "Рабочие дни (Пн–Пт)" },
-  { value: "weekly_mask", label: "Выбранные дни" },
+  { value: 'weekdays', label: 'Рабочие дни (Пн–Пт)' },
+  { value: 'weekly_mask', label: 'Выбранные дни' },
 ];
 
 export function DoctorClientWarmupSchedulePanel({ userId }: Props) {
   const [rule, setRule] = useState<WarmupScheduleRule | null | undefined>(undefined);
-  const [times, setTimes] = useState<string[]>(["09:00"]);
-  const [dayFilter, setDayFilter] = useState<ReminderDayFilter>("weekdays");
+  const [times, setTimes] = useState<string[]>(['09:00']);
+  const [dayFilter, setDayFilter] = useState<ReminderDayFilter>('weekdays');
   const [daysMask, setDaysMask] = useState<string>(DEFAULT_DAYS_MASK);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -58,12 +58,10 @@ export function DoctorClientWarmupSchedulePanel({ userId }: Props) {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(
-        `/api/doctor/clients/${encodeURIComponent(userId)}/warmup-schedule`,
-      );
+      const res = await fetch(`/api/doctor/clients/${encodeURIComponent(userId)}/warmup-schedule`);
       const data = (await res.json()) as { ok?: boolean; rule?: WarmupScheduleRule | null };
       if (!res.ok || !data.ok) {
-        setError("Не удалось загрузить расписание");
+        setError('Не удалось загрузить расписание');
         return;
       }
       const loaded = data.rule ?? null;
@@ -71,11 +69,11 @@ export function DoctorClientWarmupSchedulePanel({ userId }: Props) {
       if (loaded?.scheduleData?.timesLocal?.length) {
         setTimes([...loaded.scheduleData.timesLocal]);
       } else {
-        setTimes(["09:00"]);
+        setTimes(['09:00']);
       }
-      const df = loaded?.scheduleData?.dayFilter ?? "weekdays";
-      setDayFilter(df === "every_n_days" ? "weekdays" : df);
-      if (df === "weekly_mask" && /^[01]{7}$/.test(loaded?.scheduleData?.daysMask ?? "")) {
+      const df = loaded?.scheduleData?.dayFilter ?? 'weekdays';
+      setDayFilter(df === 'every_n_days' ? 'weekdays' : df);
+      if (df === 'weekly_mask' && /^[01]{7}$/.test(loaded?.scheduleData?.daysMask ?? '')) {
         setDaysMask(loaded!.scheduleData!.daysMask!);
       } else {
         setDaysMask(DEFAULT_DAYS_MASK);
@@ -91,16 +89,16 @@ export function DoctorClientWarmupSchedulePanel({ userId }: Props) {
 
   function toggleDay(index: number) {
     setDaysMask((prev) => {
-      const chars = prev.padEnd(7, "0").slice(0, 7).split("");
-      chars[index] = chars[index] === "1" ? "0" : "1";
-      return chars.join("");
+      const chars = prev.padEnd(7, '0').slice(0, 7).split('');
+      chars[index] = chars[index] === '1' ? '0' : '1';
+      return chars.join('');
     });
     setSaved(false);
   }
 
   async function onSave() {
-    if (dayFilter === "weekly_mask" && !daysMask.includes("1")) {
-      setError("Выберите хотя бы один день.");
+    if (dayFilter === 'weekly_mask' && !daysMask.includes('1')) {
+      setError('Выберите хотя бы один день.');
       return;
     }
     setSaving(true);
@@ -110,19 +108,16 @@ export function DoctorClientWarmupSchedulePanel({ userId }: Props) {
       const body: Record<string, unknown> = {
         timesLocal: times,
         dayFilter,
-        ...(dayFilter === "weekly_mask" ? { daysMask } : {}),
+        ...(dayFilter === 'weekly_mask' ? { daysMask } : {}),
       };
-      const res = await fetch(
-        `/api/doctor/clients/${encodeURIComponent(userId)}/warmup-schedule`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        },
-      );
+      const res = await fetch(`/api/doctor/clients/${encodeURIComponent(userId)}/warmup-schedule`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
       const data = (await res.json()) as { ok?: boolean; error?: string };
       if (!res.ok || !data.ok) {
-        setError("Не удалось сохранить расписание");
+        setError('Не удалось сохранить расписание');
         return;
       }
       setSaved(true);
@@ -134,7 +129,7 @@ export function DoctorClientWarmupSchedulePanel({ userId }: Props) {
 
   function addSlot() {
     if (times.length >= 10) return;
-    setTimes((prev) => [...prev, "12:00"]);
+    setTimes((prev) => [...prev, '12:00']);
     setSaved(false);
   }
 
@@ -190,17 +185,17 @@ export function DoctorClientWarmupSchedulePanel({ userId }: Props) {
           </div>
 
           {/* Day toggles for weekly_mask */}
-          {dayFilter === "weekly_mask" && (
+          {dayFilter === 'weekly_mask' && (
             <div className="flex gap-1">
               {WEEKDAY_LABELS.map((label, i) => (
                 <Button
                   key={label}
                   type="button"
                   onClick={() => toggleDay(i)}
-                  variant={daysMask[i] === "1" ? "default" : "outline"}
+                  variant={daysMask[i] === '1' ? 'default' : 'outline'}
                   size="icon"
                   className="h-7 w-7 text-xs font-medium"
-                  aria-pressed={daysMask[i] === "1"}
+                  aria-pressed={daysMask[i] === '1'}
                   aria-label={label}
                 >
                   {label}
@@ -259,7 +254,7 @@ export function DoctorClientWarmupSchedulePanel({ userId }: Props) {
             onClick={() => void onSave()}
             className="mt-1 w-fit"
           >
-            {saving ? "Сохранение…" : "Сохранить"}
+            {saving ? 'Сохранение…' : 'Сохранить'}
           </Button>
         </div>
       )}

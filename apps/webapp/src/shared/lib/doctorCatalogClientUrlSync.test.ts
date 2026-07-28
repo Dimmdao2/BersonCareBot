@@ -1,70 +1,74 @@
 /** @vitest-environment jsdom */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from 'vitest';
 import {
   appendRegionParamFromListPreserve,
   DOCTOR_CATALOG_URL_SYNC_EVENT,
   readDoctorCatalogClientFilterUrlSlice,
-} from "./doctorCatalogClientUrlSync";
+} from './doctorCatalogClientUrlSync';
 
-describe("doctorCatalogClientUrlSync", () => {
-  it("appendRegionParamFromListPreserve skips UUID payload", () => {
+describe('doctorCatalogClientUrlSync', () => {
+  it('appendRegionParamFromListPreserve skips UUID payload', () => {
     const sp = new URLSearchParams();
-    appendRegionParamFromListPreserve(sp, "550e8400-e29b-41d4-a716-446655440000");
-    expect(sp.has("region")).toBe(false);
+    appendRegionParamFromListPreserve(sp, '550e8400-e29b-41d4-a716-446655440000');
+    expect(sp.has('region')).toBe(false);
   });
 
-  it("appendRegionParamFromListPreserve skips junk token", () => {
+  it('appendRegionParamFromListPreserve skips junk token', () => {
     const sp = new URLSearchParams();
-    appendRegionParamFromListPreserve(sp, "not valid!");
-    expect(sp.has("region")).toBe(false);
+    appendRegionParamFromListPreserve(sp, 'not valid!');
+    expect(sp.has('region')).toBe(false);
   });
 
-  it("readDoctorCatalogClientFilterUrlSlice drops UUID region like no filter", () => {
-    window.history.replaceState({}, "", "/?region=550e8400-e29b-41d4-a716-446655440000");
+  it('readDoctorCatalogClientFilterUrlSlice drops UUID region like no filter', () => {
+    window.history.replaceState({}, '', '/?region=550e8400-e29b-41d4-a716-446655440000');
     const s = readDoctorCatalogClientFilterUrlSlice();
     expect(s.regionCode).toBeUndefined();
-    window.history.replaceState({}, "", "/");
+    window.history.replaceState({}, '', '/');
   });
 
-  it("appendRegionParamFromListPreserve sets region code", () => {
+  it('appendRegionParamFromListPreserve sets region code', () => {
     const sp = new URLSearchParams();
-    appendRegionParamFromListPreserve(sp, "spine");
-    expect(sp.get("region")).toBe("spine");
+    appendRegionParamFromListPreserve(sp, 'spine');
+    expect(sp.get('region')).toBe('spine');
   });
 
-  it("readDoctorCatalogClientFilterUrlSlice parses query", () => {
-    window.history.replaceState({}, "", "/?q=foo&region=spine&load=strength&titleSort=asc&domain=nutrition&assessment=knee");
+  it('readDoctorCatalogClientFilterUrlSlice parses query', () => {
+    window.history.replaceState(
+      {},
+      '',
+      '/?q=foo&region=spine&load=strength&titleSort=asc&domain=nutrition&assessment=knee',
+    );
     const s = readDoctorCatalogClientFilterUrlSlice();
-    expect(s.q).toBe("foo");
-    expect(s.regionCode).toBe("spine");
-    expect(s.loadType).toBe("strength");
-    expect(s.titleSort).toBe("asc");
-    expect(s.domain).toBe("nutrition");
-    expect(s.assessmentKind).toBe("knee");
+    expect(s.q).toBe('foo');
+    expect(s.regionCode).toBe('spine');
+    expect(s.loadType).toBe('strength');
+    expect(s.titleSort).toBe('asc');
+    expect(s.domain).toBe('nutrition');
+    expect(s.assessmentKind).toBe('knee');
     expect(s.hasLoadParam).toBe(true);
     expect(s.hasRegionParam).toBe(true);
-    window.history.replaceState({}, "", "/");
+    window.history.replaceState({}, '', '/');
   });
 
-  it("readDoctorCatalogClientFilterUrlSlice accepts catalog load codes outside seed allowlist", () => {
-    window.history.replaceState({}, "", "/?load=custom_load");
+  it('readDoctorCatalogClientFilterUrlSlice accepts catalog load codes outside seed allowlist', () => {
+    window.history.replaceState({}, '', '/?load=custom_load');
     const s = readDoctorCatalogClientFilterUrlSlice();
-    expect(s.loadType).toBe("custom_load");
+    expect(s.loadType).toBe('custom_load');
     expect(s.hasLoadParam).toBe(true);
-    window.history.replaceState({}, "", "/");
+    window.history.replaceState({}, '', '/');
   });
 
-  it("readDoctorCatalogClientFilterUrlSlice clears load filter when param removed", () => {
-    window.history.replaceState({}, "", "/?load=strength");
+  it('readDoctorCatalogClientFilterUrlSlice clears load filter when param removed', () => {
+    window.history.replaceState({}, '', '/?load=strength');
     expect(readDoctorCatalogClientFilterUrlSlice().hasLoadParam).toBe(true);
-    window.history.replaceState({}, "", "/");
+    window.history.replaceState({}, '', '/');
     const s = readDoctorCatalogClientFilterUrlSlice();
     expect(s.hasLoadParam).toBe(false);
     expect(s.loadType).toBeUndefined();
   });
 
-  it("exports sync event name", () => {
-    expect(DOCTOR_CATALOG_URL_SYNC_EVENT).toBe("doctorcatalog:urlsync");
+  it('exports sync event name', () => {
+    expect(DOCTOR_CATALOG_URL_SYNC_EVENT).toBe('doctorcatalog:urlsync');
   });
 });

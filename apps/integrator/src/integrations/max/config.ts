@@ -24,13 +24,9 @@ function loadMaxConfigFromEnv(): z.input<typeof MaxConfigSchema> {
   const adminChatIdRaw = process.env.MAX_ADMIN_CHAT_ID?.trim();
   const adminUserIdRaw = process.env.MAX_ADMIN_USER_ID?.trim();
   const adminChatId =
-    adminChatIdRaw !== undefined && adminChatIdRaw !== ''
-      ? Number(adminChatIdRaw)
-      : undefined;
+    adminChatIdRaw !== undefined && adminChatIdRaw !== '' ? Number(adminChatIdRaw) : undefined;
   const adminUserId =
-    adminUserIdRaw !== undefined && adminUserIdRaw !== ''
-      ? Number(adminUserIdRaw)
-      : undefined;
+    adminUserIdRaw !== undefined && adminUserIdRaw !== '' ? Number(adminUserIdRaw) : undefined;
   const baseUrl = process.env.MAX_API_BASE_URL?.trim() || undefined;
 
   return {

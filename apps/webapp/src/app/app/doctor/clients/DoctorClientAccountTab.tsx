@@ -1,18 +1,18 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { Pencil } from "lucide-react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import type { ClientProfile } from "@/modules/doctor-clients/service";
-import { DoctorClientPrimaryContacts } from "./DoctorClientPrimaryContacts";
-import { DoctorLfkComplexExerciseOverridesPanel } from "./DoctorLfkComplexExerciseOverridesPanel";
-import { AdminClientProfileEditPanel } from "./AdminClientProfileEditPanel";
-import { DoctorSupplementaryContactsPanel } from "./DoctorSupplementaryContactsPanel";
-import { DoctorClientLifecycleActions } from "./DoctorClientLifecycleActions";
-import { SubscriberBlockPanel } from "./SubscriberBlockPanel";
-import { DoctorClientSupportPanel } from "./DoctorClientSupportPanel";
-import type { LfkComplexExerciseLine } from "@/modules/diaries/types";
-import { doctorClientTabSectionClass } from "./doctorClientCardChrome";
+import { useState } from 'react';
+import { Pencil } from 'lucide-react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import type { ClientProfile } from '@/modules/doctor-clients/service';
+import { DoctorClientPrimaryContacts } from './DoctorClientPrimaryContacts';
+import { DoctorLfkComplexExerciseOverridesPanel } from './DoctorLfkComplexExerciseOverridesPanel';
+import { AdminClientProfileEditPanel } from './AdminClientProfileEditPanel';
+import { DoctorSupplementaryContactsPanel } from './DoctorSupplementaryContactsPanel';
+import { DoctorClientLifecycleActions } from './DoctorClientLifecycleActions';
+import { SubscriberBlockPanel } from './SubscriberBlockPanel';
+import { DoctorClientSupportPanel } from './DoctorClientSupportPanel';
+import type { LfkComplexExerciseLine } from '@/modules/diaries/types';
+import { doctorClientTabSectionClass } from './doctorClientCardChrome';
 
 type Props = {
   profile: ClientProfile;
@@ -28,7 +28,8 @@ export function DoctorClientAccountTab({
   lfkExerciseLinesByComplexId,
 }: Props) {
   const [contactsEditing, setContactsEditing] = useState(false);
-  const { identity, channelCards, supplementaryContacts, lfkComplexes, recentLfkSessions } = profile;
+  const { identity, channelCards, supplementaryContacts, lfkComplexes, recentLfkSessions } =
+    profile;
 
   return (
     <div className="flex flex-col gap-0">
@@ -42,7 +43,7 @@ export function DoctorClientAccountTab({
                 variant="ghost"
                 size="icon"
                 className="size-9 shrink-0"
-                aria-label={contactsEditing ? "Закончить правку" : "Править контакты и ФИО"}
+                aria-label={contactsEditing ? 'Закончить правку' : 'Править контакты и ФИО'}
                 aria-pressed={contactsEditing}
                 onClick={() => setContactsEditing((v) => !v)}
               >
@@ -66,7 +67,10 @@ export function DoctorClientAccountTab({
           {!contactsEditing ? (
             <>
               <DoctorClientPrimaryContacts identity={identity} />
-              <DoctorSupplementaryContactsPanel userId={userId} initialContacts={supplementaryContacts} />
+              <DoctorSupplementaryContactsPanel
+                userId={userId}
+                initialContacts={supplementaryContacts}
+              />
               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 Каналы доставки
               </p>
@@ -76,7 +80,7 @@ export function DoctorClientAccountTab({
             {channelCards.map((ch) => (
               <li key={ch.code} id={`doctor-client-channel-item-${ch.code}`}>
                 {ch.title}
-                {ch.isLinked ? " · подключён" : " · не подключён"}
+                {ch.isLinked ? ' · подключён' : ' · не подключён'}
               </li>
             ))}
           </ul>
@@ -97,7 +101,7 @@ export function DoctorClientAccountTab({
               <p className="text-muted-foreground">Нет комплексов ЛФК.</p>
             ) : (
               <>
-                <p className="text-sm">Комплексы: {lfkComplexes.map((c) => c.title).join(", ")}</p>
+                <p className="text-sm">Комплексы: {lfkComplexes.map((c) => c.title).join(', ')}</p>
                 {recentLfkSessions.length > 0 ? (
                   <p className="text-sm">Последние занятия: {recentLfkSessions.length}</p>
                 ) : null}
@@ -113,10 +117,7 @@ export function DoctorClientAccountTab({
       </section>
 
       <section id="doctor-client-section-lifecycle" className={doctorClientTabSectionClass}>
-        <DoctorClientLifecycleActions
-          userId={userId}
-          isArchived={identity.isArchived}
-        />
+        <DoctorClientLifecycleActions userId={userId} isArchived={identity.isArchived} />
       </section>
 
       <section id="doctor-client-section-subscriber" className={doctorClientTabSectionClass}>

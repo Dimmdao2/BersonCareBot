@@ -1,16 +1,16 @@
-import type { TreatmentProgramTemplateUsageSnapshot } from "./types";
+import type { TreatmentProgramTemplateUsageSnapshot } from './types';
 
-export const USAGE_CONFIRMATION_REQUIRED = "USAGE_CONFIRMATION_REQUIRED" as const;
+export const USAGE_CONFIRMATION_REQUIRED = 'USAGE_CONFIRMATION_REQUIRED' as const;
 
 /** Конфликт при копировании описания комплекса в группу с уже заполненным описанием (POST expand из ЛФК). */
-export const GROUP_DESCRIPTION_CONFLICT = "group_description_conflict" as const;
+export const GROUP_DESCRIPTION_CONFLICT = 'group_description_conflict' as const;
 
 export class TreatmentProgramTemplateUsageConfirmationRequiredError extends Error {
   readonly code = USAGE_CONFIRMATION_REQUIRED;
 
   constructor(readonly usage: TreatmentProgramTemplateUsageSnapshot) {
     super(USAGE_CONFIRMATION_REQUIRED);
-    this.name = "TreatmentProgramTemplateUsageConfirmationRequiredError";
+    this.name = 'TreatmentProgramTemplateUsageConfirmationRequiredError';
   }
 }
 
@@ -21,9 +21,9 @@ export function isTreatmentProgramTemplateUsageConfirmationRequiredError(
 }
 
 export class TreatmentProgramTemplateArchiveNotFoundError extends Error {
-  constructor(message = "Шаблон программы не найден") {
+  constructor(message = 'Шаблон программы не найден') {
     super(message);
-    this.name = "TreatmentProgramTemplateArchiveNotFoundError";
+    this.name = 'TreatmentProgramTemplateArchiveNotFoundError';
   }
 }
 
@@ -35,8 +35,8 @@ export function isTreatmentProgramTemplateArchiveNotFoundError(
 
 export class TreatmentProgramTemplateAlreadyArchivedError extends Error {
   constructor() {
-    super("Шаблон уже в архиве");
-    this.name = "TreatmentProgramTemplateAlreadyArchivedError";
+    super('Шаблон уже в архиве');
+    this.name = 'TreatmentProgramTemplateAlreadyArchivedError';
   }
 }
 
@@ -50,10 +50,10 @@ export class TreatmentProgramTemplateGroupDescriptionConflictError extends Error
   readonly code = GROUP_DESCRIPTION_CONFLICT;
 
   constructor(
-    message = "У группы уже есть описание. Снимите галочку или очистите описание группы, чтобы скопировать текст из комплекса.",
+    message = 'У группы уже есть описание. Снимите галочку или очистите описание группы, чтобы скопировать текст из комплекса.',
   ) {
     super(message);
-    this.name = "TreatmentProgramTemplateGroupDescriptionConflictError";
+    this.name = 'TreatmentProgramTemplateGroupDescriptionConflictError';
   }
 }
 
@@ -70,7 +70,7 @@ export function isTreatmentProgramTemplateGroupDescriptionConflictError(
 export class TreatmentProgramExpandNotFoundError extends Error {
   constructor(message: string) {
     super(message);
-    this.name = "TreatmentProgramExpandNotFoundError";
+    this.name = 'TreatmentProgramExpandNotFoundError';
   }
 }
 

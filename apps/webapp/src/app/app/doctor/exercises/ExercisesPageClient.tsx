@@ -1,72 +1,77 @@
-"use client";
+'use client';
 
-import dynamic from "next/dynamic";
-import { useRouter } from "next/navigation";
-import { Suspense, use, useCallback, useEffect, useMemo, useState, useTransition } from "react";
-import { ChevronDown } from "lucide-react";
-import { Button, buttonVariants } from "@/shared/ui/doctor/primitives/button";
+import dynamic from 'next/dynamic';
+import { useRouter } from 'next/navigation';
+import { Suspense, use, useCallback, useEffect, useMemo, useState, useTransition } from 'react';
+import { ChevronDown } from 'lucide-react';
+import { Button, buttonVariants } from '@/shared/ui/doctor/primitives/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/shared/ui/doctor/primitives/dropdown-menu";
-import { DoctorCatalogMasterListHeader } from "@/shared/ui/doctor/DoctorCatalogMasterListHeader";
-import type { Exercise, ExerciseLoadType, ExerciseUsageSnapshot } from "@/modules/lfk-exercises/types";
-import type { RecommendationListFilterScope } from "@/shared/lib/doctorCatalogListStatus";
-import { cn } from "@/lib/utils";
-import { useViewportMinWidth } from "@/shared/hooks/useViewportMinWidth";
+} from '@/shared/ui/doctor/primitives/dropdown-menu';
+import { DoctorCatalogMasterListHeader } from '@/shared/ui/doctor/DoctorCatalogMasterListHeader';
+import type {
+  Exercise,
+  ExerciseLoadType,
+  ExerciseUsageSnapshot,
+} from '@/modules/lfk-exercises/types';
+import type { RecommendationListFilterScope } from '@/shared/lib/doctorCatalogListStatus';
+import { cn } from '@/lib/utils';
+import { useViewportMinWidth } from '@/shared/hooks/useViewportMinWidth';
 import {
   doctorCatalogViewStorageKey,
   readDoctorCatalogViewPreference,
   writeDoctorCatalogViewPreference,
-} from "@/shared/lib/doctorCatalogViewPreference";
+} from '@/shared/lib/doctorCatalogViewPreference';
 import {
   doctorCatalogToolbarPrimaryActionClassName,
   DoctorCatalogFiltersToolbar,
   DoctorCatalogToolbarFiltersSlot,
-} from "@/shared/ui/doctor/DoctorCatalogFiltersToolbar";
+} from '@/shared/ui/doctor/DoctorCatalogFiltersToolbar';
 import {
   doctorCatalogListEmptyClass,
   doctorCatalogListEmptyTilesClass,
   doctorCatalogRowActiveClass,
   doctorCatalogRowClass,
-} from "@/shared/ui/doctor/doctorVisual";
-import type { DoctorCatalogToolbarLayout } from "@/shared/ui/doctor/DoctorCatalogFiltersForm";
+} from '@/shared/ui/doctor/doctorVisual';
+import type { DoctorCatalogToolbarLayout } from '@/shared/ui/doctor/DoctorCatalogFiltersForm';
 import {
   DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_EXPANDED,
   DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE,
-} from "@/shared/ui/doctor/doctorWorkspaceLayout";
-import { CatalogLeftPane } from "@/shared/ui/doctor/catalog/CatalogLeftPane";
-import { CatalogRightPane } from "@/shared/ui/doctor/catalog/CatalogRightPane";
-import { CatalogSplitLayout } from "@/shared/ui/doctor/catalog/CatalogSplitLayout";
-import { DoctorCatalogPageLayout } from "@/shared/ui/doctor/catalog/DoctorCatalogPageLayout";
-import { ExerciseListCatalogThumb } from "@/shared/ui/doctor/media/ExerciseListCatalogThumb";
-import { VirtualizedItemGrid } from "@/shared/ui/doctor/catalog/VirtualizedItemGrid";
-import { ExercisesFiltersForm } from "./ExercisesFiltersForm";
-import { archiveExerciseInline, saveExerciseInline, unarchiveExerciseInline } from "./actionsInline";
-import { ExerciseTileCard } from "./ExerciseTileCard";
-import { useDoctorCatalogDisplayList } from "@/shared/hooks/useDoctorCatalogDisplayList";
-import { useDoctorCatalogClientFilterMerge } from "@/shared/hooks/useDoctorCatalogClientFilterMerge";
+} from '@/shared/ui/doctor/doctorWorkspaceLayout';
+import { CatalogLeftPane } from '@/shared/ui/doctor/catalog/CatalogLeftPane';
+import { CatalogRightPane } from '@/shared/ui/doctor/catalog/CatalogRightPane';
+import { CatalogSplitLayout } from '@/shared/ui/doctor/catalog/CatalogSplitLayout';
+import { DoctorCatalogPageLayout } from '@/shared/ui/doctor/catalog/DoctorCatalogPageLayout';
+import { ExerciseListCatalogThumb } from '@/shared/ui/doctor/media/ExerciseListCatalogThumb';
+import { VirtualizedItemGrid } from '@/shared/ui/doctor/catalog/VirtualizedItemGrid';
+import { ExercisesFiltersForm } from './ExercisesFiltersForm';
+import {
+  archiveExerciseInline,
+  saveExerciseInline,
+  unarchiveExerciseInline,
+} from './actionsInline';
+import { ExerciseTileCard } from './ExerciseTileCard';
+import { useDoctorCatalogDisplayList } from '@/shared/hooks/useDoctorCatalogDisplayList';
+import { useDoctorCatalogClientFilterMerge } from '@/shared/hooks/useDoctorCatalogClientFilterMerge';
 
-export type ExercisesViewMode = "tiles" | "list";
+export type ExercisesViewMode = 'tiles' | 'list';
 
-export type ExerciseTitleSort = "asc" | "desc";
+export type ExerciseTitleSort = 'asc' | 'desc';
 
-const ExerciseForm = dynamic(
-  () => import("./ExerciseForm").then((mod) => mod.ExerciseForm),
-  {
-    loading: () => (
-      <div className="rounded-xl border border-border/60 bg-muted/20 p-4 text-sm text-muted-foreground">
-        Загрузка формы…
-      </div>
-    ),
-  },
-);
+const ExerciseForm = dynamic(() => import('./ExerciseForm').then((mod) => mod.ExerciseForm), {
+  loading: () => (
+    <div className="rounded-xl border border-border/60 bg-muted/20 p-4 text-sm text-muted-foreground">
+      Загрузка формы…
+    </div>
+  ),
+});
 
 const LIST_ROW_VISIBILITY_STYLE = {
-  contentVisibility: "auto",
-  containIntrinsicSize: "52px",
+  contentVisibility: 'auto',
+  containIntrinsicSize: '52px',
 } as const;
 
 type DoctorExerciseSelection = {
@@ -121,7 +126,7 @@ function CreateExerciseMenu({ triggerId, onNewExercise }: CreateExerciseMenuProp
         id={triggerId}
         className={cn(
           doctorCatalogToolbarPrimaryActionClassName,
-          "data-popup-open:bg-primary/90 dark:data-popup-open:bg-primary/85",
+          'data-popup-open:bg-primary/90 dark:data-popup-open:bg-primary/85',
         )}
         type="button"
       >
@@ -136,13 +141,15 @@ function CreateExerciseMenu({ triggerId, onNewExercise }: CreateExerciseMenuProp
         >
           Новое упражнение
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => router.push("/app/doctor/exercises/auto-create")}>Автосоздание</DropdownMenuItem>
+        <DropdownMenuItem onClick={() => router.push('/app/doctor/exercises/auto-create')}>
+          Автосоздание
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
 }
 
-type ExerciseCatalogFiltersMerged = Props["filters"] & { titleSort: ExerciseTitleSort | null };
+type ExerciseCatalogFiltersMerged = Props['filters'] & { titleSort: ExerciseTitleSort | null };
 
 type ExercisesContentProps = {
   listPromise: Promise<Exercise[]>;
@@ -184,9 +191,7 @@ function ExercisesContent({
 
   const getItemRegionCodes = useCallback(
     (ex: Exercise) =>
-      ex.regionRefIds
-        .map((rid) => bodyRegionIdToCode[rid])
-        .filter((c): c is string => Boolean(c)),
+      ex.regionRefIds.map((rid) => bodyRegionIdToCode[rid]).filter((c): c is string => Boolean(c)),
     [bodyRegionIdToCode],
   );
   const getItemLoadType = useCallback((ex: Exercise) => ex.loadType, []);
@@ -222,7 +227,7 @@ function ExercisesContent({
   const displayExercises = useDoctorCatalogDisplayList(
     exercises,
     filters.q,
-    filters.titleSort === null ? "default" : filters.titleSort,
+    filters.titleSort === null ? 'default' : filters.titleSort,
     {
       regionCode: filters.regionCode,
       loadType: filters.loadType ?? null,
@@ -258,8 +263,10 @@ function ExercisesContent({
                   {mediaNode(ex)}
                   <span className="min-w-0 text-left">
                     <span className="line-clamp-2">{ex.title}</span>
-                    {ex.ownerKind === "platform" ? (
-                      <span className="block text-[11px] text-muted-foreground">Базовая библиотека</span>
+                    {ex.ownerKind === 'platform' ? (
+                      <span className="block text-[11px] text-muted-foreground">
+                        Базовая библиотека
+                      </span>
                     ) : null}
                   </span>
                 </Button>
@@ -344,7 +351,7 @@ function ExercisesContent({
     >
       <CatalogSplitLayout
         className={cn(
-          filterToolbarLayout === "expanded"
+          filterToolbarLayout === 'expanded'
             ? DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_EXPANDED
             : DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE,
         )}
@@ -356,7 +363,9 @@ function ExercisesContent({
             headerSlot={
               <DoctorCatalogMasterListHeader
                 summaryLine={
-                  displayExercises.length === 0 ? "Нет упражнений" : `Упражнений: ${displayExercises.length}`
+                  displayExercises.length === 0
+                    ? 'Нет упражнений'
+                    : `Упражнений: ${displayExercises.length}`
                 }
                 viewMode={toolbarViewMode}
                 onToggleView={toggleViewMode}
@@ -373,12 +382,12 @@ function ExercisesContent({
           >
             <div
               className={cn(
-                "min-h-0 flex-1 overflow-hidden transition-opacity",
-                isListPending && "opacity-80",
+                'min-h-0 flex-1 overflow-hidden transition-opacity',
+                isListPending && 'opacity-80',
               )}
               aria-busy={isListPending}
             >
-              {viewMode === "list"
+              {viewMode === 'list'
                 ? renderExerciseList(displayExercises, {
                     activeId: desktopSelectedId,
                     onRowSelect: (id) => {
@@ -400,10 +409,15 @@ function ExercisesContent({
           </CatalogLeftPane>
         }
         right={rightPanel}
-        mobileView={mobileSheet != null ? "detail" : "list"}
+        mobileView={mobileSheet != null ? 'detail' : 'list'}
         mobileBackSlot={
           mobileSheet != null ? (
-            <Button variant="ghost" type="button" className="mb-2 h-9 px-2" onClick={() => setMobileSheet(null)}>
+            <Button
+              variant="ghost"
+              type="button"
+              className="mb-2 h-9 px-2"
+              onClick={() => setMobileSheet(null)}
+            >
               ← Назад
             </Button>
           ) : null
@@ -475,7 +489,8 @@ export function ExercisesPageClient({
   const [desktopSelectedId, setDesktopSelectedId] = useState<string | null>(null);
   const [mobileSheet, setMobileSheet] = useState<{ exercise: Exercise | null } | null>(null);
   const [isListPending, startListTransition] = useTransition();
-  const [filterToolbarLayout, setFilterToolbarLayout] = useState<DoctorCatalogToolbarLayout>("compact");
+  const [filterToolbarLayout, setFilterToolbarLayout] =
+    useState<DoctorCatalogToolbarLayout>('compact');
   const onFilterToolbarLayoutChange = useCallback((layout: DoctorCatalogToolbarLayout) => {
     setFilterToolbarLayout(layout);
   }, []);
@@ -498,7 +513,7 @@ export function ExercisesPageClient({
   }, [initialTitleSort]);
 
   const toggleViewMode = () => {
-    const next = toolbarViewMode === "tiles" ? "list" : "tiles";
+    const next = toolbarViewMode === 'tiles' ? 'list' : 'tiles';
     setToolbarViewMode(next);
     writeDoctorCatalogViewPreference(doctorCatalogViewStorageKey.exercises, next);
     startListTransition(() => {

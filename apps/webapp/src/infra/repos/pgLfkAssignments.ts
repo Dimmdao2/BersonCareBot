@@ -2,11 +2,11 @@ import {
   runWebappPgText,
   runWebappTransaction,
   type WebappSqlTransactionExecutor,
-} from "@/infra/db/runWebappSql";
-import type { LfkAssignmentsPort } from "@/modules/lfk-assignments/ports";
-import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
-import { createPgOrgEntitlementsPort } from "@/infra/repos/pgOrgEntitlements";
-import { isMechanicEnabled } from "@/modules/org-entitlements/service";
+} from '@/infra/db/runWebappSql';
+import type { LfkAssignmentsPort } from '@/modules/lfk-assignments/ports';
+import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
+import { createPgOrgEntitlementsPort } from '@/infra/repos/pgOrgEntitlements';
+import { isMechanicEnabled } from '@/modules/org-entitlements/service';
 
 const lfkAssignmentEntitlements = createPgOrgEntitlementsPort();
 
@@ -26,11 +26,11 @@ export function createPgLfkAssignmentsPort(): LfkAssignmentsPort {
       assignedBy: string | null;
     }) {
       const organizationId = getCurrentDbPrincipalOrganizationId();
-      if (!organizationId) throw new Error("Шаблон не найден или не опубликован");
+      if (!organizationId) throw new Error('Шаблон не найден или не опубликован');
       const includePlatformBase = await isMechanicEnabled(
         lfkAssignmentEntitlements,
         organizationId,
-        "exercise_catalog",
+        'exercise_catalog',
       );
       return runWebappTransaction(async (tx) => {
         const tplR = await pgTextTx<{
@@ -51,8 +51,8 @@ export function createPgLfkAssignmentsPort(): LfkAssignmentsPort {
           [params.templateId, organizationId, includePlatformBase],
         );
         const tpl = tplR.rows[0];
-        if (!tpl || tpl.status !== "published") {
-          throw new Error("Шаблон не найден или не опубликован");
+        if (!tpl || tpl.status !== 'published') {
+          throw new Error('Шаблон не найден или не опубликован');
         }
 
         const exR = await pgTextTx<{
@@ -74,7 +74,7 @@ export function createPgLfkAssignmentsPort(): LfkAssignmentsPort {
           [params.templateId, tpl.owner_kind, tpl.organization_id],
         );
         if (exR.rows.length === 0) {
-          throw new Error("В шаблоне нет упражнений");
+          throw new Error('В шаблоне нет упражнений');
         }
 
         const existR = await pgTextTx<{ id: string; complex_id: string | null }>(
@@ -107,7 +107,7 @@ export function createPgLfkAssignmentsPort(): LfkAssignmentsPort {
           [organizationId, params.patientUserId, tpl.title],
         );
         const complexId = complexR.rows[0]?.id;
-        if (!complexId) throw new Error("lfk_complex_owner_mismatch");
+        if (!complexId) throw new Error('lfk_complex_owner_mismatch');
 
         for (const row of exR.rows) {
           await pgTextTx(
@@ -140,7 +140,7 @@ export function createPgLfkAssignmentsPort(): LfkAssignmentsPort {
             [complexId, params.assignedBy, existing.id, organizationId],
           );
           const updatedAssignmentId = up.rows[0]?.id;
-          if (!updatedAssignmentId) throw new Error("lfk_assignment_owner_mismatch");
+          if (!updatedAssignmentId) throw new Error('lfk_assignment_owner_mismatch');
           assignmentId = updatedAssignmentId;
         } else {
           const ins = await pgTextTx<{ id: string }>(
@@ -152,7 +152,7 @@ export function createPgLfkAssignmentsPort(): LfkAssignmentsPort {
             [organizationId, params.patientUserId, params.templateId, complexId, params.assignedBy],
           );
           const insertedAssignmentId = ins.rows[0]?.id;
-          if (!insertedAssignmentId) throw new Error("lfk_assignment_owner_mismatch");
+          if (!insertedAssignmentId) throw new Error('lfk_assignment_owner_mismatch');
           assignmentId = insertedAssignmentId;
         }
 

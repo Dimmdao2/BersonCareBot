@@ -13,70 +13,70 @@ isProject: false
 status: pending
 todos:
   - id: e0-rules-baseline
-    content: "Этап 0 — прочитать релевантные .cursor/rules/*.mdc + DOCTOR_APP_UI_STYLE_GUIDE.md + AGENTS.md; завести LOG.md; зафиксировать зелёный baseline (typecheck/lint/тесты затронутых зон)"
+    content: 'Этап 0 — прочитать релевантные .cursor/rules/*.mdc + DOCTOR_APP_UI_STYLE_GUIDE.md + AGENTS.md; завести LOG.md; зафиксировать зелёный baseline (typecheck/lint/тесты затронутых зон)'
     status: completed
   - id: e1a-types-ports
-    content: "Этап 1.A — типы (DoctorExerciseCommentRow, Input+cursor) в types.ts + сигнатуры listUnreadExerciseCommentsForDoctor / listExerciseCommentsForDoctor в ports.ts"
+    content: 'Этап 1.A — типы (DoctorExerciseCommentRow, Input+cursor) в types.ts + сигнатуры listUnreadExerciseCommentsForDoctor / listExerciseCommentsForDoctor в ports.ts'
     status: completed
   - id: e1b-pg-infra
     content: "Этап 1.B — реализация в pgProgramItemDiscussion: один индексированный запрос (DISTINCT ON последнего сообщения, join read-стейта viewer'а, WHERE patientUserId IN on-support); EXPLAIN + решение по индексу"
     status: completed
   - id: e1c-inmemory
-    content: "Этап 1.C — параллельная реализация в inMemoryProgramItemDiscussion (паритет поведения для unit-тестов)"
+    content: 'Этап 1.C — параллельная реализация в inMemoryProgramItemDiscussion (паритет поведения для unit-тестов)'
     status: completed
   - id: e1d-service-di
-    content: "Этап 1.D — обёртки в service.ts (assertUuid/clamp/курсор) + проводка в buildAppDeps; unit-тесты сервиса и инфры (pg integration + inMemory)"
+    content: 'Этап 1.D — обёртки в service.ts (assertUuid/clamp/курсор) + проводка в buildAppDeps; unit-тесты сервиса и инфры (pg integration + inMemory)'
     status: completed
   - id: e2a-loader
-    content: "Этап 2.A — comments-загрузчик: резолв on-support ОДИН раз (doctorClientsPort + analytics exclusion), один вызов doctor-wide метода; имя/href в загрузчике; unit-тест"
+    content: 'Этап 2.A — comments-загрузчик: резолв on-support ОДИН раз (doctorClientsPort + analytics exclusion), один вызов doctor-wide метода; имя/href в загрузчике; unit-тест'
     status: completed
   - id: e2b-route
-    content: "Этап 2.B — API route / server action под ленивую историю (курсор) и серверный добор поиска; requireDoctorAccess; тест 401/пагинация/добор"
+    content: 'Этап 2.B — API route / server action под ленивую историю (курсор) и серверный добор поиска; requireDoctorAccess; тест 401/пагинация/добор'
     status: completed
   - id: e2c-tab-ui
-    content: "Этап 2.C — компонент-таб «Комментарии»: непрочитанные сверху (SSR), история лениво на скролле; reuse ProgramItemDiscussionMessageBody/DoctorExerciseCommentsList"
+    content: 'Этап 2.C — компонент-таб «Комментарии»: непрочитанные сверху (SSR), история лениво на скролле; reuse ProgramItemDiscussionMessageBody/DoctorExerciseCommentsList'
     status: completed
   - id: e2d-search
-    content: "Этап 2.D — поиск по пациенту/тексту: клиент-сначала + серверный добор по канону useMediaLibraryPickerServerSearch; тест фильтрации+добора"
+    content: 'Этап 2.D — поиск по пациенту/тексту: клиент-сначала + серверный добор по канону useMediaLibraryPickerServerSearch; тест фильтрации+добора'
     status: completed
   - id: e3a-registry
-    content: "Этап 3.A — реестр табов (декларативный массив id/loader/deepLinkKeys) + типы; добавление таба = компонент + строка реестра"
+    content: 'Этап 3.A — реестр табов (декларативный массив id/loader/deepLinkKeys) + типы; добавление таба = компонент + строка реестра'
     status: completed
   - id: e3b-shell
-    content: "Этап 3.B — DoctorCommunicationsShell (client): DoctorAppShell+TabsNav, ленивый next/dynamic монтаж активного таба + кэш уже открытых (keepMounted)"
+    content: 'Этап 3.B — DoctorCommunicationsShell (client): DoctorAppShell+TabsNav, ленивый next/dynamic монтаж активного таба + кэш уже открытых (keepMounted)'
     status: completed
   - id: e3c-urlsync
-    content: "Этап 3.C — синхронизация ?tab + под-параметров (intake id, broadcasts archive) ↔ URL без полного перехода (history.replaceState/router), restore при back/forward; тест (прогрев чанков в beforeAll)"
+    content: 'Этап 3.C — синхронизация ?tab + под-параметров (intake id, broadcasts archive) ↔ URL без полного перехода (history.replaceState/router), restore при back/forward; тест (прогрев чанков в beforeAll)'
     status: completed
   - id: e4a-chats
-    content: "Этап 4.A — таб «Чаты» (DoctorSupportInbox): поллинг только активный+видимый таб (visibilitychange) и только при реальном изменении (since/сравнение); тест отсутствия поллинга/ре-рендера"
+    content: 'Этап 4.A — таб «Чаты» (DoctorSupportInbox): поллинг только активный+видимый таб (visibilitychange) и только при реальном изменении (since/сравнение); тест отсутствия поллинга/ре-рендера'
     status: completed
   - id: e4b-intake
-    content: "Этап 4.B — таб «Заявки» (DoctorOnlineIntakeClient) с deep-link id ↔ шелл; тест открытия детали"
+    content: 'Этап 4.B — таб «Заявки» (DoctorOnlineIntakeClient) с deep-link id ↔ шелл; тест открытия детали'
     status: completed
   - id: e4c-broadcasts
-    content: "Этап 4.C — таб «Рассылки» (BroadcastForm + ленивый BroadcastAuditLog) с deep-link archive ↔ шелл; тест archive=1"
+    content: 'Этап 4.C — таб «Рассылки» (BroadcastForm + ленивый BroadcastAuditLog) с deep-link archive ↔ шелл; тест archive=1'
     status: completed
   - id: e5a-redirects
-    content: "Этап 5.A — убрать ветку internal-rewrite для /communications из doctorRouteRedirects.ts; оставить 308 со старых URL + deep-links; schedule не трогать"
+    content: 'Этап 5.A — убрать ветку internal-rewrite для /communications из doctorRouteRedirects.ts; оставить 308 со старых URL + deep-links; schedule не трогать'
     status: completed
   - id: e5b-redirect-tests
-    content: "Этап 5.B — обновить doctorRouteRedirects.test.ts: communications проходит без rewrite (null), 308-кейсы сохранены, schedule-кейсы зелёные"
+    content: 'Этап 5.B — обновить doctorRouteRedirects.test.ts: communications проходит без rewrite (null), 308-кейсы сохранены, schedule-кейсы зелёные'
     status: completed
   - id: e6a-shell-page
-    content: "Этап 6.A — app/app/doctor/communications/page.tsx как серверный вход-шелл: requireDoctorAccess + бейджи + предзагрузка непрочитанных → DoctorCommunicationsShell(initialTab)"
+    content: 'Этап 6.A — app/app/doctor/communications/page.tsx как серверный вход-шелл: requireDoctorAccess + бейджи + предзагрузка непрочитанных → DoctorCommunicationsShell(initialTab)'
     status: completed
   - id: e6b-legacy-cleanup
-    content: "Этап 6.B — свести легаси-страницы вкладок к 308-редиректам/удалить (rg на использование перед удалением); таб-бар рендерится только из шелла"
+    content: 'Этап 6.B — свести легаси-страницы вкладок к 308-редиректам/удалить (rg на использование перед удалением); таб-бар рендерится только из шелла'
     status: completed
   - id: e7a-docs
-    content: "Этап 7.A — синхронная докуа: communications.md (раздел Маршрутизация + TODO#3 ✅ + Журнал), README модуля program-item-discussion, LOG.md"
+    content: 'Этап 7.A — синхронная докуа: communications.md (раздел Маршрутизация + TODO#3 ✅ + Журнал), README модуля program-item-discussion, LOG.md'
     status: completed
   - id: e7b-live-verify
-    content: "Этап 7.B — живой dev (dev:doctor, 127.0.0.1:5200): мгновенное переключение, deep-links id/archive, кросс-таб бейджи, чат-поллинг только активным+видимым окном"
+    content: 'Этап 7.B — живой dev (dev:doctor, 127.0.0.1:5200): мгновенное переключение, deep-links id/archive, кросс-таб бейджи, чат-поллинг только активным+видимым окном'
     status: in_progress
   - id: e7c-full-ci
-    content: "Этап 7.C — финальный гейт pnpm run ci (один раз). Не пушить."
+    content: 'Этап 7.C — финальный гейт pnpm run ci (один раз). Не пушить.'
     status: completed
 ---
 
@@ -122,15 +122,17 @@ todos:
 ## Целевое решение (вариант C)
 
 Один **клиентский** `DoctorCommunicationsShell` (`DoctorAppShell title="Коммуникации"` + `DoctorCommunicationsTabsNav`
-+ реестр табов + URL-sync) лениво монтирует активный таб (`next/dynamic`) и кэширует его после первого
-открытия → мгновенное переключение без серверного ре-рендера. 4 таба — изолированные компоненты.
-«Тяжесть» комментариев убираем **doctor-wide запросом** вместо фан-аута.
+
+- реестр табов + URL-sync) лениво монтирует активный таб (`next/dynamic`) и кэширует его после первого
+  открытия → мгновенное переключение без серверного ре-рендера. 4 таба — изолированные компоненты.
+  «Тяжесть» комментариев убираем **doctor-wide запросом** вместо фан-аута.
 
 ---
 
 ## Scope boundaries
 
 **Разрешено трогать:**
+
 - `apps/webapp/src/app/app/doctor/communications/**` (шелл, реестр, табы-обёртки, конфиг).
 - 4 компонента/страницы вкладок: `app/app/doctor/{messages,online-intake,comments,broadcasts}/**`
   (включая перенос их клиентских компонентов в табы шелла).
@@ -143,6 +145,7 @@ todos:
 - Синхронная докуа: `communications.md`, README модуля `program-item-discussion` (если есть), `LOG.md`.
 
 **Вне scope (НЕ трогать):**
+
 - `/app/doctor/schedule` и его rewrite-агрегация — остаётся как есть (communications — пилот).
 - Рефактор дашборда «Сегодня» на новый запрос — **отдельный backlog-шаг**, не в этой задаче
   (фан-аут `loadDoctorExerciseCommentAttention` остаётся для «Сегодня»).
@@ -155,11 +158,13 @@ todos:
 ## Этап 0 — Правила и baseline (`e0-rules-baseline`)
 
 **Шаги:**
+
 1. Прочитать правила из раздела «Правила, которым следуем» + `DOCTOR_APP_UI_STYLE_GUIDE.md` + `AGENTS.md`.
 2. Завести `LOG.md` в области doctor-comms (execution log по правилу 5).
 3. Зафиксировать зелёный baseline затронутых зон.
 
 **Checklist:**
+
 - [ ] правила прочитаны, конфликтов нет; `LOG.md` создан.
 - [ ] `pnpm --dir apps/webapp typecheck` зелёный.
 - [ ] `pnpm --dir apps/webapp test -- src/modules/program-item-discussion` зелёный.
@@ -176,8 +181,9 @@ todos:
 ### 1.A Типы и контракт порта (`e1a-types-ports`)
 
 **Шаги:**
+
 1. `types.ts`: `DoctorExerciseCommentRow` (`patientUserId`, `instanceId`, `stageItemId`, `stageItemTitle`
-   *(из snapshot)*, `latestMessage: ProgramItemDiscussionMessage`, `createdAt`); `ListDoctorExerciseCommentsInput`
+   _(из snapshot)_, `latestMessage: ProgramItemDiscussionMessage`, `createdAt`); `ListDoctorExerciseCommentsInput`
    (`patientUserIds: string[]`, `viewerUserId: string`, `limit: number`, `cursor?: { createdAt; id } | null`).
 2. `ports.ts`: `listUnreadExerciseCommentsForDoctor(input)` (непрочитанные, новые сверху) +
    `listExerciseCommentsForDoctor(input)` (история, курсор, новые сверху).
@@ -187,15 +193,17 @@ todos:
 массив id. Имя пациента добирается в загрузчике, в порт не тащим (граница модуля doctor-clients не протекает).
 
 **Checklist:**
+
 - [ ] `rg "listUnreadExerciseCommentsForDoctor" src/modules/program-item-discussion` — порт+типы есть.
 - [ ] `pnpm --dir apps/webapp typecheck` (реализации добавляются в 1.B/1.C в рамках одного блока-коммита).
 
 ### 1.B Реализация pg-инфры (`e1b-pg-infra`)
 
 **Шаги:**
+
 1. `pgProgramItemDiscussion.ts`, один запрос: `messages` → join stage-items → stages → instances;
    WHERE `instances.patientUserId IN (...)` AND `assignmentSource='doctor'` AND активный exercise-элемент
-   *(сверить реальные колонки: `snapshot->>'itemType'`/`status`)*; последнее сообщение на stage-item через
+   _(сверить реальные колонки: `snapshot->>'itemType'`/`status`)_; последнее сообщение на stage-item через
    `DISTINCT ON (instanceStageItemId) ORDER BY createdAt DESC, id DESC`; оставить где последнее
    `senderRole='patient'` и `mediaFileId IS NULL`; LEFT JOIN `_reads` по `(viewerUserId, stageItemId)`,
    для unread — `createdAt > COALESCE(lastReadAt,'-infinity')`; внешний `ORDER BY createdAt DESC, id DESC`,
@@ -203,6 +211,7 @@ todos:
 2. `EXPLAIN` на dev-данных; если нужен индекс — согласовать миграцию (вне scope без согласования).
 
 **Checklist:**
+
 - [ ] integration-тест pg: непрочитанные сверху; прочитанные/ media-последнее / admin-последнее исключены;
       пагинация курсором; пустой `patientUserIds` → `[]`.
 - [ ] `pnpm --dir apps/webapp test -- src/infra/repos/pgProgramItemDiscussion` зелёный.
@@ -212,17 +221,20 @@ todos:
 **Шаги:** эквивалент на массивах для unit-тестов сервиса/страниц (паритет с pg).
 
 **Checklist:**
+
 - [ ] inMemory-тест с тем же набором кейсов, что и pg.
 - [ ] `pnpm --dir apps/webapp test -- src/infra/repos/inMemoryProgramItemDiscussion` зелёный.
 
 ### 1.D Service + DI + тесты (`e1d-service-di`)
 
 **Шаги:**
+
 1. `service.ts`: обёртки с `assertUuid(viewerUserId)` + валидация `patientUserIds`/курсора + clamp `limit`.
 2. `buildAppDeps.ts`: методы доступны через `programItemDiscussionService` (точки ~754/799/979/1498).
 3. Unit-тесты сервиса (валидация, проксирование в порт-двойник).
 
 **Checklist:**
+
 - [ ] `pnpm --dir apps/webapp test -- src/modules/program-item-discussion` зелёный.
 - [ ] `rg "listUnreadExerciseCommentsForDoctor|listExerciseCommentsForDoctor" src/app-layer/di/buildAppDeps.ts`.
 - [ ] **Phase-gate:** `pnpm --dir apps/webapp typecheck` зелёный.
@@ -241,6 +253,7 @@ exclusion), затем **один** `listUnreadExerciseCommentsForDoctor` (+ л�
 фан-аут `loadDoctorExerciseCommentAttention` для **таба** не используется (для «Сегодня» — остаётся).
 
 **Checklist:**
+
 - [ ] unit-тест на inMemory-порте (непрочитанные сверху, пустой on-support → пусто).
 - [ ] `rg "loadDoctorExerciseCommentAttention" src/app/app/doctor/comments` — в табе не вызывается.
 
@@ -250,6 +263,7 @@ exclusion), затем **один** `listUnreadExerciseCommentsForDoctor` (+ л�
 `requireDoctorAccess`.
 
 **Checklist:**
+
 - [ ] тест: 401 без доктор-доступа; пагинация курсором; добор поиска.
 - [ ] `pnpm --dir apps/webapp test -- <route-pattern>` зелёный.
 
@@ -260,6 +274,7 @@ reuse `ProgramItemDiscussionMessageBody`, `DoctorExerciseCommentsList`; отве
 «Открыть комментарии в программе» (read-only).
 
 **Checklist:**
+
 - [ ] компонент-тест: рендер непрочитанных; «загрузить ещё» дёргает route.
 - [ ] `rg "ProgramItemDiscussionMessageBody" src/app/app/doctor/comments` — reuse подтверждён.
 
@@ -270,6 +285,7 @@ reuse `ProgramItemDiscussionMessageBody`, `DoctorExerciseCommentsList`; отве
 не делаем.
 
 **Checklist:**
+
 - [ ] тест: клиент-фильтр + серверный добор.
 - [ ] **Phase-gate:** `pnpm --dir apps/webapp test -- src/app/app/doctor/comments` зелёный.
 
@@ -293,6 +309,7 @@ reuse `ProgramItemDiscussionMessageBody`, `DoctorExerciseCommentsList`; отве
 (скрытие неактивных, см. memory «Tabs load once, switch client-side»).
 
 **Checklist:**
+
 - [ ] тест: смонтированный таб не размонтируется при уходе (кэш). **Чанки греть в `beforeAll`** (`Promise.all`+`import`).
 
 ### 3.C URL-sync (`e3c-urlsync`)
@@ -302,6 +319,7 @@ reuse `ProgramItemDiscussionMessageBody`, `DoctorExerciseCommentsList`; отве
 `communicationsTabFromQuery`.
 
 **Checklist:**
+
 - [ ] тест: переключение меняет `?tab` без перемонтирования; deep-link `id`/`archive` читается/пишется.
 - [ ] **Phase-gate:** `pnpm --dir apps/webapp test -- src/app/app/doctor/communications` зелёный.
 
@@ -318,6 +336,7 @@ reuse `ProgramItemDiscussionMessageBody`, `DoctorExerciseCommentsList`; отве
 (`since=<ts>`/сравнение последнего сообщения). Вебсокет не вводим.
 
 **Checklist:**
+
 - [ ] тест: при скрытом окне/неактивном табе поллинг не идёт; без изменений нет ре-рендера списка.
 - [ ] `pnpm --dir apps/webapp test -- src/app/app/doctor/messages` зелёный.
 
@@ -333,6 +352,7 @@ reuse `ProgramItemDiscussionMessageBody`, `DoctorExerciseCommentsList`; отве
 deep-link `archive` → `BroadcastDeliveryArchiveClient`.
 
 **Checklist:**
+
 - [ ] тест: `archive=1` открывает архив.
 - [ ] **Phase-gate:** `pnpm --dir apps/webapp test -- src/app/app/doctor/broadcasts` зелёный.
 
@@ -351,6 +371,7 @@ deep-link `archive` → `BroadcastDeliveryArchiveClient`.
 блок `schedule` и его `REWRITE_MARKER_HEADER` не трогать.
 
 **Checklist:**
+
 - [ ] `rg "communications" src/middleware/doctorRouteRedirects.ts` — нет ветки rewrite, только 308-таргеты.
 
 ### 5.B Тесты редиректов (`e5b-redirect-tests`)
@@ -359,6 +380,7 @@ deep-link `archive` → `BroadcastDeliveryArchiveClient`.
 308-кейсы со старых URL сохранены; schedule-кейсы зелёные.
 
 **Checklist:**
+
 - [ ] `pnpm --dir apps/webapp test -- src/middleware/doctorRouteRedirects` зелёный (включая schedule).
 
 **Коммит блока 5:** `refactor(doctor-comms): убрать internal-rewrite communications, оставить 308 (TODO#3 Block 5)`
@@ -382,6 +404,7 @@ deep-link `archive` → `BroadcastDeliveryArchiveClient`.
 использование. Клиентские компоненты уже переехали в табы (Этапы 2/4). `schedule` не трогаем.
 
 **Checklist:**
+
 - [ ] `rg "DoctorCommunicationsTabsNav" src/app/app/doctor` — таб-бар только из шелла, не из 4 страниц.
 - [ ] прямой заход `/app/doctor/messages` → 308 на `?tab=chats` (тест redirects).
 - [ ] **Phase-gate:** `pnpm --dir apps/webapp typecheck && pnpm --dir apps/webapp lint` (затронутое) зелёные.

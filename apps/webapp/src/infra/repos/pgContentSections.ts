@@ -1,7 +1,7 @@
-import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
-import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
-import { getDrizzle } from "@/app-layer/db/drizzle";
-import { runDrizzleMutationTransaction } from "@/infra/db/drizzleMutationTx";
+import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
+import { getDrizzle } from '@/app-layer/db/drizzle';
+import { runDrizzleMutationTransaction } from '@/infra/db/drizzleMutationTx';
 import type {
   ContentSectionRow,
   ContentSectionsListFilter,
@@ -10,7 +10,7 @@ import type {
   DeleteSectionWithPageReassignResult,
   ListVisibleContentSectionsOpts,
   RenameSectionSlugResult,
-} from "@/modules/content-sections/ports";
+} from '@/modules/content-sections/ports';
 import {
   CMS_UNASSIGNED_SECTION_SLUG,
   isImmutableSystemSectionSlug,
@@ -18,9 +18,14 @@ import {
   isSectionSlugProtectedFromDelete,
   isSystemParentCode,
   isValidSectionTaxonomy,
-} from "@/modules/content-sections/types";
-import { validateContentSectionSlug } from "@/shared/lib/contentSectionSlug";
-import { contentPages, contentSectionSlugHistory, contentSections, patientHomeBlockItems } from "../../../db/schema";
+} from '@/modules/content-sections/types';
+import { validateContentSectionSlug } from '@/shared/lib/contentSectionSlug';
+import {
+  contentPages,
+  contentSectionSlugHistory,
+  contentSections,
+  patientHomeBlockItems,
+} from '../../../db/schema';
 
 export type {
   ContentSectionRow,
@@ -30,16 +35,16 @@ export type {
   DeleteSectionWithPageReassignResult,
   ListVisibleContentSectionsOpts,
   RenameSectionSlugResult,
-} from "@/modules/content-sections/ports";
+} from '@/modules/content-sections/ports';
 
-function normalizeKind(value: string | null | undefined): ContentSectionRow["kind"] {
-  return isContentSectionKind(value) ? value : "article";
+function normalizeKind(value: string | null | undefined): ContentSectionRow['kind'] {
+  return isContentSectionKind(value) ? value : 'article';
 }
 
 function currentPrincipalOrganizationId(): string {
   const principalOrganizationId = getCurrentDbPrincipalOrganizationId();
   if (!principalOrganizationId) {
-    throw new Error("organization_principal_required");
+    throw new Error('organization_principal_required');
   }
   return principalOrganizationId;
 }
@@ -55,8 +60,11 @@ function currentWriteOrganizationId(...fallbacks: (string | null | undefined)[])
   const fallbackOrganizationIds = fallbacks.filter((x): x is string => Boolean(x));
   const fallbackOrganizationId = fallbackOrganizationIds[0] ?? null;
   const hasFallbackMismatch = fallbackOrganizationIds.some((id) => id !== fallbackOrganizationId);
-  if (hasFallbackMismatch || (fallbackOrganizationId && principalOrganizationId !== fallbackOrganizationId)) {
-    throw new Error("organization_principal_mismatch");
+  if (
+    hasFallbackMismatch ||
+    (fallbackOrganizationId && principalOrganizationId !== fallbackOrganizationId)
+  ) {
+    throw new Error('organization_principal_mismatch');
   }
   return principalOrganizationId;
 }
@@ -64,22 +72,22 @@ function currentWriteOrganizationId(...fallbacks: (string | null | undefined)[])
 function mapRow(row: typeof contentSections.$inferSelect): ContentSectionRow {
   const kind = normalizeKind(row.kind);
   const raw = row.systemParentCode;
-  let systemParentCode: ContentSectionRow["systemParentCode"] = null;
-  if (kind === "system" && isSystemParentCode(raw)) {
+  let systemParentCode: ContentSectionRow['systemParentCode'] = null;
+  if (kind === 'system' && isSystemParentCode(raw)) {
     systemParentCode = raw;
   }
   return {
     id: row.id,
     slug: row.slug,
     title: row.title,
-    description: row.description ?? "",
+    description: row.description ?? '',
     sortOrder: row.sortOrder,
     isVisible: row.isVisible,
     requiresAuth: Boolean(row.requiresAuth),
     coverImageUrl: row.coverImageUrl ?? null,
     iconImageUrl: row.iconImageUrl ?? null,
     kind,
-    systemParentCode: kind === "article" ? null : systemParentCode,
+    systemParentCode: kind === 'article' ? null : systemParentCode,
   };
 }
 
@@ -87,9 +95,9 @@ function safePageSlugSuffixFromSection(sectionSlug: string): string {
   const x = sectionSlug
     .trim()
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-  return x.length > 0 ? x : "section";
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return x.length > 0 ? x : 'section';
 }
 
 function taxonomyFilterConditions(filter?: ContentSectionsListFilter) {
@@ -121,7 +129,11 @@ export function createPgContentSectionsPort(): ContentSectionsPort {
           ? { kind: opts.kind, systemParentCode: opts.systemParentCode }
           : undefined,
       );
-      const whereClause = and(vis, ...tax, ...(organizationId ? [eq(contentSections.organizationId, organizationId)] : []));
+      const whereClause = and(
+        vis,
+        ...tax,
+        ...(organizationId ? [eq(contentSections.organizationId, organizationId)] : []),
+      );
       const rows = await db
         .select()
         .from(contentSections)
@@ -133,9 +145,15 @@ export function createPgContentSectionsPort(): ContentSectionsPort {
       const db = getDrizzle();
       const organizationId = currentReadOrganizationId();
       const tax = taxonomyFilterConditions(filter);
-      const conditions = [...tax, ...(organizationId ? [eq(contentSections.organizationId, organizationId)] : [])];
+      const conditions = [
+        ...tax,
+        ...(organizationId ? [eq(contentSections.organizationId, organizationId)] : []),
+      ];
       const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
-      const base = db.select().from(contentSections).orderBy(asc(contentSections.sortOrder), asc(contentSections.title));
+      const base = db
+        .select()
+        .from(contentSections)
+        .orderBy(asc(contentSections.sortOrder), asc(contentSections.title));
       const rows = whereClause ? await base.where(whereClause) : await base;
       return rows.map(mapRow);
     },
@@ -145,17 +163,22 @@ export function createPgContentSectionsPort(): ContentSectionsPort {
       const rows = await db
         .select()
         .from(contentSections)
-        .where(and(eq(contentSections.slug, slug), ...(organizationId ? [eq(contentSections.organizationId, organizationId)] : [])))
+        .where(
+          and(
+            eq(contentSections.slug, slug),
+            ...(organizationId ? [eq(contentSections.organizationId, organizationId)] : []),
+          ),
+        )
         .limit(1);
       const row = rows[0];
       return row ? mapRow(row) : null;
     },
     async upsert(section: ContentSectionUpsertInput) {
       const organizationId = currentPrincipalOrganizationId();
-      const kind = section.kind ?? "article";
-      const systemParentCode = kind === "article" ? null : (section.systemParentCode ?? null);
+      const kind = section.kind ?? 'article';
+      const systemParentCode = kind === 'article' ? null : (section.systemParentCode ?? null);
       if (!isValidSectionTaxonomy(kind, systemParentCode)) {
-        throw new Error("invalid_content_section_taxonomy");
+        throw new Error('invalid_content_section_taxonomy');
       }
       const values = {
         organizationId,
@@ -200,7 +223,7 @@ export function createPgContentSectionsPort(): ContentSectionsPort {
           .returning({ id: contentSections.id });
       });
       const id = rows[0]?.id;
-      if (!id) throw new Error("content_sections upsert returned no id");
+      if (!id) throw new Error('content_sections upsert returned no id');
       return id;
     },
     async update(slug, patch) {
@@ -219,7 +242,11 @@ export function createPgContentSectionsPort(): ContentSectionsPort {
       const needsTaxonomyUpdate = patch.kind !== undefined || patch.systemParentCode !== undefined;
       if (!needsTaxonomyUpdate && Object.keys(setPayload).length <= 2) return;
       await runDrizzleMutationTransaction(async (tx) => {
-        const curRows = await tx.select().from(contentSections).where(eq(contentSections.slug, slug)).limit(1);
+        const curRows = await tx
+          .select()
+          .from(contentSections)
+          .where(eq(contentSections.slug, slug))
+          .limit(1);
         const cur = curRows[0];
         if (!cur) return;
         currentWriteOrganizationId(cur.organizationId);
@@ -233,12 +260,12 @@ export function createPgContentSectionsPort(): ContentSectionsPort {
           const nextParent =
             patch.systemParentCode !== undefined
               ? patch.systemParentCode
-              : nextKind === "system"
+              : nextKind === 'system'
                 ? curParent
                 : null;
-          const resolvedParent = nextKind === "article" ? null : nextParent;
+          const resolvedParent = nextKind === 'article' ? null : nextParent;
           if (!isValidSectionTaxonomy(nextKind, resolvedParent)) {
-            throw new Error("invalid_content_section_taxonomy");
+            throw new Error('invalid_content_section_taxonomy');
           }
           txSetPayload.kind = nextKind;
           txSetPayload.systemParentCode = resolvedParent;
@@ -282,7 +309,9 @@ export function createPgContentSectionsPort(): ContentSectionsPort {
         .where(
           and(
             eq(contentSectionSlugHistory.oldSlug, key),
-            ...(organizationId ? [eq(contentSectionSlugHistory.organizationId, organizationId)] : []),
+            ...(organizationId
+              ? [eq(contentSectionSlugHistory.organizationId, organizationId)]
+              : []),
           ),
         )
         .limit(1);
@@ -295,19 +324,23 @@ export function createPgContentSectionsPort(): ContentSectionsPort {
       if (!vNew.ok) return { ok: false, error: vNew.error };
       const o = vOld.slug;
       const n = vNew.slug;
-      if (o === n) return { ok: false, error: "Новый slug совпадает с текущим" };
+      if (o === n) return { ok: false, error: 'Новый slug совпадает с текущим' };
 
       try {
         const organizationId = currentPrincipalOrganizationId();
         return await runDrizzleMutationTransaction(async (tx): Promise<RenameSectionSlugResult> => {
-          const existingRows = await tx.select().from(contentSections).where(eq(contentSections.slug, o)).limit(1);
+          const existingRows = await tx
+            .select()
+            .from(contentSections)
+            .where(eq(contentSections.slug, o))
+            .limit(1);
           const existingRow = existingRows[0];
           if (!existingRow) {
-            return { ok: false, error: "Раздел с исходным slug не найден" };
+            return { ok: false, error: 'Раздел с исходным slug не найден' };
           }
           currentWriteOrganizationId(existingRow.organizationId);
           if (isImmutableSystemSectionSlug(o)) {
-            return { ok: false, error: "Slug встроенного раздела нельзя переименовать" };
+            return { ok: false, error: 'Slug встроенного раздела нельзя переименовать' };
           }
 
           const taken = await tx
@@ -317,7 +350,7 @@ export function createPgContentSectionsPort(): ContentSectionsPort {
             .limit(1);
           if (taken.length > 0) {
             currentWriteOrganizationId(taken[0]!.organizationId);
-            return { ok: false, error: "Раздел с таким slug уже существует" };
+            return { ok: false, error: 'Раздел с таким slug уже существует' };
           }
 
           await tx
@@ -328,7 +361,12 @@ export function createPgContentSectionsPort(): ContentSectionsPort {
           await tx
             .update(patientHomeBlockItems)
             .set({ organizationId, targetRef: n, updatedAt: sql`now()` as unknown as string })
-            .where(and(eq(patientHomeBlockItems.targetType, "content_section"), eq(patientHomeBlockItems.targetRef, o)));
+            .where(
+              and(
+                eq(patientHomeBlockItems.targetType, 'content_section'),
+                eq(patientHomeBlockItems.targetRef, o),
+              ),
+            );
 
           const updated = await tx
             .update(contentSections)
@@ -336,7 +374,7 @@ export function createPgContentSectionsPort(): ContentSectionsPort {
             .where(eq(contentSections.slug, o))
             .returning({ id: contentSections.id });
           if (updated.length === 0) {
-            return { ok: false, error: "Раздел с исходным slug не найден" };
+            return { ok: false, error: 'Раздел с исходным slug не найден' };
           }
 
           await tx.insert(contentSectionSlugHistory).values({
@@ -349,98 +387,121 @@ export function createPgContentSectionsPort(): ContentSectionsPort {
           return { ok: true, newSlug: n };
         });
       } catch (err) {
-        const code = typeof err === "object" && err !== null ? (err as { code?: string }).code : undefined;
-        if (code === "23505") {
-          return { ok: false, error: "Раздел с таким slug уже существует" };
+        const code =
+          typeof err === 'object' && err !== null ? (err as { code?: string }).code : undefined;
+        if (code === '23505') {
+          return { ok: false, error: 'Раздел с таким slug уже существует' };
         }
-        console.error("renameSectionSlug failed:", err);
-        return { ok: false, error: "Не удалось переименовать slug. Попробуйте ещё раз." };
+        console.error('renameSectionSlug failed:', err);
+        return { ok: false, error: 'Не удалось переименовать slug. Попробуйте ещё раз.' };
       }
     },
-    async deleteSectionWithPageReassign(sectionSlug, unassignedSectionSlug = CMS_UNASSIGNED_SECTION_SLUG) {
+    async deleteSectionWithPageReassign(
+      sectionSlug,
+      unassignedSectionSlug = CMS_UNASSIGNED_SECTION_SLUG,
+    ) {
       const slug = sectionSlug.trim();
       const bucketSlug = (unassignedSectionSlug ?? CMS_UNASSIGNED_SECTION_SLUG).trim();
-      if (!slug) return { ok: false, error: "Пустой slug раздела" };
+      if (!slug) return { ok: false, error: 'Пустой slug раздела' };
       if (isSectionSlugProtectedFromDelete(slug)) {
-        return { ok: false, error: "Этот раздел нельзя удалить" };
+        return { ok: false, error: 'Этот раздел нельзя удалить' };
       }
       if (slug === bucketSlug) {
-        return { ok: false, error: "Нельзя удалить служебный раздел «Без раздела»" };
+        return { ok: false, error: 'Нельзя удалить служебный раздел «Без раздела»' };
       }
 
       try {
         const organizationId = currentPrincipalOrganizationId();
-        return await runDrizzleMutationTransaction(async (tx): Promise<DeleteSectionWithPageReassignResult> => {
-          const bucketRows = await tx.select().from(contentSections).where(eq(contentSections.slug, bucketSlug)).limit(1);
-          if (bucketRows.length === 0) {
-            return {
-              ok: false,
-              error: "Служебный раздел CMS не найден. Выполните миграции базы данных.",
-            };
-          }
-          currentWriteOrganizationId(bucketRows[0]!.organizationId);
-
-          const sectionRows = await tx.select().from(contentSections).where(eq(contentSections.slug, slug)).limit(1);
-          if (sectionRows.length === 0) {
-            return { ok: false, error: "Раздел не найден" };
-          }
-          currentWriteOrganizationId(sectionRows[0]!.organizationId);
-
-          const pages = await tx.select().from(contentPages).where(eq(contentPages.section, slug));
-          for (const page of pages) {
-            currentWriteOrganizationId(page.organizationId);
-          }
-
-          async function allocatePageSlugInSection(
-            section: string,
-            baseSlug: string,
-            fromSection: string,
-          ): Promise<string> {
-            let candidate = baseSlug;
-            const suffixBase = safePageSlugSuffixFromSection(fromSection);
-            for (let n = 0; n < 500; n += 1) {
-              const clash = await tx
-                .select({ id: contentPages.id })
-                .from(contentPages)
-                .where(and(eq(contentPages.section, section), eq(contentPages.slug, candidate)))
-                .limit(1);
-              if (clash.length === 0) return candidate;
-              candidate =
-                n === 0 ? `${baseSlug}-moved-from-${suffixBase}` : `${baseSlug}-moved-from-${suffixBase}-${n}`;
+        return await runDrizzleMutationTransaction(
+          async (tx): Promise<DeleteSectionWithPageReassignResult> => {
+            const bucketRows = await tx
+              .select()
+              .from(contentSections)
+              .where(eq(contentSections.slug, bucketSlug))
+              .limit(1);
+            if (bucketRows.length === 0) {
+              return {
+                ok: false,
+                error: 'Служебный раздел CMS не найден. Выполните миграции базы данных.',
+              };
             }
-            throw new Error("page_slug_collision");
-          }
+            currentWriteOrganizationId(bucketRows[0]!.organizationId);
 
-          for (const p of pages) {
-            const nextSlug = await allocatePageSlugInSection(bucketSlug, p.slug, slug);
+            const sectionRows = await tx
+              .select()
+              .from(contentSections)
+              .where(eq(contentSections.slug, slug))
+              .limit(1);
+            if (sectionRows.length === 0) {
+              return { ok: false, error: 'Раздел не найден' };
+            }
+            currentWriteOrganizationId(sectionRows[0]!.organizationId);
+
+            const pages = await tx
+              .select()
+              .from(contentPages)
+              .where(eq(contentPages.section, slug));
+            for (const page of pages) {
+              currentWriteOrganizationId(page.organizationId);
+            }
+
+            async function allocatePageSlugInSection(
+              section: string,
+              baseSlug: string,
+              fromSection: string,
+            ): Promise<string> {
+              let candidate = baseSlug;
+              const suffixBase = safePageSlugSuffixFromSection(fromSection);
+              for (let n = 0; n < 500; n += 1) {
+                const clash = await tx
+                  .select({ id: contentPages.id })
+                  .from(contentPages)
+                  .where(and(eq(contentPages.section, section), eq(contentPages.slug, candidate)))
+                  .limit(1);
+                if (clash.length === 0) return candidate;
+                candidate =
+                  n === 0
+                    ? `${baseSlug}-moved-from-${suffixBase}`
+                    : `${baseSlug}-moved-from-${suffixBase}-${n}`;
+              }
+              throw new Error('page_slug_collision');
+            }
+
+            for (const p of pages) {
+              const nextSlug = await allocatePageSlugInSection(bucketSlug, p.slug, slug);
+              await tx
+                .update(contentPages)
+                .set({
+                  organizationId,
+                  section: bucketSlug,
+                  slug: nextSlug,
+                  updatedAt: sql`now()` as unknown as string,
+                })
+                .where(eq(contentPages.id, p.id));
+            }
+
             await tx
-              .update(contentPages)
+              .update(patientHomeBlockItems)
               .set({
                 organizationId,
-                section: bucketSlug,
-                slug: nextSlug,
+                targetRef: bucketSlug,
                 updatedAt: sql`now()` as unknown as string,
               })
-              .where(eq(contentPages.id, p.id));
-          }
+              .where(
+                and(
+                  eq(patientHomeBlockItems.targetType, 'content_section'),
+                  eq(patientHomeBlockItems.targetRef, slug),
+                ),
+              );
 
-          await tx
-            .update(patientHomeBlockItems)
-            .set({ organizationId, targetRef: bucketSlug, updatedAt: sql`now()` as unknown as string })
-            .where(
-              and(
-                eq(patientHomeBlockItems.targetType, "content_section"),
-                eq(patientHomeBlockItems.targetRef, slug),
-              ),
-            );
+            await tx.delete(contentSections).where(eq(contentSections.slug, slug));
 
-          await tx.delete(contentSections).where(eq(contentSections.slug, slug));
-
-          return { ok: true, movedPageCount: pages.length };
-        });
+            return { ok: true, movedPageCount: pages.length };
+          },
+        );
       } catch (err) {
-        console.error("deleteSectionWithPageReassign failed:", err);
-        return { ok: false, error: "Не удалось удалить раздел. Попробуйте ещё раз." };
+        console.error('deleteSectionWithPageReassign failed:', err);
+        return { ok: false, error: 'Не удалось удалить раздел. Попробуйте ещё раз.' };
       }
     },
   };
@@ -451,17 +512,17 @@ export const inMemoryContentSectionsPort: ContentSectionsPort = {
   listVisible: async () => [],
   listAll: async () => [],
   getBySlug: async () => null,
-  upsert: async () => "",
+  upsert: async () => '',
   update: async () => {},
   reorderSlugs: async () => {},
   renameSectionSlug: async () => ({
     ok: false,
-    error: "Переименование slug недоступно в режиме без БД",
+    error: 'Переименование slug недоступно в режиме без БД',
   }),
   getRedirectNewSlugForOldSlug: async () => null,
   deleteSectionWithPageReassign: async () => ({
     ok: false,
-    error: "Удаление раздела недоступно в режиме без БД",
+    error: 'Удаление раздела недоступно в режиме без БД',
   }),
 };
 
@@ -503,10 +564,10 @@ export function createInMemoryContentSectionsPort(): ContentSectionsPort {
       return memory.get(slug) ?? null;
     },
     async upsert(section: ContentSectionUpsertInput) {
-      const kind = section.kind ?? "article";
-      const systemParentCode = kind === "article" ? null : (section.systemParentCode ?? null);
+      const kind = section.kind ?? 'article';
+      const systemParentCode = kind === 'article' ? null : (section.systemParentCode ?? null);
       if (!isValidSectionTaxonomy(kind, systemParentCode)) {
-        throw new Error("invalid_content_section_taxonomy");
+        throw new Error('invalid_content_section_taxonomy');
       }
       const id = section.id ?? `mem-${section.slug}`;
       const row: ContentSectionRow = {
@@ -532,13 +593,13 @@ export function createInMemoryContentSectionsPort(): ContentSectionsPort {
       const nextParent =
         patch.systemParentCode !== undefined
           ? patch.systemParentCode
-          : nextKind === "article"
+          : nextKind === 'article'
             ? null
             : cur.systemParentCode;
-      const resolvedParent = nextKind === "article" ? null : nextParent;
+      const resolvedParent = nextKind === 'article' ? null : nextParent;
       if (patch.kind !== undefined || patch.systemParentCode !== undefined) {
         if (!isValidSectionTaxonomy(nextKind, resolvedParent)) {
-          throw new Error("invalid_content_section_taxonomy");
+          throw new Error('invalid_content_section_taxonomy');
         }
       }
       memory.set(slug, {
@@ -573,13 +634,13 @@ export function createInMemoryContentSectionsPort(): ContentSectionsPort {
       if (!vNew.ok) return { ok: false, error: vNew.error };
       const o = vOld.slug;
       const n = vNew.slug;
-      if (o === n) return { ok: false, error: "Новый slug совпадает с текущим" };
+      if (o === n) return { ok: false, error: 'Новый slug совпадает с текущим' };
       const cur = memory.get(o);
-      if (!cur) return { ok: false, error: "Раздел с исходным slug не найден" };
+      if (!cur) return { ok: false, error: 'Раздел с исходным slug не найден' };
       if (isImmutableSystemSectionSlug(o)) {
-        return { ok: false, error: "Slug встроенного раздела нельзя переименовать" };
+        return { ok: false, error: 'Slug встроенного раздела нельзя переименовать' };
       }
-      if (memory.has(n)) return { ok: false, error: "Раздел с таким slug уже существует" };
+      if (memory.has(n)) return { ok: false, error: 'Раздел с таким slug уже существует' };
       memory.delete(o);
       memory.set(n, { ...cur, slug: n });
       slugRedirects.set(o, n);
@@ -588,9 +649,9 @@ export function createInMemoryContentSectionsPort(): ContentSectionsPort {
     async deleteSectionWithPageReassign(sectionSlug) {
       const slug = sectionSlug.trim();
       if (isSectionSlugProtectedFromDelete(slug)) {
-        return { ok: false, error: "Этот раздел нельзя удалить" };
+        return { ok: false, error: 'Этот раздел нельзя удалить' };
       }
-      if (!memory.has(slug)) return { ok: false, error: "Раздел не найден" };
+      if (!memory.has(slug)) return { ok: false, error: 'Раздел не найден' };
       memory.delete(slug);
       return { ok: true, movedPageCount: 0 };
     },

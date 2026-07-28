@@ -12,12 +12,12 @@
 
 ## 2. Матрица покрытия контейнеров (проверка по коду)
 
-| Контейнер | Template / каталог `comment` | Instance / runtime | Copy | Override + fallback | Doctor UI | Patient read | Статус |
-|-----------|-------------------------------|--------------------|------|---------------------|-----------|---------------|--------|
-| `treatment_program_template_stage_items` → instance | `comment` | `comment` + `local_comment` | `createInstanceTree` | `effectiveInstanceStageItemComment` + PATCH | конструктор + экземпляр | `PatientTreatmentProgramDetailClient` | **PASS** |
-| `test_set_items` → snapshot в элементе `test_set` | `comment` в БД | в JSON снимка `tests[].comment` | при `buildSnapshot` из строк набора | N/A (override строк набора вне B7 v1) | каталог + **экземпляр** ([`TestSetCatalogSnapshotLines`](../../../../apps/webapp/src/app/app/doctor/clients/treatment-programs/[instanceId]/TreatmentProgramInstanceDetailClient.tsx)) | **PASS** ([`TestSetBlock`](../../../../apps/webapp/src/app/app/patient/treatment-programs/PatientTreatmentProgramDetailClient.tsx) + [`parseTestSetSnapshotTests`](../../../../apps/webapp/src/modules/treatment-program/testSetSnapshotView.ts)) |
-| ЛФК template → instance | `comment` | `comment` + `local_comment` | assign | effective + PATCH | да | дневник | **PASS** |
-| Рекомендация (Q7) | без отдельного catalog comment | item comment программы отдельно | snapshot `bodyMd` | — | `bodyMd` в форме | снимок | **PASS** |
+| Контейнер                                           | Template / каталог `comment`   | Instance / runtime              | Copy                                | Override + fallback                         | Doctor UI                                                                                                                                                                              | Patient read                                                                                                                                                                                                                                      | Статус   |
+| --------------------------------------------------- | ------------------------------ | ------------------------------- | ----------------------------------- | ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| `treatment_program_template_stage_items` → instance | `comment`                      | `comment` + `local_comment`     | `createInstanceTree`                | `effectiveInstanceStageItemComment` + PATCH | конструктор + экземпляр                                                                                                                                                                | `PatientTreatmentProgramDetailClient`                                                                                                                                                                                                             | **PASS** |
+| `test_set_items` → snapshot в элементе `test_set`   | `comment` в БД                 | в JSON снимка `tests[].comment` | при `buildSnapshot` из строк набора | N/A (override строк набора вне B7 v1)       | каталог + **экземпляр** ([`TestSetCatalogSnapshotLines`](../../../../apps/webapp/src/app/app/doctor/clients/treatment-programs/[instanceId]/TreatmentProgramInstanceDetailClient.tsx)) | **PASS** ([`TestSetBlock`](../../../../apps/webapp/src/app/app/patient/treatment-programs/PatientTreatmentProgramDetailClient.tsx) + [`parseTestSetSnapshotTests`](../../../../apps/webapp/src/modules/treatment-program/testSetSnapshotView.ts)) |
+| ЛФК template → instance                             | `comment`                      | `comment` + `local_comment`     | assign                              | effective + PATCH                           | да                                                                                                                                                                                     | дневник                                                                                                                                                                                                                                           | **PASS** |
+| Рекомендация (Q7)                                   | без отдельного catalog comment | item comment программы отдельно | snapshot `bodyMd`                   | —                                           | `bodyMd` в форме                                                                                                                                                                       | снимок                                                                                                                                                                                                                                            | **PASS** |
 
 ## 3. Copy / override / clear / fallback
 
@@ -48,11 +48,11 @@
 
 ## 8. Findings (первичный аудит → статус после FIX)
 
-| ID | Уровень | Статус |
-|----|---------|--------|
-| B7-M1 | major | **Закрыт** (см. §12 FIX) |
-| B7-m1 | minor | **Deferred** — нет стандартного E2E в репо; QA smoke перед релизом |
-| B7-m2 | minor | **Deferred** — in-memory by design для dev без БД |
+| ID    | Уровень | Статус                                                             |
+| ----- | ------- | ------------------------------------------------------------------ |
+| B7-M1 | major   | **Закрыт** (см. §12 FIX)                                           |
+| B7-m1 | minor   | **Deferred** — нет стандартного E2E в репо; QA smoke перед релизом |
+| B7-m2 | minor   | **Deferred** — in-memory by design для dev без БД                  |
 
 ---
 
@@ -60,7 +60,7 @@
 
 ### critical
 
-*N/A.*
+_N/A._
 
 ### major
 
@@ -73,7 +73,7 @@
 
 ### minor
 
-1. **Deferred (B7-m1):** автоматизированный E2E «ЛФК assign → override → patient card» — вне текущего tooling; оставить в QA чеклисте релиза.  
+1. **Deferred (B7-m1):** автоматизированный E2E «ЛФК assign → override → patient card» — вне текущего tooling; оставить в QA чеклисте релиза.
 2. **Deferred (B7-m2):** in-memory порты без PostgreSQL — без изменений.
 
 ## 10. Закрытие

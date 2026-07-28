@@ -1,9 +1,14 @@
-import { and, desc, eq, inArray, isNull, lt, ne, or } from "drizzle-orm";
-import { getDrizzle } from "@/app-layer/db/drizzle";
-import { broadcastAudit, integratorPushOutbox, platformUsers, projectionOutbox } from "../../../db/schema/schema";
-import { operatorHealthFailureArchive } from "../../../db/schema/operatorHealthFailureArchive";
-import { outgoingDeliveryQueue } from "../../../db/schema/outgoingDeliveryQueue";
-import { DOCTOR_BROADCAST_QUEUE_KIND } from "@/modules/doctor-broadcasts/deliveryQueueKind";
+import { and, desc, eq, inArray, isNull, lt, ne, or } from 'drizzle-orm';
+import { getDrizzle } from '@/app-layer/db/drizzle';
+import {
+  broadcastAudit,
+  integratorPushOutbox,
+  platformUsers,
+  projectionOutbox,
+} from '../../../db/schema/schema';
+import { operatorHealthFailureArchive } from '../../../db/schema/operatorHealthFailureArchive';
+import { outgoingDeliveryQueue } from '../../../db/schema/outgoingDeliveryQueue';
+import { DOCTOR_BROADCAST_QUEUE_KIND } from '@/modules/doctor-broadcasts/deliveryQueueKind';
 import {
   HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE,
   HEALTH_FAILURE_ARCHIVE_OUTGOING_PROBE,
@@ -14,22 +19,21 @@ import {
   OUTGOING_REMINDER_ARCHIVE_SOURCE_KIND,
   OUTGOING_REMINDER_QUEUE_KIND,
   PROJECTION_ARCHIVE_SOURCE_KIND,
-} from "@/modules/operator-health/healthFailureArchiveConstants";
+} from '@/modules/operator-health/healthFailureArchiveConstants';
 import type {
   HealthFailureArchiveClearBatchResult,
   HealthFailureArchiveListResult,
   HealthFailureArchivePort,
   HealthFailureArchiveRow,
-} from "@/modules/operator-health/healthFailureArchivePort";
-import type { HealthFailureArchiveProbe } from "@/modules/operator-health/healthFailureArchiveConstants";
+} from '@/modules/operator-health/healthFailureArchivePort';
+import type { HealthFailureArchiveProbe } from '@/modules/operator-health/healthFailureArchiveConstants';
 import {
   humanizeIntegratorPushOutboxLastError,
   humanizeOutgoingDeliveryLastError,
   maskPhoneForHealthArchive,
-} from "@/modules/operator-health/humanizeOutgoingDeliveryLastError";
+} from '@/modules/operator-health/humanizeOutgoingDeliveryLastError';
 
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function truncateError(s: string | null | undefined, max = 512): string | null {
   if (s == null || s.length === 0) return null;
@@ -38,7 +42,7 @@ function truncateError(s: string | null | undefined, max = 512): string | null {
 }
 
 function parsePayload(p: unknown): Record<string, unknown> {
-  if (p !== null && typeof p === "object" && !Array.isArray(p)) return p as Record<string, unknown>;
+  if (p !== null && typeof p === 'object' && !Array.isArray(p)) return p as Record<string, unknown>;
   return {};
 }
 
@@ -56,24 +60,24 @@ function recipientShortName(row: {
   const dn = row.displayName?.trim();
   if (dn) return shortTitle(dn, 80);
   const parts = [row.firstName?.trim(), row.lastName?.trim()].filter(Boolean);
-  if (parts.length) return shortTitle(parts.join(" "), 80);
-  return "—";
+  if (parts.length) return shortTitle(parts.join(' '), 80);
+  return '—';
 }
 
 export type CursorPayload = { a: string; i: string };
 
 export function encodeArchiveCursor(payload: CursorPayload): string {
-  return Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
+  return Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
 }
 
 export function decodeArchiveCursor(raw: string | null | undefined): CursorPayload | null {
-  if (raw == null || typeof raw !== "string" || raw.trim().length === 0) return null;
+  if (raw == null || typeof raw !== 'string' || raw.trim().length === 0) return null;
   try {
-    const json = JSON.parse(Buffer.from(raw, "base64url").toString("utf8")) as unknown;
-    if (json === null || typeof json !== "object" || Array.isArray(json)) return null;
+    const json = JSON.parse(Buffer.from(raw, 'base64url').toString('utf8')) as unknown;
+    if (json === null || typeof json !== 'object' || Array.isArray(json)) return null;
     const o = json as Record<string, unknown>;
-    const a = typeof o.a === "string" ? o.a : null;
-    const i = typeof o.i === "string" ? o.i : null;
+    const a = typeof o.a === 'string' ? o.a : null;
+    const i = typeof o.i === 'string' ? o.i : null;
     if (!a || !i || !UUID_RE.test(i)) return null;
     return { a, i };
   } catch {
@@ -97,10 +101,10 @@ export const pgHealthFailureArchivePort: HealthFailureArchivePort = {
         .from(outgoingDeliveryQueue)
         .where(
           and(
-            eq(outgoingDeliveryQueue.status, "dead"),
+            eq(outgoingDeliveryQueue.status, 'dead'),
             or(
               isNull(outgoingDeliveryQueue.failureClass),
-              ne(outgoingDeliveryQueue.failureClass, "recipient_blocked_bot"),
+              ne(outgoingDeliveryQueue.failureClass, 'recipient_blocked_bot'),
             ),
           ),
         )
@@ -116,7 +120,7 @@ export const pgHealthFailureArchivePort: HealthFailureArchivePort = {
           broadcastRows
             .map((r) => {
               const p = parsePayload(r.payloadJson);
-              return typeof p.broadcastAuditId === "string" ? p.broadcastAuditId : null;
+              return typeof p.broadcastAuditId === 'string' ? p.broadcastAuditId : null;
             })
             .filter((x): x is string => x != null && UUID_RE.test(x)),
         ),
@@ -126,7 +130,7 @@ export const pgHealthFailureArchivePort: HealthFailureArchivePort = {
           broadcastRows
             .map((r) => {
               const p = parsePayload(r.payloadJson);
-              return typeof p.clientUserId === "string" ? p.clientUserId : null;
+              return typeof p.clientUserId === 'string' ? p.clientUserId : null;
             })
             .filter((x): x is string => x != null && UUID_RE.test(x)),
         ),
@@ -156,10 +160,13 @@ export const pgHealthFailureArchivePort: HealthFailureArchivePort = {
 
         let doctorUserId: string | null = null;
         if (row.kind === DOCTOR_BROADCAST_QUEUE_KIND) {
-          const auditId = typeof payload.broadcastAuditId === "string" ? payload.broadcastAuditId : null;
-          const clientUserId = typeof payload.clientUserId === "string" ? payload.clientUserId : null;
+          const auditId =
+            typeof payload.broadcastAuditId === 'string' ? payload.broadcastAuditId : null;
+          const clientUserId =
+            typeof payload.clientUserId === 'string' ? payload.clientUserId : null;
           const audit = auditId && UUID_RE.test(auditId) ? auditMap.get(auditId) : undefined;
-          const client = clientUserId && UUID_RE.test(clientUserId) ? userMap.get(clientUserId) : undefined;
+          const client =
+            clientUserId && UUID_RE.test(clientUserId) ? userMap.get(clientUserId) : undefined;
           if (audit) {
             const doc = actorToDoctorUuid(audit.actorId);
             doctorUserId = doc;
@@ -179,7 +186,7 @@ export const pgHealthFailureArchivePort: HealthFailureArchivePort = {
           healthProbe: HEALTH_FAILURE_ARCHIVE_OUTGOING_PROBE,
           sourceKind: OUTGOING_ARCHIVE_SOURCE_KIND,
           sourceId: row.id,
-          severityAtArchive: "dead" as const,
+          severityAtArchive: 'dead' as const,
           doctorUserId,
           summaryJson: summary,
           rawErrorTruncated: truncateError(row.lastError),
@@ -207,7 +214,7 @@ export const pgHealthFailureArchivePort: HealthFailureArchivePort = {
       const rows = await tx
         .select()
         .from(integratorPushOutbox)
-        .where(eq(integratorPushOutbox.status, "dead"))
+        .where(eq(integratorPushOutbox.status, 'dead'))
         .limit(Math.min(500, Math.max(1, input.limit)));
 
       if (rows.length === 0) {
@@ -226,7 +233,7 @@ export const pgHealthFailureArchivePort: HealthFailureArchivePort = {
           healthProbe: HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE,
           sourceKind: INTEGRATOR_OUTBOX_ARCHIVE_SOURCE_KIND,
           sourceId: String(row.id),
-          severityAtArchive: "dead" as const,
+          severityAtArchive: 'dead' as const,
           doctorUserId: null as string | null,
           summaryJson: summary,
           rawErrorTruncated: truncateError(row.lastError),
@@ -254,7 +261,7 @@ export const pgHealthFailureArchivePort: HealthFailureArchivePort = {
       const rows = await tx
         .select()
         .from(projectionOutbox)
-        .where(eq(projectionOutbox.status, "dead"))
+        .where(eq(projectionOutbox.status, 'dead'))
         .limit(Math.min(500, Math.max(1, input.limit)));
 
       if (rows.length === 0) {
@@ -266,7 +273,7 @@ export const pgHealthFailureArchivePort: HealthFailureArchivePort = {
         healthProbe: HEALTH_FAILURE_ARCHIVE_PROJECTION_PROBE,
         sourceKind: PROJECTION_ARCHIVE_SOURCE_KIND,
         sourceId: String(row.id),
-        severityAtArchive: "dead" as const,
+        severityAtArchive: 'dead' as const,
         doctorUserId: null as string | null,
         summaryJson: {
           event_type: row.eventType,
@@ -299,11 +306,11 @@ export const pgHealthFailureArchivePort: HealthFailureArchivePort = {
         .from(outgoingDeliveryQueue)
         .where(
           and(
-            eq(outgoingDeliveryQueue.status, "dead"),
+            eq(outgoingDeliveryQueue.status, 'dead'),
             eq(outgoingDeliveryQueue.kind, OUTGOING_REMINDER_QUEUE_KIND),
             or(
               isNull(outgoingDeliveryQueue.failureClass),
-              ne(outgoingDeliveryQueue.failureClass, "recipient_blocked_bot"),
+              ne(outgoingDeliveryQueue.failureClass, 'recipient_blocked_bot'),
             ),
           ),
         )
@@ -326,7 +333,7 @@ export const pgHealthFailureArchivePort: HealthFailureArchivePort = {
           healthProbe: HEALTH_FAILURE_ARCHIVE_OUTGOING_REMINDER_PROBE,
           sourceKind: OUTGOING_REMINDER_ARCHIVE_SOURCE_KIND,
           sourceId: row.id,
-          severityAtArchive: "dead" as const,
+          severityAtArchive: 'dead' as const,
           doctorUserId: null as string | null,
           summaryJson: summary,
           rawErrorTruncated: truncateError(row.lastError),
@@ -362,7 +369,10 @@ export const pgHealthFailureArchivePort: HealthFailureArchivePort = {
       wh.push(
         or(
           lt(operatorHealthFailureArchive.archivedAt, cur.a),
-          and(eq(operatorHealthFailureArchive.archivedAt, cur.a), lt(operatorHealthFailureArchive.id, cur.i)),
+          and(
+            eq(operatorHealthFailureArchive.archivedAt, cur.a),
+            lt(operatorHealthFailureArchive.id, cur.i),
+          ),
         )!,
       );
     }
@@ -378,9 +388,7 @@ export const pgHealthFailureArchivePort: HealthFailureArchivePort = {
     const page = hasMore ? rows.slice(0, limit) : rows;
     const last = page[page.length - 1];
     const nextCursor =
-      hasMore && last
-        ? encodeArchiveCursor({ a: last.archivedAt, i: last.id })
-        : null;
+      hasMore && last ? encodeArchiveCursor({ a: last.archivedAt, i: last.id }) : null;
 
     const items: HealthFailureArchiveRow[] = page.map((r) => ({
       id: r.id,
@@ -392,7 +400,7 @@ export const pgHealthFailureArchivePort: HealthFailureArchivePort = {
       severityAtArchive: r.severityAtArchive,
       doctorUserId: r.doctorUserId ?? null,
       summaryJson:
-        r.summaryJson !== null && typeof r.summaryJson === "object" && !Array.isArray(r.summaryJson)
+        r.summaryJson !== null && typeof r.summaryJson === 'object' && !Array.isArray(r.summaryJson)
           ? (r.summaryJson as Record<string, unknown>)
           : {},
       rawErrorTruncated: r.rawErrorTruncated ?? null,
@@ -418,7 +426,10 @@ export const pgHealthFailureArchivePort: HealthFailureArchivePort = {
       wh.push(
         or(
           lt(operatorHealthFailureArchive.archivedAt, cur.a),
-          and(eq(operatorHealthFailureArchive.archivedAt, cur.a), lt(operatorHealthFailureArchive.id, cur.i)),
+          and(
+            eq(operatorHealthFailureArchive.archivedAt, cur.a),
+            lt(operatorHealthFailureArchive.id, cur.i),
+          ),
         )!,
       );
     }
@@ -434,9 +445,7 @@ export const pgHealthFailureArchivePort: HealthFailureArchivePort = {
     const page = hasMore ? rows.slice(0, limit) : rows;
     const last = page[page.length - 1];
     const nextCursor =
-      hasMore && last
-        ? encodeArchiveCursor({ a: last.archivedAt, i: last.id })
-        : null;
+      hasMore && last ? encodeArchiveCursor({ a: last.archivedAt, i: last.id }) : null;
 
     const items: HealthFailureArchiveRow[] = page.map((r) => ({
       id: r.id,
@@ -448,7 +457,7 @@ export const pgHealthFailureArchivePort: HealthFailureArchivePort = {
       severityAtArchive: r.severityAtArchive,
       doctorUserId: r.doctorUserId ?? null,
       summaryJson:
-        r.summaryJson !== null && typeof r.summaryJson === "object" && !Array.isArray(r.summaryJson)
+        r.summaryJson !== null && typeof r.summaryJson === 'object' && !Array.isArray(r.summaryJson)
           ? (r.summaryJson as Record<string, unknown>)
           : {},
       rawErrorTruncated: r.rawErrorTruncated ?? null,

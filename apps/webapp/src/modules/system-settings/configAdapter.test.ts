@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock("@/infra/db/runWebappSql", () => ({
+vi.mock('@/infra/db/runWebappSql', () => ({
   runWebappPgText: vi.fn().mockResolvedValue({ rows: [] }),
 }));
 
@@ -13,155 +13,169 @@ import {
   getServerRuntimeTokenList,
   invalidateConfigCache,
   invalidateConfigKey,
-} from "./configAdapter";
-import { runWebappPgText } from "@/infra/db/runWebappSql";
+} from './configAdapter';
+import { runWebappPgText } from '@/infra/db/runWebappSql';
 
-describe("configAdapter", () => {
+describe('configAdapter', () => {
   beforeEach(() => {
     invalidateConfigCache();
     vi.clearAllMocks();
     vi.mocked(runWebappPgText).mockResolvedValue({ rows: [] });
   });
 
-  it("returns env fallback when DB has no row", async () => {
-    const result = await getConfigValue("support_contact_url", "https://t.me/default_support");
-    expect(result).toBe("https://t.me/default_support");
+  it('returns env fallback when DB has no row', async () => {
+    const result = await getConfigValue('support_contact_url', 'https://t.me/default_support');
+    expect(result).toBe('https://t.me/default_support');
   });
 
-  it("returns DB value over env fallback when DB has a non-empty value", async () => {
+  it('returns DB value over env fallback when DB has a non-empty value', async () => {
     vi.mocked(runWebappPgText).mockResolvedValue({
-      rows: [{ scope: "admin", value_json: { value: "https://t.me/prod_support" } }],
+      rows: [{ scope: 'admin', value_json: { value: 'https://t.me/prod_support' } }],
     });
 
-    const result = await getConfigValue("support_contact_url", "https://t.me/default_support");
-    expect(result).toBe("https://t.me/prod_support");
+    const result = await getConfigValue('support_contact_url', 'https://t.me/default_support');
+    expect(result).toBe('https://t.me/prod_support');
   });
 
-  it("uses cache on second call within TTL", async () => {
+  it('uses cache on second call within TTL', async () => {
     vi.mocked(runWebappPgText).mockResolvedValue({
-      rows: [{ scope: "admin", value_json: { value: "https://t.me/cached_support" } }],
+      rows: [{ scope: 'admin', value_json: { value: 'https://t.me/cached_support' } }],
     });
 
-    await getConfigValue("support_contact_url", "fallback");
-    await getConfigValue("support_contact_url", "fallback");
+    await getConfigValue('support_contact_url', 'fallback');
+    await getConfigValue('support_contact_url', 'fallback');
 
     expect(runWebappPgText).toHaveBeenCalledTimes(1);
   });
 
-  it("invalidateConfigKey clears only the specified key cache", async () => {
+  it('invalidateConfigKey clears only the specified key cache', async () => {
     vi.mocked(runWebappPgText).mockResolvedValue({
-      rows: [{ scope: "admin", value_json: { value: "some-value" } }],
+      rows: [{ scope: 'admin', value_json: { value: 'some-value' } }],
     });
 
-    await getConfigValue("support_contact_url", "fallback");
-    await getConfigValue("admin_telegram_ids", "fallback2");
+    await getConfigValue('support_contact_url', 'fallback');
+    await getConfigValue('admin_telegram_ids', 'fallback2');
     expect(runWebappPgText).toHaveBeenCalledTimes(2);
 
-    invalidateConfigKey("support_contact_url");
+    invalidateConfigKey('support_contact_url');
 
-    await getConfigValue("support_contact_url", "fallback");
-    await getConfigValue("admin_telegram_ids", "fallback2");
+    await getConfigValue('support_contact_url', 'fallback');
+    await getConfigValue('admin_telegram_ids', 'fallback2');
     expect(runWebappPgText).toHaveBeenCalledTimes(3);
   });
 
-  it("getConfigBool returns true for boolean true in DB", async () => {
+  it('getConfigBool returns true for boolean true in DB', async () => {
     vi.mocked(runWebappPgText).mockResolvedValue({
-      rows: [{ scope: "admin", value_json: { value: true } }],
+      rows: [{ scope: 'admin', value_json: { value: true } }],
     });
 
-    const result = await getConfigBool("dev_mode", false);
+    const result = await getConfigBool('dev_mode', false);
     expect(result).toBe(true);
   });
 
-  it("getConfigBool returns env fallback false when DB empty", async () => {
-    const result = await getConfigBool("dev_mode", false);
+  it('getConfigBool returns env fallback false when DB empty', async () => {
+    const result = await getConfigBool('dev_mode', false);
     expect(result).toBe(false);
   });
 
-  it("returns env fallback when DB throws an error", async () => {
-    vi.mocked(runWebappPgText).mockRejectedValue(new Error("DB connection failed"));
+  it('returns env fallback when DB throws an error', async () => {
+    vi.mocked(runWebappPgText).mockRejectedValue(new Error('DB connection failed'));
 
-    const result = await getConfigValue("support_contact_url", "https://t.me/fallback_support");
-    expect(result).toBe("https://t.me/fallback_support");
+    const result = await getConfigValue('support_contact_url', 'https://t.me/fallback_support');
+    expect(result).toBe('https://t.me/fallback_support');
   });
 
-  it("getConfigPositiveInt clamps to min/max", async () => {
+  it('getConfigPositiveInt clamps to min/max', async () => {
     vi.mocked(runWebappPgText).mockResolvedValue({
-      rows: [{ scope: "admin", value_json: { value: 30 } }],
+      rows: [{ scope: 'admin', value_json: { value: 30 } }],
     });
 
-    const r = await getConfigPositiveInt("video_presign_ttl_seconds", 3600, { min: 60, max: 604800 });
+    const r = await getConfigPositiveInt('video_presign_ttl_seconds', 3600, {
+      min: 60,
+      max: 604800,
+    });
     expect(r).toBe(60);
   });
 
-  it("getConfigPositiveInt returns default on NaN from DB", async () => {
+  it('getConfigPositiveInt returns default on NaN from DB', async () => {
     vi.mocked(runWebappPgText).mockResolvedValue({
-      rows: [{ scope: "admin", value_json: { value: "not-a-number" } }],
+      rows: [{ scope: 'admin', value_json: { value: 'not-a-number' } }],
     });
 
-    const r = await getConfigPositiveInt("video_presign_ttl_seconds", 3600, { min: 60, max: 604800 });
+    const r = await getConfigPositiveInt('video_presign_ttl_seconds', 3600, {
+      min: 60,
+      max: 604800,
+    });
     expect(r).toBe(3600);
   });
 
-  it("caches closed server token lists and preserves authoritative JSON arrays", async () => {
+  it('caches closed server token lists and preserves authoritative JSON arrays', async () => {
     vi.mocked(runWebappPgText).mockResolvedValue({
-      rows: [{
-        key: "doctor_phones",
-        scope: "admin",
-        organization_id: null,
-        audience: "server",
-        value_json: { value: ["+75550000001"] },
-      }],
+      rows: [
+        {
+          key: 'doctor_phones',
+          scope: 'admin',
+          organization_id: null,
+          audience: 'server',
+          value_json: { value: ['+75550000001'] },
+        },
+      ],
     });
 
-    await expect(getServerRuntimeTokenList("doctor_phones", "env-doctor")).resolves.toBe(
+    await expect(getServerRuntimeTokenList('doctor_phones', 'env-doctor')).resolves.toBe(
       '["+75550000001"]',
     );
-    await expect(getServerRuntimeTokenList("doctor_phones", "env-doctor")).resolves.toBe(
+    await expect(getServerRuntimeTokenList('doctor_phones', 'env-doctor')).resolves.toBe(
       '["+75550000001"]',
     );
     expect(runWebappPgText).toHaveBeenCalledTimes(1);
 
-    invalidateConfigKey("doctor_phones");
-    await getServerRuntimeTokenList("doctor_phones", "env-doctor");
+    invalidateConfigKey('doctor_phones');
+    await getServerRuntimeTokenList('doctor_phones', 'env-doctor');
     expect(runWebappPgText).toHaveBeenCalledTimes(2);
   });
 
-  it("bypasses the cache and fails closed for email-admin authorization reads", async () => {
+  it('bypasses the cache and fails closed for email-admin authorization reads', async () => {
     vi.mocked(runWebappPgText)
       .mockResolvedValueOnce({
-        rows: [{
-          key: "admin_emails",
-          scope: "admin",
-          organization_id: null,
-          audience: "server",
-          value_json: { value: ["dimmdao@gmail.com"] },
-        }],
+        rows: [
+          {
+            key: 'admin_emails',
+            scope: 'admin',
+            organization_id: null,
+            audience: 'server',
+            value_json: { value: ['dimmdao@gmail.com'] },
+          },
+        ],
       })
       .mockResolvedValueOnce({ rows: [] })
-      .mockRejectedValueOnce(new Error("database unavailable"));
+      .mockRejectedValueOnce(new Error('database unavailable'));
 
-    await expect(getFreshServerRuntimeTokenList("admin_emails")).resolves.toBe(
+    await expect(getFreshServerRuntimeTokenList('admin_emails')).resolves.toBe(
       '["dimmdao@gmail.com"]',
     );
-    await expect(getFreshServerRuntimeTokenList("admin_emails")).resolves.toBe("");
-    await expect(getFreshServerRuntimeTokenList("admin_emails")).rejects.toThrow("database unavailable");
+    await expect(getFreshServerRuntimeTokenList('admin_emails')).resolves.toBe('');
+    await expect(getFreshServerRuntimeTokenList('admin_emails')).rejects.toThrow(
+      'database unavailable',
+    );
     expect(runWebappPgText).toHaveBeenCalledTimes(3);
   });
 
-  describe("getIsSmtpOutboundConfiguredOrNull — app.is_smtp_outbound_configured() accessor", () => {
-    it("returns true when the accessor reports SMTP configured", async () => {
+  describe('getIsSmtpOutboundConfiguredOrNull — app.is_smtp_outbound_configured() accessor', () => {
+    it('returns true when the accessor reports SMTP configured', async () => {
       vi.mocked(runWebappPgText).mockResolvedValue({ rows: [{ configured: true }] });
       await expect(getIsSmtpOutboundConfiguredOrNull()).resolves.toBe(true);
     });
 
-    it("returns false when the accessor reports SMTP not configured", async () => {
+    it('returns false when the accessor reports SMTP not configured', async () => {
       vi.mocked(runWebappPgText).mockResolvedValue({ rows: [{ configured: false }] });
       await expect(getIsSmtpOutboundConfiguredOrNull()).resolves.toBe(false);
     });
 
-    it("returns null (never throws) when the accessor is unavailable, e.g. permission denied or an older DB before migration 0240", async () => {
-      vi.mocked(runWebappPgText).mockRejectedValue(new Error('function app.is_smtp_outbound_configured() does not exist'));
+    it('returns null (never throws) when the accessor is unavailable, e.g. permission denied or an older DB before migration 0240', async () => {
+      vi.mocked(runWebappPgText).mockRejectedValue(
+        new Error('function app.is_smtp_outbound_configured() does not exist'),
+      );
       await expect(getIsSmtpOutboundConfiguredOrNull()).resolves.toBeNull();
     });
 
@@ -172,7 +186,7 @@ describe("configAdapter", () => {
       await expect(getIsSmtpOutboundConfiguredOrNull()).resolves.toBe(true);
       expect(runWebappPgText).toHaveBeenCalledTimes(1);
 
-      invalidateConfigKey("smtp_outbound");
+      invalidateConfigKey('smtp_outbound');
       await getIsSmtpOutboundConfiguredOrNull();
       expect(runWebappPgText).toHaveBeenCalledTimes(2);
     });

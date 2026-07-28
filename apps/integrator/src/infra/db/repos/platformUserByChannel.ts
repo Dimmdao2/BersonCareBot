@@ -9,7 +9,9 @@ export async function resolveCanonicalPlatformUserIdByChannel(
   db: DbPort,
   input: { channelCode: string; externalId: string },
 ): Promise<string | null> {
-  const res = await runIntegratorSql<{ platform_user_id: string }>(db, sql`
+  const res = await runIntegratorSql<{ platform_user_id: string }>(
+    db,
+    sql`
     WITH RECURSIVE pu_chain AS (
       SELECT pu.id, pu.merged_into_id
       FROM public.user_channel_bindings ucb
@@ -25,7 +27,8 @@ export async function resolveCanonicalPlatformUserIdByChannel(
     FROM pu_chain
     WHERE merged_into_id IS NULL
     LIMIT 1
-  `);
+  `,
+  );
   const row = res.rows[0];
   return row?.platform_user_id?.trim() ? row.platform_user_id.trim() : null;
 }

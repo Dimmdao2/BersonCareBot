@@ -1,4 +1,4 @@
-import type { Pool, PoolClient, QueryResultRow } from "pg";
+import type { Pool, PoolClient, QueryResultRow } from 'pg';
 
 /** Max hops when following merged_into_id (cycle protection). */
 export const MAX_MERGE_CHAIN_DEPTH = 5;
@@ -15,7 +15,7 @@ export async function followMergedIntoChain(
   const seen = new Set<string>();
   for (let depth = 0; depth < MAX_MERGE_CHAIN_DEPTH; depth++) {
     if (seen.has(current)) {
-      console.warn("[canonical] merged_into_id cycle detected at", current);
+      console.warn('[canonical] merged_into_id cycle detected at', current);
       return startId;
     }
     seen.add(current);
@@ -27,7 +27,7 @@ export async function followMergedIntoChain(
     if (next == null) return current;
     current = next;
   }
-  console.warn("[canonical] merged_into_id chain exceeded max depth from", startId);
+  console.warn('[canonical] merged_into_id chain exceeded max depth from', startId);
   return current;
 }
 
@@ -78,7 +78,7 @@ export async function findCanonicalUserIdByPhone(
   );
   if (r.rows.length === 0) return null;
   if (r.rows.length > 1) {
-    console.error("[canonical] multiple canonical rows for phone (redacted)", {
+    console.error('[canonical] multiple canonical rows for phone (redacted)', {
       count: r.rows.length,
       ids: r.rows.map((x) => x.id),
     });
@@ -101,7 +101,7 @@ export async function findCanonicalUserIdByIntegratorId(
   );
   if (r.rows.length === 0) return null;
   if (r.rows.length > 1) {
-    console.error("[canonical] multiple canonical rows for integrator_user_id", {
+    console.error('[canonical] multiple canonical rows for integrator_user_id', {
       integratorUserId,
       ids: r.rows.map((x) => x.id),
     });
@@ -128,7 +128,7 @@ export async function findTrustedCanonicalUserIdByPhone(
   );
   if (r.rows.length === 0) return null;
   if (r.rows.length > 1) {
-    console.error("[canonical] multiple trusted canonical rows for phone (redacted)", {
+    console.error('[canonical] multiple trusted canonical rows for phone (redacted)', {
       count: r.rows.length,
     });
     return null;

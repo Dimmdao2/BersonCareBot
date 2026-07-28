@@ -31,10 +31,12 @@
 Перед любыми изменениями кода, БД, миграций, репозиториев или API по задачам из этого пакета агент обязан учитывать текущее направление `SAAS_FOUNDATION`.
 
 Канон:
+
 - `docs/_TODO/SAAS_FOUNDATION/REQUIREMENTS.md`
 - `docs/_TODO/SAAS_FOUNDATION/ROADMAP_TO_SAAS.md`, раздел "Table and feature design while SaaS is dormant"
 
 Практическое правило для feedback-задач:
+
 - Новые таблицы/колонки/связи для clinical, patient-facing, doctor-facing, booking, messaging, notification, media, catalog, product, payment или settings данных не должны быть "глобальными по умолчанию".
 - До миграции или новой записи в БД нужно явно определить ownership path: `organization_id` напрямую, связь через уже scoped parent, `specialist_id`, patient/enrollment, appointment, program instance или настоящий global catalog.
 - Если ownership неочевиден, не придумывать параллельную SaaS-модель. Пометить подпункт как `needs_decision` и оставить короткий design note для dev-lead/владельца.

@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 /**
  * PatientProgramPanelLoader — client wrapper that fetches published treatment-program
@@ -12,8 +12,8 @@
  *    (existing endpoint, no new routes needed).
  */
 
-import { useEffect, useState } from "react";
-import { PatientTreatmentProgramsPanel } from "@/app/app/doctor/clients/PatientTreatmentProgramsPanel";
+import { useEffect, useState } from 'react';
+import { PatientTreatmentProgramsPanel } from '@/app/app/doctor/clients/PatientTreatmentProgramsPanel';
 
 type TemplateOption = { id: string; title: string };
 
@@ -25,7 +25,7 @@ export function PatientProgramPanelLoader({ userId }: Props) {
 
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/doctor/treatment-program-templates?status=published")
+    fetch('/api/doctor/treatment-program-templates?status=published')
       .then((r) => r.json())
       .then((data: { ok?: boolean; items?: TemplateOption[] }) => {
         if (cancelled) return;

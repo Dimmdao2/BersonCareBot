@@ -1,11 +1,11 @@
-import { DateTime } from "luxon";
-import type { ChecklistTodaySnapshot } from "@/modules/treatment-program/patient-program-actions";
-import type { PatientPracticeCompletionRow } from "@/modules/patient-practice/types";
+import { DateTime } from 'luxon';
+import type { ChecklistTodaySnapshot } from '@/modules/treatment-program/patient-program-actions';
+import type { PatientPracticeCompletionRow } from '@/modules/patient-practice/types';
 
 /** Источник отметки разминки на главной — только «разминка дня». */
-export const PATIENT_HOME_WARMUP_COMPLETION_SOURCES = new Set<PatientPracticeCompletionRow["source"]>([
-  "daily_warmup",
-]);
+export const PATIENT_HOME_WARMUP_COMPLETION_SOURCES = new Set<
+  PatientPracticeCompletionRow['source']
+>(['daily_warmup']);
 
 export type PatientHomeProgressGoalBreakdown = {
   warmupDone: number;
@@ -14,7 +14,9 @@ export type PatientHomeProgressGoalBreakdown = {
   lfkPlanned: number;
 };
 
-export function countWarmupCompletionsInRows(rows: readonly PatientPracticeCompletionRow[]): number {
+export function countWarmupCompletionsInRows(
+  rows: readonly PatientPracticeCompletionRow[],
+): number {
   return rows.filter((r) => PATIENT_HOME_WARMUP_COMPLETION_SOURCES.has(r.source)).length;
 }
 
@@ -57,8 +59,7 @@ export function assemblePatientHomeProgress(params: {
   muted: boolean;
   plannedTotal: number;
 }): PatientHomeProgressAssembly {
-  const useReminderPlan =
-    params.hasConfiguredSchedule && !params.muted && params.plannedTotal > 0;
+  const useReminderPlan = params.hasConfiguredSchedule && !params.muted && params.plannedTotal > 0;
 
   if (useReminderPlan) {
     const toward = countPatientHomeDoneTowardReminderPlan({
@@ -106,7 +107,7 @@ export function buildPatientHomeProgressAriaLabel(params: {
   if (breakdown.lfkPlanned > 0) {
     parts.push(`Тренировки: ${breakdown.lfkDone} из ${breakdown.lfkPlanned}`);
   }
-  return `${parts.join(". ")}.`;
+  return `${parts.join('. ')}.`;
 }
 
 /** Вклад в «Сегодня выполнено» по слотам напоминаний (не больше плана на день). */
@@ -134,9 +135,12 @@ export function buildPatientHomeProgressGoalBreakdown(params: {
 }
 
 /** UTC-окно [start, end) для календарного дня в IANA. */
-export function patientHomeLocalDayUtcWindow(localYmd: string, iana: string): { start: Date; end: Date } {
+export function patientHomeLocalDayUtcWindow(
+  localYmd: string,
+  iana: string,
+): { start: Date; end: Date } {
   const start = DateTime.fromISO(`${localYmd}T00:00:00`, { zone: iana });
-  if (!start.isValid) throw new Error("invalid_local_ymd_or_tz");
+  if (!start.isValid) throw new Error('invalid_local_ymd_or_tz');
   const end = start.plus({ days: 1 });
   return { start: start.toUTC().toJSDate(), end: end.toUTC().toJSDate() };
 }

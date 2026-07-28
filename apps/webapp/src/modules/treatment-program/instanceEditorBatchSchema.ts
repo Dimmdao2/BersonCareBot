@@ -1,5 +1,5 @@
-import { z } from "zod";
-import { TREATMENT_PROGRAM_ITEM_TYPES } from "./types";
+import { z } from 'zod';
+import { TREATMENT_PROGRAM_ITEM_TYPES } from './types';
 
 /** Client draft id (`draft:` + uuid) or persisted uuid. */
 export const instanceEditorBatchIdSchema = z.union([
@@ -68,7 +68,7 @@ const itemStructuralPatchSchema = z
   .object({
     groupId: instanceEditorBatchIdSchema.nullable().optional(),
     isActionable: z.boolean().nullable().optional(),
-    status: z.enum(["active", "disabled"]).optional(),
+    status: z.enum(['active', 'disabled']).optional(),
     replace: z
       .object({
         itemType: z.enum(TREATMENT_PROGRAM_ITEM_TYPES),
@@ -82,7 +82,7 @@ const itemStructuralPatchSchema = z
 
 const libraryItemCreateSchema = z
   .object({
-    kind: z.literal("library_item"),
+    kind: z.literal('library_item'),
     clientId: instanceEditorBatchIdSchema,
     stageId: instanceEditorBatchIdSchema,
     itemType: z.enum(TREATMENT_PROGRAM_ITEM_TYPES),
@@ -92,13 +92,13 @@ const libraryItemCreateSchema = z
     localComment: z.union([z.string(), z.null()]).optional(),
     loadSettings: loadSettingsPatchSchema.optional(),
     isActionable: z.boolean().nullable().optional(),
-    status: z.enum(["active", "disabled"]).optional(),
+    status: z.enum(['active', 'disabled']).optional(),
   })
   .strict();
 
 const freeformCreateSchema = z
   .object({
-    kind: z.literal("freeform_recommendation"),
+    kind: z.literal('freeform_recommendation'),
     clientId: instanceEditorBatchIdSchema,
     stageId: instanceEditorBatchIdSchema,
     title: z.string().min(1).max(2000),
@@ -106,13 +106,13 @@ const freeformCreateSchema = z
     snapshot: z.record(z.string(), z.unknown()).optional(),
     localComment: z.union([z.string(), z.null()]).optional(),
     isActionable: z.boolean().nullable().optional(),
-    status: z.enum(["active", "disabled"]).optional(),
+    status: z.enum(['active', 'disabled']).optional(),
   })
   .strict();
 
 const individualExerciseCreateSchema = z
   .object({
-    kind: z.literal("individual_exercise"),
+    kind: z.literal('individual_exercise'),
     clientId: instanceEditorBatchIdSchema,
     stageId: instanceEditorBatchIdSchema,
     groupId: instanceEditorBatchIdSchema,
@@ -138,13 +138,13 @@ const expandLineSchema = z
     localComment: z.union([z.string(), z.null()]).optional(),
     loadSettings: loadSettingsPatchSchema.optional(),
     groupId: instanceEditorBatchIdSchema.nullable().optional(),
-    status: z.enum(["active", "disabled"]).optional(),
+    status: z.enum(['active', 'disabled']).optional(),
   })
   .strict();
 
 const testSetExpandSchema = z
   .object({
-    kind: z.literal("test_set_expand"),
+    kind: z.literal('test_set_expand'),
     stageId: instanceEditorBatchIdSchema,
     testSetId: z.string().uuid(),
     items: z.array(expandLineSchema).min(1),
@@ -153,7 +153,7 @@ const testSetExpandSchema = z
 
 const lfkComplexExpandSchema = z
   .object({
-    kind: z.literal("lfk_complex_expand"),
+    kind: z.literal('lfk_complex_expand'),
     stageId: instanceEditorBatchIdSchema,
     groupId: instanceEditorBatchIdSchema,
     complexTemplateId: z.string().uuid(),
@@ -161,7 +161,7 @@ const lfkComplexExpandSchema = z
   })
   .strict();
 
-const itemCreateSchema = z.discriminatedUnion("kind", [
+const itemCreateSchema = z.discriminatedUnion('kind', [
   libraryItemCreateSchema,
   freeformCreateSchema,
   individualExerciseCreateSchema,

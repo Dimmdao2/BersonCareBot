@@ -2,46 +2,46 @@
  * Репозиторий настроек напоминаний для webapp-пользователя.
  * Читает из `reminder_rules` по `platform_user_id` (или через join с `platform_users`).
  */
-import { randomUUID } from "node:crypto";
-import { sql } from "drizzle-orm";
-import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
-import { getWebappSqlDb, runWebappSql, runWebappTransaction } from "@/infra/db/runWebappSql";
-import type { ReminderRulesPort } from "@/modules/reminders/ports";
+import { randomUUID } from 'node:crypto';
+import { sql } from 'drizzle-orm';
+import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
+import { getWebappSqlDb, runWebappSql, runWebappTransaction } from '@/infra/db/runWebappSql';
+import type { ReminderRulesPort } from '@/modules/reminders/ports';
 import type {
   ReminderCategory,
   ReminderIntent,
   ReminderLinkedObjectType,
   ReminderRule,
   ReminderUpdateSchedule,
-} from "@/modules/reminders/types";
-import type { SlotsV1ScheduleData } from "@/modules/reminders/scheduleSlots";
-import { cancelWebPushOnlyPendingOccurrencesForRule } from "@/infra/repos/pgWebPushOnlyReminders";
-import { DEFAULT_REHAB_DAILY_SLOTS } from "@/modules/reminders/scheduleSlots";
-import { notificationTopicCodeFromReminderRule } from "@/modules/reminders/notificationTopicCode";
+} from '@/modules/reminders/types';
+import type { SlotsV1ScheduleData } from '@/modules/reminders/scheduleSlots';
+import { cancelWebPushOnlyPendingOccurrencesForRule } from '@/infra/repos/pgWebPushOnlyReminders';
+import { DEFAULT_REHAB_DAILY_SLOTS } from '@/modules/reminders/scheduleSlots';
+import { notificationTopicCodeFromReminderRule } from '@/modules/reminders/notificationTopicCode';
 
-const FALLBACK_CATEGORIES = new Set(["appointment", "lfk", "chat", "important"]);
+const FALLBACK_CATEGORIES = new Set(['appointment', 'lfk', 'chat', 'important']);
 
 function mapLinkedTypeToCategory(linked: ReminderLinkedObjectType): ReminderCategory {
   if (
-    linked === "lfk_complex" ||
-    linked === "content_section" ||
-    linked === "rehab_program" ||
-    linked === "treatment_program_item"
+    linked === 'lfk_complex' ||
+    linked === 'content_section' ||
+    linked === 'rehab_program' ||
+    linked === 'treatment_program_item'
   ) {
-    return "lfk";
+    return 'lfk';
   }
-  return "important";
+  return 'important';
 }
 
 function parseLinkedType(raw: string | null): ReminderLinkedObjectType | null {
-  if (raw === null || raw === undefined || raw === "") return null;
+  if (raw === null || raw === undefined || raw === '') return null;
   if (
-    raw === "lfk_complex" ||
-    raw === "content_section" ||
-    raw === "content_page" ||
-    raw === "custom" ||
-    raw === "rehab_program" ||
-    raw === "treatment_program_item"
+    raw === 'lfk_complex' ||
+    raw === 'content_section' ||
+    raw === 'content_page' ||
+    raw === 'custom' ||
+    raw === 'rehab_program' ||
+    raw === 'treatment_program_item'
   ) {
     return raw;
   }
@@ -49,14 +49,14 @@ function parseLinkedType(raw: string | null): ReminderLinkedObjectType | null {
 }
 
 function parseIntent(raw: string | null | undefined): ReminderIntent {
-  if (raw === "warmup" || raw === "exercises" || raw === "stretch" || raw === "generic") return raw;
-  return "generic";
+  if (raw === 'warmup' || raw === 'exercises' || raw === 'stretch' || raw === 'generic') return raw;
+  return 'generic';
 }
 
 function parseScheduleData(raw: unknown): SlotsV1ScheduleData | null {
-  if (raw == null || typeof raw !== "object") return null;
+  if (raw == null || typeof raw !== 'object') return null;
   const o = raw as Record<string, unknown>;
-  if (!Array.isArray(o.timesLocal) || typeof o.dayFilter !== "string") return null;
+  if (!Array.isArray(o.timesLocal) || typeof o.dayFilter !== 'string') return null;
   return raw as SlotsV1ScheduleData;
 }
 
@@ -87,9 +87,9 @@ function toRule(row: {
   return {
     id: row.integrator_rule_id,
     integratorUserId: row.integrator_user_id?.trim() ? row.integrator_user_id.trim() : null,
-    category: row.category as ReminderRule["category"],
+    category: row.category as ReminderRule['category'],
     enabled: row.is_enabled,
-    timezone: row.timezone?.trim() || "Europe/Moscow",
+    timezone: row.timezone?.trim() || 'Europe/Moscow',
     intervalMinutes: row.interval_minutes ?? null,
     windowStartMinute: row.window_start_minute,
     windowEndMinute: row.window_end_minute,
@@ -99,7 +99,7 @@ function toRule(row: {
     linkedObjectId: row.linked_object_id ?? null,
     customTitle: row.custom_title ?? null,
     customText: row.custom_text ?? null,
-    scheduleType: row.schedule_type ?? "interval_window",
+    scheduleType: row.schedule_type ?? 'interval_window',
     scheduleData: parseScheduleData(row.schedule_data),
     reminderIntent: parseIntent(row.reminder_intent),
     displayTitle: row.display_title ?? null,
@@ -142,7 +142,7 @@ function currentPrincipalOrganizationId(): string | null {
   return getCurrentDbPrincipalOrganizationId() ?? null;
 }
 
-function ruleOrgScopeSql(principalOrganizationId: string | null, tableAlias = "rr") {
+function ruleOrgScopeSql(principalOrganizationId: string | null, tableAlias = 'rr') {
   if (!principalOrganizationId) return sql``;
   return sql` AND (${sql.raw(tableAlias)}.organization_id = ${principalOrganizationId}::uuid OR ${sql.raw(tableAlias)}.organization_id IS NULL)`;
 }
@@ -213,11 +213,15 @@ export function createPgReminderRulesPort(): ReminderRulesPort {
       const principalOrganizationId = currentPrincipalOrganizationId();
       const integratorRuleId = `wp-${randomUUID()}`;
       const category = mapLinkedTypeToCategory(input.linkedObjectType);
-      const scheduleType = input.scheduleType ?? "interval_window";
+      const scheduleType = input.scheduleType ?? 'interval_window';
       let scheduleData: SlotsV1ScheduleData | null = input.scheduleData ?? null;
-      const reminderIntent = input.reminderIntent ?? "generic";
-      const tz = input.timezone?.trim() || "Europe/Moscow";
-      if (input.linkedObjectType === "rehab_program" && scheduleType === "slots_v1" && !scheduleData) {
+      const reminderIntent = input.reminderIntent ?? 'generic';
+      const tz = input.timezone?.trim() || 'Europe/Moscow';
+      if (
+        input.linkedObjectType === 'rehab_program' &&
+        scheduleType === 'slots_v1' &&
+        !scheduleData
+      ) {
         scheduleData = DEFAULT_REHAB_DAILY_SLOTS;
       }
       const notificationTopicCode = notificationTopicCodeFromReminderRule({
@@ -272,7 +276,7 @@ export function createPgReminderRulesPort(): ReminderRulesPort {
           updated_at`,
       );
       const row = r.rows[0];
-      if (!row) throw new Error("reminder_rules insert returned no row");
+      if (!row) throw new Error('reminder_rules insert returned no row');
       return toRule(row);
     },
 
@@ -310,7 +314,7 @@ export function createPgReminderRulesPort(): ReminderRulesPort {
           return true;
         });
       } catch {
-        throw new Error("failed to delete reminder");
+        throw new Error('failed to delete reminder');
       }
     },
 

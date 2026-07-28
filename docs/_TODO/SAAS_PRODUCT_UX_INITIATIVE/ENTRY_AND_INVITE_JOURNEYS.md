@@ -122,15 +122,15 @@ user; terminal token сам по себе не выбирает workspace.
 
 ## 4. Journey map
 
-| ID | Journey | Trusted organization source | Итоговая relationship |
-|---|---|---|---|
-| J1 | Solo specialist self-signup | Server-side signup intent | Owner membership + specialist binding |
-| J2 | Future clinic staff email invite | Historical current mechanics only; no initial target implementation | Deferred future clinic membership/binding flow |
-| J3 | Staff creates patient/card/visit; optional patient email invite and portal linking | Staff-authorized organization + existing card/visit + invite record | Existing patient relationship linked to verified portal identity |
-| J4 | Patient SMS fallback | The same patient invite record; SMS is transport only | Same enrollment as J3 |
-| J5 | Public booking | Server-resolved published branch/service/slot | Appointment + active enrollment in exact organization |
-| J6 | Returning multi-org patient | Active enrollment or verified target object | Selected active organization context; no new identity |
-| J7 | Invite failure/replay | Existing lifecycle record if safely resolvable | No mutation, or existing relationship reopened |
+| ID  | Journey                                                                            | Trusted organization source                                         | Итоговая relationship                                            |
+| --- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| J1  | Solo specialist self-signup                                                        | Server-side signup intent                                           | Owner membership + specialist binding                            |
+| J2  | Future clinic staff email invite                                                   | Historical current mechanics only; no initial target implementation | Deferred future clinic membership/binding flow                   |
+| J3  | Staff creates patient/card/visit; optional patient email invite and portal linking | Staff-authorized organization + existing card/visit + invite record | Existing patient relationship linked to verified portal identity |
+| J4  | Patient SMS fallback                                                               | The same patient invite record; SMS is transport only               | Same enrollment as J3                                            |
+| J5  | Public booking                                                                     | Server-resolved published branch/service/slot                       | Appointment + active enrollment in exact organization            |
+| J6  | Returning multi-org patient                                                        | Active enrollment or verified target object                         | Selected active organization context; no new identity            |
+| J7  | Invite failure/replay                                                              | Existing lifecycle record if safely resolvable                      | No mutation, or existing relationship reopened                   |
 
 ## 5. J1 — Solo specialist self-signup
 
@@ -363,7 +363,7 @@ Owner-approved business lifecycle:
 8. Contextual install card.
 9. Platform-specific install help/native prompt.
 10. First installed launch: restore authenticated session if valid, otherwise passwordless OTP re-auth without
-   consuming invite/enrollment again; restore exact authorized organization server-side.
+    consuming invite/enrollment again; restore exact authorized organization server-side.
 11. Separate notification education and «Включить уведомления» gesture after authenticated context.
 12. Granted/denied/default/revoked/subscription-rotated recovery without blocking browser access.
 
@@ -551,21 +551,21 @@ post-booking organization access as a target contract, not a current guarantee.
 The error page first classifies the server-side lifecycle without exposing unnecessary identity data. Recovery does
 not reuse a terminal token for a new mutation.
 
-| State | Safe patient/staff-facing message | Server behavior | Recovery |
-|---|---|---|---|
-| Invalid/forged | «Ссылка недействительна»; no org/patient confirmation | No mutation; generic audit/rate limit | Login to existing account; request new link from known organization |
-| Expired | «Срок ссылки истёк»; safe org identity only if record was resolved | Mark/observe expired; no accept | Rate-limited resend to bound recipient or staff issues fresh invite |
-| Revoked | «Организация отозвала приглашение» or neutral equivalent | No accept; retain audit | Contact organization; authorized staff creates new invite |
-| Superseded | «Используйте последнюю ссылку» | Old token stays terminal | Open newest delivery; staff can resend after cooldown |
-| Accepted/replayed | «Доступ уже активирован» | No second membership/enrollment; terminal token grants no context | Authenticate; open exact relationship only when canonical user matches `accepted_by`/relationship |
-| Logged in as wrong email/account | Show only masked target and organization-safe preview | No account merge, no recipient substitution | Sign out/switch account; staff revoke/correct/new invite |
-| Existing staff in another active org | Neutral membership conflict | No second active membership | Owner/support-led account resolution; do not offer org switcher |
-| Existing patient, new org | Passwordless OTP + accept | Add one enrollment to same canonical identity | Open new org; retain other enrollments |
-| Existing same relationship | Idempotent success | Reuse existing membership/enrollment; no duplicate | Open workspace/context |
-| Organization suspended/closed | Organization unavailable/recovery | No new active business access | Platform/org support; preserve audit and existing retention policy |
-| Seat/entitlement unavailable | Recipient sees temporary unavailable state | No membership creation | Owner resolves plan/seat; issue/re-enable fresh invite per policy |
-| Email/SMS delivery failure | Staff-only delivery failure; recipient sees nothing | Invite may remain pending; no fake delivered state | Correct contact or resend with new token/allowed channel |
-| Concurrent double click | One succeeds, the other becomes replay | Row lock + uniqueness/idempotency re-check | Same authenticated canonical user converges on one relationship reference |
+| State                                | Safe patient/staff-facing message                                  | Server behavior                                                   | Recovery                                                                                          |
+| ------------------------------------ | ------------------------------------------------------------------ | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Invalid/forged                       | «Ссылка недействительна»; no org/patient confirmation              | No mutation; generic audit/rate limit                             | Login to existing account; request new link from known organization                               |
+| Expired                              | «Срок ссылки истёк»; safe org identity only if record was resolved | Mark/observe expired; no accept                                   | Rate-limited resend to bound recipient or staff issues fresh invite                               |
+| Revoked                              | «Организация отозвала приглашение» or neutral equivalent           | No accept; retain audit                                           | Contact organization; authorized staff creates new invite                                         |
+| Superseded                           | «Используйте последнюю ссылку»                                     | Old token stays terminal                                          | Open newest delivery; staff can resend after cooldown                                             |
+| Accepted/replayed                    | «Доступ уже активирован»                                           | No second membership/enrollment; terminal token grants no context | Authenticate; open exact relationship only when canonical user matches `accepted_by`/relationship |
+| Logged in as wrong email/account     | Show only masked target and organization-safe preview              | No account merge, no recipient substitution                       | Sign out/switch account; staff revoke/correct/new invite                                          |
+| Existing staff in another active org | Neutral membership conflict                                        | No second active membership                                       | Owner/support-led account resolution; do not offer org switcher                                   |
+| Existing patient, new org            | Passwordless OTP + accept                                          | Add one enrollment to same canonical identity                     | Open new org; retain other enrollments                                                            |
+| Existing same relationship           | Idempotent success                                                 | Reuse existing membership/enrollment; no duplicate                | Open workspace/context                                                                            |
+| Organization suspended/closed        | Organization unavailable/recovery                                  | No new active business access                                     | Platform/org support; preserve audit and existing retention policy                                |
+| Seat/entitlement unavailable         | Recipient sees temporary unavailable state                         | No membership creation                                            | Owner resolves plan/seat; issue/re-enable fresh invite per policy                                 |
+| Email/SMS delivery failure           | Staff-only delivery failure; recipient sees nothing                | Invite may remain pending; no fake delivered state                | Correct contact or resend with new token/allowed channel                                          |
+| Concurrent double click              | One succeeds, the other becomes replay                             | Row lock + uniqueness/idempotency re-check                        | Same authenticated canonical user converges on one relationship reference                         |
 
 Wrong-recipient handling is intentionally asymmetric:
 
@@ -590,16 +590,16 @@ returns neutral account-switch/support recovery. This same rule applies to short
 
 After a successful relationship mutation, destination is selected from server-approved outcomes:
 
-| Actor/outcome | First useful screen | Never default to |
-|---|---|---|
-| Solo owner-specialist | Solo clinical Today/first-run checklist | Empty clinic team dashboard |
-| Clinic specialist | Own clinical Today | Organization management without capability |
-| Admin without specialist binding | Organization overview | Doctor Today |
-| Admin with binding | OM-1 selected management/clinical destination | A route that infers access from UI mode |
-| Assistant | Not applicable in initial release; future reservation outside current scope | Any launch workspace or doctor-route shortcut |
-| New patient by invite | Invite organization Today/appointment/program or relationship success state | Global mixed clinical feed |
-| New patient by booking | Exact appointment in booking organization | Generic install page before value |
-| Multi-org returning patient | Verified target or chosen/last-active organization | Silent organization selected from Host/query |
+| Actor/outcome                    | First useful screen                                                         | Never default to                              |
+| -------------------------------- | --------------------------------------------------------------------------- | --------------------------------------------- |
+| Solo owner-specialist            | Solo clinical Today/first-run checklist                                     | Empty clinic team dashboard                   |
+| Clinic specialist                | Own clinical Today                                                          | Organization management without capability    |
+| Admin without specialist binding | Organization overview                                                       | Doctor Today                                  |
+| Admin with binding               | OM-1 selected management/clinical destination                               | A route that infers access from UI mode       |
+| Assistant                        | Not applicable in initial release; future reservation outside current scope | Any launch workspace or doctor-route shortcut |
+| New patient by invite            | Invite organization Today/appointment/program or relationship success state | Global mixed clinical feed                    |
+| New patient by booking           | Exact appointment in booking organization                                   | Generic install page before value             |
+| Multi-org returning patient      | Verified target or chosen/last-active organization                          | Silent organization selected from Host/query  |
 
 Install card may be dismissed. Already-installed suppresses repeat prompts; unsupported platforms get manual help
 (including iOS Add to Home Screen), while browser access remains complete.
@@ -640,14 +640,14 @@ at most daily reminder and recovery notice.
 
 ## 14. Current implementation reuse and gaps
 
-| Area | Reuse candidate | Gap before target journey |
-|---|---|---|
-| Specialist signup | Existing start/confirm, email challenge and organization + owner membership provisioning | Deferred specialist binding; first-run/full 2FA; `challengeId` post-verification session reissue defect |
-| Staff invite | Existing hash token, seven-day expiry, email OTP, org-scoped create/revoke/accept | Public lookup leaks full email; no other-active-org check; coarse role overwrite; deferred specialist binding; assistant/additive persona/full 2FA absent |
-| Invite lifecycle/delivery | Current pending/accepted/expired/revoked and create/revoke/accept primitives | No superseded lifecycle, immutable provider attempts, complaint/suppression model, separate proof axis or complete relationship idempotency contract |
-| Patient auth | Existing canonical email/password/OTP/OAuth and onboarding tier gates | Target is passwordless OTP; organization invite/enrollment acceptance and channel recovery without consumption absent |
-| Public booking | Existing exact-org resolver, trusted phone identity and canonical appointment create | Atomic ensure-enrollment absent; anonymous response exposes internal `userId`; safe one-time portal continuation absent |
-| Patient install/push | Existing install instructions and explicit Web Push control | Contextual post-value placement, installed first launch/session-or-OTP recovery, subscription rotation and authorized multi-org deep-link recovery |
-| Patient organization | Existing active enrollment resolver | Complete context chooser/switcher and deep-link recovery |
+| Area                      | Reuse candidate                                                                          | Gap before target journey                                                                                                                                 |
+| ------------------------- | ---------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Specialist signup         | Existing start/confirm, email challenge and organization + owner membership provisioning | Deferred specialist binding; first-run/full 2FA; `challengeId` post-verification session reissue defect                                                   |
+| Staff invite              | Existing hash token, seven-day expiry, email OTP, org-scoped create/revoke/accept        | Public lookup leaks full email; no other-active-org check; coarse role overwrite; deferred specialist binding; assistant/additive persona/full 2FA absent |
+| Invite lifecycle/delivery | Current pending/accepted/expired/revoked and create/revoke/accept primitives             | No superseded lifecycle, immutable provider attempts, complaint/suppression model, separate proof axis or complete relationship idempotency contract      |
+| Patient auth              | Existing canonical email/password/OTP/OAuth and onboarding tier gates                    | Target is passwordless OTP; organization invite/enrollment acceptance and channel recovery without consumption absent                                     |
+| Public booking            | Existing exact-org resolver, trusted phone identity and canonical appointment create     | Atomic ensure-enrollment absent; anonymous response exposes internal `userId`; safe one-time portal continuation absent                                   |
+| Patient install/push      | Existing install instructions and explicit Web Push control                              | Contextual post-value placement, installed first launch/session-or-OTP recovery, subscription rotation and authorized multi-org deep-link recovery        |
+| Patient organization      | Existing active enrollment resolver                                                      | Complete context chooser/switcher and deep-link recovery                                                                                                  |
 
 No application/DB/delivery changes belong to UX-04 discovery.

@@ -29,17 +29,14 @@
  * Активные этапы (status `in_progress` | `available`) — сверху.
  * Завершённые и пропущенные этапы (`completed` | `skipped` | `locked`) — ниже, свёрнуты.
  */
-import { pickActivePlanInstance } from "@/modules/treatment-program/pickActivePlanInstance";
+import { pickActivePlanInstance } from '@/modules/treatment-program/pickActivePlanInstance';
 import type {
   TreatmentProgramInstanceDetail,
   TreatmentProgramInstanceSummary,
   TreatmentProgramInstanceStageStatus,
-} from "@/modules/treatment-program/types";
-import type { StageItemViewerUnreadCount } from "@/modules/program-item-discussion/types";
-import {
-  firstSnapshotMedia,
-  type ExerciseCommentThumbMedia,
-} from "./exerciseCommentThumb";
+} from '@/modules/treatment-program/types';
+import type { StageItemViewerUnreadCount } from '@/modules/program-item-discussion/types';
+import { firstSnapshotMedia, type ExerciseCommentThumbMedia } from './exerciseCommentThumb';
 
 /** Строка упражнения в drill-down правом пейне. */
 export type ExerciseCommentItem = {
@@ -81,14 +78,14 @@ export type PatientExercisesWithCommentsResult = {
 };
 
 const ACTIVE_STAGE_STATUSES = new Set<TreatmentProgramInstanceStageStatus>([
-  "in_progress",
-  "available",
+  'in_progress',
+  'available',
 ]);
 
 function stageItemTitle(snapshot: Record<string, unknown>): string {
   const raw = snapshot.title;
-  if (typeof raw === "string" && raw.trim()) return raw.trim();
-  return "Упражнение";
+  if (typeof raw === 'string' && raw.trim()) return raw.trim();
+  return 'Упражнение';
 }
 
 export type LoadDoctorPatientExercisesWithCommentsDeps = {
@@ -119,7 +116,8 @@ export async function loadDoctorPatientExercisesWithComments(
   const { patientUserId, viewerUserId } = context;
   const includePast = options?.includePastPrograms ?? false;
 
-  const allInstances = await deps.treatmentProgramInstance.listForPatientClinicalView(patientUserId);
+  const allInstances =
+    await deps.treatmentProgramInstance.listForPatientClinicalView(patientUserId);
   const instances = context.organizationId
     ? allInstances.filter((instance) => instance.organizationId === context.organizationId)
     : allInstances;
@@ -130,7 +128,8 @@ export async function loadDoctorPatientExercisesWithComments(
   if (!targetInstance) {
     if (!includePast) return null;
     // Use most recently updated as fallback
-    targetInstance = [...instances].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0] ?? null;
+    targetInstance =
+      [...instances].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0] ?? null;
   }
   if (!targetInstance) return null;
 
@@ -139,9 +138,7 @@ export async function loadDoctorPatientExercisesWithComments(
 
   // Collect all exercise stageItems (all stages, all statuses)
   const allExerciseItems = detail.stages.flatMap((stage) =>
-    stage.items
-      .filter((item) => item.itemType === "exercise")
-      .map((item) => ({ ...item, stage })),
+    stage.items.filter((item) => item.itemType === 'exercise').map((item) => ({ ...item, stage })),
   );
 
   if (allExerciseItems.length === 0) {
@@ -221,17 +218,19 @@ export async function loadDoctorPatientExercisesWithComments(
   const rawGroups = [...stageGroupMap.values()];
 
   // Map stage sortOrder from detail
-  const stageSortOrderById = new Map<string, number>(
-    detail.stages.map((s) => [s.id, s.sortOrder]),
-  );
+  const stageSortOrderById = new Map<string, number>(detail.stages.map((s) => [s.id, s.sortOrder]));
 
   const activeGroups = rawGroups
     .filter((g) => ACTIVE_STAGE_STATUSES.has(g.stageStatus))
-    .sort((a, b) => (stageSortOrderById.get(a.stageId) ?? 0) - (stageSortOrderById.get(b.stageId) ?? 0));
+    .sort(
+      (a, b) => (stageSortOrderById.get(a.stageId) ?? 0) - (stageSortOrderById.get(b.stageId) ?? 0),
+    );
 
   const closedGroups = rawGroups
     .filter((g) => !ACTIVE_STAGE_STATUSES.has(g.stageStatus))
-    .sort((a, b) => (stageSortOrderById.get(a.stageId) ?? 0) - (stageSortOrderById.get(b.stageId) ?? 0));
+    .sort(
+      (a, b) => (stageSortOrderById.get(a.stageId) ?? 0) - (stageSortOrderById.get(b.stageId) ?? 0),
+    );
 
   const groups: ExerciseCommentStageGroup[] = [
     ...activeGroups.map((g) => ({ ...g, isActive: true })),

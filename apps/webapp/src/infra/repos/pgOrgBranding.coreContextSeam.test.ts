@@ -9,42 +9,44 @@
  * `org_branding_core_context_unavailable` instead of degrading to platform visuals + the canonical
  * organization name, i.e. the exact §3.3 invariant the contract forbids breaking.
  */
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const runWebappPgText = vi.fn();
 const runWebappTransaction = vi.fn();
 
-vi.mock("@/infra/db/runWebappSql", () => ({
+vi.mock('@/infra/db/runWebappSql', () => ({
   runWebappPgText: (...args: unknown[]) => runWebappPgText(...args),
   runWebappTransaction: (...args: unknown[]) => runWebappTransaction(...args),
 }));
 
-const { createPgOrgBrandingPort } = await import("@/infra/repos/pgOrgBranding");
+const { createPgOrgBrandingPort } = await import('@/infra/repos/pgOrgBranding');
 
-const ORG = "aaaa0000-0000-4000-8000-00000000000a";
+const ORG = 'aaaa0000-0000-4000-8000-00000000000a';
 
 beforeEach(() => {
   runWebappPgText.mockReset();
   runWebappTransaction.mockReset();
 });
 
-describe("pgOrgBranding.getCoreContext", () => {
-  it("reads the canonical organization name through app.read_org_brand_core_context()", async () => {
+describe('pgOrgBranding.getCoreContext', () => {
+  it('reads the canonical organization name through app.read_org_brand_core_context()', async () => {
     runWebappPgText.mockResolvedValue({
-      rows: [{ organization_id: ORG, display_name: "Clinic A canonical core name", is_active: true }],
+      rows: [
+        { organization_id: ORG, display_name: 'Clinic A canonical core name', is_active: true },
+      ],
     });
 
     const core = await createPgOrgBrandingPort().getCoreContext(ORG);
 
     expect(core).toEqual({
       organizationId: ORG,
-      displayName: "Clinic A canonical core name",
+      displayName: 'Clinic A canonical core name',
       isActive: true,
     });
     const [sqlText, params] = runWebappPgText.mock.calls[0] as [string, unknown[]];
-    expect(sqlText).toContain("app.read_org_brand_core_context($1::uuid)");
+    expect(sqlText).toContain('app.read_org_brand_core_context($1::uuid)');
     // No caller-privilege dependency: no direct read of be_organizations (or any other table).
-    expect(sqlText).not.toContain("be_organizations");
+    expect(sqlText).not.toContain('be_organizations');
     expect(sqlText).not.toMatch(/\borg_enrollments\b/);
     expect(params).toEqual([ORG]);
   });

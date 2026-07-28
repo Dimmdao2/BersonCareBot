@@ -1,29 +1,29 @@
-import type { MediaPreviewStatus } from "@/modules/media/types";
+import type { MediaPreviewStatus } from '@/modules/media/types';
 
 /** Совпадает с CHECK в `treatment_program_template_stage_items`. */
 export const TREATMENT_PROGRAM_ITEM_TYPES = [
-  "exercise",
-  "recommendation",
-  "lesson",
-  "clinical_test",
+  'exercise',
+  'recommendation',
+  'lesson',
+  'clinical_test',
 ] as const;
 
 /** Основная секция каталога уроков в CMS webapp (`content_pages.section`). */
-export const LESSON_CONTENT_SECTION = "lessons" as const;
+export const LESSON_CONTENT_SECTION = 'lessons' as const;
 /** Совместимый алиас из ранних версий SYSTEM_LOGIC_SCHEMA §4 — валидация принимает обе секции. */
-export const LESSON_CONTENT_SECTION_LEGACY = "course_lessons" as const;
+export const LESSON_CONTENT_SECTION_LEGACY = 'course_lessons' as const;
 
-export type TreatmentProgramTemplateStatus = "draft" | "published" | "archived";
+export type TreatmentProgramTemplateStatus = 'draft' | 'published' | 'archived';
 
 export type TreatmentProgramItemType = (typeof TREATMENT_PROGRAM_ITEM_TYPES)[number];
 
 /** Тип выбора из каталога в UI врача; `lfk_complex` разворачивается в `exercise`, в stage items не сохраняется. */
-export type TreatmentProgramLibraryPickType = TreatmentProgramItemType | "lfk_complex";
+export type TreatmentProgramLibraryPickType = TreatmentProgramItemType | 'lfk_complex';
 
 /** Миниатюра первого элемента шаблона в списке врача (когда удалось разрешить медиа на сервере). */
 export type TreatmentProgramTemplateListPreviewMedia = {
   mediaUrl: string;
-  mediaType: "image" | "video" | "gif";
+  mediaType: 'image' | 'video' | 'gif';
   previewSmUrl?: string | null;
   previewStatus?: MediaPreviewStatus | null;
 };
@@ -44,7 +44,7 @@ export type TreatmentProgramTemplate = {
 };
 
 /** Системные группы этапа шаблона и экземпляра (`system_kind` в БД). */
-export type TreatmentProgramInstanceStageSystemKind = "recommendations" | "tests";
+export type TreatmentProgramInstanceStageSystemKind = 'recommendations' | 'tests';
 
 export type TreatmentProgramTemplateStageGroup = {
   id: string;
@@ -60,17 +60,17 @@ export type TreatmentProgramTemplateStageGroup = {
 export const TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_SORT_RECOMMENDATIONS = 101;
 export const TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_SORT_TESTS = 102;
 
-export const TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_TITLE_RECOMMENDATIONS = "Рекомендации";
-export const TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_TITLE_TESTS = "Тестирование";
+export const TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_TITLE_RECOMMENDATIONS = 'Рекомендации';
+export const TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_TITLE_TESTS = 'Тестирование';
 
 /** Этап шаблона с `sort_order = 0` создаётся при создании шаблона. */
-export const TREATMENT_PROGRAM_TEMPLATE_STAGE_ZERO_TITLE = "Общие рекомендации";
+export const TREATMENT_PROGRAM_TEMPLATE_STAGE_ZERO_TITLE = 'Общие рекомендации';
 
 /** Заголовок инстанса при создании пустого индивидуального плана без шаблона. */
-export const BLANK_INDIVIDUAL_PLAN_DEFAULT_TITLE = "Индивидуальный план";
+export const BLANK_INDIVIDUAL_PLAN_DEFAULT_TITLE = 'Индивидуальный план';
 
 /** Тег строки `recommendations`, созданной из экземпляра программы (свободный текст этапа 0). */
-export const TREATMENT_PROGRAM_INSTANCE_FREEFORM_RECOMMENDATION_TAG = "tp_instance_freeform";
+export const TREATMENT_PROGRAM_INSTANCE_FREEFORM_RECOMMENDATION_TAG = 'tp_instance_freeform';
 
 /** Счётчик этапов для списка и поля `TreatmentProgramTemplate.stageCount`: без этапа 0 (общие рекомендации). */
 export function treatmentProgramTemplateStageCountForList(
@@ -152,8 +152,8 @@ export type UpdateTreatmentProgramTemplateInput = {
 export const TREATMENT_PROGRAM_TEMPLATE_USAGE_DETAIL_LIMIT = 12;
 
 export type TreatmentProgramTemplateUsageRef =
-  | { kind: "treatment_program_instance"; id: string; title: string; patientUserId: string }
-  | { kind: "course"; id: string; title: string };
+  | { kind: 'treatment_program_instance'; id: string; title: string; patientUserId: string }
+  | { kind: 'course'; id: string; title: string };
 
 export type TreatmentProgramTemplateUsageSnapshot = {
   activeTreatmentProgramInstanceCount: number;
@@ -168,18 +168,19 @@ export type TreatmentProgramTemplateUsageSnapshot = {
   archivedCourseRefs: TreatmentProgramTemplateUsageRef[];
 };
 
-export const EMPTY_TREATMENT_PROGRAM_TEMPLATE_USAGE_SNAPSHOT: TreatmentProgramTemplateUsageSnapshot = {
-  activeTreatmentProgramInstanceCount: 0,
-  completedTreatmentProgramInstanceCount: 0,
-  publishedCourseCount: 0,
-  draftCourseCount: 0,
-  archivedCourseCount: 0,
-  activeTreatmentProgramInstanceRefs: [],
-  completedTreatmentProgramInstanceRefs: [],
-  publishedCourseRefs: [],
-  draftCourseRefs: [],
-  archivedCourseRefs: [],
-};
+export const EMPTY_TREATMENT_PROGRAM_TEMPLATE_USAGE_SNAPSHOT: TreatmentProgramTemplateUsageSnapshot =
+  {
+    activeTreatmentProgramInstanceCount: 0,
+    completedTreatmentProgramInstanceCount: 0,
+    publishedCourseCount: 0,
+    draftCourseCount: 0,
+    archivedCourseCount: 0,
+    activeTreatmentProgramInstanceRefs: [],
+    completedTreatmentProgramInstanceRefs: [],
+    publishedCourseRefs: [],
+    draftCourseRefs: [],
+    archivedCourseRefs: [],
+  };
 
 /** Подтверждение перед переводом шаблона в архив: активные программы у пациентов или опубликованные курсы. */
 export function treatmentProgramTemplateArchiveRequiresAcknowledgement(
@@ -222,27 +223,27 @@ export type CreateTreatmentProgramStageItemInput = {
 };
 
 /** Разворачивание каталожного шаблона комплекса ЛФК в строки `exercise` этапа шаблона программы (без `lfk_complex`). */
-export type ExpandLfkComplexIntoStageItemsMode = "new_group" | "ungrouped" | "existing_group";
+export type ExpandLfkComplexIntoStageItemsMode = 'new_group' | 'ungrouped' | 'existing_group';
 
 export type ExpandLfkComplexIntoStageItemsBody =
   | {
       templateId: string;
       complexTemplateId: string;
       copyComplexDescriptionToGroup: boolean;
-      mode: "new_group";
+      mode: 'new_group';
       newGroupTitle: string;
     }
   | {
       templateId: string;
       complexTemplateId: string;
       copyComplexDescriptionToGroup: boolean;
-      mode: "ungrouped";
+      mode: 'ungrouped';
     }
   | {
       templateId: string;
       complexTemplateId: string;
       copyComplexDescriptionToGroup: boolean;
-      mode: "existing_group";
+      mode: 'existing_group';
       existingGroupId: string;
     };
 
@@ -343,20 +344,20 @@ export type UpdateTreatmentProgramInstanceStageGroupInput = {
   sortOrder?: number;
 };
 
-export type TreatmentProgramInstanceStatus = "active" | "completed";
+export type TreatmentProgramInstanceStatus = 'active' | 'completed';
 
 /** Происхождение экземпляра программы (специалист / промо / курс). */
-export type TreatmentProgramAssignmentSource = "doctor" | "promo" | "course";
+export type TreatmentProgramAssignmentSource = 'doctor' | 'promo' | 'course';
 
 export type TreatmentProgramInstanceStageStatus =
-  | "locked"
-  | "available"
-  | "in_progress"
-  | "completed"
-  | "skipped";
+  | 'locked'
+  | 'available'
+  | 'in_progress'
+  | 'completed'
+  | 'skipped';
 
 /** A2: строка элемента экземпляра — `active` / `disabled` (без физического удаления). */
-export type TreatmentProgramInstanceStageItemStatus = "active" | "disabled";
+export type TreatmentProgramInstanceStageItemStatus = 'active' | 'disabled';
 
 export type TreatmentProgramInstanceSummary = {
   id: string;
@@ -415,20 +416,22 @@ export function effectiveInstanceStageItemComment(row: {
 }
 
 /** Подпись статуса этапа экземпляра для UI (§3 `SYSTEM_LOGIC_SCHEMA` — тот же смысл, что enum в API). */
-export function formatTreatmentProgramStageStatusRu(status: TreatmentProgramInstanceStageStatus | string): string {
+export function formatTreatmentProgramStageStatusRu(
+  status: TreatmentProgramInstanceStageStatus | string,
+): string {
   switch (status) {
-    case "locked":
-      return "заблокирован";
-    case "available":
-      return "доступен";
-    case "in_progress":
-      return "в процессе";
-    case "completed":
-      return "завершён";
-    case "skipped":
-      return "пропущен";
+    case 'locked':
+      return 'заблокирован';
+    case 'available':
+      return 'доступен';
+    case 'in_progress':
+      return 'в процессе';
+    case 'completed':
+      return 'завершён';
+    case 'skipped':
+      return 'пропущен';
     default:
-      return typeof status === "string" ? status : String(status);
+      return typeof status === 'string' ? status : String(status);
   }
 }
 
@@ -562,19 +565,19 @@ export type ReplaceTreatmentProgramInstanceStageItemInput = {
   snapshot: Record<string, unknown>;
 };
 
-export type NormalizedTestDecision = "passed" | "failed" | "partial";
+export type NormalizedTestDecision = 'passed' | 'failed' | 'partial';
 
 /** Подпись итога теста для UI (совпадает по смыслу с `normalized_decision` в API). */
 export function formatNormalizedTestDecisionRu(decision: NormalizedTestDecision | string): string {
   switch (decision) {
-    case "passed":
-      return "зачтено";
-    case "failed":
-      return "не зачтено";
-    case "partial":
-      return "частично";
+    case 'passed':
+      return 'зачтено';
+    case 'failed':
+      return 'не зачтено';
+    case 'partial':
+      return 'частично';
     default:
-      return typeof decision === "string" ? decision : String(decision);
+      return typeof decision === 'string' ? decision : String(decision);
   }
 }
 
@@ -592,7 +595,7 @@ export type TreatmentProgramTestAttemptRow = {
 
 export type TreatmentProgramTestAttemptBrief = Pick<
   TreatmentProgramTestAttemptRow,
-  "id" | "startedAt" | "submittedAt" | "acceptedAt"
+  'id' | 'startedAt' | 'submittedAt' | 'acceptedAt'
 >;
 
 export type TreatmentProgramTestResultRow = {
@@ -618,7 +621,7 @@ export type TreatmentProgramTestResultDetailRow = TreatmentProgramTestResultRow 
 };
 
 /** A4 PROGRAM_PATIENT_SHAPE: типы строк `program_action_log`. */
-export const PROGRAM_ACTION_TYPES = ["done", "viewed", "note"] as const;
+export const PROGRAM_ACTION_TYPES = ['done', 'viewed', 'note'] as const;
 export type ProgramActionType = (typeof PROGRAM_ACTION_TYPES)[number];
 
 export type ProgramActionLogInsert = {
@@ -646,26 +649,26 @@ export type ProgramActionLogListRow = {
 
 /** Краткая подпись типа записи журнала для врача (UX-02). */
 export function formatProgramActionLogSummaryRu(row: ProgramActionLogListRow): string {
-  if (row.actionType === "viewed") return "Просмотр элемента";
-  if (row.actionType === "note") return "Заметка";
-  const src = row.payload && typeof row.payload.source === "string" ? row.payload.source : null;
-  if (src === "lfk_exercise_done") return "ЛФК: упражнение";
-  if (src === "lfk_session") return "ЛФК: занятие (старый формат журнала)";
-  if (src === "test_submitted") return "Тест отправлен";
-  if (src === "simple_item_complete") return "Отметка выполнения (элемент)";
-  if (src === "checklist_toggle") return "Чек-лист";
-  return "Отметка выполнения";
+  if (row.actionType === 'viewed') return 'Просмотр элемента';
+  if (row.actionType === 'note') return 'Заметка';
+  const src = row.payload && typeof row.payload.source === 'string' ? row.payload.source : null;
+  if (src === 'lfk_exercise_done') return 'ЛФК: упражнение';
+  if (src === 'lfk_session') return 'ЛФК: занятие (старый формат журнала)';
+  if (src === 'test_submitted') return 'Тест отправлен';
+  if (src === 'simple_item_complete') return 'Отметка выполнения (элемент)';
+  if (src === 'checklist_toggle') return 'Чек-лист';
+  return 'Отметка выполнения';
 }
 
 export function formatLfkPostSessionDifficultyRu(d: unknown): string | null {
-  if (d === "easy") return "легко";
-  if (d === "medium") return "нормально";
-  if (d === "hard") return "тяжело";
+  if (d === 'easy') return 'легко';
+  if (d === 'medium') return 'нормально';
+  if (d === 'hard') return 'тяжело';
   return null;
 }
 
 /** Сложность занятия ЛФК в пост-сессионной форме (A4). */
-export type LfkPostSessionDifficulty = "easy" | "medium" | "hard";
+export type LfkPostSessionDifficulty = 'easy' | 'medium' | 'hard';
 
 /**
  * Одна точка данных для микро-графика статистики выполнения упражнения (B.3).
@@ -703,39 +706,39 @@ export type PendingProgramTestEvaluationGlobalRow = PendingProgramTestEvaluation
 
 /** §8 SYSTEM_LOGIC_SCHEMA — `treatment_program_events.event_type`. */
 export const TREATMENT_PROGRAM_EVENT_TYPES = [
-  "item_added",
-  "item_removed",
-  "item_disabled",
-  "item_enabled",
-  "item_replaced",
-  "comment_changed",
-  "stage_added",
-  "stage_removed",
-  "stage_skipped",
-  "stage_completed",
-  "status_changed",
-  "test_completed",
-  "program_changed",
+  'item_added',
+  'item_removed',
+  'item_disabled',
+  'item_enabled',
+  'item_replaced',
+  'comment_changed',
+  'stage_added',
+  'stage_removed',
+  'stage_skipped',
+  'stage_completed',
+  'status_changed',
+  'test_completed',
+  'program_changed',
 ] as const;
 
 export type TreatmentProgramEventType = (typeof TREATMENT_PROGRAM_EVENT_TYPES)[number];
 
 /** A5: события, влияющие на бейдж «План обновлён» на Today (без прогресса пациента по тестам/завершения этапа). */
 export const TREATMENT_PROGRAM_PLAN_MUTATION_EVENT_TYPES: readonly TreatmentProgramEventType[] = [
-  "item_added",
-  "item_removed",
-  "item_disabled",
-  "item_enabled",
-  "item_replaced",
-  "comment_changed",
-  "stage_added",
-  "stage_removed",
-  "stage_skipped",
-  "status_changed",
-  "program_changed",
+  'item_added',
+  'item_removed',
+  'item_disabled',
+  'item_enabled',
+  'item_replaced',
+  'comment_changed',
+  'stage_added',
+  'stage_removed',
+  'stage_skipped',
+  'status_changed',
+  'program_changed',
 ];
 
-export type TreatmentProgramEventTargetType = "stage" | "stage_item" | "program";
+export type TreatmentProgramEventTargetType = 'stage' | 'stage_item' | 'program';
 
 export type TreatmentProgramEventRow = {
   id: string;
@@ -760,36 +763,38 @@ export type AppendTreatmentProgramEventInput = {
 };
 
 /** Краткая подпись типа события для таймлайна врача. */
-export function formatTreatmentProgramEventTypeRu(eventType: TreatmentProgramEventType | string): string {
+export function formatTreatmentProgramEventTypeRu(
+  eventType: TreatmentProgramEventType | string,
+): string {
   switch (eventType) {
-    case "item_added":
-      return "добавлен элемент этапа";
-    case "item_removed":
-      return "удалён элемент этапа";
-    case "item_disabled":
-      return "элемент отключён";
-    case "item_enabled":
-      return "элемент включён";
-    case "item_replaced":
-      return "заменён элемент этапа";
-    case "comment_changed":
-      return "изменён комментарий к элементу";
-    case "stage_added":
-      return "добавлен этап";
-    case "stage_removed":
-      return "удалён этап";
-    case "stage_skipped":
-      return "этап пропущен";
-    case "stage_completed":
-      return "этап завершён";
-    case "status_changed":
-      return "обновление статуса";
-    case "test_completed":
-      return "завершён тест";
-    case "program_changed":
-      return "Программа изменена";
+    case 'item_added':
+      return 'добавлен элемент этапа';
+    case 'item_removed':
+      return 'удалён элемент этапа';
+    case 'item_disabled':
+      return 'элемент отключён';
+    case 'item_enabled':
+      return 'элемент включён';
+    case 'item_replaced':
+      return 'заменён элемент этапа';
+    case 'comment_changed':
+      return 'изменён комментарий к элементу';
+    case 'stage_added':
+      return 'добавлен этап';
+    case 'stage_removed':
+      return 'удалён этап';
+    case 'stage_skipped':
+      return 'этап пропущен';
+    case 'stage_completed':
+      return 'этап завершён';
+    case 'status_changed':
+      return 'обновление статуса';
+    case 'test_completed':
+      return 'завершён тест';
+    case 'program_changed':
+      return 'Программа изменена';
     default:
-      return typeof eventType === "string" ? eventType : String(eventType);
+      return typeof eventType === 'string' ? eventType : String(eventType);
   }
 }
 
@@ -800,8 +805,8 @@ export type TreatmentProgramEventDoctorTimelineLabels = {
 };
 
 function formatTreatmentProgramInstanceStatusRu(status: string): string {
-  if (status === "active") return "активна";
-  if (status === "completed") return "завершена";
+  if (status === 'active') return 'активна';
+  if (status === 'completed') return 'завершена';
   return status;
 }
 
@@ -811,63 +816,63 @@ function summarizeTreatmentProgramStatusChangedForDoctorRu(
   cached: { stageTitle: string; itemLabel: string },
 ): string {
   const p = event.payload ?? {};
-  const scope = typeof p.scope === "string" ? p.scope : "";
+  const scope = typeof p.scope === 'string' ? p.scope : '';
 
-  if (event.targetType === "program") {
-    if (scope === "stages_reordered") return "Изменён порядок этапов";
+  if (event.targetType === 'program') {
+    if (scope === 'stages_reordered') return 'Изменён порядок этапов';
     const from = p.from;
     const to = p.to;
-    if (scope === "program" && typeof from === "string" && typeof to === "string") {
+    if (scope === 'program' && typeof from === 'string' && typeof to === 'string') {
       return `Программа: ${formatTreatmentProgramInstanceStatusRu(from)} → ${formatTreatmentProgramInstanceStatusRu(to)}`;
     }
-    return "Обновлена программа";
+    return 'Обновлена программа';
   }
 
-  if (event.targetType === "stage") {
-    if (scope === "stage_items_reordered") {
+  if (event.targetType === 'stage') {
+    if (scope === 'stage_items_reordered') {
       return `Изменён порядок пунктов в этапе «${cached.stageTitle}»`;
     }
-    if (scope === "stage_groups_reordered") {
+    if (scope === 'stage_groups_reordered') {
       return `Изменён порядок групп в этапе «${cached.stageTitle}»`;
     }
-    if (scope === "stage_group_added") {
-      const t = typeof p.title === "string" ? p.title.trim() : "";
+    if (scope === 'stage_group_added') {
+      const t = typeof p.title === 'string' ? p.title.trim() : '';
       return t
         ? `В этапе «${cached.stageTitle}» добавлена группа «${t}»`
         : `В этапе «${cached.stageTitle}» добавлена группа`;
     }
-    if (scope === "stage_group_updated") {
+    if (scope === 'stage_group_updated') {
       return `Обновлена группа в этапе «${cached.stageTitle}»`;
     }
-    if (scope === "stage_group_removed") {
-      const t = typeof p.title === "string" ? p.title.trim() : "";
+    if (scope === 'stage_group_removed') {
+      const t = typeof p.title === 'string' ? p.title.trim() : '';
       return t
         ? `Удалена группа «${t}» (этап «${cached.stageTitle}»)`
         : `Удалена группа (этап «${cached.stageTitle}»)`;
     }
-    if (scope === "stage") {
+    if (scope === 'stage') {
       const from = p.from;
       const to = p.to;
-      if (typeof from === "string" && typeof to === "string") {
+      if (typeof from === 'string' && typeof to === 'string') {
         return `Этап «${cached.stageTitle}»: ${formatTreatmentProgramStageStatusRu(from)} → ${formatTreatmentProgramStageStatusRu(to)}`;
       }
     }
     return `Изменения в этапе «${cached.stageTitle}»`;
   }
 
-  if (event.targetType === "stage_item") {
-    if (p.field === "isActionable") {
+  if (event.targetType === 'stage_item') {
+    if (p.field === 'isActionable') {
       const v = p.value === true;
       return v
         ? `Рекомендация «${cached.itemLabel}» требует отметки выполнения`
         : `Рекомендация «${cached.itemLabel}» без отметки (справочно)`;
     }
-    if (scope === "stage_item_group_changed") {
+    if (scope === 'stage_item_group_changed') {
       return `Пункт «${cached.itemLabel}» перенесён в другую группу`;
     }
   }
 
-  return "Обновление плана";
+  return 'Обновление плана';
 }
 
 /**
@@ -879,59 +884,59 @@ export function summarizeTreatmentProgramEventForDoctorRu(
   labels: TreatmentProgramEventDoctorTimelineLabels,
 ): string {
   const p = event.payload ?? {};
-  const stageIdFromPayload = typeof p.stageId === "string" ? p.stageId : undefined;
+  const stageIdFromPayload = typeof p.stageId === 'string' ? p.stageId : undefined;
 
   const itemLabel =
-    event.targetType === "stage_item"
-      ? (labels.itemTitle(event.targetId) ?? "пункт плана")
-      : "пункт плана";
+    event.targetType === 'stage_item'
+      ? (labels.itemTitle(event.targetId) ?? 'пункт плана')
+      : 'пункт плана';
 
   const stageTitleForStageTarget =
-    event.targetType === "stage" ? labels.stageTitle(event.targetId) : undefined;
+    event.targetType === 'stage' ? labels.stageTitle(event.targetId) : undefined;
   const stageTitle =
     stageTitleForStageTarget ??
     (stageIdFromPayload ? labels.stageTitle(stageIdFromPayload) : undefined) ??
-    "Этап";
+    'Этап';
 
   switch (event.eventType) {
-    case "item_added":
+    case 'item_added':
       return `Добавлен пункт «${itemLabel}» (этап «${stageTitle}»)`;
-    case "item_removed":
+    case 'item_removed':
       return `Удалён пункт «${itemLabel}»`;
-    case "item_disabled":
+    case 'item_disabled':
       return `Пункт отключён: «${itemLabel}»`;
-    case "item_enabled":
+    case 'item_enabled':
       return `Пункт снова включён: «${itemLabel}»`;
-    case "item_replaced":
+    case 'item_replaced':
       return `Пункт заменён: «${itemLabel}»`;
-    case "comment_changed":
+    case 'comment_changed':
       return `Обновлён комментарий к пункту «${itemLabel}»`;
-    case "stage_added":
-      return typeof p.title === "string" && p.title.trim()
+    case 'stage_added':
+      return typeof p.title === 'string' && p.title.trim()
         ? `Добавлен этап «${p.title.trim()}»`
-        : "Добавлен этап";
-    case "stage_removed":
-      return typeof p.title === "string" && p.title.trim()
+        : 'Добавлен этап';
+    case 'stage_removed':
+      return typeof p.title === 'string' && p.title.trim()
         ? `Удалён этап «${p.title.trim()}»`
-        : "Удалён этап";
-    case "stage_skipped":
+        : 'Удалён этап';
+    case 'stage_skipped':
       return `Этап «${stageTitle}» пропущен`;
-    case "stage_completed":
+    case 'stage_completed':
       return `Этап «${stageTitle}» завершён`;
-    case "test_completed": {
+    case 'test_completed': {
       const dec = p.normalizedDecision;
       const decRu =
-        dec === "passed" || dec === "failed" || dec === "partial"
+        dec === 'passed' || dec === 'failed' || dec === 'partial'
           ? formatNormalizedTestDecisionRu(dec)
-          : typeof dec === "string"
+          : typeof dec === 'string'
             ? dec
-            : "";
-      const tail = decRu ? ` — ${decRu}` : "";
+            : '';
+      const tail = decRu ? ` — ${decRu}` : '';
       return `Отправлен результат теста «${itemLabel}»${tail}`;
     }
-    case "program_changed":
-      return "Программа изменена";
-    case "status_changed":
+    case 'program_changed':
+      return 'Программа изменена';
+    case 'status_changed':
       return summarizeTreatmentProgramStatusChangedForDoctorRu(event, labels, {
         stageTitle,
         itemLabel,
@@ -942,9 +947,11 @@ export function summarizeTreatmentProgramEventForDoctorRu(
 }
 
 /** Скрыть в ленте врача: отметки выполнения пунктов пациентом (дублируют «Дневник занятий»). */
-export function shouldOmitTreatmentProgramEventFromDoctorTimeline(event: TreatmentProgramEventRow): boolean {
-  if (event.eventType !== "status_changed" || event.targetType !== "stage_item") return false;
-  return event.payload?.field === "completedAt";
+export function shouldOmitTreatmentProgramEventFromDoctorTimeline(
+  event: TreatmentProgramEventRow,
+): boolean {
+  if (event.eventType !== 'status_changed' || event.targetType !== 'stage_item') return false;
+  return event.payload?.field === 'completedAt';
 }
 
 /** Сводка изменений из batch-save (`program_changed.payload.diff`). */
@@ -965,7 +972,7 @@ export type TreatmentProgramChangedDiffSummary = {
 
 function readProgramChangedDiffCount(raw: Record<string, unknown>, key: string): number {
   const value = raw[key];
-  return typeof value === "number" && Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
 }
 
 function readProgramChangedDiffFlag(raw: Record<string, unknown>, key: string): boolean {
@@ -975,45 +982,51 @@ function readProgramChangedDiffFlag(raw: Record<string, unknown>, key: string): 
 export function parseProgramChangedDiffFromPayload(
   payload: Record<string, unknown> | null | undefined,
 ): TreatmentProgramChangedDiffSummary | null {
-  if (!payload || payload.scope !== "editor_batch") return null;
+  if (!payload || payload.scope !== 'editor_batch') return null;
   const raw = payload.diff;
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
   const d = raw as Record<string, unknown>;
   return {
-    stagesAdded: readProgramChangedDiffCount(d, "stagesAdded"),
-    stagesReordered: readProgramChangedDiffFlag(d, "stagesReordered"),
-    groupsAdded: readProgramChangedDiffCount(d, "groupsAdded"),
-    groupsHidden: readProgramChangedDiffCount(d, "groupsHidden"),
-    groupsMetadataUpdated: readProgramChangedDiffCount(d, "groupsMetadataUpdated"),
-    stagesMetadataUpdated: readProgramChangedDiffCount(d, "stagesMetadataUpdated"),
-    itemsAdded: readProgramChangedDiffCount(d, "itemsAdded"),
-    itemsRemoved: readProgramChangedDiffCount(d, "itemsRemoved"),
-    itemsStructuralUpdated: readProgramChangedDiffCount(d, "itemsStructuralUpdated"),
-    itemsMetadataUpdated: readProgramChangedDiffCount(d, "itemsMetadataUpdated"),
-    itemsReordered: readProgramChangedDiffFlag(d, "itemsReordered"),
-    groupsReordered: readProgramChangedDiffFlag(d, "groupsReordered"),
+    stagesAdded: readProgramChangedDiffCount(d, 'stagesAdded'),
+    stagesReordered: readProgramChangedDiffFlag(d, 'stagesReordered'),
+    groupsAdded: readProgramChangedDiffCount(d, 'groupsAdded'),
+    groupsHidden: readProgramChangedDiffCount(d, 'groupsHidden'),
+    groupsMetadataUpdated: readProgramChangedDiffCount(d, 'groupsMetadataUpdated'),
+    stagesMetadataUpdated: readProgramChangedDiffCount(d, 'stagesMetadataUpdated'),
+    itemsAdded: readProgramChangedDiffCount(d, 'itemsAdded'),
+    itemsRemoved: readProgramChangedDiffCount(d, 'itemsRemoved'),
+    itemsStructuralUpdated: readProgramChangedDiffCount(d, 'itemsStructuralUpdated'),
+    itemsMetadataUpdated: readProgramChangedDiffCount(d, 'itemsMetadataUpdated'),
+    itemsReordered: readProgramChangedDiffFlag(d, 'itemsReordered'),
+    groupsReordered: readProgramChangedDiffFlag(d, 'groupsReordered'),
   };
 }
 
-export function formatProgramChangedDiffDetailLinesRu(diff: TreatmentProgramChangedDiffSummary): string[] {
+export function formatProgramChangedDiffDetailLinesRu(
+  diff: TreatmentProgramChangedDiffSummary,
+): string[] {
   const lines: string[] = [];
   if (diff.stagesAdded > 0) lines.push(`Добавлено этапов: ${diff.stagesAdded}`);
-  if (diff.stagesReordered) lines.push("Изменён порядок этапов");
+  if (diff.stagesReordered) lines.push('Изменён порядок этапов');
   if (diff.groupsAdded > 0) lines.push(`Добавлено групп: ${diff.groupsAdded}`);
   if (diff.groupsHidden > 0) lines.push(`Скрыто групп: ${diff.groupsHidden}`);
   if (diff.groupsMetadataUpdated > 0) lines.push(`Обновлено групп: ${diff.groupsMetadataUpdated}`);
   if (diff.stagesMetadataUpdated > 0) lines.push(`Обновлено этапов: ${diff.stagesMetadataUpdated}`);
   if (diff.itemsAdded > 0) lines.push(`Добавлено элементов: ${diff.itemsAdded}`);
   if (diff.itemsRemoved > 0) lines.push(`Удалено элементов: ${diff.itemsRemoved}`);
-  if (diff.itemsStructuralUpdated > 0) lines.push(`Изменена структура элементов: ${diff.itemsStructuralUpdated}`);
-  if (diff.itemsMetadataUpdated > 0) lines.push(`Обновлены комментарии и нагрузка элементов: ${diff.itemsMetadataUpdated}`);
-  if (diff.itemsReordered) lines.push("Изменён порядок элементов");
-  if (diff.groupsReordered) lines.push("Изменён порядок групп");
+  if (diff.itemsStructuralUpdated > 0)
+    lines.push(`Изменена структура элементов: ${diff.itemsStructuralUpdated}`);
+  if (diff.itemsMetadataUpdated > 0)
+    lines.push(`Обновлены комментарии и нагрузка элементов: ${diff.itemsMetadataUpdated}`);
+  if (diff.itemsReordered) lines.push('Изменён порядок элементов');
+  if (diff.groupsReordered) lines.push('Изменён порядок групп');
   return lines;
 }
 
-export function formatProgramChangedEventDetailLinesForDoctorRu(event: TreatmentProgramEventRow): string[] {
-  if (event.eventType !== "program_changed") return [];
+export function formatProgramChangedEventDetailLinesForDoctorRu(
+  event: TreatmentProgramEventRow,
+): string[] {
+  if (event.eventType !== 'program_changed') return [];
   const diff = parseProgramChangedDiffFromPayload(event.payload);
   if (!diff) return [];
   return formatProgramChangedDiffDetailLinesRu(diff);

@@ -33,26 +33,26 @@ git diff --check
 
 Results:
 
-| Check | Result |
-| --- | --- |
-| targeted vitest | PASS, 15 tests |
-| webapp typecheck | PASS |
-| targeted eslint | PASS |
-| R0 guard | PASS |
-| classifier syntax | PASS |
-| diff check | PASS |
-| PII scan | PASS except pre-existing explicit test-phone allowlist in the cleanup script |
+| Check             | Result                                                                       |
+| ----------------- | ---------------------------------------------------------------------------- |
+| targeted vitest   | PASS, 15 tests                                                               |
+| webapp typecheck  | PASS                                                                         |
+| targeted eslint   | PASS                                                                         |
+| R0 guard          | PASS                                                                         |
+| classifier syntax | PASS                                                                         |
+| diff check        | PASS                                                                         |
+| PII scan          | PASS except pre-existing explicit test-phone allowlist in the cleanup script |
 
 Read-only post-run classifier:
 
-| Check | Count |
-| --- | ---: |
-| unmapped real active | 1 |
-| stale-vs-owner-CSV | 10 |
-| duplicate clusters | 3 |
-| status mismatches | 4 |
-| `record_at` mismatches | 2 |
-| legacy-only rows | 312 |
+| Check                  | Count |
+| ---------------------- | ----: |
+| unmapped real active   |     1 |
+| stale-vs-owner-CSV     |    10 |
+| duplicate clusters     |     3 |
+| status mismatches      |     4 |
+| `record_at` mismatches |     2 |
+| legacy-only rows       |   312 |
 
 ## Residual Risk
 

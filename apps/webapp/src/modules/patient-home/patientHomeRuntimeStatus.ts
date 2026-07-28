@@ -1,15 +1,15 @@
-import type { PatientHomeBlock, PatientHomeBlockCode, PatientHomeBlockItem } from "./ports";
-import type { ContentSectionKind, SystemParentCode } from "@/modules/content-sections/types";
+import type { PatientHomeBlock, PatientHomeBlockCode, PatientHomeBlockItem } from './ports';
+import type { ContentSectionKind, SystemParentCode } from '@/modules/content-sections/types';
 import {
   isPatientHomeContentPageCandidateForBlock,
   isPatientHomeContentSectionCandidateForBlock,
-} from "./blocks";
+} from './blocks';
 import {
   type KnownPatientHomeRefs,
   listUnresolvedPatientHomeBlockItems,
-} from "./patientHomeUnresolvedRefs";
+} from './patientHomeUnresolvedRefs';
 
-export type PatientHomeBlockRuntimeStatusKind = "hidden" | "empty" | "ready";
+export type PatientHomeBlockRuntimeStatusKind = 'hidden' | 'empty' | 'ready';
 
 export type PatientHomeBlockRuntimeStatus = {
   blockCode: PatientHomeBlockCode;
@@ -20,12 +20,12 @@ export type PatientHomeBlockRuntimeStatus = {
 };
 
 const CMS_RUNTIME_BLOCKS = new Set<PatientHomeBlockCode>([
-  "situations",
-  "subscription_carousel",
-  "sos",
-  "courses",
-  "daily_warmup",
-  "useful_post",
+  'situations',
+  'subscription_carousel',
+  'sos',
+  'courses',
+  'daily_warmup',
+  'useful_post',
 ]);
 
 export type PatientHomeResolverSyncContext = {
@@ -34,7 +34,10 @@ export type PatientHomeResolverSyncContext = {
   /** Slug раздела виден пациенту только если раздел есть и `isVisible`. */
   patientVisibleSectionSlugs: ReadonlySet<string>;
   sectionRequiresAuthBySlug: ReadonlyMap<string, boolean>;
-  sectionTaxonomyBySlug: ReadonlyMap<string, { kind: ContentSectionKind; systemParentCode: SystemParentCode | null }>;
+  sectionTaxonomyBySlug: ReadonlyMap<
+    string,
+    { kind: ContentSectionKind; systemParentCode: SystemParentCode | null }
+  >;
   existingPageSlugs: ReadonlySet<string>;
   pageRequiresAuthBySlug: ReadonlyMap<string, boolean>;
   pageSectionByPageSlug: ReadonlyMap<string, string>;
@@ -61,15 +64,15 @@ export function buildPatientHomeResolverSyncContext(input: {
     input.sections.map((s) => [s.slug, s.requiresAuth] as const),
   );
   const sectionTaxonomyBySlug = new Map(
-    input.sections.map((s) => [s.slug, { kind: s.kind, systemParentCode: s.systemParentCode }] as const),
+    input.sections.map(
+      (s) => [s.slug, { kind: s.kind, systemParentCode: s.systemParentCode }] as const,
+    ),
   );
   const existingPageSlugs = new Set(input.pages.map((p) => p.slug));
-  const pageRequiresAuthBySlug = new Map(
-    input.pages.map((p) => [p.slug, p.requiresAuth] as const),
-  );
+  const pageRequiresAuthBySlug = new Map(input.pages.map((p) => [p.slug, p.requiresAuth] as const));
   const pageSectionByPageSlug = new Map(input.pages.map((p) => [p.slug, p.section] as const));
   const publishedCourseIds = new Set(
-    input.courses.filter((c) => c.status === "published").map((c) => c.id),
+    input.courses.filter((c) => c.status === 'published').map((c) => c.id),
   );
   return {
     canViewAuthOnlyContent,
@@ -106,19 +109,19 @@ export function isPatientHomeItemRuntimeResolvedOnHome(
   if (!item.isVisible) return false;
 
   switch (blockCode) {
-    case "situations": {
-      if (item.targetType !== "content_section") return false;
+    case 'situations': {
+      if (item.targetType !== 'content_section') return false;
       const slug = item.targetRef.trim();
       if (!slug) return false;
       if (!ctx.patientVisibleSectionSlugs.has(slug)) return false;
       const tax = ctx.sectionTaxonomyBySlug.get(slug);
-      if (!tax || !isPatientHomeContentSectionCandidateForBlock("situations", tax)) return false;
+      if (!tax || !isPatientHomeContentSectionCandidateForBlock('situations', tax)) return false;
       const req = ctx.sectionRequiresAuthBySlug.get(slug);
       return authOk(req, ctx.canViewAuthOnlyContent);
     }
-    case "daily_warmup":
-    case "useful_post": {
-      if (item.targetType !== "content_page") return false;
+    case 'daily_warmup':
+    case 'useful_post': {
+      if (item.targetType !== 'content_page') return false;
       const slug = item.targetRef.trim();
       if (!slug || !ctx.existingPageSlugs.has(slug)) return false;
       const secSlug = ctx.pageSectionByPageSlug.get(slug);
@@ -137,22 +140,22 @@ export function isPatientHomeItemRuntimeResolvedOnHome(
       const req = ctx.pageRequiresAuthBySlug.get(slug);
       return authOk(req, ctx.canViewAuthOnlyContent);
     }
-    case "courses": {
-      if (item.targetType !== "course") return false;
+    case 'courses': {
+      if (item.targetType !== 'course') return false;
       const id = item.targetRef.trim();
       if (!id) return false;
       return ctx.publishedCourseIds.has(id);
     }
-    case "sos": {
-      if (item.targetType === "content_section") {
+    case 'sos': {
+      if (item.targetType === 'content_section') {
         const slug = item.targetRef.trim();
         if (!slug || !ctx.patientVisibleSectionSlugs.has(slug)) return false;
         const tax = ctx.sectionTaxonomyBySlug.get(slug);
-        if (!tax || !isPatientHomeContentSectionCandidateForBlock("sos", tax)) return false;
+        if (!tax || !isPatientHomeContentSectionCandidateForBlock('sos', tax)) return false;
         const req = ctx.sectionRequiresAuthBySlug.get(slug);
         return authOk(req, ctx.canViewAuthOnlyContent);
       }
-      if (item.targetType === "content_page") {
+      if (item.targetType === 'content_page') {
         const slug = item.targetRef.trim();
         if (!slug || !ctx.existingPageSlugs.has(slug)) return false;
         const secSlug = ctx.pageSectionByPageSlug.get(slug);
@@ -167,22 +170,23 @@ export function isPatientHomeItemRuntimeResolvedOnHome(
           archivedAt: null,
           deletedAt: null,
         };
-        if (!isPatientHomeContentPageCandidateForBlock("sos", pagePick, sectionMap)) return false;
+        if (!isPatientHomeContentPageCandidateForBlock('sos', pagePick, sectionMap)) return false;
         const req = ctx.pageRequiresAuthBySlug.get(slug);
         return authOk(req, ctx.canViewAuthOnlyContent);
       }
       return false;
     }
-    case "subscription_carousel": {
-      if (item.targetType === "content_section") {
+    case 'subscription_carousel': {
+      if (item.targetType === 'content_section') {
         const slug = item.targetRef.trim();
         if (!slug || !ctx.patientVisibleSectionSlugs.has(slug)) return false;
         const tax = ctx.sectionTaxonomyBySlug.get(slug);
-        if (!tax || !isPatientHomeContentSectionCandidateForBlock("subscription_carousel", tax)) return false;
+        if (!tax || !isPatientHomeContentSectionCandidateForBlock('subscription_carousel', tax))
+          return false;
         const req = ctx.sectionRequiresAuthBySlug.get(slug);
         return authOk(req, ctx.canViewAuthOnlyContent);
       }
-      if (item.targetType === "content_page") {
+      if (item.targetType === 'content_page') {
         const slug = item.targetRef.trim();
         if (!slug || !ctx.existingPageSlugs.has(slug)) return false;
         const secSlug = ctx.pageSectionByPageSlug.get(slug);
@@ -197,11 +201,14 @@ export function isPatientHomeItemRuntimeResolvedOnHome(
           archivedAt: null,
           deletedAt: null,
         };
-        if (!isPatientHomeContentPageCandidateForBlock("subscription_carousel", pagePick, sectionMap)) return false;
+        if (
+          !isPatientHomeContentPageCandidateForBlock('subscription_carousel', pagePick, sectionMap)
+        )
+          return false;
         const req = ctx.pageRequiresAuthBySlug.get(slug);
         return authOk(req, ctx.canViewAuthOnlyContent);
       }
-      if (item.targetType === "course") {
+      if (item.targetType === 'course') {
         const id = item.targetRef.trim();
         if (!id) return false;
         return ctx.publishedCourseIds.has(id);
@@ -222,7 +229,10 @@ export function computePatientHomeBlockRuntimeStatus(
   args: { knownRefs: KnownPatientHomeRefs; resolverSync: PatientHomeResolverSyncContext },
 ): PatientHomeBlockRuntimeStatus {
   const visibleConfiguredItems = block.items.filter((i) => i.isVisible).length;
-  const unresolvedConfiguredItems = listUnresolvedPatientHomeBlockItems(block, args.knownRefs).length;
+  const unresolvedConfiguredItems = listUnresolvedPatientHomeBlockItems(
+    block,
+    args.knownRefs,
+  ).length;
 
   if (!block.isVisible) {
     const visibleResolvedItems = isCmsRuntimeBlock(block.code)
@@ -232,7 +242,7 @@ export function computePatientHomeBlockRuntimeStatus(
       : 0;
     return {
       blockCode: block.code,
-      kind: "hidden",
+      kind: 'hidden',
       visibleResolvedItems,
       visibleConfiguredItems,
       unresolvedConfiguredItems,
@@ -242,7 +252,7 @@ export function computePatientHomeBlockRuntimeStatus(
   if (!isCmsRuntimeBlock(block.code)) {
     return {
       blockCode: block.code,
-      kind: "ready",
+      kind: 'ready',
       visibleResolvedItems: 0,
       visibleConfiguredItems,
       unresolvedConfiguredItems,
@@ -253,8 +263,7 @@ export function computePatientHomeBlockRuntimeStatus(
     isPatientHomeItemRuntimeResolvedOnHome(block.code, i, args.resolverSync),
   ).length;
 
-  const kind: PatientHomeBlockRuntimeStatusKind =
-    visibleResolvedItems === 0 ? "empty" : "ready";
+  const kind: PatientHomeBlockRuntimeStatusKind = visibleResolvedItems === 0 ? 'empty' : 'ready';
 
   return {
     blockCode: block.code,

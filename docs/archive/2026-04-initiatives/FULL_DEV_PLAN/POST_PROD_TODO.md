@@ -65,17 +65,17 @@ Pre-prod задачи (ключи/whitelist → admin, durable dispatch): см. 
 
 ## 5) Матрица решений владельца (2026-03-25, обновлено)
 
-| # | Задача | Статус |
-|---|--------|--------|
-| 1 | Перенос ключей из env в admin/DB | **PRE-PROD** → `PRE_PROD_TODO.md` п.1 |
-| 2 | Перенос whitelist в admin/DB | **PRE-PROD** → `PRE_PROD_TODO.md` п.2 |
-| 3 | Durable dispatch для важных сообщений | **PRE-PROD** → `PRE_PROD_TODO.md` п.3 |
-| 4 | OAuth Google/Apple | post-prod |
-| 5 | Stage 15 (PWA) | post-prod |
-| 6 | Stage 16 (Referrals) | post-prod |
-| 7 | Stage 17 (Patient Card) | **следующий после pre-prod 1+2** |
-| 8 | Stage 19 (Scenarios DB) | post-prod |
-| 9 | Stage 20 (Multitenant/Payments) | post-prod, после Stage 19 |
+| #   | Задача                                | Статус                                |
+| --- | ------------------------------------- | ------------------------------------- |
+| 1   | Перенос ключей из env в admin/DB      | **PRE-PROD** → `PRE_PROD_TODO.md` п.1 |
+| 2   | Перенос whitelist в admin/DB          | **PRE-PROD** → `PRE_PROD_TODO.md` п.2 |
+| 3   | Durable dispatch для важных сообщений | **PRE-PROD** → `PRE_PROD_TODO.md` п.3 |
+| 4   | OAuth Google/Apple                    | post-prod                             |
+| 5   | Stage 15 (PWA)                        | post-prod                             |
+| 6   | Stage 16 (Referrals)                  | post-prod                             |
+| 7   | Stage 17 (Patient Card)               | **следующий после pre-prod 1+2**      |
+| 8   | Stage 19 (Scenarios DB)               | post-prod                             |
+| 9   | Stage 20 (Multitenant/Payments)       | post-prod, после Stage 19             |
 
 ---
 

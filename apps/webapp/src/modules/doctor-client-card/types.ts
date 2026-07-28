@@ -1,4 +1,4 @@
-import type { SpecialistTaskPatientSummary } from "@/modules/specialist-tasks/types";
+import type { SpecialistTaskPatientSummary } from '@/modules/specialist-tasks/types';
 
 export type { SpecialistTaskPatientSummary as DoctorClientTaskSummary };
 
@@ -39,7 +39,7 @@ export type DoctorClientProgramInboxRow = {
   stageItemId: string;
   instanceId: string;
   title: string;
-  kind: "comment" | "media";
+  kind: 'comment' | 'media';
 };
 
 export type DoctorClientRecentProgramChangeRow = {
@@ -88,32 +88,32 @@ export type DoctorClientProgramCardData = {
 };
 
 export const DOCTOR_CLIENT_TAB_IDS = [
-  "overview",
-  "program",
-  "communications",
-  "records",
-  "account",
+  'overview',
+  'program',
+  'communications',
+  'records',
+  'account',
 ] as const;
 
 export type DoctorClientTabId = (typeof DOCTOR_CLIENT_TAB_IDS)[number];
 
 /** Якорь секции → активный таб (§8 CARD_REDESIGN_PLAN). */
 export const DOCTOR_CLIENT_ANCHOR_TO_TAB: Record<string, DoctorClientTabId> = {
-  "doctor-client-section-notes": "overview",
-  "doctor-client-section-tasks": "overview",
-  "doctor-client-section-wellbeing": "overview",
-  "doctor-client-section-proactive-signals": "overview",
-  "doctor-client-section-support": "overview",
-  "doctor-client-section-treatment-programs": "program",
-  "doctor-client-section-program-inbox": "program",
-  "doctor-client-section-pending-program-tests": "program",
-  "doctor-client-section-lfk": "account",
-  "doctor-client-section-symptoms": "records",
-  "doctor-client-section-appointments": "records",
-  "doctor-client-section-appointment-history": "records",
-  "doctor-client-section-booking-history": "records",
-  "doctor-client-section-communications": "communications",
-  "doctor-client-section-contacts": "account",
-  "doctor-client-section-lifecycle": "account",
-  "doctor-client-section-subscriber": "account",
+  'doctor-client-section-notes': 'overview',
+  'doctor-client-section-tasks': 'overview',
+  'doctor-client-section-wellbeing': 'overview',
+  'doctor-client-section-proactive-signals': 'overview',
+  'doctor-client-section-support': 'overview',
+  'doctor-client-section-treatment-programs': 'program',
+  'doctor-client-section-program-inbox': 'program',
+  'doctor-client-section-pending-program-tests': 'program',
+  'doctor-client-section-lfk': 'account',
+  'doctor-client-section-symptoms': 'records',
+  'doctor-client-section-appointments': 'records',
+  'doctor-client-section-appointment-history': 'records',
+  'doctor-client-section-booking-history': 'records',
+  'doctor-client-section-communications': 'communications',
+  'doctor-client-section-contacts': 'account',
+  'doctor-client-section-lifecycle': 'account',
+  'doctor-client-section-subscriber': 'account',
 };

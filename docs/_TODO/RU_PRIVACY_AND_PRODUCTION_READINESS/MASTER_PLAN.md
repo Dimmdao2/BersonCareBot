@@ -1,4 +1,4 @@
-> STATUS (verified 2026-07-23, code-reconciled): see docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/CHECKPOINT_2026-07-23_STATE_AND_BACKEND_WORK_ORDER.md
+> STATUS (verified 2026-07-23, code-reconciled): see docs/\_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/CHECKPOINT_2026-07-23_STATE_AND_BACKEND_WORK_ORDER.md
 > verified 2026-07-23: ~277 open across stages; ~112 agent-doable backend (DR-01/02 restore drill, LOG-01 L0/L2, CRYPTO-01 C0 draft, NTF-01 census, SEC-02/03 repo slices), rest (~165) owner/legal-gated incl. all of FINAL_ACCEPTANCE.
 
 # Master plan
@@ -26,24 +26,23 @@ production data и secrets этим решением не разрешены.
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-
-| Этап | Когда | Основной результат | Оценка |
-|---|---|---|---:|
-| `PR-00` Scope lock | сейчас | доказательный реестр по пяти статусам + launch manifests | 1–2 дня |
-| `PR-01` Processing register | немедленно, docs/legal | карта обработки, РКН status, interim containment, роли/основания | 2–4 дня + юрист |
-| `SEC-01` Security CI | сейчас, параллельно, taskdb `#881` | Gitleaks/Semgrep/Trivy в PR; ZAP/full Trivy по расписанию; первый triage | 2–4 дня |
-| `SEC-02` Host and secrets | preflight сейчас; TEST после scope lock; PROD только owner window | SSH/SG/firewall, service users, systemd hardening, secret lifecycle | 4–7 дней + окно |
-| `DR-01` Backup and S3 | проектирование сейчас; TEST до production | шифрованные, проверяемые и отдельно хранимые backups | 4–7 дней |
-| `DR-02` Disaster recovery | после `DR-01` | измеренный restore VPS/DB/S3, утверждённые RPO/RTO | 2–4 дня |
-| `CRYPTO-01` Data/key encryption | ADR сейчас; application после D4/S5-7/legal gates | key lifecycle, S3 client-side encryption, encrypted media migration, выбранные DB fields/secrets | 3–6 недель |
-| `NTF-01` App push / messenger auth-only | N1 guard; затем N1A auth-channel admin policy и N1B template foundation; native leg после MOB gates | product push-only, auth-only bots, admin channel controls, safe editable/branded templates, no hidden fallback | 3–6 недель |
-| `LOG-01` Payload hygiene | L0/L1 сейчас; queue/schema после retention gate | no raw SQL params/clinical text in logs, attempts, retries and queues | 1–3 недели |
-| `INFRA-01` Encrypted PROD migration | disposable proof после owner/provider gates; cutover только после PR-04A | новый зашифрованный VPS, rehearsal, phased cutover/rollback и decommission старого | 1–2 недели + окно |
-| `PR-02` Health consent | после D4 + S5-7 + legal text | отдельный versioned consent lifecycle | 4–7 дней |
-| `PR-03A/B` Data rights/lifecycle | A0 disable/gate существующего admin hard-delete сейчас; остальной A после `PR-02`; B до purge; payment slice после C5B freeze #844/#845 | сначала закрытый destructive path и negative guard; затем manual containment и DSAR/export/reminders/purge/offboarding automation | 1–2 недели |
-| `SEC-03` Clinical access audit | после D4 | защищённый audit чувствительных reads/downloads/exports/denies | 4–7 дней |
-| `SEC-04` Governance/incidents | после `SEC-03` + log/break-glass gates | JML, vulnerability SLA, protected logs и 24/72 incident drill | 4–7 дней |
-| `PR-04A/B` ISPDn release gate | A перед cutover, B после soak/decommission | модель угроз/мер, evidence pack, внешний review, owner go/no-go и closure фактической topology | 3–7 дней + review |
+| Этап                                    | Когда                                                                                                                                   | Основной результат                                                                                                                |            Оценка |
+| --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ----------------: |
+| `PR-00` Scope lock                      | сейчас                                                                                                                                  | доказательный реестр по пяти статусам + launch manifests                                                                          |           1–2 дня |
+| `PR-01` Processing register             | немедленно, docs/legal                                                                                                                  | карта обработки, РКН status, interim containment, роли/основания                                                                  |   2–4 дня + юрист |
+| `SEC-01` Security CI                    | сейчас, параллельно, taskdb `#881`                                                                                                      | Gitleaks/Semgrep/Trivy в PR; ZAP/full Trivy по расписанию; первый triage                                                          |           2–4 дня |
+| `SEC-02` Host and secrets               | preflight сейчас; TEST после scope lock; PROD только owner window                                                                       | SSH/SG/firewall, service users, systemd hardening, secret lifecycle                                                               |   4–7 дней + окно |
+| `DR-01` Backup and S3                   | проектирование сейчас; TEST до production                                                                                               | шифрованные, проверяемые и отдельно хранимые backups                                                                              |          4–7 дней |
+| `DR-02` Disaster recovery               | после `DR-01`                                                                                                                           | измеренный restore VPS/DB/S3, утверждённые RPO/RTO                                                                                |           2–4 дня |
+| `CRYPTO-01` Data/key encryption         | ADR сейчас; application после D4/S5-7/legal gates                                                                                       | key lifecycle, S3 client-side encryption, encrypted media migration, выбранные DB fields/secrets                                  |        3–6 недель |
+| `NTF-01` App push / messenger auth-only | N1 guard; затем N1A auth-channel admin policy и N1B template foundation; native leg после MOB gates                                     | product push-only, auth-only bots, admin channel controls, safe editable/branded templates, no hidden fallback                    |        3–6 недель |
+| `LOG-01` Payload hygiene                | L0/L1 сейчас; queue/schema после retention gate                                                                                         | no raw SQL params/clinical text in logs, attempts, retries and queues                                                             |        1–3 недели |
+| `INFRA-01` Encrypted PROD migration     | disposable proof после owner/provider gates; cutover только после PR-04A                                                                | новый зашифрованный VPS, rehearsal, phased cutover/rollback и decommission старого                                                | 1–2 недели + окно |
+| `PR-02` Health consent                  | после D4 + S5-7 + legal text                                                                                                            | отдельный versioned consent lifecycle                                                                                             |          4–7 дней |
+| `PR-03A/B` Data rights/lifecycle        | A0 disable/gate существующего admin hard-delete сейчас; остальной A после `PR-02`; B до purge; payment slice после C5B freeze #844/#845 | сначала закрытый destructive path и negative guard; затем manual containment и DSAR/export/reminders/purge/offboarding automation |        1–2 недели |
+| `SEC-03` Clinical access audit          | после D4                                                                                                                                | защищённый audit чувствительных reads/downloads/exports/denies                                                                    |          4–7 дней |
+| `SEC-04` Governance/incidents           | после `SEC-03` + log/break-glass gates                                                                                                  | JML, vulnerability SLA, protected logs и 24/72 incident drill                                                                     |          4–7 дней |
+| `PR-04A/B` ISPDn release gate           | A перед cutover, B после soak/decommission                                                                                              | модель угроз/мер, evidence pack, внешний review, owner go/no-go и closure фактической topology                                    | 3–7 дней + review |
 
 Оценка инженерного объёма без native mobile UI, ожидания владельца/юриста и production-окон: **примерно 17–30
 человеко-недель**. При трёх независимых исполнителях календарный путь обычно **10–16 недель** после стабилизации
@@ -58,7 +57,6 @@ production data и secrets этим решением не разрешены.
 > **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
-
 
 ```text
 сейчас: PR-00 ──> PR-01 ───────────────────────────────┐
@@ -107,7 +105,6 @@ PR-04A GO ─> INFRA-01/I5 cutover ─> soak/I6 ─> PR-04B closure
 > **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
-
 
 ### PR-00 — Scope lock и baseline
 
@@ -279,7 +276,6 @@ post-cutover host/storage state, residual risks, owners и сроки.
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-
 - Разрешённый file scope указывается в stage manifest до `doing`; пересечение с активной стадией блокирует старт.
 - Не менять active plan/log ради ссылки. Handoff в них — отдельным коммитом после закрытия владельцем.
 - Изменения кода выполняются минимальными vertical slices: schema/ports/service/API/UI/tests/docs.
@@ -296,7 +292,6 @@ post-cutover host/storage state, residual risks, owners и сроки.
 > **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
-
 
 - [ ] Все owner/legal gates имеют решение, provenance и дату review.
 - [ ] Все технические stages закрыты checks + risk-based audit; открытые риски имеют owner/deadline.

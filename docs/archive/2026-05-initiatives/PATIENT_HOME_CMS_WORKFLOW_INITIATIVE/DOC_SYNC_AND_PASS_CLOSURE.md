@@ -19,12 +19,12 @@
 
 ## Остатки (не блокируют PASS по коду/CI)
 
-| Тема | Статус | Примечание |
-|------|--------|------------|
-| Ручной smoke по `06_QA_RELEASE_PLAN.md` | OPEN | Обязателен для продуктового «release signed off» |
-| Миниаппа бота / отдельный patient home entry | Вне scope release-ready | Основной контракт закрыт на `/app/patient` + doctor editor; при необходимости parity — отдельная задача |
-| `content_section_slug_history` / rename в raw SQL в `pgContentSections` | Backlog | Работает; перенос на Drizzle — отдельный refactor, не регресс release-ready |
-| Clean-arch: `service.ts` в eslint allowlist, legacy `repository.ts` / `newsMotivation` | Известный долг | См. `eslint.config.mjs`, `LEGACY_CLEANUP_BACKLOG` при расширении зоны |
+| Тема                                                                                   | Статус                  | Примечание                                                                                              |
+| -------------------------------------------------------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------- |
+| Ручной smoke по `06_QA_RELEASE_PLAN.md`                                                | OPEN                    | Обязателен для продуктового «release signed off»                                                        |
+| Миниаппа бота / отдельный patient home entry                                           | Вне scope release-ready | Основной контракт закрыт на `/app/patient` + doctor editor; при необходимости parity — отдельная задача |
+| `content_section_slug_history` / rename в raw SQL в `pgContentSections`                | Backlog                 | Работает; перенос на Drizzle — отдельный refactor, не регресс release-ready                             |
+| Clean-arch: `service.ts` в eslint allowlist, legacy `repository.ts` / `newsMotivation` | Известный долг          | См. `eslint.config.mjs`, `LEGACY_CLEANUP_BACKLOG` при расширении зоны                                   |
 
 ## Канонический статус плана
 

@@ -1,9 +1,9 @@
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
-import { TREATMENT_PROGRAM_ITEM_TYPES } from "@/modules/treatment-program/types";
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
+import { TREATMENT_PROGRAM_ITEM_TYPES } from '@/modules/treatment-program/types';
 
 const patchBodySchema = z.object({
   itemType: z.enum(TREATMENT_PROGRAM_ITEM_TYPES).optional(),
@@ -24,19 +24,26 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ itemId: s
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = patchBodySchema.safeParse(raw);
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
 
   const deps = buildAppDeps();
   try {
     const item = await deps.treatmentProgram.updateStageItem(itemId, parsed.data, {
       runTemplateWrite: (fn) =>
-        withDoctorWorkspacePrincipal(workspace, "doctor.treatment-program-templates.stage-items.update", fn),
+        withDoctorWorkspacePrincipal(
+          workspace,
+          'doctor.treatment-program-templates.stage-items.update',
+          fn,
+        ),
     });
     return NextResponse.json({ ok: true, item });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "error";
-    return NextResponse.json({ ok: false, error: msg }, { status: msg.includes("не найден") ? 404 : 400 });
+    const msg = e instanceof Error ? e.message : 'error';
+    return NextResponse.json(
+      { ok: false, error: msg },
+      { status: msg.includes('не найден') ? 404 : 400 },
+    );
   }
 }
 
@@ -50,11 +57,15 @@ export async function DELETE(_request: Request, ctx: { params: Promise<{ itemId:
   try {
     await deps.treatmentProgram.deleteStageItem(itemId, {
       runTemplateWrite: (fn) =>
-        withDoctorWorkspacePrincipal(workspace, "doctor.treatment-program-templates.stage-items.delete", fn),
+        withDoctorWorkspacePrincipal(
+          workspace,
+          'doctor.treatment-program-templates.stage-items.delete',
+          fn,
+        ),
     });
     return NextResponse.json({ ok: true });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "error";
+    const msg = e instanceof Error ? e.message : 'error';
     return NextResponse.json({ ok: false, error: msg }, { status: 404 });
   }
 }

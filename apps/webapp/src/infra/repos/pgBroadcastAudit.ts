@@ -1,10 +1,10 @@
 /**
  * Wave 3 phase 14D — domain SQL via `runWebappPgText`.
  */
-import { runWebappPgText } from "@/infra/db/runWebappSql";
-import { toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
-import type { BroadcastAuditEntry, BroadcastAuditPort } from "@/modules/doctor-broadcasts/ports";
-import { normalizeBroadcastChannels } from "@/modules/doctor-broadcasts/broadcastChannels";
+import { runWebappPgText } from '@/infra/db/runWebappSql';
+import { toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
+import type { BroadcastAuditEntry, BroadcastAuditPort } from '@/modules/doctor-broadcasts/ports';
+import { normalizeBroadcastChannels } from '@/modules/doctor-broadcasts/broadcastChannels';
 
 function mapRow(row: Record<string, unknown>): BroadcastAuditEntry {
   const rawChannels = row.channels;
@@ -14,10 +14,10 @@ function mapRow(row: Record<string, unknown>): BroadcastAuditEntry {
   return {
     id: String(row.id),
     actorId: String(row.actor_id),
-    category: row.category as BroadcastAuditEntry["category"],
-    audienceFilter: row.audience_filter as BroadcastAuditEntry["audienceFilter"],
+    category: row.category as BroadcastAuditEntry['category'],
+    audienceFilter: row.audience_filter as BroadcastAuditEntry['audienceFilter'],
     messageTitle: String(row.message_title),
-    messageBody: typeof row.message_body === "string" ? row.message_body : "",
+    messageBody: typeof row.message_body === 'string' ? row.message_body : '',
     channels,
     executedAt: new Date(String(row.executed_at)).toISOString(),
     previewOnly: Boolean(row.preview_only),
@@ -44,7 +44,7 @@ export function createPgBroadcastAuditPort(): BroadcastAuditPort {
           entry.category,
           entry.audienceFilter,
           entry.messageTitle,
-          entry.messageBody ?? "",
+          entry.messageBody ?? '',
           entry.channels,
           entry.previewOnly,
           entry.audienceSize,

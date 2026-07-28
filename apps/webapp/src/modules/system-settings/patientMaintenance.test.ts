@@ -1,37 +1,37 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_PATIENT_MAINTENANCE_MESSAGE,
   normalizePatientBookingUrl,
   normalizePatientMaintenanceMessage,
   patientMaintenanceReplacesPatientShell,
   patientMaintenanceSkipsPath,
-} from "./patientMaintenance";
+} from './patientMaintenance';
 
-describe("patientMaintenance normalizers", () => {
-  it("uses default message for empty/whitespace", () => {
-    expect(normalizePatientMaintenanceMessage("")).toBe(DEFAULT_PATIENT_MAINTENANCE_MESSAGE);
-    expect(normalizePatientMaintenanceMessage("   ")).toBe(DEFAULT_PATIENT_MAINTENANCE_MESSAGE);
+describe('patientMaintenance normalizers', () => {
+  it('uses default message for empty/whitespace', () => {
+    expect(normalizePatientMaintenanceMessage('')).toBe(DEFAULT_PATIENT_MAINTENANCE_MESSAGE);
+    expect(normalizePatientMaintenanceMessage('   ')).toBe(DEFAULT_PATIENT_MAINTENANCE_MESSAGE);
   });
 
-  it("trims non-empty message", () => {
-    expect(normalizePatientMaintenanceMessage("  hello  ")).toBe("hello");
+  it('trims non-empty message', () => {
+    expect(normalizePatientMaintenanceMessage('  hello  ')).toBe('hello');
   });
 
-  it("truncates overly long message", () => {
-    const long = "a".repeat(600);
+  it('truncates overly long message', () => {
+    const long = 'a'.repeat(600);
     expect(normalizePatientMaintenanceMessage(long).length).toBe(500);
   });
 
-  it("normalizes booking URL", () => {
-    expect(normalizePatientBookingUrl("")).toBeNull();
-    expect(normalizePatientBookingUrl("https://example.com/x")).toBe("https://example.com/x");
-    expect(normalizePatientBookingUrl("not a url")).toBeNull();
-    expect(normalizePatientBookingUrl("ftp://x")).toBeNull();
+  it('normalizes booking URL', () => {
+    expect(normalizePatientBookingUrl('')).toBeNull();
+    expect(normalizePatientBookingUrl('https://example.com/x')).toBe('https://example.com/x');
+    expect(normalizePatientBookingUrl('not a url')).toBeNull();
+    expect(normalizePatientBookingUrl('ftp://x')).toBeNull();
   });
 });
 
-describe("patientMaintenanceReplacesPatientShell", () => {
-  it("truth table: overlay only when enabled, path not skipped, and user is not a test account", () => {
+describe('patientMaintenanceReplacesPatientShell', () => {
+  it('truth table: overlay only when enabled, path not skipped, and user is not a test account', () => {
     expect(patientMaintenanceReplacesPatientShell(true, false, false)).toBe(true);
     expect(patientMaintenanceReplacesPatientShell(true, false, true)).toBe(false);
     expect(patientMaintenanceReplacesPatientShell(true, true, false)).toBe(false);
@@ -42,53 +42,53 @@ describe("patientMaintenanceReplacesPatientShell", () => {
   });
 });
 
-describe("patientMaintenanceSkipsPath", () => {
-  it("skips bind-phone, help, support", () => {
+describe('patientMaintenanceSkipsPath', () => {
+  it('skips bind-phone, help, support', () => {
     expect(
       patientMaintenanceSkipsPath({
-        pathname: "/app/patient/bind-phone",
-        gate: "allow",
+        pathname: '/app/patient/bind-phone',
+        gate: 'allow',
         legacyNoDatabase: false,
-        sessionPhoneTrimmed: "+7999",
+        sessionPhoneTrimmed: '+7999',
       }),
     ).toBe(true);
     expect(
       patientMaintenanceSkipsPath({
-        pathname: "/app/patient/help/faq",
-        gate: "allow",
+        pathname: '/app/patient/help/faq',
+        gate: 'allow',
         legacyNoDatabase: false,
-        sessionPhoneTrimmed: "+7999",
+        sessionPhoneTrimmed: '+7999',
       }),
     ).toBe(true);
   });
 
-  it("skips activation allowlist when gate need_activation", () => {
+  it('skips activation allowlist when gate need_activation', () => {
     expect(
       patientMaintenanceSkipsPath({
-        pathname: "/app/patient/sections/foo",
-        gate: "need_activation",
+        pathname: '/app/patient/sections/foo',
+        gate: 'need_activation',
         legacyNoDatabase: false,
         sessionPhoneTrimmed: undefined,
       }),
     ).toBe(true);
   });
 
-  it("does not skip main patient home when gate allow", () => {
+  it('does not skip main patient home when gate allow', () => {
     expect(
       patientMaintenanceSkipsPath({
-        pathname: "/app/patient",
-        gate: "allow",
+        pathname: '/app/patient',
+        gate: 'allow',
         legacyNoDatabase: false,
-        sessionPhoneTrimmed: "+7999",
+        sessionPhoneTrimmed: '+7999',
       }),
     ).toBe(false);
   });
 
-  it("legacy no-db + no phone uses activation allowlist", () => {
+  it('legacy no-db + no phone uses activation allowlist', () => {
     expect(
       patientMaintenanceSkipsPath({
-        pathname: "/app/patient/bind-phone",
-        gate: "need_activation",
+        pathname: '/app/patient/bind-phone',
+        gate: 'need_activation',
         legacyNoDatabase: true,
         sessionPhoneTrimmed: undefined,
       }),

@@ -1,12 +1,12 @@
 import {
   resolveSpecialistTaskReminderChannelsForUser,
   type ResolveSpecialistTaskReminderChannelsDeps,
-} from "@/modules/doctor-notifications/resolveSpecialistTaskReminderChannels";
-import type { SpecialistTasksService } from "./service";
+} from '@/modules/doctor-notifications/resolveSpecialistTaskReminderChannels';
+import type { SpecialistTasksService } from './service';
 import {
   notifySpecialistTaskReminder,
   type NotifySpecialistTaskReminderDeps,
-} from "./notifySpecialistTaskReminder";
+} from './notifySpecialistTaskReminder';
 
 export type DispatchSpecialistTaskRemindersDeps = NotifySpecialistTaskReminderDeps &
   ResolveSpecialistTaskReminderChannelsDeps & {

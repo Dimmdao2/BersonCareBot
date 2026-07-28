@@ -8,16 +8,18 @@ export async function handleBooking(
   deps: ExecutorDeps,
 ): Promise<ActionResult> {
   if (action.type === 'booking.event.insert') {
-    const writes = [{
-      type: 'event.log' as const,
-      params: {
-        source: ctx.event.meta.source,
-        eventType: ctx.event.type,
-        eventId: ctx.event.meta.eventId,
-        occurredAt: ctx.event.meta.occurredAt,
-        body: action.params,
+    const writes = [
+      {
+        type: 'event.log' as const,
+        params: {
+          source: ctx.event.meta.source,
+          eventType: ctx.event.type,
+          eventId: ctx.event.meta.eventId,
+          occurredAt: ctx.event.meta.occurredAt,
+          body: action.params,
+        },
       },
-    }];
+    ];
     await persistWrites(deps.writePort, writes);
     return { actionId: action.id, status: 'success', writes };
   }

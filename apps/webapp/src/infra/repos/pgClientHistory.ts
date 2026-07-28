@@ -1,15 +1,15 @@
-import { and, desc, eq, inArray, isNull, or } from "drizzle-orm";
-import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
-import { getDrizzle } from "@/app-layer/db/drizzle";
-import { runDrizzleMutationTransaction } from "@/infra/db/drizzleMutationTx";
+import { and, desc, eq, inArray, isNull, or } from 'drizzle-orm';
+import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
+import { getDrizzle } from '@/app-layer/db/drizzle';
+import { runDrizzleMutationTransaction } from '@/infra/db/drizzleMutationTx';
 import {
   beAppointmentStaffComments,
   bePatientBookingProfiles,
-} from "../../../db/schema/bookingClientProfile";
+} from '../../../db/schema/bookingClientProfile';
 import {
   beAppointmentCancellations,
   beAppointmentReschedules,
-} from "../../../db/schema/bookingPolicies";
+} from '../../../db/schema/bookingPolicies';
 import {
   beAppointments,
   beBranches,
@@ -17,35 +17,35 @@ import {
   bePatientTimelineEvents,
   beRooms,
   beSpecialists,
-} from "../../../db/schema/bookingEngine";
+} from '../../../db/schema/bookingEngine';
 import {
   bePackageHistoryEvents,
   bePackageUsages,
   bePatientPackageItems,
   bePatientPackages,
-} from "../../../db/schema/bookingMemberships";
-import { bePaymentHistoryEvents } from "../../../db/schema/bookingPayments";
-import { beProductHistoryEvents, beProductPurchases } from "../../../db/schema/bookingProducts";
-import { doctorNotes, platformUsers } from "../../../db/schema/schema";
-import type { ClientHistoryPort } from "@/modules/client-history/ports";
+} from '../../../db/schema/bookingMemberships';
+import { bePaymentHistoryEvents } from '../../../db/schema/bookingPayments';
+import { beProductHistoryEvents, beProductPurchases } from '../../../db/schema/bookingProducts';
+import { doctorNotes, platformUsers } from '../../../db/schema/schema';
+import type { ClientHistoryPort } from '@/modules/client-history/ports';
 import type {
   AppointmentStaffCommentRow,
   ClientTimelineItem,
   ClientVisitHistoryRow,
   PatientBookingProfile,
-} from "@/modules/client-history/types";
+} from '@/modules/client-history/types';
 import {
   dedupeTimelineItems,
   enrichPaymentHistoryRow,
   isFinalPaymentEventType,
   isPrepaymentEventType,
   parsePaymentPayloadRefs,
-} from "@/modules/client-history/clientHistoryUtils";
+} from '@/modules/client-history/clientHistoryUtils';
 import {
   formatAmountMinor,
   paymentMethodLabel,
   timelineEventTitle,
-} from "@/modules/client-history/labels";
+} from '@/modules/client-history/labels';
 
 function sourceFetchLimit(limit: number): number {
   return Math.min(Math.max(limit * 3, 150), 500);
@@ -63,7 +63,9 @@ function mapProfile(row: typeof bePatientBookingProfiles.$inferSelect): PatientB
   };
 }
 
-function mapStaffComment(row: typeof beAppointmentStaffComments.$inferSelect): AppointmentStaffCommentRow {
+function mapStaffComment(
+  row: typeof beAppointmentStaffComments.$inferSelect,
+): AppointmentStaffCommentRow {
   return {
     id: row.id,
     appointmentId: row.appointmentId,
@@ -78,7 +80,7 @@ function mapStaffComment(row: typeof beAppointmentStaffComments.$inferSelect): A
 function currentPrincipalOrganizationId(): string {
   const principalOrganizationId = getCurrentDbPrincipalOrganizationId();
   if (!principalOrganizationId) {
-    throw new Error("organization_principal_required");
+    throw new Error('organization_principal_required');
   }
   return principalOrganizationId;
 }
@@ -88,8 +90,11 @@ function currentWriteOrganizationId(...fallbacks: (string | null | undefined)[])
   const fallbackOrganizationIds = fallbacks.filter((x): x is string => Boolean(x));
   const fallbackOrganizationId = fallbackOrganizationIds[0] ?? null;
   const hasFallbackMismatch = fallbackOrganizationIds.some((id) => id !== fallbackOrganizationId);
-  if (hasFallbackMismatch || (fallbackOrganizationId && principalOrganizationId !== fallbackOrganizationId)) {
-    throw new Error("organization_principal_mismatch");
+  if (
+    hasFallbackMismatch ||
+    (fallbackOrganizationId && principalOrganizationId !== fallbackOrganizationId)
+  ) {
+    throw new Error('organization_principal_mismatch');
   }
   return principalOrganizationId;
 }
@@ -109,7 +114,11 @@ async function resolveUserPhone(platformUserId: string): Promise<string | null> 
   return phone || null;
 }
 
-function productPurchaseScope(organizationId: string, platformUserId: string, phone: string | null) {
+function productPurchaseScope(
+  organizationId: string,
+  platformUserId: string,
+  phone: string | null,
+) {
   if (!phone) {
     return and(
       eq(beProductPurchases.organizationId, organizationId),
@@ -120,7 +129,10 @@ function productPurchaseScope(organizationId: string, platformUserId: string, ph
     eq(beProductPurchases.organizationId, organizationId),
     or(
       eq(beProductPurchases.platformUserId, platformUserId),
-      and(isNull(beProductPurchases.platformUserId), eq(beProductPurchases.buyerPhoneNormalized, phone)),
+      and(
+        isNull(beProductPurchases.platformUserId),
+        eq(beProductPurchases.buyerPhoneNormalized, phone),
+      ),
     ),
   );
 }
@@ -161,12 +173,16 @@ async function fetchPhoneMatchedOrphanPaymentRows(
 
   return orphanRows.filter((row) => {
     const payload = row.payloadJson as Record<string, unknown>;
-    const productRef = typeof payload.productRef === "string" ? payload.productRef : null;
+    const productRef = typeof payload.productRef === 'string' ? payload.productRef : null;
     return productRef != null && refs.includes(productRef);
   });
 }
 
-function mergePaymentHistoryRows(primaryRows: PaymentHistoryRow[], extraRows: PaymentHistoryRow[], fetchLimit: number) {
+function mergePaymentHistoryRows(
+  primaryRows: PaymentHistoryRow[],
+  extraRows: PaymentHistoryRow[],
+  fetchLimit: number,
+) {
   const seenIds = new Set<string>();
   const rows = [...primaryRows, ...extraRows].filter((row) => {
     if (seenIds.has(row.id)) return false;
@@ -182,152 +198,302 @@ export function createPgClientHistoryPort(): ClientHistoryPort {
     async listPatientTimeline(organizationId, platformUserId, limit = 100) {
       const db = getDrizzle();
       const fetchLimit = sourceFetchLimit(limit);
-      const [timelineRows, paymentRows, packageHistoryRows, productHistoryRows, productRows, packageUsageRows,
-        rescheduleRows, cancelRows] = await Promise.all([
-        db.select().from(bePatientTimelineEvents).where(and(
-          eq(bePatientTimelineEvents.organizationId, organizationId),
-          eq(bePatientTimelineEvents.platformUserId, platformUserId),
-        )).orderBy(desc(bePatientTimelineEvents.occurredAt)).limit(fetchLimit),
-        db.select().from(bePaymentHistoryEvents).where(and(
-          eq(bePaymentHistoryEvents.organizationId, organizationId),
-          eq(bePaymentHistoryEvents.platformUserId, platformUserId),
-        )).orderBy(desc(bePaymentHistoryEvents.occurredAt)).limit(fetchLimit),
-        db.select({
-          id: bePackageHistoryEvents.id,
-          eventType: bePackageHistoryEvents.eventType,
-          occurredAt: bePackageHistoryEvents.occurredAt,
-          payloadJson: bePackageHistoryEvents.payloadJson,
-          packageTitle: bePatientPackages.title,
-          patientPackageId: bePackageHistoryEvents.patientPackageId,
-        }).from(bePackageHistoryEvents)
-          .innerJoin(bePatientPackages, eq(bePackageHistoryEvents.patientPackageId, bePatientPackages.id))
-          .where(and(
-            eq(bePackageHistoryEvents.organizationId, organizationId),
-            eq(bePatientPackages.platformUserId, platformUserId),
-          )).orderBy(desc(bePackageHistoryEvents.occurredAt)).limit(fetchLimit),
-        db.select({
-          id: beProductHistoryEvents.id,
-          eventType: beProductHistoryEvents.eventType,
-          occurredAt: beProductHistoryEvents.occurredAt,
-          payloadJson: beProductHistoryEvents.payloadJson,
-          productPurchaseId: beProductHistoryEvents.productPurchaseId,
-          purchaseTitle: beProductPurchases.title,
-        }).from(beProductHistoryEvents)
-          .innerJoin(beProductPurchases, eq(beProductHistoryEvents.productPurchaseId, beProductPurchases.id))
-          .where(and(
-            eq(beProductHistoryEvents.organizationId, organizationId),
-            eq(beProductPurchases.platformUserId, platformUserId),
-          )).orderBy(desc(beProductHistoryEvents.occurredAt)).limit(fetchLimit),
-        db.select().from(beProductPurchases).where(and(
-          eq(beProductPurchases.organizationId, organizationId),
-          eq(beProductPurchases.platformUserId, platformUserId),
-        )).orderBy(desc(beProductPurchases.createdAt)).limit(fetchLimit),
-        db.select({
-          id: bePackageUsages.id,
-          usageKind: bePackageUsages.usageKind,
-          occurredAt: bePackageUsages.occurredAt,
-          comment: bePackageUsages.comment,
-          appointmentId: bePackageUsages.appointmentId,
-          packageTitle: bePatientPackages.title,
-        }).from(bePackageUsages)
+      const [
+        timelineRows,
+        paymentRows,
+        packageHistoryRows,
+        productHistoryRows,
+        productRows,
+        packageUsageRows,
+        rescheduleRows,
+        cancelRows,
+      ] = await Promise.all([
+        db
+          .select()
+          .from(bePatientTimelineEvents)
+          .where(
+            and(
+              eq(bePatientTimelineEvents.organizationId, organizationId),
+              eq(bePatientTimelineEvents.platformUserId, platformUserId),
+            ),
+          )
+          .orderBy(desc(bePatientTimelineEvents.occurredAt))
+          .limit(fetchLimit),
+        db
+          .select()
+          .from(bePaymentHistoryEvents)
+          .where(
+            and(
+              eq(bePaymentHistoryEvents.organizationId, organizationId),
+              eq(bePaymentHistoryEvents.platformUserId, platformUserId),
+            ),
+          )
+          .orderBy(desc(bePaymentHistoryEvents.occurredAt))
+          .limit(fetchLimit),
+        db
+          .select({
+            id: bePackageHistoryEvents.id,
+            eventType: bePackageHistoryEvents.eventType,
+            occurredAt: bePackageHistoryEvents.occurredAt,
+            payloadJson: bePackageHistoryEvents.payloadJson,
+            packageTitle: bePatientPackages.title,
+            patientPackageId: bePackageHistoryEvents.patientPackageId,
+          })
+          .from(bePackageHistoryEvents)
+          .innerJoin(
+            bePatientPackages,
+            eq(bePackageHistoryEvents.patientPackageId, bePatientPackages.id),
+          )
+          .where(
+            and(
+              eq(bePackageHistoryEvents.organizationId, organizationId),
+              eq(bePatientPackages.platformUserId, platformUserId),
+            ),
+          )
+          .orderBy(desc(bePackageHistoryEvents.occurredAt))
+          .limit(fetchLimit),
+        db
+          .select({
+            id: beProductHistoryEvents.id,
+            eventType: beProductHistoryEvents.eventType,
+            occurredAt: beProductHistoryEvents.occurredAt,
+            payloadJson: beProductHistoryEvents.payloadJson,
+            productPurchaseId: beProductHistoryEvents.productPurchaseId,
+            purchaseTitle: beProductPurchases.title,
+          })
+          .from(beProductHistoryEvents)
+          .innerJoin(
+            beProductPurchases,
+            eq(beProductHistoryEvents.productPurchaseId, beProductPurchases.id),
+          )
+          .where(
+            and(
+              eq(beProductHistoryEvents.organizationId, organizationId),
+              eq(beProductPurchases.platformUserId, platformUserId),
+            ),
+          )
+          .orderBy(desc(beProductHistoryEvents.occurredAt))
+          .limit(fetchLimit),
+        db
+          .select()
+          .from(beProductPurchases)
+          .where(
+            and(
+              eq(beProductPurchases.organizationId, organizationId),
+              eq(beProductPurchases.platformUserId, platformUserId),
+            ),
+          )
+          .orderBy(desc(beProductPurchases.createdAt))
+          .limit(fetchLimit),
+        db
+          .select({
+            id: bePackageUsages.id,
+            usageKind: bePackageUsages.usageKind,
+            occurredAt: bePackageUsages.occurredAt,
+            comment: bePackageUsages.comment,
+            appointmentId: bePackageUsages.appointmentId,
+            packageTitle: bePatientPackages.title,
+          })
+          .from(bePackageUsages)
           .innerJoin(bePatientPackages, eq(bePackageUsages.patientPackageId, bePatientPackages.id))
-          .where(and(
-            eq(bePackageUsages.organizationId, organizationId),
-            eq(bePatientPackages.platformUserId, platformUserId),
-          )).orderBy(desc(bePackageUsages.occurredAt)).limit(fetchLimit),
-        db.select({
-          id: beAppointmentReschedules.id,
-          appointmentId: beAppointmentReschedules.appointmentId,
-          fromStartAt: beAppointmentReschedules.fromStartAt,
-          toStartAt: beAppointmentReschedules.toStartAt,
-          reason: beAppointmentReschedules.reason,
-          createdAt: beAppointmentReschedules.createdAt,
-        }).from(beAppointmentReschedules)
+          .where(
+            and(
+              eq(bePackageUsages.organizationId, organizationId),
+              eq(bePatientPackages.platformUserId, platformUserId),
+            ),
+          )
+          .orderBy(desc(bePackageUsages.occurredAt))
+          .limit(fetchLimit),
+        db
+          .select({
+            id: beAppointmentReschedules.id,
+            appointmentId: beAppointmentReschedules.appointmentId,
+            fromStartAt: beAppointmentReschedules.fromStartAt,
+            toStartAt: beAppointmentReschedules.toStartAt,
+            reason: beAppointmentReschedules.reason,
+            createdAt: beAppointmentReschedules.createdAt,
+          })
+          .from(beAppointmentReschedules)
           .innerJoin(beAppointments, eq(beAppointmentReschedules.appointmentId, beAppointments.id))
-          .where(and(
-            eq(beAppointmentReschedules.organizationId, organizationId),
-            eq(beAppointments.platformUserId, platformUserId),
-          )).orderBy(desc(beAppointmentReschedules.createdAt)).limit(fetchLimit),
-        db.select({
-          id: beAppointmentCancellations.id,
-          appointmentId: beAppointmentCancellations.appointmentId,
-          cancellationType: beAppointmentCancellations.cancellationType,
-          reason: beAppointmentCancellations.reason,
-          wasFree: beAppointmentCancellations.wasFree,
-          wasPenalized: beAppointmentCancellations.wasPenalized,
-          createdAt: beAppointmentCancellations.createdAt,
-        }).from(beAppointmentCancellations)
-          .innerJoin(beAppointments, eq(beAppointmentCancellations.appointmentId, beAppointments.id))
-          .where(and(
-            eq(beAppointmentCancellations.organizationId, organizationId),
-            eq(beAppointments.platformUserId, platformUserId),
-          )).orderBy(desc(beAppointmentCancellations.createdAt)).limit(fetchLimit),
+          .where(
+            and(
+              eq(beAppointmentReschedules.organizationId, organizationId),
+              eq(beAppointments.platformUserId, platformUserId),
+            ),
+          )
+          .orderBy(desc(beAppointmentReschedules.createdAt))
+          .limit(fetchLimit),
+        db
+          .select({
+            id: beAppointmentCancellations.id,
+            appointmentId: beAppointmentCancellations.appointmentId,
+            cancellationType: beAppointmentCancellations.cancellationType,
+            reason: beAppointmentCancellations.reason,
+            wasFree: beAppointmentCancellations.wasFree,
+            wasPenalized: beAppointmentCancellations.wasPenalized,
+            createdAt: beAppointmentCancellations.createdAt,
+          })
+          .from(beAppointmentCancellations)
+          .innerJoin(
+            beAppointments,
+            eq(beAppointmentCancellations.appointmentId, beAppointments.id),
+          )
+          .where(
+            and(
+              eq(beAppointmentCancellations.organizationId, organizationId),
+              eq(beAppointments.platformUserId, platformUserId),
+            ),
+          )
+          .orderBy(desc(beAppointmentCancellations.createdAt))
+          .limit(fetchLimit),
       ]);
 
       const items: ClientTimelineItem[] = timelineRows.map((row) => ({
         id: row.id,
-        category: row.domain === "payment" ? "payment" : row.domain === "package" ? "package" : "appointment",
+        category:
+          row.domain === 'payment'
+            ? 'payment'
+            : row.domain === 'package'
+              ? 'package'
+              : 'appointment',
         eventType: row.eventType,
         title: timelineEventTitle(row.eventType),
         summary: null,
         occurredAt: row.occurredAt,
         linkedObjectType: row.linkedObjectType,
         linkedObjectId: row.linkedObjectId,
-        appointmentId: row.linkedObjectType === "appointment" ? row.linkedObjectId : null,
+        appointmentId: row.linkedObjectType === 'appointment' ? row.linkedObjectId : null,
         payload: row.payload ?? {},
       }));
       for (const row of paymentRows) {
         items.push({
-          id: row.id, category: "payment", eventType: row.eventType, title: timelineEventTitle(row.eventType),
-          summary: formatAmountMinor(row.amountMinor, row.currency), occurredAt: row.occurredAt,
-          linkedObjectType: "payment_history_event", linkedObjectId: row.id, appointmentId: row.appointmentId,
-          payload: { amountMinor: row.amountMinor, currency: row.currency, providerId: row.providerId,
-            status: row.status, purpose: row.purpose, comment: row.comment,
-            ...(row.payloadJson as Record<string, unknown>) },
+          id: row.id,
+          category: 'payment',
+          eventType: row.eventType,
+          title: timelineEventTitle(row.eventType),
+          summary: formatAmountMinor(row.amountMinor, row.currency),
+          occurredAt: row.occurredAt,
+          linkedObjectType: 'payment_history_event',
+          linkedObjectId: row.id,
+          appointmentId: row.appointmentId,
+          payload: {
+            amountMinor: row.amountMinor,
+            currency: row.currency,
+            providerId: row.providerId,
+            status: row.status,
+            purpose: row.purpose,
+            comment: row.comment,
+            ...(row.payloadJson as Record<string, unknown>),
+          },
         });
       }
       for (const row of packageHistoryRows) {
-        items.push({ id: row.id, category: "package", eventType: row.eventType,
-          title: timelineEventTitle(row.eventType), summary: row.packageTitle, occurredAt: row.occurredAt,
-          linkedObjectType: "patient_package", linkedObjectId: row.patientPackageId, appointmentId: null,
-          payload: (row.payloadJson as Record<string, unknown>) ?? {} });
+        items.push({
+          id: row.id,
+          category: 'package',
+          eventType: row.eventType,
+          title: timelineEventTitle(row.eventType),
+          summary: row.packageTitle,
+          occurredAt: row.occurredAt,
+          linkedObjectType: 'patient_package',
+          linkedObjectId: row.patientPackageId,
+          appointmentId: null,
+          payload: (row.payloadJson as Record<string, unknown>) ?? {},
+        });
       }
       for (const row of productHistoryRows) {
-        items.push({ id: row.id, category: "product", eventType: row.eventType,
-          title: timelineEventTitle(row.eventType), summary: row.purchaseTitle, occurredAt: row.occurredAt,
-          linkedObjectType: "product_history_event", linkedObjectId: row.id, appointmentId: null,
-          payload: { productPurchaseId: row.productPurchaseId,
-            ...((row.payloadJson as Record<string, unknown>) ?? {}) } });
+        items.push({
+          id: row.id,
+          category: 'product',
+          eventType: row.eventType,
+          title: timelineEventTitle(row.eventType),
+          summary: row.purchaseTitle,
+          occurredAt: row.occurredAt,
+          linkedObjectType: 'product_history_event',
+          linkedObjectId: row.id,
+          appointmentId: null,
+          payload: {
+            productPurchaseId: row.productPurchaseId,
+            ...((row.payloadJson as Record<string, unknown>) ?? {}),
+          },
+        });
       }
       for (const row of productRows) {
-        items.push({ id: row.id, category: "product", eventType: "product_purchased",
-          title: timelineEventTitle("product_purchased"), summary: row.title, occurredAt: row.createdAt,
-          linkedObjectType: "product_purchase", linkedObjectId: row.id, appointmentId: null,
-          payload: { productPurchaseId: row.id, productType: row.productType, status: row.status,
-            priceMinor: row.priceMinor, currency: row.currency } });
+        items.push({
+          id: row.id,
+          category: 'product',
+          eventType: 'product_purchased',
+          title: timelineEventTitle('product_purchased'),
+          summary: row.title,
+          occurredAt: row.createdAt,
+          linkedObjectType: 'product_purchase',
+          linkedObjectId: row.id,
+          appointmentId: null,
+          payload: {
+            productPurchaseId: row.id,
+            productType: row.productType,
+            status: row.status,
+            priceMinor: row.priceMinor,
+            currency: row.currency,
+          },
+        });
       }
       for (const row of packageUsageRows) {
-        if (row.usageKind === "reserve" || row.usageKind === "release") continue;
-        const eventType = row.usageKind === "consume" || row.usageKind === "penalty" ? row.usageKind : "package_usage";
-        items.push({ id: row.id, category: "package", eventType,
-          title: timelineEventTitle(row.usageKind === "manual_adjust" ? "manual_adjust" :
-            row.usageKind === "penalty" ? "penalty_consumed" : row.usageKind),
-          summary: row.packageTitle, occurredAt: row.occurredAt, linkedObjectType: "package_usage",
-          linkedObjectId: row.id, appointmentId: row.appointmentId,
-          payload: { usageId: row.id, usageKind: row.usageKind, comment: row.comment } });
+        if (row.usageKind === 'reserve' || row.usageKind === 'release') continue;
+        const eventType =
+          row.usageKind === 'consume' || row.usageKind === 'penalty'
+            ? row.usageKind
+            : 'package_usage';
+        items.push({
+          id: row.id,
+          category: 'package',
+          eventType,
+          title: timelineEventTitle(
+            row.usageKind === 'manual_adjust'
+              ? 'manual_adjust'
+              : row.usageKind === 'penalty'
+                ? 'penalty_consumed'
+                : row.usageKind,
+          ),
+          summary: row.packageTitle,
+          occurredAt: row.occurredAt,
+          linkedObjectType: 'package_usage',
+          linkedObjectId: row.id,
+          appointmentId: row.appointmentId,
+          payload: { usageId: row.id, usageKind: row.usageKind, comment: row.comment },
+        });
       }
       for (const row of rescheduleRows) {
-        items.push({ id: row.id, category: "reschedule", eventType: "reschedule",
-          title: timelineEventTitle("reschedule"), summary: row.reason ?? null, occurredAt: row.createdAt,
-          linkedObjectType: "appointment_reschedule", linkedObjectId: row.id, appointmentId: row.appointmentId,
-          payload: { fromStartAt: row.fromStartAt, toStartAt: row.toStartAt } });
+        items.push({
+          id: row.id,
+          category: 'reschedule',
+          eventType: 'reschedule',
+          title: timelineEventTitle('reschedule'),
+          summary: row.reason ?? null,
+          occurredAt: row.createdAt,
+          linkedObjectType: 'appointment_reschedule',
+          linkedObjectId: row.id,
+          appointmentId: row.appointmentId,
+          payload: { fromStartAt: row.fromStartAt, toStartAt: row.toStartAt },
+        });
       }
       for (const row of cancelRows) {
-        items.push({ id: row.id, category: "cancellation", eventType: "cancellation",
-          title: timelineEventTitle("cancellation"), summary: row.reason ?? row.cancellationType,
-          occurredAt: row.createdAt, linkedObjectType: "appointment_cancellation", linkedObjectId: row.id,
-          appointmentId: row.appointmentId, payload: { cancellationType: row.cancellationType,
-            wasFree: row.wasFree, wasPenalized: row.wasPenalized } });
+        items.push({
+          id: row.id,
+          category: 'cancellation',
+          eventType: 'cancellation',
+          title: timelineEventTitle('cancellation'),
+          summary: row.reason ?? row.cancellationType,
+          occurredAt: row.createdAt,
+          linkedObjectType: 'appointment_cancellation',
+          linkedObjectId: row.id,
+          appointmentId: row.appointmentId,
+          payload: {
+            cancellationType: row.cancellationType,
+            wasFree: row.wasFree,
+            wasPenalized: row.wasPenalized,
+          },
+        });
       }
       return dedupeTimelineItems(items).slice(0, limit);
     },
@@ -355,47 +521,58 @@ export function createPgClientHistoryPort(): ClientHistoryPort {
       }
       const [packages, products] = await Promise.all([
         packageIds.size > 0
-          ? db.select({ id: bePatientPackages.id, title: bePatientPackages.title })
+          ? db
+              .select({ id: bePatientPackages.id, title: bePatientPackages.title })
               .from(bePatientPackages)
-              .where(and(
-                eq(bePatientPackages.organizationId, organizationId),
-                eq(bePatientPackages.platformUserId, platformUserId),
-                inArray(bePatientPackages.id, [...packageIds]),
-              ))
+              .where(
+                and(
+                  eq(bePatientPackages.organizationId, organizationId),
+                  eq(bePatientPackages.platformUserId, platformUserId),
+                  inArray(bePatientPackages.id, [...packageIds]),
+                ),
+              )
           : Promise.resolve([]),
         productPurchaseIds.size > 0
-          ? db.select({ id: beProductPurchases.id, title: beProductPurchases.title })
+          ? db
+              .select({ id: beProductPurchases.id, title: beProductPurchases.title })
               .from(beProductPurchases)
-              .where(and(
-                eq(beProductPurchases.organizationId, organizationId),
-                eq(beProductPurchases.platformUserId, platformUserId),
-                inArray(beProductPurchases.id, [...productPurchaseIds]),
-              ))
+              .where(
+                and(
+                  eq(beProductPurchases.organizationId, organizationId),
+                  eq(beProductPurchases.platformUserId, platformUserId),
+                  inArray(beProductPurchases.id, [...productPurchaseIds]),
+                ),
+              )
           : Promise.resolve([]),
       ]);
       const packageTitles = new Map(packages.map((row) => [row.id, row.title]));
       const productTitles = new Map(products.map((row) => [row.id, row.title]));
 
-      return rows.map((row) => enrichPaymentHistoryRow({
-        id: row.id,
-        occurredAt: row.occurredAt,
-        eventType: row.eventType,
-        amountMinor: row.amountMinor,
-        currency: row.currency,
-        providerId: row.providerId,
-        status: row.status,
-        purpose: row.purpose,
-        appointmentId: row.appointmentId,
-        paymentId: row.paymentId,
-        refundId: row.refundId,
-        comment: row.comment,
-        payloadJson: row.payloadJson as Record<string, unknown>,
-      }, {
-        serviceByAppt: new Map(),
-        packageTitles,
-        productTitles,
-        paymentMethodLabel,
-      }));
+      return rows.map((row) =>
+        enrichPaymentHistoryRow(
+          {
+            id: row.id,
+            occurredAt: row.occurredAt,
+            eventType: row.eventType,
+            amountMinor: row.amountMinor,
+            currency: row.currency,
+            providerId: row.providerId,
+            status: row.status,
+            purpose: row.purpose,
+            appointmentId: row.appointmentId,
+            paymentId: row.paymentId,
+            refundId: row.refundId,
+            comment: row.comment,
+            payloadJson: row.payloadJson as Record<string, unknown>,
+          },
+          {
+            serviceByAppt: new Map(),
+            packageTitles,
+            productTitles,
+            paymentMethodLabel,
+          },
+        ),
+      );
     },
 
     async listPatientVisitHistory(organizationId, platformUserId, limit = 100) {
@@ -424,30 +601,45 @@ export function createPgClientHistoryPort(): ClientHistoryPort {
 
       const appointmentIds = appointments.map((appointment) => appointment.id);
       const [payments, packageUsages] = await Promise.all([
-        db.select({
-          appointmentId: bePaymentHistoryEvents.appointmentId,
-          eventType: bePaymentHistoryEvents.eventType,
-          amountMinor: bePaymentHistoryEvents.amountMinor,
-          currency: bePaymentHistoryEvents.currency,
-        }).from(bePaymentHistoryEvents).where(and(
-          eq(bePaymentHistoryEvents.organizationId, organizationId),
-          eq(bePaymentHistoryEvents.platformUserId, platformUserId),
-          inArray(bePaymentHistoryEvents.appointmentId, appointmentIds),
-        )),
-        db.select({
-          appointmentId: bePackageUsages.appointmentId,
-          packageTitle: bePatientPackages.title,
-        }).from(bePackageUsages)
+        db
+          .select({
+            appointmentId: bePaymentHistoryEvents.appointmentId,
+            eventType: bePaymentHistoryEvents.eventType,
+            amountMinor: bePaymentHistoryEvents.amountMinor,
+            currency: bePaymentHistoryEvents.currency,
+          })
+          .from(bePaymentHistoryEvents)
+          .where(
+            and(
+              eq(bePaymentHistoryEvents.organizationId, organizationId),
+              eq(bePaymentHistoryEvents.platformUserId, platformUserId),
+              inArray(bePaymentHistoryEvents.appointmentId, appointmentIds),
+            ),
+          ),
+        db
+          .select({
+            appointmentId: bePackageUsages.appointmentId,
+            packageTitle: bePatientPackages.title,
+          })
+          .from(bePackageUsages)
           .innerJoin(bePatientPackages, eq(bePackageUsages.patientPackageId, bePatientPackages.id))
-          .where(and(
-            eq(bePackageUsages.organizationId, organizationId),
-            eq(bePatientPackages.platformUserId, platformUserId),
-            inArray(bePackageUsages.appointmentId, appointmentIds),
-          )),
+          .where(
+            and(
+              eq(bePackageUsages.organizationId, organizationId),
+              eq(bePatientPackages.platformUserId, platformUserId),
+              inArray(bePackageUsages.appointmentId, appointmentIds),
+            ),
+          ),
       ]);
 
-      const prepaymentByAppointment = new Map<string, { amountMinor: number; currency: string | null }>();
-      const finalPaymentByAppointment = new Map<string, { amountMinor: number; currency: string | null }>();
+      const prepaymentByAppointment = new Map<
+        string,
+        { amountMinor: number; currency: string | null }
+      >();
+      const finalPaymentByAppointment = new Map<
+        string,
+        { amountMinor: number; currency: string | null }
+      >();
       for (const payment of payments) {
         if (!payment.appointmentId || payment.amountMinor == null) continue;
         const value = { amountMinor: payment.amountMinor, currency: payment.currency };
@@ -459,7 +651,8 @@ export function createPgClientHistoryPort(): ClientHistoryPort {
       }
       const packageTitleByAppointment = new Map<string, string>();
       for (const usage of packageUsages) {
-        if (usage.appointmentId) packageTitleByAppointment.set(usage.appointmentId, usage.packageTitle);
+        if (usage.appointmentId)
+          packageTitleByAppointment.set(usage.appointmentId, usage.packageTitle);
       }
 
       return appointments.map(
@@ -473,11 +666,13 @@ export function createPgClientHistoryPort(): ClientHistoryPort {
           branchTitle: null,
           roomTitle: null,
           serviceTitle: null,
-          wasViaPackage: Boolean(appointment.packageUsageRef) || packageTitleByAppointment.has(appointment.id),
+          wasViaPackage:
+            Boolean(appointment.packageUsageRef) || packageTitleByAppointment.has(appointment.id),
           packageUsageSummary: packageTitleByAppointment.get(appointment.id) ?? null,
           prepaymentAmountMinor: prepaymentByAppointment.get(appointment.id)?.amountMinor ?? null,
           prepaymentCurrency: prepaymentByAppointment.get(appointment.id)?.currency ?? null,
-          finalPaymentAmountMinor: finalPaymentByAppointment.get(appointment.id)?.amountMinor ?? null,
+          finalPaymentAmountMinor:
+            finalPaymentByAppointment.get(appointment.id)?.amountMinor ?? null,
           finalPaymentCurrency: finalPaymentByAppointment.get(appointment.id)?.currency ?? null,
           staffComment: null,
         }),
@@ -533,7 +728,10 @@ export function createPgClientHistoryPort(): ClientHistoryPort {
             patientPackageId: bePackageHistoryEvents.patientPackageId,
           })
           .from(bePackageHistoryEvents)
-          .innerJoin(bePatientPackages, eq(bePackageHistoryEvents.patientPackageId, bePatientPackages.id))
+          .innerJoin(
+            bePatientPackages,
+            eq(bePackageHistoryEvents.patientPackageId, bePatientPackages.id),
+          )
           .where(
             and(
               eq(bePackageHistoryEvents.organizationId, organizationId),
@@ -552,7 +750,10 @@ export function createPgClientHistoryPort(): ClientHistoryPort {
             purchaseTitle: beProductPurchases.title,
           })
           .from(beProductHistoryEvents)
-          .innerJoin(beProductPurchases, eq(beProductHistoryEvents.productPurchaseId, beProductPurchases.id))
+          .innerJoin(
+            beProductPurchases,
+            eq(beProductHistoryEvents.productPurchaseId, beProductPurchases.id),
+          )
           .where(
             and(
               eq(beProductHistoryEvents.organizationId, organizationId),
@@ -579,7 +780,10 @@ export function createPgClientHistoryPort(): ClientHistoryPort {
           })
           .from(bePackageUsages)
           .innerJoin(bePatientPackages, eq(bePackageUsages.patientPackageId, bePatientPackages.id))
-          .innerJoin(bePatientPackageItems, eq(bePackageUsages.patientPackageItemId, bePatientPackageItems.id))
+          .innerJoin(
+            bePatientPackageItems,
+            eq(bePackageUsages.patientPackageItemId, bePatientPackageItems.id),
+          )
           .innerJoin(beClinicServices, eq(bePatientPackageItems.serviceId, beClinicServices.id))
           .where(
             and(
@@ -621,7 +825,10 @@ export function createPgClientHistoryPort(): ClientHistoryPort {
             createdAt: beAppointmentCancellations.createdAt,
           })
           .from(beAppointmentCancellations)
-          .innerJoin(beAppointments, eq(beAppointmentCancellations.appointmentId, beAppointments.id))
+          .innerJoin(
+            beAppointments,
+            eq(beAppointmentCancellations.appointmentId, beAppointments.id),
+          )
           .where(
             and(
               eq(beAppointmentCancellations.organizationId, organizationId),
@@ -649,22 +856,22 @@ export function createPgClientHistoryPort(): ClientHistoryPort {
           .limit(fetchLimit),
       ]);
 
-      const phonePaymentRows = await fetchPhoneMatchedOrphanPaymentRows(organizationId, userPhone, fetchLimit);
-      const paymentRows = mergePaymentHistoryRows(
-        primaryPaymentRows,
-        phonePaymentRows,
+      const phonePaymentRows = await fetchPhoneMatchedOrphanPaymentRows(
+        organizationId,
+        userPhone,
         fetchLimit,
       );
+      const paymentRows = mergePaymentHistoryRows(primaryPaymentRows, phonePaymentRows, fetchLimit);
 
       const items: ClientTimelineItem[] = [];
 
       for (const row of timelineRows) {
         const category =
-          row.domain === "payment"
-            ? "payment"
-            : row.domain === "package"
-              ? "package"
-              : "appointment";
+          row.domain === 'payment'
+            ? 'payment'
+            : row.domain === 'package'
+              ? 'package'
+              : 'appointment';
         items.push({
           id: row.id,
           category,
@@ -674,7 +881,7 @@ export function createPgClientHistoryPort(): ClientHistoryPort {
           occurredAt: row.occurredAt,
           linkedObjectType: row.linkedObjectType,
           linkedObjectId: row.linkedObjectId,
-          appointmentId: row.linkedObjectType === "appointment" ? row.linkedObjectId : null,
+          appointmentId: row.linkedObjectType === 'appointment' ? row.linkedObjectId : null,
           payload: row.payload ?? {},
         });
       }
@@ -683,12 +890,12 @@ export function createPgClientHistoryPort(): ClientHistoryPort {
         const amount = formatAmountMinor(row.amountMinor, row.currency);
         items.push({
           id: row.id,
-          category: "payment",
+          category: 'payment',
           eventType: row.eventType,
           title: timelineEventTitle(row.eventType),
           summary: amount,
           occurredAt: row.occurredAt,
-          linkedObjectType: "payment_history_event",
+          linkedObjectType: 'payment_history_event',
           linkedObjectId: row.id,
           appointmentId: row.appointmentId,
           payload: {
@@ -706,12 +913,12 @@ export function createPgClientHistoryPort(): ClientHistoryPort {
       for (const row of packageHistoryRows) {
         items.push({
           id: row.id,
-          category: "package",
+          category: 'package',
           eventType: row.eventType,
           title: timelineEventTitle(row.eventType),
           summary: row.packageTitle,
           occurredAt: row.occurredAt,
-          linkedObjectType: "patient_package",
+          linkedObjectType: 'patient_package',
           linkedObjectId: row.patientPackageId,
           appointmentId: null,
           payload: (row.payloadJson as Record<string, unknown>) ?? {},
@@ -721,12 +928,12 @@ export function createPgClientHistoryPort(): ClientHistoryPort {
       for (const row of productHistoryRows) {
         items.push({
           id: row.id,
-          category: "product",
+          category: 'product',
           eventType: row.eventType,
           title: timelineEventTitle(row.eventType),
           summary: row.purchaseTitle,
           occurredAt: row.occurredAt,
-          linkedObjectType: "product_history_event",
+          linkedObjectType: 'product_history_event',
           linkedObjectId: row.id,
           appointmentId: null,
           payload: {
@@ -739,12 +946,12 @@ export function createPgClientHistoryPort(): ClientHistoryPort {
       for (const row of productRows) {
         items.push({
           id: row.id,
-          category: "product",
-          eventType: "product_purchased",
-          title: timelineEventTitle("product_purchased"),
+          category: 'product',
+          eventType: 'product_purchased',
+          title: timelineEventTitle('product_purchased'),
           summary: row.title,
           occurredAt: row.createdAt,
-          linkedObjectType: "product_purchase",
+          linkedObjectType: 'product_purchase',
           linkedObjectId: row.id,
           appointmentId: null,
           payload: {
@@ -758,24 +965,27 @@ export function createPgClientHistoryPort(): ClientHistoryPort {
       }
 
       for (const row of packageUsageRows) {
-        if (row.usageKind === "reserve" || row.usageKind === "release") continue;
+        if (row.usageKind === 'reserve' || row.usageKind === 'release') continue;
         const summary = row.serviceTitle
           ? `${row.packageTitle}: ${row.serviceTitle}`
           : row.packageTitle;
         items.push({
           id: row.id,
-          category: "package",
-          eventType: row.usageKind === "consume" || row.usageKind === "penalty" ? row.usageKind : "package_usage",
+          category: 'package',
+          eventType:
+            row.usageKind === 'consume' || row.usageKind === 'penalty'
+              ? row.usageKind
+              : 'package_usage',
           title: timelineEventTitle(
-            row.usageKind === "manual_adjust"
-              ? "manual_adjust"
-              : row.usageKind === "penalty"
-                ? "penalty_consumed"
+            row.usageKind === 'manual_adjust'
+              ? 'manual_adjust'
+              : row.usageKind === 'penalty'
+                ? 'penalty_consumed'
                 : row.usageKind,
           ),
           summary,
           occurredAt: row.occurredAt,
-          linkedObjectType: "package_usage",
+          linkedObjectType: 'package_usage',
           linkedObjectId: row.id,
           appointmentId: row.appointmentId,
           payload: {
@@ -789,12 +999,12 @@ export function createPgClientHistoryPort(): ClientHistoryPort {
       for (const row of rescheduleRows) {
         items.push({
           id: row.id,
-          category: "reschedule",
-          eventType: "reschedule",
-          title: timelineEventTitle("reschedule"),
+          category: 'reschedule',
+          eventType: 'reschedule',
+          title: timelineEventTitle('reschedule'),
           summary: row.reason ?? null,
           occurredAt: row.createdAt,
-          linkedObjectType: "appointment_reschedule",
+          linkedObjectType: 'appointment_reschedule',
           linkedObjectId: row.id,
           appointmentId: row.appointmentId,
           payload: {
@@ -808,12 +1018,12 @@ export function createPgClientHistoryPort(): ClientHistoryPort {
       for (const row of cancelRows) {
         items.push({
           id: row.id,
-          category: "cancellation",
-          eventType: "cancellation",
-          title: timelineEventTitle("cancellation"),
+          category: 'cancellation',
+          eventType: 'cancellation',
+          title: timelineEventTitle('cancellation'),
           summary: row.reason ?? row.cancellationType,
           occurredAt: row.createdAt,
-          linkedObjectType: "appointment_cancellation",
+          linkedObjectType: 'appointment_cancellation',
           linkedObjectId: row.id,
           appointmentId: row.appointmentId,
           payload: {
@@ -828,12 +1038,12 @@ export function createPgClientHistoryPort(): ClientHistoryPort {
       for (const row of noteRows) {
         items.push({
           id: row.id,
-          category: "comment",
-          eventType: "doctor_note",
-          title: timelineEventTitle("doctor_note"),
+          category: 'comment',
+          eventType: 'doctor_note',
+          title: timelineEventTitle('doctor_note'),
           summary: row.text.slice(0, 120),
           occurredAt: row.createdAt,
-          linkedObjectType: "doctor_note",
+          linkedObjectType: 'doctor_note',
           linkedObjectId: row.id,
           appointmentId: null,
           payload: { text: row.text },
@@ -843,12 +1053,12 @@ export function createPgClientHistoryPort(): ClientHistoryPort {
       for (const row of commentRows) {
         items.push({
           id: row.id,
-          category: "comment",
-          eventType: "staff_comment",
-          title: timelineEventTitle("staff_comment"),
+          category: 'comment',
+          eventType: 'staff_comment',
+          title: timelineEventTitle('staff_comment'),
           summary: row.body.slice(0, 120),
           occurredAt: row.createdAt,
-          linkedObjectType: "appointment_staff_comment",
+          linkedObjectType: 'appointment_staff_comment',
           linkedObjectId: row.id,
           appointmentId: row.appointmentId,
           payload: { body: row.body },
@@ -875,10 +1085,16 @@ export function createPgClientHistoryPort(): ClientHistoryPort {
         .orderBy(desc(bePaymentHistoryEvents.occurredAt))
         .limit(fetchLimit);
 
-      const phoneMatchedRows = await fetchPhoneMatchedOrphanPaymentRows(organizationId, userPhone, fetchLimit);
+      const phoneMatchedRows = await fetchPhoneMatchedOrphanPaymentRows(
+        organizationId,
+        userPhone,
+        fetchLimit,
+      );
       const limitedRows = mergePaymentHistoryRows(primaryRows, phoneMatchedRows, fetchLimit);
 
-      const appointmentIds = [...new Set(limitedRows.map((r) => r.appointmentId).filter(Boolean))] as string[];
+      const appointmentIds = [
+        ...new Set(limitedRows.map((r) => r.appointmentId).filter(Boolean)),
+      ] as string[];
       const serviceByAppt = new Map<string, string>();
       if (appointmentIds.length > 0) {
         const appts = await db
@@ -920,33 +1136,31 @@ export function createPgClientHistoryPort(): ClientHistoryPort {
         for (const p of prods) productTitles.set(p.id, p.title);
       }
 
-      return limitedRows
-        .slice(0, limit)
-        .map((row) =>
-          enrichPaymentHistoryRow(
-            {
-              id: row.id,
-              occurredAt: row.occurredAt,
-              eventType: row.eventType,
-              amountMinor: row.amountMinor,
-              currency: row.currency,
-              providerId: row.providerId,
-              status: row.status,
-              purpose: row.purpose,
-              appointmentId: row.appointmentId,
-              paymentId: row.paymentId,
-              refundId: row.refundId,
-              comment: row.comment,
-              payloadJson: row.payloadJson as Record<string, unknown>,
-            },
-            {
-              serviceByAppt,
-              packageTitles,
-              productTitles,
-              paymentMethodLabel,
-            },
-          ),
-        );
+      return limitedRows.slice(0, limit).map((row) =>
+        enrichPaymentHistoryRow(
+          {
+            id: row.id,
+            occurredAt: row.occurredAt,
+            eventType: row.eventType,
+            amountMinor: row.amountMinor,
+            currency: row.currency,
+            providerId: row.providerId,
+            status: row.status,
+            purpose: row.purpose,
+            appointmentId: row.appointmentId,
+            paymentId: row.paymentId,
+            refundId: row.refundId,
+            comment: row.comment,
+            payloadJson: row.payloadJson as Record<string, unknown>,
+          },
+          {
+            serviceByAppt,
+            packageTitles,
+            productTitles,
+            paymentMethodLabel,
+          },
+        ),
+      );
     },
 
     async listVisitHistory(organizationId, platformUserId, limit = 100) {
@@ -983,80 +1197,87 @@ export function createPgClientHistoryPort(): ClientHistoryPort {
 
       const apptIds = appts.map((a) => a.id);
 
-      const [usages, payments, cancelComments, rescheduleComments, staffComments] = await Promise.all([
-        db
-          .select({
-            appointmentId: bePackageUsages.appointmentId,
-            serviceTitle: beClinicServices.title,
-            packageTitle: bePatientPackages.title,
-          })
-          .from(bePackageUsages)
-          .innerJoin(bePatientPackageItems, eq(bePackageUsages.patientPackageItemId, bePatientPackageItems.id))
-          .innerJoin(beClinicServices, eq(bePatientPackageItems.serviceId, beClinicServices.id))
-          .innerJoin(bePatientPackages, eq(bePackageUsages.patientPackageId, bePatientPackages.id))
-          .where(
-            and(
-              eq(bePackageUsages.organizationId, organizationId),
-              inArray(bePackageUsages.appointmentId, apptIds),
+      const [usages, payments, cancelComments, rescheduleComments, staffComments] =
+        await Promise.all([
+          db
+            .select({
+              appointmentId: bePackageUsages.appointmentId,
+              serviceTitle: beClinicServices.title,
+              packageTitle: bePatientPackages.title,
+            })
+            .from(bePackageUsages)
+            .innerJoin(
+              bePatientPackageItems,
+              eq(bePackageUsages.patientPackageItemId, bePatientPackageItems.id),
+            )
+            .innerJoin(beClinicServices, eq(bePatientPackageItems.serviceId, beClinicServices.id))
+            .innerJoin(
+              bePatientPackages,
+              eq(bePackageUsages.patientPackageId, bePatientPackages.id),
+            )
+            .where(
+              and(
+                eq(bePackageUsages.organizationId, organizationId),
+                inArray(bePackageUsages.appointmentId, apptIds),
+              ),
             ),
-          ),
-        db
-          .select({
-            appointmentId: bePaymentHistoryEvents.appointmentId,
-            eventType: bePaymentHistoryEvents.eventType,
-            amountMinor: bePaymentHistoryEvents.amountMinor,
-            currency: bePaymentHistoryEvents.currency,
-          })
-          .from(bePaymentHistoryEvents)
-          .where(
-            and(
-              eq(bePaymentHistoryEvents.organizationId, organizationId),
-              inArray(bePaymentHistoryEvents.appointmentId, apptIds),
+          db
+            .select({
+              appointmentId: bePaymentHistoryEvents.appointmentId,
+              eventType: bePaymentHistoryEvents.eventType,
+              amountMinor: bePaymentHistoryEvents.amountMinor,
+              currency: bePaymentHistoryEvents.currency,
+            })
+            .from(bePaymentHistoryEvents)
+            .where(
+              and(
+                eq(bePaymentHistoryEvents.organizationId, organizationId),
+                inArray(bePaymentHistoryEvents.appointmentId, apptIds),
+              ),
             ),
-          ),
-        db
-          .select({
-            appointmentId: beAppointmentCancellations.appointmentId,
-            staffComment: beAppointmentCancellations.staffComment,
-            createdAt: beAppointmentCancellations.createdAt,
-          })
-          .from(beAppointmentCancellations)
-          .where(
-            and(
-              eq(beAppointmentCancellations.organizationId, organizationId),
-              inArray(beAppointmentCancellations.appointmentId, apptIds),
-            ),
-          )
-          .orderBy(desc(beAppointmentCancellations.createdAt)),
-        db
-          .select({
-            appointmentId: beAppointmentReschedules.appointmentId,
-            staffComment: beAppointmentReschedules.staffComment,
-            createdAt: beAppointmentReschedules.createdAt,
-          })
-          .from(beAppointmentReschedules)
-          .where(
-            and(
-              eq(beAppointmentReschedules.organizationId, organizationId),
-              inArray(beAppointmentReschedules.appointmentId, apptIds),
-            ),
-          )
-          .orderBy(desc(beAppointmentReschedules.createdAt)),
-        db
-          .select({
-            appointmentId: beAppointmentStaffComments.appointmentId,
-            body: beAppointmentStaffComments.body,
-            createdAt: beAppointmentStaffComments.createdAt,
-          })
-          .from(beAppointmentStaffComments)
-          .where(
-            and(
-              eq(beAppointmentStaffComments.organizationId, organizationId),
-              inArray(beAppointmentStaffComments.appointmentId, apptIds),
-            ),
-          )
-          .orderBy(desc(beAppointmentStaffComments.createdAt)),
-      ]);
+          db
+            .select({
+              appointmentId: beAppointmentCancellations.appointmentId,
+              staffComment: beAppointmentCancellations.staffComment,
+              createdAt: beAppointmentCancellations.createdAt,
+            })
+            .from(beAppointmentCancellations)
+            .where(
+              and(
+                eq(beAppointmentCancellations.organizationId, organizationId),
+                inArray(beAppointmentCancellations.appointmentId, apptIds),
+              ),
+            )
+            .orderBy(desc(beAppointmentCancellations.createdAt)),
+          db
+            .select({
+              appointmentId: beAppointmentReschedules.appointmentId,
+              staffComment: beAppointmentReschedules.staffComment,
+              createdAt: beAppointmentReschedules.createdAt,
+            })
+            .from(beAppointmentReschedules)
+            .where(
+              and(
+                eq(beAppointmentReschedules.organizationId, organizationId),
+                inArray(beAppointmentReschedules.appointmentId, apptIds),
+              ),
+            )
+            .orderBy(desc(beAppointmentReschedules.createdAt)),
+          db
+            .select({
+              appointmentId: beAppointmentStaffComments.appointmentId,
+              body: beAppointmentStaffComments.body,
+              createdAt: beAppointmentStaffComments.createdAt,
+            })
+            .from(beAppointmentStaffComments)
+            .where(
+              and(
+                eq(beAppointmentStaffComments.organizationId, organizationId),
+                inArray(beAppointmentStaffComments.appointmentId, apptIds),
+              ),
+            )
+            .orderBy(desc(beAppointmentStaffComments.createdAt)),
+        ]);
 
       const usageByAppt = new Map<string, string>();
       for (const u of usages) {
@@ -1140,7 +1361,9 @@ export function createPgClientHistoryPort(): ClientHistoryPort {
               isProblematic: input.isProblematic ?? existing.isProblematic,
               bookingBlocked: input.bookingBlocked ?? existing.bookingBlocked,
               problematicNote:
-                input.problematicNote !== undefined ? input.problematicNote : existing.problematicNote,
+                input.problematicNote !== undefined
+                  ? input.problematicNote
+                  : existing.problematicNote,
               updatedAt: now,
               updatedBy: input.updatedBy,
             })

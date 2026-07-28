@@ -10,6 +10,7 @@
 Two disconnected schedule editing systems exist:
 
 ### System A — Per-date editor (`ScheduleWorkTab.tsx`, "По датам" mode)
+
 - File: `apps/webapp/src/app/app/doctor/schedule/tabs/ScheduleWorkTab.tsx` (1113 lines)
 - Data: `be_working_days` table — per-date rows with `{workDate, startMinute, endMinute, breaks, isClosed, branchId}`
 - API: `WD_BASE = /api/admin/booking-engine/working-days` (GET/PUT with action=upsert/clear/close)
@@ -18,6 +19,7 @@ Two disconnected schedule editing systems exist:
 - "Недельный шаблон" tab in the mode switcher → shows `BookingSoloScheduleSection` (System B)
 
 ### System B — Weekday editor (`BookingSoloScheduleSection.tsx`)
+
 - File: `apps/webapp/src/app/app/settings/BookingSoloScheduleSection.tsx` (492 lines)
 - Data: `be_working_hours` table — rows with `{weekday: 0–6, startMinute, endMinute, isActive, specialistId, branchId}`
 - API: `WH_BASE = /api/admin/booking-engine/working-hours` (GET/POST/PATCH/DELETE)
@@ -25,11 +27,13 @@ Two disconnected schedule editing systems exist:
 - This is the TRUE weekday template model the booking slot engine reads
 
 ### How the Calendar Uses Both
+
 - `modules/booking-calendar/service.ts` (lines 136–164): loads `listWorkingHours` (be_working_hours weekday rows) + `listWorkingDays` (per-date overrides) in parallel
 - Per-date override takes priority over weekday hours for that date
 - Calendar renders gray non-working fill based on effective working windows per date
 
 ### Key Architecture Clarity
+
 - **"Permanent schedule" (постоянное расписание)** = `be_working_hours` (weekday model), API `/working-hours`
 - **"Named templates"** = `be_schedule_templates`, API `/working-schedule-templates` — does NOT have a weekday column, used only for apply-to-date-set
 - The QUEUE.md CR-4 spec uses "working-schedule-templates" loosely to mean the weekday model; implementors must save weekday selections to **`be_working_hours`** via `/working-hours` POST
@@ -39,6 +43,7 @@ Two disconnected schedule editing systems exist:
 ## 2. Target State
 
 ONE unified calendar on the `ScheduleWorkTab` that shows everything at once:
+
 - Monthly grid cells show **effective hours per date** (weekday template hours, unless a per-date override exists, or the date is marked выходной)
 - **Weekday header click** («Пн»/«Вт»/…) → selects all dates of that weekday in the visible month → right panel opens with «постоянное расписание» checkbox defaulting ON → saves to `be_working_hours` (weekday model)
 - **Date selection** (existing behavior) → right panel → Save (upsert to `be_working_days`) OR «Очистить» (clear: mark as closed override)
@@ -51,15 +56,18 @@ ONE unified calendar on the `ScheduleWorkTab` that shows everything at once:
 ## 3. Data Model Notes
 
 ### be_working_hours (permanent weekday template)
+
 ```
 id, organizationId, specialistId, branchId, roomId
 weekday: int (0=Sun, 1=Mon, …, 6=Sat)
 startMinute: int, endMinute: int
 isActive: bool
 ```
+
 Multiple rows allowed per weekday (intervals). Saved via POST `/working-hours`, updated via PATCH, deleted via DELETE.
 
 ### be_working_days (per-date overrides)
+
 ```
 id, organizationId, specialistId, branchId, roomId
 workDate: date (YYYY-MM-DD)
@@ -67,17 +75,21 @@ startMinute: int|null, endMinute: int|null
 breaks: jsonb [{startMinute, endMinute}]
 isClosed: bool
 ```
+
 Upsert action: `PUT /working-days` `{action:"upsert", dates, startMinute, endMinute, breaks, specialistId, branchId}`
 Clear action: `PUT /working-days` `{action:"clear", dates, specialistId}` — deletes rows, day falls back to weekday template
 
 ### Weekday Number Mapping
+
 - `BookingSoloScheduleSection` uses: 0=Sunday, 1=Mon, …, 6=Sat (JS `Date.getDay()`)
 - Luxon's `DateTime.weekday` is 1=Mon…7=Sun
 - `buildMonthGrid` in `ScheduleWorkTab` uses Mon-first grid: column 0=Mon (weekday 1), …, col 6=Sun (weekday 0)
 - When converting grid column index to be_working_hours weekday: `[1,2,3,4,5,6,0][colIndex]`
 
 ### What To Render in Cells
+
 To show effective hours per date in the calendar, the component needs:
+
 1. Per-date `be_working_days` rows (already loaded via `loadMonth` → `WD_BASE`)
 2. Weekday hours from `be_working_hours` (needs new load: `GET /working-hours?specialistId=X&branchId=Y`)
 3. Effective = perDateRow if exists; else weekday row matching `date.weekday`; else no schedule
@@ -87,9 +99,11 @@ To show effective hours per date in the calendar, the component needs:
 ## 4. Atomic Tasks
 
 ### SCH-R-01 — Load weekday hours into ScheduleWorkTab state
+
 **What:** Add `workingHours: WorkingHoursRow[]` state and `loadWorkingHours()` call (GET `/working-hours?specialistId=X`) alongside existing `loadMonth()`. No UI change yet — just the data in state.
 
 **File:** `apps/webapp/src/app/app/doctor/schedule/tabs/ScheduleWorkTab.tsx`
+
 - Add type `WorkingHoursRow = { id: string; weekday: number; startMinute: number; endMinute: number; branchId: string | null }`
 - Add `const WH_BASE = "/api/admin/booking-engine/working-hours"` (line ~34)
 - Add `const [workingHours, setWorkingHours] = useState<WorkingHoursRow[]>([])`
@@ -101,9 +115,11 @@ To show effective hours per date in the calendar, the component needs:
 ---
 
 ### SCH-R-02 — Compute effective hours per date for cell display
+
 **What:** Pure helper function `resolveEffectiveHours(dateKey, workingHours, dayMap)` that returns `{startMinute, endMinute} | null` and a `source: "template" | "override" | "closed"` flag. Used by `DayCell` to show effective time.
 
 **File:** `apps/webapp/src/app/app/doctor/schedule/tabs/ScheduleWorkTab.tsx`
+
 - Add `type EffectiveHours = { startMinute: number; endMinute: number; source: "template" | "override" | "closed" } | null`
 - Add helper (after line ~134):
   ```ts
@@ -111,7 +127,7 @@ To show effective hours per date in the calendar, the component needs:
     dateKey: string,
     dayRecords: Map<string, WorkingDayRecord>,
     workingHours: WorkingHoursRow[],
-  ): EffectiveHours
+  ): EffectiveHours;
   ```
   Logic: if `dayMap.get(dateKey)?.isClosed` → `{ source: "closed", ... }` (no start/end); if perDate has startMinute → `{ source: "override", ... }`; else find `workingHours.find(wh => wh.weekday === dateWeekday && wh.isActive)` → `{ source: "template", ... }`; else null.
 - Update `DayCell` props to accept `effectiveHours: EffectiveHours` instead of only `record`
@@ -122,9 +138,11 @@ To show effective hours per date in the calendar, the component needs:
 ---
 
 ### SCH-R-03 — Weekday column header click: select entire weekday column
+
 **What:** Make the weekday header row («Пн»/«Вт»/…) clickable. Clicking selects all dates of that weekday in the visible month. Adds selection mode state `selectionMode: "dates" | "weekday"` and `selectedWeekday: number | null`.
 
 **File:** `apps/webapp/src/app/app/doctor/schedule/tabs/ScheduleWorkTab.tsx`
+
 - Add `const [selectionMode, setSelectionMode] = useState<"dates" | "weekday">("dates")`
 - Add `const [selectedWeekday, setSelectedWeekday] = useState<number | null>(null)`
 - Modify weekday header row (currently at line ~803–807): replace `<div key={d}>{d}</div>` with a `<button>` that calls `handleWeekdayHeaderClick(weekdayIndex)`
@@ -139,9 +157,11 @@ To show effective hours per date in the calendar, the component needs:
 ---
 
 ### SCH-R-04 — Right panel: «постоянное расписание» checkbox + conditional save paths
+
 **What:** When `selectionMode === "weekday"`, show a «Постоянное расписание» checkbox (default ON) above the hours panel. Save button routes to either `/working-hours` POST (checkbox ON) or `/working-days` PUT upsert (checkbox OFF). «Очистить» in weekday mode: DELETE from `/working-hours` for that weekday (deactivate existing rows) and optionally clear per-date overrides.
 
 **File:** `apps/webapp/src/app/app/doctor/schedule/tabs/ScheduleWorkTab.tsx`
+
 - Add `const [permanentSchedule, setPermanentSchedule] = useState(true)` — reset to `true` on weekday header click
 - In the right panel (`selectedCount > 0` block, line ~827–943):
   - If `selectionMode === "weekday"`: show `<label><Checkbox checked={permanentSchedule} onCheckedChange={setPermanentSchedule} /> Постоянное расписание</label>` above the time fields
@@ -159,9 +179,11 @@ To show effective hours per date in the calendar, the component needs:
 ---
 
 ### SCH-R-05 — Remove mode switcher («По датам»/«Недельный шаблон») and `BookingSoloScheduleSection` embed
+
 **What:** The mode switcher at the top (lines 718–787) and `{mode === "weekly" && <BookingSoloScheduleSection />}` (line 789) become obsolete once weekday editing is inline. Remove them. Also remove the `import { BookingSoloScheduleSection }` (line 28) and `mode` state (line 369).
 
 **File:** `apps/webapp/src/app/app/doctor/schedule/tabs/ScheduleWorkTab.tsx`
+
 - Delete lines 369 (`const [mode, setMode]`) and all `mode` references
 - Delete the mode switcher JSX block (lines 719–737)
 - Delete the `{mode === "weekly" && <BookingSoloScheduleSection />}` render (line 789)
@@ -174,12 +196,14 @@ To show effective hours per date in the calendar, the component needs:
 ---
 
 ### SCH-R-06 — Visual distinction: template / override / closed in DayCell
+
 **What:** Update `DayCell` to visually distinguish the three states: (a) weekday template hours (shown, source=template), (b) per-date override (highlighted, source=override), (c) day-off override (explicit closed, isClosed=true).
 
 **File:** `apps/webapp/src/app/app/doctor/schedule/tabs/ScheduleWorkTab.tsx`
+
 - `DayCell` accepts `effectiveHours: EffectiveHours` (from SCH-R-02)
 - `source === "template"`: render hours in `text-muted-foreground text-[10px] italic`; cell background = normal (no tint); prefix with small «~» or just show time dimmed
-- `source === "override"`: render hours in `text-primary font-semibold`; cell gets `bg-primary/10 border-primary/30` (existing color scheme)  
+- `source === "override"`: render hours in `text-primary font-semibold`; cell gets `bg-primary/10 border-primary/30` (existing color scheme)
 - `source === "closed"`: render «выходной» in `text-destructive/70 text-[10px]`; cell gets `bg-destructive/5 border-destructive/20 line-through-numbers`
 - Legend (optional, low-priority): small color key below the grid
 
@@ -188,9 +212,11 @@ To show effective hours per date in the calendar, the component needs:
 ---
 
 ### SCH-R-07 — API: add `weekday` filter to GET `/working-hours` + `POST /working-hours` upsert-replace
+
 **What:** Currently `/working-hours` POST creates a new row (accumulating multiple rows per weekday). Need a clean "set weekday schedule" path. Add a `?weekday=N` GET filter and a POST variant with `replace: true` that deactivates existing and inserts new.
 
 **File:** `apps/webapp/src/app/api/admin/booking-engine/working-hours/route.ts`
+
 - GET: add optional `weekday: z.coerce.number().int().min(0).max(6).optional()` to query; pass to `listWorkingHoursAdmin(..., weekday: parsed.data.weekday)`
 - POST: add optional `replace: z.boolean().optional()` to `upsertBody`; if `replace === true`: deactivate existing active rows for (org, specialistId, branchId, weekday) then insert new row
 - `ports.ts`: extend `CreateWorkingHoursInput` with optional `replace?: boolean`
@@ -201,9 +227,11 @@ To show effective hours per date in the calendar, the component needs:
 ---
 
 ### SCH-R-08 — Reload working hours after weekday save + correct specialistId scoping
+
 **What:** After saving weekday template (SCH-R-04), reload `workingHours` state so cell display (SCH-R-02) reflects the change immediately. Also ensure `loadWorkingHours` uses the correct `specialistId` (same one used for `loadMonth`).
 
 **File:** `apps/webapp/src/app/app/doctor/schedule/tabs/ScheduleWorkTab.tsx`
+
 - `loadWorkingHours` must use `specialistId` state (same as `loadMonth`)
 - `handleSaveWeekdayTemplate` must call `await loadWorkingHours()` + `await loadMonth()` on success (pattern: existing `run()` helper — reuse or adapt)
 - Add `loadWorkingHours` to the `useEffect` that runs when `specialistId` changes (alongside `loadMonth`)
@@ -245,6 +273,7 @@ Source: `docs/_INBOX/quick-wins-user.md` §A (items 1–4). Full code sighting: 
 **What:** Remove `ProgramItemCompleteDialog.tsx` call from `PatientProgramStageItemPageClient.tsx`. Move the three fields (reps/sets/weight + difficulty) into a permanent inline block on the exercise item page. Pre-fill from `lastDoneSummary`. Show doctor's goal above the fields.
 
 **Files:**
+
 - `apps/webapp/src/app/app/patient/treatment/PatientProgramStageItemPageClient.tsx`
   - Lines 815–838: «Отметить выполнение» button that opens the dialog → replace with inline form JSX
   - Lines 666–674, 866–878: doctor goal display (reps×sets / «Инструкция») — move above inline form
@@ -263,6 +292,7 @@ Source: `docs/_INBOX/quick-wins-user.md` §A (items 1–4). Full code sighting: 
 **What:** Delete the inline «Отметить выполненным» button from `PatientInstanceStageItemCard.tsx`. Clicking the card tile already navigates to the detail page (line 186–190); the button is redundant and should be removed.
 
 **Files:**
+
 - `apps/webapp/src/app/app/patient/treatment/program-detail/PatientInstanceStageItemCard.tsx`
   - Lines 344–382: the button block (entire `<button type="button"...onClick={async (e) => { e.stopPropagation(); setBusy(item.id); ... POST progress/complete ...}}>` including surrounding `<div className="mt-2 flex flex-col gap-0.5">`)
   - Delete lines 344–382 (the button and its wrapper div)
@@ -277,6 +307,7 @@ Source: `docs/_INBOX/quick-wins-user.md` §A (items 1–4). Full code sighting: 
 **What:** Replace the text lines «Отметок в журнале за сегодня: N» and the text status in tile with a row of icon indicators using `PatientProgramItemExecutionRow` variant=tile. Requires passing `unread/total comment counts`, `hasContraindications`, `lastDoneAtIso`, and `todayCount` down into the card.
 
 **Files (larger scope — needs parent component changes too):**
+
 - `apps/webapp/src/app/app/patient/treatment/program-detail/PatientInstanceStageItemCard.tsx`
   - Lines 290–298: replace `<p>Отметок в журнале за сегодня: N</p>` with `<PatientProgramItemExecutionRow ... variant="tile" />`
   - Lines 280–289: remove/replace text status
@@ -295,6 +326,7 @@ Source: `docs/_INBOX/quick-wins-user.md` §A (items 1–4). Full code sighting: 
 **What:** Remove `ProgramItemDiscussionDialog.tsx` call from `PatientProgramStageItemPageClient.tsx`. Render the comment thread + reply field directly inline on the page.
 
 **Files:**
+
 - `apps/webapp/src/app/app/patient/treatment/PatientProgramStageItemPageClient.tsx`
   - Lines 880–914: current preview block → expand into inline thread
   - `openDiscussionDialog()` call at line ~909 → remove; replace with inline toggle or always-visible
@@ -333,4 +365,4 @@ Source: `docs/_INBOX/quick-wins-user.md` §A (items 1–4). Full code sighting: 
 
 ---
 
-*End of decomposition. Branch: feat/doctor-ui-rebuild. 2026-06-19.*
+_End of decomposition. Branch: feat/doctor-ui-rebuild. 2026-06-19._

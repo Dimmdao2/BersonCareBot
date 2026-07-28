@@ -1,10 +1,10 @@
 ---
 name: Health UI operator actions
-overview: "Закрыто 2026-06-07: кнопки в «Здоровье системы» — закрыть все operator_incidents и заархивировать/сбросить dead в projection_outbox и reminder_dispatch (паттерн health-failure-archive/clear). Журнал: docs/OPERATOR_HEALTH_ALERTING_INITIATIVE/LOG.md § 2026-06-07."
+overview: 'Закрыто 2026-06-07: кнопки в «Здоровье системы» — закрыть все operator_incidents и заархивировать/сбросить dead в projection_outbox и reminder_dispatch (паттерн health-failure-archive/clear). Журнал: docs/OPERATOR_HEALTH_ALERTING_INITIATIVE/LOG.md § 2026-06-07.'
 status: completed
 todos:
   - id: prep-rules
-    content: "Перед кодом: прочитать clean-architecture, plan-authoring, webapp-tests-lean, ui-copy-no-excess-labels"
+    content: 'Перед кодом: прочитать clean-architecture, plan-authoring, webapp-tests-lean, ui-copy-no-excess-labels'
     status: completed
   - id: write-port-incidents
     content: OperatorHealthWritePort + pgOperatorHealthWrite + POST resolve-all + audit + route.test
@@ -19,10 +19,10 @@ todos:
     content: HealthFailureArchiveSection + AdminAuditLog + ссылки probe в SystemHealthSection + LOG.md + api.md
     status: completed
   - id: plan-close
-    content: "После DoD: git mv план в .cursor/plans/archive/, frontmatter todos completed"
+    content: 'После DoD: git mv план в .cursor/plans/archive/, frontmatter todos completed'
     status: completed
   - id: audit-system-health-preset
-    content: "systemHealthOnly включает health_failure_archive_clear_dead + operator_incidents_resolve_all (adminAuditListQuery → adminAuditLog)"
+    content: 'systemHealthOnly включает health_failure_archive_clear_dead + operator_incidents_resolve_all (adminAuditListQuery → adminAuditLog)'
     status: completed
 isProject: false
 ---
@@ -43,14 +43,14 @@ isProject: false
 
 ## Фиксированные решения
 
-| Вопрос | Решение |
-|--------|---------|
-| Projection dead | **Архив + delete**, не requeue (requeue — только ops-скрипт [`requeue-projection-outbox-dead.ts`](apps/webapp/scripts/requeue-projection-outbox-dead.ts)) |
-| Ручной resolve инцидентов | Без recovery TG/email (оператор осознанно закрывает) |
-| Reminder dead vs общая outgoing | Отдельный probe `outgoing_reminder_dispatch` — кнопка в «Напоминания» не трогает прочие dead в outgoing |
-| `source_id` в архиве | `projection_outbox.id` (bigint) → `String(row.id)`; reminder — uuid строки очереди |
-| Фильтр dead reminder | Тот же критерий, что `countAsOperatorOutgoingDeliveryDead` + `kind = reminder_dispatch` ([`REMINDER_OUTGOING_KIND`](apps/webapp/src/app-layer/health/adminReminderPipelineMetrics.ts)) |
-| Идемпотентность | `resolve-all` при 0 открытых → `{ ok: true, resolved: 0 }`; clear dead при 0 → `{ ok: true, inserted: 0, deleted: 0 }` |
+| Вопрос                          | Решение                                                                                                                                                                                |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Projection dead                 | **Архив + delete**, не requeue (requeue — только ops-скрипт [`requeue-projection-outbox-dead.ts`](apps/webapp/scripts/requeue-projection-outbox-dead.ts))                              |
+| Ручной resolve инцидентов       | Без recovery TG/email (оператор осознанно закрывает)                                                                                                                                   |
+| Reminder dead vs общая outgoing | Отдельный probe `outgoing_reminder_dispatch` — кнопка в «Напоминания» не трогает прочие dead в outgoing                                                                                |
+| `source_id` в архиве            | `projection_outbox.id` (bigint) → `String(row.id)`; reminder — uuid строки очереди                                                                                                     |
+| Фильтр dead reminder            | Тот же критерий, что `countAsOperatorOutgoingDeliveryDead` + `kind = reminder_dispatch` ([`REMINDER_OUTGOING_KIND`](apps/webapp/src/app-layer/health/adminReminderPipelineMetrics.ts)) |
+| Идемпотентность                 | `resolve-all` при 0 открытых → `{ ok: true, resolved: 0 }`; clear dead при 0 → `{ ok: true, inserted: 0, deleted: 0 }`                                                                 |
 
 ## Архитектура (clean architecture)
 
@@ -90,15 +90,15 @@ flowchart LR
 
 ### Разрешено трогать
 
-| Область | Пути |
-|---------|------|
-| Модуль | [`apps/webapp/src/modules/operator-health/`](apps/webapp/src/modules/operator-health/) |
-| Infra | [`apps/webapp/src/infra/repos/pgOperatorHealthWrite.ts`](apps/webapp/src/infra/repos/) (новый), `pgHealthFailureArchive.ts`, `inMemory*` |
-| DI | [`apps/webapp/src/app-layer/di/buildAppDeps.ts`](apps/webapp/src/app-layer/di/buildAppDeps.ts) |
-| API | [`apps/webapp/src/app/api/admin/operator-incidents/`](apps/webapp/src/app/api/admin/) (новый), `health-failure-archive/**` |
-| UI | [`SystemHealthSection.tsx`](apps/webapp/src/app/app/settings/SystemHealthSection.tsx), `HealthFailureArchiveSection.tsx`, `AdminAuditLogSection.tsx`, `adminSettingsData.ts` |
-| Тесты | Расширение существующих `*.test.ts(x)` в тех же папках |
-| Docs | [`docs/OPERATOR_HEALTH_ALERTING_INITIATIVE/LOG.md`](docs/OPERATOR_HEALTH_ALERTING_INITIATIVE/LOG.md), [`apps/webapp/src/app/api/api.md`](apps/webapp/src/app/api/api.md) |
+| Область | Пути                                                                                                                                                                         |
+| ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Модуль  | [`apps/webapp/src/modules/operator-health/`](apps/webapp/src/modules/operator-health/)                                                                                       |
+| Infra   | [`apps/webapp/src/infra/repos/pgOperatorHealthWrite.ts`](apps/webapp/src/infra/repos/) (новый), `pgHealthFailureArchive.ts`, `inMemory*`                                     |
+| DI      | [`apps/webapp/src/app-layer/di/buildAppDeps.ts`](apps/webapp/src/app-layer/di/buildAppDeps.ts)                                                                               |
+| API     | [`apps/webapp/src/app/api/admin/operator-incidents/`](apps/webapp/src/app/api/admin/) (новый), `health-failure-archive/**`                                                   |
+| UI      | [`SystemHealthSection.tsx`](apps/webapp/src/app/app/settings/SystemHealthSection.tsx), `HealthFailureArchiveSection.tsx`, `AdminAuditLogSection.tsx`, `adminSettingsData.ts` |
+| Тесты   | Расширение существующих `*.test.ts(x)` в тех же папках                                                                                                                       |
+| Docs    | [`docs/OPERATOR_HEALTH_ALERTING_INITIATIVE/LOG.md`](docs/OPERATOR_HEALTH_ALERTING_INITIATIVE/LOG.md), [`apps/webapp/src/app/api/api.md`](apps/webapp/src/app/api/api.md)     |
 
 ### Вне scope (не делать)
 
@@ -146,20 +146,20 @@ flowchart LR
 ### Константы — [`healthFailureArchiveConstants.ts`](apps/webapp/src/modules/operator-health/healthFailureArchiveConstants.ts)
 
 ```ts
-HEALTH_FAILURE_ARCHIVE_PROJECTION_PROBE = "projection_outbox"
-HEALTH_FAILURE_ARCHIVE_OUTGOING_REMINDER_PROBE = "outgoing_reminder_dispatch"
-PROJECTION_ARCHIVE_SOURCE_KIND = "projection_outbox_row"
-OUTGOING_REMINDER_ARCHIVE_SOURCE_KIND = "outgoing_delivery_queue_row" // тот же kind, другой health_probe
+HEALTH_FAILURE_ARCHIVE_PROJECTION_PROBE = 'projection_outbox';
+HEALTH_FAILURE_ARCHIVE_OUTGOING_REMINDER_PROBE = 'outgoing_reminder_dispatch';
+PROJECTION_ARCHIVE_SOURCE_KIND = 'projection_outbox_row';
+OUTGOING_REMINDER_ARCHIVE_SOURCE_KIND = 'outgoing_delivery_queue_row'; // тот же kind, другой health_probe
 ```
 
 Union `HealthFailureArchiveProbe` — **4** значения (2 старых + 2 новых).
 
 ### Repo — [`pgHealthFailureArchive.ts`](apps/webapp/src/infra/repos/pgHealthFailureArchive.ts)
 
-| Метод | FROM | WHERE | summary_json (минимум) |
-|-------|------|-------|--------------------------|
-| `archiveProjectionDeadBatch` | `projection_outbox` | `status = 'dead'` | `event_type`, `idempotency_key`, `attempts_done` |
-| `archiveOutgoingReminderDeadBatch` | `outgoing_delivery_queue` | dead + `kind = REMINDER_OUTGOING_KIND` + не `recipient_blocked_bot` | `queue_kind`, `channel` |
+| Метод                              | FROM                      | WHERE                                                               | summary_json (минимум)                           |
+| ---------------------------------- | ------------------------- | ------------------------------------------------------------------- | ------------------------------------------------ |
+| `archiveProjectionDeadBatch`       | `projection_outbox`       | `status = 'dead'`                                                   | `event_type`, `idempotency_key`, `attempts_done` |
+| `archiveOutgoingReminderDeadBatch` | `outgoing_delivery_queue` | dead + `kind = REMINDER_OUTGOING_KIND` + не `recipient_blocked_bot` | `queue_kind`, `channel`                          |
 
 Транзакция: `insert operator_health_failure_archive` → `delete` исходных строк (как существующие batch-методы).
 
@@ -187,17 +187,17 @@ Union `HealthFailureArchiveProbe` — **4** значения (2 старых + 2
 
 ```ts
 type HealthOperatorAction =
-  | { kind: "archive"; probe: HealthFailureArchiveProbe }
-  | { kind: "resolve_incidents" };
+  | { kind: 'archive'; probe: HealthFailureArchiveProbe }
+  | { kind: 'resolve_incidents' };
 ```
 
 ### Кнопки (`Button` `size="sm"` `variant="destructive"`, как сейчас)
 
-| Секция | Показать если | Текст кнопки | Endpoint |
-|--------|---------------|--------------|----------|
-| Открытые инциденты | `openOperatorIncidents.length > 0` | Закрыть все открытые | `POST .../operator-incidents/resolve-all` |
-| Синхронизация событий | `queueDead > 0` | Заархивировать и сбросить dead | clear `projection_outbox` |
-| Напоминания | `remindersPipeline.outgoingReminderDispatch.dead > 0` | Заархивировать и сбросить dead | clear `outgoing_reminder_dispatch` |
+| Секция                | Показать если                                         | Текст кнопки                   | Endpoint                                  |
+| --------------------- | ----------------------------------------------------- | ------------------------------ | ----------------------------------------- |
+| Открытые инциденты    | `openOperatorIncidents.length > 0`                    | Закрыть все открытые           | `POST .../operator-incidents/resolve-all` |
+| Синхронизация событий | `queueDead > 0`                                       | Заархивировать и сбросить dead | clear `projection_outbox`                 |
+| Напоминания           | `remindersPipeline.outgoingReminderDispatch.dead > 0` | Заархивировать и сбросить dead | clear `outgoing_reminder_dispatch`        |
 
 ### Dialog (лаконичные тексты, [`ui-copy-no-excess-labels`](.cursor/rules/ui-copy-no-excess-labels.mdc))
 

@@ -1,4 +1,7 @@
-import type { WebPushSubscriptionPayloadV1, WebPushSubscriptionsPort } from "@/modules/web-push/ports";
+import type {
+  WebPushSubscriptionPayloadV1,
+  WebPushSubscriptionsPort,
+} from '@/modules/web-push/ports';
 
 const MAX_SUBSCRIPTIONS_PER_USER = 5;
 

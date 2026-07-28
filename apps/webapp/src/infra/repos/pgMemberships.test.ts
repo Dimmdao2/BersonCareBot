@@ -1,12 +1,12 @@
-import { readFileSync } from "node:fs";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createPgMembershipsPort } from "./pgMemberships";
+import { readFileSync } from 'node:fs';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { createPgMembershipsPort } from './pgMemberships';
 
 const { getDrizzleMock } = vi.hoisted(() => ({
   getDrizzleMock: vi.fn(),
 }));
 
-vi.mock("@/app-layer/db/drizzle", () => ({
+vi.mock('@/app-layer/db/drizzle', () => ({
   getDrizzle: getDrizzleMock,
 }));
 
@@ -25,22 +25,22 @@ function makePackageSelectRows(rows: unknown[]) {
   return { from, where, limit };
 }
 
-describe("createPgMembershipsPort", () => {
+describe('createPgMembershipsPort', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it("keeps runWithPackageLock work on the advisory-locked transaction executor", async () => {
+  it('keeps runWithPackageLock work on the advisory-locked transaction executor', async () => {
     const txSelect = makeSelectChain([
       {
-        id: "usage-1",
-        patientPackageId: "pkg-1",
-        patientPackageItemId: "item-1",
-        appointmentId: "appt-1",
-        usageKind: "consume",
+        id: 'usage-1',
+        patientPackageId: 'pkg-1',
+        patientPackageItemId: 'item-1',
+        appointmentId: 'appt-1',
+        usageKind: 'consume',
         quantity: 1,
         comment: null,
-        occurredAt: "2026-01-01T00:00:00.000Z",
+        occurredAt: '2026-01-01T00:00:00.000Z',
       },
     ]);
     const dbSelect = makeSelectChain([]);
@@ -58,15 +58,15 @@ describe("createPgMembershipsPort", () => {
     getDrizzleMock.mockReturnValue(db);
 
     const port = createPgMembershipsPort();
-    const usages = await port.runWithPackageLock("pkg-1", "org-1", () =>
-      port.listUsagesForPackage("pkg-1", "org-1"),
+    const usages = await port.runWithPackageLock('pkg-1', 'org-1', () =>
+      port.listUsagesForPackage('pkg-1', 'org-1'),
     );
 
     expect(usages).toEqual([
       expect.objectContaining({
-        id: "usage-1",
-        patientPackageId: "pkg-1",
-        usageKind: "consume",
+        id: 'usage-1',
+        patientPackageId: 'pkg-1',
+        usageKind: 'consume',
       }),
     ]);
     expect(db.transaction).toHaveBeenCalledTimes(1);
@@ -76,35 +76,35 @@ describe("createPgMembershipsPort", () => {
     expect(dbSelect.select).not.toHaveBeenCalled();
   });
 
-  it("resolves appointment statuses from canonical appointments, not appointment_records", () => {
-    const src = readFileSync(new URL("./pgMemberships.ts", import.meta.url), "utf8");
+  it('resolves appointment statuses from canonical appointments, not appointment_records', () => {
+    const src = readFileSync(new URL('./pgMemberships.ts', import.meta.url), 'utf8');
 
-    expect(src).toContain("LEFT JOIN be_appointments bea");
-    expect(src).not.toContain("FROM appointment_records");
-    expect(src).not.toContain("JOIN appointment_records");
+    expect(src).toContain('LEFT JOIN be_appointments bea');
+    expect(src).not.toContain('FROM appointment_records');
+    expect(src).not.toContain('JOIN appointment_records');
   });
 
-  it("upserts catalog packages in a transaction and reads the result on the transaction executor", async () => {
-    const packageId = "pkg-1";
-    const orgId = "org-1";
+  it('upserts catalog packages in a transaction and reads the result on the transaction executor', async () => {
+    const packageId = 'pkg-1';
+    const orgId = 'org-1';
     const packageRows = makePackageSelectRows([
       {
         id: packageId,
         organizationId: orgId,
-        title: "Package",
+        title: 'Package',
         description: null,
         priceMinor: 15000,
-        currency: "RUB",
+        currency: 'RUB',
         validityDays: 30,
-        deductionMode: "manual",
+        deductionMode: 'manual',
         isActive: true,
       },
     ]);
     const itemOrderBy = vi.fn(async () => [
       {
-        id: "item-1",
+        id: 'item-1',
         packageId,
-        serviceId: "service-1",
+        serviceId: 'service-1',
         quantity: 3,
         sortOrder: 0,
       },
@@ -125,10 +125,10 @@ describe("createPgMembershipsPort", () => {
     const tx = { insert, select };
     const db = {
       insert: vi.fn(() => {
-        throw new Error("db insert should not run outside transaction");
+        throw new Error('db insert should not run outside transaction');
       }),
       select: vi.fn(() => {
-        throw new Error("db select should not run outside transaction");
+        throw new Error('db select should not run outside transaction');
       }),
       transaction: vi.fn(async (callback: (executor: typeof tx) => Promise<unknown>) =>
         callback(tx),
@@ -139,22 +139,22 @@ describe("createPgMembershipsPort", () => {
     const port = createPgMembershipsPort();
     const result = await port.upsertCatalogPackage({
       organizationId: orgId,
-      title: "Package",
+      title: 'Package',
       description: null,
       priceMinor: 15000,
-      currency: "RUB",
+      currency: 'RUB',
       validityDays: 30,
-      deductionMode: "manual",
+      deductionMode: 'manual',
       isActive: true,
-      items: [{ serviceId: "service-1", quantity: 3 }],
+      items: [{ serviceId: 'service-1', quantity: 3 }],
     });
 
     expect(result).toEqual(
       expect.objectContaining({
         id: packageId,
         organizationId: orgId,
-        title: "Package",
-        items: [expect.objectContaining({ serviceId: "service-1", quantity: 3 })],
+        title: 'Package',
+        items: [expect.objectContaining({ serviceId: 'service-1', quantity: 3 })],
       }),
     );
     expect(db.transaction).toHaveBeenCalledTimes(1);
@@ -164,27 +164,27 @@ describe("createPgMembershipsPort", () => {
     expect(db.select).not.toHaveBeenCalled();
   });
 
-  it("updates catalog packages in a transaction and reads the updated result on the transaction executor", async () => {
-    const packageId = "pkg-2";
-    const orgId = "org-1";
+  it('updates catalog packages in a transaction and reads the updated result on the transaction executor', async () => {
+    const packageId = 'pkg-2';
+    const orgId = 'org-1';
     const packageRows = makePackageSelectRows([
       {
         id: packageId,
         organizationId: orgId,
-        title: "Updated package",
-        description: "Updated",
+        title: 'Updated package',
+        description: 'Updated',
         priceMinor: 25000,
-        currency: "RUB",
+        currency: 'RUB',
         validityDays: 45,
-        deductionMode: "auto_on_visit_confirmed",
+        deductionMode: 'auto_on_visit_confirmed',
         isActive: false,
       },
     ]);
     const itemOrderBy = vi.fn(async () => [
       {
-        id: "item-2",
+        id: 'item-2',
         packageId,
-        serviceId: "service-2",
+        serviceId: 'service-2',
         quantity: 5,
         sortOrder: 0,
       },
@@ -205,16 +205,16 @@ describe("createPgMembershipsPort", () => {
     const tx = { update, delete: deleteFrom, insert, select };
     const db = {
       update: vi.fn(() => {
-        throw new Error("db update should not run outside transaction");
+        throw new Error('db update should not run outside transaction');
       }),
       delete: vi.fn(() => {
-        throw new Error("db delete should not run outside transaction");
+        throw new Error('db delete should not run outside transaction');
       }),
       insert: vi.fn(() => {
-        throw new Error("db insert should not run outside transaction");
+        throw new Error('db insert should not run outside transaction');
       }),
       select: vi.fn(() => {
-        throw new Error("db select should not run outside transaction");
+        throw new Error('db select should not run outside transaction');
       }),
       transaction: vi.fn(async (callback: (executor: typeof tx) => Promise<unknown>) =>
         callback(tx),
@@ -226,22 +226,22 @@ describe("createPgMembershipsPort", () => {
     const result = await port.upsertCatalogPackage({
       id: packageId,
       organizationId: orgId,
-      title: "Updated package",
-      description: "Updated",
+      title: 'Updated package',
+      description: 'Updated',
       priceMinor: 25000,
-      currency: "RUB",
+      currency: 'RUB',
       validityDays: 45,
-      deductionMode: "auto_on_visit_confirmed",
+      deductionMode: 'auto_on_visit_confirmed',
       isActive: false,
-      items: [{ serviceId: "service-2", quantity: 5 }],
+      items: [{ serviceId: 'service-2', quantity: 5 }],
     });
 
     expect(result).toEqual(
       expect.objectContaining({
         id: packageId,
         organizationId: orgId,
-        title: "Updated package",
-        items: [expect.objectContaining({ serviceId: "service-2", quantity: 5 })],
+        title: 'Updated package',
+        items: [expect.objectContaining({ serviceId: 'service-2', quantity: 5 })],
       }),
     );
     expect(db.transaction).toHaveBeenCalledTimes(1);

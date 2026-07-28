@@ -1,10 +1,9 @@
-import { apiJson } from "@/shared/lib/apiJson";
-export { apiJson } from "@/shared/lib/apiJson";
+import { apiJson } from '@/shared/lib/apiJson';
+export { apiJson } from '@/shared/lib/apiJson';
 
-const BASE = "/api/admin/booking-engine";
+const BASE = '/api/admin/booking-engine';
 
-export const SOLO_BOOKING_UNAVAILABLE_MESSAGE =
-  "Запись недоступна без подключения к базе данных.";
+export const SOLO_BOOKING_UNAVAILABLE_MESSAGE = 'Запись недоступна без подключения к базе данных.';
 
 export type SoloOverview = {
   organizationId: string;
@@ -51,15 +50,15 @@ export async function fetchSoloOverview(): Promise<SoloOverview | null> {
   try {
     return await apiJson<SoloOverview & { ok?: boolean }>(`${BASE}/overview`);
   } catch (e) {
-    if (e instanceof Error && e.message === "booking_engine_unavailable") return null;
+    if (e instanceof Error && e.message === 'booking_engine_unavailable') return null;
     throw e;
   }
 }
 
 export async function setOnlineLocationEnabled(isActive: boolean, color?: string): Promise<void> {
   await apiJson(`${BASE}/online-location`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ isActive, ...(color ? { color } : {}) }),
   });
 }
@@ -73,9 +72,9 @@ export function minorToRublesInput(minor: number): string {
 }
 
 export function parseRublesInput(raw: string): number {
-  const normalized = raw.replace(/\s/g, "").replace(",", ".");
+  const normalized = raw.replace(/\s/g, '').replace(',', '.');
   const n = Number(normalized);
-  if (!Number.isFinite(n) || n < 0) throw new Error("invalid_price");
+  if (!Number.isFinite(n) || n < 0) throw new Error('invalid_price');
   return n;
 }
 
@@ -84,35 +83,37 @@ export function slugCityCode(title: string): string {
   const latin = title
     .trim()
     .toLowerCase()
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "")
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
     .slice(0, 24);
   if (latin.length >= 2) return latin;
   return `loc-${Date.now().toString(36).slice(-6)}`;
 }
 
-export function pickDefaultSpecialist(specialists: SoloOverview["specialists"]): SoloOverview["specialists"][0] | null {
+export function pickDefaultSpecialist(
+  specialists: SoloOverview['specialists'],
+): SoloOverview['specialists'][0] | null {
   const active = specialists.filter((s) => s.isActive);
   return active[0] ?? specialists[0] ?? null;
 }
 
 export async function ensureDefaultSpecialist(orgTitle: string | undefined): Promise<string> {
   const overview = await fetchSoloOverview();
-  if (!overview) throw new Error("booking_engine_unavailable");
+  if (!overview) throw new Error('booking_engine_unavailable');
   const existing = pickDefaultSpecialist(overview.specialists);
   if (existing) return existing.id;
   const res = await apiJson<{ ok: boolean; specialist: { id: string } }>(`${BASE}/specialists`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ fullName: orgTitle?.trim() || "Специалист" }),
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fullName: orgTitle?.trim() || 'Специалист' }),
   });
   return res.specialist.id;
 }
 
 export function isServiceAvailableAtLocation(
-  overview: Pick<SoloOverview, "locationAvailability" | "specialistAvailability" | "specialists">,
+  overview: Pick<SoloOverview, 'locationAvailability' | 'specialistAvailability' | 'specialists'>,
   serviceId: string,
   branchId: string,
 ): boolean {
@@ -136,12 +137,13 @@ export function isServiceAvailableAtLocation(
 export function countServicesWithoutAvailability(
   activeServices: { id: string }[],
   activeBranchIds: Iterable<string>,
-  overview: Pick<SoloOverview, "locationAvailability" | "specialistAvailability" | "specialists">,
+  overview: Pick<SoloOverview, 'locationAvailability' | 'specialistAvailability' | 'specialists'>,
 ): number {
   const branchIds = [...activeBranchIds];
   if (branchIds.length === 0) return activeServices.length;
-  return activeServices.filter((service) =>
-    !branchIds.some((branchId) => isServiceAvailableAtLocation(overview, service.id, branchId)),
+  return activeServices.filter(
+    (service) =>
+      !branchIds.some((branchId) => isServiceAvailableAtLocation(overview, service.id, branchId)),
   ).length;
 }
 
@@ -168,10 +170,10 @@ export async function setServiceLocationAvailability(
   specialistId: string,
 ): Promise<void> {
   await apiJson(`${BASE}/availability`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      kind: "solo_service_location",
+      kind: 'solo_service_location',
       specialistId,
       serviceId,
       branchId,
@@ -183,12 +185,12 @@ export async function setServiceLocationAvailability(
 export function minuteToTimeLabel(minute: number): string {
   const h = Math.floor(minute / 60);
   const m = minute % 60;
-  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
 export function timeLabelToMinute(value: string): number {
-  const [h, m] = value.split(":").map(Number);
-  if (!Number.isFinite(h) || !Number.isFinite(m)) throw new Error("invalid_time");
+  const [h, m] = value.split(':').map(Number);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) throw new Error('invalid_time');
   return h * 60 + m;
 }
 
@@ -197,9 +199,9 @@ export function slugFieldKey(label: string, existing: string[]): string {
     label
       .trim()
       .toLowerCase()
-      .replace(/[^a-z0-9а-яё]+/gi, "_")
-      .replace(/^_|_$/g, "")
-      .slice(0, 40) || "field";
+      .replace(/[^a-z0-9а-яё]+/gi, '_')
+      .replace(/^_|_$/g, '')
+      .slice(0, 40) || 'field';
   let key = base;
   let i = 2;
   while (existing.includes(key)) {

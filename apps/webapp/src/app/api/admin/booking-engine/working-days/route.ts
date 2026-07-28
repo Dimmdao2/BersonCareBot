@@ -1,8 +1,8 @@
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
-import { requireAdminBookingEngine } from "../_requireAdminBookingEngine";
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
+import { requireAdminBookingEngine } from '../_requireAdminBookingEngine';
 
 /** Список перекрытий (GET) ожидает dateFrom/dateTo (YYYY-MM-DD). */
 const getQuery = z.object({
@@ -36,14 +36,14 @@ const closeSchema = z.object({
 
 const clearSchema = closeSchema;
 
-const putBody = z.discriminatedUnion("action", [
-  z.object({ action: z.literal("upsert"), ...upsertSchema.shape }),
-  z.object({ action: z.literal("close"), ...closeSchema.shape }),
-  z.object({ action: z.literal("clear"), ...clearSchema.shape }),
+const putBody = z.discriminatedUnion('action', [
+  z.object({ action: z.literal('upsert'), ...upsertSchema.shape }),
+  z.object({ action: z.literal('close'), ...closeSchema.shape }),
+  z.object({ action: z.literal('clear'), ...clearSchema.shape }),
 ]);
 
 function resolveNullableUuid(raw: string | null | undefined): string | null | undefined {
-  if (raw === "__none__") return null;
+  if (raw === '__none__') return null;
   if (!raw) return undefined;
   return raw;
 }
@@ -53,24 +53,27 @@ export async function GET(request: Request) {
   if (!gate.ok) return gate.response;
   const deps = buildAppDeps();
   if (!deps.bookingScheduling) {
-    return NextResponse.json({ ok: false, error: "booking_scheduling_unavailable" }, { status: 503 });
+    return NextResponse.json(
+      { ok: false, error: 'booking_scheduling_unavailable' },
+      { status: 503 },
+    );
   }
   const url = new URL(request.url);
-  const rawSpecialistId = url.searchParams.get("specialistId");
-  const rawBranchId = url.searchParams.get("branchId");
+  const rawSpecialistId = url.searchParams.get('specialistId');
+  const rawBranchId = url.searchParams.get('branchId');
   const parsed = getQuery.safeParse({
-    dateFrom: url.searchParams.get("dateFrom"),
-    dateTo: url.searchParams.get("dateTo"),
+    dateFrom: url.searchParams.get('dateFrom'),
+    dateTo: url.searchParams.get('dateTo'),
     // Pre-resolve __none__ sentinel before Zod uuid validation.
     // R26: отсутствующий параметр = undefined (без фильтра); null оставляем
     // только для явного "__none__" (строки без специалиста/филиала). Раньше
     // отсутствующий branchId приходил как null → listWorkingDays накладывал
     // isNull(branch_id) и прятал все дни с заполненным филиалом.
-    specialistId: rawSpecialistId === "__none__" ? null : (rawSpecialistId ?? undefined),
-    branchId: rawBranchId === "__none__" ? null : (rawBranchId ?? undefined),
+    specialistId: rawSpecialistId === '__none__' ? null : (rawSpecialistId ?? undefined),
+    branchId: rawBranchId === '__none__' ? null : (rawBranchId ?? undefined),
   });
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_query" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_query' }, { status: 400 });
   }
   const { dateFrom, dateTo, specialistId, branchId } = parsed.data;
   // specialistId / branchId already resolved from __none__ sentinel above; pass as-is
@@ -89,18 +92,21 @@ export async function PUT(request: Request) {
   if (!gate.ok) return gate.response;
   const parsed = putBody.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
   const deps = buildAppDeps();
   if (!deps.bookingScheduling) {
-    return NextResponse.json({ ok: false, error: "booking_scheduling_unavailable" }, { status: 503 });
+    return NextResponse.json(
+      { ok: false, error: 'booking_scheduling_unavailable' },
+      { status: 503 },
+    );
   }
   const bookingScheduling = deps.bookingScheduling;
   const orgId = gate.ctx.organizationId;
   try {
-    if (parsed.data.action === "upsert") {
+    if (parsed.data.action === 'upsert') {
       const { action: _, ...rest } = parsed.data;
-      await withDoctorWorkspacePrincipal(gate.ctx, "admin.booking-engine.working-days.upsert", () =>
+      await withDoctorWorkspacePrincipal(gate.ctx, 'admin.booking-engine.working-days.upsert', () =>
         bookingScheduling.upsertWorkingDays({
           organizationId: orgId,
           ...rest,
@@ -109,9 +115,9 @@ export async function PUT(request: Request) {
           roomId: resolveNullableUuid(rest.roomId ?? undefined),
         }),
       );
-    } else if (parsed.data.action === "close") {
+    } else if (parsed.data.action === 'close') {
       const { action: _, ...rest } = parsed.data;
-      await withDoctorWorkspacePrincipal(gate.ctx, "admin.booking-engine.working-days.close", () =>
+      await withDoctorWorkspacePrincipal(gate.ctx, 'admin.booking-engine.working-days.close', () =>
         bookingScheduling.closeWorkingDays({
           organizationId: orgId,
           ...rest,
@@ -120,7 +126,7 @@ export async function PUT(request: Request) {
       );
     } else {
       const { action: _, ...rest } = parsed.data;
-      await withDoctorWorkspacePrincipal(gate.ctx, "admin.booking-engine.working-days.clear", () =>
+      await withDoctorWorkspacePrincipal(gate.ctx, 'admin.booking-engine.working-days.clear', () =>
         bookingScheduling.clearWorkingDays({
           organizationId: orgId,
           ...rest,
@@ -130,7 +136,10 @@ export async function PUT(request: Request) {
     }
     return NextResponse.json({ ok: true });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "unknown";
-    return NextResponse.json({ ok: false, error: "operation_failed", detail: msg }, { status: 400 });
+    const msg = err instanceof Error ? err.message : 'unknown';
+    return NextResponse.json(
+      { ok: false, error: 'operation_failed', detail: msg },
+      { status: 400 },
+    );
   }
 }

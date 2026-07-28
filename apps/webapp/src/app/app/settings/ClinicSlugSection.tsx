@@ -1,13 +1,17 @@
-"use client";
+'use client';
 
-import { useId, useMemo, useState } from "react";
+import { useId, useMemo, useState } from 'react';
 import type {
   OrganizationSlugManagementState,
   OrganizationSlugMutationErrorCode,
-} from "@/modules/clinic-directory/ports";
-import { DoctorSection, DoctorSectionHeader, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Checkbox } from "@/shared/ui/doctor/primitives/checkbox";
+} from '@/modules/clinic-directory/ports';
+import {
+  DoctorSection,
+  DoctorSectionHeader,
+  DoctorSectionTitle,
+} from '@/shared/ui/doctor/DoctorSection';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Checkbox } from '@/shared/ui/doctor/primitives/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -16,8 +20,8 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/shared/ui/doctor/primitives/dialog";
-import { Input } from "@/shared/ui/doctor/primitives/input";
+} from '@/shared/ui/doctor/primitives/dialog';
+import { Input } from '@/shared/ui/doctor/primitives/input';
 
 type ClinicSlugSectionProps = {
   initialState: OrganizationSlugManagementState;
@@ -26,51 +30,51 @@ type ClinicSlugSectionProps = {
 
 type SlugApiResponse =
   | { ok: true; slug: string; state: OrganizationSlugManagementState }
-  | { ok: false; error: OrganizationSlugMutationErrorCode | "invalid_body" | "directory_unavailable" };
+  | {
+      ok: false;
+      error: OrganizationSlugMutationErrorCode | 'invalid_body' | 'directory_unavailable';
+    };
 
 type SlugApiErrorCode =
   | OrganizationSlugMutationErrorCode
-  | "invalid_body"
-  | "directory_unavailable";
+  | 'invalid_body'
+  | 'directory_unavailable';
 
 export function clinicSlugErrorMessage(error: SlugApiErrorCode) {
   switch (error) {
-    case "slug_unavailable":
-      return "Этот адрес уже занят. Выберите другой.";
-    case "slug_invalid_characters":
-      return "Используйте только латинские буквы, цифры и дефисы.";
-    case "slug_too_short":
-      return "Адрес должен содержать минимум 3 символа.";
-    case "slug_too_long":
-      return "Адрес должен быть не длиннее 63 символов.";
-    case "reserved_slug":
-      return "Этот адрес зарезервирован системой. Выберите другой.";
-    case "slug_unchanged":
-      return "Введите адрес, отличный от текущего.";
-    case "rename_confirmation_required":
-      return "Подтвердите переименование.";
+    case 'slug_unavailable':
+      return 'Этот адрес уже занят. Выберите другой.';
+    case 'slug_invalid_characters':
+      return 'Используйте только латинские буквы, цифры и дефисы.';
+    case 'slug_too_short':
+      return 'Адрес должен содержать минимум 3 символа.';
+    case 'slug_too_long':
+      return 'Адрес должен быть не длиннее 63 символов.';
+    case 'reserved_slug':
+      return 'Этот адрес зарезервирован системой. Выберите другой.';
+    case 'slug_unchanged':
+      return 'Введите адрес, отличный от текущего.';
+    case 'rename_confirmation_required':
+      return 'Подтвердите переименование.';
     default:
-      return "Не удалось сохранить адрес. Повторите попытку.";
+      return 'Не удалось сохранить адрес. Повторите попытку.';
   }
 }
 
-export function ClinicSlugSection({
-  initialState,
-  appBaseUrl,
-}: ClinicSlugSectionProps) {
+export function ClinicSlugSection({ initialState, appBaseUrl }: ClinicSlugSectionProps) {
   const fieldId = useId();
   const confirmId = useId();
   const [state, setState] = useState(initialState);
-  const [candidate, setCandidate] = useState("");
+  const [candidate, setCandidate] = useState('');
   const [confirmed, setConfirmed] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "failed">("idle");
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
   const publicUrl = useMemo(
     () =>
       state.currentSlug
-        ? `${appBaseUrl.replace(/\/$/, "")}/book/${encodeURIComponent(state.currentSlug)}`
+        ? `${appBaseUrl.replace(/\/$/, '')}/book/${encodeURIComponent(state.currentSlug)}`
         : null,
     [appBaseUrl, state.currentSlug],
   );
@@ -79,25 +83,25 @@ export function ClinicSlugSection({
     setPending(true);
     setError(null);
     try {
-      const response = await fetch("/api/clinic/slug", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const response = await fetch('/api/clinic/slug', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           slug: candidate,
           irreversibleRenameConfirmed,
         }),
       });
-      const body = await response.json() as SlugApiResponse;
+      const body = (await response.json()) as SlugApiResponse;
       if (!response.ok || !body.ok) {
-        setError(clinicSlugErrorMessage(body.ok ? "invalid_body" : body.error));
+        setError(clinicSlugErrorMessage(body.ok ? 'invalid_body' : body.error));
         return;
       }
       setState(body.state);
-      setCandidate("");
+      setCandidate('');
       setConfirmed(false);
       setRenameOpen(false);
     } catch {
-      setError("Не удалось сохранить адрес. Повторите попытку.");
+      setError('Не удалось сохранить адрес. Повторите попытку.');
     } finally {
       setPending(false);
     }
@@ -107,10 +111,10 @@ export function ClinicSlugSection({
     if (!publicUrl) return;
     try {
       await navigator.clipboard.writeText(publicUrl);
-      setCopyStatus("copied");
-      window.setTimeout(() => setCopyStatus("idle"), 2000);
+      setCopyStatus('copied');
+      window.setTimeout(() => setCopyStatus('idle'), 2000);
     } catch {
-      setCopyStatus("failed");
+      setCopyStatus('failed');
     }
   }
 
@@ -154,10 +158,10 @@ export function ClinicSlugSection({
               {publicUrl}
             </a>
             <Button type="button" size="sm" variant="outline" onClick={() => void copyPublicUrl()}>
-              {copyStatus === "copied" ? "Скопировано" : "Скопировать"}
+              {copyStatus === 'copied' ? 'Скопировано' : 'Скопировать'}
             </Button>
           </div>
-          {copyStatus === "failed" ? (
+          {copyStatus === 'failed' ? (
             <p role="alert" className="text-sm text-destructive">
               Не удалось скопировать ссылку.
             </p>
@@ -171,14 +175,17 @@ export function ClinicSlugSection({
               if (!open) setConfirmed(false);
             }}
           >
-            <DialogTrigger render={<Button type="button" size="sm" variant="outline" className="self-start" />}>
+            <DialogTrigger
+              render={<Button type="button" size="sm" variant="outline" className="self-start" />}
+            >
               Изменить адрес
             </DialogTrigger>
             <DialogContent className="sm:max-w-md" showCloseButton>
               <DialogHeader>
                 <DialogTitle>Изменить адрес публичной записи</DialogTitle>
                 <DialogDescription>
-                  Старый адрес продолжит работать и навсегда останется за вашей клиникой — другой клинике он не достанется никогда. При желании вы сможете вернуть его себе.
+                  Старый адрес продолжит работать и навсегда останется за вашей клиникой — другой
+                  клинике он не достанется никогда. При желании вы сможете вернуть его себе.
                 </DialogDescription>
               </DialogHeader>
               <div className="flex flex-col gap-3">
@@ -191,7 +198,9 @@ export function ClinicSlugSection({
                     disabled={pending}
                     className="mt-0.5"
                   />
-                  <span>Я понимаю: старый адрес останется за моей клиникой и другим не достанется.</span>
+                  <span>
+                    Я понимаю: старый адрес останется за моей клиникой и другим не достанется.
+                  </span>
                 </label>
                 {error ? (
                   <p role="alert" className="text-sm text-destructive">
@@ -205,7 +214,7 @@ export function ClinicSlugSection({
                     onClick={() => void saveSlug(true)}
                     disabled={pending || !confirmed}
                   >
-                    {pending ? "Сохранение…" : "Переименовать"}
+                    {pending ? 'Сохранение…' : 'Переименовать'}
                   </Button>
                 </DialogFooter>
               </div>
@@ -227,7 +236,7 @@ export function ClinicSlugSection({
             onClick={() => void saveSlug(false)}
             disabled={pending}
           >
-            {pending ? "Сохранение…" : "Создать адрес"}
+            {pending ? 'Сохранение…' : 'Создать адрес'}
           </Button>
         </div>
       )}

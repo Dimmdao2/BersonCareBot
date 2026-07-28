@@ -141,12 +141,22 @@ describe('POST /api/bersoncare/relay-outbound', () => {
     const headers = makeHeaders(rawBody);
 
     // First request
-    const res1 = await app.inject({ method: 'POST', url: '/api/bersoncare/relay-outbound', headers, body: rawBody });
+    const res1 = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/relay-outbound',
+      headers,
+      body: rawBody,
+    });
     expect(res1.statusCode).toBe(200);
     expect(JSON.parse(res1.body)).toEqual({ ok: true, status: 'accepted' });
 
     // Second request with same idempotencyKey
-    const res2 = await app.inject({ method: 'POST', url: '/api/bersoncare/relay-outbound', headers, body: rawBody });
+    const res2 = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/relay-outbound',
+      headers,
+      body: rawBody,
+    });
     expect(res2.statusCode).toBe(200);
     expect(JSON.parse(res2.body)).toEqual({ ok: true, status: 'duplicate' });
 
@@ -155,7 +165,13 @@ describe('POST /api/bersoncare/relay-outbound', () => {
   });
 
   it('returns 400 for invalid payload', async () => {
-    const body = { messageId: 'id', channel: 'unsupported_channel', recipient: 'r', text: 't', idempotencyKey: 'k' };
+    const body = {
+      messageId: 'id',
+      channel: 'unsupported_channel',
+      recipient: 'r',
+      text: 't',
+      idempotencyKey: 'k',
+    };
     const rawBody = JSON.stringify(body);
     const res = await app.inject({
       method: 'POST',
@@ -183,7 +199,11 @@ describe('POST /api/bersoncare/relay-outbound', () => {
   });
 
   it('rejects a non-UUID web_push recipient in the real relay schema', async () => {
-    const body = makeRelayBody({ organizationId: ORGANIZATION_ID, channel: 'web_push', recipient: 'not-a-uuid' });
+    const body = makeRelayBody({
+      organizationId: ORGANIZATION_ID,
+      channel: 'web_push',
+      recipient: 'not-a-uuid',
+    });
     const rawBody = JSON.stringify(body);
     const response = await app.inject({
       method: 'POST',
@@ -234,9 +254,19 @@ describe('POST /api/bersoncare/relay-outbound', () => {
 
   it('projects the actual VAPID-missing outcome as skipped, never success', async () => {
     vi.mocked(dispatchPort.dispatchOutgoing).mockResolvedValueOnce({
-      webPushOutcome: { status: 'skipped', reason: 'vapid_missing', delivered: 0, errors: 0, deactivated: 0 },
+      webPushOutcome: {
+        status: 'skipped',
+        reason: 'vapid_missing',
+        delivered: 0,
+        errors: 0,
+        deactivated: 0,
+      },
     });
-    const body = makeRelayBody({ organizationId: ORGANIZATION_ID, channel: 'web_push', recipient: PUSH_USER_ID });
+    const body = makeRelayBody({
+      organizationId: ORGANIZATION_ID,
+      channel: 'web_push',
+      recipient: PUSH_USER_ID,
+    });
     const rawBody = JSON.stringify(body);
     const response = await app.inject({
       method: 'POST',
@@ -263,7 +293,11 @@ describe('POST /api/bersoncare/relay-outbound', () => {
         providerErrorCode: 'BadJwtToken',
       },
     });
-    const body = makeRelayBody({ organizationId: ORGANIZATION_ID, channel: 'web_push', recipient: PUSH_USER_ID });
+    const body = makeRelayBody({
+      organizationId: ORGANIZATION_ID,
+      channel: 'web_push',
+      recipient: PUSH_USER_ID,
+    });
     const rawBody = JSON.stringify(body);
     const response = await app.inject({
       method: 'POST',
@@ -286,7 +320,9 @@ describe('POST /api/bersoncare/relay-outbound', () => {
 
   it('reserves an in-flight org-scoped key so concurrent duplicates send once', async () => {
     let release!: () => void;
-    const blocked = new Promise<void>((resolve) => { release = resolve; });
+    const blocked = new Promise<void>((resolve) => {
+      release = resolve;
+    });
     vi.mocked(dispatchPort.dispatchOutgoing).mockImplementationOnce(() => blocked.then(() => ({})));
     const body = makeRelayBody({
       organizationId: ORGANIZATION_ID,
@@ -294,12 +330,13 @@ describe('POST /api/bersoncare/relay-outbound', () => {
       recipient: PUSH_USER_ID,
     });
     const rawBody = JSON.stringify(body);
-    const request = () => app.inject({
-      method: 'POST' as const,
-      url: '/api/bersoncare/relay-outbound',
-      headers: makeHeaders(rawBody),
-      body: rawBody,
-    });
+    const request = () =>
+      app.inject({
+        method: 'POST' as const,
+        url: '/api/bersoncare/relay-outbound',
+        headers: makeHeaders(rawBody),
+        body: rawBody,
+      });
 
     const first = request();
     await vi.waitFor(() => expect(dispatchPort.dispatchOutgoing).toHaveBeenCalledTimes(1));
@@ -341,7 +378,11 @@ describe('POST /api/bersoncare/relay-outbound', () => {
   });
 
   it('calls dispatchOutgoing with correct intent for telegram channel', async () => {
-    const body = makeRelayBody({ channel: 'telegram', recipient: '987654321', text: 'Test message' });
+    const body = makeRelayBody({
+      channel: 'telegram',
+      recipient: '987654321',
+      text: 'Test message',
+    });
     const rawBody = JSON.stringify(body);
     await app.inject({
       method: 'POST',
@@ -457,11 +498,14 @@ describe('POST /api/bersoncare/relay-outbound', () => {
 
   it('rejects generic attempts to request operator-alert privilege', async () => {
     const disconnectedApp = await buildTestApp(dispatchPort, TEST_SECRET, async () => false);
-    const body = { ...makeRelayBody({
-      channel: 'sms',
-      recipient: '+79990001122',
-      text: 'operator alert',
-    }), purpose: 'operator_alert' };
+    const body = {
+      ...makeRelayBody({
+        channel: 'sms',
+        recipient: '+79990001122',
+        text: 'operator alert',
+      }),
+      purpose: 'operator_alert',
+    };
     const rawBody = JSON.stringify(body);
     const response = await disconnectedApp.inject({
       method: 'POST',
@@ -477,11 +521,14 @@ describe('POST /api/bersoncare/relay-outbound', () => {
   });
 
   it('never creates the trusted operator marker from generic relay input', async () => {
-    const body = { ...makeRelayBody({
-      channel: 'sms',
-      recipient: '+79990001122',
-      text: 'operator alert',
-    }), purpose: 'operator_alert' };
+    const body = {
+      ...makeRelayBody({
+        channel: 'sms',
+        recipient: '+79990001122',
+        text: 'operator alert',
+      }),
+      purpose: 'operator_alert',
+    };
     const rawBody = JSON.stringify(body);
     const response = await app.inject({
       method: 'POST',

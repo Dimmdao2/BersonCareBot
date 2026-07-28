@@ -1,42 +1,58 @@
 /**
  * Прохождение программы лечения (`/app/patient/treatment/[instanceId]`).
  */
-import { notFound, redirect } from "next/navigation";
-import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
-import { DateTime } from "luxon";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getOptionalPatientSession, patientRscPersonalDataGate } from "@/app-layer/guards/requireRole";
-import { PATIENT_PLAN_TAB_UI_LABEL } from "@/app-layer/routes/navigation";
-import { routePaths } from "@/app-layer/routes/paths";
-import { PatientAppShell } from "@/shared/ui/patient/PatientAppShell";
-import { patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
-import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
-import { omitDisabledInstanceStageItemsForPatientApi } from "@/modules/treatment-program/stage-semantics";
-import { parsePatientPlanTab } from "@/app/app/patient/treatment/patientPlanTab";
-import { PatientTreatmentProgramDetailClient } from "../PatientTreatmentProgramDetailClient";
-import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
-import { resolveCalendarDayIanaForPatient } from "@/modules/system-settings/calendarIana";
-import { formatExercisesTodayTrainingStatus } from "@/modules/reminders/summarizeReminderForCalendarDay";
-import { loadPatientProgramInteractionBundle } from "@/app/app/patient/treatment/loadPatientProgramInteractionBundle";
+import { notFound, redirect } from 'next/navigation';
+import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
+import { DateTime } from 'luxon';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import {
+  getOptionalPatientSession,
+  patientRscPersonalDataGate,
+} from '@/app-layer/guards/requireRole';
+import { PATIENT_PLAN_TAB_UI_LABEL } from '@/app-layer/routes/navigation';
+import { routePaths } from '@/app-layer/routes/paths';
+import { PatientAppShell } from '@/shared/ui/patient/PatientAppShell';
+import { patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
+import type { TreatmentProgramInstanceDetail } from '@/modules/treatment-program/types';
+import { omitDisabledInstanceStageItemsForPatientApi } from '@/modules/treatment-program/stage-semantics';
+import { parsePatientPlanTab } from '@/app/app/patient/treatment/patientPlanTab';
+import { PatientTreatmentProgramDetailClient } from '../PatientTreatmentProgramDetailClient';
+import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
+import { resolveCalendarDayIanaForPatient } from '@/modules/system-settings/calendarIana';
+import { formatExercisesTodayTrainingStatus } from '@/modules/reminders/summarizeReminderForCalendarDay';
+import { loadPatientProgramInteractionBundle } from '@/app/app/patient/treatment/loadPatientProgramInteractionBundle';
 
-type Props = { params: Promise<{ instanceId: string }>; searchParams: Promise<{ tab?: string | string[] }> };
+type Props = {
+  params: Promise<{ instanceId: string }>;
+  searchParams: Promise<{ tab?: string | string[] }>;
+};
 
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic';
 
 export default async function PatientTreatmentProgramDetailPage({ params, searchParams }: Props) {
   const session = await getOptionalPatientSession();
   if (!session) {
     return (
-      <PatientAppShell title="Программа" user={null} backHref={routePaths.patientTreatmentPrograms} backLabel="Программы">
+      <PatientAppShell
+        title="Программа"
+        user={null}
+        backHref={routePaths.patientTreatmentPrograms}
+        backLabel="Программы"
+      >
         <p className={patientMutedTextClass}>Войдите для доступа.</p>
       </PatientAppShell>
     );
   }
 
   const dataGate = await patientRscPersonalDataGate(session, routePaths.patientTreatmentPrograms);
-  if (dataGate === "guest") {
+  if (dataGate === 'guest') {
     return (
-      <PatientAppShell title="Программа" user={session.user} backHref={routePaths.patientTreatmentPrograms} backLabel="Программы">
+      <PatientAppShell
+        title="Программа"
+        user={session.user}
+        backHref={routePaths.patientTreatmentPrograms}
+        backLabel="Программы"
+      >
         <p className={patientMutedTextClass}>Раздел доступен после входа.</p>
       </PatientAppShell>
     );
@@ -46,13 +62,16 @@ export default async function PatientTreatmentProgramDetailPage({ params, search
   const sp = await searchParams;
   const initialPlanTab = parsePatientPlanTab(sp.tab);
   const deps = buildAppDeps();
-  const targetContext = await deps.patientOrganization?.resolveTreatmentProgramOrganizationForPatient(
-    session.user.userId,
-    instanceId,
-  );
+  const targetContext =
+    await deps.patientOrganization?.resolveTreatmentProgramOrganizationForPatient(
+      session.user.userId,
+      instanceId,
+    );
   if (!targetContext?.ok) notFound();
   if (getCurrentDbPrincipalOrganizationId() !== targetContext.organizationId) {
-    redirect(`/api/patient/organization-context/open?kind=treatment_program&instanceId=${encodeURIComponent(instanceId)}`);
+    redirect(
+      `/api/patient/organization-context/open?kind=treatment_program&instanceId=${encodeURIComponent(instanceId)}`,
+    );
   }
   let detail: TreatmentProgramInstanceDetail;
   try {
@@ -71,17 +90,22 @@ export default async function PatientTreatmentProgramDetailPage({ params, search
   const organizationId = detail.organizationId?.trim();
   if (!organizationId) notFound();
 
-  const [initialTestResults, initialProgramEvents, patientIana, rules, planItemDoneRepeatCooldownMinutes] =
-    await Promise.all([
-      deps.treatmentProgramProgress.listTestResultsForInstance(instanceId),
-      deps.treatmentProgramInstance.listProgramEvents(instanceId),
-      deps.patientCalendarTimezone.getIanaForUser(session.user.userId),
-      deps.reminders.listRulesByUser(session.user.userId),
-      deps.runtimeConfig.getInteger(
-        "patient_treatment_plan_item_done_repeat_cooldown_minutes",
-        { patientUserId: session.user.userId, organizationId },
-      ),
-    ]);
+  const [
+    initialTestResults,
+    initialProgramEvents,
+    patientIana,
+    rules,
+    planItemDoneRepeatCooldownMinutes,
+  ] = await Promise.all([
+    deps.treatmentProgramProgress.listTestResultsForInstance(instanceId),
+    deps.treatmentProgramInstance.listProgramEvents(instanceId),
+    deps.patientCalendarTimezone.getIanaForUser(session.user.userId),
+    deps.reminders.listRulesByUser(session.user.userId),
+    deps.runtimeConfig.getInteger('patient_treatment_plan_item_done_repeat_cooldown_minutes', {
+      patientUserId: session.user.userId,
+      organizationId,
+    }),
+  ]);
   const programInteraction = await loadPatientProgramInteractionBundle(
     deps,
     session.user.userId,
@@ -105,25 +129,25 @@ export default async function PatientTreatmentProgramDetailPage({ params, search
   const planReminderNow = new Date();
 
   const rehabMatches = rules.filter(
-    (r) => r.linkedObjectType === "rehab_program" && r.linkedObjectId === instanceId,
+    (r) => r.linkedObjectType === 'rehab_program' && r.linkedObjectId === instanceId,
   );
   rehabMatches.sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
   const rehabRuleForStrip = rehabMatches[0] ?? null;
 
   const planReminderStrip =
-    detail.status === "active" ?
-      {
-        rehabTodayLine: formatExercisesTodayTrainingStatus(
-          rehabRuleForStrip,
-          calendarDateKey,
-          resolvedIana,
-          planReminderNow,
-        ),
-        warmupTodayLine: null,
-        remindersHref: `${routePaths.patientReminders}#patient-reminders-rehab`,
-        variant: "trainingsToday" as const,
-      }
-    : null;
+    detail.status === 'active'
+      ? {
+          rehabTodayLine: formatExercisesTodayTrainingStatus(
+            rehabRuleForStrip,
+            calendarDateKey,
+            resolvedIana,
+            planReminderNow,
+          ),
+          warmupTodayLine: null,
+          remindersHref: `${routePaths.patientReminders}#patient-reminders-rehab`,
+          variant: 'trainingsToday' as const,
+        }
+      : null;
 
   return (
     <PatientAppShell
@@ -131,7 +155,6 @@ export default async function PatientTreatmentProgramDetailPage({ params, search
       user={session.user}
       backHref={routePaths.patientTreatmentPrograms}
       backLabel={PATIENT_PLAN_TAB_UI_LABEL}
-     
     >
       <PatientTreatmentProgramDetailClient
         initial={detail}

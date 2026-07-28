@@ -13,20 +13,20 @@
 
 **Новые файлы:**
 
-| Файл | Назначение |
-|------|------------|
-| `src/shared/lib/platform.ts` | Типы `PlatformEntry`, `PlatformMode`, константы cookie, `serializePlatformBotCookie()` |
-| `src/shared/lib/platformCookie.server.ts` | Серверный хелпер `getPlatformEntry()` — чтение cookie в Server Components |
-| `src/shared/ui/PlatformProvider.tsx` | Клиентский React context: `serverHint` + Mini App fallback + viewport `matchMedia` |
-| `src/shared/hooks/usePlatform.ts` | Хук `usePlatform()` — возвращает `PlatformMode` |
-| `src/middleware.ts` + `src/middleware/platformContext.ts` | Next.js middleware: `?ctx=bot` → cookie + redirect |
-| `src/app-layer/routes/navigation.ts` | Декларативные конфиги навигации и блоков главной по платформе |
-| `src/shared/lib/platform.md` | Документация механизма |
+| Файл                                                      | Назначение                                                                             |
+| --------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `src/shared/lib/platform.ts`                              | Типы `PlatformEntry`, `PlatformMode`, константы cookie, `serializePlatformBotCookie()` |
+| `src/shared/lib/platformCookie.server.ts`                 | Серверный хелпер `getPlatformEntry()` — чтение cookie в Server Components              |
+| `src/shared/ui/PlatformProvider.tsx`                      | Клиентский React context: `serverHint` + Mini App fallback + viewport `matchMedia`     |
+| `src/shared/hooks/usePlatform.ts`                         | Хук `usePlatform()` — возвращает `PlatformMode`                                        |
+| `src/middleware.ts` + `src/middleware/platformContext.ts` | Next.js middleware: `?ctx=bot` → cookie + redirect                                     |
+| `src/app-layer/routes/navigation.ts`                      | Декларативные конфиги навигации и блоков главной по платформе                          |
+| `src/shared/lib/platform.md`                              | Документация механизма                                                                 |
 
 **Изменённые файлы:**
 
-| Файл | Что изменено |
-|------|-------------|
+| Файл                 | Что изменено                                                                  |
+| -------------------- | ----------------------------------------------------------------------------- |
 | `src/app/layout.tsx` | Async root layout, `getPlatformEntry()`, `<PlatformProvider>` вокруг children |
 
 **Тесты:** `src/middleware.test.ts` (4 теста), `src/app-layer/routes/navigation.test.ts` (7 тестов)
@@ -36,6 +36,7 @@
 Механизм подключён к трём ключевым компонентам:
 
 **PatientHeader.tsx** — полностью переписана правая часть шапки:
+
 - Хардкод иконок заменён на `usePlatform()` + `patientNavByPlatform[platform]`
 - Иконки рендерятся из конфига через `renderHeaderIcon()` по массиву `headerRightIcons`
 - Sheet-меню рендерится только при `hasSheetMenu === true`
@@ -44,11 +45,13 @@
 - В mobile/desktop: сообщения → напоминания → гамбургер + полное Sheet-меню
 
 **patient/page.tsx** — секции главной фильтруются через `Set<HomeBlockId>`:
+
 - В бот-режиме: только materials, assistant, purchases, lfk-complexes, patient-card
 - В mobile/desktop: все блоки
 - Пропущенные блоки не загружают данные (оптимизация серверных запросов)
 
 **AskQuestionFAB.tsx** — упрощён:
+
 - Вместо `isMessengerMiniAppHost()` + `useEffect` + `useState` → `usePlatform() === "bot"` → `return null`
 - Убрана вся логика opacity/invisible/transition (бот — просто не рендерится)
 
@@ -78,19 +81,19 @@ standalone       →    ≥ 768px               desktop
 
 ### Шапка пациента (headerRightIcons)
 
-| Платформа | Иконки справа |
-|-----------|--------------|
-| bot | Справка (?) → Настройки (⚙) |
-| mobile | Сообщения → Напоминания → Меню (☰) |
-| desktop | Сообщения → Напоминания → Меню (☰) |
+| Платформа | Иконки справа                       |
+| --------- | ----------------------------------- |
+| bot       | Справка (?) → Настройки (⚙)         |
+| mobile    | Сообщения → Напоминания → Меню (☰) |
+| desktop   | Сообщения → Напоминания → Меню (☰) |
 
 ### Блоки главной (patientHomeBlocksByPlatform)
 
-| Платформа | Блоки |
-|-----------|-------|
-| bot | materials, assistant, purchases*, lfk-complexes*, patient-card* |
-| mobile | cabinet, materials, purchases*, lfk-complexes*, patient-card*, news, mailings, motivation, stats, channels |
-| desktop | (= mobile) |
+| Платформа | Блоки                                                                                                       |
+| --------- | ----------------------------------------------------------------------------------------------------------- |
+| bot       | materials, assistant, purchases*, lfk-complexes*, patient-card\*                                            |
+| mobile    | cabinet, materials, purchases*, lfk-complexes*, patient-card\*, news, mailings, motivation, stats, channels |
+| desktop   | (= mobile)                                                                                                  |
 
 \* — purchases, lfk-complexes, patient-card: ID заведены в конфиге, но компоненты для них ещё не существуют на главной. Рендер появится когда будут готовы соответствующие секции.
 
@@ -100,7 +103,7 @@ standalone       →    ≥ 768px               desktop
 
 ### Ближайшие задачи (подключение страниц)
 
-1. **Верстка главной в бот-режиме** — *исторический снимок:* `materials` / `assistant` и компонент **`PatientHomeLessonsSection`** (на 2026-05-04 **удалён** из репозитория; каталог контента — `/app/patient/sections`). Нужно:
+1. **Верстка главной в бот-режиме** — _исторический снимок:_ `materials` / `assistant` и компонент **`PatientHomeLessonsSection`** (на 2026-05-04 **удалён** из репозитория; каталог контента — `/app/patient/sections`). Нужно:
    - Создать компонент «Помощник» (управление напоминаниями о разминках) → `PatientHomeAssistantSection`
    - При необходимости отдельного блока «уроки» на главной — новый компонент, согласованный с текущей главной (`PatientHomeToday` и т.д.)
 

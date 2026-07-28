@@ -1,6 +1,6 @@
 /** @vitest-environment node */
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
   getSessionMock,
@@ -11,27 +11,28 @@ const {
   pgGetByIdMock,
   requireDoctorWorkspaceApiContextMock,
   withDoctorWorkspacePrincipalMock,
-} =
-  vi.hoisted(() => ({
-    getSessionMock: vi.fn(),
-    moveFolderMock: vi.fn(),
-    renameFolderMock: vi.fn(),
-    deleteFolderMock: vi.fn(),
-    pgExistsMock: vi.fn(),
-    pgGetByIdMock: vi.fn(),
-    requireDoctorWorkspaceApiContextMock: vi.fn(),
-    withDoctorWorkspacePrincipalMock: vi.fn((_: unknown, sourceOrFn: string | (() => unknown), maybeFn?: () => unknown) => {
-  const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
-  if (!fn) throw new Error("principal_callback_required");
-  return fn();
-}),
-  }));
+} = vi.hoisted(() => ({
+  getSessionMock: vi.fn(),
+  moveFolderMock: vi.fn(),
+  renameFolderMock: vi.fn(),
+  deleteFolderMock: vi.fn(),
+  pgExistsMock: vi.fn(),
+  pgGetByIdMock: vi.fn(),
+  requireDoctorWorkspaceApiContextMock: vi.fn(),
+  withDoctorWorkspacePrincipalMock: vi.fn(
+    (_: unknown, sourceOrFn: string | (() => unknown), maybeFn?: () => unknown) => {
+      const fn = typeof sourceOrFn === 'function' ? sourceOrFn : maybeFn;
+      if (!fn) throw new Error('principal_callback_required');
+      return fn();
+    },
+  ),
+}));
 
-vi.mock("@/modules/auth/service", () => ({
+vi.mock('@/modules/auth/service', () => ({
   getCurrentSession: getSessionMock,
 }));
 
-vi.mock("@/app-layer/di/buildAppDeps", () => ({
+vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: () => ({
     media: {
       moveFolder: moveFolderMock,
@@ -41,31 +42,31 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
   }),
 }));
 
-vi.mock("@/app-layer/guards/requireRole", () => ({
+vi.mock('@/app-layer/guards/requireRole', () => ({
   requireDoctorWorkspaceApiContext: requireDoctorWorkspaceApiContextMock,
 }));
 
-vi.mock("@/app-layer/guards/doctorWorkspacePrincipal", () => ({
+vi.mock('@/app-layer/guards/doctorWorkspacePrincipal', () => ({
   withDoctorWorkspacePrincipal: (
     ctx: unknown,
     sourceOrFn: string | (() => unknown),
     maybeFn?: () => unknown,
   ) => {
-    const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
-    if (!fn) throw new Error("principal_callback_required");
+    const fn = typeof sourceOrFn === 'function' ? sourceOrFn : maybeFn;
+    if (!fn) throw new Error('principal_callback_required');
     return withDoctorWorkspacePrincipalMock(ctx, fn);
   },
 }));
 
-vi.mock("@/app-layer/media/mediaFoldersRepo", () => ({
+vi.mock('@/app-layer/media/mediaFoldersRepo', () => ({
   pgFolderExists: (...a: unknown[]) => pgExistsMock(...a),
   pgGetMediaFolderById: (...a: unknown[]) => pgGetByIdMock(...a),
 }));
 
 const validateParentMock = vi.fn();
 const validatePatientFolderRenameMock = vi.fn();
-vi.mock("@/app-layer/media/clientMediaFolders", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/app-layer/media/clientMediaFolders")>();
+vi.mock('@/app-layer/media/clientMediaFolders', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/app-layer/media/clientMediaFolders')>();
   return {
     ...actual,
     pgValidateManualFolderParent: (...a: unknown[]) => validateParentMock(...a),
@@ -73,32 +74,32 @@ vi.mock("@/app-layer/media/clientMediaFolders", async (importOriginal) => {
   };
 });
 
-import { DELETE, PATCH } from "./route";
+import { DELETE, PATCH } from './route';
 
-const FOLDER_ID = "11111111-1111-4111-8111-111111111111";
-const PARENT_ID = "22222222-2222-4222-8222-222222222222";
+const FOLDER_ID = '11111111-1111-4111-8111-111111111111';
+const PARENT_ID = '22222222-2222-4222-8222-222222222222';
 
 const standardFolder = {
   id: FOLDER_ID,
   parentId: null,
-  name: "Standard",
-  kind: "standard" as const,
+  name: 'Standard',
+  kind: 'standard' as const,
   patientUserId: null,
-  createdAt: "2026-01-01T00:00:00.000Z",
+  createdAt: '2026-01-01T00:00:00.000Z',
 };
 
-describe("PATCH /api/admin/media/folders/[id]", () => {
+describe('PATCH /api/admin/media/folders/[id]', () => {
   beforeEach(() => {
     requireDoctorWorkspaceApiContextMock.mockReset();
     requireDoctorWorkspaceApiContextMock.mockResolvedValue({
       ok: true,
-      ctx: { organizationId: "org-1", session: { user: { userId: "doc-1", role: "doctor" } } },
+      ctx: { organizationId: 'org-1', session: { user: { userId: 'doc-1', role: 'doctor' } } },
     });
     withDoctorWorkspacePrincipalMock.mockClear();
     withDoctorWorkspacePrincipalMock.mockImplementation(
       (_: unknown, sourceOrFn: string | (() => unknown), maybeFn?: () => unknown) => {
-        const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
-        if (!fn) throw new Error("principal_callback_required");
+        const fn = typeof sourceOrFn === 'function' ? sourceOrFn : maybeFn;
+        if (!fn) throw new Error('principal_callback_required');
         return fn();
       },
     );
@@ -113,14 +114,14 @@ describe("PATCH /api/admin/media/folders/[id]", () => {
     validateParentMock.mockResolvedValue({ ok: true });
     validatePatientFolderRenameMock.mockReset();
     validatePatientFolderRenameMock.mockResolvedValue(undefined);
-    getSessionMock.mockResolvedValue({ user: { role: "doctor" } });
+    getSessionMock.mockResolvedValue({ user: { role: 'doctor' } });
   });
 
-  it("returns 400 for self parent", async () => {
+  it('returns 400 for self parent', async () => {
     const res = await PATCH(
-      new Request("http://localhost/api/admin/media/folders/x", {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
+      new Request('http://localhost/api/admin/media/folders/x', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ parentId: FOLDER_ID }),
       }),
       { params: Promise.resolve({ id: FOLDER_ID }) },
@@ -128,12 +129,12 @@ describe("PATCH /api/admin/media/folders/[id]", () => {
     expect(res.status).toBe(400);
   });
 
-  it("returns 404 when new parent missing", async () => {
+  it('returns 404 when new parent missing', async () => {
     pgExistsMock.mockResolvedValue(false);
     const res = await PATCH(
-      new Request("http://localhost/api/admin/media/folders/x", {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
+      new Request('http://localhost/api/admin/media/folders/x', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ parentId: PARENT_ID }),
       }),
       { params: Promise.resolve({ id: FOLDER_ID }) },
@@ -141,96 +142,96 @@ describe("PATCH /api/admin/media/folders/[id]", () => {
     expect(res.status).toBe(404);
   });
 
-  it("returns 409 when renaming client_files_root folder", async () => {
+  it('returns 409 when renaming client_files_root folder', async () => {
     pgGetByIdMock.mockResolvedValue({
       ...standardFolder,
-      kind: "client_files_root",
-      name: "Пациенты",
+      kind: 'client_files_root',
+      name: 'Пациенты',
     });
     const res = await PATCH(
-      new Request("http://localhost/api/admin/media/folders/x", {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name: "Hack" }),
+      new Request('http://localhost/api/admin/media/folders/x', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: 'Hack' }),
       }),
       { params: Promise.resolve({ id: FOLDER_ID }) },
     );
     expect(res.status).toBe(409);
     const j = (await res.json()) as { error?: string };
-    expect(j.error).toBe("system_folder_readonly");
+    expect(j.error).toBe('system_folder_readonly');
     expect(renameFolderMock).not.toHaveBeenCalled();
   });
 
-  it("returns 200 when renaming client_patient folder (rule 2: allowed)", async () => {
+  it('returns 200 when renaming client_patient folder (rule 2: allowed)', async () => {
     pgGetByIdMock.mockResolvedValue({
       ...standardFolder,
-      kind: "client_patient",
-      name: "Иван · abcd1234",
+      kind: 'client_patient',
+      name: 'Иван · abcd1234',
     });
     renameFolderMock.mockResolvedValue(true);
     const res = await PATCH(
-      new Request("http://localhost/api/admin/media/folders/x", {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name: "Иван Иванов" }),
+      new Request('http://localhost/api/admin/media/folders/x', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: 'Иван Иванов' }),
       }),
       { params: Promise.resolve({ id: FOLDER_ID }) },
     );
     expect(res.status).toBe(200);
-    expect(renameFolderMock).toHaveBeenCalledWith(FOLDER_ID, "Иван Иванов");
+    expect(renameFolderMock).toHaveBeenCalledWith(FOLDER_ID, 'Иван Иванов');
     expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
-      expect.objectContaining({ organizationId: "org-1" }),
+      expect.objectContaining({ organizationId: 'org-1' }),
       expect.any(Function),
     );
   });
 
-  it("returns 409 patient_folder_move_out when reparenting client_patient folder (rule 4: forbidden)", async () => {
+  it('returns 409 patient_folder_move_out when reparenting client_patient folder (rule 4: forbidden)', async () => {
     pgGetByIdMock.mockResolvedValue({
       ...standardFolder,
-      kind: "client_patient",
-      name: "Иван · abcd1234",
+      kind: 'client_patient',
+      name: 'Иван · abcd1234',
     });
     const res = await PATCH(
-      new Request("http://localhost/api/admin/media/folders/x", {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
+      new Request('http://localhost/api/admin/media/folders/x', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ parentId: PARENT_ID }),
       }),
       { params: Promise.resolve({ id: FOLDER_ID }) },
     );
     expect(res.status).toBe(409);
     const j = (await res.json()) as { error?: string };
-    expect(j.error).toBe("patient_folder_move_out");
+    expect(j.error).toBe('patient_folder_move_out');
     expect(moveFolderMock).not.toHaveBeenCalled();
   });
 
-  it("returns 200 on rename", async () => {
+  it('returns 200 on rename', async () => {
     renameFolderMock.mockResolvedValue(true);
     const res = await PATCH(
-      new Request("http://localhost/api/admin/media/folders/x", {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name: "NewName" }),
+      new Request('http://localhost/api/admin/media/folders/x', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: 'NewName' }),
       }),
       { params: Promise.resolve({ id: FOLDER_ID }) },
     );
     expect(res.status).toBe(200);
-    expect(renameFolderMock).toHaveBeenCalledWith(FOLDER_ID, "NewName");
+    expect(renameFolderMock).toHaveBeenCalledWith(FOLDER_ID, 'NewName');
   });
 });
 
-describe("DELETE /api/admin/media/folders/[id]", () => {
+describe('DELETE /api/admin/media/folders/[id]', () => {
   beforeEach(() => {
     requireDoctorWorkspaceApiContextMock.mockReset();
     requireDoctorWorkspaceApiContextMock.mockResolvedValue({
       ok: true,
-      ctx: { organizationId: "org-1", session: { user: { userId: "doc-1", role: "doctor" } } },
+      ctx: { organizationId: 'org-1', session: { user: { userId: 'doc-1', role: 'doctor' } } },
     });
     withDoctorWorkspacePrincipalMock.mockClear();
     withDoctorWorkspacePrincipalMock.mockImplementation(
       (_: unknown, sourceOrFn: string | (() => unknown), maybeFn?: () => unknown) => {
-        const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
-        if (!fn) throw new Error("principal_callback_required");
+        const fn = typeof sourceOrFn === 'function' ? sourceOrFn : maybeFn;
+        if (!fn) throw new Error('principal_callback_required');
         return fn();
       },
     );
@@ -240,22 +241,22 @@ describe("DELETE /api/admin/media/folders/[id]", () => {
     pgGetByIdMock.mockResolvedValue(standardFolder);
     validateParentMock.mockReset();
     validateParentMock.mockResolvedValue({ ok: true });
-    getSessionMock.mockResolvedValue({ user: { role: "doctor" } });
+    getSessionMock.mockResolvedValue({ user: { role: 'doctor' } });
   });
 
-  it("returns 409 when folder not empty", async () => {
-    deleteFolderMock.mockResolvedValue({ ok: false as const, error: "not_empty" as const });
-    const res = await DELETE(new Request("http://localhost/api/admin/media/folders/x"), {
+  it('returns 409 when folder not empty', async () => {
+    deleteFolderMock.mockResolvedValue({ ok: false as const, error: 'not_empty' as const });
+    const res = await DELETE(new Request('http://localhost/api/admin/media/folders/x'), {
       params: Promise.resolve({ id: FOLDER_ID }),
     });
     expect(res.status).toBe(409);
     const j = (await res.json()) as { error?: string };
-    expect(j.error).toBe("not_empty");
+    expect(j.error).toBe('not_empty');
   });
 
-  it("returns 200 when delete ok", async () => {
+  it('returns 200 when delete ok', async () => {
     deleteFolderMock.mockResolvedValue({ ok: true as const });
-    const res = await DELETE(new Request("http://localhost/api/admin/media/folders/x"), {
+    const res = await DELETE(new Request('http://localhost/api/admin/media/folders/x'), {
       params: Promise.resolve({ id: FOLDER_ID }),
     });
     expect(res.status).toBe(200);
@@ -263,7 +264,7 @@ describe("DELETE /api/admin/media/folders/[id]", () => {
     expect(j.ok).toBe(true);
     expect(j.deleted).toBe(true);
     expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
-      expect.objectContaining({ organizationId: "org-1" }),
+      expect.objectContaining({ organizationId: 'org-1' }),
       expect.any(Function),
     );
   });

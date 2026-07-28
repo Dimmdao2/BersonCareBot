@@ -1,11 +1,11 @@
-"use client";
+'use client';
 
-import { useEffect, useState, useTransition } from "react";
-import { Button } from "@/shared/ui/patient/primitives/button";
-import { Input } from "@/shared/ui/patient/primitives/input";
-import { cn } from "@/lib/utils";
+import { useEffect, useState, useTransition } from 'react';
+import { Button } from '@/shared/ui/patient/primitives/button';
+import { Input } from '@/shared/ui/patient/primitives/input';
+import { cn } from '@/lib/utils';
 
-type FieldType = "text" | "phone" | "email";
+type FieldType = 'text' | 'phone' | 'email';
 
 export type InlineEditFieldProps = {
   label: string;
@@ -26,9 +26,9 @@ export type InlineEditFieldProps = {
 export function InlineEditField({
   label,
   value,
-  placeholder = "",
-  type = "text",
-  emptyLabel = "не указано",
+  placeholder = '',
+  type = 'text',
+  emptyLabel = 'не указано',
   onSave,
   className,
   disabled = false,
@@ -46,8 +46,8 @@ export function InlineEditField({
 
   const trimmed = value.trim();
   const isEmpty = !trimmed;
-  const inputType = type === "email" ? "email" : type === "phone" ? "tel" : "text";
-  const inputMode = type === "phone" ? "tel" : type === "email" ? "email" : undefined;
+  const inputType = type === 'email' ? 'email' : type === 'phone' ? 'tel' : 'text';
+  const inputMode = type === 'phone' ? 'tel' : type === 'email' ? 'email' : undefined;
 
   const handleSave = () => {
     setError(null);
@@ -57,7 +57,7 @@ export function InlineEditField({
         await onSave(next);
         setEditing(false);
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Не удалось сохранить");
+        setError(e instanceof Error ? e.message : 'Не удалось сохранить');
       }
     });
   };
@@ -69,11 +69,11 @@ export function InlineEditField({
   };
 
   return (
-    <div className={cn("flex flex-col gap-1", className)}>
+    <div className={cn('flex flex-col gap-1', className)}>
       <div className="flex flex-wrap items-start justify-between gap-2">
         <span
           className={cn(
-            "text-muted-foreground text-xs font-medium uppercase tracking-wide",
+            'text-muted-foreground text-xs font-medium uppercase tracking-wide',
             labelClassName,
           )}
         >
@@ -85,7 +85,7 @@ export function InlineEditField({
             variant="link"
             size="sm"
             className={cn(
-              "text-primary h-auto min-h-0 px-0 py-0 text-sm font-medium",
+              'text-primary h-auto min-h-0 px-0 py-0 text-sm font-medium',
               editLinkClassName,
             )}
             disabled={disabled}
@@ -95,7 +95,7 @@ export function InlineEditField({
               setError(null);
             }}
           >
-            {isEmpty ? "Добавить" : "Изменить"}
+            {isEmpty ? 'Добавить' : 'Изменить'}
           </Button>
         ) : null}
       </div>
@@ -107,7 +107,7 @@ export function InlineEditField({
           <Input
             type={inputType}
             inputMode={inputMode}
-            autoComplete={type === "email" ? "email" : type === "phone" ? "tel" : "name"}
+            autoComplete={type === 'email' ? 'email' : type === 'phone' ? 'tel' : 'name'}
             placeholder={placeholder}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
@@ -117,9 +117,15 @@ export function InlineEditField({
           />
           <div className="flex flex-wrap gap-2">
             <Button type="button" size="sm" onClick={handleSave} disabled={pending || disabled}>
-              {pending ? "…" : "Сохранить"}
+              {pending ? '…' : 'Сохранить'}
             </Button>
-            <Button type="button" variant="outline" size="sm" onClick={handleCancel} disabled={pending}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleCancel}
+              disabled={pending}
+            >
               Отмена
             </Button>
           </div>

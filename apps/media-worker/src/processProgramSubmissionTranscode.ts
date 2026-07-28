@@ -1,22 +1,27 @@
-import { mkdtemp, mkdir, readFile, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join, posix } from "node:path";
-import { DeleteObjectCommand } from "@aws-sdk/client-s3";
-import type { ClaimedJob } from "./jobs/claim.js";
-import type { TranscodeContext } from "./processTranscodeJob.js";
-import { buildPosterFfmpegArgs } from "./ffmpeg/hlsArgs.js";
-import { runFfmpeg } from "./ffmpeg/runFfmpeg.js";
+import { mkdtemp, mkdir, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, posix } from 'node:path';
+import { DeleteObjectCommand } from '@aws-sdk/client-s3';
+import type { ClaimedJob } from './jobs/claim.js';
+import type { TranscodeContext } from './processTranscodeJob.js';
+import { buildPosterFfmpegArgs } from './ffmpeg/hlsArgs.js';
+import { runFfmpeg } from './ffmpeg/runFfmpeg.js';
 import {
   isCanonicalMediaRootForId,
   mediaRootFromSourceS3Key,
   posterObjectKeyFromMediaRoot,
-} from "./hlsStorageLayout.js";
-import { runMediaWorkerPgText } from "./runMediaWorkerSql.js";
-import { probeVideoDurationSeconds } from "./ffmpeg/probeVideoDurationSeconds.js";
-import { downloadObjectToFile, headObjectExists, putObjectWithRetry, contentTypeForKey } from "./s3.js";
+} from './hlsStorageLayout.js';
+import { runMediaWorkerPgText } from './runMediaWorkerSql.js';
+import { probeVideoDurationSeconds } from './ffmpeg/probeVideoDurationSeconds.js';
+import {
+  downloadObjectToFile,
+  headObjectExists,
+  putObjectWithRetry,
+  contentTypeForKey,
+} from './s3.js';
 
 function submission480pKeyFromMediaRoot(mediaRoot: string): string {
-  return posix.join(mediaRoot.replace(/\/+$/, ""), "480p.mp4");
+  return posix.join(mediaRoot.replace(/\/+$/, ''), '480p.mp4');
 }
 
 /**
@@ -33,23 +38,23 @@ export async function processProgramSubmissionTranscodeJob(
     await runMediaWorkerPgText(
       ctx.pool,
       `UPDATE public.media_transcode_jobs SET status = 'failed', last_error = $2, finished_at = now(), updated_at = now() WHERE id = $1::uuid`,
-      [job.id, "non_canonical_s3_key_layout"],
+      [job.id, 'non_canonical_s3_key_layout'],
     );
     await runMediaWorkerPgText(
       ctx.pool,
       `UPDATE public.media_files SET video_processing_status = 'failed', video_processing_error = $2 WHERE id = $1::uuid`,
-      [job.mediaId, "non_canonical_s3_key_layout"],
+      [job.mediaId, 'non_canonical_s3_key_layout'],
     );
     return;
   }
 
   const outputKey = submission480pKeyFromMediaRoot(mediaRoot);
   const posterKey = posterObjectKeyFromMediaRoot(mediaRoot);
-  const workDir = await mkdtemp(join(tmpdir(), "mw-sub-"));
-  const src = join(workDir, "source.bin");
-  const outMp4 = join(workDir, "480p.mp4");
-  const posterDir = join(workDir, "poster");
-  const posterLocal = join(posterDir, "poster.jpg");
+  const workDir = await mkdtemp(join(tmpdir(), 'mw-sub-'));
+  const src = join(workDir, 'source.bin');
+  const outMp4 = join(workDir, '480p.mp4');
+  const posterDir = join(workDir, 'poster');
+  const posterLocal = join(posterDir, 'poster.jpg');
 
   try {
     await runMediaWorkerPgText(
@@ -61,24 +66,24 @@ export async function processProgramSubmissionTranscodeJob(
     await downloadObjectToFile(ctx.s3Client, ctx.bucket, sourceKey, src);
 
     const ffmpegArgs = [
-      "-hide_banner",
-      "-loglevel",
-      "error",
-      "-y",
-      "-i",
+      '-hide_banner',
+      '-loglevel',
+      'error',
+      '-y',
+      '-i',
       src,
-      "-vf",
-      "scale=-2:480",
-      "-c:v",
-      "libx264",
-      "-preset",
-      "fast",
-      "-crf",
-      "23",
-      "-c:a",
-      "aac",
-      "-movflags",
-      "+faststart",
+      '-vf',
+      'scale=-2:480',
+      '-c:v',
+      'libx264',
+      '-preset',
+      'fast',
+      '-crf',
+      '23',
+      '-c:a',
+      'aac',
+      '-movflags',
+      '+faststart',
       outMp4,
     ];
     const run = await runFfmpeg(ctx.ffmpegBin, ffmpegArgs, {
@@ -91,7 +96,7 @@ export async function processProgramSubmissionTranscodeJob(
     }
 
     const mp4Buf = await readFile(outMp4);
-    await putObjectWithRetry(ctx.s3Client, ctx.bucket, outputKey, mp4Buf, "video/mp4", ctx.log);
+    await putObjectWithRetry(ctx.s3Client, ctx.bucket, outputKey, mp4Buf, 'video/mp4', ctx.log);
     const videoDurationSeconds = await probeVideoDurationSeconds(ctx.ffmpegBin, outMp4, 60_000);
 
     await mkdir(posterDir, { recursive: true });
@@ -117,7 +122,7 @@ export async function processProgramSubmissionTranscodeJob(
     const headOk = await headObjectExists(ctx.s3Client, ctx.bucket, outputKey);
     if (!headOk) {
       // eslint-disable-next-line no-secrets/no-secrets -- ops error token, not a secret
-      throw new Error("submission_480p_head_missing_after_upload");
+      throw new Error('submission_480p_head_missing_after_upload');
     }
 
     if (sourceKey !== outputKey) {
@@ -129,11 +134,16 @@ export async function processProgramSubmissionTranscodeJob(
           }),
         );
       } catch (e) {
-        ctx.log.warn({ err: e, mediaId: job.mediaId, sourceKey }, "submission_source_delete_failed");
+        ctx.log.warn(
+          { err: e, mediaId: job.mediaId, sourceKey },
+          'submission_source_delete_failed',
+        );
       }
     }
 
-    const qualitiesJson = JSON.stringify([{ label: "480p", height: 480, path: "480p.mp4", bandwidth: 900_000 }]);
+    const qualitiesJson = JSON.stringify([
+      { label: '480p', height: 480, path: '480p.mp4', bandwidth: 900_000 },
+    ]);
     await runMediaWorkerPgText(
       ctx.pool,
       `UPDATE public.media_files SET
@@ -159,8 +169,8 @@ export async function processProgramSubmissionTranscodeJob(
       [job.id],
     );
     ctx.log.info(
-      { jobId: job.id, mediaId: job.mediaId, outcome: "done", mode: "program_submission_480p" },
-      "transcode completed",
+      { jobId: job.id, mediaId: job.mediaId, outcome: 'done', mode: 'program_submission_480p' },
+      'transcode completed',
     );
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -174,7 +184,10 @@ export async function processProgramSubmissionTranscodeJob(
       `UPDATE public.media_files SET video_processing_status = 'failed', video_processing_error = $2 WHERE id = $1::uuid`,
       [job.mediaId, msg.slice(0, 8000)],
     );
-    ctx.log.warn({ jobId: job.id, mediaId: job.mediaId, err: msg.slice(0, 200) }, "program_submission_transcode_failed");
+    ctx.log.warn(
+      { jobId: job.id, mediaId: job.mediaId, err: msg.slice(0, 200) },
+      'program_submission_transcode_failed',
+    );
   } finally {
     await rm(workDir, { recursive: true, force: true }).catch(() => {
       /* ignore */

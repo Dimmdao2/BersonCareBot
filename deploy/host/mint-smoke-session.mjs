@@ -1,21 +1,29 @@
 #!/usr/bin/env node
-import { chmodSync, chownSync, lstatSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import { randomBytes } from "node:crypto";
-import { readSmokeLoginPacket } from "./smoke-login-packet.mjs";
+import {
+  chmodSync,
+  chownSync,
+  lstatSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { randomBytes } from 'node:crypto';
+import { readSmokeLoginPacket } from './smoke-login-packet.mjs';
 
-const DEFAULT_PACKET_PATH = "/opt/env/bersoncarebot/saas-smoke-login.env";
-const DEFAULT_REFS_PATH = "/run/bersoncarebot/saas-smoke.fixture";
-const SESSION_COOKIE_NAME = "bersoncare_webapp_session";
+const DEFAULT_PACKET_PATH = '/opt/env/bersoncarebot/saas-smoke-login.env';
+const DEFAULT_REFS_PATH = '/run/bersoncarebot/saas-smoke.fixture';
+const SESSION_COOKIE_NAME = 'bersoncare_webapp_session';
 const REQUIRED_REF_KEYS = Object.freeze([
-  "doctorClientUserId",
-  "patientProgramInstanceId",
-  "patientProgramItemId",
-  "mediaFileId",
-  "publicBookingBranchId",
-  "publicBookingClinicServiceId",
-  "publicBookingOrganizationSlug",
-  "clinicAAppointmentId",
+  'doctorClientUserId',
+  'patientProgramInstanceId',
+  'patientProgramItemId',
+  'mediaFileId',
+  'publicBookingBranchId',
+  'publicBookingClinicServiceId',
+  'publicBookingOrganizationSlug',
+  'clinicAAppointmentId',
 ]);
 function fail(code) {
   throw new Error(code);
@@ -30,44 +38,51 @@ function parseArgs(argv) {
     check: false,
   };
   for (const arg of argv) {
-    if (arg === "--check") options.check = true;
-    else if (arg.startsWith("--base-url=")) options.baseUrl = arg.slice("--base-url=".length);
-    else if (arg.startsWith("--packet=")) options.packetPath = arg.slice("--packet=".length);
-    else if (arg.startsWith("--refs-from=")) options.refsPath = arg.slice("--refs-from=".length);
-    else if (arg.startsWith("--out=")) options.outPath = arg.slice("--out=".length);
-    else fail("unknown_argument");
+    if (arg === '--check') options.check = true;
+    else if (arg.startsWith('--base-url=')) options.baseUrl = arg.slice('--base-url='.length);
+    else if (arg.startsWith('--packet=')) options.packetPath = arg.slice('--packet='.length);
+    else if (arg.startsWith('--refs-from=')) options.refsPath = arg.slice('--refs-from='.length);
+    else if (arg.startsWith('--out=')) options.outPath = arg.slice('--out='.length);
+    else fail('unknown_argument');
   }
-  if (!options.packetPath) fail("packet_path_required");
-  if (!options.refsPath) fail("refs_path_required");
-  if (!options.check && !options.baseUrl) fail("base_url_required");
-  if (!options.check && !options.outPath) fail("out_path_required");
+  if (!options.packetPath) fail('packet_path_required');
+  if (!options.refsPath) fail('refs_path_required');
+  if (!options.check && !options.baseUrl) fail('base_url_required');
+  if (!options.check && !options.outPath) fail('out_path_required');
   return options;
 }
 
-function resolveDeployGroupId(groupFile = "/etc/group") {
-  const line = readFileSync(groupFile, "utf8")
+function resolveDeployGroupId(groupFile = '/etc/group') {
+  const line = readFileSync(groupFile, 'utf8')
     .split(/\r?\n/)
-    .find((candidate) => candidate.startsWith("deploy:"));
-  const groupId = Number((line?.split(":") ?? [])[2]);
-  if (!Number.isSafeInteger(groupId) || groupId < 0) fail("deploy_group_not_found");
+    .find((candidate) => candidate.startsWith('deploy:'));
+  const groupId = Number((line?.split(':') ?? [])[2]);
+  if (!Number.isSafeInteger(groupId) || groupId < 0) fail('deploy_group_not_found');
   return groupId;
 }
 
 function readRefs(filePath) {
   let fixture;
   try {
-    fixture = JSON.parse(readFileSync(filePath, "utf8"));
+    fixture = JSON.parse(readFileSync(filePath, 'utf8'));
   } catch (error) {
-    if (error?.code === "ENOENT") fail("refs_fixture_missing");
-    fail("refs_fixture_unreadable");
+    if (error?.code === 'ENOENT') fail('refs_fixture_missing');
+    fail('refs_fixture_unreadable');
   }
-  if (!fixture || typeof fixture !== "object" || Array.isArray(fixture) || !fixture.refs || typeof fixture.refs !== "object" || Array.isArray(fixture.refs)) {
-    fail("refs_missing");
+  if (
+    !fixture ||
+    typeof fixture !== 'object' ||
+    Array.isArray(fixture) ||
+    !fixture.refs ||
+    typeof fixture.refs !== 'object' ||
+    Array.isArray(fixture.refs)
+  ) {
+    fail('refs_missing');
   }
   const refs = {};
   for (const key of REQUIRED_REF_KEYS) {
     const value = fixture.refs[key];
-    if (typeof value !== "string" || value.trim().length === 0) fail(`refs_missing:${key}`);
+    if (typeof value !== 'string' || value.trim().length === 0) fail(`refs_missing:${key}`);
     refs[key] = value;
   }
   return Object.freeze(refs);
@@ -78,10 +93,15 @@ function normalizedBaseUrl(value) {
   try {
     url = new URL(value);
   } catch {
-    fail("invalid_base_url");
+    fail('invalid_base_url');
   }
-  if ((url.protocol !== "http:" && url.protocol !== "https:") || url.pathname !== "/" || url.search || url.hash) {
-    fail("invalid_base_url");
+  if (
+    (url.protocol !== 'http:' && url.protocol !== 'https:') ||
+    url.pathname !== '/' ||
+    url.search ||
+    url.hash
+  ) {
+    fail('invalid_base_url');
   }
   return url.origin;
 }
@@ -98,10 +118,10 @@ async function login(baseUrl, actor, email, password) {
   let response;
   try {
     response = await fetch(`${baseUrl}/api/auth/email-password/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Origin: baseUrl },
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Origin: baseUrl },
       body: JSON.stringify({ email, password }),
-      redirect: "manual",
+      redirect: 'manual',
     });
   } catch {
     fail(`actor=${actor} login_failed http_status=network_error`);
@@ -119,12 +139,12 @@ async function elevateAdminMode(baseUrl, cookie) {
   let response;
   try {
     response = await fetch(`${baseUrl}/api/admin/mode`, {
-      method: "POST",
+      method: 'POST',
       headers: { Cookie: cookie, Origin: baseUrl },
-      redirect: "manual",
+      redirect: 'manual',
     });
   } catch {
-    fail("actor=global_admin admin_mode_failed http_status=network_error");
+    fail('actor=global_admin admin_mode_failed http_status=network_error');
   }
   const setCookies = response.headers.getSetCookie ? response.headers.getSetCookie() : [];
   const body = await response.json().catch(() => null);
@@ -138,10 +158,15 @@ async function elevateAdminMode(baseUrl, cookie) {
 function writeFixtureAtomically(outPath, fixture, expectedGroupId) {
   const directory = dirname(resolve(outPath));
   const directoryMetadata = lstatSync(directory);
-  if (!directoryMetadata.isDirectory() || directoryMetadata.isSymbolicLink()) fail("out_parent_must_be_real_directory");
-  const temporary = `${outPath}.tmp-${process.pid}-${randomBytes(8).toString("hex")}`;
+  if (!directoryMetadata.isDirectory() || directoryMetadata.isSymbolicLink())
+    fail('out_parent_must_be_real_directory');
+  const temporary = `${outPath}.tmp-${process.pid}-${randomBytes(8).toString('hex')}`;
   try {
-    writeFileSync(temporary, `${JSON.stringify(fixture, null, 2)}\n`, { encoding: "utf8", mode: 0o640, flag: "wx" });
+    writeFileSync(temporary, `${JSON.stringify(fixture, null, 2)}\n`, {
+      encoding: 'utf8',
+      mode: 0o640,
+      flag: 'wx',
+    });
     chmodSync(temporary, 0o640);
     // The deploy's own validator (deploy/host/validate-saas-product-smoke-fixture.sh, called by
     // assert_locked_product_smoke_fixture_ready) requires this file to be exactly root:deploy 0640.
@@ -151,12 +176,12 @@ function writeFixtureAtomically(outPath, fixture, expectedGroupId) {
     chownSync(temporary, 0, expectedGroupId);
     renameSync(temporary, outPath);
     const written = lstatSync(outPath);
-    if ((written.mode & 0o777) !== 0o640) fail("fixture_mode_must_be_0640");
-    if (written.uid !== 0) fail("fixture_owner_must_be_root");
-    if (written.gid !== expectedGroupId) fail("fixture_group_must_be_deploy");
+    if ((written.mode & 0o777) !== 0o640) fail('fixture_mode_must_be_0640');
+    if (written.uid !== 0) fail('fixture_owner_must_be_root');
+    if (written.gid !== expectedGroupId) fail('fixture_group_must_be_deploy');
   } catch {
     rmSync(temporary, { force: true });
-    fail("fixture_write_failed");
+    fail('fixture_write_failed');
   }
 }
 
@@ -170,11 +195,21 @@ async function main() {
   }
 
   const baseUrl = normalizedBaseUrl(options.baseUrl);
-  const doctor = await login(baseUrl, "doctor", packet.SAAS_SMOKE_DOCTOR_EMAIL, packet.SAAS_SMOKE_DOCTOR_PASSWORD);
-  const patient = await login(baseUrl, "patient", packet.SAAS_SMOKE_PATIENT_EMAIL, packet.SAAS_SMOKE_PATIENT_PASSWORD);
+  const doctor = await login(
+    baseUrl,
+    'doctor',
+    packet.SAAS_SMOKE_DOCTOR_EMAIL,
+    packet.SAAS_SMOKE_DOCTOR_PASSWORD,
+  );
+  const patient = await login(
+    baseUrl,
+    'patient',
+    packet.SAAS_SMOKE_PATIENT_EMAIL,
+    packet.SAAS_SMOKE_PATIENT_PASSWORD,
+  );
   const globalAdminLogin = await login(
     baseUrl,
-    "global_admin",
+    'global_admin',
     packet.SAAS_SMOKE_GLOBAL_ADMIN_EMAIL,
     packet.SAAS_SMOKE_GLOBAL_ADMIN_PASSWORD,
   );
@@ -191,10 +226,14 @@ async function main() {
     refs,
   };
   writeFixtureAtomically(options.outPath, fixture, resolveDeployGroupId());
-  process.stdout.write(`minted: out=${options.outPath} actors=doctor,clinic_admin,patient,global_admin,public\n`);
+  process.stdout.write(
+    `minted: out=${options.outPath} actors=doctor,clinic_admin,patient,global_admin,public\n`,
+  );
 }
 
 main().catch((error) => {
-  process.stderr.write(`mint-smoke-session: ${error instanceof Error ? error.message : "failed"}\n`);
+  process.stderr.write(
+    `mint-smoke-session: ${error instanceof Error ? error.message : 'failed'}\n`,
+  );
   process.exitCode = 1;
 });

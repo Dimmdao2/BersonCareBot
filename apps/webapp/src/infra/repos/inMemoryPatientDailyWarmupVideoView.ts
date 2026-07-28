@@ -1,4 +1,4 @@
-import type { PatientDailyWarmupVideoViewPort } from "@/modules/patient-home/dailyWarmupVideoViewPorts";
+import type { PatientDailyWarmupVideoViewPort } from '@/modules/patient-home/dailyWarmupVideoViewPorts';
 
 export type InMemoryDailyWarmupVideoViewRow = {
   userId: string;

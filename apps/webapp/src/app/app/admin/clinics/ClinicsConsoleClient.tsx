@@ -42,7 +42,9 @@ export type PlatformClinicMember = {
 };
 
 type ClinicsApiResponse = ({ ok: true } & PlatformClinicsData) | { ok: false; error?: string };
-type MembersApiResponse = { ok: true; members: PlatformClinicMember[] } | { ok: false; error?: string };
+type MembersApiResponse =
+  | { ok: true; members: PlatformClinicMember[] }
+  | { ok: false; error?: string };
 type BillingApiResponse =
   | { ok: true; billing: SaasBillingOverviewData }
   | { ok: false; error?: string };

@@ -1,15 +1,23 @@
-"use client";
+'use client';
 
-import { type ReactNode } from "react";
-import { ChevronDown } from "lucide-react";
-import { Badge } from "@/shared/ui/patient/primitives/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/patient/primitives/card";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/shared/ui/patient/primitives/collapsible";
-import { cn } from "@/lib/utils";
-import type { PatientBookingRecord } from "@/modules/patient-booking/types";
-import { formatBookingDateTimeMediumRu } from "@/shared/lib/formatBusinessDateTime";
-import { patientCardClass, patientListItemClass, patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
-import { bookingProvenancePrefix, nativeBookingSubtitle } from "./patientBookingLabels";
+import { type ReactNode } from 'react';
+import { ChevronDown } from 'lucide-react';
+import { Badge } from '@/shared/ui/patient/primitives/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/patient/primitives/card';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/shared/ui/patient/primitives/collapsible';
+import { cn } from '@/lib/utils';
+import type { PatientBookingRecord } from '@/modules/patient-booking/types';
+import { formatBookingDateTimeMediumRu } from '@/shared/lib/formatBusinessDateTime';
+import {
+  patientCardClass,
+  patientListItemClass,
+  patientMutedTextClass,
+} from '@/shared/ui/patient/patientVisual';
+import { bookingProvenancePrefix, nativeBookingSubtitle } from './patientBookingLabels';
 
 type Props = {
   items: PatientBookingRecord[];
@@ -18,32 +26,32 @@ type Props = {
 };
 
 /** В журнале прошлых приёмов не показываем нейтральное «подтверждена»; «отменена» — красным. */
-function nativePastStatusRight(status: PatientBookingRecord["status"]): ReactNode {
-  if (status === "confirmed") return null;
-  if (status === "cancelled") {
+function nativePastStatusRight(status: PatientBookingRecord['status']): ReactNode {
+  if (status === 'confirmed') return null;
+  if (status === 'cancelled') {
     return <span className="shrink-0 text-sm font-medium text-destructive">Отменена</span>;
   }
-  if (status === "completed") return <Badge variant="outline">Завершена</Badge>;
-  if (status === "rescheduled") return <Badge variant="outline">Перенесена</Badge>;
-  if (status === "no_show") return <Badge variant="outline">Неявка</Badge>;
-  if (status === "failed_sync") return <Badge variant="destructive">Ошибка</Badge>;
-  if (status === "cancel_failed") return <Badge variant="destructive">Не удалось отменить</Badge>;
-  if (status === "cancelling") return <Badge variant="secondary">Отмена…</Badge>;
-  if (status === "creating") return <Badge variant="secondary">Создается</Badge>;
+  if (status === 'completed') return <Badge variant="outline">Завершена</Badge>;
+  if (status === 'rescheduled') return <Badge variant="outline">Перенесена</Badge>;
+  if (status === 'no_show') return <Badge variant="outline">Неявка</Badge>;
+  if (status === 'failed_sync') return <Badge variant="destructive">Ошибка</Badge>;
+  if (status === 'cancel_failed') return <Badge variant="destructive">Не удалось отменить</Badge>;
+  if (status === 'cancelling') return <Badge variant="secondary">Отмена…</Badge>;
+  if (status === 'creating') return <Badge variant="secondary">Создается</Badge>;
   return null;
 }
 
 export function CabinetPastBookings({ items, appDisplayTimeZone }: Props) {
   return (
-    <Card className={cn(patientCardClass, "ring-0")}>
+    <Card className={cn(patientCardClass, 'ring-0')}>
       <Collapsible defaultOpen={items.length > 0}>
         <CardHeader className="pb-2">
           <CollapsibleTrigger className="group flex w-full items-center justify-between gap-2 text-left">
             <CardTitle className="text-base">Журнал прошедших приёмов</CardTitle>
             <ChevronDown
               className={cn(
-                "size-4 shrink-0 text-[var(--patient-text-muted)] transition-transform",
-                "group-data-[panel-open]:rotate-180"
+                'size-4 shrink-0 text-[var(--patient-text-muted)] transition-transform',
+                'group-data-[panel-open]:rotate-180',
               )}
             />
           </CollapsibleTrigger>
@@ -56,13 +64,16 @@ export function CabinetPastBookings({ items, appDisplayTimeZone }: Props) {
               items.map((booking) => (
                 <div
                   key={booking.id}
-                  className={cn(patientListItemClass, "flex items-center justify-between gap-2 !px-3 !py-2")}
+                  className={cn(
+                    patientListItemClass,
+                    'flex items-center justify-between gap-2 !px-3 !py-2',
+                  )}
                 >
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium">
                       {formatBookingDateTimeMediumRu(booking.slotStart, appDisplayTimeZone)}
                     </p>
-                    <p className={cn(patientMutedTextClass, "truncate text-xs")}>
+                    <p className={cn(patientMutedTextClass, 'truncate text-xs')}>
                       {bookingProvenancePrefix(booking)}
                       {nativeBookingSubtitle(booking)}
                     </p>

@@ -1,23 +1,23 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from 'vitest';
 
 const requireClinicManagementBookingEngineMock = vi.hoisted(() => vi.fn());
 const getPublishedSlugForOrganizationMock = vi.hoisted(() => vi.fn());
 
-vi.mock("../_requireAdminBookingEngine", () => ({
+vi.mock('../_requireAdminBookingEngine', () => ({
   requireClinicManagementBookingEngine: requireClinicManagementBookingEngineMock,
 }));
 
-vi.mock("@/app-layer/di/buildAppDeps", () => ({
+vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: () => ({
     clinicDirectory: { getPublishedSlugForOrganization: getPublishedSlugForOrganizationMock },
   }),
 }));
 
-import { GET } from "./route";
+import { GET } from './route';
 
-describe("GET /api/admin/booking-engine/overview", () => {
-  it("returns canonical booking read sources", async () => {
-    getPublishedSlugForOrganizationMock.mockResolvedValue("clinic-a");
+describe('GET /api/admin/booking-engine/overview', () => {
+  it('returns canonical booking read sources', async () => {
+    getPublishedSlugForOrganizationMock.mockResolvedValue('clinic-a');
     const bridge = {
       getMappingSummary: vi.fn().mockResolvedValue({
         branches: 1,
@@ -31,9 +31,9 @@ describe("GET /api/admin/booking-engine/overview", () => {
     requireClinicManagementBookingEngineMock.mockResolvedValue({
       ok: true,
       ctx: {
-        organizationId: "org-1",
+        organizationId: 'org-1',
         service: {
-          organization: { getOrganization: vi.fn().mockResolvedValue({ id: "org-1" }) },
+          organization: { getOrganization: vi.fn().mockResolvedValue({ id: 'org-1' }) },
           catalog: {
             listBranches: vi.fn().mockResolvedValue([]),
             listRooms: vi.fn().mockResolvedValue([]),
@@ -56,7 +56,11 @@ describe("GET /api/admin/booking-engine/overview", () => {
     };
     expect(res.status).toBe(200);
     expect(json.ok).toBe(true);
-    expect(json.publicWidget).toEqual({ publicSlug: "clinic-a", specialists: [], specialistAvailability: [] });
-    expect(getPublishedSlugForOrganizationMock).toHaveBeenCalledWith("org-1");
+    expect(json.publicWidget).toEqual({
+      publicSlug: 'clinic-a',
+      specialists: [],
+      specialistAvailability: [],
+    });
+    expect(getPublishedSlugForOrganizationMock).toHaveBeenCalledWith('org-1');
   });
 });

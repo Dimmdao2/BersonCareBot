@@ -1,15 +1,18 @@
-import type { CoursesPort } from "@/modules/courses/ports";
+import type { CoursesPort } from '@/modules/courses/ports';
 import type {
   CourseRecord,
   CourseStatus,
   CourseUsageSnapshot,
   CreateCourseInput,
   UpdateCourseInput,
-} from "@/modules/courses/types";
+} from '@/modules/courses/types';
 
 const courseUsageSnapshots = new Map<string, CourseUsageSnapshot>();
 
-export function seedInMemoryCourseUsageSnapshot(courseId: string, snapshot: CourseUsageSnapshot): void {
+export function seedInMemoryCourseUsageSnapshot(
+  courseId: string,
+  snapshot: CourseUsageSnapshot,
+): void {
   courseUsageSnapshots.set(courseId, snapshot);
 }
 
@@ -20,7 +23,10 @@ export function clearInMemoryCourseUsageSnapshots(): void {
 /** patientUserId -> set of assigned program template ids (fake mirror of `treatment_program_instances`). */
 const patientAssignedTemplateIds = new Map<string, Set<string>>();
 
-export function seedInMemoryPatientAssignedTemplate(patientUserId: string, templateId: string): void {
+export function seedInMemoryPatientAssignedTemplate(
+  patientUserId: string,
+  templateId: string,
+): void {
   const set = patientAssignedTemplateIds.get(patientUserId) ?? new Set<string>();
   set.add(templateId);
   patientAssignedTemplateIds.set(patientUserId, set);
@@ -35,9 +41,9 @@ function defaultUsageFromCourse(row: CourseRecord): CourseUsageSnapshot {
     programTemplateId: row.programTemplateId,
     programTemplateTitle: null,
     programTemplateRef: {
-      kind: "treatment_program_template",
+      kind: 'treatment_program_template',
       id: row.programTemplateId,
-      title: "Шаблон программы",
+      title: 'Шаблон программы',
     },
     activeTreatmentProgramInstanceCount: 0,
     completedTreatmentProgramInstanceCount: 0,
@@ -53,16 +59,20 @@ function defaultUsageFromCourse(row: CourseRecord): CourseUsageSnapshot {
 }
 
 function cloneSettings(s: Record<string, unknown> | undefined): Record<string, unknown> {
-  if (!s || typeof s !== "object" || Array.isArray(s)) return {};
+  if (!s || typeof s !== 'object' || Array.isArray(s)) return {};
   return { ...s };
 }
 
 export function createInMemoryCoursesPort(seed: CourseRecord[] = []): CoursesPort {
-  const store = new Map<string, CourseRecord>(seed.map((r) => [r.id, { ...r, accessSettings: cloneSettings(r.accessSettings) }]));
+  const store = new Map<string, CourseRecord>(
+    seed.map((r) => [r.id, { ...r, accessSettings: cloneSettings(r.accessSettings) }]),
+  );
 
   return {
     async listPublished() {
-      return [...store.values()].filter((r) => r.status === "published").sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+      return [...store.values()]
+        .filter((r) => r.status === 'published')
+        .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
     },
 
     async listAssignedToPatient(patientUserId) {
@@ -78,7 +88,7 @@ export function createInMemoryCoursesPort(seed: CourseRecord[] = []): CoursesPor
       if (filter.status) {
         rows = rows.filter((r) => r.status === filter.status);
       } else if (!filter.includeArchived) {
-        rows = rows.filter((r) => r.status !== "archived");
+        rows = rows.filter((r) => r.status !== 'archived');
       }
       return rows.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
     },
@@ -98,9 +108,9 @@ export function createInMemoryCoursesPort(seed: CourseRecord[] = []): CoursesPor
         programTemplateId: input.programTemplateId,
         introLessonPageId: input.introLessonPageId ?? null,
         accessSettings: cloneSettings(input.accessSettings),
-        status: input.status ?? "draft",
+        status: input.status ?? 'draft',
         priceMinor: input.priceMinor ?? 0,
-        currency: input.currency ?? "RUB",
+        currency: input.currency ?? 'RUB',
         createdAt: now,
         updatedAt: now,
       };
@@ -119,7 +129,9 @@ export function createInMemoryCoursesPort(seed: CourseRecord[] = []): CoursesPor
         introLessonPageId:
           patch.introLessonPageId !== undefined ? patch.introLessonPageId : cur.introLessonPageId,
         accessSettings:
-          patch.accessSettings !== undefined ? cloneSettings(patch.accessSettings) : cloneSettings(cur.accessSettings),
+          patch.accessSettings !== undefined
+            ? cloneSettings(patch.accessSettings)
+            : cloneSettings(cur.accessSettings),
         status: (patch.status ?? cur.status) as CourseStatus,
         priceMinor: patch.priceMinor ?? cur.priceMinor,
         currency: patch.currency ?? cur.currency,

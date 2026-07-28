@@ -1,13 +1,13 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Card, CardContent } from "@/shared/ui/doctor/primitives/card";
-import type { Exercise } from "@/modules/lfk-exercises/types";
-import { cn } from "@/lib/utils";
-import { MediaThumb } from "@/shared/ui/doctor/media/MediaThumb";
-import { exerciseMediaToPreviewUi } from "@/shared/ui/doctor/media/mediaPreviewUiModel";
-import { doctorInteractiveSurfaceButtonClass } from "@/shared/ui/doctor/doctorVisual";
+import Link from 'next/link';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Card, CardContent } from '@/shared/ui/doctor/primitives/card';
+import type { Exercise } from '@/modules/lfk-exercises/types';
+import { cn } from '@/lib/utils';
+import { MediaThumb } from '@/shared/ui/doctor/media/MediaThumb';
+import { exerciseMediaToPreviewUi } from '@/shared/ui/doctor/media/mediaPreviewUiModel';
+import { doctorInteractiveSurfaceButtonClass } from '@/shared/ui/doctor/doctorVisual';
 
 type Props = {
   exercise: Exercise;
@@ -24,16 +24,16 @@ export function ExerciseTileCard({ exercise, onSelect, isActive, squarePreview =
     <Card
       size="sm"
       className={cn(
-        "h-full w-full min-w-0 rounded-[calc(var(--radius-xl)*0.5)] transition-shadow data-[size=sm]:py-1.5",
-        isActive && "ring-1 ring-primary/50 ring-offset-1 ring-offset-background",
+        'h-full w-full min-w-0 rounded-[calc(var(--radius-xl)*0.5)] transition-shadow data-[size=sm]:py-1.5',
+        isActive && 'ring-1 ring-primary/50 ring-offset-1 ring-offset-background',
       )}
     >
       <CardContent className="flex h-full flex-col gap-1 py-px group-data-[size=sm]/card:px-1.5">
         {firstMedia ? (
           <div
             className={cn(
-              "w-full overflow-hidden rounded-[calc(var(--radius-md)*0.5)] border border-border/60 bg-muted/30",
-              squarePreview ? "aspect-square shrink-0" : "h-[135px]",
+              'w-full overflow-hidden rounded-[calc(var(--radius-md)*0.5)] border border-border/60 bg-muted/30',
+              squarePreview ? 'aspect-square shrink-0' : 'h-[135px]',
             )}
           >
             <MediaThumb
@@ -44,9 +44,13 @@ export function ExerciseTileCard({ exercise, onSelect, isActive, squarePreview =
             />
           </div>
         ) : null}
-        <p className="line-clamp-2 text-center text-xs leading-snug text-foreground">{exercise.title}</p>
-        {exercise.ownerKind === "platform" ? (
-          <p className="text-center text-[10px] leading-tight text-muted-foreground">Базовая библиотека</p>
+        <p className="line-clamp-2 text-center text-xs leading-snug text-foreground">
+          {exercise.title}
+        </p>
+        {exercise.ownerKind === 'platform' ? (
+          <p className="text-center text-[10px] leading-tight text-muted-foreground">
+            Базовая библиотека
+          </p>
         ) : null}
       </CardContent>
     </Card>
@@ -59,7 +63,7 @@ export function ExerciseTileCard({ exercise, onSelect, isActive, squarePreview =
         variant="ghost"
         className={cn(
           doctorInteractiveSurfaceButtonClass,
-          "flex w-full cursor-pointer justify-center rounded-[calc(var(--radius-xl)*0.5)] text-left",
+          'flex w-full cursor-pointer justify-center rounded-[calc(var(--radius-xl)*0.5)] text-left',
         )}
         onClick={() => onSelect(exercise.id)}
       >

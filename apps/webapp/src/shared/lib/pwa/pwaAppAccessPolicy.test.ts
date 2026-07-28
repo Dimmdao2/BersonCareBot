@@ -1,18 +1,18 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from 'vitest';
 import {
   browserRequiresPwaStandaloneForAppPath,
   isPwaMessengerEntryPath,
   shouldAllowPwaAppShellAccess,
-} from "@/shared/lib/pwa/pwaAppAccessPolicy";
+} from '@/shared/lib/pwa/pwaAppAccessPolicy';
 
-describe("pwaAppAccessPolicy", () => {
-  it("keeps the patient cabinet available in an ordinary browser", () => {
-    expect(browserRequiresPwaStandaloneForAppPath("/app/patient")).toBe(false);
-    expect(browserRequiresPwaStandaloneForAppPath("/app/patient/diary")).toBe(false);
+describe('pwaAppAccessPolicy', () => {
+  it('keeps the patient cabinet available in an ordinary browser', () => {
+    expect(browserRequiresPwaStandaloneForAppPath('/app/patient')).toBe(false);
+    expect(browserRequiresPwaStandaloneForAppPath('/app/patient/diary')).toBe(false);
     expect(
       shouldAllowPwaAppShellAccess({
-        pathname: "/app/patient",
-        search: "",
+        pathname: '/app/patient',
+        search: '',
         standalone: false,
         messengerMiniApp: false,
         allowBrowserAccess: false,
@@ -20,12 +20,12 @@ describe("pwaAppAccessPolicy", () => {
     ).toBe(true);
   });
 
-  it("does not turn install state into access authority for any app surface", () => {
-    for (const pathname of ["/app/patient/program", "/app/doctor", "/app/settings", "/app"]) {
+  it('does not turn install state into access authority for any app surface', () => {
+    for (const pathname of ['/app/patient/program', '/app/doctor', '/app/settings', '/app']) {
       expect(
         shouldAllowPwaAppShellAccess({
           pathname,
-          search: "?from=test",
+          search: '?from=test',
           standalone: false,
           messengerMiniApp: false,
         }),
@@ -33,9 +33,9 @@ describe("pwaAppAccessPolicy", () => {
     }
   });
 
-  it("still identifies explicit messenger entry routes independently from browser access", () => {
-    expect(isPwaMessengerEntryPath("/app/tg")).toBe(true);
-    expect(isPwaMessengerEntryPath("/app/max/")).toBe(true);
-    expect(isPwaMessengerEntryPath("/app/patient")).toBe(false);
+  it('still identifies explicit messenger entry routes independently from browser access', () => {
+    expect(isPwaMessengerEntryPath('/app/tg')).toBe(true);
+    expect(isPwaMessengerEntryPath('/app/max/')).toBe(true);
+    expect(isPwaMessengerEntryPath('/app/patient')).toBe(false);
   });
 });

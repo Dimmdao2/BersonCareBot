@@ -1,21 +1,22 @@
-import { logger } from "@/infra/logging/logger";
-import { runWithDbInfraPrincipal } from "@bersoncare/db-principal";
-import { classifyReminderPushKind } from "@/modules/web-push/pushNotificationCopy";
-import type { WarmupPushDynamicContext } from "@/modules/web-push/pushNotificationCopy";
-import { planDueReminderOccurrences } from "./planDueReminderOccurrences";
+import { logger } from '@/infra/logging/logger';
+import { runWithDbInfraPrincipal } from '@bersoncare/db-principal';
+import { classifyReminderPushKind } from '@/modules/web-push/pushNotificationCopy';
+import type { WarmupPushDynamicContext } from '@/modules/web-push/pushNotificationCopy';
+import { planDueReminderOccurrences } from './planDueReminderOccurrences';
 import {
   buildWebPushOnlyReminderNotifyContent,
   resolveWebPushOnlyReminderTopicCode,
-} from "./webPushOnlyReminderPayload";
+} from './webPushOnlyReminderPayload';
 import {
   runPlatformUserReminderWebPushNotify,
   type PlatformUserReminderWebPushNotifyDeps,
-} from "./platformUserReminderWebPushNotify";
-import type { BuildReminderDeepLinkOptions } from "./buildReminderDeepLink";
-import type { ReminderIntentSectionLookup } from "./resolveReminderIntentForLinkedObject";
-import type { WebPushOnlyDueOccurrenceRow, WebPushOnlyRemindersPort } from "./webPushOnlyPorts";
+} from './platformUserReminderWebPushNotify';
+import type { BuildReminderDeepLinkOptions } from './buildReminderDeepLink';
+import type { ReminderIntentSectionLookup } from './resolveReminderIntentForLinkedObject';
+import type { WebPushOnlyDueOccurrenceRow, WebPushOnlyRemindersPort } from './webPushOnlyPorts';
 
-export const WEB_PUSH_ONLY_REMINDER_TICK_DB_SOURCE = "api/internal/reminders/web-push-only/tick:POST";
+export const WEB_PUSH_ONLY_REMINDER_TICK_DB_SOURCE =
+  'api/internal/reminders/web-push-only/tick:POST';
 
 export type WebPushOnlySchedulerDeps = {
   reminders: WebPushOnlyRemindersPort;
@@ -38,7 +39,9 @@ export type WebPushOnlyReminderTickResult = {
   failed: number;
 };
 
-export function webPushOnlyReminderTickMetaFromResult(result: WebPushOnlyReminderTickResult): Record<string, unknown> {
+export function webPushOnlyReminderTickMetaFromResult(
+  result: WebPushOnlyReminderTickResult,
+): Record<string, unknown> {
   return {
     rulesFound: result.rulesFound,
     plannedUpserts: result.plannedUpserts,
@@ -76,9 +79,12 @@ function isWebPushOnlyReminderTickLogActive(result: WebPushOnlyReminderTickResul
   );
 }
 
-export function logWebPushOnlyReminderTickCompleted(result: WebPushOnlyReminderTickResult, nowIso: string): void {
+export function logWebPushOnlyReminderTickCompleted(
+  result: WebPushOnlyReminderTickResult,
+  nowIso: string,
+): void {
   const payload = {
-    event: "web_push_only_reminder.tick",
+    event: 'web_push_only_reminder.tick',
     nowIso,
     rulesFound: result.rulesFound,
     dueClaimed: result.dueClaimed,
@@ -91,29 +97,29 @@ export function logWebPushOnlyReminderTickCompleted(result: WebPushOnlyReminderT
   };
 
   if (result.failed > 0) {
-    logger.warn(payload, "web push-only reminder tick completed with failures");
+    logger.warn(payload, 'web push-only reminder tick completed with failures');
     return;
   }
   if (isWebPushOnlyReminderTickLogEmpty(result)) {
     return;
   }
   if (isWebPushOnlyReminderTickLogActive(result)) {
-    logger.info(payload, "web push-only reminder tick completed");
+    logger.info(payload, 'web push-only reminder tick completed');
   }
 }
 
 const NOTIFY_SKIP_REASONS = new Set([
-  "muted",
-  "topic_disabled",
-  "web_push_not_selected",
-  "vapid_missing",
-  "no_active_subscriptions",
-  "push_copy_skipped",
+  'muted',
+  'topic_disabled',
+  'web_push_not_selected',
+  'vapid_missing',
+  'no_active_subscriptions',
+  'push_copy_skipped',
 ]);
 
 function isNotifySkipReason(reason: string): boolean {
   if (NOTIFY_SKIP_REASONS.has(reason)) return true;
-  return reason.endsWith("_not_selected") || reason.startsWith("channel_");
+  return reason.endsWith('_not_selected') || reason.startsWith('channel_');
 }
 
 export async function runWebPushOnlyReminderTick(
@@ -128,42 +134,51 @@ export async function runWebPushOnlyReminderTick(
   let remainingPlan = Math.max(0, options?.planLimit ?? Number.MAX_SAFE_INTEGER);
   const due: WebPushOnlyDueOccurrenceRow[] = [];
   for (const organizationId of organizationIds) {
-    await runWithDbInfraPrincipal({ source: WEB_PUSH_ONLY_REMINDER_TICK_DB_SOURCE, organizationId }, async () => {
-      await deps.reminders.expireOrphanedPendingOccurrences(organizationId, nowIso);
-      const rules = await deps.reminders.listEnabledWebPushOnlyRules(organizationId, nowIso);
-      rulesFound += rules.length;
-      for (const rule of rules.slice(0, remainingPlan)) {
-        const drafts = planDueReminderOccurrences(
-          {
-            id: rule.integratorRuleId,
-            isEnabled: rule.isEnabled,
-            scheduleType: rule.scheduleType,
-            timezone: rule.timezone,
-            intervalMinutes: rule.intervalMinutes,
-            windowStartMinute: rule.windowStartMinute,
-            windowEndMinute: rule.windowEndMinute,
-            daysMask: rule.daysMask,
-            scheduleData: rule.scheduleData,
-            quietHoursStartMinute: rule.quietHoursStartMinute,
-            quietHoursEndMinute: rule.quietHoursEndMinute,
-          },
-          nowIso,
-        );
-        if (drafts.length > 0) {
-          plannedUpserts += await deps.reminders.upsertPlannedOccurrences(
-            organizationId,
-            rule.platformUserId,
-            rule.integratorRuleId,
-            drafts,
+    await runWithDbInfraPrincipal(
+      { source: WEB_PUSH_ONLY_REMINDER_TICK_DB_SOURCE, organizationId },
+      async () => {
+        await deps.reminders.expireOrphanedPendingOccurrences(organizationId, nowIso);
+        const rules = await deps.reminders.listEnabledWebPushOnlyRules(organizationId, nowIso);
+        rulesFound += rules.length;
+        for (const rule of rules.slice(0, remainingPlan)) {
+          const drafts = planDueReminderOccurrences(
+            {
+              id: rule.integratorRuleId,
+              isEnabled: rule.isEnabled,
+              scheduleType: rule.scheduleType,
+              timezone: rule.timezone,
+              intervalMinutes: rule.intervalMinutes,
+              windowStartMinute: rule.windowStartMinute,
+              windowEndMinute: rule.windowEndMinute,
+              daysMask: rule.daysMask,
+              scheduleData: rule.scheduleData,
+              quietHoursStartMinute: rule.quietHoursStartMinute,
+              quietHoursEndMinute: rule.quietHoursEndMinute,
+            },
+            nowIso,
+          );
+          if (drafts.length > 0) {
+            plannedUpserts += await deps.reminders.upsertPlannedOccurrences(
+              organizationId,
+              rule.platformUserId,
+              rule.integratorRuleId,
+              drafts,
+            );
+          }
+          remainingPlan -= 1;
+        }
+        const remainingDispatch = dispatchLimit - due.length;
+        if (remainingDispatch > 0) {
+          due.push(
+            ...(await deps.reminders.claimDueOccurrences(
+              organizationId,
+              nowIso,
+              remainingDispatch,
+            )),
           );
         }
-        remainingPlan -= 1;
-      }
-      const remainingDispatch = dispatchLimit - due.length;
-      if (remainingDispatch > 0) {
-        due.push(...(await deps.reminders.claimDueOccurrences(organizationId, nowIso, remainingDispatch)));
-      }
-    });
+      },
+    );
   }
   const dueClaimed = due.length;
   let sent = 0;
@@ -176,16 +191,19 @@ export async function runWebPushOnlyReminderTick(
     await runWithDbInfraPrincipal(
       { source: WEB_PUSH_ONLY_REMINDER_TICK_DB_SOURCE, organizationId: occ.organizationId },
       async () => {
-        const rule = await deps.reminders.getRuleByIntegratorRuleId(occ.organizationId, occ.integratorRuleId);
+        const rule = await deps.reminders.getRuleByIntegratorRuleId(
+          occ.organizationId,
+          occ.integratorRuleId,
+        );
         if (!rule) {
-          await deps.reminders.markOccurrenceFailed(occ.organizationId, occ.id, "rule_missing");
+          await deps.reminders.markOccurrenceFailed(occ.organizationId, occ.id, 'rule_missing');
           failed += 1;
           return;
         }
 
         const topicCode = resolveWebPushOnlyReminderTopicCode(rule);
         if (!topicCode) {
-          await deps.reminders.markOccurrenceFailed(occ.organizationId, occ.id, "no_topic_code");
+          await deps.reminders.markOccurrenceFailed(occ.organizationId, occ.id, 'no_topic_code');
           skippedNoTopic += 1;
           skipped += 1;
           return;
@@ -210,7 +228,7 @@ export async function runWebPushOnlyReminderTick(
         };
         const pushKind = classifyReminderPushKind({ ...ruleMeta, openUrl: content.openUrl });
         const warmupContext =
-          pushKind === "warmup" && deps.loadWarmupPushContext
+          pushKind === 'warmup' && deps.loadWarmupPushContext
             ? await deps.loadWarmupPushContext(occ.platformUserId).catch(() => ({}))
             : undefined;
 
@@ -236,7 +254,7 @@ export async function runWebPushOnlyReminderTick(
           await deps.reminders.markOccurrenceFailed(occ.organizationId, occ.id, notifyRes.skipped);
           if (isNotifySkipReason(notifyRes.skipped)) {
             skipped += 1;
-            if (notifyRes.skipped === "no_active_subscriptions") {
+            if (notifyRes.skipped === 'no_active_subscriptions') {
               skippedNoSubscription += 1;
             }
           } else {
@@ -246,7 +264,7 @@ export async function runWebPushOnlyReminderTick(
           await deps.reminders.markOccurrenceFailed(
             occ.organizationId,
             occ.id,
-            !notifyRes.ok ? notifyRes.error : "not_delivered",
+            !notifyRes.ok ? notifyRes.error : 'not_delivered',
           );
           failed += 1;
         }

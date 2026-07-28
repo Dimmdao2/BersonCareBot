@@ -16,7 +16,7 @@ export type OperatorIncidentOpenRow = {
   oneHourAlertSentAt?: string | null;
 };
 
-export type OutboundProviderAlertPhase = "initial" | "one_hour_repeat";
+export type OutboundProviderAlertPhase = 'initial' | 'one_hour_repeat';
 export type OutboundProviderAlertClaim = OperatorIncidentOpenRow & {
   phase: OutboundProviderAlertPhase;
   claimToken: string;
@@ -179,9 +179,15 @@ export type OperatorHealthWritePort = {
     claimToken: string;
     sentAtIso: string;
   }): Promise<boolean>;
-  releaseOutboundProviderAlertClaim(input: { incidentId: string; claimToken: string }): Promise<boolean>;
+  releaseOutboundProviderAlertClaim(input: {
+    incidentId: string;
+    claimToken: string;
+  }): Promise<boolean>;
   /** Durable cadence marker for open incidents; resolved rows are never changed. */
-  markOpenIncidentsAlertSent(input: { incidentIds: string[]; alertSentAtIso: string }): Promise<{ updated: number }>;
+  markOpenIncidentsAlertSent(input: {
+    incidentIds: string[];
+    alertSentAtIso: string;
+  }): Promise<{ updated: number }>;
   /** TTL purge `integration_webhook_error_events` (burst P8). */
   purgeIntegrationWebhookErrorEventsOlderThanHours(hours: number): Promise<{ deleted: number }>;
   /**
@@ -214,7 +220,9 @@ export type OperatorHealthWritePort = {
    * so a LATER recurrence of the same dedup key opens a fresh row and starts a new T0
    * escalation instead of staying silent forever behind an incident that never resolved.
    */
-  resolveStaleCriticalAlertIncidents(input: { activeDedupKeys: string[] }): Promise<{ resolved: number }>;
+  resolveStaleCriticalAlertIncidents(input: {
+    activeDedupKeys: string[];
+  }): Promise<{ resolved: number }>;
 };
 
 /**
@@ -223,4 +231,4 @@ export type OperatorHealthWritePort = {
  * real integration name (email/telegram/google_calendar), so the resolve-sweep and the
  * outbound-provider failure detector can never step on each other's rows.
  */
-export const CRITICAL_ALERT_CADENCE_INTEGRATION = "critical_alert_cadence";
+export const CRITICAL_ALERT_CADENCE_INTEGRATION = 'critical_alert_cadence';

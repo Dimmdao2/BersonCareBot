@@ -1,17 +1,17 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
-import { NextResponse } from "next/server";
+import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { NextResponse } from 'next/server';
 
 const mockGetOptionalPatientSession = vi.hoisted(() => vi.fn());
 const mockRequirePatientApiBusinessAccess = vi.hoisted(() => vi.fn());
 const mockPatientClientBusinessGate = vi.hoisted(() => vi.fn());
 const mockResolvePatientCanViewAuthOnlyContent = vi.hoisted(() => vi.fn());
 
-vi.mock("@/app-layer/guards/requireRole", () => ({
+vi.mock('@/app-layer/guards/requireRole', () => ({
   getOptionalPatientSession: mockGetOptionalPatientSession,
   requirePatientApiBusinessAccess: mockRequirePatientApiBusinessAccess,
 }));
 
-vi.mock("@/app-layer/platform-access", () => ({
+vi.mock('@/app-layer/platform-access', () => ({
   patientClientBusinessGate: mockPatientClientBusinessGate,
   resolvePatientCanViewAuthOnlyContent: mockResolvePatientCanViewAuthOnlyContent,
 }));
@@ -20,7 +20,7 @@ const mockGetForPatient = vi.hoisted(() => vi.fn());
 const mockPutForPatient = vi.hoisted(() => vi.fn());
 const mockResolvePatientOrganization = vi.hoisted(() => vi.fn());
 
-vi.mock("@/app-layer/di/buildAppDeps", () => ({
+vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: () => ({
     patientOrganization: { resolveActiveOrganizationForPatient: mockResolvePatientOrganization },
     materialRating: {
@@ -30,16 +30,20 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
   }),
 }));
 
-import { GET, PUT } from "./route";
-import { MaterialRatingAccessError } from "@/modules/material-rating/types";
+import { GET, PUT } from './route';
+import { MaterialRatingAccessError } from '@/modules/material-rating/types';
 
-const UUID = "550e8400-e29b-41d4-a716-446655440099";
+const UUID = '550e8400-e29b-41d4-a716-446655440099';
 const SESSION = {
-  user: { userId: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", role: "client" as const, phone: "+79990001122" },
+  user: {
+    userId: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+    role: 'client' as const,
+    phone: '+79990001122',
+  },
 };
-const ORG_A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const ORG_A = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 
-describe("GET /api/patient/material-ratings", () => {
+describe('GET /api/patient/material-ratings', () => {
   beforeEach(() => {
     mockGetOptionalPatientSession.mockReset();
     mockPatientClientBusinessGate.mockReset();
@@ -55,26 +59,32 @@ describe("GET /api/patient/material-ratings", () => {
     });
   });
 
-  it("returns 400 for invalid query", async () => {
-    const res = await GET(new Request(`http://localhost/api/patient/material-ratings?kind=bad&id=${UUID}`));
+  it('returns 400 for invalid query', async () => {
+    const res = await GET(
+      new Request(`http://localhost/api/patient/material-ratings?kind=bad&id=${UUID}`),
+    );
     expect(res.status).toBe(400);
   });
 
-  it("fails closed for a guest without an organization context", async () => {
-    const res = await GET(new Request(`http://localhost/api/patient/material-ratings?kind=content_page&id=${UUID}`));
+  it('fails closed for a guest without an organization context', async () => {
+    const res = await GET(
+      new Request(`http://localhost/api/patient/material-ratings?kind=content_page&id=${UUID}`),
+    );
     expect(res.status).toBe(403);
     expect(mockGetForPatient).not.toHaveBeenCalled();
   });
 
-  it("returns myStars when session has business tier", async () => {
+  it('returns myStars when session has business tier', async () => {
     mockGetOptionalPatientSession.mockResolvedValue(SESSION);
-    mockPatientClientBusinessGate.mockResolvedValue("allow");
+    mockPatientClientBusinessGate.mockResolvedValue('allow');
     mockResolvePatientCanViewAuthOnlyContent.mockResolvedValue(true);
     mockGetForPatient.mockResolvedValue({
       aggregate: { avg: 3, count: 2, distribution: { 1: 0, 2: 0, 3: 2, 4: 0, 5: 0 } },
       myStars: 3,
     });
-    const res = await GET(new Request(`http://localhost/api/patient/material-ratings?kind=content_page&id=${UUID}`));
+    const res = await GET(
+      new Request(`http://localhost/api/patient/material-ratings?kind=content_page&id=${UUID}`),
+    );
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.myStars).toBe(3);
@@ -83,15 +93,17 @@ describe("GET /api/patient/material-ratings", () => {
     );
   });
 
-  it("returns 404 when material is not accessible", async () => {
+  it('returns 404 when material is not accessible', async () => {
     mockGetOptionalPatientSession.mockResolvedValue(SESSION);
-    mockGetForPatient.mockRejectedValue(new MaterialRatingAccessError("not_found"));
-    const res = await GET(new Request(`http://localhost/api/patient/material-ratings?kind=content_page&id=${UUID}`));
+    mockGetForPatient.mockRejectedValue(new MaterialRatingAccessError('not_found'));
+    const res = await GET(
+      new Request(`http://localhost/api/patient/material-ratings?kind=content_page&id=${UUID}`),
+    );
     expect(res.status).toBe(404);
   });
 });
 
-describe("PUT /api/patient/material-ratings", () => {
+describe('PUT /api/patient/material-ratings', () => {
   beforeEach(() => {
     mockRequirePatientApiBusinessAccess.mockReset();
     mockPutForPatient.mockReset();
@@ -106,28 +118,28 @@ describe("PUT /api/patient/material-ratings", () => {
     });
   });
 
-  it("returns 401 when unauthorized", async () => {
+  it('returns 401 when unauthorized', async () => {
     mockRequirePatientApiBusinessAccess.mockResolvedValue({
       ok: false,
-      response: NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }),
+      response: NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 }),
     });
     const res = await PUT(
-      new Request("http://localhost/api/patient/material-ratings", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ targetKind: "content_page", targetId: UUID, stars: 4 }),
+      new Request('http://localhost/api/patient/material-ratings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetKind: 'content_page', targetId: UUID, stars: 4 }),
       }),
     );
     expect(res.status).toBe(401);
   });
 
-  it("returns 400 when lfk target missing program context", async () => {
+  it('returns 400 when lfk target missing program context', async () => {
     const res = await PUT(
-      new Request("http://localhost/api/patient/material-ratings", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
+      new Request('http://localhost/api/patient/material-ratings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          targetKind: "lfk_exercise",
+          targetKind: 'lfk_exercise',
           targetId: UUID,
           stars: 5,
         }),
@@ -135,15 +147,15 @@ describe("PUT /api/patient/material-ratings", () => {
     );
     expect(res.status).toBe(400);
     const json = await res.json();
-    expect(json.error).toBe("missing_program_context");
+    expect(json.error).toBe('missing_program_context');
   });
 
-  it("returns 200 on successful content_page upsert", async () => {
+  it('returns 200 on successful content_page upsert', async () => {
     const res = await PUT(
-      new Request("http://localhost/api/patient/material-ratings", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ targetKind: "content_page", targetId: UUID, stars: 4 }),
+      new Request('http://localhost/api/patient/material-ratings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetKind: 'content_page', targetId: UUID, stars: 4 }),
       }),
     );
     expect(res.status).toBe(200);
@@ -155,7 +167,7 @@ describe("PUT /api/patient/material-ratings", () => {
       expect.objectContaining({
         userId: SESSION.user.userId,
         organizationId: ORG_A,
-        targetKind: "content_page",
+        targetKind: 'content_page',
         targetId: UUID,
         stars: 4,
         canViewAuthOnlyContent: true,
@@ -163,30 +175,30 @@ describe("PUT /api/patient/material-ratings", () => {
     );
   });
 
-  it("returns 403 when put denied for content_page", async () => {
-    mockPutForPatient.mockResolvedValue({ ok: false, code: "forbidden" });
+  it('returns 403 when put denied for content_page', async () => {
+    mockPutForPatient.mockResolvedValue({ ok: false, code: 'forbidden' });
     const res = await PUT(
-      new Request("http://localhost/api/patient/material-ratings", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ targetKind: "content_page", targetId: UUID, stars: 4 }),
+      new Request('http://localhost/api/patient/material-ratings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetKind: 'content_page', targetId: UUID, stars: 4 }),
       }),
     );
     expect(res.status).toBe(403);
   });
 
-  it("returns 400 when service reports missing_program_context", async () => {
-    mockPutForPatient.mockResolvedValue({ ok: false, code: "missing_program_context" });
+  it('returns 400 when service reports missing_program_context', async () => {
+    mockPutForPatient.mockResolvedValue({ ok: false, code: 'missing_program_context' });
     const res = await PUT(
-      new Request("http://localhost/api/patient/material-ratings", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
+      new Request('http://localhost/api/patient/material-ratings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          targetKind: "lfk_exercise",
+          targetKind: 'lfk_exercise',
           targetId: UUID,
           stars: 5,
-          programInstanceId: "660e8400-e29b-41d4-a716-446655440088",
-          programStageItemId: "770e8400-e29b-41d4-a716-446655440077",
+          programInstanceId: '660e8400-e29b-41d4-a716-446655440088',
+          programStageItemId: '770e8400-e29b-41d4-a716-446655440077',
         }),
       }),
     );

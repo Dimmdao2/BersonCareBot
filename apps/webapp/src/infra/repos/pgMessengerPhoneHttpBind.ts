@@ -1,13 +1,13 @@
-import type { Pool, PoolClient } from "pg";
-import { z } from "zod";
-import type { MessengerPhoneBindDb } from "@bersoncare/platform-merge";
+import type { Pool, PoolClient } from 'pg';
+import { z } from 'zod';
+import type { MessengerPhoneBindDb } from '@bersoncare/platform-merge';
 import {
   getWebappSqlFromPgClient,
   runPgPoolPgText,
   runWebappPgText,
-} from "@/infra/db/runWebappSql";
-import { startPoolTransaction } from "@/infra/db/withClient";
-import { logger } from "@/infra/logging/logger";
+} from '@/infra/db/runWebappSql';
+import { startPoolTransaction } from '@/infra/db/withClient';
+import { logger } from '@/infra/logging/logger';
 
 export type TxQuery = {
   query<T = unknown>(sql: string, params?: unknown[]): Promise<{ rows: T[]; rowCount?: number }>;
@@ -44,13 +44,15 @@ export function createTxQuery(client: PoolClient): TxQuery {
       const res = await runWebappPgText<T>(sql, params ?? [], executor);
       return {
         rows: res.rows,
-        ...(typeof res.rowCount === "number" ? { rowCount: res.rowCount } : {}),
+        ...(typeof res.rowCount === 'number' ? { rowCount: res.rowCount } : {}),
       };
     },
   };
 }
 
-export async function startMessengerPhoneBindTransaction(pool: Pool): Promise<MessengerPhoneBindTransaction> {
+export async function startMessengerPhoneBindTransaction(
+  pool: Pool,
+): Promise<MessengerPhoneBindTransaction> {
   const tx = await startPoolTransaction(pool);
   return {
     txDb: createTxQuery(tx.client),
@@ -60,7 +62,10 @@ export async function startMessengerPhoneBindTransaction(pool: Pool): Promise<Me
   };
 }
 
-export async function resolveCanonicalIntegratorUserId(db: TxQuery, integratorUserId: string): Promise<string> {
+export async function resolveCanonicalIntegratorUserId(
+  db: TxQuery,
+  integratorUserId: string,
+): Promise<string> {
   const trimmed = integratorUserId.trim();
   if (!trimmed || !BIGINT_STRING.test(trimmed)) return integratorUserId;
 
@@ -68,7 +73,10 @@ export async function resolveCanonicalIntegratorUserId(db: TxQuery, integratorUs
   const visited = new Set<string>();
   for (let depth = 0; depth < MAX_MERGE_CHAIN_DEPTH; depth++) {
     if (visited.has(current)) {
-      logger.warn({ integratorUserId, current }, "resolveCanonicalIntegratorUserId: cycle in merged_into_user_id chain");
+      logger.warn(
+        { integratorUserId, current },
+        'resolveCanonicalIntegratorUserId: cycle in merged_into_user_id chain',
+      );
       return current;
     }
     visited.add(current);
@@ -85,17 +93,23 @@ export async function resolveCanonicalIntegratorUserId(db: TxQuery, integratorUs
       return current;
     }
     const row = parsed.data;
-    if (row.merged_into_user_id == null || row.merged_into_user_id === "") {
+    if (row.merged_into_user_id == null || row.merged_into_user_id === '') {
       return current;
     }
     current = row.merged_into_user_id;
   }
-  logger.warn({ integratorUserId, current }, "resolveCanonicalIntegratorUserId: max chain depth exceeded");
+  logger.warn(
+    { integratorUserId, current },
+    'resolveCanonicalIntegratorUserId: max chain depth exceeded',
+  );
   return current;
 }
 
-export async function ensureIdentityForMessenger(db: TxQuery, input: { resource: string; externalId: string }): Promise<void> {
-  if (input.resource !== "max" || !input.externalId.trim()) return;
+export async function ensureIdentityForMessenger(
+  db: TxQuery,
+  input: { resource: string; externalId: string },
+): Promise<void> {
+  if (input.resource !== 'max' || !input.externalId.trim()) return;
   const sql = `
     WITH existing AS (
       SELECT id FROM identities
@@ -141,7 +155,7 @@ export async function loadIntegratorIdentityUserId(
   return peekParsed.success ? peekParsed.data.user_id : null;
 }
 
-export type SetUserPhoneOutcome = "applied" | "noop_conflict" | "failed";
+export type SetUserPhoneOutcome = 'applied' | 'noop_conflict' | 'failed';
 
 export async function setUserPhone(
   db: TxQuery,
@@ -158,7 +172,7 @@ export async function setUserPhone(
     [channelUserId, resource],
   );
   const idParsed = integratorIdentityRowSchema.safeParse(idRes.rows[0]);
-  if (!idParsed.success) return "failed";
+  if (!idParsed.success) return 'failed';
 
   const userId = await resolveCanonicalIntegratorUserId(db, idParsed.data.user_id);
 
@@ -182,9 +196,9 @@ export async function setUserPhone(
   `;
   try {
     const res = await db.query(query, [userId, phoneNormalized, resource]);
-    return (res.rowCount ?? 0) > 0 ? "applied" : "noop_conflict";
+    return (res.rowCount ?? 0) > 0 ? 'applied' : 'noop_conflict';
   } catch (err) {
-    logger.error({ err }, "setUserPhone error");
-    return "failed";
+    logger.error({ err }, 'setUserPhone error');
+    return 'failed';
   }
 }

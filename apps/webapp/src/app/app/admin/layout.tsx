@@ -15,12 +15,12 @@
  * pool). `requirePlatformOperationsPage()` is therefore strictly no weaker and is now the only
  * guard for this subtree, including `/app/admin/promo`.
  */
-import type { ReactNode } from "react";
-import type { Metadata } from "next";
-import "../../styles/doctor.css";
-import { requirePlatformOperationsPage } from "@/app-layer/guards/requireRole";
-import { staffPwaLayoutMetadata } from "@/shared/lib/pwa/staffPwaLayoutMetadata";
-import { DoctorWorkspaceShell } from "@/shared/ui/doctor/shell/DoctorWorkspaceShell";
+import type { ReactNode } from 'react';
+import type { Metadata } from 'next';
+import '../../styles/doctor.css';
+import { requirePlatformOperationsPage } from '@/app-layer/guards/requireRole';
+import { staffPwaLayoutMetadata } from '@/shared/lib/pwa/staffPwaLayoutMetadata';
+import { DoctorWorkspaceShell } from '@/shared/ui/doctor/shell/DoctorWorkspaceShell';
 
 export const metadata: Metadata = staffPwaLayoutMetadata;
 

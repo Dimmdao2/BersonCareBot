@@ -6,7 +6,7 @@ import type {
   CreateAppointmentStaffCommentInput,
   PatientBookingProfile,
   UpsertPatientBookingProfileInput,
-} from "./types";
+} from './types';
 
 export type ClientHistoryPort = {
   listTimeline(
@@ -49,5 +49,7 @@ export type ClientHistoryPort = {
     organizationId: string,
     appointmentId: string,
   ): Promise<AppointmentStaffCommentRow[]>;
-  createAppointmentComment(input: CreateAppointmentStaffCommentInput): Promise<AppointmentStaffCommentRow>;
+  createAppointmentComment(
+    input: CreateAppointmentStaffCommentInput,
+  ): Promise<AppointmentStaffCommentRow>;
 };

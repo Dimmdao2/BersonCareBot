@@ -1,17 +1,13 @@
-import type { PoolClient } from "pg";
-import { toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
-import { and, eq, sql, type SQL } from "drizzle-orm";
-import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
-import { env } from "@/config/env";
-import { getPool } from "@/infra/db/client";
-import { startPoolTransaction, withPoolTransaction } from "@/infra/db/withClient";
-import { pgSessionAdvisoryLock, pgSessionAdvisoryUnlock } from "@/infra/db/pgAdvisoryLock";
-import {
-  getWebappSqlDb,
-  getWebappSqlFromPgClient,
-  runWebappSql,
-} from "@/infra/db/runWebappSql";
-import { logger } from "@/infra/logging/logger";
+import type { PoolClient } from 'pg';
+import { toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
+import { and, eq, sql, type SQL } from 'drizzle-orm';
+import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
+import { env } from '@/config/env';
+import { getPool } from '@/infra/db/client';
+import { startPoolTransaction, withPoolTransaction } from '@/infra/db/withClient';
+import { pgSessionAdvisoryLock, pgSessionAdvisoryUnlock } from '@/infra/db/pgAdvisoryLock';
+import { getWebappSqlDb, getWebappSqlFromPgClient, runWebappSql } from '@/infra/db/runWebappSql';
+import { logger } from '@/infra/logging/logger';
 import {
   pgCreateFolder,
   pgDeleteFolderIfEmpty,
@@ -19,39 +15,50 @@ import {
   pgListFolders,
   pgMoveFolder,
   pgRenameFolder,
-} from "@/infra/repos/mediaFoldersRepo";
-import { clientFilesSubtreeFolderIdsSql } from "@/infra/repos/pgClientMediaFolders";
-import { mediaFolderExists } from "@/infra/repos/pgMediaFolderLookup";
-import { pgMediaUsageSummaryForMediaId } from "@/infra/repos/pgMediaUsageSummary";
-import { s3DeleteObject, s3ListObjectKeysUnderPrefix, s3ObjectKey, s3PublicUrl, s3PutObjectBody } from "@/infra/s3/client";
-import type { MediaStoragePort } from "@/modules/media/ports";
-import { MAX_MEDIA_BYTES } from "@/modules/media/uploadAllowedMime";
-import type { MediaListParams, MediaPreviewStatus, MediaRecord, MediaUsageRef } from "@/modules/media/types";
+} from '@/infra/repos/mediaFoldersRepo';
+import { clientFilesSubtreeFolderIdsSql } from '@/infra/repos/pgClientMediaFolders';
+import { mediaFolderExists } from '@/infra/repos/pgMediaFolderLookup';
+import { pgMediaUsageSummaryForMediaId } from '@/infra/repos/pgMediaUsageSummary';
+import {
+  s3DeleteObject,
+  s3ListObjectKeysUnderPrefix,
+  s3ObjectKey,
+  s3PublicUrl,
+  s3PutObjectBody,
+} from '@/infra/s3/client';
+import type { MediaStoragePort } from '@/modules/media/ports';
+import { MAX_MEDIA_BYTES } from '@/modules/media/uploadAllowedMime';
+import type {
+  MediaListParams,
+  MediaPreviewStatus,
+  MediaRecord,
+  MediaUsageRef,
+} from '@/modules/media/types';
 import {
   parseAvailableQualitiesJson,
   parseVideoDeliveryOverride,
   parseVideoProcessingStatus,
-} from "@/modules/media/videoHlsFields";
-import { mediaPreviewUrlById } from "@/shared/lib/mediaPreviewUrls";
+} from '@/modules/media/videoHlsFields';
+import { mediaPreviewUrlById } from '@/shared/lib/mediaPreviewUrls';
 import {
   isTrustedHlsArtifactS3Key,
   isTrustedPosterS3Key,
   resolveHlsPurgeListPrefix,
   resolvePosterPurgeListPrefix,
-} from "@/shared/lib/hlsStorageLayout";
-import { pgRuSubstringSearchPattern } from "@/shared/lib/ruSearchNormalize";
-import { mediaFiles } from "../../../db/schema/schema";
+} from '@/shared/lib/hlsStorageLayout';
+import { pgRuSubstringSearchPattern } from '@/shared/lib/ruSearchNormalize';
+import { mediaFiles } from '../../../db/schema/schema';
 import {
   mediaReadableStatusPredicate,
   mediaReadableStatusPredicateM,
   mediaS3PurgeStatusPredicate,
-} from "@/infra/repos/mediaSqlPredicates";
+} from '@/infra/repos/mediaSqlPredicates';
 
 export {
   MEDIA_READABLE_STATUS_SQL,
   MEDIA_READABLE_STATUS_SQL_M,
   MEDIA_S3_PURGE_STATUS_SQL,
-} from "@/infra/repos/mediaSqlPredicates";
+} from '@/infra/repos/mediaSqlPredicates';
 
 function mediaAppUrl(mediaId: string): string {
   return `/api/media/${mediaId}`;
@@ -60,17 +67,17 @@ function mediaAppUrl(mediaId: string): string {
 function currentPrincipalOrganizationId(): string {
   const principalOrganizationId = getCurrentDbPrincipalOrganizationId();
   if (!principalOrganizationId) {
-    throw new Error("organization_principal_required");
+    throw new Error('organization_principal_required');
   }
   return principalOrganizationId;
 }
 
-function kindFromMime(mimeType: string): MediaRecord["kind"] {
+function kindFromMime(mimeType: string): MediaRecord['kind'] {
   const lower = mimeType.toLowerCase();
-  if (lower.startsWith("image/")) return "image";
-  if (lower.startsWith("audio/")) return "audio";
-  if (lower.startsWith("video/")) return "video";
-  return "file";
+  if (lower.startsWith('image/')) return 'image';
+  if (lower.startsWith('audio/')) return 'audio';
+  if (lower.startsWith('video/')) return 'video';
+  return 'file';
 }
 
 function mapVideoHlsColumns(row: {
@@ -105,14 +112,12 @@ export function createS3MediaStoragePort(): MediaStoragePort {
   return {
     async upload(params) {
       const body =
-        params.body instanceof ArrayBuffer
-          ? params.body
-          : new Uint8Array(params.body).buffer;
+        params.body instanceof ArrayBuffer ? params.body : new Uint8Array(params.body).buffer;
       if (body.byteLength > MAX_MEDIA_BYTES) {
-        throw new Error("media_upload_too_large");
+        throw new Error('media_upload_too_large');
       }
       if (body.byteLength === 0) {
-        throw new Error("media_upload_empty");
+        throw new Error('media_upload_empty');
       }
 
       const idRow = await runWebappSql<{ id: string }>(
@@ -120,7 +125,7 @@ export function createS3MediaStoragePort(): MediaStoragePort {
         sql`SELECT gen_random_uuid()::text AS id`,
       );
       const id = idRow.rows[0]?.id;
-      if (!id) throw new Error("media_upload_id");
+      if (!id) throw new Error('media_upload_id');
 
       const key = s3ObjectKey(id, params.filename);
       const buf = Buffer.from(body);
@@ -128,18 +133,20 @@ export function createS3MediaStoragePort(): MediaStoragePort {
 
       const folderId = params.folderId ?? null;
       const organizationId = currentPrincipalOrganizationId();
-      await getWebappSqlDb().insert(mediaFiles).values({
-        id,
-        originalName: params.filename,
-        storedPath: key,
-        s3Key: key,
-        mimeType: params.mimeType,
-        sizeBytes: body.byteLength,
-        status: "ready",
-        uploadedBy: params.userId ?? null,
-        folderId,
-        organizationId,
-      });
+      await getWebappSqlDb()
+        .insert(mediaFiles)
+        .values({
+          id,
+          originalName: params.filename,
+          storedPath: key,
+          s3Key: key,
+          mimeType: params.mimeType,
+          sizeBytes: body.byteLength,
+          status: 'ready',
+          uploadedBy: params.userId ?? null,
+          folderId,
+          organizationId,
+        });
 
       const now = new Date().toISOString();
       const record: MediaRecord = {
@@ -201,7 +208,7 @@ export function createS3MediaStoragePort(): MediaStoragePort {
       );
       const row = res.rows[0];
       if (!row) return null;
-      const previewStatus = (row.preview_status ?? "pending") as MediaPreviewStatus;
+      const previewStatus = (row.preview_status ?? 'pending') as MediaPreviewStatus;
       return {
         id: row.id,
         kind: kindFromMime(row.mime_type),
@@ -213,8 +220,8 @@ export function createS3MediaStoragePort(): MediaStoragePort {
         uploadedByName: row.uploaded_by_name,
         createdAt: toIsoStringSafe(row.created_at),
         previewStatus,
-        previewSmUrl: row.preview_sm_key?.trim() ? mediaPreviewUrlById(row.id, "sm") : null,
-        previewMdUrl: row.preview_md_key?.trim() ? mediaPreviewUrlById(row.id, "md") : null,
+        previewSmUrl: row.preview_sm_key?.trim() ? mediaPreviewUrlById(row.id, 'sm') : null,
+        previewMdUrl: row.preview_md_key?.trim() ? mediaPreviewUrlById(row.id, 'md') : null,
         sourceWidth: row.source_width ?? null,
         sourceHeight: row.source_height ?? null,
         ...mapVideoHlsColumns(row),
@@ -242,16 +249,16 @@ export function createS3MediaStoragePort(): MediaStoragePort {
         sql`m.organization_id = ${organizationId}::uuid`,
       ];
 
-      if (params.kind && params.kind !== "all") {
-        if (params.kind === "file") {
+      if (params.kind && params.kind !== 'all') {
+        if (params.kind === 'file') {
           whereParts.push(
             sql`NOT (m.mime_type LIKE 'image/%' OR m.mime_type LIKE 'video/%' OR m.mime_type LIKE 'audio/%')`,
           );
-        } else if (params.kind === "image") {
+        } else if (params.kind === 'image') {
           whereParts.push(sql`m.mime_type LIKE 'image/%'`);
-        } else if (params.kind === "video") {
+        } else if (params.kind === 'video') {
           whereParts.push(sql`m.mime_type LIKE 'video/%'`);
-        } else if (params.kind === "audio") {
+        } else if (params.kind === 'audio') {
           whereParts.push(sql`m.mime_type LIKE 'audio/%'`);
         }
       }
@@ -279,14 +286,16 @@ export function createS3MediaStoragePort(): MediaStoragePort {
           whereParts.push(sql`m.folder_id = ${params.folderId}::uuid`);
         }
       } else if (params.excludeClientFiles !== false) {
-        whereParts.push(sql`(m.folder_id IS NULL OR m.folder_id NOT IN ${clientFilesSubtreeFolderIdsSql()})`);
+        whereParts.push(
+          sql`(m.folder_id IS NULL OR m.folder_id NOT IN ${clientFilesSubtreeFolderIdsSql()})`,
+        );
       }
 
       const whereSql = sql.join(whereParts, sql` AND `);
-      const sortDir = params.sortDir === "asc" ? sql`ASC` : sql`DESC`;
+      const sortDir = params.sortDir === 'asc' ? sql`ASC` : sql`DESC`;
       const nameSortKey = sql`LOWER(COALESCE(NULLIF(TRIM(m.display_name), ''), m.original_name))`;
       const orderBy =
-        params.sortBy === "name"
+        params.sortBy === 'name'
           ? sql`CASE
                WHEN ${nameSortKey} ~ '^[0-9]' THEN 0
                WHEN ${nameSortKey} ~ '^[a-z]' THEN 1
@@ -295,9 +304,9 @@ export function createS3MediaStoragePort(): MediaStoragePort {
              END ${sortDir},
              ${nameSortKey} ${sortDir},
              m.id ${sortDir}`
-          : params.sortBy === "size"
+          : params.sortBy === 'size'
             ? sql`m.size_bytes ${sortDir}, m.id ${sortDir}`
-            : params.sortBy === "kind"
+            : params.sortBy === 'kind'
               ? sql`m.mime_type ${sortDir}, m.id ${sortDir}`
               : sql`m.created_at ${sortDir}, m.id ${sortDir}`;
 
@@ -352,7 +361,7 @@ export function createS3MediaStoragePort(): MediaStoragePort {
 
       const total = res.rows.length > 0 ? Number(res.rows[0]!.total_count) : 0;
       const items = res.rows.map((row) => {
-        const previewStatus = (row.preview_status ?? "pending") as MediaPreviewStatus;
+        const previewStatus = (row.preview_status ?? 'pending') as MediaPreviewStatus;
         return {
           id: row.id,
           kind: kindFromMime(row.mime_type),
@@ -366,8 +375,8 @@ export function createS3MediaStoragePort(): MediaStoragePort {
           folderId: row.folder_id,
           url: mediaAppUrl(row.id),
           previewStatus,
-          previewSmUrl: row.preview_sm_key?.trim() ? mediaPreviewUrlById(row.id, "sm") : null,
-          previewMdUrl: row.preview_md_key?.trim() ? mediaPreviewUrlById(row.id, "md") : null,
+          previewSmUrl: row.preview_sm_key?.trim() ? mediaPreviewUrlById(row.id, 'sm') : null,
+          previewMdUrl: row.preview_md_key?.trim() ? mediaPreviewUrlById(row.id, 'md') : null,
           sourceWidth: row.source_width ?? null,
           sourceHeight: row.source_height ?? null,
           ...mapVideoHlsColumns(row),
@@ -452,8 +461,7 @@ export function createS3MediaStoragePort(): MediaStoragePort {
                AND organization_id = ${organizationId}::uuid`,
       );
       const s3Key = keyRes.rows[0]?.s3_key ?? null;
-      const publicUrl =
-        s3Key && env.S3_PUBLIC_BUCKET ? s3PublicUrl(s3Key) : null;
+      const publicUrl = s3Key && env.S3_PUBLIC_BUCKET ? s3PublicUrl(s3Key) : null;
 
       const res = await runWebappSql<MediaUsageRef>(
         getWebappSqlDb(),
@@ -509,7 +517,7 @@ export function createS3MediaStoragePort(): MediaStoragePort {
           const row = sel.rows[0];
           if (!row) return false;
 
-          if (row.status === "pending_delete") {
+          if (row.status === 'pending_delete') {
             return true;
           }
 
@@ -562,7 +570,7 @@ export async function insertPendingMediaFileTx(
     s3Key: params.key,
     mimeType: params.mimeType,
     sizeBytes: params.sizeBytes,
-    status: "pending",
+    status: 'pending',
     uploadedBy: params.userId,
     folderId: params.folderId ?? null,
     organizationId,
@@ -582,7 +590,7 @@ export async function insertPendingProgramSubmissionMediaFileTx(
     folderId: string;
   },
 ): Promise<void> {
-  const isVideo = params.mimeType.toLowerCase().startsWith("video/");
+  const isVideo = params.mimeType.toLowerCase().startsWith('video/');
   const organizationId = currentPrincipalOrganizationId();
   const db = getWebappSqlFromPgClient(client);
   await db.insert(mediaFiles).values({
@@ -592,12 +600,12 @@ export async function insertPendingProgramSubmissionMediaFileTx(
     s3Key: params.key,
     mimeType: params.mimeType,
     sizeBytes: params.sizeBytes,
-    status: "pending",
+    status: 'pending',
     uploadedBy: params.userId,
     folderId: params.folderId,
     organizationId,
-    usagePurpose: "program_item_submission",
-    videoDeliveryOverride: isVideo ? "mp4" : null,
+    usagePurpose: 'program_item_submission',
+    videoDeliveryOverride: isVideo ? 'mp4' : null,
   });
 }
 
@@ -612,18 +620,20 @@ export async function insertPendingMediaFile(params: {
   folderId?: string | null;
 }): Promise<void> {
   const organizationId = currentPrincipalOrganizationId();
-  await getWebappSqlDb().insert(mediaFiles).values({
-    id: params.id,
-    originalName: params.filename,
-    storedPath: params.key,
-    s3Key: params.key,
-    mimeType: params.mimeType,
-    sizeBytes: params.sizeBytes,
-    status: "pending",
-    uploadedBy: params.userId,
-    folderId: params.folderId ?? null,
-    organizationId,
-  });
+  await getWebappSqlDb()
+    .insert(mediaFiles)
+    .values({
+      id: params.id,
+      originalName: params.filename,
+      storedPath: params.key,
+      s3Key: params.key,
+      mimeType: params.mimeType,
+      sizeBytes: params.sizeBytes,
+      status: 'pending',
+      uploadedBy: params.userId,
+      folderId: params.folderId ?? null,
+      organizationId,
+    });
 }
 
 /** Row for confirm flow: same owner, any status (pending or ready for idempotency). */
@@ -668,12 +678,12 @@ export async function confirmMediaFileReady(mediaId: string): Promise<boolean> {
   const organizationId = currentPrincipalOrganizationId();
   const rows = await getWebappSqlDb()
     .update(mediaFiles)
-    .set({ status: "ready" })
+    .set({ status: 'ready' })
     .where(
       and(
         eq(mediaFiles.id, mediaId),
         eq(mediaFiles.organizationId, organizationId),
-        eq(mediaFiles.status, "pending"),
+        eq(mediaFiles.status, 'pending'),
       ),
     )
     .returning({ id: mediaFiles.id });
@@ -728,9 +738,9 @@ export async function getProgramSubmissionMediaStatusRow(
 }
 
 export function isProgramSubmissionMediaAttachReady(row: ProgramSubmissionMediaStatusRow): boolean {
-  if (row.status !== "ready") return false;
-  if (!row.mime_type.toLowerCase().startsWith("video/")) return true;
-  return row.video_processing_status === "ready";
+  if (row.status !== 'ready') return false;
+  if (!row.mime_type.toLowerCase().startsWith('video/')) return true;
+  return row.video_processing_status === 'ready';
 }
 
 /** Row eligible for attach: images when file ready; video only after 480p transcode ready. */
@@ -757,14 +767,14 @@ export async function markProgramSubmissionVideoProcessingFailed(
   await getWebappSqlDb()
     .update(mediaFiles)
     .set({
-      videoProcessingStatus: "failed",
+      videoProcessingStatus: 'failed',
       videoProcessingError: msg,
     })
     .where(
       and(
         eq(mediaFiles.id, mediaId),
         eq(mediaFiles.organizationId, organizationId),
-        eq(mediaFiles.usagePurpose, "program_item_submission"),
+        eq(mediaFiles.usagePurpose, 'program_item_submission'),
       ),
     );
 }
@@ -849,7 +859,7 @@ export async function deletePendingMediaFileById(mediaId: string): Promise<boole
       and(
         eq(mediaFiles.id, mediaId),
         eq(mediaFiles.organizationId, organizationId),
-        eq(mediaFiles.status, "pending"),
+        eq(mediaFiles.status, 'pending'),
       ),
     )
     .returning({ id: mediaFiles.id });
@@ -865,7 +875,9 @@ export type MediaDeleteErrorRow = {
 };
 
 /** Admin: rows stuck in delete queue with at least one failed S3 attempt. */
-export async function listMediaDeleteErrors(limit: number = 100): Promise<{ items: MediaDeleteErrorRow[]; total: number }> {
+export async function listMediaDeleteErrors(
+  limit: number = 100,
+): Promise<{ items: MediaDeleteErrorRow[]; total: number }> {
   const organizationId = currentPrincipalOrganizationId();
   const cap = Math.min(100, Math.max(1, limit));
   const countRes = await runWebappSql<{ c: string }>(
@@ -874,7 +886,7 @@ export async function listMediaDeleteErrors(limit: number = 100): Promise<{ item
      WHERE organization_id = ${organizationId}::uuid
        AND status IN ('pending_delete', 'deleting') AND COALESCE(delete_attempts, 0) > 0`,
   );
-  const total = Number.parseInt(countRes.rows[0]?.c ?? "0", 10);
+  const total = Number.parseInt(countRes.rows[0]?.c ?? '0', 10);
   const res = await runWebappSql<MediaDeleteErrorRow>(
     getWebappSqlDb(),
     sql`SELECT id::text, original_name, COALESCE(delete_attempts, 0)::int AS delete_attempts,
@@ -929,7 +941,7 @@ export async function getMediaRowForPlayback(
   if (!platformRow) return null;
   const hasStorage = options.allowLocalSaasTestFixture
     ? (platformRow.s3_key != null && platformRow.s3_key.trim().length > 0) ||
-      (platformRow.s3_key == null && platformRow.stored_path === "/test-fixtures/saas-exercise.svg")
+      (platformRow.s3_key == null && platformRow.stored_path === '/test-fixtures/saas-exercise.svg')
     : platformRow.s3_key != null && platformRow.s3_key.trim().length > 0;
   if (!hasStorage) return null;
   return {
@@ -970,7 +982,7 @@ export async function getMediaS3KeyForRedirect(
 /** Presigned-GET target for generated preview JPEG (sm/md). */
 export async function getMediaPreviewS3KeyForRedirect(
   id: string,
-  size: "sm" | "md",
+  size: 'sm' | 'md',
   options: { allowPlatformBase?: boolean } = {},
 ): Promise<string | null> {
   const organizationId = currentPrincipalOrganizationId();
@@ -988,8 +1000,8 @@ export async function getMediaPreviewS3KeyForRedirect(
   );
   const row =
     res.rows[0] ?? (options.allowPlatformBase === true ? await readPlatformMediaRow(id) : null);
-  if (!row || row.preview_status !== "ready") return null;
-  const key = size === "sm" ? row.preview_sm_key : row.preview_md_key;
+  if (!row || row.preview_status !== 'ready') return null;
+  const key = size === 'sm' ? row.preview_sm_key : row.preview_md_key;
   return key?.trim() ? key : null;
 }
 
@@ -1021,24 +1033,25 @@ async function schedulePendingDeleteRetry(
 }
 
 function readPgCode(err: unknown): string | null {
-  if (!err || typeof err !== "object") return null;
+  if (!err || typeof err !== 'object') return null;
   const e = err as { code?: unknown; cause?: { code?: unknown } };
-  if (typeof e.code === "string" && e.code.length > 0) return e.code;
-  if (typeof e.cause?.code === "string" && e.cause.code.length > 0) return e.cause.code;
+  if (typeof e.code === 'string' && e.code.length > 0) return e.code;
+  if (typeof e.cause?.code === 'string' && e.cause.code.length > 0) return e.cause.code;
   return null;
 }
 
 function readPgConstraint(err: unknown): string | null {
-  if (!err || typeof err !== "object") return null;
+  if (!err || typeof err !== 'object') return null;
   const e = err as { constraint?: unknown; cause?: { constraint?: unknown } };
-  if (typeof e.constraint === "string" && e.constraint.length > 0) return e.constraint;
-  if (typeof e.cause?.constraint === "string" && e.cause.constraint.length > 0) return e.cause.constraint;
+  if (typeof e.constraint === 'string' && e.constraint.length > 0) return e.constraint;
+  if (typeof e.cause?.constraint === 'string' && e.cause.constraint.length > 0)
+    return e.cause.constraint;
   return null;
 }
 
 function isDeterministicDeleteConstraintFailure(err: unknown): boolean {
   const code = readPgCode(err);
-  return typeof code === "string" && code.startsWith("23");
+  return typeof code === 'string' && code.startsWith('23');
 }
 
 /**
@@ -1074,7 +1087,7 @@ export async function collectS3KeysForMediaPurge(row: {
     } else {
       logger.warn(
         { mediaId: row.id, key: mk },
-        "[collectS3KeysForMediaPurge] skipped untrusted hls_master_playlist_s3_key",
+        '[collectS3KeysForMediaPurge] skipped untrusted hls_master_playlist_s3_key',
       );
     }
   }
@@ -1086,7 +1099,7 @@ export async function collectS3KeysForMediaPurge(row: {
     } else {
       logger.warn(
         { mediaId: row.id, key: posterExplicit },
-        "[collectS3KeysForMediaPurge] skipped untrusted poster_s3_key; trying canonical poster prefix list",
+        '[collectS3KeysForMediaPurge] skipped untrusted poster_s3_key; trying canonical poster prefix list',
       );
       const posterListPrefix = resolvePosterPurgeListPrefix(row.id, row.s3_key);
       if (posterListPrefix) {
@@ -1153,7 +1166,7 @@ export async function purgePendingMediaDeleteBatch(
       }
 
       const row = rows[0]!;
-      if (row.status !== "pending_delete" && row.status !== "deleting") {
+      if (row.status !== 'pending_delete' && row.status !== 'deleting') {
         await tx.rollback();
         continue;
       }
@@ -1162,7 +1175,10 @@ export async function purgePendingMediaDeleteBatch(
       try {
         keysToDelete = await collectS3KeysForMediaPurge(row);
       } catch (e) {
-        logger.error({ err: e, mediaId: row.id }, "[purgePendingMediaDeleteBatch] failed to list keys");
+        logger.error(
+          { err: e, mediaId: row.id },
+          '[purgePendingMediaDeleteBatch] failed to list keys',
+        );
         await schedulePendingDeleteRetry(db, row.id, row.delete_attempts ?? 0);
         await tx.commit();
         errors += 1;
@@ -1177,7 +1193,10 @@ export async function purgePendingMediaDeleteBatch(
         await schedulePendingDeleteRetry(db, row.id, row.delete_attempts ?? 0);
         await tx.commit();
         errors += 1;
-        logger.error({ err: e, mediaId: row.id }, "[purgePendingMediaDeleteBatch] s3 delete failed");
+        logger.error(
+          { err: e, mediaId: row.id },
+          '[purgePendingMediaDeleteBatch] s3 delete failed',
+        );
         continue;
       }
 
@@ -1202,7 +1221,7 @@ export async function purgePendingMediaDeleteBatch(
             pgCode: readPgCode(e),
             pgConstraint: readPgConstraint(e),
           },
-          "[purgePendingMediaDeleteBatch] db delete blocked by data constraint; retry scheduled",
+          '[purgePendingMediaDeleteBatch] db delete blocked by data constraint; retry scheduled',
         );
         continue;
       }

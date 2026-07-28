@@ -1,4 +1,4 @@
-import { mediaPreviewSmUrl } from "@/shared/lib/mediaPreviewUrls";
+import { mediaPreviewSmUrl } from '@/shared/lib/mediaPreviewUrls';
 
 /**
  * Для квадратных чипов на главной: превью `sm` вместо полного оригинала — меньше трафик,

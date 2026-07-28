@@ -21,6 +21,7 @@ outputs.
    below cite path:line, which is unaffected.)
 
 ### Buckets
+
 - **SCOPE** — code reads/writes it in a PATIENT, CLINICAL, or DOCTOR/practice context (per-patient
   or per-practice data). Needs org/tenant scoping.
 - **GLOBAL** — used only by auth/login/session/identity/channel-binding code (one row per human).
@@ -28,9 +29,10 @@ outputs.
 - **LEGACY** — Rubitime mirror path (`patient_bookings` / `appointment_records`), being deprecated.
 
 ### Single-tenant-today reality (load-bearing for the whole exercise)
+
 `select count(*)` → `be_organizations = 1`, `branches = 2`, `be_branches = 2`. The product runs as a
-single clinic today; org/tenant columns are mostly absent. So "SCOPE" here = *the per-clinic /
-per-patient data that WOULD have to carry an org_id when this goes multi-tenant*, judged by which
+single clinic today; org/tenant columns are mostly absent. So "SCOPE" here = _the per-clinic /
+per-patient data that WOULD have to carry an org_id when this goes multi-tenant_, judged by which
 clinical/doctor/patient code path owns the table.
 
 ---
@@ -42,8 +44,10 @@ clinical/doctor/patient code reads or writes it. The 16 DB-only SCOPE tables (ze
 branch) are listed in their own section further down; together = 140. Flat list is authoritative.
 
 ### Booking engine — canonical appointments/scheduling/availability (per-practice + per-patient)
+
 Canonical write path lives in `modules/patient-booking` + `modules/booking-*`; doctor calendar reads
 in `app/app/doctor` + `modules/booking-calendar`; patient timeline reads in `modules/client-history`.
+
 - `be_appointments` — `modules/booking-calendar`, `app/app/doctor`; canonical appt write path (`modules/patient-booking/patient-booking.md`).
 - `be_appointment_events` — `infra/repos/pgBookingEngine.ts`; appt event-sourcing.
 - `be_appointment_history_events` — `infra/repos/pgBookingEngine.ts`; appt history store.
@@ -70,6 +74,7 @@ in `app/app/doctor` + `modules/booking-calendar`; patient timeline reads in `mod
 - `be_patient_booking_profiles` — `modules/client-history`; per-patient booking profile.
 
 ### Booking engine — payments / packages / products (per-practice catalog + per-patient ledger)
+
 - `be_payments` — `infra/repos/pgPayments.ts`.
 - `be_payment_intents` — `modules/patient-booking`.
 - `be_payment_provider_events` — `infra/repos/pgPayments.ts`; per-payment provider events.
@@ -89,6 +94,7 @@ in `app/app/doctor` + `modules/booking-calendar`; patient timeline reads in `mod
 - `be_branches` — `infra/repos/pgBookingEngine.ts`; **per-org branch** (borderline tenant anchor).
 
 ### Legacy booking catalog mirror (still read by patient/doctor booking UI)
+
 - `branches` — `modules/booking-calendar`, `modules/patient-booking`, `app/app/doctor`; practice branch (tenant anchor; borderline).
 - `booking_branches` — `modules/booking-catalog`.
 - `booking_cities` — `modules/patient-booking`, `modules/help-content`.
@@ -97,6 +103,7 @@ in `app/app/doctor` + `modules/booking-calendar`; patient timeline reads in `mod
 - `booking_branch_services` — `modules/patient-booking`.
 
 ### Clinical: LFK (exercise therapy) — practice catalog + per-patient assignment
+
 - `lfk_exercises` — `modules/lfk-exercises`, `app/app/doctor`; exercise catalog.
 - `lfk_exercise_media` — `modules/lfk-templates`, `app/app/doctor`.
 - `lfk_exercise_regions` — `modules/lfk-exercises`.
@@ -108,6 +115,7 @@ in `app/app/doctor` + `modules/booking-calendar`; patient timeline reads in `mod
 - `lfk_sessions` — `infra/repos/pgLfkDiary.ts`; per-patient session log.
 
 ### Clinical: tests / recommendations / references (catalog + per-patient results)
+
 - `tests` — `modules/tests`, `modules/treatment-program`, `app/app/doctor`; clinical test catalog.
 - `test_sets` — `modules/treatment-program`, `app/app/doctor`.
 - `test_set_items` — `modules/treatment-program`.
@@ -121,6 +129,7 @@ in `app/app/doctor` + `modules/booking-calendar`; patient timeline reads in `mod
 - `reference_items` — `modules/patient-mood`, `modules/recommendations`, `app/app/doctor`; clinical reference items (e.g. symptom_type).
 
 ### Clinical: treatment program (per-patient program + practice templates)
+
 - `treatment_program_templates` — `infra/repos/pgTreatmentProgram.ts`; practice template.
 - `treatment_program_template_stages` — `infra/repos`.
 - `treatment_program_template_stage_groups` — `infra/repos`.
@@ -134,6 +143,7 @@ in `app/app/doctor` + `modules/booking-calendar`; patient timeline reads in `mod
 - `program_item_discussion_reads` — `infra/repos/pgProgramItemDiscussion.ts`.
 
 ### Clinical: diaries / symptoms / mood (per-patient)
+
 - `symptom_entries` — `modules/diaries`, `modules/patient-mood`, `modules/patient-practice`; per-patient symptom/wellbeing entries.
 - `symptom_trackings` — `modules/diaries`, `modules/doctor-clients`, `modules/patient-mood`; per-patient tracking.
 - `patient_diary_day_snapshots` — `app/app/patient`, `infra/repos/pgPatientDiarySnapshots.ts`; per-patient diary.
@@ -142,6 +152,7 @@ in `app/app/doctor` + `modules/booking-calendar`; patient timeline reads in `mod
 - `patient_daily_warmup_video_views` — `modules/patient-home`, `app/api/patient`; per-patient view log.
 
 ### Doctor / clinical notes, support, tasks (per-patient, doctor-facing)
+
 - `doctor_notes` — `await deps.doctorNotes.listForUser(userId)` (`apps/webapp/src/app/api/doctor/clients/[userId]/notes/route.ts:37`); per-patient clinical notes.
 - `doctor_patient_support` — `modules/doctor-clients`, `app/app/doctor`; per-patient support flag.
 - `comments` — `modules/comments`, `modules/doctor-client-card`; entity comments on clinical targets (`COMMENT_TARGET_TYPES = exercise|lfk_complex|test|test_set|…`, `modules/comments/types.ts:2`).
@@ -149,6 +160,7 @@ in `app/app/doctor` + `modules/booking-calendar`; patient timeline reads in `mod
 - `motivational_quotes` — `modules/doctor-motivation-quotes`, `modules/patient-home`; doctor-authored patient-facing content.
 
 ### Messaging / support / broadcasts (per-patient + per-practice audience)
+
 - `support_conversations` — `modules/messaging`, `app/app/doctor`; per-patient support thread.
 - `support_conversation_messages` — `modules/messaging`.
 - `support_questions` — `infra/repos/pgSupportCommunication.ts`; per-patient questions.
@@ -158,12 +170,14 @@ in `app/app/doctor` + `modules/booking-calendar`; patient timeline reads in `mod
 - `broadcast_audit_recipients` — `modules/doctor-broadcasts`, `modules/patient-broadcasts`; per-broadcast recipients.
 
 ### Online intake (per-patient requests)
+
 - `online_intake_requests` — `INSERT INTO online_intake_requests (id, user_id, …)` (`apps/webapp/src/infra/repos/pgOnlineIntake.ts:152`); `app/app/doctor`.
 - `online_intake_answers` — `infra/repos/pgOnlineIntake.ts`.
 - `online_intake_attachments` — `infra/repos/pgOnlineIntake.ts`.
 - `online_intake_status_history` — `infra/repos/pgOnlineIntake.ts`.
 
 ### Content / courses / catalog (practice-authored, patient-consumed)
+
 - `content_pages` — `modules/content-catalog`, `modules/courses`, `modules/lessons`, `modules/patient-home`, `app/app/doctor`+`patient`.
 - `content_sections` — `modules/content-sections`, `modules/menu`, `modules/patient-home`, `app/api/patient`.
 - `content_section_slug_history` — `infra/repos/pgContentSections.ts`.
@@ -175,12 +189,14 @@ in `app/app/doctor` + `modules/booking-calendar`; patient timeline reads in `mod
 - `content_access_grants_webapp` — `modules/products`; per-patient content access entitlement.
 
 ### Media (practice library + per-patient uploads)
+
 - `media_files` — `modules/media`, `modules/lfk-exercises`, `modules/online-intake`, `app/app/doctor`, media-worker; clinical/practice media + patient intake uploads.
 - `media_folders` — `modules/media`; per-client media folders (`pgClientMediaFolders.ts`).
 - `media_upload_sessions` — `infra/repos/mediaUploadSessionsRepo.ts`.
 - `media_transcode_jobs` — `app-layer/media`; per-file transcode (practice content pipeline).
 
 ### Reminders (per-patient product reminders — source of truth in webapp)
+
 - `reminder_rules` — `modules/reminders`; per-patient rules, "источник истины" (`modules/reminders/reminders.md`).
 - `reminder_journal` — `modules/reminders`, `app/app/patient`; per-patient reminder action journal.
 - `webapp_reminder_occurrences` — `modules/reminders`; per-patient occurrences.
@@ -190,11 +206,13 @@ in `app/app/doctor` + `modules/booking-calendar`; patient timeline reads in `mod
 - `user_channel_preferences` — `modules/patient-notifications`, `modules/doctor-broadcasts`, `app/app/doctor`; per-patient channel prefs.
 
 ### Misc per-patient
+
 - `patient_merge_candidates` — `modules/patient-booking`; per-patient merge candidate.
 - `platform_user_contacts` — `modules/patient-booking` writes contacts (`canonicalCreate.ts`); `app/app/doctor` reads supplementary contacts; per-patient contact set.
 - `user_subscriptions_webapp` — `infra/repos`; per-patient subscription state.
 
 ### Platform user identity read AS patient roster (borderline → SCOPE)
+
 - `platform_users` — read by `modules/doctor-clients` as the **patient roster** (`role='client'`, archive, profile fields for the client card; `clients/DoctorClientPrimaryContacts.tsx`, `AdminClientProfileEditPanel.tsx`), plus patient modules, analytics. Identity anchor AND per-patient profile. See borderline.
 
 ---
@@ -267,7 +285,7 @@ Rubitime mirror path, explicitly compat-only / being deprecated.
 
 - `patient_bookings` — `modules/patient-booking`; canonical path now writes `be_appointments`, this is
   the legacy mirror kept for compat (`patient-booking.md`: "канонический write-путь (`be_appointments`)
-  + совместимость с [patient_bookings]"). `bookingMirrorDesyncMatrix.test.ts` references `DELETE FROM public.[patient_bookings]`.
+  - совместимость с [patient_bookings]"). `bookingMirrorDesyncMatrix.test.ts` references `DELETE FROM public.[patient_bookings]`.
 - `appointment_records` — Rubitime projection (`shared/lib/scheduleRecordProvenance.ts`: "записей из
   проекции Rubitime … compat-sync"; `modules/appointments/service.ts` marks provenance for rows from
   `appointment_records`). Deprecated alongside the Rubitime path.
@@ -299,17 +317,18 @@ The **authoritative classification is the flat list below** (every one of the 18
 (`awk 'NF==2{print $2}' | sort | uniq -c`), not by hand-counting prose. The grouped prose sections
 above are explanatory; where prose and the flat list ever disagree, **the flat list wins.**
 
-| Bucket    | Count |
-|-----------|------:|
-| SCOPE     |   140 |
-| GLOBAL    |    25 |
-| TELEMETRY |    18 |
-| LEGACY    |     2 |
+| Bucket    |   Count |
+| --------- | ------: |
+| SCOPE     |     140 |
+| GLOBAL    |      25 |
+| TELEMETRY |      18 |
+| LEGACY    |       2 |
 | **TOTAL** | **185** |
 
 **Completeness gate: 140 + 25 + 18 + 2 = 185 = total base-table count. Nothing unclassified.** ✔
 
 Notes on how the buckets are constituted:
+
 - **SCOPE 140** = 124 tables with clinical/doctor/patient code references **+** 16 DB-only tables
   (the "zero code references" list above, classified by domain/name and flagged borderline).
 - **GLOBAL 25** includes `admin_audit_log` (admin/identity action log) and the two migration ledgers
@@ -519,12 +538,12 @@ webapp_schema_migrations                 GLOBAL
 
 ### Final audited counts (tallied from the flat list above — authoritative)
 
-| Bucket    | Count |
-|-----------|------:|
-| SCOPE     |   140 |
-| GLOBAL    |    25 |
-| TELEMETRY |    18 |
-| LEGACY    |     2 |
+| Bucket    |   Count |
+| --------- | ------: |
+| SCOPE     |     140 |
+| GLOBAL    |      25 |
+| TELEMETRY |      18 |
+| LEGACY    |       2 |
 | **TOTAL** | **185** |
 
 - LEGACY (2): `appointment_records`, `patient_bookings`.
@@ -549,13 +568,13 @@ webapp_schema_migrations                 GLOBAL
 
 ## BORDERLINE (need human decision)
 
-1. **`platform_users`** — THE identity anchor (one row per human) *and* read by doctor-clients as the
+1. **`platform_users`** — THE identity anchor (one row per human) _and_ read by doctor-clients as the
    patient roster (profile, archive, role). I bucketed **SCOPE** because doctor/patient code reads
    per-patient profile from it, but in a multi-tenant model this is the membership/identity table; the
    org_id likely lives on it or on a separate `org_memberships` table. **Decide:** scope-by-membership
    vs treat as global identity with a join table.
-2. **`be_organizations` / `branches` / `be_branches`** — the tenant/org/branch tables *themselves*.
-   They define the tenant; whether they "carry" an org_id or *are* the org dimension is a modeling
+2. **`be_organizations` / `branches` / `be_branches`** — the tenant/org/branch tables _themselves_.
+   They define the tenant; whether they "carry" an org_id or _are_ the org dimension is a modeling
    choice. Single-clinic today (`orgs=1`, `branches=2`).
 3. **`user_channel_bindings`** — bucketed GLOBAL (channel→human binding, auth), but doctor-clients &
    doctor-broadcasts read it per-patient (binding dates, active-messenger filter). Straddles
@@ -572,7 +591,7 @@ webapp_schema_migrations                 GLOBAL
    plumbing), but payloads are per-patient messages. Infra-by-mechanism, patient-by-content.
 8. **`mailing_logs_webapp` / `user_subscriptions_webapp`** — webapp-side mirrors keyed by
    `integrator_user_id`; per-human. GLOBAL vs TELEMETRY (logs) vs SCOPE (subscription state).
-9. **The 16 zero-code-reference tables** (clinical_*, patient_files/payment/comorbidity,
+9. **The 16 zero-code-reference tables** (clinical\_\*, patient_files/payment/comorbidity,
    be_appointment_no_shows/schedule_templates/working_days) — classified SCOPE by name only; **no
    code evidence exists on this branch.** Confirm they are real upcoming clinical/patient features
    (then SCOPE) vs abandoned/idle (then drop).

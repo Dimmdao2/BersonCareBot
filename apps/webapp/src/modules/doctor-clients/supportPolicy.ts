@@ -1,4 +1,4 @@
-import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
+import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 
 /** Per-patient row from `doctor_patient_support` (null row = defaults only). */
 export type ClientSupportProfile = {
@@ -29,7 +29,8 @@ export function resolvePatientProgramInteractionPolicy(params: {
   profile: ClientSupportProfile | null;
   defaultsWithoutSupport: DoctorSupportWithoutSupportDefaults;
 }): PatientProgramInteractionPolicy {
-  const organizationId = params.profile?.organizationId ?? getCurrentDbPrincipalOrganizationId() ?? null;
+  const organizationId =
+    params.profile?.organizationId ?? getCurrentDbPrincipalOrganizationId() ?? null;
   const onSupport = params.profile?.onSupport ?? false;
   if (onSupport) {
     return {
@@ -57,7 +58,7 @@ export function resolvePatientProgramInteractionPolicy(params: {
 export function parseDoctorSupportDefaultEnabled(valueJson: unknown): boolean {
   return (
     valueJson !== null &&
-    typeof valueJson === "object" &&
+    typeof valueJson === 'object' &&
     (valueJson as Record<string, unknown>).value === true
   );
 }

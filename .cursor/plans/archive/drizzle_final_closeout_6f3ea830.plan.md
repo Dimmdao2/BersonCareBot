@@ -1,6 +1,6 @@
 ---
 name: Drizzle Final Closeout
-overview: "Полный план закрытия хвостов INTEGRATOR_DRIZZLE_MIGRATION: перевести всё полезное на Drizzle/`execute(sql)` через обёртки, а неизбежные зоны оставить на `pg` осознанно и формально зафиксировать как постоянные исключения."
+overview: 'Полный план закрытия хвостов INTEGRATOR_DRIZZLE_MIGRATION: перевести всё полезное на Drizzle/`execute(sql)` через обёртки, а неизбежные зоны оставить на `pg` осознанно и формально зафиксировать как постоянные исключения.'
 status: completed
 todos:
   - id: w3-freeze-baseline
@@ -10,13 +10,13 @@ todos:
     content: Закрыть integrator P1+ хвосты (repos/config/rubitime throttle row/projectionHealthCore policy) без прямого DbPort.query
     status: completed
   - id: w3-media-worker-ix
-    content: "Закрыть phase IX media-worker: processTranscodeJob/processProgramSubmissionTranscode/watermark/pipeline, claim оставить осознанно"
+    content: 'Закрыть phase IX media-worker: processTranscodeJob/processProgramSubmissionTranscode/watermark/pipeline, claim оставить осознанно'
     status: completed
   - id: w3-webapp-x1-x2
-    content: "Webapp batch X1-X2: health/media app-layer + auth legacy allowlist shrink"
+    content: 'Webapp batch X1-X2: health/media app-layer + auth legacy allowlist shrink'
     status: completed
   - id: w3-webapp-x3-x5
-    content: "Webapp batch X3-X5: intake/purge/identity + booking/doctor/catalog + comms/tests/recommendations/materials"
+    content: 'Webapp batch X3-X5: intake/purge/identity + booking/doctor/catalog + comms/tests/recommendations/materials'
     status: completed
   - id: w3-permanent-zones-adr
     content: Оформить permanent pg/SQL зоны (platform-merge, booking-rubitime-sync, migrate/scripts, claim/advisory) в ADR-style в LOG+RAW_SQL
@@ -35,10 +35,12 @@ isProject: false
 ## Цель
 
 Закрыть инициативу «раз и навсегда» по практическому принципу:
+
 - всё, что реально и безопасно, переводим с прямого `pool.query`/`client.query`/`db.query` на Drizzle-слой;
 - всё, где `pg` остаётся архитектурно оправданным, фиксируем как постоянное исключение с явным обоснованием, тестами и guardrails.
 
 Канон источников:
+
 - [`docs/INTEGRATOR_DRIZZLE_MIGRATION/DRIZZLE_TRANSITION_PLAN.md`](docs/INTEGRATOR_DRIZZLE_MIGRATION/DRIZZLE_TRANSITION_PLAN.md)
 - [`docs/INTEGRATOR_DRIZZLE_MIGRATION/RAW_SQL_INVENTORY.md`](docs/INTEGRATOR_DRIZZLE_MIGRATION/RAW_SQL_INVENTORY.md)
 - [`docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md`](docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md)
@@ -47,6 +49,7 @@ isProject: false
 ## Принцип классификации (обязательный)
 
 Зафиксировать 3 класса и дальше не смешивать их:
+
 - **Class A (переводим):** прямой `pg` API в прикладном коде (`pool.query`, `client.query`, `DbPort.query`) там, где нет lock/claim-паттернов.
 - **Class B (оставляем SQL, но через Drizzle-обёртку):** сложные SQL-path (`SKIP LOCKED`, крупные CTE, динамика) через `runIntegratorSql`/`runWebappSql`/`execute(sql)`.
 - **Class C (permanent pg):** мигратор, one-off/backfill/repair scripts, низкоуровневый tx transport, отдельные критичные merge/queue ядра по ADR.
@@ -70,12 +73,14 @@ flowchart TD
 - Явно пометить, что Wave 2 уже закрыт, а этот план — закрытие фаз IX–X и backlog P1+.
 
 Проверки этапа:
+
 - `rg` по `apps/integrator/src`, `apps/webapp/src`, `apps/media-worker/src`, `packages/*` на raw pg-вызовы.
 - Сверка фактов с [`DRIZZLE_TRANSITION_PLAN.md`](docs/INTEGRATOR_DRIZZLE_MIGRATION/DRIZZLE_TRANSITION_PLAN.md) и [`LOG.md`](docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md).
 
 ## Этап 1. Integrator backlog P1+ (Class A -> B/A)
 
 Закрыть хвосты из P1+ (убрать прямой `DbPort.query`):
+
 - [`apps/integrator/src/infra/db/repos/platformUserDeliveryPhone.ts`](apps/integrator/src/infra/db/repos/platformUserDeliveryPhone.ts)
 - [`apps/integrator/src/infra/db/repos/patientHomeMorningPing.ts`](apps/integrator/src/infra/db/repos/patientHomeMorningPing.ts)
 - [`apps/integrator/src/infra/db/repos/idempotencyKeys.ts`](apps/integrator/src/infra/db/repos/idempotencyKeys.ts)
@@ -93,10 +98,12 @@ flowchart TD
 - [`apps/integrator/src/config/appTimezone.ts`](apps/integrator/src/config/appTimezone.ts)
 
 Отдельно обработать:
+
 - [`apps/integrator/src/integrations/rubitime/rubitimeApiThrottle.ts`](apps/integrator/src/integrations/rubitime/rubitimeApiThrottle.ts): lock-семантика из P3 сохраняется; переводим только row-read/update путь на единый SQL executor.
 - [`apps/integrator/src/infra/db/repos/projectionHealthCore.ts`](apps/integrator/src/infra/db/repos/projectionHealthCore.ts): либо перевод в builder, либо формальное закрепление как Class B (единый SQL core) с явной записью в ADR.
 
 Проверки этапа:
+
 - `pnpm --dir apps/integrator run typecheck`
 - `pnpm --dir apps/integrator run test`
 - targeted unit на каждую мигрированную repo/config зону.
@@ -104,15 +111,18 @@ flowchart TD
 ## Этап 2. Media-worker phase IX (Class A -> B)
 
 Закрыть phase IX из transition plan:
+
 - [`apps/media-worker/src/processTranscodeJob.ts`](apps/media-worker/src/processTranscodeJob.ts)
 - [`apps/media-worker/src/processProgramSubmissionTranscode.ts`](apps/media-worker/src/processProgramSubmissionTranscode.ts)
 - [`apps/media-worker/src/watermarkEnabled.ts`](apps/media-worker/src/watermarkEnabled.ts)
 - [`apps/media-worker/src/pipelineEnabled.ts`](apps/media-worker/src/pipelineEnabled.ts)
 
 Сохранить как осознанный Class C/B:
+
 - [`apps/media-worker/src/jobs/claim.ts`](apps/media-worker/src/jobs/claim.ts) с `FOR UPDATE SKIP LOCKED` и текущими тестами.
 
 Проверки этапа:
+
 - `pnpm --dir apps/media-worker run typecheck`
 - `pnpm --dir apps/media-worker run test`
 - дополнительные tests на статусные переходы transcode job и race-cases.
@@ -152,6 +162,7 @@ flowchart TD
   - [`apps/webapp/src/infra/repos/pgMaterialRating.ts`](apps/webapp/src/infra/repos/pgMaterialRating.ts)
 
 Проверки каждого батча:
+
 - `pnpm --dir apps/webapp run typecheck`
 - targeted vitest по зоне
 - `rg` по батчу на остатки `pool.query|client.query`.
@@ -159,6 +170,7 @@ flowchart TD
 ## Этап 4. Permanent pg/SQL (осознанная фиксация)
 
 Формально зафиксировать как постоянные исключения:
+
 - **platform-merge (permanent):**
   - [`packages/platform-merge/src/pgPlatformUserMerge.ts`](packages/platform-merge/src/pgPlatformUserMerge.ts)
   - [`packages/platform-merge/src/messengerPhonePublicBind.ts`](packages/platform-merge/src/messengerPhonePublicBind.ts)
@@ -175,6 +187,7 @@ flowchart TD
 ## Этап 5. Неблокеры и операционное закрытие
 
 Закрыть явный non-blocker:
+
 - staging smoke из [`docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md`](docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md): multipart upload -> transcode claim (с реальным S3/ffmpeg).
 
 Если staging недоступен, фиксировать `cancelled` с причиной и отдельным ops ticket в логе.

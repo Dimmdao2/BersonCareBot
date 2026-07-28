@@ -1,6 +1,15 @@
-import type { OnlineIntakePort, OnlineIntakeService, IntakeNotificationPort, ListIntakeQuery } from "./ports";
-import type { ChangeIntakeStatusInput, CreateLfkIntakeInput, CreateNutritionIntakeInput } from "./types";
-import { MAX_ACTIVE_INTAKE_PER_USER, VALID_STATUS_TRANSITIONS } from "./types";
+import type {
+  OnlineIntakePort,
+  OnlineIntakeService,
+  IntakeNotificationPort,
+  ListIntakeQuery,
+} from './ports';
+import type {
+  ChangeIntakeStatusInput,
+  CreateLfkIntakeInput,
+  CreateNutritionIntakeInput,
+} from './types';
+import { MAX_ACTIVE_INTAKE_PER_USER, VALID_STATUS_TRANSITIONS } from './types';
 
 function dedupeStringsPreserveOrder(arr: string[] | undefined): string[] | undefined {
   if (!arr?.length) return arr;
@@ -16,25 +25,25 @@ function dedupeStringsPreserveOrder(arr: string[] | undefined): string[] | undef
 
 function validateLfkInput(input: CreateLfkIntakeInput): void {
   if (!input.description || input.description.trim().length < 20) {
-    throw Object.assign(new Error("description_too_short"), { code: "VALIDATION_ERROR" });
+    throw Object.assign(new Error('description_too_short'), { code: 'VALIDATION_ERROR' });
   }
   if (input.description.length > 5000) {
-    throw Object.assign(new Error("description_too_long"), { code: "VALIDATION_ERROR" });
+    throw Object.assign(new Error('description_too_long'), { code: 'VALIDATION_ERROR' });
   }
   if (input.attachmentUrls && input.attachmentUrls.length > 5) {
-    throw Object.assign(new Error("too_many_attachment_urls"), { code: "VALIDATION_ERROR" });
+    throw Object.assign(new Error('too_many_attachment_urls'), { code: 'VALIDATION_ERROR' });
   }
   if (input.attachmentFileIds && input.attachmentFileIds.length > 10) {
-    throw Object.assign(new Error("too_many_attachment_files"), { code: "VALIDATION_ERROR" });
+    throw Object.assign(new Error('too_many_attachment_files'), { code: 'VALIDATION_ERROR' });
   }
 }
 
 function validateNutritionInput(input: CreateNutritionIntakeInput): void {
   if (!input.description || input.description.trim().length < 20) {
-    throw Object.assign(new Error("description_too_short"), { code: "VALIDATION_ERROR" });
+    throw Object.assign(new Error('description_too_short'), { code: 'VALIDATION_ERROR' });
   }
   if (input.description.length > 5000) {
-    throw Object.assign(new Error("description_too_long"), { code: "VALIDATION_ERROR" });
+    throw Object.assign(new Error('description_too_long'), { code: 'VALIDATION_ERROR' });
   }
 }
 
@@ -44,10 +53,10 @@ export function createOnlineIntakeService(deps: {
 }): OnlineIntakeService {
   const { intakePort, notificationPort } = deps;
 
-  async function checkRateLimit(userId: string, type: "lfk" | "nutrition"): Promise<void> {
+  async function checkRateLimit(userId: string, type: 'lfk' | 'nutrition'): Promise<void> {
     const count = await intakePort.countActiveByUser(userId, type);
     if (count >= MAX_ACTIVE_INTAKE_PER_USER) {
-      throw Object.assign(new Error("rate_limit_exceeded"), { code: "RATE_LIMIT" });
+      throw Object.assign(new Error('rate_limit_exceeded'), { code: 'RATE_LIMIT' });
     }
   }
 
@@ -59,16 +68,16 @@ export function createOnlineIntakeService(deps: {
         attachmentFileIds: dedupeStringsPreserveOrder(input.attachmentFileIds),
       };
       validateLfkInput(normalized);
-      await checkRateLimit(normalized.userId, "lfk");
+      await checkRateLimit(normalized.userId, 'lfk');
       const request = await intakePort.createLfkRequest(normalized);
       if (notificationPort) {
         await notificationPort
           .notifyNewIntakeRequest({
             requestId: request.id,
-            type: "lfk",
+            type: 'lfk',
             patientName: input.patientName,
             patientPhone: input.patientPhone,
-            summary: request.summary ?? "",
+            summary: request.summary ?? '',
           })
           .catch(() => {
             // notifications are best-effort
@@ -79,16 +88,16 @@ export function createOnlineIntakeService(deps: {
 
     async submitNutrition(input) {
       validateNutritionInput(input);
-      await checkRateLimit(input.userId, "nutrition");
+      await checkRateLimit(input.userId, 'nutrition');
       const request = await intakePort.createNutritionRequest(input);
       if (notificationPort) {
         await notificationPort
           .notifyNewIntakeRequest({
             requestId: request.id,
-            type: "nutrition",
+            type: 'nutrition',
             patientName: input.patientName,
             patientPhone: input.patientPhone,
-            summary: request.summary ?? "",
+            summary: request.summary ?? '',
           })
           .catch(() => {
             // notifications are best-effort
@@ -112,11 +121,13 @@ export function createOnlineIntakeService(deps: {
     async changeStatus(input: ChangeIntakeStatusInput) {
       const existing = await intakePort.getById(input.requestId);
       if (!existing) {
-        throw Object.assign(new Error("not_found"), { code: "NOT_FOUND" });
+        throw Object.assign(new Error('not_found'), { code: 'NOT_FOUND' });
       }
       const allowed = VALID_STATUS_TRANSITIONS[existing.status];
       if (!allowed.includes(input.toStatus)) {
-        throw Object.assign(new Error("invalid_status_transition"), { code: "INVALID_STATUS_TRANSITION" });
+        throw Object.assign(new Error('invalid_status_transition'), {
+          code: 'INVALID_STATUS_TRANSITION',
+        });
       }
       return intakePort.changeStatus(input);
     },

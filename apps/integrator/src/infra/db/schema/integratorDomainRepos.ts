@@ -43,8 +43,12 @@ export const userReminderRules = pgTable(
     quietHoursEndMinute: integer('quiet_hours_end_minute'),
     notificationTopicCode: text('notification_topic_code'),
     organizationId: uuid('organization_id'),
-    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
   },
   (table) => [
     index('user_reminder_rules_enabled_idx').using(
@@ -70,8 +74,12 @@ export const userReminderOccurrences = pgTable(
     deliveryJobId: text('delivery_job_id'),
     errorCode: text('error_code'),
     organizationId: uuid('organization_id'),
-    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
   },
   (table) => [
     unique('user_reminder_occurrences_occurrence_key_key').on(table.occurrenceKey),
@@ -93,7 +101,9 @@ export const userReminderDeliveryLogs = pgTable(
     errorCode: text('error_code'),
     payloadJson: jsonb('payload_json').default({}).notNull(),
     organizationId: uuid('organization_id'),
-    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
   },
   (table) => [
     index('user_reminder_delivery_logs_occurrence_idx').using(
@@ -116,7 +126,9 @@ export const contentAccessGrants = pgTable(
     revokedAt: timestamp('revoked_at', { withTimezone: true, mode: 'string' }),
     metaJson: jsonb('meta_json').default({}).notNull(),
     organizationId: uuid('organization_id'),
-    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
   },
   (table) => [
     index('content_access_grants_user_expires_idx').using(
@@ -138,8 +150,12 @@ export const appointmentRecords = pgTable(
     status: text().notNull(),
     payloadJson: jsonb('payload_json').default({}).notNull(),
     lastEvent: text('last_event').default('').notNull(),
-    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
     branchId: uuid('branch_id'),
     deletedAt: timestamp('deleted_at', { withTimezone: true, mode: 'string' }),
   },

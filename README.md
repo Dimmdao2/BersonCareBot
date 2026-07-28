@@ -10,12 +10,12 @@
 
 ## Состав монорепо
 
-| Путь | Назначение |
-|------|------------|
-| [`apps/webapp`](apps/webapp) | Next.js: patient/doctor UI, API routes, Drizzle-миграции схемы `public` |
-| [`apps/integrator`](apps/integrator) | Fastify API, webhooks, worker, scheduler; схема `integrator` |
-| [`apps/media-worker`](apps/media-worker) | FFmpeg/HLS-транскод медиатеки |
-| [`packages/*`](packages) | Shared: `operator-db-schema`, `db-principal`, `error-tracking`, `platform-merge` |
+| Путь                                     | Назначение                                                                       |
+| ---------------------------------------- | -------------------------------------------------------------------------------- |
+| [`apps/webapp`](apps/webapp)             | Next.js: patient/doctor UI, API routes, Drizzle-миграции схемы `public`          |
+| [`apps/integrator`](apps/integrator)     | Fastify API, webhooks, worker, scheduler; схема `integrator`                     |
+| [`apps/media-worker`](apps/media-worker) | FFmpeg/HLS-транскод медиатеки                                                    |
+| [`packages/*`](packages)                 | Shared: `operator-db-schema`, `db-principal`, `error-tracking`, `platform-merge` |
 
 ## Локальный запуск
 
@@ -72,29 +72,29 @@ pnpm run build && pnpm run build:webapp
 
 ## Основные скрипты
 
-| Команда | Назначение |
-|---------|------------|
-| `pnpm run dev` | Integrator + webapp в dev |
-| `pnpm run webapp:dev` | Только webapp (порт 5200, webpack) |
-| `pnpm run dev:turbo` | Только webapp (Turbopack, быстрый HMR) |
-| `pnpm --dir apps/webapp run dev:visual` | Webapp + file polling (VM/Docker) |
-| `pnpm run dev:stop` | Остановить dev-порты 5200/4200 |
-| `pnpm run dev:integrator` | Только integrator API |
-| `pnpm run worker:dev` / `scheduler:dev` | Фоновые процессы integrator |
-| `pnpm run build` | Сборка integrator + packages |
-| `pnpm run build:webapp` | Production-сборка Next.js |
-| `pnpm start` / `pnpm run webapp:start` | Prod-запуск из артефактов |
-| `pnpm run worker:start` / `scheduler:start` | Prod worker / scheduler |
-| `pnpm run migrate` | Обе миграции (integrator + webapp Drizzle) |
-| `pnpm run db:migrate` | Только integrator (dev, `tsx`) |
-| `pnpm run migrate:webapp` | Только webapp Drizzle |
-| `pnpm run typecheck` | Typecheck всех workspace-пакетов |
-| `pnpm run lint` | ESLint (integrator + webapp) |
-| `pnpm test` | Тесты integrator |
-| `pnpm test:webapp` | Тесты webapp (fast + inprocess) |
-| `pnpm test:media-worker` | Тесты media-worker |
-| `pnpm run ci` / `pnpm check` | Полный пайплайн CI |
-| `pnpm run ci:resume:after-*` | Догон хвоста CI после падения шага |
+| Команда                                     | Назначение                                 |
+| ------------------------------------------- | ------------------------------------------ |
+| `pnpm run dev`                              | Integrator + webapp в dev                  |
+| `pnpm run webapp:dev`                       | Только webapp (порт 5200, webpack)         |
+| `pnpm run dev:turbo`                        | Только webapp (Turbopack, быстрый HMR)     |
+| `pnpm --dir apps/webapp run dev:visual`     | Webapp + file polling (VM/Docker)          |
+| `pnpm run dev:stop`                         | Остановить dev-порты 5200/4200             |
+| `pnpm run dev:integrator`                   | Только integrator API                      |
+| `pnpm run worker:dev` / `scheduler:dev`     | Фоновые процессы integrator                |
+| `pnpm run build`                            | Сборка integrator + packages               |
+| `pnpm run build:webapp`                     | Production-сборка Next.js                  |
+| `pnpm start` / `pnpm run webapp:start`      | Prod-запуск из артефактов                  |
+| `pnpm run worker:start` / `scheduler:start` | Prod worker / scheduler                    |
+| `pnpm run migrate`                          | Обе миграции (integrator + webapp Drizzle) |
+| `pnpm run db:migrate`                       | Только integrator (dev, `tsx`)             |
+| `pnpm run migrate:webapp`                   | Только webapp Drizzle                      |
+| `pnpm run typecheck`                        | Typecheck всех workspace-пакетов           |
+| `pnpm run lint`                             | ESLint (integrator + webapp)               |
+| `pnpm test`                                 | Тесты integrator                           |
+| `pnpm test:webapp`                          | Тесты webapp (fast + inprocess)            |
+| `pnpm test:media-worker`                    | Тесты media-worker                         |
+| `pnpm run ci` / `pnpm check`                | Полный пайплайн CI                         |
+| `pnpm run ci:resume:after-*`                | Догон хвоста CI после падения шага         |
 
 ## HTTP-поверхности
 
@@ -102,7 +102,7 @@ pnpm run build && pnpm run build:webapp
 
 - `GET /health`
 - `POST /webhook/telegram`
-**Webapp** (dev `:5200`, prod `https://bersoncare.ru`): основной продуктовый API и UI под `/app/*`, публичная запись `/book/*`, реестр маршрутов — [`apps/webapp/src/app/api/api.md`](apps/webapp/src/app/api/api.md).
+  **Webapp** (dev `:5200`, prod `https://bersoncare.ru`): основной продуктовый API и UI под `/app/*`, публичная запись `/book/*`, реестр маршрутов — [`apps/webapp/src/app/api/api.md`](apps/webapp/src/app/api/api.md).
 
 ## Деплой
 

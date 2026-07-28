@@ -1,11 +1,11 @@
-import { recordAuthLogin } from "@/app-layer/product-analytics/recordAuthLogin";
-import { getAppBaseUrl } from "@/modules/system-settings/integrationRuntime";
-import { setSessionFromUser } from "@/modules/auth/service";
-import { getRedirectPathForRole } from "@/modules/auth/redirectPolicy";
-import { reconcileDbRoleWithEnvRole, resolveRoleAsync } from "@/modules/auth/envRole";
-import { pgUserByPhonePort } from "@/infra/repos/pgUserByPhone";
-import { enterStaffSecuritySelfPrincipal } from "@/app-layer/principal/staffSecuritySelfPrincipal";
-import { isPlatformUserUuid } from "@/shared/platform-user/isPlatformUserUuid";
+import { recordAuthLogin } from '@/app-layer/product-analytics/recordAuthLogin';
+import { getAppBaseUrl } from '@/modules/system-settings/integrationRuntime';
+import { setSessionFromUser } from '@/modules/auth/service';
+import { getRedirectPathForRole } from '@/modules/auth/redirectPolicy';
+import { reconcileDbRoleWithEnvRole, resolveRoleAsync } from '@/modules/auth/envRole';
+import { pgUserByPhonePort } from '@/infra/repos/pgUserByPhone';
+import { enterStaffSecuritySelfPrincipal } from '@/app-layer/principal/staffSecuritySelfPrincipal';
+import { isPlatformUserUuid } from '@/shared/platform-user/isPlatformUserUuid';
 
 export function oauthWebLoginErrorRedirect(reason: string): string {
   return `/app?oauth=error&reason=${encodeURIComponent(reason)}`;
@@ -23,15 +23,15 @@ export async function completeOAuthWebLoginRedirectUrls(opts: {
   let sessionUser;
   try {
     if (isPlatformUserUuid(opts.userId)) {
-      enterStaffSecuritySelfPrincipal(opts.userId, "auth/oauth-web:provider-verified-self");
+      enterStaffSecuritySelfPrincipal(opts.userId, 'auth/oauth-web:provider-verified-self');
     }
     sessionUser = await pgUserByPhonePort.findByUserId(opts.userId);
   } catch {
-    return { ok: false, reason: "db_error" };
+    return { ok: false, reason: 'db_error' };
   }
 
   if (!sessionUser) {
-    return { ok: false, reason: "session_failed" };
+    return { ok: false, reason: 'session_failed' };
   }
 
   // C-4 (2026-07-26): `resolveRoleAsync` never promotes anyone anymore (envRole.ts) — reconciled
@@ -55,13 +55,13 @@ export async function completeOAuthWebLoginRedirectUrls(opts: {
       displayName: hint || sessionUser.displayName || sessionUser.phone || opts.userId,
     });
   } catch {
-    return { ok: false, reason: "session_failed" };
+    return { ok: false, reason: 'session_failed' };
   }
 
   await recordAuthLogin({
     userId: opts.userId,
-    entryChannel: "browser",
-    authMethod: opts.authMethod ?? "oauth_web",
+    entryChannel: 'browser',
+    authMethod: opts.authMethod ?? 'oauth_web',
   });
 
   const finalRedirect = getRedirectPathForRole(role);

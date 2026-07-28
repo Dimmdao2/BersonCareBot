@@ -68,10 +68,7 @@ export async function POST(request: Request) {
   let patientUserId: string;
   let organizationId: string;
   if (inviteState.preview.recipientBinding === 'unbound_email_claim') {
-    const claimed = await deps.patientInvites.claimUnboundEmailProof(
-      continuation,
-      emailNormalized,
-    );
+    const claimed = await deps.patientInvites.claimUnboundEmailProof(continuation, emailNormalized);
     if (!claimed.ok) {
       const status = claimed.code === 'conflicting_identity' ? 409 : 400;
       return response({ ok: false, error: claimed.code }, status);
@@ -83,14 +80,8 @@ export async function POST(request: Request) {
     if (!identity || !isPlatformUserUuid(identity.userId)) {
       return response({ ok: false, error: 'wrong_recipient' }, 400);
     }
-    enterStaffSecuritySelfPrincipal(
-      identity.userId,
-      'api/join/email/confirm:otp-verified-patient',
-    );
-    const redeemed = await deps.patientInvites.redeemEmailProof(
-      continuation,
-      identity.userId,
-    );
+    enterStaffSecuritySelfPrincipal(identity.userId, 'api/join/email/confirm:otp-verified-patient');
+    const redeemed = await deps.patientInvites.redeemEmailProof(continuation, identity.userId);
     if (!redeemed.ok) {
       const status = redeemed.code === 'conflicting_identity' ? 409 : 400;
       return response({ ok: false, error: redeemed.code }, status);
@@ -102,10 +93,7 @@ export async function POST(request: Request) {
   if (!isPlatformUserUuid(patientUserId)) {
     return response({ ok: false, error: 'server_error' }, 500);
   }
-  enterStaffSecuritySelfPrincipal(
-    patientUserId,
-    'api/join/email/confirm:claimed-patient',
-  );
+  enterStaffSecuritySelfPrincipal(patientUserId, 'api/join/email/confirm:claimed-patient');
   const user = await deps.userByPhone.findByUserId(patientUserId);
   if (!user || user.role !== 'client') {
     return response({ ok: false, error: 'server_error' }, 500);

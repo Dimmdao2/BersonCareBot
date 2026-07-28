@@ -1,7 +1,12 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import { patientListItemClass, patientMutedTextClass, patientSectionSurfaceClass, patientSectionTitleClass } from "@/shared/ui/patient/patientVisual";
+import { useEffect, useState } from 'react';
+import {
+  patientListItemClass,
+  patientMutedTextClass,
+  patientSectionSurfaceClass,
+  patientSectionTitleClass,
+} from '@/shared/ui/patient/patientVisual';
 
 type HistoryRow = {
   id: string;
@@ -16,7 +21,7 @@ export function PatientBookingPaymentHistorySection() {
 
   useEffect(() => {
     void (async () => {
-      const res = await fetch("/api/booking/payment-history");
+      const res = await fetch('/api/booking/payment-history');
       const json = (await res.json()) as { ok?: boolean; events?: HistoryRow[] };
       if (json.ok && json.events) setEvents(json.events);
     })();
@@ -33,10 +38,13 @@ export function PatientBookingPaymentHistorySection() {
             <p className="text-sm font-medium">{e.eventType}</p>
             <p className={patientMutedTextClass}>
               {e.amountMinor != null && e.currency
-                ? (e.amountMinor / 100).toLocaleString("ru-RU", { style: "currency", currency: e.currency })
-                : "—"}
-              {" · "}
-              {new Date(e.occurredAt).toLocaleString("ru-RU")}
+                ? (e.amountMinor / 100).toLocaleString('ru-RU', {
+                    style: 'currency',
+                    currency: e.currency,
+                  })
+                : '—'}
+              {' · '}
+              {new Date(e.occurredAt).toLocaleString('ru-RU')}
             </p>
           </li>
         ))}

@@ -1,9 +1,9 @@
 import {
   normalizeSupplementaryContactEmail,
   normalizeSupplementaryContactPhone,
-} from "@bersoncare/platform-merge";
-import { normalizeContactValue } from "./normalizeContactValue";
-import type { PlatformUserContactType } from "./types";
+} from '@bersoncare/platform-merge';
+import { normalizeContactValue } from './normalizeContactValue';
+import type { PlatformUserContactType } from './types';
 
 export type IdentityContactFields = {
   phone?: string | null;
@@ -27,10 +27,10 @@ export function supplementaryContactMatchesIdentity(
   const identityPhone = normalizeIdentityPhone(identity.phone);
   const identityEmail = normalizeIdentityEmail(identity.email);
 
-  if ((contactType === "phone" || contactType === "whatsapp") && identityPhone) {
+  if ((contactType === 'phone' || contactType === 'whatsapp') && identityPhone) {
     return valueNormalized === identityPhone;
   }
-  if (contactType === "email" && identityEmail) {
+  if (contactType === 'email' && identityEmail) {
     return valueNormalized === identityEmail;
   }
   return false;
@@ -38,7 +38,7 @@ export function supplementaryContactMatchesIdentity(
 
 /** Booking/merge best-effort: skip upsert when value equals identity contact. */
 export function shouldSkipSupplementaryContactUpsert(
-  contactType: "phone" | "email",
+  contactType: 'phone' | 'email',
   value: string,
   identity?: IdentityContactFields | null,
 ): boolean {

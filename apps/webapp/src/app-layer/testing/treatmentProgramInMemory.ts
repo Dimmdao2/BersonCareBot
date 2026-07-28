@@ -6,4 +6,4 @@ export {
   clearInMemoryTreatmentProgramTemplateUsageSnapshots,
   createInMemoryTreatmentProgramPort,
   seedInMemoryTreatmentProgramTemplateUsageSnapshot,
-} from "@/infra/repos/inMemoryTreatmentProgram";
+} from '@/infra/repos/inMemoryTreatmentProgram';

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 const registerPending = vi.fn();
 const deleteUnverified = vi.fn();
@@ -10,14 +10,14 @@ const recordAuthRegistrationAttemptMock = vi.fn(async (_params: unknown) => unde
 const recordAuthRegistrationFailureMock = vi.fn(async (_params: unknown) => undefined);
 const recordAuthRegistrationSuccessMock = vi.fn(async (_params: unknown) => undefined);
 
-vi.mock("@/app-layer/product-analytics/recordAuthRegistration", () => ({
-  newRegistrationAttemptId: () => "11111111-1111-4111-8111-111111111111",
+vi.mock('@/app-layer/product-analytics/recordAuthRegistration', () => ({
+  newRegistrationAttemptId: () => '11111111-1111-4111-8111-111111111111',
   recordAuthRegistrationAttempt: (params: unknown) => recordAuthRegistrationAttemptMock(params),
   recordAuthRegistrationFailure: (params: unknown) => recordAuthRegistrationFailureMock(params),
   recordAuthRegistrationSuccess: (params: unknown) => recordAuthRegistrationSuccessMock(params),
 }));
 
-vi.mock("@/app-layer/di/buildAppDeps", () => ({
+vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: () => ({
     userPasswordCredentials: {
       registerPendingVerification: registerPending,
@@ -34,23 +34,25 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
   }),
 }));
 
-vi.mock("@/modules/auth/pinHash", () => ({
+vi.mock('@/modules/auth/pinHash', () => ({
   hashPin: async (p: string) => `hashed:${p}`,
 }));
 
 const startEmailChallenge = vi.fn();
-vi.mock("@/modules/auth/emailAuth", async () => {
-  const actual = await vi.importActual<typeof import("@/modules/auth/emailAuth")>("@/modules/auth/emailAuth");
+vi.mock('@/modules/auth/emailAuth', async () => {
+  const actual = await vi.importActual<typeof import('@/modules/auth/emailAuth')>(
+    '@/modules/auth/emailAuth',
+  );
   return {
     ...actual,
     startEmailChallenge: (...args: unknown[]) => startEmailChallenge(...args),
   };
 });
 
-import { POST } from "./route";
-import * as authChannelPolicy from "@/modules/auth/authChannelPolicy";
+import { POST } from './route';
+import * as authChannelPolicy from '@/modules/auth/authChannelPolicy';
 
-describe("POST /api/auth/email-password/register", () => {
+describe('POST /api/auth/email-password/register', () => {
   beforeEach(() => {
     registerPending.mockReset();
     deleteUnverified.mockReset();
@@ -63,24 +65,24 @@ describe("POST /api/auth/email-password/register", () => {
     recordAuthRegistrationSuccessMock.mockReset();
   });
 
-  it("rejects a disabled email channel before creating a user or analytics attempt", async () => {
-    const policy = vi.spyOn(authChannelPolicy, "isAuthChannelEnabled").mockResolvedValue(false);
+  it('rejects a disabled email channel before creating a user or analytics attempt', async () => {
+    const policy = vi.spyOn(authChannelPolicy, 'isAuthChannelEnabled').mockResolvedValue(false);
     try {
       const res = await POST(
-        new Request("http://localhost/api/auth/email-password/register", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
+        new Request('http://localhost/api/auth/email-password/register', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
-            email: "new@example.com",
-            password: "password12",
-            lastName: "Иванов",
-            firstName: "Иван",
+            email: 'new@example.com',
+            password: 'password12',
+            lastName: 'Иванов',
+            firstName: 'Иван',
           }),
         }),
       );
 
       expect(res.status).toBe(503);
-      await expect(res.json()).resolves.toEqual({ ok: false, error: "auth_channel_disabled" });
+      await expect(res.json()).resolves.toEqual({ ok: false, error: 'auth_channel_disabled' });
       expect(registerPending).not.toHaveBeenCalled();
       expect(startEmailChallenge).not.toHaveBeenCalled();
       expect(recordAuthRegistrationAttemptMock).not.toHaveBeenCalled();
@@ -89,91 +91,97 @@ describe("POST /api/auth/email-password/register", () => {
     }
   });
 
-  it("records registration attempt and success when challenge is sent", async () => {
-    registerPending.mockResolvedValueOnce({ ok: true, userId: "11111111-1111-1111-1111-111111111111" });
+  it('records registration attempt and success when challenge is sent', async () => {
+    registerPending.mockResolvedValueOnce({
+      ok: true,
+      userId: '11111111-1111-1111-1111-111111111111',
+    });
     startEmailChallenge.mockResolvedValueOnce({
       ok: true,
-      challengeId: "chal-1",
+      challengeId: 'chal-1',
       retryAfterSeconds: 60,
     });
 
     const res = await POST(
-      new Request("http://localhost/api/auth/email-password/register", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
+      new Request('http://localhost/api/auth/email-password/register', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          email: "new@example.com",
-          password: "password12",
-          lastName: " New ",
-          firstName: " Patient ",
-          patronymic: " Middle ",
+          email: 'new@example.com',
+          password: 'password12',
+          lastName: ' New ',
+          firstName: ' Patient ',
+          patronymic: ' Middle ',
         }),
       }),
     );
 
     expect(res.status).toBe(200);
     expect(recordAuthRegistrationAttemptMock).toHaveBeenCalledWith(
-      expect.objectContaining({ authMethod: "email_password", stage: "start" }),
+      expect.objectContaining({ authMethod: 'email_password', stage: 'start' }),
     );
     expect(registerPending).toHaveBeenCalledWith({
-      emailNormalized: "new@example.com",
-      passwordHash: "hashed:password12",
-      lastName: "New",
-      firstName: "Patient",
-      patronymic: "Middle",
+      emailNormalized: 'new@example.com',
+      passwordHash: 'hashed:password12',
+      lastName: 'New',
+      firstName: 'Patient',
+      patronymic: 'Middle',
     });
     expect(recordAuthRegistrationSuccessMock).toHaveBeenCalledWith(
-      expect.objectContaining({ stage: "challenge_sent", challengeId: "chal-1" }),
+      expect.objectContaining({ stage: 'challenge_sent', challengeId: 'chal-1' }),
     );
     const body = (await res.json()) as { attemptId?: string };
-    expect(body.attemptId).toBe("11111111-1111-4111-8111-111111111111");
+    expect(body.attemptId).toBe('11111111-1111-4111-8111-111111111111');
   });
 
-  it("deletes unverified user when email challenge fails so retry is possible", async () => {
-    registerPending.mockResolvedValueOnce({ ok: true, userId: "11111111-1111-1111-1111-111111111111" });
-    startEmailChallenge.mockResolvedValueOnce({ ok: false, code: "email_send_failed" });
+  it('deletes unverified user when email challenge fails so retry is possible', async () => {
+    registerPending.mockResolvedValueOnce({
+      ok: true,
+      userId: '11111111-1111-1111-1111-111111111111',
+    });
+    startEmailChallenge.mockResolvedValueOnce({ ok: false, code: 'email_send_failed' });
 
     const res = await POST(
-      new Request("http://localhost/api/auth/email-password/register", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
+      new Request('http://localhost/api/auth/email-password/register', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          email: "new@example.com",
-          password: "password12",
-          lastName: "New",
-          firstName: "Patient",
+          email: 'new@example.com',
+          password: 'password12',
+          lastName: 'New',
+          firstName: 'Patient',
         }),
       }),
     );
 
-    expect(deleteUnverified).toHaveBeenCalledWith("11111111-1111-1111-1111-111111111111");
+    expect(deleteUnverified).toHaveBeenCalledWith('11111111-1111-1111-1111-111111111111');
     expect(res.status).toBe(400);
     const body = (await res.json()) as { ok?: boolean; error?: string };
     expect(body.ok).toBe(false);
-    expect(body.error).toBe("email_send_failed");
+    expect(body.error).toBe('email_send_failed');
   });
 
-  it("returns existing_account_needs_email_setup with code challenge for contact-only duplicate", async () => {
-    registerPending.mockResolvedValueOnce({ ok: false, reason: "duplicate_email" });
+  it('returns existing_account_needs_email_setup with code challenge for contact-only duplicate', async () => {
+    registerPending.mockResolvedValueOnce({ ok: false, reason: 'duplicate_email' });
     resolveAuthState.mockResolvedValueOnce({
-      kind: "needs_email_setup",
-      userId: "22222222-2222-2222-2222-222222222222",
+      kind: 'needs_email_setup',
+      userId: '22222222-2222-2222-2222-222222222222',
     });
     startEmailChallenge.mockResolvedValueOnce({
       ok: true,
-      challengeId: "setup-chal-1",
+      challengeId: 'setup-chal-1',
       retryAfterSeconds: 60,
     });
 
     const res = await POST(
-      new Request("http://localhost/api/auth/email-password/register", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
+      new Request('http://localhost/api/auth/email-password/register', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          email: "patient@example.com",
-          password: "password12",
-          lastName: "Patient",
-          firstName: "One",
+          email: 'patient@example.com',
+          password: 'password12',
+          lastName: 'Patient',
+          firstName: 'One',
         }),
       }),
     );
@@ -183,43 +191,43 @@ describe("POST /api/auth/email-password/register", () => {
     expect(body).toEqual(
       expect.objectContaining({
         ok: true,
-        error: "existing_account_needs_email_setup",
+        error: 'existing_account_needs_email_setup',
         setupCodeSent: true,
-        challengeId: "setup-chal-1",
+        challengeId: 'setup-chal-1',
         attemptId: expect.any(String),
       }),
     );
     expect(startEmailChallenge).toHaveBeenCalledWith(
-      "22222222-2222-2222-2222-222222222222",
-      "patient@example.com",
-      "password_register",
+      '22222222-2222-2222-2222-222222222222',
+      'patient@example.com',
+      'password_register',
     );
     expect(requestContactEmailSetup).not.toHaveBeenCalled();
     expect(tryResend).not.toHaveBeenCalled();
   });
 
-  it("still resends registration challenge for pending_registration duplicate", async () => {
-    registerPending.mockResolvedValueOnce({ ok: false, reason: "duplicate_email" });
+  it('still resends registration challenge for pending_registration duplicate', async () => {
+    registerPending.mockResolvedValueOnce({ ok: false, reason: 'duplicate_email' });
     resolveAuthState.mockResolvedValueOnce({
-      kind: "pending_registration",
-      userId: "33333333-3333-3333-3333-333333333333",
+      kind: 'pending_registration',
+      userId: '33333333-3333-3333-3333-333333333333',
     });
-    tryResend.mockResolvedValueOnce({ ok: true, userId: "33333333-3333-3333-3333-333333333333" });
+    tryResend.mockResolvedValueOnce({ ok: true, userId: '33333333-3333-3333-3333-333333333333' });
     startEmailChallenge.mockResolvedValueOnce({
       ok: true,
-      challengeId: "chal-1",
+      challengeId: 'chal-1',
       retryAfterSeconds: 60,
     });
 
     const res = await POST(
-      new Request("http://localhost/api/auth/email-password/register", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
+      new Request('http://localhost/api/auth/email-password/register', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          email: "pending@example.com",
-          password: "password12",
-          lastName: "Pending",
-          firstName: "Patient",
+          email: 'pending@example.com',
+          password: 'password12',
+          lastName: 'Pending',
+          firstName: 'Patient',
         }),
       }),
     );
@@ -227,19 +235,24 @@ describe("POST /api/auth/email-password/register", () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as { ok?: boolean; challengeId?: string };
     expect(body.ok).toBe(true);
-    expect(body.challengeId).toBe("chal-1");
+    expect(body.challengeId).toBe('chal-1');
     expect(tryResend).toHaveBeenCalled();
   });
 
   it.each([
-    { lastName: "", firstName: "Patient" },
-    { lastName: "Patient", firstName: " " },
-  ])("rejects missing required structured identity parts", async ({ lastName, firstName }) => {
+    { lastName: '', firstName: 'Patient' },
+    { lastName: 'Patient', firstName: ' ' },
+  ])('rejects missing required structured identity parts', async ({ lastName, firstName }) => {
     const res = await POST(
-      new Request("http://localhost/api/auth/email-password/register", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email: "new@example.com", password: "password12", lastName, firstName }),
+      new Request('http://localhost/api/auth/email-password/register', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          email: 'new@example.com',
+          password: 'password12',
+          lastName,
+          firstName,
+        }),
       }),
     );
 

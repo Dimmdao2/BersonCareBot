@@ -4,9 +4,9 @@
  * хранилища в БД. In-memory — если `webappReposAreInMemory()` (Vitest без БД; `next build` без URL в CI). В `next dev` без `DATABASE_URL` — throw в `config/env`.
  */
 
-import { cache } from "react";
-import { withExplicitOrganizationPrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
-import { ensureAuthModulePortsBound } from "@/app-layer/di/bindAuthModulePorts";
+import { cache } from 'react';
+import { withExplicitOrganizationPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
+import { ensureAuthModulePortsBound } from '@/app-layer/di/bindAuthModulePorts';
 import {
   getCurrentSession,
   exchangeIntegratorToken,
@@ -15,16 +15,16 @@ import {
   exchangeTelegramLoginWidget,
   clearSession,
   setSessionFromUser,
-} from "@/modules/auth/service";
-import type { TelegramLoginWidgetPayload } from "@/modules/auth/telegramLoginVerify";
-import { createPasswordChangeService } from "@/modules/auth/passwordChange";
-import { hashPin } from "@/modules/auth/pinHash";
+} from '@/modules/auth/service';
+import type { TelegramLoginWidgetPayload } from '@/modules/auth/telegramLoginVerify';
+import { createPasswordChangeService } from '@/modules/auth/passwordChange';
+import { hashPin } from '@/modules/auth/pinHash';
 import {
   startPhoneAuth as startPhoneAuthFlow,
   confirmPhoneAuth as confirmPhoneAuthFlow,
   consumePhoneOtpChallenge,
   type StartPhoneAuthOptions,
-} from "@/modules/auth/phoneAuth";
+} from '@/modules/auth/phoneAuth';
 import {
   completePhoneMessengerBindFromIntegrator,
   getPhoneMessengerBindStatus,
@@ -32,384 +32,399 @@ import {
   registerPhoneMessengerBindPort,
   resolvePhoneMessengerBindLoginChallenge,
   startPhoneMessengerBind,
-} from "@/modules/auth/phoneMessengerBind";
-import { createPgPhoneMessengerBindPort } from "@/infra/repos/pgPhoneMessengerBind";
-import type { ChannelContext } from "@/modules/auth/channelContext";
-import { createIntegratorSmsAdapter } from "@/infra/integrations/sms/integratorSmsAdapter";
-import { createStubSmsAdapter } from "@/infra/integrations/sms/stubSmsAdapter";
-import { deliverSmsCodeViaIntegrator } from "@/infra/integrations/sms/integratorSmsDelivery";
+} from '@/modules/auth/phoneMessengerBind';
+import { createPgPhoneMessengerBindPort } from '@/infra/repos/pgPhoneMessengerBind';
+import type { ChannelContext } from '@/modules/auth/channelContext';
+import { createIntegratorSmsAdapter } from '@/infra/integrations/sms/integratorSmsAdapter';
+import { createStubSmsAdapter } from '@/infra/integrations/sms/stubSmsAdapter';
+import { deliverSmsCodeViaIntegrator } from '@/infra/integrations/sms/integratorSmsDelivery';
 import {
   createPgPublicBookingOtpPort,
   inMemoryPublicBookingOtpPort,
-} from "@/infra/repos/pgPublicBookingOtp";
-import type { PublicBookingCodeDelivery } from "@/modules/public-booking/publicBookingVerification";
-import { inMemoryPhoneChallengeStore } from "@/infra/repos/inMemoryPhoneChallengeStore";
-import { createPgPhoneChallengeStore } from "@/infra/repos/pgPhoneChallengeStore";
-import { inMemoryUserByPhonePort } from "@/infra/repos/inMemoryUserByPhone";
-import { inMemoryIdentityResolutionPort } from "@/infra/repos/inMemoryIdentityResolution";
-import { pgUserByPhonePort } from "@/infra/repos/pgUserByPhone";
-import { pgIdentityResolutionPort } from "@/infra/repos/pgIdentityResolution";
-import { getCurrentUser } from "@/modules/users/service";
-import { getMenuForRole as getMenuForRoleImpl } from "@/modules/menu/service";
-import { listLessons } from "@/modules/lessons/service";
-import { listEmergencyTopics } from "@/modules/emergency/service";
-import { getDoctorWorkspaceState, getOverviewState } from "@/modules/doctor-cabinet/service";
-import { createDoctorClientsService } from "@/modules/doctor-clients/service";
-import { createDoctorAppointmentsService } from "@/modules/doctor-appointments/service";
-import { createDoctorMessagingService } from "@/modules/doctor-messaging/service";
-import { createDoctorStatsService } from "@/modules/doctor-stats/service";
-import { createAdminPlatformUserStatsService } from "@/modules/admin-platform-stats/service";
-import { createProductAnalyticsService } from "@/modules/product-analytics/service";
-import { createPgProductAnalyticsPort } from "@/infra/repos/pgProductAnalytics";
-import { createInMemoryProductAnalyticsPort } from "@/infra/repos/inMemoryProductAnalytics";
-import { createDoctorNotesService } from "@/modules/doctor-notes/service";
-import type { ClientAppointmentHistoryItem } from "@/modules/doctor-clients/service";
-import { createDoctorBroadcastsService } from "@/modules/doctor-broadcasts/service";
+} from '@/infra/repos/pgPublicBookingOtp';
+import type { PublicBookingCodeDelivery } from '@/modules/public-booking/publicBookingVerification';
+import { inMemoryPhoneChallengeStore } from '@/infra/repos/inMemoryPhoneChallengeStore';
+import { createPgPhoneChallengeStore } from '@/infra/repos/pgPhoneChallengeStore';
+import { inMemoryUserByPhonePort } from '@/infra/repos/inMemoryUserByPhone';
+import { inMemoryIdentityResolutionPort } from '@/infra/repos/inMemoryIdentityResolution';
+import { pgUserByPhonePort } from '@/infra/repos/pgUserByPhone';
+import { pgIdentityResolutionPort } from '@/infra/repos/pgIdentityResolution';
+import { getCurrentUser } from '@/modules/users/service';
+import { getMenuForRole as getMenuForRoleImpl } from '@/modules/menu/service';
+import { listLessons } from '@/modules/lessons/service';
+import { listEmergencyTopics } from '@/modules/emergency/service';
+import { getDoctorWorkspaceState, getOverviewState } from '@/modules/doctor-cabinet/service';
+import { createDoctorClientsService } from '@/modules/doctor-clients/service';
+import { createDoctorAppointmentsService } from '@/modules/doctor-appointments/service';
+import { createDoctorMessagingService } from '@/modules/doctor-messaging/service';
+import { createDoctorStatsService } from '@/modules/doctor-stats/service';
+import { createAdminPlatformUserStatsService } from '@/modules/admin-platform-stats/service';
+import { createProductAnalyticsService } from '@/modules/product-analytics/service';
+import { createPgProductAnalyticsPort } from '@/infra/repos/pgProductAnalytics';
+import { createInMemoryProductAnalyticsPort } from '@/infra/repos/inMemoryProductAnalytics';
+import { createDoctorNotesService } from '@/modules/doctor-notes/service';
+import type { ClientAppointmentHistoryItem } from '@/modules/doctor-clients/service';
+import { createDoctorBroadcastsService } from '@/modules/doctor-broadcasts/service';
 import {
   listClientsForBroadcastAudience,
   resolveBroadcastEffectiveClients,
   buildRecipientsPreviewFromClients,
-} from "@/modules/doctor-broadcasts/broadcastAudienceMetrics";
+} from '@/modules/doctor-broadcasts/broadcastAudienceMetrics';
 import {
   deriveBroadcastDeliveryPolicy,
   filterEligibleBroadcastClients,
-} from "@/modules/doctor-broadcasts/broadcastEligible";
-import { resolveBroadcastWebPushEligibleUserIds } from "@/modules/doctor-broadcasts/resolveBroadcastWebPushEligibleUserIds";
-import { fanOutBroadcastWebPush } from "@/modules/doctor-broadcasts/fanOutBroadcastWebPush";
-import { inMemoryDoctorClientsPort } from "@/infra/repos/inMemoryDoctorClients";
-import { inMemoryBroadcastAuditPort } from "@/infra/repos/inMemoryBroadcastAudit";
-import { createPgBroadcastAuditPort } from "@/infra/repos/pgBroadcastAudit";
-import { createPgDoctorBroadcastDeliveryCommitPort } from "@/infra/repos/pgDoctorBroadcastDelivery";
-import { createInMemoryDoctorBroadcastDeliveryCommitPort } from "@/infra/repos/inMemoryDoctorBroadcastDelivery";
-import { createPgPatientBroadcastsPort } from "@/infra/repos/pgPatientBroadcasts";
-import { inMemoryPatientBroadcastsPort } from "@/infra/repos/inMemoryPatientBroadcasts";
-import { createPgBroadcastDraftPort } from "@/infra/repos/pgBroadcastDrafts";
-import { createInMemoryBroadcastDraftPort } from "@/infra/repos/inMemoryBroadcastDrafts";
-import type { BroadcastDraft } from "@/modules/doctor-broadcasts/draftPort";
-import type { BroadcastAudienceFilter } from "@/modules/doctor-broadcasts/ports";
-import { createPgBroadcastChannelCountsPort } from "@/infra/repos/broadcastChannelCounts";
-import { createInMemoryBroadcastChannelCountsPort } from "@/infra/repos/inMemoryBroadcastChannelCounts";
-import { createPgBroadcastEmailRecipientsPort } from "@/infra/repos/pgBroadcastEmailRecipients";
-import { createInMemoryBroadcastEmailRecipientsPort } from "@/infra/repos/inMemoryBroadcastEmailRecipients";
-import { createPgDoctorMotivationQuotesEditorPort } from "@/infra/repos/pgDoctorMotivationQuotesEditor";
-import { inMemoryDoctorMotivationQuotesEditorPort } from "@/infra/repos/inMemoryDoctorMotivationQuotesEditor";
-import { inMemoryDoctorAppointmentsPort } from "@/infra/repos/inMemoryDoctorAppointments";
-import { inMemoryMessageLogPort } from "@/infra/repos/inMemoryMessageLog";
-import { createPgMessageLogPort } from "@/infra/repos/pgMessageLog";
-import { createPgDoctorClientsPort } from "@/infra/repos/pgDoctorClients";
-import { createPgAdminPlatformUserStatsPort } from "@/infra/repos/pgAdminPlatformUserStats";
-import { createInMemoryAdminPlatformUserStatsPort } from "@/infra/repos/inMemoryAdminPlatformUserStats";
-import { createPgDoctorAnalyticsMetricAccountsPort } from "@/infra/repos/pgDoctorAnalyticsMetricAccounts";
-import { inMemoryDoctorAnalyticsMetricAccountsPort } from "@/infra/repos/inMemoryDoctorAnalyticsMetricAccounts";
-import { createPgDoctorCanonicalAppointmentsPort } from "@/infra/repos/pgDoctorCanonicalAppointments";
-import { getPurchaseSectionState } from "@/modules/purchases/service";
+} from '@/modules/doctor-broadcasts/broadcastEligible';
+import { resolveBroadcastWebPushEligibleUserIds } from '@/modules/doctor-broadcasts/resolveBroadcastWebPushEligibleUserIds';
+import { fanOutBroadcastWebPush } from '@/modules/doctor-broadcasts/fanOutBroadcastWebPush';
+import { inMemoryDoctorClientsPort } from '@/infra/repos/inMemoryDoctorClients';
+import { inMemoryBroadcastAuditPort } from '@/infra/repos/inMemoryBroadcastAudit';
+import { createPgBroadcastAuditPort } from '@/infra/repos/pgBroadcastAudit';
+import { createPgDoctorBroadcastDeliveryCommitPort } from '@/infra/repos/pgDoctorBroadcastDelivery';
+import { createInMemoryDoctorBroadcastDeliveryCommitPort } from '@/infra/repos/inMemoryDoctorBroadcastDelivery';
+import { createPgPatientBroadcastsPort } from '@/infra/repos/pgPatientBroadcasts';
+import { inMemoryPatientBroadcastsPort } from '@/infra/repos/inMemoryPatientBroadcasts';
+import { createPgBroadcastDraftPort } from '@/infra/repos/pgBroadcastDrafts';
+import { createInMemoryBroadcastDraftPort } from '@/infra/repos/inMemoryBroadcastDrafts';
+import type { BroadcastDraft } from '@/modules/doctor-broadcasts/draftPort';
+import type { BroadcastAudienceFilter } from '@/modules/doctor-broadcasts/ports';
+import { createPgBroadcastChannelCountsPort } from '@/infra/repos/broadcastChannelCounts';
+import { createInMemoryBroadcastChannelCountsPort } from '@/infra/repos/inMemoryBroadcastChannelCounts';
+import { createPgBroadcastEmailRecipientsPort } from '@/infra/repos/pgBroadcastEmailRecipients';
+import { createInMemoryBroadcastEmailRecipientsPort } from '@/infra/repos/inMemoryBroadcastEmailRecipients';
+import { createPgDoctorMotivationQuotesEditorPort } from '@/infra/repos/pgDoctorMotivationQuotesEditor';
+import { inMemoryDoctorMotivationQuotesEditorPort } from '@/infra/repos/inMemoryDoctorMotivationQuotesEditor';
+import { inMemoryDoctorAppointmentsPort } from '@/infra/repos/inMemoryDoctorAppointments';
+import { inMemoryMessageLogPort } from '@/infra/repos/inMemoryMessageLog';
+import { createPgMessageLogPort } from '@/infra/repos/pgMessageLog';
+import { createPgDoctorClientsPort } from '@/infra/repos/pgDoctorClients';
+import { createPgAdminPlatformUserStatsPort } from '@/infra/repos/pgAdminPlatformUserStats';
+import { createInMemoryAdminPlatformUserStatsPort } from '@/infra/repos/inMemoryAdminPlatformUserStats';
+import { createPgDoctorAnalyticsMetricAccountsPort } from '@/infra/repos/pgDoctorAnalyticsMetricAccounts';
+import { inMemoryDoctorAnalyticsMetricAccountsPort } from '@/infra/repos/inMemoryDoctorAnalyticsMetricAccounts';
+import { createPgDoctorCanonicalAppointmentsPort } from '@/infra/repos/pgDoctorCanonicalAppointments';
+import { getPurchaseSectionState } from '@/modules/purchases/service';
 import {
   getUpcomingAppointments as getUpcomingAppointmentsMock,
   type AppointmentRecordStatus,
   type AppointmentSummary,
-} from "@/modules/appointments/service";
-import { appointmentRowLabel } from "@/modules/appointments/appointmentLabels";
-import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
+} from '@/modules/appointments/service';
+import { appointmentRowLabel } from '@/modules/appointments/appointmentLabels';
+import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 import {
   getPatientCalendarTimezoneIana,
   setPatientCalendarTimezoneIana,
   trySetInitialCalendarTimezoneIfEmpty,
-} from "@/infra/repos/pgPatientCalendarTimezone";
+} from '@/infra/repos/pgPatientCalendarTimezone';
 import {
   formatAppointmentDateNumericRu,
   formatAppointmentTimeShortRu,
   formatBookingDateTimeMediumRu,
-} from "@/shared/lib/formatBusinessDateTime";
-import { SCHEDULE_RECORD_PROVENANCE_PREFIX } from "@/shared/lib/scheduleRecordProvenance";
-import { formatDoctorFio } from "@/shared/lib/fio";
-import { selectPersonalChatSenderDisplayName } from "@/modules/messaging/notifyPatientDoctorReply";
-import { createMediaService } from "@/modules/media/service";
-import { createSymptomDiaryService } from "@/modules/diaries/symptom-service";
-import { createLfkDiaryService } from "@/modules/diaries/lfk-service";
-import { createChannelPreferencesService } from "@/modules/channel-preferences/service";
-import { createContentCatalogResolver } from "@/modules/content-catalog/service";
-import { mockMediaStoragePort } from "@/infra/repos/mockMediaStorage";
-import { createS3MediaStoragePort } from "@/infra/repos/s3MediaStorage";
-import { inMemorySymptomDiaryPort } from "@/infra/repos/symptomDiary";
-import { inMemoryLfkDiaryPort } from "@/infra/repos/lfkDiary";
-import { pgSymptomDiaryPort } from "@/infra/repos/pgSymptomDiary";
-import { pgLfkDiaryPort } from "@/infra/repos/pgLfkDiary";
-import { purgeAllDiaryDataForUserPg } from "@/infra/repos/pgDiaryPurge";
-import { readReminderWebappNotifyGate } from "@/infra/repos/pgReminderWebappNotifyGate";
-import { loadPlatformUserChannelBindings } from "@/infra/repos/loadPlatformUserChannelBindings";
+} from '@/shared/lib/formatBusinessDateTime';
+import { SCHEDULE_RECORD_PROVENANCE_PREFIX } from '@/shared/lib/scheduleRecordProvenance';
+import { formatDoctorFio } from '@/shared/lib/fio';
+import { selectPersonalChatSenderDisplayName } from '@/modules/messaging/notifyPatientDoctorReply';
+import { createMediaService } from '@/modules/media/service';
+import { createSymptomDiaryService } from '@/modules/diaries/symptom-service';
+import { createLfkDiaryService } from '@/modules/diaries/lfk-service';
+import { createChannelPreferencesService } from '@/modules/channel-preferences/service';
+import { createContentCatalogResolver } from '@/modules/content-catalog/service';
+import { mockMediaStoragePort } from '@/infra/repos/mockMediaStorage';
+import { createS3MediaStoragePort } from '@/infra/repos/s3MediaStorage';
+import { inMemorySymptomDiaryPort } from '@/infra/repos/symptomDiary';
+import { inMemoryLfkDiaryPort } from '@/infra/repos/lfkDiary';
+import { pgSymptomDiaryPort } from '@/infra/repos/pgSymptomDiary';
+import { pgLfkDiaryPort } from '@/infra/repos/pgLfkDiary';
+import { purgeAllDiaryDataForUserPg } from '@/infra/repos/pgDiaryPurge';
+import { readReminderWebappNotifyGate } from '@/infra/repos/pgReminderWebappNotifyGate';
+import { loadPlatformUserChannelBindings } from '@/infra/repos/loadPlatformUserChannelBindings';
 import {
   createNoOpReminderTransactionalEmailCooldownPort,
   createPgReminderTransactionalEmailCooldownPort,
-} from "@/infra/repos/pgReminderTransactionalEmailCooldown";
-import { purgeInMemoryLfkDiaryForUser } from "@/infra/repos/lfkDiary";
-import { purgeInMemorySymptomDiaryForUser } from "@/infra/repos/symptomDiary";
-import { inMemoryChannelPreferencesPort } from "@/infra/repos/inMemoryChannelPreferences";
-import { inMemoryWebPushSubscriptionsPort } from "@/infra/repos/inMemoryWebPushSubscriptions";
-import { pgChannelPreferencesPort } from "@/infra/repos/pgChannelPreferences";
-import { createPgWebPushSubscriptionsPort } from "@/infra/repos/pgWebPushSubscriptions";
+} from '@/infra/repos/pgReminderTransactionalEmailCooldown';
+import { purgeInMemoryLfkDiaryForUser } from '@/infra/repos/lfkDiary';
+import { purgeInMemorySymptomDiaryForUser } from '@/infra/repos/symptomDiary';
+import { inMemoryChannelPreferencesPort } from '@/infra/repos/inMemoryChannelPreferences';
+import { inMemoryWebPushSubscriptionsPort } from '@/infra/repos/inMemoryWebPushSubscriptions';
+import { pgChannelPreferencesPort } from '@/infra/repos/pgChannelPreferences';
+import { createPgWebPushSubscriptionsPort } from '@/infra/repos/pgWebPushSubscriptions';
 import {
   createPgPatientNotificationTopicsPort,
   inMemoryPatientNotificationTopicsPort,
-} from "@/infra/repos/pgPatientNotificationTopics";
-import { createPgTopicChannelPrefsPort, inMemoryTopicChannelPrefsPort } from "@/infra/repos/pgTopicChannelPrefs";
-import { createPgStaffUsersPort, inMemoryStaffUsersPort } from "@/infra/repos/pgStaffUsers";
-import { pgUserProjectionPort, inMemoryUserProjectionPort } from "@/infra/repos/pgUserProjection";
-import { pgUserPinsPort } from "@/infra/repos/pgUserPins";
-import { inMemoryUserPinsPort } from "@/infra/repos/inMemoryUserPins";
+} from '@/infra/repos/pgPatientNotificationTopics';
+import {
+  createPgTopicChannelPrefsPort,
+  inMemoryTopicChannelPrefsPort,
+} from '@/infra/repos/pgTopicChannelPrefs';
+import { createPgStaffUsersPort, inMemoryStaffUsersPort } from '@/infra/repos/pgStaffUsers';
+import { pgUserProjectionPort, inMemoryUserProjectionPort } from '@/infra/repos/pgUserProjection';
+import { pgUserPinsPort } from '@/infra/repos/pgUserPins';
+import { inMemoryUserPinsPort } from '@/infra/repos/inMemoryUserPins';
 import {
   createPgUserPasswordCredentialsPort,
   inMemoryUserPasswordCredentialsPort,
-} from "@/infra/repos/pgUserPasswordCredentials";
+} from '@/infra/repos/pgUserPasswordCredentials';
 import {
   createPgEmailPasswordLookupPort,
   inMemoryEmailPasswordLookupPort,
-} from "@/infra/repos/pgEmailPasswordLookup";
+} from '@/infra/repos/pgEmailPasswordLookup';
 import {
   createPgEmailOtpPublicPort,
   inMemoryEmailOtpPublicPort,
-} from "@/infra/repos/pgEmailOtpPublic";
-import { createEmailSetupAccessService } from "@/modules/auth/emailSetupAccess/service";
-import { createNoopEmailSetupAccessPort } from "@/modules/auth/emailSetupAccess/noopPort";
-import { createPgEmailSetupAccessPort } from "@/infra/repos/pgEmailSetupAccessPort";
-import { pgEmailSetupTokensPort } from "@/infra/repos/pgEmailSetupTokens";
-import { createEmailSetupTokensService } from "@/modules/auth/emailSetupTokens/service";
-import { createEmailSetupFlowService } from "@/modules/auth/emailSetupFlow/service";
-import { pgEmailSetupFlowPort } from "@/infra/repos/pgEmailSetupFlowPort";
-import { noopEmailSetupFlowPort } from "@/modules/auth/emailSetupFlow/noopPort";
-import { pgOAuthBindingsPort } from "@/infra/repos/pgOAuthBindings";
-import { inMemoryOAuthBindingsPort } from "@/infra/repos/inMemoryOAuthBindings";
-import { pgLoginTokensPort } from "@/infra/repos/pgLoginTokens";
-import { inMemoryLoginTokensPort } from "@/infra/repos/inMemoryLoginTokens";
-import { pgReferencesPort } from "@/infra/repos/pgReferences";
-import { inMemoryReferencesPort } from "@/infra/repos/inMemoryReferences";
-import { createPgContentPagesPort, inMemoryContentPagesPort } from "@/infra/repos/pgContentPages";
-import { createPgContentSectionsPort, inMemoryContentSectionsPort } from "@/infra/repos/pgContentSections";
-import { createPgSupportCommunicationPort } from "@/infra/repos/pgSupportCommunication";
-import { inMemorySupportCommunicationPort } from "@/infra/repos/inMemorySupportCommunication";
-import { createPatientMessagingService } from "@/modules/messaging/patientMessagingService";
-import { createPatientNotificationInboxService } from "@/modules/messaging/patientNotificationInboxService";
-import { createDoctorSupportMessagingService } from "@/modules/messaging/doctorSupportMessagingService";
-import { createNotifyPatientDoctorReply } from "@/modules/messaging/notifyPatientDoctorReply";
-import { notifyDoctorPatientMessage } from "@/modules/messaging/notifyDoctorPatientMessage";
-import { notifyDoctorPatientProgramNote } from "@/modules/messaging/notifyDoctorPatientProgramNote";
-import { registerAdminIncidentStaffPushDeps } from "@/modules/admin-incidents/adminIncidentStaffPushRuntime";
-import { registerOperatorAlertDedupPort } from "@/modules/operator-alerts/operatorAlertRuntime";
-import { registerAdminNotificationTargetsPort } from "@/modules/operator-alerts/adminNotificationTargetsRuntime";
-import { registerEmptyAudienceReporter } from "@/modules/operator-alerts/emptyAudienceRuntime";
-import { emptyAudienceReporter } from "@/app-layer/operator-alerts/reportEmptyNotificationAudience";
-import { pgOperatorHealthAlertSentPort } from "@/infra/repos/pgOperatorHealthAlertSent";
-import { inMemoryOperatorHealthAlertSentPort } from "@/infra/repos/inMemoryOperatorHealthAlertSent";
-import { loadAdminNotificationTargetsFromDb } from "@/infra/repos/pgAdminNotificationTargets";
-import { createIntegratorSupportBridge } from "@/modules/messaging/integratorSupportBridge";
-import { createSendProgramNoteReply } from "@/modules/messaging/sendProgramNoteReply";
-import { resolveProgramNoteReplyContext } from "@/app-layer/messaging/programNoteReplyContext";
-import { createPgReminderProjectionPort } from "@/infra/repos/pgReminderProjection";
-import { inMemoryReminderProjectionPort } from "@/infra/repos/inMemoryReminderProjection";
-import { createPgReminderRulesPort } from "@/infra/repos/pgReminderRules";
-import { createInMemoryReminderRulesPort } from "@/infra/repos/inMemoryReminderRules";
-import { createPgReminderJournalPort } from "@/infra/repos/pgReminderJournal";
-import { createRemindersService } from "@/modules/reminders/service";
-import { notifyIntegratorRuleUpdated } from "@/modules/reminders/notifyIntegrator";
-import { createPgAppointmentProjectionPort } from "@/infra/repos/pgAppointmentProjection";
-import { inMemoryAppointmentProjectionPort } from "@/infra/repos/inMemoryAppointmentProjection";
-import { createPgDoctorNotesPort } from "@/infra/repos/pgDoctorNotes";
-import { createPgSpecialistTasksPort } from "@/infra/repos/pgSpecialistTasks";
-import { inMemorySpecialistTasksPort } from "@/infra/repos/inMemorySpecialistTasks";
-import { createSpecialistTasksService } from "@/modules/specialist-tasks/service";
-import { createPgPatientFilesPort } from "@/infra/repos/pgPatientFiles";
-import { inMemoryPatientFilesPort } from "@/infra/repos/inMemoryPatientFiles";
-import { createPatientFilesService } from "@/modules/patient-files/service";
-import { createPgPatientClinicalPort } from "@/infra/repos/pgPatientClinical";
-import { inMemoryPatientClinicalPort } from "@/infra/repos/inMemoryPatientClinical";
-import { createPatientClinicalService } from "@/modules/patient-clinical/service";
-import { createPgPatientComorbiditiesPort } from "@/infra/repos/pgPatientComorbidities";
-import { inMemoryPatientComorbiditiesPort } from "@/infra/repos/inMemoryPatientComorbidities";
-import { createPatientComorbiditiesService } from "@/modules/patient-comorbidities/service";
-import { createPgPatientPaymentsPort } from "@/infra/repos/pgPatientPayments";
-import { inMemoryPatientPaymentsPort } from "@/infra/repos/inMemoryPatientPayments";
-import { createPatientPaymentsService } from "@/modules/patient-payments/service";
-import { noopAcquiringGateway } from "@/infra/repos/noopAcquiringGateway";
-import { createRegistryAcquiringGateway } from "@/infra/payments/registryAcquiringGateway";
-import { getPaymentProviderAdapter } from "@/infra/payments/paymentProviderRegistry";
-import { createPgSaasBillingRepository } from "@/infra/repos/pgSaasBilling";
-import { createInMemorySaasBillingRepository } from "@/infra/repos/inMemorySaasBilling";
-import { createSaasBillingService } from "@/modules/saas-billing/service";
-import { inMemoryDoctorNotesPort } from "@/infra/repos/inMemoryDoctorNotes";
-import { createPgBranchesProjectionPort } from "@/infra/repos/pgBranches";
-import { createPgSubscriptionMailingProjectionPort } from "@/infra/repos/pgSubscriptionMailingProjection";
-import { inMemorySubscriptionMailingProjectionPort } from "@/infra/repos/inMemorySubscriptionMailingProjection";
-import { createPgSystemSettingsPort, createPgSystemSettingsWriteUnitOfWork } from "@/infra/repos/pgSystemSettings";
-import { inMemorySystemSettingsPort } from "@/infra/repos/inMemorySystemSettings";
-import { createSystemSettingsService } from "@/modules/system-settings/service";
-import { createPgAppRuntimeSettingsPort } from "@/infra/repos/pgAppRuntimeSettings";
-import { inMemoryAppRuntimeSettingsPort } from "@/infra/repos/inMemoryAppRuntimeSettings";
-import { createRuntimeConfigProvider } from "@/modules/system-settings/runtimeConfig";
-import { createNotifTemplatesService } from "@/modules/notif-templates/notifTemplatesService";
-import { createLfkExercisesService } from "@/modules/lfk-exercises/service";
-import { pgLfkExercisesPort } from "@/infra/repos/pgLfkExercises";
-import { inMemoryLfkExercisesPort } from "@/infra/repos/inMemoryLfkExercises";
-import { createClinicalTestsService, createTestSetsService } from "@/modules/tests/service";
-import { createClinicalTestMeasureKindsService } from "@/modules/tests/measureKindsService";
-import { createRecommendationsService } from "@/modules/recommendations/service";
-import { createCommentsService } from "@/modules/comments/service";
-import { createProgramItemDiscussionService } from "@/modules/program-item-discussion/service";
-import { createTreatmentProgramService } from "@/modules/treatment-program/service";
-import { createTreatmentProgramInstanceService } from "@/modules/treatment-program/instance-service";
-import { snapshotPromoDaysBeforeRefresh } from "@/app-layer/treatment-program/snapshotPromoDaysBeforeRefresh";
-import { createTreatmentProgramProgressService } from "@/modules/treatment-program/progress-service";
-import { createTreatmentProgramPatientActionService } from "@/modules/treatment-program/patient-program-actions";
-import { createCoursesService } from "@/modules/courses/service";
-import { pgClinicalTestsPort } from "@/infra/repos/pgClinicalTests";
-import { pgClinicalTestMeasureKindsPort } from "@/infra/repos/pgClinicalTestMeasureKinds";
-import { inMemoryClinicalTestMeasureKindsPort } from "@/infra/repos/inMemoryClinicalTestMeasureKinds";
-import { pgTestSetsPort } from "@/infra/repos/pgTestSets";
-import { inMemoryClinicalTestsPort } from "@/infra/repos/inMemoryClinicalTests";
-import { inMemoryTestSetsPort } from "@/infra/repos/inMemoryTestSets";
-import { pgRecommendationsPort } from "@/infra/repos/pgRecommendations";
-import { inMemoryRecommendationsPort } from "@/infra/repos/inMemoryRecommendations";
-import { createPgCommentsPort } from "@/infra/repos/pgComments";
-import { createInMemoryCommentsPort } from "@/infra/repos/inMemoryComments";
-import { createPgTreatmentProgramPort } from "@/infra/repos/pgTreatmentProgram";
-import { createInMemoryTreatmentProgramPort } from "@/infra/repos/inMemoryTreatmentProgram";
-import { createPgTreatmentProgramItemRefValidationPort } from "@/infra/repos/pgTreatmentProgramItemRefValidation";
-import { createInMemoryTreatmentProgramItemRefValidationPort } from "@/infra/repos/inMemoryTreatmentProgramItemRefValidation";
-import { createPgTreatmentProgramInstancePort } from "@/infra/repos/pgTreatmentProgramInstance";
+} from '@/infra/repos/pgEmailOtpPublic';
+import { createEmailSetupAccessService } from '@/modules/auth/emailSetupAccess/service';
+import { createNoopEmailSetupAccessPort } from '@/modules/auth/emailSetupAccess/noopPort';
+import { createPgEmailSetupAccessPort } from '@/infra/repos/pgEmailSetupAccessPort';
+import { pgEmailSetupTokensPort } from '@/infra/repos/pgEmailSetupTokens';
+import { createEmailSetupTokensService } from '@/modules/auth/emailSetupTokens/service';
+import { createEmailSetupFlowService } from '@/modules/auth/emailSetupFlow/service';
+import { pgEmailSetupFlowPort } from '@/infra/repos/pgEmailSetupFlowPort';
+import { noopEmailSetupFlowPort } from '@/modules/auth/emailSetupFlow/noopPort';
+import { pgOAuthBindingsPort } from '@/infra/repos/pgOAuthBindings';
+import { inMemoryOAuthBindingsPort } from '@/infra/repos/inMemoryOAuthBindings';
+import { pgLoginTokensPort } from '@/infra/repos/pgLoginTokens';
+import { inMemoryLoginTokensPort } from '@/infra/repos/inMemoryLoginTokens';
+import { pgReferencesPort } from '@/infra/repos/pgReferences';
+import { inMemoryReferencesPort } from '@/infra/repos/inMemoryReferences';
+import { createPgContentPagesPort, inMemoryContentPagesPort } from '@/infra/repos/pgContentPages';
 import {
-  createInMemoryTreatmentProgramPersistence,
-} from "@/infra/repos/inMemoryTreatmentProgramInstance";
-import { createPgTreatmentProgramTestAttemptsPort } from "@/infra/repos/pgTreatmentProgramTestAttempts";
-import { createPgProgramActionLogPort } from "@/infra/repos/pgProgramActionLog";
-import { createInMemoryProgramActionLogPort } from "@/infra/repos/inMemoryProgramActionLog";
-import { createPgDoctorProactiveInsightsPort } from "@/infra/repos/pgDoctorProactiveInsights";
-import { createInMemoryDoctorProactiveInsightsPort } from "@/infra/repos/inMemoryDoctorProactiveInsights";
-import { createPgProgramItemDiscussionPort } from "@/infra/repos/pgProgramItemDiscussion";
-import { createInMemoryProgramItemDiscussionPort } from "@/infra/repos/inMemoryProgramItemDiscussion";
-import { createPgPatientDiarySnapshotsPort } from "@/infra/repos/pgPatientDiarySnapshots";
-import { createInMemoryPatientDiarySnapshotsPort } from "@/infra/repos/inMemoryPatientDiarySnapshots";
-import { createPgTreatmentProgramEventsPort } from "@/infra/repos/pgTreatmentProgramEvents";
-import { createPgTreatmentProgramItemSnapshotPort } from "@/infra/repos/pgTreatmentProgramItemSnapshot";
-import { createInMemoryTreatmentProgramItemSnapshotPort } from "@/infra/repos/inMemoryTreatmentProgramItemSnapshot";
-import { createPgCoursesPort } from "@/infra/repos/pgCourses";
-import { createInMemoryCoursesPort } from "@/infra/repos/inMemoryCourses";
-import { createLfkTemplatesService } from "@/modules/lfk-templates/service";
-import { pgLfkTemplatesPort } from "@/infra/repos/pgLfkTemplates";
-import { inMemoryLfkTemplatesPort } from "@/infra/repos/inMemoryLfkTemplates";
-import { createLfkAssignmentsService } from "@/modules/lfk-assignments/service";
-import type { LfkAssignmentsPort } from "@/modules/lfk-assignments/ports";
-import { pgLfkAssignmentsPort } from "@/infra/repos/pgLfkAssignments";
-import { checkDbHealth } from "@/infra/db/client";
-import { pgOperatorHealthReadPort } from "@/infra/repos/pgOperatorHealthRead";
-import { inMemoryOperatorHealthReadPort } from "@/infra/repos/inMemoryOperatorHealthRead";
-import { inMemorySaasIsolationDiagnosticsPort } from "@/infra/repos/inMemorySaasIsolationDiagnostics";
-import { runtimeSaasIsolationDiagnostics } from "@/infra/saasIsolationReporterRuntime";
-import { createSaasIsolationDiagnosticsService } from "@/modules/operator-health/saasIsolationDiagnostics";
-import { pgOperatorHealthDigestReadPort } from "@/infra/repos/pgOperatorHealthDigestRead";
-import { inMemoryOperatorHealthDigestReadPort } from "@/infra/repos/inMemoryOperatorHealthDigestRead";
-import { pgOperatorHealthWritePort } from "@/infra/repos/pgOperatorHealthWrite";
-import { inMemoryOperatorHealthWritePort } from "@/infra/repos/inMemoryOperatorHealthWrite";
-import { pgHealthFailureArchivePort } from "@/infra/repos/pgHealthFailureArchive";
-import { inMemoryHealthFailureArchivePort } from "@/infra/repos/inMemoryHealthFailureArchive";
-import { createHealthFailureArchiveService } from "@/modules/operator-health/healthFailureArchiveService";
-import { createNotificationDeliveryService } from "@/modules/notification-delivery/service";
-import { pgNotificationDeliveryAttemptsPort } from "@/infra/repos/pgNotificationDeliveryAttempts";
-import { inMemoryNotificationDeliveryAttemptsPort } from "@/infra/repos/inMemoryNotificationDeliveryAttempts";
-import { env, integratorWebhookSecret, isS3MediaEnabled, webappReposAreInMemory } from "@/config/env";
-import { reconcileDbRoleWithEnvRole, resolveRoleFromEnv } from "@/modules/auth/envRole";
-import { getRedirectPathForRole } from "@/modules/auth/redirectPolicy";
-import { getDeliveryTargetsForIntegrator } from "@/modules/integrator/deliveryTargetsApi";
-import { createPatientBookingService } from "@/modules/patient-booking/service";
-import { createBookingSyncPort } from "@/modules/integrator/bookingM2mApi";
-import { createAppointmentPaymentConfirmedHandler } from "@/app-layer/booking/appointmentPaymentConfirmedHandler";
-import { loadBookingLifecycleNotificationsFromSystemSettings } from "@/modules/booking-notifications/settings";
-import { pgPatientBookingsPort } from "@/infra/repos/pgPatientBookings";
-import { inMemoryPatientBookingsPort } from "@/infra/repos/inMemoryPatientBookings";
-import { createPgPatientMaintenanceHistoryPort } from "@/infra/repos/pgPatientMaintenanceHistory";
-import { inMemoryPatientMaintenanceHistoryPort } from "@/infra/repos/inMemoryPatientMaintenanceHistory";
-import { createPatientMaintenanceHistoryService } from "@/modules/patient-booking/maintenanceHistory";
-import { createPgClinicDirectoryPort } from "@/infra/repos/pgClinicDirectory";
-import { createClinicDirectoryService } from "@/modules/clinic-directory/service";
-import { createPgOrganizationMembershipPort } from "@/infra/repos/pgOrganizationMembership";
-import { createInMemoryOrganizationMembershipPort } from "@/infra/repos/inMemoryOrganizationMembership";
-import { createOrganizationMembershipService } from "@/modules/organization-membership/service";
-import { createPgOrgEntitlementsPort } from "@/infra/repos/pgOrgEntitlements";
-import { createInMemoryOrgEntitlementsPort } from "@/infra/repos/inMemoryOrgEntitlements";
-import { createPgPlatformEntitlementsPort } from "@/infra/repos/pgPlatformEntitlements";
-import { createInMemoryPlatformEntitlementsPort } from "@/infra/repos/inMemoryPlatformEntitlements";
-import { createPlatformEntitlementsService, isMechanicEnabled } from "@/modules/org-entitlements/service";
-import { createPgOrgBrandingPort } from "@/infra/repos/pgOrgBranding";
-import { createInMemoryOrgBrandingPort } from "@/infra/repos/inMemoryOrgBranding";
-import { createOrgBrandingService } from "@/modules/org-branding/service";
-import { createPgPatientOrganizationPort } from "@/infra/repos/pgPatientOrganization";
-import { createPatientOrganizationService } from "@/modules/patient-organization/service";
-import { createPgOrganizationProvisioningPort } from "@/infra/repos/pgOrganizationProvisioning";
-import { createInMemoryOrganizationProvisioningPort } from "@/infra/repos/inMemoryOrganizationProvisioning";
-import { createOrganizationProvisioningService } from "@/modules/organization-provisioning/service";
-import { createPgStaffSecurityPort } from "@/infra/repos/pgStaffSecurity";
-import { createInMemoryStaffSecurityPort } from "@/infra/repos/inMemoryStaffSecurity";
-import { createStaffSecurityService } from "@/modules/staff-security/service";
-import { createLazyStaffSecurityCryptoFromEnv } from "@/modules/staff-security/crypto";
-import { createPgOrganizationInvitesPort } from "@/infra/repos/pgOrganizationInvites";
-import { createInMemoryOrganizationInvitesPort } from "@/infra/repos/inMemoryOrganizationInvites";
-import { createOrganizationInvitesService } from "@/modules/organization-invites/service";
-import { createPgPatientInvitesPort } from "@/infra/repos/pgPatientInvites";
-import { createInMemoryPatientInvitesPort } from "@/infra/repos/inMemoryPatientInvites";
-import { createPatientInvitesService } from "@/modules/patient-invites/service";
-import { createClinicSeatsService } from "@/modules/clinic-seats/service";
-import { createDoctorWorkspaceDirectoryService } from "@/modules/doctor-workspace/service";
-import { createPgBookingEnginePort } from "@/infra/repos/pgBookingEngine";
-import { createBookingEngineService } from "@/modules/booking-engine/service";
-import { createPgBookingSchedulingPort } from "@/infra/repos/pgBookingScheduling";
-import { createBookingSchedulingService } from "@/modules/booking-scheduling/service";
-import { createBookingCalendarService } from "@/modules/booking-calendar/service";
-import { createPgBookingCalendarPort } from "@/infra/repos/pgBookingCalendar";
-import { createClientHistoryService } from "@/modules/client-history/service";
-import { createPgClientHistoryPort } from "@/infra/repos/pgClientHistory";
-import { inMemoryClientHistoryPort } from "@/infra/repos/inMemoryClientHistory";
-import { createPgBookingFormPort } from "@/infra/repos/pgBookingForm";
-import { createBookingFormService } from "@/modules/booking-form/service";
-import { createPgPatientMergeCandidatePort } from "@/infra/repos/pgPatientMergeCandidate";
-import { createPatientMergeCandidateService } from "@/modules/patient-merge-candidate/service";
-import { createPgPlatformUserContactsPort } from "@/infra/repos/pgPlatformUserContacts";
-import { createInMemoryPlatformUserContactsPort } from "@/infra/repos/inMemoryPlatformUserContacts";
-import { createPlatformUserContactsService } from "@/modules/platform-user-contacts/service";
-import { toDoctorSupplementaryContacts } from "@/modules/platform-user-contacts/bookingContactUpsert";
-import { createPgBookingPoliciesPort } from "@/infra/repos/pgBookingPolicies";
-import { createBookingPoliciesService } from "@/modules/booking-policies/service";
-import { createPgBookingAppointmentLifecyclePort } from "@/infra/repos/pgBookingAppointmentLifecycle";
-import { createBookingAppointmentLifecycleService } from "@/modules/booking-appointment-lifecycle/service";
-import { createPgPaymentsPort } from "@/infra/repos/pgPayments";
-import { createPgPaymentCaptureUnitOfWork } from "@/infra/repos/pgPaymentCaptureUnitOfWork";
-import { createPaymentsService, createPaymentsConfigReader } from "@/modules/payments/service";
-import { createPgMembershipsPort } from "@/infra/repos/pgMemberships";
-import { createMembershipsService } from "@/modules/memberships/service";
-import { createPgProductsPort } from "@/infra/repos/pgProducts";
-import { createProductsService } from "@/modules/products/service";
-import type { ProductsService } from "@/modules/products/service";
-import { createPgEntitlementsPort } from "@/infra/repos/pgEntitlements";
-import { createEntitlementsService } from "@/modules/entitlements/service";
-import { wrapBookingEngineMembershipHooks } from "@/app-layer/booking/wrapBookingEngineMembershipHooks";
-import { createPgPatientHomeBlocksPort } from "@/infra/repos/pgPatientHomeBlocks";
-import { createInMemoryPatientHomeBlocksPort } from "@/infra/repos/inMemoryPatientHomeBlocks";
-import { createPgPatientHomeLegacyContentPort } from "@/infra/repos/pgPatientHomeLegacyContent";
-import { createInMemoryPatientHomeLegacyContentPort } from "@/infra/repos/inMemoryPatientHomeLegacyContent";
-import { createPgPatientPracticeCompletionsPort } from "@/infra/repos/pgPatientPracticeCompletions";
-import { createInMemoryPatientPracticeCompletionsPort } from "@/infra/repos/inMemoryPatientPracticeCompletions";
-import { createPgPatientDailyWarmupPresentationPort } from "@/infra/repos/pgPatientDailyWarmupPresentation";
-import { createInMemoryPatientDailyWarmupPresentationPort } from "@/infra/repos/inMemoryPatientDailyWarmupPresentation";
-import { createPgPatientDailyWarmupVideoViewPort } from "@/infra/repos/pgPatientDailyWarmupVideoView";
-import { createInMemoryPatientDailyWarmupVideoViewPort } from "@/infra/repos/inMemoryPatientDailyWarmupVideoView";
-import { createPgMaterialRatingPort } from "@/infra/repos/pgMaterialRating";
-import { createInMemoryMaterialRatingPort } from "@/infra/repos/inMemoryMaterialRating";
-import { createMaterialRatingService } from "@/modules/material-rating/service";
-import { createPgMaterialRatingFeedbackPort } from "@/infra/repos/pgMaterialRatingFeedback";
-import { createInMemoryMaterialRatingFeedbackPort } from "@/infra/repos/inMemoryMaterialRatingFeedback";
-import { createMaterialRatingFeedbackService } from "@/modules/material-rating-feedback/service";
-import { isContentPageInDailyWarmupBlock } from "@/modules/patient-home/todayConfig";
-import { createPgWarmupFeelingCompletionPort } from "@/infra/repos/pgWarmupFeelingCompletion";
-import { createInMemoryWarmupFeelingCompletionPort } from "@/infra/repos/inMemoryWarmupFeelingCompletion";
-import { createPatientHomeBlocksService } from "@/modules/patient-home/service";
-import { createPatientPracticeService } from "@/modules/patient-practice/service";
-import { createPatientMoodService } from "@/modules/patient-mood/service";
+  createPgContentSectionsPort,
+  inMemoryContentSectionsPort,
+} from '@/infra/repos/pgContentSections';
+import { createPgSupportCommunicationPort } from '@/infra/repos/pgSupportCommunication';
+import { inMemorySupportCommunicationPort } from '@/infra/repos/inMemorySupportCommunication';
+import { createPatientMessagingService } from '@/modules/messaging/patientMessagingService';
+import { createPatientNotificationInboxService } from '@/modules/messaging/patientNotificationInboxService';
+import { createDoctorSupportMessagingService } from '@/modules/messaging/doctorSupportMessagingService';
+import { createNotifyPatientDoctorReply } from '@/modules/messaging/notifyPatientDoctorReply';
+import { notifyDoctorPatientMessage } from '@/modules/messaging/notifyDoctorPatientMessage';
+import { notifyDoctorPatientProgramNote } from '@/modules/messaging/notifyDoctorPatientProgramNote';
+import { registerAdminIncidentStaffPushDeps } from '@/modules/admin-incidents/adminIncidentStaffPushRuntime';
+import { registerOperatorAlertDedupPort } from '@/modules/operator-alerts/operatorAlertRuntime';
+import { registerAdminNotificationTargetsPort } from '@/modules/operator-alerts/adminNotificationTargetsRuntime';
+import { registerEmptyAudienceReporter } from '@/modules/operator-alerts/emptyAudienceRuntime';
+import { emptyAudienceReporter } from '@/app-layer/operator-alerts/reportEmptyNotificationAudience';
+import { pgOperatorHealthAlertSentPort } from '@/infra/repos/pgOperatorHealthAlertSent';
+import { inMemoryOperatorHealthAlertSentPort } from '@/infra/repos/inMemoryOperatorHealthAlertSent';
+import { loadAdminNotificationTargetsFromDb } from '@/infra/repos/pgAdminNotificationTargets';
+import { createIntegratorSupportBridge } from '@/modules/messaging/integratorSupportBridge';
+import { createSendProgramNoteReply } from '@/modules/messaging/sendProgramNoteReply';
+import { resolveProgramNoteReplyContext } from '@/app-layer/messaging/programNoteReplyContext';
+import { createPgReminderProjectionPort } from '@/infra/repos/pgReminderProjection';
+import { inMemoryReminderProjectionPort } from '@/infra/repos/inMemoryReminderProjection';
+import { createPgReminderRulesPort } from '@/infra/repos/pgReminderRules';
+import { createInMemoryReminderRulesPort } from '@/infra/repos/inMemoryReminderRules';
+import { createPgReminderJournalPort } from '@/infra/repos/pgReminderJournal';
+import { createRemindersService } from '@/modules/reminders/service';
+import { notifyIntegratorRuleUpdated } from '@/modules/reminders/notifyIntegrator';
+import { createPgAppointmentProjectionPort } from '@/infra/repos/pgAppointmentProjection';
+import { inMemoryAppointmentProjectionPort } from '@/infra/repos/inMemoryAppointmentProjection';
+import { createPgDoctorNotesPort } from '@/infra/repos/pgDoctorNotes';
+import { createPgSpecialistTasksPort } from '@/infra/repos/pgSpecialistTasks';
+import { inMemorySpecialistTasksPort } from '@/infra/repos/inMemorySpecialistTasks';
+import { createSpecialistTasksService } from '@/modules/specialist-tasks/service';
+import { createPgPatientFilesPort } from '@/infra/repos/pgPatientFiles';
+import { inMemoryPatientFilesPort } from '@/infra/repos/inMemoryPatientFiles';
+import { createPatientFilesService } from '@/modules/patient-files/service';
+import { createPgPatientClinicalPort } from '@/infra/repos/pgPatientClinical';
+import { inMemoryPatientClinicalPort } from '@/infra/repos/inMemoryPatientClinical';
+import { createPatientClinicalService } from '@/modules/patient-clinical/service';
+import { createPgPatientComorbiditiesPort } from '@/infra/repos/pgPatientComorbidities';
+import { inMemoryPatientComorbiditiesPort } from '@/infra/repos/inMemoryPatientComorbidities';
+import { createPatientComorbiditiesService } from '@/modules/patient-comorbidities/service';
+import { createPgPatientPaymentsPort } from '@/infra/repos/pgPatientPayments';
+import { inMemoryPatientPaymentsPort } from '@/infra/repos/inMemoryPatientPayments';
+import { createPatientPaymentsService } from '@/modules/patient-payments/service';
+import { noopAcquiringGateway } from '@/infra/repos/noopAcquiringGateway';
+import { createRegistryAcquiringGateway } from '@/infra/payments/registryAcquiringGateway';
+import { getPaymentProviderAdapter } from '@/infra/payments/paymentProviderRegistry';
+import { createPgSaasBillingRepository } from '@/infra/repos/pgSaasBilling';
+import { createInMemorySaasBillingRepository } from '@/infra/repos/inMemorySaasBilling';
+import { createSaasBillingService } from '@/modules/saas-billing/service';
+import { inMemoryDoctorNotesPort } from '@/infra/repos/inMemoryDoctorNotes';
+import { createPgBranchesProjectionPort } from '@/infra/repos/pgBranches';
+import { createPgSubscriptionMailingProjectionPort } from '@/infra/repos/pgSubscriptionMailingProjection';
+import { inMemorySubscriptionMailingProjectionPort } from '@/infra/repos/inMemorySubscriptionMailingProjection';
+import {
+  createPgSystemSettingsPort,
+  createPgSystemSettingsWriteUnitOfWork,
+} from '@/infra/repos/pgSystemSettings';
+import { inMemorySystemSettingsPort } from '@/infra/repos/inMemorySystemSettings';
+import { createSystemSettingsService } from '@/modules/system-settings/service';
+import { createPgAppRuntimeSettingsPort } from '@/infra/repos/pgAppRuntimeSettings';
+import { inMemoryAppRuntimeSettingsPort } from '@/infra/repos/inMemoryAppRuntimeSettings';
+import { createRuntimeConfigProvider } from '@/modules/system-settings/runtimeConfig';
+import { createNotifTemplatesService } from '@/modules/notif-templates/notifTemplatesService';
+import { createLfkExercisesService } from '@/modules/lfk-exercises/service';
+import { pgLfkExercisesPort } from '@/infra/repos/pgLfkExercises';
+import { inMemoryLfkExercisesPort } from '@/infra/repos/inMemoryLfkExercises';
+import { createClinicalTestsService, createTestSetsService } from '@/modules/tests/service';
+import { createClinicalTestMeasureKindsService } from '@/modules/tests/measureKindsService';
+import { createRecommendationsService } from '@/modules/recommendations/service';
+import { createCommentsService } from '@/modules/comments/service';
+import { createProgramItemDiscussionService } from '@/modules/program-item-discussion/service';
+import { createTreatmentProgramService } from '@/modules/treatment-program/service';
+import { createTreatmentProgramInstanceService } from '@/modules/treatment-program/instance-service';
+import { snapshotPromoDaysBeforeRefresh } from '@/app-layer/treatment-program/snapshotPromoDaysBeforeRefresh';
+import { createTreatmentProgramProgressService } from '@/modules/treatment-program/progress-service';
+import { createTreatmentProgramPatientActionService } from '@/modules/treatment-program/patient-program-actions';
+import { createCoursesService } from '@/modules/courses/service';
+import { pgClinicalTestsPort } from '@/infra/repos/pgClinicalTests';
+import { pgClinicalTestMeasureKindsPort } from '@/infra/repos/pgClinicalTestMeasureKinds';
+import { inMemoryClinicalTestMeasureKindsPort } from '@/infra/repos/inMemoryClinicalTestMeasureKinds';
+import { pgTestSetsPort } from '@/infra/repos/pgTestSets';
+import { inMemoryClinicalTestsPort } from '@/infra/repos/inMemoryClinicalTests';
+import { inMemoryTestSetsPort } from '@/infra/repos/inMemoryTestSets';
+import { pgRecommendationsPort } from '@/infra/repos/pgRecommendations';
+import { inMemoryRecommendationsPort } from '@/infra/repos/inMemoryRecommendations';
+import { createPgCommentsPort } from '@/infra/repos/pgComments';
+import { createInMemoryCommentsPort } from '@/infra/repos/inMemoryComments';
+import { createPgTreatmentProgramPort } from '@/infra/repos/pgTreatmentProgram';
+import { createInMemoryTreatmentProgramPort } from '@/infra/repos/inMemoryTreatmentProgram';
+import { createPgTreatmentProgramItemRefValidationPort } from '@/infra/repos/pgTreatmentProgramItemRefValidation';
+import { createInMemoryTreatmentProgramItemRefValidationPort } from '@/infra/repos/inMemoryTreatmentProgramItemRefValidation';
+import { createPgTreatmentProgramInstancePort } from '@/infra/repos/pgTreatmentProgramInstance';
+import { createInMemoryTreatmentProgramPersistence } from '@/infra/repos/inMemoryTreatmentProgramInstance';
+import { createPgTreatmentProgramTestAttemptsPort } from '@/infra/repos/pgTreatmentProgramTestAttempts';
+import { createPgProgramActionLogPort } from '@/infra/repos/pgProgramActionLog';
+import { createInMemoryProgramActionLogPort } from '@/infra/repos/inMemoryProgramActionLog';
+import { createPgDoctorProactiveInsightsPort } from '@/infra/repos/pgDoctorProactiveInsights';
+import { createInMemoryDoctorProactiveInsightsPort } from '@/infra/repos/inMemoryDoctorProactiveInsights';
+import { createPgProgramItemDiscussionPort } from '@/infra/repos/pgProgramItemDiscussion';
+import { createInMemoryProgramItemDiscussionPort } from '@/infra/repos/inMemoryProgramItemDiscussion';
+import { createPgPatientDiarySnapshotsPort } from '@/infra/repos/pgPatientDiarySnapshots';
+import { createInMemoryPatientDiarySnapshotsPort } from '@/infra/repos/inMemoryPatientDiarySnapshots';
+import { createPgTreatmentProgramEventsPort } from '@/infra/repos/pgTreatmentProgramEvents';
+import { createPgTreatmentProgramItemSnapshotPort } from '@/infra/repos/pgTreatmentProgramItemSnapshot';
+import { createInMemoryTreatmentProgramItemSnapshotPort } from '@/infra/repos/inMemoryTreatmentProgramItemSnapshot';
+import { createPgCoursesPort } from '@/infra/repos/pgCourses';
+import { createInMemoryCoursesPort } from '@/infra/repos/inMemoryCourses';
+import { createLfkTemplatesService } from '@/modules/lfk-templates/service';
+import { pgLfkTemplatesPort } from '@/infra/repos/pgLfkTemplates';
+import { inMemoryLfkTemplatesPort } from '@/infra/repos/inMemoryLfkTemplates';
+import { createLfkAssignmentsService } from '@/modules/lfk-assignments/service';
+import type { LfkAssignmentsPort } from '@/modules/lfk-assignments/ports';
+import { pgLfkAssignmentsPort } from '@/infra/repos/pgLfkAssignments';
+import { checkDbHealth } from '@/infra/db/client';
+import { pgOperatorHealthReadPort } from '@/infra/repos/pgOperatorHealthRead';
+import { inMemoryOperatorHealthReadPort } from '@/infra/repos/inMemoryOperatorHealthRead';
+import { inMemorySaasIsolationDiagnosticsPort } from '@/infra/repos/inMemorySaasIsolationDiagnostics';
+import { runtimeSaasIsolationDiagnostics } from '@/infra/saasIsolationReporterRuntime';
+import { createSaasIsolationDiagnosticsService } from '@/modules/operator-health/saasIsolationDiagnostics';
+import { pgOperatorHealthDigestReadPort } from '@/infra/repos/pgOperatorHealthDigestRead';
+import { inMemoryOperatorHealthDigestReadPort } from '@/infra/repos/inMemoryOperatorHealthDigestRead';
+import { pgOperatorHealthWritePort } from '@/infra/repos/pgOperatorHealthWrite';
+import { inMemoryOperatorHealthWritePort } from '@/infra/repos/inMemoryOperatorHealthWrite';
+import { pgHealthFailureArchivePort } from '@/infra/repos/pgHealthFailureArchive';
+import { inMemoryHealthFailureArchivePort } from '@/infra/repos/inMemoryHealthFailureArchive';
+import { createHealthFailureArchiveService } from '@/modules/operator-health/healthFailureArchiveService';
+import { createNotificationDeliveryService } from '@/modules/notification-delivery/service';
+import { pgNotificationDeliveryAttemptsPort } from '@/infra/repos/pgNotificationDeliveryAttempts';
+import { inMemoryNotificationDeliveryAttemptsPort } from '@/infra/repos/inMemoryNotificationDeliveryAttempts';
+import {
+  env,
+  integratorWebhookSecret,
+  isS3MediaEnabled,
+  webappReposAreInMemory,
+} from '@/config/env';
+import { reconcileDbRoleWithEnvRole, resolveRoleFromEnv } from '@/modules/auth/envRole';
+import { getRedirectPathForRole } from '@/modules/auth/redirectPolicy';
+import { getDeliveryTargetsForIntegrator } from '@/modules/integrator/deliveryTargetsApi';
+import { createPatientBookingService } from '@/modules/patient-booking/service';
+import { createBookingSyncPort } from '@/modules/integrator/bookingM2mApi';
+import { createAppointmentPaymentConfirmedHandler } from '@/app-layer/booking/appointmentPaymentConfirmedHandler';
+import { loadBookingLifecycleNotificationsFromSystemSettings } from '@/modules/booking-notifications/settings';
+import { pgPatientBookingsPort } from '@/infra/repos/pgPatientBookings';
+import { inMemoryPatientBookingsPort } from '@/infra/repos/inMemoryPatientBookings';
+import { createPgPatientMaintenanceHistoryPort } from '@/infra/repos/pgPatientMaintenanceHistory';
+import { inMemoryPatientMaintenanceHistoryPort } from '@/infra/repos/inMemoryPatientMaintenanceHistory';
+import { createPatientMaintenanceHistoryService } from '@/modules/patient-booking/maintenanceHistory';
+import { createPgClinicDirectoryPort } from '@/infra/repos/pgClinicDirectory';
+import { createClinicDirectoryService } from '@/modules/clinic-directory/service';
+import { createPgOrganizationMembershipPort } from '@/infra/repos/pgOrganizationMembership';
+import { createInMemoryOrganizationMembershipPort } from '@/infra/repos/inMemoryOrganizationMembership';
+import { createOrganizationMembershipService } from '@/modules/organization-membership/service';
+import { createPgOrgEntitlementsPort } from '@/infra/repos/pgOrgEntitlements';
+import { createInMemoryOrgEntitlementsPort } from '@/infra/repos/inMemoryOrgEntitlements';
+import { createPgPlatformEntitlementsPort } from '@/infra/repos/pgPlatformEntitlements';
+import { createInMemoryPlatformEntitlementsPort } from '@/infra/repos/inMemoryPlatformEntitlements';
+import {
+  createPlatformEntitlementsService,
+  isMechanicEnabled,
+} from '@/modules/org-entitlements/service';
+import { createPgOrgBrandingPort } from '@/infra/repos/pgOrgBranding';
+import { createInMemoryOrgBrandingPort } from '@/infra/repos/inMemoryOrgBranding';
+import { createOrgBrandingService } from '@/modules/org-branding/service';
+import { createPgPatientOrganizationPort } from '@/infra/repos/pgPatientOrganization';
+import { createPatientOrganizationService } from '@/modules/patient-organization/service';
+import { createPgOrganizationProvisioningPort } from '@/infra/repos/pgOrganizationProvisioning';
+import { createInMemoryOrganizationProvisioningPort } from '@/infra/repos/inMemoryOrganizationProvisioning';
+import { createOrganizationProvisioningService } from '@/modules/organization-provisioning/service';
+import { createPgStaffSecurityPort } from '@/infra/repos/pgStaffSecurity';
+import { createInMemoryStaffSecurityPort } from '@/infra/repos/inMemoryStaffSecurity';
+import { createStaffSecurityService } from '@/modules/staff-security/service';
+import { createLazyStaffSecurityCryptoFromEnv } from '@/modules/staff-security/crypto';
+import { createPgOrganizationInvitesPort } from '@/infra/repos/pgOrganizationInvites';
+import { createInMemoryOrganizationInvitesPort } from '@/infra/repos/inMemoryOrganizationInvites';
+import { createOrganizationInvitesService } from '@/modules/organization-invites/service';
+import { createPgPatientInvitesPort } from '@/infra/repos/pgPatientInvites';
+import { createInMemoryPatientInvitesPort } from '@/infra/repos/inMemoryPatientInvites';
+import { createPatientInvitesService } from '@/modules/patient-invites/service';
+import { createClinicSeatsService } from '@/modules/clinic-seats/service';
+import { createDoctorWorkspaceDirectoryService } from '@/modules/doctor-workspace/service';
+import { createPgBookingEnginePort } from '@/infra/repos/pgBookingEngine';
+import { createBookingEngineService } from '@/modules/booking-engine/service';
+import { createPgBookingSchedulingPort } from '@/infra/repos/pgBookingScheduling';
+import { createBookingSchedulingService } from '@/modules/booking-scheduling/service';
+import { createBookingCalendarService } from '@/modules/booking-calendar/service';
+import { createPgBookingCalendarPort } from '@/infra/repos/pgBookingCalendar';
+import { createClientHistoryService } from '@/modules/client-history/service';
+import { createPgClientHistoryPort } from '@/infra/repos/pgClientHistory';
+import { inMemoryClientHistoryPort } from '@/infra/repos/inMemoryClientHistory';
+import { createPgBookingFormPort } from '@/infra/repos/pgBookingForm';
+import { createBookingFormService } from '@/modules/booking-form/service';
+import { createPgPatientMergeCandidatePort } from '@/infra/repos/pgPatientMergeCandidate';
+import { createPatientMergeCandidateService } from '@/modules/patient-merge-candidate/service';
+import { createPgPlatformUserContactsPort } from '@/infra/repos/pgPlatformUserContacts';
+import { createInMemoryPlatformUserContactsPort } from '@/infra/repos/inMemoryPlatformUserContacts';
+import { createPlatformUserContactsService } from '@/modules/platform-user-contacts/service';
+import { toDoctorSupplementaryContacts } from '@/modules/platform-user-contacts/bookingContactUpsert';
+import { createPgBookingPoliciesPort } from '@/infra/repos/pgBookingPolicies';
+import { createBookingPoliciesService } from '@/modules/booking-policies/service';
+import { createPgBookingAppointmentLifecyclePort } from '@/infra/repos/pgBookingAppointmentLifecycle';
+import { createBookingAppointmentLifecycleService } from '@/modules/booking-appointment-lifecycle/service';
+import { createPgPaymentsPort } from '@/infra/repos/pgPayments';
+import { createPgPaymentCaptureUnitOfWork } from '@/infra/repos/pgPaymentCaptureUnitOfWork';
+import { createPaymentsService, createPaymentsConfigReader } from '@/modules/payments/service';
+import { createPgMembershipsPort } from '@/infra/repos/pgMemberships';
+import { createMembershipsService } from '@/modules/memberships/service';
+import { createPgProductsPort } from '@/infra/repos/pgProducts';
+import { createProductsService } from '@/modules/products/service';
+import type { ProductsService } from '@/modules/products/service';
+import { createPgEntitlementsPort } from '@/infra/repos/pgEntitlements';
+import { createEntitlementsService } from '@/modules/entitlements/service';
+import { wrapBookingEngineMembershipHooks } from '@/app-layer/booking/wrapBookingEngineMembershipHooks';
+import { createPgPatientHomeBlocksPort } from '@/infra/repos/pgPatientHomeBlocks';
+import { createInMemoryPatientHomeBlocksPort } from '@/infra/repos/inMemoryPatientHomeBlocks';
+import { createPgPatientHomeLegacyContentPort } from '@/infra/repos/pgPatientHomeLegacyContent';
+import { createInMemoryPatientHomeLegacyContentPort } from '@/infra/repos/inMemoryPatientHomeLegacyContent';
+import { createPgPatientPracticeCompletionsPort } from '@/infra/repos/pgPatientPracticeCompletions';
+import { createInMemoryPatientPracticeCompletionsPort } from '@/infra/repos/inMemoryPatientPracticeCompletions';
+import { createPgPatientDailyWarmupPresentationPort } from '@/infra/repos/pgPatientDailyWarmupPresentation';
+import { createInMemoryPatientDailyWarmupPresentationPort } from '@/infra/repos/inMemoryPatientDailyWarmupPresentation';
+import { createPgPatientDailyWarmupVideoViewPort } from '@/infra/repos/pgPatientDailyWarmupVideoView';
+import { createInMemoryPatientDailyWarmupVideoViewPort } from '@/infra/repos/inMemoryPatientDailyWarmupVideoView';
+import { createPgMaterialRatingPort } from '@/infra/repos/pgMaterialRating';
+import { createInMemoryMaterialRatingPort } from '@/infra/repos/inMemoryMaterialRating';
+import { createMaterialRatingService } from '@/modules/material-rating/service';
+import { createPgMaterialRatingFeedbackPort } from '@/infra/repos/pgMaterialRatingFeedback';
+import { createInMemoryMaterialRatingFeedbackPort } from '@/infra/repos/inMemoryMaterialRatingFeedback';
+import { createMaterialRatingFeedbackService } from '@/modules/material-rating-feedback/service';
+import { isContentPageInDailyWarmupBlock } from '@/modules/patient-home/todayConfig';
+import { createPgWarmupFeelingCompletionPort } from '@/infra/repos/pgWarmupFeelingCompletion';
+import { createInMemoryWarmupFeelingCompletionPort } from '@/infra/repos/inMemoryWarmupFeelingCompletion';
+import { createPatientHomeBlocksService } from '@/modules/patient-home/service';
+import { createPatientPracticeService } from '@/modules/patient-practice/service';
+import { createPatientMoodService } from '@/modules/patient-mood/service';
 
 const inMemoryRepos = webappReposAreInMemory();
 
@@ -423,14 +438,18 @@ const productAnalyticsPort = !inMemoryRepos
   : createInMemoryProductAnalyticsPort();
 const productAnalytics = createProductAnalyticsService(productAnalyticsPort);
 
-const operatorHealthReadPort = !inMemoryRepos ? pgOperatorHealthReadPort : inMemoryOperatorHealthReadPort;
+const operatorHealthReadPort = !inMemoryRepos
+  ? pgOperatorHealthReadPort
+  : inMemoryOperatorHealthReadPort;
 const saasIsolationDiagnostics = !inMemoryRepos
   ? runtimeSaasIsolationDiagnostics
   : createSaasIsolationDiagnosticsService(inMemorySaasIsolationDiagnosticsPort);
 const operatorHealthDigestReadPort = !inMemoryRepos
   ? pgOperatorHealthDigestReadPort
   : inMemoryOperatorHealthDigestReadPort;
-const operatorHealthWritePort = !inMemoryRepos ? pgOperatorHealthWritePort : inMemoryOperatorHealthWritePort;
+const operatorHealthWritePort = !inMemoryRepos
+  ? pgOperatorHealthWritePort
+  : inMemoryOperatorHealthWritePort;
 const healthFailureArchivePort = !inMemoryRepos
   ? pgHealthFailureArchivePort
   : inMemoryHealthFailureArchivePort;
@@ -442,14 +461,18 @@ const notificationDelivery = createNotificationDeliveryService(notificationDeliv
 
 const symptomDiaryPort = !inMemoryRepos ? pgSymptomDiaryPort : inMemorySymptomDiaryPort;
 const lfkDiaryPort = !inMemoryRepos ? pgLfkDiaryPort : inMemoryLfkDiaryPort;
-const channelPreferencesPort = !inMemoryRepos ? pgChannelPreferencesPort : inMemoryChannelPreferencesPort;
+const channelPreferencesPort = !inMemoryRepos
+  ? pgChannelPreferencesPort
+  : inMemoryChannelPreferencesPort;
 const webPushSubscriptionsPort = !inMemoryRepos
   ? createPgWebPushSubscriptionsPort()
   : inMemoryWebPushSubscriptionsPort;
 const reminderTransactionalEmailCooldownPort = !inMemoryRepos
   ? createPgReminderTransactionalEmailCooldownPort()
   : createNoOpReminderTransactionalEmailCooldownPort();
-const topicChannelPrefsPort = !inMemoryRepos ? createPgTopicChannelPrefsPort() : inMemoryTopicChannelPrefsPort;
+const topicChannelPrefsPort = !inMemoryRepos
+  ? createPgTopicChannelPrefsPort()
+  : inMemoryTopicChannelPrefsPort;
 const staffUsersPort = !inMemoryRepos ? createPgStaffUsersPort() : inMemoryStaffUsersPort;
 const patientNotificationTopicsPort = !inMemoryRepos
   ? createPgPatientNotificationTopicsPort()
@@ -467,17 +490,23 @@ const emailOtpPublicDbPort = !inMemoryRepos
   : inMemoryEmailOtpPublicPort;
 const oauthBindingsPort = !inMemoryRepos ? pgOAuthBindingsPort : inMemoryOAuthBindingsPort;
 const loginTokensPort = !inMemoryRepos ? pgLoginTokensPort : inMemoryLoginTokensPort;
-const identityResolutionPort = !inMemoryRepos ? pgIdentityResolutionPort : inMemoryIdentityResolutionPort;
+const identityResolutionPort = !inMemoryRepos
+  ? pgIdentityResolutionPort
+  : inMemoryIdentityResolutionPort;
 const doctorClientsPort = !inMemoryRepos ? createPgDoctorClientsPort() : inMemoryDoctorClientsPort;
 const challengeStore = !inMemoryRepos ? createPgPhoneChallengeStore() : inMemoryPhoneChallengeStore;
 const phoneMessengerBindPort = !inMemoryRepos ? createPgPhoneMessengerBindPort() : undefined;
 registerPhoneMessengerBindPort(phoneMessengerBindPort ?? null);
 const messageLogPort = !inMemoryRepos ? createPgMessageLogPort() : inMemoryMessageLogPort;
-const broadcastAuditPort = !inMemoryRepos ? createPgBroadcastAuditPort() : inMemoryBroadcastAuditPort;
+const broadcastAuditPort = !inMemoryRepos
+  ? createPgBroadcastAuditPort()
+  : inMemoryBroadcastAuditPort;
 const doctorBroadcastDeliveryCommitPort = !inMemoryRepos
   ? createPgDoctorBroadcastDeliveryCommitPort()
   : createInMemoryDoctorBroadcastDeliveryCommitPort();
-const patientBroadcastsPort = !inMemoryRepos ? createPgPatientBroadcastsPort() : inMemoryPatientBroadcastsPort;
+const patientBroadcastsPort = !inMemoryRepos
+  ? createPgPatientBroadcastsPort()
+  : inMemoryPatientBroadcastsPort;
 const broadcastDraftPort = !inMemoryRepos
   ? createPgBroadcastDraftPort()
   : createInMemoryBroadcastDraftPort();
@@ -492,7 +521,9 @@ const doctorMotivationQuotesEditorPort = !inMemoryRepos
   : inMemoryDoctorMotivationQuotesEditorPort;
 const userProjectionPort = !inMemoryRepos ? pgUserProjectionPort : inMemoryUserProjectionPort;
 const emailSetupAccessService = createEmailSetupAccessService(
-  !inMemoryRepos ? createPgEmailSetupAccessPort(pgEmailSetupTokensPort) : createNoopEmailSetupAccessPort(),
+  !inMemoryRepos
+    ? createPgEmailSetupAccessPort(pgEmailSetupTokensPort)
+    : createNoopEmailSetupAccessPort(),
 );
 const emailSetupTokensService = createEmailSetupTokensService(pgEmailSetupTokensPort);
 const emailSetupFlowService = createEmailSetupFlowService({
@@ -513,9 +544,7 @@ const reminderJournalPort = !inMemoryRepos ? createPgReminderJournalPort() : und
 const appointmentProjectionPort = !inMemoryRepos
   ? createPgAppointmentProjectionPort()
   : inMemoryAppointmentProjectionPort;
-const patientBookingsPort = !inMemoryRepos
-  ? pgPatientBookingsPort
-  : inMemoryPatientBookingsPort;
+const patientBookingsPort = !inMemoryRepos ? pgPatientBookingsPort : inMemoryPatientBookingsPort;
 const patientMaintenanceHistoryService = createPatientMaintenanceHistoryService(
   !inMemoryRepos ? createPgPatientMaintenanceHistoryPort() : inMemoryPatientMaintenanceHistoryPort,
 );
@@ -535,7 +564,7 @@ const orgEntitlementsPort = !inMemoryRepos
 const orgBrandingService = createOrgBrandingService({
   port: !inMemoryRepos ? createPgOrgBrandingPort() : createInMemoryOrgBrandingPort(),
   isBrandingMechanicEnabled: (organizationId: string) =>
-    isMechanicEnabled(orgEntitlementsPort, organizationId, "branding"),
+    isMechanicEnabled(orgEntitlementsPort, organizationId, 'branding'),
 });
 const patientOrganizationService = !inMemoryRepos
   ? createPatientOrganizationService({ port: createPgPatientOrganizationPort() })
@@ -580,14 +609,16 @@ const clinicDirectoryService = !inMemoryRepos
 const bookingEngineCorePort = !inMemoryRepos ? createPgBookingEnginePort() : null;
 const doctorAppointmentsCanonicalPort =
   !inMemoryRepos && bookingEngineCorePort
-    ? createPgDoctorCanonicalAppointmentsPort(() => bookingEngineCorePort.getDefaultOrganizationId())
+    ? createPgDoctorCanonicalAppointmentsPort(() =>
+        bookingEngineCorePort.getDefaultOrganizationId(),
+      )
     : inMemoryDoctorAppointmentsPort;
 const bookingEnginePort = bookingEngineCorePort;
 const bookingEngineService = bookingEnginePort
   ? createBookingEngineService(bookingEnginePort, {
       getLocationPaletteSetting: () =>
         systemSettingsService
-          .getSetting("booking_location_default_palette", "admin", { organizationId: null })
+          .getSetting('booking_location_default_palette', 'admin', { organizationId: null })
           .then((row) => row?.valueJson ?? null),
     })
   : null;
@@ -607,14 +638,17 @@ const bookingCalendarService =
         schedulingPort: bookingSchedulingPort,
         resolveShowWorkingHours: async () => {
           if (inMemoryRepos) return true;
-          const row = await systemSettingsService.getSetting("booking_calendar_show_working_hours", "admin");
+          const row = await systemSettingsService.getSetting(
+            'booking_calendar_show_working_hours',
+            'admin',
+          );
           const raw =
-            row?.valueJson && typeof row.valueJson === "object"
+            row?.valueJson && typeof row.valueJson === 'object'
               ? (row.valueJson as { value?: unknown }).value
               : null;
-          if (typeof raw === "boolean") return raw;
-          if (raw === "true" || raw === 1) return true;
-          if (raw === "false" || raw === 0) return false;
+          if (typeof raw === 'boolean') return raw;
+          if (raw === 'true' || raw === 1) return true;
+          if (raw === 'false' || raw === 0) return false;
           return true;
         },
       })
@@ -632,8 +666,12 @@ const platformUserContactsPort = !inMemoryRepos
   : createInMemoryPlatformUserContactsPort();
 const platformUserContactsService = createPlatformUserContactsService(platformUserContactsPort);
 const bookingPoliciesPort = !inMemoryRepos ? createPgBookingPoliciesPort() : null;
-const bookingPoliciesService = bookingPoliciesPort ? createBookingPoliciesService(bookingPoliciesPort) : null;
-const bookingAppointmentLifecyclePort = !inMemoryRepos ? createPgBookingAppointmentLifecyclePort() : null;
+const bookingPoliciesService = bookingPoliciesPort
+  ? createBookingPoliciesService(bookingPoliciesPort)
+  : null;
+const bookingAppointmentLifecyclePort = !inMemoryRepos
+  ? createPgBookingAppointmentLifecyclePort()
+  : null;
 const bookingAppointmentLifecycleService =
   bookingAppointmentLifecyclePort && bookingPoliciesService
     ? createBookingAppointmentLifecycleService({
@@ -646,7 +684,9 @@ const subscriptionMailingProjectionPort = !inMemoryRepos
   ? createPgSubscriptionMailingProjectionPort()
   : inMemorySubscriptionMailingProjectionPort;
 const contentPagesPort = !inMemoryRepos ? createPgContentPagesPort() : inMemoryContentPagesPort;
-const contentSectionsPort = !inMemoryRepos ? createPgContentSectionsPort() : inMemoryContentSectionsPort;
+const contentSectionsPort = !inMemoryRepos
+  ? createPgContentSectionsPort()
+  : inMemoryContentSectionsPort;
 const remindersService = createRemindersService(reminderRulesPort, {
   notifyIntegrator: notifyIntegratorRuleUpdated,
   journal: reminderJournalPort,
@@ -654,13 +694,13 @@ const remindersService = createRemindersService(reminderRulesPort, {
   contentSections: contentSectionsPort,
 });
 const mediaStoragePort =
-  !inMemoryRepos && isS3MediaEnabled(env)
-    ? createS3MediaStoragePort()
-    : mockMediaStoragePort;
+  !inMemoryRepos && isS3MediaEnabled(env) ? createS3MediaStoragePort() : mockMediaStoragePort;
 const referencesPort = !inMemoryRepos ? pgReferencesPort : inMemoryReferencesPort;
 const doctorNotesPort = !inMemoryRepos ? createPgDoctorNotesPort() : inMemoryDoctorNotesPort;
 const doctorNotesService = createDoctorNotesService(doctorNotesPort);
-const specialistTasksPort = !inMemoryRepos ? createPgSpecialistTasksPort() : inMemorySpecialistTasksPort;
+const specialistTasksPort = !inMemoryRepos
+  ? createPgSpecialistTasksPort()
+  : inMemorySpecialistTasksPort;
 const specialistTasksService = createSpecialistTasksService(specialistTasksPort);
 const patientFilesPort = !inMemoryRepos ? createPgPatientFilesPort() : inMemoryPatientFilesPort;
 const patientFilesService = createPatientFilesService({ patientFilesPort });
@@ -680,8 +720,12 @@ const patientPaymentsPort = !inMemoryRepos
 const patientPaymentsService = createPatientPaymentsService({ patientPaymentsPort });
 // acquiringGateway is initialized below, after systemSettingsService + paymentsConfigReader are set up.
 
-const systemSettingsPort = !inMemoryRepos ? createPgSystemSettingsPort() : inMemorySystemSettingsPort;
-const appRuntimeSettingsPort = !inMemoryRepos ? createPgAppRuntimeSettingsPort() : inMemoryAppRuntimeSettingsPort;
+const systemSettingsPort = !inMemoryRepos
+  ? createPgSystemSettingsPort()
+  : inMemorySystemSettingsPort;
+const appRuntimeSettingsPort = !inMemoryRepos
+  ? createPgAppRuntimeSettingsPort()
+  : inMemoryAppRuntimeSettingsPort;
 const systemSettingsService = createSystemSettingsService(systemSettingsPort, {
   runtimeRepository: appRuntimeSettingsPort,
   writeUnitOfWork: !inMemoryRepos ? createPgSystemSettingsWriteUnitOfWork() : undefined,
@@ -693,7 +737,7 @@ const saasBillingService = createSaasBillingService({
   settings: {
     getSaasBillingPaymentProviderValue: () =>
       systemSettingsService
-        .getSetting("saas_billing_payment_provider", "admin")
+        .getSetting('saas_billing_payment_provider', 'admin')
         .then((row) => row?.valueJson ?? null),
   },
   resolvePaymentProvider: getPaymentProviderAdapter,
@@ -705,29 +749,28 @@ const platformEntitlementsService = createPlatformEntitlementsService(
       })
     : createInMemoryPlatformEntitlementsPort(),
 );
-const runtimeConfig = createRuntimeConfigProvider(
-  appRuntimeSettingsPort,
-);
+const runtimeConfig = createRuntimeConfigProvider(appRuntimeSettingsPort);
 const notifTemplatesService = createNotifTemplatesService(systemSettingsService);
 const doctorAppointmentsPort = doctorAppointmentsCanonicalPort;
 const doctorAnalyticsMetricAccountsPort =
   !inMemoryRepos && bookingEngineCorePort
-    ? createPgDoctorAnalyticsMetricAccountsPort(
-        () => bookingEngineCorePort.getDefaultOrganizationId(),
+    ? createPgDoctorAnalyticsMetricAccountsPort(() =>
+        bookingEngineCorePort.getDefaultOrganizationId(),
       )
     : inMemoryDoctorAnalyticsMetricAccountsPort;
 const membershipsPort = !inMemoryRepos ? createPgMembershipsPort() : null;
 const productsPort = !inMemoryRepos ? createPgProductsPort() : null;
 const entitlementsPort = !inMemoryRepos ? createPgEntitlementsPort() : null;
-const entitlementsService = entitlementsPort ? createEntitlementsService({ port: entitlementsPort }) : null;
+const entitlementsService = entitlementsPort
+  ? createEntitlementsService({ port: entitlementsPort })
+  : null;
 let productsServiceResolved: ProductsService | null = null;
-const resolveMembershipServiceTitle =
-  bookingEngineService
-    ? async (serviceId: string) => {
-        const svc = await bookingEngineService.services.getService(serviceId);
-        return svc?.title ?? null;
-      }
-    : undefined;
+const resolveMembershipServiceTitle = bookingEngineService
+  ? async (serviceId: string) => {
+      const svc = await bookingEngineService.services.getService(serviceId);
+      return svc?.title ?? null;
+    }
+  : undefined;
 
 const membershipsService =
   membershipsPort && bookingEngineService
@@ -759,7 +802,7 @@ const paymentsService =
         config: createPaymentsConfigReader((key, organizationId) =>
           systemSettingsService.getSetting(
             key,
-            "admin",
+            'admin',
             organizationId ? { organizationId } : undefined,
           ),
         ),
@@ -779,13 +822,14 @@ const paymentsService =
             await withExplicitOrganizationPrincipal(
               {
                 organizationId,
-                source: "payments.product-capture.fulfillment",
+                source: 'payments.product-capture.fulfillment',
               },
-              () => productsServiceResolved!.activatePurchase(
-                productPurchaseId,
-                organizationId,
-                paymentId,
-              ),
+              () =>
+                productsServiceResolved!.activatePurchase(
+                  productPurchaseId,
+                  organizationId,
+                  paymentId,
+                ),
             );
           }
         },
@@ -822,7 +866,7 @@ const acquiringGateway = !inMemoryRepos
         createPaymentsConfigReader((key, organizationId) =>
           systemSettingsService.getSetting(
             key,
-            "admin",
+            'admin',
             organizationId ? { organizationId } : undefined,
           ),
         ).getBookingPaymentSettings(),
@@ -831,9 +875,8 @@ const acquiringGateway = !inMemoryRepos
 
 const refreshPackageCalendarForAppointment = bookingEngineService
   ? async (appointmentId: string) => {
-      const { syncPackageCalendarAfterUsageChange } = await import(
-        "@/app-layer/booking/emitPackageCalendarSync"
-      );
+      const { syncPackageCalendarAfterUsageChange } =
+        await import('@/app-layer/booking/emitPackageCalendarSync');
       await syncPackageCalendarAfterUsageChange({
         appointmentId,
         bookingEngine: bookingEngineService,
@@ -866,7 +909,9 @@ const clinicalTestsPort = !inMemoryRepos ? pgClinicalTestsPort : inMemoryClinica
 const clinicalTestMeasureKindsPort = !inMemoryRepos
   ? pgClinicalTestMeasureKindsPort
   : inMemoryClinicalTestMeasureKindsPort;
-const clinicalTestMeasureKindsService = createClinicalTestMeasureKindsService(clinicalTestMeasureKindsPort);
+const clinicalTestMeasureKindsService = createClinicalTestMeasureKindsService(
+  clinicalTestMeasureKindsPort,
+);
 const testSetsPort = !inMemoryRepos ? pgTestSetsPort : inMemoryTestSetsPort;
 const recommendationsPort = !inMemoryRepos ? pgRecommendationsPort : inMemoryRecommendationsPort;
 const commentsPort = !inMemoryRepos ? createPgCommentsPort() : createInMemoryCommentsPort();
@@ -886,7 +931,9 @@ const treatmentProgramService = createTreatmentProgramService(
   treatmentProgramPort,
   treatmentProgramItemRefValidationPort,
 );
-const treatmentProgramInMemoryPersistence = inMemoryRepos ? createInMemoryTreatmentProgramPersistence() : null;
+const treatmentProgramInMemoryPersistence = inMemoryRepos
+  ? createInMemoryTreatmentProgramPersistence()
+  : null;
 const treatmentProgramInstancePort = treatmentProgramInMemoryPersistence
   ? treatmentProgramInMemoryPersistence.instancePort
   : createPgTreatmentProgramInstancePort();
@@ -896,7 +943,9 @@ const treatmentProgramTestAttemptsPort = treatmentProgramInMemoryPersistence
 const treatmentProgramEventsPort = treatmentProgramInMemoryPersistence
   ? treatmentProgramInMemoryPersistence.eventsPort
   : createPgTreatmentProgramEventsPort();
-const programActionLogPort = !inMemoryRepos ? createPgProgramActionLogPort() : createInMemoryProgramActionLogPort();
+const programActionLogPort = !inMemoryRepos
+  ? createPgProgramActionLogPort()
+  : createInMemoryProgramActionLogPort();
 const doctorProactiveInsightsPort = !inMemoryRepos
   ? createPgDoctorProactiveInsightsPort()
   : createInMemoryDoctorProactiveInsightsPort();
@@ -947,14 +996,16 @@ registerAdminNotificationTargetsPort({
 registerEmptyAudienceReporter(emptyAudienceReporter);
 const resolvePatientLabelForDoctorNotify = async (platformUserId: string): Promise<string> => {
   const identity = await doctorClientsPort.getClientIdentity(platformUserId);
-  return selectPersonalChatSenderDisplayName(
-    formatDoctorFio({
-      lastName: identity?.lastName ?? null,
-      firstName: identity?.firstName ?? null,
-      patronymic: null,
-    }),
-    identity?.displayName,
-  ) ?? "";
+  return (
+    selectPersonalChatSenderDisplayName(
+      formatDoctorFio({
+        lastName: identity?.lastName ?? null,
+        firstName: identity?.firstName ?? null,
+        patronymic: null,
+      }),
+      identity?.displayName,
+    ) ?? ''
+  );
 };
 const notifyDoctorOfProgramNoteImpl = async (
   input: Parameters<typeof notifyDoctorPatientProgramNote>[0],
@@ -990,7 +1041,9 @@ const patientDailyWarmupPresentationPort = !inMemoryRepos
 const patientDailyWarmupVideoViewsPort = !inMemoryRepos
   ? createPgPatientDailyWarmupVideoViewPort()
   : createInMemoryPatientDailyWarmupVideoViewPort();
-const materialRatingPort = !inMemoryRepos ? createPgMaterialRatingPort() : createInMemoryMaterialRatingPort();
+const materialRatingPort = !inMemoryRepos
+  ? createPgMaterialRatingPort()
+  : createInMemoryMaterialRatingPort();
 const materialRatingService = createMaterialRatingService({
   ratings: materialRatingPort,
   contentPages: {
@@ -1016,12 +1069,16 @@ const materialRatingFeedbackPort = !inMemoryRepos
 const materialRatingFeedbackService = createMaterialRatingFeedbackService({
   feedback: materialRatingFeedbackPort,
   isDailyWarmupContentPage: ({ contentPageId, organizationId }) =>
-    isContentPageInDailyWarmupBlock(contentPageId, {
-      patientHomeBlocks: patientHomeBlocksPort,
-      contentPages: contentPagesPort,
-      contentSections: contentSectionsPort,
-      systemSettings: systemSettingsService,
-    }, organizationId),
+    isContentPageInDailyWarmupBlock(
+      contentPageId,
+      {
+        patientHomeBlocks: patientHomeBlocksPort,
+        contentPages: contentPagesPort,
+        contentSections: contentSectionsPort,
+        systemSettings: systemSettingsService,
+      },
+      organizationId,
+    ),
 });
 const warmupFeelingCompletionPort = !inMemoryRepos
   ? createPgWarmupFeelingCompletionPort({
@@ -1051,7 +1108,8 @@ const treatmentProgramInstanceService = createTreatmentProgramInstanceService({
         patientPractice: patientPracticeService,
         programActionLog: programActionLogPort,
         treatmentProgramInstance: {
-          listInstancesForPatient: (userId) => treatmentProgramInstancePort.listInstancesForPatient(userId),
+          listInstancesForPatient: (userId) =>
+            treatmentProgramInstancePort.listInstancesForPatient(userId),
           getInstanceForPatient: (userId, instanceId) =>
             treatmentProgramInstancePort.getInstanceForPatient(userId, instanceId),
         },
@@ -1065,7 +1123,8 @@ const treatmentProgramInstanceService = createTreatmentProgramInstanceService({
 const coursesService = createCoursesService({
   courses: coursesPort,
   introPages: contentPagesPort,
-  assignTemplateToPatient: (input) => treatmentProgramInstanceService.assignTemplateToPatient(input),
+  assignTemplateToPatient: (input) =>
+    treatmentProgramInstanceService.assignTemplateToPatient(input),
 });
 
 productsServiceResolved =
@@ -1077,7 +1136,7 @@ productsServiceResolved =
         memberships: membershipsServiceResolved,
         courses: coursesService,
         resolvePlatformUserByPhone: (phone, name) =>
-          import("@/app-layer/platform-user/resolveOrCreateUserByPhone").then((m) =>
+          import('@/app-layer/platform-user/resolveOrCreateUserByPhone').then((m) =>
             // Products flow: behaviour unchanged by A-3, same class flagged for the owner.
             m.resolveOrCreateUserByPhone(phone, name, true),
           ),
@@ -1086,13 +1145,13 @@ productsServiceResolved =
           return user ? { userId: user.userId } : null;
         },
         isCourseMechanicEnabled: (organizationId) =>
-          isMechanicEnabled(orgEntitlementsPort, organizationId, "courses"),
+          isMechanicEnabled(orgEntitlementsPort, organizationId, 'courses'),
         hasActivePatientEnrollment: (platformUserId, organizationId) =>
           patientOrganizationService?.hasActiveEnrollment(platformUserId, organizationId) ??
           Promise.resolve(false),
         courseBelongsToOrganization: (courseId, organizationId) =>
           withExplicitOrganizationPrincipal(
-            { organizationId, source: "products.course-scope" },
+            { organizationId, source: 'products.course-scope' },
             async () => (await coursesService.getCourseForDoctor(courseId)) !== null,
           ),
       })
@@ -1117,10 +1176,9 @@ patientBookingService = createPatientBookingService({
     return { phone: identity.phone, email: identity.email ?? null };
   },
   getBookingLifecycleNotificationSettings: async () => {
-    const row = await systemSettingsService.getSetting("booking_lifecycle_notifications", "admin");
-    const { parseBookingLifecycleNotificationsSettings } = await import(
-      "@/modules/booking-notifications/settings"
-    );
+    const row = await systemSettingsService.getSetting('booking_lifecycle_notifications', 'admin');
+    const { parseBookingLifecycleNotificationsSettings } =
+      await import('@/modules/booking-notifications/settings');
     return parseBookingLifecycleNotificationsSettings(row?.valueJson ?? null);
   },
 });
@@ -1143,7 +1201,7 @@ const lfkTemplatesService = createLfkTemplatesService(lfkTemplatesPort);
 
 const lfkAssignmentsStubPort: LfkAssignmentsPort = {
   async assignPublishedTemplateToPatient() {
-    throw new Error("Назначение шаблона ЛФК доступно только при подключённой базе данных.");
+    throw new Error('Назначение шаблона ЛФК доступно только при подключённой базе данных.');
   },
 };
 const lfkAssignmentsPortResolved: LfkAssignmentsPort = !inMemoryRepos
@@ -1158,7 +1216,8 @@ const notifyPatientDoctorReply = createNotifyPatientDoctorReply({
   webPushSubscriptions: webPushSubscriptionsPort,
   systemSettings: systemSettingsService,
   readReminderNotifyGate: readReminderWebappNotifyGate,
-  getProfileEmailFields: (platformUserId) => userProjectionPort.getProfileEmailFields(platformUserId),
+  getProfileEmailFields: (platformUserId) =>
+    userProjectionPort.getProfileEmailFields(platformUserId),
   getChannelBindings: loadPlatformUserChannelBindings,
 });
 const sendProgramNoteReply = createSendProgramNoteReply({
@@ -1174,7 +1233,7 @@ const notifyDoctorOfPatientMessageImpl = async (input: {
   messageId: string;
   messageText: string;
   patientLabel: string;
-  source: "webapp" | "telegram" | "max";
+  source: 'webapp' | 'telegram' | 'max';
 }) => {
   await notifyDoctorPatientMessage(input, { staffDeps: doctorPatientMessageStaffDeps });
 };
@@ -1189,40 +1248,44 @@ const integratorSupportBridge = createIntegratorSupportBridge({
 const patientMessagingService = createPatientMessagingService(supportCommunicationPort, {
   isUserMessagingBlocked: (uid) => doctorClientsPort.isClientMessagingBlocked(uid),
   notifyDoctorOfPatientMessage: async (input) => {
-    await notifyDoctorOfPatientMessageImpl({ ...input, source: "webapp" });
+    await notifyDoctorOfPatientMessageImpl({ ...input, source: 'webapp' });
   },
   resolvePatientLabel: resolvePatientLabelForDoctorNotify,
 });
-const patientNotificationInboxService = createPatientNotificationInboxService(supportCommunicationPort);
-const doctorSupportMessagingService = createDoctorSupportMessagingService(supportCommunicationPort, {
-  shouldDispatchRelay: (ctx) => systemSettingsService.shouldDispatchRelayToRecipient(ctx),
-  notifyPatientOfDoctorReply: notifyPatientDoctorReply,
-});
+const patientNotificationInboxService =
+  createPatientNotificationInboxService(supportCommunicationPort);
+const doctorSupportMessagingService = createDoctorSupportMessagingService(
+  supportCommunicationPort,
+  {
+    shouldDispatchRelay: (ctx) => systemSettingsService.shouldDispatchRelayToRecipient(ctx),
+    notifyPatientOfDoctorReply: notifyPatientDoctorReply,
+  },
+);
 
 function linkFromPayload(payload: Record<string, unknown>): string | null {
   const link = payload?.link;
-  if (typeof link === "string" && link.trim()) return link.trim();
+  if (typeof link === 'string' && link.trim()) return link.trim();
   const url = payload?.url;
-  if (typeof url === "string" && url.trim()) return url.trim();
+  if (typeof url === 'string' && url.trim()) return url.trim();
   const recordUrl = payload?.record_url;
-  if (typeof recordUrl === "string" && recordUrl.trim()) return recordUrl.trim();
+  if (typeof recordUrl === 'string' && recordUrl.trim()) return recordUrl.trim();
   return null;
 }
 
 function cancelReasonFromPayload(payload: Record<string, unknown>): string | null {
   const a = payload?.cancellation_reason;
   const b = payload?.cancel_reason;
-  if (typeof a === "string" && a.trim()) return a.trim();
-  if (typeof b === "string" && b.trim()) return b.trim();
+  if (typeof a === 'string' && a.trim()) return a.trim();
+  if (typeof b === 'string' && b.trim()) return b.trim();
   return null;
 }
 
 function mapRecordStatus(raw: string): AppointmentRecordStatus {
   const x = raw.toLowerCase();
-  if (x.includes("cancel")) return "cancelled";
-  if (x.includes("resched")) return "rescheduled";
-  if (x === "confirmed" || x === "updated") return "confirmed";
-  return "created";
+  if (x.includes('cancel')) return 'cancelled';
+  if (x.includes('resched')) return 'rescheduled';
+  if (x === 'confirmed' || x === 'updated') return 'confirmed';
+  return 'created';
 }
 
 const getUpcomingAppointments: (userId: string) => Promise<AppointmentSummary[]> =
@@ -1305,7 +1368,9 @@ const phoneAuthDeps = {
   userByPhonePort,
 };
 
-async function listAppointmentHistoryForPhone(phone: string | null): Promise<ClientAppointmentHistoryItem[]> {
+async function listAppointmentHistoryForPhone(
+  phone: string | null,
+): Promise<ClientAppointmentHistoryItem[]> {
   if (!phone) return [];
   const tz = await getAppDisplayTimeZone();
   const rows = await appointmentProjectionPort.listHistoryByPhoneNormalized(phone, 80);
@@ -1352,7 +1417,8 @@ function _buildAppDeps() {
     webPushSubscriptions: webPushSubscriptionsPort,
     systemSettings: systemSettingsService,
     hasActivePatientEnrollment: (platformUserId: string, organizationId: string) =>
-      patientOrganizationService?.hasActiveEnrollment(platformUserId, organizationId) ?? Promise.resolve(false),
+      patientOrganizationService?.hasActiveEnrollment(platformUserId, organizationId) ??
+      Promise.resolve(false),
     findPlatformUserByIntegratorId: userProjectionPort.findByIntegratorId,
   };
   return {
@@ -1364,8 +1430,16 @@ function _buildAppDeps() {
         exchangeTelegramInitData(initData, identityResolutionPort, userProjectionPort.updateRole),
       exchangeMaxInitData: (initData: string) =>
         exchangeMaxInitData(initData, identityResolutionPort, userProjectionPort.updateRole),
-      exchangeTelegramLoginWidget: (payload: TelegramLoginWidgetPayload, webappEntryToken?: string | null) =>
-        exchangeTelegramLoginWidget(payload, identityResolutionPort, userProjectionPort.updateRole, webappEntryToken),
+      exchangeTelegramLoginWidget: (
+        payload: TelegramLoginWidgetPayload,
+        webappEntryToken?: string | null,
+      ) =>
+        exchangeTelegramLoginWidget(
+          payload,
+          identityResolutionPort,
+          userProjectionPort.updateRole,
+          webappEntryToken,
+        ),
       clearSession,
       setSessionFromUser,
       startPhoneAuth: (phone: string, context: ChannelContext, opts?: StartPhoneAuthOptions) =>
@@ -1387,10 +1461,12 @@ function _buildAppDeps() {
           }
           await consumePhoneOtpChallenge(challengeId, phoneAuthDeps);
         } catch {
-          return { ok: false as const, code: "server_error" };
+          return { ok: false as const, code: 'server_error' };
         }
         const user =
-          result.user.role === effectiveRole ? result.user : { ...result.user, role: effectiveRole };
+          result.user.role === effectiveRole
+            ? result.user
+            : { ...result.user, role: effectiveRole };
         return {
           ok: true as const,
           user,
@@ -1455,8 +1531,10 @@ function _buildAppDeps() {
     doctorStats: createDoctorStatsService({
       getAppointmentStats: (filter, audience) =>
         doctorAppointmentsPort.getAppointmentStats(filter, audience),
-      getClientContactBreakdown: (audience) => doctorClientsPort.getClientContactBreakdown(audience),
-      getDashboardPatientMetrics: (audience) => doctorClientsPort.getDashboardPatientMetrics(audience),
+      getClientContactBreakdown: (audience) =>
+        doctorClientsPort.getClientContactBreakdown(audience),
+      getDashboardPatientMetrics: (audience) =>
+        doctorClientsPort.getDashboardPatientMetrics(audience),
       getDashboardAppointmentMetrics: (audience) =>
         doctorAppointmentsPort.getDashboardAppointmentMetrics(audience),
     }),
@@ -1473,8 +1551,10 @@ function _buildAppDeps() {
           devMode,
           testAccounts,
         );
-        const prefsMap = await channelPreferencesPort.getBroadcastNotificationFlagsBatch(effective.map((c) => c.userId));
-        const webPushEligibleUserIds = channels.includes("push")
+        const prefsMap = await channelPreferencesPort.getBroadcastNotificationFlagsBatch(
+          effective.map((c) => c.userId),
+        );
+        const webPushEligibleUserIds = channels.includes('push')
           ? await resolveBroadcastWebPushEligibleUserIds(effective, category, {
               webPushSubscriptions: webPushSubscriptionsPort,
               channelPreferences: channelPreferencesPort,
@@ -1527,14 +1607,15 @@ function _buildAppDeps() {
         webPushSubscriptions: webPushSubscriptionsPort,
         systemSettings: systemSettingsService,
         readReminderNotifyGate: readReminderWebappNotifyGate,
-        recordDeliveryAttempt: (input) => notificationDelivery.recordNotificationDeliveryAttempt(input),
+        recordDeliveryAttempt: (input) =>
+          notificationDelivery.recordNotificationDeliveryAttempt(input),
         patientInboundChatPort: supportCommunicationPort,
       },
       fanOutBroadcastEmailDeps: {
         emailRecipientsPort: broadcastEmailRecipientsPort,
         getSmtpValueJson: () =>
           systemSettingsService
-            .getSetting("smtp_outbound", "admin")
+            .getSetting('smtp_outbound', 'admin')
             .then((s) => s?.valueJson ?? null)
             .catch(() => null),
       },
@@ -1545,7 +1626,7 @@ function _buildAppDeps() {
         broadcastDraftPort.saveDraft(doctorUserId, draft),
       getChannelCounts: () => broadcastChannelCountsPort.getChannelConnectionCounts(),
       getChannelCountsByAudience: async (filter: BroadcastAudienceFilter) => {
-        if (filter === "all") return broadcastChannelCountsPort.getChannelConnectionCounts();
+        if (filter === 'all') return broadcastChannelCountsPort.getChannelConnectionCounts();
         const clients = await listClientsForBroadcastAudience(doctorClientsPort, filter);
         const userIds = clients.map((c) => c.userId);
         return broadcastChannelCountsPort.getChannelCountsByUserIds(userIds);
@@ -1567,7 +1648,8 @@ function _buildAppDeps() {
       archiveSymptomTracking: symptomDiaryService.archiveTracking,
       deleteSymptomTracking: symptomDiaryService.deleteTracking,
       getSymptomTrackingForUser: symptomDiaryService.getSymptomTrackingForUser,
-      listSymptomEntriesForTrackingInRange: symptomDiaryService.listSymptomEntriesForTrackingInRange,
+      listSymptomEntriesForTrackingInRange:
+        symptomDiaryService.listSymptomEntriesForTrackingInRange,
       listSymptomEntriesForUserInRange: symptomDiaryService.listSymptomEntriesForUserInRange,
       minRecordedAtForSymptomTracking: symptomDiaryService.minRecordedAtForSymptomTracking,
       getSymptomEntryForUser: symptomDiaryService.getSymptomEntryForUser,
@@ -1584,7 +1666,8 @@ function _buildAppDeps() {
       updateLfkSession: lfkDiaryService.updateLfkSession,
       deleteLfkSession: lfkDiaryService.deleteLfkSession,
       listLfkComplexExerciseLinesForUser: lfkDiaryService.listLfkComplexExerciseLinesForUser,
-      updateLfkComplexExerciseLocalCommentForUser: lfkDiaryService.updateLfkComplexExerciseLocalCommentForUser,
+      updateLfkComplexExerciseLocalCommentForUser:
+        lfkDiaryService.updateLfkComplexExerciseLocalCommentForUser,
       purgeAllDiaryDataForUser: async (userId: string) => {
         if (!inMemoryRepos) {
           await purgeAllDiaryDataForUserPg(userId);
@@ -1661,9 +1744,11 @@ function _buildAppDeps() {
     phoneMessengerBind: {
       start: (params: Parameters<typeof startPhoneMessengerBind>[0]) =>
         startPhoneMessengerBind(params, phoneMessengerBindPort),
-      getStatus: (setupToken: string) => getPhoneMessengerBindStatus(setupToken, phoneMessengerBindPort),
-      completeFromIntegrator: (params: Parameters<typeof completePhoneMessengerBindFromIntegrator>[0]) =>
-        completePhoneMessengerBindFromIntegrator(params, phoneAuthDeps, phoneMessengerBindPort),
+      getStatus: (setupToken: string) =>
+        getPhoneMessengerBindStatus(setupToken, phoneMessengerBindPort),
+      completeFromIntegrator: (
+        params: Parameters<typeof completePhoneMessengerBindFromIntegrator>[0],
+      ) => completePhoneMessengerBindFromIntegrator(params, phoneAuthDeps, phoneMessengerBindPort),
       markConsumedByChallenge: (challengeId: string) =>
         markPhoneMessengerBindConsumedByChallenge(challengeId, phoneMessengerBindPort),
       resolveLoginChallenge: (setupToken: string) =>

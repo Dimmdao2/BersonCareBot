@@ -4,11 +4,14 @@ import type {
   MessageLogListParams,
   MessageLogListResult,
   MessageLogPort,
-} from "@/modules/doctor-messaging/ports";
+} from '@/modules/doctor-messaging/ports';
 
 const store: MessageLogEntry[] = [];
 
-function applyFilters(items: MessageLogEntry[], filters?: MessageLogListFilters): MessageLogEntry[] {
+function applyFilters(
+  items: MessageLogEntry[],
+  filters?: MessageLogListFilters,
+): MessageLogEntry[] {
   if (!filters) return items;
   let out = items;
   if (filters.userId) {
@@ -35,7 +38,9 @@ function applyFilters(items: MessageLogEntry[], filters?: MessageLogListFilters)
 function toPaged(items: MessageLogEntry[], params?: MessageLogListParams): MessageLogListResult {
   const page = Math.max(1, Math.floor(params?.page ?? 1));
   const pageSize = Math.max(1, Math.floor(params?.pageSize ?? 20));
-  const sorted = [...items].sort((a, b) => new Date(b.sentAt).getTime() - new Date(a.sentAt).getTime());
+  const sorted = [...items].sort(
+    (a, b) => new Date(b.sentAt).getTime() - new Date(a.sentAt).getTime(),
+  );
   const filtered = applyFilters(sorted, params?.filters);
   const total = filtered.length;
   const offset = (page - 1) * pageSize;

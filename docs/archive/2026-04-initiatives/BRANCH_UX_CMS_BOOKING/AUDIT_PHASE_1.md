@@ -34,14 +34,14 @@
 
 ## Проверка требований из задачи (после доработок)
 
-| Требование | Статус |
-|------------|--------|
-| Множественная загрузка + progress | pass (UI — последовательные POST; API — multi-file) |
-| Grid-view адаптивен | pass |
-| Drag-and-drop не ломает обычную загрузку | pass |
-| Picker — Dialog/Sheet | pass |
-| CMS без регрессий по sortOrder / listAll | pass |
-| accept / capture | pass |
+| Требование                               | Статус                                              |
+| ---------------------------------------- | --------------------------------------------------- |
+| Множественная загрузка + progress        | pass (UI — последовательные POST; API — multi-file) |
+| Grid-view адаптивен                      | pass                                                |
+| Drag-and-drop не ломает обычную загрузку | pass                                                |
+| Picker — Dialog/Sheet                    | pass                                                |
+| CMS без регрессий по sortOrder / listAll | pass                                                |
+| accept / capture                         | pass                                                |
 
 ## Верификация
 

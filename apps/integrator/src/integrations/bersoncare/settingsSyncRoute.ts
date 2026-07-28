@@ -26,7 +26,12 @@ const bodySchema = z.object({
 type SettingsSyncBody = z.infer<typeof bodySchema>;
 type ReqWithRawBody = FastifyRequest<{ Body: SettingsSyncBody }> & { rawBody?: string };
 
-function verifySignature(timestamp: string, rawBody: string, signature: string, secret: string): boolean {
+function verifySignature(
+  timestamp: string,
+  rawBody: string,
+  signature: string,
+  secret: string,
+): boolean {
   const ts = Number(timestamp);
   if (!Number.isFinite(ts)) return false;
   const now = Math.floor(Date.now() / 1000);

@@ -11,45 +11,45 @@
  * phone, check whether that person is blocked at this clinic, pick up their paid package, or return
  * their identifier. Those were the three oracles and the harm.
  */
-import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
-import { ensureAuthModulePortsBound } from "@/app-layer/di/bindAuthModulePorts";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { createVerifiedPublicBooking } from "@/app-layer/booking/createVerifiedPublicBooking";
+import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipal';
+import { ensureAuthModulePortsBound } from '@/app-layer/di/bindAuthModulePorts';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { createVerifiedPublicBooking } from '@/app-layer/booking/createVerifiedPublicBooking';
 import {
   isPublicBookingCreateRateLimited,
   PUBLIC_BOOKING_RATE_LIMIT_SEC,
   resolvePublicBookingRateLimitClientKey,
-} from "@/modules/public-booking/publicBookingRateLimit";
-import { issuePublicBookingVerification } from "@/modules/public-booking/publicBookingVerification";
+} from '@/modules/public-booking/publicBookingRateLimit';
+import { issuePublicBookingVerification } from '@/modules/public-booking/publicBookingVerification';
 import {
   PUBLIC_BOOKING_INTENT_VERSION,
   type PublicBookingIntent,
-} from "@/modules/public-booking/publicBookingIntent";
-import { redactPublicBookingRecord } from "@/modules/public-booking/publicBookingResponse";
-import { normalizeRuPhoneE164 } from "@/shared/phone/normalizeRuPhoneE164";
-import { canAccessPatient } from "@/modules/roles/service";
-import { publicBookingCreateBodySchema } from "../bookingPublicBodySchema";
+} from '@/modules/public-booking/publicBookingIntent';
+import { redactPublicBookingRecord } from '@/modules/public-booking/publicBookingResponse';
+import { normalizeRuPhoneE164 } from '@/shared/phone/normalizeRuPhoneE164';
+import { canAccessPatient } from '@/modules/roles/service';
+import { publicBookingCreateBodySchema } from '../bookingPublicBodySchema';
 import {
   InPersonBookingResolveError,
   resolveInPersonBookingContext,
   resolveSlugBoundPublicInPersonBookingOrganization,
-} from "@/modules/patient-booking/inPersonBookingResolve";
-import { withExplicitOrganizationPrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
-import { logger } from "@/app-layer/logging/logger";
+} from '@/modules/patient-booking/inPersonBookingResolve';
+import { withExplicitOrganizationPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
+import { logger } from '@/app-layer/logging/logger';
 import {
   jsonError,
   jsonOk,
   mapApiError,
   type ApiErrorLiteralRules,
-} from "@/shared/http/apiResponse";
+} from '@/shared/http/apiResponse';
 
 const PUBLIC_IN_PERSON_RESOLVE_ERROR_RULES = {
-  ambiguous_booking_tenant: { status: 400, code: "ambiguous_booking_tenant" },
-  booking_scheduling_unavailable: { status: 400, code: "booking_scheduling_unavailable" },
-  branch_not_found: { status: 400, code: "branch_not_found" },
-  branch_service_mapping_missing: { status: 404, code: "branch_service_mapping_missing" },
-  branch_service_not_found: { status: 400, code: "branch_service_not_found" },
-  invalid_in_person_keys: { status: 400, code: "invalid_in_person_keys" },
+  ambiguous_booking_tenant: { status: 400, code: 'ambiguous_booking_tenant' },
+  booking_scheduling_unavailable: { status: 400, code: 'booking_scheduling_unavailable' },
+  branch_not_found: { status: 400, code: 'branch_not_found' },
+  branch_service_mapping_missing: { status: 404, code: 'branch_service_mapping_missing' },
+  branch_service_not_found: { status: 400, code: 'branch_service_not_found' },
+  invalid_in_person_keys: { status: 400, code: 'invalid_in_person_keys' },
 } as const satisfies ApiErrorLiteralRules;
 
 /**
@@ -58,15 +58,15 @@ const PUBLIC_IN_PERSON_RESOLVE_ERROR_RULES = {
  * only a blocked client's phone could produce was oracle #3.
  */
 const PUBLIC_BOOKING_CREATE_ERROR_RULES = {
-  branch_service_not_found: { status: 404, code: "branch_service_not_found" },
-  canonical_booking_unavailable: { status: 503, code: "canonical_booking_unavailable" },
-  catalog_unavailable: { status: 503, code: "catalog_unavailable" },
-  consecutive_slot_cap_exceeded: { status: 400, code: "consecutive_slot_cap_exceeded" },
-  invalid_email: { status: 400, code: "invalid_email" },
-  invalid_phone: { status: 400, code: "invalid_phone" },
-  invalid_slot_count: { status: 400, code: "invalid_slot_count" },
-  required_field_missing: { status: 400, code: "required_field_missing" },
-  slot_overlap: { status: 409, code: "slot_overlap" },
+  branch_service_not_found: { status: 404, code: 'branch_service_not_found' },
+  canonical_booking_unavailable: { status: 503, code: 'canonical_booking_unavailable' },
+  catalog_unavailable: { status: 503, code: 'catalog_unavailable' },
+  consecutive_slot_cap_exceeded: { status: 400, code: 'consecutive_slot_cap_exceeded' },
+  invalid_email: { status: 400, code: 'invalid_email' },
+  invalid_phone: { status: 400, code: 'invalid_phone' },
+  invalid_slot_count: { status: 400, code: 'invalid_slot_count' },
+  required_field_missing: { status: 400, code: 'required_field_missing' },
+  slot_overlap: { status: 409, code: 'slot_overlap' },
 } as const satisfies ApiErrorLiteralRules;
 
 type Deps = ReturnType<typeof buildAppDeps>;
@@ -92,20 +92,20 @@ async function sessionProvesContactPhone(deps: Deps, contactPhone: string): Prom
 }
 
 export async function POST(request: Request) {
-  stampBootstrapPrincipal("api/booking/public/create:POST", request);
+  stampBootstrapPrincipal('api/booking/public/create:POST', request);
   ensureAuthModulePortsBound();
 
   const rateKey = resolvePublicBookingRateLimitClientKey(request);
   if (!rateKey.ok) {
     return jsonError(
-      "proxy_configuration",
-      { message: "Запрос должен проходить через reverse proxy с заголовком X-Real-IP." },
+      'proxy_configuration',
+      { message: 'Запрос должен проходить через reverse proxy с заголовком X-Real-IP.' },
       { status: 503 },
     );
   }
   if (await isPublicBookingCreateRateLimited(rateKey.key)) {
     return jsonError(
-      "rate_limited",
+      'rate_limited',
       { retryAfterSeconds: PUBLIC_BOOKING_RATE_LIMIT_SEC },
       { status: 429 },
     );
@@ -114,26 +114,26 @@ export async function POST(request: Request) {
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = publicBookingCreateBodySchema.safeParse(raw);
   if (!parsed.success) {
-    return jsonError("invalid_body", {}, { status: 400 });
+    return jsonError('invalid_body', {}, { status: 400 });
   }
 
   const body = parsed.data;
   const deps = buildAppDeps();
 
   try {
-    if (body.type === "online") {
-      return jsonError("ambiguous_booking_tenant", {}, { status: 400 });
+    if (body.type === 'online') {
+      return jsonError('ambiguous_booking_tenant', {}, { status: 400 });
     }
 
     // Tenant binding, unchanged and still ahead of everything else: slug → organisation,
     // branch+service → organisation, resolved context → organisation, all three must agree.
     const publicContext = await resolveSlugBoundPublicInPersonBookingOrganization(deps, body);
     const ctx = await withExplicitOrganizationPrincipal(
-      { organizationId: publicContext.organizationId, source: "api/booking/public/create:POST" },
+      { organizationId: publicContext.organizationId, source: 'api/booking/public/create:POST' },
       async () => {
         const resolved = await resolveInPersonBookingContext(deps, publicContext.keys);
         if (resolved.organizationId !== publicContext.organizationId) {
-          throw new InPersonBookingResolveError("ambiguous_booking_tenant");
+          throw new InPersonBookingResolveError('ambiguous_booking_tenant');
         }
         return resolved;
       },
@@ -160,13 +160,13 @@ export async function POST(request: Request) {
       // third existence oracle and is now unreachable, because nothing looks the person up.
       try {
         const booking = await withExplicitOrganizationPrincipal(
-          { organizationId: ctx.organizationId, source: "api/booking/public/create:POST" },
+          { organizationId: ctx.organizationId, source: 'api/booking/public/create:POST' },
           () => createVerifiedPublicBooking(deps, intent, true),
         );
         return jsonOk({ booking: redactPublicBookingRecord(booking) }, { status: 200 });
       } catch (error) {
-        if (error instanceof Error && error.message === "booking_blocked") {
-          return jsonError("booking_blocked", {}, { status: 403 });
+        if (error instanceof Error && error.message === 'booking_blocked') {
+          return jsonError('booking_blocked', {}, { status: 403 });
         }
         throw error;
       }
@@ -174,14 +174,14 @@ export async function POST(request: Request) {
 
     const issued = await issuePublicBookingVerification(deps.publicBookingVerification, intent);
     if (!issued.ok) {
-      if (issued.code === "invalid_phone") {
-        return jsonError("invalid_phone", {}, { status: 400 });
+      if (issued.code === 'invalid_phone') {
+        return jsonError('invalid_phone', {}, { status: 400 });
       }
       // No `retryAfterSeconds` here. The per-phone resend cooldown is keyed on the NUMBER, so
       // echoing a countdown would tell a caller that somebody recently requested a code for that
       // number — a weaker oracle than account existence, but the same class, and observed live on
       // DEV before it was removed.
-      return jsonError("verification_unavailable", {}, { status: 503 });
+      return jsonError('verification_unavailable', {}, { status: 503 });
     }
 
     return jsonOk(
@@ -201,22 +201,24 @@ export async function POST(request: Request) {
         {
           reason: error.reason,
           // `body` is a discriminated union: only the in_person variant carries these keys.
-          ...(body.type === "in_person"
+          ...(body.type === 'in_person'
             ? { branchId: body.branchId, serviceId: body.serviceId, orgSlug: body.orgSlug }
             : {}),
         },
-        "[booking/public/create] in-person booking resolution refused",
+        '[booking/public/create] in-person booking resolution refused',
       );
     }
     const mapped = mapApiError(
       error,
       PUBLIC_BOOKING_CREATE_ERROR_RULES,
-      { status: 503, code: "create_failed" },
-      [{
-        matches: (candidate: unknown): candidate is InPersonBookingResolveError =>
-          candidate instanceof InPersonBookingResolveError,
-        literalRules: PUBLIC_IN_PERSON_RESOLVE_ERROR_RULES,
-      }],
+      { status: 503, code: 'create_failed' },
+      [
+        {
+          matches: (candidate: unknown): candidate is InPersonBookingResolveError =>
+            candidate instanceof InPersonBookingResolveError,
+          literalRules: PUBLIC_IN_PERSON_RESOLVE_ERROR_RULES,
+        },
+      ],
     );
     return jsonError(mapped.code, mapped.publicFields ?? {}, {
       status: mapped.status,

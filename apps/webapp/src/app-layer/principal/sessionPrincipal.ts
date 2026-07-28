@@ -2,14 +2,14 @@ import {
   ensureDbPrincipalContext,
   enterWithDbPatientPrincipal,
   enterWithDbStaffPrincipal,
-} from "@bersoncare/db-principal";
-import { createOrganizationMembershipService } from "@/modules/organization-membership/service";
-import { createPgOrganizationMembershipPort } from "@/infra/repos/pgOrganizationMembership";
-import { createPatientOrganizationService } from "@/modules/patient-organization/service";
-import { createPgPatientOrganizationPort } from "@/infra/repos/pgPatientOrganization";
-import { canAccessDoctor, canAccessPatient } from "@/modules/roles/service";
-import { isPlatformUserUuid } from "@/shared/platform-user/isPlatformUserUuid";
-import type { AppSession } from "@/shared/types/session";
+} from '@bersoncare/db-principal';
+import { createOrganizationMembershipService } from '@/modules/organization-membership/service';
+import { createPgOrganizationMembershipPort } from '@/infra/repos/pgOrganizationMembership';
+import { createPatientOrganizationService } from '@/modules/patient-organization/service';
+import { createPgPatientOrganizationPort } from '@/infra/repos/pgPatientOrganization';
+import { canAccessDoctor, canAccessPatient } from '@/modules/roles/service';
+import { isPlatformUserUuid } from '@/shared/platform-user/isPlatformUserUuid';
+import type { AppSession } from '@/shared/types/session';
 
 // NOTE: intentionally does NOT go through `@/app-layer/di/buildAppDeps` — that module imports
 // `getCurrentSession` from `@/modules/auth/service`, which is this stamp's own caller

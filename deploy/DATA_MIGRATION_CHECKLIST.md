@@ -23,13 +23,13 @@
 
 Выполнять из корня репозитория с заданными env. Сначала всегда `--dry-run`, затем `--commit`.
 
-| # | Скрипт | Что переносит |
-|---|--------|----------------|
-| 1 | `pnpm --dir apps/webapp run backfill-person-domain -- --commit` | Карточки пользователей, контакты, привязки мессенджеров (channel bindings), настройки уведомлений (notification topics). |
-| 2 | `pnpm --dir apps/webapp run backfill-communication-history -- --commit` | История поддержки: треды, сообщения, вопросы. |
-| 3 | `pnpm --dir apps/webapp run backfill-reminders-domain -- --commit` | Правила напоминаний, история срабатываний, доступ к контенту. |
-| 4 | `pnpm --dir apps/webapp run backfill-appointments-domain -- --commit` | Записи на приём (appointment records). |
-| 5 | `pnpm --dir apps/webapp run backfill-subscription-mailing-domain -- --commit` | Темы рассылок, подписки пользователей, логи рассылок. |
+| #   | Скрипт                                                                        | Что переносит                                                                                                            |
+| --- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| 1   | `pnpm --dir apps/webapp run backfill-person-domain -- --commit`               | Карточки пользователей, контакты, привязки мессенджеров (channel bindings), настройки уведомлений (notification topics). |
+| 2   | `pnpm --dir apps/webapp run backfill-communication-history -- --commit`       | История поддержки: треды, сообщения, вопросы.                                                                            |
+| 3   | `pnpm --dir apps/webapp run backfill-reminders-domain -- --commit`            | Правила напоминаний, история срабатываний, доступ к контенту.                                                            |
+| 4   | `pnpm --dir apps/webapp run backfill-appointments-domain -- --commit`         | Записи на приём (appointment records).                                                                                   |
+| 5   | `pnpm --dir apps/webapp run backfill-subscription-mailing-domain -- --commit` | Темы рассылок, подписки пользователей, логи рассылок.                                                                    |
 
 Опции (по необходимости):
 
@@ -92,7 +92,7 @@ COMMIT;
 
 ## Сохранность данных
 
-- **Карточки и настройки пользователей:** backfill-person-domain переносит users → platform_users, identities/contacts → bindings, telegram_state (notify_*) → user_notification_topics (topic_code). Reconcile-person-domain сравнивает по integrator_user_id, phone, display_name, bindings, topics (с маппингом notify_* → topic_code).
+- **Карточки и настройки пользователей:** backfill-person-domain переносит users → platform*users, identities/contacts → bindings, telegram_state (notify*_) → user*notification_topics (topic_code). Reconcile-person-domain сравнивает по integrator_user_id, phone, display_name, bindings, topics (с маппингом notify*_ → topic_code).
 - **Подписки на рассылки:** backfill-subscription-mailing-domain переносит user_subscriptions (user_id = users.id после миграции 0010) в user_subscriptions_webapp по integrator_user_id.
 - **История записей на приём:** historical backfill переносил provider records в `appointment_records` по `integrator_record_id`; внешний источник выведен 2026-07-27.
 

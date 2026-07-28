@@ -135,7 +135,8 @@ function makeReadPortMock(overrides: MockReadPortOverrides = {}) {
       if (req.type === 'reminders.occurrences.due') return dueList;
       if (req.type === 'reminders.rules.forUser') return rules;
       if (req.type === 'identities.allByUserId') return identities;
-      if (req.type === 'reminders.delivery.staleMessengerMessage') return overrides.staleMessage ?? null;
+      if (req.type === 'reminders.delivery.staleMessengerMessage')
+        return overrides.staleMessage ?? null;
       return null;
     }),
   };
@@ -175,9 +176,7 @@ function makeDeliveryTargetsPort(
 
 /** Extract the channel from each enqueue call (2nd argument). */
 function enqueuedChannels(): string[] {
-  return enqueueOutgoingMock.mock.calls.map(
-    (call) => (call[1] as { channel: string }).channel,
-  );
+  return enqueueOutgoingMock.mock.calls.map((call) => (call[1] as { channel: string }).channel);
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -196,7 +195,10 @@ describe('B-5: reminder channel filter — selectedChannels applied unconditiona
   });
 
   it('fails closed without enqueue when webapp denies the signed tenant target', async () => {
-    const deliveryTargetsPort = makeDeliveryTargetsPort({ channelBindings: {}, tenantDenied: true });
+    const deliveryTargetsPort = makeDeliveryTargetsPort({
+      channelBindings: {},
+      tenantDenied: true,
+    });
     await expect(
       handleReminders(makeAction(), makeCtx(), makeDeps({ deliveryTargetsPort })),
     ).rejects.toThrow('delivery target tenant denied');
@@ -216,7 +218,11 @@ describe('B-5: reminder channel filter — selectedChannels applied unconditiona
       },
     });
 
-    const result = await handleReminders(makeAction(), makeCtx(), makeDeps({ deliveryTargetsPort }));
+    const result = await handleReminders(
+      makeAction(),
+      makeCtx(),
+      makeDeps({ deliveryTargetsPort }),
+    );
 
     expect(result.status).toBe('success');
     // telegram channel was selected → one enqueue for telegram
@@ -238,7 +244,11 @@ describe('B-5: reminder channel filter — selectedChannels applied unconditiona
       },
     });
 
-    const result = await handleReminders(makeAction(), makeCtx(), makeDeps({ deliveryTargetsPort }));
+    const result = await handleReminders(
+      makeAction(),
+      makeCtx(),
+      makeDeps({ deliveryTargetsPort }),
+    );
 
     expect(result.status).toBe('success');
     // No enqueue must have happened for any messenger channel
@@ -251,9 +261,7 @@ describe('B-5: reminder channel filter — selectedChannels applied unconditiona
     const MAX_CHAT_ID = 222222;
     const MAX_EXTERNAL_ID = 'max-ext-id-1';
 
-    const identities = [
-      { resource: 'max', externalId: MAX_EXTERNAL_ID, chatId: MAX_CHAT_ID },
-    ];
+    const identities = [{ resource: 'max', externalId: MAX_EXTERNAL_ID, chatId: MAX_CHAT_ID }];
 
     const deliveryTargetsPort = makeDeliveryTargetsPort({
       channelBindings: { telegramId: '111111', maxId: MAX_EXTERNAL_ID },

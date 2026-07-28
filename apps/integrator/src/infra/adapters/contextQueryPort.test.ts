@@ -13,8 +13,13 @@ function createReadPortMock() {
 describe('contextQueryPort', () => {
   it('uses deliveryTargetsPort for channel.lookupByPhone and does not call readPort user.lookup', async () => {
     const { readPort, readDb } = createReadPortMock();
-    const getTargetsByPhone = vi.fn().mockResolvedValue({ channelBindings: { telegramId: '12345', maxId: 'max-1' } });
-    const deliveryTargetsPort: DeliveryTargetsPort = { getTargetsByPhone, getTargetsByChannelBinding: vi.fn() };
+    const getTargetsByPhone = vi
+      .fn()
+      .mockResolvedValue({ channelBindings: { telegramId: '12345', maxId: 'max-1' } });
+    const deliveryTargetsPort: DeliveryTargetsPort = {
+      getTargetsByPhone,
+      getTargetsByChannelBinding: vi.fn(),
+    };
 
     const port = createContextQueryPort({
       readPort,
@@ -22,11 +27,11 @@ describe('contextQueryPort', () => {
       deliveryTargetsPort,
     });
 
-    const result = await port.request({
+    const result = (await port.request({
       type: 'channel.lookupByPhone',
       phoneNormalized: '+79991234567',
       resource: 'telegram',
-    }) as { type: string; item: { chatId?: number; channelId?: string } | null };
+    })) as { type: string; item: { chatId?: number; channelId?: string } | null };
 
     expect(result.type).toBe('channel.lookupByPhone');
     expect(result.item).toEqual({ chatId: 12345, channelId: '12345', username: null });
@@ -37,8 +42,13 @@ describe('contextQueryPort', () => {
   it('uses deliveryTargetsPort for subscriptions.forUser and does not call readPort user.lookup', async () => {
     const { readPort, readDb } = createReadPortMock();
     readDb.mockResolvedValue(null);
-    const getTargetsByPhone = vi.fn().mockResolvedValue({ channelBindings: { telegramId: '999', maxId: 'max-2' } });
-    const deliveryTargetsPort: DeliveryTargetsPort = { getTargetsByPhone, getTargetsByChannelBinding: vi.fn() };
+    const getTargetsByPhone = vi
+      .fn()
+      .mockResolvedValue({ channelBindings: { telegramId: '999', maxId: 'max-2' } });
+    const deliveryTargetsPort: DeliveryTargetsPort = {
+      getTargetsByPhone,
+      getTargetsByChannelBinding: vi.fn(),
+    };
 
     const port = createContextQueryPort({
       readPort,
@@ -46,10 +56,10 @@ describe('contextQueryPort', () => {
       deliveryTargetsPort,
     });
 
-    const result = await port.request({
+    const result = (await port.request({
       type: 'subscriptions.forUser',
       userId: '+79990001122',
-    }) as { type: string; items: unknown[] };
+    })) as { type: string; items: unknown[] };
 
     expect(result.type).toBe('subscriptions.forUser');
     expect(result.items).toHaveLength(2);
@@ -64,8 +74,13 @@ describe('contextQueryPort', () => {
   it('subscriptions.forUser resolves platform user id to phone via readPort then deliveryTargetsPort', async () => {
     const { readPort, readDb } = createReadPortMock();
     readDb.mockResolvedValue('+78887776655');
-    const getTargetsByPhone = vi.fn().mockResolvedValue({ channelBindings: { telegramId: '111', maxId: 'max-9' } });
-    const deliveryTargetsPort: DeliveryTargetsPort = { getTargetsByPhone, getTargetsByChannelBinding: vi.fn() };
+    const getTargetsByPhone = vi
+      .fn()
+      .mockResolvedValue({ channelBindings: { telegramId: '111', maxId: 'max-9' } });
+    const deliveryTargetsPort: DeliveryTargetsPort = {
+      getTargetsByPhone,
+      getTargetsByChannelBinding: vi.fn(),
+    };
 
     const port = createContextQueryPort({
       readPort,
@@ -73,10 +88,10 @@ describe('contextQueryPort', () => {
       deliveryTargetsPort,
     });
 
-    const result = await port.request({
+    const result = (await port.request({
       type: 'subscriptions.forUser',
       userId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
-    }) as { type: string; items: unknown[] };
+    })) as { type: string; items: unknown[] };
 
     expect(result.items).toHaveLength(2);
     expect(readDb).toHaveBeenCalledWith({
@@ -94,11 +109,11 @@ describe('contextQueryPort', () => {
       deliveryTargetsPort: null,
     });
 
-    const result = await port.request({
+    const result = (await port.request({
       type: 'channel.lookupByPhone',
       phoneNormalized: '+79991234567',
       resource: 'telegram',
-    }) as { type: string; item: unknown };
+    })) as { type: string; item: unknown };
 
     expect(result.type).toBe('channel.lookupByPhone');
     expect(result.item).toBeNull();
@@ -113,10 +128,10 @@ describe('contextQueryPort', () => {
       deliveryTargetsPort: null,
     });
 
-    const result = await port.request({
+    const result = (await port.request({
       type: 'subscriptions.forUser',
       userId: '+79990001122',
-    }) as { type: string; items: unknown[] };
+    })) as { type: string; items: unknown[] };
 
     expect(result.type).toBe('subscriptions.forUser');
     expect(result.items).toEqual([]);

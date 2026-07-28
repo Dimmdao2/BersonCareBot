@@ -1,12 +1,6 @@
-import type { ProgramItemDiscussionService } from "./service";
-import {
-  listDiscussionPageMerged,
-  paginateMergedMessages,
-} from "./listDiscussionPage";
-import type {
-  ProgramItemDiscussionMessage,
-  ProgramItemDiscussionMessageCursor,
-} from "./types";
+import type { ProgramItemDiscussionService } from './service';
+import { listDiscussionPageMerged, paginateMergedMessages } from './listDiscussionPage';
+import type { ProgramItemDiscussionMessage, ProgramItemDiscussionMessageCursor } from './types';
 
 export type InstanceDiscussionItemRef = {
   stageItemId: string;
@@ -20,7 +14,7 @@ export async function listInstanceDiscussionPageMerged(input: {
   patientUserId: string;
   stageItemIdFilter: string | null;
   limit: number;
-  direction: "backward" | "forward";
+  direction: 'backward' | 'forward';
   cursor: ProgramItemDiscussionMessageCursor | null;
 }): Promise<{
   page: ProgramItemDiscussionMessage[];

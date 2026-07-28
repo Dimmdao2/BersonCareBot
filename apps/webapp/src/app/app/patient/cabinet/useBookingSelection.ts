@@ -1,12 +1,12 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import type { BookingCategory } from "@/modules/patient-booking/types";
+import { useState } from 'react';
+import type { BookingCategory } from '@/modules/patient-booking/types';
 
 export type BookingSelection =
-  | { type: "online"; category: BookingCategory }
+  | { type: 'online'; category: BookingCategory }
   | {
-      type: "in_person";
+      type: 'in_person';
       cityCode: string;
       cityTitle: string;
       branchId: string;
@@ -32,10 +32,10 @@ export function useBookingSelection() {
     selection,
     inPersonDraft,
     inPersonMode,
-    selectOnline(category: "rehab_lfk" | "nutrition") {
+    selectOnline(category: 'rehab_lfk' | 'nutrition') {
       setInPersonMode(false);
       setInPersonDraft(null);
-      setSelection({ type: "online", category });
+      setSelection({ type: 'online', category });
     },
     startInPerson() {
       setInPersonMode(true);
@@ -46,16 +46,12 @@ export function useBookingSelection() {
       setSelection(null);
       setInPersonDraft({ cityCode, cityTitle });
     },
-    selectInPersonService(
-      branchId: string,
-      serviceId: string,
-      serviceTitle: string,
-    ) {
+    selectInPersonService(branchId: string, serviceId: string, serviceTitle: string) {
       if (!inPersonDraft) return;
       const { cityCode, cityTitle } = inPersonDraft;
       setInPersonDraft(null);
       setSelection({
-        type: "in_person",
+        type: 'in_person',
         cityCode,
         cityTitle,
         branchId,

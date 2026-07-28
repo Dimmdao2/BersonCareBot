@@ -1,62 +1,73 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
-import toast from "react-hot-toast";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { Label } from "@/shared/ui/doctor/primitives/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/ui/doctor/primitives/select";
-import { PatientPackageCard, type PatientPackageCardRow } from "./PatientPackageCard";
-import { DoctorDatePicker } from "@/shared/ui/doctor/DoctorDatePicker";
+import { useCallback, useEffect, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
+import toast from 'react-hot-toast';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { Label } from '@/shared/ui/doctor/primitives/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/shared/ui/doctor/primitives/select';
+import { PatientPackageCard, type PatientPackageCardRow } from './PatientPackageCard';
+import { DoctorDatePicker } from '@/shared/ui/doctor/DoctorDatePicker';
 
-import { DateTime } from "luxon";
+import { DateTime } from 'luxon';
 
 type AppointmentOption = { id: string; label: string };
 
 function notifyPackagesChanged() {
-  if (typeof window !== "undefined") {
-    window.dispatchEvent(new CustomEvent("patient:packages-changed"));
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('patient:packages-changed'));
   }
 }
 
 function formatPackagePrice(priceMinor: number | null | undefined): string | null {
   if (priceMinor == null) return null;
-  return `${(priceMinor / 100).toLocaleString("ru-RU", {
+  return `${(priceMinor / 100).toLocaleString('ru-RU', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })} ₽`;
 }
 
 function formatConsumeItemLabel(
-  item: PatientPackageCardRow["balance"]["items"][number],
+  item: PatientPackageCardRow['balance']['items'][number],
   pkg: PatientPackageCardRow,
 ): string {
   const price = formatPackagePrice(pkg.priceMinor);
   const details = [
     `остаток ${item.remaining}`,
     price ? `стоимость ${price}` : null,
-    pkg.notes ? pkg.notes.slice(0, 80) + (pkg.notes.length > 80 ? "…" : "") : null,
+    pkg.notes ? pkg.notes.slice(0, 80) + (pkg.notes.length > 80 ? '…' : '') : null,
   ].filter(Boolean);
-  return `${item.serviceTitle ?? item.serviceId} (${details.join(" · ")})`;
+  return `${item.serviceTitle ?? item.serviceId} (${details.join(' · ')})`;
 }
 
 const ERROR_LABELS: Record<string, string> = {
-  invalid_form: "Проверьте цену и состав абонемента.",
+  invalid_form: 'Проверьте цену и состав абонемента.',
   appointment_already_linked_to_package:
-    "Запись уже связана с абонементом. Откройте абонемент и выполните действие в списке записей.",
+    'Запись уже связана с абонементом. Откройте абонемент и выполните действие в списке записей.',
   appointment_has_consumed_package_session:
-    "У записи уже есть списание. Используйте «Вернуть сеанс» в списке записей абонемента.",
-  appointment_not_linked_to_package: "Запись не связана с абонементом.",
-  package_no_balance: "Нет доступных сеансов по выбранной позиции.",
-  load_failed: "Не удалось загрузить абонементы.",
-  late_detach_choice_required: "Выберите исход поздней отвязки в диалоге.",
-  past_detach_confirmation_required: "Нужно двойное подтверждение для прошедшей записи.",
-  past_unlink_not_allowed: "Отвязка прошедших записей отключена в настройках.",
+    'У записи уже есть списание. Используйте «Вернуть сеанс» в списке записей абонемента.',
+  appointment_not_linked_to_package: 'Запись не связана с абонементом.',
+  package_no_balance: 'Нет доступных сеансов по выбранной позиции.',
+  load_failed: 'Не удалось загрузить абонементы.',
+  late_detach_choice_required: 'Выберите исход поздней отвязки в диалоге.',
+  past_detach_confirmation_required: 'Нужно двойное подтверждение для прошедшей записи.',
+  past_unlink_not_allowed: 'Отвязка прошедших записей отключена в настройках.',
 };
 
 type RecalcSummary = {
-  debited: Array<{ appointmentId: string; patientPackageItemId: string; serviceId: string; usageId: string }>;
+  debited: Array<{
+    appointmentId: string;
+    patientPackageItemId: string;
+    serviceId: string;
+    usageId: string;
+  }>;
   skipped: unknown[];
   outOfBalance: unknown[];
 };
@@ -64,10 +75,10 @@ type RecalcSummary = {
 function pluralizeSessions(n: number): string {
   const mod10 = n % 10;
   const mod100 = n % 100;
-  if (mod100 >= 11 && mod100 <= 19) return "сеансов";
-  if (mod10 === 1) return "сеанс";
-  if (mod10 >= 2 && mod10 <= 4) return "сеанса";
-  return "сеансов";
+  if (mod100 >= 11 && mod100 <= 19) return 'сеансов';
+  if (mod10 === 1) return 'сеанс';
+  if (mod10 >= 2 && mod10 <= 4) return 'сеанса';
+  return 'сеансов';
 }
 
 type Props = {
@@ -88,29 +99,33 @@ export function DoctorClientMembershipsPanel({
 }: Props) {
   const router = useRouter();
   const [packages, setPackages] = useState<PatientPackageCardRow[]>([]);
-  const [priceRub, setPriceRub] = useState("");
-  const [soldDate, setSoldDate] = useState("");
-  const [paidRub, setPaidRub] = useState("");
-  const [manualNotes, setManualNotes] = useState("");
-  const [serviceId, setServiceId] = useState("");
-  const [quantity, setQuantity] = useState("1");
+  const [priceRub, setPriceRub] = useState('');
+  const [soldDate, setSoldDate] = useState('');
+  const [paidRub, setPaidRub] = useState('');
+  const [manualNotes, setManualNotes] = useState('');
+  const [serviceId, setServiceId] = useState('');
+  const [quantity, setQuantity] = useState('1');
   const [items, setItems] = useState<Array<{ serviceId: string; quantity: number }>>([]);
-  const [services, setServices] = useState<Array<{ id: string; title: string; isActive: boolean; usableInPackages: boolean }>>([]);
-  const [catalog, setCatalog] = useState<Array<{ id: string; title: string; priceMinor: number }>>([]);
-  const [catalogId, setCatalogId] = useState("");
-  const [catalogSoldDate, setCatalogSoldDate] = useState("");
-  const [catalogPaidRub, setCatalogPaidRub] = useState("");
-  const [catalogNotes, setCatalogNotes] = useState("");
-  const [consumePackageId, setConsumePackageId] = useState("");
-  const [consumeItemId, setConsumeItemId] = useState("");
-  const [consumeAppointmentId, setConsumeAppointmentId] = useState("");
+  const [services, setServices] = useState<
+    Array<{ id: string; title: string; isActive: boolean; usableInPackages: boolean }>
+  >([]);
+  const [catalog, setCatalog] = useState<Array<{ id: string; title: string; priceMinor: number }>>(
+    [],
+  );
+  const [catalogId, setCatalogId] = useState('');
+  const [catalogSoldDate, setCatalogSoldDate] = useState('');
+  const [catalogPaidRub, setCatalogPaidRub] = useState('');
+  const [catalogNotes, setCatalogNotes] = useState('');
+  const [consumePackageId, setConsumePackageId] = useState('');
+  const [consumeItemId, setConsumeItemId] = useState('');
+  const [consumeAppointmentId, setConsumeAppointmentId] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
-  const apiBase = "/api/doctor/booking-engine/patient-packages";
-  const servicesApi = "/api/doctor/booking-engine/services";
-  const catalogApi = "/api/doctor/booking-engine/packages";
-  const today = DateTime.now().toFormat("yyyy-MM-dd");
+  const apiBase = '/api/doctor/booking-engine/patient-packages';
+  const servicesApi = '/api/doctor/booking-engine/services';
+  const catalogApi = '/api/doctor/booking-engine/packages';
+  const today = DateTime.now().toFormat('yyyy-MM-dd');
 
   function showError(code: string | null) {
     if (!code) {
@@ -129,13 +144,13 @@ export function DoctorClientMembershipsPanel({
         error?: string;
       };
       if (!json.ok) {
-        showError(json.error ?? "load_failed");
+        showError(json.error ?? 'load_failed');
         return;
       }
       setPackages(json.packages ?? []);
       setError(null);
     } catch {
-      showError("load_failed");
+      showError('load_failed');
     }
   }, [platformUserId]);
 
@@ -147,7 +162,12 @@ export function DoctorClientMembershipsPanel({
       void Promise.all([fetch(servicesApi), fetch(catalogApi)]).then(async ([svcRes, catRes]) => {
         const svcJson = (await svcRes.json()) as {
           ok?: boolean;
-          services?: Array<{ id: string; title: string; isActive: boolean; usableInPackages: boolean }>;
+          services?: Array<{
+            id: string;
+            title: string;
+            isActive: boolean;
+            usableInPackages: boolean;
+          }>;
         };
         const catJson = (await catRes.json()) as {
           ok?: boolean;
@@ -159,7 +179,7 @@ export function DoctorClientMembershipsPanel({
     }
   }, [loadPackages, showCreateForm]);
 
-  const compact = packages.filter((p) => p.status === "active" || p.status === "awaiting_payment");
+  const compact = packages.filter((p) => p.status === 'active' || p.status === 'awaiting_payment');
 
   function addItem() {
     if (!serviceId) return;
@@ -169,20 +189,20 @@ export function DoctorClientMembershipsPanel({
   }
 
   function createManual() {
-    const priceMinor = Math.round(Number.parseFloat(priceRub.replace(",", ".")) * 100);
+    const priceMinor = Math.round(Number.parseFloat(priceRub.replace(',', '.')) * 100);
     const paidAmountMinor = paidRub
-      ? Math.round(Number.parseFloat(paidRub.replace(",", ".")) * 100)
+      ? Math.round(Number.parseFloat(paidRub.replace(',', '.')) * 100)
       : priceMinor;
     if (items.length === 0 || !Number.isFinite(priceMinor)) {
-      showError("invalid_form");
+      showError('invalid_form');
       return;
     }
     startTransition(async () => {
       const res = await fetch(apiBase, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          kind: "manual",
+          kind: 'manual',
           platformUserId,
           notes: manualNotes.trim() || undefined,
           priceMinor,
@@ -195,14 +215,14 @@ export function DoctorClientMembershipsPanel({
       });
       const json = (await res.json()) as { ok?: boolean; error?: string };
       if (!json.ok) {
-        showError(json.error ?? "create_failed");
+        showError(json.error ?? 'create_failed');
         return;
       }
-      toast.success("Абонемент создан");
-      setPriceRub("");
-      setPaidRub("");
-      setSoldDate("");
-      setManualNotes("");
+      toast.success('Абонемент создан');
+      setPriceRub('');
+      setPaidRub('');
+      setSoldDate('');
+      setManualNotes('');
       setItems([]);
       void loadPackages();
       router.refresh();
@@ -212,37 +232,39 @@ export function DoctorClientMembershipsPanel({
 
   function offerCatalog() {
     if (!catalogId) {
-      showError("invalid_form");
+      showError('invalid_form');
       return;
     }
     const selected = catalog.find((c) => c.id === catalogId);
     const paidAmountMinor = catalogPaidRub
-      ? Math.round(Number.parseFloat(catalogPaidRub.replace(",", ".")) * 100)
+      ? Math.round(Number.parseFloat(catalogPaidRub.replace(',', '.')) * 100)
       : (selected?.priceMinor ?? 0);
     startTransition(async () => {
       const res = await fetch(apiBase, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          kind: "catalog",
+          kind: 'catalog',
           platformUserId,
           subscriptionPackageId: catalogId,
           notes: catalogNotes.trim() || undefined,
-          soldAt: catalogSoldDate ? new Date(catalogSoldDate).toISOString() : new Date().toISOString(),
+          soldAt: catalogSoldDate
+            ? new Date(catalogSoldDate).toISOString()
+            : new Date().toISOString(),
           paidAmountMinor,
           activateImmediately: true,
         }),
       });
       const json = (await res.json()) as { ok?: boolean; error?: string };
       if (!json.ok) {
-        showError(json.error ?? "create_failed");
+        showError(json.error ?? 'create_failed');
         return;
       }
-      toast.success("Абонемент создан");
-      setCatalogId("");
-      setCatalogPaidRub("");
-      setCatalogSoldDate("");
-      setCatalogNotes("");
+      toast.success('Абонемент создан');
+      setCatalogId('');
+      setCatalogPaidRub('');
+      setCatalogSoldDate('');
+      setCatalogNotes('');
       void loadPackages();
       router.refresh();
       notifyPackagesChanged();
@@ -253,8 +275,8 @@ export function DoctorClientMembershipsPanel({
     if (!consumePackageId || !consumeItemId) return;
     startTransition(async () => {
       const res = await fetch(`${apiBase}/${consumePackageId}/consume`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           patientPackageItemId: consumeItemId,
           appointmentId: consumeAppointmentId || undefined,
@@ -262,7 +284,7 @@ export function DoctorClientMembershipsPanel({
       });
       const json = (await res.json()) as { ok?: boolean; error?: string };
       if (!json.ok) {
-        showError(json.error ?? "consume_failed");
+        showError(json.error ?? 'consume_failed');
         return;
       }
       setError(null);
@@ -277,25 +299,25 @@ export function DoctorClientMembershipsPanel({
   async function recalcPackage(packageId: string) {
     try {
       const res = await fetch(`${apiBase}/${packageId}/recalc`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
       });
       const json = (await res.json()) as { ok?: boolean; summary?: RecalcSummary; error?: string };
       if (!json.ok) {
-        toast.error("Не удалось пересчитать абонемент");
+        toast.error('Не удалось пересчитать абонемент');
         return;
       }
       const debitedCount = json.summary?.debited.length ?? 0;
       const msg =
         debitedCount > 0
           ? `Списано ${debitedCount} ${pluralizeSessions(debitedCount)}`
-          : "Нет новых сеансов для списания";
+          : 'Нет новых сеансов для списания';
       toast.success(msg);
       void loadPackages();
       router.refresh();
       notifyPackagesChanged();
     } catch {
-      toast.error("Ошибка сети при пересчёте");
+      toast.error('Ошибка сети при пересчёте');
     }
   }
 
@@ -314,7 +336,7 @@ export function DoctorClientMembershipsPanel({
               apiBase={apiBase}
               onError={showError}
               onChanged={() => void loadPackages()}
-              onRecalc={pkg.status === "active" ? () => void recalcPackage(pkg.id) : undefined}
+              onRecalc={pkg.status === 'active' ? () => void recalcPackage(pkg.id) : undefined}
             />
           ))}
         </ul>
@@ -327,7 +349,7 @@ export function DoctorClientMembershipsPanel({
             <div className="mt-3 flex flex-col gap-2">
               {catalog.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
-                  Нет шаблонов — создайте в{" "}
+                  Нет шаблонов — создайте в{' '}
                   <span className="font-medium">Расписание → Настройки → Абонементы (шаблоны)</span>
                 </p>
               ) : (
@@ -336,16 +358,13 @@ export function DoctorClientMembershipsPanel({
                   <Select
                     value={catalogId}
                     onValueChange={(v) => {
-                      const val = v ?? "";
+                      const val = v ?? '';
                       setCatalogId(val);
                       const row = catalog.find((c) => c.id === val);
                       if (row) setCatalogPaidRub(String(row.priceMinor / 100));
                     }}
                   >
-                    <SelectTrigger
-                      id="pkg-catalog"
-                      className="w-full"
-                    >
+                    <SelectTrigger id="pkg-catalog" className="w-full">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -364,7 +383,11 @@ export function DoctorClientMembershipsPanel({
                     onChange={(e) => setCatalogNotes(e.target.value)}
                   />
                   <Label htmlFor="pkg-catalog-sold">Дата продажи</Label>
-                  <DoctorDatePicker value={catalogSoldDate} onChange={setCatalogSoldDate} max={today} />
+                  <DoctorDatePicker
+                    value={catalogSoldDate}
+                    onChange={setCatalogSoldDate}
+                    max={today}
+                  />
                   <Label htmlFor="pkg-catalog-paid">Оплачено, ₽</Label>
                   <Input
                     id="pkg-catalog-paid"
@@ -380,7 +403,9 @@ export function DoctorClientMembershipsPanel({
           </details>
 
           <details className="group">
-            <summary className="cursor-pointer text-sm font-medium">Индивидуальный абонемент</summary>
+            <summary className="cursor-pointer text-sm font-medium">
+              Индивидуальный абонемент
+            </summary>
             <div className="mt-3 flex flex-col gap-2">
               <Label htmlFor="pkg-manual-notes">Комментарий</Label>
               <Input
@@ -389,7 +414,11 @@ export function DoctorClientMembershipsPanel({
                 onChange={(e) => setManualNotes(e.target.value)}
               />
               <Label htmlFor="pkg-price">Цена, ₽</Label>
-              <Input id="pkg-price" value={priceRub} onChange={(e) => setPriceRub(e.target.value)} />
+              <Input
+                id="pkg-price"
+                value={priceRub}
+                onChange={(e) => setPriceRub(e.target.value)}
+              />
               <Label htmlFor="pkg-sold">Дата продажи</Label>
               <DoctorDatePicker value={soldDate} onChange={setSoldDate} max={today} />
               <Label htmlFor="pkg-paid">Оплачено, ₽</Label>
@@ -397,14 +426,8 @@ export function DoctorClientMembershipsPanel({
               <div className="flex flex-wrap items-end gap-2">
                 <div className="min-w-[8rem] flex-1">
                   <Label htmlFor="pkg-svc">Услуга</Label>
-                  <Select
-                    value={serviceId}
-                    onValueChange={(v) => setServiceId(v ?? "")}
-                  >
-                    <SelectTrigger
-                      id="pkg-svc"
-                      className="w-full"
-                    >
+                  <Select value={serviceId} onValueChange={(v) => setServiceId(v ?? '')}>
+                    <SelectTrigger id="pkg-svc" className="w-full">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -421,7 +444,11 @@ export function DoctorClientMembershipsPanel({
                 </div>
                 <div className="w-20">
                   <Label htmlFor="pkg-qty">Кол-во</Label>
-                  <Input id="pkg-qty" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
+                  <Input
+                    id="pkg-qty"
+                    value={quantity}
+                    onChange={(e) => setQuantity(e.target.value)}
+                  />
                 </div>
                 <Button type="button" variant="secondary" size="sm" onClick={addItem}>
                   Добавить позицию
@@ -459,25 +486,25 @@ export function DoctorClientMembershipsPanel({
       ) : null}
 
       <details className="group">
-        <summary className="cursor-pointer text-sm font-medium">Списать сеанс по абонементу</summary>
+        <summary className="cursor-pointer text-sm font-medium">
+          Списать сеанс по абонементу
+        </summary>
         <div className="mt-3 flex flex-col gap-2">
           <Label>Абонемент</Label>
           <Select
             value={consumePackageId}
             onValueChange={(v) => {
-              setConsumePackageId(v ?? "");
-              setConsumeItemId("");
+              setConsumePackageId(v ?? '');
+              setConsumeItemId('');
             }}
           >
-            <SelectTrigger
-              className="w-full"
-            >
+            <SelectTrigger className="w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="">—</SelectItem>
               {packages
-                .filter((p) => p.status === "active")
+                .filter((p) => p.status === 'active')
                 .map((p) => (
                   <SelectItem key={p.id} value={p.id}>
                     {p.title}
@@ -488,13 +515,8 @@ export function DoctorClientMembershipsPanel({
           {selectedPkg ? (
             <>
               <Label>Позиция</Label>
-              <Select
-                value={consumeItemId}
-                onValueChange={(v) => setConsumeItemId(v ?? "")}
-              >
-                <SelectTrigger
-                  className="w-full"
-                >
+              <Select value={consumeItemId} onValueChange={(v) => setConsumeItemId(v ?? '')}>
+                <SelectTrigger className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -511,11 +533,9 @@ export function DoctorClientMembershipsPanel({
           <Label>Запись</Label>
           <Select
             value={consumeAppointmentId}
-            onValueChange={(v) => setConsumeAppointmentId(v ?? "")}
+            onValueChange={(v) => setConsumeAppointmentId(v ?? '')}
           >
-            <SelectTrigger
-              className="w-full"
-            >
+            <SelectTrigger className="w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

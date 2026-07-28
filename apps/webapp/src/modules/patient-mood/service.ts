@@ -1,2 +1,2 @@
-export { createPatientMoodService } from "./wellbeingMoodService";
-export type { PatientMoodService } from "./wellbeingMoodService";
+export { createPatientMoodService } from './wellbeingMoodService';
+export type { PatientMoodService } from './wellbeingMoodService';

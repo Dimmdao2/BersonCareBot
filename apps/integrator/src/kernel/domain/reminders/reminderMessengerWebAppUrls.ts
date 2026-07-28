@@ -3,7 +3,10 @@
  */
 import type { DbPort } from '../../contracts/index.js';
 import { getAppBaseUrl } from '../../../config/appBaseUrl.js';
-import { buildWebappEntryUrl, buildWebappEntryUrlForMax } from '../../../integrations/webappEntryToken.js';
+import {
+  buildWebappEntryUrl,
+  buildWebappEntryUrlForMax,
+} from '../../../integrations/webappEntryToken.js';
 
 /** Path + query for `next=` from an absolute patient URL or a path. */
 export function patientPathFromReminderTargetUrl(targetUrl: string): string {

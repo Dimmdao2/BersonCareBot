@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { useEffect } from "react";
-import { clearReferenceCache } from "@/modules/references/referenceCache";
+import { useEffect } from 'react';
+import { clearReferenceCache } from '@/modules/references/referenceCache';
 
 type ReferenceCacheBusterProps = {
   categoryCode: string;

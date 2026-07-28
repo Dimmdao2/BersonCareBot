@@ -1,4 +1,4 @@
-> STATUS (verified 2026-07-23, code-reconciled): see docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/CHECKPOINT_2026-07-23_STATE_AND_BACKEND_WORK_ORDER.md
+> STATUS (verified 2026-07-23, code-reconciled): see docs/\_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/CHECKPOINT_2026-07-23_STATE_AND_BACKEND_WORK_ORDER.md
 
 # SaaS master checklist — from isolation to the first paying-ready MVP
 
@@ -7,6 +7,7 @@ with a **verifiable result** (a green smoke/gate, a proven behavior, a merged+pu
 "refined X for a while". Owner reviews this file. Updated by the orchestrator (Opus) after each pass.
 
 ## FINAL GOAL (what this whole effort must arrive at)
+
 A premium multi-tenant SaaS **base** where: (1) tenant data is **provably isolated** (org wall +
 absolute patient wall) under a non-bypass DB role; (2) a **solo specialist can self-register** and get
 their own isolated org/space **without manual SQL**; (3) the **seams** for commercialization
@@ -14,6 +15,7 @@ their own isolated org/space **without manual SQL**; (3) the **seams** for comme
 contents, branding UX, and product polish come after, on top of these mechanisms.
 
 ## Anti-drift rules (check every watchdog tick)
+
 - **One trunk = `feat/doctor-ui-rebuild`.** Workers run in isolated worktrees but **every pass ends by
   merging back to `feat` + `git push origin feat`** after audit. No divergent branch lives longer than
   one short pass. Conflicts resolved immediately, never left to pile up (the 2-branch merge pain of
@@ -29,6 +31,7 @@ contents, branding UX, and product polish come after, on top of these mechanisms
 ---
 
 ## M0 — Dormant foundation + R2-readiness holes — ✅ DONE
+
 - [x] R1 Phase-0 dormant schema/policies; T0.1–T0.4 context plumbing.
 - [x] 3 R2-readiness holes closed (#645–#650), CI green, on `feat`, C1 NOT NULL verified on dev.
 
@@ -45,25 +48,24 @@ contents, branding UX, and product polish come after, on top of these mechanisms
 cross-org; patient wall denies cross-patient (webapp uuid + integrator bigint, incl. chain-only tables);
 staff (`actor='staff'`) sees all-org (variant A); unset context fails closed. Regression gate + full CI
 green. Everything merged to `feat` and pushed. **No flip** (that's M2, owner-gated).
+
 - [x] **B4-core** — patient wall on 60 direct-column tables (mig 0169), audit-clean, merged/pushed.
 - [x] **B4-core-2** — chain-only patient walls for 11 tables (integrator I2/I3 + support) + integrator GUC
       aligned to `app.integrator_user_id`; smoke proves mixed uuid+bigint patient session sees only own.
       Audit-clean on those 11 + the GUC realign. Also fixed the `\quit 1` non-fatal smoke bug. (#656, merged)
 - [x] **B4-core-3** — closed the 9 named PHI chain tables (mig 0171) PLUS **18 MORE found by the
       mandated exhaustive census** (mig 0172): 3 treatment-program denorm chains (incl. a 2-hop
-      instance_stage_items/_groups chain), 11 be_appointment_*/be_package_*/be_refunds/
+      instance*stage_items/\_groups chain), 11 be_appointment*_/be*package*_/be*refunds/
       be_product_history_events/reminder_journal single-hop chains to already-walled parents, and 4
-      media_playback_* direct `user_id` columns that had simply been missed — PLUS **1 MORE the
+      media_playback*\* direct `user_id` columns that had simply been missed — PLUS **1 MORE the
       independent audit caught** (media_upload_sessions.owner_user_id, mig 0173; was falsely excluded
       as "dual-role keyed by usage_purpose", but that column is on media_files, not this table).
-      **28 tables newly walled. Census proved by enumeration: 157 SCOPED → 99 walled (65 direct/fk-path
-      + 34 chain), 58 excluded, every excluded one org-catalog/booking-config/staff-actor/shared-config/
+      **28 tables newly walled. Census proved by enumeration: 157 SCOPED → 99 walled (65 direct/fk-path + 34 chain), 58 excluded, every excluded one org-catalog/booking-config/staff-actor/shared-config/
       dual-role — NONE patient-owned. 0 patient-owned SCOPED remain org-only.** Registered in
       `patientChainOwnedTables`/`patientOwnedColumns`, regenerated (checkers green: P0.8.3 49
       patient-owned + 12 chain, P0.8.4 11 + 15 chain), full `check:saas-db-regression` green,
       `smoke-r2-real-policy-isolation.mjs` green (exit 0) proving A1≠A2 fail-closed (staff sees all;
-      mixed uuid+bigint patient sees only own; empty→deny) on a 13-table representative sample of the
-      28. (#658) **⚠️ CORRECTED by B4-core-4 below — the "58 excluded / 0 patient-owned remain" claim
+      mixed uuid+bigint patient sees only own; empty→deny) on a 13-table representative sample of the 28. (#658) **⚠️ CORRECTED by B4-core-4 below — the "58 excluded / 0 patient-owned remain" claim
       here was FALSE: 3 of those 58 "excluded" tables were actually patient-owned (the "hard"
       conditional/polymorphic cases), found by an independent audit.**
 - [x] **B4-core-4** — independent audit (gpt-5.6-sol) found **3 REAL patient-owned SCOPED tables**
@@ -99,7 +101,7 @@ green. Everything merged to `feat` and pushed. **No flip** (that's M2, owner-gat
       staff-or-patient predicate shape (direct/chain/conditional/conditional-chain/polymorphic) calls
       through, so this one change flips ALL of them. Mig
       `0175_p0_8_b4_roles_1_is_staff_wall_rls.sql`: creates schema `app` + `GRANT USAGE ON SCHEMA app
-      TO PUBLIC` (found live — without it, ANY non-superuser NOBYPASSRLS role gets a hard
+    TO PUBLIC` (found live — without it, ANY non-superuser NOBYPASSRLS role gets a hard
       `permission denied for schema app` instead of allow/deny) + `app.is_staff()`, then re-creates
       (byte-for-byte generator output) the dormant policy for all **102 patient-owned SCOPED tables**
       (same 102 as 0169-0174 — only the staff-bypass mechanism changed). New
@@ -181,11 +183,12 @@ green. Everything merged to `feat` and pushed. **No flip** (that's M2, owner-gat
       green 2026-07-23 — target: run DB-backed suite under owner-run scratch)
 
 ## M2 — R2 enforcement flip — ⛔ OWNER-GATED (I prep, owner executes)
+
 - [~] Deploy dormant foundation to **test** → run migrations → single-clinic behavior unchanged. (awaiting live cutover — SAAS_DEPLOY_SEQUENCE.md; owner-executed)
 - [~] Deploy to **prod** (DB backup first) → migrations incl C1 → schema guardrail. (awaiting live cutover — SAAS_DEPLOY_SEQUENCE.md; owner-executed)
 - [~] Non-bypass role + `FORCE` flip on **test/staging** → app works, cross-tenant denied, rollback ready. (awaiting live cutover — PHASE4_ROLLOUT_RUNBOOK.md; owner-executed; proven once on TEST 2026-07-13 then reverted)
 - [~] Flip on **prod** after staging proof. (awaiting live cutover — PHASE4_ROLLOUT_RUNBOOK.md; owner-executed)
-> I produce: the exact runbook + rollback + shadow-run results. Owner pushes the buttons.
+  > I produce: the exact runbook + rollback + shadow-run results. Owner pushes the buttons.
 
 ## M3 — R3 tenant self-service (MVP-critical) — ⏳ NEXT after M1
 
@@ -197,6 +200,7 @@ green. Everything merged to `feat` and pushed. **No flip** (that's M2, owner-gat
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
 **DoD:** a solo specialist self-registers → gets own isolated org → own working space, **no manual SQL**.
+
 - [ ] **Admin/doctor account separation** (backend seam): distinct principals/roles, no entangled account.
 - [ ] **Org self-provisioning service**: create org + seed first member + defaults, programmatically.
 - [ ] **Basic org admin**: create/configure/invite (backend + minimal screens; rich UX = owner vision).
@@ -233,7 +237,9 @@ green. Everything merged to `feat` and pushed. **No flip** (that's M2, owner-gat
 ---
 
 ## Watchdog cadence (see cron)
+
 Every ~25 min while the run is alive, and via an external OS watchdog if the session dies:
+
 1. **Zombies:** any background agent/codex idle > ~25 min with no progress → TaskStop + relaunch/report.
 2. **Depth:** are agents closing real checklist outcomes, or drifting into micro-slices? Redirect if drifting.
 3. **Branch discipline:** on `feat`; audited work merged back; `feat` pushed; no lingering divergent branch.
@@ -243,7 +249,9 @@ Every ~25 min while the run is alive, and via an external OS watchdog if the ses
 ---
 
 ## Cross-model direction audit — 2026-07-11 (Codex, independent)
+
 Verdict: **ON-TRACK direction** (milestone order, single-trunk/audit/owner-gated discipline confirmed by a different model family; no product drift). 4 concrete issues:
+
 - [x] **(1) GUC split-brain** — B4-core compares patient predicates to `app.patient_user_id` even for bigint integrator columns; the smoke "proved" bigint by putting a bigint in that uuid GUC (not a real mixed session → cast error / blind under enforcement). **Being fixed by B4-core-2** (align integrator to `app.integrator_user_id`); verify on completion.
 - [x] **(2) OWNER DECISION — patient-wall trust model.** `app.actor='staff'` is a custom GUC settable by ANY SQL on the connection → the wall defends against FORGOTTEN filters, NOT against arbitrary-SQL/injection. For a truly "absolute" patient wall, use **separate DB roles for patient vs staff paths** (staff-bypass keyed on the role, not a user-settable GUC) — or at minimum a server-only guard on `set_config('app.actor',...)`. Decide BEFORE the enforcement flip. Not blocking dormant work. **DECIDED + DONE by B4-roles-1 above (#662): separate roles `app_staff`/`app_patient`, staff bypass keyed on `app.is_staff()` role membership, proven live that `app_patient` cannot escalate.** Residual: `app.patient_user_id` GUC identity-impersonation is still open (flagged in B4-roles-1's entry), and the app-layer connection wiring (B4-fanout) is still pending.
 - [x] **(3) B5 under-grants runtime.** App role grants only SCOPED+BOOTSTRAP, but the runtime role (webapp/integrator/worker/scheduler/media) also touches **INFRA** queues/outboxes (`projection_outbox`, `integrator_push_outbox`, `outgoing_delivery_queue`) + LEGACY/TELEMETRY → PERMISSION DENIED after flip. Grant scope ≠ RLS tier: the role needs DML on ALL tables it queries. Fix: expand grants to the runtime's full surface (or a separate infra-runtime role). Add a **pre-flip process-family smoke** running each process under the app role. **FIXED by B5 above (#655): `app_staff` now grants the full 219-table runtime surface (SCOPED+BOOTSTRAP+INFRA+LEGACY+TELEMETRY, minus 4 migration-only tables), proven live to read an INFRA queue table.** Residual: the "pre-flip process-family smoke running each REAL process under the app role" this finding also asked for is still NOT done — that requires the B4-fanout application-layer connection wiring to exist first (a process can't run "under app_staff" until something actually connects it as that role), so it stays a B4-fanout deliverable, not closed here.

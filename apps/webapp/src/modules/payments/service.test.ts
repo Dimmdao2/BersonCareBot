@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
-import { createPaymentsService } from "./service";
+import { describe, expect, it, vi } from 'vitest';
+import { createPaymentsService } from './service';
 
 const captureUnitOfWork = {
   async run<T>(_organizationId: string, fn: () => Promise<T>): Promise<T> {
@@ -22,12 +22,12 @@ function providerEvent(input: {
 }) {
   return {
     ...input,
-    organizationId: "org-1",
-    providerId: "mock",
-    idempotencyKey: "provider-event-key",
-    eventType: "payment.succeeded",
+    organizationId: 'org-1',
+    providerId: 'mock',
+    idempotencyKey: 'provider-event-key',
+    eventType: 'payment.succeeded',
     intentRef: null,
-    payloadJson: input.payloadJson ?? { intentId: "intent-1" },
+    payloadJson: input.payloadJson ?? { intentId: 'intent-1' },
   };
 }
 
@@ -39,21 +39,21 @@ function deferred() {
   return { promise, resolve: resolvePromise };
 }
 
-describe("createPaymentsService", () => {
-  it("replays an unprocessed duplicate provider event after a capture crash", async () => {
+describe('createPaymentsService', () => {
+  it('replays an unprocessed duplicate provider event after a capture crash', async () => {
     const intent = {
-      id: "intent-crash",
-      organizationId: "org-1",
-      idempotencyKey: "intent-key",
-      providerId: "mock",
+      id: 'intent-crash',
+      organizationId: 'org-1',
+      idempotencyKey: 'intent-key',
+      providerId: 'mock',
       appointmentId: null,
-      platformUserId: "user-1",
+      platformUserId: 'user-1',
       productRef: null,
       amountMinor: 100,
-      currency: "RUB",
-      status: "pending",
-      purpose: "appointment_prepayment",
-      providerIntentRef: "mock_intent_crash",
+      currency: 'RUB',
+      status: 'pending',
+      purpose: 'appointment_prepayment',
+      providerIntentRef: 'mock_intent_crash',
     };
     let captureAttempts = 0;
     const port = {
@@ -62,7 +62,7 @@ describe("createPaymentsService", () => {
         .mockResolvedValueOnce(
           providerEvent({
             inserted: true,
-            id: "event-crash",
+            id: 'event-crash',
             processedAt: null,
             payloadJson: { intentId: intent.id },
           }),
@@ -70,7 +70,7 @@ describe("createPaymentsService", () => {
         .mockResolvedValueOnce(
           providerEvent({
             inserted: false,
-            id: "event-crash",
+            id: 'event-crash',
             processedAt: null,
             payloadJson: { intentId: intent.id },
           }),
@@ -78,7 +78,7 @@ describe("createPaymentsService", () => {
       getProviderEventById: vi.fn().mockResolvedValue(
         providerEvent({
           inserted: false,
-          id: "event-crash",
+          id: 'event-crash',
           processedAt: null,
           payloadJson: { intentId: intent.id },
         }),
@@ -88,20 +88,20 @@ describe("createPaymentsService", () => {
       findIntentByProviderRef: vi.fn(),
       updateIntentStatus: vi.fn().mockImplementation(async () => {
         captureAttempts += 1;
-        if (captureAttempts === 1) throw new Error("simulated_capture_crash");
-        return { ...intent, status: "succeeded" };
+        if (captureAttempts === 1) throw new Error('simulated_capture_crash');
+        return { ...intent, status: 'succeeded' };
       }),
       findPaymentByIntent: vi.fn().mockResolvedValue(null),
       createPaymentFromIntent: vi.fn().mockResolvedValue({
-        id: "payment-crash",
-        organizationId: "org-1",
-        paymentIntentId: "intent-crash",
+        id: 'payment-crash',
+        organizationId: 'org-1',
+        paymentIntentId: 'intent-crash',
         appointmentId: null,
         amountMinor: 100,
-        currency: "RUB",
-        status: "captured",
-        providerId: "mock",
-        purpose: "appointment_prepayment",
+        currency: 'RUB',
+        status: 'captured',
+        providerId: 'mock',
+        purpose: 'appointment_prepayment',
       }),
       appendHistoryEvent: vi.fn(),
       hasCapturedHistoryEvent: vi.fn().mockResolvedValue(false),
@@ -112,35 +112,35 @@ describe("createPaymentsService", () => {
       config: {
         getBookingPaymentSettings: async () => ({
           enabled: true,
-          defaultProviderId: "mock",
-          providers: [{ id: "mock", label: "mock", enabled: true, webhookSecret: "secret" }],
+          defaultProviderId: 'mock',
+          providers: [{ id: 'mock', label: 'mock', enabled: true, webhookSecret: 'secret' }],
         }),
       },
       captureUnitOfWork,
       bookingEngine: null,
     });
     const bodyText = JSON.stringify({
-      idempotencyKey: "provider-event-crash",
-      eventType: "payment.succeeded",
+      idempotencyKey: 'provider-event-crash',
+      eventType: 'payment.succeeded',
       intentId: intent.id,
     });
-    const { createHmac } = await import("node:crypto");
+    const { createHmac } = await import('node:crypto');
     const headers = new Headers({
-      "x-mock-signature": createHmac("sha256", "secret").update(bodyText).digest("hex"),
+      'x-mock-signature': createHmac('sha256', 'secret').update(bodyText).digest('hex'),
     });
 
     await expect(
       service.processProviderWebhook({
-        organizationId: "org-1",
-        providerId: "mock",
+        organizationId: 'org-1',
+        providerId: 'mock',
         headers,
         bodyText,
       }),
-    ).rejects.toThrow("simulated_capture_crash");
+    ).rejects.toThrow('simulated_capture_crash');
     await expect(
       service.processProviderWebhook({
-        organizationId: "org-1",
-        providerId: "mock",
+        organizationId: 'org-1',
+        providerId: 'mock',
         headers,
         bodyText,
       }),
@@ -148,10 +148,10 @@ describe("createPaymentsService", () => {
 
     expect(port.updateIntentStatus).toHaveBeenCalledTimes(2);
     expect(port.createPaymentFromIntent).toHaveBeenCalledTimes(1);
-    expect(port.markProviderEventProcessed).toHaveBeenCalledWith("event-crash", "org-1");
+    expect(port.markProviderEventProcessed).toHaveBeenCalledWith('event-crash', 'org-1');
   });
 
-  it("processProviderWebhook is idempotent on duplicate provider event", async () => {
+  it('processProviderWebhook is idempotent on duplicate provider event', async () => {
     const port = {
       getPrepaymentPolicyForService: vi.fn(),
       getPrepaymentPolicyForOnlineCategory: vi.fn(),
@@ -160,48 +160,48 @@ describe("createPaymentsService", () => {
       setAppointmentPaymentRef: vi.fn(),
       findIntentByIdempotency: vi.fn(),
       findIntentById: vi.fn().mockResolvedValue({
-        id: "intent-1",
-        organizationId: "org-1",
-        idempotencyKey: "k1",
-        providerId: "mock",
-        appointmentId: "appt-1",
-        platformUserId: "user-1",
+        id: 'intent-1',
+        organizationId: 'org-1',
+        idempotencyKey: 'k1',
+        providerId: 'mock',
+        appointmentId: 'appt-1',
+        platformUserId: 'user-1',
         amountMinor: 100,
-        currency: "RUB",
-        status: "pending",
-        purpose: "appointment_prepayment",
-        providerIntentRef: "mock_intent_k1",
+        currency: 'RUB',
+        status: 'pending',
+        purpose: 'appointment_prepayment',
+        providerIntentRef: 'mock_intent_k1',
       }),
       lockIntentForCapture: vi.fn().mockResolvedValue({
-        id: "intent-1",
-        organizationId: "org-1",
-        idempotencyKey: "k1",
-        providerId: "mock",
-        appointmentId: "appt-1",
-        platformUserId: "user-1",
+        id: 'intent-1',
+        organizationId: 'org-1',
+        idempotencyKey: 'k1',
+        providerId: 'mock',
+        appointmentId: 'appt-1',
+        platformUserId: 'user-1',
         amountMinor: 100,
-        currency: "RUB",
-        status: "pending",
-        purpose: "appointment_prepayment",
-        providerIntentRef: "mock_intent_k1",
+        currency: 'RUB',
+        status: 'pending',
+        purpose: 'appointment_prepayment',
+        providerIntentRef: 'mock_intent_k1',
       }),
       findIntentByProviderRef: vi.fn(),
       findIntentByProviderRefAnyOrg: vi.fn(),
       findLatestIntentByAppointment: vi.fn(),
       createPaymentIntent: vi.fn(),
-      updateIntentStatus: vi.fn().mockResolvedValue({ id: "intent-1", status: "succeeded" }),
+      updateIntentStatus: vi.fn().mockResolvedValue({ id: 'intent-1', status: 'succeeded' }),
       findPaymentByIntent: vi.fn().mockResolvedValue(null),
       findPaymentByAppointment: vi.fn(),
       createPaymentFromIntent: vi.fn().mockResolvedValue({
-        id: "pay-1",
-        paymentIntentId: "intent-1",
+        id: 'pay-1',
+        paymentIntentId: 'intent-1',
         amountMinor: 100,
-        currency: "RUB",
-        status: "captured",
-        providerId: "mock",
-        organizationId: "org-1",
-        appointmentId: "appt-1",
-        purpose: "appointment_prepayment",
+        currency: 'RUB',
+        status: 'captured',
+        providerId: 'mock',
+        organizationId: 'org-1',
+        appointmentId: 'appt-1',
+        purpose: 'appointment_prepayment',
       }),
       updatePaymentStatus: vi.fn(),
       createRefund: vi.fn(),
@@ -210,25 +210,25 @@ describe("createPaymentsService", () => {
         .mockResolvedValueOnce(
           providerEvent({
             inserted: true,
-            id: "ev-1",
+            id: 'ev-1',
             processedAt: null,
-            payloadJson: { intentId: "intent-1" },
+            payloadJson: { intentId: 'intent-1' },
           }),
         )
         .mockResolvedValueOnce(
           providerEvent({
             inserted: false,
-            id: "ev-1",
-            processedAt: "2026-07-21T12:00:00.000Z",
-            payloadJson: { intentId: "intent-1" },
+            id: 'ev-1',
+            processedAt: '2026-07-21T12:00:00.000Z',
+            payloadJson: { intentId: 'intent-1' },
           }),
         ),
       getProviderEventById: vi.fn().mockResolvedValue(
         providerEvent({
           inserted: false,
-          id: "ev-1",
+          id: 'ev-1',
           processedAt: null,
-          payloadJson: { intentId: "intent-1" },
+          payloadJson: { intentId: 'intent-1' },
         }),
       ),
       markProviderEventProcessed: vi.fn(),
@@ -242,85 +242,85 @@ describe("createPaymentsService", () => {
       config: {
         getBookingPaymentSettings: async () => ({
           enabled: true,
-          defaultProviderId: "mock",
-          providers: [{ id: "mock", label: "mock", enabled: true, webhookSecret: "secret" }],
+          defaultProviderId: 'mock',
+          providers: [{ id: 'mock', label: 'mock', enabled: true, webhookSecret: 'secret' }],
         }),
       },
       captureUnitOfWork,
       bookingEngine: {
         getAppointment: vi
           .fn()
-          .mockResolvedValue({ id: "appt-1", status: "awaiting_payment", organizationId: "org-1" }),
+          .mockResolvedValue({ id: 'appt-1', status: 'awaiting_payment', organizationId: 'org-1' }),
         listAppointmentsByChainId: vi.fn().mockResolvedValue([]),
         transitionAppointmentStatus: vi.fn().mockResolvedValue({}),
       } as never,
     });
     const body = JSON.stringify({
-      idempotencyKey: "wh-1",
-      eventType: "payment.succeeded",
-      intentId: "intent-1",
+      idempotencyKey: 'wh-1',
+      eventType: 'payment.succeeded',
+      intentId: 'intent-1',
     });
     const headers = new Headers();
-    const { createHmac } = await import("node:crypto");
-    headers.set("x-mock-signature", createHmac("sha256", "secret").update(body).digest("hex"));
+    const { createHmac } = await import('node:crypto');
+    headers.set('x-mock-signature', createHmac('sha256', 'secret').update(body).digest('hex'));
 
     const first = await svc.processProviderWebhook({
-      organizationId: "org-1",
-      providerId: "mock",
+      organizationId: 'org-1',
+      providerId: 'mock',
       headers,
       bodyText: body,
     });
     const second = await svc.processProviderWebhook({
-      organizationId: "org-1",
-      providerId: "mock",
+      organizationId: 'org-1',
+      providerId: 'mock',
       headers,
       bodyText: body,
     });
     expect(first.duplicate).toBe(false);
     expect(second.duplicate).toBe(true);
     expect(port.createPaymentFromIntent).toHaveBeenCalledTimes(1);
-    expect(port.updateIntentStatus).toHaveBeenCalledWith("intent-1", "succeeded", "org-1");
-    expect(port.setAppointmentPaymentRef).toHaveBeenCalledWith("appt-1", "pay-1", "org-1");
-    expect(port.markProviderEventProcessed).toHaveBeenCalledWith("ev-1", "org-1");
+    expect(port.updateIntentStatus).toHaveBeenCalledWith('intent-1', 'succeeded', 'org-1');
+    expect(port.setAppointmentPaymentRef).toHaveBeenCalledWith('appt-1', 'pay-1', 'org-1');
+    expect(port.markProviderEventProcessed).toHaveBeenCalledWith('ev-1', 'org-1');
   });
 
-  it("replays post-commit appointment delivery before marking the provider event processed", async () => {
+  it('replays post-commit appointment delivery before marking the provider event processed', async () => {
     const intent = {
-      id: "intent-delivery",
-      organizationId: "org-1",
-      idempotencyKey: "delivery-key",
-      providerId: "mock",
-      appointmentId: "appointment-1",
-      platformUserId: "user-1",
+      id: 'intent-delivery',
+      organizationId: 'org-1',
+      idempotencyKey: 'delivery-key',
+      providerId: 'mock',
+      appointmentId: 'appointment-1',
+      platformUserId: 'user-1',
       productRef: null,
       amountMinor: 100,
-      currency: "RUB",
-      status: "pending",
-      purpose: "appointment_prepayment",
-      providerIntentRef: "mock_intent_delivery",
+      currency: 'RUB',
+      status: 'pending',
+      purpose: 'appointment_prepayment',
+      providerIntentRef: 'mock_intent_delivery',
     };
     const payment = {
-      id: "payment-delivery",
-      organizationId: "org-1",
+      id: 'payment-delivery',
+      organizationId: 'org-1',
       paymentIntentId: intent.id,
       appointmentId: intent.appointmentId,
       amountMinor: 100,
-      currency: "RUB",
-      status: "captured",
-      providerId: "mock",
-      purpose: "appointment_prepayment",
+      currency: 'RUB',
+      status: 'captured',
+      providerId: 'mock',
+      purpose: 'appointment_prepayment',
     };
-    let intentStatus = "pending";
+    let intentStatus = 'pending';
     let storedPayment: typeof payment | null = null;
     let historyExists = false;
-    let appointmentStatus = "awaiting_payment";
+    let appointmentStatus = 'awaiting_payment';
     const port = {
       recordProviderEvent: vi
         .fn()
         .mockResolvedValueOnce(
           providerEvent({
             inserted: true,
-            id: "event-delivery",
+            id: 'event-delivery',
             processedAt: null,
             payloadJson: { intentId: intent.id },
           }),
@@ -328,7 +328,7 @@ describe("createPaymentsService", () => {
         .mockResolvedValueOnce(
           providerEvent({
             inserted: false,
-            id: "event-delivery",
+            id: 'event-delivery',
             processedAt: null,
             payloadJson: { intentId: intent.id },
           }),
@@ -336,7 +336,7 @@ describe("createPaymentsService", () => {
       getProviderEventById: vi.fn().mockResolvedValue(
         providerEvent({
           inserted: false,
-          id: "event-delivery",
+          id: 'event-delivery',
           processedAt: null,
           payloadJson: { intentId: intent.id },
         }),
@@ -345,7 +345,7 @@ describe("createPaymentsService", () => {
       findIntentByProviderRef: vi.fn(),
       lockIntentForCapture: vi.fn(async () => ({ ...intent, status: intentStatus })),
       updateIntentStatus: vi.fn(async () => {
-        intentStatus = "succeeded";
+        intentStatus = 'succeeded';
         return { ...intent, status: intentStatus };
       }),
       findPaymentByIntent: vi.fn(async () => storedPayment),
@@ -362,22 +362,22 @@ describe("createPaymentsService", () => {
     };
     const onAppointmentPaymentConfirmed = vi
       .fn()
-      .mockRejectedValueOnce(new Error("post_commit_delivery_crash"))
+      .mockRejectedValueOnce(new Error('post_commit_delivery_crash'))
       .mockResolvedValueOnce(undefined);
     const service = createPaymentsService({
       port: port as never,
       config: {
         getBookingPaymentSettings: async () => ({
           enabled: true,
-          defaultProviderId: "mock",
-          providers: [{ id: "mock", label: "mock", enabled: true, webhookSecret: "secret" }],
+          defaultProviderId: 'mock',
+          providers: [{ id: 'mock', label: 'mock', enabled: true, webhookSecret: 'secret' }],
         }),
       },
       captureUnitOfWork,
       bookingEngine: {
         getAppointment: vi.fn(async () => ({
-          id: "appointment-1",
-          organizationId: "org-1",
+          id: 'appointment-1',
+          organizationId: 'org-1',
           chainId: null,
           status: appointmentStatus,
         })),
@@ -390,29 +390,29 @@ describe("createPaymentsService", () => {
       onAppointmentPaymentConfirmed,
     });
     const bodyText = JSON.stringify({
-      idempotencyKey: "event-delivery-key",
-      eventType: "payment.succeeded",
+      idempotencyKey: 'event-delivery-key',
+      eventType: 'payment.succeeded',
       intentId: intent.id,
     });
-    const { createHmac } = await import("node:crypto");
+    const { createHmac } = await import('node:crypto');
     const headers = new Headers({
-      "x-mock-signature": createHmac("sha256", "secret").update(bodyText).digest("hex"),
+      'x-mock-signature': createHmac('sha256', 'secret').update(bodyText).digest('hex'),
     });
 
     await expect(
       service.processProviderWebhook({
-        organizationId: "org-1",
-        providerId: "mock",
+        organizationId: 'org-1',
+        providerId: 'mock',
         headers,
         bodyText,
       }),
-    ).rejects.toThrow("post_commit_delivery_crash");
+    ).rejects.toThrow('post_commit_delivery_crash');
     expect(port.markProviderEventProcessed).not.toHaveBeenCalled();
 
     await expect(
       service.processProviderWebhook({
-        organizationId: "org-1",
-        providerId: "mock",
+        organizationId: 'org-1',
+        providerId: 'mock',
         headers,
         bodyText,
       }),
@@ -420,34 +420,34 @@ describe("createPaymentsService", () => {
     expect(onAppointmentPaymentConfirmed).toHaveBeenCalledTimes(2);
     expect(port.createPaymentFromIntent).toHaveBeenCalledTimes(1);
     expect(port.appendHistoryEvent).toHaveBeenCalledTimes(1);
-    expect(port.markProviderEventProcessed).toHaveBeenCalledWith("event-delivery", "org-1");
+    expect(port.markProviderEventProcessed).toHaveBeenCalledWith('event-delivery', 'org-1');
   });
 
-  it("serializes concurrent duplicates through post-commit delivery and rechecks processed state", async () => {
+  it('serializes concurrent duplicates through post-commit delivery and rechecks processed state', async () => {
     let processedAt: string | null = null;
-    let intentStatus = "pending";
+    let intentStatus = 'pending';
     let payment: Record<string, unknown> | null = null;
-    let appointmentStatus = "awaiting_payment";
+    let appointmentStatus = 'awaiting_payment';
     const deliveryEntered = deferred();
     const deliveryGate = deferred();
     const intent = {
-      id: "intent-concurrent",
-      organizationId: "org-1",
-      idempotencyKey: "intent-concurrent-key",
-      providerId: "mock",
-      appointmentId: "appointment-concurrent",
-      platformUserId: "user-1",
+      id: 'intent-concurrent',
+      organizationId: 'org-1',
+      idempotencyKey: 'intent-concurrent-key',
+      providerId: 'mock',
+      appointmentId: 'appointment-concurrent',
+      platformUserId: 'user-1',
       productRef: null,
       amountMinor: 100,
-      currency: "RUB",
-      status: "pending",
-      purpose: "appointment_prepayment",
-      providerIntentRef: "mock_intent_concurrent",
+      currency: 'RUB',
+      status: 'pending',
+      purpose: 'appointment_prepayment',
+      providerIntentRef: 'mock_intent_concurrent',
     };
     const stored = () =>
       providerEvent({
         inserted: false,
-        id: "event-concurrent",
+        id: 'event-concurrent',
         processedAt,
         payloadJson: { intentId: intent.id },
       });
@@ -458,21 +458,21 @@ describe("createPaymentsService", () => {
       findIntentByProviderRef: vi.fn(),
       lockIntentForCapture: vi.fn(async () => ({ ...intent, status: intentStatus })),
       updateIntentStatus: vi.fn(async () => {
-        intentStatus = "succeeded";
+        intentStatus = 'succeeded';
         return { ...intent, status: intentStatus };
       }),
       findPaymentByIntent: vi.fn(async () => payment),
       createPaymentFromIntent: vi.fn(async () => {
         payment = {
-          id: "payment-concurrent",
-          organizationId: "org-1",
+          id: 'payment-concurrent',
+          organizationId: 'org-1',
           paymentIntentId: intent.id,
           appointmentId: intent.appointmentId,
           amountMinor: 100,
-          currency: "RUB",
-          status: "captured",
-          providerId: "mock",
-          purpose: "appointment_prepayment",
+          currency: 'RUB',
+          status: 'captured',
+          providerId: 'mock',
+          purpose: 'appointment_prepayment',
         };
         return payment;
       }),
@@ -480,7 +480,7 @@ describe("createPaymentsService", () => {
       appendHistoryEvent: vi.fn(),
       setAppointmentPaymentRef: vi.fn(),
       markProviderEventProcessed: vi.fn(async () => {
-        processedAt = "2026-07-21T12:00:00.000Z";
+        processedAt = '2026-07-21T12:00:00.000Z';
       }),
     };
     let serializedTail = Promise.resolve();
@@ -489,8 +489,8 @@ describe("createPaymentsService", () => {
       config: {
         getBookingPaymentSettings: async () => ({
           enabled: true,
-          defaultProviderId: "mock",
-          providers: [{ id: "mock", label: "mock", enabled: true, webhookSecret: "secret" }],
+          defaultProviderId: 'mock',
+          providers: [{ id: 'mock', label: 'mock', enabled: true, webhookSecret: 'secret' }],
         }),
       },
       captureUnitOfWork: {
@@ -516,7 +516,7 @@ describe("createPaymentsService", () => {
       bookingEngine: {
         getAppointment: vi.fn(async () => ({
           id: intent.appointmentId,
-          organizationId: "org-1",
+          organizationId: 'org-1',
           chainId: null,
           status: appointmentStatus,
         })),
@@ -532,15 +532,15 @@ describe("createPaymentsService", () => {
       }),
     });
     const bodyText = JSON.stringify({
-      idempotencyKey: "event-concurrent-key",
-      eventType: "payment.succeeded",
+      idempotencyKey: 'event-concurrent-key',
+      eventType: 'payment.succeeded',
       intentId: intent.id,
     });
-    const { createHmac } = await import("node:crypto");
+    const { createHmac } = await import('node:crypto');
     const headers = new Headers({
-      "x-mock-signature": createHmac("sha256", "secret").update(bodyText).digest("hex"),
+      'x-mock-signature': createHmac('sha256', 'secret').update(bodyText).digest('hex'),
     });
-    const input = { organizationId: "org-1", providerId: "mock", headers, bodyText };
+    const input = { organizationId: 'org-1', providerId: 'mock', headers, bodyText };
 
     const first = service.processProviderWebhook(input);
     await deliveryEntered.promise;
@@ -558,19 +558,19 @@ describe("createPaymentsService", () => {
     expect(port.markProviderEventProcessed).toHaveBeenCalledTimes(1);
   });
 
-  it("resolves webhook organization from canonical lifecycle event before intent authority", async () => {
+  it('resolves webhook organization from canonical lifecycle event before intent authority', async () => {
     const port = {
       resolveProviderWebhookOrganization: vi
         .fn()
-        .mockResolvedValueOnce("org-from-event")
-        .mockResolvedValueOnce("org-from-intent-key"),
+        .mockResolvedValueOnce('org-from-event')
+        .mockResolvedValueOnce('org-from-intent-key'),
     };
     const svc = createPaymentsService({
       port: port as never,
       config: {
         getBookingPaymentSettings: async () => ({
           enabled: true,
-          defaultProviderId: "mock",
+          defaultProviderId: 'mock',
           providers: [],
         }),
       },
@@ -580,63 +580,63 @@ describe("createPaymentsService", () => {
 
     await expect(
       svc.resolveProviderWebhookOrganizationId({
-        providerId: "mock",
-        idempotencyKey: "key-1",
-        eventType: "payment.succeeded",
+        providerId: 'mock',
+        idempotencyKey: 'key-1',
+        eventType: 'payment.succeeded',
       }),
-    ).resolves.toBe("org-from-event");
+    ).resolves.toBe('org-from-event');
     expect(port.resolveProviderWebhookOrganization).toHaveBeenCalledWith(
-      "mock",
-      "key-1",
-      "payment.succeeded",
+      'mock',
+      'key-1',
+      'payment.succeeded',
     );
 
     await expect(
       svc.resolveProviderWebhookOrganizationId({
-        providerId: "mock",
-        idempotencyKey: "key-2",
-        eventType: "payment.refunded",
+        providerId: 'mock',
+        idempotencyKey: 'key-2',
+        eventType: 'payment.refunded',
       }),
-    ).resolves.toBe("org-from-intent-key");
+    ).resolves.toBe('org-from-intent-key');
     expect(port.resolveProviderWebhookOrganization).toHaveBeenCalledWith(
-      "mock",
-      "key-2",
-      "payment.refunded",
+      'mock',
+      'key-2',
+      'payment.refunded',
     );
   });
 
-  it("links and confirms every appointment in a paid chain", async () => {
+  it('links and confirms every appointment in a paid chain', async () => {
     const port = {
       findIntentById: vi.fn().mockResolvedValue({
-        id: "intent-1",
-        organizationId: "org-1",
-        appointmentId: "appt-1",
-        platformUserId: "user-1",
-        status: "pending",
+        id: 'intent-1',
+        organizationId: 'org-1',
+        appointmentId: 'appt-1',
+        platformUserId: 'user-1',
+        status: 'pending',
         amountMinor: 300,
-        currency: "RUB",
-        providerId: "mock",
-        purpose: "appointment_prepayment",
+        currency: 'RUB',
+        providerId: 'mock',
+        purpose: 'appointment_prepayment',
       }),
       lockIntentForCapture: vi.fn().mockResolvedValue({
-        id: "intent-1",
-        organizationId: "org-1",
-        appointmentId: "appt-1",
-        platformUserId: "user-1",
-        status: "pending",
+        id: 'intent-1',
+        organizationId: 'org-1',
+        appointmentId: 'appt-1',
+        platformUserId: 'user-1',
+        status: 'pending',
         amountMinor: 300,
-        currency: "RUB",
-        providerId: "mock",
-        purpose: "appointment_prepayment",
+        currency: 'RUB',
+        providerId: 'mock',
+        purpose: 'appointment_prepayment',
       }),
       updateIntentStatus: vi.fn(),
       findPaymentByIntent: vi.fn().mockResolvedValue(null),
       createPaymentFromIntent: vi.fn().mockResolvedValue({
-        id: "payment-1",
+        id: 'payment-1',
         amountMinor: 300,
-        currency: "RUB",
-        providerId: "mock",
-        status: "captured",
+        currency: 'RUB',
+        providerId: 'mock',
+        status: 'captured',
       }),
       appendHistoryEvent: vi.fn(),
       hasCapturedHistoryEvent: vi.fn().mockResolvedValue(false),
@@ -644,14 +644,14 @@ describe("createPaymentsService", () => {
     };
     const bookingEngine = {
       getAppointment: vi.fn().mockResolvedValue({
-        id: "appt-1",
-        organizationId: "org-1",
-        chainId: "chain-1",
-        status: "awaiting_payment",
+        id: 'appt-1',
+        organizationId: 'org-1',
+        chainId: 'chain-1',
+        status: 'awaiting_payment',
       }),
       listAppointmentsByChainId: vi.fn().mockResolvedValue([
-        { id: "appt-1", status: "awaiting_payment" },
-        { id: "appt-2", status: "awaiting_payment" },
+        { id: 'appt-1', status: 'awaiting_payment' },
+        { id: 'appt-2', status: 'awaiting_payment' },
       ]),
       transitionAppointmentStatus: vi.fn(),
     };
@@ -661,7 +661,7 @@ describe("createPaymentsService", () => {
       config: {
         getBookingPaymentSettings: async () => ({
           enabled: true,
-          defaultProviderId: "mock",
+          defaultProviderId: 'mock',
           providers: [],
         }),
       },
@@ -670,20 +670,30 @@ describe("createPaymentsService", () => {
       onAppointmentPaymentConfirmed,
     });
 
-    await svc.captureIntentSuccess("intent-1", "org-1");
+    await svc.captureIntentSuccess('intent-1', 'org-1');
 
-    expect(port.setAppointmentPaymentRef).toHaveBeenNthCalledWith(1, "appt-1", "payment-1", "org-1");
-    expect(port.setAppointmentPaymentRef).toHaveBeenNthCalledWith(2, "appt-2", "payment-1", "org-1");
+    expect(port.setAppointmentPaymentRef).toHaveBeenNthCalledWith(
+      1,
+      'appt-1',
+      'payment-1',
+      'org-1',
+    );
+    expect(port.setAppointmentPaymentRef).toHaveBeenNthCalledWith(
+      2,
+      'appt-2',
+      'payment-1',
+      'org-1',
+    );
     expect(bookingEngine.transitionAppointmentStatus).toHaveBeenCalledTimes(4);
     expect(onAppointmentPaymentConfirmed).toHaveBeenCalledWith({
-      appointmentId: "appt-1",
-      paymentId: "payment-1",
-      platformUserId: "user-1",
+      appointmentId: 'appt-1',
+      paymentId: 'payment-1',
+      platformUserId: 'user-1',
     });
     expect(onAppointmentPaymentConfirmed).toHaveBeenCalledWith({
-      appointmentId: "appt-2",
-      paymentId: "payment-1",
-      platformUserId: "user-1",
+      appointmentId: 'appt-2',
+      paymentId: 'payment-1',
+      platformUserId: 'user-1',
     });
   });
 });

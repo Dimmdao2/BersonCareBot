@@ -1,26 +1,26 @@
-import { describe, expect, it, vi } from "vitest";
-import { fanOutBroadcastWebPush } from "./fanOutBroadcastWebPush";
+import { describe, expect, it, vi } from 'vitest';
+import { fanOutBroadcastWebPush } from './fanOutBroadcastWebPush';
 
 const runPatientWebPushNotify = vi.hoisted(() => vi.fn());
 
-vi.mock("@/modules/patient-notifications/patientWebPushNotify", () => ({
+vi.mock('@/modules/patient-notifications/patientWebPushNotify', () => ({
   runPatientWebPushNotify,
 }));
 
-describe("fanOutBroadcastWebPush", () => {
-  it("sends news push for eligible clients", async () => {
+describe('fanOutBroadcastWebPush', () => {
+  it('sends news push for eligible clients', async () => {
     runPatientWebPushNotify.mockResolvedValue({ ok: true, webPushDelivered: 1, webPushErrors: 0 });
 
     const result = await fanOutBroadcastWebPush(
       {
-        organizationId: "11111111-1111-4111-8111-111111111111",
-        auditId: "audit-1",
-        broadcastCategory: "marketing",
-        broadcastTitle: "Акция",
-        broadcastBody: "Полный текст рассылки",
-        notificationOpenUrl: "https://app.test/app/patient?notifications=1",
-        eligibleClients: [{ userId: "u1" } as never, { userId: "u2" } as never],
-        webPushEligibleUserIds: new Set(["u1"]),
+        organizationId: '11111111-1111-4111-8111-111111111111',
+        auditId: 'audit-1',
+        broadcastCategory: 'marketing',
+        broadcastTitle: 'Акция',
+        broadcastBody: 'Полный текст рассылки',
+        notificationOpenUrl: 'https://app.test/app/patient?notifications=1',
+        eligibleClients: [{ userId: 'u1' } as never, { userId: 'u2' } as never],
+        webPushEligibleUserIds: new Set(['u1']),
       },
       {} as never,
     );
@@ -28,11 +28,11 @@ describe("fanOutBroadcastWebPush", () => {
     expect(runPatientWebPushNotify).toHaveBeenCalledTimes(1);
     expect(runPatientWebPushNotify).toHaveBeenCalledWith(
       expect.objectContaining({
-        platformUserId: "u1",
-        intentType: "news",
-        topicCode: "patient_news",
-        broadcastTitle: "Акция\n\nПолный текст рассылки",
-        openUrl: "https://app.test/app/patient?notifications=1",
+        platformUserId: 'u1',
+        intentType: 'news',
+        topicCode: 'patient_news',
+        broadcastTitle: 'Акция\n\nПолный текст рассылки',
+        openUrl: 'https://app.test/app/patient?notifications=1',
       }),
       {},
     );

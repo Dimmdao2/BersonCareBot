@@ -25,7 +25,12 @@ type ReqWithRawBody = FastifyRequest<{
   Body: SendSmsBody;
 }> & { rawBody?: string };
 
-function verifySignature(timestamp: string, rawBody: string, signature: string, secret: string): boolean {
+function verifySignature(
+  timestamp: string,
+  rawBody: string,
+  signature: string,
+  secret: string,
+): boolean {
   const ts = Number(timestamp);
   if (!Number.isFinite(ts)) return false;
   const now = Math.floor(Date.now() / 1000);
@@ -64,8 +69,7 @@ export async function registerBersoncareSendSmsRoute(
   const { dispatchPort, sharedSecret, isAuthChannelEnabled, recordProviderFailure } = deps;
 
   app.addContentTypeParser('application/json', { parseAs: 'string' }, (req, body, done) => {
-    const raw: string =
-      typeof body === 'string' ? body : (body as Buffer).toString('utf8');
+    const raw: string = typeof body === 'string' ? body : (body as Buffer).toString('utf8');
     (req as ReqWithRawBody).rawBody = raw;
     try {
       done(null, JSON.parse(raw) as SendSmsBody);
@@ -84,7 +88,10 @@ export async function registerBersoncareSendSmsRoute(
       return reply.code(400).send({ ok: false, error: 'missing_headers' });
     }
     if (!sharedSecret) {
-      logger.warn({}, 'bersoncare send-sms: webhook secret not set (INTEGRATOR_WEBHOOK_SECRET or INTEGRATOR_SHARED_SECRET)');
+      logger.warn(
+        {},
+        'bersoncare send-sms: webhook secret not set (INTEGRATOR_WEBHOOK_SECRET or INTEGRATOR_SHARED_SECRET)',
+      );
       return reply.code(503).send({ ok: false, error: 'service_unconfigured' });
     }
     if (!verifySignature(timestamp, rawBody, signature, sharedSecret)) {

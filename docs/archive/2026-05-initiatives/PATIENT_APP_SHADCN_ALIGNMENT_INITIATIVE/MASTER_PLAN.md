@@ -203,4 +203,3 @@ Use targeted checks:
 - Patient visual styling remains patient-scoped.
 - New patient home remains untouched unless explicitly approved.
 - Docs and `LOG.md` updated after every EXEC/FIX.
-

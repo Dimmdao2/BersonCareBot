@@ -1,5 +1,5 @@
-import Link from "next/link";
-import type { ResolvedCarouselCard } from "@/modules/patient-home/patientHomeResolvers";
+import Link from 'next/link';
+import type { ResolvedCarouselCard } from '@/modules/patient-home/patientHomeResolvers';
 import {
   patientHomeBlockHeadingClass,
   patientBadgePrimaryClass,
@@ -9,9 +9,9 @@ import {
   patientHomeCardTitleClampSmClass,
   patientHomeCarouselItemLayoutClass,
   patientHomeTodaySectionStackClass,
-} from "./patientHomeCardStyles";
-import { PatientHomeSafeImage } from "./PatientHomeSafeImage";
-import { cn } from "@/lib/utils";
+} from './patientHomeCardStyles';
+import { PatientHomeSafeImage } from './PatientHomeSafeImage';
+import { cn } from '@/lib/utils';
 
 type Props = {
   cards: ResolvedCarouselCard[];
@@ -19,7 +19,7 @@ type Props = {
   sectionTitle?: string;
 };
 
-const DEFAULT_SECTION_TITLE = "Материалы по подписке";
+const DEFAULT_SECTION_TITLE = 'Материалы по подписке';
 
 export function PatientHomeSubscriptionCarousel({ cards, sectionTitle }: Props) {
   if (cards.length === 0) return null;
@@ -32,15 +32,18 @@ export function PatientHomeSubscriptionCarousel({ cards, sectionTitle }: Props) 
       className={patientHomeTodaySectionStackClass}
       aria-labelledby="patient-home-subscription-heading"
     >
-      <h3 id="patient-home-subscription-heading" className={cn(patientHomeBlockHeadingClass, "px-4 md:px-[18px]")}>
+      <h3
+        id="patient-home-subscription-heading"
+        className={cn(patientHomeBlockHeadingClass, 'px-4 md:px-[18px]')}
+      >
         {heading}
       </h3>
       <div
         className={cn(
-          "-mx-1 flex snap-x snap-mandatory gap-3 overflow-x-auto px-1 pb-1 [scrollbar-width:thin]",
-          "md:mx-0 md:grid md:grid-cols-3 md:overflow-visible md:px-0",
+          '-mx-1 flex snap-x snap-mandatory gap-3 overflow-x-auto px-1 pb-1 [scrollbar-width:thin]',
+          'md:mx-0 md:grid md:grid-cols-3 md:overflow-visible md:px-0',
         )}
-        style={{ WebkitOverflowScrolling: "touch" }}
+        style={{ WebkitOverflowScrolling: 'touch' }}
       >
         {cards.map((c) => (
           <Link
@@ -51,8 +54,8 @@ export function PatientHomeSubscriptionCarousel({ cards, sectionTitle }: Props) 
             className={cn(
               patientHomeCardCompactClass,
               patientHomeCarouselItemLayoutClass,
-              "md:w-full md:max-w-none md:min-w-0",
-              cards.length === 1 && "md:col-span-full",
+              'md:w-full md:max-w-none md:min-w-0',
+              cards.length === 1 && 'md:col-span-full',
             )}
           >
             <div className="flex min-h-0 flex-1 gap-3">
@@ -62,19 +65,25 @@ export function PatientHomeSubscriptionCarousel({ cards, sectionTitle }: Props) 
                   alt=""
                   className="size-full object-cover"
                   loading="lazy"
-                  fallback={<div className="size-full bg-[var(--patient-color-primary-soft)]" aria-hidden />}
+                  fallback={
+                    <div className="size-full bg-[var(--patient-color-primary-soft)]" aria-hidden />
+                  }
                 />
               </div>
               <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-              {c.badgeLabel ?
-                <span className={cn(patientBadgePrimaryClass, "mb-1 max-w-full shrink-0 truncate")}>
-                  {c.badgeLabel}
-                </span>
-              : null}
-              <p className={patientHomeCardTitleClampSmClass}>{c.title}</p>
-              {c.subtitle?.trim() ?
-                <p className={cn(patientHomeCardSubtitleClampXsClass, "mt-0.5")}>{c.subtitle.trim()}</p>
-              : null}
+                {c.badgeLabel ? (
+                  <span
+                    className={cn(patientBadgePrimaryClass, 'mb-1 max-w-full shrink-0 truncate')}
+                  >
+                    {c.badgeLabel}
+                  </span>
+                ) : null}
+                <p className={patientHomeCardTitleClampSmClass}>{c.title}</p>
+                {c.subtitle?.trim() ? (
+                  <p className={cn(patientHomeCardSubtitleClampXsClass, 'mt-0.5')}>
+                    {c.subtitle.trim()}
+                  </p>
+                ) : null}
               </div>
             </div>
           </Link>

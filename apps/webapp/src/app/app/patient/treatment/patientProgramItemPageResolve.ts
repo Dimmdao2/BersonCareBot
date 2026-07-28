@@ -1,4 +1,4 @@
-import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
+import type { TreatmentProgramInstanceDetail } from '@/modules/treatment-program/types';
 import {
   isInstanceStageItemActiveForPatient,
   isInstanceStageItemShownOnPatientProgramSurfaces,
@@ -7,57 +7,60 @@ import {
   patientInstanceSystemGroupHasVisibleItems,
   sortDoctorInstanceStageGroupsForDisplay,
   splitPatientProgramStagesForDetailUi,
-} from "@/modules/treatment-program/stage-semantics";
-import { flatOrderedProgramCompositionItemIds } from "@/app/app/patient/treatment/programCompositionOrder";
+} from '@/modules/treatment-program/stage-semantics';
+import { flatOrderedProgramCompositionItemIds } from '@/app/app/patient/treatment/programCompositionOrder';
 import {
   flatExecIds,
   flatRecReadIds,
   flatTestSlots,
   type PatientProgramTestNavSlot,
-} from "@/app/app/patient/treatment/patientProgramItemNavLists";
+} from '@/app/app/patient/treatment/patientProgramItemNavLists';
 
-type Stage = TreatmentProgramInstanceDetail["stages"][number];
-type StageItem = Stage["items"][number];
+type Stage = TreatmentProgramInstanceDetail['stages'][number];
+type StageItem = Stage['items'][number];
 
 export type PatientProgramItemNavMode =
-  | "default"
-  | "program"
-  | "exec"
-  | "rec-stage"
-  | "rec-zero"
-  | "rec-persist"
-  | "rec-read"
-  | "tests";
+  | 'default'
+  | 'program'
+  | 'exec'
+  | 'rec-stage'
+  | 'rec-zero'
+  | 'rec-persist'
+  | 'rec-read'
+  | 'tests';
 
 export function parsePatientProgramItemNavMode(raw: unknown): PatientProgramItemNavMode {
-  const s = typeof raw === "string" ? raw : Array.isArray(raw) ? raw[0] : "";
+  const s = typeof raw === 'string' ? raw : Array.isArray(raw) ? raw[0] : '';
   if (
-    s === "program" ||
-    s === "exec" ||
-    s === "rec-stage" ||
-    s === "rec-zero" ||
-    s === "rec-persist" ||
-    s === "rec-read" ||
-    s === "tests"
+    s === 'program' ||
+    s === 'exec' ||
+    s === 'rec-stage' ||
+    s === 'rec-zero' ||
+    s === 'rec-persist' ||
+    s === 'rec-read' ||
+    s === 'tests'
   )
     return s;
-  return "default";
+  return 'default';
 }
 
 function sortByOrderThenId<T extends { sortOrder: number; id: string }>(rows: T[]): T[] {
   return [...rows].sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id));
 }
 
-function findStageContainingItem(detail: TreatmentProgramInstanceDetail, itemId: string): Stage | null {
+function findStageContainingItem(
+  detail: TreatmentProgramInstanceDetail,
+  itemId: string,
+): Stage | null {
   for (const st of detail.stages) {
     if (st.items.some((it) => it.id === itemId)) return st;
   }
   return null;
 }
 
-function flatIdsBodyLike(stage: Stage, itemInteraction: "full" | "readOnly"): string[] {
+function flatIdsBodyLike(stage: Stage, itemInteraction: 'full' | 'readOnly'): string[] {
   const visibleItems = stage.items.filter((it) =>
-    itemInteraction === "readOnly"
+    itemInteraction === 'readOnly'
       ? isInstanceStageItemActiveForPatient(it)
       : isInstanceStageItemShownOnPatientProgramSurfaces(it),
   );
@@ -77,9 +80,9 @@ function flatIdsBodyLike(stage: Stage, itemInteraction: "full" | "readOnly"): st
   return ids;
 }
 
-function itemInteractionForStage(stage: Stage): "full" | "readOnly" {
-  if (stage.status === "completed" || stage.status === "skipped") return "readOnly";
-  return "full";
+function itemInteractionForStage(stage: Stage): 'full' | 'readOnly' {
+  if (stage.status === 'completed' || stage.status === 'skipped') return 'readOnly';
+  return 'full';
 }
 
 export type ResolvedPatientProgramItemPage = {
@@ -87,7 +90,7 @@ export type ResolvedPatientProgramItemPage = {
   item: StageItem;
   flatOrderedIds: string[];
   contentBlocked: boolean;
-  itemInteraction: "full" | "readOnly";
+  itemInteraction: 'full' | 'readOnly';
   /** Только для `nav=tests`: слоты (itemId пункта + testId) в порядке обхода. */
   testSlots?: PatientProgramTestNavSlot[];
   /** Только для `nav=tests`: канонический testId для текущего URL (если передан и валиден). */
@@ -115,33 +118,33 @@ export function resolvePatientProgramItemPage(params: {
 
   const ignoreStageLockForContent = stage.sortOrder === 0;
   const contentBlocked =
-    !ignoreStageLockForContent && (stage.status === "locked" || stage.status === "skipped");
+    !ignoreStageLockForContent && (stage.status === 'locked' || stage.status === 'skipped');
 
   let flatOrderedIds: string[] = [];
-  let itemInteraction: "full" | "readOnly" = itemInteractionForStage(stage);
+  let itemInteraction: 'full' | 'readOnly' = itemInteractionForStage(stage);
   let testSlots: PatientProgramTestNavSlot[] | undefined;
   let resolvedTestId: string | null | undefined;
 
   const { stageZero } = splitPatientProgramStagesForDetailUi(detail.stages);
 
-  if (nav === "program") {
+  if (nav === 'program') {
     flatOrderedIds = flatOrderedProgramCompositionItemIds(stage);
-    itemInteraction = "full";
+    itemInteraction = 'full';
     if (!flatOrderedIds.includes(itemId)) return null;
-  } else if (nav === "exec") {
+  } else if (nav === 'exec') {
     flatOrderedIds = flatExecIds(stage, itemInteraction);
     if (!flatOrderedIds.includes(itemId)) {
-      flatOrderedIds = flatExecIds(stage, itemInteraction === "readOnly" ? "full" : "readOnly");
+      flatOrderedIds = flatExecIds(stage, itemInteraction === 'readOnly' ? 'full' : 'readOnly');
     }
     if (!flatOrderedIds.includes(itemId)) return null;
-  } else if (nav === "rec-stage") {
+  } else if (nav === 'rec-stage') {
     if (!currentWorkingStage) return null;
-    flatOrderedIds = sortByOrderThenId(currentWorkingStage.items.filter((it) => isPersistentRecommendation(it))).map(
-      (it) => it.id,
-    );
-    itemInteraction = "readOnly";
+    flatOrderedIds = sortByOrderThenId(
+      currentWorkingStage.items.filter((it) => isPersistentRecommendation(it)),
+    ).map((it) => it.id);
+    itemInteraction = 'readOnly';
     if (!flatOrderedIds.includes(itemId)) return null;
-  } else if (nav === "rec-zero") {
+  } else if (nav === 'rec-zero') {
     const rows: StageItem[] = [];
     for (const st of stageZero) {
       for (const it of sortByOrderThenId(st.items)) {
@@ -149,25 +152,27 @@ export function resolvePatientProgramItemPage(params: {
       }
     }
     flatOrderedIds = rows.map((it) => it.id);
-    itemInteraction = "readOnly";
+    itemInteraction = 'readOnly';
     if (!flatOrderedIds.includes(itemId)) return null;
-  } else if (nav === "rec-persist") {
-    flatOrderedIds = sortByOrderThenId(stage.items.filter((it) => isPersistentRecommendation(it))).map((it) => it.id);
-    itemInteraction = "readOnly";
+  } else if (nav === 'rec-persist') {
+    flatOrderedIds = sortByOrderThenId(
+      stage.items.filter((it) => isPersistentRecommendation(it)),
+    ).map((it) => it.id);
+    itemInteraction = 'readOnly';
     if (!flatOrderedIds.includes(itemId)) return null;
-  } else if (nav === "rec-read") {
+  } else if (nav === 'rec-read') {
     flatOrderedIds = flatRecReadIds(currentWorkingStage, stageZero);
-    itemInteraction = "readOnly";
+    itemInteraction = 'readOnly';
     if (!flatOrderedIds.includes(itemId)) return null;
-  } else if (nav === "tests") {
+  } else if (nav === 'tests') {
     if (!currentWorkingStage) return null;
     testSlots = flatTestSlots(currentWorkingStage);
     if (testSlots.length === 0) return null;
-    if (item.itemType !== "clinical_test") return null;
+    if (item.itemType !== 'clinical_test') return null;
     if (!currentWorkingStage.items.some((it) => it.id === item.id)) return null;
     const setHasSlots = testSlots.some((s) => s.itemId === item.id);
     if (!setHasSlots) return null;
-    const tid = typeof testIdParam === "string" ? testIdParam.trim() : "";
+    const tid = typeof testIdParam === 'string' ? testIdParam.trim() : '';
     if (tid) {
       const ok = testSlots.some((s) => s.itemId === item.id && s.testId === tid);
       if (!ok) return null;
@@ -176,11 +181,11 @@ export function resolvePatientProgramItemPage(params: {
       resolvedTestId = null;
     }
     flatOrderedIds = [];
-    itemInteraction = "full";
+    itemInteraction = 'full';
   } else {
     flatOrderedIds = flatIdsBodyLike(stage, itemInteraction);
     if (!flatOrderedIds.includes(itemId)) {
-      flatOrderedIds = flatIdsBodyLike(stage, itemInteraction === "readOnly" ? "full" : "readOnly");
+      flatOrderedIds = flatIdsBodyLike(stage, itemInteraction === 'readOnly' ? 'full' : 'readOnly');
     }
     if (!flatOrderedIds.includes(itemId)) flatOrderedIds = [itemId];
   }

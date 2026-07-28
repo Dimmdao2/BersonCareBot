@@ -11,6 +11,7 @@
 ## Обязательные правила
 
 ### Проверки
+
 - **После каждого шага** — только targeted-проверки затронутых файлов:
   ```bash
   # integrator
@@ -42,11 +43,13 @@
 ## Шаг C.1 — Реализовать endpoint в integrator
 
 **Файлы:**
+
 - `apps/integrator/src/integrations/bersoncare/relayOutboundRoute.ts` (новый)
 - `apps/integrator/src/integrations/bersoncare/relayOutboundRoute.test.ts` (новый)
 - Регистрация route в bootstrap integrator (найти по `registerBersoncareSendSmsRoute`)
 
 **Действия:**
+
 1. Скопировать структуру HMAC-валидации из `sendSmsRoute.ts`.
 2. Payload:
    ```ts
@@ -71,6 +74,7 @@
 7. Зарегистрировать route рядом с `sendSmsRoute`.
 
 **Тесты (fastify.inject):**
+
 - Валидная подпись + payload → 200 accepted.
 - Невалидная подпись → 401.
 - Повторный idempotencyKey → 200 duplicate.
@@ -84,11 +88,13 @@
 ## Шаг C.2 — Реализовать клиент relay в webapp
 
 **Файлы:**
+
 - `apps/webapp/src/modules/messaging/relayOutbound.ts` (переписать с нуля)
 - `apps/webapp/src/modules/messaging/relayOutbound.test.ts` (новый)
 - `apps/webapp/src/config/env.ts` (проверить `INTEGRATOR_API_URL`, `INTEGRATOR_SHARED_SECRET`)
 
 **Действия:**
+
 1. Заменить текущую заглушку (`maybeRelayOutbound`) на рабочую реализацию:
    ```ts
    export async function relayOutbound(params: {
@@ -96,7 +102,7 @@
      channel: string;
      recipient: string;
      text: string;
-   }): Promise<RelayResult>
+   }): Promise<RelayResult>;
    ```
 2. Формировать HMAC-подпись: `timestamp + "." + JSON.stringify(body)` → `X-Bersoncare-Signature`.
 3. Формировать `idempotencyKey`: `${messageId}:${channel}:${recipient}`.
@@ -105,6 +111,7 @@
 6. При отсутствии `INTEGRATOR_API_URL` → `console.warn` один раз и return `{ ok: false, reason: "no_integrator_url" }`.
 
 **Тесты:**
+
 - Мок fetch: успешный relay → ok.
 - Мок fetch: 502 → retry до 4 раз.
 - Мок fetch: idempotency duplicate → ok.
@@ -118,16 +125,19 @@
 ## Шаг C.3 — Интегрировать relay в `doctorSupportMessagingService`
 
 **Файлы:**
+
 - `apps/webapp/src/modules/messaging/doctorSupportMessagingService.ts`
 - `apps/webapp/src/modules/messaging/doctorSupportMessagingService.test.ts` (обновить)
 
 **Действия:**
+
 1. В `sendAdminReply` после сохранения сообщения в БД → вызвать `relayOutbound` с данными пациента:
    - Определить канал доставки из `channel_preferences` или привязок пользователя.
    - Если у пациента несколько каналов — relay в предпочтительный (первый привязанный мессенджер).
 2. Relay не должен блокировать ответ API (fire-and-forget с логированием ошибок).
 
 **Тесты:**
+
 - Обновить существующие тесты: при `sendAdminReply` вызывается `relayOutbound`.
 - Ошибка relay не ломает `sendAdminReply` (сообщение всё равно сохраняется).
 

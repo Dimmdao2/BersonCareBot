@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from 'zod';
 import {
   PATIENT_HOME_BLOCK_CODES,
   allowedTargetTypesForBlock,
@@ -7,7 +7,7 @@ import {
   isPatientHomeContentSectionCandidateForBlock,
   isTargetTypeAllowedForBlock,
   supportsConfigurablePatientHomeBlockIcon,
-} from "./blocks";
+} from './blocks';
 import type {
   PatientHomeBlock,
   PatientHomeBlockCode,
@@ -16,8 +16,8 @@ import type {
   PatientHomeBlockItemPatch,
   PatientHomeBlockItemTargetType,
   PatientHomeBlocksPort,
-} from "./ports";
-import type { ContentSectionKind, SystemParentCode } from "@/modules/content-sections/types";
+} from './ports';
+import type { ContentSectionKind, SystemParentCode } from '@/modules/content-sections/types';
 
 type Candidate = {
   targetType: PatientHomeBlockItemTargetType;
@@ -69,7 +69,9 @@ type PatientHomeServiceDeps = {
     } | null>;
   };
   courses: {
-    listCoursesForDoctor(filter?: { includeArchived?: boolean }): Promise<Array<{ id: string; title: string; description: string | null }>>;
+    listCoursesForDoctor(filter?: {
+      includeArchived?: boolean;
+    }): Promise<Array<{ id: string; title: string; description: string | null }>>;
     getCourseForDoctor(id: string): Promise<{ id: string; status: string } | null>;
   };
 };
@@ -98,7 +100,7 @@ function sanitizeNullable(value?: string | null): string | null {
 
 function assertCourseTargetRef(ref: string): void {
   if (!z.string().uuid().safeParse(ref).success) {
-    throw new Error("invalid_course_id");
+    throw new Error('invalid_course_id');
   }
 }
 
@@ -113,32 +115,32 @@ async function assertCmsTargetExists(
     sections.map((s) => [s.slug, { kind: s.kind, systemParentCode: s.systemParentCode }] as const),
   );
 
-  if (targetType === "content_page") {
+  if (targetType === 'content_page') {
     const pages = await deps.contentPages.listAll();
     const row = pages.find((p) => p.slug === targetRef);
-    if (!row) throw new Error("target_content_page_not_found");
+    if (!row) throw new Error('target_content_page_not_found');
     if (!isPatientHomeContentPageCandidateForBlock(blockCode, row, sectionMap)) {
-      throw new Error("target_content_page_not_allowed_for_block");
+      throw new Error('target_content_page_not_allowed_for_block');
     }
     return;
   }
-  if (targetType === "content_section") {
+  if (targetType === 'content_section') {
     const row = await deps.contentSections.getBySlug(targetRef);
-    if (!row) throw new Error("target_content_section_not_found");
+    if (!row) throw new Error('target_content_section_not_found');
     if (
       !isPatientHomeContentSectionCandidateForBlock(blockCode, {
         kind: row.kind,
         systemParentCode: row.systemParentCode,
       })
     ) {
-      throw new Error("target_content_section_not_allowed_for_block");
+      throw new Error('target_content_section_not_allowed_for_block');
     }
     return;
   }
-  if (targetType === "course") {
+  if (targetType === 'course') {
     assertCourseTargetRef(targetRef);
     const row = await deps.courses.getCourseForDoctor(targetRef);
-    if (!row || row.status !== "published") throw new Error("target_course_not_found");
+    if (!row || row.status !== 'published') throw new Error('target_course_not_found');
   }
 }
 
@@ -164,10 +166,10 @@ export function createPatientHomeBlocksService(deps: PatientHomeServiceDeps) {
       assertKnownBlockCodes(orderedCodes);
       const uniq = new Set(orderedCodes);
       if (uniq.size !== orderedCodes.length) {
-        throw new Error("duplicate_block_codes");
+        throw new Error('duplicate_block_codes');
       }
       if (orderedCodes.length !== PATIENT_HOME_BLOCK_CODES.length) {
-        throw new Error("invalid_block_count");
+        throw new Error('invalid_block_count');
       }
       for (const code of PATIENT_HOME_BLOCK_CODES) {
         if (!uniq.has(code)) throw new Error(`missing_block_code:${code}`);
@@ -181,7 +183,7 @@ export function createPatientHomeBlocksService(deps: PatientHomeServiceDeps) {
         throw new Error(`invalid_target_type_for_block:${input.blockCode}:${input.targetType}`);
       }
       const targetRef = input.targetRef.trim();
-      if (!targetRef) throw new Error("empty_target_ref");
+      if (!targetRef) throw new Error('empty_target_ref');
       await assertCmsTargetExists(deps, input.blockCode, input.targetType, targetRef);
       return deps.port.addItem({
         ...input,
@@ -195,18 +197,18 @@ export function createPatientHomeBlocksService(deps: PatientHomeServiceDeps) {
 
     async updateItem(id: string, patch: PatientHomeBlockItemPatch): Promise<void> {
       const itemId = id.trim();
-      if (!itemId) throw new Error("empty_item_id");
+      if (!itemId) throw new Error('empty_item_id');
 
       const retarget = patch.targetRef !== undefined || patch.targetType !== undefined;
       if (retarget) {
         const item = await deps.port.getItemById(itemId);
-        if (!item) throw new Error("unknown_item");
+        if (!item) throw new Error('unknown_item');
         assertManageableBlock(item.blockCode);
 
         const nextType = (patch.targetType ?? item.targetType) as PatientHomeBlockItemTargetType;
         const nextRefRaw = patch.targetRef ?? item.targetRef;
         const nextRef = nextRefRaw.trim();
-        if (!nextRef) throw new Error("empty_target_ref");
+        if (!nextRef) throw new Error('empty_target_ref');
 
         if (!isTargetTypeAllowedForBlock(item.blockCode, nextType)) {
           throw new Error(`invalid_target_type_for_block:${item.blockCode}:${nextType}`);
@@ -218,29 +220,44 @@ export function createPatientHomeBlocksService(deps: PatientHomeServiceDeps) {
           ...patch,
           targetType: nextType,
           targetRef: nextRef,
-          titleOverride: patch.titleOverride === undefined ? undefined : sanitizeNullable(patch.titleOverride),
-          subtitleOverride: patch.subtitleOverride === undefined ? undefined : sanitizeNullable(patch.subtitleOverride),
-          imageUrlOverride: patch.imageUrlOverride === undefined ? undefined : sanitizeNullable(patch.imageUrlOverride),
-          badgeLabel: patch.badgeLabel === undefined ? undefined : sanitizeNullable(patch.badgeLabel),
+          titleOverride:
+            patch.titleOverride === undefined ? undefined : sanitizeNullable(patch.titleOverride),
+          subtitleOverride:
+            patch.subtitleOverride === undefined
+              ? undefined
+              : sanitizeNullable(patch.subtitleOverride),
+          imageUrlOverride:
+            patch.imageUrlOverride === undefined
+              ? undefined
+              : sanitizeNullable(patch.imageUrlOverride),
+          badgeLabel:
+            patch.badgeLabel === undefined ? undefined : sanitizeNullable(patch.badgeLabel),
         });
         return;
       }
 
       const existingNonRetarget = await deps.port.getItemById(itemId);
-      if (!existingNonRetarget) throw new Error("unknown_item");
+      if (!existingNonRetarget) throw new Error('unknown_item');
 
       await deps.port.updateItem(itemId, {
         ...patch,
-        titleOverride: patch.titleOverride === undefined ? undefined : sanitizeNullable(patch.titleOverride),
-        subtitleOverride: patch.subtitleOverride === undefined ? undefined : sanitizeNullable(patch.subtitleOverride),
-        imageUrlOverride: patch.imageUrlOverride === undefined ? undefined : sanitizeNullable(patch.imageUrlOverride),
+        titleOverride:
+          patch.titleOverride === undefined ? undefined : sanitizeNullable(patch.titleOverride),
+        subtitleOverride:
+          patch.subtitleOverride === undefined
+            ? undefined
+            : sanitizeNullable(patch.subtitleOverride),
+        imageUrlOverride:
+          patch.imageUrlOverride === undefined
+            ? undefined
+            : sanitizeNullable(patch.imageUrlOverride),
         badgeLabel: patch.badgeLabel === undefined ? undefined : sanitizeNullable(patch.badgeLabel),
       });
     },
 
     async deleteItem(id: string): Promise<void> {
       const itemId = id.trim();
-      if (!itemId) throw new Error("empty_item_id");
+      if (!itemId) throw new Error('empty_item_id');
       await deps.port.deleteItem(itemId);
     },
 
@@ -255,12 +272,16 @@ export function createPatientHomeBlocksService(deps: PatientHomeServiceDeps) {
       assertManageableBlock(parsedCode);
       const uniq = new Set(orderedItemIds);
       if (uniq.size !== orderedItemIds.length) {
-        throw new Error("duplicate_item_ids");
+        throw new Error('duplicate_item_ids');
       }
       await deps.port.reorderItems(parsedCode, orderedItemIds);
     },
 
-    async retargetContentPageItems(contentPageId: string, oldSlug: string, newSlug: string): Promise<void> {
+    async retargetContentPageItems(
+      contentPageId: string,
+      oldSlug: string,
+      newSlug: string,
+    ): Promise<void> {
       await deps.port.retargetContentPageItems(contentPageId, oldSlug, newSlug);
     },
 
@@ -271,16 +292,18 @@ export function createPatientHomeBlocksService(deps: PatientHomeServiceDeps) {
 
       const sections = await deps.contentSections.listAll();
       const sectionMap = new Map(
-        sections.map((s) => [s.slug, { kind: s.kind, systemParentCode: s.systemParentCode }] as const),
+        sections.map(
+          (s) => [s.slug, { kind: s.kind, systemParentCode: s.systemParentCode }] as const,
+        ),
       );
 
       const out: Candidate[] = [];
-      if (allowedTypes.includes("content_page")) {
+      if (allowedTypes.includes('content_page')) {
         const pages = await deps.contentPages.listAll();
         for (const p of pages) {
           if (!isPatientHomeContentPageCandidateForBlock(parsedCode, p, sectionMap)) continue;
           out.push({
-            targetType: "content_page",
+            targetType: 'content_page',
             targetRef: p.slug,
             title: p.title,
             subtitle: p.summary || null,
@@ -288,7 +311,7 @@ export function createPatientHomeBlocksService(deps: PatientHomeServiceDeps) {
           });
         }
       }
-      if (allowedTypes.includes("content_section")) {
+      if (allowedTypes.includes('content_section')) {
         for (const s of sections) {
           if (
             !isPatientHomeContentSectionCandidateForBlock(parsedCode, {
@@ -299,7 +322,7 @@ export function createPatientHomeBlocksService(deps: PatientHomeServiceDeps) {
             continue;
           }
           out.push({
-            targetType: "content_section",
+            targetType: 'content_section',
             targetRef: s.slug,
             title: s.title,
             subtitle: s.description || null,
@@ -307,11 +330,11 @@ export function createPatientHomeBlocksService(deps: PatientHomeServiceDeps) {
           });
         }
       }
-      if (allowedTypes.includes("course")) {
+      if (allowedTypes.includes('course')) {
         const courses = await deps.courses.listCoursesForDoctor({ includeArchived: false });
         for (const c of courses) {
           out.push({
-            targetType: "course",
+            targetType: 'course',
             targetRef: c.id,
             title: c.title,
             subtitle: c.description,
@@ -319,7 +342,7 @@ export function createPatientHomeBlocksService(deps: PatientHomeServiceDeps) {
           });
         }
       }
-      return out.sort((a, b) => a.title.localeCompare(b.title, "ru"));
+      return out.sort((a, b) => a.title.localeCompare(b.title, 'ru'));
     },
   };
 }

@@ -14,13 +14,13 @@
 
 ## Сводка по чеклисту
 
-| # | Критерий | Результат |
-|---|-----------|-----------|
-| 1 | Миграции timezone для `branches` и `booking_branches` | **OK:** `056_branches_timezone.sql`, `057_booking_branches_timezone.sql`, `058_branch_timezone_seed.sql` |
-| 2 | Колонки `NOT NULL`, дефолт `Europe/Moscow` | **OK** |
-| 3 | `getBranchTimezone`: TTL + fallback | **OK в коде** (см. critical: источник данных vs админка) |
-| 4 | UI/валидация не ломают сохранение | **Частично:** PATCH/POST для каталога согласованы; см. critical + major |
-| 5 | Тесты + `pnpm run ci` | **OK** (подтверждено локальным прогоном) |
+| #   | Критерий                                              | Результат                                                                                                |
+| --- | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| 1   | Миграции timezone для `branches` и `booking_branches` | **OK:** `056_branches_timezone.sql`, `057_booking_branches_timezone.sql`, `058_branch_timezone_seed.sql` |
+| 2   | Колонки `NOT NULL`, дефолт `Europe/Moscow`            | **OK**                                                                                                   |
+| 3   | `getBranchTimezone`: TTL + fallback                   | **OK в коде** (см. critical: источник данных vs админка)                                                 |
+| 4   | UI/валидация не ломают сохранение                     | **Частично:** PATCH/POST для каталога согласованы; см. critical + major                                  |
+| 5   | Тесты + `pnpm run ci`                                 | **OK** (подтверждено локальным прогоном)                                                                 |
 
 ---
 

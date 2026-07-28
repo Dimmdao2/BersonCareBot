@@ -10,6 +10,7 @@
 > и в составе этапа); «отправить видео» из плитки убрано; клик по плитке уже ведёт на страницу упражнения.
 
 ## A. Упражнение / программа — всё на СТРАНИЦЕ элемента, не в модалках
+
 > Общий скоуп (делать одной фичей): `patient/treatment/PatientProgramStageItemPageClient.tsx`,
 > `PatientInstanceStageItemCard.tsx`, `ProgramItemCompleteDialog.tsx`, `ProgramItemDiscussionDialog.tsx`,
 > `PatientProgramItemExecutionRow.tsx`.
@@ -39,6 +40,7 @@
    **DoD:** на странице видна переписка + поле ответа без модалки; скриншот.
 
 ## B. Напоминания
+
 5. **🐞 «Не напоминать в боте» не отключает напоминания (баг подтверждён).** Связка настройки верна, баг в integrator:
    `apps/integrator/src/kernel/domain/executor/handlers/reminders.ts:535-544` — фильтр каналов применяется только при
    непустых bindings (`hasResolvedTopicBindings`); когда мессенджер выключен (bindings пуст) фильтр пропускается и сообщение
@@ -58,12 +60,14 @@
    **DoD:** напоминание по умолчанию задаётся временем; врач меняет расписание разминок в настройках.
 
 ## C. Запись
+
 8. **❌ «Добавить запись в календарь» клиента.** Функционала нет вовсе (grep по `.ics/VEVENT/addToCalendar/calendar.google|yandex` пуст).
    Сделать: генератор `.ics` (VCALENDAR/VEVENT) + route `text/calendar`; кнопки Google Calendar (`calendar.google.com/calendar/render`)
    / Yandex / скачать `.ics` (телефон) / отправить `.ics` на почту (через существующий SMTP-relay).
    **DoD:** у записи есть «добавить в календарь» с этими вариантами; `.ics` корректно открывается.
 
 ## D. Медиа
+
 9. **◑ Клиент заливает большое видео → рендер 360/480 + удалить оригинал.** Пациентский путь уже замкнут (presign→confirm→
    `processProgramSubmissionTranscode.ts`): рендер 480p + удаление оригинала (`:71,123-134`). Доделать: (а) добавить **360p**-рендицию
    (нигде нет, grep `360` пуст); (б) при необходимости — удаление оригинала на общем HLS-пути (`processTranscodeJob.ts:223` оригинал
@@ -71,14 +75,16 @@
    **DoD:** видео клиента хранится в рендере (есть 360 и 480), оригинал удалён; проверка пайплайна.
 
 ## E. Надёжность
+
 10. **◑ Все фейлы — только в хинт, не ломать UI (добить остаток).** Тосты/boundaries есть, но ~37 клиентских компонентов делают
     `await fetch`+`res.json()` **без try/catch** — сетевой сбой/502/невалидный JSON всплывает в error-boundary (экран раздела)
     вместо toast/inline. Обернуть в try/catch (как в `cabinet/useCreateBooking.ts`), сетевую/parse-ошибку → `setError`/`toast.error`.
     Чистый путь — общий хелпер (по образцу `settings/bookingSoloAdminApi.ts:apiJson`). Список мест — в
-    `QUICK_WINS_REVISION_2026-06-19.md` §E (settings/* booking-engine, doctor-панели, платёжные клиенты).
+    `QUICK_WINS_REVISION_2026-06-19.md` §E (settings/\* booking-engine, doctor-панели, платёжные клиенты).
     **DoD:** смоделировать сетевой фейл → раздел цел, ошибка в хинте; пройтись по перечисленным местам.
 
 ## F. Расписание — недельная настройка прямо в календарной странице
+
 > Скоуп крупнее quick-win — разрешено дробить на подзадачи. Точка входа: `doctor/schedule/tabs/ScheduleWorkTab.tsx`
 > (рабочие дни/время: `WD_BASE=/api/admin/booking-engine/working-days`, шаблоны
 > `TPL_BASE=/api/admin/booking-engine/working-schedule-templates`) + `settings/BookingSoloScheduleSection.tsx`.
@@ -110,6 +116,7 @@
     остаются рабочими по шаблону; скриншот.
 
 ## G. «Система и настройки» — пересборка по областям/ролям + верстка как Сегодня/Пациент
+
 > Скоуп крупнее quick-win — две стадии: сначала ресёрч-карта, потом верстка. Файлы: `settings/page.tsx`,
 > `settings/SettingsTabsNav.tsx` (сейчас 6 плоских табов: specialist/integrations/schedule/app/admin/technical),
 > множество `*Section.tsx` (Booking*, Doctor*, Appointment*, System*).
@@ -128,6 +135,7 @@
     на месте; скриншоты до/после.
 
 ---
+
 > Полная сверка с вердиктами и файлами:строками — `docs/QUICK_WINS_REVISION_2026-06-19.md`.
 > Индивидуальное упражнение врача + видео с пациентом (бывш. flat-8) — отдельной фичей
 > `docs/_INBOX/patient-files-library-isolation.md`; ревизия подтверждает: пока не реализовано (нет привязки упражнения к пациенту).

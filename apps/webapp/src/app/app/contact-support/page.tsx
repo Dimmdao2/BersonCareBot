@@ -1,4 +1,4 @@
-import LoginContactSupportPageClient from "@/app/app/contact-support/ContactSupportPageClient";
+import LoginContactSupportPageClient from '@/app/app/contact-support/ContactSupportPageClient';
 
 type Props = { searchParams?: Promise<{ from?: string | string[] }> };
 

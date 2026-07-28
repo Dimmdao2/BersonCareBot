@@ -13,17 +13,17 @@
 
 Порядок секций: standalone **«Сегодня»**, затем кластеры.
 
-| Кластер | Пункты (кратко) |
-|---------|------------------|
-| *(standalone)* | Сегодня → `/app/doctor` |
-| Работа с пациентами | Пациенты, Расписание |
-| Коммуникации | Онлайн-заявки, Сообщения, Рассылки |
-| Каталог ЛФК | Упражнения, комплексы, тесты, шаблоны программ, курсы, справочники, … |
-| Контент | Главная пациента, материалы, библиотека файлов |
-| Управление клиникой *(clinic admin)* | Врачи |
-| Аналитика *(global admin)* | По клиентам, по контенту, по уведомлениям, Использование |
-| Система *(global admin)* | Здоровье системы, архив сбоев, журнал операций |
-| Администрирование *(global admin)* | Настройки приложения, авторизация, интеграции, **Настройки записи**, технические режимы, **Мердж пациентов** |
+| Кластер                              | Пункты (кратко)                                                                                              |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| _(standalone)_                       | Сегодня → `/app/doctor`                                                                                      |
+| Работа с пациентами                  | Пациенты, Расписание                                                                                         |
+| Коммуникации                         | Онлайн-заявки, Сообщения, Рассылки                                                                           |
+| Каталог ЛФК                          | Упражнения, комплексы, тесты, шаблоны программ, курсы, справочники, …                                        |
+| Контент                              | Главная пациента, материалы, библиотека файлов                                                               |
+| Управление клиникой _(clinic admin)_ | Врачи                                                                                                        |
+| Аналитика _(global admin)_           | По клиентам, по контенту, по уведомлениям, Использование                                                     |
+| Система _(global admin)_             | Здоровье системы, архив сбоев, журнал операций                                                               |
+| Администрирование _(global admin)_   | Настройки приложения, авторизация, интеграции, **Настройки записи**, технические режимы, **Мердж пациентов** |
 
 Пункт **«Расписание»** в меню — **одна прямая ссылка** на `/app/doctor/schedule` (не аккордеон;
 вкладки `cal/work/setup` переключаются внутри страницы). Admin-гейтинг таба «Настройки»
@@ -43,26 +43,26 @@
 
 ## Маршруты (admin / аналитика)
 
-| Назначение | URL | Примечание |
-|------------|-----|------------|
-| Сегодня (рабочий inbox) | `/app/doctor` | KPI + очереди; см. [`DOCTOR_DASHBOARD_METRICS.md`](DOCTOR_DASHBOARD_METRICS.md) |
-| Врачи / команда клиники | `/app/doctor/clinic/members` | `clinic_admin`; `GET /api/clinic/members`, `GET/POST/DELETE /api/clinic/invites` |
-| Расписание / записи | `/app/doctor/schedule?tab=cal` | Единый canonical calendar: диапазоны 3 дня / неделя / месяц и независимый рендер календарь / список (`render=list`); прошлые и будущие диапазоны открываются навигацией по периоду. Legacy `/calendar` и `/appointments` (включая `?view=future\|past`) дают **308** ровно на `?tab=cal`, старый query отбрасывается. |
-| Аналитика по клиентам | `/app/doctor/analytics/clients` | Бывш. `/app/doctor/stats`; пресет **«Сутки»** (`preset=day`) + week/month/custom |
-| Статистика (legacy URL) | `/app/doctor/stats` | **Редирект** → `analytics/clients` |
-| По контенту | `/app/doctor/material-ratings` | UI «Статистика материалов»: дашборд **`content-stats`** + таблицы оценок; см. [`MATERIAL_RATINGS.md`](MATERIAL_RATINGS.md) |
-| По уведомлениям | `/app/doctor/analytics/notifications` | Бывш. `?adminTab=reminder-stats`; **`windowHours`** 24 ч / 7 дн. / 30 дн. |
-| Использование (product) | `/app/doctor/usage` | Бывш. `?adminTab=product-analytics`; те же пресеты **`windowHours`** |
-| Здоровье системы | `/app/doctor/system-health` | `GET /api/admin/system-health` |
-| Архив сбоев | `/app/doctor/health-archive` | |
-| Журнал операций | `/app/doctor/audit-log` | `GET /api/admin/audit-log`; сверху — ошибки регистрации (`GET /api/admin/auth-registration-events`) |
-| Параметры приложения | `/app/doctor/admin/app-settings` | |
-| Авторизация | `/app/doctor/admin/auth` | |
-| Интеграции | `/app/doctor/admin/integrations` | |
-| Настройки записи | `/app/doctor/admin/booking` | **308** → `/app/doctor/schedule?tab=setup` (ребилд раскладки в `ScheduleSetupTab` как 6-секционный под-экран) |
-| **Расписание** | `/app/doctor/schedule` | Агрегатный шелл с 3 табами: **Календарь записей** (`?tab=cal`), **График работы** (`?tab=work`), **Настройки записи** (`?tab=setup`); per-date модель (см. `schedule.md`); 308: `/calendar`→`?tab=cal`, `/appointments`→`?tab=cal`, `/admin/booking`→`?tab=setup` |
-| Запись → Интеграции (Rubitime catalog v2) | `/app/doctor/admin/booking/integrations` | **`RubitimeSection`** — справочник `booking_*` через `/api/admin/booking-catalog/*` (город → филиал → услуга → специалист → branch-service); inline PATCH услуг, форма «Создать услугу»; план [`.cursor/plans/archive/rubitime_catalog_ux_fix.plan.md`](../../.cursor/plans/archive/rubitime_catalog_ux_fix.plan.md) |
-| Технические режимы | `/app/doctor/admin/technical` | |
+| Назначение                                | URL                                      | Примечание                                                                                                                                                                                                                                                                                                            |
+| ----------------------------------------- | ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Сегодня (рабочий inbox)                   | `/app/doctor`                            | KPI + очереди; см. [`DOCTOR_DASHBOARD_METRICS.md`](DOCTOR_DASHBOARD_METRICS.md)                                                                                                                                                                                                                                       |
+| Врачи / команда клиники                   | `/app/doctor/clinic/members`             | `clinic_admin`; `GET /api/clinic/members`, `GET/POST/DELETE /api/clinic/invites`                                                                                                                                                                                                                                      |
+| Расписание / записи                       | `/app/doctor/schedule?tab=cal`           | Единый canonical calendar: диапазоны 3 дня / неделя / месяц и независимый рендер календарь / список (`render=list`); прошлые и будущие диапазоны открываются навигацией по периоду. Legacy `/calendar` и `/appointments` (включая `?view=future\|past`) дают **308** ровно на `?tab=cal`, старый query отбрасывается. |
+| Аналитика по клиентам                     | `/app/doctor/analytics/clients`          | Бывш. `/app/doctor/stats`; пресет **«Сутки»** (`preset=day`) + week/month/custom                                                                                                                                                                                                                                      |
+| Статистика (legacy URL)                   | `/app/doctor/stats`                      | **Редирект** → `analytics/clients`                                                                                                                                                                                                                                                                                    |
+| По контенту                               | `/app/doctor/material-ratings`           | UI «Статистика материалов»: дашборд **`content-stats`** + таблицы оценок; см. [`MATERIAL_RATINGS.md`](MATERIAL_RATINGS.md)                                                                                                                                                                                            |
+| По уведомлениям                           | `/app/doctor/analytics/notifications`    | Бывш. `?adminTab=reminder-stats`; **`windowHours`** 24 ч / 7 дн. / 30 дн.                                                                                                                                                                                                                                             |
+| Использование (product)                   | `/app/doctor/usage`                      | Бывш. `?adminTab=product-analytics`; те же пресеты **`windowHours`**                                                                                                                                                                                                                                                  |
+| Здоровье системы                          | `/app/doctor/system-health`              | `GET /api/admin/system-health`                                                                                                                                                                                                                                                                                        |
+| Архив сбоев                               | `/app/doctor/health-archive`             |                                                                                                                                                                                                                                                                                                                       |
+| Журнал операций                           | `/app/doctor/audit-log`                  | `GET /api/admin/audit-log`; сверху — ошибки регистрации (`GET /api/admin/auth-registration-events`)                                                                                                                                                                                                                   |
+| Параметры приложения                      | `/app/doctor/admin/app-settings`         |                                                                                                                                                                                                                                                                                                                       |
+| Авторизация                               | `/app/doctor/admin/auth`                 |                                                                                                                                                                                                                                                                                                                       |
+| Интеграции                                | `/app/doctor/admin/integrations`         |                                                                                                                                                                                                                                                                                                                       |
+| Настройки записи                          | `/app/doctor/admin/booking`              | **308** → `/app/doctor/schedule?tab=setup` (ребилд раскладки в `ScheduleSetupTab` как 6-секционный под-экран)                                                                                                                                                                                                         |
+| **Расписание**                            | `/app/doctor/schedule`                   | Агрегатный шелл с 3 табами: **Календарь записей** (`?tab=cal`), **График работы** (`?tab=work`), **Настройки записи** (`?tab=setup`); per-date модель (см. `schedule.md`); 308: `/calendar`→`?tab=cal`, `/appointments`→`?tab=cal`, `/admin/booking`→`?tab=setup`                                                     |
+| Запись → Интеграции (Rubitime catalog v2) | `/app/doctor/admin/booking/integrations` | **`RubitimeSection`** — справочник `booking_*` через `/api/admin/booking-catalog/*` (город → филиал → услуга → специалист → branch-service); inline PATCH услуг, форма «Создать услугу»; план [`.cursor/plans/archive/rubitime_catalog_ux_fix.plan.md`](../../.cursor/plans/archive/rubitime_catalog_ux_fix.plan.md)  |
+| Технические режимы                        | `/app/doctor/admin/technical`            |                                                                                                                                                                                                                                                                                                                       |
 
 `/app/doctor/system-health` сохраняет URL кабинета, но рендерится через отдельный platform-operator layout:
 доступ по-прежнему требует `role=admin` и включённый admin mode, а membership конкретной клиники не требуется.
@@ -77,11 +77,11 @@
 
 ### Расписание (`/app/doctor/schedule`) — 3 таба
 
-| `?tab=` | Вкладка | Старый URL (308) |
-|---------|---------|-----------------|
-| `cal` (default) | Записи | `/app/doctor/calendar`, `/app/doctor/appointments` |
-| `work` | График работы | — |
-| `setup` | Настройки *(admin)* | `/app/doctor/admin/booking` |
+| `?tab=`         | Вкладка             | Старый URL (308)                                   |
+| --------------- | ------------------- | -------------------------------------------------- |
+| `cal` (default) | Записи              | `/app/doctor/calendar`, `/app/doctor/appointments` |
+| `work`          | График работы       | —                                                  |
+| `setup`         | Настройки _(admin)_ | `/app/doctor/admin/booking`                        |
 
 Шелл: `DoctorScheduleShell` + keepMounted-табы. **KPI (9 метрик) живут только в табе «Записи»**
 (`ScheduleCalendarTab`, §3.1 ТЗ); шелл не хранит метрики.
@@ -99,12 +99,12 @@ Loop-guard `x-bc-doctor-rewrite` сохранён в `doctorRouteRedirects.ts`.
 
 ### Коммуникации (`/app/doctor/communications`) — 4 таба
 
-| `?tab=` | Вкладка | Старый URL (308) |
-|---------|---------|-----------------|
-| `chats` (default) | Чаты | `/app/doctor/messages` |
-| `intake` | Заявки | `/app/doctor/online-intake[/:id]` |
-| `comments` | Комментарии | `/app/doctor/comments` |
-| `broadcasts` | Рассылки | `/app/doctor/broadcasts[/archive]` |
+| `?tab=`           | Вкладка     | Старый URL (308)                   |
+| ----------------- | ----------- | ---------------------------------- |
+| `chats` (default) | Чаты        | `/app/doctor/messages`             |
+| `intake`          | Заявки      | `/app/doctor/online-intake[/:id]`  |
+| `comments`        | Комментарии | `/app/doctor/comments`             |
+| `broadcasts`      | Рассылки    | `/app/doctor/broadcasts[/archive]` |
 
 Таб-бар: `DoctorCommunicationsTabsNav.tsx` (`doctorCommunicationsTabs.ts`, `communications.md`).
 
@@ -113,11 +113,11 @@ Loop-guard `x-bc-doctor-rewrite` сохранён в `doctorRouteRedirects.ts`.
 
 ## Окна аналитики (doctor)
 
-| Экран | Query | Пресеты UI |
-|-------|--------|------------|
-| По клиентам | `preset=day\|week\|month\|custom` (+ `from`/`to`) | «Сутки», «Неделя», «Месяц», произвольный |
-| По контенту, уведомлениям, использованию | `windowHours` (1…720, default **168**) | **24 ч**, **7 дн.**, **30 дн.** — [`analyticsWindowHourPresets.ts`](../../apps/webapp/src/app/app/doctor/analytics/shared/analyticsWindowHourPresets.ts) |
-| Детализация оценки материала | `preset=week\|month\|custom` | «Сутки» на экране `[kind]/[id]` — локальный пресет дня |
+| Экран                                    | Query                                             | Пресеты UI                                                                                                                                               |
+| ---------------------------------------- | ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| По клиентам                              | `preset=day\|week\|month\|custom` (+ `from`/`to`) | «Сутки», «Неделя», «Месяц», произвольный                                                                                                                 |
+| По контенту, уведомлениям, использованию | `windowHours` (1…720, default **168**)            | **24 ч**, **7 дн.**, **30 дн.** — [`analyticsWindowHourPresets.ts`](../../apps/webapp/src/app/app/doctor/analytics/shared/analyticsWindowHourPresets.ts) |
+| Детализация оценки материала             | `preset=week\|month\|custom`                      | «Сутки» на экране `[kind]/[id]` — локальный пресет дня                                                                                                   |
 
 Общий загрузчик контента/напоминаний: **`loadContentEngagementStats`** — [`loadAdminReminderStats.ts`](../../apps/webapp/src/app-layer/stats/loadAdminReminderStats.ts); канон полей дашборда — [`MATERIAL_RATINGS.md`](MATERIAL_RATINGS.md) §«Дашборд content-stats».
 

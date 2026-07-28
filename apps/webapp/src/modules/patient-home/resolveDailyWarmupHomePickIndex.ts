@@ -1,4 +1,4 @@
-import { pickDailyWarmupFromOrderedList } from "@/modules/patient-home/pickDailyWarmupFromOrderedList";
+import { pickDailyWarmupFromOrderedList } from '@/modules/patient-home/pickDailyWarmupFromOrderedList';
 
 /** Индекс разминки на главной: presented → иначе следующая после последней выполненной → первая. */
 export function resolveDailyWarmupHomePickIndex(

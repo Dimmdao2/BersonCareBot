@@ -2,10 +2,10 @@
 import type {
   DoctorAppointmentStatsFilter,
   DoctorDashboardAppointmentMetrics,
-} from "@/modules/doctor-appointments/ports";
-import type { AnalyticsAudienceContext } from "@/modules/analytics/analyticsAudience";
-import type { ClientContactBreakdown } from "@/modules/doctor-clients/clientContactSegments";
-import type { DoctorDashboardPatientMetrics } from "@/modules/doctor-clients/ports";
+} from '@/modules/doctor-appointments/ports';
+import type { AnalyticsAudienceContext } from '@/modules/analytics/analyticsAudience';
+import type { ClientContactBreakdown } from '@/modules/doctor-clients/clientContactSegments';
+import type { DoctorDashboardPatientMetrics } from '@/modules/doctor-clients/ports';
 
 export type DoctorStatsState = {
   appointments: {
@@ -23,7 +23,7 @@ export type DoctorStatsState = {
     appGuests: number;
     contactBreakdown: ClientContactBreakdown;
     /** Клиенты с маркером «бот заблокирован» по каналу (активная привязка отсутствует). */
-    messengerBotBlocked: ClientContactBreakdown["messengerBotBlocked"];
+    messengerBotBlocked: ClientContactBreakdown['messengerBotBlocked'];
   };
 };
 
@@ -61,7 +61,9 @@ export type DoctorStatsServiceDeps = {
   }>;
   getClientContactBreakdown: (audience?: AudienceArg) => Promise<ClientContactBreakdown>;
   getDashboardPatientMetrics: (audience?: AudienceArg) => Promise<DoctorDashboardPatientMetrics>;
-  getDashboardAppointmentMetrics: (audience?: AudienceArg) => Promise<DoctorDashboardAppointmentMetrics>;
+  getDashboardAppointmentMetrics: (
+    audience?: AudienceArg,
+  ) => Promise<DoctorDashboardAppointmentMetrics>;
 };
 
 export function createDoctorStatsService(deps: DoctorStatsServiceDeps) {
@@ -72,7 +74,7 @@ export function createDoctorStatsService(deps: DoctorStatsServiceDeps) {
         organizationId: audience.organizationId,
       };
       const [appointmentStats, contactBreakdown] = await Promise.all([
-        deps.getAppointmentStats({ kind: "range", range: "week" }, aud),
+        deps.getAppointmentStats({ kind: 'range', range: 'week' }, aud),
         deps.getClientContactBreakdown(aud),
       ]);
 

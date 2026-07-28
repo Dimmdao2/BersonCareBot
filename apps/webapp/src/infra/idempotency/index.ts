@@ -7,18 +7,18 @@
  * statically traced into the production (DB-backed) standalone bundle — that trace
  * otherwise pulls `next.config.ts` into the NFT list and emits a build warning.
  */
-import type { CachedResponseHit } from "./store";
-import { env } from "@/config/env";
-import * as pgStore from "./pgStore";
+import type { CachedResponseHit } from './store';
+import { env } from '@/config/env';
+import * as pgStore from './pgStore';
 
 const useDb =
-  env.NODE_ENV !== "test" &&
-  typeof env.DATABASE_URL === "string" &&
+  env.NODE_ENV !== 'test' &&
+  typeof env.DATABASE_URL === 'string' &&
   env.DATABASE_URL.trim().length > 0;
 
 /** Dev/test fallback only — never reached in production (DATABASE_URL is always set there). */
-function loadFileStore(): Promise<typeof import("./store")> {
-  return import(/* turbopackIgnore: true */ "./store");
+function loadFileStore(): Promise<typeof import('./store')> {
+  return import(/* turbopackIgnore: true */ './store');
 }
 
 // Pure key validation (no IO) — identical in both stores; use the pg one so this

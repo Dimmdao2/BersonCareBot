@@ -131,7 +131,9 @@ describe('POST /api/bersoncare/send-sms', () => {
   });
 
   it('does not classify a central egress-policy rejection as provider failure', async () => {
-    const dispatchOutgoing = vi.fn().mockRejectedValue(new OutboundMessagePolicyError('missing_or_invalid_marker'));
+    const dispatchOutgoing = vi
+      .fn()
+      .mockRejectedValue(new OutboundMessagePolicyError('missing_or_invalid_marker'));
     const recordProviderFailure = vi.fn().mockResolvedValue(undefined);
     const app = Fastify();
     await registerBersoncareSendSmsRoute(app, {

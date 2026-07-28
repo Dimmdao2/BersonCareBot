@@ -1,13 +1,13 @@
-"use client";
+'use client';
 
-import { ConfirmStepClient } from "@/app/app/patient/booking/confirm/ConfirmStepClient";
-import type { BookingCategory } from "@/modules/patient-booking/types";
-import type { StructuredFio } from "@/shared/lib/fio";
-import { publicBookPaths } from "@/shared/publicBook/paths";
-import { usePublicCreateBooking } from "@/shared/publicBook/usePublicCreateBooking";
+import { ConfirmStepClient } from '@/app/app/patient/booking/confirm/ConfirmStepClient';
+import type { BookingCategory } from '@/modules/patient-booking/types';
+import type { StructuredFio } from '@/shared/lib/fio';
+import { publicBookPaths } from '@/shared/publicBook/paths';
+import { usePublicCreateBooking } from '@/shared/publicBook/usePublicCreateBooking';
 
 type InPersonProps = {
-  type: "in_person";
+  type: 'in_person';
   cityCode?: string;
   cityTitle?: string;
   branchId?: string;
@@ -20,7 +20,7 @@ type InPersonProps = {
 };
 
 type OnlineProps = {
-  type: "online";
+  type: 'online';
   category: BookingCategory;
   slotStart: string;
   slotEnd: string;
@@ -28,9 +28,9 @@ type OnlineProps = {
 };
 
 const EMPTY_FIO: StructuredFio = {
-  lastName: "",
-  firstName: "",
-  patronymic: "",
+  lastName: '',
+  firstName: '',
+  patronymic: '',
 };
 
 export function PublicConfirmStepClient(props: InPersonProps | OnlineProps) {

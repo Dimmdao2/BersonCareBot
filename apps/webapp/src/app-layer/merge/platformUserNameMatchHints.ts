@@ -1,1 +1,1 @@
-export { buildNameMatchHintsReport } from "@/infra/platformUserNameMatchHints";
+export { buildNameMatchHintsReport } from '@/infra/platformUserNameMatchHints';

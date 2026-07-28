@@ -1,9 +1,9 @@
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
-import { requireEntitlementForMutation } from "@/app-layer/guards/requireEntitlement";
-import { requireClinicManagementBookingEngine } from "../_requireAdminBookingEngine";
-import { isReservedOnlineLocationIdentity } from "@/modules/booking-engine/onlineLocation";
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
+import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
+import { requireClinicManagementBookingEngine } from '../_requireAdminBookingEngine';
+import { isReservedOnlineLocationIdentity } from '@/modules/booking-engine/onlineLocation';
 
 const PostSchema = z.object({
   title: z.string().min(1).max(200),
@@ -26,25 +26,29 @@ export async function GET() {
 export async function POST(request: Request) {
   const gate = await requireClinicManagementBookingEngine();
   if (!gate.ok) return gate.response;
-  const entitlement = await requireEntitlementForMutation(gate.ctx, "booking");
+  const entitlement = await requireEntitlementForMutation(gate.ctx, 'booking');
   if (!entitlement.ok) return entitlement.response;
   const body = await request.json().catch(() => null);
   const parsed = PostSchema.safeParse(body);
-  if (!parsed.success) return NextResponse.json({ ok: false, error: "invalid_input" }, { status: 400 });
+  if (!parsed.success)
+    return NextResponse.json({ ok: false, error: 'invalid_input' }, { status: 400 });
   if (isReservedOnlineLocationIdentity(parsed.data)) {
-    return NextResponse.json({ ok: false, error: "online_location_reserved" }, { status: 409 });
+    return NextResponse.json({ ok: false, error: 'online_location_reserved' }, { status: 409 });
   }
-  const branch = await withDoctorWorkspacePrincipal(gate.ctx, "admin.booking-engine.branches.upsert", () =>
-    gate.ctx.service.catalog.createPhysicalBranch({
-      organizationId: gate.ctx.organizationId,
-      title: parsed.data.title.trim(),
-      shortTitle: parsed.data.shortTitle ?? null,
-      cityCode: parsed.data.cityCode.trim().toLowerCase(),
-      address: parsed.data.address ?? null,
-      timezone: parsed.data.timezone,
-      isActive: parsed.data.isActive,
-      sortOrder: parsed.data.sortOrder,
-    }),
+  const branch = await withDoctorWorkspacePrincipal(
+    gate.ctx,
+    'admin.booking-engine.branches.upsert',
+    () =>
+      gate.ctx.service.catalog.createPhysicalBranch({
+        organizationId: gate.ctx.organizationId,
+        title: parsed.data.title.trim(),
+        shortTitle: parsed.data.shortTitle ?? null,
+        cityCode: parsed.data.cityCode.trim().toLowerCase(),
+        address: parsed.data.address ?? null,
+        timezone: parsed.data.timezone,
+        isActive: parsed.data.isActive,
+        sortOrder: parsed.data.sortOrder,
+      }),
   );
   return NextResponse.json({ ok: true, branch });
 }

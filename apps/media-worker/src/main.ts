@@ -1,16 +1,16 @@
-import { createLogger } from "./logger.js";
-import { loadMediaWorkerEnv } from "./env.js";
-import { createMediaWorkerPoolProvider } from "./poolProvider.js";
-import { createS3Client } from "./s3.js";
-import { runMediaWorkerTick } from "./workerTick.js";
-import { createMediaWorkerIsolationReporter } from "./saasIsolationTelemetry.js";
-import { startMediaWorkerTransaction } from "./withClient.js";
+import { createLogger } from './logger.js';
+import { loadMediaWorkerEnv } from './env.js';
+import { createMediaWorkerPoolProvider } from './poolProvider.js';
+import { createS3Client } from './s3.js';
+import { runMediaWorkerTick } from './workerTick.js';
+import { createMediaWorkerIsolationReporter } from './saasIsolationTelemetry.js';
+import { startMediaWorkerTransaction } from './withClient.js';
 import {
   captureMediaWorkerLoopError,
   captureMediaWorkerStartupFatal,
   closeMediaWorkerErrorTracking,
   runMediaWorkerStartupGate,
-} from "./errorTracking.js";
+} from './errorTracking.js';
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
@@ -23,9 +23,11 @@ async function main() {
   await runMediaWorkerStartupGate(pool, async () => {
     const tx = await startMediaWorkerTransaction(pool);
     try {
-      await tx.client.query("SELECT 1 FROM public.media_transcode_jobs WHERE false");
-      await tx.client.query("SELECT 1 FROM public.media_files WHERE false");
-      await tx.client.query("SELECT app.read_media_worker_runtime_setting('video_hls_pipeline_enabled')");
+      await tx.client.query('SELECT 1 FROM public.media_transcode_jobs WHERE false');
+      await tx.client.query('SELECT 1 FROM public.media_files WHERE false');
+      await tx.client.query(
+        "SELECT app.read_media_worker_runtime_setting('video_hls_pipeline_enabled')",
+      );
       await tx.rollback();
     } catch (error) {
       try {
@@ -62,29 +64,29 @@ async function main() {
 
   let shuttingDown = false;
   const onStop = (signal: string) => {
-    log.info({ signal }, "shutdown requested");
+    log.info({ signal }, 'shutdown requested');
     shuttingDown = true;
   };
-  process.on("SIGTERM", () => onStop("SIGTERM"));
-  process.on("SIGINT", () => onStop("SIGINT"));
+  process.on('SIGTERM', () => onStop('SIGTERM'));
+  process.on('SIGINT', () => onStop('SIGINT'));
 
-  log.info({ lockId: env.lockId }, "media-worker started");
+  log.info({ lockId: env.lockId }, 'media-worker started');
 
   while (!shuttingDown) {
     try {
       const result = await runMediaWorkerTick(ctx);
-      if (result === "disabled") {
+      if (result === 'disabled') {
         await sleep(env.POLL_MS * 3);
         continue;
       }
-      if (result === "idle") {
+      if (result === 'idle') {
         await sleep(env.POLL_MS);
         continue;
       }
     } catch (e) {
       captureMediaWorkerLoopError(e);
       isolationTelemetry.report(e);
-      log.error({ err: e }, "main loop error");
+      log.error({ err: e }, 'main loop error');
       await sleep(env.POLL_MS);
     }
   }
@@ -92,12 +94,12 @@ async function main() {
   await pool.end();
   await isolationTelemetry.close();
   await closeMediaWorkerErrorTracking();
-  log.info("media-worker stopped");
+  log.info('media-worker stopped');
 }
 
 main().catch((e) => {
   captureMediaWorkerStartupFatal(e);
-  console.error("media-worker fatal");
+  console.error('media-worker fatal');
   void closeMediaWorkerErrorTracking().finally(() => {
     process.exitCode = 1;
   });

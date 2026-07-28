@@ -4,10 +4,10 @@
 
 ## Ключевые точки кода (ориентиры)
 
-| Область | Файлы |
-|---------|--------|
-| Enqueue событий | [`apps/integrator/src/infra/db/writePort.ts`](../../apps/integrator/src/infra/db/writePort.ts) |
-| Outbox repo | [`apps/integrator/src/infra/db/repos/projectionOutbox.ts`](../../apps/integrator/src/infra/db/repos/projectionOutbox.ts) |
+| Область                         | Файлы                                                                                                                              |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Enqueue событий                 | [`apps/integrator/src/infra/db/writePort.ts`](../../apps/integrator/src/infra/db/writePort.ts)                                     |
+| Outbox repo                     | [`apps/integrator/src/infra/db/repos/projectionOutbox.ts`](../../apps/integrator/src/infra/db/repos/projectionOutbox.ts)           |
 | Создание / upsert пользователей | [`apps/integrator/src/infra/db/repos/channelUsers.ts`](../../apps/integrator/src/infra/db/repos/channelUsers.ts) и связанные repos |
 
 ## Алгоритм canonical resolution

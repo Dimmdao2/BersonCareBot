@@ -1,9 +1,9 @@
-import { and, eq } from "drizzle-orm";
-import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
-import { getDrizzle } from "@/app-layer/db/drizzle";
-import { runDrizzleMutationTransaction } from "@/infra/db/drizzleMutationTx";
-import type { ClientSupportProfile } from "@/modules/doctor-clients/supportPolicy";
-import { doctorPatientSupport } from "../../../db/schema/doctorPatientSupport";
+import { and, eq } from 'drizzle-orm';
+import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
+import { getDrizzle } from '@/app-layer/db/drizzle';
+import { runDrizzleMutationTransaction } from '@/infra/db/drizzleMutationTx';
+import type { ClientSupportProfile } from '@/modules/doctor-clients/supportPolicy';
+import { doctorPatientSupport } from '../../../db/schema/doctorPatientSupport';
 
 function mapRow(row: typeof doctorPatientSupport.$inferSelect): ClientSupportProfile {
   return {
@@ -25,14 +25,18 @@ function currentWriteOrganizationId(...fallbacks: (string | null | undefined)[])
   const hasFallbackMismatch = fallbackOrganizationIds.some((id) => id !== fallbackOrganizationId);
   if (
     hasFallbackMismatch ||
-    (principalOrganizationId && fallbackOrganizationId && principalOrganizationId !== fallbackOrganizationId)
+    (principalOrganizationId &&
+      fallbackOrganizationId &&
+      principalOrganizationId !== fallbackOrganizationId)
   ) {
-    throw new Error("organization_principal_mismatch");
+    throw new Error('organization_principal_mismatch');
   }
   return principalOrganizationId ?? fallbackOrganizationId;
 }
 
-export async function getClientSupportProfile(patientUserId: string): Promise<ClientSupportProfile | null> {
+export async function getClientSupportProfile(
+  patientUserId: string,
+): Promise<ClientSupportProfile | null> {
   const db = getDrizzle();
   const rows = await db
     .select()
@@ -70,7 +74,7 @@ export async function upsertClientSupportProfile(params: {
         })
         .returning();
       const row = inserted[0];
-      if (!row) throw new Error("doctor_patient_support insert failed");
+      if (!row) throw new Error('doctor_patient_support insert failed');
       return mapRow(row);
     });
   }
@@ -102,7 +106,7 @@ export async function upsertClientSupportProfile(params: {
       .where(eq(doctorPatientSupport.patientUserId, params.patientUserId))
       .returning();
     const row = updated[0];
-    if (!row) throw new Error("doctor_patient_support update failed");
+    if (!row) throw new Error('doctor_patient_support update failed');
     return mapRow(row);
   });
 }
@@ -114,7 +118,10 @@ export async function listOnSupportPatientUserIds(organizationId?: string): Prom
     .from(doctorPatientSupport)
     .where(
       organizationId
-        ? and(eq(doctorPatientSupport.onSupport, true), eq(doctorPatientSupport.organizationId, organizationId))
+        ? and(
+            eq(doctorPatientSupport.onSupport, true),
+            eq(doctorPatientSupport.organizationId, organizationId),
+          )
         : eq(doctorPatientSupport.onSupport, true),
     );
   return new Set(rows.map((r) => r.patientUserId));

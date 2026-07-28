@@ -1,8 +1,8 @@
 import {
   runWithDbOrganizationPrincipal,
   runWithDbPatientPrincipal,
-} from "@bersoncare/db-principal";
-import type { DoctorWorkspaceAccessContext } from "@/app-layer/guards/requireRole";
+} from '@bersoncare/db-principal';
+import type { DoctorWorkspaceAccessContext } from '@/app-layer/guards/requireRole';
 
 export type TenantPrincipalContext = {
   organizationId: string;
@@ -16,7 +16,7 @@ export type PatientTenantPrincipalContext = TenantPrincipalContext & {
 function normalizePrincipalSource(source: string): string {
   const trimmed = source.trim();
   if (!trimmed) {
-    throw new Error("principal_source_required");
+    throw new Error('principal_source_required');
   }
   return trimmed;
 }
@@ -45,7 +45,7 @@ export async function withPatientOrganizationPrincipal<T>(
 }
 
 export async function withDoctorWorkspacePrincipal<T>(
-  workspace: Pick<DoctorWorkspaceAccessContext, "organizationId">,
+  workspace: Pick<DoctorWorkspaceAccessContext, 'organizationId'>,
   source: string,
   fn: () => Promise<T>,
 ): Promise<T> {

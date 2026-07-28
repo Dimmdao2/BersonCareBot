@@ -1,14 +1,18 @@
-import { Badge } from "@/shared/ui/doctor/primitives/badge";
-import { DoctorSection, DoctorSectionHeader, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
+import { Badge } from '@/shared/ui/doctor/primitives/badge';
+import {
+  DoctorSection,
+  DoctorSectionHeader,
+  DoctorSectionTitle,
+} from '@/shared/ui/doctor/DoctorSection';
 import {
   doctorDnaFlatListClass,
   doctorDnaFlatListMetaClass,
   doctorDnaFlatListPrimaryClass,
   doctorDnaFlatListRowClass,
-} from "@/shared/ui/doctor/DoctorDnaFlatListRow";
-import type { OrgMechanic } from "@/modules/org-entitlements/types";
-import type { SaasBillingOverview } from "@/modules/saas-billing/ports";
-import { SaasBillingOverview as SaasBillingOverviewSection } from "@/shared/ui/doctor/SaasBillingOverview";
+} from '@/shared/ui/doctor/DoctorDnaFlatListRow';
+import type { OrgMechanic } from '@/modules/org-entitlements/types';
+import type { SaasBillingOverview } from '@/modules/saas-billing/ports';
+import { SaasBillingOverview as SaasBillingOverviewSection } from '@/shared/ui/doctor/SaasBillingOverview';
 
 export type BillingMechanicRow = {
   mechanic: OrgMechanic;
@@ -42,7 +46,7 @@ export function BillingSection({ tariffName, commercialStateLabel, mechanics, bi
         <div className="flex items-start justify-between gap-3 text-sm">
           <span className="text-muted-foreground">Тариф</span>
           <span className="text-right font-medium text-foreground">
-            {tariffName ?? "Тариф не назначен"}
+            {tariffName ?? 'Тариф не назначен'}
           </span>
         </div>
         <p className="text-sm text-muted-foreground">{commercialStateLabel}</p>
@@ -51,11 +55,14 @@ export function BillingSection({ tariffName, commercialStateLabel, mechanics, bi
           <p className="text-sm font-medium text-foreground">Что доступно клинике</p>
           <ul aria-label="Механики тарифа" className={doctorDnaFlatListClass}>
             {mechanics.map((row) => (
-              <li key={row.mechanic} className={`${doctorDnaFlatListRowClass} justify-between gap-2`}>
+              <li
+                key={row.mechanic}
+                className={`${doctorDnaFlatListRowClass} justify-between gap-2`}
+              >
                 <span className={doctorDnaFlatListPrimaryClass}>{row.label}</span>
                 <span className={doctorDnaFlatListMetaClass}>
-                  <Badge variant={row.enabled ? "secondary" : "outline"}>
-                    {row.enabled ? "Включено" : "Недоступно"}
+                  <Badge variant={row.enabled ? 'secondary' : 'outline'}>
+                    {row.enabled ? 'Включено' : 'Недоступно'}
                   </Badge>
                 </span>
               </li>

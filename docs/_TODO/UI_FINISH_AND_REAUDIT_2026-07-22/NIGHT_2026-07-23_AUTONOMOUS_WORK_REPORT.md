@@ -4,6 +4,7 @@
 кончик `7dba6838` (34 коммита за сессию, от `cfece2a4`). **Всё запушено, дерево чистое.**
 
 ## 0. С ЧЕГО НАЧАТЬ ЗАВТРА (entry points)
+
 1. `docs/CURRENT_AUTHORITY_MAP.md` — где актуальный источник по каждой области (карта, doctor UI, SaaS, backend).
 2. `docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/PRODUCTION_READINESS_LEDGER_2026-07-23.md` — §4 (backend-first остаток),
    §8 (результаты перепроверки всех `[x]`).
@@ -11,6 +12,7 @@
 4. Карта клиента: `docs/design/bersoncare-карточка-пациента-CURRENT-SPEC.md`.
 
 ## 1. Здоровье ветки (проверено)
+
 - Полный `pnpm run typecheck` (4 воркспейса) — **exit 0**.
 - `pnpm run lint` (eslint + все check-скрипты) — **exit 0**.
 - `pnpm audit --audit-level=high` — **0 high** (Next 16.2.11 + find-my-way override).
@@ -18,6 +20,7 @@
   (TZ/fixture-зависимый). Не трогал; кандидат на отдельный фикс.
 
 ## 2. Что сделано — КОД
+
 - **Карта клиента (по твоему спеку):**
   - Удалена агентская правая полоска-превью; клик по строке → полная карта (`561f9d89`, typecheck+тест ok).
   - Шапка почищена: убраны пол/рост/вес/chips Архив-Заблок/правая мини-сводка/возраст; **звезда «На сопровождении»
@@ -33,6 +36,7 @@
   Track D **D1-скаффолд** прямой записи integrator→public + 6 unit-тестов, НЕ вкручен (`c6e2d2bb`, ⚠️ вкрутить+сверить на БД).
 
 ## 3. Что сделано — ПЛАНЫ/ДОКИ (борьба с хаосом)
+
 - **Полная перепроверка всех `[x]`** (~676) по коду в 7 кластерах + adversarial-аудит: 659 подтверждено, **6 fake-done
   снято** (2× Rubitime «create без Rubitime» #839; 1× TASK_A PII rehearsal; 3× протухшая SHA в Doctor-UI), 11 → `[~]`.
   Коммиты `1c2625fd`,`1242738f`,`e9a47687`,`52a00da8`,`375c99b8`,`ea141590`,`6c5a0b6a`,`89e7c9b9`,`54ad7278`,`78930ba6`.
@@ -45,7 +49,9 @@
   в `docs/ORCHESTRATION_BINDINGS.md` (`cfece2a4`, `b4bc310a`).
 
 ## 4. Что ОСТАЛОСЬ на сервер (по открытым чек-листам; без визуальной приёмки владельца и юр-гейтов)
+
 Полный список — LEDGER §4. Кратко:
+
 - **Мелкое:** применить mark-read миграцию на TEST + прогон; диагностика isolation CRITICAL `role_pool_mismatch`.
 - **Среднее:** PII Task A (2 таблицы org-колонка+backfill+стемпинг); Track C drain (RR-PROOF-09) + убрать
   `branchServiceId` (R3C-11, ~51 файл); FORCE-RLS cutover на TEST (runbook готов); delivery-alerting P0/P-guard
@@ -55,12 +61,14 @@
 - **Живой прогон:** первый Semgrep/Trivy triage (SEC-01 line 44); backup DR-drill (нужен owner age-ключ).
 
 ## 5. Карта клиента — что осталось (код + твоя визуалка)
+
 Сделано: правая полоска убрана, шапка почищена, состав **4 вкладки** зафиксирован в CURRENT-SPEC
 (`Карточка·Программа·Файлы·Учётка`, старт на «Карточке»). **Осталось (UI-5b body, BLOCKED `#971→#796`, под твою
 визуальную приёмку):** слить Обзор/Коммуникации/Записи/Финансы в тело «Карточки» (KPI-строка, заметки/задачи/динамика/
 программа/абонементы) — по CURRENT-SPEC §3 + модель содержимого в бэклоге §2/3/5/6.
 
 ## 6. Security — что в CI теперь и что тебе донастроить
+
 В CI: Gitleaks(full-history+self-test), Semgrep, Trivy(fs+pre-release full), реальный CVE-скан. ZAP-workflow заведён,
 но **OFF by default** — чтобы включить: выставить repo-vars `ZAP_ENABLED`/`ZAP_TEST_TARGET` (+ `ZAP_PROD_BASELINE_APPROVED`
 /`ZAP_PROD_TARGET`), заполнить два `TODO(owner)` firewall OPEN/CLOSE в `zap.yml` + секреты `ZAP_FW_*`, провести
@@ -74,4 +82,5 @@ Referrer-Policy, HSTS, `frame-ancestors 'self'` на `/app/*`; `/book` оста�
 **Осталось владельцу:** полный CSP (`default-src`), SVG-upload allowlist, CSRF-matcher scope — см. отчёт.
 
 ---
+
 _Отчёт durable; линк из `docs/CURRENT_AUTHORITY_MAP.md`. Оперативная очередь — taskdb `project=bcb`._

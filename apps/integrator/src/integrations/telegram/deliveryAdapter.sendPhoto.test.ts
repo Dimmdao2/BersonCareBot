@@ -54,7 +54,11 @@ describe('telegram deliveryAdapter — sendPhoto (broadcast image)', () => {
     );
 
     expect(sendPhotoMock).toHaveBeenCalledTimes(1);
-    const photoCall = sendPhotoMock.mock.calls[0]?.[0] as { chat_id: number; photo: string; caption?: string };
+    const photoCall = sendPhotoMock.mock.calls[0]?.[0] as {
+      chat_id: number;
+      photo: string;
+      caption?: string;
+    };
     expect(photoCall.chat_id).toBe(CHAT_ID);
     expect(photoCall.photo).toBe('https://cdn.example.com/pic.jpg');
     expect(photoCall.caption).toBe('hello world');

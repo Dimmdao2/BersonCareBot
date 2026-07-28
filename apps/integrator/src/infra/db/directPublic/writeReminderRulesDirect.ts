@@ -126,7 +126,10 @@ export async function upsertReminderRuleDirect(
   input: UpsertReminderRuleDirectInput,
 ): Promise<UpsertReminderRuleDirectResult> {
   return db.tx(async (txDb) => {
-    const canonicalIntegratorUserId = await resolveCanonicalIntegratorUserId(txDb, input.integratorUserId);
+    const canonicalIntegratorUserId = await resolveCanonicalIntegratorUserId(
+      txDb,
+      input.integratorUserId,
+    );
     // Integrator_user_id-only resolution (no channel/phone args) — see file header.
     const candidates = await collectPlatformUserCandidates(txDb, {
       integratorUserId: canonicalIntegratorUserId,
@@ -136,7 +139,9 @@ export async function upsertReminderRuleDirect(
     });
     const platformUserId = candidates[0];
     if (!platformUserId) {
-      throw new ReminderRuleDirectWriteError('no_platform_user_candidate', { integratorUserId: canonicalIntegratorUserId });
+      throw new ReminderRuleDirectWriteError('no_platform_user_candidate', {
+        integratorUserId: canonicalIntegratorUserId,
+      });
     }
     // Fail-closed via D2's exact-org resolver on 0/2+ active enrollments — propagates as
     // DiaryLfkDirectWriteError, which the caller (writePort.ts) treats as a durable-outbox fallback

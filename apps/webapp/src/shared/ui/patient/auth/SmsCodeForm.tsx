@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import type { OtpConfirmResult, OtpResendOutcome } from "./OtpCodeForm";
-import { OtpCodeForm } from "./OtpCodeForm";
+import type { OtpConfirmResult, OtpResendOutcome } from './OtpCodeForm';
+import { OtpCodeForm } from './OtpCodeForm';
 
 type SmsCodeFormProps = {
   challengeId: string;
@@ -20,8 +20,8 @@ type SmsCodeFormProps = {
 export function SmsCodeForm({
   challengeId,
   retryAfterSeconds,
-  description = "Код отправлен по SMS. Введите его ниже.",
-  submitLabel = "Войти",
+  description = 'Код отправлен по SMS. Введите его ниже.',
+  submitLabel = 'Войти',
   smsFallbackLink,
   supportContactHref,
   onRequestSms,

@@ -1,10 +1,13 @@
-import type { MaterialRatingFeedbackPort } from "./ports";
-import type { MaterialRatingFeedbackReasonCode } from "./reasonCodes";
-import { isMaterialRatingFeedbackReasonCode } from "./reasonCodes";
+import type { MaterialRatingFeedbackPort } from './ports';
+import type { MaterialRatingFeedbackReasonCode } from './reasonCodes';
+import { isMaterialRatingFeedbackReasonCode } from './reasonCodes';
 
 export function createMaterialRatingFeedbackService(deps: {
   feedback: MaterialRatingFeedbackPort;
-  isDailyWarmupContentPage: (input: { contentPageId: string; organizationId: string }) => Promise<boolean>;
+  isDailyWarmupContentPage: (input: {
+    contentPageId: string;
+    organizationId: string;
+  }) => Promise<boolean>;
 }) {
   return {
     async submitPatientFeedback(input: {
@@ -16,7 +19,7 @@ export function createMaterialRatingFeedbackService(deps: {
       comment: string | null;
     }): Promise<{ ok: true; id: string } | { ok: false; code: string }> {
       if (input.ratingValue < 1 || input.ratingValue > 3) {
-        return { ok: false, code: "rating_out_of_scope" };
+        return { ok: false, code: 'rating_out_of_scope' };
       }
 
       const isWarmup = await deps.isDailyWarmupContentPage({
@@ -24,13 +27,13 @@ export function createMaterialRatingFeedbackService(deps: {
         organizationId: input.organizationId,
       });
       if (!isWarmup) {
-        return { ok: false, code: "not_daily_warmup" };
+        return { ok: false, code: 'not_daily_warmup' };
       }
 
       const reasonCodes = input.reasonCodes.filter(isMaterialRatingFeedbackReasonCode);
-      const comment = input.comment?.trim() ?? "";
+      const comment = input.comment?.trim() ?? '';
       if (reasonCodes.length === 0 && !comment) {
-        return { ok: false, code: "empty_feedback" };
+        return { ok: false, code: 'empty_feedback' };
       }
 
       const row = await deps.feedback.insertFeedback({
@@ -44,15 +47,29 @@ export function createMaterialRatingFeedbackService(deps: {
       return { ok: true, id: row.id };
     },
 
-    getDoctorSummary(input: { organizationId: string; contentPageId: string; recentLimit?: number }) {
+    getDoctorSummary(input: {
+      organizationId: string;
+      contentPageId: string;
+      recentLimit?: number;
+    }) {
       return deps.feedback.getDoctorSummary(input);
     },
 
-    listForPage(input: { organizationId: string; contentPageId: string; limit: number; offset: number }) {
+    listForPage(input: {
+      organizationId: string;
+      contentPageId: string;
+      limit: number;
+      offset: number;
+    }) {
       return deps.feedback.listForPage(input);
     },
 
-    listDoctorFeedbackForPage(input: { organizationId: string; contentPageId: string; limit: number; offset: number }) {
+    listDoctorFeedbackForPage(input: {
+      organizationId: string;
+      contentPageId: string;
+      limit: number;
+      offset: number;
+    }) {
       return deps.feedback.listDoctorFeedbackForPage(input);
     },
   };

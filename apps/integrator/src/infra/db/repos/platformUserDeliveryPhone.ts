@@ -6,7 +6,10 @@ import { runIntegratorSql } from '../runIntegratorSql.js';
  * Resolves `phone_normalized` for integrator delivery-targets lookup.
  * `userKey` is either `platform_users.id` (uuid text) or `integrator_user_id` (numeric text).
  */
-export async function getPhoneNormalizedForDeliveryLookup(db: DbPort, userKey: string): Promise<string | null> {
+export async function getPhoneNormalizedForDeliveryLookup(
+  db: DbPort,
+  userKey: string,
+): Promise<string | null> {
   const trimmed = userKey.trim();
   if (!trimmed) return null;
   const res = await runIntegratorSql<{ phone_normalized: string | null }>(

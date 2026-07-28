@@ -1,28 +1,28 @@
 /** Wave 3 phase 15C — treatment program raw SQL parity via `runWebappPgText`. */
-import { readFileSync } from "node:fs";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { readFileSync } from 'node:fs';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const runWebappPgTextMock = vi.hoisted(() => vi.fn());
 const runDrizzleMutationTransactionMock = vi.hoisted(() => vi.fn());
 const principalOrganizationIdMock = vi.hoisted(() => vi.fn());
 
-const TPL_ID = "00000000-0000-4000-8000-000000000001";
-const PREVIEW_MEDIA_ID = "11111111-1111-4111-8111-111111111111";
-const ORG_A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
-const ORG_B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+const TPL_ID = '00000000-0000-4000-8000-000000000001';
+const PREVIEW_MEDIA_ID = '11111111-1111-4111-8111-111111111111';
+const ORG_A = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const ORG_B = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 
-vi.mock("@bersoncare/db-principal", () => ({
+vi.mock('@bersoncare/db-principal', () => ({
   getCurrentDbPrincipalOrganizationId: () => principalOrganizationIdMock(),
 }));
 
 const tplListRow = {
   id: TPL_ID,
-  title: "Программа",
+  title: 'Программа',
   description: null,
-  status: "published",
+  status: 'published',
   createdBy: null,
-  createdAt: "2026-06-01T00:00:00.000Z",
-  updatedAt: "2026-06-01T00:00:00.000Z",
+  createdAt: '2026-06-01T00:00:00.000Z',
+  updatedAt: '2026-06-01T00:00:00.000Z',
 };
 
 function makeSelectChain(orderByResult: unknown[] = [tplListRow]) {
@@ -47,27 +47,27 @@ function makeSelectChain(orderByResult: unknown[] = [tplListRow]) {
   return chain;
 }
 
-vi.mock("@/infra/db/runWebappSql", () => ({
+vi.mock('@/infra/db/runWebappSql', () => ({
   runWebappPgText: (queryText: string, values?: readonly unknown[], db?: unknown) =>
     runWebappPgTextMock(queryText, values, db),
 }));
 
-vi.mock("@/infra/db/drizzleMutationTx", () => ({
+vi.mock('@/infra/db/drizzleMutationTx', () => ({
   runDrizzleMutationTransaction: runDrizzleMutationTransactionMock,
 }));
 
-vi.mock("@/app-layer/db/drizzle", () => ({
+vi.mock('@/app-layer/db/drizzle', () => ({
   getDrizzle: vi.fn(() => ({
     select: vi.fn(() => makeSelectChain()),
     insert: vi.fn(() => ({
       values: vi.fn(() => ({
-        returning: vi.fn(async () => [{ id: "x" }]),
+        returning: vi.fn(async () => [{ id: 'x' }]),
       })),
     })),
     update: vi.fn(() => ({
       set: vi.fn(() => ({
         where: vi.fn(() => ({
-          returning: vi.fn(async () => [{ id: "x" }]),
+          returning: vi.fn(async () => [{ id: 'x' }]),
         })),
       })),
     })),
@@ -81,9 +81,9 @@ vi.mock("@/app-layer/db/drizzle", () => ({
   })),
 }));
 
-import { createPgTreatmentProgramPort } from "./pgTreatmentProgram";
+import { createPgTreatmentProgramPort } from './pgTreatmentProgram';
 
-describe("createPgTreatmentProgramPort usage summary", () => {
+describe('createPgTreatmentProgramPort usage summary', () => {
   beforeEach(() => {
     runWebappPgTextMock.mockReset();
     runDrizzleMutationTransactionMock.mockReset();
@@ -92,7 +92,7 @@ describe("createPgTreatmentProgramPort usage summary", () => {
     principalOrganizationIdMock.mockReturnValue(ORG_A);
   });
 
-  it("getTreatmentProgramTemplateUsageSummary runs aggregate query for template_id and courses.program_template_id", async () => {
+  it('getTreatmentProgramTemplateUsageSummary runs aggregate query for template_id and courses.program_template_id', async () => {
     runWebappPgTextMock.mockResolvedValueOnce({
       rows: [
         {
@@ -110,34 +110,37 @@ describe("createPgTreatmentProgramPort usage summary", () => {
       ],
     });
     const port = createPgTreatmentProgramPort();
-    await port.getTreatmentProgramTemplateUsageSummary("00000000-0000-4000-8000-000000000099");
+    await port.getTreatmentProgramTemplateUsageSummary('00000000-0000-4000-8000-000000000099');
     expect(runWebappPgTextMock).toHaveBeenCalledTimes(1);
-    const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
-    expect(sql).toContain("treatment_program_instances");
-    expect(sql).toContain("template_id = $1::uuid");
-    expect(sql).toContain("courses");
-    expect(sql).toContain("program_template_id = $1::uuid");
-    expect(sql).toContain("organization_id = $2::uuid");
-    expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual(["00000000-0000-4000-8000-000000000099", ORG_A]);
+    const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? '');
+    expect(sql).toContain('treatment_program_instances');
+    expect(sql).toContain('template_id = $1::uuid');
+    expect(sql).toContain('courses');
+    expect(sql).toContain('program_template_id = $1::uuid');
+    expect(sql).toContain('organization_id = $2::uuid');
+    expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual([
+      '00000000-0000-4000-8000-000000000099',
+      ORG_A,
+    ]);
   });
 
-  it("binds the same template usage id to the current organization and rejects a missing principal", async () => {
+  it('binds the same template usage id to the current organization and rejects a missing principal', async () => {
     runWebappPgTextMock.mockResolvedValue({ rows: [] });
     const port = createPgTreatmentProgramPort();
-    await port.getTreatmentProgramTemplateUsageSummary("00000000-0000-4000-8000-000000000099");
+    await port.getTreatmentProgramTemplateUsageSummary('00000000-0000-4000-8000-000000000099');
     principalOrganizationIdMock.mockReturnValue(ORG_B);
-    await port.getTreatmentProgramTemplateUsageSummary("00000000-0000-4000-8000-000000000099");
+    await port.getTreatmentProgramTemplateUsageSummary('00000000-0000-4000-8000-000000000099');
     expect(runWebappPgTextMock.mock.calls.map((call) => call[1])).toEqual([
-      ["00000000-0000-4000-8000-000000000099", ORG_A],
-      ["00000000-0000-4000-8000-000000000099", ORG_B],
+      ['00000000-0000-4000-8000-000000000099', ORG_A],
+      ['00000000-0000-4000-8000-000000000099', ORG_B],
     ]);
     principalOrganizationIdMock.mockReturnValue(null);
-    await expect(port.getTreatmentProgramTemplateUsageSummary("00000000-0000-4000-8000-000000000099")).rejects.toThrow(
-      "organization_principal_required",
-    );
+    await expect(
+      port.getTreatmentProgramTemplateUsageSummary('00000000-0000-4000-8000-000000000099'),
+    ).rejects.toThrow('organization_principal_required');
   });
 
-  it("maps counts and jsonb refs from usage summary row", async () => {
+  it('maps counts and jsonb refs from usage summary row', async () => {
     runWebappPgTextMock.mockResolvedValueOnce({
       rows: [
         {
@@ -148,52 +151,56 @@ describe("createPgTreatmentProgramPort usage summary", () => {
           arch_courses: 0,
           active_inst_refs: [
             {
-              kind: "treatment_program_instance",
-              id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-              title: "Программа",
-              patientUserId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+              kind: 'treatment_program_instance',
+              id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+              title: 'Программа',
+              patientUserId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
             },
           ],
           completed_inst_refs: [],
-          pub_course_refs: [{ kind: "course", id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc", title: "Курс" }],
+          pub_course_refs: [
+            { kind: 'course', id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', title: 'Курс' },
+          ],
           draft_course_refs: [],
           arch_course_refs: [],
         },
       ],
     });
     const port = createPgTreatmentProgramPort();
-    const u = await port.getTreatmentProgramTemplateUsageSummary("00000000-0000-4000-8000-000000000099");
+    const u = await port.getTreatmentProgramTemplateUsageSummary(
+      '00000000-0000-4000-8000-000000000099',
+    );
     expect(u.activeTreatmentProgramInstanceCount).toBe(2);
     expect(u.completedTreatmentProgramInstanceCount).toBe(1);
     expect(u.publishedCourseCount).toBe(1);
     expect(u.activeTreatmentProgramInstanceRefs[0]).toMatchObject({
-      kind: "treatment_program_instance",
-      patientUserId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      kind: 'treatment_program_instance',
+      patientUserId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
     });
-    expect(u.publishedCourseRefs[0]).toMatchObject({ kind: "course", title: "Курс" });
+    expect(u.publishedCourseRefs[0]).toMatchObject({ kind: 'course', title: 'Курс' });
   });
 
-  it("template catalog writes use the Drizzle mutation transaction chokepoint", () => {
-    const src = readFileSync(new URL("./pgTreatmentProgram.ts", import.meta.url), "utf8");
-    expect(src).toContain("runDrizzleMutationTransaction");
+  it('template catalog writes use the Drizzle mutation transaction chokepoint', () => {
+    const src = readFileSync(new URL('./pgTreatmentProgram.ts', import.meta.url), 'utf8');
+    expect(src).toContain('runDrizzleMutationTransaction');
     expect(src.match(/runDrizzleMutationTransaction/g)?.length ?? 0).toBeGreaterThanOrEqual(18);
-    expect(src).not.toContain("db.transaction");
+    expect(src).not.toContain('db.transaction');
   });
 });
 
-describe("createPgTreatmentProgramPort listTemplates preview SQL", () => {
+describe('createPgTreatmentProgramPort listTemplates preview SQL', () => {
   beforeEach(() => {
     runWebappPgTextMock.mockReset();
   });
 
-  it("listTemplates runs first-item preview CTE and media_files enrichment", async () => {
+  it('listTemplates runs first-item preview CTE and media_files enrichment', async () => {
     runWebappPgTextMock
       .mockResolvedValueOnce({
         rows: [
           {
             template_id: TPL_ID,
             preview_url: `/api/media/${PREVIEW_MEDIA_ID}`,
-            preview_type: "image",
+            preview_type: 'image',
           },
         ],
       })
@@ -201,8 +208,8 @@ describe("createPgTreatmentProgramPort listTemplates preview SQL", () => {
         rows: [
           {
             id: PREVIEW_MEDIA_ID,
-            preview_sm_key: "previews/sm.jpg",
-            preview_status: "ready",
+            preview_sm_key: 'previews/sm.jpg',
+            preview_status: 'ready',
           },
         ],
       });
@@ -211,19 +218,19 @@ describe("createPgTreatmentProgramPort listTemplates preview SQL", () => {
     expect(list).toHaveLength(1);
     expect(list[0]?.listPreviewMedia).toMatchObject({
       mediaUrl: `/api/media/${PREVIEW_MEDIA_ID}`,
-      mediaType: "image",
+      mediaType: 'image',
       previewSmUrl: `/api/media/${PREVIEW_MEDIA_ID}/preview/sm`,
-      previewStatus: "ready",
+      previewStatus: 'ready',
     });
     expect(runWebappPgTextMock).toHaveBeenCalledTimes(2);
     const sqls = runWebappPgTextMock.mock.calls.map((c) => String(c[0]));
-    expect(sqls[0]).toContain("WITH first_item AS");
-    expect(sqls[0]).toContain("treatment_program_template_stage_items");
-    expect(sqls[0]).toContain("i.organization_id = $2::uuid");
+    expect(sqls[0]).toContain('WITH first_item AS');
+    expect(sqls[0]).toContain('treatment_program_template_stage_items');
+    expect(sqls[0]).toContain('i.organization_id = $2::uuid');
     expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual([[TPL_ID], ORG_A]);
-    expect(sqls[1]).toContain("FROM media_files");
-    expect(sqls[1]).toContain("ANY($1::uuid[])");
-    expect(sqls[1]).toContain("organization_id = $2::uuid");
+    expect(sqls[1]).toContain('FROM media_files');
+    expect(sqls[1]).toContain('ANY($1::uuid[])');
+    expect(sqls[1]).toContain('organization_id = $2::uuid');
     expect(runWebappPgTextMock.mock.calls[1]?.[1]).toEqual([[PREVIEW_MEDIA_ID], ORG_A]);
   });
 });

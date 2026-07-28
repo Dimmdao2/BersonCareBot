@@ -1,16 +1,21 @@
-import { getPatientRuntimeBool, getPatientRuntimeValue } from "@/modules/system-settings/configAdapter";
-import type { PatientBusinessGate } from "@/modules/platform-access";
-import { patientPathsAllowedDuringPhoneActivation } from "@/modules/platform-access";
+import {
+  getPatientRuntimeBool,
+  getPatientRuntimeValue,
+} from '@/modules/system-settings/configAdapter';
+import type { PatientBusinessGate } from '@/modules/platform-access';
+import { patientPathsAllowedDuringPhoneActivation } from '@/modules/platform-access';
 
 export const DEFAULT_PATIENT_MAINTENANCE_MESSAGE =
-  "Приложение в разработке, функционал частично недоступен.";
+  'Приложение в разработке, функционал частично недоступен.';
 
 const PATIENT_MAINTENANCE_MESSAGE_MAX = 500;
 
 export function normalizePatientMaintenanceMessage(raw: string): string {
   const t = raw.trim();
   if (t.length === 0) return DEFAULT_PATIENT_MAINTENANCE_MESSAGE;
-  return t.length > PATIENT_MAINTENANCE_MESSAGE_MAX ? t.slice(0, PATIENT_MAINTENANCE_MESSAGE_MAX) : t;
+  return t.length > PATIENT_MAINTENANCE_MESSAGE_MAX
+    ? t.slice(0, PATIENT_MAINTENANCE_MESSAGE_MAX)
+    : t;
 }
 
 /**
@@ -21,7 +26,7 @@ export function normalizePatientBookingUrl(raw: string): string | null {
   if (t.length === 0) return null;
   try {
     const u = new URL(t);
-    if (u.protocol === "http:" || u.protocol === "https:") return t;
+    if (u.protocol === 'http:' || u.protocol === 'https:') return t;
   } catch {
     /* fall through */
   }
@@ -36,12 +41,14 @@ export type PatientMaintenanceConfig = {
 
 type PatientOrganizationResolution =
   | { ok: true; organizationId: string }
-  | { ok: false; reason: "no_active_enrollment" }
-  | { ok: false; reason: "organization_selection_required"; organizationIds: string[] };
+  | { ok: false; reason: 'no_active_enrollment' }
+  | { ok: false; reason: 'organization_selection_required'; organizationIds: string[] };
 
 export async function resolvePatientMaintenanceOrganizationId(
   patientOrganization: {
-    resolveActiveOrganizationForPatient(platformUserId: string): Promise<PatientOrganizationResolution>;
+    resolveActiveOrganizationForPatient(
+      platformUserId: string,
+    ): Promise<PatientOrganizationResolution>;
   } | null,
   platformUserId: string,
 ): Promise<string | null> {
@@ -75,7 +82,7 @@ export function patientMaintenanceReplacesPatientShell(
 export async function getPatientMaintenanceConfig(
   organizationId: string | null = null,
 ): Promise<PatientMaintenanceConfig> {
-  const enabled = await getPatientRuntimeBool("patient_app_maintenance_enabled");
+  const enabled = await getPatientRuntimeBool('patient_app_maintenance_enabled');
   if (!enabled) {
     return {
       enabled: false,
@@ -84,10 +91,10 @@ export async function getPatientMaintenanceConfig(
     };
   }
   const [messageRaw, bookingRaw] = await Promise.all([
-    getPatientRuntimeValue("patient_app_maintenance_message"),
+    getPatientRuntimeValue('patient_app_maintenance_message'),
     organizationId === null
-      ? Promise.resolve("")
-      : getPatientRuntimeValue("patient_booking_url", organizationId),
+      ? Promise.resolve('')
+      : getPatientRuntimeValue('patient_booking_url', organizationId),
   ]);
   return {
     enabled: true,
@@ -105,16 +112,19 @@ export function patientMaintenanceSkipsPath(params: {
   legacyNoDatabase: boolean;
   sessionPhoneTrimmed: string | undefined;
 }): boolean {
-  const pathOnly = params.pathname.trim().split("?")[0] ?? "";
+  const pathOnly = params.pathname.trim().split('?')[0] ?? '';
   if (
-    pathOnly.startsWith("/app/patient/bind-phone") ||
-    pathOnly.startsWith("/app/patient/help") ||
-    pathOnly.startsWith("/app/patient/support")
+    pathOnly.startsWith('/app/patient/bind-phone') ||
+    pathOnly.startsWith('/app/patient/help') ||
+    pathOnly.startsWith('/app/patient/support')
   ) {
     return true;
   }
 
-  if (params.gate === "need_activation" && patientPathsAllowedDuringPhoneActivation(params.pathname)) {
+  if (
+    params.gate === 'need_activation' &&
+    patientPathsAllowedDuringPhoneActivation(params.pathname)
+  ) {
     return true;
   }
 

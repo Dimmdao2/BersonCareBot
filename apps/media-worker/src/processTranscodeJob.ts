@@ -1,47 +1,48 @@
-import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
-import type { Dirent } from "node:fs";
-import { tmpdir } from "node:os";
-import { join, posix } from "node:path";
-import type { S3Client } from "@aws-sdk/client-s3";
-import type { Pool } from "pg";
-import { buildHlsSingleVariantArgs, buildPosterFfmpegArgs } from "./ffmpeg/hlsArgs.js";
-import { composeHlsVideoFilter, watermarkTextLine, type WatermarkDrawtextParams } from "./ffmpeg/watermarkVideoFilter.js";
-import { runFfmpeg } from "./ffmpeg/runFfmpeg.js";
-import { backoffMsAfterFailure } from "./jobs/backoff.js";
-import type { ClaimedJob } from "./jobs/claim.js";
-import type { Logger } from "./logger.js";
-import { buildVodMasterPlaylistBody } from "./hlsMasterPlaylist.js";
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import type { Dirent } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, posix } from 'node:path';
+import type { S3Client } from '@aws-sdk/client-s3';
+import type { Pool } from 'pg';
+import { buildHlsSingleVariantArgs, buildPosterFfmpegArgs } from './ffmpeg/hlsArgs.js';
+import {
+  composeHlsVideoFilter,
+  watermarkTextLine,
+  type WatermarkDrawtextParams,
+} from './ffmpeg/watermarkVideoFilter.js';
+import { runFfmpeg } from './ffmpeg/runFfmpeg.js';
+import { backoffMsAfterFailure } from './jobs/backoff.js';
+import type { ClaimedJob } from './jobs/claim.js';
+import type { Logger } from './logger.js';
+import { buildVodMasterPlaylistBody } from './hlsMasterPlaylist.js';
 import {
   hlsTreePrefixFromMediaRoot,
   isCanonicalMediaRootForId,
   masterPlaylistKeyFromMediaRoot,
   mediaRootFromSourceS3Key,
   posterObjectKeyFromMediaRoot,
-} from "./hlsStorageLayout.js";
-import {
-  runMediaWorkerPgText,
-  runWithMediaWorkerInfraPrincipal,
-} from "./runMediaWorkerSql.js";
-import { DeleteObjectCommand } from "@aws-sdk/client-s3";
+} from './hlsStorageLayout.js';
+import { runMediaWorkerPgText, runWithMediaWorkerInfraPrincipal } from './runMediaWorkerSql.js';
+import { DeleteObjectCommand } from '@aws-sdk/client-s3';
 import {
   contentTypeForKey,
   downloadObjectToFile,
   headObjectExists,
   putObjectWithRetry,
-} from "./s3.js";
-import { readVideoWatermarkEnabled } from "./watermarkEnabled.js";
-import { resolveWatermarkFontPath } from "./watermarkFont.js";
-import { processProgramSubmissionTranscodeJob } from "./processProgramSubmissionTranscode.js";
-import { probeVideoDurationSeconds } from "./ffmpeg/probeVideoDurationSeconds.js";
-import { probeAndPersistVideoDurationSeconds } from "./persistVideoDurationSeconds.js";
+} from './s3.js';
+import { readVideoWatermarkEnabled } from './watermarkEnabled.js';
+import { resolveWatermarkFontPath } from './watermarkFont.js';
+import { processProgramSubmissionTranscodeJob } from './processProgramSubmissionTranscode.js';
+import { probeVideoDurationSeconds } from './ffmpeg/probeVideoDurationSeconds.js';
+import { probeAndPersistVideoDurationSeconds } from './persistVideoDurationSeconds.js';
 
 /** Short token for structured logs (no multi-line FFmpeg stderr / URLs). */
 function compactTranscodeLogErrorCode(message: string): string {
-  const oneLine = message.trim().replace(/\s+/g, " ");
+  const oneLine = message.trim().replace(/\s+/g, ' ');
   const ffmpegExit = /^ffmpeg_(720p|480p|360p|poster)_exit_\d+/.exec(oneLine);
   if (ffmpegExit) return ffmpegExit[0];
-  if (oneLine.startsWith("master_head_missing")) return "master_head_missing_after_upload";
-  const colon = oneLine.indexOf(":");
+  if (oneLine.startsWith('master_head_missing')) return 'master_head_missing_after_upload';
+  const colon = oneLine.indexOf(':');
   if (colon > 0 && colon <= 72) return oneLine.slice(0, colon);
   return oneLine.slice(0, 80);
 }
@@ -135,11 +136,11 @@ async function permanentFail(
     {
       jobId,
       mediaId,
-      outcome: "failed_permanent",
+      outcome: 'failed_permanent',
       durationMs,
       errorCode: compactTranscodeLogErrorCode(err),
     },
-    "transcode_job_terminal",
+    'transcode_job_terminal',
   );
 }
 
@@ -189,12 +190,12 @@ async function retryableFail(
     {
       jobId,
       mediaId,
-      outcome: "retry_pending",
+      outcome: 'retry_pending',
       durationMs,
       attemptsAfterClaim,
       errorCode: compactTranscodeLogErrorCode(err),
     },
-    "transcode_job_retry",
+    'transcode_job_retry',
   );
 }
 
@@ -211,14 +212,7 @@ async function uploadDirRecursive(
     } else if (ent.isFile()) {
       const key = posix.join(s3KeyPrefix, ent.name);
       const buf = await readFile(localPath);
-      await putObjectWithRetry(
-        ctx.s3Client,
-        ctx.bucket,
-        key,
-        buf,
-        contentTypeForKey(key),
-        ctx.log,
-      );
+      await putObjectWithRetry(ctx.s3Client, ctx.bucket, key, buf, contentTypeForKey(key), ctx.log);
     }
   }
 }
@@ -228,21 +222,23 @@ async function uploadDirRecursive(
  * HLS transcode (best-effort; failure to delete is logged but does not fail the job).
  */
 export async function processTranscodeJob(ctx: TranscodeContext, job: ClaimedJob): Promise<void> {
-  return runWithMediaWorkerInfraPrincipal("media-worker:process-transcode-job", () => processTranscodeJobInner(ctx, job));
+  return runWithMediaWorkerInfraPrincipal('media-worker:process-transcode-job', () =>
+    processTranscodeJobInner(ctx, job),
+  );
 }
 
 async function processTranscodeJobInner(ctx: TranscodeContext, job: ClaimedJob): Promise<void> {
   const media = await loadMedia(ctx.pool, job.mediaId);
   if (!media || !media.s3_key?.trim()) {
-    await permanentFail(ctx, job.id, job.mediaId, "missing_media_or_s3_key");
+    await permanentFail(ctx, job.id, job.mediaId, 'missing_media_or_s3_key');
     return;
   }
-  if (!media.mime_type.toLowerCase().startsWith("video/")) {
-    await permanentFail(ctx, job.id, job.mediaId, "not_video");
+  if (!media.mime_type.toLowerCase().startsWith('video/')) {
+    await permanentFail(ctx, job.id, job.mediaId, 'not_video');
     return;
   }
 
-  if (media.usage_purpose === "program_item_submission" && media.s3_key?.trim()) {
+  if (media.usage_purpose === 'program_item_submission' && media.s3_key?.trim()) {
     await processProgramSubmissionTranscodeJob(ctx, job, {
       id: media.id,
       mime_type: media.mime_type,
@@ -252,15 +248,15 @@ async function processTranscodeJobInner(ctx: TranscodeContext, job: ClaimedJob):
   }
 
   const masterKeyExisting = media.hls_master_playlist_s3_key?.trim();
-  if (masterKeyExisting && media.video_processing_status === "ready") {
+  if (masterKeyExisting && media.video_processing_status === 'ready') {
     const exists = await headObjectExists(ctx.s3Client, ctx.bucket, masterKeyExisting);
     if (exists) {
       if (
         (media.video_duration_seconds == null || media.video_duration_seconds <= 0) &&
         media.s3_key?.trim()
       ) {
-        const tmpRoot = await mkdtemp(join(tmpdir(), "mw-dur-"));
-        const src = join(tmpRoot, "source.bin");
+        const tmpRoot = await mkdtemp(join(tmpdir(), 'mw-dur-'));
+        const src = join(tmpRoot, 'source.bin');
         try {
           await downloadObjectToFile(ctx.s3Client, ctx.bucket, media.s3_key.trim(), src);
           await probeAndPersistVideoDurationSeconds(ctx.pool, {
@@ -271,7 +267,7 @@ async function processTranscodeJobInner(ctx: TranscodeContext, job: ClaimedJob):
             log: ctx.log,
           });
         } catch (e) {
-          ctx.log.warn({ err: e, mediaId: job.mediaId }, "video_duration_backfill_failed");
+          ctx.log.warn({ err: e, mediaId: job.mediaId }, 'video_duration_backfill_failed');
         } finally {
           await rm(tmpRoot, { recursive: true, force: true });
         }
@@ -279,8 +275,8 @@ async function processTranscodeJobInner(ctx: TranscodeContext, job: ClaimedJob):
       await markJobDone(ctx.pool, job.id);
       const durationMs = await fetchTerminalJobDurationMs(ctx.pool, job.id);
       ctx.log.info(
-        { jobId: job.id, mediaId: job.mediaId, outcome: "done", durationMs, skip: "already_ready" },
-        "transcode completed",
+        { jobId: job.id, mediaId: job.mediaId, outcome: 'done', durationMs, skip: 'already_ready' },
+        'transcode completed',
       );
       return;
     }
@@ -292,7 +288,7 @@ async function processTranscodeJobInner(ctx: TranscodeContext, job: ClaimedJob):
       ctx,
       job.id,
       job.mediaId,
-      "non_canonical_s3_key_layout_expected_media_mediaId_file",
+      'non_canonical_s3_key_layout_expected_media_mediaId_file',
     );
     return;
   }
@@ -313,7 +309,7 @@ async function processTranscodeJobInner(ctx: TranscodeContext, job: ClaimedJob):
         job.id,
         job.mediaId,
         // eslint-disable-next-line no-secrets/no-secrets -- ops error token, not a secret
-        "watermark_enabled_but_no_truetype_font_install_dejavu_or_set_MEDIA_WORKER_WATERMARK_FONT",
+        'watermark_enabled_but_no_truetype_font_install_dejavu_or_set_MEDIA_WORKER_WATERMARK_FONT',
       );
       return;
     }
@@ -327,14 +323,14 @@ async function processTranscodeJobInner(ctx: TranscodeContext, job: ClaimedJob):
   const masterKey = masterPlaylistKeyFromMediaRoot(mediaRoot);
   const posterKey = posterObjectKeyFromMediaRoot(mediaRoot);
 
-  const tmpRoot = await mkdtemp(join(tmpdir(), "mw-hls-"));
-  const src = join(tmpRoot, "source.bin");
-  const hlsDir = join(tmpRoot, "hls");
-  const dir720 = join(hlsDir, "720p");
-  const dir480 = join(hlsDir, "480p");
-  const dir360 = join(hlsDir, "360p");
-  const posterDir = join(tmpRoot, "poster");
-  const posterLocal = join(posterDir, "poster.jpg");
+  const tmpRoot = await mkdtemp(join(tmpdir(), 'mw-hls-'));
+  const src = join(tmpRoot, 'source.bin');
+  const hlsDir = join(tmpRoot, 'hls');
+  const dir720 = join(hlsDir, '720p');
+  const dir480 = join(hlsDir, '480p');
+  const dir360 = join(hlsDir, '360p');
+  const posterDir = join(tmpRoot, 'poster');
+  const posterLocal = join(posterDir, 'poster.jpg');
 
   try {
     await mkdir(dir720, { recursive: true });
@@ -346,27 +342,27 @@ async function processTranscodeJobInner(ctx: TranscodeContext, job: ClaimedJob):
 
     let wmDrawtext: WatermarkDrawtextParams | null = null;
     if (watermarkEnabled && fontPath) {
-      const wmTxt = join(tmpRoot, "watermark.txt");
-      await writeFile(wmTxt, watermarkTextLine(job.mediaId), "utf8");
+      const wmTxt = join(tmpRoot, 'watermark.txt');
+      await writeFile(wmTxt, watermarkTextLine(job.mediaId), 'utf8');
       wmDrawtext = {
-        textFilePosix: wmTxt.replace(/\\/g, "/"),
-        fontfilePosix: fontPath.replace(/\\/g, "/"),
+        textFilePosix: wmTxt.replace(/\\/g, '/'),
+        fontfilePosix: fontPath.replace(/\\/g, '/'),
       };
     }
 
-    const vf720 = composeHlsVideoFilter("scale=1280:-2,format=yuv420p", wmDrawtext);
-    const vf480 = composeHlsVideoFilter("scale=854:-2,format=yuv420p", wmDrawtext);
-    const vf360 = composeHlsVideoFilter("scale=640:-2,format=yuv420p", wmDrawtext);
+    const vf720 = composeHlsVideoFilter('scale=1280:-2,format=yuv420p', wmDrawtext);
+    const vf480 = composeHlsVideoFilter('scale=854:-2,format=yuv420p', wmDrawtext);
+    const vf360 = composeHlsVideoFilter('scale=640:-2,format=yuv420p', wmDrawtext);
 
     const run720 = await runFfmpeg(
       ctx.ffmpegBin,
       buildHlsSingleVariantArgs({
         inputFile: src,
-        outputM3u8: "index.m3u8",
-        segmentFilename: "seg_%03d.ts",
+        outputM3u8: 'index.m3u8',
+        segmentFilename: 'seg_%03d.ts',
         videoFilter: vf720,
-        videoBitrate: "2500k",
-        audioBitrate: "128k",
+        videoBitrate: '2500k',
+        audioBitrate: '128k',
       }),
       {
         cwd: dir720,
@@ -390,11 +386,11 @@ async function processTranscodeJobInner(ctx: TranscodeContext, job: ClaimedJob):
       ctx.ffmpegBin,
       buildHlsSingleVariantArgs({
         inputFile: src,
-        outputM3u8: "index.m3u8",
-        segmentFilename: "seg_%03d.ts",
+        outputM3u8: 'index.m3u8',
+        segmentFilename: 'seg_%03d.ts',
         videoFilter: vf480,
-        videoBitrate: "800k",
-        audioBitrate: "96k",
+        videoBitrate: '800k',
+        audioBitrate: '96k',
       }),
       {
         cwd: dir480,
@@ -418,11 +414,11 @@ async function processTranscodeJobInner(ctx: TranscodeContext, job: ClaimedJob):
       ctx.ffmpegBin,
       buildHlsSingleVariantArgs({
         inputFile: src,
-        outputM3u8: "index.m3u8",
-        segmentFilename: "seg_%03d.ts",
+        outputM3u8: 'index.m3u8',
+        segmentFilename: 'seg_%03d.ts',
         videoFilter: vf360,
-        videoBitrate: "400k",
-        audioBitrate: "64k",
+        videoBitrate: '400k',
+        audioBitrate: '64k',
       }),
       {
         cwd: dir360,
@@ -443,17 +439,13 @@ async function processTranscodeJobInner(ctx: TranscodeContext, job: ClaimedJob):
     }
 
     const masterBody = buildVodMasterPlaylistBody([
-      { uri: "720p/index.m3u8", bandwidth: 2_800_000, width: 1280, height: 720 },
-      { uri: "480p/index.m3u8", bandwidth: 900_000, width: 854, height: 480 },
-      { uri: "360p/index.m3u8", bandwidth: 450_000, width: 640, height: 360 },
+      { uri: '720p/index.m3u8', bandwidth: 2_800_000, width: 1280, height: 720 },
+      { uri: '480p/index.m3u8', bandwidth: 900_000, width: 854, height: 480 },
+      { uri: '360p/index.m3u8', bandwidth: 450_000, width: 640, height: 360 },
     ]);
-    await writeFile(join(hlsDir, "master.m3u8"), masterBody, "utf8");
+    await writeFile(join(hlsDir, 'master.m3u8'), masterBody, 'utf8');
 
-    const posterArgs = buildPosterFfmpegArgs(
-      src,
-      posterLocal,
-      wmDrawtext ? vf720 : undefined,
-    );
+    const posterArgs = buildPosterFfmpegArgs(src, posterLocal, wmDrawtext ? vf720 : undefined);
     const runPoster = await runFfmpeg(ctx.ffmpegBin, posterArgs, {
       cwd: tmpRoot,
       timeoutMs: transcodeTimeoutMs,
@@ -490,15 +482,15 @@ async function processTranscodeJobInner(ctx: TranscodeContext, job: ClaimedJob):
         job.mediaId,
         job.attempts,
         ctx.maxAttempts,
-        "master_head_missing_after_upload",
+        'master_head_missing_after_upload',
       );
       return;
     }
 
     const qualitiesJson = JSON.stringify([
-      { label: "720p", height: 720, path: "720p/index.m3u8", bandwidth: 2_800_000 },
-      { label: "480p", height: 480, path: "480p/index.m3u8", bandwidth: 900_000 },
-      { label: "360p", height: 360, path: "360p/index.m3u8", bandwidth: 450_000 },
+      { label: '720p', height: 720, path: '720p/index.m3u8', bandwidth: 2_800_000 },
+      { label: '480p', height: 480, path: '480p/index.m3u8', bandwidth: 900_000 },
+      { label: '360p', height: 360, path: '360p/index.m3u8', bandwidth: 450_000 },
     ]);
     await runMediaWorkerPgText(
       ctx.pool,
@@ -519,12 +511,12 @@ async function processTranscodeJobInner(ctx: TranscodeContext, job: ClaimedJob):
       {
         jobId: job.id,
         mediaId: job.mediaId,
-        outcome: "done",
+        outcome: 'done',
         durationMs,
         masterKey,
         watermark: Boolean(watermarkEnabled),
       },
-      "transcode completed",
+      'transcode completed',
     );
 
     // Best-effort: delete the original uploaded source file now that HLS renditions are live.
@@ -536,13 +528,13 @@ async function processTranscodeJobInner(ctx: TranscodeContext, job: ClaimedJob):
           Key: sourceKey,
         }),
       );
-      ctx.log.info({ mediaId: job.mediaId, sourceKey }, "source_deleted_after_transcode");
+      ctx.log.info({ mediaId: job.mediaId, sourceKey }, 'source_deleted_after_transcode');
     } catch (e) {
-      ctx.log.warn({ err: e, mediaId: job.mediaId, sourceKey }, "source_delete_failed_nonfatal");
+      ctx.log.warn({ err: e, mediaId: job.mediaId, sourceKey }, 'source_delete_failed_nonfatal');
     }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    ctx.log.error({ err: e, jobId: job.id }, "transcode unexpected error");
+    ctx.log.error({ err: e, jobId: job.id }, 'transcode unexpected error');
     await retryableFail(ctx, job.id, job.mediaId, job.attempts, ctx.maxAttempts, msg);
   } finally {
     await rm(tmpRoot, { recursive: true, force: true });

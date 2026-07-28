@@ -1,20 +1,20 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { type ReactNode, useState } from "react";
-import { DoctorMetricList } from "@/shared/ui/doctor/DoctorMetricList";
-import { KpiPreviewModal } from "@/shared/ui/doctor/KpiPreviewModal";
-import { AppointmentKpiItem } from "@/shared/ui/doctor/AppointmentKpiItem";
+import Link from 'next/link';
+import { type ReactNode, useState } from 'react';
+import { DoctorMetricList } from '@/shared/ui/doctor/DoctorMetricList';
+import { KpiPreviewModal } from '@/shared/ui/doctor/KpiPreviewModal';
+import { AppointmentKpiItem } from '@/shared/ui/doctor/AppointmentKpiItem';
 import {
   doctorInlineLinkClass,
   doctorMetricLabelClass,
   doctorMetricValueClass,
   doctorStatCardShellClass,
-} from "@/shared/ui/doctor/doctorVisual";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { DoctorStatCard } from "./analytics/clients/DoctorStatCard";
-import type { TodayAppointmentItem } from "./loadDoctorTodayDashboard";
-import { cn } from "@/lib/utils";
+} from '@/shared/ui/doctor/doctorVisual';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { DoctorStatCard } from './analytics/clients/DoctorStatCard';
+import type { TodayAppointmentItem } from './loadDoctorTodayDashboard';
+import { cn } from '@/lib/utils';
 
 type Props = {
   appointmentsTodayCount: number;
@@ -30,25 +30,25 @@ type Props = {
 };
 
 type AppointmentModalState =
-  | { kind: "today"; title: string; count: number; items: TodayAppointmentItem[] }
-  | { kind: "week"; title: string; count: number; items: TodayAppointmentItem[] }
-  | { kind: "month"; title: string; count: number; items: TodayAppointmentItem[] }
+  | { kind: 'today'; title: string; count: number; items: TodayAppointmentItem[] }
+  | { kind: 'week'; title: string; count: number; items: TodayAppointmentItem[] }
+  | { kind: 'month'; title: string; count: number; items: TodayAppointmentItem[] }
   | null;
 
-const SCHEDULE_HREF = "/app/doctor/schedule?tab=calendar";
+const SCHEDULE_HREF = '/app/doctor/schedule?tab=calendar';
 
 /** #9: statuses that represent a cancellation in the appointment lists. */
 const CANCELLED_STATUS_VALUES = [
-  "canceled",
-  "cancelled_by_patient",
-  "cancelled_by_specialist",
-  "late_cancellation",
-  "no_show",
+  'canceled',
+  'cancelled_by_patient',
+  'cancelled_by_specialist',
+  'late_cancellation',
+  'no_show',
 ];
 
 function isCancelledItem(item: TodayAppointmentItem): boolean {
   return CANCELLED_STATUS_VALUES.some(
-    (s) => item.status === s || item.status.toLowerCase().includes("отмен"),
+    (s) => item.status === s || item.status.toLowerCase().includes('отмен'),
   );
 }
 
@@ -62,7 +62,7 @@ function futureAppointmentItems(items: TodayAppointmentItem[]): TodayAppointment
 }
 
 function currentMonthName(displayIana: string): string {
-  return new Intl.DateTimeFormat("ru-RU", { month: "long", timeZone: displayIana }).format(
+  return new Intl.DateTimeFormat('ru-RU', { month: 'long', timeZone: displayIana }).format(
     new Date(),
   );
 }
@@ -85,17 +85,17 @@ function SplitAppointmentStatCard({
   onFutureClick,
 }: SplitAppointmentStatCardProps) {
   const segmentClass =
-    "min-w-0 rounded-md px-2 text-left transition-colors enabled:hover:bg-muted/55 disabled:cursor-default disabled:opacity-55";
+    'min-w-0 rounded-md px-2 text-left transition-colors enabled:hover:bg-muted/55 disabled:cursor-default disabled:opacity-55';
 
   return (
-    <article id={id} className={cn(doctorStatCardShellClass, "flex h-[5.5rem] flex-col")}>
+    <article id={id} className={cn(doctorStatCardShellClass, 'flex h-[5.5rem] flex-col')}>
       <p className={doctorMetricLabelClass}>{title}</p>
       <div className="mt-auto grid grid-cols-2 divide-x divide-border/70 pt-1">
         <Button
           type="button"
           variant="ghost"
           size="sm"
-          className={cn(segmentClass, "h-full py-0.5 pr-3")}
+          className={cn(segmentClass, 'h-full py-0.5 pr-3')}
           onClick={onTotalClick}
           disabled={total <= 0}
           aria-label={`${title}: всего ${total}`}
@@ -109,7 +109,7 @@ function SplitAppointmentStatCard({
           type="button"
           variant="ghost"
           size="sm"
-          className={cn(segmentClass, "h-full py-0.5 pl-3")}
+          className={cn(segmentClass, 'h-full py-0.5 pl-3')}
           onClick={onFutureClick}
           disabled={future <= 0}
           aria-label={`${title}: будущие ${future}`}
@@ -184,8 +184,8 @@ export function DoctorTodayRightKpiRow({
             appointmentsTodayCount > 0
               ? () =>
                   openIfNotEmpty({
-                    kind: "today",
-                    title: "Записи сегодня",
+                    kind: 'today',
+                    title: 'Записи сегодня',
                     count: appointmentsTodayCount,
                     items: todayItems,
                   })
@@ -199,16 +199,16 @@ export function DoctorTodayRightKpiRow({
           future={weekFutureCount}
           onTotalClick={() =>
             openIfNotEmpty({
-              kind: "week",
-              title: "Все записи на неделе",
+              kind: 'week',
+              title: 'Все записи на неделе',
               count: weekAppointmentsCount,
               items: weekItems,
             })
           }
           onFutureClick={() =>
             openIfNotEmpty({
-              kind: "week",
-              title: "Будущие записи на неделе",
+              kind: 'week',
+              title: 'Будущие записи на неделе',
               count: weekFutureCount,
               items: weekFutureItems,
             })
@@ -221,7 +221,7 @@ export function DoctorTodayRightKpiRow({
           future={monthFutureCount}
           onTotalClick={() =>
             openIfNotEmpty({
-              kind: "month",
+              kind: 'month',
               title: `Все записи за ${currentMonthName(displayIana)}`,
               count: monthAppointmentCount,
               items: monthItems,
@@ -229,7 +229,7 @@ export function DoctorTodayRightKpiRow({
           }
           onFutureClick={() =>
             openIfNotEmpty({
-              kind: "month",
+              kind: 'month',
               title: `Будущие записи за ${currentMonthName(displayIana)}`,
               count: monthFutureCount,
               items: monthFutureItems,
@@ -241,13 +241,13 @@ export function DoctorTodayRightKpiRow({
       <KpiPreviewModal<TodayAppointmentItem>
         open={openModal !== null}
         onClose={() => setOpenModal(null)}
-        title={openModal?.title ?? ""}
+        title={openModal?.title ?? ''}
         count={openModal?.count ?? 0}
         items={openModal?.items ?? []}
         renderItem={renderAppointmentItem}
         emptyState={
           <p className="py-4 text-center text-sm text-muted-foreground">
-            Записей нет.{" "}
+            Записей нет.{' '}
             <Link href={SCHEDULE_HREF} className={doctorInlineLinkClass}>
               Открыть расписание
             </Link>

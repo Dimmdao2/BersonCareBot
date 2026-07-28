@@ -120,11 +120,11 @@ pnpm --dir apps/webapp exec tsc --noEmit
 
 ### Граница фаз 1 и 2 для `/app/doctor`
 
-| Что сделано в фазе 1 | Остаётся на фазу 2 |
-|----------------------|-------------------|
-| `DoctorSection` / `DoctorEmptyState` / `DoctorMetricList` на дашборде и соседних секциях | Manual visual checklist (desktop/mobile) |
-| Константы ссылок и строк списка | KPI vs compact list density на «Сегодня» |
-| — | `appointments`, `analytics/clients`, `online-intake` |
+| Что сделано в фазе 1                                                                     | Остаётся на фазу 2                                   |
+| ---------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| `DoctorSection` / `DoctorEmptyState` / `DoctorMetricList` на дашборде и соседних секциях | Manual visual checklist (desktop/mobile)             |
+| Константы ссылок и строк списка                                                          | KPI vs compact list density на «Сегодня»             |
+| —                                                                                        | `appointments`, `analytics/clients`, `online-intake` |
 
 ### Проверки
 
@@ -139,16 +139,16 @@ pnpm --dir apps/webapp exec tsc --noEmit
 
 ### Сделано
 
-| Файл | Изменение |
-|------|-----------|
-| `appointments/page.tsx` | `rounded-2xl`+`shadow-sm`→`DoctorSection`; голые `<h2>`→`DoctorSectionTitle`; ссылка на календарь — `doctorHoverLinkClass`; `DoctorEmptyState`; ссылки на клиента — `doctorInlineLinkClass` |
-| `analytics/clients/page.tsx` | Две секции `rounded-2xl`→`DoctorSection`; KPI-гриды→`DoctorMetricList`; убран `mb-4`; `gap-4`→`gap-3` в чарт-обёртке |
-| `AdminPlatformRegistrationStatsClient.tsx` | `section rounded-2xl shadow-sm p-4`→`DoctorSection className="min-w-0"`; `<h2>`→`DoctorSectionTitle` |
-| `AdminPlatformSubscriberStatsClient.tsx` | То же |
-| `DoctorOnlineIntakeClient.tsx` | `gap-4`→`gap-3`; `shadow-sm` убран из orphan-card и item-cards; `p-4`→`p-3`; item-cards → `cn(doctorSectionItemClass,"flex flex-col gap-2")`; `DoctorEmptyState` для пустого списка |
-| `online-intake/page.tsx` | `<h1 className="text-lg">`→`text-base font-semibold tracking-tight text-foreground` |
-| `online-intake/[requestId]/page.tsx` | То же |
-| `DoctorTodayDashboard` | Без изменений (фаза 1 уже соответствует: `DoctorMetricList` ↔ `doctorSectionItemClass`) |
+| Файл                                       | Изменение                                                                                                                                                                                   |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `appointments/page.tsx`                    | `rounded-2xl`+`shadow-sm`→`DoctorSection`; голые `<h2>`→`DoctorSectionTitle`; ссылка на календарь — `doctorHoverLinkClass`; `DoctorEmptyState`; ссылки на клиента — `doctorInlineLinkClass` |
+| `analytics/clients/page.tsx`               | Две секции `rounded-2xl`→`DoctorSection`; KPI-гриды→`DoctorMetricList`; убран `mb-4`; `gap-4`→`gap-3` в чарт-обёртке                                                                        |
+| `AdminPlatformRegistrationStatsClient.tsx` | `section rounded-2xl shadow-sm p-4`→`DoctorSection className="min-w-0"`; `<h2>`→`DoctorSectionTitle`                                                                                        |
+| `AdminPlatformSubscriberStatsClient.tsx`   | То же                                                                                                                                                                                       |
+| `DoctorOnlineIntakeClient.tsx`             | `gap-4`→`gap-3`; `shadow-sm` убран из orphan-card и item-cards; `p-4`→`p-3`; item-cards → `cn(doctorSectionItemClass,"flex flex-col gap-2")`; `DoctorEmptyState` для пустого списка         |
+| `online-intake/page.tsx`                   | `<h1 className="text-lg">`→`text-base font-semibold tracking-tight text-foreground`                                                                                                         |
+| `online-intake/[requestId]/page.tsx`       | То же                                                                                                                                                                                       |
+| `DoctorTodayDashboard`                     | Без изменений (фаза 1 уже соответствует: `DoctorMetricList` ↔ `doctorSectionItemClass`)                                                                                                     |
 
 ### rg-проверки после правок
 
@@ -188,12 +188,12 @@ pnpm --dir apps/webapp exec tsc --noEmit   # exit 0
 
 ### Manual visual checklist (фаза 2)
 
-| Экран | Desktop 1366 | Mobile 390 | Примечание |
-|-------|--------------|------------|------------|
-| `/app/doctor` | pending | pending | Нужен ручной браузерный прогон под авторизованной doctor-сессией |
-| `/app/doctor/appointments` | pending | pending | Нужен ручной браузерный прогон под авторизованной doctor-сессией |
-| `/app/doctor/analytics/clients` | pending | pending | Нужен ручной браузерный прогон под авторизованной admin-сессией |
-| `/app/doctor/online-intake` | pending | pending | Нужен ручной браузерный прогон под авторизованной doctor-сессией |
+| Экран                           | Desktop 1366 | Mobile 390 | Примечание                                                       |
+| ------------------------------- | ------------ | ---------- | ---------------------------------------------------------------- |
+| `/app/doctor`                   | pending      | pending    | Нужен ручной браузерный прогон под авторизованной doctor-сессией |
+| `/app/doctor/appointments`      | pending      | pending    | Нужен ручной браузерный прогон под авторизованной doctor-сессией |
+| `/app/doctor/analytics/clients` | pending      | pending    | Нужен ручной браузерный прогон под авторизованной admin-сессией  |
+| `/app/doctor/online-intake`     | pending      | pending    | Нужен ручной браузерный прогон под авторизованной doctor-сессией |
 
 ---
 
@@ -218,10 +218,10 @@ pnpm --dir apps/webapp exec tsc --noEmit   # exit 0
 
 ### Manual visual checklist (фаза 3A)
 
-| Экран | Desktop 1366 | Mobile 390 | Примечание |
-|-------|--------------|------------|------------|
-| `/app/doctor/clients/[userId]` | pending | pending | sticky header, overflow tabs, strip только при chips |
-| `/app/doctor/clients` | pending | pending | compact list rows |
+| Экран                          | Desktop 1366 | Mobile 390 | Примечание                                           |
+| ------------------------------ | ------------ | ---------- | ---------------------------------------------------- |
+| `/app/doctor/clients/[userId]` | pending      | pending    | sticky header, overflow tabs, strip только при chips |
+| `/app/doctor/clients`          | pending      | pending    | compact list rows                                    |
 
 ### Намеренно не делали
 
@@ -264,11 +264,11 @@ pnpm --dir apps/webapp exec tsc --noEmit   # exit 0
 
 ### Manual visual checklist (фаза 3B)
 
-| Экран | Desktop 1366 | Mobile 390 | Примечание |
-|-------|--------------|------------|------------|
-| `/app/doctor/clients/[userId]` overview/program/records | pending | pending | нет двойных карточек в notes/booking |
-| `/app/doctor/clients/[userId]/treatment-programs/[id]` | pending | pending | панели конструктора |
-| `/app/doctor/clients/name-match-hints` | pending | pending | заголовки секций |
+| Экран                                                   | Desktop 1366 | Mobile 390 | Примечание                           |
+| ------------------------------------------------------- | ------------ | ---------- | ------------------------------------ |
+| `/app/doctor/clients/[userId]` overview/program/records | pending      | pending    | нет двойных карточек в notes/booking |
+| `/app/doctor/clients/[userId]/treatment-programs/[id]`  | pending      | pending    | панели конструктора                  |
+| `/app/doctor/clients/name-match-hints`                  | pending      | pending    | заголовки секций                     |
 
 ### Намеренно не делали
 
@@ -311,11 +311,11 @@ pnpm --dir apps/webapp exec tsc --noEmit   # exit 0
 
 ### Manual visual checklist (фаза 4A)
 
-| Экран | Desktop 1366 | Mobile 390 | Примечание |
-|-------|--------------|------------|------------|
-| Каталоги split (6) | pending | pending | toolbar, list/tile active, back |
-| `/app/doctor/courses` | pending | pending | list + toolbar |
-| Editor `new`/`[id]` | pending | pending | shell без лишней тени на page-section |
+| Экран                 | Desktop 1366 | Mobile 390 | Примечание                            |
+| --------------------- | ------------ | ---------- | ------------------------------------- |
+| Каталоги split (6)    | pending      | pending    | toolbar, list/tile active, back       |
+| `/app/doctor/courses` | pending      | pending    | list + toolbar                        |
+| Editor `new`/`[id]`   | pending      | pending    | shell без лишней тени на page-section |
 
 ### Намеренно не делали
 
@@ -356,14 +356,14 @@ pnpm --dir apps/webapp exec tsc --noEmit   # exit 0
 
 ### Manual visual checklist (фаза 4B)
 
-| Экран | Desktop 1366 | Mobile 390 | Примечание |
-|-------|--------------|------------|------------|
-| `/app/doctor/content` hub | pending | pending | sidebar + main h2 |
-| `/app/doctor/content/library` | pending | pending | grid + picker dialog |
-| `/app/doctor/broadcasts` | pending | pending | две §4.1 секции |
-| `/app/doctor/calendar` | pending | pending | event panel |
-| `/app/doctor/subscribers/[userId]` | pending | pending | entity sections |
-| `/app/doctor/messages` | pending | pending | inbox stack |
+| Экран                              | Desktop 1366 | Mobile 390 | Примечание           |
+| ---------------------------------- | ------------ | ---------- | -------------------- |
+| `/app/doctor/content` hub          | pending      | pending    | sidebar + main h2    |
+| `/app/doctor/content/library`      | pending      | pending    | grid + picker dialog |
+| `/app/doctor/broadcasts`           | pending      | pending    | две §4.1 секции      |
+| `/app/doctor/calendar`             | pending      | pending    | event panel          |
+| `/app/doctor/subscribers/[userId]` | pending      | pending    | entity sections      |
+| `/app/doctor/messages`             | pending      | pending    | inbox stack          |
 
 ### Намеренно не делали / cancelled
 
@@ -417,25 +417,25 @@ pnpm install --frozen-lockfile && pnpm run ci
 
 Ручные браузерные прогоны по doctor-маршрутам требуют авторизованной сессии. Отметки `pending` означают, что code-level аудит завершён (нет `rounded-2xl`, голых `h2`, нелегитимного `shadow-sm`), но живое пиксельное подтверждение — за ответственным за деплой.
 
-| Экран | Code audit | Примечание |
-|-------|------------|------------|
-| `/app/doctor` | ✓ (фаза 1/2) | DoctorSection, DoctorMetricList, DoctorEmptyState |
-| `/app/doctor/appointments` | ✓ (фаза 2) | DoctorSection, DoctorSectionTitle, DoctorEmptyState |
-| `/app/doctor/analytics/clients` | ✓ (фаза 2) | DoctorSection, DoctorMetricList |
-| `/app/doctor/online-intake` | ✓ (фаза 2) | doctorSectionItemClass, DoctorEmptyState |
-| `/app/doctor/clients/[userId]` | ✓ (фаза 3A/3B) | doctorClientCardChrome, chrome-константы |
-| Каталоги (6 split + courses) | ✓ (фаза 4A) | DoctorCatalogFiltersToolbar, doctorCatalogRowClass |
-| CMS, media, tail routes | ✓ (фаза 4B) | doctorPageTitleClass, DoctorSection, DoctorEmptyState |
+| Экран                           | Code audit     | Примечание                                            |
+| ------------------------------- | -------------- | ----------------------------------------------------- |
+| `/app/doctor`                   | ✓ (фаза 1/2)   | DoctorSection, DoctorMetricList, DoctorEmptyState     |
+| `/app/doctor/appointments`      | ✓ (фаза 2)     | DoctorSection, DoctorSectionTitle, DoctorEmptyState   |
+| `/app/doctor/analytics/clients` | ✓ (фаза 2)     | DoctorSection, DoctorMetricList                       |
+| `/app/doctor/online-intake`     | ✓ (фаза 2)     | doctorSectionItemClass, DoctorEmptyState              |
+| `/app/doctor/clients/[userId]`  | ✓ (фаза 3A/3B) | doctorClientCardChrome, chrome-константы              |
+| Каталоги (6 split + courses)    | ✓ (фаза 4A)    | DoctorCatalogFiltersToolbar, doctorCatalogRowClass    |
+| CMS, media, tail routes         | ✓ (фаза 4B)    | doctorPageTitleClass, DoctorSection, DoctorEmptyState |
 
 ### Принятые исключения (финально зафиксированы)
 
-| Область | Решение | Причина |
-|---------|---------|---------|
-| `admin/booking/**` | cancelled | BOOKING_REWORK_INITIATIVE владеет этой поверхностью |
-| `admin/app-settings`, `admin/auth`, `admin/integrations`, `admin/technical` | cancelled | admin forms вне doctor-unification scope |
-| `booking-merge` | cancelled | booking ops, согласование с BOOKING_REWORK |
-| `ContentPreview` h4 | no-change | симуляция patient view |
-| Manual browser checklist | частично / первично принят | полная постраничная — вне phased-плана (см. закрытие инициативы) |
+| Область                                                                     | Решение                    | Причина                                                          |
+| --------------------------------------------------------------------------- | -------------------------- | ---------------------------------------------------------------- |
+| `admin/booking/**`                                                          | cancelled                  | BOOKING_REWORK_INITIATIVE владеет этой поверхностью              |
+| `admin/app-settings`, `admin/auth`, `admin/integrations`, `admin/technical` | cancelled                  | admin forms вне doctor-unification scope                         |
+| `booking-merge`                                                             | cancelled                  | booking ops, согласование с BOOKING_REWORK                       |
+| `ContentPreview` h4                                                         | no-change                  | симуляция patient view                                           |
+| Manual browser checklist                                                    | частично / первично принят | полная постраничная — вне phased-плана (см. закрытие инициативы) |
 
 ### Намеренно не делали
 

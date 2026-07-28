@@ -61,16 +61,16 @@ accepted --(повторный клик)--> login / existing membership, без 
 
 Минимальная серверная запись:
 
-| Поле | Назначение |
-|---|---|
-| `id`, `token_hash` | opaque lookup; raw token не хранится и не логируется |
-| `organization_id` | trusted organization context |
-| `patient/enrollment intent` | что именно должно быть создано/подтверждено после accept |
-| `invited_email_normalized` | binding к адресату |
-| `inviter_platform_user_id`, `specialist_id?` | инициатор и клиническая атрибуция, не authority из URL |
-| `status`, `expires_at`, terminal timestamps | lifecycle и идемпотентность |
-| `supersedes_invite_id?` | цепочка resend без двух действующих ссылок |
-| `delivery attempts` | channel, provider result, timestamps; без raw token/PII payload в общих логах |
+| Поле                                         | Назначение                                                                    |
+| -------------------------------------------- | ----------------------------------------------------------------------------- |
+| `id`, `token_hash`                           | opaque lookup; raw token не хранится и не логируется                          |
+| `organization_id`                            | trusted organization context                                                  |
+| `patient/enrollment intent`                  | что именно должно быть создано/подтверждено после accept                      |
+| `invited_email_normalized`                   | binding к адресату                                                            |
+| `inviter_platform_user_id`, `specialist_id?` | инициатор и клиническая атрибуция, не authority из URL                        |
+| `status`, `expires_at`, terminal timestamps  | lifecycle и идемпотентность                                                   |
+| `supersedes_invite_id?`                      | цепочка resend без двух действующих ссылок                                    |
+| `delivery attempts`                          | channel, provider result, timestamps; без raw token/PII payload в общих логах |
 
 ### 2.3 Acceptance flow
 
@@ -100,16 +100,16 @@ GET trusted join URL
 
 ### 2.4 Failure and recovery UX
 
-| Состояние | Безопасный экран | Recovery |
-|---|---|---|
-| invalid token | нейтральная ошибка без подтверждения существования пациента | войти в существующий кабинет; обратиться к организации |
-| expired | «Срок ссылки истёк» + безопасная organization identity, если invite найден | rate-limited resend на уже привязанный адрес или запрос специалисту |
-| revoked/superseded | «Ссылка больше не действует» | использовать последнюю ссылку / запросить новую |
-| accepted/replayed | не повторять enrollment | вход и переход в существующий organization context |
-| logged in as wrong email | показать только маскированный target | switch account; staff отменяет и создаёт invite на исправленный адрес |
-| existing canonical user, new org | обычный login, затем новый enrollment | не создавать второй global identity |
-| delivery bounce/complaint | staff видит delivery status без raw provider payload | исправить контакт и выпустить новый invite |
-| org suspended/invite entitlement lost | не активировать business access | platform-safe support state; сохранить audit trail |
+| Состояние                             | Безопасный экран                                                           | Recovery                                                              |
+| ------------------------------------- | -------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| invalid token                         | нейтральная ошибка без подтверждения существования пациента                | войти в существующий кабинет; обратиться к организации                |
+| expired                               | «Срок ссылки истёк» + безопасная organization identity, если invite найден | rate-limited resend на уже привязанный адрес или запрос специалисту   |
+| revoked/superseded                    | «Ссылка больше не действует»                                               | использовать последнюю ссылку / запросить новую                       |
+| accepted/replayed                     | не повторять enrollment                                                    | вход и переход в существующий organization context                    |
+| logged in as wrong email              | показать только маскированный target                                       | switch account; staff отменяет и создаёт invite на исправленный адрес |
+| existing canonical user, new org      | обычный login, затем новый enrollment                                      | не создавать второй global identity                                   |
+| delivery bounce/complaint             | staff видит delivery status без raw provider payload                       | исправить контакт и выпустить новый invite                            |
+| org suspended/invite entitlement lost | не активировать business access                                            | platform-safe support state; сохранить audit trail                    |
 
 ## 3. SMS as fallback
 
@@ -133,14 +133,14 @@ NIST относит PSTN out-of-band authentication к restricted authenticators
 
 ### 4.1 Подтверждённые внешние факты
 
-| Факт | Источник |
-|---|---|
-| Manifest `scope` определяет URL installed experience; `start_url` должен находиться в scope и быть same-origin с manifest. | [MDN — manifest scope](https://developer.mozilla.org/docs/Web/Progressive_web_apps/Manifest/Reference/scope), [MDN — start_url](https://developer.mozilla.org/en-US/docs/Web/Progressive_web_apps/Manifest/Reference/start_url) |
-| Manifest `id` задаёт identity приложения; `name`/`short_name` и icons используются ОС/браузером, но конкретный выбор отображаемого имени остаётся за user agent. | [W3C Web Application Manifest](https://www.w3.org/TR/appmanifest/) |
-| `beforeinstallprompt` не поддерживается всеми браузерами; его надо сохранить и вызвать из явного UI. На iOS/iPadOS нужен manual Add to Home Screen fallback. | [web.dev — Installation prompt](https://web.dev/learn/pwa/installation-prompt) |
-| Notification API работает только в secure context; разрешение имеет `default/granted/denied`. | [MDN — Notification.requestPermission](https://developer.mozilla.org/en-US/docs/Web/API/Notification/requestPermission_static) |
-| На iOS/iPadOS Web Push доступен Home Screen web app; запрос должен следовать прямому действию пользователя. Начиная с iOS/iPadOS 17.2 cookies копируются в новую Home Screen app при установке, non-cookie local storage не копируется, а дальнейшее состояние app отделено от browser. | [WebKit — Web Push for Web Apps on iOS and iPadOS](https://webkit.org/blog/13878/web-push-for-web-apps-on-ios-and-ipados/), [WebKit — Safari 17.2](https://webkit.org/blog/14787/webkit-features-in-safari-17-2/) |
-| Apple рекомендует вызвать subscription непосредственно из обработчика user gesture и показывать каждое полученное push-событие пользователю. | [Apple — Sending web push notifications](https://developer.apple.com/documentation/usernotifications/sending-web-push-notifications-in-web-apps-and-browsers) |
+| Факт                                                                                                                                                                                                                                                                                    | Источник                                                                                                                                                                                                                        |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Manifest `scope` определяет URL installed experience; `start_url` должен находиться в scope и быть same-origin с manifest.                                                                                                                                                              | [MDN — manifest scope](https://developer.mozilla.org/docs/Web/Progressive_web_apps/Manifest/Reference/scope), [MDN — start_url](https://developer.mozilla.org/en-US/docs/Web/Progressive_web_apps/Manifest/Reference/start_url) |
+| Manifest `id` задаёт identity приложения; `name`/`short_name` и icons используются ОС/браузером, но конкретный выбор отображаемого имени остаётся за user agent.                                                                                                                        | [W3C Web Application Manifest](https://www.w3.org/TR/appmanifest/)                                                                                                                                                              |
+| `beforeinstallprompt` не поддерживается всеми браузерами; его надо сохранить и вызвать из явного UI. На iOS/iPadOS нужен manual Add to Home Screen fallback.                                                                                                                            | [web.dev — Installation prompt](https://web.dev/learn/pwa/installation-prompt)                                                                                                                                                  |
+| Notification API работает только в secure context; разрешение имеет `default/granted/denied`.                                                                                                                                                                                           | [MDN — Notification.requestPermission](https://developer.mozilla.org/en-US/docs/Web/API/Notification/requestPermission_static)                                                                                                  |
+| На iOS/iPadOS Web Push доступен Home Screen web app; запрос должен следовать прямому действию пользователя. Начиная с iOS/iPadOS 17.2 cookies копируются в новую Home Screen app при установке, non-cookie local storage не копируется, а дальнейшее состояние app отделено от browser. | [WebKit — Web Push for Web Apps on iOS and iPadOS](https://webkit.org/blog/13878/web-push-for-web-apps-on-ios-and-ipados/), [WebKit — Safari 17.2](https://webkit.org/blog/14787/webkit-features-in-safari-17-2/)               |
+| Apple рекомендует вызвать subscription непосредственно из обработчика user gesture и показывать каждое полученное push-событие пользователю.                                                                                                                                            | [Apple — Sending web push notifications](https://developer.apple.com/documentation/usernotifications/sending-web-push-notifications-in-web-apps-and-browsers)                                                                   |
 
 Deep linking в PWA зависит от browser/OS и installed state; поэтому invite flow не должен обещать, что внешняя ссылка всегда откроется как установленное приложение. Web URL остаётся полным рабочим entrypoint.
 
@@ -165,11 +165,11 @@ invite accepted
 
 ### 4.3 Manifest/branding contract
 
-| Tier | Рекомендуемый manifest |
-|---|---|
-| Core platform | стабильный patient `id`, platform name/icons, `start_url` в patient hub; organization identity внутри shell |
-| Organization identity | те же platform manifest identity и origin; org logo/name на join, header и content, но не отдельная установка на каждую клинику |
-| True white-label | отдельный manifest на verified custom origin допустим как отдельная installed identity; требует отдельной проверки sessions, storage, SW, subscriptions, icons и support |
+| Tier                  | Рекомендуемый manifest                                                                                                                                                   |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Core platform         | стабильный patient `id`, platform name/icons, `start_url` в patient hub; organization identity внутри shell                                                              |
+| Organization identity | те же platform manifest identity и origin; org logo/name на join, header и content, но не отдельная установка на каждую клинику                                          |
+| True white-label      | отдельный manifest на verified custom origin допустим как отдельная installed identity; требует отдельной проверки sessions, storage, SW, subscriptions, icons и support |
 
 Причина рекомендации: пациент с несколькими организациями должен устанавливать один основной patient app и выбирать organization context внутри него. Org-specific manifest/icon на общем origin создаёт нестабильную identity: один manifest не может честно одновременно представлять несколько организаций. Custom origin, напротив, является отдельным web origin и operational surface, поэтому white-label PWA — отдельный adoption tier, не косметическая настройка.
 
@@ -185,17 +185,17 @@ Auth0 Organizations хранит logo, primary/background colors и примен
 
 ### 5.2 Рекомендуемая surface matrix
 
-| Surface | Core platform | Organization identity | True white-label |
-|---|---|---|---|
-| platform landing/signup | BersonCare | организация отсутствует | BersonCare acquisition остаётся отдельно |
-| public org page/booking | BersonCare + org | org name/logo/colors | org-first + обязательный legal operator disclosure |
-| invite email/join | platform sender + org context | «Организация через BersonCare» | verified org sender/domain; safe platform fallback disclosed |
-| auth/account recovery | platform trust anchor | org context только из trusted invite/domain mapping | org skin, но identity и support disclosure не исчезают |
-| patient shell | platform app + active org context | org header; explicit context switch | отдельный origin/app только в дорогом tier |
-| staff shell | BersonCare workspace | org identity in management/clinical header | optional, не скрывает platform/global admin boundaries |
-| PWA manifest/icon | platform patient/staff identity | без per-org mutation | per-origin org identity после readiness gates |
-| email/SMS/push | platform sender | effective org presentation | verified sender; push title always includes active org/context |
-| legal/support/status | platform operator visible | org contacts alongside platform | contractual ownership explicitly assigned; platform recovery remains reachable |
+| Surface                 | Core platform                     | Organization identity                               | True white-label                                                               |
+| ----------------------- | --------------------------------- | --------------------------------------------------- | ------------------------------------------------------------------------------ |
+| platform landing/signup | BersonCare                        | организация отсутствует                             | BersonCare acquisition остаётся отдельно                                       |
+| public org page/booking | BersonCare + org                  | org name/logo/colors                                | org-first + обязательный legal operator disclosure                             |
+| invite email/join       | platform sender + org context     | «Организация через BersonCare»                      | verified org sender/domain; safe platform fallback disclosed                   |
+| auth/account recovery   | platform trust anchor             | org context только из trusted invite/domain mapping | org skin, но identity и support disclosure не исчезают                         |
+| patient shell           | platform app + active org context | org header; explicit context switch                 | отдельный origin/app только в дорогом tier                                     |
+| staff shell             | BersonCare workspace              | org identity in management/clinical header          | optional, не скрывает platform/global admin boundaries                         |
+| PWA manifest/icon       | platform patient/staff identity   | без per-org mutation                                | per-origin org identity после readiness gates                                  |
+| email/SMS/push          | platform sender                   | effective org presentation                          | verified sender; push title always includes active org/context                 |
+| legal/support/status    | platform operator visible         | org contacts alongside platform                     | contractual ownership explicitly assigned; platform recovery remains reachable |
 
 Brand configuration states:
 
@@ -260,11 +260,11 @@ UI должен отдельно показывать:
 
 ### 7.2 Рекомендуемые sender tiers
 
-| Tier | `From` / display | Reply-To | Failure policy |
-|---|---|---|---|
-| Platform | verified BersonCare domain; «Организация через BersonCare» | platform или verified org support | отправка через platform identity |
-| Org-branded content | тот же verified platform sender, organization name в display/body | только validated address | platform fallback всегда доступен |
-| Custom sender | org domain только после DKIM/SPF/DMARC and provider readiness | verified org mailbox | fallback к verified platform sender с explicit disclosure либо hold/reject delivery — owner decision; никогда не spoof org domain |
+| Tier                | `From` / display                                                  | Reply-To                          | Failure policy                                                                                                                    |
+| ------------------- | ----------------------------------------------------------------- | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Platform            | verified BersonCare domain; «Организация через BersonCare»        | platform или verified org support | отправка через platform identity                                                                                                  |
+| Org-branded content | тот же verified platform sender, organization name в display/body | только validated address          | platform fallback всегда доступен                                                                                                 |
+| Custom sender       | org domain только после DKIM/SPF/DMARC and provider readiness     | verified org mailbox              | fallback к verified platform sender с explicit disclosure либо hold/reject delivery — owner decision; никогда не spoof org domain |
 
 Sender state machine:
 

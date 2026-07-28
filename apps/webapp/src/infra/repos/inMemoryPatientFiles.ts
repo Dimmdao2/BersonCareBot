@@ -2,13 +2,13 @@
  * In-memory implementation of PatientFilesPort — for Vitest / CI builds without a DB.
  */
 
-import { randomUUID } from "node:crypto";
+import { randomUUID } from 'node:crypto';
 import type {
   CreatePatientFileParams,
   PatientFileCategory,
   PatientFileRecord,
   PatientFilesPort,
-} from "@/modules/patient-files/ports";
+} from '@/modules/patient-files/ports';
 
 const store: Map<string, PatientFileRecord> = new Map();
 
@@ -18,7 +18,10 @@ export function __resetInMemoryPatientFilesForTest() {
 }
 
 export const inMemoryPatientFilesPort: PatientFilesPort = {
-  async listFiles(patientUserId: string, category?: PatientFileCategory): Promise<PatientFileRecord[]> {
+  async listFiles(
+    patientUserId: string,
+    category?: PatientFileCategory,
+  ): Promise<PatientFileRecord[]> {
     return Array.from(store.values()).filter(
       (f) => f.patientUserId === patientUserId && (!category || f.category === category),
     );

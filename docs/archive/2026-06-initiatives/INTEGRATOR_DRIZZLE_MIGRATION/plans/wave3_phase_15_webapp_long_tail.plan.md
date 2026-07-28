@@ -5,22 +5,22 @@ status: completed
 isProject: false
 todos:
   - id: w3-p15a-refs-settings-diary
-    content: "15A: pgReferences (17), pgSystemSettings (7), pgSymptomDiary (18), configAdapter — migration batch."
+    content: '15A: pgReferences (17), pgSystemSettings (7), pgSymptomDiary (18), configAdapter — migration batch.'
     status: completed
   - id: w3-p15b-auth-email-ports
-    content: "15B: pgEmailSetupFlowPort, pgEmailPasswordLookup, pgUserPasswordCredentials, pgOAuthBindings, pgLoginTokens, pgPhoneChallengeStore, pgEmailSetupTokens."
+    content: '15B: pgEmailSetupFlowPort, pgEmailPasswordLookup, pgUserPasswordCredentials, pgOAuthBindings, pgLoginTokens, pgPhoneChallengeStore, pgEmailSetupTokens.'
     status: completed
   - id: w3-p15c-treatment-tail
-    content: "15C: pgTreatmentProgram (3), pgTreatmentProgramItemSnapshot (1), pgMaterialRating, pgUserPins, pgPhoneHistory."
+    content: '15C: pgTreatmentProgram (3), pgTreatmentProgramItemSnapshot (1), pgMaterialRating, pgUserPins, pgPhoneHistory.'
     status: completed
   - id: w3-p15d-integrator-push
-    content: "15D: integratorPushOutbox.ts — db.query на Pool -> Drizzle public.integrator_push_outbox."
+    content: '15D: integratorPushOutbox.ts — db.query на Pool -> Drizzle public.integrator_push_outbox.'
     status: completed
   - id: w3-p15e-messenger-bind-and-routes
-    content: "15E: messengerPhoneHttpBindExecute + routes tail (api/media/upload, admin users profile, recordPublicBookingMergeCandidates, resolveOrCreateUserByPhone)."
+    content: '15E: messengerPhoneHttpBindExecute + routes tail (api/media/upload, admin users profile, recordPublicBookingMergeCandidates, resolveOrCreateUserByPhone).'
     status: completed
   - id: w3-p15-verify
-    content: "15F: rg webapp prod — целевой ноль unexplained pool.query; список Class B/C в RAW_SQL и LOG."
+    content: '15F: rg webapp prod — целевой ноль unexplained pool.query; список Class B/C в RAW_SQL и LOG.'
     status: completed
 ---
 
@@ -95,32 +95,32 @@ todos:
 
 Типичные файлы (2026-06-05):
 
-| Файл | queries (baseline → post-15A) |
-|------|---------|
-| `pgReferences.ts` | 17 → **0** (P15A) |
-| `pgSymptomDiary.ts` | 18 → **0** (P15A) |
-| `pgSystemSettings.ts` | 7 → **0** (P15A) |
-| `configAdapter.ts` | 0 (P11, вне diff 15A) |
-| `pgUserPasswordCredentials.ts` | 12 → **0** (P15B) |
-| `pgEmailSetupFlowPort.ts` | 9 → **0** (P15B) |
-| `pgEmailPasswordLookup.ts` | 4 → **0** (P15B) |
-| `pgOAuthBindings.ts` | 2 → **0** (P15B) |
-| `pgLoginTokens.ts` | 5 → **0** (P15B) |
-| `pgPhoneChallengeStore.ts` | 5 → **0** (P15B) |
-| `pgEmailSetupTokens.ts` | 5 → **0** (P15B) |
-| `pgMaterialRating.ts` | 3 → **0** (P15C) |
-| `pgTreatmentProgram.ts` | 3 → **0** (P15C) |
-| `pgUserPins.ts` | 4 → **0** (P15C) |
-| `pgPhoneHistory.ts` | 2 → **0** (P15C) |
-| `pgTreatmentProgramItemSnapshot.ts` | 1 → **0** (P15C) |
-| `integratorPushOutbox.ts` | 4× `db.query` → **0** (P15D) |
-| `app-layer/integrator/messengerPhoneHttpBindExecute.ts` | 5 → **0** (P15E) |
-| `s3MediaStorage.ts` | 7 (TX only — Class C) |
-| `mediaUploadSessionsRepo.ts` | 6 (verify P5) |
-| `mediaPreviewWorker.ts` | 6 (verify P5) |
-| `userLifecycleLock.ts` | 6 (advisory P3) |
-| `multipartSessionLock.ts` | 3 (advisory P3) |
-| `infra/db/client.ts` | 1 health |
+| Файл                                                    | queries (baseline → post-15A) |
+| ------------------------------------------------------- | ----------------------------- |
+| `pgReferences.ts`                                       | 17 → **0** (P15A)             |
+| `pgSymptomDiary.ts`                                     | 18 → **0** (P15A)             |
+| `pgSystemSettings.ts`                                   | 7 → **0** (P15A)              |
+| `configAdapter.ts`                                      | 0 (P11, вне diff 15A)         |
+| `pgUserPasswordCredentials.ts`                          | 12 → **0** (P15B)             |
+| `pgEmailSetupFlowPort.ts`                               | 9 → **0** (P15B)              |
+| `pgEmailPasswordLookup.ts`                              | 4 → **0** (P15B)              |
+| `pgOAuthBindings.ts`                                    | 2 → **0** (P15B)              |
+| `pgLoginTokens.ts`                                      | 5 → **0** (P15B)              |
+| `pgPhoneChallengeStore.ts`                              | 5 → **0** (P15B)              |
+| `pgEmailSetupTokens.ts`                                 | 5 → **0** (P15B)              |
+| `pgMaterialRating.ts`                                   | 3 → **0** (P15C)              |
+| `pgTreatmentProgram.ts`                                 | 3 → **0** (P15C)              |
+| `pgUserPins.ts`                                         | 4 → **0** (P15C)              |
+| `pgPhoneHistory.ts`                                     | 2 → **0** (P15C)              |
+| `pgTreatmentProgramItemSnapshot.ts`                     | 1 → **0** (P15C)              |
+| `integratorPushOutbox.ts`                               | 4× `db.query` → **0** (P15D)  |
+| `app-layer/integrator/messengerPhoneHttpBindExecute.ts` | 5 → **0** (P15E)              |
+| `s3MediaStorage.ts`                                     | 7 (TX only — Class C)         |
+| `mediaUploadSessionsRepo.ts`                            | 6 (verify P5)                 |
+| `mediaPreviewWorker.ts`                                 | 6 (verify P5)                 |
+| `userLifecycleLock.ts`                                  | 6 (advisory P3)               |
+| `multipartSessionLock.ts`                               | 3 (advisory P3)               |
+| `infra/db/client.ts`                                    | 1 health                      |
 
 **Вне scope:** повторная миграция LFK/reminders/media enqueue (Wave 2).
 
@@ -147,8 +147,8 @@ pnpm --dir apps/webapp exec vitest run --project fast \
 
 ## Закрытие 15A (2026-06-06)
 
-| Подфаза | Итог |
-|---------|------|
+| Подфаза | Итог                                                                                                                                                                    |
+| ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **15A** | `pgReferences`, `pgSystemSettings`, `pgSymptomDiary` → `runWebappPgText`; `saveCatalog` / `upsertManyInTransaction` → `runWebappTransaction`; `configAdapter` — уже P11 |
 
 **Gate 15A:** `rg pool.query|client.query` по трём repo-файлам → **0**.
@@ -161,8 +161,8 @@ pnpm --dir apps/webapp exec vitest run --project fast \
 
 ## Закрытие 15B (2026-06-06)
 
-| Подфаза | Итог |
-|---------|------|
+| Подфаза | Итог                                                                                                                                                    |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **15B** | 7 auth/email repos → `runWebappPgText`; TX (`applyEmailSetupCompletion`, `registerPendingVerification`, email duplicate merge) → `runWebappTransaction` |
 
 **Gate 15B:** `rg pool.query|client.query` по 7 repo-файлам → **0**.
@@ -175,8 +175,8 @@ pnpm --dir apps/webapp exec vitest run --project fast \
 
 ## Закрытие 15C (2026-06-06)
 
-| Подфаза | Итог |
-|---------|------|
+| Подфаза | Итог                                                                                                              |
+| ------- | ----------------------------------------------------------------------------------------------------------------- |
 | **15C** | 5 treatment/minor repos → `runWebappPgText`; `pgPhoneHistory` — `getWebappSqlFromPgClient` на caller `PoolClient` |
 
 **Gate 15C:** `rg pool.query|client.query` по 5 repo-файлам → **0**.
@@ -189,8 +189,8 @@ pnpm --dir apps/webapp exec vitest run --project fast \
 
 ## Закрытие 15D (2026-06-06)
 
-| Подфаза | Итог |
-|---------|------|
+| Подфаза | Итог                                                                                                 |
+| ------- | ---------------------------------------------------------------------------------------------------- |
 | **15D** | `integratorPushOutbox.ts` → Drizzle `integratorPushOutbox` model; claim CTE — Class B `execute(sql)` |
 
 **Gate 15D:** `rg '\.query\(' apps/webapp/src/infra/integrator-push/integratorPushOutbox.ts` → **0**.
@@ -205,8 +205,8 @@ pnpm --dir apps/webapp exec vitest run --project fast \
 
 ## Закрытие 15E (2026-06-06)
 
-| Подфаза | Итог |
-|---------|------|
+| Подфаза | Итог                                                                                                                                        |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
 | **15E** | `messengerPhoneHttpBindExecute` → `runWebappPgText` / `runPgPoolPgText`; route SQL → `pgAdminClientProfileConflicts`, `pgMediaFolderLookup` |
 
 **Gate 15E:** `rg pool.query|client.query` по `app-layer/integrator/messengerPhoneHttpBindExecute.ts`, `api/media/upload/route.ts`, `api/admin/users/[userId]/profile/route.ts` → **0**.
@@ -221,8 +221,8 @@ pnpm --dir apps/webapp exec vitest run --project fast \
 
 ## Закрытие 15F (2026-06-06)
 
-| Подфаза | Итог |
-|---------|------|
+| Подфаза | Итог                                                                                                                       |
+| ------- | -------------------------------------------------------------------------------------------------------------------------- |
 | **15F** | Gate: domain `pool.query` = **0**; Class B (**3** raw-query files) + Class C (**22** TX files); verify test + RAW_SQL §15F |
 
 **Gate 15F:** runtime tail **25** unique prod-файлов; `rg -l` **27** (incl. 2 comment-only: `pgBookingCatalog`, `pgDoctorAppointments`).

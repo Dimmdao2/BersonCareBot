@@ -16,8 +16,7 @@ export async function GET() {
         platformUserId: gate.ctx.session.user.userId,
         source: 'clinic-billing-read',
       },
-      () =>
-        buildAppDeps().saasBilling.getOrganizationBillingOverview(gate.ctx.organizationId),
+      () => buildAppDeps().saasBilling.getOrganizationBillingOverview(gate.ctx.organizationId),
     );
     const billing = {
       organizationId: overview.organizationId,

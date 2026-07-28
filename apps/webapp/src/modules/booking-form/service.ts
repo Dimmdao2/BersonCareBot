@@ -1,5 +1,5 @@
-import type { BookingFormPort, BookingFormService } from "./ports";
-import { validateBookingFormAnswers } from "./validateAnswers";
+import type { BookingFormPort, BookingFormService } from './ports';
+import { validateBookingFormAnswers } from './validateAnswers';
 
 export function createBookingFormService(port: BookingFormPort): BookingFormService {
   return {
@@ -13,7 +13,7 @@ export function createBookingFormService(port: BookingFormPort): BookingFormServ
     },
 
     listPatientFields(organizationId) {
-      return port.listActiveFields(organizationId, "patient");
+      return port.listActiveFields(organizationId, 'patient');
     },
 
     listAdminFields(organizationId) {

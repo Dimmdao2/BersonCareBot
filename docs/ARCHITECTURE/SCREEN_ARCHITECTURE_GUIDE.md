@@ -41,18 +41,19 @@
 
 BersonCare — это два физически изолированных UI-мира с **общей грамматикой**, но разной оболочкой и плотностью:
 
-| | **Кабинет врача** (`#app-shell-doctor`) | **Приложение пациента** (`#app-shell-patient`) |
-|---|---|---|
-| Роль | рабочий инструмент, плотный, информационный | сопровождение лечения, мобильный PWA, тёплый |
-| Оболочка | `DoctorWorkspaceShell` (сайдбар + контент на md+, фикс-шапка на &lt;md) | `PatientAppShell` (верхняя chrome + нижний таб-бар) |
-| Ширина контента | `max-w-7xl` (1280px) | `max-w-[430px]` (mobile) → `max-w-[1180px]` (md+) |
-| Плотность | высокая: контролы 32px, глубина границами, без теней | средняя: карточки с тенью и радиусом, крупный тап-таргет 44px |
-| DNA (идентичность) | Общий целевой слой: `docs/design/dna/bersoncare-theme.css` (Nunito, `#386FBA`, `#F6F4EF`) — един для обеих зон | ← тот же DNA |
-| Реализация токенов/классов (текущая) | `src/shared/ui/doctor/doctorVisual.ts` + `doctorWorkspaceLayout.ts` | `src/shared/ui/patient/patientVisual.ts` |
-| Токены | `src/app/styles/doctor.css` | `src/app/globals.css` (`--patient-*`) |
-| Прозаический канон | `docs/ARCHITECTURE/DOCTOR_APP_UI_STYLE_GUIDE.md` (§A–§21, 1007 строк) | `docs/ARCHITECTURE/PATIENT_APP_UI_STYLE_GUIDE.md` (тонкий, 90 строк) |
+|                                      | **Кабинет врача** (`#app-shell-doctor`)                                                                        | **Приложение пациента** (`#app-shell-patient`)                       |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| Роль                                 | рабочий инструмент, плотный, информационный                                                                    | сопровождение лечения, мобильный PWA, тёплый                         |
+| Оболочка                             | `DoctorWorkspaceShell` (сайдбар + контент на md+, фикс-шапка на &lt;md)                                        | `PatientAppShell` (верхняя chrome + нижний таб-бар)                  |
+| Ширина контента                      | `max-w-7xl` (1280px)                                                                                           | `max-w-[430px]` (mobile) → `max-w-[1180px]` (md+)                    |
+| Плотность                            | высокая: контролы 32px, глубина границами, без теней                                                           | средняя: карточки с тенью и радиусом, крупный тап-таргет 44px        |
+| DNA (идентичность)                   | Общий целевой слой: `docs/design/dna/bersoncare-theme.css` (Nunito, `#386FBA`, `#F6F4EF`) — един для обеих зон | ← тот же DNA                                                         |
+| Реализация токенов/классов (текущая) | `src/shared/ui/doctor/doctorVisual.ts` + `doctorWorkspaceLayout.ts`                                            | `src/shared/ui/patient/patientVisual.ts`                             |
+| Токены                               | `src/app/styles/doctor.css`                                                                                    | `src/app/globals.css` (`--patient-*`)                                |
+| Прозаический канон                   | `docs/ARCHITECTURE/DOCTOR_APP_UI_STYLE_GUIDE.md` (§A–§21, 1007 строк)                                          | `docs/ARCHITECTURE/PATIENT_APP_UI_STYLE_GUIDE.md` (тонкий, 90 строк) |
 
 **Правило изоляции (жёсткое, ESLint `no-restricted-imports`, `patient-doctor-ui-isolation.mdc`):**
+
 - Врачебный и пациентский UI **не импортируют друг друга**.
 - Продуктовые роуты **не импортируют** `@/components/ui/**` напрямую — только через `*/primitives/`.
 - CSS зон раздельны; общего `AppShell`-импорта в этих деревьях нет.
@@ -89,15 +90,15 @@ BersonCare — это два физически изолированных UI-м
 
 Любой экран раскладывается на семь именованных зон. Не все присутствуют на каждом экране, но **порядок и назначение фиксированы**.
 
-| # | Зона | Назначение | Врач | Пациент |
-|---|------|-----------|------|---------|
-| **Z0** | **Shell chrome** | глобальная навигация, идентичность, профиль | сайдбар `DoctorAdminSidebar` (md+) / фикс-шапка `DoctorHeader` (&lt;md) | верхняя `PatientShellTopChrome` + нижний `PatientPrimaryNavStrip` |
-| **Z1** | **Page header** | заголовок страницы, подзаголовок, контекстные баннеры, вкладки раздела | `DoctorPageHeader` (sticky-якорь, слоты `title/subtitle/info/tabs/toolbar`) | title-strip в потоке (`PatientShellPageTitleStrip`) + back-chevron |
-| **Z2** | **Action zone** | первичные действия страницы (Создать, Сохранить, Опубликовать) | **см. §8 D4 — сейчас разнесено, канон: правый слот Z1 + sticky publish-bar** | full-width CTA внизу блока |
-| **Z3** | **Toolbar / filter zone** | поиск, фильтры, сортировка, переключение вида, период | sticky `DoctorCatalogFiltersToolbar` под Z1 | редко; фильтр-чипы в потоке |
-| **Z4** | **Primary content** | основное содержимое (список / деталь / форма / сетка) | `#app-shell-content` (`flex flex-col gap-3`) | `patientInnerPageStackClass` (`gap-3 md:gap-4`) |
-| **Z5** | **Detail / rail** | вторичная колонка master-detail или боковая панель | правая колонка `CatalogRightPane` | обычно отдельный роут (не колонка) |
-| **Z6** | **Footer / status** | легал-ссылки, статус загрузки, сноски | редко | `LegalFooterLinks` |
+| #      | Зона                      | Назначение                                                             | Врач                                                                         | Пациент                                                            |
+| ------ | ------------------------- | ---------------------------------------------------------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| **Z0** | **Shell chrome**          | глобальная навигация, идентичность, профиль                            | сайдбар `DoctorAdminSidebar` (md+) / фикс-шапка `DoctorHeader` (&lt;md)      | верхняя `PatientShellTopChrome` + нижний `PatientPrimaryNavStrip`  |
+| **Z1** | **Page header**           | заголовок страницы, подзаголовок, контекстные баннеры, вкладки раздела | `DoctorPageHeader` (sticky-якорь, слоты `title/subtitle/info/tabs/toolbar`)  | title-strip в потоке (`PatientShellPageTitleStrip`) + back-chevron |
+| **Z2** | **Action zone**           | первичные действия страницы (Создать, Сохранить, Опубликовать)         | **см. §8 D4 — сейчас разнесено, канон: правый слот Z1 + sticky publish-bar** | full-width CTA внизу блока                                         |
+| **Z3** | **Toolbar / filter zone** | поиск, фильтры, сортировка, переключение вида, период                  | sticky `DoctorCatalogFiltersToolbar` под Z1                                  | редко; фильтр-чипы в потоке                                        |
+| **Z4** | **Primary content**       | основное содержимое (список / деталь / форма / сетка)                  | `#app-shell-content` (`flex flex-col gap-3`)                                 | `patientInnerPageStackClass` (`gap-3 md:gap-4`)                    |
+| **Z5** | **Detail / rail**         | вторичная колонка master-detail или боковая панель                     | правая колонка `CatalogRightPane`                                            | обычно отдельный роут (не колонка)                                 |
+| **Z6** | **Footer / status**       | легал-ссылки, статус загрузки, сноски                                  | редко                                                                        | `LegalFooterLinks`                                                 |
 
 **Ключевой факт о врачебной шапке (canon, `doctorWorkspaceLayout.ts`):** на desktop (md+) глобальной верхней шапки **нет** — роль «липкого якоря» страницы выполняет **per-page `DoctorPageHeader`**. Он сам измеряет свою высоту в `--doctor-page-header-h`, которая становится `--doctor-sticky-offset`, и под неё липнут тулбары Z3. Это уже правильно спроектировано и должно быть на **каждом** врачебном экране (сейчас каталоги его опускают — §8 D1).
 
@@ -110,7 +111,9 @@ BersonCare — это два физически изолированных UI-м
 Двенадцать архетипов покрывают весь продукт. Для каждого — назначение, зоны, эталон, скелет, обязательные примитивы.
 
 ### T1 — Dashboard / «Сегодня»
+
 Стартовый экран роли: сводка + сигналы + быстрые входы.
+
 - **Зоны:** Z1 (title) → Z4 (KPI-сетка + стек секций).
 - **Врач:** `doctor/page.tsx` → `DoctorTodayDashboard.tsx`; KPI-строки `DoctorTodayLeftKpiRow`/`RightKpiRow`, мини-календарь, сигналы, глобальные задачи.
 - **Пациент:** `patient/page.tsx` → `home/PatientHomeToday.tsx`; hero-карточки, лента блоков.
@@ -123,7 +126,9 @@ BersonCare — это два физически изолированных UI-м
 - **Обязательно:** `doctorStatCardGridClass`, `DoctorSection`, `KpiPreviewModal` (врач) / `FeatureCard`, semantic surfaces (пациент). Главная пациента — единственное место с hero-геометрией (`patientHomeCardStyles.ts`), она **home-only** и не переносится на внутренние страницы.
 
 ### T2 — Простой список / таблица (без деталь-колонки)
+
 Плоский перечень, клик уводит на отдельный роут детали.
+
 - **Зоны:** Z1 → Z3 (sticky toolbar: поиск+добавить) → Z4 (список карточек-ссылок).
 - **Врач:** `references/[categoryCode]/ReferenceItemsTableClient.tsx`, `audit-log/`, `content/library/`; клиентский список клиентов (`clients` — строки-ссылки на `/clients/[userId]`).
 - **Пациент:** `courses/`, `help/`, `lessons/`, `sections/[slug]`.
@@ -131,7 +136,9 @@ BersonCare — это два физически изолированных UI-м
 - **Обязательно:** `FeatureCard` (пациент) / карточки-ссылки на `doctorSectionItemClass`; `DoctorEmptyState`.
 
 ### T3 — Каталог master-detail (список + деталь в одной колонке) ⭐ ЭТАЛОН
+
 Самый зрелый и самый частый рабочий паттерн кабинета.
+
 - **Зоны:** Z1 → Z3 (sticky filters) → Z4 (**master** список слева) + Z5 (**detail** справа).
 - **Врач-эталон:** `exercises/ExercisesPageClient.tsx`. Идентично: `clinical-tests`, `recommendations`, `lfk-templates`, `test-sets`, `treatment-program-templates`.
 - **Стек компонентов (canon):**
@@ -151,7 +158,9 @@ BersonCare — это два физически изолированных UI-м
 - **Обязательно:** весь стек `CatalogSplitLayout`/`CatalogLeftPane`/`CatalogRightPane`/`DoctorCatalogFiltersToolbar`/`DoctorCatalogMasterListHeader`. Новый каталог = **копия** этого стека (`doctor-ui-shared-primitives.mdc`).
 
 ### T4 — Просмотр объекта (entity card)
+
 Карточка сущности с фиксированной шапкой и вкладками.
+
 - **Зоны:** Z1 (entity header) → Z2 (action-strip) → Z3 (вкладки) → Z4 (контент вкладки).
 - **Врач-эталон:** `ClientProfileCard` (карточка клиента `clients/[userId]`), chrome в `doctorClientCardChrome.ts`. Структура: `PatientCareBar` (sticky entity-header) → `PatientActionStrip` (чипы быстрых действий, только если есть attention-чипы) → `TabsList variant="line"` → `TabsContent`. Обзор = 2-колоночная сетка панелей уровня-2.
 - **Пациент:** деталь программы `treatment/[instanceId]` (in-body табы, hero + этапы-коллапсы); деталь контента `content/[slug]`.
@@ -159,6 +168,7 @@ BersonCare — это два физически изолированных UI-м
 - **Обязательно:** для объект-детали **обязателен `DoctorPageHeader`** как единый якорь заголовка (сейчас деталь использует свой `MembershipCardHeader` — §8 D7). Вкладки — в слот `tabs` Z1, с lazy-mount.
 
 ### T5 — Создание / редактирование (форма)
+
 - **Зоны:** Z1 → Z4 (секции полей) → Z2 (sticky publish-bar).
 - **Два подтипа:**
   - **split-detail edit** (доминанта): форма живёт в `CatalogRightPane` каталога (эталон `ExerciseForm.tsx`).
@@ -170,6 +180,7 @@ BersonCare — это два физически изолированных UI-м
 - **Обязательно:** `DoctorCatalogPersistPublishBar`, `ReferenceSelect`/`ReferenceMultiSelect`/`CreatableComboboxInput`, дата-стек. Действие сохранения — **не** inline-кнопка в произвольном месте (§8 D4).
 
 ### T6 — Календарь / расписание
+
 - **Зоны:** Z1 (title + вкладки) → Z3 (sticky: дата/период/вид) → Z4 (сетка календаря) + Z5 (панель события).
 - **Врач:** `schedule/DoctorScheduleShell.tsx` (табы Calendar/Work/Setup/Notifications, full-height) → `ScheduleCalendarTab.tsx` на **FullCalendar** (dayGrid/timeGrid/luxon, ru). Виды: `day`→timeGridDay, `weekgrid`→timeGridWeek, `month`→dayGridMonth, `3days`→кастом, `list`. `headerToolbar={false}` — навигация/вид кастомные. События из `/api/doctor/booking-engine`, типы `modules/booking-calendar/types.ts`, окно 9:00–19:00. Sticky-тулбар переиспользует `DOCTOR_CATALOG_STICKY_BAR_CLASS`. Панели события: `DoctorCalendarEventPanel`, `DoctorCalendarRescheduleDialog`.
 - **Мини-календарь дашборда:** `DoctorTodayMiniCalendar` / `TodayMiniCalendarWithModal`.
@@ -177,6 +188,7 @@ BersonCare — это два физически изолированных UI-м
 - **Пробел канона:** нет прозаического описания структуры календарного экрана (виды/чипы) — §10.
 
 ### T7 — Аналитика
+
 - **Зоны:** Z1 (title + таб-кнопки) → Z3 (период) → Z4 (KPI-сетки + графики).
 - **Врач:** `analytics/DoctorAnalyticsShell.tsx`, `stats`, `usage`, `analytics/clients`, `analytics/notifications`. Таб-кнопки в слоте `tabs` Z1, lazy-mount вкладок.
 - **KPI:** `DoctorMetricList` (обёртка над `doctorStatCardGridClass`) + `DoctorStatCard`; метрика `doctorMetricValueClass` (`text-2xl tabular-nums`). Клик по карточке → `KpiPreviewModal` (generic list-modal). Строки KPI — `AppointmentKpiItem` (общий для дашборда и расписания).
@@ -185,6 +197,7 @@ BersonCare — это два физически изолированных UI-м
 - **Обязательно:** `DoctorMetricList` + `DoctorStatCard` (после промоушена в shared — §8 X5), `KpiPreviewModal`, `AppRechartsTooltip`.
 
 ### T8 — Видео / медиа
+
 - **Превью/миниатюры (жёсткий инвариант, `MEDIA_PREVIEW_FRONTEND.md`):** только через `MediaThumb` + `MediaPreviewUiModel`; URL превью только через `mediaPreviewUrls.ts`. **Запрещено** `<img src={item.url}>` в списках/сетках/пикерах и клиентское «прощупывание» оригиналов. Лайтбокс — только превью, не оригинал. Проверяется `scripts/check-media-preview-invariants.sh`.
 - **Полное воспроизведение:** единый плеер — врач `DoctorMediaPlaybackVideo` / пациент `PatientMediaPlaybackVideo`. HLS (`hls.js`) + MP4-fallback, источник только из `GET /api/media/[id]/playback`, формат решает сервер, пользователь его **не переключает**. Рендер через `NoContextMenuVideo`.
 - **Медиа-сетка контента (врач):** `content/library/MediaCard.tsx` в `doctorMediaCardGridClass`; это **единственное** место, где оправдан `shadow-sm` (плавающие карточки без контейнера-секции, canon §11).
@@ -192,24 +205,28 @@ BersonCare — это два физически изолированных UI-м
 - **Пикеры медиа (CMS):** единый `MediaPickerShell` + `MediaPickerPanel`, различия — пропсами, не копиями разметки (`cms-unified-media-picker-layout.mdc`).
 
 ### T9 — Чат / сообщения
+
 - **Зоны:** Z1 → Z4 (лента/переписка) — обычно full-bleed или full-height.
 - **Врач:** `communications/DoctorCommunicationsShell.tsx` (табы chats/intake/comments/broadcasts, full-height), `messages/DoctorSupportInbox.tsx` — master-detail (список тредов ↔ переписка) на `CatalogSplitLayout`.
 - **Пациент:** `messages`, `support`, `notifications` — единый `ChatView variant="patient"` из `modules/messaging`.
 - **§8 P6:** пациентский `ChatView` подаётся то full-bleed (`messages`), то завёрнутым в карточку (`notifications`) — унифицировать.
 
 ### T10 — Мастер / визард (пошаговый сценарий)
+
 - **Врач:** `exercises/auto-create`, `booking-merge`, `clients/name-match-hints` — сейчас ad-hoc, без общего визард-примитива.
 - **Пациент:** запись `booking` (+ `city/service/slot/confirm/done`) через `BookingWizardShell` — «Шаг N из M» + back-ссылка поверх `PatientAppShell`.
 - **§8 P2:** `BookingWizardShell` дублирует title/back оболочки — привести к слот-контракту.
 - **Пробел:** нет единого визард-примитива (степпер, прогресс, назад/далее) — §10.
 
 ### T11 — Настройки / администрирование
+
 - **Зоны:** Z1 → Z4 (стек `DoctorSection` / сетки карточек настроек).
 - **Врач:** `admin/app-settings`, `admin/auth`, `admin/technical`, `admin/integrations`, `system-health`. `admin/booking/*` — вложенный sub-nav layout, сетки `BOOKING_CARD_GRID_CLASS`.
 - **Пациент:** `profile`, `notifications/settings`, `address`, `reminders`, `intake/*`.
 - **Замечание канона:** `admin/booking/**` и standalone-admin формы **вне** унифицированного каталог-канона (свои инициативы) — гайд на них не претендует.
 
 ### T12 — Инфо / легал / пустые / гостевые состояния
+
 - **Инфо/легал:** `about`, `install`, `cabinet`, `legal/*` — стек `patientSectionSurfaceClass` + inline-ссылки + `LegalFooterLinks`.
 - **Пустое состояние:** `DoctorEmptyState` (`sm`/`xs`) / `patientEmptyStateClass`. **Не** inline-строки классов (§8 X8).
 - **Гость/гейт:** пациент — `GuestPlaceholder` / `DiarySectionGuestAccess`; §8 P7 — сейчас непоследовательно (то голый `<p>`, то компонент).
@@ -221,19 +238,19 @@ BersonCare — это два физически изолированных UI-м
 
 Единые правила размещения. **«Канон»** = целевое правило (может отличаться от текущей реализации — тогда см. §8).
 
-| Элемент | Врач — канон | Пациент — канон |
-|---|---|---|
-| **Заголовок страницы** | `DoctorPageHeader.title` (`<h1>` `text-base font-semibold`), sticky-якорь. Обязателен на КАЖДОМ экране. | `PatientAppShell title` → title-strip в потоке. Страница не рисует свой `<h1>`. |
-| **Подзаголовок** | `DoctorPageHeader.subtitle` (`text-xs muted`) | `patientPageSubtitleClass` под title |
-| **Назад** | контекстно (мобильная `DoctorHeader` / `mobileBackSlot` каталога) | back-chevron оболочки (`backHref`/`backLabel`), history-goBack с fallback |
-| **Первичное действие** (Создать/Сохранить) | **правый слот Z1** (см. §8 D4: ввести `actions`-слот) + для форм sticky `DoctorCatalogPersistPublishBar` | full-width `patientButtonPrimaryClass` внизу блока/формы |
-| **Вкладки раздела** | `DoctorPageHeader.tabs` (правый слот), lazy-mount | in-body табы (напр. программа) |
-| **Поиск** | `DoctorCatalogFiltersForm` (debounce 350ms) в sticky Z3; в модалках — `PickerSearchField` | фильтр-чипы/inline |
-| **Фильтры** | `DoctorCatalogToolbarFiltersSlot` в sticky Z3 (start-сторона) | inline |
-| **Сортировка / вид / scope** | `DoctorCatalogMasterListHeader` (в шапке master-списка Z4), НЕ в Z3 | — |
-| **Период (аналитика/календарь)** | sticky Z3 под Z1 | — |
-| **Глобальная навигация** | `DoctorAdminSidebar` (md+) / гамбургер-`Sheet` (&lt;md); source `doctorNavLinks.ts` | `PatientPrimaryNavStrip` (нижний таб-бар mobile / inline desktop): Сегодня/Упражнения/Дневник/Запись/Чат |
-| **Легал / футер** | редко | `LegalFooterLinks` внизу контента |
+| Элемент                                    | Врач — канон                                                                                             | Пациент — канон                                                                                          |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| **Заголовок страницы**                     | `DoctorPageHeader.title` (`<h1>` `text-base font-semibold`), sticky-якорь. Обязателен на КАЖДОМ экране.  | `PatientAppShell title` → title-strip в потоке. Страница не рисует свой `<h1>`.                          |
+| **Подзаголовок**                           | `DoctorPageHeader.subtitle` (`text-xs muted`)                                                            | `patientPageSubtitleClass` под title                                                                     |
+| **Назад**                                  | контекстно (мобильная `DoctorHeader` / `mobileBackSlot` каталога)                                        | back-chevron оболочки (`backHref`/`backLabel`), history-goBack с fallback                                |
+| **Первичное действие** (Создать/Сохранить) | **правый слот Z1** (см. §8 D4: ввести `actions`-слот) + для форм sticky `DoctorCatalogPersistPublishBar` | full-width `patientButtonPrimaryClass` внизу блока/формы                                                 |
+| **Вкладки раздела**                        | `DoctorPageHeader.tabs` (правый слот), lazy-mount                                                        | in-body табы (напр. программа)                                                                           |
+| **Поиск**                                  | `DoctorCatalogFiltersForm` (debounce 350ms) в sticky Z3; в модалках — `PickerSearchField`                | фильтр-чипы/inline                                                                                       |
+| **Фильтры**                                | `DoctorCatalogToolbarFiltersSlot` в sticky Z3 (start-сторона)                                            | inline                                                                                                   |
+| **Сортировка / вид / scope**               | `DoctorCatalogMasterListHeader` (в шапке master-списка Z4), НЕ в Z3                                      | —                                                                                                        |
+| **Период (аналитика/календарь)**           | sticky Z3 под Z1                                                                                         | —                                                                                                        |
+| **Глобальная навигация**                   | `DoctorAdminSidebar` (md+) / гамбургер-`Sheet` (&lt;md); source `doctorNavLinks.ts`                      | `PatientPrimaryNavStrip` (нижний таб-бар mobile / inline desktop): Сегодня/Упражнения/Дневник/Запись/Чат |
+| **Легал / футер**                          | редко                                                                                                    | `LegalFooterLinks` внизу контента                                                                        |
 
 ---
 
@@ -242,40 +259,42 @@ BersonCare — это два физически изолированных UI-м
 Перед созданием любого нового UI — проверить этот реестр (правило reuse-first, `doctor-ui-shared-primitives.mdc` / `patient-ui-shared-primitives.mdc`, оба `alwaysApply`). Одноразовые локальные карточки/шапки/бейджи/пустые-состояния при наличии shared-варианта **запрещены**.
 
 ### Кабинет врача
-| Задача | Примитив | Путь |
-|---|---|---|
-| Оболочка страницы | `DoctorAppShell` (`default`/`full-height`) | `shared/ui/doctor/DoctorAppShell.tsx` |
-| Шапка страницы | `DoctorPageHeader` | `shared/ui/doctor/shell/DoctorPageHeader.tsx` |
-| Page-level секция | `DoctorSection` / `DoctorSectionHeader` / `DoctorSectionTitle` | `shared/ui/doctor/DoctorSection.tsx` |
-| Master-detail | `CatalogSplitLayout` + `CatalogLeftPane` + `CatalogRightPane` + `DoctorCatalogPageLayout` | `shared/ui/doctor/catalog/*` |
-| Тулбар фильтров | `DoctorCatalogFiltersToolbar` + `DoctorCatalogFiltersForm` | `shared/ui/doctor/*` |
-| Шапка списка | `DoctorCatalogMasterListHeader` | `shared/ui/doctor/DoctorCatalogMasterListHeader.tsx` |
-| Save/Publish | `DoctorCatalogPersistPublishBar` | `shared/ui/doctor/DoctorCatalogPersistPublishBar.tsx` |
-| Reference-инпуты | `ReferenceSelect` / `ReferenceMultiSelect` / `CreatableComboboxInput` | `shared/ui/doctor/*` |
-| Дата/время | `DoctorDateTimePicker` / `DoctorDatePicker` / `DoctorTimeColumn` | `shared/ui/doctor/*` |
-| Модалка (адаптивная dialog↔sheet) | `DoctorModal` | `shared/ui/doctor/DoctorModal.tsx` |
-| KPI drill-down | `KpiPreviewModal` + `AppointmentKpiItem` | `shared/ui/doctor/*` |
-| KPI-сетка / карточка | `DoctorMetricList` + `DoctorStatCard`¹ | `shared/ui/doctor/*` |
-| Миниатюры / плеер | `MediaThumb` + `MediaPreviewUiModel` / `DoctorMediaPlaybackVideo` | `shared/ui/doctor/media/*` |
-| Пустое / ошибка | `DoctorEmptyState` / `DataLoadFailureNotice` | `shared/ui/doctor/*` |
-| Токены зон/визуала | `doctorWorkspaceLayout.ts` + `doctorVisual.ts` | `shared/ui/doctor/*` |
+
+| Задача                            | Примитив                                                                                  | Путь                                                  |
+| --------------------------------- | ----------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| Оболочка страницы                 | `DoctorAppShell` (`default`/`full-height`)                                                | `shared/ui/doctor/DoctorAppShell.tsx`                 |
+| Шапка страницы                    | `DoctorPageHeader`                                                                        | `shared/ui/doctor/shell/DoctorPageHeader.tsx`         |
+| Page-level секция                 | `DoctorSection` / `DoctorSectionHeader` / `DoctorSectionTitle`                            | `shared/ui/doctor/DoctorSection.tsx`                  |
+| Master-detail                     | `CatalogSplitLayout` + `CatalogLeftPane` + `CatalogRightPane` + `DoctorCatalogPageLayout` | `shared/ui/doctor/catalog/*`                          |
+| Тулбар фильтров                   | `DoctorCatalogFiltersToolbar` + `DoctorCatalogFiltersForm`                                | `shared/ui/doctor/*`                                  |
+| Шапка списка                      | `DoctorCatalogMasterListHeader`                                                           | `shared/ui/doctor/DoctorCatalogMasterListHeader.tsx`  |
+| Save/Publish                      | `DoctorCatalogPersistPublishBar`                                                          | `shared/ui/doctor/DoctorCatalogPersistPublishBar.tsx` |
+| Reference-инпуты                  | `ReferenceSelect` / `ReferenceMultiSelect` / `CreatableComboboxInput`                     | `shared/ui/doctor/*`                                  |
+| Дата/время                        | `DoctorDateTimePicker` / `DoctorDatePicker` / `DoctorTimeColumn`                          | `shared/ui/doctor/*`                                  |
+| Модалка (адаптивная dialog↔sheet) | `DoctorModal`                                                                             | `shared/ui/doctor/DoctorModal.tsx`                    |
+| KPI drill-down                    | `KpiPreviewModal` + `AppointmentKpiItem`                                                  | `shared/ui/doctor/*`                                  |
+| KPI-сетка / карточка              | `DoctorMetricList` + `DoctorStatCard`¹                                                    | `shared/ui/doctor/*`                                  |
+| Миниатюры / плеер                 | `MediaThumb` + `MediaPreviewUiModel` / `DoctorMediaPlaybackVideo`                         | `shared/ui/doctor/media/*`                            |
+| Пустое / ошибка                   | `DoctorEmptyState` / `DataLoadFailureNotice`                                              | `shared/ui/doctor/*`                                  |
+| Токены зон/визуала                | `doctorWorkspaceLayout.ts` + `doctorVisual.ts`                                            | `shared/ui/doctor/*`                                  |
 
 ¹ `DoctorStatCard` сейчас page-local — промоутировать в shared (§8 X5).
 
 ### Приложение пациента
-| Задача | Примитив | Путь |
-|---|---|---|
-| Оболочка | `PatientAppShell` (+ слоты) | `shared/ui/patient/PatientAppShell.tsx` |
-| Карточки/поверхности | `patientCardClass`, `patientSectionSurfaceClass`, `patientFormSurfaceClass`, `patientListItemClass` | `patientVisual.ts` |
-| Semantic surfaces | `patientSurfaceNeutral/Info/Success/Warning/DangerClass` | `patientVisual.ts` |
-| Карточка списка/сетки | `FeatureCard` | `shared/ui/patient/FeatureCard.tsx` |
-| CTA | `patientButtonPrimary/Success/Secondary/DangerOutline…Class` | `patientVisual.ts` |
-| Модалка | `PatientModalDialogContent` | `shared/ui/patient/PatientModalDialogContent.tsx` |
-| Коллапсы | `patientRecommendationCollapsible*` / `patientStageGoalsCollapsible*` | `patientVisual.ts` |
-| Загрузка | `PatientLoadingShimmer` (4 паттерна: `gridCards`/`heroList`/`formRows`/`cardBlocks`) + `PatientRouteLoadingShell` | `shared/ui/patient/PatientLoadingShimmer.tsx` |
-| Пусто/гость | `patientEmptyStateClass` / `GuestPlaceholder` | `shared/ui/patient/*` |
-| Плеер | `PatientMediaPlaybackVideo` | `shared/ui/patient/media/*` |
-| Раскладка страницы | `patientInnerPageStackClass`, `patientInnerCardGridClass`, `patientPageHeaderClass` | `patientVisual.ts` |
+
+| Задача                | Примитив                                                                                                          | Путь                                              |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| Оболочка              | `PatientAppShell` (+ слоты)                                                                                       | `shared/ui/patient/PatientAppShell.tsx`           |
+| Карточки/поверхности  | `patientCardClass`, `patientSectionSurfaceClass`, `patientFormSurfaceClass`, `patientListItemClass`               | `patientVisual.ts`                                |
+| Semantic surfaces     | `patientSurfaceNeutral/Info/Success/Warning/DangerClass`                                                          | `patientVisual.ts`                                |
+| Карточка списка/сетки | `FeatureCard`                                                                                                     | `shared/ui/patient/FeatureCard.tsx`               |
+| CTA                   | `patientButtonPrimary/Success/Secondary/DangerOutline…Class`                                                      | `patientVisual.ts`                                |
+| Модалка               | `PatientModalDialogContent`                                                                                       | `shared/ui/patient/PatientModalDialogContent.tsx` |
+| Коллапсы              | `patientRecommendationCollapsible*` / `patientStageGoalsCollapsible*`                                             | `patientVisual.ts`                                |
+| Загрузка              | `PatientLoadingShimmer` (4 паттерна: `gridCards`/`heroList`/`formRows`/`cardBlocks`) + `PatientRouteLoadingShell` | `shared/ui/patient/PatientLoadingShimmer.tsx`     |
+| Пусто/гость           | `patientEmptyStateClass` / `GuestPlaceholder`                                                                     | `shared/ui/patient/*`                             |
+| Плеер                 | `PatientMediaPlaybackVideo`                                                                                       | `shared/ui/patient/media/*`                       |
+| Раскладка страницы    | `patientInnerPageStackClass`, `patientInnerCardGridClass`, `patientPageHeaderClass`                               | `patientVisual.ts`                                |
 
 ---
 
@@ -297,6 +316,7 @@ BersonCare — это два физически изолированных UI-м
 14. **Мобайл master-detail — слайд-панели**, не модалка; десктоп-деталь — правая колонка `CatalogRightPane` без второй рамки.
 
 ### Инварианты, наследуемые из Design DNA (визуальная композиция)
+
 Эти правила задаёт Design DNA v1.0+v1.1; здесь они закреплены как обязательные при сборке экрана (полная спека — `docs/design/dna/`).
 
 15. **Списки — плоские строки.** Строка = волосяная линия во всю ширину, слева сразу имя/текст, без аватаров и бейджей-пилюль на строке. Пилюли (`rounded-full`) на строках списка **запрещены** (DNA §7.1 / v1.1 §2).
@@ -320,47 +340,47 @@ BersonCare — это два физически изолированных UI-м
 
 ### Кабинет врача
 
-| ID | Нарушение | Где | Приор. | Единое решение |
-|----|-----------|-----|--------|----------------|
-| **D1** | Двойной источник заголовка: часть страниц ставят и `DoctorAppShell title`, и `DoctorPageHeader title`; каталоги (`exercises`) `DoctorPageHeader` **опускают** → на desktop у exercises нет видимой шапки, у recommendations — есть. | `recommendations/page.tsx:77`, `courses/page.tsx:73`, `exercises/page.tsx:68` (нет header), `ExercisesPageClient.tsx` (0 header) | **P0** | `DoctorPageHeader` — обязателен на **каждом** роуте, включая каталоги и деталь. `DoctorAppShell title` остаётся источником для мобильной шапки/a11y, но видимый desktop-заголовок всегда даёт `DoctorPageHeader`. |
-| **D2** | Шапка рендерится то в server `page.tsx`, то в client-shell — разное владение, из-за чего табы/действия доступны не везде. | server: recommendations/courses/content-library; client: analytics/schedule/communications | **P1** | Канон: `DoctorPageHeader` рендерит **клиентская** shell-обёртка страницы, если нужны интерактивные табы/действия; иначе — server page. Слоты (`tabs`,`info`,`actions`) — единый контракт. |
-| **D4** | Первичное действие в трёх местах: каталог — верх-право шапки списка; форма — inline внизу (`ExerciseForm.tsx:358`); справочник — футер списка (`ReferenceItemsTableClient.tsx:561`). | там же | **P0** | Ввести в `DoctorPageHeader` явный **`actions`-слот** (верх-право Z1) для «Создать/первичное действие». Save/Publish форм — всегда `DoctorCatalogPersistPublishBar`. Убрать произвольные inline-кнопки. |
-| **D7** | Объект-деталь без стандартной шапки: `patients/[userId]` использует `MembershipCardHeader`, нет `DoctorPageHeader`. | `patients/[userId]/page.tsx` | **P1** | Обернуть entity-header в `DoctorPageHeader` (title=имя, tabs=вкладки карточки), `MembershipCardHeader` — как контент внутри, не как замена якоря. |
-| **X1** | Два варианта шапки списка (`DoctorCatalogMasterListHeader` c переключателем вида vs `DoctorCatalogListSortHeader` без него) и два контрола статуса (`DoctorCatalogArchiveScopeSelect` одна ось vs `CatalogStatusFilters` две оси). | `shared/ui/doctor/*` | **P1** | Свести к одному `DoctorCatalogMasterListHeader` с опциональным переключателем; статус — единый `CatalogStatusFilters` (две оси arch×pub), одноосевой — его частный режим. |
-| **X2 / X10** | Контент-хаб — третий, дивергентный стиль каталога (сайдбар + inline-редактор `useInlineContentEditor`), не `CatalogSplitLayout`; выбор грузится иначе, чем promise-based у exercises. | `content/ContentHubShell.tsx`, `ContentEditorRightPane.tsx` | **P1** | Мигрировать контент-хаб на канонический стек T3 (`CatalogSplitLayout` + promise-selection), либо явно задокументировать как исключение с причиной. |
-| **X3** | Два разных поисковых поля: каталожный `Input` в `DoctorCatalogFiltersForm` vs `PickerSearchField` в модалках. | `shared/ui/doctor/*` | **P2** | Выделить один `DoctorSearchField` (label+Input+debounce+clear), использовать в обоих контекстах. |
-| **X4** | Ширины фильтров захардкожены inline (`w-40`,`w-[128px]`,`w-[148px]`) вместо `DOCTOR_CATALOG_TOOLBAR_FILTER_WRAP_CLASS`. | разные select-ы каталога | **P2** | Все фильтр-контролы — через общий width-константу из `doctorCatalogToolbarFilterClasses.ts`. |
-| **X5** | `DoctorStatCard` — page-local (`analytics/clients/DoctorStatCard.tsx`), хотя классы shared и он переиспользуется в расписании. | там же | **P1** | Промоутировать `DoctorStatCard` в `shared/ui/doctor/`. |
-| **X6** | Сосуществуют recharts и рукописный SVG (`ExerciseMicroChart`, `ExerciseExecutionGraph`) без общего chart-примитива. | `shared/ui/doctor/*` | **P2** | Выбрать recharts как базу для стандартных графиков; SVG-микрочарты оставить как явный «спарклайн»-класс с задокументированной причиной. |
-| **X7** | Часть редакторов открывает сырой `Dialog` вместо `DoctorModal` (напр. медиа-субдиалог в `ExerciseForm`). | `ExerciseForm.tsx` | **P2** | Все модалки — через `DoctorModal` (адаптив dialog↔sheet). |
-| **X8** | Пустые состояния каталога — inline-строки `doctorCatalogListEmptyClass` вместо компонента `DoctorEmptyState`. | каталоги | **P2** | Заменить на `DoctorEmptyState`. |
-| **D5 / X9** | Скелет загрузки: route-level `loading.tsx` только у exercises; у остальных — inline Suspense или ничего; сам скелет дублируется (route-файл + inline `CatalogSplitLayoutSkeleton`). | `exercises/loading.tsx` + `ExercisesPageClient.tsx` | **P1** | Один экспортируемый `CatalogSplitLayoutSkeleton`, переиспользуемый и в `loading.tsx`, и в Suspense-fallback. Каждый каталог получает `loading.tsx`. |
-| **D6** | `full-height` — ручной opt-in у 3 роутов; прочие внутренне-скроллящиеся списки полагаются на высотную математику `CatalogSplitLayout`. | patients/communications/schedule vs messages/online-intake | **P2** | Задокументировать: `full-height` — для страниц с внутренним скролл-паном; `CatalogSplitLayout` уже держит высоту сам — не смешивать два механизма на одном экране. |
-| **X11** | Два recharts-тултипа сосуществуют: `DoctorRechartsTooltip` (`shared/ui/doctor/`) и `AppRechartsTooltip` (`shared/ui/charts/`), хотя канон T7 указывает единственным `AppRechartsTooltip`. | `shared/ui/doctor/DoctorRechartsTooltip.tsx` vs `shared/ui/charts/AppRechartsTooltip.tsx` | **P2** | Оставить один тултип (`AppRechartsTooltip`), `DoctorRechartsTooltip` вывести из использования. Заодно проверить дубль скаффолда `analytics/` ↔ `stats/`. |
+| ID           | Нарушение                                                                                                                                                                                                                           | Где                                                                                                                              | Приор. | Единое решение                                                                                                                                                                                                    |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **D1**       | Двойной источник заголовка: часть страниц ставят и `DoctorAppShell title`, и `DoctorPageHeader title`; каталоги (`exercises`) `DoctorPageHeader` **опускают** → на desktop у exercises нет видимой шапки, у recommendations — есть. | `recommendations/page.tsx:77`, `courses/page.tsx:73`, `exercises/page.tsx:68` (нет header), `ExercisesPageClient.tsx` (0 header) | **P0** | `DoctorPageHeader` — обязателен на **каждом** роуте, включая каталоги и деталь. `DoctorAppShell title` остаётся источником для мобильной шапки/a11y, но видимый desktop-заголовок всегда даёт `DoctorPageHeader`. |
+| **D2**       | Шапка рендерится то в server `page.tsx`, то в client-shell — разное владение, из-за чего табы/действия доступны не везде.                                                                                                           | server: recommendations/courses/content-library; client: analytics/schedule/communications                                       | **P1** | Канон: `DoctorPageHeader` рендерит **клиентская** shell-обёртка страницы, если нужны интерактивные табы/действия; иначе — server page. Слоты (`tabs`,`info`,`actions`) — единый контракт.                         |
+| **D4**       | Первичное действие в трёх местах: каталог — верх-право шапки списка; форма — inline внизу (`ExerciseForm.tsx:358`); справочник — футер списка (`ReferenceItemsTableClient.tsx:561`).                                                | там же                                                                                                                           | **P0** | Ввести в `DoctorPageHeader` явный **`actions`-слот** (верх-право Z1) для «Создать/первичное действие». Save/Publish форм — всегда `DoctorCatalogPersistPublishBar`. Убрать произвольные inline-кнопки.            |
+| **D7**       | Объект-деталь без стандартной шапки: `patients/[userId]` использует `MembershipCardHeader`, нет `DoctorPageHeader`.                                                                                                                 | `patients/[userId]/page.tsx`                                                                                                     | **P1** | Обернуть entity-header в `DoctorPageHeader` (title=имя, tabs=вкладки карточки), `MembershipCardHeader` — как контент внутри, не как замена якоря.                                                                 |
+| **X1**       | Два варианта шапки списка (`DoctorCatalogMasterListHeader` c переключателем вида vs `DoctorCatalogListSortHeader` без него) и два контрола статуса (`DoctorCatalogArchiveScopeSelect` одна ось vs `CatalogStatusFilters` две оси).  | `shared/ui/doctor/*`                                                                                                             | **P1** | Свести к одному `DoctorCatalogMasterListHeader` с опциональным переключателем; статус — единый `CatalogStatusFilters` (две оси arch×pub), одноосевой — его частный режим.                                         |
+| **X2 / X10** | Контент-хаб — третий, дивергентный стиль каталога (сайдбар + inline-редактор `useInlineContentEditor`), не `CatalogSplitLayout`; выбор грузится иначе, чем promise-based у exercises.                                               | `content/ContentHubShell.tsx`, `ContentEditorRightPane.tsx`                                                                      | **P1** | Мигрировать контент-хаб на канонический стек T3 (`CatalogSplitLayout` + promise-selection), либо явно задокументировать как исключение с причиной.                                                                |
+| **X3**       | Два разных поисковых поля: каталожный `Input` в `DoctorCatalogFiltersForm` vs `PickerSearchField` в модалках.                                                                                                                       | `shared/ui/doctor/*`                                                                                                             | **P2** | Выделить один `DoctorSearchField` (label+Input+debounce+clear), использовать в обоих контекстах.                                                                                                                  |
+| **X4**       | Ширины фильтров захардкожены inline (`w-40`,`w-[128px]`,`w-[148px]`) вместо `DOCTOR_CATALOG_TOOLBAR_FILTER_WRAP_CLASS`.                                                                                                             | разные select-ы каталога                                                                                                         | **P2** | Все фильтр-контролы — через общий width-константу из `doctorCatalogToolbarFilterClasses.ts`.                                                                                                                      |
+| **X5**       | `DoctorStatCard` — page-local (`analytics/clients/DoctorStatCard.tsx`), хотя классы shared и он переиспользуется в расписании.                                                                                                      | там же                                                                                                                           | **P1** | Промоутировать `DoctorStatCard` в `shared/ui/doctor/`.                                                                                                                                                            |
+| **X6**       | Сосуществуют recharts и рукописный SVG (`ExerciseMicroChart`, `ExerciseExecutionGraph`) без общего chart-примитива.                                                                                                                 | `shared/ui/doctor/*`                                                                                                             | **P2** | Выбрать recharts как базу для стандартных графиков; SVG-микрочарты оставить как явный «спарклайн»-класс с задокументированной причиной.                                                                           |
+| **X7**       | Часть редакторов открывает сырой `Dialog` вместо `DoctorModal` (напр. медиа-субдиалог в `ExerciseForm`).                                                                                                                            | `ExerciseForm.tsx`                                                                                                               | **P2** | Все модалки — через `DoctorModal` (адаптив dialog↔sheet).                                                                                                                                                         |
+| **X8**       | Пустые состояния каталога — inline-строки `doctorCatalogListEmptyClass` вместо компонента `DoctorEmptyState`.                                                                                                                       | каталоги                                                                                                                         | **P2** | Заменить на `DoctorEmptyState`.                                                                                                                                                                                   |
+| **D5 / X9**  | Скелет загрузки: route-level `loading.tsx` только у exercises; у остальных — inline Suspense или ничего; сам скелет дублируется (route-файл + inline `CatalogSplitLayoutSkeleton`).                                                 | `exercises/loading.tsx` + `ExercisesPageClient.tsx`                                                                              | **P1** | Один экспортируемый `CatalogSplitLayoutSkeleton`, переиспользуемый и в `loading.tsx`, и в Suspense-fallback. Каждый каталог получает `loading.tsx`.                                                               |
+| **D6**       | `full-height` — ручной opt-in у 3 роутов; прочие внутренне-скроллящиеся списки полагаются на высотную математику `CatalogSplitLayout`.                                                                                              | patients/communications/schedule vs messages/online-intake                                                                       | **P2** | Задокументировать: `full-height` — для страниц с внутренним скролл-паном; `CatalogSplitLayout` уже держит высоту сам — не смешивать два механизма на одном экране.                                                |
+| **X11**      | Два recharts-тултипа сосуществуют: `DoctorRechartsTooltip` (`shared/ui/doctor/`) и `AppRechartsTooltip` (`shared/ui/charts/`), хотя канон T7 указывает единственным `AppRechartsTooltip`.                                           | `shared/ui/doctor/DoctorRechartsTooltip.tsx` vs `shared/ui/charts/AppRechartsTooltip.tsx`                                        | **P2** | Оставить один тултип (`AppRechartsTooltip`), `DoctorRechartsTooltip` вывести из использования. Заодно проверить дубль скаффолда `analytics/` ↔ `stats/`.                                                          |
 
 ### Приложение пациента
 
-| ID | Нарушение | Где | Приор. | Единое решение |
-|----|-----------|-----|--------|----------------|
-| **P1** | Оболочка монтируется то в `page.tsx`, то делегируется целиком клиенту (`memberships/[id]`, `broadcasts/[auditId]`, booking, lessons) → контракт title/back дрейфует по экранам. | указанные роуты | **P0** | `PatientAppShell` — всегда на уровне `page.tsx`. Клиентские компоненты получают только тело; заголовок/back — через пропсы оболочки. |
-| **P2** | У записи параллельная оболочка `BookingWizardShell`, дублирующая title/back; `booking/page.tsx` перерисовывает заголовок, которым уже владеет shell. | `BookingWizardShell.tsx`, `booking/page.tsx:77` | **P0** | Визард использует слоты `PatientAppShell` (`patientShellAboveTitleSlot` для «Шаг N из M»); не рисует свой `<h1>`. Ввести общий визард-примитив (§10). |
-| **P3** | Разметка `<h1>`+badge продублирована в 3 компонентах с разными классами (`PatientAppShell`, `PatientBottomShellFrame`, `PatientShellTopChrome`). | указанные файлы | **P1** | Один компонент `PatientShellTitle` (title+badge), единый класс; остальные его используют. |
-| **P4** | Ad-hoc кнопки/ссылки в обход CTA-примитивов (bespoke «Задать вопрос», «Адрес кабинета», raw `text-primary underline`). | `booking/page.tsx:105`, `profile/page.tsx:61`, `BookingWizardShell.tsx:57` | **P1** | Только `patientButton*Class` / `patientInlineLinkClass`. Запрет inline-Tailwind для CTA/поверхностей — вынести в правило. |
-| **P5** | Разные подписи «назад» к одной цели: «Меню» / «Назад» / имя таба. | courses/sections/profile/diary vs notifications vs программа | **P2** | Единое правило back-label: к главному разделу → «Меню»; внутри раздела → название родителя; иначе → «Назад». |
-| **P6** | Один `ChatView` подаётся то full-bleed (`messages`), то в карточке `patientSectionSurfaceClass` (`notifications`). | messages vs notifications | **P2** | Выбрать один chrome для чата (рекоменд.: full-bleed на выделенном экране, карточка — только во встроенном контексте) и задокументировать. |
-| **P7** | Гостевые/пустые состояния: где-то голый `<p patientMutedTextClass>`, где-то компонент (`DiarySectionGuestAccess`). | `treatment/[instanceId]/page.tsx` vs `diary/page.tsx` | **P1** | Единый `GuestPlaceholder`/`patientEmptyStateClass` для всех гость/пусто веток. |
-| **P8** | Выход за паддинг колонки вручную (`-mx-4 w-[calc(100%+2rem)]`). | `booking/` promo-banner | **P2** | Ввести примитив full-bleed-обёртки (напр. `patientBleedClass`) вместо разовых расчётов. |
-| **P9** | «Назад» решается тремя механизмами с разными иконками и местами (не только разной подписью — см. P5): history-chevron `ChevronLeft`, top-chrome chevron, in-content `ArrowLeft`. | `PatientShellPageTitleWithHistoryBack.tsx`, `shell/PatientShellTopChrome.tsx`, `PatientBackToSectionShellRow.tsx` | **P2** | Один back-примитив (единый chevron + `usePatientShellGoBack`); in-content «← Назад к разделу» использует его же, а не свою иконку. |
-| **P10** | Заголовок страницы `<h1>` переиспользует `patientSectionTitleClass` (стиль in-card `h3`, 16px) → у экрана нет контраста между заголовком страницы и заголовком секции. | `PatientAppShell.tsx` title-strip vs `patientSectionTitleClass` | **P1** | Ввести отдельный размер page-title (крупнее секции); title-strip использует его, секции — `patientSectionTitleClass`. Согласовать с DNA-шкалой. |
-| **P11** | Portal CSS-var leakage: контент модалок/порталов рендерится **вне** `#app-shell-patient`, где `--patient-*` не заданы; из-за этого все `patientButton*` несут hex-фолбэки (`#284da0`…) и заведён отдельный `patientModalPortalPrimaryCtaClass` → риск рассинхрона token↔fallback цвета CTA. | `patientVisual.ts` (фолбэки), `patientModalPortalPrimaryCtaClass` | **P2** | Прокинуть `--patient-*` в портал (scope-обёртка на `DialogContent`) — один источник цвета, убрать hex-фолбэки и портальный CTA-дубль. |
+| ID      | Нарушение                                                                                                                                                                                                                                                                                   | Где                                                                                                               | Приор. | Единое решение                                                                                                                                        |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **P1**  | Оболочка монтируется то в `page.tsx`, то делегируется целиком клиенту (`memberships/[id]`, `broadcasts/[auditId]`, booking, lessons) → контракт title/back дрейфует по экранам.                                                                                                             | указанные роуты                                                                                                   | **P0** | `PatientAppShell` — всегда на уровне `page.tsx`. Клиентские компоненты получают только тело; заголовок/back — через пропсы оболочки.                  |
+| **P2**  | У записи параллельная оболочка `BookingWizardShell`, дублирующая title/back; `booking/page.tsx` перерисовывает заголовок, которым уже владеет shell.                                                                                                                                        | `BookingWizardShell.tsx`, `booking/page.tsx:77`                                                                   | **P0** | Визард использует слоты `PatientAppShell` (`patientShellAboveTitleSlot` для «Шаг N из M»); не рисует свой `<h1>`. Ввести общий визард-примитив (§10). |
+| **P3**  | Разметка `<h1>`+badge продублирована в 3 компонентах с разными классами (`PatientAppShell`, `PatientBottomShellFrame`, `PatientShellTopChrome`).                                                                                                                                            | указанные файлы                                                                                                   | **P1** | Один компонент `PatientShellTitle` (title+badge), единый класс; остальные его используют.                                                             |
+| **P4**  | Ad-hoc кнопки/ссылки в обход CTA-примитивов (bespoke «Задать вопрос», «Адрес кабинета», raw `text-primary underline`).                                                                                                                                                                      | `booking/page.tsx:105`, `profile/page.tsx:61`, `BookingWizardShell.tsx:57`                                        | **P1** | Только `patientButton*Class` / `patientInlineLinkClass`. Запрет inline-Tailwind для CTA/поверхностей — вынести в правило.                             |
+| **P5**  | Разные подписи «назад» к одной цели: «Меню» / «Назад» / имя таба.                                                                                                                                                                                                                           | courses/sections/profile/diary vs notifications vs программа                                                      | **P2** | Единое правило back-label: к главному разделу → «Меню»; внутри раздела → название родителя; иначе → «Назад».                                          |
+| **P6**  | Один `ChatView` подаётся то full-bleed (`messages`), то в карточке `patientSectionSurfaceClass` (`notifications`).                                                                                                                                                                          | messages vs notifications                                                                                         | **P2** | Выбрать один chrome для чата (рекоменд.: full-bleed на выделенном экране, карточка — только во встроенном контексте) и задокументировать.             |
+| **P7**  | Гостевые/пустые состояния: где-то голый `<p patientMutedTextClass>`, где-то компонент (`DiarySectionGuestAccess`).                                                                                                                                                                          | `treatment/[instanceId]/page.tsx` vs `diary/page.tsx`                                                             | **P1** | Единый `GuestPlaceholder`/`patientEmptyStateClass` для всех гость/пусто веток.                                                                        |
+| **P8**  | Выход за паддинг колонки вручную (`-mx-4 w-[calc(100%+2rem)]`).                                                                                                                                                                                                                             | `booking/` promo-banner                                                                                           | **P2** | Ввести примитив full-bleed-обёртки (напр. `patientBleedClass`) вместо разовых расчётов.                                                               |
+| **P9**  | «Назад» решается тремя механизмами с разными иконками и местами (не только разной подписью — см. P5): history-chevron `ChevronLeft`, top-chrome chevron, in-content `ArrowLeft`.                                                                                                            | `PatientShellPageTitleWithHistoryBack.tsx`, `shell/PatientShellTopChrome.tsx`, `PatientBackToSectionShellRow.tsx` | **P2** | Один back-примитив (единый chevron + `usePatientShellGoBack`); in-content «← Назад к разделу» использует его же, а не свою иконку.                    |
+| **P10** | Заголовок страницы `<h1>` переиспользует `patientSectionTitleClass` (стиль in-card `h3`, 16px) → у экрана нет контраста между заголовком страницы и заголовком секции.                                                                                                                      | `PatientAppShell.tsx` title-strip vs `patientSectionTitleClass`                                                   | **P1** | Ввести отдельный размер page-title (крупнее секции); title-strip использует его, секции — `patientSectionTitleClass`. Согласовать с DNA-шкалой.       |
+| **P11** | Portal CSS-var leakage: контент модалок/порталов рендерится **вне** `#app-shell-patient`, где `--patient-*` не заданы; из-за этого все `patientButton*` несут hex-фолбэки (`#284da0`…) и заведён отдельный `patientModalPortalPrimaryCtaClass` → риск рассинхрона token↔fallback цвета CTA. | `patientVisual.ts` (фолбэки), `patientModalPortalPrimaryCtaClass`                                                 | **P2** | Прокинуть `--patient-*` в портал (scope-обёртка на `DialogContent`) — один источник цвета, убрать hex-фолбэки и портальный CTA-дубль.                 |
 
 ### Кросс-зонные / канон
 
-| ID | Пробел | Приор. | Решение |
-|----|--------|--------|---------|
-| **C1** | Не было единой кросс-зонной таксономии экранов. | — | Закрывается этим документом (§4). |
-| **C2** | Пациентский гайд тонкий — нет per-screen-type раскладок. | **P1** | §4 даёт пациентские скелеты; перенести ключевое в `PATIENT_APP_UI_STYLE_GUIDE.md` или сослаться на этот документ. |
-| **C4** | ~~Лаб-токены «Direction E» не сверены с задеплоенными.~~ **РЕШЕНО.** | ✅ | Авторитет — **Design DNA v1.0+v1.1** (`docs/design/dna/bersoncare-theme.css`: canvas `#F6F4EF`, accent `#386FBA`, Nunito). Direction E (`docs/design/style-directions/`) — его исследовательский предок, DNA — финализированная версия. Задеплоенные токены зон (`doctorVisual.ts`/`patientVisual.ts`/`doctor.css`/`globals.css`) — **текущая реализация**, подлежит выравниванию под DNA отдельной инициативой (см. §10.6). |
+| ID     | Пробел                                                               | Приор. | Решение                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ------ | -------------------------------------------------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **C1** | Не было единой кросс-зонной таксономии экранов.                      | —      | Закрывается этим документом (§4).                                                                                                                                                                                                                                                                                                                                                                                            |
+| **C2** | Пациентский гайд тонкий — нет per-screen-type раскладок.             | **P1** | §4 даёт пациентские скелеты; перенести ключевое в `PATIENT_APP_UI_STYLE_GUIDE.md` или сослаться на этот документ.                                                                                                                                                                                                                                                                                                            |
+| **C4** | ~~Лаб-токены «Direction E» не сверены с задеплоенными.~~ **РЕШЕНО.** | ✅     | Авторитет — **Design DNA v1.0+v1.1** (`docs/design/dna/bersoncare-theme.css`: canvas `#F6F4EF`, accent `#386FBA`, Nunito). Direction E (`docs/design/style-directions/`) — его исследовательский предок, DNA — финализированная версия. Задеплоенные токены зон (`doctorVisual.ts`/`patientVisual.ts`/`doctor.css`/`globals.css`) — **текущая реализация**, подлежит выравниванию под DNA отдельной инициативой (см. §10.6). |
 
 ---
 
@@ -378,6 +398,7 @@ BersonCare — это два физически изолированных UI-м
 10. **Само-проверка по §7 (инварианты)** + прогон reuse-first: не сделал ли локальную копию существующего примитива.
 
 ### Порядок унификации существующего (по приоритету §8)
+
 1. **P0 сначала:** D1, D4 (единая шапка + actions-слот врача); P1, P2 (slot-контракт пациента). Это скелет языка — остальное встаёт на него.
 2. **P1:** D2, D7, X1, X5, D5/X9, P3, P4, P7, C2.
 3. **P2:** остальное (косметика/долг), пачками по семейству примитива.
@@ -387,15 +408,16 @@ BersonCare — это два физически изолированных UI-м
 
 ## 10. Открытые решения для владельца
 
-1. **`actions`-слот в `DoctorPageHeader`** (D4). Ввести явную зону первичного действия справа в шапке? Рекомендация: **да** — это чинит D1/D4 разом. *Нужно ваше «ок» на добавление слота в общий примитив.*
+1. **`actions`-слот в `DoctorPageHeader`** (D4). Ввести явную зону первичного действия справа в шапке? Рекомендация: **да** — это чинит D1/D4 разом. _Нужно ваше «ок» на добавление слота в общий примитив._
 2. ✅ **Direction E vs токены** (C4) — **решено**: авторитет = Design DNA v1.0+v1.1 (`docs/design/dna/`); Direction E — его лаб-предок.
-3. **Миграция токенов под DNA** (новое, следствие C4). Задеплоенные токены зон ещё не выровнены под `bersoncare-theme.css` (Nunito, `#386FBA`, `#F6F4EF`, шкала радиусов 5·8·11·14, микротень, vibrancy). Это **отдельная инициатива уровня токенов/DNA**, а не часть структурной унификации §8 — запускать её отдельной задачей. *Нужно ваше слово: делать выравнивание токенов сейчас или после структурных P0?* Рекомендация: сначала структурные P0 (§9), затем токен-миграция под DNA — чтобы не переверстывать дважды.
+3. **Миграция токенов под DNA** (новое, следствие C4). Задеплоенные токены зон ещё не выровнены под `bersoncare-theme.css` (Nunito, `#386FBA`, `#F6F4EF`, шкала радиусов 5·8·11·14, микротень, vibrancy). Это **отдельная инициатива уровня токенов/DNA**, а не часть структурной унификации §8 — запускать её отдельной задачей. _Нужно ваше слово: делать выравнивание токенов сейчас или после структурных P0?_ Рекомендация: сначала структурные P0 (§9), затем токен-миграция под DNA — чтобы не переверстывать дважды.
 
    **Инструмент для токен-миграции — TweakCN** (`tweakcn.com`). Визуальный no-code редактор темы shadcn/ui + Tailwind: цвета, радиусы, тени, шрифты правятся в UI и экспортируются готовым набором CSS-переменных (`:root` / `@theme`, Tailwind v3/v4). Подходит именно для этого шага — быстро собрать и итерировать целевой набор токенов под DNA и выгрузить его в `bersoncare-theme.css`, не подбирая hex вручную. **Важные оговорки под нашу архитектуру:**
    - TweakCN трогает **только токен-слой** (визуальная идентичность) — структурные правила этого гайда (зоны/шаблоны/композиция §3–§7) он не заменяет и к ним нейтрален.
    - Он генерирует **один глобальный** `:root`-набор, а у нас **две зональные области** (`#app-shell-doctor` / `#app-shell-patient`) с раздельными токенами — экспорт TweakCN нужно **разнести по зонам**, а не вставлять как единый глобальный блок.
    - Базовая модель shadcn (`base-color: slate`) не несёт наши нюансы (тёплый холст `#F6F4EF`, моно-синий `#386FBA`, Nunito, микротень, vibrancy) — их доводить вручную поверх экспорта, сверяясь с Design DNA v1.0+v1.1.
    - Использовать как **ускоритель авторинга темы**, а не как источник правды: источник правды остаётся `docs/design/dna/`.
+
 4. **Открытые вопросы самого DNA** (перенесены из спеки §9, чтобы не потерялись): финальная сила микротени; толщина обводки иконок (1.4 vs 1.5); финал набора иконок (Lucide — кандидат); степень тепла/воздуха в пациентской части; тёмная тема как вторичная; палитра для графиков/аналитики (расширение моно-синего без зелёного как основного). Закрываются по мере появления живых экранов.
 5. **Общий визард-примитив** (T10/P2): выделять степпер (прогресс + назад/далее) для записи и врачебных bulk-tool (`booking-merge`, `auto-create`)? Рекомендация: да, средним приоритетом.
 6. **Единый chart-стек** (X6): recharts как стандарт, SVG — только явные спарклайны? Палитра графиков — открытый вопрос DNA (п.4). Рекомендация: да.
@@ -416,4 +438,4 @@ BersonCare — это два физически изолированных UI-м
 - **Дизайн-лаб:** `docs/design/style-directions/` (directions A–E, «E» — выбранное направление), `doctor-cabinet-wireframe.html`.
 - **Экраны-заголовки:** `shared/ui/doctorScreenTitles.ts`; навигация `shared/ui/doctor/doctorNavLinks.ts`, `app-layer/routes/navigation.ts`.
 
-*Конец документа. Это база; при изменении примитивов — обновлять §6 и §8.*
+_Конец документа. Это база; при изменении примитивов — обновлять §6 и §8._

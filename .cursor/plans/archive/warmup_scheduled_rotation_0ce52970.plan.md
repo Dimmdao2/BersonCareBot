@@ -34,38 +34,38 @@ isProject: false
 
 Единая страница: [`/app/doctor/patient-home`](apps/webapp/src/app/app/doctor/patient-home/page.tsx). Legacy [`/app/settings/patient-home`](apps/webapp/src/app/app/settings/patient-home/page.tsx) — только redirect.
 
-| Панель / ключ | Роль | Конфликт с новой ротацией |
-|---------------|------|---------------------------|
-| **Блоки `daily_warmup`** (CMS) | Состав и порядок круга | Нет — источник ordered list |
-| **`patient_home_daily_practice_target`** | Цель «Сегодня выполнено» | Нет — ортогонально |
-| **`patient_home_mood_icons`** | Иконки самочувствия | Нет |
-| **`patient_home_daily_warmup_repeat_cooldown_minutes`** | Hero «Разминка выполнена» | **Частичный:** только при `dailyWarmupCount === 1`; при 2+ CTA всегда виден — ротация работает. Лишним не является |
-| **`patient_treatment_plan_item_done_repeat_cooldown_minutes`** | Пауза пунктов плана | Нет |
-| **`patient_home_morning_ping_*`** | Один слот, **app TZ**, бот → `/app/patient` | **Смысловое пересечение**, не кодовое — развести подписи в UI (см. §Admin UI) |
-| **`patient_home_warmup_skip_to_next_available_enabled`** | Legacy boolean | **Мёртвый ключ:** парсер есть, runtime pick **не читает**. Задокументировать deprecated, не в UI |
-| **Напоминания пациента** (warmup rules) | Персональные push | Нет — deeplink `go/daily-warmup?from=reminder` использует тот же synced pick |
+| Панель / ключ                                                  | Роль                                        | Конфликт с новой ротацией                                                                                          |
+| -------------------------------------------------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| **Блоки `daily_warmup`** (CMS)                                 | Состав и порядок круга                      | Нет — источник ordered list                                                                                        |
+| **`patient_home_daily_practice_target`**                       | Цель «Сегодня выполнено»                    | Нет — ортогонально                                                                                                 |
+| **`patient_home_mood_icons`**                                  | Иконки самочувствия                         | Нет                                                                                                                |
+| **`patient_home_daily_warmup_repeat_cooldown_minutes`**        | Hero «Разминка выполнена»                   | **Частичный:** только при `dailyWarmupCount === 1`; при 2+ CTA всегда виден — ротация работает. Лишним не является |
+| **`patient_treatment_plan_item_done_repeat_cooldown_minutes`** | Пауза пунктов плана                         | Нет                                                                                                                |
+| **`patient_home_morning_ping_*`**                              | Один слот, **app TZ**, бот → `/app/patient` | **Смысловое пересечение**, не кодовое — развести подписи в UI (см. §Admin UI)                                      |
+| **`patient_home_warmup_skip_to_next_available_enabled`**       | Legacy boolean                              | **Мёртвый ключ:** парсер есть, runtime pick **не читает**. Задокументировать deprecated, не в UI                   |
+| **Напоминания пациента** (warmup rules)                        | Персональные push                           | Нет — deeplink `go/daily-warmup?from=reminder` использует тот же synced pick                                       |
 
 **Лишних панелей удалять не нужно.** Добавить одну — «Автосмена разминок».
 
 ## Принятые продуктовые решения
 
-| Вопрос | Решение |
-|--------|---------|
-| Слоты при деплое для существующих users | **Без ретро** — backfill `last_rotation_at = updated_at`; только будущие слоты |
-| Видео + completion на одном визите | **Один сдвиг** — CAS `presented === anchorPageId` |
-| Действие не на текущей presented (pager/quick list) | **Не сдвигать** главную |
-| `rotation_enabled` по умолчанию | **`false`** до первого сохранения админом |
-| Шаблон при первом включении в UI | `08:00` / `14:00` / `20:00` (редактируемый) |
-| Долгое отсутствие (неделя+) | При следующем заходе **догонять все** пропущенные слоты; skip одноразовый на первый due-слот после manual |
-| Включение ротации при старой строке presentation | Первый визит после `enabled=true` догоняет слоты от `last_rotation_at` (backfill = `updated_at`); для «спящих» users возможен многодневный catch-up |
+| Вопрос                                              | Решение                                                                                                                                             |
+| --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Слоты при деплое для существующих users             | **Без ретро** — backfill `last_rotation_at = updated_at`; только будущие слоты                                                                      |
+| Видео + completion на одном визите                  | **Один сдвиг** — CAS `presented === anchorPageId`                                                                                                   |
+| Действие не на текущей presented (pager/quick list) | **Не сдвигать** главную                                                                                                                             |
+| `rotation_enabled` по умолчанию                     | **`false`** до первого сохранения админом                                                                                                           |
+| Шаблон при первом включении в UI                    | `08:00` / `14:00` / `20:00` (редактируемый)                                                                                                         |
+| Долгое отсутствие (неделя+)                         | При следующем заходе **догонять все** пропущенные слоты; skip одноразовый на первый due-слот после manual                                           |
+| Включение ротации при старой строке presentation    | Первый визит после `enabled=true` догоняет слоты от `last_rotation_at` (backfill = `updated_at`); для «спящих» users возможен многодневный catch-up |
 
 ## Текущее состояние (gap) — закрыто
 
-| Было | Стало |
-|------|-------|
-| Сдвиг только после `video-viewed` | + completion `daily_warmup` (CAS) |
-| Нет смены по времени | Lazy sync слотов при pick/read |
-| Fallback = **та же** last completed | Fallback = **следующая** после last completed |
+| Было                                   | Стало                                                |
+| -------------------------------------- | ---------------------------------------------------- |
+| Сдвиг только после `video-viewed`      | + completion `daily_warmup` (CAS)                    |
+| Нет смены по времени                   | Lazy sync слотов при pick/read                       |
+| Fallback = **та же** last completed    | Fallback = **следующая** после last completed        |
 | `presented` = только `content_page_id` | + `last_rotation_at`, `skip_next_scheduled_rotation` |
 
 Ключевые файлы: [`todayConfig.ts`](apps/webapp/src/modules/patient-home/todayConfig.ts), [`resolveDailyWarmupHomePickIndex.ts`](apps/webapp/src/modules/patient-home/resolveDailyWarmupHomePickIndex.ts), [`advanceDailyWarmupPresentationManually.ts`](apps/webapp/src/modules/patient-home/advanceDailyWarmupPresentationManually.ts), [`syncDailyWarmupScheduledRotation.ts`](apps/webapp/src/modules/patient-home/syncDailyWarmupScheduledRotation.ts), [`pgPatientDailyWarmupPresentation.ts`](apps/webapp/src/infra/repos/pgPatientDailyWarmupPresentation.ts).
@@ -183,25 +183,25 @@ upsertPresentationState(userId, state): Promise<void>;
 
 ### 4. Pure-модули
 
-| Файл | Ответственность |
-|------|-----------------|
+| Файл                                        | Ответственность                      |
+| ------------------------------------------- | ------------------------------------ |
 | `collectDailyWarmupRotationSlotInstants.ts` | Слоты между `lastRotationAt` и `now` |
-| `applyDailyWarmupScheduledRotations.ts` | Advance + skip (pure) |
-| `syncDailyWarmupScheduledRotation.ts` | Read settings/state → apply → upsert |
-| `advanceDailyWarmupPresentationManually.ts` | ensureSync + CAS manual |
-| `ensureDailyWarmupPresentationSynced.ts` | Фасад для pick/deps |
+| `applyDailyWarmupScheduledRotations.ts`     | Advance + skip (pure)                |
+| `syncDailyWarmupScheduledRotation.ts`       | Read settings/state → apply → upsert |
+| `advanceDailyWarmupPresentationManually.ts` | ensureSync + CAS manual              |
+| `ensureDailyWarmupPresentationSynced.ts`    | Фасад для pick/deps                  |
 
 Изменён [`resolveDailyWarmupHomePickIndex.ts`](apps/webapp/src/modules/patient-home/resolveDailyWarmupHomePickIndex.ts): fallback last completed → **next**.
 
 ### 5. Entry points
 
-| Точка | Действие |
-|-------|----------|
-| `resolveDailyWarmupPickIndex` + callers | `ensureDailyWarmupPresentationSynced` (patient tier) |
-| [`resolveDailyWarmupStartPathForPatient`](apps/webapp/src/app/app/patient/go/resolvePatientReminderGoTargets.ts) | через общий pick |
-| [`loadWarmupPushDynamicContext`](apps/webapp/src/modules/web-push/loadWarmupPushDynamicContext.ts) | через общий pick |
-| [`recordDailyWarmupVideoView`](apps/webapp/src/modules/patient-home/recordDailyWarmupVideoView.ts) | manual advance после journal |
-| [`POST practice/completion`](apps/webapp/src/app/api/patient/practice/completion/route.ts) | manual advance при `source === daily_warmup` |
+| Точка                                                                                                            | Действие                                             |
+| ---------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| `resolveDailyWarmupPickIndex` + callers                                                                          | `ensureDailyWarmupPresentationSynced` (patient tier) |
+| [`resolveDailyWarmupStartPathForPatient`](apps/webapp/src/app/app/patient/go/resolvePatientReminderGoTargets.ts) | через общий pick                                     |
+| [`loadWarmupPushDynamicContext`](apps/webapp/src/modules/web-push/loadWarmupPushDynamicContext.ts)               | через общий pick                                     |
+| [`recordDailyWarmupVideoView`](apps/webapp/src/modules/patient-home/recordDailyWarmupVideoView.ts)               | manual advance после journal                         |
+| [`POST practice/completion`](apps/webapp/src/app/api/patient/practice/completion/route.ts)                       | manual advance при `source === daily_warmup`         |
 
 ### 6. Admin UI
 
@@ -222,16 +222,16 @@ upsertPresentationState(userId, state): Promise<void>;
 
 ### 8. Тесты
 
-| Область | Файлы |
-|---------|-------|
-| Slot math + skip + midnight | `collectDailyWarmupRotationSlotInstants.test.ts`, `applyDailyWarmupScheduledRotations.test.ts` |
-| Sync + backfill + skip consume | `syncDailyWarmupScheduledRotation.test.ts` |
-| CAS manual (video→completion, off-presented) | `advanceDailyWarmupPresentationManually.test.ts` |
-| Ensure facade | `ensureDailyWarmupPresentationSynced.test.ts` |
-| Pick / go / push | `todayConfig.test.ts`, `resolvePatientReminderGoTargets.test.ts`, `loadWarmupPushDynamicContext.test.ts` |
-| Completion route | `completion/route.test.ts` |
-| Admin settings | `route.test.ts` |
-| Fallback index | `resolveDailyWarmupHomePickIndex.test.ts` |
+| Область                                      | Файлы                                                                                                    |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| Slot math + skip + midnight                  | `collectDailyWarmupRotationSlotInstants.test.ts`, `applyDailyWarmupScheduledRotations.test.ts`           |
+| Sync + backfill + skip consume               | `syncDailyWarmupScheduledRotation.test.ts`                                                               |
+| CAS manual (video→completion, off-presented) | `advanceDailyWarmupPresentationManually.test.ts`                                                         |
+| Ensure facade                                | `ensureDailyWarmupPresentationSynced.test.ts`                                                            |
+| Pick / go / push                             | `todayConfig.test.ts`, `resolvePatientReminderGoTargets.test.ts`, `loadWarmupPushDynamicContext.test.ts` |
+| Completion route                             | `completion/route.test.ts`                                                                               |
+| Admin settings                               | `route.test.ts`                                                                                          |
+| Fallback index                               | `resolveDailyWarmupHomePickIndex.test.ts`                                                                |
 
 Финал: `pnpm run ci` перед merge.
 

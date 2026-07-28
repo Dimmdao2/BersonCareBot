@@ -1,17 +1,17 @@
 /**
  * PostgreSQL implementation of ReferencesPort (Stage 6 reference_categories / reference_items).
  */
-import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
-import { runWebappPgText, runWebappTransaction } from "@/infra/db/runWebappSql";
-import type { WebappSqlTransactionExecutor } from "@/infra/db/runWebappSql";
-import { toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
-import type { ReferencesPort } from "@/modules/references/ports";
-import type { ReferenceCategory, ReferenceItem } from "@/modules/references/types";
+import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
+import { runWebappPgText, runWebappTransaction } from '@/infra/db/runWebappSql';
+import type { WebappSqlTransactionExecutor } from '@/infra/db/runWebappSql';
+import { toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
+import type { ReferencesPort } from '@/modules/references/ports';
+import type { ReferenceCategory, ReferenceItem } from '@/modules/references/types';
 
 function currentPrincipalOrganizationId(): string {
   const principalOrganizationId = getCurrentDbPrincipalOrganizationId();
   if (!principalOrganizationId) {
-    throw new Error("organization_principal_required");
+    throw new Error('organization_principal_required');
   }
   return principalOrganizationId;
 }
@@ -21,8 +21,11 @@ function currentWriteOrganizationId(...fallbacks: (string | null | undefined)[])
   const fallbackOrganizationIds = fallbacks.filter((x): x is string => Boolean(x));
   const fallbackOrganizationId = fallbackOrganizationIds[0] ?? null;
   const hasFallbackMismatch = fallbackOrganizationIds.some((id) => id !== fallbackOrganizationId);
-  if (hasFallbackMismatch || (fallbackOrganizationId && principalOrganizationId !== fallbackOrganizationId)) {
-    throw new Error("organization_principal_mismatch");
+  if (
+    hasFallbackMismatch ||
+    (fallbackOrganizationId && principalOrganizationId !== fallbackOrganizationId)
+  ) {
+    throw new Error('organization_principal_mismatch');
   }
   return principalOrganizationId;
 }
@@ -84,7 +87,7 @@ function rowItem(row: {
     deletedAt:
       deletedAt == null
         ? null
-        : typeof deletedAt === "string"
+        : typeof deletedAt === 'string'
           ? deletedAt
           : toIsoStringSafe(deletedAt),
     metaJson: row.meta_json ?? {},
@@ -188,8 +191,8 @@ export const pgReferencesPort: ReferencesPort = {
         tx,
       );
       const cat = catRes.rows[0];
-      if (!cat) throw new Error("category_not_found");
-      if (!cat.is_user_extensible) throw new Error("category_not_extensible");
+      if (!cat) throw new Error('category_not_found');
+      if (!cat.is_user_extensible) throw new Error('category_not_extensible');
       currentWriteOrganizationId(cat.organization_id);
       const result = await runWebappPgText<{
         id: string;
@@ -222,7 +225,7 @@ export const pgReferencesPort: ReferencesPort = {
         tx,
       );
       const cat = catRes.rows[0];
-      if (!cat) throw new Error("category_not_found");
+      if (!cat) throw new Error('category_not_found');
       currentWriteOrganizationId(cat.organization_id);
       const result = await runWebappPgText<{
         id: string;
@@ -237,7 +240,14 @@ export const pgReferencesPort: ReferencesPort = {
         `INSERT INTO reference_items (organization_id, category_id, code, title, sort_order, is_active, meta_json)
          VALUES ($1, $2, $3, $4, $5, true, $6::jsonb)
          RETURNING id, category_id, code, title, sort_order, is_active, deleted_at, meta_json`,
-        [organizationId, cat.id, params.code, params.title, params.sortOrder ?? 999, JSON.stringify(meta)],
+        [
+          organizationId,
+          cat.id,
+          params.code,
+          params.title,
+          params.sortOrder ?? 999,
+          JSON.stringify(meta),
+        ],
         tx,
       );
       return result.rows[0]!;
@@ -262,7 +272,7 @@ export const pgReferencesPort: ReferencesPort = {
       values.push(input.isActive);
     }
     if (updates.length === 0) {
-      throw new Error("empty_update");
+      throw new Error('empty_update');
     }
     const row = await runPrincipalReferenceTransaction(async (tx, organizationId) => {
       const current = await runWebappPgText<{
@@ -277,7 +287,7 @@ export const pgReferencesPort: ReferencesPort = {
         tx,
       );
       const currentRow = current.rows[0];
-      if (!currentRow) throw new Error("item_not_found");
+      if (!currentRow) throw new Error('item_not_found');
       currentWriteOrganizationId(currentRow.item_org, currentRow.category_org);
 
       const writeValues = [...values, organizationId, itemId];
@@ -292,13 +302,13 @@ export const pgReferencesPort: ReferencesPort = {
         meta_json: Record<string, unknown>;
       }>(
         `UPDATE reference_items
-         SET ${updates.join(", ")}, organization_id = $${idx}
+         SET ${updates.join(', ')}, organization_id = $${idx}
          WHERE id = $${idx + 1} AND organization_id = $${idx}::uuid AND deleted_at IS NULL
          RETURNING id, category_id, code, title, sort_order, is_active, deleted_at, meta_json`,
         writeValues,
         tx,
       );
-      if (!res.rows[0]) throw new Error("item_not_found");
+      if (!res.rows[0]) throw new Error('item_not_found');
       return res.rows[0];
     });
     return rowItem(row);
@@ -313,7 +323,7 @@ export const pgReferencesPort: ReferencesPort = {
         tx,
       );
       const cat = catRes.rows[0];
-      if (!cat) throw new Error("category_not_found");
+      if (!cat) throw new Error('category_not_found');
       currentWriteOrganizationId(cat.organization_id);
       const updateNormCodes = input.updates.map((u) => u.code.trim().toLowerCase());
       const additionNormCodes = input.additions.map((a) => a.code.trim().toLowerCase());
@@ -324,11 +334,15 @@ export const pgReferencesPort: ReferencesPort = {
       }
       const duplicateInBatch = [...batchCounts.entries()].filter(([, n]) => n > 1).map(([c]) => c);
       if (duplicateInBatch.length > 0) {
-        const err = new Error("duplicate_code") as Error & { conflictingCodes: string[] };
+        const err = new Error('duplicate_code') as Error & { conflictingCodes: string[] };
         err.conflictingCodes = duplicateInBatch;
         throw err;
       }
-      const currentRes = await runWebappPgText<{ id: string; code: string; organization_id: string | null }>(
+      const currentRes = await runWebappPgText<{
+        id: string;
+        code: string;
+        organization_id: string | null;
+      }>(
         `SELECT id, code, organization_id FROM reference_items
          WHERE category_id = $1 AND organization_id = $2::uuid AND deleted_at IS NULL`,
         [cat.id, organizationId],
@@ -374,14 +388,20 @@ export const pgReferencesPort: ReferencesPort = {
           tx,
         );
         if ((res.rowCount ?? 0) !== 1) {
-          throw new Error("item_not_found");
+          throw new Error('item_not_found');
         }
       }
       for (const addition of input.additions) {
         await runWebappPgText(
           `INSERT INTO reference_items (organization_id, category_id, code, title, sort_order, is_active, meta_json)
            VALUES ($1, $2, $3, $4, $5, true, '{}'::jsonb)`,
-          [organizationId, cat.id, addition.code.trim().toLowerCase(), addition.title, addition.sortOrder],
+          [
+            organizationId,
+            cat.id,
+            addition.code.trim().toLowerCase(),
+            addition.title,
+            addition.sortOrder,
+          ],
           tx,
         );
       }

@@ -19,13 +19,13 @@
 
 > **Phase 6 EXEC (2026-04-29):** пункты ниже не прогонялись в headless CI; это операторский gate перед push/release. Индикативное покрытие автотестами см. примечания.
 
-- [ ] Empty `situations` block -> create section inline -> appears in block. *(см. `actions.test.ts` / `patientHomeBlockEditor.test.tsx` для action и UI-фрагментов)*
-- [ ] Visible empty block warning shown in settings. *(см. превью/копирайт в `patientHomeBlockEditor.test.tsx`, `blockEditorMetadata.test.ts`)*
-- [ ] Missing target repair path works. *(Phase 2: repair UI/заглушки; полный персистентный repair — вне закрытия Phase 6 EXEC)*
-- [ ] Section slug rename updates home links. *(см. `pgContentSections.test.ts`, `actions.test.ts` разделов)*
-- [ ] Old section URL redirects to new slug. *(см. `page.slugRedirect.test.tsx`, `resolvePatientContentSectionSlug.test.ts`)*
-- [ ] Mixed block candidate grouping clear. *(см. `patientHomeBlockEditor.test.tsx`)*
-- [ ] Course/material create return flow preserves context. *(см. `patientHomeCmsReturnUrls.test.ts`, `ContentForm.test.tsx`; зазор `sections/new` без return-context — `AUDIT_PHASE_5.md` §5.1)*
+- [ ] Empty `situations` block -> create section inline -> appears in block. _(см. `actions.test.ts` / `patientHomeBlockEditor.test.tsx` для action и UI-фрагментов)_
+- [ ] Visible empty block warning shown in settings. _(см. превью/копирайт в `patientHomeBlockEditor.test.tsx`, `blockEditorMetadata.test.ts`)_
+- [ ] Missing target repair path works. _(Phase 2: repair UI/заглушки; полный персистентный repair — вне закрытия Phase 6 EXEC)_
+- [ ] Section slug rename updates home links. _(см. `pgContentSections.test.ts`, `actions.test.ts` разделов)_
+- [ ] Old section URL redirects to new slug. _(см. `page.slugRedirect.test.tsx`, `resolvePatientContentSectionSlug.test.ts`)_
+- [ ] Mixed block candidate grouping clear. _(см. `patientHomeBlockEditor.test.tsx`)_
+- [ ] Course/material create return flow preserves context. _(см. `patientHomeCmsReturnUrls.test.ts`, `ContentForm.test.tsx`; зазор `sections/new` без return-context — `AUDIT_PHASE_5.md` §5.1)_
 
 ## Documentation Checklist
 
@@ -72,4 +72,3 @@ pnpm run ci
 - Final summary is ready for user decision (continue/push/release).
 
 **Phase 6 EXEC (2026-04-29):** документированный статус — см. `LOG.md` §Phase 6 — EXEC; full root CI **не** запускался (не запрошен пользователем, не перед push, не release rehearsal). Перед push: `pnpm install --frozen-lockfile && pnpm run ci` по §Gate Strategy.
-

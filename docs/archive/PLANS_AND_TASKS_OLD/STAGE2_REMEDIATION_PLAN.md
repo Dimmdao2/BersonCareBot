@@ -3,6 +3,7 @@
 План исправления найденных ошибок реализации Stage 2 (`patient master migration`) после review.
 
 Связанные документы:
+
 - [DB_ZONES_RESTRUCTURE.md](./DB_ZONES_RESTRUCTURE.md)
 - [DB_MIGRATION_STAGE2_PATIENT_MASTER.md](./DB_MIGRATION_STAGE2_PATIENT_MASTER.md)
 
@@ -11,6 +12,7 @@
 ## Цель remediation
 
 Довести текущую реализацию Stage 2 до состояния, соответствующего roadmap:
+
 - projection не теряет события;
 - idempotency и retry работают предсказуемо;
 - person-domain перенос устойчив к out-of-order;
@@ -52,12 +54,14 @@
 **Цель:** убрать зависимость от best-effort emit.
 
 Задачи:
+
 - Ввести projection outbox (или переиспользовать существующую job queue с durable storage).
 - После domain write в `integrator` сохранять projection-команду в outbox.
 - Отдельный worker отправляет в webapp с retry/backoff.
 - Добавить dead-letter статус после исчерпания попыток.
 
 DoD:
+
 - Сбой сети/webapp не приводит к потере projection события.
 - Событие гарантированно доезжает или попадает в DLQ с наблюдаемой ошибкой.
 
@@ -68,15 +72,18 @@ DoD:
 **Цель:** retries дедуплицируются корректно.
 
 Задачи:
+
 - Для `user.upserted`, `contact.linked`, `preferences.updated` перейти на ключи, детерминированные от бизнес-данных.
 - Запретить ключи вида `*:${Date.now()}` для projection событий.
 - Зафиксировать policy в contract doc.
 
 Пример паттерна:
+
 - `contact.linked:{integratorUserId}:{phoneNormalized}`
 - `preferences.updated:{integratorUserId}:{topics_hash}`
 
 DoD:
+
 - Повторная отправка одного и того же события не создаёт дубликатов и не расходится по состоянию.
 
 ---
@@ -86,11 +93,13 @@ DoD:
 **Цель:** исключить потерю точности ID.
 
 Задачи:
+
 - В event payload и типах перейти на bigint-safe representation (`string`).
 - Убрать `Number(...)` преобразования для canonical user IDs в межсервисных payload.
 - Обновить валидацию и docs контракта.
 
 DoD:
+
 - Любой `BIGINT` user id корректно проходит integrator -> webapp без потери точности.
 
 ---
@@ -100,12 +109,14 @@ DoD:
 **Цель:** `contact/preferences` события не падают при временном отсутствии master row.
 
 Задачи:
+
 - Для `contact.linked` / `preferences.updated` добавить fallback path:
   - если `findByIntegratorId` не нашёл пользователя, выполнить safe upsert/create mapping;
   - затем применить контакт/настройки.
 - Зафиксировать policy в tests: out-of-order sequence считается штатным.
 
 DoD:
+
 - Последовательности `contact -> user` и `preferences -> user` не приводят к устойчивой деградации.
 
 ---
@@ -115,6 +126,7 @@ DoD:
 **Цель:** закрыть переход существующих пользователей.
 
 Задачи:
+
 - Реализовать одноразовый backfill скрипт:
   - `integrator.users/contacts/identities/telegram_state` -> `webapp.platform_users/...`.
 - Реализовать reconciliation скрипты:
@@ -124,6 +136,7 @@ DoD:
 - Подготовить rollback правила для backfill execution window.
 
 DoD:
+
 - До read-switch есть отчёт о совпадении данных по согласованным порогам качества.
 
 ---
@@ -133,11 +146,13 @@ DoD:
 **Цель:** эксплуатационная управляемость projection слоя.
 
 Задачи:
+
 - Метрики: queue depth, retry count, DLQ size, oldest event age (lag).
 - Alerts: sustained lag, retry storm, DLQ growth.
 - Release gate: запрет read-switch при невыполненных порогах projection health.
 
 DoD:
+
 - Перед cutover есть объективные сигналы здоровья projection контура.
 
 ---
@@ -154,6 +169,7 @@ DoD:
 ## Критерий закрытия remediation
 
 Remediation считается завершённым, когда одновременно выполнены условия:
+
 - projection delivery durable и наблюдаемый;
 - deterministic idempotency включён на person-domain событиях;
 - bigint-safe user ID contract внедрён end-to-end;

@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { Star } from "lucide-react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { cn } from "@/lib/utils";
+import { Star } from 'lucide-react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { cn } from '@/lib/utils';
 
 const LEVELS = [1, 2, 3, 4, 5] as const;
 
@@ -15,7 +15,7 @@ export type MaterialRatingNativeStarsProps = {
   starSize?: number;
   /** Уменьшить зазор между звёздами (компактная строка). */
   tight?: boolean;
-  "aria-label"?: string;
+  'aria-label'?: string;
 };
 
 /**
@@ -28,13 +28,13 @@ export function MaterialRatingNativeStars({
   className,
   starSize = 30,
   tight = false,
-  "aria-label": ariaLabel = "Оценка материала",
+  'aria-label': ariaLabel = 'Оценка материала',
 }: MaterialRatingNativeStarsProps) {
   return (
     <div
       role="radiogroup"
       aria-label={ariaLabel}
-      className={cn("flex", tight ? "gap-0" : "gap-1.5 sm:gap-2", className)}
+      className={cn('flex', tight ? 'gap-0' : 'gap-1.5 sm:gap-2', className)}
     >
       {LEVELS.map((n) => {
         const filled = value >= 1 && n <= value;
@@ -51,16 +51,16 @@ export function MaterialRatingNativeStars({
               onChange(value === n ? 0 : n);
             }}
             className={cn(
-              "rounded transition-opacity",
-              tight ? "p-0" : "p-0.5",
-              readOnly ? "cursor-default" : "cursor-pointer hover:opacity-90",
+              'rounded transition-opacity',
+              tight ? 'p-0' : 'p-0.5',
+              readOnly ? 'cursor-default' : 'cursor-pointer hover:opacity-90',
             )}
           >
             <Star
               className="shrink-0"
               size={starSize}
-              fill={filled ? "#f7965c" : "#fff7ed"}
-              stroke={filled ? "#bb5e26" : "#eda76a"}
+              fill={filled ? '#f7965c' : '#fff7ed'}
+              stroke={filled ? '#bb5e26' : '#eda76a'}
               strokeWidth={starSize <= 18 ? 1.5 : 2}
             />
           </Button>

@@ -27,6 +27,7 @@ CREATE INDEX idx_booking_cities_is_active ON booking_cities(is_active);
 ```
 
 **Constraints:**
+
 - `code` — UNIQUE, lowercase slug, не изменяется после создания
 - Soft delete через `is_active = false`
 
@@ -55,6 +56,7 @@ CREATE UNIQUE INDEX idx_booking_branches_rubitime_id ON booking_branches(rubitim
 ```
 
 **Constraints:**
+
 - `rubitime_branch_id` — UNIQUE (один филиал = один Rubitime branch)
 - FK → `booking_cities(id)` (не CASCADE DELETE: деактивировать через `is_active`)
 
@@ -84,6 +86,7 @@ CREATE UNIQUE INDEX idx_booking_specialists_rubitime_id
 ```
 
 **Constraints:**
+
 - `(rubitime_cooperator_id, branch_id)` — UNIQUE (сотрудник может работать в разных филиалах, но уникален в рамках одного)
 - FK → `booking_branches(id)`
 
@@ -112,10 +115,12 @@ CREATE INDEX idx_booking_services_is_active ON booking_services(is_active);
 ```
 
 **Conventions:**
+
 - `price_minor` хранится в минимальных единицах валюты (копейки): 6000 руб = 600000
 - `duration_minutes` — целое число минут (40, 60, 90)
 
 **Constraints:**
+
 - `(title, duration_minutes)` — UNIQUE (`uq_booking_services_title_duration`): ключ идемпотентности для seed-скрипта; исключает дублирование услуг с одинаковым названием и длительностью
 
 ---
@@ -145,6 +150,7 @@ CREATE INDEX idx_booking_branch_services_is_active   ON booking_branch_services(
 ```
 
 **Constraints:**
+
 - `(branch_id, service_id)` — UNIQUE (одна услуга один раз на филиал)
 - FK → `booking_branches(id)`, `booking_services(id)`, `booking_specialists(id)`
 - `rubitime_service_id` хранится на уровне связки (одна услуга может иметь разные IDs в разных филиалах)
@@ -185,6 +191,7 @@ CREATE INDEX idx_patient_bookings_branch_service_id ON patient_bookings(branch_s
 ```
 
 **Примечания:**
+
 - Поле `category TEXT` остаётся в таблице (для legacy online path и старых in-person записей) — nullable
 - Поле `city TEXT` остаётся (legacy) — nullable
 - Snapshot-поля заполняются при создании новой v2-записи и **не обновляются** при изменении каталога
@@ -193,18 +200,18 @@ CREATE INDEX idx_patient_bookings_branch_service_id ON patient_bookings(branch_s
 
 ## 3. Индексы и ограничения (сводная таблица)
 
-| Таблица | Constraint/Index | Тип |
-|---|---|---|
-| `booking_cities` | `code` | UNIQUE |
-| `booking_branches` | `rubitime_branch_id` | UNIQUE |
-| `booking_branches` | `city_id` | INDEX |
-| `booking_specialists` | `(rubitime_cooperator_id, branch_id)` | UNIQUE |
-| `booking_specialists` | `branch_id` | INDEX |
-| `booking_services` | `(title, duration_minutes)` | UNIQUE (`uq_booking_services_title_duration`) |
-| `booking_services` | `is_active` | INDEX |
-| `booking_branch_services` | `(branch_id, service_id)` | UNIQUE |
-| `booking_branch_services` | `branch_id`, `service_id`, `is_active` | INDEX |
-| `patient_bookings` | `branch_id`, `service_id`, `branch_service_id` | INDEX |
+| Таблица                   | Constraint/Index                               | Тип                                           |
+| ------------------------- | ---------------------------------------------- | --------------------------------------------- |
+| `booking_cities`          | `code`                                         | UNIQUE                                        |
+| `booking_branches`        | `rubitime_branch_id`                           | UNIQUE                                        |
+| `booking_branches`        | `city_id`                                      | INDEX                                         |
+| `booking_specialists`     | `(rubitime_cooperator_id, branch_id)`          | UNIQUE                                        |
+| `booking_specialists`     | `branch_id`                                    | INDEX                                         |
+| `booking_services`        | `(title, duration_minutes)`                    | UNIQUE (`uq_booking_services_title_duration`) |
+| `booking_services`        | `is_active`                                    | INDEX                                         |
+| `booking_branch_services` | `(branch_id, service_id)`                      | UNIQUE                                        |
+| `booking_branch_services` | `branch_id`, `service_id`, `is_active`         | INDEX                                         |
+| `patient_bookings`        | `branch_id`, `service_id`, `branch_service_id` | INDEX                                         |
 
 ---
 

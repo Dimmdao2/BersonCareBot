@@ -8,14 +8,14 @@
 
 ## Краткий вердикт
 
-| # | Проверка | Статус |
-|---|-----------|--------|
-| 1 | Таблицы в Drizzle schema | **PASS** |
-| 2 | Модули без `@/infra/*` (production) | **PASS** |
-| 3 | Route handlers тонкие | **PASS** |
-| 4 | CRUD, тесты | **PASS** (`pnpm test:webapp`) |
-| 5 | Doctor UI (список / new / [id], навигация) | **PASS** (инспекция кода + in-process e2e) |
-| 6 | Сверка § 4 (типы `test_set`, `recommendation`, snapshot) | **PASS** (данные библиотеки в фазе 2; контракт snapshot в коде назначения — см. § ниже) |
+| #   | Проверка                                                 | Статус                                                                                  |
+| --- | -------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| 1   | Таблицы в Drizzle schema                                 | **PASS**                                                                                |
+| 2   | Модули без `@/infra/*` (production)                      | **PASS**                                                                                |
+| 3   | Route handlers тонкие                                    | **PASS**                                                                                |
+| 4   | CRUD, тесты                                              | **PASS** (`pnpm test:webapp`)                                                           |
+| 5   | Doctor UI (список / new / [id], навигация)               | **PASS** (инспекция кода + in-process e2e)                                              |
+| 6   | Сверка § 4 (типы `test_set`, `recommendation`, snapshot) | **PASS** (данные библиотеки в фазе 2; контракт snapshot в коде назначения — см. § ниже) |
 
 ---
 
@@ -23,18 +23,18 @@
 
 ### Verdict: **PASS**
 
-| Таблица БД | Экспорт TS | Файл |
-|------------|------------|------|
-| `tests` | `clinicalTests` = `pgTable("tests", …)` | `apps/webapp/db/schema/clinicalTests.ts` |
-| `test_sets` | `testSets` | то же |
-| `test_set_items` | `testSetItems` (FK: `test_set_id` → `test_sets` CASCADE, `test_id` → `tests` RESTRICT) | то же |
-| `recommendations` | `recommendations` | `apps/webapp/db/schema/recommendations.ts` |
+| Таблица БД        | Экспорт TS                                                                             | Файл                                       |
+| ----------------- | -------------------------------------------------------------------------------------- | ------------------------------------------ |
+| `tests`           | `clinicalTests` = `pgTable("tests", …)`                                                | `apps/webapp/db/schema/clinicalTests.ts`   |
+| `test_sets`       | `testSets`                                                                             | то же                                      |
+| `test_set_items`  | `testSetItems` (FK: `test_set_id` → `test_sets` CASCADE, `test_id` → `tests` RESTRICT) | то же                                      |
+| `recommendations` | `recommendations`                                                                      | `apps/webapp/db/schema/recommendations.ts` |
 
-| Критерий | Результат |
-|----------|-----------|
+| Критерий                   | Результат                                                                                                                                                                           |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Поля vs MASTER_PLAN фаза 2 | `title`, `description`, `test_type`, `scoring_config`, `media`, `tags`, `is_archived`, `created_by`, timestamps — для тестов; наборы и рекомендации — согласованы с таблицей плана. |
-| Реэкспорт | `db/schema/index.ts` — `clinicalTests`, `recommendations` (+ `relations.ts`). |
-| Миграция Drizzle | `db/drizzle-migrations/0001_charming_champions.sql`. |
+| Реэкспорт                  | `db/schema/index.ts` — `clinicalTests`, `recommendations` (+ `relations.ts`).                                                                                                       |
+| Миграция Drizzle           | `db/drizzle-migrations/0001_charming_champions.sql`.                                                                                                                                |
 
 **Замечание:** идентификатор `clinicalTests` в TS — чтобы не конфликтовать с понятием «tests» в Vitest; в PostgreSQL таблица **`tests`**.
 
@@ -71,10 +71,10 @@ ESLint `no-restricted-imports` для `modules/**` не применяется �
 
 ### Verdict: **PASS**
 
-| Уровень | Артефакт |
-|---------|----------|
-| Сервисы | `modules/tests/service.test.ts`, `modules/recommendations/service.test.ts` |
-| In-process | `e2e/treatment-program-blocks-inprocess.test.ts` |
+| Уровень      | Артефакт                                                                                                                     |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| Сервисы      | `modules/tests/service.test.ts`, `modules/recommendations/service.test.ts`                                                   |
+| In-process   | `e2e/treatment-program-blocks-inprocess.test.ts`                                                                             |
 | Полный suite | **`pnpm test:webapp`** — на момент аудита: **363** test files passed (**5** skipped), **1845** tests passed (**8** skipped). |
 
 Точечно: `vitest run src/modules/tests/service.test.ts src/modules/recommendations/service.test.ts` — **6** тестов, **PASS**.
@@ -85,11 +85,11 @@ ESLint `no-restricted-imports` для `modules/**` не применяется �
 
 ### Verdict: **PASS**
 
-| Раздел | Пути |
-|--------|------|
+| Раздел            | Пути                                                                                                  |
+| ----------------- | ----------------------------------------------------------------------------------------------------- |
 | Клинические тесты | `app/app/doctor/clinical-tests` — `page.tsx`, `new/page.tsx`, `[id]/page.tsx`, `ClinicalTestForm.tsx` |
-| Наборы тестов | `app/app/doctor/test-sets/...` |
-| Рекомендации | `app/app/doctor/recommendations/...` |
+| Наборы тестов     | `app/app/doctor/test-sets/...`                                                                        |
+| Рекомендации      | `app/app/doctor/recommendations/...`                                                                  |
 
 Навигация: `shared/ui/doctorNavLinks.ts` — пункты `clinical-tests`, `test-sets`, `recommendations`.
 
@@ -99,10 +99,10 @@ ESLint `no-restricted-imports` для `modules/**` не применяется �
 
 ### Таблица соответствия
 
-| item_type (§ 4) | Ссылается на | Фаза 2 (библиотека) | Snapshot (§ 4 «что хранится») |
-|-----------------|-------------|---------------------|------------------------------|
-| `test_set` | `test_sets.id` | Таблицы + CRUD + UI + API | При назначении программы: `createPgTreatmentProgramItemSnapshotPort` — **`title`**, **`description`** набора, **`tests[]`** с **`scoringConfig`** (и порядком) из строк `tests` — **согласовано** с § 4 (`infra/repos/pgTreatmentProgramItemSnapshot.ts`, case `"test_set"`). |
-| `recommendation` | `recommendations.id` | Таблица + CRUD + UI + API | Snapshot: **`title`**, **`bodyMd`**, **`media`** — **согласовано** с § 4 (тот же файл, case `"recommendation"`). |
+| item_type (§ 4)  | Ссылается на         | Фаза 2 (библиотека)       | Snapshot (§ 4 «что хранится»)                                                                                                                                                                                                                                                 |
+| ---------------- | -------------------- | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `test_set`       | `test_sets.id`       | Таблицы + CRUD + UI + API | При назначении программы: `createPgTreatmentProgramItemSnapshotPort` — **`title`**, **`description`** набора, **`tests[]`** с **`scoringConfig`** (и порядком) из строк `tests` — **согласовано** с § 4 (`infra/repos/pgTreatmentProgramItemSnapshot.ts`, case `"test_set"`). |
+| `recommendation` | `recommendations.id` | Таблица + CRUD + UI + API | Snapshot: **`title`**, **`bodyMd`**, **`media`** — **согласовано** с § 4 (тот же файл, case `"recommendation"`).                                                                                                                                                              |
 
 **Вне scope фазы 2 как «новые таблицы»:** `exercise`, `lfk_complex`, `lesson` — существующие сущности; полиморфная пара `item_type` + `item_ref_id` в шаблоне — **фаза 3**.
 
@@ -112,10 +112,10 @@ ESLint `no-restricted-imports` для `modules/**` не применяется �
 
 ## Gate (`MASTER_PLAN.md`, фаза 2)
 
-| Критерий | Статус |
-|----------|--------|
-| CRUD + doctor UI для каждой сущности | **OK** |
-| Тесты на сервисный слой | **OK** |
+| Критерий                               | Статус |
+| -------------------------------------- | ------ |
+| CRUD + doctor UI для каждой сущности   | **OK** |
+| Тесты на сервисный слой                | **OK** |
 | Новые таблицы через Drizzle / миграции | **OK** |
 
 ---
@@ -124,22 +124,22 @@ ESLint `no-restricted-imports` для `modules/**` не применяется �
 
 **Critical / major:** **нет** — по результатам аудита блокирующих дефектов не выявлено. **Закрытие FIX:** подтверждено повторным прогоном (см. «AUDIT_PHASE_2 FIX — верификация» ниже); правок коду фазы 2 не потребовалось.
 
-| # | Severity | Инструкция | Статус |
-|---|----------|------------|--------|
-| 1 | informational | На каждом окружении с реальной БД убедиться, что применена миграция **`0001_charming_champions.sql`** (или полный журнал Drizzle до актуальной версии): `pnpm --dir apps/webapp run db:migrate:drizzle`. | **Defer (операционно)** — вне репозитория; ответственность окружения. Команды: см. `EXECUTION_RULES.md` (Drizzle). |
-| 2 | optional / hygiene | При добавлении новых doctor-эндпоинтов библиотеки — синхронно обновлять **`apps/webapp/src/app/api/api.md`** и при изменении deps — **`app-layer/di/di.md`**. | **Закрыто для текущего scope** — документы уже содержат clinical-tests / test-sets / recommendations; при новых эндпоинтах — обновлять в том же PR. |
-| 3 | defer (политика) | Если когда-либо расширить ESLint на `modules/**/*.test.ts`, перенести фиктивные порты в **`app-layer/testing`** или аналог **вне** `modules/*`. | **Defer (обоснованно)** — текущая политика ESLint исключает `*.test.ts` из `no-restricted-imports` в `modules`; фиктивы уже в `@/app-layer/testing/clinicalLibraryInMemory`. Отдельное решение не требуется, пока правило не ужесточают. |
+| #   | Severity           | Инструкция                                                                                                                                                                                               | Статус                                                                                                                                                                                                                                   |
+| --- | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | informational      | На каждом окружении с реальной БД убедиться, что применена миграция **`0001_charming_champions.sql`** (или полный журнал Drizzle до актуальной версии): `pnpm --dir apps/webapp run db:migrate:drizzle`. | **Defer (операционно)** — вне репозитория; ответственность окружения. Команды: см. `EXECUTION_RULES.md` (Drizzle).                                                                                                                       |
+| 2   | optional / hygiene | При добавлении новых doctor-эндпоинтов библиотеки — синхронно обновлять **`apps/webapp/src/app/api/api.md`** и при изменении deps — **`app-layer/di/di.md`**.                                            | **Закрыто для текущего scope** — документы уже содержат clinical-tests / test-sets / recommendations; при новых эндпоинтах — обновлять в том же PR.                                                                                      |
+| 3   | defer (политика)   | Если когда-либо расширить ESLint на `modules/**/*.test.ts`, перенести фиктивные порты в **`app-layer/testing`** или аналог **вне** `modules/*`.                                                          | **Defer (обоснованно)** — текущая политика ESLint исключает `*.test.ts` из `no-restricted-imports` в `modules`; фиктивы уже в `@/app-layer/testing/clinicalLibraryInMemory`. Отдельное решение не требуется, пока правило не ужесточают. |
 
 ---
 
 ## AUDIT_PHASE_2 FIX — верификация (2026-04-18)
 
-| Проверка | Результат |
-|----------|-----------|
-| **Critical / major** | Отсутствовали в MANDATORY — **N/A / закрыто** без правок кода. |
-| **Module isolation** | `rg '@/infra' apps/webapp/src/modules/tests apps/webapp/src/modules/recommendations` → **нет совпадений** (exit code 1 у ripgrep = ноль строк). |
-| **Routes + CRUD + UI** | Паттерн маршрутов без изменений; покрытие: `service.test.ts` (×2), `e2e/treatment-program-blocks-inprocess.test.ts`, полный **`pnpm test:webapp`**. |
-| **Step / phase** | Корневой **`pnpm run ci`**: `lint` → `typecheck` → `pnpm test` (integrator) → `test:webapp` → `pnpm build` → `pnpm build:webapp` — **PASS**. |
+| Проверка                                | Результат                                                                                                                                                                                                                                                                                          |
+| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Critical / major**                    | Отсутствовали в MANDATORY — **N/A / закрыто** без правок кода.                                                                                                                                                                                                                                     |
+| **Module isolation**                    | `rg '@/infra' apps/webapp/src/modules/tests apps/webapp/src/modules/recommendations` → **нет совпадений** (exit code 1 у ripgrep = ноль строк).                                                                                                                                                    |
+| **Routes + CRUD + UI**                  | Паттерн маршрутов без изменений; покрытие: `service.test.ts` (×2), `e2e/treatment-program-blocks-inprocess.test.ts`, полный **`pnpm test:webapp`**.                                                                                                                                                |
+| **Step / phase**                        | Корневой **`pnpm run ci`**: `lint` → `typecheck` → `pnpm test` (integrator) → `test:webapp` → `pnpm build` → `pnpm build:webapp` — **PASS**.                                                                                                                                                       |
 | **Pre-deploy audit (`pnpm run audit`)** | **FAIL** — `registry-prod-audit`: advisories **`esbuild@0.18.20`** (moderate), **`drizzle-orm@0.44.7`** (high), **тот же класс**, что в отчётах других фаз инициативы; **не** следствие FIX фазы 2. Закрытие — обновление версий зависимостей / политика репозитория, не правки библиотеки блоков. |
 
 **Gate verdict (AUDIT_PHASE_2 FIX):** **PASS** по коду и тестам фазы 2; **условный** барьер полного зелёного `ci` — только шаг `audit`, зафиксированный отдельно.

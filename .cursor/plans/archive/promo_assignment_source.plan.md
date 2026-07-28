@@ -1,6 +1,6 @@
 ---
 name: Promo assignment source
-overview: "Источник назначения программы и промо по умолчанию: полное описание и решения — в docs."
+overview: 'Источник назначения программы и промо по умолчанию: полное описание и решения — в docs.'
 status: completed
 isProject: false
 ---

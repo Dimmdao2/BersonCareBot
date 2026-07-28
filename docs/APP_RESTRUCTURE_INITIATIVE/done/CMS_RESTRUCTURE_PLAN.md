@@ -71,12 +71,12 @@
 
 **Зафиксировано (backfill по умолчанию):**
 
-| Slug / группа | `kind` | `system_parent_code` |
-|---------------|--------|------------------------|
-| `warmups` | `system` | `warmups` |
-| `lessons`, `course_lessons` | `system` | `lessons` |
-| `emergency`, `materials`, `workouts` | `system` | `null` |
-| все остальные существующие строки | `article` | `null` |
+| Slug / группа                        | `kind`    | `system_parent_code` |
+| ------------------------------------ | --------- | -------------------- |
+| `warmups`                            | `system`  | `warmups`            |
+| `lessons`, `course_lessons`          | `system`  | `lessons`            |
+| `emergency`, `materials`, `workouts` | `system`  | `null`               |
+| все остальные существующие строки    | `article` | `null`               |
 
 Список slug для сверки с продом — `CMS_AUDIT.md` и `SELECT slug FROM content_sections` на момент миграции.
 

@@ -4,14 +4,14 @@
 
 ## Верификация (источник правды)
 
-| Параметр | Значение |
-|----------|----------|
-| Сверка | **2026-06-10** после `pnpm run migrate` на dev |
-| База | `bcb_webapp_dev` (`apps/webapp/.env.dev`) |
-| Таблиц `integrator` | **33** |
-| Таблиц `public` | **199** |
-| Последняя Drizzle-миграция webapp | **`0114_client_media_folders_fixup`** |
-| DDL-снимки | [`DB_DUMPS/`](./DB_DUMPS/README.md) (`integrator_*`, `public_*`) |
+| Параметр                          | Значение                                                         |
+| --------------------------------- | ---------------------------------------------------------------- |
+| Сверка                            | **2026-06-10** после `pnpm run migrate` на dev                   |
+| База                              | `bcb_webapp_dev` (`apps/webapp/.env.dev`)                        |
+| Таблиц `integrator`               | **33**                                                           |
+| Таблиц `public`                   | **199**                                                          |
+| Последняя Drizzle-миграция webapp | **`0114_client_media_folders_fixup`**                            |
+| DDL-снимки                        | [`DB_DUMPS/`](./DB_DUMPS/README.md) (`integrator_*`, `public_*`) |
 
 Полный машиночитаемый реестр — [§ Приложение A](#приложение-a-полный-реестр-таблиц). При расхождении с текстом ниже приоритет у **живой БД** и дампов.
 
@@ -263,12 +263,12 @@
 
 ### 3.4 Журналы миграций
 
-| Журнал | Назначение |
-|--------|------------|
-| `integrator.schema_migrations` | SQL integrator |
-| `drizzle.__drizzle_migrations` | Drizzle webapp |
-| `public.webapp_schema_migrations` | Legacy SQL webapp |
-| `public.schema_migrations` | Исторический webapp (legacy) |
+| Журнал                            | Назначение                   |
+| --------------------------------- | ---------------------------- |
+| `integrator.schema_migrations`    | SQL integrator               |
+| `drizzle.__drizzle_migrations`    | Drizzle webapp               |
+| `public.webapp_schema_migrations` | Legacy SQL webapp            |
+| `public.schema_migrations`        | Исторический webapp (legacy) |
 
 ---
 

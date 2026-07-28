@@ -1,5 +1,5 @@
-import type { ReactNode } from "react";
-import { LegalBackButton } from "./LegalBackButton";
+import type { ReactNode } from 'react';
+import { LegalBackButton } from './LegalBackButton';
 
 /** Минимальная оболочка публичных правовых страниц: читаемый текст и возврат назад. */
 export default function LegalLayout({ children }: Readonly<{ children: ReactNode }>) {
@@ -9,7 +9,9 @@ export default function LegalLayout({ children }: Readonly<{ children: ReactNode
         <header className="flex items-center justify-between gap-3">
           <LegalBackButton />
         </header>
-        <div className="flex flex-col gap-4 text-sm leading-relaxed text-foreground">{children}</div>
+        <div className="flex flex-col gap-4 text-sm leading-relaxed text-foreground">
+          {children}
+        </div>
       </div>
     </div>
   );

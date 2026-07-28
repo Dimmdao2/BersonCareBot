@@ -1,19 +1,19 @@
-import type { ContentPageRow } from "@/infra/repos/pgContentPages";
-import type { Exercise, ExerciseMedia } from "@/modules/lfk-exercises/types";
-import type { Template } from "@/modules/lfk-templates/types";
-import { recommendationDomainTitle } from "@/modules/recommendations/recommendationDomain";
-import type { Recommendation } from "@/modules/recommendations/types";
-import type { ClinicalTest, TestSet } from "@/modules/tests/types";
+import type { ContentPageRow } from '@/infra/repos/pgContentPages';
+import type { Exercise, ExerciseMedia } from '@/modules/lfk-exercises/types';
+import type { Template } from '@/modules/lfk-templates/types';
+import { recommendationDomainTitle } from '@/modules/recommendations/recommendationDomain';
+import type { Recommendation } from '@/modules/recommendations/types';
+import type { ClinicalTest, TestSet } from '@/modules/tests/types';
 import {
   LESSON_CONTENT_SECTION,
   LESSON_CONTENT_SECTION_LEGACY,
-} from "@/modules/treatment-program/types";
-import type { TreatmentProgramLibraryPickers } from "@/app/app/doctor/treatment-program-shared/treatmentProgramLibraryTypes";
+} from '@/modules/treatment-program/types';
+import type { TreatmentProgramLibraryPickers } from '@/app/app/doctor/treatment-program-shared/treatmentProgramLibraryTypes';
 import {
   buildExerciseMetaById,
   buildLfkComplexLibraryFilterMeta,
   mapExerciseRegionCodes,
-} from "@/app/app/doctor/treatment-program-shared/treatmentProgramLibraryPickerFilters";
+} from '@/app/app/doctor/treatment-program-shared/treatmentProgramLibraryPickerFilters';
 
 function exerciseThumbUrl(m: ExerciseMedia | undefined): string | null {
   if (!m) return null;
@@ -21,12 +21,12 @@ function exerciseThumbUrl(m: ExerciseMedia | undefined): string | null {
 }
 
 const LOAD_SUBTITLE: Record<string, string> = {
-  strength: "Сила / укрепление",
-  stretch: "Растяжка",
-  balance: "Равновесие",
-  cardio: "Кардио",
-  other: "Другое",
-  static_hold: "Статическое укрепление / удержание",
+  strength: 'Сила / укрепление',
+  stretch: 'Растяжка',
+  balance: 'Равновесие',
+  cardio: 'Кардио',
+  other: 'Другое',
+  static_hold: 'Статическое укрепление / удержание',
 };
 
 function lfkTemplateThumb(t: Template): string | null {
@@ -37,9 +37,9 @@ function lfkTemplateThumb(t: Template): string | null {
 function lessonMeta(p: ContentPageRow): { subtitle: string; thumbUrl: string | null } {
   const sec =
     p.section === LESSON_CONTENT_SECTION
-      ? "Раздел: уроки"
+      ? 'Раздел: уроки'
       : p.section === LESSON_CONTENT_SECTION_LEGACY
-        ? "Раздел: уроки (legacy)"
+        ? 'Раздел: уроки (legacy)'
         : `Раздел: ${p.section}`;
   return { subtitle: sec, thumbUrl: p.imageUrl?.trim() || null };
 }
@@ -67,18 +67,28 @@ export function buildTreatmentProgramLibraryPickers(params: {
   /** UUID региона → `reference_items.code`; для фильтров модалки / конструктора. */
   bodyRegionIdToCode?: Record<string, string>;
 }): TreatmentProgramLibraryPickers {
-  const { exercises, lfkTemplates, testSets, clinicalTests, recommendations, contentPagesAll, bodyRegionIdToCode } =
-    params;
+  const {
+    exercises,
+    lfkTemplates,
+    testSets,
+    clinicalTests,
+    recommendations,
+    contentPagesAll,
+    bodyRegionIdToCode,
+  } = params;
   const exerciseMetaById = buildExerciseMetaById(exercises);
 
   return {
     exercises: exercises.map((e) => ({
       id: e.id,
       title: e.title,
-      subtitle: [
-        e.ownerKind === "platform" ? "Базовая библиотека" : null,
-        e.loadType ? (LOAD_SUBTITLE[e.loadType] ?? null) : null,
-      ].filter((part): part is string => Boolean(part)).join(" · ") || null,
+      subtitle:
+        [
+          e.ownerKind === 'platform' ? 'Базовая библиотека' : null,
+          e.loadType ? (LOAD_SUBTITLE[e.loadType] ?? null) : null,
+        ]
+          .filter((part): part is string => Boolean(part))
+          .join(' · ') || null,
       thumbUrl: exerciseThumbUrl(e.media[0]),
       regionCodes: mapExerciseRegionCodes(e.regionRefIds, bodyRegionIdToCode),
       loadType: e.loadType,
@@ -92,18 +102,23 @@ export function buildTreatmentProgramLibraryPickers(params: {
       return {
         id: t.id,
         title: t.title,
-        subtitle: [
-          t.ownerKind === "platform" ? "Базовая библиотека" : null,
-          typeof t.exerciseCount === "number" ? `${t.exerciseCount} упражнений в комплексе` : null,
-        ].filter((part): part is string => Boolean(part)).join(" · ") || null,
+        subtitle:
+          [
+            t.ownerKind === 'platform' ? 'Базовая библиотека' : null,
+            typeof t.exerciseCount === 'number'
+              ? `${t.exerciseCount} упражнений в комплексе`
+              : null,
+          ]
+            .filter((part): part is string => Boolean(part))
+            .join(' · ') || null,
         thumbUrl: lfkTemplateThumb(t),
         description: desc ? desc : null,
         ...filterMeta,
         expandLines: sortedExercises.map((line) => {
-          const title = line.exerciseTitle?.trim() || "Упражнение";
+          const title = line.exerciseTitle?.trim() || 'Упражнение';
           const m = line.firstMedia;
           const snapshot: Record<string, unknown> = {
-            itemType: "exercise",
+            itemType: 'exercise',
             id: line.exerciseId,
             title,
             ...(m?.mediaUrl?.trim()
@@ -111,15 +126,14 @@ export function buildTreatmentProgramLibraryPickers(params: {
                   media: [
                     {
                       mediaUrl: m.mediaUrl.trim(),
-                      mediaType: m.mediaType ?? "image",
+                      mediaType: m.mediaType ?? 'image',
                       sortOrder: 0,
                     },
                   ],
                 }
               : {}),
           };
-          const hasLoad =
-            line.reps != null || line.sets != null || line.maxPain0_10 != null;
+          const hasLoad = line.reps != null || line.sets != null || line.maxPain0_10 != null;
           return {
             itemRefId: line.exerciseId,
             snapshot,
@@ -139,21 +153,23 @@ export function buildTreatmentProgramLibraryPickers(params: {
     testSets: testSets.map((ts) => {
       const firstPreview = ts.items[0]?.test.previewMedia;
       const thumb =
-        firstPreview?.mediaUrl && firstPreview.mediaUrl.trim() !== ""
+        firstPreview?.mediaUrl && firstPreview.mediaUrl.trim() !== ''
           ? firstPreview.mediaUrl.trim()
           : null;
       const n = ts.items.length;
-      const sortedItems = [...ts.items].sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id));
+      const sortedItems = [...ts.items].sort(
+        (a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id),
+      );
       return {
         id: ts.id,
         title: ts.title,
-        subtitle: n > 0 ? `${n} тестов в наборе` : "Пустой набор",
+        subtitle: n > 0 ? `${n} тестов в наборе` : 'Пустой набор',
         thumbUrl: thumb,
         expandLines: sortedItems.map((line) => {
           const test = line.test;
           const previewUrl = test.previewMedia?.mediaUrl?.trim();
           const snapshot: Record<string, unknown> = {
-            itemType: "clinical_test",
+            itemType: 'clinical_test',
             id: test.id,
             title: test.title,
             tests: [
@@ -163,7 +179,7 @@ export function buildTreatmentProgramLibraryPickers(params: {
                 sortOrder: line.sortOrder,
                 comment: line.comment,
                 ...(previewUrl
-                  ? { media: [{ mediaUrl: previewUrl, mediaType: "image", sortOrder: 0 }] }
+                  ? { media: [{ mediaUrl: previewUrl, mediaType: 'image', sortOrder: 0 }] }
                   : {}),
               },
             ],

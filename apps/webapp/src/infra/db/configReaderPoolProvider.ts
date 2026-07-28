@@ -1,12 +1,12 @@
-import { Pool } from "pg";
-import type { PoolClient, PoolConfig } from "pg";
+import { Pool } from 'pg';
+import type { PoolClient, PoolConfig } from 'pg';
 import {
   applyDbOperationalOrganizationContextToConnection,
   type DbPrincipalApplyOptions,
   clearDbOperationalOrganizationContextFromConnection,
   resetDbOperationalRuntimeRole,
   setDbOperationalRuntimeRole,
-} from "@bersoncare/db-principal";
+} from '@bersoncare/db-principal';
 
 export type ConfigReaderPoolProvider = {
   withOrganizationContext<T>(
@@ -22,9 +22,13 @@ export function createConfigReaderPoolProvider(input: {
   poolFactory?: (config: PoolConfig) => Pool;
 }): ConfigReaderPoolProvider {
   const connectionString = input.connectionString.trim();
-  if (!connectionString) throw new Error("Config-reader database connection string is not set");
+  if (!connectionString) throw new Error('Config-reader database connection string is not set');
   const poolFactory = input.poolFactory ?? ((config: PoolConfig) => new Pool(config));
-  const rawPool = poolFactory({ connectionString, max: 2, application_name: "bcb_webapp_config_reader" });
+  const rawPool = poolFactory({
+    connectionString,
+    max: 2,
+    application_name: 'bcb_webapp_config_reader',
+  });
   const principalApplyOptions = input.principalApplyOptions ?? {};
 
   return {
@@ -36,9 +40,13 @@ export function createConfigReaderPoolProvider(input: {
       let roleSelected = false;
       let operationError: unknown;
       try {
-        await setDbOperationalRuntimeRole(client, "app_config_reader");
+        await setDbOperationalRuntimeRole(client, 'app_config_reader');
         roleSelected = true;
-        await applyDbOperationalOrganizationContextToConnection(client, organizationId, principalApplyOptions);
+        await applyDbOperationalOrganizationContextToConnection(
+          client,
+          organizationId,
+          principalApplyOptions,
+        );
         return await operation(client);
       } catch (error) {
         operationError = error;
@@ -47,7 +55,10 @@ export function createConfigReaderPoolProvider(input: {
         let cleanupError: unknown;
         try {
           if (roleSelected) {
-            await clearDbOperationalOrganizationContextFromConnection(client, principalApplyOptions);
+            await clearDbOperationalOrganizationContextFromConnection(
+              client,
+              principalApplyOptions,
+            );
           }
           await resetDbOperationalRuntimeRole(client);
         } catch (error) {
@@ -60,7 +71,7 @@ export function createConfigReaderPoolProvider(input: {
               ? undefined
               : releaseError instanceof Error
                 ? releaseError
-                : new Error("Config-reader checkout failed"),
+                : new Error('Config-reader checkout failed'),
           );
         }
       }

@@ -1,24 +1,21 @@
-import { describe, expect, it, vi } from "vitest";
-import { DateTime } from "luxon";
-import { createInMemoryPatientDailyWarmupPresentationPort } from "@/infra/repos/inMemoryPatientDailyWarmupPresentation";
+import { describe, expect, it, vi } from 'vitest';
+import { DateTime } from 'luxon';
+import { createInMemoryPatientDailyWarmupPresentationPort } from '@/infra/repos/inMemoryPatientDailyWarmupPresentation';
 import {
   syncDailyWarmupScheduledRotation,
   type SyncDailyWarmupScheduledRotationDeps,
-} from "./syncDailyWarmupScheduledRotation";
+} from './syncDailyWarmupScheduledRotation';
 
-vi.mock("@/modules/system-settings/appDisplayTimezone", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/modules/system-settings/appDisplayTimezone")>();
+vi.mock('@/modules/system-settings/appDisplayTimezone', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@/modules/system-settings/appDisplayTimezone')>();
   return {
     ...actual,
-    getAppDisplayTimeZone: vi.fn(async () => "Europe/Moscow"),
+    getAppDisplayTimeZone: vi.fn(async () => 'Europe/Moscow'),
   };
 });
 
-const pages = [
-  { contentPageId: "a" },
-  { contentPageId: "b" },
-  { contentPageId: "c" },
-];
+const pages = [{ contentPageId: 'a' }, { contentPageId: 'b' }, { contentPageId: 'c' }];
 
 function buildDeps(overrides: {
   enabled?: boolean;
@@ -34,10 +31,10 @@ function buildDeps(overrides: {
     contentSections: {},
     systemSettings: {
       getSetting: vi.fn(async (key: string) => {
-        if (key === "patient_home_daily_warmup_rotation_enabled") {
+        if (key === 'patient_home_daily_warmup_rotation_enabled') {
           return { valueJson: { value: overrides.enabled ?? false } };
         }
-        if (key === "patient_home_daily_warmup_rotation_times") {
+        if (key === 'patient_home_daily_warmup_rotation_times') {
           return { valueJson: { value: overrides.times ?? [] } };
         }
         return null;
@@ -45,82 +42,96 @@ function buildDeps(overrides: {
     },
     patientDailyWarmupPresentation: port,
     patientPractice: {
-      getLatestDailyWarmupCompletedContentPageId: vi.fn(async () => overrides.lastCompleted ?? null),
+      getLatestDailyWarmupCompletedContentPageId: vi.fn(
+        async () => overrides.lastCompleted ?? null,
+      ),
     },
     patientCalendarTimezone: {
-      getIanaForUser: vi.fn(async () => overrides.patientIana ?? "Europe/Moscow"),
+      getIanaForUser: vi.fn(async () => overrides.patientIana ?? 'Europe/Moscow'),
     },
   } as unknown as SyncDailyWarmupScheduledRotationDeps;
 }
 
-describe("syncDailyWarmupScheduledRotation", () => {
-  it("creates initial state as next after last completed when no row exists", async () => {
+describe('syncDailyWarmupScheduledRotation', () => {
+  it('creates initial state as next after last completed when no row exists', async () => {
     const port = createInMemoryPatientDailyWarmupPresentationPort();
-    const now = new Date("2026-06-09T10:00:00.000Z");
+    const now = new Date('2026-06-09T10:00:00.000Z');
     const state = await syncDailyWarmupScheduledRotation(
-      "user-1",
+      'user-1',
       pages,
-      buildDeps({ lastCompleted: "a", port }),
+      buildDeps({ lastCompleted: 'a', port }),
       now,
     );
-    expect(state?.contentPageId).toBe("b");
+    expect(state?.contentPageId).toBe('b');
     expect(state?.lastRotationAt).toBe(now.toISOString());
-    expect(await port.getPresentationState("user-1")).toEqual(state);
+    expect(await port.getPresentationState('user-1')).toEqual(state);
   });
 
-  it("applies due scheduled slots when rotation enabled", async () => {
+  it('applies due scheduled slots when rotation enabled', async () => {
     const port = createInMemoryPatientDailyWarmupPresentationPort();
-    const iana = "Europe/Moscow";
-    const last = DateTime.fromObject({ year: 2026, month: 6, day: 9, hour: 7, minute: 0 }, { zone: iana });
-    const now = DateTime.fromObject({ year: 2026, month: 6, day: 9, hour: 15, minute: 0 }, { zone: iana });
+    const iana = 'Europe/Moscow';
+    const last = DateTime.fromObject(
+      { year: 2026, month: 6, day: 9, hour: 7, minute: 0 },
+      { zone: iana },
+    );
+    const now = DateTime.fromObject(
+      { year: 2026, month: 6, day: 9, hour: 15, minute: 0 },
+      { zone: iana },
+    );
 
-    await port.upsertPresentationState("user-1", {
-      contentPageId: "a",
+    await port.upsertPresentationState('user-1', {
+      contentPageId: 'a',
       lastRotationAt: last.toUTC().toISO(),
       skipNextScheduledRotation: false,
     });
 
     const state = await syncDailyWarmupScheduledRotation(
-      "user-1",
+      'user-1',
       pages,
       buildDeps({
         enabled: true,
-        times: ["08:00", "14:00"],
+        times: ['08:00', '14:00'],
         port,
         patientIana: iana,
       }),
       now.toJSDate(),
     );
 
-    expect(state?.contentPageId).toBe("c");
-    expect(await port.getPresentationState("user-1")).toEqual(state);
+    expect(state?.contentPageId).toBe('c');
+    expect(await port.getPresentationState('user-1')).toEqual(state);
   });
 
-  it("consumes skip flag on first due slot after manual advance", async () => {
+  it('consumes skip flag on first due slot after manual advance', async () => {
     const port = createInMemoryPatientDailyWarmupPresentationPort();
-    const iana = "Europe/Moscow";
-    const last = DateTime.fromObject({ year: 2026, month: 6, day: 9, hour: 7, minute: 0 }, { zone: iana });
-    const now = DateTime.fromObject({ year: 2026, month: 6, day: 9, hour: 9, minute: 0 }, { zone: iana });
+    const iana = 'Europe/Moscow';
+    const last = DateTime.fromObject(
+      { year: 2026, month: 6, day: 9, hour: 7, minute: 0 },
+      { zone: iana },
+    );
+    const now = DateTime.fromObject(
+      { year: 2026, month: 6, day: 9, hour: 9, minute: 0 },
+      { zone: iana },
+    );
 
-    await port.upsertPresentationState("user-1", {
-      contentPageId: "b",
+    await port.upsertPresentationState('user-1', {
+      contentPageId: 'b',
       lastRotationAt: last.toUTC().toISO(),
       skipNextScheduledRotation: true,
     });
 
     const state = await syncDailyWarmupScheduledRotation(
-      "user-1",
+      'user-1',
       pages,
       buildDeps({
         enabled: true,
-        times: ["08:00", "14:00"],
+        times: ['08:00', '14:00'],
         port,
         patientIana: iana,
       }),
       now.toJSDate(),
     );
 
-    expect(state?.contentPageId).toBe("b");
+    expect(state?.contentPageId).toBe('b');
     expect(state?.skipNextScheduledRotation).toBe(false);
   });
 });

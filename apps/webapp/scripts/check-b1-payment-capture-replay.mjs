@@ -8,7 +8,7 @@
  * package/product markers, then commit. A session advisory lock serializes provider-event
  * completion and mandatory idempotent delivery after that commit.
  */
-import { spawnSync } from "node:child_process";
+import { spawnSync } from 'node:child_process';
 import {
   existsSync,
   mkdtempSync,
@@ -17,119 +17,128 @@ import {
   rmSync,
   symlinkSync,
   writeFileSync,
-} from "node:fs";
-import { userInfo } from "node:os";
-import net from "node:net";
-import path from "node:path";
-import pg from "pg";
+} from 'node:fs';
+import { userInfo } from 'node:os';
+import net from 'node:net';
+import path from 'node:path';
+import pg from 'pg';
 
-const root = path.resolve(import.meta.dirname, "..", "..", "..");
-const pgBin = "/usr/lib/postgresql/16/bin";
+const root = path.resolve(import.meta.dirname, '..', '..', '..');
+const pgBin = '/usr/lib/postgresql/16/bin';
 const osUser = userInfo().username;
-const org = "10000000-0000-4000-8000-000000000001";
-const intent = "20000000-0000-4000-8000-000000000001";
-const payment = "30000000-0000-4000-8000-000000000001";
-const appointment = "40000000-0000-4000-8000-000000000001";
-const event = "50000000-0000-4000-8000-000000000001";
-const safeEnv = { LANG: "C", LC_ALL: "C", PATH: `${pgBin}:/usr/bin:/bin` };
+const org = '10000000-0000-4000-8000-000000000001';
+const intent = '20000000-0000-4000-8000-000000000001';
+const payment = '30000000-0000-4000-8000-000000000001';
+const appointment = '40000000-0000-4000-8000-000000000001';
+const event = '50000000-0000-4000-8000-000000000001';
+const safeEnv = { LANG: 'C', LC_ALL: 'C', PATH: `${pgBin}:/usr/bin:/bin` };
 
 function fail(label) {
   throw new Error(`B1 #949 payment capture proof failed: ${label}`);
 }
 
-const serviceSource = readFileSync(path.join(root, "apps/webapp/src/modules/payments/service.ts"), "utf8");
-const repoSource = readFileSync(path.join(root, "apps/webapp/src/infra/repos/pgPayments.ts"), "utf8");
+const serviceSource = readFileSync(
+  path.join(root, 'apps/webapp/src/modules/payments/service.ts'),
+  'utf8',
+);
+const repoSource = readFileSync(
+  path.join(root, 'apps/webapp/src/infra/repos/pgPayments.ts'),
+  'utf8',
+);
 const migrationSql = readFileSync(
-  path.join(root, "apps/webapp/db/drizzle-migrations/0226_payment_capture_replay_safety.sql"),
-  "utf8",
+  path.join(root, 'apps/webapp/db/drizzle-migrations/0226_payment_capture_replay_safety.sql'),
+  'utf8',
 );
 const bootstrapGrantSql = readFileSync(
-  path.join(root, "deploy/postgres/d3-4-bootstrap-base-login-read-grants.sql"),
-  "utf8",
+  path.join(root, 'deploy/postgres/d3-4-bootstrap-base-login-read-grants.sql'),
+  'utf8',
 );
 const captureParticipantSources = [
-  "pgBookingEngine.ts",
-  "pgCourses.ts",
-  "pgEntitlements.ts",
-  "pgMemberships.ts",
-  "pgProducts.ts",
-  "pgTreatmentProgramInstance.ts",
-].map((file) => [
-  file,
-  readFileSync(path.join(root, "apps/webapp/src/infra/repos", file), "utf8"),
-]);
+  'pgBookingEngine.ts',
+  'pgCourses.ts',
+  'pgEntitlements.ts',
+  'pgMemberships.ts',
+  'pgProducts.ts',
+  'pgTreatmentProgramInstance.ts',
+].map((file) => [file, readFileSync(path.join(root, 'apps/webapp/src/infra/repos', file), 'utf8')]);
 
 function selfTest() {
   for (const fragment of [
-    "captureUnitOfWork.run",
-    "runSerializedPostCommit",
-    "getProviderEventById",
-    "lockIntentForCapture",
-    "hasCapturedHistoryEvent",
-    "onPackagePaymentCaptured",
-    "onProductPaymentCaptured",
+    'captureUnitOfWork.run',
+    'runSerializedPostCommit',
+    'getProviderEventById',
+    'lockIntentForCapture',
+    'hasCapturedHistoryEvent',
+    'onPackagePaymentCaptured',
+    'onProductPaymentCaptured',
   ]) {
     if (!serviceSource.includes(fragment)) fail(`service source is missing ${fragment}`);
   }
-  if (!repoSource.includes('.for("update")')) fail("intent repository is missing FOR UPDATE");
-  if (!repoSource.includes("onConflictDoNothing")) fail("capture inserts lack conflict handling");
+  if (!repoSource.includes('.for("update")')) fail('intent repository is missing FOR UPDATE');
+  if (!repoSource.includes('onConflictDoNothing')) fail('capture inserts lack conflict handling');
   for (const [file, source] of captureParticipantSources) {
-    if (!source.includes("getDrizzleOrMutationTx") && !source.includes("runDrizzleMutationTransaction")) {
+    if (
+      !source.includes('getDrizzleOrMutationTx') &&
+      !source.includes('runDrizzleMutationTransaction')
+    ) {
       fail(`${file} does not participate in the canonical Drizzle mutation transaction`);
     }
   }
   for (const fragment of [
-    "duplicate_capture_groups",
-    "duplicate_intent_authorities",
-    "duplicate_event_authorities",
-    "be_payment_intents_provider_authority_uidx",
-    "be_payment_provider_events_lifecycle_uidx",
+    'duplicate_capture_groups',
+    'duplicate_intent_authorities',
+    'duplicate_event_authorities',
+    'be_payment_intents_provider_authority_uidx',
+    'be_payment_provider_events_lifecycle_uidx',
   ]) {
     if (!migrationSql.includes(fragment)) fail(`migration lacks ${fragment}`);
   }
-  if (!migrationSql.includes("be_payment_history_capture_uidx")) fail("migration lacks capture unique index");
-  if (!migrationSql.includes("intent_ref")) fail("migration lacks canonical provider intent reference");
+  if (!migrationSql.includes('be_payment_history_capture_uidx'))
+    fail('migration lacks capture unique index');
+  if (!migrationSql.includes('intent_ref'))
+    fail('migration lacks canonical provider intent reference');
   for (const fragment of [
-    "app.resolve_payment_webhook_organization",
-    "SECURITY DEFINER",
-    "SET search_path = pg_catalog",
-    "REVOKE ALL ON FUNCTION app.resolve_payment_webhook_organization",
+    'app.resolve_payment_webhook_organization',
+    'SECURITY DEFINER',
+    'SET search_path = pg_catalog',
+    'REVOKE ALL ON FUNCTION app.resolve_payment_webhook_organization',
   ]) {
-    if (!migrationSql.includes(fragment)) fail(`migration lacks bootstrap authority boundary ${fragment}`);
+    if (!migrationSql.includes(fragment))
+      fail(`migration lacks bootstrap authority boundary ${fragment}`);
   }
-  if (!repoSource.includes("SELECT app.resolve_payment_webhook_organization")) {
-    fail("payment repository bypasses the narrow bootstrap authority resolver");
+  if (!repoSource.includes('SELECT app.resolve_payment_webhook_organization')) {
+    fail('payment repository bypasses the narrow bootstrap authority resolver');
   }
   for (const fragment of [
-    "GRANT EXECUTE ON FUNCTION app.resolve_payment_webhook_organization",
-    "public.be_payment_provider_events",
-    "public.be_payment_intents",
+    'GRANT EXECUTE ON FUNCTION app.resolve_payment_webhook_organization',
+    'public.be_payment_provider_events',
+    'public.be_payment_intents',
   ]) {
     if (!bootstrapGrantSql.includes(fragment)) fail(`bootstrap grant closure lacks ${fragment}`);
   }
 }
 
 function baseRegressionProof() {
-  const tempRoot = mkdtempSync("/tmp/bcb_b1_949_base_repro_");
-  const checkout = path.join(tempRoot, "base");
+  const tempRoot = mkdtempSync('/tmp/bcb_b1_949_base_repro_');
+  const checkout = path.join(tempRoot, 'base');
   let worktreeAdded = false;
   try {
-    const add = spawnSync("git", ["worktree", "add", "--detach", checkout, "a3badd17c"], {
+    const add = spawnSync('git', ['worktree', 'add', '--detach', checkout, 'a3badd17c'], {
       cwd: root,
-      encoding: "utf8",
+      encoding: 'utf8',
       env: safeEnv,
     });
     if (add.status !== 0) fail(`cannot create pre-fix disposable checkout: ${add.stderr}`);
     worktreeAdded = true;
-    symlinkSync(path.join(root, "node_modules"), path.join(checkout, "node_modules"), "dir");
+    symlinkSync(path.join(root, 'node_modules'), path.join(checkout, 'node_modules'), 'dir');
     symlinkSync(
-      path.join(root, "apps/webapp/node_modules"),
-      path.join(checkout, "apps/webapp/node_modules"),
-      "dir",
+      path.join(root, 'apps/webapp/node_modules'),
+      path.join(checkout, 'apps/webapp/node_modules'),
+      'dir',
     );
     const reproFile = path.join(
       checkout,
-      "apps/webapp/src/modules/payments/b1BaseCrashDuplicate.repro.test.ts",
+      'apps/webapp/src/modules/payments/b1BaseCrashDuplicate.repro.test.ts',
     );
     writeFileSync(
       reproFile,
@@ -180,24 +189,26 @@ it("executable pre-fix crash then duplicate leaves capture unfinished", async ()
   expect(markProviderEventProcessed).not.toHaveBeenCalled();
 });
 `,
-      "utf8",
+      'utf8',
     );
     const vitest = spawnSync(
-      path.join(root, "apps/webapp/node_modules/.bin/vitest"),
-      ["run", "src/modules/payments/b1BaseCrashDuplicate.repro.test.ts"],
-      { cwd: path.join(checkout, "apps/webapp"), encoding: "utf8", env: safeEnv },
+      path.join(root, 'apps/webapp/node_modules/.bin/vitest'),
+      ['run', 'src/modules/payments/b1BaseCrashDuplicate.repro.test.ts'],
+      { cwd: path.join(checkout, 'apps/webapp'), encoding: 'utf8', env: safeEnv },
     );
     if (vitest.status !== 0) {
-      fail(`pre-fix executable reproduction did not prove the crash window: ${vitest.stdout}\n${vitest.stderr}`);
+      fail(
+        `pre-fix executable reproduction did not prove the crash window: ${vitest.stdout}\n${vitest.stderr}`,
+      );
     }
     console.log(
-      "B1 #949 base regression proof: OK — disposable checkout a3badd17c executed crash→duplicate; duplicate returned success while capture retry and provider completion remained unfinished",
+      'B1 #949 base regression proof: OK — disposable checkout a3badd17c executed crash→duplicate; duplicate returned success while capture retry and provider completion remained unfinished',
     );
   } finally {
     if (worktreeAdded) {
-      spawnSync("git", ["worktree", "remove", "--force", checkout], {
+      spawnSync('git', ['worktree', 'remove', '--force', checkout], {
         cwd: root,
-        encoding: "utf8",
+        encoding: 'utf8',
         env: safeEnv,
       });
     }
@@ -205,28 +216,28 @@ it("executable pre-fix crash then duplicate leaves capture unfinished", async ()
   }
 }
 
-if (process.argv.includes("--self-test")) {
+if (process.argv.includes('--self-test')) {
   selfTest();
-  console.log("B1 #949 payment capture proof self-test: OK");
+  console.log('B1 #949 payment capture proof self-test: OK');
   process.exit(0);
 }
 
-if (process.argv.includes("--base-regression")) {
+if (process.argv.includes('--base-regression')) {
   baseRegressionProof();
   process.exit(0);
 }
 
 const stamp = `${process.pid}_${Date.now()}`;
 const dir = mkdtempSync(`/tmp/bcb_b1_949_payment_capture_${stamp}_`);
-const data = path.join(dir, "data");
-const socket = path.join(dir, "socket");
-const log = path.join(dir, "postgres.log");
+const data = path.join(dir, 'data');
+const socket = path.join(dir, 'socket');
+const log = path.join(dir, 'postgres.log');
 const database = `bcb_b1_949_payment_capture_${stamp}`;
 let serverStarted = false;
 let port;
 
 function run(command, args, label) {
-  const result = spawnSync(command, args, { cwd: root, encoding: "utf8", env: safeEnv });
+  const result = spawnSync(command, args, { cwd: root, encoding: 'utf8', env: safeEnv });
   if (result.error || result.status !== 0) fail(`${label}: ${result.stderr ?? result.error}`);
   return result.stdout;
 }
@@ -234,12 +245,14 @@ function run(command, args, label) {
 async function reservePort() {
   const server = net.createServer();
   await new Promise((resolve, reject) => {
-    server.once("error", reject);
-    server.listen(0, "127.0.0.1", resolve);
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
   });
   const address = server.address();
-  if (!address || typeof address === "string") fail("private port reservation failed");
-  await new Promise((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+  if (!address || typeof address === 'string') fail('private port reservation failed');
+  await new Promise((resolve, reject) =>
+    server.close((error) => (error ? reject(error) : resolve())),
+  );
   return address.port;
 }
 
@@ -333,16 +346,16 @@ async function installSchema() {
 async function seedCapture() {
   await withClient(async (client) => {
     await client.query(
-      "TRUNCATE product_grants, product_purchases, platform_users, delivery_markers, be_payment_provider_events, capture_markers, be_appointments, be_payment_history_events, be_payments, be_payment_intents RESTART IDENTITY",
+      'TRUNCATE product_grants, product_purchases, platform_users, delivery_markers, be_payment_provider_events, capture_markers, be_appointments, be_payment_history_events, be_payments, be_payment_intents RESTART IDENTITY',
     );
     await client.query(
       "INSERT INTO be_payment_intents(id, organization_id, provider_id, idempotency_key, status) VALUES ($1, $2, 'mock', 'product:30000000-0000-4000-8000-000000000001:offer', 'pending')",
       [intent, org],
     );
-    await client.query("INSERT INTO be_appointments(id, organization_id, status) VALUES ($1, $2, 'awaiting_payment')", [
-      appointment,
-      org,
-    ]);
+    await client.query(
+      "INSERT INTO be_appointments(id, organization_id, status) VALUES ($1, $2, 'awaiting_payment')",
+      [appointment, org],
+    );
     await client.query(
       "INSERT INTO be_payment_provider_events(id, organization_id, provider_id, idempotency_key, event_type, intent_ref, payload_json) VALUES ($1, $2, 'mock', 'event-1', 'payment.succeeded', 'persisted-provider-ref', '{\"intentRef\":\"persisted-provider-ref\"}'::jsonb)",
       [event, org],
@@ -352,47 +365,49 @@ async function seedCapture() {
 
 async function capture(client, options = {}) {
   const { failAfter = null, holdLock = false } = options;
-  await client.query("BEGIN");
+  await client.query('BEGIN');
   try {
     const locked = await client.query(
-      "SELECT status FROM be_payment_intents WHERE id = $1 AND organization_id = $2 FOR UPDATE",
+      'SELECT status FROM be_payment_intents WHERE id = $1 AND organization_id = $2 FOR UPDATE',
       [intent, org],
     );
-    if (locked.rowCount !== 1) fail("intent lock did not resolve exact organization");
-    if (holdLock) await client.query("SELECT pg_sleep(0.20)");
-    if (locked.rows[0].status !== "succeeded") {
-      await client.query("UPDATE be_payment_intents SET status = 'succeeded' WHERE id = $1", [intent]);
+    if (locked.rowCount !== 1) fail('intent lock did not resolve exact organization');
+    if (holdLock) await client.query('SELECT pg_sleep(0.20)');
+    if (locked.rows[0].status !== 'succeeded') {
+      await client.query("UPDATE be_payment_intents SET status = 'succeeded' WHERE id = $1", [
+        intent,
+      ]);
     }
-    if (failAfter === "intent") throw new Error("injected_intent_crash");
+    if (failAfter === 'intent') throw new Error('injected_intent_crash');
 
     await client.query(
-      "INSERT INTO be_payments(id, organization_id, payment_intent_id) VALUES ($1, $2, $3) ON CONFLICT (payment_intent_id) DO NOTHING",
+      'INSERT INTO be_payments(id, organization_id, payment_intent_id) VALUES ($1, $2, $3) ON CONFLICT (payment_intent_id) DO NOTHING',
       [payment, org, intent],
     );
-    if (failAfter === "payment") throw new Error("injected_payment_crash");
+    if (failAfter === 'payment') throw new Error('injected_payment_crash');
 
     await client.query(
       "INSERT INTO be_payment_history_events(organization_id, payment_id, event_type) VALUES ($1, $2, 'payment_captured') ON CONFLICT DO NOTHING",
       [org, payment],
     );
-    if (failAfter === "history") throw new Error("injected_history_crash");
+    if (failAfter === 'history') throw new Error('injected_history_crash');
 
     await client.query(
       "UPDATE be_appointments SET status = 'confirmed', payment_id = $1 WHERE id = $2 AND organization_id = $3",
       [payment, appointment, org],
     );
-    if (failAfter === "appointment") throw new Error("injected_appointment_crash");
+    if (failAfter === 'appointment') throw new Error('injected_appointment_crash');
 
-    for (const marker of ["package_activated", "product_activated"]) {
+    for (const marker of ['package_activated', 'product_activated']) {
       await client.query(
-        "INSERT INTO capture_markers(organization_id, payment_id, marker) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING",
+        'INSERT INTO capture_markers(organization_id, payment_id, marker) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
         [org, payment, marker],
       );
       if (failAfter === marker) throw new Error(`injected_${marker}_crash`);
     }
-    await client.query("COMMIT");
+    await client.query('COMMIT');
   } catch (error) {
-    await client.query("ROLLBACK");
+    await client.query('ROLLBACK');
     throw error;
   }
 }
@@ -426,12 +441,12 @@ async function proveMigrationPreflight() {
     try {
       await client.query(migrationSql);
     } catch (error) {
-      rejected = String(error.message).includes("capture_groups=1");
+      rejected = String(error.message).includes('capture_groups=1');
     }
-    if (!rejected) fail("migration did not fail closed on historical duplicate captures");
-    const count = await client.query("SELECT count(*)::int AS c FROM be_payment_history_events");
-    if (count.rows[0].c !== 2) fail("migration altered historical duplicate rows");
-    await client.query("TRUNCATE be_payment_history_events RESTART IDENTITY");
+    if (!rejected) fail('migration did not fail closed on historical duplicate captures');
+    const count = await client.query('SELECT count(*)::int AS c FROM be_payment_history_events');
+    if (count.rows[0].c !== 2) fail('migration altered historical duplicate rows');
+    await client.query('TRUNCATE be_payment_history_events RESTART IDENTITY');
 
     await client.query(
       `INSERT INTO be_payment_intents(id, organization_id, provider_id, idempotency_key, status)
@@ -444,10 +459,10 @@ async function proveMigrationPreflight() {
     try {
       await client.query(migrationSql);
     } catch (error) {
-      rejected = String(error.message).includes("intent_authority_groups=1");
+      rejected = String(error.message).includes('intent_authority_groups=1');
     }
-    if (!rejected) fail("migration did not fail closed on ambiguous intent authority");
-    await client.query("TRUNCATE be_payment_intents");
+    if (!rejected) fail('migration did not fail closed on ambiguous intent authority');
+    await client.query('TRUNCATE be_payment_intents');
 
     await client.query(
       `INSERT INTO be_payment_provider_events(
@@ -461,10 +476,10 @@ async function proveMigrationPreflight() {
     try {
       await client.query(migrationSql);
     } catch (error) {
-      rejected = String(error.message).includes("event_authority_groups=1");
+      rejected = String(error.message).includes('event_authority_groups=1');
     }
-    if (!rejected) fail("migration did not fail closed on ambiguous lifecycle event authority");
-    await client.query("TRUNCATE be_payment_provider_events");
+    if (!rejected) fail('migration did not fail closed on ambiguous lifecycle event authority');
+    await client.query('TRUNCATE be_payment_provider_events');
     await client.query(migrationSql);
   });
 }
@@ -524,13 +539,13 @@ async function proveBootstrapAuthorityBoundary() {
     const boundary = acl.rows[0];
     if (
       !boundary?.prosecdef ||
-      boundary.owner_name !== "app_owner" ||
+      boundary.owner_name !== 'app_owner' ||
       !boundary.runtime_execute ||
       boundary.unrelated_execute ||
       boundary.public_execute ||
-      !boundary.proconfig?.includes("search_path=pg_catalog")
+      !boundary.proconfig?.includes('search_path=pg_catalog')
     ) {
-      fail("bootstrap authority function ownership/ACL/search_path boundary is unsafe");
+      fail('bootstrap authority function ownership/ACL/search_path boundary is unsafe');
     }
 
     const tableAcl = await client.query(`
@@ -539,43 +554,44 @@ async function proveBootstrapAuthorityBoundary() {
         has_table_privilege('app_runtime_nonstaff_login', 'be_payment_intents', 'SELECT') AS intent_select
     `);
     if (tableAcl.rows[0]?.event_select || tableAcl.rows[0]?.intent_select) {
-      fail("bootstrap role received direct payment table SELECT");
+      fail('bootstrap role received direct payment table SELECT');
     }
 
-    await client.query("SET ROLE app_runtime_nonstaff_login");
+    await client.query('SET ROLE app_runtime_nonstaff_login');
     const eventAuthority = await client.query(
       `SELECT app.resolve_payment_webhook_organization($1, $2, $3)::text AS organization_id`,
-      ["mock", "event-authority", "payment.succeeded"],
+      ['mock', 'event-authority', 'payment.succeeded'],
     );
     if (
       eventAuthority.rows[0]?.organization_id !== org ||
-      Object.keys(eventAuthority.rows[0] ?? {}).join(",") !== "organization_id"
+      Object.keys(eventAuthority.rows[0] ?? {}).join(',') !== 'organization_id'
     ) {
-      fail("bootstrap event authority exposed more than the exact organization id");
+      fail('bootstrap event authority exposed more than the exact organization id');
     }
     const intentAuthority = await client.query(
       `SELECT app.resolve_payment_webhook_organization($1, $2, $3)::text AS organization_id`,
-      ["mock", "intent-authority", "payment.succeeded"],
+      ['mock', 'intent-authority', 'payment.succeeded'],
     );
     if (intentAuthority.rows[0]?.organization_id !== org) {
-      fail("bootstrap intent fallback did not resolve exact organization");
+      fail('bootstrap intent fallback did not resolve exact organization');
     }
     const unknown = await client.query(
       `SELECT app.resolve_payment_webhook_organization($1, $2, $3)::text AS organization_id`,
-      ["mock", "unknown", "payment.succeeded"],
+      ['mock', 'unknown', 'payment.succeeded'],
     );
-    if (unknown.rows[0]?.organization_id !== null) fail("unknown payment authority did not fail closed");
+    if (unknown.rows[0]?.organization_id !== null)
+      fail('unknown payment authority did not fail closed');
 
     let directReadDenied = false;
     try {
-      await client.query("SELECT payload_json FROM be_payment_provider_events LIMIT 1");
+      await client.query('SELECT payload_json FROM be_payment_provider_events LIMIT 1');
     } catch (error) {
-      directReadDenied = String(error.message).includes("permission denied");
+      directReadDenied = String(error.message).includes('permission denied');
     }
-    if (!directReadDenied) fail("bootstrap role could browse payment event payloads");
-    await client.query("RESET ROLE");
+    if (!directReadDenied) fail('bootstrap role could browse payment event payloads');
+    await client.query('RESET ROLE');
 
-    await client.query("DROP INDEX be_payment_provider_events_lifecycle_uidx");
+    await client.query('DROP INDEX be_payment_provider_events_lifecycle_uidx');
     await client.query(
       `INSERT INTO be_payment_provider_events(
          id, organization_id, provider_id, idempotency_key, event_type, payload_json
@@ -584,13 +600,16 @@ async function proveBootstrapAuthorityBoundary() {
        ('50000000-0000-4000-8000-000000000092', '10000000-0000-4000-8000-000000000002', 'mock', 'ambiguous', 'payment.succeeded', '{}')`,
       [org],
     );
-    await client.query("SET ROLE app_runtime_nonstaff_login");
+    await client.query('SET ROLE app_runtime_nonstaff_login');
     const ambiguous = await client.query(
       `SELECT app.resolve_payment_webhook_organization('mock', 'ambiguous', 'payment.succeeded')::text AS organization_id`,
     );
-    if (ambiguous.rows[0]?.organization_id !== null) fail("ambiguous payment authority did not fail closed");
-    await client.query("RESET ROLE");
-    await client.query("DELETE FROM be_payment_provider_events WHERE id IN ('50000000-0000-4000-8000-000000000091', '50000000-0000-4000-8000-000000000092')");
+    if (ambiguous.rows[0]?.organization_id !== null)
+      fail('ambiguous payment authority did not fail closed');
+    await client.query('RESET ROLE');
+    await client.query(
+      "DELETE FROM be_payment_provider_events WHERE id IN ('50000000-0000-4000-8000-000000000091', '50000000-0000-4000-8000-000000000092')",
+    );
     await client.query(`
       CREATE UNIQUE INDEX be_payment_provider_events_lifecycle_uidx
         ON be_payment_provider_events(provider_id, idempotency_key, event_type)
@@ -599,7 +618,14 @@ async function proveBootstrapAuthorityBoundary() {
 }
 
 async function proveCrashReplay() {
-  for (const failAfter of ["intent", "payment", "history", "appointment", "package_activated", "product_activated"]) {
+  for (const failAfter of [
+    'intent',
+    'payment',
+    'history',
+    'appointment',
+    'package_activated',
+    'product_activated',
+  ]) {
     await seedCapture();
     await withClient((client) => capture(client, { failAfter })).then(
       () => fail(`injected ${failAfter} crash unexpectedly committed`),
@@ -607,10 +633,10 @@ async function proveCrashReplay() {
     );
     const rolledBack = await counts();
     if (
-      rolledBack.intent_status !== "pending" ||
+      rolledBack.intent_status !== 'pending' ||
       rolledBack.payments !== 0 ||
       rolledBack.history !== 0 ||
-      rolledBack.appointment_status !== "awaiting_payment" ||
+      rolledBack.appointment_status !== 'awaiting_payment' ||
       rolledBack.markers !== 0
     ) {
       fail(`transaction boundary ${failAfter} did not roll back completely`);
@@ -619,10 +645,10 @@ async function proveCrashReplay() {
     await withClient((client) => capture(client));
     const replayed = await counts();
     if (
-      replayed.intent_status !== "succeeded" ||
+      replayed.intent_status !== 'succeeded' ||
       replayed.payments !== 1 ||
       replayed.history !== 1 ||
-      replayed.appointment_status !== "confirmed" ||
+      replayed.appointment_status !== 'confirmed' ||
       replayed.markers !== 2
     ) {
       fail(`replay after ${failAfter} did not converge exactly once`);
@@ -643,16 +669,16 @@ async function provePersistedProviderEventWinsChangedDuplicate() {
       [org],
     );
     const persisted = await client.query(
-      "SELECT event_type, intent_ref, payload_json FROM be_payment_provider_events WHERE id = $1 AND organization_id = $2",
+      'SELECT event_type, intent_ref, payload_json FROM be_payment_provider_events WHERE id = $1 AND organization_id = $2',
       [event, org],
     );
     const row = persisted.rows[0];
     if (
-      row?.event_type !== "payment.succeeded" ||
-      row?.intent_ref !== "persisted-provider-ref" ||
-      row?.payload_json?.intentRef !== "persisted-provider-ref"
+      row?.event_type !== 'payment.succeeded' ||
+      row?.intent_ref !== 'persisted-provider-ref' ||
+      row?.payload_json?.intentRef !== 'persisted-provider-ref'
     ) {
-      fail("changed duplicate body replaced the canonical stored provider event");
+      fail('changed duplicate body replaced the canonical stored provider event');
     }
   });
 }
@@ -670,7 +696,7 @@ async function proveLifecycleIdentity() {
        RETURNING id`,
       [org],
     );
-    if (refunded.rowCount !== 1) fail("distinct refunded lifecycle event was collapsed");
+    if (refunded.rowCount !== 1) fail('distinct refunded lifecycle event was collapsed');
     const duplicateSucceeded = await client.query(
       `INSERT INTO be_payment_provider_events(
          id, organization_id, provider_id, idempotency_key, event_type, intent_ref, payload_json
@@ -681,11 +707,12 @@ async function proveLifecycleIdentity() {
        RETURNING id`,
       [org],
     );
-    if (duplicateSucceeded.rowCount !== 0) fail("same-type lifecycle duplicate was inserted twice");
+    if (duplicateSucceeded.rowCount !== 0) fail('same-type lifecycle duplicate was inserted twice');
     const count = await client.query(
       "SELECT count(*)::int AS c FROM be_payment_provider_events WHERE provider_id = 'mock' AND idempotency_key = 'event-1'",
     );
-    if (count.rows[0].c !== 2) fail("provider lifecycle identity did not preserve exactly two event types");
+    if (count.rows[0].c !== 2)
+      fail('provider lifecycle identity did not preserve exactly two event types');
   });
 }
 
@@ -701,7 +728,7 @@ async function proveProductIdentityWriterRollback() {
   const unrelatedClient = newClient();
   await Promise.all([captureClient.connect(), unrelatedClient.connect()]);
   try {
-    await captureClient.query("BEGIN");
+    await captureClient.query('BEGIN');
     await captureClient.query(
       "INSERT INTO platform_users(id, phone_normalized) VALUES ('80000000-0000-4000-8000-000000000001', '+70000000001')",
     );
@@ -716,7 +743,7 @@ async function proveProductIdentityWriterRollback() {
     await unrelatedClient.query(
       "INSERT INTO platform_users(id, phone_normalized) VALUES ('80000000-0000-4000-8000-000000000002', '+70000000002')",
     );
-    await captureClient.query("ROLLBACK");
+    await captureClient.query('ROLLBACK');
   } finally {
     await Promise.all([captureClient.end(), unrelatedClient.end()]);
   }
@@ -732,10 +759,10 @@ async function proveProductIdentityWriterRollback() {
     if (
       row.capture_users !== 0 ||
       row.grants !== 0 ||
-      row.purchase_status !== "awaiting_payment" ||
+      row.purchase_status !== 'awaiting_payment' ||
       row.unrelated_users !== 1
     ) {
-      fail("product identity/grant rollback joined the wrong transaction boundary");
+      fail('product identity/grant rollback joined the wrong transaction boundary');
     }
   });
 }
@@ -744,27 +771,27 @@ const deliveryLockKey = `payment_capture_delivery:${org}:intent:${intent}`;
 
 async function processProviderEventWithSerializedDelivery(lockClient, options = {}) {
   const { holdDelivery = false, failDelivery = false } = options;
-  await lockClient.query("SELECT pg_advisory_lock(hashtext($1))", [deliveryLockKey]);
+  await lockClient.query('SELECT pg_advisory_lock(hashtext($1))', [deliveryLockKey]);
   try {
     const current = await lockClient.query(
-      "SELECT processed_at FROM be_payment_provider_events WHERE id = $1 AND organization_id = $2",
+      'SELECT processed_at FROM be_payment_provider_events WHERE id = $1 AND organization_id = $2',
       [event, org],
     );
-    if (current.rows[0]?.processed_at) return "duplicate";
+    if (current.rows[0]?.processed_at) return 'duplicate';
 
     await withClient((captureClient) => capture(captureClient));
-    if (holdDelivery) await lockClient.query("SELECT pg_sleep(0.20)");
-    if (failDelivery) throw new Error("injected_delivery_failure");
+    if (holdDelivery) await lockClient.query('SELECT pg_sleep(0.20)');
+    if (failDelivery) throw new Error('injected_delivery_failure');
     await lockClient.query(
       "INSERT INTO delivery_markers(idempotency_key) VALUES ('booking.payment_captured:payment-1:appointment-1') ON CONFLICT DO NOTHING",
     );
     await lockClient.query(
-      "UPDATE be_payment_provider_events SET processed_at = now() WHERE id = $1 AND organization_id = $2",
+      'UPDATE be_payment_provider_events SET processed_at = now() WHERE id = $1 AND organization_id = $2',
       [event, org],
     );
-    return "processed";
+    return 'processed';
   } finally {
-    await lockClient.query("SELECT pg_advisory_unlock(hashtext($1))", [deliveryLockKey]);
+    await lockClient.query('SELECT pg_advisory_unlock(hashtext($1))', [deliveryLockKey]);
   }
 }
 
@@ -778,8 +805,8 @@ async function proveConcurrentReplayAndPostCommitDelivery() {
       processProviderEventWithSerializedDelivery(first, { holdDelivery: true }),
       processProviderEventWithSerializedDelivery(second),
     ]);
-    if (!results.includes("processed") || !results.includes("duplicate")) {
-      fail("session lock did not serialize provider completion through delivery");
+    if (!results.includes('processed') || !results.includes('duplicate')) {
+      fail('session lock did not serialize provider completion through delivery');
     }
   } finally {
     await Promise.all([first.end(), second.end()]);
@@ -792,7 +819,7 @@ async function proveConcurrentReplayAndPostCommitDelivery() {
     result.deliveries !== 1 ||
     !result.processed
   ) {
-    fail("post-commit replay did not converge provider completion/delivery exactly once");
+    fail('post-commit replay did not converge provider completion/delivery exactly once');
   }
 }
 
@@ -801,33 +828,42 @@ async function proveDeliveryFailureRemainsReplayable() {
   await withClient((client) =>
     processProviderEventWithSerializedDelivery(client, { failDelivery: true }),
   ).then(
-    () => fail("injected mandatory delivery failure unexpectedly completed"),
+    () => fail('injected mandatory delivery failure unexpectedly completed'),
     () => undefined,
   );
   let result = await counts();
   if (result.processed || result.deliveries !== 0 || result.payments !== 1) {
-    fail("delivery failure did not preserve an unprocessed replayable provider event");
+    fail('delivery failure did not preserve an unprocessed replayable provider event');
   }
   await withClient((client) => processProviderEventWithSerializedDelivery(client));
   result = await counts();
-  if (!result.processed || result.deliveries !== 1 || result.payments !== 1 || result.history !== 1) {
-    fail("delivery failure replay did not converge exactly once");
+  if (
+    !result.processed ||
+    result.deliveries !== 1 ||
+    result.payments !== 1 ||
+    result.history !== 1
+  ) {
+    fail('delivery failure replay did not converge exactly once');
   }
 }
 
 try {
   selfTest();
-  if (!existsSync(path.join(pgBin, "initdb"))) fail("PostgreSQL 16 binaries are unavailable");
+  if (!existsSync(path.join(pgBin, 'initdb'))) fail('PostgreSQL 16 binaries are unavailable');
   port = await reservePort();
   mkdirSync(socket, { recursive: true });
-  run(path.join(pgBin, "initdb"), ["-D", data, "-A", "trust", "--no-locale"], "private initdb");
+  run(path.join(pgBin, 'initdb'), ['-D', data, '-A', 'trust', '--no-locale'], 'private initdb');
   run(
-    path.join(pgBin, "pg_ctl"),
-    ["-D", data, "-l", log, "-o", `-k ${socket} -p ${port} -c listen_addresses=''`, "-w", "start"],
-    "private PostgreSQL startup",
+    path.join(pgBin, 'pg_ctl'),
+    ['-D', data, '-l', log, '-o', `-k ${socket} -p ${port} -c listen_addresses=''`, '-w', 'start'],
+    'private PostgreSQL startup',
   );
   serverStarted = true;
-  run(path.join(pgBin, "createdb"), ["-h", socket, "-p", String(port), database], "private database creation");
+  run(
+    path.join(pgBin, 'createdb'),
+    ['-h', socket, '-p', String(port), database],
+    'private database creation',
+  );
   await installSchema();
   await proveMigrationPreflight();
   await proveBootstrapAuthorityBoundary();
@@ -838,12 +874,12 @@ try {
   await proveConcurrentReplayAndPostCommitDelivery();
   await proveDeliveryFailureRemainsReplayable();
   console.log(
-    "B1 #949 payment capture proof: OK — dirty migration preflights, least-privilege bootstrap tenant authority (event + intent fallback, ambiguity/unknown fail-closed, no table/payload access), lifecycle identity, canonical stored duplicate body, six rollback boundaries, product identity/grant rollback isolation, session-serialized duplicates, mandatory delivery failure/retry and exact-once DB effects verified on private PostgreSQL 16",
+    'B1 #949 payment capture proof: OK — dirty migration preflights, least-privilege bootstrap tenant authority (event + intent fallback, ambiguity/unknown fail-closed, no table/payload access), lifecycle identity, canonical stored duplicate body, six rollback boundaries, product identity/grant rollback isolation, session-serialized duplicates, mandatory delivery failure/retry and exact-once DB effects verified on private PostgreSQL 16',
   );
 } finally {
   if (serverStarted) {
-    spawnSync(path.join(pgBin, "pg_ctl"), ["-D", data, "-m", "fast", "-w", "stop"], {
-      encoding: "utf8",
+    spawnSync(path.join(pgBin, 'pg_ctl'), ['-D', data, '-m', 'fast', '-w', 'stop'], {
+      encoding: 'utf8',
       env: safeEnv,
     });
   }

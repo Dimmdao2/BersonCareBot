@@ -47,7 +47,9 @@ export type DispatchRequestContactParams = {
  * существующей строке в `identities`. Иначе M2M-запрос из Mini App (без предшествующего /start)
  * молча не ставит состояние → при шаринге контакта оркестратор не матчит `telegram.contact.link.confirm`.
  */
-export async function dispatchRequestContactToUser(params: DispatchRequestContactParams): Promise<void> {
+export async function dispatchRequestContactToUser(
+  params: DispatchRequestContactParams,
+): Promise<void> {
   const { dispatchPort, writePort, channel, recipientId, correlationId } = params;
 
   if (channel === 'telegram' && writePort) {
@@ -75,8 +77,7 @@ export async function dispatchRequestContactToUser(params: DispatchRequestContac
   const eventId = `request-contact:${channel}:${randomUUID()}`;
   const replyMarkup = channel === 'telegram' ? telegramReplyMarkup() : maxInlineReplyMarkup();
 
-  const recipient =
-    channel === 'max' ? maxUserRecipient(recipientId) : { chatId: recipientId };
+  const recipient = channel === 'max' ? maxUserRecipient(recipientId) : { chatId: recipientId };
 
   await dispatchPort.dispatchOutgoing({
     type: 'message.send',

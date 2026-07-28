@@ -1,18 +1,18 @@
 #!/usr/bin/env node
 
-import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import {
   getP084PublicDenormDescriptors,
   getP084PublicFkPathDescriptors,
   renderP084PolicyStatements,
-} from "./p0-8-4-policy-targets.mjs";
-import { quoteQualifiedName } from "./rls-sql-renderer.mjs";
+} from './p0-8-4-policy-targets.mjs';
+import { quoteQualifiedName } from './rls-sql-renderer.mjs';
 
-const orgA = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
-const orgB = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+const orgA = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const orgB = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const scratchUrl = process.env.SCRATCH_DATABASE_URL;
 
 function fail(message) {
@@ -23,29 +23,29 @@ function fail(message) {
 function databaseNameFromUrl(value) {
   try {
     const parsed = new URL(value);
-    return decodeURIComponent(parsed.pathname.replace(/^\//, ""));
+    return decodeURIComponent(parsed.pathname.replace(/^\//, ''));
   } catch {
-    return "";
+    return '';
   }
 }
 
 function assertSafeScratchUrl(value) {
   if (!value) {
-    fail("SCRATCH_DATABASE_URL is required for P0.8.4 scratch smoke.");
+    fail('SCRATCH_DATABASE_URL is required for P0.8.4 scratch smoke.');
   }
 
-  if (value.includes("/opt/env/") || value.includes("api.prod") || value.includes("webapp.prod")) {
-    fail("SCRATCH_DATABASE_URL must not reference host env files or production env names.");
+  if (value.includes('/opt/env/') || value.includes('api.prod') || value.includes('webapp.prod')) {
+    fail('SCRATCH_DATABASE_URL must not reference host env files or production env names.');
   }
 
-  if (value.includes("bcb_webapp_dev") || value.includes("bcb_webapp_prod")) {
-    fail("SCRATCH_DATABASE_URL must not target dev/prod PII databases.");
+  if (value.includes('bcb_webapp_dev') || value.includes('bcb_webapp_prod')) {
+    fail('SCRATCH_DATABASE_URL must not target dev/prod PII databases.');
   }
 
   const dbName = databaseNameFromUrl(value);
 
-  if (!dbName || (!dbName.startsWith("bcb_saas_") && !dbName.includes("scratch"))) {
-    fail("Scratch database name must start with bcb_saas_ or contain scratch.");
+  if (!dbName || (!dbName.startsWith('bcb_saas_') && !dbName.includes('scratch'))) {
+    fail('Scratch database name must start with bcb_saas_ or contain scratch.');
   }
 }
 
@@ -63,23 +63,28 @@ function renderDenormTableSetup(descriptors) {
       return [
         `DROP TABLE IF EXISTS ${target} CASCADE;`,
         `CREATE TABLE ${target} (`,
-        "  id uuid PRIMARY KEY,",
-        "  organization_id uuid NOT NULL,",
-        "  payload text NOT NULL",
-        ");",
+        '  id uuid PRIMARY KEY,',
+        '  organization_id uuid NOT NULL,',
+        '  payload text NOT NULL',
+        ');',
         `INSERT INTO ${target} (id, organization_id, payload) VALUES`,
         `  (md5(${sqlLiteral(`${descriptor.table}|org-a`)})::uuid, '${orgA}', ${payloadA}),`,
         `  (md5(${sqlLiteral(`${descriptor.table}|org-b`)})::uuid, '${orgB}', ${payloadB});`,
         `ALTER TABLE ${target} OWNER TO :"p0_8_4_owner_role";`,
         `GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE ${target} TO :"p0_8_4_app_role";`,
-      ].join("\n");
+      ].join('\n');
     })
-    .join("\n");
+    .join('\n');
 }
 
 function renderFkPathSetup(descriptors) {
   const parentTables = Array.from(
-    new Set(descriptors.flatMap((descriptor) => [descriptor.fkPath.parentTable, descriptor.fkPath.crossCheckTable])),
+    new Set(
+      descriptors.flatMap((descriptor) => [
+        descriptor.fkPath.parentTable,
+        descriptor.fkPath.crossCheckTable,
+      ]),
+    ),
   ).sort();
 
   const parentSetup = parentTables
@@ -89,17 +94,17 @@ function renderFkPathSetup(descriptors) {
       return [
         `DROP TABLE IF EXISTS ${target} CASCADE;`,
         `CREATE TABLE ${target} (`,
-        "  id uuid PRIMARY KEY,",
-        "  organization_id uuid NOT NULL",
-        ");",
+        '  id uuid PRIMARY KEY,',
+        '  organization_id uuid NOT NULL',
+        ');',
         `INSERT INTO ${target} (id, organization_id) VALUES`,
         `  (md5(${sqlLiteral(`${table}|org-a`)})::uuid, '${orgA}'),`,
         `  (md5(${sqlLiteral(`${table}|org-b`)})::uuid, '${orgB}');`,
         `ALTER TABLE ${target} OWNER TO :"p0_8_4_owner_role";`,
         `GRANT SELECT ON TABLE ${target} TO :"p0_8_4_app_role";`,
-      ].join("\n");
+      ].join('\n');
     })
-    .join("\n");
+    .join('\n');
 
   const childSetup = descriptors
     .map((descriptor, index) => {
@@ -111,11 +116,11 @@ function renderFkPathSetup(descriptors) {
       return [
         `DROP TABLE IF EXISTS ${target} CASCADE;`,
         `CREATE TABLE ${target} (`,
-        "  id uuid PRIMARY KEY,",
+        '  id uuid PRIMARY KEY,',
         `  ${localFk} uuid NOT NULL,`,
         `  ${crossLocalFk} uuid NOT NULL,`,
-        "  payload text NOT NULL",
-        ");",
+        '  payload text NOT NULL',
+        ');',
         `INSERT INTO ${target} (id, ${localFk}, ${crossLocalFk}, payload) VALUES`,
         `  (md5(${sqlLiteral(`${descriptor.table}|org-a`)})::uuid, md5(${sqlLiteral(
           `${fkPath.parentTable}|org-a`,
@@ -134,17 +139,20 @@ function renderFkPathSetup(descriptors) {
         )});`,
         `ALTER TABLE ${target} OWNER TO :"p0_8_4_owner_role";`,
         `GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE ${target} TO :"p0_8_4_app_role";`,
-      ].join("\n");
+      ].join('\n');
     })
-    .join("\n");
+    .join('\n');
 
   return `${parentSetup}\n${childSetup}`;
 }
 
 function renderDenormVisibleRowsCte(descriptors) {
   const unions = descriptors
-    .map((descriptor) => `SELECT organization_id, payload FROM ${quoteQualifiedName(descriptor.table)}`)
-    .join("\nUNION ALL\n");
+    .map(
+      (descriptor) =>
+        `SELECT organization_id, payload FROM ${quoteQualifiedName(descriptor.table)}`,
+    )
+    .join('\nUNION ALL\n');
 
   return `WITH visible_denorm_rows AS (\n${unions}\n)`;
 }
@@ -157,16 +165,16 @@ function renderFkVisibleRowsCte(descriptors) {
       const cross = quoteQualifiedName(descriptor.fkPath.crossCheckTable);
 
       return [
-        "SELECT",
-        "  parent.organization_id AS parent_organization_id,",
-        "  cross_ref.organization_id AS cross_organization_id,",
-        "  target.payload",
+        'SELECT',
+        '  parent.organization_id AS parent_organization_id,',
+        '  cross_ref.organization_id AS cross_organization_id,',
+        '  target.payload',
         `FROM ${target} AS target`,
         `JOIN ${parent} AS parent ON parent.${descriptor.fkPath.parentPk} = target.${descriptor.fkPath.localFk}`,
         `JOIN ${cross} AS cross_ref ON cross_ref.${descriptor.fkPath.crossCheckPk} = target.${descriptor.fkPath.crossCheckLocalFk}`,
-      ].join("\n");
+      ].join('\n');
     })
-    .join("\nUNION ALL\n");
+    .join('\nUNION ALL\n');
 
   return `WITH visible_fk_rows AS (\n${unions}\n)`;
 }
@@ -181,7 +189,7 @@ function renderSmokeSql() {
   const denormPerOrgRows = denormDescriptors.length;
   const fkTotalRows = fkPathDescriptors.length * 3;
   const fkPerOrgRows = fkPathDescriptors.length;
-  const policyStatements = renderP084PolicyStatements({ descriptors }).join("\n");
+  const policyStatements = renderP084PolicyStatements({ descriptors }).join('\n');
   const denormVisibleRowsCte = renderDenormVisibleRowsCte(denormDescriptors);
   const fkVisibleRowsCte = renderFkVisibleRowsCte(fkPathDescriptors);
 
@@ -377,20 +385,20 @@ ROLLBACK;
 
 assertSafeScratchUrl(scratchUrl);
 
-if (process.argv.includes("--print-sql")) {
+if (process.argv.includes('--print-sql')) {
   process.stdout.write(renderSmokeSql());
   process.exit(0);
 }
 
-const tempDir = mkdtempSync(join(tmpdir(), "p0-8-4-smoke-"));
-const sqlFile = join(tempDir, "smoke.sql");
+const tempDir = mkdtempSync(join(tmpdir(), 'p0-8-4-smoke-'));
+const sqlFile = join(tempDir, 'smoke.sql');
 
 try {
-  writeFileSync(sqlFile, renderSmokeSql(), { encoding: "utf8", mode: 0o600 });
+  writeFileSync(sqlFile, renderSmokeSql(), { encoding: 'utf8', mode: 0o600 });
 
-  const result = spawnSync("psql", ["-f", sqlFile, scratchUrl], {
-    stdio: ["ignore", "inherit", "inherit"],
-    encoding: "utf8",
+  const result = spawnSync('psql', ['-f', sqlFile, scratchUrl], {
+    stdio: ['ignore', 'inherit', 'inherit'],
+    encoding: 'utf8',
   });
 
   if (result.error) {

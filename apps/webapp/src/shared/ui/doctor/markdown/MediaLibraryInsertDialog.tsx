@@ -1,12 +1,12 @@
-"use client";
+'use client';
 
-import { useCallback, useState } from "react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { MediaPickerPanel } from "@/shared/ui/doctor/media/MediaPickerPanel";
-import { MediaPickerShell } from "@/shared/ui/doctor/media/MediaPickerShell";
-import type { MediaListItem } from "@/shared/ui/doctor/media/MediaPickerList";
+import { useCallback, useState } from 'react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { MediaPickerPanel } from '@/shared/ui/doctor/media/MediaPickerPanel';
+import { MediaPickerShell } from '@/shared/ui/doctor/media/MediaPickerShell';
+import type { MediaListItem } from '@/shared/ui/doctor/media/MediaPickerList';
 
-export type MediaLibraryInsertPickMeta = Pick<MediaListItem, "kind" | "mimeType">;
+export type MediaLibraryInsertPickMeta = Pick<MediaListItem, 'kind' | 'mimeType'>;
 
 type Props = {
   /** После выбора из библиотеки или загрузки с устройства. */
@@ -48,7 +48,7 @@ export function MediaLibraryInsertDialog({ onInsert, disabled = false }: Props) 
       </Button>
       <MediaPickerShell open={open} onOpenChange={handleOpenChange} title="Библиотека файлов">
         <MediaPickerPanel
-          key={open ? "insert-open" : "insert-closed"}
+          key={open ? 'insert-open' : 'insert-closed'}
           open={open}
           apiKind="all"
           folderId={folderScope}

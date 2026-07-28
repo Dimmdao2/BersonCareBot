@@ -1,38 +1,38 @@
-import { describe, expect, it, vi } from "vitest";
-import { createInMemoryReminderJournalPort } from "@/infra/repos/inMemoryReminderJournal";
-import { createInMemoryReminderRulesPort } from "@/infra/repos/inMemoryReminderRules";
+import { describe, expect, it, vi } from 'vitest';
+import { createInMemoryReminderJournalPort } from '@/infra/repos/inMemoryReminderJournal';
+import { createInMemoryReminderRulesPort } from '@/infra/repos/inMemoryReminderRules';
 import {
   createRemindersService,
   REMINDER_INTEGRATOR_SYNC_WARNING,
   validateReminderDispatchPayload,
-} from "./service";
-import { DEFAULT_REHAB_DAILY_SLOTS } from "./scheduleSlots";
-import type { WebPushSubscriptionsPort } from "@/modules/web-push/ports";
-import type { ReminderRule } from "./types";
+} from './service';
+import { DEFAULT_REHAB_DAILY_SLOTS } from './scheduleSlots';
+import type { WebPushSubscriptionsPort } from '@/modules/web-push/ports';
+import type { ReminderRule } from './types';
 
 const makeRule = (overrides: Partial<ReminderRule> = {}): ReminderRule => ({
-  id: "rule-1",
-  integratorUserId: "user-1",
-  category: "lfk",
+  id: 'rule-1',
+  integratorUserId: 'user-1',
+  category: 'lfk',
   enabled: true,
-  timezone: "Europe/Moscow",
+  timezone: 'Europe/Moscow',
   intervalMinutes: 60,
   windowStartMinute: 480,
   windowEndMinute: 1200,
-  daysMask: "1111100",
+  daysMask: '1111100',
   fallbackEnabled: true,
   linkedObjectType: null,
   linkedObjectId: null,
   customTitle: null,
   customText: null,
-  scheduleType: "interval_window",
+  scheduleType: 'interval_window',
   scheduleData: null,
-  reminderIntent: "generic",
+  reminderIntent: 'generic',
   displayTitle: null,
   displayDescription: null,
   quietHoursStartMinute: null,
   quietHoursEndMinute: null,
-  notificationTopicCode: "exercise_reminders",
+  notificationTopicCode: 'exercise_reminders',
   updatedAt: new Date().toISOString(),
   ...overrides,
 });
@@ -46,11 +46,11 @@ const makeWebPushSubscriptionsPort = (active: boolean): WebPushSubscriptionsPort
     active
       ? [
           {
-            endpoint: "https://push.example/subscription",
+            endpoint: 'https://push.example/subscription',
             expirationTime: null,
             keys: {
-              p256dh: "p256dh",
-              auth: "auth",
+              p256dh: 'p256dh',
+              auth: 'auth',
             },
           },
         ]
@@ -59,64 +59,64 @@ const makeWebPushSubscriptionsPort = (active: boolean): WebPushSubscriptionsPort
   deleteByEndpointIfExists: vi.fn(async () => false),
 });
 
-describe("reminders service", () => {
-  describe("listRulesByUser", () => {
-    it("returns rules for the user", async () => {
+describe('reminders service', () => {
+  describe('listRulesByUser', () => {
+    it('returns rules for the user', async () => {
       const port = createInMemoryReminderRulesPort([makeRule()]);
       const svc = createRemindersService(port);
-      const rules = await svc.listRulesByUser("user-1");
+      const rules = await svc.listRulesByUser('user-1');
       expect(rules).toHaveLength(1);
-      expect(rules[0].category).toBe("lfk");
+      expect(rules[0].category).toBe('lfk');
     });
 
-    it("returns empty array if user has no rules", async () => {
+    it('returns empty array if user has no rules', async () => {
       const port = createInMemoryReminderRulesPort([]);
       const svc = createRemindersService(port);
-      expect(await svc.listRulesByUser("unknown")).toEqual([]);
+      expect(await svc.listRulesByUser('unknown')).toEqual([]);
     });
   });
 
-  describe("toggleCategory", () => {
-    it("toggles enabled → false", async () => {
+  describe('toggleCategory', () => {
+    it('toggles enabled → false', async () => {
       const port = createInMemoryReminderRulesPort([makeRule({ enabled: true })]);
       const svc = createRemindersService(port);
-      const res = await svc.toggleCategory("user-1", "lfk", false);
+      const res = await svc.toggleCategory('user-1', 'lfk', false);
       expect(res.ok).toBe(true);
       if (res.ok) expect(res.data.enabled).toBe(false);
     });
 
-    it("returns error if category not found", async () => {
+    it('returns error if category not found', async () => {
       const port = createInMemoryReminderRulesPort([]);
       const svc = createRemindersService(port);
-      const res = await svc.toggleCategory("user-1", "lfk", true);
+      const res = await svc.toggleCategory('user-1', 'lfk', true);
       expect(res.ok).toBe(false);
     });
 
-    it("calls notifyIntegrator after toggle", async () => {
+    it('calls notifyIntegrator after toggle', async () => {
       const notify = vi.fn().mockResolvedValue(undefined);
       const port = createInMemoryReminderRulesPort([makeRule()]);
       const svc = createRemindersService(port, { notifyIntegrator: notify });
-      await svc.toggleCategory("user-1", "lfk", false);
+      await svc.toggleCategory('user-1', 'lfk', false);
       expect(notify).toHaveBeenCalledOnce();
     });
 
-    it("returns syncWarning if notifyIntegrator fails", async () => {
-      const notify = vi.fn().mockRejectedValue(new Error("timeout"));
+    it('returns syncWarning if notifyIntegrator fails', async () => {
+      const notify = vi.fn().mockRejectedValue(new Error('timeout'));
       const port = createInMemoryReminderRulesPort([makeRule()]);
       const svc = createRemindersService(port, { notifyIntegrator: notify });
-      const res = await svc.toggleCategory("user-1", "lfk", false);
+      const res = await svc.toggleCategory('user-1', 'lfk', false);
       expect(res.ok).toBe(true);
       if (res.ok) expect(res.syncWarning).toBe(REMINDER_INTEGRATOR_SYNC_WARNING);
     });
 
-    it("does not call notifyIntegrator for Web Push-only category rule", async () => {
+    it('does not call notifyIntegrator for Web Push-only category rule', async () => {
       const notify = vi.fn().mockResolvedValue(undefined);
       const rule = makeRule({ integratorUserId: null });
       const port = createInMemoryReminderRulesPort([rule], {
-        platformUserIdByRuleId: { [rule.id]: "user-1" },
+        platformUserIdByRuleId: { [rule.id]: 'user-1' },
       });
       const svc = createRemindersService(port, { notifyIntegrator: notify });
-      const res = await svc.toggleCategory("user-1", "lfk", false);
+      const res = await svc.toggleCategory('user-1', 'lfk', false);
       expect(res.ok).toBe(true);
       if (res.ok) {
         expect(res.data.integratorUserId).toBeNull();
@@ -126,11 +126,11 @@ describe("reminders service", () => {
     });
   });
 
-  describe("updateRule", () => {
-    it("updates schedule for known rule", async () => {
+  describe('updateRule', () => {
+    it('updates schedule for known rule', async () => {
       const port = createInMemoryReminderRulesPort([makeRule()]);
       const svc = createRemindersService(port);
-      const res = await svc.updateRule("user-1", "rule-1", {
+      const res = await svc.updateRule('user-1', 'rule-1', {
         windowStartMinute: 600,
         windowEndMinute: 1020,
         intervalMinutes: 120,
@@ -143,74 +143,74 @@ describe("reminders service", () => {
       }
     });
 
-    it("returns error for unknown rule", async () => {
+    it('returns error for unknown rule', async () => {
       const port = createInMemoryReminderRulesPort([]);
       const svc = createRemindersService(port);
-      const res = await svc.updateRule("user-1", "does-not-exist", { intervalMinutes: 30 });
+      const res = await svc.updateRule('user-1', 'does-not-exist', { intervalMinutes: 30 });
       expect(res.ok).toBe(false);
     });
 
-    it("rejects windowStart >= windowEnd", async () => {
+    it('rejects windowStart >= windowEnd', async () => {
       const port = createInMemoryReminderRulesPort([makeRule()]);
       const svc = createRemindersService(port);
-      const res = await svc.updateRule("user-1", "rule-1", {
+      const res = await svc.updateRule('user-1', 'rule-1', {
         windowStartMinute: 900,
         windowEndMinute: 900,
       });
       expect(res.ok).toBe(false);
-      if (!res.ok) expect(res.error).toContain("invalid_window");
+      if (!res.ok) expect(res.error).toContain('invalid_window');
     });
 
-    it("rejects intervalMinutes below 30", async () => {
+    it('rejects intervalMinutes below 30', async () => {
       const port = createInMemoryReminderRulesPort([makeRule()]);
       const svc = createRemindersService(port);
-      const res = await svc.updateRule("user-1", "rule-1", { intervalMinutes: 29 });
+      const res = await svc.updateRule('user-1', 'rule-1', { intervalMinutes: 29 });
       expect(res.ok).toBe(false);
-      if (!res.ok) expect(res.error).toContain("invalid_interval");
+      if (!res.ok) expect(res.error).toContain('invalid_interval');
     });
 
-    it("rejects intervalMinutes above 659", async () => {
+    it('rejects intervalMinutes above 659', async () => {
       const port = createInMemoryReminderRulesPort([makeRule()]);
       const svc = createRemindersService(port);
-      const res = await svc.updateRule("user-1", "rule-1", { intervalMinutes: 660 });
+      const res = await svc.updateRule('user-1', 'rule-1', { intervalMinutes: 660 });
       expect(res.ok).toBe(false);
-      if (!res.ok) expect(res.error).toContain("invalid_interval");
+      if (!res.ok) expect(res.error).toContain('invalid_interval');
     });
 
-    it("accepts intervalMinutes 30 and 659", async () => {
+    it('accepts intervalMinutes 30 and 659', async () => {
       const port = createInMemoryReminderRulesPort([makeRule()]);
       const svc = createRemindersService(port);
-      const a = await svc.updateRule("user-1", "rule-1", { intervalMinutes: 30 });
+      const a = await svc.updateRule('user-1', 'rule-1', { intervalMinutes: 30 });
       expect(a.ok).toBe(true);
-      const b = await svc.updateRule("user-1", "rule-1", { intervalMinutes: 659 });
+      const b = await svc.updateRule('user-1', 'rule-1', { intervalMinutes: 659 });
       expect(b.ok).toBe(true);
     });
 
-    it("rejects intervalMinutes <= 0", async () => {
+    it('rejects intervalMinutes <= 0', async () => {
       const port = createInMemoryReminderRulesPort([makeRule()]);
       const svc = createRemindersService(port);
-      const res = await svc.updateRule("user-1", "rule-1", { intervalMinutes: 0 });
+      const res = await svc.updateRule('user-1', 'rule-1', { intervalMinutes: 0 });
       expect(res.ok).toBe(false);
-      if (!res.ok) expect(res.error).toContain("invalid_interval");
+      if (!res.ok) expect(res.error).toContain('invalid_interval');
     });
 
-    it("returns syncWarning if notifyIntegrator fails after update", async () => {
-      const notify = vi.fn().mockRejectedValue(new Error("network"));
+    it('returns syncWarning if notifyIntegrator fails after update', async () => {
+      const notify = vi.fn().mockRejectedValue(new Error('network'));
       const port = createInMemoryReminderRulesPort([makeRule()]);
       const svc = createRemindersService(port, { notifyIntegrator: notify });
-      const res = await svc.updateRule("user-1", "rule-1", { intervalMinutes: 90 });
+      const res = await svc.updateRule('user-1', 'rule-1', { intervalMinutes: 90 });
       expect(res.ok).toBe(true);
       if (res.ok) expect(res.syncWarning).toBe(REMINDER_INTEGRATOR_SYNC_WARNING);
     });
 
-    it("does not call notifyIntegrator for Web Push-only rule on update", async () => {
+    it('does not call notifyIntegrator for Web Push-only rule on update', async () => {
       const notify = vi.fn().mockResolvedValue(undefined);
       const rule = makeRule({ integratorUserId: null });
       const port = createInMemoryReminderRulesPort([rule], {
-        platformUserIdByRuleId: { [rule.id]: "user-1" },
+        platformUserIdByRuleId: { [rule.id]: 'user-1' },
       });
       const svc = createRemindersService(port, { notifyIntegrator: notify });
-      const res = await svc.updateRule("user-1", "rule-1", { intervalMinutes: 90 });
+      const res = await svc.updateRule('user-1', 'rule-1', { intervalMinutes: 90 });
       expect(res.ok).toBe(true);
       if (res.ok) {
         expect(res.data.integratorUserId).toBeNull();
@@ -219,16 +219,16 @@ describe("reminders service", () => {
       expect(notify).not.toHaveBeenCalled();
     });
 
-    it("applies full interval_window schedule bundle with quiet hours", async () => {
+    it('applies full interval_window schedule bundle with quiet hours', async () => {
       const port = createInMemoryReminderRulesPort([makeRule()]);
       const svc = createRemindersService(port);
-      const res = await svc.updateRule("user-1", "rule-1", {
+      const res = await svc.updateRule('user-1', 'rule-1', {
         schedule: {
-          scheduleType: "interval_window",
+          scheduleType: 'interval_window',
           intervalMinutes: 90,
           windowStartMinute: 480,
           windowEndMinute: 1320,
-          daysMask: "1111100",
+          daysMask: '1111100',
           quietHoursStartMinute: 1320,
           quietHoursEndMinute: 360,
         },
@@ -241,24 +241,24 @@ describe("reminders service", () => {
       }
     });
 
-    it("applies slots_v1 schedule bundle", async () => {
+    it('applies slots_v1 schedule bundle', async () => {
       const port = createInMemoryReminderRulesPort([
         makeRule({
-          scheduleType: "interval_window",
+          scheduleType: 'interval_window',
           scheduleData: null,
         }),
       ]);
       const svc = createRemindersService(port);
-      const res = await svc.updateRule("user-1", "rule-1", {
+      const res = await svc.updateRule('user-1', 'rule-1', {
         schedule: {
-          scheduleType: "slots_v1",
+          scheduleType: 'slots_v1',
           intervalMinutes: 60,
           windowStartMinute: 0,
           windowEndMinute: 1440,
-          daysMask: "1111111",
+          daysMask: '1111111',
           scheduleData: {
-            timesLocal: ["10:00", "14:00"],
-            dayFilter: "weekdays",
+            timesLocal: ['10:00', '14:00'],
+            dayFilter: 'weekdays',
           },
           quietHoursStartMinute: null,
           quietHoursEndMinute: null,
@@ -266,147 +266,147 @@ describe("reminders service", () => {
       });
       expect(res.ok).toBe(true);
       if (res.ok) {
-        expect(res.data.scheduleType).toBe("slots_v1");
+        expect(res.data.scheduleType).toBe('slots_v1');
         expect(res.data.scheduleData?.timesLocal?.length).toBe(2);
       }
     });
   });
 
-  describe("validateReminderDispatchPayload", () => {
-    it("accepts valid payload", () => {
+  describe('validateReminderDispatchPayload', () => {
+    it('accepts valid payload', () => {
       expect(
         validateReminderDispatchPayload({
-          idempotencyKey: "k",
-          userId: "u",
-          message: { title: "T", body: "B" },
+          idempotencyKey: 'k',
+          userId: 'u',
+          message: { title: 'T', body: 'B' },
         }),
       ).toBe(true);
     });
 
-    it("rejects null", () => {
+    it('rejects null', () => {
       expect(validateReminderDispatchPayload(null)).toBe(false);
     });
 
-    it("rejects missing idempotencyKey", () => {
+    it('rejects missing idempotencyKey', () => {
       expect(
         validateReminderDispatchPayload({
-          userId: "u",
-          message: { title: "T", body: "B" },
+          userId: 'u',
+          message: { title: 'T', body: 'B' },
         }),
       ).toBe(false);
     });
 
-    it("rejects missing message.body", () => {
+    it('rejects missing message.body', () => {
       expect(
         validateReminderDispatchPayload({
-          idempotencyKey: "k",
-          userId: "u",
-          message: { title: "T" },
+          idempotencyKey: 'k',
+          userId: 'u',
+          message: { title: 'T' },
         }),
       ).toBe(false);
     });
   });
 
-  describe("createObjectReminder", () => {
-    it("creates lfk_complex rule", async () => {
+  describe('createObjectReminder', () => {
+    it('creates lfk_complex rule', async () => {
       const port = createInMemoryReminderRulesPort([]);
       const svc = createRemindersService(port);
-      const res = await svc.createObjectReminder("user-1", {
-        linkedObjectType: "lfk_complex",
-        linkedObjectId: "550e8400-e29b-41d4-a716-446655440000",
+      const res = await svc.createObjectReminder('user-1', {
+        linkedObjectType: 'lfk_complex',
+        linkedObjectId: '550e8400-e29b-41d4-a716-446655440000',
         schedule: {
           intervalMinutes: 60,
           windowStartMinute: 480,
           windowEndMinute: 1200,
-          daysMask: "1111111",
+          daysMask: '1111111',
         },
       });
       expect(res.ok).toBe(true);
       if (res.ok) {
-        expect(res.data.linkedObjectType).toBe("lfk_complex");
-        expect(res.data.id.startsWith("wp-")).toBe(true);
-        expect(res.data.category).toBe("lfk");
+        expect(res.data.linkedObjectType).toBe('lfk_complex');
+        expect(res.data.id.startsWith('wp-')).toBe(true);
+        expect(res.data.category).toBe('lfk');
       }
     });
 
-    it("sets reminderIntent warmup for warmups content_section", async () => {
+    it('sets reminderIntent warmup for warmups content_section', async () => {
       const port = createInMemoryReminderRulesPort([]);
       const svc = createRemindersService(port, {
         contentSections: {
           getBySlug: async (slug) =>
-            slug === "warmups" ? { systemParentCode: "warmups" } : { systemParentCode: "lessons" },
+            slug === 'warmups' ? { systemParentCode: 'warmups' } : { systemParentCode: 'lessons' },
         },
       });
-      const res = await svc.createObjectReminder("user-1", {
-        linkedObjectType: "content_section",
-        linkedObjectId: "warmups",
+      const res = await svc.createObjectReminder('user-1', {
+        linkedObjectType: 'content_section',
+        linkedObjectId: 'warmups',
         schedule: {
           intervalMinutes: 60,
           windowStartMinute: 480,
           windowEndMinute: 1200,
-          daysMask: "1111111",
+          daysMask: '1111111',
         },
       });
       expect(res.ok).toBe(true);
-      if (res.ok) expect(res.data.reminderIntent).toBe("warmup");
+      if (res.ok) expect(res.data.reminderIntent).toBe('warmup');
     });
 
-    it("sets reminderIntent exercises for rehab_program", async () => {
+    it('sets reminderIntent exercises for rehab_program', async () => {
       const port = createInMemoryReminderRulesPort([]);
       const svc = createRemindersService(port);
-      const res = await svc.createObjectReminder("user-1", {
-        linkedObjectType: "rehab_program",
-        linkedObjectId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      const res = await svc.createObjectReminder('user-1', {
+        linkedObjectType: 'rehab_program',
+        linkedObjectId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
         schedule: {
           intervalMinutes: 60,
           windowStartMinute: 0,
           windowEndMinute: 1440,
-          daysMask: "1111111",
+          daysMask: '1111111',
         },
-        scheduleType: "slots_v1",
+        scheduleType: 'slots_v1',
         scheduleData: {
-          timesLocal: ["09:00"],
-          dayFilter: "weekly_mask",
-          daysMask: "1111111",
+          timesLocal: ['09:00'],
+          dayFilter: 'weekly_mask',
+          daysMask: '1111111',
         },
       });
       expect(res.ok).toBe(true);
-      if (res.ok) expect(res.data.reminderIntent).toBe("exercises");
+      if (res.ok) expect(res.data.reminderIntent).toBe('exercises');
     });
 
-    it("rejects empty linkedObjectId", async () => {
+    it('rejects empty linkedObjectId', async () => {
       const port = createInMemoryReminderRulesPort([]);
       const svc = createRemindersService(port);
-      const res = await svc.createObjectReminder("user-1", {
-        linkedObjectType: "content_section",
-        linkedObjectId: "  ",
+      const res = await svc.createObjectReminder('user-1', {
+        linkedObjectType: 'content_section',
+        linkedObjectId: '  ',
         schedule: {
           intervalMinutes: 60,
           windowStartMinute: 480,
           windowEndMinute: 1200,
-          daysMask: "1111111",
+          daysMask: '1111111',
         },
       });
       expect(res.ok).toBe(false);
     });
 
-    it("creates object reminder without integrator user when active Web Push subscription exists", async () => {
+    it('creates object reminder without integrator user when active Web Push subscription exists', async () => {
       const port = createInMemoryReminderRulesPort([]);
-      vi.spyOn(port, "resolveIntegratorUserId").mockResolvedValue(null);
+      vi.spyOn(port, 'resolveIntegratorUserId').mockResolvedValue(null);
       const notify = vi.fn().mockResolvedValue(undefined);
       const svc = createRemindersService(port, {
         notifyIntegrator: notify,
         webPushSubscriptions: makeWebPushSubscriptionsPort(true),
       });
 
-      const res = await svc.createObjectReminder("user-1", {
-        linkedObjectType: "lfk_complex",
-        linkedObjectId: "550e8400-e29b-41d4-a716-446655440000",
+      const res = await svc.createObjectReminder('user-1', {
+        linkedObjectType: 'lfk_complex',
+        linkedObjectId: '550e8400-e29b-41d4-a716-446655440000',
         schedule: {
           intervalMinutes: 60,
           windowStartMinute: 480,
           windowEndMinute: 1200,
-          daysMask: "1111111",
+          daysMask: '1111111',
         },
       });
 
@@ -415,67 +415,67 @@ describe("reminders service", () => {
       expect(notify).not.toHaveBeenCalled();
     });
 
-    it("returns not_found for object reminder without integrator user and without Web Push subscription", async () => {
+    it('returns not_found for object reminder without integrator user and without Web Push subscription', async () => {
       const port = createInMemoryReminderRulesPort([]);
-      vi.spyOn(port, "resolveIntegratorUserId").mockResolvedValue(null);
+      vi.spyOn(port, 'resolveIntegratorUserId').mockResolvedValue(null);
       const svc = createRemindersService(port, {
         webPushSubscriptions: makeWebPushSubscriptionsPort(false),
       });
 
-      const res = await svc.createObjectReminder("user-1", {
-        linkedObjectType: "lfk_complex",
-        linkedObjectId: "550e8400-e29b-41d4-a716-446655440000",
+      const res = await svc.createObjectReminder('user-1', {
+        linkedObjectType: 'lfk_complex',
+        linkedObjectId: '550e8400-e29b-41d4-a716-446655440000',
         schedule: {
           intervalMinutes: 60,
           windowStartMinute: 480,
           windowEndMinute: 1200,
-          daysMask: "1111111",
+          daysMask: '1111111',
         },
       });
 
       expect(res.ok).toBe(false);
-      if (!res.ok) expect(res.error).toBe("not_found");
+      if (!res.ok) expect(res.error).toBe('not_found');
     });
 
-    it("fills DEFAULT_REHAB_DAILY_SLOTS when rehab_program uses slots_v1 without scheduleData", async () => {
+    it('fills DEFAULT_REHAB_DAILY_SLOTS when rehab_program uses slots_v1 without scheduleData', async () => {
       const port = createInMemoryReminderRulesPort([]);
       const svc = createRemindersService(port);
-      const res = await svc.createObjectReminder("user-1", {
-        linkedObjectType: "rehab_program",
-        linkedObjectId: "prog-1",
+      const res = await svc.createObjectReminder('user-1', {
+        linkedObjectType: 'rehab_program',
+        linkedObjectId: 'prog-1',
         schedule: {
           intervalMinutes: 60,
           windowStartMinute: 0,
           windowEndMinute: 1440,
-          daysMask: "1111111",
+          daysMask: '1111111',
         },
-        scheduleType: "slots_v1",
+        scheduleType: 'slots_v1',
         scheduleData: null,
       });
       expect(res.ok).toBe(true);
       if (res.ok) {
-        expect(res.data.scheduleType).toBe("slots_v1");
+        expect(res.data.scheduleType).toBe('slots_v1');
         expect(res.data.scheduleData).toEqual(DEFAULT_REHAB_DAILY_SLOTS);
       }
     });
 
-    it("allows two reminders for the same linked object (no unique constraint at service layer)", async () => {
+    it('allows two reminders for the same linked object (no unique constraint at service layer)', async () => {
       const port = createInMemoryReminderRulesPort([]);
       const svc = createRemindersService(port);
       const sched = {
         intervalMinutes: 60,
         windowStartMinute: 480,
         windowEndMinute: 1200,
-        daysMask: "1111111",
+        daysMask: '1111111',
       };
-      const a = await svc.createObjectReminder("user-1", {
-        linkedObjectType: "lfk_complex",
-        linkedObjectId: "550e8400-e29b-41d4-a716-446655440000",
+      const a = await svc.createObjectReminder('user-1', {
+        linkedObjectType: 'lfk_complex',
+        linkedObjectId: '550e8400-e29b-41d4-a716-446655440000',
         schedule: sched,
       });
-      const b = await svc.createObjectReminder("user-1", {
-        linkedObjectType: "lfk_complex",
-        linkedObjectId: "550e8400-e29b-41d4-a716-446655440000",
+      const b = await svc.createObjectReminder('user-1', {
+        linkedObjectType: 'lfk_complex',
+        linkedObjectId: '550e8400-e29b-41d4-a716-446655440000',
         schedule: sched,
       });
       expect(a.ok && b.ok).toBe(true);
@@ -483,77 +483,76 @@ describe("reminders service", () => {
     });
   });
 
-  describe("deleteReminder", () => {
-    it("deletes owned rule", async () => {
-      const rule = makeRule({ id: "wp-del", integratorUserId: "user-1" });
+  describe('deleteReminder', () => {
+    it('deletes owned rule', async () => {
+      const rule = makeRule({ id: 'wp-del', integratorUserId: 'user-1' });
       const port = createInMemoryReminderRulesPort([rule]);
       const svc = createRemindersService(port);
-      const res = await svc.deleteReminder("user-1", "wp-del");
+      const res = await svc.deleteReminder('user-1', 'wp-del');
       expect(res.ok).toBe(true);
-      if (res.ok) expect(res.data.deletedId).toBe("wp-del");
+      if (res.ok) expect(res.data.deletedId).toBe('wp-del');
     });
 
-    it("returns not_found for other user", async () => {
-      const rule = makeRule({ id: "wp-x", integratorUserId: "other" });
+    it('returns not_found for other user', async () => {
+      const rule = makeRule({ id: 'wp-x', integratorUserId: 'other' });
       const port = createInMemoryReminderRulesPort([rule]);
       const svc = createRemindersService(port);
-      const res = await svc.deleteReminder("user-1", "wp-x");
+      const res = await svc.deleteReminder('user-1', 'wp-x');
       expect(res.ok).toBe(false);
     });
 
-    it("returns not_found when rule id does not exist", async () => {
+    it('returns not_found when rule id does not exist', async () => {
       const port = createInMemoryReminderRulesPort([]);
       const svc = createRemindersService(port);
-      const res = await svc.deleteReminder("user-1", "wp-missing");
+      const res = await svc.deleteReminder('user-1', 'wp-missing');
       expect(res.ok).toBe(false);
-      if (!res.ok) expect(res.error).toBe("not_found");
+      if (!res.ok) expect(res.error).toBe('not_found');
     });
   });
 
-  describe("snoozeOccurrence", () => {
-    it("returns not_available without journal port", async () => {
+  describe('snoozeOccurrence', () => {
+    it('returns not_available without journal port', async () => {
       const port = createInMemoryReminderRulesPort([]);
       const svc = createRemindersService(port);
-      const res = await svc.snoozeOccurrence("user-1", "occ-1", 30);
+      const res = await svc.snoozeOccurrence('user-1', 'occ-1', 30);
       expect(res.ok).toBe(false);
-      if (!res.ok) expect(res.error).toBe("not_available");
+      if (!res.ok) expect(res.error).toBe('not_available');
     });
 
-    it("records snooze when journal is configured", async () => {
+    it('records snooze when journal is configured', async () => {
       const journal = createInMemoryReminderJournalPort();
       const port = createInMemoryReminderRulesPort([]);
       const svc = createRemindersService(port, { journal });
-      const res = await svc.snoozeOccurrence("user-1", "occ-1", 60);
+      const res = await svc.snoozeOccurrence('user-1', 'occ-1', 60);
       expect(res.ok).toBe(true);
-      if (res.ok) expect(res.data.occurrenceId).toBe("occ-1");
+      if (res.ok) expect(res.data.occurrenceId).toBe('occ-1');
     });
-
   });
 
-  describe("skipOccurrence", () => {
-    it("returns not_available without journal port", async () => {
+  describe('skipOccurrence', () => {
+    it('returns not_available without journal port', async () => {
       const port = createInMemoryReminderRulesPort([]);
       const svc = createRemindersService(port);
-      const res = await svc.skipOccurrence("user-1", "occ-2", "busy");
+      const res = await svc.skipOccurrence('user-1', 'occ-2', 'busy');
       expect(res.ok).toBe(false);
-      if (!res.ok) expect(res.error).toBe("not_available");
+      if (!res.ok) expect(res.error).toBe('not_available');
     });
 
-    it("records skip when journal is configured", async () => {
+    it('records skip when journal is configured', async () => {
       const journal = createInMemoryReminderJournalPort();
       const port = createInMemoryReminderRulesPort([]);
       const svc = createRemindersService(port, { journal });
-      const res = await svc.skipOccurrence("user-1", "occ-2", "tired");
+      const res = await svc.skipOccurrence('user-1', 'occ-2', 'tired');
       expect(res.ok).toBe(true);
-      if (res.ok) expect(res.data.occurrenceId).toBe("occ-2");
+      if (res.ok) expect(res.data.occurrenceId).toBe('occ-2');
     });
 
-    it("returns stable skippedAt on repeated skip for same occurrence (in-memory idempotency)", async () => {
+    it('returns stable skippedAt on repeated skip for same occurrence (in-memory idempotency)', async () => {
       const journal = createInMemoryReminderJournalPort();
       const port = createInMemoryReminderRulesPort([]);
       const svc = createRemindersService(port, { journal });
-      const first = await svc.skipOccurrence("user-1", "occ-skip-idem", "once");
-      const second = await svc.skipOccurrence("user-1", "occ-skip-idem", "again");
+      const first = await svc.skipOccurrence('user-1', 'occ-skip-idem', 'once');
+      const second = await svc.skipOccurrence('user-1', 'occ-skip-idem', 'again');
       expect(first.ok && second.ok).toBe(true);
       if (first.ok && second.ok) {
         expect(second.data.skippedAt).toBe(first.data.skippedAt);

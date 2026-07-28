@@ -1,30 +1,33 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
-import { Badge } from "@/shared/ui/doctor/primitives/badge";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { buttonVariants } from "@/shared/ui/doctor/primitives/button-variants";
-import { PatientTreatmentProgramsPanel } from "./PatientTreatmentProgramsPanel";
-import { DoctorClientProgramInbox } from "./DoctorClientProgramInbox";
-import { groupPendingProgramTestEvaluations } from "./groupPendingProgramTestEvaluations";
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { Badge } from '@/shared/ui/doctor/primitives/badge';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { buttonVariants } from '@/shared/ui/doctor/primitives/button-variants';
+import { PatientTreatmentProgramsPanel } from './PatientTreatmentProgramsPanel';
+import { DoctorClientProgramInbox } from './DoctorClientProgramInbox';
+import { groupPendingProgramTestEvaluations } from './groupPendingProgramTestEvaluations';
 import type {
   DoctorClientActiveProgramTreeModel,
   DoctorClientProgramInboxRow,
-} from "@/modules/doctor-client-card/types";
-import { DoctorClientActiveProgramPanel } from "./DoctorClientActiveProgramPanel";
-import type { PendingProgramTestEvaluationRow, TreatmentProgramInstanceSummary } from "@/modules/treatment-program/types";
+} from '@/modules/doctor-client-card/types';
+import { DoctorClientActiveProgramPanel } from './DoctorClientActiveProgramPanel';
+import type {
+  PendingProgramTestEvaluationRow,
+  TreatmentProgramInstanceSummary,
+} from '@/modules/treatment-program/types';
 import {
   doctorClientSectionTitleClass,
   doctorClientStackedCardClass,
   doctorClientTabSectionClass,
   doctorClientUrgentZoneClass,
-} from "./doctorClientCardChrome";
-import { doctorClientTreatmentProgramInstanceHref } from "./doctorClientInstanceHref";
-import { DoctorProgramOverviewPanel } from "./DoctorProgramOverviewPanel";
-import { cn } from "@/lib/utils";
+} from './doctorClientCardChrome';
+import { doctorClientTreatmentProgramInstanceHref } from './doctorClientInstanceHref';
+import { DoctorProgramOverviewPanel } from './DoctorProgramOverviewPanel';
+import { cn } from '@/lib/utils';
 
-type ProgramMode = "overview" | "correction";
+type ProgramMode = 'overview' | 'correction';
 
 type Props = {
   userId: string;
@@ -61,16 +64,18 @@ export function DoctorClientProgramTab({
 
   // Derive activeInstanceId from activeProgramTree if not explicitly provided
   const resolvedActiveInstanceId: string | undefined =
-    activeInstanceId ?? (activeProgramTree?.instanceId ?? undefined);
+    activeInstanceId ?? activeProgramTree?.instanceId ?? undefined;
 
-  const [mode, setMode] = useState<ProgramMode>("overview");
+  const [mode, setMode] = useState<ProgramMode>('overview');
 
   useEffect(() => {
     if (!focusPendingProgramAttemptId) return;
     requestAnimationFrame(() => {
-      const el = document.getElementById(`doctor-client-pending-attempt-${focusPendingProgramAttemptId}`);
-      if (el && typeof el.scrollIntoView === "function") {
-        el.scrollIntoView({ behavior: "smooth", block: "center" });
+      const el = document.getElementById(
+        `doctor-client-pending-attempt-${focusPendingProgramAttemptId}`,
+      );
+      if (el && typeof el.scrollIntoView === 'function') {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
     });
   }, [focusPendingProgramAttemptId]);
@@ -82,8 +87,8 @@ export function DoctorClientProgramTab({
         <div className="flex items-center gap-1 border-b border-border px-4 py-2">
           <Button
             type="button"
-            onClick={() => setMode("overview")}
-            variant={mode === "overview" ? "default" : "ghost"}
+            onClick={() => setMode('overview')}
+            variant={mode === 'overview' ? 'default' : 'ghost'}
             size="sm"
             className="rounded-full px-3 py-1 text-xs font-medium"
           >
@@ -91,8 +96,8 @@ export function DoctorClientProgramTab({
           </Button>
           <Button
             type="button"
-            onClick={() => setMode("correction")}
-            variant={mode === "correction" ? "default" : "ghost"}
+            onClick={() => setMode('correction')}
+            variant={mode === 'correction' ? 'default' : 'ghost'}
             size="sm"
             className="rounded-full px-3 py-1 text-xs font-medium"
           >
@@ -102,7 +107,7 @@ export function DoctorClientProgramTab({
       ) : null}
 
       {/* Overview mode */}
-      {resolvedActiveInstanceId && mode === "overview" ? (
+      {resolvedActiveInstanceId && mode === 'overview' ? (
         <DoctorProgramOverviewPanel
           userId={userId}
           instanceId={resolvedActiveInstanceId}
@@ -123,7 +128,11 @@ export function DoctorClientProgramTab({
                         {inboxCount}
                       </Badge>
                     </div>
-                    <DoctorClientProgramInbox userId={userId} profileListScope={profileListScope} rows={programInbox} />
+                    <DoctorClientProgramInbox
+                      userId={userId}
+                      profileListScope={profileListScope}
+                      rows={programInbox}
+                    />
                   </div>
                 ) : null}
 
@@ -142,19 +151,25 @@ export function DoctorClientProgramTab({
                           id={`doctor-client-pending-attempt-${g.attemptId}`}
                           className={cn(
                             doctorClientStackedCardClass,
-                            focusPendingProgramAttemptId === g.attemptId && "ring-2 ring-primary/50",
+                            focusPendingProgramAttemptId === g.attemptId &&
+                              'ring-2 ring-primary/50',
                           )}
                         >
                           <p className="text-sm font-medium leading-snug">
                             {g.instanceTitle} · {g.stageTitle}
                           </p>
-                          <p className="mt-1 text-xs text-muted-foreground">Без оценки: {g.results.length}</p>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            Без оценки: {g.results.length}
+                          </p>
                           <Link
                             href={doctorClientTreatmentProgramInstanceHref(userId, g.instanceId, {
                               profileListScope,
                               focusItemId: g.results[0]?.resultId,
                             })}
-                            className={cn(buttonVariants({ variant: "outline", size: "sm" }), "mt-3 inline-flex")}
+                            className={cn(
+                              buttonVariants({ variant: 'outline', size: 'sm' }),
+                              'mt-3 inline-flex',
+                            )}
                           >
                             Оценить
                           </Link>
@@ -167,7 +182,10 @@ export function DoctorClientProgramTab({
             </section>
           ) : null}
 
-          <section id="doctor-client-section-treatment-programs" className={doctorClientTabSectionClass}>
+          <section
+            id="doctor-client-section-treatment-programs"
+            className={doctorClientTabSectionClass}
+          >
             {activeProgramTree ? (
               <DoctorClientActiveProgramPanel
                 userId={userId}

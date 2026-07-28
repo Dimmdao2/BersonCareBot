@@ -1,5 +1,5 @@
-import { requireOrganizationManagementContext } from "@/app-layer/guards/requireRole";
-import type { OrgBrandingManagementContext } from "@/modules/org-branding/service";
+import { requireOrganizationManagementContext } from '@/app-layer/guards/requireRole';
+import type { OrgBrandingManagementContext } from '@/modules/org-branding/service';
 
 /**
  * UX-05 B1 — the ONLY way to obtain a branding mutation context.

@@ -1,4 +1,7 @@
-import type { TreatmentProgramPort, TreatmentProgramTemplateStageValidationContext } from "@/modules/treatment-program/ports";
+import type {
+  TreatmentProgramPort,
+  TreatmentProgramTemplateStageValidationContext,
+} from '@/modules/treatment-program/ports';
 import type {
   CreateTreatmentProgramStageInput,
   CreateTreatmentProgramStageItemInput,
@@ -21,7 +24,7 @@ import type {
   UpdateTreatmentProgramStageItemInput,
   UpdateTreatmentProgramTemplateInput,
   UpdateTreatmentProgramTemplateStageGroupInput,
-} from "@/modules/treatment-program/types";
+} from '@/modules/treatment-program/types';
 import {
   EMPTY_TREATMENT_PROGRAM_TEMPLATE_USAGE_SNAPSHOT,
   TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_SORT_RECOMMENDATIONS,
@@ -30,8 +33,11 @@ import {
   TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_TITLE_TESTS,
   TREATMENT_PROGRAM_TEMPLATE_STAGE_ZERO_TITLE,
   treatmentProgramTemplateStageCountForList,
-} from "@/modules/treatment-program/types";
-import { TreatmentProgramTemplateAlreadyArchivedError, TreatmentProgramExpandNotFoundError } from "@/modules/treatment-program/errors";
+} from '@/modules/treatment-program/types';
+import {
+  TreatmentProgramTemplateAlreadyArchivedError,
+  TreatmentProgramExpandNotFoundError,
+} from '@/modules/treatment-program/errors';
 
 const templateUsageSnapshots = new Map<string, TreatmentProgramTemplateUsageSnapshot>();
 
@@ -85,7 +91,8 @@ export function createInMemoryTreatmentProgramPort(seed?: {
   }
   for (const s of seed?.stages ?? []) stages.set(s.id, { ...s });
   for (const i of seed?.items ?? []) items.set(i.id, { ...i });
-  for (const g of seed?.groups ?? []) tplGroups.set(g.id, { ...g, systemKind: g.systemKind ?? null });
+  for (const g of seed?.groups ?? [])
+    tplGroups.set(g.id, { ...g, systemKind: g.systemKind ?? null });
 
   const lfkComplexExpandPreview = seed?.lfkComplexExpandPreview ?? {};
 
@@ -157,7 +164,7 @@ export function createInMemoryTreatmentProgramPort(seed?: {
         id,
         title: input.title,
         description: input.description ?? null,
-        status: (input.status ?? "draft") as TreatmentProgramTemplateStatus,
+        status: (input.status ?? 'draft') as TreatmentProgramTemplateStatus,
         stageCount: 0,
         itemCount: 0,
         listPreviewMedia: null,
@@ -218,14 +225,15 @@ export function createInMemoryTreatmentProgramPort(seed?: {
         sortOrder: st.sortOrder,
         groups: groupList.map((g) => ({
           id: g.id,
-          systemKind: g.systemKind === "recommendations" || g.systemKind === "tests" ? g.systemKind : null,
+          systemKind:
+            g.systemKind === 'recommendations' || g.systemKind === 'tests' ? g.systemKind : null,
         })),
       };
     },
 
     async listTemplates(filter: TreatmentProgramTemplateFilter) {
       const list = [...templates.values()];
-      let out = filter.includeArchived ? list : list.filter((t) => t.status !== "archived");
+      let out = filter.includeArchived ? list : list.filter((t) => t.status !== 'archived');
       if (filter.status !== undefined) {
         out = out.filter((t) => t.status === filter.status);
       }
@@ -245,13 +253,19 @@ export function createInMemoryTreatmentProgramPort(seed?: {
 
     async deleteTemplate(id: string) {
       const cur = templates.get(id);
-      if (!cur || cur.status === "archived") return false;
-      templates.set(id, { ...cur, status: "archived", updatedAt: isoNow() });
+      if (!cur || cur.status === 'archived') return false;
+      templates.set(id, { ...cur, status: 'archived', updatedAt: isoNow() });
       return true;
     },
 
-    async getTreatmentProgramTemplateUsageSummary(templateId: string): Promise<TreatmentProgramTemplateUsageSnapshot> {
-      return templateUsageSnapshots.get(templateId) ?? { ...EMPTY_TREATMENT_PROGRAM_TEMPLATE_USAGE_SNAPSHOT };
+    async getTreatmentProgramTemplateUsageSummary(
+      templateId: string,
+    ): Promise<TreatmentProgramTemplateUsageSnapshot> {
+      return (
+        templateUsageSnapshots.get(templateId) ?? {
+          ...EMPTY_TREATMENT_PROGRAM_TEMPLATE_USAGE_SNAPSHOT,
+        }
+      );
     },
 
     async createStage(templateId: string, input: CreateTreatmentProgramStageInput) {
@@ -279,7 +293,7 @@ export function createInMemoryTreatmentProgramPort(seed?: {
           description: null,
           scheduleText: null,
           sortOrder: TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_SORT_RECOMMENDATIONS,
-          systemKind: "recommendations",
+          systemKind: 'recommendations',
         });
         tplGroups.set(gidT, {
           id: gidT,
@@ -288,7 +302,7 @@ export function createInMemoryTreatmentProgramPort(seed?: {
           description: null,
           scheduleText: null,
           sortOrder: TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_SORT_TESTS,
-          systemKind: "tests",
+          systemKind: 'tests',
         });
       }
       return { ...row };
@@ -299,16 +313,21 @@ export function createInMemoryTreatmentProgramPort(seed?: {
       if (!cur) return null;
       if (input.sortOrder !== undefined) {
         if (cur.sortOrder === 0 && input.sortOrder !== 0) {
-          throw new Error("Этап «Общие рекомендации» (порядок 0) нельзя перевести на другой порядок");
+          throw new Error(
+            'Этап «Общие рекомендации» (порядок 0) нельзя перевести на другой порядок',
+          );
         }
         if (cur.sortOrder !== 0 && input.sortOrder === 0) {
-          throw new Error("Порядок 0 зарезервирован для этапа «Общие рекомендации»");
+          throw new Error('Порядок 0 зарезервирован для этапа «Общие рекомендации»');
         }
         if (input.sortOrder !== cur.sortOrder) {
           const clash = [...stages.values()].find(
-            (s) => s.templateId === cur.templateId && s.sortOrder === input.sortOrder && s.id !== stageId,
+            (s) =>
+              s.templateId === cur.templateId &&
+              s.sortOrder === input.sortOrder &&
+              s.id !== stageId,
           );
-          if (clash) throw new Error("Этап с таким порядком уже существует");
+          if (clash) throw new Error('Этап с таким порядком уже существует');
         }
       }
       const next = { ...cur, ...input };
@@ -320,7 +339,7 @@ export function createInMemoryTreatmentProgramPort(seed?: {
       const cur = stages.get(stageId);
       if (!cur) return false;
       if (cur.sortOrder === 0) {
-        throw new Error("Нельзя удалить этап «Общие рекомендации»");
+        throw new Error('Нельзя удалить этап «Общие рекомендации»');
       }
       stages.delete(stageId);
       for (const [iid, it] of items) {
@@ -334,14 +353,14 @@ export function createInMemoryTreatmentProgramPort(seed?: {
 
     async addStageItem(stageId: string, input: CreateTreatmentProgramStageItemInput) {
       const st = stages.get(stageId);
-      if (!st) throw new Error("Этап не найден");
-      if (st.sortOrder === 0 && input.itemType !== "recommendation") {
-        throw new Error("На этапе «Общие рекомендации» разрешены только рекомендации");
+      if (!st) throw new Error('Этап не найден');
+      if (st.sortOrder === 0 && input.itemType !== 'recommendation') {
+        throw new Error('На этапе «Общие рекомендации» разрешены только рекомендации');
       }
       if (input.groupId) {
         const gr = tplGroups.get(input.groupId);
         if (!gr || gr.stageId !== stageId) {
-          throw new Error("Группа не найдена или не принадлежит этапу");
+          throw new Error('Группа не найдена или не принадлежит этапу');
         }
       }
       const id = crypto.randomUUID();
@@ -370,7 +389,7 @@ export function createInMemoryTreatmentProgramPort(seed?: {
       if (input.groupId !== undefined && input.groupId !== null) {
         const gr = tplGroups.get(input.groupId);
         if (!gr || gr.stageId !== cur.stageId) {
-          throw new Error("Группа не найдена или не принадлежит этапу");
+          throw new Error('Группа не найдена или не принадлежит этапу');
         }
       }
       const next = { ...cur, ...input };
@@ -384,14 +403,17 @@ export function createInMemoryTreatmentProgramPort(seed?: {
       return true;
     },
 
-    async createTemplateStageGroup(stageId: string, input: CreateTreatmentProgramTemplateStageGroupInput) {
+    async createTemplateStageGroup(
+      stageId: string,
+      input: CreateTreatmentProgramTemplateStageGroupInput,
+    ) {
       const st = stages.get(stageId);
-      if (!st) throw new Error("Этап не найден");
+      if (!st) throw new Error('Этап не найден');
       if (st.sortOrder === 0) {
-        throw new Error("На этапе «Общие рекомендации» нельзя создавать группы");
+        throw new Error('На этапе «Общие рекомендации» нельзя создавать группы');
       }
-      const title = input.title?.trim() ?? "";
-      if (!title) throw new Error("Название группы обязательно");
+      const title = input.title?.trim() ?? '';
+      if (!title) throw new Error('Название группы обязательно');
       const id = crypto.randomUUID();
       const row: TreatmentProgramTemplateStageGroup = {
         id,
@@ -406,31 +428,38 @@ export function createInMemoryTreatmentProgramPort(seed?: {
       return { ...row };
     },
 
-    async updateTemplateStageGroup(groupId: string, input: UpdateTreatmentProgramTemplateStageGroupInput) {
+    async updateTemplateStageGroup(
+      groupId: string,
+      input: UpdateTreatmentProgramTemplateStageGroupInput,
+    ) {
       const cur = tplGroups.get(groupId);
       if (!cur) return null;
-      if (cur.systemKind === "recommendations" || cur.systemKind === "tests") {
+      if (cur.systemKind === 'recommendations' || cur.systemKind === 'tests') {
         if (
           input.title !== undefined ||
           input.sortOrder !== undefined ||
           input.description !== undefined ||
           input.scheduleText !== undefined
         ) {
-          throw new Error("Системную группу нельзя редактировать");
+          throw new Error('Системную группу нельзя редактировать');
         }
         return { ...cur };
       }
       let title = cur.title;
       if (input.title !== undefined) {
         const t = input.title.trim();
-        if (!t) throw new Error("Название группы обязательно");
+        if (!t) throw new Error('Название группы обязательно');
         title = t;
       }
       const next: TreatmentProgramTemplateStageGroup = {
         ...cur,
         title,
-        ...(input.description !== undefined ? { description: input.description?.trim() ?? null } : {}),
-        ...(input.scheduleText !== undefined ? { scheduleText: input.scheduleText?.trim() ?? null } : {}),
+        ...(input.description !== undefined
+          ? { description: input.description?.trim() ?? null }
+          : {}),
+        ...(input.scheduleText !== undefined
+          ? { scheduleText: input.scheduleText?.trim() ?? null }
+          : {}),
         ...(input.sortOrder !== undefined ? { sortOrder: input.sortOrder } : {}),
       };
       tplGroups.set(groupId, next);
@@ -440,8 +469,8 @@ export function createInMemoryTreatmentProgramPort(seed?: {
     async deleteTemplateStageGroup(groupId: string) {
       const cur = tplGroups.get(groupId);
       if (!cur) return false;
-      if (cur.systemKind === "recommendations" || cur.systemKind === "tests") {
-        throw new Error("Системную группу нельзя удалить");
+      if (cur.systemKind === 'recommendations' || cur.systemKind === 'tests') {
+        throw new Error('Системную группу нельзя удалить');
       }
       for (const [iid, it] of items) {
         if (it.groupId === groupId) items.set(iid, { ...it, groupId: null });
@@ -450,7 +479,9 @@ export function createInMemoryTreatmentProgramPort(seed?: {
       return true;
     },
 
-    async getLfkComplexExpandPreview(complexTemplateId: string): Promise<LfkComplexExpandPreview | null> {
+    async getLfkComplexExpandPreview(
+      complexTemplateId: string,
+    ): Promise<LfkComplexExpandPreview | null> {
       const row = lfkComplexExpandPreview[complexTemplateId];
       if (!row) return null;
       return {
@@ -464,25 +495,26 @@ export function createInMemoryTreatmentProgramPort(seed?: {
       input: ExpandLfkComplexIntoStageItemsPortInput,
     ): Promise<ExpandLfkComplexIntoStageItemsResult> {
       const stageRow = stages.get(input.stageId);
-      if (!stageRow) throw new TreatmentProgramExpandNotFoundError("Этап не найден");
+      if (!stageRow) throw new TreatmentProgramExpandNotFoundError('Этап не найден');
       if (stageRow.sortOrder === 0) {
-        throw new Error("На этапе «Общие рекомендации» нельзя разворачивать комплекс ЛФК");
+        throw new Error('На этапе «Общие рекомендации» нельзя разворачивать комплекс ЛФК');
       }
       if (stageRow.templateId !== input.templateId) {
-        throw new TreatmentProgramExpandNotFoundError("Этап не принадлежит шаблону");
+        throw new TreatmentProgramExpandNotFoundError('Этап не принадлежит шаблону');
       }
 
       const tplRow = templates.get(input.templateId);
-      if (!tplRow) throw new TreatmentProgramExpandNotFoundError("Шаблон программы не найден");
-      if (tplRow.status === "archived") throw new TreatmentProgramTemplateAlreadyArchivedError();
+      if (!tplRow) throw new TreatmentProgramExpandNotFoundError('Шаблон программы не найден');
+      if (tplRow.status === 'archived') throw new TreatmentProgramTemplateAlreadyArchivedError();
 
       const preview = lfkComplexExpandPreview[input.complexTemplateId];
-      if (!preview) throw new TreatmentProgramExpandNotFoundError("Комплекс ЛФК не найден или в архиве");
+      if (!preview)
+        throw new TreatmentProgramExpandNotFoundError('Комплекс ЛФК не найден или в архиве');
 
       const idsFromDb = [...preview.exerciseIds];
-      if (idsFromDb.length === 0) throw new Error("В комплексе нет упражнений");
+      if (idsFromDb.length === 0) throw new Error('В комплексе нет упражнений');
       if (!sameUuidOrder(idsFromDb, input.expectedExerciseIds)) {
-        throw new Error("Комплекс ЛФК был изменён; обновите страницу и повторите попытку");
+        throw new Error('Комплекс ЛФК был изменён; обновите страницу и повторите попытку');
       }
 
       const complexDescription = preview.complexDescription;
@@ -490,11 +522,11 @@ export function createInMemoryTreatmentProgramPort(seed?: {
       let targetGroupId: string | null = null;
       let createdGroup: TreatmentProgramTemplateStageGroup | undefined;
 
-      if (input.mode === "ungrouped") {
+      if (input.mode === 'ungrouped') {
         targetGroupId = null;
-      } else if (input.mode === "new_group") {
-        const title = input.newGroupTitle?.trim() ?? "";
-        if (!title) throw new Error("Название группы обязательно");
+      } else if (input.mode === 'new_group') {
+        const title = input.newGroupTitle?.trim() ?? '';
+        if (!title) throw new Error('Название группы обязательно');
         let groupDescription: string | null = null;
         if (input.copyComplexDescriptionToGroup && complexDescription) {
           groupDescription = complexDescription;
@@ -516,10 +548,12 @@ export function createInMemoryTreatmentProgramPort(seed?: {
       } else {
         const gRow = tplGroups.get(input.existingGroupId!);
         if (!gRow || gRow.stageId !== input.stageId) {
-          throw new TreatmentProgramExpandNotFoundError("Группа не найдена или не принадлежит этапу");
+          throw new TreatmentProgramExpandNotFoundError(
+            'Группа не найдена или не принадлежит этапу',
+          );
         }
-        if (gRow.systemKind === "recommendations" || gRow.systemKind === "tests") {
-          throw new Error("Нельзя добавить упражнения в системную группу");
+        if (gRow.systemKind === 'recommendations' || gRow.systemKind === 'tests') {
+          throw new Error('Нельзя добавить упражнения в системную группу');
         }
         targetGroupId = gRow.id;
         if (input.copyComplexDescriptionToGroup && complexDescription) {
@@ -541,7 +575,7 @@ export function createInMemoryTreatmentProgramPort(seed?: {
         const row: TreatmentProgramStageItem = {
           id,
           stageId: input.stageId,
-          itemType: "exercise",
+          itemType: 'exercise',
           itemRefId: exerciseId,
           sortOrder: base + i,
           comment: null,
@@ -559,27 +593,27 @@ export function createInMemoryTreatmentProgramPort(seed?: {
       input: ExpandTestSetIntoTemplateStageItemsPortInput,
     ): Promise<ExpandTestSetIntoTemplateStageItemsResult> {
       const stageRow = stages.get(input.stageId);
-      if (!stageRow) throw new TreatmentProgramExpandNotFoundError("Этап не найден");
+      if (!stageRow) throw new TreatmentProgramExpandNotFoundError('Этап не найден');
       if (stageRow.sortOrder === 0) {
-        throw new Error("На этапе «Общие рекомендации» нельзя разворачивать набор тестов");
+        throw new Error('На этапе «Общие рекомендации» нельзя разворачивать набор тестов');
       }
       if (stageRow.templateId !== input.templateId) {
-        throw new TreatmentProgramExpandNotFoundError("Этап не принадлежит шаблону");
+        throw new TreatmentProgramExpandNotFoundError('Этап не принадлежит шаблону');
       }
       const tplRow = templates.get(input.templateId);
-      if (!tplRow) throw new TreatmentProgramExpandNotFoundError("Шаблон программы не найден");
-      if (tplRow.status === "archived") throw new TreatmentProgramTemplateAlreadyArchivedError();
+      if (!tplRow) throw new TreatmentProgramExpandNotFoundError('Шаблон программы не найден');
+      if (tplRow.status === 'archived') throw new TreatmentProgramTemplateAlreadyArchivedError();
 
       const lines = seed?.testSetExpandLines?.[input.testSetId];
       if (!lines || lines.length === 0) {
-        throw new TreatmentProgramExpandNotFoundError("Набор тестов не найден или в архиве");
+        throw new TreatmentProgramExpandNotFoundError('Набор тестов не найден или в архиве');
       }
 
       const testsGroup = [...tplGroups.values()].find(
-        (g) => g.stageId === input.stageId && g.systemKind === "tests",
+        (g) => g.stageId === input.stageId && g.systemKind === 'tests',
       );
       if (!testsGroup) {
-        throw new Error("Не найдена системная группа «Тестирование» для этапа");
+        throw new Error('Не найдена системная группа «Тестирование» для этапа');
       }
 
       const existing = new Set(
@@ -588,14 +622,16 @@ export function createInMemoryTreatmentProgramPort(seed?: {
             (it) =>
               it.stageId === input.stageId &&
               it.groupId === testsGroup.id &&
-              it.itemType === "clinical_test",
+              it.itemType === 'clinical_test',
           )
           .map((it) => it.itemRefId),
       );
 
       const itemMax = Math.max(
         -1,
-        ...[...items.values()].filter((it) => it.stageId === input.stageId).map((it) => it.sortOrder),
+        ...[...items.values()]
+          .filter((it) => it.stageId === input.stageId)
+          .map((it) => it.sortOrder),
       );
       let pos = itemMax + 1;
       let added = 0;
@@ -611,7 +647,7 @@ export function createInMemoryTreatmentProgramPort(seed?: {
         const row: TreatmentProgramStageItem = {
           id,
           stageId: input.stageId,
-          itemType: "clinical_test",
+          itemType: 'clinical_test',
           itemRefId: testId,
           sortOrder: pos++,
           comment: null,

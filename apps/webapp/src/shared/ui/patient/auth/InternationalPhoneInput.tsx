@@ -1,15 +1,15 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import PhoneInput from "react-phone-number-input";
-import type { E164Number } from "libphonenumber-js/core";
-import { isValidPhoneNumber } from "libphonenumber-js/min";
-import { Button } from "@/shared/ui/patient/primitives/button";
-import { cn } from "@/lib/utils";
-import { AUTH_LOGIN_FORM_PRIMARY_BUTTON_CLASS } from "@/shared/ui/patient/auth/loginChrome";
-import { patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
-import "react-phone-number-input/style.css";
-import "./international-phone-input.css";
+import { useState } from 'react';
+import PhoneInput from 'react-phone-number-input';
+import type { E164Number } from 'libphonenumber-js/core';
+import { isValidPhoneNumber } from 'libphonenumber-js/min';
+import { Button } from '@/shared/ui/patient/primitives/button';
+import { cn } from '@/lib/utils';
+import { AUTH_LOGIN_FORM_PRIMARY_BUTTON_CLASS } from '@/shared/ui/patient/auth/loginChrome';
+import { patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
+import 'react-phone-number-input/style.css';
+import './international-phone-input.css';
 
 export type InternationalPhoneFieldProps = {
   id?: string;
@@ -18,18 +18,18 @@ export type InternationalPhoneFieldProps = {
   onChange: (value: E164Number | undefined) => void;
   onBlur?: () => void;
   className?: string;
-  "aria-invalid"?: boolean;
+  'aria-invalid'?: boolean;
 };
 
 /** Поле с выбором страны; значение — E.164 при валидном вводе. */
 export function InternationalPhoneField({
-  id = "intl-phone-input",
+  id = 'intl-phone-input',
   disabled,
   value,
   onChange,
   onBlur,
   className,
-  "aria-invalid": ariaInvalid,
+  'aria-invalid': ariaInvalid,
 }: InternationalPhoneFieldProps) {
   return (
     <PhoneInput
@@ -41,11 +41,11 @@ export function InternationalPhoneField({
       disabled={disabled}
       limitMaxLength
       smartCaret
-      className={cn("PhoneInput w-full", className)}
+      className={cn('PhoneInput w-full', className)}
       numberInputProps={{
         id,
-        "aria-label": "Номер телефона",
-        "aria-invalid": ariaInvalid,
+        'aria-label': 'Номер телефона',
+        'aria-invalid': ariaInvalid,
       }}
     />
   );
@@ -64,10 +64,10 @@ type InternationalPhoneInputProps = {
  * Кнопка «Продолжить» неактивна, пока номер не проходит `isValidPhoneNumber`.
  */
 export function InternationalPhoneInput({
-  id = "auth-v2-phone",
+  id = 'auth-v2-phone',
   disabled = false,
   onNormalized,
-  submitLabel = "Продолжить",
+  submitLabel = 'Продолжить',
   onSubmit,
 }: InternationalPhoneInputProps) {
   const [value, setValue] = useState<E164Number | undefined>();
@@ -89,17 +89,17 @@ export function InternationalPhoneInput({
   const canSubmit = Boolean(value && isValidPhoneNumber(value));
 
   return (
-    <form
-      className={cn("mx-auto flex w-full max-w-sm flex-col gap-2")}
-      onSubmit={handleSubmit}
-    >
-      <label className={cn(patientMutedTextClass, "text-xs font-normal uppercase tracking-wide")} htmlFor={id}>
+    <form className={cn('mx-auto flex w-full max-w-sm flex-col gap-2')} onSubmit={handleSubmit}>
+      <label
+        className={cn(patientMutedTextClass, 'text-xs font-normal uppercase tracking-wide')}
+        htmlFor={id}
+      >
         Номер телефона
       </label>
       <div
         className={cn(
-          "phone-field-auth flex min-h-10 w-full items-center rounded-md border border-[var(--patient-border)] bg-[var(--patient-card-bg)] px-2 py-1 ring-offset-background focus-within:ring-2 focus-within:ring-[var(--patient-color-primary)] focus-within:ring-offset-2",
-          showError && "phone-field-auth--error border-destructive",
+          'phone-field-auth flex min-h-10 w-full items-center rounded-md border border-[var(--patient-border)] bg-[var(--patient-card-bg)] px-2 py-1 ring-offset-background focus-within:ring-2 focus-within:ring-[var(--patient-color-primary)] focus-within:ring-offset-2',
+          showError && 'phone-field-auth--error border-destructive',
         )}
       >
         <InternationalPhoneField
@@ -112,7 +112,9 @@ export function InternationalPhoneInput({
           aria-invalid={showError || undefined}
         />
       </div>
-      {showError ? <p className="text-sm text-[var(--patient-color-danger)]">Введите корректный номер</p> : null}
+      {showError ? (
+        <p className="text-sm text-[var(--patient-color-danger)]">Введите корректный номер</p>
+      ) : null}
       <Button
         type="submit"
         variant="outline"
@@ -120,7 +122,7 @@ export function InternationalPhoneInput({
         disabled={disabled || !canSubmit}
         aria-label={submitLabel}
       >
-        {disabled ? "Подождите…" : submitLabel}
+        {disabled ? 'Подождите…' : submitLabel}
       </Button>
     </form>
   );

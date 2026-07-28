@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 const requireAdminBookingEngineMock = vi.hoisted(() => vi.fn());
 const listScheduleTemplatesMock = vi.hoisted(() => vi.fn());
@@ -7,25 +7,23 @@ const deleteScheduleTemplateMock = vi.hoisted(() => vi.fn());
 const applyScheduleTemplateMock = vi.hoisted(() => vi.fn());
 const principalState = vi.hoisted(() => ({ inside: false }));
 const withDoctorWorkspacePrincipalMock = vi.hoisted(() =>
-  vi.fn(async <T,>(
-    _workspace: { organizationId: string },
-    _source: string,
-    fn: () => Promise<T>,
-  ) => {
-    principalState.inside = true;
-    try {
-      return await fn();
-    } finally {
-      principalState.inside = false;
-    }
-  }),
+  vi.fn(
+    async <T>(_workspace: { organizationId: string }, _source: string, fn: () => Promise<T>) => {
+      principalState.inside = true;
+      try {
+        return await fn();
+      } finally {
+        principalState.inside = false;
+      }
+    },
+  ),
 );
 
-vi.mock("../_requireAdminBookingEngine", () => ({
+vi.mock('../_requireAdminBookingEngine', () => ({
   requireAdminBookingEngine: requireAdminBookingEngineMock,
 }));
 
-vi.mock("@/app-layer/di/buildAppDeps", () => ({
+vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: () => ({
     bookingScheduling: {
       listScheduleTemplates: listScheduleTemplatesMock,
@@ -36,35 +34,39 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
   }),
 }));
 
-vi.mock("@/app-layer/principal/withOrganizationPrincipal", () => ({
+vi.mock('@/app-layer/principal/withOrganizationPrincipal', () => ({
   withDoctorWorkspacePrincipal: withDoctorWorkspacePrincipalMock,
 }));
 
-import { GET, POST, DELETE } from "./route";
+import { GET, POST, DELETE } from './route';
 
-const ORG = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
-const TMPL = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+const ORG = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const TMPL = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 
-describe("/api/admin/booking-engine/working-schedule-templates", () => {
+describe('/api/admin/booking-engine/working-schedule-templates', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     principalState.inside = false;
   });
 
-  describe("GET", () => {
-    it("returns 401 when not authenticated", async () => {
+  describe('GET', () => {
+    it('returns 401 when not authenticated', async () => {
       requireAdminBookingEngineMock.mockResolvedValue({
         ok: false,
-        response: Response.json({ ok: false, error: "unauthorized" }, { status: 401 }),
+        response: Response.json({ ok: false, error: 'unauthorized' }, { status: 401 }),
       });
-      const res = await GET(new Request("http://localhost/api/admin/booking-engine/working-schedule-templates"));
+      const res = await GET(
+        new Request('http://localhost/api/admin/booking-engine/working-schedule-templates'),
+      );
       expect(res.status).toBe(401);
     });
 
-    it("returns rows", async () => {
+    it('returns rows', async () => {
       requireAdminBookingEngineMock.mockResolvedValue({ ok: true, ctx: { organizationId: ORG } });
-      listScheduleTemplatesMock.mockResolvedValue([{ id: TMPL, name: "Стандарт" }]);
-      const res = await GET(new Request("http://localhost/api/admin/booking-engine/working-schedule-templates"));
+      listScheduleTemplatesMock.mockResolvedValue([{ id: TMPL, name: 'Стандарт' }]);
+      const res = await GET(
+        new Request('http://localhost/api/admin/booking-engine/working-schedule-templates'),
+      );
       const json = (await res.json()) as { ok: boolean; rows: unknown[] };
       expect(res.status).toBe(200);
       expect(json.ok).toBe(true);
@@ -74,67 +76,72 @@ describe("/api/admin/booking-engine/working-schedule-templates", () => {
     });
   });
 
-  describe("POST (create)", () => {
-    it("returns 401 when not authenticated", async () => {
+  describe('POST (create)', () => {
+    it('returns 401 when not authenticated', async () => {
       requireAdminBookingEngineMock.mockResolvedValue({
         ok: false,
-        response: Response.json({ ok: false, error: "unauthorized" }, { status: 401 }),
+        response: Response.json({ ok: false, error: 'unauthorized' }, { status: 401 }),
       });
       const res = await POST(
-        new Request("http://localhost/api/admin/booking-engine/working-schedule-templates", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: "Test", startMinute: 540, endMinute: 1080 }),
+        new Request('http://localhost/api/admin/booking-engine/working-schedule-templates', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: 'Test', startMinute: 540, endMinute: 1080 }),
         }),
       );
       expect(res.status).toBe(401);
     });
 
-    it("creates a template", async () => {
+    it('creates a template', async () => {
       requireAdminBookingEngineMock.mockResolvedValue({ ok: true, ctx: { organizationId: ORG } });
       createScheduleTemplateMock.mockImplementation(async () => {
         expect(principalState.inside).toBe(true);
-        return { id: TMPL, name: "Стандарт" };
+        return { id: TMPL, name: 'Стандарт' };
       });
       const res = await POST(
-        new Request("http://localhost/api/admin/booking-engine/working-schedule-templates", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: "Стандарт", startMinute: 540, endMinute: 1080 }),
+        new Request('http://localhost/api/admin/booking-engine/working-schedule-templates', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: 'Стандарт', startMinute: 540, endMinute: 1080 }),
         }),
       );
       const json = (await res.json()) as { ok: boolean; row: { id: string } };
       expect(res.status).toBe(200);
       expect(json.ok).toBe(true);
       expect(createScheduleTemplateMock).toHaveBeenCalledWith(
-        expect.objectContaining({ organizationId: ORG, name: "Стандарт", startMinute: 540, endMinute: 1080 }),
+        expect.objectContaining({
+          organizationId: ORG,
+          name: 'Стандарт',
+          startMinute: 540,
+          endMinute: 1080,
+        }),
       );
       expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
         expect.objectContaining({ organizationId: ORG }),
-        "admin.booking-engine.working-schedule-templates.create",
+        'admin.booking-engine.working-schedule-templates.create',
         expect.any(Function),
       );
     });
 
-    it("rejects startMinute >= endMinute", async () => {
+    it('rejects startMinute >= endMinute', async () => {
       requireAdminBookingEngineMock.mockResolvedValue({ ok: true, ctx: { organizationId: ORG } });
       const res = await POST(
-        new Request("http://localhost/api/admin/booking-engine/working-schedule-templates", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: "Плохой", startMinute: 600, endMinute: 540 }),
+        new Request('http://localhost/api/admin/booking-engine/working-schedule-templates', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: 'Плохой', startMinute: 600, endMinute: 540 }),
         }),
       );
       expect(res.status).toBe(400);
       expect(createScheduleTemplateMock).not.toHaveBeenCalled();
     });
 
-    it("rejects missing name", async () => {
+    it('rejects missing name', async () => {
       requireAdminBookingEngineMock.mockResolvedValue({ ok: true, ctx: { organizationId: ORG } });
       const res = await POST(
-        new Request("http://localhost/api/admin/booking-engine/working-schedule-templates", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+        new Request('http://localhost/api/admin/booking-engine/working-schedule-templates', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ startMinute: 540, endMinute: 1080 }),
         }),
       );
@@ -142,19 +149,22 @@ describe("/api/admin/booking-engine/working-schedule-templates", () => {
     });
   });
 
-  describe("POST (apply)", () => {
-    it("applies template to dates", async () => {
+  describe('POST (apply)', () => {
+    it('applies template to dates', async () => {
       requireAdminBookingEngineMock.mockResolvedValue({ ok: true, ctx: { organizationId: ORG } });
       applyScheduleTemplateMock.mockImplementation(async () => {
         expect(principalState.inside).toBe(true);
         return [];
       });
       const res = await POST(
-        new Request("http://localhost/api/admin/booking-engine/working-schedule-templates?action=apply", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ templateId: TMPL, dates: ["2026-06-10", "2026-06-11"] }),
-        }),
+        new Request(
+          'http://localhost/api/admin/booking-engine/working-schedule-templates?action=apply',
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ templateId: TMPL, dates: ['2026-06-10', '2026-06-11'] }),
+          },
+        ),
       );
       const json = (await res.json()) as { ok: boolean };
       expect(res.status).toBe(200);
@@ -163,24 +173,27 @@ describe("/api/admin/booking-engine/working-schedule-templates", () => {
         expect.objectContaining({
           organizationId: ORG,
           templateId: TMPL,
-          dates: ["2026-06-10", "2026-06-11"],
+          dates: ['2026-06-10', '2026-06-11'],
         }),
       );
       expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
         expect.objectContaining({ organizationId: ORG }),
-        "admin.booking-engine.working-schedule-templates.apply",
+        'admin.booking-engine.working-schedule-templates.apply',
         expect.any(Function),
       );
     });
 
-    it("returns 400 when templateId missing for apply", async () => {
+    it('returns 400 when templateId missing for apply', async () => {
       requireAdminBookingEngineMock.mockResolvedValue({ ok: true, ctx: { organizationId: ORG } });
       const res = await POST(
-        new Request("http://localhost/api/admin/booking-engine/working-schedule-templates?action=apply", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ dates: ["2026-06-10"] }),
-        }),
+        new Request(
+          'http://localhost/api/admin/booking-engine/working-schedule-templates?action=apply',
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ dates: ['2026-06-10'] }),
+          },
+        ),
       );
       expect(res.status).toBe(400);
       expect(applyScheduleTemplateMock).not.toHaveBeenCalled();
@@ -188,20 +201,24 @@ describe("/api/admin/booking-engine/working-schedule-templates", () => {
     });
   });
 
-  describe("DELETE", () => {
-    it("returns 400 when id missing", async () => {
+  describe('DELETE', () => {
+    it('returns 400 when id missing', async () => {
       requireAdminBookingEngineMock.mockResolvedValue({ ok: true, ctx: { organizationId: ORG } });
-      const res = await DELETE(new Request("http://localhost/api/admin/booking-engine/working-schedule-templates"));
+      const res = await DELETE(
+        new Request('http://localhost/api/admin/booking-engine/working-schedule-templates'),
+      );
       expect(res.status).toBe(400);
     });
 
-    it("deletes template by id", async () => {
+    it('deletes template by id', async () => {
       requireAdminBookingEngineMock.mockResolvedValue({ ok: true, ctx: { organizationId: ORG } });
       deleteScheduleTemplateMock.mockImplementation(async () => {
         expect(principalState.inside).toBe(true);
       });
       const res = await DELETE(
-        new Request(`http://localhost/api/admin/booking-engine/working-schedule-templates?id=${TMPL}`),
+        new Request(
+          `http://localhost/api/admin/booking-engine/working-schedule-templates?id=${TMPL}`,
+        ),
       );
       const json = (await res.json()) as { ok: boolean };
       expect(res.status).toBe(200);
@@ -209,7 +226,7 @@ describe("/api/admin/booking-engine/working-schedule-templates", () => {
       expect(deleteScheduleTemplateMock).toHaveBeenCalledWith(TMPL, ORG);
       expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
         expect.objectContaining({ organizationId: ORG }),
-        "admin.booking-engine.working-schedule-templates.delete",
+        'admin.booking-engine.working-schedule-templates.delete',
         expect.any(Function),
       );
     });

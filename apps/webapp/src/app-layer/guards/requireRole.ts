@@ -1,34 +1,37 @@
-import { redirect } from "next/navigation";
-import { NextResponse } from "next/server";
-import { enterStaffSecuritySelfPrincipal } from "@/app-layer/principal/staffSecuritySelfPrincipal";
+import { redirect } from 'next/navigation';
+import { NextResponse } from 'next/server';
+import { enterStaffSecuritySelfPrincipal } from '@/app-layer/principal/staffSecuritySelfPrincipal';
 import {
   ensureDbPrincipalContext,
   enterWithDbPlatformPrincipal,
   enterWithDbPatientPrincipal,
   enterWithDbStaffPrincipal,
   getCurrentDbPrincipal,
-} from "@bersoncare/db-principal";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getCurrentSession, getCurrentSessionForIdentitySelf } from "@/modules/auth/service";
-import { patientClientBusinessGate, resolvePlatformAccessContext } from "@/app-layer/platform-access";
-import { canAccessDoctor, canAccessPatient } from "@/modules/roles/service";
-import { getServerRuntimeBool } from "@/modules/system-settings/configAdapter";
-import { routePaths } from "@/app-layer/routes/paths";
-import { buildOwnHubUrlWithAccessDeniedToast } from "@/shared/lib/appAccessDeniedToast";
-import { isPlatformUserUuid } from "@/shared/platform-user/isPlatformUserUuid";
-import { PLATFORM_OPERATIONS_DB_SOURCE } from "@/shared/security/platformOperationsPrincipal";
-import type { AppSession } from "@/shared/types/session";
-import type { OrganizationMembershipRole } from "@/modules/organization-membership/ports";
+} from '@bersoncare/db-principal';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { getCurrentSession, getCurrentSessionForIdentitySelf } from '@/modules/auth/service';
+import {
+  patientClientBusinessGate,
+  resolvePlatformAccessContext,
+} from '@/app-layer/platform-access';
+import { canAccessDoctor, canAccessPatient } from '@/modules/roles/service';
+import { getServerRuntimeBool } from '@/modules/system-settings/configAdapter';
+import { routePaths } from '@/app-layer/routes/paths';
+import { buildOwnHubUrlWithAccessDeniedToast } from '@/shared/lib/appAccessDeniedToast';
+import { isPlatformUserUuid } from '@/shared/platform-user/isPlatformUserUuid';
+import { PLATFORM_OPERATIONS_DB_SOURCE } from '@/shared/security/platformOperationsPrincipal';
+import type { AppSession } from '@/shared/types/session';
+import type { OrganizationMembershipRole } from '@/modules/organization-membership/ports';
 import {
   hasLaunchCapability,
   resolveLaunchCapabilities,
   type LaunchCapability,
-} from "./workspaceCapabilities";
+} from './workspaceCapabilities';
 
 export async function requireSession(returnPath?: string): Promise<AppSession> {
   const session = await getCurrentSession();
   if (!session) {
-    const query = returnPath ? `?next=${encodeURIComponent(returnPath)}` : "";
+    const query = returnPath ? `?next=${encodeURIComponent(returnPath)}` : '';
     redirect(`${routePaths.root}${query}`);
   }
   return session;
@@ -60,7 +63,7 @@ export async function getOptionalPatientSession(): Promise<AppSession | null> {
   return session;
 }
 
-export type PatientRscPersonalDataGate = "guest" | "allow";
+export type PatientRscPersonalDataGate = 'guest' | 'allow';
 
 /**
  * RSC: можно ли грузить персональные данные из БД по `userId` — тот же критерий, что {@link patientClientBusinessGate} / API.
@@ -71,14 +74,14 @@ export async function patientRscPersonalDataGate(
   session: AppSession | null,
   returnTo: string,
 ): Promise<PatientRscPersonalDataGate> {
-  if (!session) return "guest";
+  if (!session) return 'guest';
   const g = await patientClientBusinessGate(session);
-  if (g === "stale_session") {
+  if (g === 'stale_session') {
     const next = encodeURIComponent(returnTo);
     redirect(`${routePaths.root}?next=${next}`);
   }
-  if (g !== "allow") return "guest";
-  return "allow";
+  if (g !== 'allow') return 'guest';
+  return 'allow';
 }
 
 export async function requireDoctorAccess(): Promise<AppSession> {
@@ -93,7 +96,7 @@ export async function requireStaffAccountPage(): Promise<AppSession> {
     adminMode: session.adminMode,
   });
   const restricted = await isRestrictedStaffSecuritySession(session);
-  if (hasLaunchCapability(capabilities, "account.self")) {
+  if (hasLaunchCapability(capabilities, 'account.self')) {
     // A doctor always resolves account.self, and so does a global admin (adminMode permanently
     // forced on) — owner ruling 2026-07-26: the platform operator manages its own profile,
     // security/2FA, sessions, notifications and PWA install here like any other staff account.
@@ -103,7 +106,7 @@ export async function requireStaffAccountPage(): Promise<AppSession> {
     // redirect, which already documented account.self as the sole gate here).
     return session;
   }
-  if (hasLaunchCapability(capabilities, "platform.operations")) {
+  if (hasLaunchCapability(capabilities, 'platform.operations')) {
     // Defense in depth only: today every platform.operations holder also resolves account.self
     // above, so this is unreachable unless a future capability change ever separates them again.
     // If it ever does, a 2FA-restricted admin (auth_2fa_enabled on, not yet factor_verified) still
@@ -111,7 +114,7 @@ export async function requireStaffAccountPage(): Promise<AppSession> {
     // bounces restricted sessions back to /app, would be an infinite redirect loop with no way to
     // ever enroll (owner ruling 2026-07-24 fix, audited 2026-07-25) — so restricted still wins here.
     if (restricted) return session;
-    redirect("/app/admin/system-health");
+    redirect('/app/admin/system-health');
   }
   if (!restricted) {
     redirect(buildOwnHubUrlWithAccessDeniedToast(session.user.role));
@@ -124,7 +127,7 @@ export async function requireStaffAccountPage(): Promise<AppSession> {
  * does not turn that operator into a staff account or organization member.
  */
 export async function requireStaffPersonalInstallPage(): Promise<AppSession> {
-  ensureDbPrincipalContext({ source: "requireStaffPersonalInstallPage:pending" });
+  ensureDbPrincipalContext({ source: 'requireStaffPersonalInstallPage:pending' });
   const session = await getCurrentSessionForIdentitySelf();
   if (!session) redirect(routePaths.root);
   const capabilities = resolveLaunchCapabilities({
@@ -132,10 +135,10 @@ export async function requireStaffPersonalInstallPage(): Promise<AppSession> {
     adminMode: session.adminMode,
   });
   if (
-    hasLaunchCapability(capabilities, "account.self") ||
-    hasLaunchCapability(capabilities, "platform.operations")
+    hasLaunchCapability(capabilities, 'account.self') ||
+    hasLaunchCapability(capabilities, 'platform.operations')
   ) {
-    enterStaffSecuritySelfPrincipal(session.user.userId, "requireStaffPersonalInstallPage:self");
+    enterStaffSecuritySelfPrincipal(session.user.userId, 'requireStaffPersonalInstallPage:self');
     return session;
   }
   redirect(buildOwnHubUrlWithAccessDeniedToast(session.user.role));
@@ -148,14 +151,14 @@ export async function requireStaffPersonalInstallPage(): Promise<AppSession> {
 // flag, and must not be weakened (owner constraint: never weaken real 2FA).
 function isMidRecoveryStaffSecuritySession(session: AppSession): boolean {
   const assurance = session.staffSecurity?.assurance;
-  return assurance === "recovery" || assurance === "recovery_confirmation";
+  return assurance === 'recovery' || assurance === 'recovery_confirmation';
 }
 
 function requiresEstablishedStaffFactorVerification(session: AppSession): boolean {
   return (
     isMidRecoveryStaffSecuritySession(session) ||
     (session.user.securityFactorRequired === true &&
-      session.staffSecurity?.assurance !== "factor_verified")
+      session.staffSecurity?.assurance !== 'factor_verified')
   );
 }
 
@@ -169,7 +172,7 @@ function requiresEstablishedStaffFactorVerification(session: AppSession): boolea
  * a self-provisioned owner; recovery and an already-enrolled but unverified factor still win.
  */
 export async function isRestrictedStaffSecuritySession(session: AppSession): Promise<boolean> {
-  if (session.staffSecurity?.assurance === "factor_verified") return false;
+  if (session.staffSecurity?.assurance === 'factor_verified') return false;
   if (isMidRecoveryStaffSecuritySession(session)) return true;
   if (!canAccessDoctor(session.user.role)) return false;
   try {
@@ -186,7 +189,7 @@ export async function isRestrictedStaffSecuritySession(session: AppSession): Pro
     // "pending_enrollment" into the same flag-gated check as an unenrolled session with no row at
     // all. getServerRuntimeBool already treats a DB read failure as "flag off" internally; the
     // catch below only guards the (rare) case the call itself cannot be made. Same safe default.
-    return await getServerRuntimeBool("auth_2fa_enabled");
+    return await getServerRuntimeBool('auth_2fa_enabled');
   } catch {
     return false;
   }
@@ -210,17 +213,17 @@ export async function isRestrictedStaffSecuritySession(session: AppSession): Pro
  * (deploy/postgres/u9a-platform-settings-role.sql) — no new table grant needed for this page.
  */
 export async function requirePlatformOperationsPage(): Promise<AppSession> {
-  ensureDbPrincipalContext({ source: "requirePlatformOperationsPage:pending" });
+  ensureDbPrincipalContext({ source: 'requirePlatformOperationsPage:pending' });
   const session = await requireSession();
   const capabilities = resolveLaunchCapabilities({
     sessionRole: session.user.role,
     adminMode: session.adminMode,
   });
-  if (!hasLaunchCapability(capabilities, "platform.operations")) {
-    redirect("/app");
+  if (!hasLaunchCapability(capabilities, 'platform.operations')) {
+    redirect('/app');
   }
   if (await isRestrictedStaffSecuritySession(session)) {
-    redirect("/app");
+    redirect('/app');
   }
   if (isPlatformUserUuid(session.user.userId)) {
     try {
@@ -241,20 +244,32 @@ export async function requirePlatformOperationsPage(): Promise<AppSession> {
 export async function requirePlatformOperationsApiContext(): Promise<
   { ok: true; session: AppSession } | { ok: false; response: NextResponse }
 > {
-  ensureDbPrincipalContext({ source: "requirePlatformOperationsApiContext:pending" });
+  ensureDbPrincipalContext({ source: 'requirePlatformOperationsApiContext:pending' });
   const session = await getCurrentSession();
   if (!session) {
-    return { ok: false, response: NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }) };
+    return {
+      ok: false,
+      response: NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 }),
+    };
   }
   const capabilities = resolveLaunchCapabilities({
     sessionRole: session.user.role,
     adminMode: session.adminMode,
   });
-  if (!hasLaunchCapability(capabilities, "platform.operations") || (await isRestrictedStaffSecuritySession(session))) {
-    return { ok: false, response: NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 }) };
+  if (
+    !hasLaunchCapability(capabilities, 'platform.operations') ||
+    (await isRestrictedStaffSecuritySession(session))
+  ) {
+    return {
+      ok: false,
+      response: NextResponse.json({ ok: false, error: 'forbidden' }, { status: 403 }),
+    };
   }
   if (!isPlatformUserUuid(session.user.userId)) {
-    return { ok: false, response: NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 }) };
+    return {
+      ok: false,
+      response: NextResponse.json({ ok: false, error: 'forbidden' }, { status: 403 }),
+    };
   }
   try {
     enterWithDbPlatformPrincipal({
@@ -262,7 +277,10 @@ export async function requirePlatformOperationsApiContext(): Promise<
       source: PLATFORM_OPERATIONS_DB_SOURCE,
     });
   } catch {
-    return { ok: false, response: NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 }) };
+    return {
+      ok: false,
+      response: NextResponse.json({ ok: false, error: 'forbidden' }, { status: 403 }),
+    };
   }
   return { ok: true, session };
 }
@@ -287,7 +305,10 @@ function doctorWorkspaceAccessDeniedResponse(reason: string): NextResponse {
 // platform_users UUIDs; legacy/dev/test session ids (e.g. "a1", "admin-1") are not, and would make
 // normalizeUuid throw inside enterWithDbStaffPrincipal. A malformed id must skip stamping, not 500 —
 // in locked mode a missing principal already fail-closes at the DB port, so skipping stays secure.
-function stampStaffPrincipal(ctx: Pick<DoctorWorkspaceAccessContext, "organizationId" | "session">, source: string): void {
+function stampStaffPrincipal(
+  ctx: Pick<DoctorWorkspaceAccessContext, 'organizationId' | 'session'>,
+  source: string,
+): void {
   if (!isPlatformUserUuid(ctx.session.user.userId)) return;
   try {
     enterWithDbStaffPrincipal({
@@ -325,14 +346,14 @@ async function stampPatientPrincipalForApi(
   try {
     const currentPrincipal = getCurrentDbPrincipal();
     const organizationId =
-      currentPrincipal?.kind === "patient" &&
+      currentPrincipal?.kind === 'patient' &&
       currentPrincipal.platformUserId === session.user.userId
         ? currentPrincipal.organizationId
         : undefined;
     enterWithDbPatientPrincipal({
       organizationId,
       platformUserId: session.user.userId,
-      source: "requirePatientApiBusinessAccess",
+      source: 'requirePatientApiBusinessAccess',
     });
   } catch {
     return { ok: true };
@@ -344,31 +365,31 @@ async function resolveDoctorWorkspaceAccessContext(
   session: AppSession,
 ): Promise<
   | { ok: true; ctx: DoctorWorkspaceAccessContext }
-  | { ok: false; reason: "doctor_workspace_membership_required" | "forbidden" }
+  | { ok: false; reason: 'doctor_workspace_membership_required' | 'forbidden' }
 > {
   if (requiresEstablishedStaffFactorVerification(session)) {
-    return { ok: false, reason: "forbidden" };
+    return { ok: false, reason: 'forbidden' };
   }
   const securityRestricted = await isRestrictedStaffSecuritySession(session);
   const resolution = await buildAppDeps().organizationMembership.resolveOrganizationForUser({
     platformUserId: session.user.userId,
   });
   if (!resolution.ok) {
-    if (resolution.reason === "no_active_membership") {
-      return { ok: false, reason: "doctor_workspace_membership_required" };
+    if (resolution.reason === 'no_active_membership') {
+      return { ok: false, reason: 'doctor_workspace_membership_required' };
     }
-    return { ok: false, reason: "forbidden" };
+    return { ok: false, reason: 'forbidden' };
   }
   const { context } = resolution;
   // Progressive first run applies only to the organization owner created by self-signup.
   // Existing enrolled-factor and recovery sessions were rejected above and still require 2FA.
-  if (securityRestricted && context.role !== "owner") {
-    return { ok: false, reason: "forbidden" };
+  if (securityRestricted && context.role !== 'owner') {
+    return { ok: false, reason: 'forbidden' };
   }
   const canAccessClinicalWorkspace =
     !securityRestricted &&
     (context.canAccessClinicalWorkspace ??
-      ((context.role === "owner" || context.role === "doctor") && context.specialistId !== null));
+      ((context.role === 'owner' || context.role === 'doctor') && context.specialistId !== null));
   return {
     ok: true,
     ctx: {
@@ -394,13 +415,16 @@ async function resolveDoctorWorkspaceAccessContext(
   };
 }
 
-function contextHasCapability(ctx: DoctorWorkspaceAccessContext, capability: LaunchCapability): boolean {
+function contextHasCapability(
+  ctx: DoctorWorkspaceAccessContext,
+  capability: LaunchCapability,
+): boolean {
   return hasLaunchCapability(ctx.capabilities, capability);
 }
 
 /** Resolves an organization membership for both clinical and management surfaces. */
 export async function requireOrganizationWorkspaceContext(): Promise<DoctorWorkspaceAccessContext> {
-  ensureDbPrincipalContext({ source: "requireOrganizationWorkspaceContext:pending" });
+  ensureDbPrincipalContext({ source: 'requireOrganizationWorkspaceContext:pending' });
   const session = await requireSession();
   if (!canAccessDoctor(session.user.role)) {
     redirect(buildOwnHubUrlWithAccessDeniedToast(session.user.role));
@@ -409,8 +433,8 @@ export async function requireOrganizationWorkspaceContext(): Promise<DoctorWorks
     sessionRole: session.user.role,
     adminMode: session.adminMode,
   });
-  if (hasLaunchCapability(accountCapabilities, "platform.operations")) {
-    redirect("/app/admin/system-health");
+  if (hasLaunchCapability(accountCapabilities, 'platform.operations')) {
+    redirect('/app/admin/system-health');
   }
   const resolved = await resolveDoctorWorkspaceAccessContext(session);
   if (!resolved.ok) {
@@ -418,19 +442,19 @@ export async function requireOrganizationWorkspaceContext(): Promise<DoctorWorks
     redirect(routePaths.account);
   }
   if (
-    !contextHasCapability(resolved.ctx, "organization.management") &&
-    !contextHasCapability(resolved.ctx, "clinical.workspace")
+    !contextHasCapability(resolved.ctx, 'organization.management') &&
+    !contextHasCapability(resolved.ctx, 'clinical.workspace')
   ) {
     redirect(routePaths.account);
   }
-  stampStaffPrincipal(resolved.ctx, "requireOrganizationWorkspaceContext");
+  stampStaffPrincipal(resolved.ctx, 'requireOrganizationWorkspaceContext');
   return resolved.ctx;
 }
 
 /** One-organization management surface: owner/admin capability, independent from specialist binding. */
 export async function requireOrganizationManagementContext(): Promise<DoctorWorkspaceAccessContext> {
   const ctx = await requireOrganizationWorkspaceContext();
-  if (!contextHasCapability(ctx, "organization.management")) {
+  if (!contextHasCapability(ctx, 'organization.management')) {
     redirect(routePaths.doctor);
   }
   return ctx;
@@ -439,14 +463,14 @@ export async function requireOrganizationManagementContext(): Promise<DoctorWork
 /** Clinical doctor workspace: a bound owner/doctor, never a management-only admin membership. */
 export async function requireDoctorWorkspaceContext(): Promise<DoctorWorkspaceAccessContext> {
   const ctx = await requireOrganizationWorkspaceContext();
-  if (!contextHasCapability(ctx, "clinical.workspace")) {
+  if (!contextHasCapability(ctx, 'clinical.workspace')) {
     const securitySetupRequired = await isRestrictedStaffSecuritySession(ctx.session);
     redirect(
       securitySetupRequired
         ? `${routePaths.account}?tab=security`
-        : contextHasCapability(ctx, "organization.management")
-        ? `${routePaths.settings}?tab=organization`
-        : routePaths.account,
+        : contextHasCapability(ctx, 'organization.management')
+          ? `${routePaths.settings}?tab=organization`
+          : routePaths.account,
     );
   }
   return ctx;
@@ -456,28 +480,37 @@ export async function requireDoctorWorkspaceContext(): Promise<DoctorWorkspaceAc
 export async function requireDoctorApiSession(): Promise<
   { ok: true; session: AppSession } | { ok: false; response: NextResponse }
 > {
-  ensureDbPrincipalContext({ source: "requireDoctorApiSession:pending" });
+  ensureDbPrincipalContext({ source: 'requireDoctorApiSession:pending' });
   const session = await getCurrentSession();
   if (!session) {
-    return { ok: false, response: NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }) };
+    return {
+      ok: false,
+      response: NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 }),
+    };
   }
   if (!canAccessDoctor(session.user.role)) {
-    return { ok: false, response: NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 }) };
+    return {
+      ok: false,
+      response: NextResponse.json({ ok: false, error: 'forbidden' }, { status: 403 }),
+    };
   }
   const accountCapabilities = resolveLaunchCapabilities({
     sessionRole: session.user.role,
     adminMode: session.adminMode,
   });
-  if (!hasLaunchCapability(accountCapabilities, "account.self")) {
-    return { ok: false, response: NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 }) };
+  if (!hasLaunchCapability(accountCapabilities, 'account.self')) {
+    return {
+      ok: false,
+      response: NextResponse.json({ ok: false, error: 'forbidden' }, { status: 403 }),
+    };
   }
   if (await isRestrictedStaffSecuritySession(session)) {
     return {
       ok: false,
-      response: NextResponse.json({ ok: false, error: "security_setup_required" }, { status: 403 }),
+      response: NextResponse.json({ ok: false, error: 'security_setup_required' }, { status: 403 }),
     };
   }
-  await stampBestEffortStaffPrincipal(session, "requireDoctorApiSession");
+  await stampBestEffortStaffPrincipal(session, 'requireDoctorApiSession');
   return { ok: true, session };
 }
 
@@ -492,21 +525,24 @@ export async function requireDoctorApiSession(): Promise<
 export async function requireAuthenticatedApiSession(): Promise<
   { ok: true; session: AppSession } | { ok: false; response: NextResponse }
 > {
-  ensureDbPrincipalContext({ source: "requireAuthenticatedApiSession:pending" });
+  ensureDbPrincipalContext({ source: 'requireAuthenticatedApiSession:pending' });
   const session = await getCurrentSession();
   if (!session) {
-    return { ok: false, response: NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }) };
+    return {
+      ok: false,
+      response: NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 }),
+    };
   }
   const currentPrincipal = getCurrentDbPrincipal();
   if (
     (!currentPrincipal ||
-      currentPrincipal.kind === "bootstrap" ||
-      currentPrincipal.kind === "infra" ||
-      currentPrincipal.kind === "integrator") &&
+      currentPrincipal.kind === 'bootstrap' ||
+      currentPrincipal.kind === 'infra' ||
+      currentPrincipal.kind === 'integrator') &&
     isPlatformUserUuid(session.user.userId)
   ) {
     try {
-      enterStaffSecuritySelfPrincipal(session.user.userId, "requireAuthenticatedApiSession:self");
+      enterStaffSecuritySelfPrincipal(session.user.userId, 'requireAuthenticatedApiSession:self');
     } catch {
       // Keep legacy/dev non-canonical sessions compatible. Locked DB ports still fail closed when
       // no principal can be installed.
@@ -519,16 +555,19 @@ export async function requireAuthenticatedApiSession(): Promise<
 export async function requireAuthenticatedIdentitySelfApiSession(): Promise<
   { ok: true; session: AppSession } | { ok: false; response: NextResponse }
 > {
-  ensureDbPrincipalContext({ source: "requireAuthenticatedIdentitySelfApiSession:pending" });
+  ensureDbPrincipalContext({ source: 'requireAuthenticatedIdentitySelfApiSession:pending' });
   const session = await getCurrentSessionForIdentitySelf();
   if (!session) {
-    return { ok: false, response: NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }) };
+    return {
+      ok: false,
+      response: NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 }),
+    };
   }
   if (isPlatformUserUuid(session.user.userId)) {
     try {
       enterStaffSecuritySelfPrincipal(
         session.user.userId,
-        "requireAuthenticatedIdentitySelfApiSession:self",
+        'requireAuthenticatedIdentitySelfApiSession:self',
       );
     } catch {
       // Legacy/dev non-canonical sessions retain their historical behavior. Locked DB ports fail
@@ -547,10 +586,13 @@ export async function requireAuthenticatedIdentitySelfApiSession(): Promise<
 export async function requirePatientApiSession(): Promise<
   { ok: true; session: AppSession } | { ok: false; response: NextResponse }
 > {
-  ensureDbPrincipalContext({ source: "requirePatientApiSession:pending" });
+  ensureDbPrincipalContext({ source: 'requirePatientApiSession:pending' });
   const session = await getCurrentSession();
   if (!session || !canAccessPatient(session.user.role)) {
-    return { ok: false, response: NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }) };
+    return {
+      ok: false,
+      response: NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 }),
+    };
   }
   const principal = await stampPatientPrincipalForApi(session);
   if (!principal.ok) return principal;
@@ -567,10 +609,13 @@ export async function requirePatientApiSession(): Promise<
 export async function requireStaffWebPushSelfApiSession(): Promise<
   { ok: true; session: AppSession } | { ok: false; response: NextResponse }
 > {
-  ensureDbPrincipalContext({ source: "requireStaffWebPushSelfApiSession:pending" });
+  ensureDbPrincipalContext({ source: 'requireStaffWebPushSelfApiSession:pending' });
   const session = await getCurrentSessionForIdentitySelf();
   if (!session) {
-    return { ok: false, response: NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }) };
+    return {
+      ok: false,
+      response: NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 }),
+    };
   }
 
   const capabilities = resolveLaunchCapabilities({
@@ -578,17 +623,24 @@ export async function requireStaffWebPushSelfApiSession(): Promise<
     adminMode: session.adminMode,
   });
   if (
-    (!hasLaunchCapability(capabilities, "account.self") && !hasLaunchCapability(capabilities, "platform.operations")) ||
+    (!hasLaunchCapability(capabilities, 'account.self') &&
+      !hasLaunchCapability(capabilities, 'platform.operations')) ||
     (await isRestrictedStaffSecuritySession(session)) ||
     !isPlatformUserUuid(session.user.userId)
   ) {
-    return { ok: false, response: NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 }) };
+    return {
+      ok: false,
+      response: NextResponse.json({ ok: false, error: 'forbidden' }, { status: 403 }),
+    };
   }
 
   try {
-    enterStaffSecuritySelfPrincipal(session.user.userId, "requireStaffWebPushSelfApiSession:self");
+    enterStaffSecuritySelfPrincipal(session.user.userId, 'requireStaffWebPushSelfApiSession:self');
   } catch {
-    return { ok: false, response: NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 }) };
+    return {
+      ok: false,
+      response: NextResponse.json({ ok: false, error: 'forbidden' }, { status: 403 }),
+    };
   }
   return { ok: true, session };
 }
@@ -606,33 +658,44 @@ export async function requireStaffWebPushSelfApiSession(): Promise<
 export async function requireStaffSecurityApiSession(): Promise<
   { ok: true; session: AppSession } | { ok: false; response: NextResponse }
 > {
-  ensureDbPrincipalContext({ source: "requireStaffSecurityApiSession:pending" });
+  ensureDbPrincipalContext({ source: 'requireStaffSecurityApiSession:pending' });
   const session = await getCurrentSession();
   if (!session) {
-    return { ok: false, response: NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }) };
+    return {
+      ok: false,
+      response: NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 }),
+    };
   }
   if (!canAccessDoctor(session.user.role)) {
-    return { ok: false, response: NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 }) };
+    return {
+      ok: false,
+      response: NextResponse.json({ ok: false, error: 'forbidden' }, { status: 403 }),
+    };
   }
-  enterStaffSecuritySelfPrincipal(session.user.userId, "requireStaffSecurityApiSession:self");
+  enterStaffSecuritySelfPrincipal(session.user.userId, 'requireStaffSecurityApiSession:self');
   return { ok: true, session };
 }
 
 /** Для Route Handlers под `/api/doctor/*`: doctor или admin + resolved organization membership. */
-export async function requireDoctorWorkspaceApiContext(): Promise<{ ok: true; ctx: DoctorWorkspaceAccessContext } | { ok: false; response: NextResponse }> {
-  ensureDbPrincipalContext({ source: "requireDoctorWorkspaceApiContext:pending" });
+export async function requireDoctorWorkspaceApiContext(): Promise<
+  { ok: true; ctx: DoctorWorkspaceAccessContext } | { ok: false; response: NextResponse }
+> {
+  ensureDbPrincipalContext({ source: 'requireDoctorWorkspaceApiContext:pending' });
   const session = await getCurrentSession();
   if (!session || !canAccessDoctor(session.user.role)) {
-    return { ok: false, response: NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }) };
+    return {
+      ok: false,
+      response: NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 }),
+    };
   }
   const resolved = await resolveDoctorWorkspaceAccessContext(session);
   if (!resolved.ok) {
     return { ok: false, response: doctorWorkspaceAccessDeniedResponse(resolved.reason) };
   }
-  if (!contextHasCapability(resolved.ctx, "clinical.workspace")) {
-    return { ok: false, response: doctorWorkspaceAccessDeniedResponse("forbidden") };
+  if (!contextHasCapability(resolved.ctx, 'clinical.workspace')) {
+    return { ok: false, response: doctorWorkspaceAccessDeniedResponse('forbidden') };
   }
-  stampStaffPrincipal(resolved.ctx, "requireDoctorWorkspaceApiContext");
+  stampStaffPrincipal(resolved.ctx, 'requireDoctorWorkspaceApiContext');
   return resolved;
 }
 
@@ -641,23 +704,31 @@ export async function requireDoctorWorkspaceApiContext(): Promise<{ ok: true; ct
  * not a platform grant: explicit global-admin mode is denied, and the caller
  * must hold organization.management for the one resolved membership.
  */
-export async function requireAdminWorkspaceApiContext(): Promise<{ ok: true; ctx: DoctorWorkspaceAccessContext } | { ok: false; response: NextResponse }> {
-  ensureDbPrincipalContext({ source: "requireAdminWorkspaceApiContext:pending" });
+export async function requireAdminWorkspaceApiContext(): Promise<
+  { ok: true; ctx: DoctorWorkspaceAccessContext } | { ok: false; response: NextResponse }
+> {
+  ensureDbPrincipalContext({ source: 'requireAdminWorkspaceApiContext:pending' });
   const session = await getCurrentSession();
   if (!session) {
-    return { ok: false, response: NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }) };
+    return {
+      ok: false,
+      response: NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 }),
+    };
   }
   if (!canAccessDoctor(session.user.role)) {
-    return { ok: false, response: NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 }) };
+    return {
+      ok: false,
+      response: NextResponse.json({ ok: false, error: 'forbidden' }, { status: 403 }),
+    };
   }
   const resolved = await resolveDoctorWorkspaceAccessContext(session);
   if (!resolved.ok) {
     return { ok: false, response: doctorWorkspaceAccessDeniedResponse(resolved.reason) };
   }
-  if (!contextHasCapability(resolved.ctx, "organization.management")) {
-    return { ok: false, response: doctorWorkspaceAccessDeniedResponse("forbidden") };
+  if (!contextHasCapability(resolved.ctx, 'organization.management')) {
+    return { ok: false, response: doctorWorkspaceAccessDeniedResponse('forbidden') };
   }
-  stampStaffPrincipal(resolved.ctx, "requireAdminWorkspaceApiContext");
+  stampStaffPrincipal(resolved.ctx, 'requireAdminWorkspaceApiContext');
   return resolved;
 }
 
@@ -666,23 +737,34 @@ export async function requireAdminWorkspaceApiContext(): Promise<{ ok: true; ctx
  * resolved organization. Platform admin is a separate capability and cannot inherit an
  * organization workspace through adminMode.
  */
-export async function requireClinicManagementApiContext(): Promise<{ ok: true; ctx: DoctorWorkspaceAccessContext } | { ok: false; response: NextResponse }> {
-  ensureDbPrincipalContext({ source: "requireClinicManagementApiContext:pending" });
+export async function requireClinicManagementApiContext(): Promise<
+  { ok: true; ctx: DoctorWorkspaceAccessContext } | { ok: false; response: NextResponse }
+> {
+  ensureDbPrincipalContext({ source: 'requireClinicManagementApiContext:pending' });
   const session = await getCurrentSession();
   if (!session) {
-    return { ok: false, response: NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }) };
+    return {
+      ok: false,
+      response: NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 }),
+    };
   }
   if (!canAccessDoctor(session.user.role)) {
-    return { ok: false, response: NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 }) };
+    return {
+      ok: false,
+      response: NextResponse.json({ ok: false, error: 'forbidden' }, { status: 403 }),
+    };
   }
   const resolved = await resolveDoctorWorkspaceAccessContext(session);
   if (!resolved.ok) {
     return { ok: false, response: doctorWorkspaceAccessDeniedResponse(resolved.reason) };
   }
-  if (!contextHasCapability(resolved.ctx, "organization.management")) {
-    return { ok: false, response: NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 }) };
+  if (!contextHasCapability(resolved.ctx, 'organization.management')) {
+    return {
+      ok: false,
+      response: NextResponse.json({ ok: false, error: 'forbidden' }, { status: 403 }),
+    };
   }
-  stampStaffPrincipal(resolved.ctx, "requireClinicManagementApiContext");
+  stampStaffPrincipal(resolved.ctx, 'requireClinicManagementApiContext');
   return resolved;
 }
 
@@ -692,11 +774,14 @@ export function hasMessengerBinding(session: AppSession): boolean {
   return Boolean(b.telegramId?.trim() || b.maxId?.trim() || b.vkId?.trim());
 }
 
-async function requirePatientBusinessTierOrRedirect(session: AppSession, returnTo: string): Promise<void> {
+async function requirePatientBusinessTierOrRedirect(
+  session: AppSession,
+  returnTo: string,
+): Promise<void> {
   const g = await patientClientBusinessGate(session);
-  if (g === "allow") return;
+  if (g === 'allow') return;
   const next = encodeURIComponent(returnTo);
-  if (g === "stale_session") {
+  if (g === 'stale_session') {
     redirect(`${routePaths.root}?next=${next}`);
   }
   redirect(`${routePaths.bindPhone}?next=${next}`);
@@ -707,8 +792,8 @@ function patientActivationRequiredJson(returnPath: string) {
   return NextResponse.json(
     {
       ok: false,
-      error: "patient_activation_required",
-      message: "Требуется подтверждённый профиль пациента",
+      error: 'patient_activation_required',
+      message: 'Требуется подтверждённый профиль пациента',
       redirectTo: `${routePaths.bindPhone}?next=${next}`,
     },
     { status: 403 },
@@ -723,18 +808,24 @@ export async function requirePatientApiBusinessAccess(options?: {
   /** Для redirectTo в теле 403 (по умолчанию главное меню пациента). */
   returnPath?: string;
 }): Promise<{ ok: true; session: AppSession } | { ok: false; response: NextResponse }> {
-  ensureDbPrincipalContext({ source: "requirePatientApiBusinessAccess:pending" });
+  ensureDbPrincipalContext({ source: 'requirePatientApiBusinessAccess:pending' });
   const session = await getCurrentSession();
   if (!session || !canAccessPatient(session.user.role)) {
-    return { ok: false, response: NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }) };
+    return {
+      ok: false,
+      response: NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 }),
+    };
   }
 
   const returnPath = options?.returnPath ?? routePaths.patient;
   const gate = await patientClientBusinessGate(session);
-  if (gate === "stale_session") {
-    return { ok: false, response: NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }) };
+  if (gate === 'stale_session') {
+    return {
+      ok: false,
+      response: NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 }),
+    };
   }
-  if (gate === "need_activation") {
+  if (gate === 'need_activation') {
     return { ok: false, response: patientActivationRequiredJson(returnPath) };
   }
 
@@ -766,8 +857,8 @@ export async function requirePatientBookingTrustedPhoneAccess(options?: {
         response: NextResponse.json(
           {
             ok: false,
-            error: "booking_phone_trust_required",
-            message: "Для записи на приём нужен подтверждённый номер телефона.",
+            error: 'booking_phone_trust_required',
+            message: 'Для записи на приём нужен подтверждённый номер телефона.',
             redirectTo: `${routePaths.bindPhone}?next=${next}`,
           },
           { status: 403 },
@@ -776,7 +867,10 @@ export async function requirePatientBookingTrustedPhoneAccess(options?: {
     }
     return { ok: true, session: gate.session };
   } catch {
-    return { ok: false, response: NextResponse.json({ ok: false, error: "server_error" }, { status: 500 }) };
+    return {
+      ok: false,
+      response: NextResponse.json({ ok: false, error: 'server_error' }, { status: 500 }),
+    };
   }
 }
 

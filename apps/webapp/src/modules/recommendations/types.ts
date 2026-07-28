@@ -1,9 +1,9 @@
-import type { MediaPreviewStatus } from "@/modules/media/types";
-import type { RecommendationDomain } from "./recommendationDomain";
+import type { MediaPreviewStatus } from '@/modules/media/types';
+import type { RecommendationDomain } from './recommendationDomain';
 
 export type RecommendationMediaItem = {
   mediaUrl: string;
-  mediaType: "image" | "video" | "gif";
+  mediaType: 'image' | 'video' | 'gif';
   sortOrder: number;
   /** Превью воркера для малого размера; в JSON рекомендации в БД может отсутствовать — подставляется при `buildSnapshot`. */
   previewSmUrl?: string | null;
@@ -33,7 +33,7 @@ export type Recommendation = {
 };
 
 /** Фильтр по архиву в списке (как у наборов тестов). */
-export type RecommendationArchiveScope = "active" | "all" | "archived";
+export type RecommendationArchiveScope = 'active' | 'all' | 'archived';
 
 export type RecommendationFilter = {
   /** @deprecated Используйте {@link archiveScope}. */
@@ -42,7 +42,7 @@ export type RecommendationFilter = {
   search?: string | null;
   /** Фильтр по региону тела (`body_region_id`). */
   regionRefId?: string | null;
-  loadType?: import("@/modules/lfk-exercises/types").ExerciseLoadType | null;
+  loadType?: import('@/modules/lfk-exercises/types').ExerciseLoadType | null;
   /** Фильтр по типу (`domain` в БД). */
   domain?: RecommendationDomain | null;
 };
@@ -77,8 +77,8 @@ export type UpdateRecommendationInput = {
 export const RECOMMENDATION_USAGE_DETAIL_LIMIT = 12;
 
 export type RecommendationUsageRef =
-  | { kind: "treatment_program_template"; id: string; title: string }
-  | { kind: "treatment_program_instance"; id: string; title: string; patientUserId: string };
+  | { kind: 'treatment_program_template'; id: string; title: string }
+  | { kind: 'treatment_program_instance'; id: string; title: string; patientUserId: string };
 
 export type RecommendationUsageSnapshot = {
   publishedTreatmentProgramTemplateCount: number;
@@ -107,7 +107,9 @@ export const EMPTY_RECOMMENDATION_USAGE_SNAPSHOT: RecommendationUsageSnapshot = 
 };
 
 /** См. `ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md` раздел 5 (Guard архива). */
-export function recommendationArchiveRequiresAcknowledgement(u: RecommendationUsageSnapshot): boolean {
+export function recommendationArchiveRequiresAcknowledgement(
+  u: RecommendationUsageSnapshot,
+): boolean {
   return u.publishedTreatmentProgramTemplateCount > 0 || u.activeTreatmentProgramInstanceCount > 0;
 }
 

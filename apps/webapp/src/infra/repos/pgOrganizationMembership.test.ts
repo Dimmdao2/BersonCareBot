@@ -1,6 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { drizzleSqlFragmentToApproximateSql } from "@/infra/db/drizzleSqlDebugText";
-import { beOrganizationMembers, beSpecialists } from "../../../db/schema/bookingEngine";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { drizzleSqlFragmentToApproximateSql } from '@/infra/db/drizzleSqlDebugText';
+import { beOrganizationMembers, beSpecialists } from '../../../db/schema/bookingEngine';
 
 const orderByMock = vi.hoisted(() => vi.fn());
 const leftJoinMock = vi.hoisted(() => vi.fn());
@@ -13,42 +13,46 @@ const fromMock = vi.hoisted(() => vi.fn(() => queryMock));
 const selectMock = vi.hoisted(() => vi.fn(() => ({ from: fromMock })));
 const executeMock = vi.hoisted(() => vi.fn());
 
-vi.mock("@/app-layer/db/drizzle", () => ({
+vi.mock('@/app-layer/db/drizzle', () => ({
   getDrizzle: vi.fn(() => ({
     select: selectMock,
     execute: executeMock,
   })),
 }));
 
-import { createPgOrganizationMembershipPort } from "./pgOrganizationMembership";
+import { createPgOrganizationMembershipPort } from './pgOrganizationMembership';
 
 type OrganizationMembershipRow = typeof beOrganizationMembers.$inferSelect;
 type OrganizationSpecialistRow = typeof beSpecialists.$inferSelect;
 
-function membershipRow(overrides: Partial<OrganizationMembershipRow> = {}): OrganizationMembershipRow {
+function membershipRow(
+  overrides: Partial<OrganizationMembershipRow> = {},
+): OrganizationMembershipRow {
   return {
-    id: "membership-1",
-    organizationId: "org-1",
-    platformUserId: "user-1",
-    role: "doctor",
-    specialistId: "specialist-1",
-    status: "active",
-    createdAt: "2026-07-07T00:00:00.000Z",
-    updatedAt: "2026-07-07T00:00:00.000Z",
+    id: 'membership-1',
+    organizationId: 'org-1',
+    platformUserId: 'user-1',
+    role: 'doctor',
+    specialistId: 'specialist-1',
+    status: 'active',
+    createdAt: '2026-07-07T00:00:00.000Z',
+    updatedAt: '2026-07-07T00:00:00.000Z',
     ...overrides,
   };
 }
 
-function specialistRow(overrides: Partial<OrganizationSpecialistRow> = {}): OrganizationSpecialistRow {
+function specialistRow(
+  overrides: Partial<OrganizationSpecialistRow> = {},
+): OrganizationSpecialistRow {
   return {
-    id: "specialist-1",
-    organizationId: "org-1",
-    fullName: "Doctor Specialist",
+    id: 'specialist-1',
+    organizationId: 'org-1',
+    fullName: 'Doctor Specialist',
     description: null,
     isActive: true,
     sortOrder: 0,
-    createdAt: "2026-07-07T00:00:00.000Z",
-    updatedAt: "2026-07-07T00:00:00.000Z",
+    createdAt: '2026-07-07T00:00:00.000Z',
+    updatedAt: '2026-07-07T00:00:00.000Z',
     ...overrides,
   };
 }
@@ -58,7 +62,7 @@ function whereApproxSql(): string {
   return drizzleSqlFragmentToApproximateSql(calls[0]?.[0]);
 }
 
-describe("createPgOrganizationMembershipPort", () => {
+describe('createPgOrganizationMembershipPort', () => {
   beforeEach(() => {
     orderByMock.mockReset();
     leftJoinMock.mockClear();
@@ -70,190 +74,190 @@ describe("createPgOrganizationMembershipPort", () => {
     whereMock.mockReturnValue({ orderBy: orderByMock });
   });
 
-  it("lists memberships by platform user and maps typed fields", async () => {
+  it('lists memberships by platform user and maps typed fields', async () => {
     orderByMock.mockResolvedValueOnce([
-      membershipRow({ id: "membership-1", role: "owner", specialistId: null }),
-      membershipRow({ id: "membership-2", role: "assistant", status: "invited" }),
+      membershipRow({ id: 'membership-1', role: 'owner', specialistId: null }),
+      membershipRow({ id: 'membership-2', role: 'assistant', status: 'invited' }),
     ]);
 
     const port = createPgOrganizationMembershipPort();
-    const rows = await port.listByPlatformUser("user-1");
+    const rows = await port.listByPlatformUser('user-1');
 
     expect(rows).toEqual([
       {
-        id: "membership-1",
-        organizationId: "org-1",
-        platformUserId: "user-1",
-        role: "owner",
+        id: 'membership-1',
+        organizationId: 'org-1',
+        platformUserId: 'user-1',
+        role: 'owner',
         specialistId: null,
-        status: "active",
-        createdAt: "2026-07-07T00:00:00.000Z",
-        updatedAt: "2026-07-07T00:00:00.000Z",
+        status: 'active',
+        createdAt: '2026-07-07T00:00:00.000Z',
+        updatedAt: '2026-07-07T00:00:00.000Z',
       },
       {
-        id: "membership-2",
-        organizationId: "org-1",
-        platformUserId: "user-1",
-        role: "assistant",
-        specialistId: "specialist-1",
-        status: "invited",
-        createdAt: "2026-07-07T00:00:00.000Z",
-        updatedAt: "2026-07-07T00:00:00.000Z",
+        id: 'membership-2',
+        organizationId: 'org-1',
+        platformUserId: 'user-1',
+        role: 'assistant',
+        specialistId: 'specialist-1',
+        status: 'invited',
+        createdAt: '2026-07-07T00:00:00.000Z',
+        updatedAt: '2026-07-07T00:00:00.000Z',
       },
     ]);
-    expect(whereApproxSql()).toContain("=");
+    expect(whereApproxSql()).toContain('=');
     expect(whereMock).toHaveBeenCalledTimes(1);
   });
 
-  it("filters active memberships for resolver callers", async () => {
+  it('filters active memberships for resolver callers', async () => {
     orderByMock.mockResolvedValueOnce([membershipRow()]);
 
     const port = createPgOrganizationMembershipPort();
-    await expect(port.listActiveByPlatformUser("user-1")).resolves.toHaveLength(1);
+    await expect(port.listActiveByPlatformUser('user-1')).resolves.toHaveLength(1);
 
     const sql = whereApproxSql();
-    expect(sql).toContain("and");
+    expect(sql).toContain('and');
     expect(whereMock).toHaveBeenCalledTimes(1);
   });
 
-  it("rejects role/status values outside the database contract", async () => {
-    orderByMock.mockResolvedValueOnce([membershipRow({ role: "clinic-owner" })]);
+  it('rejects role/status values outside the database contract', async () => {
+    orderByMock.mockResolvedValueOnce([membershipRow({ role: 'clinic-owner' })]);
 
     const port = createPgOrganizationMembershipPort();
-    await expect(port.listByPlatformUser("user-1")).rejects.toThrow(
-      "Unexpected be_organization_members.role",
+    await expect(port.listByPlatformUser('user-1')).rejects.toThrow(
+      'Unexpected be_organization_members.role',
     );
 
-    orderByMock.mockResolvedValueOnce([membershipRow({ status: "archived" })]);
-    await expect(port.listByPlatformUser("user-1")).rejects.toThrow(
-      "Unexpected be_organization_members.status",
+    orderByMock.mockResolvedValueOnce([membershipRow({ status: 'archived' })]);
+    await expect(port.listByPlatformUser('user-1')).rejects.toThrow(
+      'Unexpected be_organization_members.status',
     );
   });
 
-  it("lists organization members with display names", async () => {
+  it('lists organization members with display names', async () => {
     orderByMock.mockResolvedValueOnce([
       {
-        ...membershipRow({ role: "admin", specialistId: null }),
-        displayName: " Admin ",
+        ...membershipRow({ role: 'admin', specialistId: null }),
+        displayName: ' Admin ',
       },
     ]);
 
     const port = createPgOrganizationMembershipPort();
-    const rows = await port.listByOrganization("org-1");
+    const rows = await port.listByOrganization('org-1');
 
     expect(rows).toEqual([
       {
-        id: "membership-1",
-        organizationId: "org-1",
-        platformUserId: "user-1",
-        role: "admin",
+        id: 'membership-1',
+        organizationId: 'org-1',
+        platformUserId: 'user-1',
+        role: 'admin',
         specialistId: null,
-        status: "active",
-        createdAt: "2026-07-07T00:00:00.000Z",
-        updatedAt: "2026-07-07T00:00:00.000Z",
-        displayName: "Admin",
+        status: 'active',
+        createdAt: '2026-07-07T00:00:00.000Z',
+        updatedAt: '2026-07-07T00:00:00.000Z',
+        displayName: 'Admin',
       },
     ]);
     expect(leftJoinMock).toHaveBeenCalledTimes(1);
   });
 
-  it("lists the platform directory through the narrow organization accessor", async () => {
+  it('lists the platform directory through the narrow organization accessor', async () => {
     executeMock.mockResolvedValueOnce({
       rows: [
         {
-          id: "membership-1",
-          organization_id: "org-1",
-          platform_user_id: "user-1",
-          role: "doctor",
-          specialist_id: "specialist-1",
-          status: "disabled",
-          created_at: "2026-07-07T00:00:00.000Z",
-          updated_at: "2026-07-08T00:00:00.000Z",
-          display_name: " Doctor ",
+          id: 'membership-1',
+          organization_id: 'org-1',
+          platform_user_id: 'user-1',
+          role: 'doctor',
+          specialist_id: 'specialist-1',
+          status: 'disabled',
+          created_at: '2026-07-07T00:00:00.000Z',
+          updated_at: '2026-07-08T00:00:00.000Z',
+          display_name: ' Doctor ',
         },
       ],
     });
 
     const port = createPgOrganizationMembershipPort();
-    const rows = await port.listPlatformDirectoryByOrganization("org-1");
+    const rows = await port.listPlatformDirectoryByOrganization('org-1');
 
     expect(rows).toEqual([
       {
-        id: "membership-1",
-        organizationId: "org-1",
-        platformUserId: "user-1",
-        role: "doctor",
-        specialistId: "specialist-1",
-        status: "disabled",
-        createdAt: "2026-07-07T00:00:00.000Z",
-        updatedAt: "2026-07-08T00:00:00.000Z",
-        displayName: "Doctor",
+        id: 'membership-1',
+        organizationId: 'org-1',
+        platformUserId: 'user-1',
+        role: 'doctor',
+        specialistId: 'specialist-1',
+        status: 'disabled',
+        createdAt: '2026-07-07T00:00:00.000Z',
+        updatedAt: '2026-07-08T00:00:00.000Z',
+        displayName: 'Doctor',
       },
     ]);
     const query = drizzleSqlFragmentToApproximateSql(executeMock.mock.calls[0]?.[0]);
-    expect(query).toContain("app.list_platform_organization_members");
-    expect(query).not.toContain("platform_users");
+    expect(query).toContain('app.list_platform_organization_members');
+    expect(query).not.toContain('platform_users');
     expect(selectMock).not.toHaveBeenCalled();
   });
 
-  it("gets one organization member by organization and membership id", async () => {
+  it('gets one organization member by organization and membership id', async () => {
     orderByMock.mockResolvedValueOnce([
       {
-        ...membershipRow({ role: "doctor" }),
-        displayName: "Doctor",
+        ...membershipRow({ role: 'doctor' }),
+        displayName: 'Doctor',
       },
     ]);
 
     const port = createPgOrganizationMembershipPort();
     const row = await port.getMemberByOrganization({
-      organizationId: "org-1",
-      membershipId: "membership-1",
+      organizationId: 'org-1',
+      membershipId: 'membership-1',
     });
 
     expect(row).toMatchObject({
-      id: "membership-1",
-      organizationId: "org-1",
-      displayName: "Doctor",
+      id: 'membership-1',
+      organizationId: 'org-1',
+      displayName: 'Doctor',
     });
-    expect(whereApproxSql()).toContain("and");
+    expect(whereApproxSql()).toContain('and');
     expect(leftJoinMock).toHaveBeenCalledTimes(1);
   });
 
-  it("lists organization specialists", async () => {
+  it('lists organization specialists', async () => {
     orderByMock.mockResolvedValueOnce([specialistRow()]);
 
     const port = createPgOrganizationMembershipPort();
-    const rows = await port.listSpecialistsByOrganization("org-1");
+    const rows = await port.listSpecialistsByOrganization('org-1');
 
     expect(rows).toEqual([
       {
-        id: "specialist-1",
-        organizationId: "org-1",
-        fullName: "Doctor Specialist",
+        id: 'specialist-1',
+        organizationId: 'org-1',
+        fullName: 'Doctor Specialist',
         isActive: true,
-        createdAt: "2026-07-07T00:00:00.000Z",
-        updatedAt: "2026-07-07T00:00:00.000Z",
+        createdAt: '2026-07-07T00:00:00.000Z',
+        updatedAt: '2026-07-07T00:00:00.000Z',
       },
     ]);
   });
 
-  it("gets one organization specialist by organization and specialist id", async () => {
+  it('gets one organization specialist by organization and specialist id', async () => {
     orderByMock.mockResolvedValueOnce([specialistRow()]);
 
     const port = createPgOrganizationMembershipPort();
     const row = await port.getSpecialistByOrganization({
-      organizationId: "org-1",
-      specialistId: "specialist-1",
+      organizationId: 'org-1',
+      specialistId: 'specialist-1',
     });
 
     expect(row).toEqual({
-      id: "specialist-1",
-      organizationId: "org-1",
-      fullName: "Doctor Specialist",
+      id: 'specialist-1',
+      organizationId: 'org-1',
+      fullName: 'Doctor Specialist',
       isActive: true,
-      createdAt: "2026-07-07T00:00:00.000Z",
-      updatedAt: "2026-07-07T00:00:00.000Z",
+      createdAt: '2026-07-07T00:00:00.000Z',
+      updatedAt: '2026-07-07T00:00:00.000Z',
     });
-    expect(whereApproxSql()).toContain("and");
+    expect(whereApproxSql()).toContain('and');
   });
 });

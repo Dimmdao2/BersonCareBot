@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse } from 'next/server';
 
 /** Лёгкий скрипт встраивания: iframe / popup / переход по ссылке на /book. */
 const EMBED_SCRIPT = `(function () {
@@ -67,8 +67,8 @@ export async function GET() {
   return new NextResponse(EMBED_SCRIPT, {
     status: 200,
     headers: {
-      "Content-Type": "application/javascript; charset=utf-8",
-      "Cache-Control": "public, max-age=300",
+      'Content-Type': 'application/javascript; charset=utf-8',
+      'Cache-Control': 'public, max-age=300',
     },
   });
 }

@@ -129,7 +129,11 @@ describe('/api/admin/commercial', () => {
       new Request('http://test/api/admin/commercial', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ action: 'archive_tariff', tariffId: ACTOR_ID, reason: 'x'.repeat(501) }),
+        body: JSON.stringify({
+          action: 'archive_tariff',
+          tariffId: ACTOR_ID,
+          reason: 'x'.repeat(501),
+        }),
       }),
     );
 
@@ -184,22 +188,24 @@ describe('/api/admin/commercial', () => {
 
   it('rejects unsupported future trial start events', async () => {
     guardMock.mockResolvedValueOnce({ ok: true, ctx: { actorId: ACTOR_ID } });
-    const response = await POST(new Request('http://test/api/admin/commercial', {
-      method: 'POST',
-      body: JSON.stringify({
-        action: 'set_trial_policy',
-        reason: 'unsupported hook',
-        policy: {
-          tariffId: ACTOR_ID,
-          durationDays: 30,
-          graceDays: 5,
-          startEvent: 'email_verified',
-          postTrialBehavior: 'read_only',
-          postTrialTariffId: null,
-          isActive: true,
-        },
+    const response = await POST(
+      new Request('http://test/api/admin/commercial', {
+        method: 'POST',
+        body: JSON.stringify({
+          action: 'set_trial_policy',
+          reason: 'unsupported hook',
+          policy: {
+            tariffId: ACTOR_ID,
+            durationDays: 30,
+            graceDays: 5,
+            startEvent: 'email_verified',
+            postTrialBehavior: 'read_only',
+            postTrialTariffId: null,
+            isActive: true,
+          },
+        }),
       }),
-    }));
+    );
     expect(response.status).toBe(400);
     expect(setTrialPolicyMock).not.toHaveBeenCalled();
   });

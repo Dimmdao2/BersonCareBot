@@ -11,8 +11,8 @@
  * «Отметка» = сообщение пациента (`senderRole: "patient"`) к элементу программы; здесь нас
  * интересует именно последнее по упражнению (что и возвращают эти запросы).
  */
-import type { ProgramItemDiscussionPort } from "@/modules/program-item-discussion/ports";
-import { formatDateTimeRu } from "../doctorTodayFormat";
+import type { ProgramItemDiscussionPort } from '@/modules/program-item-discussion/ports';
+import { formatDateTimeRu } from '../doctorTodayFormat';
 
 export type DoctorPatientProgramActivity = {
   /** Кол-во упражнений с непрочитанной врачом отметкой пациента. */
@@ -29,7 +29,7 @@ export type DoctorPatientProgramActivity = {
 export type DoctorPatientProgramActivityDeps = {
   programItemDiscussion: Pick<
     ProgramItemDiscussionPort,
-    "listUnreadExerciseCommentsForDoctor" | "listExerciseCommentsForDoctor"
+    'listUnreadExerciseCommentsForDoctor' | 'listExerciseCommentsForDoctor'
   >;
 };
 
@@ -62,7 +62,7 @@ export async function loadDoctorPatientProgramActivity(
     ? {
         atIso: latest.latestMessage.createdAt,
         atLabel: formatDateTimeRu(latest.latestMessage.createdAt),
-        stageItemTitle: latest.stageItemTitle || "Упражнение",
+        stageItemTitle: latest.stageItemTitle || 'Упражнение',
         body: latest.latestMessage.body,
       }
     : null;

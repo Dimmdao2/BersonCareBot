@@ -24,10 +24,7 @@ export type PatientInviteStatus = (typeof PATIENT_INVITE_STATUSES)[number];
 
 export const PATIENT_INVITE_ACCEPT_METHODS = ['email_otp'] as const;
 export type PatientInviteAcceptMethod = (typeof PATIENT_INVITE_ACCEPT_METHODS)[number];
-export const PATIENT_INVITE_RECIPIENT_BINDINGS = [
-  'bound_email',
-  'unbound_email_claim',
-] as const;
+export const PATIENT_INVITE_RECIPIENT_BINDINGS = ['bound_email', 'unbound_email_claim'] as const;
 
 export const patientInvites = pgTable(
   'patient_invites',

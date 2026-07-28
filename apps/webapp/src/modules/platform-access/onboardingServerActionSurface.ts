@@ -1,5 +1,8 @@
-import { headers } from "next/headers";
-import { patientServerActionPageAllowsOnboardingOnly, resolvePatientLayoutPathname } from "./patientRouteApiPolicy";
+import { headers } from 'next/headers';
+import {
+  patientServerActionPageAllowsOnboardingOnly,
+  resolvePatientLayoutPathname,
+} from './patientRouteApiPolicy';
 
 /**
  * Runtime enforcement для onboarding-only server actions (DoD §3 / SPEC §4): вызов разрешён только если
@@ -14,8 +17,8 @@ export async function patientOnboardingServerActionSurfaceOk(): Promise<boolean>
   const ok = patientServerActionPageAllowsOnboardingOnly(pathname);
   if (!ok) {
     console.info(
-      "[platform_access] onboarding_server_action_rejected resolved_path=%s",
-      pathname.trim() ? pathname : "(empty)",
+      '[platform_access] onboarding_server_action_rejected resolved_path=%s',
+      pathname.trim() ? pathname : '(empty)',
     );
   }
   return ok;

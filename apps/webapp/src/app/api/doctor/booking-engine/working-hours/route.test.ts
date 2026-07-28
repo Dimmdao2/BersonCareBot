@@ -1,27 +1,25 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 const requireDoctorBookingEngineMock = vi.hoisted(() => vi.fn());
 const principalState = vi.hoisted(() => ({ inside: false }));
 const withDoctorWorkspacePrincipalMock = vi.hoisted(() =>
-  vi.fn(async <T,>(
-    _workspace: { organizationId: string },
-    _source: string,
-    fn: () => Promise<T>,
-  ) => {
-    principalState.inside = true;
-    try {
-      return await fn();
-    } finally {
-      principalState.inside = false;
-    }
-  }),
+  vi.fn(
+    async <T>(_workspace: { organizationId: string }, _source: string, fn: () => Promise<T>) => {
+      principalState.inside = true;
+      try {
+        return await fn();
+      } finally {
+        principalState.inside = false;
+      }
+    },
+  ),
 );
 
-vi.mock("../_requireDoctorBookingEngine", () => ({
+vi.mock('../_requireDoctorBookingEngine', () => ({
   requireDoctorBookingEngine: requireDoctorBookingEngineMock,
 }));
 
-vi.mock("@/app-layer/principal/withOrganizationPrincipal", () => ({
+vi.mock('@/app-layer/principal/withOrganizationPrincipal', () => ({
   withDoctorWorkspacePrincipal: withDoctorWorkspacePrincipalMock,
 }));
 
@@ -31,7 +29,7 @@ const createWorkingHoursMock = vi.hoisted(() => vi.fn());
 const updateWorkingHoursMock = vi.hoisted(() => vi.fn());
 const deactivateWorkingHoursMock = vi.hoisted(() => vi.fn());
 
-vi.mock("@/app-layer/di/buildAppDeps", () => ({
+vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: () => ({
     bookingScheduling: {
       listWorkingHoursAdmin: listWorkingHoursAdminMock,
@@ -43,11 +41,11 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
   }),
 }));
 
-import { GET, POST, PATCH, DELETE } from "./route";
+import { GET, POST, PATCH, DELETE } from './route';
 
-const OWN_SPECIALIST = "518ea988-9b5e-4ad8-8194-a2d98f43bd7b";
-const OTHER_ROW_ID = "22222222-2222-4222-8222-222222222222";
-const OWN_ROW_ID = "11111111-1111-4111-8111-111111111111";
+const OWN_SPECIALIST = '518ea988-9b5e-4ad8-8194-a2d98f43bd7b';
+const OTHER_ROW_ID = '22222222-2222-4222-8222-222222222222';
+const OWN_ROW_ID = '11111111-1111-4111-8111-111111111111';
 
 /** Gate resolves to a doctor context with the membership's exact specialist identity. */
 function mockGateWithSpecialist(
@@ -57,14 +55,14 @@ function mockGateWithSpecialist(
   requireDoctorBookingEngineMock.mockResolvedValue({
     ok: true,
     ctx: {
-      organizationId: "org-1",
+      organizationId: 'org-1',
       specialistId,
       service: { catalog: { listSpecialists: vi.fn().mockResolvedValue(specialists) } },
     },
   });
 }
 
-describe("/api/doctor/booking-engine/working-hours (self-scope)", () => {
+describe('/api/doctor/booking-engine/working-hours (self-scope)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     principalState.inside = false;
@@ -75,7 +73,7 @@ describe("/api/doctor/booking-engine/working-hours (self-scope)", () => {
     usesWorkingHoursFallbackMock.mockResolvedValue(false);
     createWorkingHoursMock.mockImplementation(async () => {
       expect(principalState.inside).toBe(true);
-      return { id: "wh-new" };
+      return { id: 'wh-new' };
     });
     updateWorkingHoursMock.mockImplementation(async () => {
       expect(principalState.inside).toBe(true);
@@ -91,7 +89,9 @@ describe("/api/doctor/booking-engine/working-hours (self-scope)", () => {
 
     // Client tries to read ANOTHER specialist's rows — must be overridden to own id.
     const res = await GET(
-      new Request("http://localhost/api/doctor/booking-engine/working-hours?specialistId=99999999-9999-4999-8999-999999999999"),
+      new Request(
+        'http://localhost/api/doctor/booking-engine/working-hours?specialistId=99999999-9999-4999-8999-999999999999',
+      ),
     );
     expect(res.status).toBe(200);
     expect(listWorkingHoursAdminMock).toHaveBeenCalledWith(
@@ -100,33 +100,33 @@ describe("/api/doctor/booking-engine/working-hours (self-scope)", () => {
     expect(withDoctorWorkspacePrincipalMock).not.toHaveBeenCalled();
   });
 
-  it("GET resolves the membership specialist instead of the first active clinic specialist", async () => {
-    const otherSpecialist = "628ea988-9b5e-4ad8-8194-a2d98f43bd7b";
+  it('GET resolves the membership specialist instead of the first active clinic specialist', async () => {
+    const otherSpecialist = '628ea988-9b5e-4ad8-8194-a2d98f43bd7b';
     mockGateWithSpecialist([
       { id: otherSpecialist, isActive: true },
       { id: OWN_SPECIALIST, isActive: true },
     ]);
 
-    const res = await GET(new Request("http://localhost/api/doctor/booking-engine/working-hours"));
+    const res = await GET(new Request('http://localhost/api/doctor/booking-engine/working-hours'));
     expect(res.status).toBe(200);
     expect(listWorkingHoursAdminMock).toHaveBeenCalledWith(
       expect.objectContaining({ specialistId: OWN_SPECIALIST }),
     );
   });
 
-  it("POST forces own specialist (body specialistId is ignored)", async () => {
+  it('POST forces own specialist (body specialistId is ignored)', async () => {
     mockGateWithSpecialist([{ id: OWN_SPECIALIST, isActive: true }]);
 
     const res = await POST(
-      new Request("http://localhost/api/doctor/booking-engine/working-hours", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      new Request('http://localhost/api/doctor/booking-engine/working-hours', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           weekday: 1,
           startMinute: 540,
           endMinute: 1080,
           // Attacker-supplied foreign specialist — must NOT reach the service.
-          specialistId: "99999999-9999-4999-8999-999999999999",
+          specialistId: '99999999-9999-4999-8999-999999999999',
         }),
       }),
     );
@@ -135,8 +135,8 @@ describe("/api/doctor/booking-engine/working-hours (self-scope)", () => {
       expect.objectContaining({ specialistId: OWN_SPECIALIST }),
     );
     expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
-      expect.objectContaining({ organizationId: "org-1" }),
-      "doctor.booking-engine.working-hours.create",
+      expect.objectContaining({ organizationId: 'org-1' }),
+      'doctor.booking-engine.working-hours.create',
       expect.any(Function),
     );
   });
@@ -147,9 +147,9 @@ describe("/api/doctor/booking-engine/working-hours (self-scope)", () => {
     listWorkingHoursAdminMock.mockResolvedValue([{ id: OWN_ROW_ID }]);
 
     const res = await PATCH(
-      new Request("http://localhost/api/doctor/booking-engine/working-hours", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+      new Request('http://localhost/api/doctor/booking-engine/working-hours', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: OTHER_ROW_ID, startMinute: 540, endMinute: 1020 }),
       }),
     );
@@ -158,14 +158,14 @@ describe("/api/doctor/booking-engine/working-hours (self-scope)", () => {
     expect(withDoctorWorkspacePrincipalMock).not.toHaveBeenCalled();
   });
 
-  it("PATCH rejects a global fallback row even when it is visible in the ownership probe", async () => {
+  it('PATCH rejects a global fallback row even when it is visible in the ownership probe', async () => {
     mockGateWithSpecialist([{ id: OWN_SPECIALIST, isActive: true }]);
     listWorkingHoursAdminMock.mockResolvedValue([{ id: OWN_ROW_ID, specialistId: null }]);
 
     const res = await PATCH(
-      new Request("http://localhost/api/doctor/booking-engine/working-hours", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+      new Request('http://localhost/api/doctor/booking-engine/working-hours', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: OWN_ROW_ID, startMinute: 540, endMinute: 1020 }),
       }),
     );
@@ -179,19 +179,19 @@ describe("/api/doctor/booking-engine/working-hours (self-scope)", () => {
     listWorkingHoursAdminMock.mockResolvedValue([{ id: OWN_ROW_ID, specialistId: OWN_SPECIALIST }]);
 
     const res = await PATCH(
-      new Request("http://localhost/api/doctor/booking-engine/working-hours", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+      new Request('http://localhost/api/doctor/booking-engine/working-hours', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: OWN_ROW_ID, startMinute: 540, endMinute: 1020 }),
       }),
     );
     expect(res.status).toBe(200);
     expect(updateWorkingHoursMock).toHaveBeenCalledWith(
-      expect.objectContaining({ id: OWN_ROW_ID, organizationId: "org-1" }),
+      expect.objectContaining({ id: OWN_ROW_ID, organizationId: 'org-1' }),
     );
     expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
-      expect.objectContaining({ organizationId: "org-1" }),
-      "doctor.booking-engine.working-hours.update",
+      expect.objectContaining({ organizationId: 'org-1' }),
+      'doctor.booking-engine.working-hours.update',
       expect.any(Function),
     );
   });
@@ -208,7 +208,7 @@ describe("/api/doctor/booking-engine/working-hours (self-scope)", () => {
     expect(withDoctorWorkspacePrincipalMock).not.toHaveBeenCalled();
   });
 
-  it("DELETE rejects a global fallback row even when it is visible in the ownership probe", async () => {
+  it('DELETE rejects a global fallback row even when it is visible in the ownership probe', async () => {
     mockGateWithSpecialist([{ id: OWN_SPECIALIST, isActive: true }]);
     listWorkingHoursAdminMock.mockResolvedValue([{ id: OWN_ROW_ID, specialistId: null }]);
 
@@ -220,7 +220,7 @@ describe("/api/doctor/booking-engine/working-hours (self-scope)", () => {
     expect(withDoctorWorkspacePrincipalMock).not.toHaveBeenCalled();
   });
 
-  it("DELETE deactivates an owned row", async () => {
+  it('DELETE deactivates an owned row', async () => {
     mockGateWithSpecialist([{ id: OWN_SPECIALIST, isActive: true }]);
     listWorkingHoursAdminMock.mockResolvedValue([{ id: OWN_ROW_ID, specialistId: OWN_SPECIALIST }]);
 
@@ -228,21 +228,21 @@ describe("/api/doctor/booking-engine/working-hours (self-scope)", () => {
       new Request(`http://localhost/api/doctor/booking-engine/working-hours?id=${OWN_ROW_ID}`),
     );
     expect(res.status).toBe(200);
-    expect(deactivateWorkingHoursMock).toHaveBeenCalledWith(OWN_ROW_ID, "org-1");
+    expect(deactivateWorkingHoursMock).toHaveBeenCalledWith(OWN_ROW_ID, 'org-1');
     expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
-      expect.objectContaining({ organizationId: "org-1" }),
-      "doctor.booking-engine.working-hours.deactivate",
+      expect.objectContaining({ organizationId: 'org-1' }),
+      'doctor.booking-engine.working-hours.deactivate',
       expect.any(Function),
     );
   });
 
-  it("returns 409 when the org has no specialist configured", async () => {
+  it('returns 409 when the org has no specialist configured', async () => {
     mockGateWithSpecialist([], null);
 
-    const res = await GET(new Request("http://localhost/api/doctor/booking-engine/working-hours"));
+    const res = await GET(new Request('http://localhost/api/doctor/booking-engine/working-hours'));
     const json = (await res.json()) as { error?: string };
     expect(res.status).toBe(409);
-    expect(json.error).toBe("specialist_not_configured");
+    expect(json.error).toBe('specialist_not_configured');
     expect(listWorkingHoursAdminMock).not.toHaveBeenCalled();
   });
 });

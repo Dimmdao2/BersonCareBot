@@ -3,12 +3,12 @@
  * Requires `platform_user_merge_v2_enabled` and HMAC-configured integrator M2M. Run **before** webapp manual merge when both platform users have different integrator_user_id.
  * If integrator returns `USER_NOT_FOUND` and only the duplicate’s (loser) id is missing in integrator.users, clears that `platform_users.integrator_user_id` so the operator can proceed with webapp merge (non–dry-run for the clear; dry-run returns a hint only).
  */
-import { NextResponse } from "next/server";
-import { getPool } from "@/app-layer/db/client";
-import { requirePlatformOperationsApiContext } from "@/app-layer/guards/requireRole";
-import { executeIntegratorPlatformUserMerge } from "@/infra/integratorPlatformUserMerge";
-import { integratorMergeBodySchema } from "@/infra/integratorPlatformUserMergeSchemas";
-import { getConfigBool } from "@/modules/system-settings/configAdapter";
+import { NextResponse } from 'next/server';
+import { getPool } from '@/app-layer/db/client';
+import { requirePlatformOperationsApiContext } from '@/app-layer/guards/requireRole';
+import { executeIntegratorPlatformUserMerge } from '@/infra/integratorPlatformUserMerge';
+import { integratorMergeBodySchema } from '@/infra/integratorPlatformUserMergeSchemas';
+import { getConfigBool } from '@/modules/system-settings/configAdapter';
 
 export async function POST(request: Request) {
   const adminGate = await requirePlatformOperationsApiContext();
@@ -16,13 +16,13 @@ export async function POST(request: Request) {
     return adminGate.response;
   }
 
-  const v2 = await getConfigBool("platform_user_merge_v2_enabled", false);
+  const v2 = await getConfigBool('platform_user_merge_v2_enabled', false);
   if (!v2) {
     return NextResponse.json(
       {
         ok: false,
-        error: "feature_disabled",
-        message: "Enable platform_user_merge_v2_enabled in admin settings first.",
+        error: 'feature_disabled',
+        message: 'Enable platform_user_merge_v2_enabled in admin settings first.',
       },
       { status: 400 },
     );
@@ -31,12 +31,12 @@ export async function POST(request: Request) {
   const raw: unknown = await request.json().catch(() => null);
   const parsed = integratorMergeBodySchema.safeParse(raw);
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
 
   const { targetId, duplicateId, dryRun } = parsed.data;
   if (targetId === duplicateId) {
-    return NextResponse.json({ ok: false, error: "same_id" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'same_id' }, { status: 400 });
   }
 
   const result = await executeIntegratorPlatformUserMerge({

@@ -12,7 +12,10 @@
  */
 import { createServer, type Server, type Socket } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { classifyOutboundProviderErrorClass, isPageOnFirstOccurrenceProviderErrorClass } from '@bersoncare/operator-db-schema';
+import {
+  classifyOutboundProviderErrorClass,
+  isPageOnFirstOccurrenceProviderErrorClass,
+} from '@bersoncare/operator-db-schema';
 import { sendMail } from './mailer.js';
 import { isOutgoingDeliveryDispatchErrorRetryable } from '../../infra/delivery/deliveryContract.js';
 import type { ResolvedSmtpOutboundConfig } from '../../config/smtpOutbound.js';

@@ -1,5 +1,5 @@
-import type { OperatorHealthWritePort } from "@/modules/operator-health/ports";
-import { CRITICAL_ALERT_CADENCE_INTEGRATION } from "@/modules/operator-health/ports";
+import type { OperatorHealthWritePort } from '@/modules/operator-health/ports';
+import { CRITICAL_ALERT_CADENCE_INTEGRATION } from '@/modules/operator-health/ports';
 
 /** In-memory mirror of `operator_incidents` for the generic critical-alert cadence (#1038). */
 type CriticalAlertIncidentRow = {
@@ -50,12 +50,12 @@ export function setOperatorHealthWriteReconcileSuccessThrowsForTests(err: Error 
 
 /** For route tests (`webappReposAreInMemory`): последние вызовы reconcile-тик записи. */
 export const mediaTranscodeReconcileWriteLog: Array<
-  ({ kind: "success" } & SuccessCall) | ({ kind: "failure" } & FailureCall)
+  ({ kind: 'success' } & SuccessCall) | ({ kind: 'failure' } & FailureCall)
 > = [];
 
 export const webPushOnlyReminderTickWriteLog: Array<
-  | ({ kind: "success" } & SuccessCall)
-  | ({ kind: "failure" } & FailureCall & { metaJson: Record<string, unknown> })
+  | ({ kind: 'success' } & SuccessCall)
+  | ({ kind: 'failure' } & FailureCall & { metaJson: Record<string, unknown> })
 > = [];
 
 export function resetMediaTranscodeReconcileWriteLog(): void {
@@ -68,8 +68,10 @@ export function resetWebPushOnlyReminderTickWriteLog(): void {
 }
 
 export const operatorJobTickWriteLog: Array<
-  | ({ kind: "success"; jobFamily: string; jobKey: string } & SuccessCall)
-  | ({ kind: "failure"; jobFamily: string; jobKey: string } & FailureCall & { metaJson: Record<string, unknown> })
+  | ({ kind: 'success'; jobFamily: string; jobKey: string } & SuccessCall)
+  | ({ kind: 'failure'; jobFamily: string; jobKey: string } & FailureCall & {
+        metaJson: Record<string, unknown>;
+      })
 > = [];
 
 export function resetOperatorJobTickWriteLog(): void {
@@ -79,7 +81,7 @@ export function resetOperatorJobTickWriteLog(): void {
 export const inMemoryOperatorHealthWritePort: OperatorHealthWritePort = {
   async recordOperatorJobTickSuccess(input) {
     operatorJobTickWriteLog.push({
-      kind: "success",
+      kind: 'success',
       jobFamily: input.jobFamily,
       jobKey: input.jobKey,
       startedAtIso: input.startedAtIso,
@@ -90,7 +92,7 @@ export const inMemoryOperatorHealthWritePort: OperatorHealthWritePort = {
 
   async recordOperatorJobTickFailure(input) {
     operatorJobTickWriteLog.push({
-      kind: "failure",
+      kind: 'failure',
       jobFamily: input.jobFamily,
       jobKey: input.jobKey,
       startedAtIso: input.startedAtIso,
@@ -105,7 +107,7 @@ export const inMemoryOperatorHealthWritePort: OperatorHealthWritePort = {
       throw reconcileSuccessThrowsForTests;
     }
     mediaTranscodeReconcileWriteLog.push({
-      kind: "success",
+      kind: 'success',
       startedAtIso: input.startedAtIso,
       durationMs: input.durationMs,
       metaJson: input.metaJson,
@@ -113,7 +115,7 @@ export const inMemoryOperatorHealthWritePort: OperatorHealthWritePort = {
   },
   async recordMediaTranscodeReconcileFailure(input) {
     mediaTranscodeReconcileWriteLog.push({
-      kind: "failure",
+      kind: 'failure',
       startedAtIso: input.startedAtIso,
       durationMs: input.durationMs,
       error: input.error,
@@ -121,7 +123,7 @@ export const inMemoryOperatorHealthWritePort: OperatorHealthWritePort = {
   },
   async recordWebPushOnlyReminderTickSuccess(input) {
     webPushOnlyReminderTickWriteLog.push({
-      kind: "success",
+      kind: 'success',
       startedAtIso: input.startedAtIso,
       durationMs: input.durationMs,
       metaJson: input.metaJson,
@@ -129,7 +131,7 @@ export const inMemoryOperatorHealthWritePort: OperatorHealthWritePort = {
   },
   async recordWebPushOnlyReminderTickFailure(input) {
     webPushOnlyReminderTickWriteLog.push({
-      kind: "failure",
+      kind: 'failure',
       startedAtIso: input.startedAtIso,
       durationMs: input.durationMs,
       error: input.error,
@@ -156,7 +158,7 @@ export const inMemoryOperatorHealthWritePort: OperatorHealthWritePort = {
     const row = criticalAlertIncidentsById.get(input.incidentId);
     if (!row) return true;
     if (row.alertClaimToken !== input.claimToken || row.resolvedAt !== null) return false;
-    if (input.phase === "initial") row.initialAlertSentAt = input.sentAtIso;
+    if (input.phase === 'initial') row.initialAlertSentAt = input.sentAtIso;
     else row.oneHourAlertSentAt = input.sentAtIso;
     row.alertSentAt = input.sentAtIso;
     row.alertClaimToken = null;
@@ -213,9 +215,10 @@ export const inMemoryOperatorHealthWritePort: OperatorHealthWritePort = {
     const openedMs = Date.parse(row.openedAt);
     const staleBeforeMs = Date.parse(input.staleBeforeIso);
     if (row.alertClaimedAt !== null && Date.parse(row.alertClaimedAt) >= staleBeforeMs) return null;
-    let phase: "initial" | "one_hour_repeat" | null = null;
-    if (row.initialAlertSentAt === null) phase = "initial";
-    else if (row.oneHourAlertSentAt === null && openedMs + 60 * 60 * 1000 <= nowMs) phase = "one_hour_repeat";
+    let phase: 'initial' | 'one_hour_repeat' | null = null;
+    if (row.initialAlertSentAt === null) phase = 'initial';
+    else if (row.oneHourAlertSentAt === null && openedMs + 60 * 60 * 1000 <= nowMs)
+      phase = 'one_hour_repeat';
     if (!phase) return null;
     row.alertClaimToken = input.claimToken;
     row.alertClaimedAt = input.nowIso;
@@ -224,7 +227,7 @@ export const inMemoryOperatorHealthWritePort: OperatorHealthWritePort = {
       dedupKey: row.dedupKey,
       direction: row.direction,
       integration: CRITICAL_ALERT_CADENCE_INTEGRATION,
-      errorClass: "critical",
+      errorClass: 'critical',
       errorDetail: row.errorDetail,
       openedAt: row.openedAt,
       lastSeenAt: row.lastSeenAt,

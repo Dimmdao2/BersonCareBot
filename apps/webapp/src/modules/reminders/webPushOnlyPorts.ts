@@ -1,4 +1,4 @@
-import type { ReminderCategory, ReminderLinkedObjectType } from "./types";
+import type { ReminderCategory, ReminderLinkedObjectType } from './types';
 
 export type WebPushOnlyReminderRuleRow = {
   organizationId: string;
@@ -35,7 +35,10 @@ export type WebPushOnlyDueOccurrenceRow = {
 
 export type WebPushOnlyRemindersPort = {
   listOrganizationIds(nowIso: string): Promise<string[]>;
-  listEnabledWebPushOnlyRules(organizationId: string, nowIso: string): Promise<WebPushOnlyReminderRuleRow[]>;
+  listEnabledWebPushOnlyRules(
+    organizationId: string,
+    nowIso: string,
+  ): Promise<WebPushOnlyReminderRuleRow[]>;
   getRuleByIntegratorRuleId(
     organizationId: string,
     integratorRuleId: string,
@@ -46,9 +49,20 @@ export type WebPushOnlyRemindersPort = {
     integratorRuleId: string,
     drafts: Array<{ occurrenceKey: string; plannedAt: string }>,
   ): Promise<number>;
-  claimDueOccurrences(organizationId: string, nowIso: string, limit: number): Promise<WebPushOnlyDueOccurrenceRow[]>;
+  claimDueOccurrences(
+    organizationId: string,
+    nowIso: string,
+    limit: number,
+  ): Promise<WebPushOnlyDueOccurrenceRow[]>;
   markOccurrenceSent(organizationId: string, occurrenceId: string): Promise<void>;
-  markOccurrenceFailed(organizationId: string, occurrenceId: string, errorCode: string): Promise<void>;
-  resolveLinkedCatalogTitle(linkedObjectType: string, linkedObjectId: string): Promise<string | null>;
+  markOccurrenceFailed(
+    organizationId: string,
+    occurrenceId: string,
+    errorCode: string,
+  ): Promise<void>;
+  resolveLinkedCatalogTitle(
+    linkedObjectType: string,
+    linkedObjectId: string,
+  ): Promise<string | null>;
   expireOrphanedPendingOccurrences(organizationId: string, nowIso: string): Promise<number>;
 };

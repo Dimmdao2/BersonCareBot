@@ -28,11 +28,11 @@ Nunito, "Nunito Fallback", Nunito, system-ui, -apple-system, "Segoe UI", sans-se
 FontFaceSet evidence includes loaded Nunito faces for the rendered body/title weights. Non-GET requests, HTTP
 responses `>=400`, console errors and page errors were all zero.
 
-| Artifact | SHA-256 |
-|---|---|
+| Artifact                | SHA-256                                                            |
+| ----------------------- | ------------------------------------------------------------------ |
 | `desktop-1480x1024.png` | `33c481cd2f8e8f25e6384851ab464b2fa173f5f9c0230cbcc507cbae05119071` |
-| `mobile-390x844.png` | `d0544a20e90c5acab92b2774b7a764833ac1dd4e8b895454b041b896b9a3db9d` |
-| `result.json` | `bd586679e064b79197c2134cbf11aa42392f212b7b40cf7bd60e01accf127df4` |
+| `mobile-390x844.png`    | `d0544a20e90c5acab92b2774b7a764833ac1dd4e8b895454b041b896b9a3db9d` |
+| `result.json`           | `bd586679e064b79197c2134cbf11aa42392f212b7b40cf7bd60e01accf127df4` |
 
 This closes the exact missing runtime-font atom for A-DNA-002. It does not claim owner acceptance.
 

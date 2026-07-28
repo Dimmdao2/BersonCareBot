@@ -1,18 +1,18 @@
-import { env } from "@/config/env";
-import { normalizeRuPhoneE164 } from "@/shared/phone/normalizeRuPhoneE164";
-import type { OAuthBindingsPort } from "@/modules/auth/oauthBindingsPort";
-import type { AccountOutcome } from "@/modules/auth/oauthYandexResolve";
-import { requireOAuthUserResolvePort } from "@/modules/auth/oauthUserResolvePort";
+import { env } from '@/config/env';
+import { normalizeRuPhoneE164 } from '@/shared/phone/normalizeRuPhoneE164';
+import type { OAuthBindingsPort } from '@/modules/auth/oauthBindingsPort';
+import type { AccountOutcome } from '@/modules/auth/oauthYandexResolve';
+import { requireOAuthUserResolvePort } from '@/modules/auth/oauthUserResolvePort';
 import {
   TrustedPatientPhoneSource,
   trustedPatientPhoneWriteAnchor,
-} from "@/modules/platform-access/trustedPhonePolicy";
+} from '@/modules/platform-access/trustedPhonePolicy';
 
 export type { AccountOutcome };
 
-export type WebOAuthProvider = "google" | "apple";
+export type WebOAuthProvider = 'google' | 'apple';
 
-export type WebOAuthResolveFailure = "no_identity" | "email_ambiguous" | "db_error";
+export type WebOAuthResolveFailure = 'no_identity' | 'email_ambiguous' | 'db_error';
 
 /**
  * Резолв пользователя для Google / Apple web login (аналог Yandex по merge / привязке).
@@ -30,7 +30,8 @@ export async function resolveUserIdForWebOAuthLogin(
     phone: string | null;
   },
 ): Promise<
-  { ok: true; userId: string; accountOutcome: AccountOutcome } | { ok: false; reason: WebOAuthResolveFailure }
+  | { ok: true; userId: string; accountOutcome: AccountOutcome }
+  | { ok: false; reason: WebOAuthResolveFailure }
 > {
   const emailRaw = input.email?.trim() || null;
   const emailTrusted = Boolean(emailRaw && input.emailVerified);
@@ -39,30 +40,30 @@ export async function resolveUserIdForWebOAuthLogin(
   const phoneNorm = phoneRaw ? normalizeRuPhoneE164(phoneRaw) : null;
   const sub = input.providerUserId.trim();
   if (!sub) {
-    return { ok: false, reason: "no_identity" };
+    return { ok: false, reason: 'no_identity' };
   }
 
   const byOAuth = await oauthPort.findUserByOAuthId(input.provider, sub);
   if (byOAuth) {
     if (!env.DATABASE_URL?.trim()) {
-      return { ok: true, userId: byOAuth.userId, accountOutcome: "linked_existing" };
+      return { ok: true, userId: byOAuth.userId, accountOutcome: 'linked_existing' };
     }
     const db = requireOAuthUserResolvePort();
     const canonicalEarly = await db.resolveCanonicalUserId(byOAuth.userId);
     const uidEarly = canonicalEarly ?? byOAuth.userId;
     await db.applyVerifiedOAuthEmail(uidEarly, emailRaw, emailTrusted);
-    return { ok: true, userId: uidEarly, accountOutcome: "linked_existing" };
+    return { ok: true, userId: uidEarly, accountOutcome: 'linked_existing' };
   }
 
   if (!env.DATABASE_URL?.trim()) {
-    return { ok: false, reason: "db_error" };
+    return { ok: false, reason: 'db_error' };
   }
 
   const db = requireOAuthUserResolvePort();
 
   try {
     let userId: string | null = null;
-    let accountOutcome: AccountOutcome = "linked_existing";
+    let accountOutcome: AccountOutcome = 'linked_existing';
 
     if (phoneNorm) {
       userId = await db.findCanonicalUserIdByPhone(phoneNorm);
@@ -71,7 +72,7 @@ export async function resolveUserIdForWebOAuthLogin(
     if (!userId && emailNorm) {
       const byEmail = await db.findUserIdsByVerifiedEmail(emailNorm);
       if (byEmail.length > 1) {
-        return { ok: false, reason: "email_ambiguous" };
+        return { ok: false, reason: 'email_ambiguous' };
       }
       if (byEmail.length === 1) {
         userId = byEmail[0]!;
@@ -85,7 +86,7 @@ export async function resolveUserIdForWebOAuthLogin(
     if (!userId && emailNorm) {
       const byAnyEmail = await db.findActiveUserIdsByEmail(emailNorm);
       if (byAnyEmail.length > 1) {
-        return { ok: false, reason: "email_ambiguous" };
+        return { ok: false, reason: 'email_ambiguous' };
       }
       if (byAnyEmail.length === 1) {
         userId = byAnyEmail[0]!;
@@ -93,7 +94,7 @@ export async function resolveUserIdForWebOAuthLogin(
     }
 
     if (!userId) {
-      accountOutcome = "created";
+      accountOutcome = 'created';
       const display = (input.displayName?.trim() || emailRaw || phoneNorm || sub).slice(0, 500);
       const emailVerifiedAt = emailTrusted ? new Date() : null;
       userId = await db.createOAuthPlatformUser({
@@ -117,7 +118,7 @@ export async function resolveUserIdForWebOAuthLogin(
       const canonical = await db.resolveCanonicalUserId(bind.existingOwnerUserId);
       const uid = canonical ?? bind.existingOwnerUserId;
       await db.applyVerifiedOAuthEmail(uid, emailRaw, emailTrusted);
-      return { ok: true, userId: uid, accountOutcome: "linked_existing" };
+      return { ok: true, userId: uid, accountOutcome: 'linked_existing' };
     }
 
     const canonical = await db.resolveCanonicalUserId(userId);
@@ -125,6 +126,6 @@ export async function resolveUserIdForWebOAuthLogin(
     await db.applyVerifiedOAuthEmail(uid, emailRaw, emailTrusted);
     return { ok: true, userId: uid, accountOutcome };
   } catch {
-    return { ok: false, reason: "db_error" };
+    return { ok: false, reason: 'db_error' };
   }
 }

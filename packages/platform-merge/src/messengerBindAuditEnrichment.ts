@@ -1,15 +1,18 @@
 /**
  * Loads platform user summaries for messenger phone-bind audit / operator alerts (public schema).
  */
-import type { MessengerPhoneBindDb } from "./messengerPhonePublicBind.js";
+import type { MessengerPhoneBindDb } from './messengerPhonePublicBind.js';
 import {
   messengerChannelLabelRu,
   messengerPhoneBindReasonHumanRu,
   type MessengerBindAuditCandidateSummary,
   type MessengerBindAuditInitiatorSummary,
-} from "./messengerBindAuditPresentation.js";
+} from './messengerBindAuditPresentation.js';
 
-async function resolveTelegramMessengerDisplayHint(db: MessengerPhoneBindDb, externalId: string): Promise<string | null> {
+async function resolveTelegramMessengerDisplayHint(
+  db: MessengerPhoneBindDb,
+  externalId: string,
+): Promise<string | null> {
   const trimmed = externalId.trim();
   if (!/^\d+$/.test(trimmed)) return null;
   try {
@@ -73,7 +76,7 @@ async function resolveCanonicalPlatformUserSummary(
     );
     const row = r.rows[0];
     if (!row) return null;
-    if (row.merged_into_id == null || row.merged_into_id === "") {
+    if (row.merged_into_id == null || row.merged_into_id === '') {
       return {
         platformUserId: row.id,
         displayName: row.display_name?.trim() ? row.display_name.trim() : null,
@@ -119,7 +122,7 @@ export async function enrichMessengerBindAuditDetailsFields(
 
   let initiator: MessengerBindAuditInitiatorSummary | null = null;
   const cc = args.channelCode?.trim();
-  const ext = args.externalId != null ? String(args.externalId).trim() : "";
+  const ext = args.externalId != null ? String(args.externalId).trim() : '';
   if (cc && ext) {
     const bind = await db.query<{ platform_user_id: string }>(
       `SELECT pu.id::text AS platform_user_id
@@ -133,9 +136,9 @@ export async function enrichMessengerBindAuditDetailsFields(
     const puId = bind.rows[0]?.platform_user_id ?? null;
     const ccLower = cc.trim().toLowerCase();
     let messengerDisplayHint: string | null = null;
-    if (ccLower === "telegram") {
+    if (ccLower === 'telegram') {
       messengerDisplayHint = await resolveTelegramMessengerDisplayHint(db, ext);
-    } else if (ccLower === "max") {
+    } else if (ccLower === 'max') {
       messengerDisplayHint = await resolveMaxMessengerPhoneHint(db, puId);
     }
     initiator = {

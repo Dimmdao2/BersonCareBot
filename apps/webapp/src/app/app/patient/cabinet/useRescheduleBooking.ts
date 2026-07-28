@@ -1,29 +1,28 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { routePaths } from "@/app-layer/routes/paths";
-import { redirectIfPatientActivationRequired } from "./bookingPatientActivation";
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { routePaths } from '@/app-layer/routes/paths';
+import { redirectIfPatientActivationRequired } from './bookingPatientActivation';
 
-export type RescheduleBookingResult =
-  | { ok: true }
-  | { ok: false };
+export type RescheduleBookingResult = { ok: true } | { ok: false };
 
 const ERROR_RU: Record<string, string> = {
-  not_found: "Запись не найдена",
-  no_canonical: "Перенос недоступен для этой записи",
-  canonical_appointment_incomplete: "Перенос недоступен: запись ожидает переноса в канонический календарь",
-  too_late: "Срок самостоятельного переноса истёк",
-  limit_exceeded: "Лимит переносов исчерпан",
-  change_not_allowed: "Такой перенос не разрешён",
-  staff_confirmation_required: "Нужно согласование специалиста",
-  slot_overlap: "Это время уже занято",
-  sync_failed: "Не удалось обновить запись",
+  not_found: 'Запись не найдена',
+  no_canonical: 'Перенос недоступен для этой записи',
+  canonical_appointment_incomplete:
+    'Перенос недоступен: запись ожидает переноса в канонический календарь',
+  too_late: 'Срок самостоятельного переноса истёк',
+  limit_exceeded: 'Лимит переносов исчерпан',
+  change_not_allowed: 'Такой перенос не разрешён',
+  staff_confirmation_required: 'Нужно согласование специалиста',
+  slot_overlap: 'Это время уже занято',
+  sync_failed: 'Не удалось обновить запись',
 };
 
 export function mapRescheduleErrorCodeToRu(code: string | undefined): string {
-  if (!code) return "Не удалось перенести запись";
-  return ERROR_RU[code] ?? "Не удалось перенести запись";
+  if (!code) return 'Не удалось перенести запись';
+  return ERROR_RU[code] ?? 'Не удалось перенести запись';
 }
 
 export function useRescheduleBooking() {
@@ -40,9 +39,9 @@ export function useRescheduleBooking() {
     setSubmitting(true);
     setError(null);
     try {
-      const res = await fetch("/api/booking/reschedule", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const res = await fetch('/api/booking/reschedule', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(input),
       });
       const json = (await res.json().catch(() => ({}))) as Record<string, unknown> & {
@@ -60,7 +59,7 @@ export function useRescheduleBooking() {
       }
       return { ok: true };
     } catch {
-      setError("Ошибка сети при переносе");
+      setError('Ошибка сети при переносе');
       return { ok: false };
     } finally {
       setSubmitting(false);

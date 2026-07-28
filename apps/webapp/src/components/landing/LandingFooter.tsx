@@ -1,19 +1,21 @@
-import Image from "next/image";
-import Link from "next/link";
-import { ArrowUpRight } from "lucide-react";
+import Image from 'next/image';
+import Link from 'next/link';
+import { ArrowUpRight } from 'lucide-react';
 import {
   landingBody,
   landingBodySecondary,
   landingContainer,
-} from "@/components/landing/landingTypography";
-import { cn } from "@/lib/utils";
+} from '@/components/landing/landingTypography';
+import { cn } from '@/lib/utils';
 
-const linkClass =
-  "inline-flex items-center gap-1.5 transition hover:text-[#17264A]";
+const linkClass = 'inline-flex items-center gap-1.5 transition hover:text-[#17264A]';
 
 export function LandingFooter() {
   return (
-    <footer id="contacts" className="scroll-mt-[80px] overflow-x-hidden border-t border-[#E6ECF8] bg-white py-10 sm:py-12">
+    <footer
+      id="contacts"
+      className="scroll-mt-[80px] overflow-x-hidden border-t border-[#E6ECF8] bg-white py-10 sm:py-12"
+    >
       <div className={landingContainer}>
         <div className="grid min-w-0 gap-8 md:grid-cols-2 md:items-start md:gap-12">
           <div>
@@ -27,32 +29,28 @@ export function LandingFooter() {
               />
               <p className="text-base font-semibold text-[#17264A]">BersonCare</p>
             </div>
-            <p className={cn(landingBody, "mt-3 max-w-sm")}>Платформа для работы специалиста и сопровождения пациентов.</p>
+            <p className={cn(landingBody, 'mt-3 max-w-sm')}>
+              Платформа для работы специалиста и сопровождения пациентов.
+            </p>
           </div>
 
-          <div className={cn("flex flex-col gap-3", landingBodySecondary)}>
+          <div className={cn('flex flex-col gap-3', landingBodySecondary)}>
             <Link
               href="https://dmitryberson.ru"
-              className={cn(linkClass, "w-fit")}
+              className={cn(linkClass, 'w-fit')}
               target="_blank"
               rel="noreferrer"
             >
               dmitryberson.ru
               <ArrowUpRight className="h-4 w-4" aria-hidden />
             </Link>
-            <Link
-              href="/legal/privacy"
-              className={cn(linkClass, "w-fit")}
-            >
+            <Link href="/legal/privacy" className={cn(linkClass, 'w-fit')}>
               Политика конфиденциальности
             </Link>
-            <Link
-              href="/legal/terms"
-              className={cn(linkClass, "w-fit")}
-            >
+            <Link href="/legal/terms" className={cn(linkClass, 'w-fit')}>
               Условия использования
             </Link>
-            <Link href="/app/contact-support" className={cn(linkClass, "w-fit")}>
+            <Link href="/app/contact-support" className={cn(linkClass, 'w-fit')}>
               Связь с поддержкой
             </Link>
           </div>

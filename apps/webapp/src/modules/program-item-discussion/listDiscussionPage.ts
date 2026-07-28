@@ -1,14 +1,11 @@
-import type { ProgramItemDiscussionService } from "./service";
-import type {
-  ProgramItemDiscussionMessage,
-  ProgramItemDiscussionMessageCursor,
-} from "./types";
+import type { ProgramItemDiscussionService } from './service';
+import type { ProgramItemDiscussionMessage, ProgramItemDiscussionMessageCursor } from './types';
 
 const MERGE_WINDOW_CAP = 200;
 
 export function compareDiscussionMessages(
-  a: Pick<ProgramItemDiscussionMessage, "createdAt" | "id">,
-  b: Pick<ProgramItemDiscussionMessage, "createdAt" | "id">,
+  a: Pick<ProgramItemDiscussionMessage, 'createdAt' | 'id'>,
+  b: Pick<ProgramItemDiscussionMessage, 'createdAt' | 'id'>,
 ): number {
   const byDate = a.createdAt.localeCompare(b.createdAt);
   if (byDate !== 0) return byDate;
@@ -18,7 +15,7 @@ export function compareDiscussionMessages(
 export function paginateMergedMessages(params: {
   messages: ProgramItemDiscussionMessage[];
   limit: number;
-  direction: "backward" | "forward";
+  direction: 'backward' | 'forward';
   cursor: ProgramItemDiscussionMessageCursor | null;
 }): {
   page: ProgramItemDiscussionMessage[];
@@ -31,15 +28,18 @@ export function paginateMergedMessages(params: {
     return { page: [], nextCursor: null, hasMore: false };
   }
 
-  const encodeCursor = (message: Pick<ProgramItemDiscussionMessage, "createdAt" | "id">) =>
-    Buffer.from(JSON.stringify({ createdAt: message.createdAt, id: message.id }), "utf8").toString("base64url");
+  const encodeCursor = (message: Pick<ProgramItemDiscussionMessage, 'createdAt' | 'id'>) =>
+    Buffer.from(JSON.stringify({ createdAt: message.createdAt, id: message.id }), 'utf8').toString(
+      'base64url',
+    );
 
-  if (direction === "forward") {
+  if (direction === 'forward') {
     let start = 0;
     if (cursor) {
       while (
         start < sorted.length &&
-        compareDiscussionMessages(sorted[start]!, { createdAt: cursor.createdAt, id: cursor.id }) <= 0
+        compareDiscussionMessages(sorted[start]!, { createdAt: cursor.createdAt, id: cursor.id }) <=
+          0
       ) {
         start += 1;
       }
@@ -56,7 +56,10 @@ export function paginateMergedMessages(params: {
     endExclusive = 0;
     while (
       endExclusive < sorted.length &&
-      compareDiscussionMessages(sorted[endExclusive]!, { createdAt: cursor.createdAt, id: cursor.id }) < 0
+      compareDiscussionMessages(sorted[endExclusive]!, {
+        createdAt: cursor.createdAt,
+        id: cursor.id,
+      }) < 0
     ) {
       endExclusive += 1;
     }
@@ -74,7 +77,7 @@ export async function listDiscussionPageMerged(input: {
   patientUserId: string;
   exerciseTitle: string;
   limit: number;
-  direction: "backward" | "forward";
+  direction: 'backward' | 'forward';
   cursor: ProgramItemDiscussionMessageCursor | null;
 }): Promise<{
   page: ProgramItemDiscussionMessage[];
@@ -155,7 +158,7 @@ export async function getDiscussionSummaryForItem(input: {
     input.discussion.listMessagesPage({
       stageItemId: input.stageItemId,
       limit: 1,
-      direction: "backward",
+      direction: 'backward',
       cursor: null,
     }),
     legacyCount > 0

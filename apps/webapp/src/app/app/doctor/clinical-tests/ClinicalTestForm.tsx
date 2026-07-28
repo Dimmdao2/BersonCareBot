@@ -1,59 +1,64 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { useActionState, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Button, buttonVariants } from "@/shared/ui/doctor/primitives/button";
+import Link from 'next/link';
+import { useActionState, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Button, buttonVariants } from '@/shared/ui/doctor/primitives/button';
 import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/shared/ui/doctor/primitives/dialog";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { Label } from "@/shared/ui/doctor/primitives/label";
-import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
+} from '@/shared/ui/doctor/primitives/dialog';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { Label } from '@/shared/ui/doctor/primitives/label';
+import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/ui/doctor/primitives/select";
-import type { ClinicalTest, ClinicalTestUsageSnapshot } from "@/modules/tests/types";
+} from '@/shared/ui/doctor/primitives/select';
+import type { ClinicalTest, ClinicalTestUsageSnapshot } from '@/modules/tests/types';
 import {
   CLINICAL_TEST_SCHEMA_TYPES,
   parseClinicalTestScoring,
   type ClinicalTestSchemaType,
   type ClinicalTestScoring,
-} from "@/modules/tests/clinicalTestScoring";
-import { buildClinicalAssessmentKindSelectOptions } from "@/modules/tests/clinicalTestAssessmentKind";
-import { cn } from "@/lib/utils";
-import { MediaLibraryPickerDialog } from "@/app/app/doctor/content/MediaLibraryPickerDialog";
-import { ReferenceSelect } from "@/shared/ui/doctor/ReferenceSelect";
-import { ReferenceMultiSelect } from "@/shared/ui/doctor/ReferenceMultiSelect";
-import { archiveClinicalTest, fetchDoctorClinicalTestUsageSnapshot, saveClinicalTest, unarchiveClinicalTest } from "./actions";
+} from '@/modules/tests/clinicalTestScoring';
+import { buildClinicalAssessmentKindSelectOptions } from '@/modules/tests/clinicalTestAssessmentKind';
+import { cn } from '@/lib/utils';
+import { MediaLibraryPickerDialog } from '@/app/app/doctor/content/MediaLibraryPickerDialog';
+import { ReferenceSelect } from '@/shared/ui/doctor/ReferenceSelect';
+import { ReferenceMultiSelect } from '@/shared/ui/doctor/ReferenceMultiSelect';
+import {
+  archiveClinicalTest,
+  fetchDoctorClinicalTestUsageSnapshot,
+  saveClinicalTest,
+  unarchiveClinicalTest,
+} from './actions';
 import type {
   ArchiveClinicalTestState,
   SaveClinicalTestState,
   UnarchiveClinicalTestState,
-} from "./actionsShared";
+} from './actionsShared';
 import {
   exerciseMediaTypeFromPick,
   exerciseTitleFromPickMeta,
-} from "@/app/app/doctor/exercises/exerciseMediaFromLibrary";
-import type { RecommendationListFilterScope } from "@/shared/lib/doctorCatalogListStatus";
-import { CLINICAL_TESTS_PATH } from "./paths";
-import { doctorClinicalTestUsageHref } from "./clinicalTestsUsageDocLinks";
+} from '@/app/app/doctor/exercises/exerciseMediaFromLibrary';
+import type { RecommendationListFilterScope } from '@/shared/lib/doctorCatalogListStatus';
+import { CLINICAL_TESTS_PATH } from './paths';
+import { doctorClinicalTestUsageHref } from './clinicalTestsUsageDocLinks';
 import {
   clinicalTestUsageHasAnyReference,
   clinicalTestUsageSections,
   type ClinicalTestUsageSection,
-} from "./clinicalTestsUsageSummaryText";
+} from './clinicalTestsUsageSummaryText';
 import {
   ClinicalTestMeasureRowsEditor,
   type ClinicalTestMeasureRowModel,
-} from "./ClinicalTestMeasureRowsEditor";
+} from './ClinicalTestMeasureRowsEditor';
 
 export type ClinicalTestFormValues = {
   title: string;
@@ -61,7 +66,7 @@ export type ClinicalTestFormValues = {
   testType: string;
   tags: string;
   mediaUrl: string;
-  mediaType: "" | "image" | "video" | "gif";
+  mediaType: '' | 'image' | 'video' | 'gif';
   assessmentKind: string;
   bodyRegionIds: string[];
   schemaType: ClinicalTestSchemaType;
@@ -76,51 +81,59 @@ export type ClinicalTestFormValues = {
   rawText: string;
 };
 
-export function clinicalTestToFormValues(test: ClinicalTest | null | undefined): ClinicalTestFormValues {
+export function clinicalTestToFormValues(
+  test: ClinicalTest | null | undefined,
+): ClinicalTestFormValues {
   const initialMedia = test?.media?.[0];
   const parsed = parseClinicalTestScoring(test?.scoring ?? null);
   const schemaType: ClinicalTestSchemaType =
     parsed && (CLINICAL_TEST_SCHEMA_TYPES as readonly string[]).includes(parsed.schema_type)
       ? parsed.schema_type
-      : "qualitative";
-  const measureRows: ClinicalTestMeasureRowModel[] = (parsed?.measure_items ?? []).map((m, idx) => ({
-    id: `row-${idx}-${m.measureKind}`,
-    measureKind: m.measureKind,
-    value: m.value ?? "",
-    unit: m.unit ?? "",
-    comment: m.comment ?? "",
-  }));
+      : 'qualitative';
+  const measureRows: ClinicalTestMeasureRowModel[] = (parsed?.measure_items ?? []).map(
+    (m, idx) => ({
+      id: `row-${idx}-${m.measureKind}`,
+      measureKind: m.measureKind,
+      value: m.value ?? '',
+      unit: m.unit ?? '',
+      comment: m.comment ?? '',
+    }),
+  );
 
-  let likertMin = "1";
-  let likertMax = "5";
-  let numericMin = "";
-  let numericMax = "";
-  let step = "";
-  let positiveLabel = "";
-  let negativeLabel = "";
-  if (parsed?.schema_type === "likert") {
+  let likertMin = '1';
+  let likertMax = '5';
+  let numericMin = '';
+  let numericMax = '';
+  let step = '';
+  let positiveLabel = '';
+  let negativeLabel = '';
+  if (parsed?.schema_type === 'likert') {
     likertMin = String(parsed.likert_min);
     likertMax = String(parsed.likert_max);
   }
-  if (parsed?.schema_type === "numeric") {
-    numericMin = parsed.min_value != null ? String(parsed.min_value) : "";
-    numericMax = parsed.max_value != null ? String(parsed.max_value) : "";
-    step = parsed.step != null ? String(parsed.step) : "";
+  if (parsed?.schema_type === 'numeric') {
+    numericMin = parsed.min_value != null ? String(parsed.min_value) : '';
+    numericMax = parsed.max_value != null ? String(parsed.max_value) : '';
+    step = parsed.step != null ? String(parsed.step) : '';
   }
-  if (parsed?.schema_type === "binary") {
-    positiveLabel = parsed.positive_label ?? "";
-    negativeLabel = parsed.negative_label ?? "";
+  if (parsed?.schema_type === 'binary') {
+    positiveLabel = parsed.positive_label ?? '';
+    negativeLabel = parsed.negative_label ?? '';
   }
 
   return {
-    title: test?.title ?? "",
-    description: test?.description ?? "",
-    testType: test?.testType ?? "",
-    tags: test?.tags?.join(", ") ?? "",
-    mediaUrl: initialMedia?.mediaUrl ?? "",
-    mediaType: (initialMedia?.mediaType ?? "") as ClinicalTestFormValues["mediaType"],
-    assessmentKind: test?.assessmentKind ?? "",
-    bodyRegionIds: test?.bodyRegionIds?.length ? [...test.bodyRegionIds] : test?.bodyRegionId ? [test.bodyRegionId] : [],
+    title: test?.title ?? '',
+    description: test?.description ?? '',
+    testType: test?.testType ?? '',
+    tags: test?.tags?.join(', ') ?? '',
+    mediaUrl: initialMedia?.mediaUrl ?? '',
+    mediaType: (initialMedia?.mediaType ?? '') as ClinicalTestFormValues['mediaType'],
+    assessmentKind: test?.assessmentKind ?? '',
+    bodyRegionIds: test?.bodyRegionIds?.length
+      ? [...test.bodyRegionIds]
+      : test?.bodyRegionId
+        ? [test.bodyRegionId]
+        : [],
     schemaType,
     measureRows,
     likertMin,
@@ -130,7 +143,7 @@ export function clinicalTestToFormValues(test: ClinicalTest | null | undefined):
     step,
     positiveLabel,
     negativeLabel,
-    rawText: test?.rawText ?? "",
+    rawText: test?.rawText ?? '',
   };
 }
 
@@ -146,24 +159,25 @@ function buildStructuredScoring(v: ClinicalTestFormValues): ClinicalTestScoring 
     .filter((m) => m.measureKind.length > 0);
 
   const st = v.schemaType;
-  if (st === "qualitative") return { schema_type: "qualitative", measure_items };
-  if (st === "binary") {
+  if (st === 'qualitative') return { schema_type: 'qualitative', measure_items };
+  if (st === 'binary') {
     return {
-      schema_type: "binary",
+      schema_type: 'binary',
       measure_items,
       positive_label: v.positiveLabel.trim() || undefined,
       negative_label: v.negativeLabel.trim() || undefined,
     };
   }
-  if (st === "numeric") {
+  if (st === 'numeric') {
     const min_v = v.numericMin.trim() ? Number(v.numericMin) : undefined;
     const max_v = v.numericMax.trim() ? Number(v.numericMax) : undefined;
     const step_v = v.step.trim() ? Number(v.step) : undefined;
-    if (min_v !== undefined && !Number.isFinite(min_v)) throw new Error("Некорректный min");
-    if (max_v !== undefined && !Number.isFinite(max_v)) throw new Error("Некорректный max");
-    if (step_v !== undefined && (!Number.isFinite(step_v) || step_v <= 0)) throw new Error("Некорректный step");
+    if (min_v !== undefined && !Number.isFinite(min_v)) throw new Error('Некорректный min');
+    if (max_v !== undefined && !Number.isFinite(max_v)) throw new Error('Некорректный max');
+    if (step_v !== undefined && (!Number.isFinite(step_v) || step_v <= 0))
+      throw new Error('Некорректный step');
     return {
-      schema_type: "numeric",
+      schema_type: 'numeric',
       measure_items,
       min_value: min_v,
       max_value: max_v,
@@ -172,8 +186,9 @@ function buildStructuredScoring(v: ClinicalTestFormValues): ClinicalTestScoring 
   }
   const lo = Number.parseInt(v.likertMin, 10);
   const hi = Number.parseInt(v.likertMax, 10);
-  if (!Number.isFinite(lo) || !Number.isFinite(hi)) throw new Error("Укажите минимум и максимум шкалы баллов (целые числа)");
-  return { schema_type: "likert", measure_items, likert_min: lo, likert_max: hi };
+  if (!Number.isFinite(lo) || !Number.isFinite(hi))
+    throw new Error('Укажите минимум и максимум шкалы баллов (целые числа)');
+  return { schema_type: 'likert', measure_items, likert_min: lo, likert_max: hi };
 }
 
 function ClinicalTestUsageSectionsView({ sections }: { sections: ClinicalTestUsageSection[] }) {
@@ -214,11 +229,11 @@ type ClinicalTestFormProps = {
   test?: ClinicalTest | null;
   backHref?: string;
   /** Режим каталога master-detail — передаётся в форму как `view` для редиректа после сохранения. */
-  workspaceView?: "tiles" | "list";
+  workspaceView?: 'tiles' | 'list';
   /** Дополнить редирект после save/archive параметрами списка (`q`, `titleSort`, `region`, `load`). */
   workspaceListPreserve?: {
     q?: string;
-    titleSort?: "asc" | "desc" | null;
+    titleSort?: 'asc' | 'desc' | null;
     regionCode?: string;
     assessmentKind?: string | null;
     listStatus?: RecommendationListFilterScope;
@@ -258,8 +273,10 @@ export function ClinicalTestForm({
   unarchiveAction = unarchiveClinicalTest,
   externalUsageSnapshot,
 }: ClinicalTestFormProps) {
-  const recordKey = test?.id ?? "create";
-  const [values, setValues] = useState<ClinicalTestFormValues>(() => clinicalTestToFormValues(test));
+  const recordKey = test?.id ?? 'create';
+  const [values, setValues] = useState<ClinicalTestFormValues>(() =>
+    clinicalTestToFormValues(test),
+  );
   const [localError, setLocalError] = useState<string | null>(null);
   const [usage, setUsage] = useState<ClinicalTestUsageSnapshot | null>(null);
   const [usageLoadError, setUsageLoadError] = useState<string | null>(null);
@@ -295,7 +312,7 @@ export function ClinicalTestForm({
       .catch(() => {
         if (!cancelled) {
           setUsage(null);
-          setUsageLoadError("Не удалось загрузить сводку использования");
+          setUsageLoadError('Не удалось загрузить сводку использования');
         }
       })
       .finally(() => {
@@ -316,7 +333,10 @@ export function ClinicalTestForm({
     [saveAction],
   );
 
-  const [, formAction, savePending] = useActionState(wrappedSave, null as SaveClinicalTestState | null);
+  const [, formAction, savePending] = useActionState(
+    wrappedSave,
+    null as SaveClinicalTestState | null,
+  );
 
   const [archiveState, archiveFormAction, archivePending] = useActionState(
     archiveAction,
@@ -331,8 +351,8 @@ export function ClinicalTestForm({
   useEffect(() => {
     if (
       archiveState?.ok === false &&
-      "code" in archiveState &&
-      archiveState.code === "USAGE_CONFIRMATION_REQUIRED"
+      'code' in archiveState &&
+      archiveState.code === 'USAGE_CONFIRMATION_REQUIRED'
     ) {
       setWarnOpen(true);
     }
@@ -353,8 +373,8 @@ export function ClinicalTestForm({
   const warnSections = useMemo(() => {
     if (
       archiveState?.ok === false &&
-      "code" in archiveState &&
-      archiveState.code === "USAGE_CONFIRMATION_REQUIRED"
+      'code' in archiveState &&
+      archiveState.code === 'USAGE_CONFIRMATION_REQUIRED'
     ) {
       const u = archiveState.usage;
       if (!clinicalTestUsageHasAnyReference(u)) return [];
@@ -364,10 +384,10 @@ export function ClinicalTestForm({
   }, [archiveState]);
 
   const archiveError =
-    archiveState?.ok === false && "error" in archiveState ? archiveState.error : null;
+    archiveState?.ok === false && 'error' in archiveState ? archiveState.error : null;
 
   const unarchiveError =
-    unarchiveState?.ok === false && "error" in unarchiveState ? unarchiveState.error : null;
+    unarchiveState?.ok === false && 'error' in unarchiveState ? unarchiveState.error : null;
 
   const isArchived = !!test?.isArchived;
 
@@ -375,7 +395,7 @@ export function ClinicalTestForm({
     try {
       return JSON.stringify(buildStructuredScoring(values));
     } catch {
-      return "";
+      return '';
     }
   }, [values]);
 
@@ -389,16 +409,18 @@ export function ClinicalTestForm({
         ) : null}
         {test ? <input type="hidden" name="id" value={test.id} /> : null}
         {workspaceView ? <input type="hidden" name="view" value={workspaceView} /> : null}
-        {workspaceListPreserve?.q != null && workspaceListPreserve.q !== "" ? (
+        {workspaceListPreserve?.q != null && workspaceListPreserve.q !== '' ? (
           <input type="hidden" name="listQ" value={workspaceListPreserve.q} />
         ) : null}
-        {workspaceListPreserve?.titleSort === "asc" || workspaceListPreserve?.titleSort === "desc" ? (
+        {workspaceListPreserve?.titleSort === 'asc' ||
+        workspaceListPreserve?.titleSort === 'desc' ? (
           <input type="hidden" name="listTitleSort" value={workspaceListPreserve.titleSort} />
         ) : null}
-        {workspaceListPreserve?.regionCode != null && workspaceListPreserve.regionCode !== "" ? (
+        {workspaceListPreserve?.regionCode != null && workspaceListPreserve.regionCode !== '' ? (
           <input type="hidden" name="listRegion" value={workspaceListPreserve.regionCode} />
         ) : null}
-        {workspaceListPreserve?.assessmentKind != null && workspaceListPreserve.assessmentKind !== "" ? (
+        {workspaceListPreserve?.assessmentKind != null &&
+        workspaceListPreserve.assessmentKind !== '' ? (
           <input type="hidden" name="listAssessment" value={workspaceListPreserve.assessmentKind} />
         ) : null}
         {workspaceListPreserve?.listStatus != null ? (
@@ -434,10 +456,10 @@ export function ClinicalTestForm({
                 onChange={(url, meta) => {
                   setValues((prev) => {
                     let nextTitle = prev.title;
-                    let nextType: ClinicalTestFormValues["mediaType"] = "";
+                    let nextType: ClinicalTestFormValues['mediaType'] = '';
                     if (url && meta) {
                       nextType = exerciseMediaTypeFromPick(meta);
-                      if (nextTitle.trim() === "") nextTitle = exerciseTitleFromPickMeta(meta);
+                      if (nextTitle.trim() === '') nextTitle = exerciseTitleFromPickMeta(meta);
                     }
                     return { ...prev, mediaUrl: url, mediaType: nextType, title: nextTitle };
                   });
@@ -471,7 +493,7 @@ export function ClinicalTestForm({
               <Label htmlFor="ct-asm">Вид оценки</Label>
               <Select
                 value={values.assessmentKind}
-                onValueChange={(v) => setValues((prev) => ({ ...prev, assessmentKind: v ?? "" }))}
+                onValueChange={(v) => setValues((prev) => ({ ...prev, assessmentKind: v ?? '' }))}
                 name="assessmentKind"
               >
                 <SelectTrigger id="ct-asm" className="w-full">
@@ -486,9 +508,10 @@ export function ClinicalTestForm({
                   ))}
                 </SelectContent>
               </Select>
-              {assessmentKindSelectOptions.some((o) => o.title.includes("(не в справочнике)")) ? (
+              {assessmentKindSelectOptions.some((o) => o.title.includes('(не в справочнике)')) ? (
                 <p className="text-xs text-muted-foreground">
-                  Код вида оценки не найден в справочнике. Можно сохранить остальные поля без смены этого значения; чтобы записать другой вид — выберите код из списка.
+                  Код вида оценки не найден в справочнике. Можно сохранить остальные поля без смены
+                  этого значения; чтобы записать другой вид — выберите код из списка.
                 </p>
               ) : null}
             </div>
@@ -509,148 +532,152 @@ export function ClinicalTestForm({
             <div className="flex flex-col gap-3 rounded-md border border-border/50 p-3">
               <span className="text-sm font-medium">Оценка</span>
               <div className="space-y-4">
-                  <div className="flex flex-col gap-2">
-                    <Label>Тип шкалы</Label>
-                    <Select
-                      value={values.schemaType}
-                      onValueChange={(v) =>
-                        setValues((prev) => ({
-                          ...prev,
-                          schemaType:
-                            typeof v === "string" &&
-                            (CLINICAL_TEST_SCHEMA_TYPES as readonly string[]).includes(v)
-                              ? (v as ClinicalTestSchemaType)
-                              : "qualitative",
-                        }))
-                      }
-                    >
-                      <SelectTrigger className="w-full sm:max-w-xs">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="numeric">Одно число в интервале</SelectItem>
-                        <SelectItem value="likert">Оценка по баллам</SelectItem>
-                        <SelectItem value="binary">Да или нет</SelectItem>
-                        <SelectItem value="qualitative">Свободный ввод</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    {values.schemaType === "numeric" ? (
-                      <p className="text-xs text-muted-foreground leading-snug">
-                        Пациент вводит одно число между min и max ниже. Примеры: боль 0–10, угол в градусах 0–180,
-                        процент выполнения 0–100.
-                      </p>
-                    ) : null}
-                  </div>
-
-                  {values.schemaType === "numeric" ? (
-                    <div className="grid gap-2 sm:grid-cols-3">
-                      <div className="flex flex-col gap-1">
-                        <Label className="text-xs">Min</Label>
-                        <Input
-                          value={values.numericMin}
-                          onChange={(e) => setValues((v) => ({ ...v, numericMin: e.target.value }))}
-                          inputMode="decimal"
-                        />
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        <Label className="text-xs">Max</Label>
-                        <Input
-                          value={values.numericMax}
-                          onChange={(e) => setValues((v) => ({ ...v, numericMax: e.target.value }))}
-                          inputMode="decimal"
-                        />
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        <Label className="text-xs">Шаг</Label>
-                        <Input
-                          value={values.step}
-                          onChange={(e) => setValues((v) => ({ ...v, step: e.target.value }))}
-                          inputMode="decimal"
-                        />
-                      </div>
-                    </div>
-                  ) : null}
-
-                  {values.schemaType === "likert" ? (
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      <div className="flex flex-col gap-1">
-                        <Label className="text-xs">Минимум шкалы</Label>
-                        <Input
-                          value={values.likertMin}
-                          onChange={(e) => setValues((v) => ({ ...v, likertMin: e.target.value }))}
-                          inputMode="numeric"
-                        />
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        <Label className="text-xs">Максимум шкалы</Label>
-                        <Input
-                          value={values.likertMax}
-                          onChange={(e) => setValues((v) => ({ ...v, likertMax: e.target.value }))}
-                          inputMode="numeric"
-                        />
-                      </div>
-                    </div>
-                  ) : null}
-
-                  {values.schemaType === "binary" ? (
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      <div className="flex flex-col gap-1">
-                        <Label className="text-xs">Подпись «да»</Label>
-                        <Input
-                          value={values.positiveLabel}
-                          onChange={(e) => setValues((v) => ({ ...v, positiveLabel: e.target.value }))}
-                        />
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        <Label className="text-xs">Подпись «нет»</Label>
-                        <Input
-                          value={values.negativeLabel}
-                          onChange={(e) => setValues((v) => ({ ...v, negativeLabel: e.target.value }))}
-                        />
-                      </div>
-                    </div>
-                  ) : null}
-
-                  <ClinicalTestMeasureRowsEditor
-                    disabled={isArchived}
-                    rows={values.measureRows}
-                    setRows={(next) =>
-                      setValues((v) => ({
-                        ...v,
-                        measureRows: typeof next === "function" ? next(v.measureRows) : next,
+                <div className="flex flex-col gap-2">
+                  <Label>Тип шкалы</Label>
+                  <Select
+                    value={values.schemaType}
+                    onValueChange={(v) =>
+                      setValues((prev) => ({
+                        ...prev,
+                        schemaType:
+                          typeof v === 'string' &&
+                          (CLINICAL_TEST_SCHEMA_TYPES as readonly string[]).includes(v)
+                            ? (v as ClinicalTestSchemaType)
+                            : 'qualitative',
                       }))
                     }
-                  />
-
-                  <div className="flex flex-col gap-2">
-                    <Label htmlFor="ct-raw">Свободный текст / fallback</Label>
-                    <Textarea
-                      id="ct-raw"
-                      name="rawText"
-                      className="min-h-[72px]"
-                      value={values.rawText}
-                      onChange={(e) => setValues((v) => ({ ...v, rawText: e.target.value }))}
-                      placeholder="Заметки, legacy-данные, что не вошло в структуру"
-                    />
-                  </div>
-
-                  <div className="flex flex-col gap-2">
-                    <Label htmlFor="ct-tags">Теги (через запятую)</Label>
-                    <Input
-                      id="ct-tags"
-                      name="tags"
-                      value={values.tags}
-                      onChange={(e) => setValues((v) => ({ ...v, tags: e.target.value }))}
-                    />
-                  </div>
+                  >
+                    <SelectTrigger className="w-full sm:max-w-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="numeric">Одно число в интервале</SelectItem>
+                      <SelectItem value="likert">Оценка по баллам</SelectItem>
+                      <SelectItem value="binary">Да или нет</SelectItem>
+                      <SelectItem value="qualitative">Свободный ввод</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {values.schemaType === 'numeric' ? (
+                    <p className="text-xs text-muted-foreground leading-snug">
+                      Пациент вводит одно число между min и max ниже. Примеры: боль 0–10, угол в
+                      градусах 0–180, процент выполнения 0–100.
+                    </p>
+                  ) : null}
                 </div>
+
+                {values.schemaType === 'numeric' ? (
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    <div className="flex flex-col gap-1">
+                      <Label className="text-xs">Min</Label>
+                      <Input
+                        value={values.numericMin}
+                        onChange={(e) => setValues((v) => ({ ...v, numericMin: e.target.value }))}
+                        inputMode="decimal"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <Label className="text-xs">Max</Label>
+                      <Input
+                        value={values.numericMax}
+                        onChange={(e) => setValues((v) => ({ ...v, numericMax: e.target.value }))}
+                        inputMode="decimal"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <Label className="text-xs">Шаг</Label>
+                      <Input
+                        value={values.step}
+                        onChange={(e) => setValues((v) => ({ ...v, step: e.target.value }))}
+                        inputMode="decimal"
+                      />
+                    </div>
+                  </div>
+                ) : null}
+
+                {values.schemaType === 'likert' ? (
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <div className="flex flex-col gap-1">
+                      <Label className="text-xs">Минимум шкалы</Label>
+                      <Input
+                        value={values.likertMin}
+                        onChange={(e) => setValues((v) => ({ ...v, likertMin: e.target.value }))}
+                        inputMode="numeric"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <Label className="text-xs">Максимум шкалы</Label>
+                      <Input
+                        value={values.likertMax}
+                        onChange={(e) => setValues((v) => ({ ...v, likertMax: e.target.value }))}
+                        inputMode="numeric"
+                      />
+                    </div>
+                  </div>
+                ) : null}
+
+                {values.schemaType === 'binary' ? (
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <div className="flex flex-col gap-1">
+                      <Label className="text-xs">Подпись «да»</Label>
+                      <Input
+                        value={values.positiveLabel}
+                        onChange={(e) =>
+                          setValues((v) => ({ ...v, positiveLabel: e.target.value }))
+                        }
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <Label className="text-xs">Подпись «нет»</Label>
+                      <Input
+                        value={values.negativeLabel}
+                        onChange={(e) =>
+                          setValues((v) => ({ ...v, negativeLabel: e.target.value }))
+                        }
+                      />
+                    </div>
+                  </div>
+                ) : null}
+
+                <ClinicalTestMeasureRowsEditor
+                  disabled={isArchived}
+                  rows={values.measureRows}
+                  setRows={(next) =>
+                    setValues((v) => ({
+                      ...v,
+                      measureRows: typeof next === 'function' ? next(v.measureRows) : next,
+                    }))
+                  }
+                />
+
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="ct-raw">Свободный текст / fallback</Label>
+                  <Textarea
+                    id="ct-raw"
+                    name="rawText"
+                    className="min-h-[72px]"
+                    value={values.rawText}
+                    onChange={(e) => setValues((v) => ({ ...v, rawText: e.target.value }))}
+                    placeholder="Заметки, legacy-данные, что не вошло в структуру"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="ct-tags">Теги (через запятую)</Label>
+                  <Input
+                    id="ct-tags"
+                    name="tags"
+                    value={values.tags}
+                    onChange={(e) => setValues((v) => ({ ...v, tags: e.target.value }))}
+                  />
+                </div>
+              </div>
             </div>
 
             <div className="flex flex-wrap gap-2">
               <Button type="submit" disabled={savePending}>
-                {savePending ? "Сохранение…" : test ? "Сохранить" : "Создать тест"}
+                {savePending ? 'Сохранение…' : test ? 'Сохранить' : 'Создать тест'}
               </Button>
-              <Link href={backHref} className={cn(buttonVariants({ variant: "outline" }))}>
+              <Link href={backHref} className={cn(buttonVariants({ variant: 'outline' }))}>
                 К списку
               </Link>
             </div>
@@ -676,7 +703,9 @@ export function ClinicalTestForm({
           {isArchived ? (
             <div className="rounded-md border border-border/60 bg-muted/30 p-3 text-sm">
               <p className="font-medium text-foreground">Тест в архиве</p>
-              <p className="mt-1 text-muted-foreground">Верните из архива, чтобы снова добавлять в наборы и шаблоны.</p>
+              <p className="mt-1 text-muted-foreground">
+                Верните из архива, чтобы снова добавлять в наборы и шаблоны.
+              </p>
               {unarchiveError ? (
                 <p role="alert" className="mt-2 text-sm text-destructive">
                   {unarchiveError}
@@ -685,109 +714,136 @@ export function ClinicalTestForm({
               <form action={unarchiveFormAction} className="mt-3 flex flex-col gap-2">
                 <input type="hidden" name="id" value={test.id} />
                 {workspaceView ? <input type="hidden" name="view" value={workspaceView} /> : null}
-                {workspaceListPreserve?.q != null && workspaceListPreserve.q !== "" ? (
+                {workspaceListPreserve?.q != null && workspaceListPreserve.q !== '' ? (
                   <input type="hidden" name="listQ" value={workspaceListPreserve.q} />
                 ) : null}
-                {workspaceListPreserve?.titleSort === "asc" || workspaceListPreserve?.titleSort === "desc" ? (
-                  <input type="hidden" name="listTitleSort" value={workspaceListPreserve.titleSort} />
+                {workspaceListPreserve?.titleSort === 'asc' ||
+                workspaceListPreserve?.titleSort === 'desc' ? (
+                  <input
+                    type="hidden"
+                    name="listTitleSort"
+                    value={workspaceListPreserve.titleSort}
+                  />
                 ) : null}
-                {workspaceListPreserve?.regionCode != null && workspaceListPreserve.regionCode !== "" ? (
+                {workspaceListPreserve?.regionCode != null &&
+                workspaceListPreserve.regionCode !== '' ? (
                   <input type="hidden" name="listRegion" value={workspaceListPreserve.regionCode} />
                 ) : null}
-                {workspaceListPreserve?.assessmentKind != null && workspaceListPreserve.assessmentKind !== "" ? (
-                  <input type="hidden" name="listAssessment" value={workspaceListPreserve.assessmentKind} />
+                {workspaceListPreserve?.assessmentKind != null &&
+                workspaceListPreserve.assessmentKind !== '' ? (
+                  <input
+                    type="hidden"
+                    name="listAssessment"
+                    value={workspaceListPreserve.assessmentKind}
+                  />
                 ) : null}
                 {workspaceListPreserve?.listStatus != null ? (
                   <input type="hidden" name="listStatus" value={workspaceListPreserve.listStatus} />
                 ) : null}
                 <Button type="submit" variant="secondary" disabled={unarchivePending}>
-                  {unarchivePending ? "Восстановление…" : "Вернуть из архива"}
+                  {unarchivePending ? 'Восстановление…' : 'Вернуть из архива'}
                 </Button>
               </form>
             </div>
           ) : (
             <>
-          {archiveError ? (
-            <p role="alert" className="mb-2 text-sm text-destructive">
-              {archiveError}
-            </p>
-          ) : null}
+              {archiveError ? (
+                <p role="alert" className="mb-2 text-sm text-destructive">
+                  {archiveError}
+                </p>
+              ) : null}
 
-          <form ref={archiveFormRef} action={archiveFormAction} className="flex flex-col gap-2">
-            <input type="hidden" name="id" value={test.id} />
-            {workspaceView ? <input type="hidden" name="view" value={workspaceView} /> : null}
-            {workspaceListPreserve?.q != null && workspaceListPreserve.q !== "" ? (
-              <input type="hidden" name="listQ" value={workspaceListPreserve.q} />
-            ) : null}
-            {workspaceListPreserve?.titleSort === "asc" || workspaceListPreserve?.titleSort === "desc" ? (
-              <input type="hidden" name="listTitleSort" value={workspaceListPreserve.titleSort} />
-            ) : null}
-            {workspaceListPreserve?.regionCode != null && workspaceListPreserve.regionCode !== "" ? (
-              <input type="hidden" name="listRegion" value={workspaceListPreserve.regionCode} />
-            ) : null}
-            {workspaceListPreserve?.assessmentKind != null && workspaceListPreserve.assessmentKind !== "" ? (
-              <input type="hidden" name="listAssessment" value={workspaceListPreserve.assessmentKind} />
-            ) : null}
-            {workspaceListPreserve?.listStatus != null ? (
-              <input type="hidden" name="listStatus" value={workspaceListPreserve.listStatus} />
-            ) : null}
-            <input type="hidden" name="acknowledgeUsageWarning" value={archiveUsageAck ? "1" : ""} readOnly />
-            <Button
-              type="submit"
-              variant="destructive"
-              disabled={archivePending}
-              onClick={() => {
-                setArchiveUsageAck(false);
-              }}
-            >
-              {archivePending ? "Архивация…" : "Архивировать"}
-            </Button>
-          </form>
-
-          <Dialog open={warnOpen} onOpenChange={setWarnOpen}>
-            <DialogContent showCloseButton className="max-w-md">
-              <DialogHeader>
-                <DialogTitle>Элемент уже используется</DialogTitle>
-                <div className="space-y-2 text-sm text-muted-foreground *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-foreground">
-                  <span className="block">
-                    Архивация уберёт тест из каталога для новых наборов и шаблонов. Уже выданные программы и история
-                    результатов не удаляются.
-                  </span>
-                  {!warnSections.length &&
-                  archiveState?.ok === false &&
-                  "code" in archiveState &&
-                  archiveState.code === "USAGE_CONFIRMATION_REQUIRED" &&
-                  !clinicalTestUsageHasAnyReference(archiveState.usage) ? (
-                    <span className="block text-sm">
-                      Тест помечен как используемый — проверьте связи перед архивацией.
-                    </span>
-                  ) : warnSections.length ? (
-                    <ClinicalTestUsageSectionsView sections={warnSections} />
-                  ) : null}
-                </div>
-              </DialogHeader>
-              <DialogFooter className="gap-2 sm:gap-2">
-                <Button type="button" variant="outline" onClick={() => setWarnOpen(false)}>
-                  Отмена
-                </Button>
+              <form ref={archiveFormRef} action={archiveFormAction} className="flex flex-col gap-2">
+                <input type="hidden" name="id" value={test.id} />
+                {workspaceView ? <input type="hidden" name="view" value={workspaceView} /> : null}
+                {workspaceListPreserve?.q != null && workspaceListPreserve.q !== '' ? (
+                  <input type="hidden" name="listQ" value={workspaceListPreserve.q} />
+                ) : null}
+                {workspaceListPreserve?.titleSort === 'asc' ||
+                workspaceListPreserve?.titleSort === 'desc' ? (
+                  <input
+                    type="hidden"
+                    name="listTitleSort"
+                    value={workspaceListPreserve.titleSort}
+                  />
+                ) : null}
+                {workspaceListPreserve?.regionCode != null &&
+                workspaceListPreserve.regionCode !== '' ? (
+                  <input type="hidden" name="listRegion" value={workspaceListPreserve.regionCode} />
+                ) : null}
+                {workspaceListPreserve?.assessmentKind != null &&
+                workspaceListPreserve.assessmentKind !== '' ? (
+                  <input
+                    type="hidden"
+                    name="listAssessment"
+                    value={workspaceListPreserve.assessmentKind}
+                  />
+                ) : null}
+                {workspaceListPreserve?.listStatus != null ? (
+                  <input type="hidden" name="listStatus" value={workspaceListPreserve.listStatus} />
+                ) : null}
+                <input
+                  type="hidden"
+                  name="acknowledgeUsageWarning"
+                  value={archiveUsageAck ? '1' : ''}
+                  readOnly
+                />
                 <Button
-                  type="button"
+                  type="submit"
                   variant="destructive"
                   disabled={archivePending}
                   onClick={() => {
-                    setArchiveUsageAck(true);
-                    setWarnOpen(false);
-                    queueMicrotask(() => {
-                      archiveFormRef.current?.requestSubmit();
-                      setArchiveUsageAck(false);
-                    });
+                    setArchiveUsageAck(false);
                   }}
                 >
-                  Архивировать всё равно
+                  {archivePending ? 'Архивация…' : 'Архивировать'}
                 </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+              </form>
+
+              <Dialog open={warnOpen} onOpenChange={setWarnOpen}>
+                <DialogContent showCloseButton className="max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Элемент уже используется</DialogTitle>
+                    <div className="space-y-2 text-sm text-muted-foreground *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-foreground">
+                      <span className="block">
+                        Архивация уберёт тест из каталога для новых наборов и шаблонов. Уже выданные
+                        программы и история результатов не удаляются.
+                      </span>
+                      {!warnSections.length &&
+                      archiveState?.ok === false &&
+                      'code' in archiveState &&
+                      archiveState.code === 'USAGE_CONFIRMATION_REQUIRED' &&
+                      !clinicalTestUsageHasAnyReference(archiveState.usage) ? (
+                        <span className="block text-sm">
+                          Тест помечен как используемый — проверьте связи перед архивацией.
+                        </span>
+                      ) : warnSections.length ? (
+                        <ClinicalTestUsageSectionsView sections={warnSections} />
+                      ) : null}
+                    </div>
+                  </DialogHeader>
+                  <DialogFooter className="gap-2 sm:gap-2">
+                    <Button type="button" variant="outline" onClick={() => setWarnOpen(false)}>
+                      Отмена
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      disabled={archivePending}
+                      onClick={() => {
+                        setArchiveUsageAck(true);
+                        setWarnOpen(false);
+                        queueMicrotask(() => {
+                          archiveFormRef.current?.requestSubmit();
+                          setArchiveUsageAck(false);
+                        });
+                      }}
+                    >
+                      Архивировать всё равно
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </>
           )}
         </div>

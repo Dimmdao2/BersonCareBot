@@ -14,9 +14,12 @@ const {
 
 vi.mock('../../support/webappSupportSync.js', () => ({
   adminReplyConversationId: (conversationId: string) => conversationId,
-  applyWebappAdminReplyFromMessenger: (...args: unknown[]) => applyWebappAdminReplyFromMessengerMock(...args),
-  mirrorPatientUserMessageToWebapp: (...args: unknown[]) => mirrorPatientUserMessageToWebappMock(...args),
-  resolvePlatformUserIdForChannel: (...args: unknown[]) => resolvePlatformUserIdForChannelMock(...args),
+  applyWebappAdminReplyFromMessenger: (...args: unknown[]) =>
+    applyWebappAdminReplyFromMessengerMock(...args),
+  mirrorPatientUserMessageToWebapp: (...args: unknown[]) =>
+    mirrorPatientUserMessageToWebappMock(...args),
+  resolvePlatformUserIdForChannel: (...args: unknown[]) =>
+    resolvePlatformUserIdForChannelMock(...args),
 }));
 
 import {
@@ -119,14 +122,14 @@ describe('handleConversationUserMessage', () => {
     );
   });
 
-  it.each([
-    '+79991234567',
-    'patient@example.com',
-    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-  ])('uses a neutral fallback instead of unsafe patient label %s', (unsafeLabel) => {
-    expect(buildDoctorPatientMessageNotificationText({ displayName: unsafeLabel }))
-      .toBe('новое сообщение от пациента');
-  });
+  it.each(['+79991234567', 'patient@example.com', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'])(
+    'uses a neutral fallback instead of unsafe patient label %s',
+    (unsafeLabel) => {
+      expect(buildDoctorPatientMessageNotificationText({ displayName: unsafeLabel })).toBe(
+        'новое сообщение от пациента',
+      );
+    },
+  );
 });
 
 describe('handleConversationAdminReply', () => {
@@ -147,22 +150,31 @@ describe('handleConversationAdminReply', () => {
       writePort: { writeDb },
     } as unknown as ExecutorDeps;
 
-    const res = await handleConversationAdminReply(action, {
-      ...baseCtx(),
-      base: { ...baseCtx().base, actor: { isAdmin: true } },
-      event: {
-        ...baseCtx().event,
-        payload: {
-          incoming: { chatId: 364943522, messageId: 77 },
+    const res = await handleConversationAdminReply(
+      action,
+      {
+        ...baseCtx(),
+        base: { ...baseCtx().base, actor: { isAdmin: true } },
+        event: {
+          ...baseCtx().event,
+          payload: {
+            incoming: { chatId: 364943522, messageId: 77 },
+          },
         },
       },
-    }, deps);
+      deps,
+    );
 
     expect(res.status).toBe('success');
     const sentConfirmation = res.intents?.find((intent) => intent.type === 'message.send');
-    const firstButton = ((sentConfirmation?.payload as { replyMarkup?: { inline_keyboard?: Array<Array<{ callback_data?: string }>> } })
-      ?.replyMarkup?.inline_keyboard?.[0]?.[0]);
-    expect(firstButton?.callback_data).toBe('admin_reply:webapp:platform:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+    const firstButton = (
+      sentConfirmation?.payload as {
+        replyMarkup?: { inline_keyboard?: Array<Array<{ callback_data?: string }>> };
+      }
+    )?.replyMarkup?.inline_keyboard?.[0]?.[0];
+    expect(firstButton?.callback_data).toBe(
+      'admin_reply:webapp:platform:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    );
     const webappReplyInput = applyWebappAdminReplyFromMessengerMock.mock.calls[0]?.[1];
     expect(webappReplyInput).not.toHaveProperty('senderDisplayName');
   });
@@ -188,22 +200,29 @@ describe('handleConversationAdminReply', () => {
       writePort: { writeDb },
     } as unknown as ExecutorDeps;
 
-    const res = await handleConversationAdminReply(action, {
-      ...baseCtx(),
-      base: { ...baseCtx().base, actor: { isAdmin: true } },
-      event: {
-        ...baseCtx().event,
-        payload: {
-          incoming: { chatId: 364943522, messageId: 88 },
+    const res = await handleConversationAdminReply(
+      action,
+      {
+        ...baseCtx(),
+        base: { ...baseCtx().base, actor: { isAdmin: true } },
+        event: {
+          ...baseCtx().event,
+          payload: {
+            incoming: { chatId: 364943522, messageId: 88 },
+          },
         },
       },
-    }, deps);
+      deps,
+    );
 
     expect(res.status).toBe('success');
     const sentToAdmin = res.intents?.filter((intent) => intent.type === 'message.send') ?? [];
     const confirmation = sentToAdmin[sentToAdmin.length - 1];
-    const firstButton = ((confirmation?.payload as { replyMarkup?: { inline_keyboard?: Array<Array<{ callback_data?: string }>> } })
-      ?.replyMarkup?.inline_keyboard?.[0]?.[0]);
+    const firstButton = (
+      confirmation?.payload as {
+        replyMarkup?: { inline_keyboard?: Array<Array<{ callback_data?: string }>> };
+      }
+    )?.replyMarkup?.inline_keyboard?.[0]?.[0];
     expect(firstButton?.callback_data).toBe('admin_reply:legacy-conv');
   });
 });

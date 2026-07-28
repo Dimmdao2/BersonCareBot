@@ -1,10 +1,10 @@
-"use client";
+'use client';
 
-import { useCallback, useRef, useState, useTransition } from "react";
-import type { ContentSectionRow } from "@/modules/content-sections/ports";
-import type { PublishedCourseOption } from "./ContentForm";
-import { ContentForm } from "./ContentForm";
-import { loadContentPageForInlineEdit } from "./inlineEditorActions";
+import { useCallback, useRef, useState, useTransition } from 'react';
+import type { ContentSectionRow } from '@/modules/content-sections/ports';
+import type { PublishedCourseOption } from './ContentForm';
+import { ContentForm } from './ContentForm';
+import { loadContentPageForInlineEdit } from './inlineEditorActions';
 
 // ---------------------------------------------------------------------------
 // Type for the loaded page record (matches ContentForm's `page` prop)
@@ -113,7 +113,11 @@ export function ContentEditorRightPane({
 
   if (loading && !loadedPage) {
     return (
-      <div className="flex flex-col gap-4 px-6 py-6" aria-busy="true" aria-label="Загрузка редактора">
+      <div
+        className="flex flex-col gap-4 px-6 py-6"
+        aria-busy="true"
+        aria-label="Загрузка редактора"
+      >
         <div className="h-4 w-24 animate-pulse rounded bg-muted/50" />
         <div className="h-10 w-full animate-pulse rounded-lg bg-muted/50" />
         <div className="grid grid-cols-2 gap-4">
@@ -130,9 +134,7 @@ export function ContentEditorRightPane({
     // Loaded but null — page not found
     return (
       <div className="flex min-h-[200px] items-center justify-center px-6 py-10">
-        <p className="text-center text-sm text-muted-foreground">
-          Материал не найден.
-        </p>
+        <p className="text-center text-sm text-muted-foreground">Материал не найден.</p>
       </div>
     );
   }

@@ -1,11 +1,25 @@
-"use client";
+'use client';
 
-import { useMemo, useState, useTransition } from "react";
-import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
-import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
-import { GripVertical } from "lucide-react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
+import { useMemo, useState, useTransition } from 'react';
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { GripVertical } from 'lucide-react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
 import {
   Dialog,
   DialogClose,
@@ -14,12 +28,14 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/shared/ui/doctor/primitives/dialog";
-import type { PatientHomeBlock } from "@/modules/patient-home/ports";
-import { reorderPatientHomeBlocks } from "./actions";
+} from '@/shared/ui/doctor/primitives/dialog';
+import type { PatientHomeBlock } from '@/modules/patient-home/ports';
+import { reorderPatientHomeBlocks } from './actions';
 
 function SortableBlockRow({ block }: { block: PatientHomeBlock }) {
-  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: block.code });
+  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({
+    id: block.code,
+  });
   return (
     <li
       ref={setNodeRef}
@@ -53,8 +69,8 @@ export function PatientHomeReorderBlocksDialog({
   initialBlocks: PatientHomeBlock[];
   onSaved(): void;
 }) {
-  const [blocks, setBlocks] = useState<PatientHomeBlock[]>(
-    () => [...initialBlocks].sort((a, b) => a.sortOrder - b.sortOrder),
+  const [blocks, setBlocks] = useState<PatientHomeBlock[]>(() =>
+    [...initialBlocks].sort((a, b) => a.sortOrder - b.sortOrder),
   );
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -108,7 +124,9 @@ export function PatientHomeReorderBlocksDialog({
         {error ? <div className="text-sm text-destructive">{error}</div> : null}
         <DialogFooter>
           <DialogClose render={<Button variant="outline" />}>Отменить</DialogClose>
-          <Button onClick={handleSave} disabled={isPending}>Сохранить</Button>
+          <Button onClick={handleSave} disabled={isPending}>
+            Сохранить
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

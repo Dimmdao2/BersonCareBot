@@ -1,12 +1,12 @@
-import type { TreatmentProgramItemRefValidationPort, TreatmentProgramPort } from "./ports";
+import type { TreatmentProgramItemRefValidationPort, TreatmentProgramPort } from './ports';
 import {
   TreatmentProgramTemplateAlreadyArchivedError,
   TreatmentProgramTemplateArchiveNotFoundError,
   TreatmentProgramTemplateUsageConfirmationRequiredError,
   TreatmentProgramTemplateGroupDescriptionConflictError,
   TreatmentProgramExpandNotFoundError,
-} from "./errors";
-import { assertTreatmentProgramStageItemFitsSystemGroup } from "./stage-semantics";
+} from './errors';
+import { assertTreatmentProgramStageItemFitsSystemGroup } from './stage-semantics';
 import type {
   ArchiveTreatmentProgramTemplateOptions,
   CreateTreatmentProgramStageInput,
@@ -20,14 +20,17 @@ import type {
   UpdateTreatmentProgramStageItemInput,
   UpdateTreatmentProgramTemplateInput,
   UpdateTreatmentProgramTemplateStageGroupInput,
-} from "./types";
-import { TREATMENT_PROGRAM_ITEM_TYPES, treatmentProgramTemplateArchiveRequiresAcknowledgement } from "./types";
+} from './types';
+import {
+  TREATMENT_PROGRAM_ITEM_TYPES,
+  treatmentProgramTemplateArchiveRequiresAcknowledgement,
+} from './types';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function assertUuid(id: string): void {
   const t = id.trim();
-  if (!UUID_RE.test(t)) throw new Error("Некорректный UUID");
+  if (!UUID_RE.test(t)) throw new Error('Некорректный UUID');
 }
 
 export type TreatmentProgramTemplateWriteOptions = {
@@ -43,7 +46,7 @@ function runTemplateWrite<T>(
 
 function assertItemType(t: string): asserts t is TreatmentProgramItemType {
   if (!TREATMENT_PROGRAM_ITEM_TYPES.includes(t as TreatmentProgramItemType)) {
-    throw new Error("Неизвестный тип элемента программы");
+    throw new Error('Неизвестный тип элемента программы');
   }
 }
 
@@ -59,7 +62,7 @@ export function createTreatmentProgramService(
     async getTemplate(id: string) {
       assertUuid(id);
       const row = await port.getTemplateById(id);
-      if (!row) throw new Error("Шаблон программы не найден");
+      if (!row) throw new Error('Шаблон программы не найден');
       return row;
     },
 
@@ -68,8 +71,8 @@ export function createTreatmentProgramService(
       createdBy: string | null,
       options?: TreatmentProgramTemplateWriteOptions,
     ) {
-      const title = input.title?.trim() ?? "";
-      if (!title) throw new Error("Название шаблона обязательно");
+      const title = input.title?.trim() ?? '';
+      if (!title) throw new Error('Название шаблона обязательно');
       return runTemplateWrite(options, () =>
         port.createTemplate(
           {
@@ -92,17 +95,17 @@ export function createTreatmentProgramService(
       const patch: UpdateTreatmentProgramTemplateInput = { ...input };
       if (input.title !== undefined) {
         const t = input.title.trim();
-        if (!t) throw new Error("Название шаблона обязательно");
+        if (!t) throw new Error('Название шаблона обязательно');
         patch.title = t;
       }
       if (input.description !== undefined) {
         patch.description = input.description?.trim() ?? null;
       }
 
-      if (input.status === "archived") {
+      if (input.status === 'archived') {
         const existing = await port.getTemplateById(id);
         if (!existing) throw new TreatmentProgramTemplateArchiveNotFoundError();
-        if (existing.status !== "archived") {
+        if (existing.status !== 'archived') {
           const usage = await port.getTreatmentProgramTemplateUsageSummary(id);
           if (
             treatmentProgramTemplateArchiveRequiresAcknowledgement(usage) &&
@@ -114,7 +117,7 @@ export function createTreatmentProgramService(
       }
 
       const row = await runTemplateWrite(writeOptions, () => port.updateTemplate(id, patch));
-      if (!row) throw new Error("Шаблон программы не найден");
+      if (!row) throw new Error('Шаблон программы не найден');
       return row;
     },
 
@@ -131,10 +134,13 @@ export function createTreatmentProgramService(
       assertUuid(id);
       const existing = await port.getTemplateById(id);
       if (!existing) throw new TreatmentProgramTemplateArchiveNotFoundError();
-      if (existing.status === "archived") throw new TreatmentProgramTemplateAlreadyArchivedError();
+      if (existing.status === 'archived') throw new TreatmentProgramTemplateAlreadyArchivedError();
 
       const usage = await port.getTreatmentProgramTemplateUsageSummary(id);
-      if (treatmentProgramTemplateArchiveRequiresAcknowledgement(usage) && !options?.acknowledgeUsageWarning) {
+      if (
+        treatmentProgramTemplateArchiveRequiresAcknowledgement(usage) &&
+        !options?.acknowledgeUsageWarning
+      ) {
         throw new TreatmentProgramTemplateUsageConfirmationRequiredError(usage);
       }
 
@@ -148,9 +154,14 @@ export function createTreatmentProgramService(
       options?: TreatmentProgramTemplateWriteOptions,
     ) {
       assertUuid(templateId);
-      const title = input.title?.trim() ?? "";
-      if (!title) throw new Error("Название этапа обязательно");
-      const goals = input.goals === undefined ? undefined : input.goals === null ? null : input.goals.trim() || null;
+      const title = input.title?.trim() ?? '';
+      if (!title) throw new Error('Название этапа обязательно');
+      const goals =
+        input.goals === undefined
+          ? undefined
+          : input.goals === null
+            ? null
+            : input.goals.trim() || null;
       const objectives =
         input.objectives === undefined
           ? undefined
@@ -165,7 +176,7 @@ export function createTreatmentProgramService(
             : input.expectedDurationText.trim() || null;
       if (input.expectedDurationDays !== undefined && input.expectedDurationDays !== null) {
         if (!Number.isInteger(input.expectedDurationDays) || input.expectedDurationDays < 0) {
-          throw new Error("Ожидаемый срок в днях должен быть неотрицательным целым числом");
+          throw new Error('Ожидаемый срок в днях должен быть неотрицательным целым числом');
         }
       }
       return runTemplateWrite(options, () =>
@@ -190,7 +201,7 @@ export function createTreatmentProgramService(
       const patch: UpdateTreatmentProgramStageInput = { ...input };
       if (input.title !== undefined) {
         const t = input.title.trim();
-        if (!t) throw new Error("Название этапа обязательно");
+        if (!t) throw new Error('Название этапа обязательно');
         patch.title = t;
       }
       if (input.description !== undefined) {
@@ -208,18 +219,18 @@ export function createTreatmentProgramService(
       }
       if (input.expectedDurationDays !== undefined && input.expectedDurationDays !== null) {
         if (!Number.isInteger(input.expectedDurationDays) || input.expectedDurationDays < 0) {
-          throw new Error("Ожидаемый срок в днях должен быть неотрицательным целым числом");
+          throw new Error('Ожидаемый срок в днях должен быть неотрицательным целым числом');
         }
       }
       const row = await runTemplateWrite(options, () => port.updateStage(stageId, patch));
-      if (!row) throw new Error("Этап не найден");
+      if (!row) throw new Error('Этап не найден');
       return row;
     },
 
     async deleteStage(stageId: string, options?: TreatmentProgramTemplateWriteOptions) {
       assertUuid(stageId);
       const ok = await runTemplateWrite(options, () => port.deleteStage(stageId));
-      if (!ok) throw new Error("Этап не найден");
+      if (!ok) throw new Error('Этап не найден');
     },
 
     async addStageItem(
@@ -232,22 +243,22 @@ export function createTreatmentProgramService(
       assertUuid(input.itemRefId);
       if (input.groupId) assertUuid(input.groupId);
       const ctx = await port.getTemplateStageValidationContext(stageId);
-      if (!ctx) throw new Error("Этап не найден");
+      if (!ctx) throw new Error('Этап не найден');
       if (ctx.sortOrder === 0) {
         if (input.groupId) {
-          throw new Error("На этапе «Общие рекомендации» элементы не привязываются к группам");
+          throw new Error('На этапе «Общие рекомендации» элементы не привязываются к группам');
         }
-        if (input.itemType !== "recommendation") {
-          throw new Error("На этапе «Общие рекомендации» разрешены только рекомендации");
+        if (input.itemType !== 'recommendation') {
+          throw new Error('На этапе «Общие рекомендации» разрешены только рекомендации');
         }
       } else if (input.groupId) {
         const g = ctx.groups.find((x) => x.id === input.groupId);
-        if (!g) throw new Error("Группа не найдена или не принадлежит этапу");
+        if (!g) throw new Error('Группа не найдена или не принадлежит этапу');
         assertTreatmentProgramStageItemFitsSystemGroup(g, input.itemType);
       }
       const hasGroup = Boolean(input.groupId);
-      if (!hasGroup && input.itemType !== "recommendation" && input.itemType !== "clinical_test") {
-        throw new Error("Без группы можно добавить только рекомендацию или клинический тест");
+      if (!hasGroup && input.itemType !== 'recommendation' && input.itemType !== 'clinical_test') {
+        throw new Error('Без группы можно добавить только рекомендацию или клинический тест');
       }
       await itemRefs.assertItemRefExists(input.itemType, input.itemRefId.trim());
       return runTemplateWrite(options, () =>
@@ -282,7 +293,7 @@ export function createTreatmentProgramService(
       }
 
       const currentRow = await port.getStageItemById(itemId);
-      if (!currentRow) throw new Error("Элемент этапа не найден");
+      if (!currentRow) throw new Error('Элемент этапа не найден');
 
       if (patch.itemRefId !== undefined || patch.itemType !== undefined) {
         const nextType = patch.itemType ?? currentRow.itemType;
@@ -291,36 +302,36 @@ export function createTreatmentProgramService(
       }
 
       const ctx = await port.getTemplateStageValidationContext(currentRow.stageId);
-      if (!ctx) throw new Error("Этап не найден");
+      if (!ctx) throw new Error('Этап не найден');
       const nextGroupId = patch.groupId !== undefined ? patch.groupId : currentRow.groupId;
       const nextType = patch.itemType ?? currentRow.itemType;
       if (ctx.sortOrder === 0) {
-        if (nextType !== "recommendation") {
-          throw new Error("На этапе «Общие рекомендации» разрешены только рекомендации");
+        if (nextType !== 'recommendation') {
+          throw new Error('На этапе «Общие рекомендации» разрешены только рекомендации');
         }
         if (nextGroupId != null) {
-          throw new Error("На этапе «Общие рекомендации» элементы не привязываются к группам");
+          throw new Error('На этапе «Общие рекомендации» элементы не привязываются к группам');
         }
       } else {
         if (nextGroupId) {
           const g = ctx.groups.find((x) => x.id === nextGroupId);
-          if (!g) throw new Error("Группа не найдена или не принадлежит этапу");
+          if (!g) throw new Error('Группа не найдена или не принадлежит этапу');
           assertTreatmentProgramStageItemFitsSystemGroup(g, nextType);
         }
-        if (!nextGroupId && nextType !== "recommendation" && nextType !== "clinical_test") {
-          throw new Error("Без группы можно оставить только рекомендацию или клинический тест");
+        if (!nextGroupId && nextType !== 'recommendation' && nextType !== 'clinical_test') {
+          throw new Error('Без группы можно оставить только рекомендацию или клинический тест');
         }
       }
 
       const row = await runTemplateWrite(options, () => port.updateStageItem(itemId, patch));
-      if (!row) throw new Error("Элемент этапа не найден");
+      if (!row) throw new Error('Элемент этапа не найден');
       return row;
     },
 
     async deleteStageItem(itemId: string, options?: TreatmentProgramTemplateWriteOptions) {
       assertUuid(itemId);
       const ok = await runTemplateWrite(options, () => port.deleteStageItem(itemId));
-      if (!ok) throw new Error("Элемент этапа не найден");
+      if (!ok) throw new Error('Элемент этапа не найден');
     },
 
     async createTemplateStageGroup(
@@ -329,8 +340,8 @@ export function createTreatmentProgramService(
       options?: TreatmentProgramTemplateWriteOptions,
     ) {
       assertUuid(stageId);
-      const title = input.title?.trim() ?? "";
-      if (!title) throw new Error("Название группы обязательно");
+      const title = input.title?.trim() ?? '';
+      if (!title) throw new Error('Название группы обязательно');
       return runTemplateWrite(options, () =>
         port.createTemplateStageGroup(stageId, {
           ...input,
@@ -357,15 +368,20 @@ export function createTreatmentProgramService(
       if (input.scheduleText !== undefined) {
         patch.scheduleText = input.scheduleText?.trim() ?? null;
       }
-      const row = await runTemplateWrite(options, () => port.updateTemplateStageGroup(groupId, patch));
-      if (!row) throw new Error("Группа этапа не найдена");
+      const row = await runTemplateWrite(options, () =>
+        port.updateTemplateStageGroup(groupId, patch),
+      );
+      if (!row) throw new Error('Группа этапа не найдена');
       return row;
     },
 
-    async deleteTemplateStageGroup(groupId: string, options?: TreatmentProgramTemplateWriteOptions) {
+    async deleteTemplateStageGroup(
+      groupId: string,
+      options?: TreatmentProgramTemplateWriteOptions,
+    ) {
       assertUuid(groupId);
       const ok = await runTemplateWrite(options, () => port.deleteTemplateStageGroup(groupId));
-      if (!ok) throw new Error("Группа этапа не найдена");
+      if (!ok) throw new Error('Группа этапа не найдена');
     },
 
     async reorderTemplateStageGroups(
@@ -378,7 +394,7 @@ export function createTreatmentProgramService(
       const ok = await runTemplateWrite(options, () =>
         port.reorderTemplateStageGroups(stageId, orderedGroupIds),
       );
-      if (!ok) throw new Error("Некорректный порядок групп этапа");
+      if (!ok) throw new Error('Некорректный порядок групп этапа');
     },
 
     async reorderTemplateStages(
@@ -389,14 +405,16 @@ export function createTreatmentProgramService(
       assertUuid(templateId);
       for (const id of orderedStageIds) assertUuid(id);
       const tpl = await port.getTemplateById(templateId);
-      if (!tpl) throw new Error("Шаблон программы не найден");
-      if (tpl.status === "archived") throw new TreatmentProgramTemplateAlreadyArchivedError();
+      if (!tpl) throw new Error('Шаблон программы не найден');
+      if (tpl.status === 'archived') throw new TreatmentProgramTemplateAlreadyArchivedError();
       const stageZero = tpl.stages.find((s) => s.sortOrder === 0);
       if (stageZero && orderedStageIds[0] !== stageZero.id) {
-        throw new Error("Этап «Общие рекомендации» должен оставаться первым");
+        throw new Error('Этап «Общие рекомендации» должен оставаться первым');
       }
-      const ok = await runTemplateWrite(options, () => port.reorderTemplateStages(templateId, orderedStageIds));
-      if (!ok) throw new Error("Некорректный порядок этапов");
+      const ok = await runTemplateWrite(options, () =>
+        port.reorderTemplateStages(templateId, orderedStageIds),
+      );
+      if (!ok) throw new Error('Некорректный порядок этапов');
     },
 
     async reorderTemplateStageItems(
@@ -407,14 +425,14 @@ export function createTreatmentProgramService(
       assertUuid(stageId);
       for (const id of orderedItemIds) assertUuid(id);
       const ctx = await port.getTemplateStageValidationContext(stageId);
-      if (!ctx) throw new Error("Этап не найден");
+      if (!ctx) throw new Error('Этап не найден');
       const tpl = await port.getTemplateById(ctx.templateId);
-      if (!tpl) throw new Error("Шаблон программы не найден");
-      if (tpl.status === "archived") throw new TreatmentProgramTemplateAlreadyArchivedError();
+      if (!tpl) throw new Error('Шаблон программы не найден');
+      if (tpl.status === 'archived') throw new TreatmentProgramTemplateAlreadyArchivedError();
       const ok = await runTemplateWrite(options, () =>
         port.reorderTemplateStageItems(stageId, orderedItemIds),
       );
-      if (!ok) throw new Error("Некорректный порядок элементов этапа");
+      if (!ok) throw new Error('Некорректный порядок элементов этапа');
     },
 
     async expandLfkComplexIntoTemplateStageItems(
@@ -428,31 +446,35 @@ export function createTreatmentProgramService(
       assertUuid(body.complexTemplateId);
 
       const detail = await port.getTemplateById(templateId);
-      if (!detail) throw new TreatmentProgramExpandNotFoundError("Шаблон программы не найден");
-      if (detail.status === "archived") throw new TreatmentProgramTemplateAlreadyArchivedError();
+      if (!detail) throw new TreatmentProgramExpandNotFoundError('Шаблон программы не найден');
+      if (detail.status === 'archived') throw new TreatmentProgramTemplateAlreadyArchivedError();
 
       const stage = detail.stages.find((s) => s.id === stageId);
-      if (!stage) throw new TreatmentProgramExpandNotFoundError("Этап не найден");
+      if (!stage) throw new TreatmentProgramExpandNotFoundError('Этап не найден');
 
-      if (body.mode === "new_group") {
+      if (body.mode === 'new_group') {
         const title = body.newGroupTitle.trim();
-        if (!title) throw new Error("Название группы обязательно");
+        if (!title) throw new Error('Название группы обязательно');
       }
-      if (body.mode === "existing_group") {
+      if (body.mode === 'existing_group') {
         assertUuid(body.existingGroupId);
         const grp = stage.groups.find((g) => g.id === body.existingGroupId);
-        if (!grp) throw new TreatmentProgramExpandNotFoundError("Группа не найдена или не принадлежит этапу");
-        if (body.copyComplexDescriptionToGroup && (grp.description?.trim() ?? "")) {
+        if (!grp)
+          throw new TreatmentProgramExpandNotFoundError(
+            'Группа не найдена или не принадлежит этапу',
+          );
+        if (body.copyComplexDescriptionToGroup && (grp.description?.trim() ?? '')) {
           throw new TreatmentProgramTemplateGroupDescriptionConflictError();
         }
       }
 
       const preview = await port.getLfkComplexExpandPreview(body.complexTemplateId.trim());
-      if (!preview) throw new TreatmentProgramExpandNotFoundError("Комплекс ЛФК не найден или в архиве");
-      if (preview.exerciseIds.length === 0) throw new Error("В комплексе нет упражнений");
+      if (!preview)
+        throw new TreatmentProgramExpandNotFoundError('Комплекс ЛФК не найден или в архиве');
+      if (preview.exerciseIds.length === 0) throw new Error('В комплексе нет упражнений');
 
       for (const id of preview.exerciseIds) {
-        await itemRefs.assertItemRefExists("exercise", id);
+        await itemRefs.assertItemRefExists('exercise', id);
       }
 
       return runTemplateWrite(options, () =>
@@ -461,8 +483,8 @@ export function createTreatmentProgramService(
           stageId,
           complexTemplateId: body.complexTemplateId.trim(),
           mode: body.mode,
-          newGroupTitle: body.mode === "new_group" ? body.newGroupTitle.trim() : undefined,
-          existingGroupId: body.mode === "existing_group" ? body.existingGroupId : undefined,
+          newGroupTitle: body.mode === 'new_group' ? body.newGroupTitle.trim() : undefined,
+          existingGroupId: body.mode === 'existing_group' ? body.existingGroupId : undefined,
           copyComplexDescriptionToGroup: body.copyComplexDescriptionToGroup,
           expectedExerciseIds: preview.exerciseIds,
         }),
@@ -479,12 +501,16 @@ export function createTreatmentProgramService(
       assertUuid(stageId);
       assertUuid(testSetId);
       const detail = await port.getTemplateById(templateId);
-      if (!detail) throw new TreatmentProgramExpandNotFoundError("Шаблон программы не найден");
-      if (detail.status === "archived") throw new TreatmentProgramTemplateAlreadyArchivedError();
+      if (!detail) throw new TreatmentProgramExpandNotFoundError('Шаблон программы не найден');
+      if (detail.status === 'archived') throw new TreatmentProgramTemplateAlreadyArchivedError();
       const stage = detail.stages.find((s) => s.id === stageId);
-      if (!stage) throw new TreatmentProgramExpandNotFoundError("Этап не найден");
+      if (!stage) throw new TreatmentProgramExpandNotFoundError('Этап не найден');
       return runTemplateWrite(options, () =>
-        port.expandTestSetIntoTemplateStageItems({ templateId, stageId, testSetId: testSetId.trim() }),
+        port.expandTestSetIntoTemplateStageItems({
+          templateId,
+          stageId,
+          testSetId: testSetId.trim(),
+        }),
       );
     },
 

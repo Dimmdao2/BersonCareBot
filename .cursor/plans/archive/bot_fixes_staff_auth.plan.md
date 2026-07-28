@@ -1,24 +1,24 @@
 ---
 name: Bot fixes staff auth
-overview: "Закрыто 2026-05-30: isAdmin по system_settings (врач=админ), reply-begin + callback.answer, PWA autologin (url-кнопка + visibility refetch), сброс contact-клавиатуры, MAX-паритет."
+overview: 'Закрыто 2026-05-30: isAdmin по system_settings (врач=админ), reply-begin + callback.answer, PWA autologin (url-кнопка + visibility refetch), сброс contact-клавиатуры, MAX-паритет.'
 todos:
   - id: phase1-staff-ids
-    content: "Фаза 1: messengerStaffIds + async buildAdminFacts/buildMaxFacts + routes + тесты + doc"
+    content: 'Фаза 1: messengerStaffIds + async buildAdminFacts/buildMaxFacts + routes + тесты + doc'
     status: completed
   - id: phase2-reply-reliability
-    content: "Фаза 2: callback.answer на failed reply-begin (+ missing stageItemId), тесты executeAction"
+    content: 'Фаза 2: callback.answer на failed reply-begin (+ missing stageItemId), тесты executeAction'
     status: completed
   - id: phase3-autologin
-    content: "Фаза 3: urlFact, phoneAuthOpenApp*, visibilitychange refetch в PhoneMessengerAuthFlow"
+    content: 'Фаза 3: urlFact, phoneAuthOpenApp*, visibilitychange refetch в PhoneMessengerAuthFlow'
     status: completed
   - id: phase4-keyboard-reset
-    content: "Фаза 4: appendPhoneMessengerBindFailureRecovery на всех failure bind + тесты"
+    content: 'Фаза 4: appendPhoneMessengerBindFailureRecovery на всех failure bind + тесты'
     status: completed
   - id: phase5-max-parity
-    content: "Фаза 5: MAX webhook parity, max.contact.phone.link priority + $notStartsWith"
+    content: 'Фаза 5: MAX webhook parity, max.contact.phone.link priority + $notStartsWith'
     status: completed
   - id: phase-final-ci
-    content: "Финал: docs/BOT_FIXES, DOCTOR_TELEGRAM_PROGRAM_NOTE_REPLY, INTEGRATOR_CONTRACT, pnpm run ci"
+    content: 'Финал: docs/BOT_FIXES, DOCTOR_TELEGRAM_PROGRAM_NOTE_REPLY, INTEGRATOR_CONTRACT, pnpm run ci'
     status: completed
 isProject: false
 ---

@@ -1,12 +1,12 @@
-import { routePaths } from "@/app-layer/routes/paths";
+import { routePaths } from '@/app-layer/routes/paths';
 
 /**
  * Декларативные конфиги навигации пациента по `PlatformMode` (primary nav, шапка).
  */
 
-import type { PlatformMode } from "@/shared/lib/platform";
+import type { PlatformMode } from '@/shared/lib/platform';
 
-export type HeaderIconId = "profile" | "messages" | "reminders" | "menu";
+export type HeaderIconId = 'profile' | 'messages' | 'reminders' | 'menu';
 
 /**
  * Max-width мобильной колонки patient shell (px): `max-md:max-w-[430px]` в {@link AppShell}.
@@ -14,10 +14,10 @@ export type HeaderIconId = "profile" | "messages" | "reminders" | "menu";
  */
 export const PATIENT_MOBILE_SHELL_MAX_PX = 430 as const;
 
-export type PatientPrimaryNavItemId = "today" | "booking" | "diary" | "plan" | "messages";
+export type PatientPrimaryNavItemId = 'today' | 'booking' | 'diary' | 'plan' | 'messages';
 
 /** Подпись раздела `/app/patient/diary` в patient UI (id маршрута и путь остаются `diary`). */
-export const PATIENT_DIARY_UI_LABEL = "Статистика";
+export const PATIENT_DIARY_UI_LABEL = 'Статистика';
 
 export type PatientPrimaryNavItem = {
   id: PatientPrimaryNavItemId;
@@ -30,36 +30,42 @@ export type PatientPrimaryNavItem = {
  * «Сегодня / Упражнения / Статистика / Запись / Чат».
  */
 export const PATIENT_PRIMARY_NAV_ITEMS: readonly PatientPrimaryNavItem[] = [
-  { id: "today", label: "Сегодня", href: routePaths.patient },
-  { id: "plan", label: "Упражнения", href: routePaths.patientTreatmentPrograms },
-  { id: "diary", label: PATIENT_DIARY_UI_LABEL, href: routePaths.diary },
-  { id: "booking", label: "Запись", href: routePaths.bookingNew },
-  { id: "messages", label: "Чат", href: routePaths.patientMessages },
+  { id: 'today', label: 'Сегодня', href: routePaths.patient },
+  { id: 'plan', label: 'Упражнения', href: routePaths.patientTreatmentPrograms },
+  { id: 'diary', label: PATIENT_DIARY_UI_LABEL, href: routePaths.diary },
+  { id: 'booking', label: 'Запись', href: routePaths.bookingNew },
+  { id: 'messages', label: 'Чат', href: routePaths.patientMessages },
 ] as const;
 
 /** Активный пункт primary nav по pathname (без query для сравнения префиксов). */
-export function getPatientPrimaryNavActiveId(pathname: string | null): PatientPrimaryNavItemId | null {
+export function getPatientPrimaryNavActiveId(
+  pathname: string | null,
+): PatientPrimaryNavItemId | null {
   if (!pathname) return null;
-  const path = pathname.split("?")[0];
-  const normalized = path.length > 1 && path.endsWith("/") ? path.slice(0, -1) : path;
+  const path = pathname.split('?')[0];
+  const normalized = path.length > 1 && path.endsWith('/') ? path.slice(0, -1) : path;
   const root = routePaths.patient;
-  if (normalized === root) return "today";
-  if (normalized.startsWith(routePaths.patientMessages)) return "messages";
-  if (normalized.startsWith(routePaths.diary)) return "diary";
+  if (normalized === root) return 'today';
+  if (normalized.startsWith(routePaths.patientMessages)) return 'messages';
+  if (normalized.startsWith(routePaths.diary)) return 'diary';
   /** «Упражнения» (id plan): только `/app/patient/treatment` или подпути (`/treatment/[instanceId]`), без ложного префикса на `…/treatment-programs`. */
   const treatmentPrograms = routePaths.patientTreatmentPrograms;
-  if (normalized === treatmentPrograms || normalized.startsWith(`${treatmentPrograms}/`)) return "plan";
+  if (normalized === treatmentPrograms || normalized.startsWith(`${treatmentPrograms}/`))
+    return 'plan';
   /** «Запись»: мастер `/booking/…`, legacy `/booking` и `/cabinet`. */
-  if (normalized.startsWith(routePaths.patientBooking) || normalized.startsWith(routePaths.cabinet)) {
-    return "booking";
+  if (
+    normalized.startsWith(routePaths.patientBooking) ||
+    normalized.startsWith(routePaths.cabinet)
+  ) {
+    return 'booking';
   }
   return null;
 }
 
 function normalizePatientPathname(pathname: string | null): string | null {
   if (!pathname) return null;
-  const path = pathname.split("?")[0];
-  return path.length > 1 && path.endsWith("/") ? path.slice(0, -1) : path;
+  const path = pathname.split('?')[0];
+  return path.length > 1 && path.endsWith('/') ? path.slice(0, -1) : path;
 }
 
 /**
@@ -74,7 +80,7 @@ export function isPatientHeaderProfileRoute(pathname: string | null): boolean {
 
 /** Подпись вкладки treatment в primary nav («Упражнения»). */
 export const PATIENT_PLAN_TAB_UI_LABEL =
-  PATIENT_PRIMARY_NAV_ITEMS.find((item) => item.id === "plan")?.label ?? "Упражнения";
+  PATIENT_PRIMARY_NAV_ITEMS.find((item) => item.id === 'plan')?.label ?? 'Упражнения';
 
 /**
  * Стрелка «назад» в mobile-шапке: не на корнях вкладок и не на `/treatment/[instanceId]`
@@ -91,7 +97,7 @@ export function shouldShowPatientMobileHeaderBack(
   const treatmentRoot = routePaths.patientTreatmentPrograms;
   if (normalized.startsWith(`${treatmentRoot}/`)) {
     const suffix = normalized.slice(treatmentRoot.length + 1);
-    const depth = suffix.split("/").filter(Boolean).length;
+    const depth = suffix.split('/').filter(Boolean).length;
     if (depth === 1) return false;
   }
   return true;
@@ -110,18 +116,18 @@ export type PatientNavConfig = {
 
 export const patientNavByPlatform: Record<PlatformMode, PatientNavConfig> = {
   bot: {
-    headerRightIcons: ["profile"],
+    headerRightIcons: ['profile'],
     hasSheetMenu: false,
     showLogout: false,
   },
   /** Браузер и PWA: профиль в правом углу шапки. */
   mobile: {
-    headerRightIcons: ["profile"],
+    headerRightIcons: ['profile'],
     hasSheetMenu: false,
     showLogout: false,
   },
   desktop: {
-    headerRightIcons: ["profile"],
+    headerRightIcons: ['profile'],
     hasSheetMenu: false,
     showLogout: false,
   },

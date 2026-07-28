@@ -8,18 +8,18 @@
  *   // TODO(upload): large file multipart support if needed.
  */
 
-import { randomUUID } from "node:crypto";
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
-import { requireEntitlementForMutation } from "@/app-layer/guards/requireEntitlement";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { env, isS3MediaEnabled } from "@/config/env";
-import { presignGetUrl, presignPutUrl } from "@/app-layer/media/s3Client";
-import type { PatientFileCategory } from "@/modules/patient-files/ports";
-import { PATIENT_FILE_CATEGORIES } from "@/modules/patient-files/ports";
-import { pgEnsureClientPatientFolder } from "@/app-layer/media/clientMediaFolders";
+import { randomUUID } from 'node:crypto';
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { env, isS3MediaEnabled } from '@/config/env';
+import { presignGetUrl, presignPutUrl } from '@/app-layer/media/s3Client';
+import type { PatientFileCategory } from '@/modules/patient-files/ports';
+import { PATIENT_FILE_CATEGORIES } from '@/modules/patient-files/ports';
+import { pgEnsureClientPatientFolder } from '@/app-layer/media/clientMediaFolders';
 
 const FILE_PRESIGN_GET_TTL = 3600; // 1 hour
 
@@ -35,9 +35,9 @@ const createBodySchema = z.object({
 });
 
 function sanitizeFilename(name: string): string {
-  const base = name.replace(/\.\./g, "").replace(/\s+/g, "_").slice(0, 200);
-  const cleaned = base.replace(/[^a-zA-Z0-9._\-]/g, "_");
-  return cleaned.length > 0 ? cleaned : "file";
+  const base = name.replace(/\.\./g, '').replace(/\s+/g, '_').slice(0, 200);
+  const cleaned = base.replace(/[^a-zA-Z0-9._\-]/g, '_');
+  return cleaned.length > 0 ? cleaned : 'file';
 }
 
 function patientFileS3Key(fileId: string, fileName: string): string {
@@ -45,25 +45,22 @@ function patientFileS3Key(fileId: string, fileName: string): string {
   return `patient-files/${fileId}/${safe}`;
 }
 
-export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ userId: string }> },
-) {
+export async function GET(request: Request, { params }: { params: Promise<{ userId: string }> }) {
   const gate = await requireDoctorWorkspaceApiContext();
   if (!gate.ok) return gate.response;
 
   const { userId } = await params;
   if (!z.string().uuid().safeParse(userId).success) {
-    return NextResponse.json({ ok: false, error: "invalid_user_id" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_user_id' }, { status: 400 });
   }
 
   const url = new URL(request.url);
-  const rawCategory = url.searchParams.get("category");
+  const rawCategory = url.searchParams.get('category');
   let category: PatientFileCategory | undefined;
   if (rawCategory) {
     const parsed = categorySchema.safeParse(rawCategory);
     if (!parsed.success) {
-      return NextResponse.json({ ok: false, error: "invalid_category" }, { status: 400 });
+      return NextResponse.json({ ok: false, error: 'invalid_category' }, { status: 400 });
     }
     category = parsed.data;
   }
@@ -74,7 +71,7 @@ export async function GET(
     gate.ctx.organizationId,
   );
   if (!identity) {
-    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+    return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
   const patientUserId = identity.userId;
   const files = await withDoctorWorkspacePrincipal(gate.ctx, () =>
@@ -100,34 +97,34 @@ export async function GET(
   return NextResponse.json({ ok: true, files: filesWithUrls });
 }
 
-export async function POST(
-  request: Request,
-  { params }: { params: Promise<{ userId: string }> },
-) {
+export async function POST(request: Request, { params }: { params: Promise<{ userId: string }> }) {
   const gate = await requireDoctorWorkspaceApiContext();
   if (!gate.ok) return gate.response;
 
   const { userId } = await params;
   if (!z.string().uuid().safeParse(userId).success) {
-    return NextResponse.json({ ok: false, error: "invalid_user_id" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_user_id' }, { status: 400 });
   }
 
   let json: unknown;
   try {
     json = await request.json();
   } catch {
-    return NextResponse.json({ ok: false, error: "invalid_json" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_json' }, { status: 400 });
   }
 
   const parsed = createBodySchema.safeParse(json);
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_body", details: parsed.error.flatten() }, { status: 400 });
+    return NextResponse.json(
+      { ok: false, error: 'invalid_body', details: parsed.error.flatten() },
+      { status: 400 },
+    );
   }
 
   const { category, fileName, mimeType, sizeBytes } = parsed.data;
   const fileId = randomUUID();
   const s3Key = patientFileS3Key(fileId, fileName);
-  const s3Bucket = env.S3_PRIVATE_BUCKET ?? "bersonservices-private";
+  const s3Bucket = env.S3_PRIVATE_BUCKET ?? 'bersonservices-private';
 
   const deps = buildAppDeps();
   const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
@@ -135,11 +132,11 @@ export async function POST(
     gate.ctx.organizationId,
   );
   if (!identity) {
-    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+    return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
   const patientUserId = identity.userId;
 
-  const entitlement = await requireEntitlementForMutation(gate.ctx, "files");
+  const entitlement = await requireEntitlementForMutation(gate.ctx, 'files');
   if (!entitlement.ok) return entitlement.response;
 
   // Get/create the patient's «Пациенты»/<ФИО> media library folder (PFI rule 4).
@@ -147,7 +144,7 @@ export async function POST(
     pgEnsureClientPatientFolder(patientUserId),
   );
 
-  const file = await withDoctorWorkspacePrincipal(gate.ctx, "doctor.patients.files.create", () =>
+  const file = await withDoctorWorkspacePrincipal(gate.ctx, 'doctor.patients.files.create', () =>
     deps.patientFiles.createFile({
       patientUserId,
       category,

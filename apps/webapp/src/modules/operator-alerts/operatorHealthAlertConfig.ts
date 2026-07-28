@@ -8,11 +8,16 @@ import {
   parseAdminIncidentAlertConfig,
   type AdminIncidentAlertConfig,
   type AdminIncidentTopicKey,
-} from "@/modules/admin-incidents/adminIncidentAlertConfig";
+} from '@/modules/admin-incidents/adminIncidentAlertConfig';
 
-export const OPERATOR_HEALTH_ALERT_CONFIG_KEY = "operator_health_alert_config" as const;
+export const OPERATOR_HEALTH_ALERT_CONFIG_KEY = 'operator_health_alert_config' as const;
 
-export const OPERATOR_ALERT_BLOCKS = ["critical", "digest", "account_conflicts", "support"] as const;
+export const OPERATOR_ALERT_BLOCKS = [
+  'critical',
+  'digest',
+  'account_conflicts',
+  'support',
+] as const;
 export type OperatorAlertBlock = (typeof OPERATOR_ALERT_BLOCKS)[number];
 
 export type OperatorAlertChannels = {
@@ -44,11 +49,11 @@ export type OperatorHealthAlertConfig = {
 };
 
 const IDENTITY_LEGACY_TOPICS: AdminIncidentTopicKey[] = [
-  "channel_link",
-  "auto_merge_conflict",
-  "auto_merge_conflict_anomaly",
-  "messenger_phone_bind_blocked",
-  "messenger_phone_bind_anomaly",
+  'channel_link',
+  'auto_merge_conflict',
+  'auto_merge_conflict_anomaly',
+  'messenger_phone_bind_blocked',
+  'messenger_phone_bind_anomaly',
 ];
 
 const DEFAULT_CHANNELS: OperatorAlertChannels = {
@@ -68,10 +73,10 @@ const EMERGENCY_LOCKED_CHANNELS: Record<keyof OperatorAlertChannels, true> = {
 };
 
 type OperatorHealthAlertConfigPatchError =
-  | "invalid_operator_health_alert_config"
-  | "critical_alerts_must_remain_enabled"
-  | "critical_alert_email_must_remain_enabled"
-  | "critical_alert_channels_must_remain_enabled";
+  | 'invalid_operator_health_alert_config'
+  | 'critical_alerts_must_remain_enabled'
+  | 'critical_alert_email_must_remain_enabled'
+  | 'critical_alert_channels_must_remain_enabled';
 
 type OperatorHealthAlertConfigPatchResult =
   | { ok: true; value: OperatorHealthAlertConfig }
@@ -80,8 +85,8 @@ type OperatorHealthAlertConfigPatchResult =
 function invalidOperatorHealthAlertConfig(): OperatorHealthAlertConfigPatchResult {
   return {
     ok: false,
-    error: "invalid_operator_health_alert_config",
-    message: "Некорректная настройка аварийных алертов. Проверьте значения и повторите сохранение.",
+    error: 'invalid_operator_health_alert_config',
+    message: 'Некорректная настройка аварийных алертов. Проверьте значения и повторите сохранение.',
   };
 }
 
@@ -93,7 +98,7 @@ export function defaultOperatorHealthAlertConfig(): OperatorHealthAlertConfig {
       account_conflicts: true,
       support_enabled: true,
     },
-    digestTime: "09:00",
+    digestTime: '09:00',
     channels: {
       critical: { ...DEFAULT_CHANNELS },
       digest: { ...DEFAULT_CHANNELS },
@@ -108,11 +113,11 @@ export function defaultOperatorHealthAlertConfig(): OperatorHealthAlertConfig {
 }
 
 function isBool(v: unknown): v is boolean {
-  return typeof v === "boolean";
+  return typeof v === 'boolean';
 }
 
 function parseChannelsBlock(raw: unknown, fallback: OperatorAlertChannels): OperatorAlertChannels {
-  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return { ...fallback };
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) return { ...fallback };
   const o = raw as Record<string, unknown>;
   return {
     telegram: isBool(o.telegram) ? o.telegram : fallback.telegram,
@@ -125,11 +130,11 @@ function parseChannelsBlock(raw: unknown, fallback: OperatorAlertChannels): Oper
 
 /** Слот сводки — только целый час (`:00`), согласовано с cron `0 * * * *`. */
 export function normalizeDigestTimeHour(raw: unknown): string {
-  if (typeof raw !== "string") return "09:00";
+  if (typeof raw !== 'string') return '09:00';
   const t = raw.trim();
   const m = /^([01]?\d|2[0-3]):([0-5]\d)$/.exec(t);
-  if (!m) return "09:00";
-  return `${m[1]!.padStart(2, "0")}:00`;
+  if (!m) return '09:00';
+  return `${m[1]!.padStart(2, '0')}:00`;
 }
 
 function normalizeDigestTime(raw: unknown): string {
@@ -138,7 +143,11 @@ function normalizeDigestTime(raw: unknown): string {
 
 function unwrapValueJson(valueJson: unknown): unknown {
   if (valueJson === null || valueJson === undefined) return null;
-  if (typeof valueJson === "object" && valueJson !== null && "value" in (valueJson as Record<string, unknown>)) {
+  if (
+    typeof valueJson === 'object' &&
+    valueJson !== null &&
+    'value' in (valueJson as Record<string, unknown>)
+  ) {
     return (valueJson as Record<string, unknown>).value;
   }
   return valueJson;
@@ -148,10 +157,10 @@ function unwrapValueJson(valueJson: unknown): unknown {
 export function parseOperatorHealthAlertConfig(valueJson: unknown): OperatorHealthAlertConfig {
   const out = defaultOperatorHealthAlertConfig();
   const root = unwrapValueJson(valueJson);
-  if (root === null || typeof root !== "object" || Array.isArray(root)) return out;
+  if (root === null || typeof root !== 'object' || Array.isArray(root)) return out;
   const o = root as Record<string, unknown>;
 
-  if (typeof o.topics === "object" && o.topics !== null && !Array.isArray(o.topics)) {
+  if (typeof o.topics === 'object' && o.topics !== null && !Array.isArray(o.topics)) {
     const t = o.topics as Record<string, unknown>;
     if (isBool(t.critical_enabled)) out.topics.critical_enabled = t.critical_enabled;
     if (isBool(t.digest_enabled)) out.topics.digest_enabled = t.digest_enabled;
@@ -159,11 +168,11 @@ export function parseOperatorHealthAlertConfig(valueJson: unknown): OperatorHeal
     if (isBool(t.support_enabled)) out.topics.support_enabled = t.support_enabled;
   }
 
-  if ("digestTime" in o) {
+  if ('digestTime' in o) {
     out.digestTime = normalizeDigestTime(o.digestTime);
   }
 
-  if (typeof o.channels === "object" && o.channels !== null && !Array.isArray(o.channels)) {
+  if (typeof o.channels === 'object' && o.channels !== null && !Array.isArray(o.channels)) {
     const c = o.channels as Record<string, unknown>;
     for (const block of OPERATOR_ALERT_BLOCKS) {
       if (block in c) {
@@ -193,7 +202,7 @@ export function mergeOperatorHealthAlertConfigFromLegacy(
     operatorRaw !== null &&
     operatorRaw !== undefined &&
     unwrapValueJson(operatorRaw) !== null &&
-    typeof unwrapValueJson(operatorRaw) === "object";
+    typeof unwrapValueJson(operatorRaw) === 'object';
   if (hasOperator) {
     return parseOperatorHealthAlertConfig(operatorRaw);
   }
@@ -201,7 +210,8 @@ export function mergeOperatorHealthAlertConfigFromLegacy(
   const legacy = parseAdminIncidentAlertConfig(legacyRaw ?? null);
   const out = defaultOperatorHealthAlertConfig();
   out.topics.account_conflicts = legacyAccountConflictsEnabled(legacy);
-  out.topics.critical_enabled = legacy.topics.system_health_db_guard === true || out.topics.critical_enabled;
+  out.topics.critical_enabled =
+    legacy.topics.system_health_db_guard === true || out.topics.critical_enabled;
   out.channels.account_conflicts = {
     telegram: legacy.channels.telegram,
     max: legacy.channels.max,
@@ -212,36 +222,49 @@ export function mergeOperatorHealthAlertConfigFromLegacy(
   return out;
 }
 
-export function isOperatorAlertBlockEnabled(cfg: OperatorHealthAlertConfig, block: OperatorAlertBlock): boolean {
-  if (block === "critical") return cfg.topics.critical_enabled;
-  if (block === "digest") return cfg.topics.digest_enabled;
-  if (block === "support") return cfg.topics.support_enabled;
+export function isOperatorAlertBlockEnabled(
+  cfg: OperatorHealthAlertConfig,
+  block: OperatorAlertBlock,
+): boolean {
+  if (block === 'critical') return cfg.topics.critical_enabled;
+  if (block === 'digest') return cfg.topics.digest_enabled;
+  if (block === 'support') return cfg.topics.support_enabled;
   return cfg.topics.account_conflicts;
 }
 
 /** Legacy identity topic → block `account_conflicts`; `system_health_db_guard` → `critical`. */
-export function adminIncidentTopicToAlertBlock(topic: AdminIncidentTopicKey): OperatorAlertBlock | null {
-  if (topic === "system_health_db_guard") return "critical";
-  if ((IDENTITY_LEGACY_TOPICS as readonly string[]).includes(topic)) return "account_conflicts";
+export function adminIncidentTopicToAlertBlock(
+  topic: AdminIncidentTopicKey,
+): OperatorAlertBlock | null {
+  if (topic === 'system_health_db_guard') return 'critical';
+  if ((IDENTITY_LEGACY_TOPICS as readonly string[]).includes(topic)) return 'account_conflicts';
   return null;
 }
 
 export function normalizeOperatorHealthAlertConfigForAdminPatch(
   inner: unknown,
 ): OperatorHealthAlertConfigPatchResult {
-  if (inner === null || typeof inner !== "object" || Array.isArray(inner)) {
+  if (inner === null || typeof inner !== 'object' || Array.isArray(inner)) {
     return invalidOperatorHealthAlertConfig();
   }
   const o = inner as Record<string, unknown>;
-  const topicsIn = typeof o.topics === "object" && o.topics !== null && !Array.isArray(o.topics) ? o.topics : null;
+  const topicsIn =
+    typeof o.topics === 'object' && o.topics !== null && !Array.isArray(o.topics) ? o.topics : null;
   const channelsIn =
-    typeof o.channels === "object" && o.channels !== null && !Array.isArray(o.channels) ? o.channels : null;
+    typeof o.channels === 'object' && o.channels !== null && !Array.isArray(o.channels)
+      ? o.channels
+      : null;
   if (!topicsIn || !channelsIn) return invalidOperatorHealthAlertConfig();
 
   const defaults = defaultOperatorHealthAlertConfig();
   const topics = { ...defaults.topics };
   const tObj = topicsIn as Record<string, unknown>;
-  for (const k of ["critical_enabled", "digest_enabled", "account_conflicts", "support_enabled"] as const) {
+  for (const k of [
+    'critical_enabled',
+    'digest_enabled',
+    'account_conflicts',
+    'support_enabled',
+  ] as const) {
     if (!(k in tObj)) continue;
     const v = tObj[k];
     if (!isBool(v)) return invalidOperatorHealthAlertConfig();
@@ -253,11 +276,11 @@ export function normalizeOperatorHealthAlertConfigForAdminPatch(
   for (const block of OPERATOR_ALERT_BLOCKS) {
     if (!(block in cObj)) continue;
     const blockRaw = cObj[block];
-    if (blockRaw === null || typeof blockRaw !== "object" || Array.isArray(blockRaw)) {
+    if (blockRaw === null || typeof blockRaw !== 'object' || Array.isArray(blockRaw)) {
       return invalidOperatorHealthAlertConfig();
     }
     const b = blockRaw as Record<string, unknown>;
-    for (const ch of ["telegram", "max", "web_push", "sms", "email"] as const) {
+    for (const ch of ['telegram', 'max', 'web_push', 'sms', 'email'] as const) {
       if (!(ch in b)) continue;
       if (!isBool(b[ch])) return invalidOperatorHealthAlertConfig();
       channels[block][ch] = b[ch]!;
@@ -265,36 +288,39 @@ export function normalizeOperatorHealthAlertConfigForAdminPatch(
   }
 
   let digestTime = defaults.digestTime;
-  if ("digestTime" in o) {
-    const s = typeof o.digestTime === "string" ? o.digestTime.trim() : "";
+  if ('digestTime' in o) {
+    const s = typeof o.digestTime === 'string' ? o.digestTime.trim() : '';
     if (!/^([01]?\d|2[0-3]):([0-5]\d)$/.test(s)) return invalidOperatorHealthAlertConfig();
-    const [hs, ms] = s.split(":");
-    if (ms !== "00") return invalidOperatorHealthAlertConfig();
-    digestTime = `${hs!.padStart(2, "0")}:00`;
+    const [hs, ms] = s.split(':');
+    if (ms !== '00') return invalidOperatorHealthAlertConfig();
+    digestTime = `${hs!.padStart(2, '0')}:00`;
   }
 
   if (!topics.critical_enabled) {
     return {
       ok: false,
-      error: "critical_alerts_must_remain_enabled",
-      message: "Аварийные алерты нельзя отключить. Включите «Критичные сбои» и сохраните настройку снова.",
+      error: 'critical_alerts_must_remain_enabled',
+      message:
+        'Аварийные алерты нельзя отключить. Включите «Критичные сбои» и сохраните настройку снова.',
     };
   }
   if (!channels.critical.email) {
     return {
       ok: false,
-      error: "critical_alert_email_must_remain_enabled",
-      message: "Почта для аварийных алертов всегда включена. Включите E-mail и сохраните настройку снова.",
+      error: 'critical_alert_email_must_remain_enabled',
+      message:
+        'Почта для аварийных алертов всегда включена. Включите E-mail и сохраните настройку снова.',
     };
   }
-  const disabledEmergencyChannel = (Object.keys(channels.critical) as Array<keyof OperatorAlertChannels>).find(
-    (channel) => !channels.critical[channel],
-  );
+  const disabledEmergencyChannel = (
+    Object.keys(channels.critical) as Array<keyof OperatorAlertChannels>
+  ).find((channel) => !channels.critical[channel]);
   if (disabledEmergencyChannel) {
     return {
       ok: false,
-      error: "critical_alert_channels_must_remain_enabled",
-      message: "Все доступные каналы аварийных алертов должны оставаться включёнными. Включите отключённый канал и сохраните настройку снова.",
+      error: 'critical_alert_channels_must_remain_enabled',
+      message:
+        'Все доступные каналы аварийных алертов должны оставаться включёнными. Включите отключённый канал и сохраните настройку снова.',
     };
   }
 

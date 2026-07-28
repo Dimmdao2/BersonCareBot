@@ -21,7 +21,7 @@ describe('legacyCleanupMatrix', () => {
     const dangerous = LEGACY_CLEANUP_MATRIX.filter(
       (e) =>
         (e.category === 'raw' || e.category === 'runtime') &&
-        e.stage13Action === 'remove_after_tests'
+        e.stage13Action === 'remove_after_tests',
     );
     expect(dangerous).toHaveLength(0);
   });
@@ -30,7 +30,8 @@ describe('legacyCleanupMatrix', () => {
     const subscription = LEGACY_CLEANUP_MATRIX.filter(
       (e) =>
         e.domain === 'subscription_mailing' &&
-        (e.fileOrSymbol.includes('mailing_topics') || e.fileOrSymbol.includes('user_subscriptions'))
+        (e.fileOrSymbol.includes('mailing_topics') ||
+          e.fileOrSymbol.includes('user_subscriptions')),
     );
     expect(subscription.length).toBeGreaterThanOrEqual(2);
     expect(subscription.every((e) => e.stage13Action === 'freeze')).toBe(true);

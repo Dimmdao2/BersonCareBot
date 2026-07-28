@@ -216,7 +216,9 @@ function withoutReviewedReadSourceContexts(rel, src) {
 }
 
 function webappRubitimeRouteCount(rel) {
-  return rel.startsWith('apps/webapp/src/app/api/') && rel.endsWith('/route.ts') && rel.includes('rubitime')
+  return rel.startsWith('apps/webapp/src/app/api/') &&
+    rel.endsWith('/route.ts') &&
+    rel.includes('rubitime')
     ? 1
     : 0;
 }
@@ -251,7 +253,9 @@ function collectOffenders(files) {
     readSourceBranches: collectGrowthOffenders(files, 'readSourceBranches', ({ rel, src }) =>
       countMatches(withoutReviewedReadSourceContexts(rel, src), patternGroups.readSourceBranches),
     ),
-    webappRoutes: collectGrowthOffenders(files, 'webappRoutes', ({ rel }) => webappRubitimeRouteCount(rel)),
+    webappRoutes: collectGrowthOffenders(files, 'webappRoutes', ({ rel }) =>
+      webappRubitimeRouteCount(rel),
+    ),
     integratorRoutes: collectGrowthOffenders(files, 'integratorRoutes', ({ src }) =>
       countMatches(src, patternGroups.integratorRoutes),
     ),
@@ -261,7 +265,8 @@ function collectOffenders(files) {
 function collectLegacyBranchServicePatientPublicOffendersFromFiles(files) {
   const offenders = [];
   for (const { rel, src } of files) {
-    if (!canonicalPatientPublicRoots.some((root) => rel === root || rel.startsWith(`${root}/`))) continue;
+    if (!canonicalPatientPublicRoots.some((root) => rel === root || rel.startsWith(`${root}/`)))
+      continue;
     if (!src.includes('branchServiceId')) continue;
     if (allowedPatientPublicBranchServiceIdFiles.has(rel)) continue;
     offenders.push(rel);
@@ -413,7 +418,8 @@ const files = scanRoots.flatMap((root) =>
 );
 
 const offenders = collectOffenders(files);
-const legacyBranchServicePatientPublicOffenders = collectLegacyBranchServicePatientPublicOffenders();
+const legacyBranchServicePatientPublicOffenders =
+  collectLegacyBranchServicePatientPublicOffenders();
 
 if (hasAnyOffenders(offenders)) {
   printOffenders(
@@ -440,7 +446,9 @@ if (hasAnyOffenders(offenders)) {
 }
 
 if (legacyBranchServicePatientPublicOffenders.length > 0) {
-  console.error('check-rubitime-retirement-r0-freeze: legacy branchServiceId remains in patient/public runtime');
+  console.error(
+    'check-rubitime-retirement-r0-freeze: legacy branchServiceId remains in patient/public runtime',
+  );
   for (const rel of legacyBranchServicePatientPublicOffenders) console.error(`  - ${rel}`);
   process.exit(1);
 }

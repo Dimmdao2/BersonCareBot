@@ -1,42 +1,42 @@
-import { NextResponse } from "next/server";
-import { env, webappReposAreInMemory } from "@/config/env";
+import { NextResponse } from 'next/server';
+import { env, webappReposAreInMemory } from '@/config/env';
 import {
   recordAuthRegistrationFailure,
   recordAuthRegistrationSuccess,
   registrationAttemptIdFromOAuthState,
-} from "@/app-layer/product-analytics/recordAuthRegistration";
-import { exchangeYandexCode, fetchYandexUserInfo } from "@/modules/auth/oauthService";
-import { recordAuthLogin } from "@/app-layer/product-analytics/recordAuthLogin";
-import { setSessionFromUser } from "@/modules/auth/service";
-import { getRedirectPathForRole } from "@/modules/auth/redirectPolicy";
-import { reconcileDbRoleWithEnvRole, resolveRoleAsync } from "@/modules/auth/envRole";
-import { resolveUserIdForYandexOAuth } from "@/modules/auth/oauthYandexResolve";
-import { pgUserByPhonePort } from "@/infra/repos/pgUserByPhone";
-import { pgOAuthBindingsPort } from "@/infra/repos/pgOAuthBindings";
-import { inMemoryOAuthBindingsPort } from "@/infra/repos/inMemoryOAuthBindings";
-import { trySetInitialCalendarTimezoneIfEmpty } from "@/infra/repos/pgPatientCalendarTimezone";
+} from '@/app-layer/product-analytics/recordAuthRegistration';
+import { exchangeYandexCode, fetchYandexUserInfo } from '@/modules/auth/oauthService';
+import { recordAuthLogin } from '@/app-layer/product-analytics/recordAuthLogin';
+import { setSessionFromUser } from '@/modules/auth/service';
+import { getRedirectPathForRole } from '@/modules/auth/redirectPolicy';
+import { reconcileDbRoleWithEnvRole, resolveRoleAsync } from '@/modules/auth/envRole';
+import { resolveUserIdForYandexOAuth } from '@/modules/auth/oauthYandexResolve';
+import { pgUserByPhonePort } from '@/infra/repos/pgUserByPhone';
+import { pgOAuthBindingsPort } from '@/infra/repos/pgOAuthBindings';
+import { inMemoryOAuthBindingsPort } from '@/infra/repos/inMemoryOAuthBindings';
+import { trySetInitialCalendarTimezoneIfEmpty } from '@/infra/repos/pgPatientCalendarTimezone';
 import {
   getAppBaseUrl,
   getYandexOauthClientId,
   getYandexOauthClientSecret,
   getYandexOauthRedirectUri,
-} from "@/modules/system-settings/integrationRuntime";
-import { parseVerifiedSignedOAuthState } from "@/modules/auth/oauthSignedState";
-import { enterStaffSecuritySelfPrincipal } from "@/app-layer/principal/staffSecuritySelfPrincipal";
-import { isPlatformUserUuid } from "@/shared/platform-user/isPlatformUserUuid";
-import { isOAuthProviderEnabled } from "@/modules/auth/authChannelPolicy";
+} from '@/modules/system-settings/integrationRuntime';
+import { parseVerifiedSignedOAuthState } from '@/modules/auth/oauthSignedState';
+import { enterStaffSecuritySelfPrincipal } from '@/app-layer/principal/staffSecuritySelfPrincipal';
+import { isPlatformUserUuid } from '@/shared/platform-user/isPlatformUserUuid';
+import { isOAuthProviderEnabled } from '@/modules/auth/authChannelPolicy';
 
 const LOG_BASE = {
-  authMethod: "oauth_yandex" as const,
-  entryChannel: "browser" as const,
-  contactType: "oauth_provider" as const,
-  contactValue: "yandex",
+  authMethod: 'oauth_yandex' as const,
+  entryChannel: 'browser' as const,
+  contactType: 'oauth_provider' as const,
+  contactValue: 'yandex',
 };
 
 async function logOAuthFailure(
   attemptId: string,
   errorCode: string,
-  stage: "callback" | "session_set",
+  stage: 'callback' | 'session_set',
   userId?: string | null,
 ) {
   await recordAuthRegistrationFailure({
@@ -58,14 +58,14 @@ export async function handleYandexOAuthCallbackGet(request: Request): Promise<Ne
     new URL(`/app?oauth=error&reason=${encodeURIComponent(reason)}`, appBase);
 
   const url = new URL(request.url);
-  const stateFromQuery = url.searchParams.get("state") ?? "";
+  const stateFromQuery = url.searchParams.get('state') ?? '';
 
-  const verifiedState = parseVerifiedSignedOAuthState(stateFromQuery, "yandex");
+  const verifiedState = parseVerifiedSignedOAuthState(stateFromQuery, 'yandex');
   const attemptId = registrationAttemptIdFromOAuthState(verifiedState);
   if (!verifiedState) {
-    await logOAuthFailure(attemptId, "oauth_csrf", "callback");
+    await logOAuthFailure(attemptId, 'oauth_csrf', 'callback');
     return NextResponse.json(
-      { error: "oauth_csrf", message: "Недействительный или просроченный state" },
+      { error: 'oauth_csrf', message: 'Недействительный или просроченный state' },
       { status: 403 },
     );
   }
@@ -73,26 +73,26 @@ export async function handleYandexOAuthCallbackGet(request: Request): Promise<Ne
   // Defense in depth: closes the race window between /oauth/start (which already gates on this
   // toggle) and this callback, in case the admin disables the provider mid-flight (owner ruling
   // 2026-07-24, R2 fail-closed server-side).
-  const yandexOAuthEnabled = await isOAuthProviderEnabled("yandex");
+  const yandexOAuthEnabled = await isOAuthProviderEnabled('yandex');
   const clientId = (await getYandexOauthClientId()).trim();
   const redirectUri = (await getYandexOauthRedirectUri()).trim();
   const secret = (await getYandexOauthClientSecret()).trim();
 
   if (!yandexOAuthEnabled || !clientId || !redirectUri || !secret) {
-    await logOAuthFailure(attemptId, "oauth_disabled", "callback");
-    return NextResponse.redirect(new URL("/app?oauth=disabled&reason=not_configured", appBase));
+    await logOAuthFailure(attemptId, 'oauth_disabled', 'callback');
+    return NextResponse.redirect(new URL('/app?oauth=disabled&reason=not_configured', appBase));
   }
 
-  const errorParam = url.searchParams.get("error");
+  const errorParam = url.searchParams.get('error');
   if (errorParam) {
-    await logOAuthFailure(attemptId, errorParam.slice(0, 80), "callback");
+    await logOAuthFailure(attemptId, errorParam.slice(0, 80), 'callback');
     return NextResponse.redirect(redirectToAppQuery(errorParam.slice(0, 80)));
   }
 
-  const code = url.searchParams.get("code");
+  const code = url.searchParams.get('code');
   if (!code) {
-    await logOAuthFailure(attemptId, "no_code", "callback");
-    return NextResponse.redirect(redirectToAppQuery("no_code"));
+    await logOAuthFailure(attemptId, 'no_code', 'callback');
+    return NextResponse.redirect(redirectToAppQuery('no_code'));
   }
 
   let accessToken: string;
@@ -104,8 +104,8 @@ export async function handleYandexOAuthCallbackGet(request: Request): Promise<Ne
     });
     accessToken = tokenResult.accessToken;
   } catch {
-    await logOAuthFailure(attemptId, "exchange_failed", "callback");
-    return NextResponse.redirect(redirectToAppQuery("exchange_failed"));
+    await logOAuthFailure(attemptId, 'exchange_failed', 'callback');
+    return NextResponse.redirect(redirectToAppQuery('exchange_failed'));
   }
 
   let yandexId: string;
@@ -119,8 +119,8 @@ export async function handleYandexOAuthCallbackGet(request: Request): Promise<Ne
     oauthName = info.name;
     oauthPhone = info.phone;
   } catch {
-    await logOAuthFailure(attemptId, "userinfo_failed", "callback");
-    return NextResponse.redirect(redirectToAppQuery("userinfo_failed"));
+    await logOAuthFailure(attemptId, 'userinfo_failed', 'callback');
+    return NextResponse.redirect(redirectToAppQuery('userinfo_failed'));
   }
 
   const oauthPort = webappReposAreInMemory() ? inMemoryOAuthBindingsPort : pgOAuthBindingsPort;
@@ -134,34 +134,37 @@ export async function handleYandexOAuthCallbackGet(request: Request): Promise<Ne
 
   if (!resolved.ok) {
     const r = resolved.reason;
-    await logOAuthFailure(attemptId, r, "callback");
-    if (r === "no_identity") {
-      return NextResponse.redirect(redirectToAppQuery("no_identity"));
+    await logOAuthFailure(attemptId, r, 'callback');
+    if (r === 'no_identity') {
+      return NextResponse.redirect(redirectToAppQuery('no_identity'));
     }
-    if (r === "email_ambiguous") {
-      return NextResponse.redirect(redirectToAppQuery("email_ambiguous"));
+    if (r === 'email_ambiguous') {
+      return NextResponse.redirect(redirectToAppQuery('email_ambiguous'));
     }
-    return NextResponse.redirect(redirectToAppQuery("db_error"));
+    return NextResponse.redirect(redirectToAppQuery('db_error'));
   }
 
   if (env.DATABASE_URL?.trim()) {
-    await trySetInitialCalendarTimezoneIfEmpty(resolved.userId, verifiedState.browserCalendarIana ?? null);
+    await trySetInitialCalendarTimezoneIfEmpty(
+      resolved.userId,
+      verifiedState.browserCalendarIana ?? null,
+    );
   }
 
   let sessionUser;
   try {
     if (isPlatformUserUuid(resolved.userId)) {
-      enterStaffSecuritySelfPrincipal(resolved.userId, "auth/oauth-yandex:provider-verified-self");
+      enterStaffSecuritySelfPrincipal(resolved.userId, 'auth/oauth-yandex:provider-verified-self');
     }
     sessionUser = await pgUserByPhonePort.findByUserId(resolved.userId);
   } catch {
-    await logOAuthFailure(attemptId, "db_error", "session_set", resolved.userId);
-    return NextResponse.redirect(redirectToAppQuery("db_error"));
+    await logOAuthFailure(attemptId, 'db_error', 'session_set', resolved.userId);
+    return NextResponse.redirect(redirectToAppQuery('db_error'));
   }
 
   if (!sessionUser) {
-    await logOAuthFailure(attemptId, "session_failed", "session_set", resolved.userId);
-    return NextResponse.redirect(redirectToAppQuery("session_failed"));
+    await logOAuthFailure(attemptId, 'session_failed', 'session_set', resolved.userId);
+    return NextResponse.redirect(redirectToAppQuery('session_failed'));
   }
 
   // C-4 (2026-07-26): see the equivalent comment in oauthWebSession.ts — reconciled against the
@@ -183,23 +186,23 @@ export async function handleYandexOAuthCallbackGet(request: Request): Promise<Ne
       displayName: oauthName?.trim() || sessionUser.displayName || oauthEmail || yandexId,
     });
   } catch {
-    await logOAuthFailure(attemptId, "session_failed", "session_set", resolved.userId);
-    return NextResponse.redirect(redirectToAppQuery("session_failed"));
+    await logOAuthFailure(attemptId, 'session_failed', 'session_set', resolved.userId);
+    return NextResponse.redirect(redirectToAppQuery('session_failed'));
   }
 
   await recordAuthLogin({
     userId: sessionUser.userId,
-    entryChannel: "browser",
-    authMethod: "yandex_oauth",
+    entryChannel: 'browser',
+    authMethod: 'yandex_oauth',
   });
 
-  if (resolved.accountOutcome === "created") {
+  if (resolved.accountOutcome === 'created') {
     await recordAuthRegistrationSuccess({
       ...LOG_BASE,
       attemptId,
-      stage: "session_set",
+      stage: 'session_set',
       userId: sessionUser.userId,
-      contactValue: oauthEmail ?? oauthPhone ?? "yandex",
+      contactValue: oauthEmail ?? oauthPhone ?? 'yandex',
       isNewAccount: true,
     });
   }

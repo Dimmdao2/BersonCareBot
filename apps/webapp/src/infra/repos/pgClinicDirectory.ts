@@ -146,10 +146,7 @@ export function createPgClinicDirectoryPort(): ClinicDirectoryPort {
             .limit(1);
 
           if (collision && collision.id !== existingReservation?.id) {
-            if (
-              collision.kind === 'alias' &&
-              collision.organizationId === input.organizationId
-            ) {
+            if (collision.kind === 'alias' && collision.organizationId === input.organizationId) {
               if (existingReservation) {
                 await tx
                   .delete(organizationSlugClaims)

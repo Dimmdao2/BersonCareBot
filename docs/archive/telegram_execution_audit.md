@@ -1,30 +1,30 @@
 # Script Actions
 
-| action | status | note |
-| --- | --- | --- |
-| `user.phone.link` | EXECUTABLE_NOW | Direct executor support writes `user.phone.link`; payload shape matches current Telegram script usage. |
-| `user.state.set` | EXECUTABLE_NOW | Direct executor support writes `user.state.set`; string `channelId`/`channelUserId` is accepted by DB write path. |
-| `message.send` | BLOCKED_BY_PAYLOAD_SHAPE | Template text is resolved before execution, and transport path exists, but script interpolation leaves `recipient.chatId` as a string. Executor passes it through unchanged, while Telegram delivery requires numeric `chatId`. |
-| `notifications.toggle` | BLOCKED_MISSING_SUPPORT | Direct executor support exists for single-category toggles, but `notify_toggle_all` is gated by `supportsToggleAll === true`, which current scripts never provide. |
-| `callback.answer` | EXECUTABLE_NOW | Direct executor support produces a `callback.answer` intent; contracts, dispatch, and Telegram adapter all accept the current payload shape. |
+| action                 | status                   | note                                                                                                                                                                                                                            |
+| ---------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `user.phone.link`      | EXECUTABLE_NOW           | Direct executor support writes `user.phone.link`; payload shape matches current Telegram script usage.                                                                                                                          |
+| `user.state.set`       | EXECUTABLE_NOW           | Direct executor support writes `user.state.set`; string `channelId`/`channelUserId` is accepted by DB write path.                                                                                                               |
+| `message.send`         | BLOCKED_BY_PAYLOAD_SHAPE | Template text is resolved before execution, and transport path exists, but script interpolation leaves `recipient.chatId` as a string. Executor passes it through unchanged, while Telegram delivery requires numeric `chatId`. |
+| `notifications.toggle` | BLOCKED_MISSING_SUPPORT  | Direct executor support exists for single-category toggles, but `notify_toggle_all` is gated by `supportsToggleAll === true`, which current scripts never provide.                                                              |
+| `callback.answer`      | EXECUTABLE_NOW           | Direct executor support produces a `callback.answer` intent; contracts, dispatch, and Telegram adapter all accept the current payload shape.                                                                                    |
 
 # Script Execution Status
 
-| scriptId | status | blockers | note |
-| --- | --- | --- | --- |
-| `message.received` | PARTIALLY_EXECUTABLE | `message.send` payload-shape mismatch | This is one of the only routed Telegram scripts. State writes and phone linking can execute, but all outbound messages depend on `recipient.chatId`, which arrives as a string after interpolation. |
-| `callback.received` | PARTIALLY_EXECUTABLE | `message.send` payload-shape mismatch; incomplete `notify_toggle_all` support | This is the other routed Telegram script. `callback.answer` works, individual notification toggles work, but outgoing refresh messages still depend on string `chatId`; `notify_toggle_all` does not fully execute. |
-| `telegram.message.dispatch` | LOGICAL_ONLY | no route; no `flow.invoke`; `message.send` payload-shape mismatch | Duplicates `message.received` logic, but nothing routes to it and nothing invokes it as a subflow. |
-| `telegram.start` | LOGICAL_ONLY | no route; no `flow.invoke`; `message.send` payload-shape mismatch | Internals are simple, but the script is unreachable in the current pipeline. |
-| `telegram.ask` | LOGICAL_ONLY | no route; no `flow.invoke`; `message.send` payload-shape mismatch | Unreachable helper flow. |
-| `telegram.ask.question` | LOGICAL_ONLY | no route; no `flow.invoke`; `message.send` payload-shape mismatch | Unreachable helper flow; both admin-forward and user-confirmation sends depend on numeric `chatId`. |
-| `telegram.contact.link` | LOGICAL_ONLY | no route; no `flow.invoke`; `message.send` payload-shape mismatch | Write steps are executable in isolation, but the script is not wired and its sends still fail on `chatId` shape. |
-| `telegram.booking` | LOGICAL_ONLY | no route; no `flow.invoke`; `message.send` payload-shape mismatch | Unreachable helper flow. |
-| `telegram.more` | LOGICAL_ONLY | no route; no `flow.invoke`; `message.send` payload-shape mismatch | Unreachable helper flow. |
-| `telegram.notifications.show` | LOGICAL_ONLY | no route; no `flow.invoke`; `message.send` payload-shape mismatch | Unreachable helper flow; also still only sends plain text, not interactive inline markup. |
-| `telegram.notifications.toggle` | LOGICAL_ONLY | no route; no `flow.invoke`; incomplete `notify_toggle_all`; `message.send` payload-shape mismatch | Unreachable helper flow. |
-| `telegram.menu.myBookings` | LOGICAL_ONLY | no route; no `flow.invoke`; `message.send` payload-shape mismatch | Unreachable helper flow. |
-| `telegram.menu.back` | LOGICAL_ONLY | no route; no `flow.invoke`; `message.send` payload-shape mismatch | Unreachable helper flow. |
+| scriptId                        | status               | blockers                                                                                          | note                                                                                                                                                                                                                |
+| ------------------------------- | -------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `message.received`              | PARTIALLY_EXECUTABLE | `message.send` payload-shape mismatch                                                             | This is one of the only routed Telegram scripts. State writes and phone linking can execute, but all outbound messages depend on `recipient.chatId`, which arrives as a string after interpolation.                 |
+| `callback.received`             | PARTIALLY_EXECUTABLE | `message.send` payload-shape mismatch; incomplete `notify_toggle_all` support                     | This is the other routed Telegram script. `callback.answer` works, individual notification toggles work, but outgoing refresh messages still depend on string `chatId`; `notify_toggle_all` does not fully execute. |
+| `telegram.message.dispatch`     | LOGICAL_ONLY         | no route; no `flow.invoke`; `message.send` payload-shape mismatch                                 | Duplicates `message.received` logic, but nothing routes to it and nothing invokes it as a subflow.                                                                                                                  |
+| `telegram.start`                | LOGICAL_ONLY         | no route; no `flow.invoke`; `message.send` payload-shape mismatch                                 | Internals are simple, but the script is unreachable in the current pipeline.                                                                                                                                        |
+| `telegram.ask`                  | LOGICAL_ONLY         | no route; no `flow.invoke`; `message.send` payload-shape mismatch                                 | Unreachable helper flow.                                                                                                                                                                                            |
+| `telegram.ask.question`         | LOGICAL_ONLY         | no route; no `flow.invoke`; `message.send` payload-shape mismatch                                 | Unreachable helper flow; both admin-forward and user-confirmation sends depend on numeric `chatId`.                                                                                                                 |
+| `telegram.contact.link`         | LOGICAL_ONLY         | no route; no `flow.invoke`; `message.send` payload-shape mismatch                                 | Write steps are executable in isolation, but the script is not wired and its sends still fail on `chatId` shape.                                                                                                    |
+| `telegram.booking`              | LOGICAL_ONLY         | no route; no `flow.invoke`; `message.send` payload-shape mismatch                                 | Unreachable helper flow.                                                                                                                                                                                            |
+| `telegram.more`                 | LOGICAL_ONLY         | no route; no `flow.invoke`; `message.send` payload-shape mismatch                                 | Unreachable helper flow.                                                                                                                                                                                            |
+| `telegram.notifications.show`   | LOGICAL_ONLY         | no route; no `flow.invoke`; `message.send` payload-shape mismatch                                 | Unreachable helper flow; also still only sends plain text, not interactive inline markup.                                                                                                                           |
+| `telegram.notifications.toggle` | LOGICAL_ONLY         | no route; no `flow.invoke`; incomplete `notify_toggle_all`; `message.send` payload-shape mismatch | Unreachable helper flow.                                                                                                                                                                                            |
+| `telegram.menu.myBookings`      | LOGICAL_ONLY         | no route; no `flow.invoke`; `message.send` payload-shape mismatch                                 | Unreachable helper flow.                                                                                                                                                                                            |
+| `telegram.menu.back`            | LOGICAL_ONLY         | no route; no `flow.invoke`; `message.send` payload-shape mismatch                                 | Unreachable helper flow.                                                                                                                                                                                            |
 
 # Remaining Blockers
 
@@ -60,20 +60,20 @@ The following expected blockers are **not currently used** in `src/content/teleg
 
 # Telegram UI Intent Path
 
-| behavior | status | note |
-| --- | --- | --- |
-| `message.send` | PARTIAL | Executor, intent model, dispatch path, and Telegram adapter all exist. Current Telegram scripts still fail in practice because interpolated `recipient.chatId` is a string, not a number. |
-| `message.edit` | PARTIAL | Full path exists in contracts/executor/dispatch/adapter. Remaining risk is script-layer payload shape: executor only reads numeric top-level `chatId` and `messageId`. |
-| `message.replyMarkup.edit` | PARTIAL | Full path exists in contracts/executor/dispatch/adapter. Same numeric id coercion risk as `message.edit`. |
-| `callback.answer` | COMPLETE | Executor emits the intent, outgoing intent model includes the type, dispatch routes non-message intents by source, and Telegram adapter handles `callbackQueryId` directly. |
+| behavior                   | status   | note                                                                                                                                                                                      |
+| -------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `message.send`             | PARTIAL  | Executor, intent model, dispatch path, and Telegram adapter all exist. Current Telegram scripts still fail in practice because interpolated `recipient.chatId` is a string, not a number. |
+| `message.edit`             | PARTIAL  | Full path exists in contracts/executor/dispatch/adapter. Remaining risk is script-layer payload shape: executor only reads numeric top-level `chatId` and `messageId`.                    |
+| `message.replyMarkup.edit` | PARTIAL  | Full path exists in contracts/executor/dispatch/adapter. Same numeric id coercion risk as `message.edit`.                                                                                 |
+| `callback.answer`          | COMPLETE | Executor emits the intent, outgoing intent model includes the type, dispatch routes non-message intents by source, and Telegram adapter handles `callbackQueryId` directly.               |
 
 # Lowering Path Audit
 
-| source action | status | is lowering implemented? | lowered target complete? | payload-shape mismatch risk? | note |
-| --- | --- | --- | --- | --- | --- |
-| `message.replyKeyboard.show` | PARTIAL | Yes | Yes, lowered to `message.send` with Telegram reply markup | Yes | Lowering exists in executor, but top-level `chatId` must already be numeric. Current script interpolation would produce a string. Current Telegram scripts do not yet use this action. |
-| `message.inlineKeyboard.show` | PARTIAL | Yes | Yes, lowered to `message.send` with inline markup | Yes | Same risk as above. Current Telegram scripts do not yet use this action. |
-| `admin.forward` | PARTIAL | Yes | Yes, lowered to `message.send` | Yes | Lowering exists, but top-level `chatId` must be numeric. Current `telegram.ask.question` does not use this action yet; it still uses direct `message.send`. |
+| source action                 | status  | is lowering implemented? | lowered target complete?                                  | payload-shape mismatch risk? | note                                                                                                                                                                                   |
+| ----------------------------- | ------- | ------------------------ | --------------------------------------------------------- | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `message.replyKeyboard.show`  | PARTIAL | Yes                      | Yes, lowered to `message.send` with Telegram reply markup | Yes                          | Lowering exists in executor, but top-level `chatId` must already be numeric. Current script interpolation would produce a string. Current Telegram scripts do not yet use this action. |
+| `message.inlineKeyboard.show` | PARTIAL | Yes                      | Yes, lowered to `message.send` with inline markup         | Yes                          | Same risk as above. Current Telegram scripts do not yet use this action.                                                                                                               |
+| `admin.forward`               | PARTIAL | Yes                      | Yes, lowered to `message.send`                            | Yes                          | Lowering exists, but top-level `chatId` must be numeric. Current `telegram.ask.question` does not use this action yet; it still uses direct `message.send`.                            |
 
 # Overall State
 

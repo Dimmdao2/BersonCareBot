@@ -3,26 +3,29 @@
 export function displayZonePartsFromUtcInstant(utcIso: string, iana: string) {
   const d = new Date(utcIso);
   if (Number.isNaN(d.getTime())) {
-    return { year: "0000", month: "01", day: "01", hour: "00", minute: "00" };
+    return { year: '0000', month: '01', day: '01', hour: '00', minute: '00' };
   }
-  const fmt = new Intl.DateTimeFormat("en-GB", {
+  const fmt = new Intl.DateTimeFormat('en-GB', {
     timeZone: iana,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
     hour12: false,
   });
   const map = Object.fromEntries(
-    fmt.formatToParts(d).filter((p) => p.type !== "literal").map((p) => [p.type, p.value]),
+    fmt
+      .formatToParts(d)
+      .filter((p) => p.type !== 'literal')
+      .map((p) => [p.type, p.value]),
   ) as Record<string, string>;
   return {
-    year: map.year ?? "0000",
-    month: map.month ?? "01",
-    day: map.day ?? "01",
-    hour: map.hour ?? "00",
-    minute: map.minute ?? "00",
+    year: map.year ?? '0000',
+    month: map.month ?? '01',
+    day: map.day ?? '01',
+    hour: map.hour ?? '00',
+    minute: map.minute ?? '00',
   };
 }
 
@@ -54,33 +57,33 @@ export function formatDisplayZoneDayRuFromBucket(bucket: string): string {
   const p = parsePgLocalBucket(bucket);
   if (!p) return bucket;
   const dt = new Date(Date.UTC(p.y, p.m - 1, p.d, 12, 0, 0));
-  return dt.toLocaleDateString("ru-RU", { day: "numeric", month: "short", timeZone: "UTC" });
+  return dt.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', timeZone: 'UTC' });
 }
 
 export function formatDisplayZoneDayShortFromBucket(bucket: string): string {
   const p = parsePgLocalBucket(bucket);
   if (!p) return bucket.slice(0, 10);
   const dt = new Date(Date.UTC(p.y, p.m - 1, p.d, 12, 0, 0));
-  return dt.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", timeZone: "UTC" });
+  return dt.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', timeZone: 'UTC' });
 }
 
 export function formatDisplayZoneHourFromBucket(bucket: string): string {
   const p = parsePgLocalBucket(bucket);
   if (!p) return bucket;
-  return `${String(p.h).padStart(2, "0")}:00`;
+  return `${String(p.h).padStart(2, '0')}:00`;
 }
 
 /** ISO-момент → подпись в поясе приложения (для таблиц). */
 export function formatDisplayZoneInstantRu(iso: string | null | undefined, iana: string): string {
-  if (!iso?.trim()) return "—";
+  if (!iso?.trim()) return '—';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleString("ru-RU", {
+  return d.toLocaleString('ru-RU', {
     timeZone: iana,
-    day: "2-digit",
-    month: "2-digit",
-    year: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
+    day: '2-digit',
+    month: '2-digit',
+    year: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
   });
 }

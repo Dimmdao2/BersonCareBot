@@ -1,4 +1,7 @@
-import type { PhoneChallengeStore, PhoneChallengePayload } from "@/modules/auth/phoneChallengeStore";
+import type {
+  PhoneChallengeStore,
+  PhoneChallengePayload,
+} from '@/modules/auth/phoneChallengeStore';
 
 const store = new Map<string, PhoneChallengePayload>();
 

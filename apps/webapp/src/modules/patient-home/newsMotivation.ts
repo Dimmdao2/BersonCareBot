@@ -3,5 +3,5 @@
  * Загрузка из БД — через `buildAppDeps().patientHomeLegacy` (`PatientHomeLegacyContentPort`).
  */
 
-export type { HomeQuote } from "./patientHomeLegacyContentPort";
-export { quoteDayKeyUtc, quoteIndexForDaySeed } from "./patientHomeQuoteUtils";
+export type { HomeQuote } from './patientHomeLegacyContentPort';
+export { quoteDayKeyUtc, quoteIndexForDaySeed } from './patientHomeQuoteUtils';

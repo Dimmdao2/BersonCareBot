@@ -13,4 +13,4 @@ export {
   markUploadSessionExpired,
   markUploadSessionExpiredTx,
   tryFinalizeMultipartIdempotentTx,
-} from "@/infra/repos/mediaUploadSessionsRepo";
+} from '@/infra/repos/mediaUploadSessionsRepo';

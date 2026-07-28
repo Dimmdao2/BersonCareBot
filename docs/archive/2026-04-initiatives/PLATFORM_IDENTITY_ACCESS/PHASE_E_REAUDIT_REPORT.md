@@ -10,12 +10,12 @@
 
 ## 2. Проверки (сводка)
 
-| Область | Результат |
-|---------|-----------|
-| `/api/patient/*`, `/api/booking/*` | Все проверенные handlers на **`requirePatientApiBusinessAccess`** |
-| Server actions вне профиля | **`requirePatientAccessWithPhone`** (reminders, diary, notifications) |
-| RSC персональные данные | **`patientRscPersonalDataGate`**; warmups — тест **D-TST-1** |
-| Onboarding server actions (профиль) | **Был зазор D-SA-1** → закрыт кодом ниже |
+| Область                             | Результат                                                             |
+| ----------------------------------- | --------------------------------------------------------------------- |
+| `/api/patient/*`, `/api/booking/*`  | Все проверенные handlers на **`requirePatientApiBusinessAccess`**     |
+| Server actions вне профиля          | **`requirePatientAccessWithPhone`** (reminders, diary, notifications) |
+| RSC персональные данные             | **`patientRscPersonalDataGate`**; warmups — тест **D-TST-1**          |
+| Onboarding server actions (профиль) | **Был зазор D-SA-1** → закрыт кодом ниже                              |
 
 ## 3. Уязвимость / техдолг D-SA-1 (устранён)
 

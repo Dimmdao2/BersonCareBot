@@ -16,9 +16,13 @@ export type ClinicalTestMeasureKindsPort = {
   /**
    * Идемпотентно по `code`: если строка с таким `code` уже есть — возвращает её (`created: false`).
    */
-  upsertMeasureKindByLabel(label: string): Promise<{ row: ClinicalTestMeasureKindRow; created: boolean }>;
+  upsertMeasureKindByLabel(
+    label: string,
+  ): Promise<{ row: ClinicalTestMeasureKindRow; created: boolean }>;
   /**
    * Полная замена подписей и порядка для **всех** текущих строк (сверка множества `id` — в сервисе).
    */
-  saveMeasureKindsOrderAndLabels(updates: MeasureKindOrderLabelUpdate[]): Promise<ClinicalTestMeasureKindRow[]>;
+  saveMeasureKindsOrderAndLabels(
+    updates: MeasureKindOrderLabelUpdate[],
+  ): Promise<ClinicalTestMeasureKindRow[]>;
 };

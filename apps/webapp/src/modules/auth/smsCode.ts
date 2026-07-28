@@ -1,4 +1,4 @@
-import { randomInt } from "node:crypto";
+import { randomInt } from 'node:crypto';
 
 const SMS_CODE_LENGTH = 6;
 const SMS_CODE_MAX = 10 ** SMS_CODE_LENGTH - 1;
@@ -9,5 +9,5 @@ const SMS_CODE_MAX = 10 ** SMS_CODE_LENGTH - 1;
  */
 export function generateSmsCode(): string {
   const n = randomInt(0, SMS_CODE_MAX + 1);
-  return n.toString().padStart(SMS_CODE_LENGTH, "0");
+  return n.toString().padStart(SMS_CODE_LENGTH, '0');
 }

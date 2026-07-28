@@ -115,11 +115,11 @@ CLI печатает отчёт через `console.log(JSON.stringify(report, n
 
 ## Сводка findings
 
-| ID        | Серьёзность | Статус    | Описание |
-|-----------|-------------|-----------|----------|
-| FIND-P07-1 | Minor      | **CLOSED** | Уточнено в [phase-07-backfill-legacy-library.md](./phases/phase-07-backfill-legacy-library.md) (секция «Тесты») и в комментарии к модулю: dry-run без enqueue; отчёт — read-only SQL. |
-| FIND-P07-2 | Minor      | **DEFERRED** | Статус `pending_backfill` в CHECK и приоритет jobs — вне v1; см. backlog phase doc / приоритетный SELECT worker (опционально). |
-| FIND-P07-3 | Minor      | **CLOSED (INFO)** | Без смены кода: `failed` + `video_processing_error` задаётся в `apps/media-worker` при сбое транскода (MF-5). |
+| ID         | Серьёзность | Статус            | Описание                                                                                                                                                                              |
+| ---------- | ----------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| FIND-P07-1 | Minor       | **CLOSED**        | Уточнено в [phase-07-backfill-legacy-library.md](./phases/phase-07-backfill-legacy-library.md) (секция «Тесты») и в комментарии к модулю: dry-run без enqueue; отчёт — read-only SQL. |
+| FIND-P07-2 | Minor       | **DEFERRED**      | Статус `pending_backfill` в CHECK и приоритет jobs — вне v1; см. backlog phase doc / приоритетный SELECT worker (опционально).                                                        |
+| FIND-P07-3 | Minor       | **CLOSED (INFO)** | Без смены кода: `failed` + `video_processing_error` задаётся в `apps/media-worker` при сбое транскода (MF-5).                                                                         |
 
 ---
 
@@ -127,13 +127,13 @@ CLI печатает отчёт через `console.log(JSON.stringify(report, n
 
 **Дата FIX:** 2026-05-03
 
-| ID           | Серьёзность | Статус           | Резолюция |
-|--------------|---------------|------------------|-----------|
-| FIX-P07-C    | Critical      | **CLOSED (N/A)** | Открытых critical по аудиту не было. |
-| FIX-P07-M    | Major         | **CLOSED (N/A)** | Открытых major по аудиту не было. |
-| FIND-P07-1   | Minor         | **CLOSED**       | Документация dry-run / read-only отчёт (phase-07 doc + модуль). |
-| FIND-P07-2   | Minor         | **DEFERRED**     | Как в таблице findings; отдельная задача при phase-08+ при необходимости приоритизации очереди. |
-| FIND-P07-3   | Minor         | **CLOSED**       | Подтверждена ответственность worker; runner не дублирует маркировку FFmpeg. |
+| ID         | Серьёзность | Статус           | Резолюция                                                                                       |
+| ---------- | ----------- | ---------------- | ----------------------------------------------------------------------------------------------- |
+| FIX-P07-C  | Critical    | **CLOSED (N/A)** | Открытых critical по аудиту не было.                                                            |
+| FIX-P07-M  | Major       | **CLOSED (N/A)** | Открытых major по аудиту не было.                                                               |
+| FIND-P07-1 | Minor       | **CLOSED**       | Документация dry-run / read-only отчёт (phase-07 doc + модуль).                                 |
+| FIND-P07-2 | Minor       | **DEFERRED**     | Как в таблице findings; отдельная задача при phase-08+ при необходимости приоритизации очереди. |
+| FIND-P07-3 | Minor       | **CLOSED**       | Подтверждена ответственность worker; runner не дублирует маркировку FFmpeg.                     |
 
 **Повтор целевых проверок phase-07 (на окружении агента):**  
 `pnpm --dir apps/webapp exec vitest run src/app-layer/media/videoHlsLegacyBackfill.test.ts` — **OK** (8 tests).  

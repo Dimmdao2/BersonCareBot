@@ -1,13 +1,13 @@
-import Link from "next/link";
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import type { PatientDailyWarmupNav } from "@/modules/patient-home/todayConfig";
-import { cn } from "@/lib/utils";
+import Link from 'next/link';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import type { PatientDailyWarmupNav } from '@/modules/patient-home/todayConfig';
+import { cn } from '@/lib/utils';
 
 function navButtonClass() {
   return cn(
-    "flex min-h-[2.75rem] flex-1 items-center justify-center gap-1.5 px-3 py-2 text-sm font-semibold outline-none transition-colors duration-150 no-underline",
-    "cursor-pointer bg-[#f8f3fd] text-[#444444] hover:bg-[#ede8f8] active:bg-[#e4e2ff]",
-    "focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--patient-color-primary,#284da0)]",
+    'flex min-h-[2.75rem] flex-1 items-center justify-center gap-1.5 px-3 py-2 text-sm font-semibold outline-none transition-colors duration-150 no-underline',
+    'cursor-pointer bg-[#f8f3fd] text-[#444444] hover:bg-[#ede8f8] active:bg-[#e4e2ff]',
+    'focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--patient-color-primary,#284da0)]',
   );
 }
 

@@ -580,4 +580,3 @@
 
 Сохрани: docs/archive/2026-05-initiatives/VIDEO_HLS_DELIVERY/AUDIT_PREPUSH_POSTFIX.md
 ```
-

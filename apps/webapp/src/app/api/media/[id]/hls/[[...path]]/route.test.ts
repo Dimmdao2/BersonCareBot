@@ -1,12 +1,12 @@
 /** @vitest-environment node */
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const routeLoggerHoisted = vi.hoisted(() => ({
   loggerWarn: vi.fn(),
 }));
 
-vi.mock("@/app-layer/logging/logger", () => ({
+vi.mock('@/app-layer/logging/logger', () => ({
   logger: {
     warn: routeLoggerHoisted.loggerWarn,
     error: vi.fn(),
@@ -20,36 +20,38 @@ const handleMock = vi.fn();
 const getAccessRowMock = vi.fn();
 const requirePatientApiBusinessAccessMock = vi.fn();
 
-vi.mock("@/modules/auth/service", () => ({
+vi.mock('@/modules/auth/service', () => ({
   getCurrentSession: () => getSessionMock(),
 }));
 
-vi.mock("@/modules/system-settings/configAdapter", () => ({
+vi.mock('@/modules/system-settings/configAdapter', () => ({
   getPatientRuntimeBool: (...a: unknown[]) => getConfigBoolMock(...a),
 }));
 
-vi.mock("@/app-layer/media/s3MediaStorage", () => ({
+vi.mock('@/app-layer/media/s3MediaStorage', () => ({
   getMediaAccessRow: (...a: unknown[]) => getAccessRowMock(...a),
 }));
-vi.mock("@/app-layer/media/resolvePlatformLfkMediaAccess", () => ({
+vi.mock('@/app-layer/media/resolvePlatformLfkMediaAccess', () => ({
   resolvePlatformLfkMediaAccess: vi.fn(async () => false),
 }));
 
-vi.mock("@/app-layer/media/hlsDeliveryProxy", () => ({
+vi.mock('@/app-layer/media/hlsDeliveryProxy', () => ({
   handleHlsDeliveryProxyRequest: (...a: unknown[]) => handleMock(...a),
 }));
 
-vi.mock("@/app-layer/guards/requireRole", () => ({
+vi.mock('@/app-layer/guards/requireRole', () => ({
   requireDoctorWorkspaceApiContext: vi.fn(),
   requirePatientApiBusinessAccess: () => requirePatientApiBusinessAccessMock(),
 }));
 
-import { GET } from "./route";
+import { GET } from './route';
 
-const mid = "00000000-0000-4000-8000-000000000099";
-const patientSession = { user: { userId: "u1", role: "client" as const, displayName: "U", bindings: {} } };
+const mid = '00000000-0000-4000-8000-000000000099';
+const patientSession = {
+  user: { userId: 'u1', role: 'client' as const, displayName: 'U', bindings: {} },
+};
 
-describe("GET /api/media/[id]/hls/[[...path]]", () => {
+describe('GET /api/media/[id]/hls/[[...path]]', () => {
   beforeEach(() => {
     getSessionMock.mockReset();
     getConfigBoolMock.mockReset();
@@ -62,58 +64,60 @@ describe("GET /api/media/[id]/hls/[[...path]]", () => {
     getConfigBoolMock.mockResolvedValue(true);
     getAccessRowMock.mockResolvedValue({
       usage_purpose: null,
-      uploaded_by: "u1",
-      mime_type: "video/mp4",
+      uploaded_by: 'u1',
+      mime_type: 'video/mp4',
     });
-    handleMock.mockResolvedValue(new Response("ok", { status: 200 }));
+    handleMock.mockResolvedValue(new Response('ok', { status: 200 }));
   });
 
-  it("returns 401 when unauthenticated", async () => {
+  it('returns 401 when unauthenticated', async () => {
     getSessionMock.mockResolvedValue(null);
     const res = await GET(new Request(`http://localhost/api/media/${mid}/hls/master.m3u8`), {
-      params: Promise.resolve({ id: mid, path: ["master.m3u8"] }),
+      params: Promise.resolve({ id: mid, path: ['master.m3u8'] }),
     });
     expect(res.status).toBe(401);
     expect(handleMock).not.toHaveBeenCalled();
     expect(routeLoggerHoisted.loggerWarn).not.toHaveBeenCalled();
   });
 
-  it("returns 503 when video_playback_api_enabled is false", async () => {
+  it('returns 503 when video_playback_api_enabled is false', async () => {
     getConfigBoolMock.mockResolvedValue(false);
     const res = await GET(new Request(`http://localhost/api/media/${mid}/hls/master.m3u8`), {
-      params: Promise.resolve({ id: mid, path: ["master.m3u8"] }),
+      params: Promise.resolve({ id: mid, path: ['master.m3u8'] }),
     });
     expect(res.status).toBe(503);
     expect(handleMock).not.toHaveBeenCalled();
   });
 
-  it("returns 404 on invalid UUID", async () => {
+  it('returns 404 on invalid UUID', async () => {
     const res = await GET(new Request(`http://localhost/api/media/not-a-uuid/hls/x`), {
-      params: Promise.resolve({ id: "not-a-uuid", path: ["x"] }),
+      params: Promise.resolve({ id: 'not-a-uuid', path: ['x'] }),
     });
     expect(res.status).toBe(404);
     expect(handleMock).not.toHaveBeenCalled();
   });
 
-  it("delegates to handleHlsDeliveryProxyRequest with Range header", async () => {
+  it('delegates to handleHlsDeliveryProxyRequest with Range header', async () => {
     const req = new Request(`http://localhost/api/media/${mid}/hls/720p/seg.ts`, {
-      headers: { Range: "bytes=0-1" },
+      headers: { Range: 'bytes=0-1' },
     });
-    await GET(req, { params: Promise.resolve({ id: mid, path: ["720p", "seg.ts"] }) });
+    await GET(req, { params: Promise.resolve({ id: mid, path: ['720p', 'seg.ts'] }) });
     expect(handleMock).toHaveBeenCalledWith({
       allowPlatformBase: false,
       mediaId: mid,
-      pathSegments: ["720p", "seg.ts"],
-      rangeHeader: "bytes=0-1",
-      userId: "u1",
+      pathSegments: ['720p', 'seg.ts'],
+      rangeHeader: 'bytes=0-1',
+      userId: 'u1',
       clientAbortSignal: req.signal,
     });
   });
 
-  it("passes request.signal as clientAbortSignal", async () => {
+  it('passes request.signal as clientAbortSignal', async () => {
     const ac = new AbortController();
-    const req = new Request(`http://localhost/api/media/${mid}/hls/720p/seg.ts`, { signal: ac.signal });
-    await GET(req, { params: Promise.resolve({ id: mid, path: ["720p", "seg.ts"] }) });
+    const req = new Request(`http://localhost/api/media/${mid}/hls/720p/seg.ts`, {
+      signal: ac.signal,
+    });
+    await GET(req, { params: Promise.resolve({ id: mid, path: ['720p', 'seg.ts'] }) });
     expect(handleMock).toHaveBeenCalledWith(
       expect.objectContaining({
         mediaId: mid,

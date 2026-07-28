@@ -1,10 +1,10 @@
-import { and, eq, inArray } from "drizzle-orm";
-import { getDrizzle } from "@/app-layer/db/drizzle";
-import type { TestAccountIdentifiers } from "@/modules/system-settings/testAccounts";
-import { platformUsers, userChannelBindings } from "../../../db/schema/schema";
+import { and, eq, inArray } from 'drizzle-orm';
+import { getDrizzle } from '@/app-layer/db/drizzle';
+import type { TestAccountIdentifiers } from '@/modules/system-settings/testAccounts';
+import { platformUsers, userChannelBindings } from '../../../db/schema/schema';
 
-const STAFF_ANALYTICS_ROLES = ["admin", "doctor"] as const;
-const ALWAYS_EXCLUDED_ANALYTICS_PHONES = ["+70000000000"] as const;
+const STAFF_ANALYTICS_ROLES = ['admin', 'doctor'] as const;
+const ALWAYS_EXCLUDED_ANALYTICS_PHONES = ['+70000000000'] as const;
 
 export type ResolveExcludedUserIdsOptions = {
   includeTestAccounts: boolean;
@@ -54,7 +54,7 @@ export async function resolveAnalyticsExcludedUserIds(
           .from(userChannelBindings)
           .where(
             and(
-              eq(userChannelBindings.channelCode, "telegram"),
+              eq(userChannelBindings.channelCode, 'telegram'),
               inArray(userChannelBindings.externalId, spec.telegramIds),
             ),
           )
@@ -65,7 +65,10 @@ export async function resolveAnalyticsExcludedUserIds(
           .select({ id: userChannelBindings.userId })
           .from(userChannelBindings)
           .where(
-            and(eq(userChannelBindings.channelCode, "max"), inArray(userChannelBindings.externalId, spec.maxIds)),
+            and(
+              eq(userChannelBindings.channelCode, 'max'),
+              inArray(userChannelBindings.externalId, spec.maxIds),
+            ),
           )
       : Promise.resolve([] as Array<{ id: string }>);
 

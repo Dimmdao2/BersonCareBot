@@ -16,11 +16,11 @@
 
 ## Три слоя (как устроен продукт)
 
-| Слой | Роль |
-|------|------|
-| **Webapp (PWA)** | Главный интерфейс: кабинет пациента, кабинет врача/админа, публичная запись, лендинг |
-| **Messaging** | Уведомления (**push-first** в PWA), напоминания, быстрые действия, переход в приложение, часть сценариев записи и вопросов |
-| **Backend** | Единая PostgreSQL (`public` + `integrator`), integrator (webhook, доставка, worker, scheduler), media-worker (видео/HLS) |
+| Слой             | Роль                                                                                                                       |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| **Webapp (PWA)** | Главный интерфейс: кабинет пациента, кабинет врача/админа, публичная запись, лендинг                                       |
+| **Messaging**    | Уведомления (**push-first** в PWA), напоминания, быстрые действия, переход в приложение, часть сценариев записи и вопросов |
+| **Backend**      | Единая PostgreSQL (`public` + `integrator`), integrator (webhook, доставка, worker, scheduler), media-worker (видео/HLS)   |
 
 ---
 
@@ -102,27 +102,27 @@
 
 ## Каналы доставки
 
-| Канал | Типичное использование |
-|-------|------------------------|
-| **PWA / браузер** | Основной UI, чат, программы, дневник, запись |
-| **Telegram** | Mini App, уведомления о записях, меню, ответы врача, напоминания |
-| **MAX** | Аналог Telegram для части аудитории |
-| **SMS** | Fallback при отсутствии привязки мессенджера (запись, OTP) |
-| **Web Push** | Напоминания и события в установленной PWA (контур развивается; ключи VAPID — в admin Settings) |
+| Канал             | Типичное использование                                                                         |
+| ----------------- | ---------------------------------------------------------------------------------------------- |
+| **PWA / браузер** | Основной UI, чат, программы, дневник, запись                                                   |
+| **Telegram**      | Mini App, уведомления о записях, меню, ответы врача, напоминания                               |
+| **MAX**           | Аналог Telegram для части аудитории                                                            |
+| **SMS**           | Fallback при отсутствии привязки мессенджера (запись, OTP)                                     |
+| **Web Push**      | Напоминания и события в установленной PWA (контур развивается; ключи VAPID — в admin Settings) |
 
 ---
 
 ## Реализовано vs в планах
 
-| Область | Сейчас | Дальше / отложено |
-|---------|--------|-------------------|
-| PWA + кабинеты patient/doctor | ✅ Ядро в production | Полировка IA — [`APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md`](APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md) |
-| Программы реабилитации, дневник, напоминания | ✅ | Proactive-сигналы для врача — backlog |
-| Собственный движок записи | ✅ Этапы 1–9 закрыты | SaaS-мультитенант, полный отказ от Rubitime — по [`OWN_BOOKING_ENGINE_INITIATIVE/README.md`](_ARCHIVE/OWN_BOOKING_ENGINE_INITIATIVE/README.md) |
-| Rubitime | ⚙️ Мост + legacy-уведомления | Стабилизация перехода завершена; канон — own booking |
-| Курсы (отдельная сущность) | ⏸ Частично через контент/программы | [`COURSES_INITIATIVE/README.md`](COURSES_INITIATIVE/README.md) — **отложено** |
-| Web Push (полный контур) | ⚙️ VAPID в админке, tick напоминаний | Подписки/SW/backlog — [`PWA_INITIATIVE/BACKLOG.md`](_ARCHIVE/PWA_INITIATIVE/BACKLOG.md) |
-| Онлайн-консультации реабилитация/нутрициология вне Rubitime | 📋 ТЗ | [`ONLINE_CONSULT_REHAB_NUTRITION_BOOKING_INITIATIVE/README.md`](ONLINE_CONSULT_REHAB_NUTRITION_BOOKING_INITIATIVE/README.md) |
+| Область                                                     | Сейчас                               | Дальше / отложено                                                                                                                              |
+| ----------------------------------------------------------- | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| PWA + кабинеты patient/doctor                               | ✅ Ядро в production                 | Полировка IA — [`APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md`](APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md)                                            |
+| Программы реабилитации, дневник, напоминания                | ✅                                   | Proactive-сигналы для врача — backlog                                                                                                          |
+| Собственный движок записи                                   | ✅ Этапы 1–9 закрыты                 | SaaS-мультитенант, полный отказ от Rubitime — по [`OWN_BOOKING_ENGINE_INITIATIVE/README.md`](_ARCHIVE/OWN_BOOKING_ENGINE_INITIATIVE/README.md) |
+| Rubitime                                                    | ⚙️ Мост + legacy-уведомления         | Стабилизация перехода завершена; канон — own booking                                                                                           |
+| Курсы (отдельная сущность)                                  | ⏸ Частично через контент/программы   | [`COURSES_INITIATIVE/README.md`](COURSES_INITIATIVE/README.md) — **отложено**                                                                  |
+| Web Push (полный контур)                                    | ⚙️ VAPID в админке, tick напоминаний | Подписки/SW/backlog — [`PWA_INITIATIVE/BACKLOG.md`](_ARCHIVE/PWA_INITIATIVE/BACKLOG.md)                                                        |
+| Онлайн-консультации реабилитация/нутрициология вне Rubitime | 📋 ТЗ                                | [`ONLINE_CONSULT_REHAB_NUTRITION_BOOKING_INITIATIVE/README.md`](ONLINE_CONSULT_REHAB_NUTRITION_BOOKING_INITIATIVE/README.md)                   |
 
 Условные обозначения: ✅ — основной сценарий есть; ⚙️ — работает с ограничениями или в переходе; ⏸/📋 — сознательно не в ближайшем фокусе.
 
@@ -130,14 +130,14 @@
 
 ## Куда копать глубже
 
-| Тема | Документ |
-|------|----------|
-| Целевая IA пациента (5 вкладок, принципы) | [`APP_RESTRUCTURE_INITIATIVE/TARGET_STRUCTURE_PATIENT.md`](APP_RESTRUCTURE_INITIATIVE/TARGET_STRUCTURE_PATIENT.md) |
-| Целевая IA врача (5 ролей, поток дня) | [`APP_RESTRUCTURE_INITIATIVE/TARGET_STRUCTURE_DOCTOR.md`](APP_RESTRUCTURE_INITIATIVE/TARGET_STRUCTURE_DOCTOR.md) |
-| Состав экранов кабинета специалиста | [`ARCHITECTURE/SPECIALIST_CABINET_STRUCTURE.md`](ARCHITECTURE/SPECIALIST_CABINET_STRUCTURE.md) |
-| Сценарии Telegram/MAX/Rubitime (бот) | [`ARCHITECTURE/SCENARIO_LOGIC_SUMMARY.md`](ARCHITECTURE/SCENARIO_LOGIC_SUMMARY.md) |
-| Программа реабилитации у пациента | [`ARCHITECTURE/PATIENT_TREATMENT_PROGRAM_STAGE_SURFACES.md`](ARCHITECTURE/PATIENT_TREATMENT_PROGRAM_STAGE_SURFACES.md) |
-| Запись и Rubitime | [`ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md`](ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md) · [`OWN_BOOKING_ENGINE_INITIATIVE/README.md`](_ARCHIVE/OWN_BOOKING_ENGINE_INITIATIVE/README.md) |
-| Ранняя концепция платформы (исторический контекст) | [`ARCHITECTURE/FULL PLATFORM MODEL.md`](ARCHITECTURE/FULL%20PLATFORM%20MODEL.md) |
-| Технический onboarding репозитория | [`../README.md`](../README.md) |
-| Полное оглавление docs | [`README.md`](README.md) |
+| Тема                                               | Документ                                                                                                                                                                                 |
+| -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Целевая IA пациента (5 вкладок, принципы)          | [`APP_RESTRUCTURE_INITIATIVE/TARGET_STRUCTURE_PATIENT.md`](APP_RESTRUCTURE_INITIATIVE/TARGET_STRUCTURE_PATIENT.md)                                                                       |
+| Целевая IA врача (5 ролей, поток дня)              | [`APP_RESTRUCTURE_INITIATIVE/TARGET_STRUCTURE_DOCTOR.md`](APP_RESTRUCTURE_INITIATIVE/TARGET_STRUCTURE_DOCTOR.md)                                                                         |
+| Состав экранов кабинета специалиста                | [`ARCHITECTURE/SPECIALIST_CABINET_STRUCTURE.md`](ARCHITECTURE/SPECIALIST_CABINET_STRUCTURE.md)                                                                                           |
+| Сценарии Telegram/MAX/Rubitime (бот)               | [`ARCHITECTURE/SCENARIO_LOGIC_SUMMARY.md`](ARCHITECTURE/SCENARIO_LOGIC_SUMMARY.md)                                                                                                       |
+| Программа реабилитации у пациента                  | [`ARCHITECTURE/PATIENT_TREATMENT_PROGRAM_STAGE_SURFACES.md`](ARCHITECTURE/PATIENT_TREATMENT_PROGRAM_STAGE_SURFACES.md)                                                                   |
+| Запись и Rubitime                                  | [`ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md`](ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md) · [`OWN_BOOKING_ENGINE_INITIATIVE/README.md`](_ARCHIVE/OWN_BOOKING_ENGINE_INITIATIVE/README.md) |
+| Ранняя концепция платформы (исторический контекст) | [`ARCHITECTURE/FULL PLATFORM MODEL.md`](ARCHITECTURE/FULL%20PLATFORM%20MODEL.md)                                                                                                         |
+| Технический onboarding репозитория                 | [`../README.md`](../README.md)                                                                                                                                                           |
+| Полное оглавление docs                             | [`README.md`](README.md)                                                                                                                                                                 |

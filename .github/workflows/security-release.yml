@@ -19,7 +19,7 @@ permissions:
   contents: read
 
 env:
-  TRIVY_ACTION_REF: "0.28.0"
+  TRIVY_ACTION_REF: '0.28.0'
 
 jobs:
   trivy-full:
@@ -39,7 +39,7 @@ jobs:
           scan-ref: .
           scanners: vuln,misconfig,secret
           ignore-unfixed: true
-          exit-code: "0"
+          exit-code: '0'
           trivyignores: .trivyignore
           format: sarif
           output: trivy-full-report.sarif
@@ -55,7 +55,7 @@ jobs:
           scanners: vuln,misconfig,secret
           severity: CRITICAL
           ignore-unfixed: true
-          exit-code: "1"
+          exit-code: '1'
           trivyignores: .trivyignore
           format: table
 

@@ -1,5 +1,9 @@
 import { createHash, createHmac, randomUUID } from 'node:crypto';
-import type { DbWritePort, IssuedContentAccess, ProtectedAccessPort } from '../../kernel/contracts/index.js';
+import type {
+  DbWritePort,
+  IssuedContentAccess,
+  ProtectedAccessPort,
+} from '../../kernel/contracts/index.js';
 import { env } from '../../config/env.js';
 
 function normalizeBaseUrl(value: string): string | null {
@@ -19,9 +23,7 @@ function sha256(value: string): string {
   return createHash('sha256').update(value).digest('hex');
 }
 
-export function createProtectedAccessPort(input: {
-  writePort: DbWritePort;
-}): ProtectedAccessPort {
+export function createProtectedAccessPort(input: { writePort: DbWritePort }): ProtectedAccessPort {
   return {
     async issueAccess(params): Promise<IssuedContentAccess | null> {
       const baseUrl = normalizeBaseUrl(env.CONTENT_SERVICE_BASE_URL);

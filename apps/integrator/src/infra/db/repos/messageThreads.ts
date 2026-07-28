@@ -52,7 +52,9 @@ export async function getActiveDraftByIdentity(
   db: DbPort,
   input: { resource: string; externalId: string; source?: string },
 ): Promise<ActiveDraftRow | null> {
-  const res = await runIntegratorSql<ActiveDraftRow>(db, sql`
+  const res = await runIntegratorSql<ActiveDraftRow>(
+    db,
+    sql`
     SELECT
       md.id,
       md.identity_id::text,
@@ -84,7 +86,8 @@ export async function getActiveDraftByIdentity(
       AND i.external_id = ${input.externalId}
       AND (${input.source ?? null}::text IS NULL OR md.source = ${input.source ?? null})
     LIMIT 1
-  `);
+  `,
+  );
   return res.rows[0] ?? null;
 }
 
@@ -102,7 +105,9 @@ export async function upsertDraftByIdentity(
   },
 ): Promise<void> {
   const currentOrganizationId = getCurrentOrganizationPrincipalId() ?? null;
-  await runIntegratorSql(db, sql`
+  await runIntegratorSql(
+    db,
+    sql`
     WITH active_user_orgs AS (
       SELECT platform_user_id, organization_id
       FROM public.org_enrollments
@@ -159,21 +164,25 @@ export async function upsertDraftByIdentity(
       state = EXCLUDED.state,
       organization_id = COALESCE(EXCLUDED.organization_id, message_drafts.organization_id),
       updated_at = now()
-  `);
+  `,
+  );
 }
 
 export async function cancelDraftByIdentity(
   db: DbPort,
   input: { resource: string; externalId: string; source?: string },
 ): Promise<void> {
-  await runIntegratorSql(db, sql`
+  await runIntegratorSql(
+    db,
+    sql`
     DELETE FROM message_drafts md
     USING identities i
     WHERE md.identity_id = i.id
       AND i.resource = ${input.resource}
       AND i.external_id = ${input.externalId}
       AND (${input.source ?? null}::text IS NULL OR md.source = ${input.source ?? null})
-  `);
+  `,
+  );
 }
 
 export async function insertConversation(
@@ -190,7 +199,9 @@ export async function insertConversation(
   },
 ): Promise<void> {
   const currentOrganizationId = getCurrentOrganizationPrincipalId() ?? null;
-  await runIntegratorSql(db, sql`
+  await runIntegratorSql(
+    db,
+    sql`
     WITH active_user_orgs AS (
       SELECT platform_user_id, organization_id
       FROM public.org_enrollments
@@ -235,7 +246,8 @@ export async function insertConversation(
       ${input.openedAt}::timestamptz,
       ${input.lastMessageAt}::timestamptz
     FROM target_identity ti
-  `);
+  `,
+  );
 }
 
 export async function insertConversationMessage(
@@ -251,7 +263,9 @@ export async function insertConversationMessage(
     createdAt: string;
   },
 ): Promise<void> {
-  await runIntegratorSql(db, sql`
+  await runIntegratorSql(
+    db,
+    sql`
     INSERT INTO conversation_messages (
       id,
       conversation_id,
@@ -274,7 +288,8 @@ export async function insertConversationMessage(
       ${input.externalMessageId ?? null},
       ${input.createdAt}::timestamptz
     )
-  `);
+  `,
+  );
 }
 
 export async function setConversationState(
@@ -287,7 +302,9 @@ export async function setConversationState(
     closeReason?: string | null;
   },
 ): Promise<void> {
-  await runIntegratorSql(db, sql`
+  await runIntegratorSql(
+    db,
+    sql`
     UPDATE conversations
     SET
       status = ${input.status},
@@ -295,7 +312,8 @@ export async function setConversationState(
       closed_at = ${input.closedAt ?? null}::timestamptz,
       close_reason = ${input.closeReason ?? null}
     WHERE id = ${input.id}
-  `);
+  `,
+  );
 }
 
 /**
@@ -307,7 +325,9 @@ export async function ensureIdentityForMessenger(
   input: { resource: string; externalId: string },
 ): Promise<void> {
   if (input.resource !== 'max' || !input.externalId.trim()) return;
-  await runIntegratorSql(db, sql`
+  await runIntegratorSql(
+    db,
+    sql`
     WITH existing AS (
       SELECT id FROM identities
       WHERE resource = ${input.resource} AND external_id = ${input.externalId.trim()}
@@ -333,14 +353,17 @@ export async function ensureIdentityForMessenger(
       ON CONFLICT (resource, external_id) DO UPDATE SET updated_at = now()
     )
     SELECT 1
-  `);
+  `,
+  );
 }
 
 export async function getOpenConversationByIdentity(
   db: DbPort,
   input: { resource: string; externalId: string; source?: string },
 ): Promise<ConversationRow | null> {
-  const res = await runIntegratorSql<ConversationRow>(db, sql`
+  const res = await runIntegratorSql<ConversationRow>(
+    db,
+    sql`
     SELECT
       c.id,
       c.source,
@@ -382,7 +405,8 @@ export async function getOpenConversationByIdentity(
       AND (${input.source ?? null}::text IS NULL OR c.source = ${input.source ?? null})
     ORDER BY c.last_message_at DESC
     LIMIT 1
-  `);
+  `,
+  );
   return res.rows[0] ?? null;
 }
 
@@ -390,7 +414,9 @@ export async function getConversationById(
   db: DbPort,
   input: { id: string },
 ): Promise<ConversationRow | null> {
-  const res = await runIntegratorSql<ConversationRow>(db, sql`
+  const res = await runIntegratorSql<ConversationRow>(
+    db,
+    sql`
     SELECT
       c.id,
       c.source,
@@ -427,7 +453,8 @@ export async function getConversationById(
     ) cp ON true
     WHERE c.id = ${input.id}
     LIMIT 1
-  `);
+  `,
+  );
   return res.rows[0] ?? null;
 }
 
@@ -435,9 +462,14 @@ export async function listOpenConversations(
   db: DbPort,
   input: { source?: string; limit?: number },
 ): Promise<ConversationListRow[]> {
-  const limit = typeof input.limit === 'number' && Number.isFinite(input.limit) ? Math.max(1, Math.trunc(input.limit)) : 20;
+  const limit =
+    typeof input.limit === 'number' && Number.isFinite(input.limit)
+      ? Math.max(1, Math.trunc(input.limit))
+      : 20;
   const sourceParam = asNonEmptyString(input.source);
-  const res = await runIntegratorSql<ConversationListRow>(db, sql`
+  const res = await runIntegratorSql<ConversationListRow>(
+    db,
+    sql`
     SELECT
       c.id,
       c.source,
@@ -480,7 +512,8 @@ export async function listOpenConversations(
       AND (${sourceParam}::text IS NULL OR c.source = ${sourceParam})
     ORDER BY c.last_message_at DESC
     LIMIT ${limit}
-  `);
+  `,
+  );
   return res.rows;
 }
 
@@ -489,9 +522,14 @@ export async function listOpenConversationsOlderThan(
   db: DbPort,
   input: { olderThanIso: string; source?: string; limit?: number },
 ): Promise<ConversationListRow[]> {
-  const limit = typeof input.limit === 'number' && Number.isFinite(input.limit) ? Math.max(1, Math.trunc(input.limit)) : 100;
+  const limit =
+    typeof input.limit === 'number' && Number.isFinite(input.limit)
+      ? Math.max(1, Math.trunc(input.limit))
+      : 100;
   const sourceParam = asNonEmptyString(input.source);
-  const res = await runIntegratorSql<ConversationListRow>(db, sql`
+  const res = await runIntegratorSql<ConversationListRow>(
+    db,
+    sql`
     SELECT
       c.id,
       c.source,
@@ -533,7 +571,8 @@ export async function listOpenConversationsOlderThan(
       AND (${sourceParam}::text IS NULL OR c.source = ${sourceParam})
     ORDER BY c.last_message_at ASC
     LIMIT ${limit}
-  `);
+  `,
+  );
   return res.rows;
 }
 
@@ -566,7 +605,9 @@ export async function insertUserQuestion(
   },
 ): Promise<void> {
   const currentOrganizationId = getCurrentOrganizationPrincipalId() ?? null;
-  await runIntegratorSql(db, sql`
+  await runIntegratorSql(
+    db,
+    sql`
     WITH active_user_orgs AS (
       SELECT platform_user_id, organization_id
       FROM public.org_enrollments
@@ -602,7 +643,8 @@ export async function insertUserQuestion(
     FROM target_identity ti
     LEFT JOIN conversations parent
       ON parent.id = ${input.conversationId}
-  `);
+  `,
+  );
 }
 
 export async function insertQuestionMessage(
@@ -615,7 +657,9 @@ export async function insertQuestionMessage(
     createdAt: string;
   },
 ): Promise<void> {
-  await runIntegratorSql(db, sql`
+  await runIntegratorSql(
+    db,
+    sql`
     INSERT INTO question_messages (id, question_id, organization_id, sender_type, message_text, created_at)
     VALUES (
       ${input.id},
@@ -625,30 +669,37 @@ export async function insertQuestionMessage(
       ${input.messageText},
       ${input.createdAt}::timestamptz
     )
-  `);
+  `,
+  );
 }
 
 export async function setQuestionAnswered(
   db: DbPort,
   input: { questionId: string; answeredAt: string },
 ): Promise<void> {
-  await runIntegratorSql(db, sql`
+  await runIntegratorSql(
+    db,
+    sql`
     UPDATE user_questions
     SET answered = true, answered_at = ${input.answeredAt}::timestamptz
     WHERE id = ${input.questionId}
-  `);
+  `,
+  );
 }
 
 export async function getQuestionByConversationId(
   db: DbPort,
   input: { conversationId: string },
 ): Promise<{ id: string; answered: boolean } | null> {
-  const res = await runIntegratorSql<{ id: string; answered: boolean }>(db, sql`
+  const res = await runIntegratorSql<{ id: string; answered: boolean }>(
+    db,
+    sql`
     SELECT id, answered
     FROM user_questions
     WHERE conversation_id = ${input.conversationId}
     LIMIT 1
-  `);
+  `,
+  );
   return res.rows[0] ?? null;
 }
 
@@ -656,8 +707,13 @@ export async function listUnansweredQuestions(
   db: DbPort,
   input: { limit?: number },
 ): Promise<UserQuestionRow[]> {
-  const limit = typeof input.limit === 'number' && Number.isFinite(input.limit) ? Math.max(1, Math.trunc(input.limit)) : 50;
-  const res = await runIntegratorSql<UserQuestionRow>(db, sql`
+  const limit =
+    typeof input.limit === 'number' && Number.isFinite(input.limit)
+      ? Math.max(1, Math.trunc(input.limit))
+      : 50;
+  const res = await runIntegratorSql<UserQuestionRow>(
+    db,
+    sql`
     SELECT
       uq.id,
       uq.user_identity_id::text,
@@ -677,6 +733,7 @@ export async function listUnansweredQuestions(
     WHERE uq.answered = false
     ORDER BY uq.created_at DESC
     LIMIT ${limit}
-  `);
+  `,
+  );
   return res.rows;
 }

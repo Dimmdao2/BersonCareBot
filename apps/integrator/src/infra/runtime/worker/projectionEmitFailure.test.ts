@@ -10,6 +10,8 @@ describe('isRecoverableWebappEmitFailure', () => {
   it('marks 503/5xx/0 as recoverable', () => {
     expect(isRecoverableWebappEmitFailure({ ok: false, status: 503 })).toBe(true);
     expect(isRecoverableWebappEmitFailure({ ok: false, status: 502 })).toBe(true);
-    expect(isRecoverableWebappEmitFailure({ ok: false, status: 0, error: 'econnreset' })).toBe(true);
+    expect(isRecoverableWebappEmitFailure({ ok: false, status: 0, error: 'econnreset' })).toBe(
+      true,
+    );
   });
 });

@@ -26,12 +26,12 @@ const MESSAGE_TEXT_TO_ACTION: Record<string, string> = {
   '📅 Запись на приём': 'booking.open',
   'Запись на приём': 'booking.open',
   '📓 Дневник': 'diary.open',
-  'Дневник': 'diary.open',
+  Дневник: 'diary.open',
   '⚙️ Меню': 'menu.more',
-  'Меню': 'menu.more',
-  'Помощник': 'menu.more',
+  Меню: 'menu.more',
+  Помощник: 'menu.more',
   '👤 Кабинет': 'cabinet.open',
-  'Кабинет': 'cabinet.open',
+  Кабинет: 'cabinet.open',
   [REQUEST_PHONE_CANCEL_TEXT]: 'phone.request.cancel',
   '/admin_bookings': 'admin.stats.bookings',
   '/admin_users': 'admin.stats.users',
@@ -112,12 +112,16 @@ export function incomingCallbackPayloadFromNormalized(
   if (typeof normalized.value === 'number') out.value = normalized.value;
   if (typeof normalized.entryType === 'string') out.entryType = normalized.entryType;
   if (typeof normalized.complexId === 'string') out.complexId = normalized.complexId;
-  if (typeof normalized.reminderOccurrenceId === 'string') out.reminderOccurrenceId = normalized.reminderOccurrenceId;
-  if (typeof normalized.reminderSnoozeMinutes === 'number') out.reminderSnoozeMinutes = normalized.reminderSnoozeMinutes;
-  if (typeof normalized.reminderMuteMinutes === 'number') out.reminderMuteMinutes = normalized.reminderMuteMinutes;
+  if (typeof normalized.reminderOccurrenceId === 'string')
+    out.reminderOccurrenceId = normalized.reminderOccurrenceId;
+  if (typeof normalized.reminderSnoozeMinutes === 'number')
+    out.reminderSnoozeMinutes = normalized.reminderSnoozeMinutes;
+  if (typeof normalized.reminderMuteMinutes === 'number')
+    out.reminderMuteMinutes = normalized.reminderMuteMinutes;
   if (normalized.reminderMutePreset === 'tomorrow') out.reminderMutePreset = 'tomorrow';
   if (typeof normalized.skipReasonCode === 'string') out.skipReasonCode = normalized.skipReasonCode;
-  if (typeof normalized.reminderTopicCode === 'string') out.reminderTopicCode = normalized.reminderTopicCode;
+  if (typeof normalized.reminderTopicCode === 'string')
+    out.reminderTopicCode = normalized.reminderTopicCode;
   if (normalized.questionConfirm === 'yes' || normalized.questionConfirm === 'no') {
     out.questionConfirm = normalized.questionConfirm;
   }
@@ -135,7 +139,12 @@ export function normalizeChannelCallbackPayload(value: string): DynamicChannelCa
     }
     return { action: 'program_reply' };
   }
-  for (const prefix of ['admin_reply:', 'admin_reply_continue:', 'admin_close_dialog:', 'dialogs.view:']) {
+  for (const prefix of [
+    'admin_reply:',
+    'admin_reply_continue:',
+    'admin_close_dialog:',
+    'dialogs.view:',
+  ]) {
     if (trimmed.startsWith(prefix)) {
       const conversationId = trimmed.slice(prefix.length).trim();
       if (!conversationId) return { action: trimmed };
@@ -152,7 +161,8 @@ export function normalizeChannelCallbackPayload(value: string): DynamicChannelCa
   if (trimmed.startsWith('diary.symptom.value:')) {
     const rest = trimmed.slice('diary.symptom.value:'.length);
     const [id, valueStr] = rest.split(':', 2);
-    const value = valueStr !== undefined ? Math.min(10, Math.max(0, Math.round(Number(valueStr)))) : undefined;
+    const value =
+      valueStr !== undefined ? Math.min(10, Math.max(0, Math.round(Number(valueStr)))) : undefined;
     const out: DynamicActionResult = { action: 'diary.symptom.value' };
     if (id?.trim()) out.trackingId = id.trim();
     if (typeof value === 'number' && Number.isFinite(value)) out.value = value;
@@ -164,7 +174,8 @@ export function normalizeChannelCallbackPayload(value: string): DynamicChannelCa
     const trackingId = parts[0]?.trim();
     const valueStr = parts[1];
     const entryType = parts[2] === 'daily' ? 'daily' : 'instant';
-    const value = valueStr !== undefined ? Math.min(10, Math.max(0, Math.round(Number(valueStr)))) : undefined;
+    const value =
+      valueStr !== undefined ? Math.min(10, Math.max(0, Math.round(Number(valueStr)))) : undefined;
     const out: DynamicActionResult = { action: 'diary.symptom.entryType', entryType };
     if (trackingId) out.trackingId = trackingId;
     if (typeof value === 'number' && Number.isFinite(value)) out.value = value;
@@ -184,12 +195,8 @@ export function normalizeChannelCallbackPayload(value: string): DynamicChannelCa
     if (lastColon <= 0) return { action: trimmed };
     const occurrenceId = rest.slice(0, lastColon).trim();
     const minutes = Math.round(Number(rest.slice(lastColon + 1)));
-    if (
-      !occurrenceId
-      || !Number.isFinite(minutes)
-      || minutes < 1
-      || minutes > 720
-    ) return { action: trimmed };
+    if (!occurrenceId || !Number.isFinite(minutes) || minutes < 1 || minutes > 720)
+      return { action: trimmed };
     return {
       action: 'rem_snooze',
       reminderOccurrenceId: occurrenceId,
@@ -278,9 +285,11 @@ export type FromTelegramContext = {
   telegramId: string | null;
   userState?: string | undefined;
   hasLinkedPhone?: boolean | undefined;
-  reqLogger?: {
-    info(payload: Record<string, unknown>, message: string): void;
-  } | undefined;
+  reqLogger?:
+    | {
+        info(payload: Record<string, unknown>, message: string): void;
+      }
+    | undefined;
 };
 
 /**
@@ -294,7 +303,11 @@ export function incomingCallbackUpdateFromTelegramCallbackQuery(
   const chatId = cq.message?.chat?.id;
   const messageId = cq.message?.message_id;
   const telegramId = cq.from?.id;
-  if (typeof chatId !== 'number' || typeof messageId !== 'number' || typeof telegramId !== 'number') {
+  if (
+    typeof chatId !== 'number' ||
+    typeof messageId !== 'number' ||
+    typeof telegramId !== 'number'
+  ) {
     return null;
   }
   const normalized = normalizeChannelCallbackPayload(cq.data ?? '');
@@ -304,7 +317,9 @@ export function incomingCallbackUpdateFromTelegramCallbackQuery(
     messageId,
     channelUserId: telegramId,
     action: normalized.action,
-    ...(typeof extras?.hasLinkedPhone === 'boolean' ? { hasLinkedPhone: extras.hasLinkedPhone } : {}),
+    ...(typeof extras?.hasLinkedPhone === 'boolean'
+      ? { hasLinkedPhone: extras.hasLinkedPhone }
+      : {}),
     ...(typeof cq.from.username === 'string' ? { channelUsername: cq.from.username } : {}),
     ...(typeof cq.from.first_name === 'string' ? { channelFirstName: cq.from.first_name } : {}),
     ...(typeof cq.from.last_name === 'string' ? { channelLastName: cq.from.last_name } : {}),
@@ -345,7 +360,10 @@ export function fromTelegram(
     const adminTelegramId = telegramConfig.adminTelegramId;
     if (reqLogger) {
       reqLogger.info({ adminTelegramId }, '[telegram][mapIn] admin chat diagnostics');
-      reqLogger.info({ chatId: adminTelegramId, text: msg.text ?? '' }, '[telegram][mapIn] adminForward will be set');
+      reqLogger.info(
+        { chatId: adminTelegramId, text: msg.text ?? '' },
+        '[telegram][mapIn] adminForward will be set',
+      );
     }
     const replyToRaw = (msg as { reply_to_message?: { message_id?: number } }).reply_to_message;
     const replyToMessageId =
@@ -359,11 +377,14 @@ export function fromTelegram(
       text: msg.text ?? '',
       action: normalizeTelegramMessageAction(msg.text ?? ''),
       ...(normalizedPhone ? { phone: normalizedPhone } : {}),
-      ...(contactOwnedBySender && typeof msg.contact?.phone_number === 'string' && { contactPhone: msg.contact.phone_number }),
+      ...(contactOwnedBySender &&
+        typeof msg.contact?.phone_number === 'string' && {
+          contactPhone: msg.contact.phone_number,
+        }),
       ...(typeof hasLinkedPhone === 'boolean' && { hasLinkedPhone }),
       ...(typeof msg.from?.username === 'string' && { channelUsername: msg.from.username }),
-      ...(typeof msg.from?.first_name === 'string' && { channelFirstName: msg.from.first_name } ),
-      ...(typeof msg.from?.last_name === 'string' && { channelLastName: msg.from.last_name } ),
+      ...(typeof msg.from?.first_name === 'string' && { channelFirstName: msg.from.first_name }),
+      ...(typeof msg.from?.last_name === 'string' && { channelLastName: msg.from.last_name }),
       userRow,
       userState: typeof userState === 'string' ? userState : '',
       adminForward: { chatId: adminTelegramId, text: msg.text ?? '' },

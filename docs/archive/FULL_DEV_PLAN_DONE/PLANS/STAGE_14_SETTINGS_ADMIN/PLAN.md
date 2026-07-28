@@ -160,15 +160,18 @@
 ## Новая рабочая версия плана (для auto-агента)
 
 ### Цель этапа
+
 Реализовать полноценный контур настроек врача/админа в webapp: хранилище системных параметров, защищённые API, UI страницы `/app/settings`, admin mode с визуальной индикацией и управляемыми флагами.
 
 ### Зона изменений этапа
+
 - Только `apps/webapp` (`migrations`, `modules`, `infra/repos`, `app/app/settings`, `app/api`, `shared/ui`, тесты и модульная документация).
 - Не менять integrator runtime-код; в этом этапе допускается только документированная точка интеграции флагов.
 
 ### Последовательность действий для автоагента
 
 #### Шаг 14.1 — БД `system_settings` + seed
+
 1. **Цель шага**: создать единый источник хранения системных настроек.
 2. **Точная область изменений**: `apps/webapp/migrations/*` (новая миграция с корректным свободным номером), без редактирования старых миграций.
 3. **Конкретные действия**:
@@ -189,6 +192,7 @@
 8. **Обновление документации**: зафиксировать схему и ключи в модульной документации настроек.
 
 #### Шаг 14.2 — Репозиторий/сервис настроек и DI
+
 1. **Цель шага**: исключить SQL в route handlers и централизовать валидацию ключей.
 2. **Точная область изменений**: новый модуль `apps/webapp/src/modules/system-settings/*`, `apps/webapp/src/infra/repos/pgSystemSettings.ts`, `apps/webapp/src/app-layer/di/buildAppDeps.ts`.
 3. **Конкретные действия**:
@@ -210,6 +214,7 @@
 8. **Обновление документации**: создать/обновить `system-settings` модульный markdown.
 
 #### Шаг 14.3 — API настроек с role-guard
+
 1. **Цель шага**: дать UI безопасные endpoint-ы чтения/обновления настроек.
 2. **Точная область изменений**: `apps/webapp/src/app/api/doctor/settings/route.ts` (новый), `apps/webapp/src/app/api/admin/settings/route.ts` (новый), `apps/webapp/src/app-layer/guards/requireRole.ts`.
 3. **Конкретные действия**:
@@ -231,6 +236,7 @@
 8. **Обновление документации**: обновить внутренний API-документ webapp по settings endpoint-ам.
 
 #### Шаг 14.4 — Страница `/app/settings` вместо редиректа
+
 1. **Цель шага**: превратить `/app/settings` в реальную страницу настроек для doctor/admin.
 2. **Точная область изменений**: `apps/webapp/src/app/app/settings/page.tsx`, новые компоненты в `apps/webapp/src/app/app/settings/*`, `apps/webapp/src/modules/menu/service.ts`, `apps/webapp/src/app-layer/routes/paths.ts`.
 3. **Конкретные действия**:
@@ -252,6 +258,7 @@
 8. **Обновление документации**: обновить `apps/webapp/src/app/app/settings/settings.md`.
 
 #### Шаг 14.5 — Admin mode: состояние, подтверждение, визуальная индикация
+
 1. **Цель шага**: ввести безопасный admin mode как отдельный runtime-флаг.
 2. **Точная область изменений**: `apps/webapp/src/shared/types/session.ts`, auth/session сервис, `apps/webapp/src/shared/ui/DoctorHeader.tsx`, `apps/webapp/src/shared/ui/AppShell.tsx`, settings UI.
 3. **Конкретные действия**:
@@ -273,6 +280,7 @@
 8. **Обновление документации**: обновить модуль auth/session документацию по `adminMode`.
 
 #### Шаг 14.6 — Admin-флаги и связь с рассылками
+
 1. **Цель шага**: реализовать управление `dev_mode`, debug forwarding и test IDs без утечки секретов.
 2. **Точная область изменений**: settings admin UI/components, `modules/system-settings/*`, точки принятия решения о рассылке в webapp modules (`modules/integrator/*`, `modules/reminders/*` только где реально используется).
 3. **Конкретные действия**:
@@ -294,6 +302,7 @@
 8. **Обновление документации**: обновить runbook/модульную документацию settings по смыслу флагов.
 
 ### Финальный критерий этапа 14
+
 - Все шаги 14.1–14.6 закрыты в указанном порядке.
 - Для новых/изменённых функций есть unit/integration/e2e в соответствии с шагами.
 - `/app/settings` и admin mode работают предсказуемо и защищены role-guard.

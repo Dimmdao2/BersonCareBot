@@ -11,16 +11,16 @@
 
 Смысл страниц и ожидаемые slug — в `modules/help-content/canonicalSlugs.ts` (`HELP_CANONICAL_ARTICLE_IA`).
 
-| Slug | Назначение |
-|------|------------|
-| `preparation` | Как подготовиться к приёму |
-| `after-visit` | Рекомендации после приёма |
+| Slug               | Назначение                                                               |
+| ------------------ | ------------------------------------------------------------------------ |
+| `preparation`      | Как подготовиться к приёму                                               |
+| `after-visit`      | Рекомендации после приёма                                                |
 | `services-pricing` | Услуги и ориентиры по стоимости (канон; legacy `cost` — alias в плитках) |
-| `app-guide` | Справка по приложению |
-| `address-spb` | Адрес кабинета, Санкт-Петербург |
-| `address-msk` | Адрес кабинета, Москва |
-| `about` | Кратко о специалисте + ссылка на полный сайт |
-| `booking` | Запись в приложении; ссылка на `/app/patient/about` |
+| `app-guide`        | Справка по приложению                                                    |
+| `address-spb`      | Адрес кабинета, Санкт-Петербург                                          |
+| `address-msk`      | Адрес кабинета, Москва                                                   |
+| `about`            | Кратко о специалисте + ссылка на полный сайт                             |
+| `booking`          | Запись в приложении; ссылка на `/app/patient/about`                      |
 
 Любые другие slug допустимы в каталоге `/help`. Условные плитки: `preparation`, `about` (`HELP_CANONICAL_ARTICLE_SLUGS_IN_CABINET_TILES`), **стоимость** (`resolvePublishedServicesPricingSlug`). Плитка **«Адрес кабинета»** всегда есть; её href city-aware (`address-msk` / `address-spb` при публикации и известном городе) — `patientHelpAddressLink.ts`, фаза 3.
 

@@ -13,6 +13,7 @@ Current R5 acceptance is a declared TEST window proving retired v1 slots/create 
 canonical booking paths remain healthy. That evidence remains open; PROD is separate and untouched.
 
 Historical scope covered a legacy v1 profile-resolver switch, now removed and never to be recreated:
+
 - v1 `/api/bersoncare/rubitime/slots`
 - v1 `/api/bersoncare/rubitime/create-record`
 - v2 explicit Rubitime ID requests for slots/create

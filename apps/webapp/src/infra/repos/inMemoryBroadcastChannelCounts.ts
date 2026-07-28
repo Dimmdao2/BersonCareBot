@@ -1,7 +1,7 @@
 import type {
   BroadcastChannelCounts,
   BroadcastChannelCountsPort,
-} from "@/modules/doctor-broadcasts/draftPort";
+} from '@/modules/doctor-broadcasts/draftPort';
 
 export const DEFAULT_IN_MEMORY_CHANNEL_COUNTS: BroadcastChannelCounts = {
   bot_message: 0,

@@ -1,38 +1,38 @@
-"use client";
+'use client';
 
-import { useEffect, useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
-import { Button } from "@/shared/ui/patient/primitives/button";
-import { Input } from "@/shared/ui/patient/primitives/input";
-import { Textarea } from "@/shared/ui/patient/primitives/textarea";
+import { useEffect, useMemo, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
+import { Button } from '@/shared/ui/patient/primitives/button';
+import { Input } from '@/shared/ui/patient/primitives/input';
+import { Textarea } from '@/shared/ui/patient/primitives/textarea';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/ui/patient/primitives/select";
-import { routePaths } from "@/app-layer/routes/paths";
-import type { BookingCategory } from "@/modules/patient-booking/types";
-import type { BookingSlot, PatientBookingRecord } from "@/modules/patient-booking/types";
-import type { BookingSelection } from "../../cabinet/useBookingSelection";
-import { useCreateBooking } from "../../cabinet/useCreateBooking";
-import { useRescheduleBooking } from "../../cabinet/useRescheduleBooking";
+} from '@/shared/ui/patient/primitives/select';
+import { routePaths } from '@/app-layer/routes/paths';
+import type { BookingCategory } from '@/modules/patient-booking/types';
+import type { BookingSlot, PatientBookingRecord } from '@/modules/patient-booking/types';
+import type { BookingSelection } from '../../cabinet/useBookingSelection';
+import { useCreateBooking } from '../../cabinet/useCreateBooking';
+import { useRescheduleBooking } from '../../cabinet/useRescheduleBooking';
 import {
   formatBookingDateLongRu,
   formatBookingTimeShortRu,
-} from "@/shared/lib/formatBusinessDateTime";
-import { formatDoctorFio, type StructuredFio } from "@/shared/lib/fio";
-import { isBuiltInOnlineLocationCityCode } from "@/modules/booking-engine/onlineLocation";
-import toast from "react-hot-toast";
-import { cn } from "@/lib/utils";
+} from '@/shared/lib/formatBusinessDateTime';
+import { formatDoctorFio, type StructuredFio } from '@/shared/lib/fio';
+import { isBuiltInOnlineLocationCityCode } from '@/modules/booking-engine/onlineLocation';
+import toast from 'react-hot-toast';
+import { cn } from '@/lib/utils';
 import {
   patientButtonPrimaryClass,
   patientCardClass,
   patientFormSurfaceClass,
   patientMutedTextClass,
   patientSectionTitleClass,
-} from "@/shared/ui/patient/patientVisual";
+} from '@/shared/ui/patient/patientVisual';
 
 type FormField = {
   fieldKey: string;
@@ -43,22 +43,26 @@ type FormField = {
 };
 
 const CONTACT_FIELD_KEYS = new Set([
-  "contact_name",
-  "first_name",
-  "last_name",
-  "patronymic",
-  "contact_phone",
-  "phone",
-  "contact_email",
-  "email",
+  'contact_name',
+  'first_name',
+  'last_name',
+  'patronymic',
+  'contact_phone',
+  'phone',
+  'contact_email',
+  'email',
 ]);
 
 function isExtraFormField(field: FormField): boolean {
   if (CONTACT_FIELD_KEYS.has(field.fieldKey)) return false;
-  if (field.fieldType === "first_name" || field.fieldType === "last_name" || field.fieldType === "phone") {
+  if (
+    field.fieldType === 'first_name' ||
+    field.fieldType === 'last_name' ||
+    field.fieldType === 'phone'
+  ) {
     return false;
   }
-  if (field.fieldType === "email") return false;
+  if (field.fieldType === 'email') return false;
   return true;
 }
 
@@ -73,7 +77,11 @@ type ConfirmStepOptions = {
    * the extra members are optional and the screen simply never shows the code step for it.
    */
   useCreateBookingHook?: () => ReturnType<typeof useCreateBooking> & {
-    verificationPrompt?: { challengeId: string; expiresInSeconds: number; contactPhone: string } | null;
+    verificationPrompt?: {
+      challengeId: string;
+      expiresInSeconds: number;
+      contactPhone: string;
+    } | null;
     confirmVerification?: (code: string) => Promise<PatientBookingRecord | false>;
     cancelVerification?: () => void;
   };
@@ -81,7 +89,7 @@ type ConfirmStepOptions = {
 };
 
 type Props = ConfirmStepOptions & {
-  type: "in_person" | "online";
+  type: 'in_person' | 'online';
   cityCode?: string;
   cityTitle?: string;
   branchId?: string;
@@ -116,7 +124,7 @@ export function ConfirmStepClient({
   defaultPhone,
   defaultEmail,
   appDisplayTimeZone,
-  formFieldsApiPath = "/api/booking/form-fields",
+  formFieldsApiPath = '/api/booking/form-fields',
   successRedirectPath = routePaths.bookingNew,
   doneRedirectPath = routePaths.bookingNewDone,
   buildAwaitingPaymentHref,
@@ -125,22 +133,26 @@ export function ConfirmStepClient({
   rescheduleBookingId,
 }: Props & { rescheduleBookingId?: string }) {
   const router = useRouter();
-  const [lastName, setLastName] = useState(defaultFio.lastName ?? "");
-  const [firstName, setFirstName] = useState(defaultFio.firstName ?? "");
-  const [patronymic, setPatronymic] = useState(defaultFio.patronymic ?? "");
+  const [lastName, setLastName] = useState(defaultFio.lastName ?? '');
+  const [firstName, setFirstName] = useState(defaultFio.firstName ?? '');
+  const [patronymic, setPatronymic] = useState(defaultFio.patronymic ?? '');
   const [phone, setPhone] = useState(defaultPhone);
   const [email, setEmail] = useState(defaultEmail);
   const [extraFields, setExtraFields] = useState<FormField[]>([]);
   const [extraValues, setExtraValues] = useState<Record<string, string>>({});
   const [fieldsLoading, setFieldsLoading] = useState(true);
   const [packageOptions, setPackageOptions] = useState<
-    Array<{ id: string; title: string; balance: { items: Array<{ remaining: number; quantityInitial: number }> } }>
+    Array<{
+      id: string;
+      title: string;
+      balance: { items: Array<{ remaining: number; quantityInitial: number }> };
+    }>
   >([]);
-  const [patientPackageId, setPatientPackageId] = useState("");
+  const [patientPackageId, setPatientPackageId] = useState('');
   const [productOptions, setProductOptions] = useState<
     Array<{ id: string; title: string; visitsRemaining: number }>
   >([]);
-  const [productPurchaseId, setProductPurchaseId] = useState("");
+  const [productPurchaseId, setProductPurchaseId] = useState('');
   const [, startFieldsLoad] = useTransition();
   const [, startPackagesLoad] = useTransition();
   const [, startProductsLoad] = useTransition();
@@ -150,14 +162,14 @@ export function ConfirmStepClient({
   const submitting = isReschedule ? rescheduleState.submitting : createState.submitting;
   const error = isReschedule ? rescheduleState.error : createState.error;
   const resolvedFormFieldsApiPath = useMemo(() => {
-    if (type !== "in_person") return formFieldsApiPath;
+    if (type !== 'in_person') return formFieldsApiPath;
     const params = new URLSearchParams();
     if (branchId && serviceId) {
-      params.set("branchId", branchId);
-      params.set("serviceId", serviceId);
+      params.set('branchId', branchId);
+      params.set('serviceId', serviceId);
     }
     if (orgSlug) {
-      params.set("orgSlug", orgSlug);
+      params.set('orgSlug', orgSlug);
     }
     const qs = params.toString();
     return qs ? `${formFieldsApiPath}?${qs}` : formFieldsApiPath;
@@ -184,7 +196,7 @@ export function ConfirmStepClient({
   }, [resolvedFormFieldsApiPath]);
 
   useEffect(() => {
-    if (type !== "in_person" || !branchId || !serviceId || isReschedule) return;
+    if (type !== 'in_person' || !branchId || !serviceId || isReschedule) return;
     let cancelled = false;
     startPackagesLoad(() => {
       void (async () => {
@@ -210,7 +222,7 @@ export function ConfirmStepClient({
   }, [type, branchId, serviceId, isReschedule, startPackagesLoad]);
 
   useEffect(() => {
-    if (type !== "in_person" || !branchId || !serviceId || isReschedule) return;
+    if (type !== 'in_person' || !branchId || !serviceId || isReschedule) return;
     let cancelled = false;
     startProductsLoad(() => {
       void (async () => {
@@ -232,16 +244,9 @@ export function ConfirmStepClient({
   }, [type, branchId, serviceId, isReschedule, startProductsLoad]);
 
   const selection: BookingSelection | null = useMemo(() => {
-    if (
-      type === "in_person" &&
-      cityCode &&
-      cityTitle &&
-      serviceTitle &&
-      branchId &&
-      serviceId
-    ) {
+    if (type === 'in_person' && cityCode && cityTitle && serviceTitle && branchId && serviceId) {
       return {
-        type: "in_person",
+        type: 'in_person',
         cityCode,
         cityTitle,
         branchId,
@@ -250,8 +255,8 @@ export function ConfirmStepClient({
         ...(orgSlug ? { orgSlug } : {}),
       };
     }
-    if (type === "online" && category) {
-      return { type: "online", category: category as BookingCategory };
+    if (type === 'online' && category) {
+      return { type: 'online', category: category as BookingCategory };
     }
     return null;
   }, [type, cityCode, cityTitle, branchId, serviceId, serviceTitle, category, orgSlug]);
@@ -261,20 +266,20 @@ export function ConfirmStepClient({
     [slotStart, slotEnd],
   );
 
-  const isOnlineLocation = type === "in_person" && isBuiltInOnlineLocationCityCode(cityCode);
+  const isOnlineLocation = type === 'in_person' && isBuiltInOnlineLocationCityCode(cityCode);
   const formatLabel =
-    type === "in_person"
+    type === 'in_person'
       ? isOnlineLocation
-        ? `Онлайн · ${serviceTitle ?? ""}`
-        : `Очный приём · ${cityTitle ?? ""} · ${serviceTitle ?? ""}`
-      : category === "rehab_lfk"
-        ? "Онлайн — Реабилитация (ЛФК)"
-        : category === "nutrition"
-          ? "Онлайн — Нутрициология"
-          : "Онлайн";
+        ? `Онлайн · ${serviceTitle ?? ''}`
+        : `Очный приём · ${cityTitle ?? ''} · ${serviceTitle ?? ''}`
+      : category === 'rehab_lfk'
+        ? 'Онлайн — Реабилитация (ЛФК)'
+        : category === 'nutrition'
+          ? 'Онлайн — Нутрициология'
+          : 'Онлайн';
 
   const missingRequiredExtra = extraFields.some(
-    (f) => f.isRequired && !(extraValues[f.fieldKey] ?? "").trim(),
+    (f) => f.isRequired && !(extraValues[f.fieldKey] ?? '').trim(),
   );
 
   const contactFio: StructuredFio = {
@@ -292,17 +297,13 @@ export function ConfirmStepClient({
         }
       : undefined;
   const canSubmit = Boolean(
-    selection &&
-      contactFioInput &&
-      phone.trim() &&
-      !submitting &&
-      !missingRequiredExtra,
+    selection && contactFioInput && phone.trim() && !submitting && !missingRequiredExtra,
   );
 
   /** Shared by the direct create and, for the public widget, the post-code create (A-3). */
   function onBookingCreated(booking: PatientBookingRecord) {
-    if (booking.status === "awaiting_payment") {
-      toast.success("Требуется оплата");
+    if (booking.status === 'awaiting_payment') {
+      toast.success('Требуется оплата');
       const payPath = buildAwaitingPaymentHref
         ? buildAwaitingPaymentHref(booking, phone.trim())
         : `/app/patient/booking/pay?bookingId=${encodeURIComponent(booking.id)}`;
@@ -314,13 +315,13 @@ export function ConfirmStepClient({
       slotStart: booking.slotStart,
       slotEnd: booking.slotEnd,
       serviceTitle:
-        booking.serviceTitleSnapshot ?? serviceTitle ?? (type === "online" ? formatLabel : ""),
+        booking.serviceTitleSnapshot ?? serviceTitle ?? (type === 'online' ? formatLabel : ''),
     });
     const loc =
       booking.branchTitleSnapshot ??
-      (type === "online" || isOnlineLocation ? "Онлайн" : cityTitle ?? "");
-    if (loc) doneQ.set("locationLabel", loc);
-    if (cityCode) doneQ.set("cityCode", cityCode);
+      (type === 'online' || isOnlineLocation ? 'Онлайн' : (cityTitle ?? ''));
+    if (loc) doneQ.set('locationLabel', loc);
+    if (cityCode) doneQ.set('cityCode', cityCode);
     router.push(`${doneRedirectPath}?${doneQ.toString()}`);
   }
 
@@ -330,11 +331,11 @@ export function ConfirmStepClient({
     return (
       <div className="flex flex-col gap-4">
         <form
-          className={cn(patientFormSurfaceClass, "gap-3")}
+          className={cn(patientFormSurfaceClass, 'gap-3')}
           onSubmit={(event) => {
             event.preventDefault();
             const data = new FormData(event.currentTarget);
-            const code = String(data.get("publicBookingCode") ?? "");
+            const code = String(data.get('publicBookingCode') ?? '');
             void confirmVerification(code).then((booking) => {
               if (!booking) return;
               onBookingCreated(booking);
@@ -342,12 +343,12 @@ export function ConfirmStepClient({
           }}
         >
           <h2 className={patientSectionTitleClass}>Подтверждение записи</h2>
-          <p className={cn(patientMutedTextClass, "text-sm")}>
+          <p className={cn(patientMutedTextClass, 'text-sm')}>
             Мы отправили код на номер {verificationPrompt.contactPhone}. Введите его, чтобы
             подтвердить запись — так мы убеждаемся, что номер принадлежит вам.
           </p>
           <label className="flex flex-col gap-1">
-            <span className={cn(patientMutedTextClass, "text-xs")}>Код из сообщения</span>
+            <span className={cn(patientMutedTextClass, 'text-xs')}>Код из сообщения</span>
             <Input
               name="publicBookingCode"
               inputMode="numeric"
@@ -357,7 +358,7 @@ export function ConfirmStepClient({
           </label>
           {error ? <p className="text-sm text-destructive">{error}</p> : null}
           <Button type="submit" className={patientButtonPrimaryClass} disabled={submitting}>
-            {submitting ? "Проверяем код..." : "Подтвердить запись"}
+            {submitting ? 'Проверяем код...' : 'Подтвердить запись'}
           </Button>
           {createState.cancelVerification ? (
             <Button
@@ -376,29 +377,34 @@ export function ConfirmStepClient({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className={cn(patientCardClass, "text-sm ring-0")}>
+      <div className={cn(patientCardClass, 'text-sm ring-0')}>
         <p className="font-semibold">Сводка</p>
-        <ul className={cn(patientMutedTextClass, "mt-2 list-inside list-disc")}>
+        <ul className={cn(patientMutedTextClass, 'mt-2 list-inside list-disc')}>
           <li>{formatLabel}</li>
           <li>
-            Дата и время: {formatBookingDateLongRu(slotStart, appDisplayTimeZone)} ·{" "}
-            {formatBookingTimeShortRu(slotStart, appDisplayTimeZone)} —{" "}
+            Дата и время: {formatBookingDateLongRu(slotStart, appDisplayTimeZone)} ·{' '}
+            {formatBookingTimeShortRu(slotStart, appDisplayTimeZone)} —{' '}
             {formatBookingTimeShortRu(slotEnd, appDisplayTimeZone)}
           </li>
           {slotCount > 1 ? <li>Последовательных слотов: {slotCount}</li> : null}
-          <li>Стоимость: {new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB" }).format((priceMinor * slotCount) / 100)}</li>
+          <li>
+            Стоимость:{' '}
+            {new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB' }).format(
+              (priceMinor * slotCount) / 100,
+            )}
+          </li>
         </ul>
       </div>
 
       <form
-        className={cn(patientFormSurfaceClass, "gap-3")}
+        className={cn(patientFormSurfaceClass, 'gap-3')}
         onSubmit={(event) => {
           event.preventDefault();
           if (!selection) return;
           if (!contactFioInput) return;
           const formAnswers = extraFields.map((f) => ({
             fieldKey: f.fieldKey,
-            value: (extraValues[f.fieldKey] ?? "").trim(),
+            value: (extraValues[f.fieldKey] ?? '').trim(),
           }));
           if (isReschedule && rescheduleBookingId) {
             void rescheduleState
@@ -409,7 +415,7 @@ export function ConfirmStepClient({
               })
               .then((result) => {
                 if (!result.ok) return;
-                toast.success("Запись перенесена");
+                toast.success('Запись перенесена');
                 router.push(successRedirectPath);
               });
             return;
@@ -438,35 +444,35 @@ export function ConfirmStepClient({
         <h2 className={patientSectionTitleClass}>Контакты</h2>
 
         <label className="flex flex-col gap-1">
-          <span className={cn(patientMutedTextClass, "text-xs")}>Фамилия</span>
+          <span className={cn(patientMutedTextClass, 'text-xs')}>Фамилия</span>
           <Input value={lastName} onChange={(e) => setLastName(e.target.value)} required />
         </label>
         <label className="flex flex-col gap-1">
-          <span className={cn(patientMutedTextClass, "text-xs")}>Имя</span>
+          <span className={cn(patientMutedTextClass, 'text-xs')}>Имя</span>
           <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} required />
         </label>
         <label className="flex flex-col gap-1">
-          <span className={cn(patientMutedTextClass, "text-xs")}>Отчество</span>
+          <span className={cn(patientMutedTextClass, 'text-xs')}>Отчество</span>
           <Input value={patronymic} onChange={(e) => setPatronymic(e.target.value)} />
         </label>
         <label className="flex flex-col gap-1">
-          <span className={cn(patientMutedTextClass, "text-xs")}>Телефон</span>
+          <span className={cn(patientMutedTextClass, 'text-xs')}>Телефон</span>
           <Input value={phone} onChange={(e) => setPhone(e.target.value)} required />
         </label>
         <label className="flex flex-col gap-1">
-          <span className={cn(patientMutedTextClass, "text-xs")}>Email</span>
+          <span className={cn(patientMutedTextClass, 'text-xs')}>Email</span>
           <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
         </label>
 
-        {type === "in_person" && !isReschedule && packageOptions.length > 0 ? (
+        {type === 'in_person' && !isReschedule && packageOptions.length > 0 ? (
           <label className="flex flex-col gap-1">
-            <span className={cn(patientMutedTextClass, "text-xs")}>Абонемент</span>
+            <span className={cn(patientMutedTextClass, 'text-xs')}>Абонемент</span>
             <Select
               value={patientPackageId}
               onValueChange={(v) => {
-                const val = v ?? "";
+                const val = v ?? '';
                 setPatientPackageId(val);
-                if (val) setProductPurchaseId("");
+                if (val) setProductPurchaseId('');
               }}
             >
               <SelectTrigger className="w-full rounded-md border bg-background px-2 py-2 text-sm">
@@ -477,7 +483,10 @@ export function ConfirmStepClient({
                 {packageOptions.map((p) => (
                   <SelectItem key={p.id} value={p.id}>
                     {p.title} (
-                    {p.balance.items.map((it) => `${it.remaining}/${it.quantityInitial}`).join(", ")})
+                    {p.balance.items
+                      .map((it) => `${it.remaining}/${it.quantityInitial}`)
+                      .join(', ')}
+                    )
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -485,15 +494,15 @@ export function ConfirmStepClient({
           </label>
         ) : null}
 
-        {type === "in_person" && !isReschedule && productOptions.length > 0 ? (
+        {type === 'in_person' && !isReschedule && productOptions.length > 0 ? (
           <label className="flex flex-col gap-1">
-            <span className={cn(patientMutedTextClass, "text-xs")}>Покупка</span>
+            <span className={cn(patientMutedTextClass, 'text-xs')}>Покупка</span>
             <Select
               value={productPurchaseId}
               onValueChange={(v) => {
-                const val = v ?? "";
+                const val = v ?? '';
                 setProductPurchaseId(val);
-                if (val) setPatientPackageId("");
+                if (val) setPatientPackageId('');
               }}
             >
               <SelectTrigger className="w-full rounded-md border bg-background px-2 py-2 text-sm">
@@ -516,13 +525,13 @@ export function ConfirmStepClient({
             <h2 className={patientSectionTitleClass}>Дополнительно</h2>
             {extraFields.map((field) => (
               <label key={field.fieldKey} className="flex flex-col gap-1">
-                <span className={cn(patientMutedTextClass, "text-xs")}>
+                <span className={cn(patientMutedTextClass, 'text-xs')}>
                   {field.label}
-                  {field.isRequired ? " *" : ""}
+                  {field.isRequired ? ' *' : ''}
                 </span>
-                {field.fieldType === "comment" || field.fieldType === "problem_description" ? (
+                {field.fieldType === 'comment' || field.fieldType === 'problem_description' ? (
                   <Textarea
-                    value={extraValues[field.fieldKey] ?? ""}
+                    value={extraValues[field.fieldKey] ?? ''}
                     placeholder={field.placeholder ?? undefined}
                     onChange={(e) =>
                       setExtraValues((prev) => ({ ...prev, [field.fieldKey]: e.target.value }))
@@ -531,7 +540,7 @@ export function ConfirmStepClient({
                   />
                 ) : (
                   <Input
-                    value={extraValues[field.fieldKey] ?? ""}
+                    value={extraValues[field.fieldKey] ?? ''}
                     placeholder={field.placeholder ?? undefined}
                     onChange={(e) =>
                       setExtraValues((prev) => ({ ...prev, [field.fieldKey]: e.target.value }))
@@ -546,7 +555,7 @@ export function ConfirmStepClient({
 
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
         <Button type="submit" className={patientButtonPrimaryClass} disabled={!canSubmit}>
-          {submitting ? "Создаём запись..." : "Подтвердить запись"}
+          {submitting ? 'Создаём запись...' : 'Подтвердить запись'}
         </Button>
       </form>
     </div>

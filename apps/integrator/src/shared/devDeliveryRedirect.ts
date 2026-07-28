@@ -165,7 +165,9 @@ export function getDevRedirectTargets(): DevRedirectTargets {
  */
 export type RedirectChannel = 'telegram' | 'max' | 'sms' | 'email' | 'web_push';
 
-export function normalizeRedirectChannel(channel: string | null | undefined): RedirectChannel | null {
+export function normalizeRedirectChannel(
+  channel: string | null | undefined,
+): RedirectChannel | null {
   switch (channel) {
     case 'telegram':
       return 'telegram';
@@ -218,7 +220,8 @@ export function resolveDevRedirect(rawChannel: string | null | undefined): DevRe
 
   switch (channel) {
     case 'telegram': {
-      if (targets.telegramChatId === null) return { kind: 'suppress', reason: 'no_telegram_binding' };
+      if (targets.telegramChatId === null)
+        return { kind: 'suppress', reason: 'no_telegram_binding' };
       return {
         kind: 'redirect',
         recipient: { chatId: targets.telegramChatId },
@@ -260,7 +263,8 @@ export function resolveDevRedirect(rawChannel: string | null | undefined): DevRe
       };
     }
     case 'web_push': {
-      if (targets.webPushUserId === null) return { kind: 'suppress', reason: 'no_web_push_binding' };
+      if (targets.webPushUserId === null)
+        return { kind: 'suppress', reason: 'no_web_push_binding' };
       return {
         kind: 'redirect',
         recipient: { pushUserId: targets.webPushUserId },

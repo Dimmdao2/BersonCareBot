@@ -1,8 +1,8 @@
 /**
  * In-memory implementation of LfkDiaryPort.
  */
-import type { LfkDiaryPort } from "@/modules/diaries/ports";
-import type { LfkComplex, LfkSession } from "@/modules/diaries/types";
+import type { LfkDiaryPort } from '@/modules/diaries/ports';
+import type { LfkComplex, LfkSession } from '@/modules/diaries/types';
 
 const complexes: LfkComplex[] = [];
 const sessions: LfkSession[] = [];
@@ -16,7 +16,7 @@ export const inMemoryLfkDiaryPort: LfkDiaryPort = {
       id: `lfk-c-${complexIdCounter++}`,
       userId: params.userId,
       title: params.title,
-      origin: params.origin ?? "manual",
+      origin: params.origin ?? 'manual',
       isActive: true,
       createdAt: now,
       updatedAt: now,
@@ -129,7 +129,7 @@ export const inMemoryLfkDiaryPort: LfkDiaryPort = {
   },
 
   async updateLfkComplexExerciseLocalCommentForUser() {
-    throw new Error("lfk_complex_exercises: in-memory diary has no exercise rows; use PostgreSQL");
+    throw new Error('lfk_complex_exercises: in-memory diary has no exercise rows; use PostgreSQL');
   },
 };
 

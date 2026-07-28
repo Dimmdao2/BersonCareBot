@@ -3,7 +3,7 @@ import type {
   EntityComment,
   CommentTargetType,
   UpdateEntityCommentInput,
-} from "./types";
+} from './types';
 
 export type CommentsPort = {
   listByTarget(targetType: CommentTargetType, targetId: string): Promise<EntityComment[]>;

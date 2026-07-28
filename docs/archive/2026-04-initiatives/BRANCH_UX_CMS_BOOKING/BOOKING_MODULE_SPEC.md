@@ -29,6 +29,7 @@ Rubitime API2 → Сервис расписания (integrator/webapp) → Ке
 ```
 
 Rubitime предоставляет:
+
 - `get-record` — получить запись по ID
 - `update-record` — обновить запись
 - `remove-record` — удалить/отменить запись
@@ -76,6 +77,7 @@ Rubitime предоставляет:
 ### 3.4. Синхронизация с Rubitime webhooks
 
 Существующий обработчик Rubitime webhooks (`apps/integrator/src/integrations/rubitime/webhook.ts`) уже получает:
+
 - `event-create-record`
 - `event-update-record`
 - `event-remove-record`
@@ -93,41 +95,41 @@ Rubitime предоставляет:
 CREATE TABLE bookings (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id         UUID NOT NULL REFERENCES users(id),
-  
+
   -- Тип и место
   booking_type    TEXT NOT NULL CHECK (booking_type IN ('in_person', 'online')),
   city            TEXT,                     -- 'moscow' | 'spb' | NULL (для online)
   category        TEXT NOT NULL,            -- 'rehab_lfk' | 'nutrition' | 'general'
-  
+
   -- Время
   slot_start      TIMESTAMPTZ NOT NULL,
   slot_end        TIMESTAMPTZ NOT NULL,
-  
+
   -- Статус
   status          TEXT NOT NULL DEFAULT 'confirmed'
                   CHECK (status IN ('confirmed', 'cancelled', 'rescheduled', 'completed', 'no_show')),
   cancelled_at    TIMESTAMPTZ,
   cancel_reason   TEXT,
-  
+
   -- Внешние ID
   rubitime_id     TEXT,                     -- ID записи в Rubitime
   gcal_event_id   TEXT,                     -- ID события в Google Calendar
-  
+
   -- Контакты (снимок на момент записи)
   contact_phone   TEXT NOT NULL,
   contact_email   TEXT,
   contact_name    TEXT NOT NULL,
-  
+
   -- Напоминания
   reminder_24h_sent BOOLEAN DEFAULT FALSE,
   reminder_2h_sent  BOOLEAN DEFAULT FALSE,
-  
+
   -- Мета
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-  
+
   -- Индексы
-  CONSTRAINT bookings_slot_no_overlap 
+  CONSTRAINT bookings_slot_no_overlap
     EXCLUDE USING gist (
       tstzrange(slot_start, slot_end) WITH &&
     ) WHERE (status = 'confirmed')
@@ -146,12 +148,14 @@ CREATE INDEX idx_bookings_rubitime_id ON bookings(rubitime_id);
 ### `GET /api/booking/slots`
 
 Параметры:
+
 - `type` — `in_person` | `online`
 - `city` — `moscow` | `spb` (для in_person)
 - `category` — `rehab_lfk` | `nutrition` | `general`
 - `date` — `YYYY-MM-DD` (опционально, по умолчанию — ближайшие 14 дней)
 
 Ответ:
+
 ```json
 {
   "ok": true,
@@ -165,6 +169,7 @@ CREATE INDEX idx_bookings_rubitime_id ON bookings(rubitime_id);
 ### `POST /api/booking/create`
 
 Тело:
+
 ```json
 {
   "type": "in_person",
@@ -179,6 +184,7 @@ CREATE INDEX idx_bookings_rubitime_id ON bookings(rubitime_id);
 ```
 
 Ответ:
+
 ```json
 {
   "ok": true,
@@ -189,6 +195,7 @@ CREATE INDEX idx_bookings_rubitime_id ON bookings(rubitime_id);
 ### `POST /api/booking/cancel`
 
 Тело:
+
 ```json
 {
   "bookingId": "uuid",
@@ -276,13 +283,13 @@ CREATE INDEX idx_bookings_rubitime_id ON bookings(rubitime_id);
 
 ## 7. Уведомления
 
-| Событие | Канал | Получатель | Текст (шаблон) |
-|---|---|---|---|
-| Запись создана | Telegram/MAX бот | Пациент | «Вы записаны на {дата} в {время}. {тип}, {город}.» |
-| Запись создана | Webapp / Telegram | Врач | «Новая запись: {имя}, {дата} {время}, {тип}» |
-| Напоминание 24ч | Telegram/MAX бот | Пациент | «Напоминаем: завтра {время} — {тип приёма}. {адрес}» |
-| Напоминание 2ч | Telegram/MAX бот | Пациент | «Через 2 часа: {тип приёма} в {время}. {адрес}» |
-| Запись отменена | Telegram/MAX бот | Врач | «Пациент {имя} отменил запись на {дата} {время}» |
+| Событие         | Канал             | Получатель | Текст (шаблон)                                       |
+| --------------- | ----------------- | ---------- | ---------------------------------------------------- |
+| Запись создана  | Telegram/MAX бот  | Пациент    | «Вы записаны на {дата} в {время}. {тип}, {город}.»   |
+| Запись создана  | Webapp / Telegram | Врач       | «Новая запись: {имя}, {дата} {время}, {тип}»         |
+| Напоминание 24ч | Telegram/MAX бот  | Пациент    | «Напоминаем: завтра {время} — {тип приёма}. {адрес}» |
+| Напоминание 2ч  | Telegram/MAX бот  | Пациент    | «Через 2 часа: {тип приёма} в {время}. {адрес}»      |
+| Запись отменена | Telegram/MAX бот  | Врач       | «Пациент {имя} отменил запись на {дата} {время}»     |
 
 ---
 
@@ -297,6 +304,7 @@ CREATE INDEX idx_bookings_rubitime_id ON bookings(rubitime_id);
 ### События
 
 При создании записи → `calendar.events.insert`:
+
 ```json
 {
   "summary": "Приём: Иван Иванов",
@@ -366,12 +374,12 @@ CREATE INDEX idx_bookings_rubitime_id ON bookings(rubitime_id);
 
 При создании записи webapp отправляет в integrator **явные IDs** без резолва на стороне integrator:
 
-| Поле | Тип | Описание |
-|---|---|---|
-| `rubitimeBranchId` | `string` | ID филиала в Rubitime (из каталога) |
-| `rubitimeCooperatorId` | `string` | ID сотрудника в Rubitime (из каталога) |
-| `rubitimeServiceId` | `string` | ID услуги в Rubitime (из каталога) |
-| `slotStart` | `string` (ISO 8601) | Дата и время начала слота |
+| Поле                   | Тип                 | Описание                               |
+| ---------------------- | ------------------- | -------------------------------------- |
+| `rubitimeBranchId`     | `string`            | ID филиала в Rubitime (из каталога)    |
+| `rubitimeCooperatorId` | `string`            | ID сотрудника в Rubitime (из каталога) |
+| `rubitimeServiceId`    | `string`            | ID услуги в Rubitime (из каталога)     |
+| `slotStart`            | `string` (ISO 8601) | Дата и время начала слота              |
 
 Integrator **не резолвит** `category` или `city` самостоятельно — все ID передаются webapp из каталога.
 

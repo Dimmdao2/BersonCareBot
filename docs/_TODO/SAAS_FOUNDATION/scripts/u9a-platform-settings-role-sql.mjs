@@ -1,4 +1,4 @@
-export const u9aPlatformSettingsRoleArtifactPath = "deploy/postgres/u9a-platform-settings-role.sql";
+export const u9aPlatformSettingsRoleArtifactPath = 'deploy/postgres/u9a-platform-settings-role.sql';
 
 /** Canonical, idempotent U9A role contract. Applied only by an owner-gated role rollout. */
 export function renderU9aPlatformSettingsRoleSql() {

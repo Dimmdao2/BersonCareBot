@@ -1,29 +1,35 @@
-import { createHmac } from "node:crypto";
-import { getCurrentCorrelationIdHeader } from "@bersoncare/db-principal";
-import { getIntegratorApiUrl, getIntegratorWebhookSecret } from "@/modules/system-settings/integrationRuntime";
-import type { BookingSyncPort } from "@/modules/patient-booking/ports";
+import { createHmac } from 'node:crypto';
+import { getCurrentCorrelationIdHeader } from '@bersoncare/db-principal';
+import {
+  getIntegratorApiUrl,
+  getIntegratorWebhookSecret,
+} from '@/modules/system-settings/integrationRuntime';
+import type { BookingSyncPort } from '@/modules/patient-booking/ports';
 
 async function normalizeBaseUrl(): Promise<string | null> {
   const base = (await getIntegratorApiUrl()).trim();
   if (!base) return null;
-  return base.replace(/\/$/, "");
+  return base.replace(/\/$/, '');
 }
 
-async function postSigned(path: string, body: Record<string, unknown>): Promise<{ status: number; json: Record<string, unknown> }> {
+async function postSigned(
+  path: string,
+  body: Record<string, unknown>,
+): Promise<{ status: number; json: Record<string, unknown> }> {
   const base = await normalizeBaseUrl();
   const secret = (await getIntegratorWebhookSecret()).trim();
   if (!base || !secret) {
-    throw new Error("integrator_not_configured");
+    throw new Error('integrator_not_configured');
   }
   const raw = JSON.stringify(body);
   const timestamp = String(Math.floor(Date.now() / 1000));
-  const signature = createHmac("sha256", secret).update(`${timestamp}.${raw}`).digest("base64url");
+  const signature = createHmac('sha256', secret).update(`${timestamp}.${raw}`).digest('base64url');
   const res = await fetch(`${base}${path}`, {
-    method: "POST",
+    method: 'POST',
     headers: {
-      "Content-Type": "application/json",
-      "X-Bersoncare-Timestamp": timestamp,
-      "X-Bersoncare-Signature": signature,
+      'Content-Type': 'application/json',
+      'X-Bersoncare-Timestamp': timestamp,
+      'X-Bersoncare-Signature': signature,
       ...getCurrentCorrelationIdHeader(),
     },
     body: raw,
@@ -42,7 +48,10 @@ function isRetryablePostSignedFailure(err: unknown): boolean {
   return err instanceof TypeError;
 }
 
-async function postSignedWithRetry(path: string, body: Record<string, unknown>): Promise<{ status: number; json: Record<string, unknown> }> {
+async function postSignedWithRetry(
+  path: string,
+  body: Record<string, unknown>,
+): Promise<{ status: number; json: Record<string, unknown> }> {
   let lastError: unknown;
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
@@ -68,26 +77,34 @@ async function postSignedWithRetry(path: string, body: Record<string, unknown>):
       throw e;
     }
   }
-  throw lastError instanceof Error ? lastError : new Error("integrator_request_failed");
+  throw lastError instanceof Error ? lastError : new Error('integrator_request_failed');
 }
 
 function integratorErrorCode(json: Record<string, unknown>): string {
   const err = json.error;
-  if (typeof err === "string" && err.trim()) return err.trim();
-  if (err && typeof err === "object" && "code" in err && typeof (err as { code: unknown }).code === "string") {
+  if (typeof err === 'string' && err.trim()) return err.trim();
+  if (
+    err &&
+    typeof err === 'object' &&
+    'code' in err &&
+    typeof (err as { code: unknown }).code === 'string'
+  ) {
     return (err as { code: string }).code.trim();
   }
-  return "booking_lifecycle_event_failed";
+  return 'booking_lifecycle_event_failed';
 }
 
 export function createBookingSyncPort(): BookingSyncPort {
   return {
     async emitBookingEvent(input): Promise<void> {
-      const { status, json } = await postSignedWithRetry("/api/bersoncare/booking/lifecycle-event", {
-        eventType: input.eventType,
-        idempotencyKey: input.idempotencyKey,
-        payload: input.payload,
-      });
+      const { status, json } = await postSignedWithRetry(
+        '/api/bersoncare/booking/lifecycle-event',
+        {
+          eventType: input.eventType,
+          idempotencyKey: input.idempotencyKey,
+          payload: input.payload,
+        },
+      );
       if (status >= 400 || json.ok !== true) {
         throw new Error(integratorErrorCode(json));
       }

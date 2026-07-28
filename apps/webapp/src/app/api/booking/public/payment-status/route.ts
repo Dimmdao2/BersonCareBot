@@ -1,28 +1,31 @@
-import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
-import { NextResponse } from "next/server";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { withExplicitOrganizationPrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
+import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipal';
+import { NextResponse } from 'next/server';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { withExplicitOrganizationPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 
 export async function GET(request: Request) {
-  stampBootstrapPrincipal("api/booking/public/payment-status:GET", request);
+  stampBootstrapPrincipal('api/booking/public/payment-status:GET', request);
   const url = new URL(request.url);
-  const bookingId = url.searchParams.get("bookingId")?.trim();
-  const phone = url.searchParams.get("phone")?.trim();
+  const bookingId = url.searchParams.get('bookingId')?.trim();
+  const phone = url.searchParams.get('phone')?.trim();
   if (!bookingId || !phone) {
-    return NextResponse.json({ ok: false, error: "invalid_query" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_query' }, { status: 400 });
   }
 
   const deps = buildAppDeps();
   const organizationId = await deps.patientBooking.resolveBookingOrganizationId(bookingId);
   if (!organizationId) {
-    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+    return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
   const result = await withExplicitOrganizationPrincipal(
-    { organizationId, source: "api/booking/public/payment-status:GET" },
+    { organizationId, source: 'api/booking/public/payment-status:GET' },
     () => deps.patientBooking.getBookingPaymentStatusForContact(bookingId, phone),
   );
   if (!result.ok) {
-    return NextResponse.json({ ok: false, error: result.error }, { status: result.error === "forbidden" ? 403 : 404 });
+    return NextResponse.json(
+      { ok: false, error: result.error },
+      { status: result.error === 'forbidden' ? 403 : 404 },
+    );
   }
   return NextResponse.json({
     ok: true,

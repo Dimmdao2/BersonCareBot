@@ -1,9 +1,12 @@
-import { notFound, permanentRedirect } from "next/navigation";
-import { PublicFormatStepClient } from "../PublicFormatStepClient";
-import { PublicBookingShell } from "../PublicBookingShell";
-import { loadPublicOrganizationCitiesRsc, resolvePublicOrganizationBySlugRsc } from "../publicOrganizationBooking";
+import { notFound, permanentRedirect } from 'next/navigation';
+import { PublicFormatStepClient } from '../PublicFormatStepClient';
+import { PublicBookingShell } from '../PublicBookingShell';
+import {
+  loadPublicOrganizationCitiesRsc,
+  resolvePublicOrganizationBySlugRsc,
+} from '../publicOrganizationBooking';
 
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic';
 
 type Props = {
   params: Promise<{ slug: string }>;
@@ -23,14 +26,14 @@ export default async function PublicBookOrganizationPage({ params }: Props) {
   const { slug } = await params;
   const resolved = await resolvePublicOrganizationBySlugRsc(slug);
   if (!resolved) notFound();
-  if (resolved.disposition === "redirect") {
+  if (resolved.disposition === 'redirect') {
     permanentRedirect(`/book/${encodeURIComponent(resolved.canonicalSlug)}`);
   }
 
   const citiesResult = await loadPublicOrganizationCitiesRsc(resolved.organizationId);
   const cities = citiesResult.ok ? citiesResult.cities : [];
   const onlineLocation = citiesResult.ok ? citiesResult.onlineLocation : null;
-  const catalogError = citiesResult.ok ? null : "Каталог недоступен.";
+  const catalogError = citiesResult.ok ? null : 'Каталог недоступен.';
 
   return (
     <PublicBookingShell title="Запись" step={1} totalSteps={4} backHref={null}>

@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { inMemorySupportCommunicationPort } from "./inMemorySupportCommunication";
+import { describe, expect, it } from 'vitest';
+import { inMemorySupportCommunicationPort } from './inMemorySupportCommunication';
 
 // Contract for the patient support "mark inbound read" path.
 //
@@ -17,26 +17,26 @@ import { inMemorySupportCommunicationPort } from "./inMemorySupportCommunication
 // RLS aclcheck, because there is no pg-backed test harness in this package. See the skipped
 // "live pg harness" block for exactly what must be verified on TEST to prove the 42501 fix.
 
-describe("markInboundReadForUser authorization contract (in-memory)", () => {
-  it("owner can mark their inbound support messages read", async () => {
+describe('markInboundReadForUser authorization contract (in-memory)', () => {
+  it('owner can mark their inbound support messages read', async () => {
     const port = inMemorySupportCommunicationPort;
-    const platformUserId = "00000000-0000-4000-8000-0000000markrd1";
+    const platformUserId = '00000000-0000-4000-8000-0000000markrd1';
     const { id: convId } = await port.ensureWebappConversationForUser(platformUserId);
     const now = new Date().toISOString();
     await port.appendWebappMessage({
       conversationId: convId,
-      integratorMessageId: "markread-owner-a",
-      senderRole: "admin",
-      text: "Reply one",
-      source: "webapp",
+      integratorMessageId: 'markread-owner-a',
+      senderRole: 'admin',
+      text: 'Reply one',
+      source: 'webapp',
       createdAt: now,
     });
     await port.appendWebappMessage({
       conversationId: convId,
-      integratorMessageId: "markread-owner-b",
-      senderRole: "admin",
-      text: "Reply two",
-      source: "webapp",
+      integratorMessageId: 'markread-owner-b',
+      senderRole: 'admin',
+      text: 'Reply two',
+      source: 'webapp',
       createdAt: now,
     });
 
@@ -45,20 +45,20 @@ describe("markInboundReadForUser authorization contract (in-memory)", () => {
     expect(await port.countUnreadForUser(platformUserId)).toBe(0);
   });
 
-  it("does not mark read when a different (non-owner) user targets the conversation", async () => {
+  it('does not mark read when a different (non-owner) user targets the conversation', async () => {
     const port = inMemorySupportCommunicationPort;
-    const ownerUserId = "00000000-0000-4000-8000-0000000markrd2";
-    const otherUserId = "00000000-0000-4000-8000-0000000markrd3";
+    const ownerUserId = '00000000-0000-4000-8000-0000000markrd2';
+    const otherUserId = '00000000-0000-4000-8000-0000000markrd3';
     const { id: ownerConvId } = await port.ensureWebappConversationForUser(ownerUserId);
     // Give the other user their own (separate) conversation so both are valid patients.
     await port.ensureWebappConversationForUser(otherUserId);
     const now = new Date().toISOString();
     await port.appendWebappMessage({
       conversationId: ownerConvId,
-      integratorMessageId: "markread-crossuser-a",
-      senderRole: "admin",
-      text: "Owner-only reply",
-      source: "webapp",
+      integratorMessageId: 'markread-crossuser-a',
+      senderRole: 'admin',
+      text: 'Owner-only reply',
+      source: 'webapp',
       createdAt: now,
     });
 
@@ -78,7 +78,7 @@ describe("markInboundReadForUser authorization contract (in-memory)", () => {
 // documentation of the exact contract to run on TEST after applying
 // deploy/postgres/patient-support-mark-read-grant.sql. Turning this into a live test needs a pg
 // harness that connects AS app_patient with app.current_patient_user_id() set via the runtime helper.
-describe.skip("markInboundReadForUser DB grant + RLS contract (live pg harness required)", () => {
+describe.skip('markInboundReadForUser DB grant + RLS contract (live pg harness required)', () => {
   it("app_patient can UPDATE read_at on its own conversation's inbound messages (no 42501)", () => {
     // On TEST, connected AS app_patient with app.current_patient_user_id() = <owner>:
     //   UPDATE support_conversation_messages m

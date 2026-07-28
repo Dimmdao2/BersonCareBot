@@ -1,9 +1,9 @@
 /** localStorage marker: staff PWA установлен через `/app/doctor/install` (не patient standalone). */
-export const STAFF_PWA_INSTALLED_STORAGE_KEY = "bersoncare.staffPwaInstalled.v1";
+export const STAFF_PWA_INSTALLED_STORAGE_KEY = 'bersoncare.staffPwaInstalled.v1';
 
 export function markStaffPwaInstalled(): void {
   try {
-    localStorage.setItem(STAFF_PWA_INSTALLED_STORAGE_KEY, "1");
+    localStorage.setItem(STAFF_PWA_INSTALLED_STORAGE_KEY, '1');
   } catch {
     /* private mode / quota */
   }
@@ -11,7 +11,7 @@ export function markStaffPwaInstalled(): void {
 
 export function isStaffPwaMarkedInstalled(): boolean {
   try {
-    return localStorage.getItem(STAFF_PWA_INSTALLED_STORAGE_KEY) === "1";
+    return localStorage.getItem(STAFF_PWA_INSTALLED_STORAGE_KEY) === '1';
   } catch {
     return false;
   }

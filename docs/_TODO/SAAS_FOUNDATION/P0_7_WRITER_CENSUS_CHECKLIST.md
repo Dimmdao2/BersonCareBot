@@ -1,4 +1,4 @@
-> STATUS (verified 2026-07-23, code-reconciled): see docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/CHECKPOINT_2026-07-23_STATE_AND_BACKEND_WORK_ORDER.md
+> STATUS (verified 2026-07-23, code-reconciled): see docs/\_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/CHECKPOINT_2026-07-23_STATE_AND_BACKEND_WORK_ORDER.md
 
 # P0.7 Writer Census Checklist
 
@@ -57,7 +57,6 @@ bash /home/dev/orch/run-tests.sh "pnpm run check:saas-db-regression && git diff 
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-
 Allowed:
 
 - Apply dormant tenant context to one process family at a time.
@@ -73,7 +72,7 @@ Forbidden:
 
 Family checkpoints:
 
-- [ ] P0.7.2 webapp route/action writers. (REMAINING: complete the broad webapp route/action writer sweep — central chokepoint applies principal via withClient prepare hook + stampStaffPrincipal (requireRole.ts:197), but exhaustive per-route coverage only partly proven; residual route audit tracked taskdb #725, C1 caveat lines 107,140 — target apps/webapp/src/app/**/route.ts + actions)
+- [ ] P0.7.2 webapp route/action writers. (REMAINING: complete the broad webapp route/action writer sweep — central chokepoint applies principal via withClient prepare hook + stampStaffPrincipal (requireRole.ts:197), but exhaustive per-route coverage only partly proven; residual route audit tracked taskdb #725, C1 caveat lines 107,140 — target apps/webapp/src/app/\*\*/route.ts + actions)
 - [x] P0.7.3 integrator API/bot writers. (✓ apps/integrator/src/infra/principal/organizationPrincipal.ts | T0_TENANT_CONTEXT_CUTOVER_CHECKLIST support/reminder/contacts/mailing slices)
 - [x] P0.7.4 integrator worker/scheduler writers. (✓ apps/integrator/src/infra/runtime/worker/projectionWorker.ts | .../scheduler/organizationTicks.ts | T0 entrypoint-to-org map)
 - [x] P0.7.5 media-worker writers. (✓ apps/media-worker/src/jobs/claim.ts:52-53,67,113 org-equality + quarantine | processTranscodeJob.principal.test.ts)

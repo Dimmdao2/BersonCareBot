@@ -1,7 +1,7 @@
-import { AsyncLocalStorage } from "node:async_hooks";
-import { and, asc, eq, gte, inArray, isNotNull, lt, sql } from "drizzle-orm";
-import type { DrizzleDb } from "@/app-layer/db/drizzle";
-import { getDrizzleOrMutationTx } from "@/infra/db/drizzleMutationTx";
+import { AsyncLocalStorage } from 'node:async_hooks';
+import { and, asc, eq, gte, inArray, isNotNull, lt, sql } from 'drizzle-orm';
+import type { DrizzleDb } from '@/app-layer/db/drizzle';
+import { getDrizzleOrMutationTx } from '@/infra/db/drizzleMutationTx';
 import {
   bePackageHistoryEvents,
   bePackageItems,
@@ -9,22 +9,22 @@ import {
   bePatientPackageItems,
   bePatientPackages,
   beSubscriptionPackages,
-} from "../../../db/schema/bookingMemberships";
-import { beAppointments, beBranches, beClinicServices } from "../../../db/schema/bookingEngine";
+} from '../../../db/schema/bookingMemberships';
+import { beAppointments, beBranches, beClinicServices } from '../../../db/schema/bookingEngine';
 import type {
   CreateManualPatientPackageInput,
   MembershipsPort,
   UpsertSubscriptionPackageInput,
-} from "@/modules/memberships/ports";
+} from '@/modules/memberships/ports';
 import type {
   CanonicalAppointmentStatus,
   PackageUsageRecord,
   PatientPackageItemRecord,
   PatientPackageRecord,
   SubscriptionPackageRecord,
-} from "@/modules/memberships/types";
+} from '@/modules/memberships/types';
 
-type DrizzleTx = Parameters<Parameters<DrizzleDb["transaction"]>[0]>[0];
+type DrizzleTx = Parameters<Parameters<DrizzleDb['transaction']>[0]>[0];
 type MembershipsDb = DrizzleDb | DrizzleTx;
 
 const txStorage = new AsyncLocalStorage<DrizzleTx>();
@@ -42,7 +42,9 @@ async function runMembershipsTransaction<T>(fn: (db: MembershipsDb) => Promise<T
   return getDrizzleOrMutationTx().transaction((tx) => txStorage.run(tx, () => fn(tx)));
 }
 
-async function loadPackageItems(packageIds: string[]): Promise<Map<string, PatientPackageItemRecord[]>> {
+async function loadPackageItems(
+  packageIds: string[],
+): Promise<Map<string, PatientPackageItemRecord[]>> {
   if (packageIds.length === 0) return new Map();
   const db = getMembershipsDb();
   const rows = await db
@@ -73,7 +75,7 @@ function mapPatientPackage(
     organizationId: row.organizationId,
     platformUserId: row.platformUserId,
     subscriptionPackageId: row.subscriptionPackageId,
-    status: row.status as PatientPackageRecord["status"],
+    status: row.status as PatientPackageRecord['status'],
     displayNumber: row.displayNumber,
     title: row.title,
     priceMinor: row.priceMinor,
@@ -81,7 +83,7 @@ function mapPatientPackage(
     validityDays: row.validityDays,
     validFrom: row.validFrom,
     validUntil: row.validUntil,
-    deductionMode: row.deductionMode as PatientPackageRecord["deductionMode"],
+    deductionMode: row.deductionMode as PatientPackageRecord['deductionMode'],
     paymentIntentId: row.paymentIntentId,
     paymentRef: row.paymentRef,
     soldAt: row.soldAt,
@@ -99,7 +101,7 @@ function mapUsage(row: typeof bePackageUsages.$inferSelect): PackageUsageRecord 
     patientPackageId: row.patientPackageId,
     patientPackageItemId: row.patientPackageItemId,
     appointmentId: row.appointmentId,
-    usageKind: row.usageKind as PackageUsageRecord["usageKind"],
+    usageKind: row.usageKind as PackageUsageRecord['usageKind'],
     quantity: row.quantity,
     comment: row.comment,
     occurredAt: row.occurredAt,
@@ -107,11 +109,11 @@ function mapUsage(row: typeof bePackageUsages.$inferSelect): PackageUsageRecord 
 }
 
 const CANONICAL_INELIGIBLE_APPOINTMENT_STATUSES = new Set([
-  "cancelled_by_patient",
-  "cancelled_by_specialist",
-  "late_cancellation",
-  "no_show",
-  "rescheduled",
+  'cancelled_by_patient',
+  'cancelled_by_specialist',
+  'late_cancellation',
+  'no_show',
+  'rescheduled',
 ]);
 
 async function loadCanonicalAppointmentStatuses(
@@ -144,10 +146,10 @@ async function loadCanonicalAppointmentStatuses(
   for (const r of rows.rows) {
     const verdict: CanonicalAppointmentStatus =
       r.status == null
-        ? "none"
+        ? 'none'
         : r.deleted_at != null || CANONICAL_INELIGIBLE_APPOINTMENT_STATUSES.has(r.status)
-          ? "canceled"
-          : "happened";
+          ? 'canceled'
+          : 'happened';
     out.set(r.appointment_id, verdict);
   }
   return out;
@@ -176,7 +178,7 @@ export function createPgMembershipsPort(): MembershipsPort {
         .from(bePackageItems)
         .where(inArray(bePackageItems.packageId, pkgIds))
         .orderBy(asc(bePackageItems.sortOrder));
-      const itemsByPkg = new Map<string, SubscriptionPackageRecord["items"]>();
+      const itemsByPkg = new Map<string, SubscriptionPackageRecord['items']>();
       for (const it of itemRows) {
         const list = itemsByPkg.get(it.packageId) ?? [];
         list.push({
@@ -195,7 +197,7 @@ export function createPgMembershipsPort(): MembershipsPort {
         priceMinor: p.priceMinor,
         currency: p.currency,
         validityDays: p.validityDays,
-        deductionMode: p.deductionMode as SubscriptionPackageRecord["deductionMode"],
+        deductionMode: p.deductionMode as SubscriptionPackageRecord['deductionMode'],
         isActive: p.isActive,
         items: itemsByPkg.get(p.id) ?? [],
       }));
@@ -206,7 +208,12 @@ export function createPgMembershipsPort(): MembershipsPort {
       const rows = await db
         .select()
         .from(beSubscriptionPackages)
-        .where(and(eq(beSubscriptionPackages.id, id), eq(beSubscriptionPackages.organizationId, organizationId)))
+        .where(
+          and(
+            eq(beSubscriptionPackages.id, id),
+            eq(beSubscriptionPackages.organizationId, organizationId),
+          ),
+        )
         .limit(1);
       const p = rows[0];
       if (!p) return null;
@@ -223,7 +230,7 @@ export function createPgMembershipsPort(): MembershipsPort {
         priceMinor: p.priceMinor,
         currency: p.currency,
         validityDays: p.validityDays,
-        deductionMode: p.deductionMode as SubscriptionPackageRecord["deductionMode"],
+        deductionMode: p.deductionMode as SubscriptionPackageRecord['deductionMode'],
         isActive: p.isActive,
         items: itemRows.map((it) => ({
           id: it.id,
@@ -255,14 +262,17 @@ export function createPgMembershipsPort(): MembershipsPort {
               title: input.title,
               description: input.description ?? null,
               priceMinor: input.priceMinor,
-              currency: input.currency ?? "RUB",
+              currency: input.currency ?? 'RUB',
               validityDays: input.validityDays ?? null,
-              deductionMode: input.deductionMode ?? "auto_on_visit_confirmed",
+              deductionMode: input.deductionMode ?? 'auto_on_visit_confirmed',
               isActive: input.isActive ?? true,
               updatedAt: now,
             })
             .where(
-              and(eq(beSubscriptionPackages.id, packageId), eq(beSubscriptionPackages.organizationId, input.organizationId)),
+              and(
+                eq(beSubscriptionPackages.id, packageId),
+                eq(beSubscriptionPackages.organizationId, input.organizationId),
+              ),
             );
           await db.delete(bePackageItems).where(eq(bePackageItems.packageId, packageId));
         } else {
@@ -273,9 +283,9 @@ export function createPgMembershipsPort(): MembershipsPort {
               title: input.title,
               description: input.description ?? null,
               priceMinor: input.priceMinor,
-              currency: input.currency ?? "RUB",
+              currency: input.currency ?? 'RUB',
               validityDays: input.validityDays ?? null,
-              deductionMode: input.deductionMode ?? "auto_on_visit_confirmed",
+              deductionMode: input.deductionMode ?? 'auto_on_visit_confirmed',
               isActive: input.isActive ?? true,
               createdAt: now,
               updatedAt: now,
@@ -295,7 +305,7 @@ export function createPgMembershipsPort(): MembershipsPort {
           );
         }
         const result = await this.getCatalogPackage(packageId!, input.organizationId);
-        if (!result) throw new Error("package_upsert_failed");
+        if (!result) throw new Error('package_upsert_failed');
         return result;
       };
       return runMembershipsTransaction(run);
@@ -306,7 +316,9 @@ export function createPgMembershipsPort(): MembershipsPort {
       const rows = await db
         .select()
         .from(bePatientPackages)
-        .where(and(eq(bePatientPackages.id, id), eq(bePatientPackages.organizationId, organizationId)))
+        .where(
+          and(eq(bePatientPackages.id, id), eq(bePatientPackages.organizationId, organizationId)),
+        )
         .limit(1);
       const row = rows[0];
       if (!row) return null;
@@ -366,14 +378,14 @@ export function createPgMembershipsPort(): MembershipsPort {
       const now = new Date().toISOString();
       const staffSold =
         input.activateImmediately === true ||
-        (input.soldAt != null &&
-          input.paidAmountMinor != null &&
-          input.sendForPayment === false);
+        (input.soldAt != null && input.paidAmountMinor != null && input.sendForPayment === false);
       const status =
-        staffSold || (input.sendForPayment === false && input.priceMinor === 0) ? "active" : "offered";
+        staffSold || (input.sendForPayment === false && input.priceMinor === 0)
+          ? 'active'
+          : 'offered';
       const soldAt = input.soldAt ?? (staffSold ? now : null);
       const paidAmountMinor = input.paidAmountMinor ?? (staffSold ? input.priceMinor : null);
-      const paidCurrency = input.paidCurrency ?? input.currency ?? "RUB";
+      const paidCurrency = input.paidCurrency ?? input.currency ?? 'RUB';
       return runMembershipsTransaction(async (db) => {
         const inserted = await db
           .insert(bePatientPackages)
@@ -381,19 +393,19 @@ export function createPgMembershipsPort(): MembershipsPort {
             organizationId: input.organizationId,
             platformUserId: input.platformUserId,
             status,
-            title: input.title?.trim() || "Индивидуальный",
+            title: input.title?.trim() || 'Индивидуальный',
             priceMinor: input.priceMinor,
-            currency: input.currency ?? "RUB",
+            currency: input.currency ?? 'RUB',
             validityDays: input.validityDays ?? null,
-            deductionMode: input.deductionMode ?? "auto_on_visit_confirmed",
+            deductionMode: input.deductionMode ?? 'auto_on_visit_confirmed',
             assignedByPlatformUserId: input.assignedByPlatformUserId ?? null,
             notes: input.notes ?? null,
             soldAt,
             paidAmountMinor,
             paidCurrency: staffSold || paidAmountMinor != null ? paidCurrency : null,
-            validFrom: status === "active" ? now : null,
+            validFrom: status === 'active' ? now : null,
             validUntil:
-              status === "active" && input.validityDays
+              status === 'active' && input.validityDays
                 ? new Date(Date.now() + input.validityDays * 86400000).toISOString()
                 : null,
             createdAt: now,
@@ -411,14 +423,17 @@ export function createPgMembershipsPort(): MembershipsPort {
           })),
         );
         const pkg = await this.getPatientPackage(pkgId, input.organizationId);
-        if (!pkg) throw new Error("package_create_failed");
+        if (!pkg) throw new Error('package_create_failed');
         return pkg;
       });
     },
 
     async offerCatalogPackageToPatient(input) {
-      const catalog = await this.getCatalogPackage(input.subscriptionPackageId, input.organizationId);
-      if (!catalog) throw new Error("catalog_not_found");
+      const catalog = await this.getCatalogPackage(
+        input.subscriptionPackageId,
+        input.organizationId,
+      );
+      if (!catalog) throw new Error('catalog_not_found');
       const now = new Date().toISOString();
       return runMembershipsTransaction(async (db) => {
         const inserted = await db
@@ -427,7 +442,7 @@ export function createPgMembershipsPort(): MembershipsPort {
             organizationId: input.organizationId,
             platformUserId: input.platformUserId,
             subscriptionPackageId: catalog.id,
-            status: "offered",
+            status: 'offered',
             title: catalog.title,
             priceMinor: catalog.priceMinor,
             currency: catalog.currency,
@@ -450,7 +465,7 @@ export function createPgMembershipsPort(): MembershipsPort {
           })),
         );
         const pkg = await this.getPatientPackage(pkgId, input.organizationId);
-        if (!pkg) throw new Error("package_offer_failed");
+        if (!pkg) throw new Error('package_offer_failed');
         return pkg;
       });
     },
@@ -461,7 +476,9 @@ export function createPgMembershipsPort(): MembershipsPort {
         const rows = await db
           .update(bePatientPackages)
           .set({ notes, updatedAt: now })
-          .where(and(eq(bePatientPackages.id, id), eq(bePatientPackages.organizationId, organizationId)))
+          .where(
+            and(eq(bePatientPackages.id, id), eq(bePatientPackages.organizationId, organizationId)),
+          )
           .returning();
         const row = rows[0];
         if (!row) return null;
@@ -538,7 +555,7 @@ export function createPgMembershipsPort(): MembershipsPort {
         startsAt: appt.startAt,
         endsAt: appt.endAt,
         status: appt.status,
-        canonicalStatus: canonicalStatuses.get(appt.id) ?? "none",
+        canonicalStatus: canonicalStatuses.get(appt.id) ?? 'none',
         branchTitle: appt.branchTitle,
         serviceTitle: appt.serviceTitle,
         serviceId: appt.serviceId,
@@ -600,7 +617,7 @@ export function createPgMembershipsPort(): MembershipsPort {
         appointmentId: appt.id,
         startsAt: appt.startAt,
         status: appt.status,
-        canonicalStatus: canonicalStatuses.get(appt.id) ?? "none",
+        canonicalStatus: canonicalStatuses.get(appt.id) ?? 'none',
         serviceId: appt.serviceId,
         usages: usagesByAppointment.get(appt.id) ?? [],
       }));
@@ -634,7 +651,9 @@ export function createPgMembershipsPort(): MembershipsPort {
         const rows = await db
           .update(bePatientPackages)
           .set(set)
-          .where(and(eq(bePatientPackages.id, id), eq(bePatientPackages.organizationId, organizationId)))
+          .where(
+            and(eq(bePatientPackages.id, id), eq(bePatientPackages.organizationId, organizationId)),
+          )
           .returning();
         const row = rows[0];
         if (!row) return null;
@@ -719,7 +738,7 @@ export function createPgMembershipsPort(): MembershipsPort {
           patientPackageId: input.patientPackageId,
           patientPackageItemId: input.patientPackageItemId,
           appointmentId: input.appointmentId,
-          usageKind: "release",
+          usageKind: 'release',
           quantity: 1,
           createdByPlatformUserId: input.createdByPlatformUserId ?? null,
           occurredAt: now,
@@ -760,7 +779,7 @@ export function createPgMembershipsPort(): MembershipsPort {
               eq(bePackageUsages.appointmentId, input.appointmentId),
               eq(bePackageUsages.patientPackageId, input.patientPackageId),
               eq(bePackageUsages.patientPackageItemId, input.patientPackageItemId),
-              eq(bePackageUsages.usageKind, "release"),
+              eq(bePackageUsages.usageKind, 'release'),
             ),
           )
           .limit(1);
@@ -771,7 +790,7 @@ export function createPgMembershipsPort(): MembershipsPort {
             patientPackageId: input.patientPackageId,
             patientPackageItemId: input.patientPackageItemId,
             appointmentId: input.appointmentId,
-            usageKind: "release",
+            usageKind: 'release',
             quantity: 1,
             createdByPlatformUserId: input.createdByPlatformUserId ?? null,
             occurredAt: now,
@@ -844,9 +863,9 @@ export function createPgMembershipsPort(): MembershipsPort {
             patientPackageId: input.patientPackageId,
             patientPackageItemId: input.patientPackageItemId,
             appointmentId: input.appointmentId,
-            usageKind: "refund",
+            usageKind: 'refund',
             quantity: input.quantity,
-            comment: "recalc_correction_canceled_visit",
+            comment: 'recalc_correction_canceled_visit',
             createdByPlatformUserId: input.createdByPlatformUserId ?? null,
             occurredAt: now,
             createdAt: now,
@@ -862,7 +881,7 @@ export function createPgMembershipsPort(): MembershipsPort {
         await executor.insert(bePackageHistoryEvents).values({
           organizationId: input.organizationId,
           patientPackageId: input.patientPackageId,
-          eventType: "recalc_corrected_canceled",
+          eventType: 'recalc_corrected_canceled',
           payloadJson: {
             appointmentId: input.appointmentId,
             consumeUsageId: input.consumeUsageId,
@@ -892,7 +911,7 @@ export function createPgMembershipsPort(): MembershipsPort {
             patientPackageId: input.patientPackageId,
             patientPackageItemId: input.patientPackageItemId,
             appointmentId: input.appointmentId,
-            usageKind: "consume",
+            usageKind: 'consume',
             quantity: 1,
             createdByPlatformUserId: input.createdByPlatformUserId ?? null,
             occurredAt: now,
@@ -909,7 +928,7 @@ export function createPgMembershipsPort(): MembershipsPort {
         await executor.insert(bePackageHistoryEvents).values({
           organizationId: input.organizationId,
           patientPackageId: input.patientPackageId,
-          eventType: "recalc_consumed",
+          eventType: 'recalc_consumed',
           payloadJson: {
             appointmentId: input.appointmentId,
             usageId: usage.id,
@@ -930,8 +949,8 @@ export function createPgMembershipsPort(): MembershipsPort {
         // PostgreSQL unique_violation (23505): concurrent parallel call already inserted consume
         // for the same appointment — treat as duplicate_consume so the caller can skip gracefully.
         const code = (err as { code?: string })?.code;
-        if (code === "23505") {
-          throw Object.assign(new Error("duplicate_consume"), { code: "duplicate_consume" });
+        if (code === '23505') {
+          throw Object.assign(new Error('duplicate_consume'), { code: 'duplicate_consume' });
         }
         throw err;
       }

@@ -1,15 +1,15 @@
-"use client";
+'use client';
 
-import { type ComponentProps, type ReactNode, useState } from "react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { DoctorModal } from "@/shared/ui/doctor/DoctorModal";
-import { DoctorClientEmbeddedChat } from "@/app/app/doctor/clients/DoctorClientEmbeddedChat";
+import { type ComponentProps, type ReactNode, useState } from 'react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
+import { DoctorClientEmbeddedChat } from '@/app/app/doctor/clients/DoctorClientEmbeddedChat';
 
 type Props = {
   patientUserId: string;
   patientName?: string | null;
-  variant?: ComponentProps<typeof Button>["variant"];
-  size?: ComponentProps<typeof Button>["size"];
+  variant?: ComponentProps<typeof Button>['variant'];
+  size?: ComponentProps<typeof Button>['size'];
   className?: string;
   disabled?: boolean;
   title?: string;
@@ -27,8 +27,8 @@ type Props = {
 export function DoctorOpenChatButton({
   patientUserId,
   patientName,
-  variant = "outline",
-  size = "sm",
+  variant = 'outline',
+  size = 'sm',
   className,
   disabled,
   title,
@@ -46,12 +46,12 @@ export function DoctorOpenChatButton({
         title={title}
         onClick={() => setOpen(true)}
       >
-        {children ?? "Открыть чат"}
+        {children ?? 'Открыть чат'}
       </Button>
       <DoctorModal
         open={open}
         onClose={() => setOpen(false)}
-        title={patientName ? `Переписка · ${patientName}` : "Переписка"}
+        title={patientName ? `Переписка · ${patientName}` : 'Переписка'}
         size="content"
       >
         {open ? <DoctorClientEmbeddedChat patientUserId={patientUserId} /> : null}

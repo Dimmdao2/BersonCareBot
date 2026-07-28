@@ -1,14 +1,19 @@
-"use client";
+'use client';
 
-import { Badge } from "@/shared/ui/patient/primitives/badge";
-import { Button } from "@/shared/ui/patient/primitives/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/patient/primitives/card";
-import type { PatientBookingRecord } from "@/modules/patient-booking/types";
-import { formatBookingDateTimeMediumRu } from "@/shared/lib/formatBusinessDateTime";
-import { bookingProvenancePrefix, nativeBookingSubtitle } from "./patientBookingLabels";
-import { CabinetBookingActions } from "./CabinetBookingActions";
-import { cn } from "@/lib/utils";
-import { patientCardClass, patientInlineLinkClass, patientListItemClass, patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
+import { Badge } from '@/shared/ui/patient/primitives/badge';
+import { Button } from '@/shared/ui/patient/primitives/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/patient/primitives/card';
+import type { PatientBookingRecord } from '@/modules/patient-booking/types';
+import { formatBookingDateTimeMediumRu } from '@/shared/lib/formatBusinessDateTime';
+import { bookingProvenancePrefix, nativeBookingSubtitle } from './patientBookingLabels';
+import { CabinetBookingActions } from './CabinetBookingActions';
+import { cn } from '@/lib/utils';
+import {
+  patientCardClass,
+  patientInlineLinkClass,
+  patientListItemClass,
+  patientMutedTextClass,
+} from '@/shared/ui/patient/patientVisual';
 
 type Props = {
   bookings: PatientBookingRecord[];
@@ -16,71 +21,76 @@ type Props = {
   appDisplayTimeZone: string;
 };
 
-function statusToBadgeVariant(status: PatientBookingRecord["status"]): "default" | "secondary" | "destructive" | "outline" {
-  if (status === "cancelled" || status === "failed_sync" || status === "cancel_failed") return "destructive";
-  if (status === "rescheduled" || status === "cancelling") return "secondary";
-  return "outline";
+function statusToBadgeVariant(
+  status: PatientBookingRecord['status'],
+): 'default' | 'secondary' | 'destructive' | 'outline' {
+  if (status === 'cancelled' || status === 'failed_sync' || status === 'cancel_failed')
+    return 'destructive';
+  if (status === 'rescheduled' || status === 'cancelling') return 'secondary';
+  return 'outline';
 }
 
-function statusLabel(status: PatientBookingRecord["status"]): string {
-  if (status === "creating") return "Создается";
-  if (status === "confirmed") return "Подтверждена";
-  if (status === "cancelled") return "Отменена";
-  if (status === "cancelling") return "Отмена…";
-  if (status === "cancel_failed") return "Не удалось отменить";
-  if (status === "rescheduled") return "Перенесена";
-  if (status === "completed") return "Завершена";
-  if (status === "no_show") return "Неявка";
-  return "Ошибка синхронизации";
+function statusLabel(status: PatientBookingRecord['status']): string {
+  if (status === 'creating') return 'Создается';
+  if (status === 'confirmed') return 'Подтверждена';
+  if (status === 'cancelled') return 'Отменена';
+  if (status === 'cancelling') return 'Отмена…';
+  if (status === 'cancel_failed') return 'Не удалось отменить';
+  if (status === 'rescheduled') return 'Перенесена';
+  if (status === 'completed') return 'Завершена';
+  if (status === 'no_show') return 'Неявка';
+  return 'Ошибка синхронизации';
 }
 
-function showManageLink(status: PatientBookingRecord["status"]): boolean {
-  return status === "confirmed" || status === "rescheduled" || status === "creating";
+function showManageLink(status: PatientBookingRecord['status']): boolean {
+  return status === 'confirmed' || status === 'rescheduled' || status === 'creating';
 }
 
 /** Format ISO datetime to iCalendar / Google Calendar compact form: `YYYYMMDDTHHmmssZ` */
 function fmtCalDate(iso: string): string {
-  return iso.replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+  return iso.replace(/[-:]/g, '').replace(/\.\d{3}/, '');
 }
 
 function googleCalendarUrl(booking: PatientBookingRecord): string {
   const params = new URLSearchParams({
-    action: "TEMPLATE",
-    text: booking.canonicalInPersonContext?.serviceTitle ?? "Запись",
+    action: 'TEMPLATE',
+    text: booking.canonicalInPersonContext?.serviceTitle ?? 'Запись',
     dates: `${fmtCalDate(booking.slotStart)}/${fmtCalDate(booking.slotEnd)}`,
-    ...(booking.canonicalInPersonContext?.branchTitle ? { location: booking.canonicalInPersonContext.branchTitle } : {}),
+    ...(booking.canonicalInPersonContext?.branchTitle
+      ? { location: booking.canonicalInPersonContext.branchTitle }
+      : {}),
   });
   return `https://calendar.google.com/calendar/render?${params.toString()}`;
 }
 
 function generateIcs(booking: PatientBookingRecord): string {
   const uid = `bersoncare-booking-${booking.id}@bersoncare`;
-  const title = booking.canonicalInPersonContext?.serviceTitle ?? "Запись";
-  const location = booking.canonicalInPersonContext?.branchTitle ?? "";
+  const title = booking.canonicalInPersonContext?.serviceTitle ?? 'Запись';
+  const location = booking.canonicalInPersonContext?.branchTitle ?? '';
   const dtstart = fmtCalDate(booking.slotStart);
   const dtend = fmtCalDate(booking.slotEnd);
   return [
-    "BEGIN:VCALENDAR",
-    "VERSION:2.0",
-    "PRODID:-//BersonCare//BersonCare//RU",
-    "BEGIN:VEVENT",
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//BersonCare//BersonCare//RU',
+    'BEGIN:VEVENT',
     `UID:${uid}`,
     `DTSTART:${dtstart}`,
     `DTEND:${dtend}`,
     `SUMMARY:${title}`,
     location ? `LOCATION:${location}` : null,
-    "END:VEVENT",
-    "END:VCALENDAR",
+    'END:VEVENT',
+    'END:VCALENDAR',
   ]
     .filter(Boolean)
-    .join("\r\n");
+    .join('\r\n');
 }
 
 function downloadIcs(booking: PatientBookingRecord): void {
   const content = generateIcs(booking);
-  const blob = new Blob([content], { type: "text/calendar" });
+  const blob = new Blob([content], { type: 'text/calendar' });
   const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
+  const a = document.createElement('a');
   a.href = url;
   a.download = `booking-${booking.id}.ics`;
   document.body.appendChild(a);
@@ -92,7 +102,7 @@ function downloadIcs(booking: PatientBookingRecord): void {
 export function CabinetActiveBookings({ bookings, appDisplayTimeZone }: Props) {
   if (bookings.length === 0) {
     return (
-      <Card className={cn(patientCardClass, "ring-0")}>
+      <Card className={cn(patientCardClass, 'ring-0')}>
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Активные записи</CardTitle>
         </CardHeader>
@@ -104,7 +114,7 @@ export function CabinetActiveBookings({ bookings, appDisplayTimeZone }: Props) {
   }
 
   return (
-    <Card className={cn(patientCardClass, "ring-0")}>
+    <Card className={cn(patientCardClass, 'ring-0')}>
       <CardHeader className="pb-2">
         <CardTitle className="text-base">Активные записи</CardTitle>
       </CardHeader>
@@ -115,14 +125,14 @@ export function CabinetActiveBookings({ bookings, appDisplayTimeZone }: Props) {
               key={row.id}
               className={cn(
                 patientListItemClass,
-                "flex flex-col gap-2 !px-3 !py-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3",
+                'flex flex-col gap-2 !px-3 !py-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3',
               )}
             >
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium">
                   {formatBookingDateTimeMediumRu(row.slotStart, appDisplayTimeZone)}
                 </p>
-                <p className={cn(patientMutedTextClass, "truncate text-xs")}>
+                <p className={cn(patientMutedTextClass, 'truncate text-xs')}>
                   {bookingProvenancePrefix(row)}
                   {nativeBookingSubtitle(row)}
                 </p>
@@ -136,7 +146,7 @@ export function CabinetActiveBookings({ bookings, appDisplayTimeZone }: Props) {
                       href={googleCalendarUrl(row)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className={cn(patientInlineLinkClass, "text-xs")}
+                      className={cn(patientInlineLinkClass, 'text-xs')}
                     >
                       Google Календарь
                     </a>

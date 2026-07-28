@@ -1,37 +1,37 @@
 /** @vitest-environment jsdom */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { ConfirmStepClient } from "./ConfirmStepClient";
-import { bookingNewHref } from "../bookingNewHref";
-import type { RescheduleBookingResult } from "../../cabinet/useRescheduleBooking";
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { ConfirmStepClient } from './ConfirmStepClient';
+import { bookingNewHref } from '../bookingNewHref';
+import type { RescheduleBookingResult } from '../../cabinet/useRescheduleBooking';
 
 const mockBooking = {
-  id: "booking-id-001",
-  slotStart: "2026-04-10T10:00:00.000Z",
-  slotEnd: "2026-04-10T11:00:00.000Z",
-  status: "confirmed" as const,
-  bookingType: "in_person" as const,
-  city: "msk",
-  category: "general" as const,
-  userId: "user-1",
+  id: 'booking-id-001',
+  slotStart: '2026-04-10T10:00:00.000Z',
+  slotEnd: '2026-04-10T11:00:00.000Z',
+  status: 'confirmed' as const,
+  bookingType: 'in_person' as const,
+  city: 'msk',
+  category: 'general' as const,
+  userId: 'user-1',
   cancelledAt: null,
   cancelReason: null,
   gcalEventId: null,
-  contactPhone: "+79990000000",
+  contactPhone: '+79990000000',
   contactEmail: null,
-  contactName: "Иванов Иван Иванович",
+  contactName: 'Иванов Иван Иванович',
   reminder24hSent: false,
   reminder2hSent: false,
-  createdAt: "2026-04-10T09:00:00.000Z",
-  updatedAt: "2026-04-10T09:00:00.000Z",
+  createdAt: '2026-04-10T09:00:00.000Z',
+  updatedAt: '2026-04-10T09:00:00.000Z',
   branchServiceId: null,
-  branchId: "550e8400-e29b-41d4-a716-446655440001",
-  serviceId: "550e8400-e29b-41d4-a716-446655440002",
-  cityCodeSnapshot: "msk",
+  branchId: '550e8400-e29b-41d4-a716-446655440001',
+  serviceId: '550e8400-e29b-41d4-a716-446655440002',
+  cityCodeSnapshot: 'msk',
   branchTitleSnapshot: null,
-  serviceTitleSnapshot: "Сеанс",
+  serviceTitleSnapshot: 'Сеанс',
   durationMinutesSnapshot: null,
   priceMinorSnapshot: null,
   canonicalAppointmentId: null,
@@ -44,11 +44,11 @@ const rescheduleBooking = vi.fn(async (): Promise<RescheduleBookingResult> => ({
 const push = vi.fn();
 const partialToast = vi.fn();
 
-vi.mock("next/navigation", () => ({
+vi.mock('next/navigation', () => ({
   useRouter: () => ({ push, replace: vi.fn(), refresh: vi.fn(), prefetch: vi.fn() }),
 }));
 
-vi.mock("../../cabinet/useCreateBooking", () => ({
+vi.mock('../../cabinet/useCreateBooking', () => ({
   useCreateBooking: () => ({
     submitting: false,
     error: null,
@@ -56,29 +56,29 @@ vi.mock("../../cabinet/useCreateBooking", () => ({
   }),
 }));
 
-vi.mock("../../cabinet/useRescheduleBooking", () => ({
+vi.mock('../../cabinet/useRescheduleBooking', () => ({
   useRescheduleBooking: () => ({
     submitting: false,
     error: null,
     rescheduleBooking,
-    successRedirectPath: "/app/patient/cabinet",
+    successRedirectPath: '/app/patient/cabinet',
   }),
 }));
 
-vi.mock("@/shared/booking/bookingPartialOutcomeToast", () => ({
+vi.mock('@/shared/booking/bookingPartialOutcomeToast', () => ({
   showBookingPartialOutcomeToast: (...args: unknown[]) => partialToast(...args),
 }));
 
 const baseProps = {
-  slotStart: "2026-04-10T10:00:00.000Z",
-  slotEnd: "2026-04-10T11:00:00.000Z",
-  defaultFio: { lastName: "Иванов", firstName: "Иван", patronymic: "Иванович" },
-  defaultPhone: "+79990000000",
-  defaultEmail: "ivan@example.com",
-  appDisplayTimeZone: "Europe/Moscow",
+  slotStart: '2026-04-10T10:00:00.000Z',
+  slotEnd: '2026-04-10T11:00:00.000Z',
+  defaultFio: { lastName: 'Иванов', firstName: 'Иван', patronymic: 'Иванович' },
+  defaultPhone: '+79990000000',
+  defaultEmail: 'ivan@example.com',
+  appDisplayTimeZone: 'Europe/Moscow',
 } as const;
 
-describe("ConfirmStepClient", () => {
+describe('ConfirmStepClient', () => {
   beforeEach(() => {
     createBooking.mockClear();
     rescheduleBooking.mockClear();
@@ -86,7 +86,7 @@ describe("ConfirmStepClient", () => {
     push.mockClear();
     rescheduleBooking.mockResolvedValue({ ok: true });
     vi.stubGlobal(
-      "fetch",
+      'fetch',
       vi.fn().mockResolvedValue({
         ok: true,
         json: async () => ({ ok: true, fields: [] }),
@@ -98,22 +98,16 @@ describe("ConfirmStepClient", () => {
     vi.unstubAllGlobals();
   });
 
-  it("prefills FIO, phone and email from props", () => {
-    render(
-      <ConfirmStepClient
-        type="online"
-        category="rehab_lfk"
-        {...baseProps}
-      />,
-    );
-    expect(screen.getByLabelText(/Фамилия/i)).toHaveValue("Иванов");
-    expect(screen.getByLabelText(/Имя/i)).toHaveValue("Иван");
-    expect(screen.getByLabelText(/Отчество/i)).toHaveValue("Иванович");
-    expect(screen.getByLabelText(/Телефон/i)).toHaveValue("+79990000000");
-    expect(screen.getByLabelText(/Email/i)).toHaveValue("ivan@example.com");
+  it('prefills FIO, phone and email from props', () => {
+    render(<ConfirmStepClient type="online" category="rehab_lfk" {...baseProps} />);
+    expect(screen.getByLabelText(/Фамилия/i)).toHaveValue('Иванов');
+    expect(screen.getByLabelText(/Имя/i)).toHaveValue('Иван');
+    expect(screen.getByLabelText(/Отчество/i)).toHaveValue('Иванович');
+    expect(screen.getByLabelText(/Телефон/i)).toHaveValue('+79990000000');
+    expect(screen.getByLabelText(/Email/i)).toHaveValue('ivan@example.com');
   });
 
-  it("shows the multiplied price and consecutive-slot summary", () => {
+  it('shows the multiplied price and consecutive-slot summary', () => {
     render(
       <ConfirmStepClient
         type="in_person"
@@ -128,11 +122,11 @@ describe("ConfirmStepClient", () => {
         slotEnd="2026-04-10T12:00:00.000Z"
       />,
     );
-    expect(screen.getByText("Последовательных слотов: 2")).toBeInTheDocument();
+    expect(screen.getByText('Последовательных слотов: 2')).toBeInTheDocument();
     expect(screen.getByText(/Стоимость:.*3\s*000/i)).toBeInTheDocument();
   });
 
-  it("labels the reserved Online location as online instead of an in-person city", () => {
+  it('labels the reserved Online location as online instead of an in-person city', () => {
     render(
       <ConfirmStepClient
         type="in_person"
@@ -144,31 +138,31 @@ describe("ConfirmStepClient", () => {
         {...baseProps}
       />,
     );
-    expect(screen.getByText("Онлайн · Консультация")).toBeInTheDocument();
+    expect(screen.getByText('Онлайн · Консультация')).toBeInTheDocument();
     expect(screen.queryByText(/Очный приём.*Онлайн/)).not.toBeInTheDocument();
   });
 
-  it("disables submit when required surname or given name is empty", async () => {
+  it('disables submit when required surname or given name is empty', async () => {
     const user = userEvent.setup();
     render(
       <ConfirmStepClient
         type="online"
         category="rehab_lfk"
         {...baseProps}
-        defaultFio={{ lastName: "", firstName: "Иван", patronymic: null }}
+        defaultFio={{ lastName: '', firstName: 'Иван', patronymic: null }}
       />,
     );
 
     await user.clear(screen.getByLabelText(/Фамилия/i));
-    const submit = screen.getByRole("button", { name: /Подтвердить запись/i });
+    const submit = screen.getByRole('button', { name: /Подтвердить запись/i });
     expect(submit).toBeDisabled();
 
-    await user.type(screen.getByLabelText(/Фамилия/i), "Иванов");
+    await user.type(screen.getByLabelText(/Фамилия/i), 'Иванов');
     await user.clear(screen.getByLabelText(/Имя/i));
     expect(submit).toBeDisabled();
   });
 
-  it("calls createBooking with correct args and navigates to done screen on success", async () => {
+  it('calls createBooking with correct args and navigates to done screen on success', async () => {
     const user = userEvent.setup();
     render(
       <ConfirmStepClient
@@ -178,12 +172,12 @@ describe("ConfirmStepClient", () => {
         branchId="550e8400-e29b-41d4-a716-446655440001"
         serviceId="550e8400-e29b-41d4-a716-446655440002"
         serviceTitle="Сеанс"
-        successRedirectPath={bookingNewHref("msk")}
+        successRedirectPath={bookingNewHref('msk')}
         {...baseProps}
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: /Подтвердить запись/i }));
+    await user.click(screen.getByRole('button', { name: /Подтвердить запись/i }));
 
     await waitFor(() => {
       expect(createBooking).toHaveBeenCalledTimes(1);
@@ -192,39 +186,39 @@ describe("ConfirmStepClient", () => {
     expect(createBooking).toHaveBeenCalledWith(
       expect.objectContaining({
         selection: {
-          type: "in_person",
-          cityCode: "msk",
-          cityTitle: "Москва",
-          branchId: "550e8400-e29b-41d4-a716-446655440001",
-          serviceId: "550e8400-e29b-41d4-a716-446655440002",
-          serviceTitle: "Сеанс",
+          type: 'in_person',
+          cityCode: 'msk',
+          cityTitle: 'Москва',
+          branchId: '550e8400-e29b-41d4-a716-446655440001',
+          serviceId: '550e8400-e29b-41d4-a716-446655440002',
+          serviceTitle: 'Сеанс',
         },
         slot: {
           startAt: baseProps.slotStart,
           endAt: baseProps.slotEnd,
         },
-        contactName: "Иванов Иван Иванович",
+        contactName: 'Иванов Иван Иванович',
         contactFio: {
-          lastName: "Иванов",
-          firstName: "Иван",
-          patronymic: "Иванович",
+          lastName: 'Иванов',
+          firstName: 'Иван',
+          patronymic: 'Иванович',
         },
-        contactPhone: "+79990000000",
-        contactEmail: "ivan@example.com",
+        contactPhone: '+79990000000',
+        contactEmail: 'ivan@example.com',
       }),
     );
 
     // After successful booking, should navigate to the done (add-to-calendar) screen.
     await waitFor(() => {
       expect(push).toHaveBeenCalledTimes(1);
-      const dest: string = push.mock.calls[0]?.[0] ?? "";
-      expect(dest).toContain("/app/patient/booking/done");
+      const dest: string = push.mock.calls[0]?.[0] ?? '';
+      expect(dest).toContain('/app/patient/booking/done');
       expect(dest).toContain(`bookingId=${encodeURIComponent(mockBooking.id)}`);
       expect(dest).toContain(`cityCode=msk`);
     });
   });
 
-  it("keeps the public organization slug in the create selection", async () => {
+  it('keeps the public organization slug in the create selection', async () => {
     const user = userEvent.setup();
     render(
       <ConfirmStepClient
@@ -239,14 +233,14 @@ describe("ConfirmStepClient", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: /Подтвердить запись/i }));
+    await user.click(screen.getByRole('button', { name: /Подтвердить запись/i }));
     await waitFor(() => expect(createBooking).toHaveBeenCalledTimes(1));
     expect(createBooking).toHaveBeenCalledWith(
-      expect.objectContaining({ selection: expect.objectContaining({ orgSlug: "clinic-a" }) }),
+      expect.objectContaining({ selection: expect.objectContaining({ orgSlug: 'clinic-a' }) }),
     );
   });
 
-  it("sends the public organization slug with the form-fields request", async () => {
+  it('sends the public organization slug with the form-fields request', async () => {
     render(
       <ConfirmStepClient
         type="in_person"
@@ -263,12 +257,12 @@ describe("ConfirmStepClient", () => {
 
     await waitFor(() => {
       expect(fetch).toHaveBeenCalledWith(
-        "/api/booking/public/form-fields?branchId=550e8400-e29b-41d4-a716-446655440001&serviceId=550e8400-e29b-41d4-a716-446655440002&orgSlug=clinic-a",
+        '/api/booking/public/form-fields?branchId=550e8400-e29b-41d4-a716-446655440001&serviceId=550e8400-e29b-41d4-a716-446655440002&orgSlug=clinic-a',
       );
     });
   });
 
-  it("uses custom done redirect path for public create success", async () => {
+  it('uses custom done redirect path for public create success', async () => {
     const user = userEvent.setup();
     render(
       <ConfirmStepClient
@@ -279,15 +273,14 @@ describe("ConfirmStepClient", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: /Подтвердить запись/i }));
+    await user.click(screen.getByRole('button', { name: /Подтвердить запись/i }));
 
     await waitFor(() => {
       expect(push).toHaveBeenCalledTimes(1);
-      const dest: string = push.mock.calls[0]?.[0] ?? "";
-      expect(dest).toContain("/book/done");
+      const dest: string = push.mock.calls[0]?.[0] ?? '';
+      expect(dest).toContain('/book/done');
       expect(dest).toContain(`bookingId=${encodeURIComponent(mockBooking.id)}`);
-      expect(dest).not.toContain("/app/patient/booking/done");
+      expect(dest).not.toContain('/app/patient/booking/done');
     });
   });
-
 });

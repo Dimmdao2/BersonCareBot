@@ -22,19 +22,19 @@
 
 ## 3. Проверка требований (чеклист аудита)
 
-| Требование | Результат |
-|-------------|-----------|
-| Bottom nav только **&lt; lg** | `PatientBottomNav`: класс **`lg:hidden`** (скрыт с `1024px`). |
-| Desktop top nav только **lg+** | Обёртка в `AppShell`: **`hidden lg:block`** + `PatientTopNav` внутри. |
-| **Нет одновременно видимых** двух primary nav | CSS: на ширине `lg+` bottom `display: none`, top виден; на **`&lt; lg`** наоборот. Оба узла могут быть в DOM при `showPatientShellNav`, но не оба отображаются. |
-| Бренд **BersonCare** на desktop | `PatientTopNav`: иконка + текст «BersonCare» (видно только вместе с top bar на `lg+`). |
-| **Нет desktop Back** | `PatientHeader`: `showMobileBack = !isDesktop && showBack` + `useViewportMinWidthLg()`. |
-| **Нет top Home** | Ссылка Home из шапки удалена; «домой» — пункт **Сегодня** в primary nav. |
-| **Нет settings gear** в patient header | `patientNavByPlatform`: без `settings`; в `PatientHeader` нет кейса settings; sheet-меню не содержит шестерёнки (и `hasSheetMenu` сейчас `false` — отдельный продуктовый момент). |
-| Bottom nav: **Дневник**, не **Профиль** | `PATIENT_PRIMARY_NAV_ITEMS` — пять пунктов; профиль только в header/top bar. |
-| **Профиль** сверху/справа | Mobile: иконка в правой группе `PatientHeader`; desktop при `patientShellNavDocked`: в **`PatientTopNav`** справа (в шапке страницы дубли убраны). |
-| **a11y**: роли / `aria` | `aria-label` на `nav` «Основная навигация» (bottom + блок ссылок в top); **`aria-current="page"`** на активном `Link` в bottom/top; icon-only ссылки — **`aria-label`** (Напоминания, Сообщения, Профиль и т.д.); кнопка Back — `aria-label={backLabel}`. |
-| **Тесты** уместны | Пять файлов из плана: bottom/top nav, `AppShell` (в т.ч. mutual exclusivity по классам + `data-patient-shell-max-px`), `PatientHeader`, `navigation.test.ts`. Полный root **`pnpm run ci`** по запросу аудита **не выполнялся**. |
+| Требование                                    | Результат                                                                                                                                                                                                                                                 |
+| --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Bottom nav только **&lt; lg**                 | `PatientBottomNav`: класс **`lg:hidden`** (скрыт с `1024px`).                                                                                                                                                                                             |
+| Desktop top nav только **lg+**                | Обёртка в `AppShell`: **`hidden lg:block`** + `PatientTopNav` внутри.                                                                                                                                                                                     |
+| **Нет одновременно видимых** двух primary nav | CSS: на ширине `lg+` bottom `display: none`, top виден; на **`&lt; lg`** наоборот. Оба узла могут быть в DOM при `showPatientShellNav`, но не оба отображаются.                                                                                           |
+| Бренд **BersonCare** на desktop               | `PatientTopNav`: иконка + текст «BersonCare» (видно только вместе с top bar на `lg+`).                                                                                                                                                                    |
+| **Нет desktop Back**                          | `PatientHeader`: `showMobileBack = !isDesktop && showBack` + `useViewportMinWidthLg()`.                                                                                                                                                                   |
+| **Нет top Home**                              | Ссылка Home из шапки удалена; «домой» — пункт **Сегодня** в primary nav.                                                                                                                                                                                  |
+| **Нет settings gear** в patient header        | `patientNavByPlatform`: без `settings`; в `PatientHeader` нет кейса settings; sheet-меню не содержит шестерёнки (и `hasSheetMenu` сейчас `false` — отдельный продуктовый момент).                                                                         |
+| Bottom nav: **Дневник**, не **Профиль**       | `PATIENT_PRIMARY_NAV_ITEMS` — пять пунктов; профиль только в header/top bar.                                                                                                                                                                              |
+| **Профиль** сверху/справа                     | Mobile: иконка в правой группе `PatientHeader`; desktop при `patientShellNavDocked`: в **`PatientTopNav`** справа (в шапке страницы дубли убраны).                                                                                                        |
+| **a11y**: роли / `aria`                       | `aria-label` на `nav` «Основная навигация» (bottom + блок ссылок в top); **`aria-current="page"`** на активном `Link` в bottom/top; icon-only ссылки — **`aria-label`** (Напоминания, Сообщения, Профиль и т.д.); кнопка Back — `aria-label={backLabel}`. |
+| **Тесты** уместны                             | Пять файлов из плана: bottom/top nav, `AppShell` (в т.ч. mutual exclusivity по классам + `data-patient-shell-max-px`), `PatientHeader`, `navigation.test.ts`. Полный root **`pnpm run ci`** по запросу аудита **не выполнялся**.                          |
 
 ### 3.1. Соответствие VISUAL_SYSTEM_SPEC
 
@@ -56,7 +56,7 @@
 
 2. **`AppShell.test.tsx`:** mutual exclusivity проверяется **по responsive-классам**, без mock **`matchMedia`** и без сценария «nav отсутствует» при `patientHideBottomNav` / `patientEmbedMain` — рекомендуемое усиление перед долгим regression, не блокер Phase 3.
 
-3. **`VISUAL_SYSTEM_SPEC.md` §4 таблица** по-прежнему частично описывает *предыдущее* состояние (например старые `headerRightIcons`); после Phase 2 имеет смысл **точечно обновить §4** в отдельном docs-PR, чтобы инвентарь не вводил в заблуждение.
+3. **`VISUAL_SYSTEM_SPEC.md` §4 таблица** по-прежнему частично описывает _предыдущее_ состояние (например старые `headerRightIcons`); после Phase 2 имеет смысл **точечно обновить §4** в отдельном docs-PR, чтобы инвентарь не вводил в заблуждение.
 
 4. **Дублирование** разметки иконок напоминаний / сообщений / профиля в **`PatientHeader`** и **`PatientTopNav`** — технический долг (см. `LOG.md` Phase 2); вне обязательного scope Phase 2.
 
@@ -66,11 +66,11 @@
 
 ## 5. Tests
 
-| Проверка | Статус |
-|-----------|--------|
-| **`npx vitest run`** на 5 файлах из `02_NAVIGATION_PLAN.md` / `LOG.md` | По `LOG.md` — **23 passed** при EXEC Phase 2. |
-| **Full `pnpm run ci`** | **Не запускался** (по запросу аудита). |
-| **Ревью покрытия §14.1** для Phase 2 | Обязательные пункты для nav/header/shell **выполнены**; расширения §14.1 для **home-блоков** относятся к **Phase 3+**, не к Phase 2. |
+| Проверка                                                               | Статус                                                                                                                               |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| **`npx vitest run`** на 5 файлах из `02_NAVIGATION_PLAN.md` / `LOG.md` | По `LOG.md` — **23 passed** при EXEC Phase 2.                                                                                        |
+| **Full `pnpm run ci`**                                                 | **Не запускался** (по запросу аудита).                                                                                               |
+| **Ревью покрытия §14.1** для Phase 2                                   | Обязательные пункты для nav/header/shell **выполнены**; расширения §14.1 для **home-блоков** относятся к **Phase 3+**, не к Phase 2. |
 
 ---
 

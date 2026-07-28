@@ -1,5 +1,5 @@
-import type { ComponentType } from "react";
-import type { ScheduleTabId } from "./doctorScheduleTabs";
+import type { ComponentType } from 'react';
+import type { ScheduleTabId } from './doctorScheduleTabs';
 
 /** Стандартные пропы, которые шелл передаёт каждому компоненту-табу расписания. */
 export type ScheduleTabProps = {
@@ -29,21 +29,19 @@ export type ScheduleTabRegistryEntry = {
  */
 export const SCHEDULE_TAB_REGISTRY: ScheduleTabRegistryEntry[] = [
   {
-    id: "cal",
+    id: 'cal',
     loader: () =>
-      import("./tabs/ScheduleCalendarTab").then((m) => ({ default: m.ScheduleCalendarTab })),
-    deepLinkKeys: ["view", "date", "location", "service", "appt", "from", "render"],
+      import('./tabs/ScheduleCalendarTab').then((m) => ({ default: m.ScheduleCalendarTab })),
+    deepLinkKeys: ['view', 'date', 'location', 'service', 'appt', 'from', 'render'],
   },
   {
-    id: "work",
-    loader: () =>
-      import("./tabs/ScheduleWorkTab").then((m) => ({ default: m.ScheduleWorkTab })),
-    deepLinkKeys: ["location", "month"],
+    id: 'work',
+    loader: () => import('./tabs/ScheduleWorkTab').then((m) => ({ default: m.ScheduleWorkTab })),
+    deepLinkKeys: ['location', 'month'],
   },
   {
-    id: "setup",
-    loader: () =>
-      import("./tabs/ScheduleSetupTab").then((m) => ({ default: m.ScheduleSetupTab })),
-    deepLinkKeys: ["section"],
+    id: 'setup',
+    loader: () => import('./tabs/ScheduleSetupTab').then((m) => ({ default: m.ScheduleSetupTab })),
+    deepLinkKeys: ['section'],
   },
 ];

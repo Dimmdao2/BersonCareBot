@@ -1,18 +1,18 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { resolveClientEntryChannel } from "@/modules/product-analytics/clientEntryChannel";
+import { resolveClientEntryChannel } from '@/modules/product-analytics/clientEntryChannel';
 
-vi.mock("@/shared/lib/messengerMiniApp", () => ({
+vi.mock('@/shared/lib/messengerMiniApp', () => ({
   isMessengerMiniAppHost: vi.fn(() => false),
-  readTelegramInitDataForAuth: vi.fn(() => ""),
-  getMaxWebAppInitDataForAuth: vi.fn(() => ""),
+  readTelegramInitDataForAuth: vi.fn(() => ''),
+  getMaxWebAppInitDataForAuth: vi.fn(() => ''),
 }));
 
-vi.mock("@/shared/lib/platform", () => ({
+vi.mock('@/shared/lib/platform', () => ({
   readMessengerSurfaceCookie: vi.fn(() => null),
 }));
 
-vi.mock("@/shared/lib/webPush/pwaDisplay", () => ({
+vi.mock('@/shared/lib/webPush/pwaDisplay', () => ({
   isStandalonePwa: vi.fn(() => false),
 }));
 
@@ -20,50 +20,50 @@ import {
   getMaxWebAppInitDataForAuth,
   isMessengerMiniAppHost,
   readTelegramInitDataForAuth,
-} from "@/shared/lib/messengerMiniApp";
-import { readMessengerSurfaceCookie } from "@/shared/lib/platform";
-import { isStandalonePwa } from "@/shared/lib/webPush/pwaDisplay";
+} from '@/shared/lib/messengerMiniApp';
+import { readMessengerSurfaceCookie } from '@/shared/lib/platform';
+import { isStandalonePwa } from '@/shared/lib/webPush/pwaDisplay';
 
-describe("resolveClientEntryChannel", () => {
+describe('resolveClientEntryChannel', () => {
   beforeEach(() => {
-    vi.stubGlobal("window", {} as Window);
+    vi.stubGlobal('window', {} as Window);
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.mocked(isMessengerMiniAppHost).mockReturnValue(false);
     vi.mocked(readMessengerSurfaceCookie).mockReturnValue(null);
-    vi.mocked(readTelegramInitDataForAuth).mockReturnValue("");
-    vi.mocked(getMaxWebAppInitDataForAuth).mockReturnValue("");
+    vi.mocked(readTelegramInitDataForAuth).mockReturnValue('');
+    vi.mocked(getMaxWebAppInitDataForAuth).mockReturnValue('');
     vi.mocked(isStandalonePwa).mockReturnValue(false);
   });
 
-  it("returns pwa in standalone mode outside mini app", () => {
+  it('returns pwa in standalone mode outside mini app', () => {
     vi.mocked(isStandalonePwa).mockReturnValue(true);
-    expect(resolveClientEntryChannel()).toBe("pwa");
+    expect(resolveClientEntryChannel()).toBe('pwa');
   });
 
-  it("returns telegram in mini app host", () => {
+  it('returns telegram in mini app host', () => {
     vi.mocked(isMessengerMiniAppHost).mockReturnValue(true);
-    vi.mocked(readMessengerSurfaceCookie).mockReturnValue("telegram");
-    expect(resolveClientEntryChannel()).toBe("telegram");
+    vi.mocked(readMessengerSurfaceCookie).mockReturnValue('telegram');
+    expect(resolveClientEntryChannel()).toBe('telegram');
   });
 
-  it("returns max when surface cookie is max", () => {
+  it('returns max when surface cookie is max', () => {
     vi.mocked(isMessengerMiniAppHost).mockReturnValue(true);
-    vi.mocked(readMessengerSurfaceCookie).mockReturnValue("max");
-    expect(resolveClientEntryChannel()).toBe("max");
+    vi.mocked(readMessengerSurfaceCookie).mockReturnValue('max');
+    expect(resolveClientEntryChannel()).toBe('max');
   });
 
-  it("falls back to max when max init data exists and telegram init data missing", () => {
+  it('falls back to max when max init data exists and telegram init data missing', () => {
     vi.mocked(isMessengerMiniAppHost).mockReturnValue(true);
     vi.mocked(readMessengerSurfaceCookie).mockReturnValue(null);
-    vi.mocked(getMaxWebAppInitDataForAuth).mockReturnValue("max-init-data");
-    vi.mocked(readTelegramInitDataForAuth).mockReturnValue("");
-    expect(resolveClientEntryChannel()).toBe("max");
+    vi.mocked(getMaxWebAppInitDataForAuth).mockReturnValue('max-init-data');
+    vi.mocked(readTelegramInitDataForAuth).mockReturnValue('');
+    expect(resolveClientEntryChannel()).toBe('max');
   });
 
-  it("returns browser by default", () => {
-    expect(resolveClientEntryChannel()).toBe("browser");
+  it('returns browser by default', () => {
+    expect(resolveClientEntryChannel()).toBe('browser');
   });
 });

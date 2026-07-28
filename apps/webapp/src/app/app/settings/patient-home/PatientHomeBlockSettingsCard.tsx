@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import { useMemo, useState, useTransition } from "react";
-import { EllipsisVertical } from "lucide-react";
-import { MediaLibraryPickerDialog } from "@/app/app/doctor/content/MediaLibraryPickerDialog";
-import { Button } from "@/shared/ui/doctor/primitives/button";
+import { useMemo, useState, useTransition } from 'react';
+import { EllipsisVertical } from 'lucide-react';
+import { MediaLibraryPickerDialog } from '@/app/app/doctor/content/MediaLibraryPickerDialog';
+import { Button } from '@/shared/ui/doctor/primitives/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,23 +12,26 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/shared/ui/doctor/primitives/dropdown-menu";
-import { getPatientHomeBlockEditorMetadata } from "@/modules/patient-home/blockEditorMetadata";
-import { canManageItemsForBlock, supportsConfigurablePatientHomeBlockIcon } from "@/modules/patient-home/blocks";
-import type { PatientHomeBlock } from "@/modules/patient-home/ports";
-import type { PatientHomeBlockRuntimeStatus } from "@/modules/patient-home/patientHomeRuntimeStatus";
-import type { PatientHomeRefDisplayTitles } from "@/modules/patient-home/patientHomeBlockItemDisplayTitle";
+} from '@/shared/ui/doctor/primitives/dropdown-menu';
+import { getPatientHomeBlockEditorMetadata } from '@/modules/patient-home/blockEditorMetadata';
+import {
+  canManageItemsForBlock,
+  supportsConfigurablePatientHomeBlockIcon,
+} from '@/modules/patient-home/blocks';
+import type { PatientHomeBlock } from '@/modules/patient-home/ports';
+import type { PatientHomeBlockRuntimeStatus } from '@/modules/patient-home/patientHomeRuntimeStatus';
+import type { PatientHomeRefDisplayTitles } from '@/modules/patient-home/patientHomeBlockItemDisplayTitle';
 import {
   listUnresolvedPatientHomeBlockItems,
   partitionUnresolvedPatientHomeItemsByVisibility,
-} from "@/modules/patient-home/patientHomeUnresolvedRefs";
-import { togglePatientHomeBlockVisibility, setPatientHomeBlockIcon } from "./actions";
-import { PatientHomeAddItemDialog } from "./PatientHomeAddItemDialog";
-import { PatientHomeBlockItemsDialog } from "./PatientHomeBlockItemsDialog";
-import { PatientHomeBlockPreview } from "./PatientHomeBlockPreview";
-import { PatientHomeBlockRuntimeStatusBadge } from "./PatientHomeBlockRuntimeStatusBadge";
-import { PatientHomeCreateSectionInlineDialog } from "./PatientHomeCreateSectionInlineDialog";
-import { PatientHomeRepairTargetsDialog } from "./PatientHomeRepairTargetsDialog";
+} from '@/modules/patient-home/patientHomeUnresolvedRefs';
+import { togglePatientHomeBlockVisibility, setPatientHomeBlockIcon } from './actions';
+import { PatientHomeAddItemDialog } from './PatientHomeAddItemDialog';
+import { PatientHomeBlockItemsDialog } from './PatientHomeBlockItemsDialog';
+import { PatientHomeBlockPreview } from './PatientHomeBlockPreview';
+import { PatientHomeBlockRuntimeStatusBadge } from './PatientHomeBlockRuntimeStatusBadge';
+import { PatientHomeCreateSectionInlineDialog } from './PatientHomeCreateSectionInlineDialog';
+import { PatientHomeRepairTargetsDialog } from './PatientHomeRepairTargetsDialog';
 
 type KnownRefs = {
   contentPages: string[];
@@ -56,7 +59,10 @@ export function PatientHomeBlockSettingsCard({
   const [repairOpen, setRepairOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const canManageItems = canManageItemsForBlock(block.code);
-  const unresolved = useMemo(() => listUnresolvedPatientHomeBlockItems(block, knownRefs), [block, knownRefs]);
+  const unresolved = useMemo(
+    () => listUnresolvedPatientHomeBlockItems(block, knownRefs),
+    [block, knownRefs],
+  );
   const { visible: visibleUnresolved, hidden: hiddenUnresolved } = useMemo(
     () => partitionUnresolvedPatientHomeItemsByVisibility(unresolved),
     [unresolved],
@@ -112,7 +118,7 @@ export function PatientHomeBlockSettingsCard({
             <DropdownMenuGroup>
               <DropdownMenuLabel>Блок на главной</DropdownMenuLabel>
               <DropdownMenuItem onClick={handleToggle} disabled={isPending}>
-                {block.isVisible ? "Скрыть у пациентов" : "Показать пациентам"}
+                {block.isVisible ? 'Скрыть у пациентов' : 'Показать пациентам'}
               </DropdownMenuItem>
             </DropdownMenuGroup>
             {canManageItems ? (
@@ -121,14 +127,18 @@ export function PatientHomeBlockSettingsCard({
                 <DropdownMenuGroup>
                   <DropdownMenuLabel>Содержимое блока</DropdownMenuLabel>
                   {blockMeta.pickExistingLabel ? (
-                    <DropdownMenuItem onClick={() => setAddOpen(true)}>{blockMeta.pickExistingLabel}</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setAddOpen(true)}>
+                      {blockMeta.pickExistingLabel}
+                    </DropdownMenuItem>
                   ) : null}
                   {canInlineCreateSection ? (
                     <DropdownMenuItem onClick={() => setCreateSectionOpen(true)}>
                       {blockMeta.inlineCreate.sectionMenuLabel}
                     </DropdownMenuItem>
                   ) : null}
-                  <DropdownMenuItem onClick={() => setEditOpen(true)}>Порядок, видимость и удаление</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setEditOpen(true)}>
+                    Порядок, видимость и удаление
+                  </DropdownMenuItem>
                 </DropdownMenuGroup>
               </>
             ) : null}
@@ -136,7 +146,9 @@ export function PatientHomeBlockSettingsCard({
               <>
                 <DropdownMenuSeparator />
                 <DropdownMenuGroup>
-                  <DropdownMenuItem onClick={() => setRepairOpen(true)}>Исправить связи CMS…</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setRepairOpen(true)}>
+                    Исправить связи CMS…
+                  </DropdownMenuItem>
                 </DropdownMenuGroup>
               </>
             ) : null}
@@ -148,20 +160,23 @@ export function PatientHomeBlockSettingsCard({
         knownRefs={knownRefs}
         refDisplayTitles={refDisplayTitles}
         emptyPreviewText={blockMeta.emptyPreviewText}
-        onRepairClick={canManageItems && visibleUnresolved.length > 0 ? () => setRepairOpen(true) : undefined}
+        onRepairClick={
+          canManageItems && visibleUnresolved.length > 0 ? () => setRepairOpen(true) : undefined
+        }
       />
       {supportsConfigurablePatientHomeBlockIcon(block.code) ? (
         <div className="mt-3 rounded-lg border border-border/80 bg-muted/30 p-3">
           <div className="text-xs font-semibold text-muted-foreground">Иконка блока</div>
           <p className="mt-1 text-xs text-muted-foreground">
-            Картинка из медиатеки вместо стандартной иконки на главной пациента. Очистите, чтобы вернуть значок по умолчанию.
+            Картинка из медиатеки вместо стандартной иконки на главной пациента. Очистите, чтобы
+            вернуть значок по умолчанию.
           </p>
           <div className="mt-3 flex flex-wrap items-end gap-3">
             <div
               className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-background"
               aria-hidden
             >
-              {block.iconImageUrl?.trim() ?
+              {block.iconImageUrl?.trim() ? (
                 // eslint-disable-next-line @next/next/no-img-element -- CMS URL
                 <img
                   src={block.iconImageUrl.trim()}
@@ -169,12 +184,14 @@ export function PatientHomeBlockSettingsCard({
                   className="size-10 object-cover"
                   loading="lazy"
                 />
-              : <span className="px-1 text-center text-[10px] text-muted-foreground">Нет</span>}
+              ) : (
+                <span className="px-1 text-center text-[10px] text-muted-foreground">Нет</span>
+              )}
             </div>
             <div className="min-w-0 flex-1">
               <MediaLibraryPickerDialog
                 kind="image"
-                value={block.iconImageUrl ?? ""}
+                value={block.iconImageUrl ?? ''}
                 onChange={(url) => {
                   const next = url.trim();
                   handleBlockIconChange(next.length > 0 ? next : null);
@@ -199,8 +216,16 @@ export function PatientHomeBlockSettingsCard({
       ) : null}
       {repairOnlyHiddenBroken ? (
         <div className="mt-3 rounded-lg border border-amber-200/80 bg-amber-50/60 p-3 text-xs text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
-          <p className="mb-2">Есть битые связи CMS у скрытых элементов — на главной пациента они не показываются.</p>
-          <Button type="button" variant="outline" size="sm" className="h-8 text-xs" onClick={() => setRepairOpen(true)}>
+          <p className="mb-2">
+            Есть битые связи CMS у скрытых элементов — на главной пациента они не показываются.
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs"
+            onClick={() => setRepairOpen(true)}
+          >
             Исправить связи CMS…
           </Button>
         </div>

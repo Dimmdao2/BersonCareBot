@@ -1,11 +1,11 @@
 const identifierPattern = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
-export const rlsPredicateModes = new Set(["dormant_permissive", "enforce"]);
-export const patientPredicateModes = new Set(["dormant_symmetric", "enforce"]);
+export const rlsPredicateModes = new Set(['dormant_permissive', 'enforce']);
+export const patientPredicateModes = new Set(['dormant_symmetric', 'enforce']);
 
 export function quoteSqlIdentifier(identifier) {
-  if (typeof identifier !== "string" || identifier.length === 0) {
-    throw new Error("SQL identifier must be a non-empty string");
+  if (typeof identifier !== 'string' || identifier.length === 0) {
+    throw new Error('SQL identifier must be a non-empty string');
   }
 
   if (!identifierPattern.test(identifier)) {
@@ -16,11 +16,11 @@ export function quoteSqlIdentifier(identifier) {
 }
 
 export function quoteQualifiedName(name) {
-  if (typeof name !== "string" || name.length === 0) {
-    throw new Error("SQL qualified name must be a non-empty string");
+  if (typeof name !== 'string' || name.length === 0) {
+    throw new Error('SQL qualified name must be a non-empty string');
   }
 
-  return name.split(".").map(quoteSqlIdentifier).join(".");
+  return name.split('.').map(quoteSqlIdentifier).join('.');
 }
 
 // B4-core-4 (docs/_TODO/SAAS_FOUNDATION/R2_ENFORCEMENT_PREP_PLAN.md, taskdb #660): the conditional/
@@ -28,8 +28,8 @@ export function quoteQualifiedName(name) {
 // value, a polymorphic target_type tag) — quoteSqlIdentifier/quoteQualifiedName are for identifiers
 // only (double-quoted), this is for VALUES (single-quoted, doubled-quote escaping).
 export function quoteSqlLiteral(value) {
-  if (typeof value !== "string" || value.length === 0) {
-    throw new Error("SQL literal must be a non-empty string");
+  if (typeof value !== 'string' || value.length === 0) {
+    throw new Error('SQL literal must be a non-empty string');
   }
 
   return `'${value.replaceAll("'", "''")}'`;
@@ -47,15 +47,15 @@ function assertPatientMode(mode) {
   }
 }
 
-const patientCastTypes = new Set(["uuid", "bigint"]);
-const orgContextSql = "app.current_org_id()";
+const patientCastTypes = new Set(['uuid', 'bigint']);
+const orgContextSql = 'app.current_org_id()';
 
 export const dormantCompatibilityPredicate = [
-  "app.current_org_id() IS NULL",
-  "app.current_patient_user_id() IS NULL",
-  "app.current_integrator_user_id() IS NULL",
-  "NOT app.is_staff()",
-].join(" AND ");
+  'app.current_org_id() IS NULL',
+  'app.current_patient_user_id() IS NULL',
+  'app.current_integrator_user_id() IS NULL',
+  'NOT app.is_staff()',
+].join(' AND ');
 
 // Phase 2 (TASK_FOR_SOL_multitenant_flip.md): trusted org/patient/integrator identity is read only
 // through helper functions backed by the protected backend-context table. Raw custom GUCs remain
@@ -63,8 +63,8 @@ export const dormantCompatibilityPredicate = [
 // castType selects which protected identity helper a predicate reads — never cast the UUID helper to
 // bigint or the bigint helper to UUID.
 const patientContextSqlByCastType = {
-  uuid: "app.current_patient_user_id()",
-  bigint: "app.current_integrator_user_id()",
+  uuid: 'app.current_patient_user_id()',
+  bigint: 'app.current_integrator_user_id()',
 };
 
 function patientContextSqlForCastType(castType) {
@@ -82,7 +82,7 @@ function renderOrgColumnMatchesContext({ column, contextSql, mode }) {
 
   const columnSql = quoteSqlIdentifier(column);
 
-  if (mode === "dormant_permissive") {
+  if (mode === 'dormant_permissive') {
     return `(${contextSql} IS NULL OR ${columnSql} = ${contextSql})`;
   }
 
@@ -94,18 +94,18 @@ function renderPatientColumnMatchesContext({ column, contextSql, mode }) {
 
   const columnSql = quoteSqlIdentifier(column);
 
-  if (mode === "dormant_symmetric") {
+  if (mode === 'dormant_symmetric') {
     return `(${contextSql} IS NULL OR ${columnSql} = ${contextSql})`;
   }
 
   return `(${contextSql} IS NOT NULL AND ${columnSql} = ${contextSql})`;
 }
 
-export function renderOrgPredicate(descriptor, { mode = "dormant_permissive" } = {}) {
+export function renderOrgPredicate(descriptor, { mode = 'dormant_permissive' } = {}) {
   const orgColumn = descriptor?.orgColumn;
 
-  if (typeof orgColumn !== "string" || orgColumn.length === 0) {
-    throw new Error("Org predicate requires descriptor.orgColumn");
+  if (typeof orgColumn !== 'string' || orgColumn.length === 0) {
+    throw new Error('Org predicate requires descriptor.orgColumn');
   }
 
   return renderOrgColumnMatchesContext({
@@ -118,7 +118,11 @@ export function renderOrgPredicate(descriptor, { mode = "dormant_permissive" } =
 // Phase 2 separates org mode from patient mode. Dormant rollout keeps the patient wall symmetric:
 // if no patient/integrator helper is installed, the patient branch permits so compatibility deploys
 // do not break legacy unlabelled reads. Enforce mode is fail-closed.
-export function renderPatientPredicate({ patientColumn = "platform_user_id", mode = "enforce", castType = "uuid" } = {}) {
+export function renderPatientPredicate({
+  patientColumn = 'platform_user_id',
+  mode = 'enforce',
+  castType = 'uuid',
+} = {}) {
   assertPatientMode(mode);
 
   if (!patientCastTypes.has(castType)) {
@@ -144,7 +148,7 @@ export function renderPatientPredicate({ patientColumn = "platform_user_id", mod
 // `app_patient` is deliberately NOT granted membership in `app_staff` — proven live by
 // docs/_TODO/SAAS_FOUNDATION/scripts/smoke-b4-roles-1-staff-role-boundary.mjs.
 export function renderStaffActorCheck() {
-  return "app.is_staff()";
+  return 'app.is_staff()';
 }
 
 // Owner decision 2026-07-11 (B4-core): doctor/staff visibility is org-wide (variant A, no
@@ -152,9 +156,13 @@ export function renderStaffActorCheck() {
 // (app_patient role + app.current_patient_user_id()) sees ONLY its own rows.
 // A patient session can never become a member of app_staff (role membership is deploy-time DDL,
 // not something a runtime session can grant itself — enforced by Postgres, not app code).
-export function renderStaffOrPatientPredicate({ patientColumn, castType = "uuid", patientMode = "enforce" } = {}) {
-  if (typeof patientColumn !== "string" || patientColumn.length === 0) {
-    throw new Error("Staff-or-patient predicate requires a patientColumn");
+export function renderStaffOrPatientPredicate({
+  patientColumn,
+  castType = 'uuid',
+  patientMode = 'enforce',
+} = {}) {
+  if (typeof patientColumn !== 'string' || patientColumn.length === 0) {
+    throw new Error('Staff-or-patient predicate requires a patientColumn');
   }
 
   const patientPredicate = renderPatientPredicate({ patientColumn, mode: patientMode, castType });
@@ -169,9 +177,13 @@ export function renderStaffOrPatientPredicate({ patientColumn, castType = "uuid"
 // nullable owner columns where NULL just means "not yet linked to a patient" (e.g.
 // be_appointments.platform_user_id): those correctly fall through to deny-for-patients via the
 // plain renderStaffOrPatientPredicate fail-closed semantics.
-export function renderNullableSharedStaffOrPatientPredicate({ patientColumn, castType = "uuid", patientMode = "enforce" } = {}) {
-  if (typeof patientColumn !== "string" || patientColumn.length === 0) {
-    throw new Error("Nullable shared staff-or-patient predicate requires a patientColumn");
+export function renderNullableSharedStaffOrPatientPredicate({
+  patientColumn,
+  castType = 'uuid',
+  patientMode = 'enforce',
+} = {}) {
+  if (typeof patientColumn !== 'string' || patientColumn.length === 0) {
+    throw new Error('Nullable shared staff-or-patient predicate requires a patientColumn');
   }
 
   const columnSql = quoteSqlIdentifier(patientColumn);
@@ -179,9 +191,13 @@ export function renderNullableSharedStaffOrPatientPredicate({ patientColumn, cas
   return `(${columnSql} IS NULL OR ${renderStaffOrPatientPredicate({ patientColumn, castType, patientMode })})`;
 }
 
-export function renderNullableSharedPatientPredicate({ patientColumn, castType = "uuid", patientMode = "enforce" } = {}) {
-  if (typeof patientColumn !== "string" || patientColumn.length === 0) {
-    throw new Error("Nullable shared patient predicate requires a patientColumn");
+export function renderNullableSharedPatientPredicate({
+  patientColumn,
+  castType = 'uuid',
+  patientMode = 'enforce',
+} = {}) {
+  if (typeof patientColumn !== 'string' || patientColumn.length === 0) {
+    throw new Error('Nullable shared patient predicate requires a patientColumn');
   }
 
   const columnSql = quoteSqlIdentifier(patientColumn);
@@ -203,15 +219,20 @@ export function renderNullableSharedPatientPredicate({ patientColumn, castType =
 //   hops[i>0].localFk is a column on hops[i-1].alias that equals hops[i].alias.parentPk.
 // `terminalColumn` lives on the LAST hop's alias and is matched against the protected helper selected
 // by `castType` (uuid -> app.current_patient_user_id(), bigint -> app.current_integrator_user_id()).
-export function renderPatientChainPredicate({ hops, terminalColumn, castType = "uuid", mode = "enforce" } = {}) {
+export function renderPatientChainPredicate({
+  hops,
+  terminalColumn,
+  castType = 'uuid',
+  mode = 'enforce',
+} = {}) {
   assertPatientMode(mode);
 
   if (!Array.isArray(hops) || hops.length === 0) {
-    throw new Error("Patient chain predicate requires at least one hop");
+    throw new Error('Patient chain predicate requires at least one hop');
   }
 
-  if (typeof terminalColumn !== "string" || terminalColumn.length === 0) {
-    throw new Error("Patient chain predicate requires a terminalColumn");
+  if (typeof terminalColumn !== 'string' || terminalColumn.length === 0) {
+    throw new Error('Patient chain predicate requires a terminalColumn');
   }
 
   if (!patientCastTypes.has(castType)) {
@@ -223,7 +244,12 @@ export function renderPatientChainPredicate({ hops, terminalColumn, castType = "
   let previousAlias = null;
 
   hops.forEach((hop, index) => {
-    if (typeof hop.table !== "string" || typeof hop.alias !== "string" || typeof hop.parentPk !== "string" || typeof hop.localFk !== "string") {
+    if (
+      typeof hop.table !== 'string' ||
+      typeof hop.alias !== 'string' ||
+      typeof hop.parentPk !== 'string' ||
+      typeof hop.localFk !== 'string'
+    ) {
       throw new Error(`Patient chain hop ${index} is missing table/alias/parentPk/localFk`);
     }
 
@@ -256,22 +282,27 @@ export function renderPatientChainPredicate({ hops, terminalColumn, castType = "
   // opt-in (only hops[0] can carry it) and defaults to unset, so every hop that doesn't need it
   // renders byte-identical SQL to before this fix.
   const outerLocalFkSql =
-    typeof firstHop.outerQualifier === "string" && firstHop.outerQualifier.length > 0
+    typeof firstHop.outerQualifier === 'string' && firstHop.outerQualifier.length > 0
       ? `${quoteQualifiedName(firstHop.outerQualifier)}.${quoteSqlIdentifier(firstHop.localFk)}`
       : quoteSqlIdentifier(firstHop.localFk);
   const outerJoinCondition = `${quoteSqlIdentifier(firstHop.alias)}.${quoteSqlIdentifier(firstHop.parentPk)} = ${outerLocalFkSql}`;
   const lastAlias = hops[hops.length - 1].alias;
   const terminalSql = `${quoteSqlIdentifier(lastAlias)}.${quoteSqlIdentifier(terminalColumn)} = ${contextSql}`;
-  const ownPredicate = `EXISTS ( SELECT 1 ${fromParts.join(" ")} WHERE ${outerJoinCondition} AND ${terminalSql} )`;
+  const ownPredicate = `EXISTS ( SELECT 1 ${fromParts.join(' ')} WHERE ${outerJoinCondition} AND ${terminalSql} )`;
 
-  if (mode === "dormant_symmetric") {
+  if (mode === 'dormant_symmetric') {
     return `(${contextSql} IS NULL OR ${ownPredicate})`;
   }
 
   return `(${contextSql} IS NOT NULL AND ${ownPredicate})`;
 }
 
-export function renderStaffOrPatientChainPredicate({ hops, terminalColumn, castType = "uuid", patientMode = "enforce" } = {}) {
+export function renderStaffOrPatientChainPredicate({
+  hops,
+  terminalColumn,
+  castType = 'uuid',
+  patientMode = 'enforce',
+} = {}) {
   return `(${renderStaffActorCheck()} OR ${renderPatientChainPredicate({ hops, terminalColumn, castType, mode: patientMode })})`;
 }
 
@@ -283,23 +314,23 @@ export function renderStaffOrPatientChainPredicate({ hops, terminalColumn, castT
 // public.media_files (uploaded_by / usage_purpose <> 'program_item_submission').
 export function renderConditionalPatientPredicate({
   patientColumn,
-  castType = "uuid",
+  castType = 'uuid',
   discriminatorColumn,
   discriminatorExcludedValue,
-  mode = "enforce",
+  mode = 'enforce',
 } = {}) {
   assertPatientMode(mode);
 
-  if (typeof patientColumn !== "string" || patientColumn.length === 0) {
-    throw new Error("Conditional patient predicate requires a patientColumn");
+  if (typeof patientColumn !== 'string' || patientColumn.length === 0) {
+    throw new Error('Conditional patient predicate requires a patientColumn');
   }
 
-  if (typeof discriminatorColumn !== "string" || discriminatorColumn.length === 0) {
-    throw new Error("Conditional patient predicate requires a discriminatorColumn");
+  if (typeof discriminatorColumn !== 'string' || discriminatorColumn.length === 0) {
+    throw new Error('Conditional patient predicate requires a discriminatorColumn');
   }
 
-  if (typeof discriminatorExcludedValue !== "string" || discriminatorExcludedValue.length === 0) {
-    throw new Error("Conditional patient predicate requires a discriminatorExcludedValue");
+  if (typeof discriminatorExcludedValue !== 'string' || discriminatorExcludedValue.length === 0) {
+    throw new Error('Conditional patient predicate requires a discriminatorExcludedValue');
   }
 
   const patientContextSql = patientContextSqlForCastType(castType);
@@ -307,14 +338,14 @@ export function renderConditionalPatientPredicate({
   const ownBranch = `${quoteSqlIdentifier(patientColumn)} = ${patientContextSql}`;
   const ownOrSharedPredicate = `(${sharedBranch} OR ${ownBranch})`;
 
-  if (mode === "dormant_symmetric") {
+  if (mode === 'dormant_symmetric') {
     return `(${patientContextSql} IS NULL OR ${ownOrSharedPredicate})`;
   }
 
   return `(${patientContextSql} IS NOT NULL AND ${ownOrSharedPredicate})`;
 }
 
-export function renderStaffOrConditionalPatientPredicate(config, { patientMode = "enforce" } = {}) {
+export function renderStaffOrConditionalPatientPredicate(config, { patientMode = 'enforce' } = {}) {
   return `(${renderStaffActorCheck()} OR ${renderConditionalPatientPredicate({ ...config, mode: patientMode })})`;
 }
 
@@ -324,27 +355,35 @@ export function renderStaffOrConditionalPatientPredicate(config, { patientMode =
 export function renderConditionalChainPatientPredicate({
   hop,
   patientColumn,
-  castType = "uuid",
+  castType = 'uuid',
   discriminatorColumn,
   discriminatorExcludedValue,
-  mode = "enforce",
+  mode = 'enforce',
 } = {}) {
   assertPatientMode(mode);
 
-  if (!hop || typeof hop.table !== "string" || typeof hop.alias !== "string" || typeof hop.parentPk !== "string" || typeof hop.localFk !== "string") {
-    throw new Error("Conditional chain patient predicate requires a hop with table/alias/parentPk/localFk");
+  if (
+    !hop ||
+    typeof hop.table !== 'string' ||
+    typeof hop.alias !== 'string' ||
+    typeof hop.parentPk !== 'string' ||
+    typeof hop.localFk !== 'string'
+  ) {
+    throw new Error(
+      'Conditional chain patient predicate requires a hop with table/alias/parentPk/localFk',
+    );
   }
 
-  if (typeof patientColumn !== "string" || patientColumn.length === 0) {
-    throw new Error("Conditional chain patient predicate requires a patientColumn");
+  if (typeof patientColumn !== 'string' || patientColumn.length === 0) {
+    throw new Error('Conditional chain patient predicate requires a patientColumn');
   }
 
-  if (typeof discriminatorColumn !== "string" || discriminatorColumn.length === 0) {
-    throw new Error("Conditional chain patient predicate requires a discriminatorColumn");
+  if (typeof discriminatorColumn !== 'string' || discriminatorColumn.length === 0) {
+    throw new Error('Conditional chain patient predicate requires a discriminatorColumn');
   }
 
-  if (typeof discriminatorExcludedValue !== "string" || discriminatorExcludedValue.length === 0) {
-    throw new Error("Conditional chain patient predicate requires a discriminatorExcludedValue");
+  if (typeof discriminatorExcludedValue !== 'string' || discriminatorExcludedValue.length === 0) {
+    throw new Error('Conditional chain patient predicate requires a discriminatorExcludedValue');
   }
 
   const patientContextSql = patientContextSqlForCastType(castType);
@@ -352,21 +391,24 @@ export function renderConditionalChainPatientPredicate({
   const sharedBranch = `${aliasSql}.${quoteSqlIdentifier(discriminatorColumn)} IS DISTINCT FROM ${quoteSqlLiteral(discriminatorExcludedValue)}`;
   const ownBranch = `${aliasSql}.${quoteSqlIdentifier(patientColumn)} = ${patientContextSql}`;
   const existsSql = [
-    "EXISTS (",
+    'EXISTS (',
     `SELECT 1 FROM ${renderPolicyTarget(hop.table)} AS ${aliasSql}`,
     `WHERE ${aliasSql}.${quoteSqlIdentifier(hop.parentPk)} = ${quoteSqlIdentifier(hop.localFk)}`,
     `AND (${sharedBranch} OR ${ownBranch})`,
-    ")",
-  ].join(" ");
+    ')',
+  ].join(' ');
 
-  if (mode === "dormant_symmetric") {
+  if (mode === 'dormant_symmetric') {
     return `(${patientContextSql} IS NULL OR ${existsSql})`;
   }
 
   return `(${patientContextSql} IS NOT NULL AND ${existsSql})`;
 }
 
-export function renderStaffOrConditionalChainPatientPredicate(config, { patientMode = "enforce" } = {}) {
+export function renderStaffOrConditionalChainPatientPredicate(
+  config,
+  { patientMode = 'enforce' } = {},
+) {
   return `(${renderStaffActorCheck()} OR ${renderConditionalChainPatientPredicate({ ...config, mode: patientMode })})`;
 }
 
@@ -377,47 +419,54 @@ export function renderStaffOrConditionalChainPatientPredicate(config, { patientM
 // OR its target_type is a registered patient-instance variant AND that variant's chain resolves to
 // the requesting patient. Reuses renderPatientChainPredicate per variant (hops[0].localFk is the
 // polymorphic id column on the policy row itself, e.g. "target_id").
-export function renderPolymorphicPatientPredicate({ typeColumn, sharedTypeValues = [], variants = [], mode = "enforce" } = {}) {
+export function renderPolymorphicPatientPredicate({
+  typeColumn,
+  sharedTypeValues = [],
+  variants = [],
+  mode = 'enforce',
+} = {}) {
   assertPatientMode(mode);
 
-  if (typeof typeColumn !== "string" || typeColumn.length === 0) {
-    throw new Error("Polymorphic patient predicate requires a typeColumn");
+  if (typeof typeColumn !== 'string' || typeColumn.length === 0) {
+    throw new Error('Polymorphic patient predicate requires a typeColumn');
   }
 
   if (!Array.isArray(variants) || variants.length === 0) {
-    throw new Error("Polymorphic patient predicate requires at least one variant");
+    throw new Error('Polymorphic patient predicate requires at least one variant');
   }
 
   const typeColumnSql = quoteSqlIdentifier(typeColumn);
   const branches = [];
 
   if (sharedTypeValues.length > 0) {
-    const list = sharedTypeValues.map(quoteSqlLiteral).join(", ");
+    const list = sharedTypeValues.map(quoteSqlLiteral).join(', ');
     branches.push(`${typeColumnSql} = ANY (ARRAY[${list}]::text[])`);
   }
 
   for (const variant of variants) {
-    if (typeof variant.typeValue !== "string" || variant.typeValue.length === 0) {
-      throw new Error("Polymorphic patient predicate variant requires a typeValue");
+    if (typeof variant.typeValue !== 'string' || variant.typeValue.length === 0) {
+      throw new Error('Polymorphic patient predicate variant requires a typeValue');
     }
 
     const chainPredicate = renderPatientChainPredicate({
       hops: variant.hops,
       terminalColumn: variant.terminalColumn,
-      castType: variant.castType ?? "uuid",
-      mode: "enforce",
+      castType: variant.castType ?? 'uuid',
+      mode: 'enforce',
     });
 
-    branches.push(`(${typeColumnSql} = ${quoteSqlLiteral(variant.typeValue)} AND ${chainPredicate})`);
+    branches.push(
+      `(${typeColumnSql} = ${quoteSqlLiteral(variant.typeValue)} AND ${chainPredicate})`,
+    );
   }
 
-  const ownOrSharedPredicate = `(${branches.join(" OR ")})`;
-  if (mode === "dormant_symmetric") {
+  const ownOrSharedPredicate = `(${branches.join(' OR ')})`;
+  if (mode === 'dormant_symmetric') {
     const dormantContextUnsetPredicate = Array.from(
-      new Set(variants.map((variant) => patientContextSqlForCastType(variant.castType ?? "uuid"))),
+      new Set(variants.map((variant) => patientContextSqlForCastType(variant.castType ?? 'uuid'))),
     )
       .map((contextSql) => `${contextSql} IS NULL`)
-      .join(" AND ");
+      .join(' AND ');
 
     return `(${dormantContextUnsetPredicate} OR ${ownOrSharedPredicate})`;
   }
@@ -425,17 +474,22 @@ export function renderPolymorphicPatientPredicate({ typeColumn, sharedTypeValues
   return ownOrSharedPredicate;
 }
 
-export function renderStaffOrPolymorphicPatientPredicate(config, { patientMode = "enforce" } = {}) {
+export function renderStaffOrPolymorphicPatientPredicate(config, { patientMode = 'enforce' } = {}) {
   return `(${renderStaffActorCheck()} OR ${renderPolymorphicPatientPredicate({ ...config, mode: patientMode })})`;
 }
 
-export function renderStaffOrPatientPredicateForDescriptor(descriptor, { patientMode = "enforce" } = {}) {
+export function renderStaffOrPatientPredicateForDescriptor(
+  descriptor,
+  { patientMode = 'enforce' } = {},
+) {
   if (descriptor.patientPolymorphic) {
     return renderStaffOrPolymorphicPatientPredicate(descriptor.patientPolymorphic, { patientMode });
   }
 
   if (descriptor.patientConditionalChain) {
-    return renderStaffOrConditionalChainPatientPredicate(descriptor.patientConditionalChain, { patientMode });
+    return renderStaffOrConditionalChainPatientPredicate(descriptor.patientConditionalChain, {
+      patientMode,
+    });
   }
 
   if (descriptor.patientConditional) {
@@ -452,22 +506,28 @@ export function renderStaffOrPatientPredicateForDescriptor(descriptor, { patient
 
   return render({
     patientColumn: descriptor.patientColumn,
-    castType: descriptor.patientColumnCastType ?? "uuid",
+    castType: descriptor.patientColumnCastType ?? 'uuid',
     patientMode,
   });
 }
 
-export function renderPatientPredicateForDescriptor(descriptor, { patientMode = "enforce" } = {}) {
+export function renderPatientPredicateForDescriptor(descriptor, { patientMode = 'enforce' } = {}) {
   if (descriptor.patientPolymorphic) {
     return renderPolymorphicPatientPredicate(descriptor.patientPolymorphic, { mode: patientMode });
   }
 
   if (descriptor.patientConditionalChain) {
-    return renderConditionalChainPatientPredicate({ ...descriptor.patientConditionalChain, mode: patientMode });
+    return renderConditionalChainPatientPredicate({
+      ...descriptor.patientConditionalChain,
+      mode: patientMode,
+    });
   }
 
   if (descriptor.patientConditional) {
-    return renderConditionalPatientPredicate({ ...descriptor.patientConditional, mode: patientMode });
+    return renderConditionalPatientPredicate({
+      ...descriptor.patientConditional,
+      mode: patientMode,
+    });
   }
 
   if (descriptor.patientChain) {
@@ -480,7 +540,7 @@ export function renderPatientPredicateForDescriptor(descriptor, { patientMode = 
 
   return render({
     patientColumn: descriptor.patientColumn,
-    castType: descriptor.patientColumnCastType ?? "uuid",
+    castType: descriptor.patientColumnCastType ?? 'uuid',
     patientMode,
     mode: patientMode,
   });
@@ -493,10 +553,10 @@ export function renderPatientPredicateForDescriptor(descriptor, { patientMode = 
 export function hasAnyPatientOwnership(descriptor) {
   return Boolean(
     descriptor?.patientColumn ||
-      descriptor?.patientChain ||
-      descriptor?.patientConditional ||
-      descriptor?.patientConditionalChain ||
-      descriptor?.patientPolymorphic,
+    descriptor?.patientChain ||
+    descriptor?.patientConditional ||
+    descriptor?.patientConditionalChain ||
+    descriptor?.patientPolymorphic,
   );
 }
 
@@ -504,40 +564,42 @@ export function hasAnyPatientOwnership(descriptor) {
 // direct_org_column / denorm_org_column / self_org_id descriptors that declare patientColumn.
 export function renderOrgAndPatientPredicate(
   descriptor,
-  { mode = "dormant_permissive", patientMode = "enforce" } = {},
+  { mode = 'dormant_permissive', patientMode = 'enforce' } = {},
 ) {
   const orgPredicate = renderOrgPredicate(descriptor, { mode });
 
   return `(${orgPredicate} AND ${renderStaffOrPatientPredicateForDescriptor(descriptor, { patientMode })})`;
 }
 
-export function renderBootstrapHybridPredicate({ orgColumn = "organization_id" } = {}) {
+export function renderBootstrapHybridPredicate({ orgColumn = 'organization_id' } = {}) {
   const columnSql = quoteSqlIdentifier(orgColumn);
 
   return `(${columnSql} IS NULL OR (${orgContextSql} IS NOT NULL AND ${columnSql} = ${orgContextSql}))`;
 }
 
-export function renderBootstrapHybridOrgGatedPredicate({ orgColumn = "organization_id" } = {}) {
+export function renderBootstrapHybridOrgGatedPredicate({ orgColumn = 'organization_id' } = {}) {
   const columnSql = quoteSqlIdentifier(orgColumn);
 
   return `((${orgContextSql} IS NOT NULL AND ${columnSql} = ${orgContextSql}) OR (${columnSql} IS NULL AND ${dormantCompatibilityPredicate}))`;
 }
 
 export function renderBootstrapRuntimeAudiencePredicate({
-  orgColumn = "organization_id",
-  audienceColumn = "audience",
-  safeAudiences = ["public", "authenticated_client"],
+  orgColumn = 'organization_id',
+  audienceColumn = 'audience',
+  safeAudiences = ['public', 'authenticated_client'],
 } = {}) {
   if (
     !Array.isArray(safeAudiences) ||
     safeAudiences.length === 0 ||
-    safeAudiences.some((audience) => !["public", "authenticated_client"].includes(audience))
+    safeAudiences.some((audience) => !['public', 'authenticated_client'].includes(audience))
   ) {
-    throw new Error("Runtime audience predicate accepts only public/authenticated_client audiences");
+    throw new Error(
+      'Runtime audience predicate accepts only public/authenticated_client audiences',
+    );
   }
 
   const audienceSql = quoteSqlIdentifier(audienceColumn);
-  const safeAudienceSql = safeAudiences.map(quoteSqlLiteral).join(", ");
+  const safeAudienceSql = safeAudiences.map(quoteSqlLiteral).join(', ');
   const orgPredicate = renderBootstrapHybridPredicate({ orgColumn });
 
   return `(NOT pg_has_role(current_user, 'app_worker', 'member') AND ${audienceSql} IN (${safeAudienceSql}) AND ${orgPredicate})`;
@@ -563,25 +625,30 @@ export function renderCreatePolicy({ policyName, target, predicate }) {
   const policySql = quoteSqlIdentifier(policyName);
   const targetSql = renderPolicyTarget(target);
 
-  if (typeof predicate !== "string" || predicate.length === 0) {
-    throw new Error("Policy predicate must be a non-empty string");
+  if (typeof predicate !== 'string' || predicate.length === 0) {
+    throw new Error('Policy predicate must be a non-empty string');
   }
 
   return `CREATE POLICY ${policySql} ON ${targetSql} FOR ALL USING (${predicate}) WITH CHECK (${predicate});`;
 }
 
 export function renderOrgDormantPolicyStatements(descriptor, { policyName }) {
-  if (descriptor?.scopingKind !== "direct_org_column") {
-    throw new Error(`Direct-org policy requires direct_org_column descriptor for ${descriptor?.table ?? "<unknown>"}`);
+  if (descriptor?.scopingKind !== 'direct_org_column') {
+    throw new Error(
+      `Direct-org policy requires direct_org_column descriptor for ${descriptor?.table ?? '<unknown>'}`,
+    );
   }
 
-  if (typeof policyName !== "string" || policyName.length === 0) {
-    throw new Error("Policy name must be a non-empty string");
+  if (typeof policyName !== 'string' || policyName.length === 0) {
+    throw new Error('Policy name must be a non-empty string');
   }
 
   const predicate = hasAnyPatientOwnership(descriptor)
-    ? renderOrgAndPatientPredicate(descriptor, { mode: "dormant_permissive", patientMode: "dormant_symmetric" })
-    : renderOrgPredicate(descriptor, { mode: "dormant_permissive" });
+    ? renderOrgAndPatientPredicate(descriptor, {
+        mode: 'dormant_permissive',
+        patientMode: 'dormant_symmetric',
+      })
+    : renderOrgPredicate(descriptor, { mode: 'dormant_permissive' });
 
   return [
     renderEnableRowLevelSecurity(descriptor.table),
@@ -595,19 +662,22 @@ export function renderOrgColumnDormantPolicyStatements(descriptor, { policyName,
 
   if (!allowedKinds.has(descriptor?.scopingKind)) {
     throw new Error(
-      `Org-column policy requires ${Array.from(allowedKinds).join("/")} descriptor for ${
-        descriptor?.table ?? "<unknown>"
+      `Org-column policy requires ${Array.from(allowedKinds).join('/')} descriptor for ${
+        descriptor?.table ?? '<unknown>'
       }`,
     );
   }
 
-  if (typeof policyName !== "string" || policyName.length === 0) {
-    throw new Error("Policy name must be a non-empty string");
+  if (typeof policyName !== 'string' || policyName.length === 0) {
+    throw new Error('Policy name must be a non-empty string');
   }
 
   const predicate = hasAnyPatientOwnership(descriptor)
-    ? renderOrgAndPatientPredicate(descriptor, { mode: "dormant_permissive", patientMode: "dormant_symmetric" })
-    : renderOrgPredicate(descriptor, { mode: "dormant_permissive" });
+    ? renderOrgAndPatientPredicate(descriptor, {
+        mode: 'dormant_permissive',
+        patientMode: 'dormant_symmetric',
+      })
+    : renderOrgPredicate(descriptor, { mode: 'dormant_permissive' });
 
   return [
     renderEnableRowLevelSecurity(descriptor.table),
@@ -617,12 +687,14 @@ export function renderOrgColumnDormantPolicyStatements(descriptor, { policyName,
 }
 
 export function renderBootstrapHybridPolicyStatements(descriptor, { policyName }) {
-  if (descriptor?.scopingKind !== "bootstrap_hybrid") {
-    throw new Error(`Bootstrap hybrid policy requires bootstrap_hybrid descriptor for ${descriptor?.table ?? "<unknown>"}`);
+  if (descriptor?.scopingKind !== 'bootstrap_hybrid') {
+    throw new Error(
+      `Bootstrap hybrid policy requires bootstrap_hybrid descriptor for ${descriptor?.table ?? '<unknown>'}`,
+    );
   }
 
-  if (typeof policyName !== "string" || policyName.length === 0) {
-    throw new Error("Policy name must be a non-empty string");
+  if (typeof policyName !== 'string' || policyName.length === 0) {
+    throw new Error('Policy name must be a non-empty string');
   }
 
   const predicate = renderBootstrapHybridPredicate({ orgColumn: descriptor.orgColumn });
@@ -635,15 +707,19 @@ export function renderBootstrapHybridPolicyStatements(descriptor, { policyName }
 }
 
 export function renderBootstrapHybridOrgGatedPolicyStatements(descriptor, { policyName }) {
-  if (descriptor?.scopingKind !== "bootstrap_hybrid_org_gated") {
-    throw new Error(`Bootstrap hybrid org-gated policy requires bootstrap_hybrid_org_gated descriptor for ${descriptor?.table ?? "<unknown>"}`);
+  if (descriptor?.scopingKind !== 'bootstrap_hybrid_org_gated') {
+    throw new Error(
+      `Bootstrap hybrid org-gated policy requires bootstrap_hybrid_org_gated descriptor for ${descriptor?.table ?? '<unknown>'}`,
+    );
   }
 
-  if (typeof policyName !== "string" || policyName.length === 0) {
-    throw new Error("Policy name must be a non-empty string");
+  if (typeof policyName !== 'string' || policyName.length === 0) {
+    throw new Error('Policy name must be a non-empty string');
   }
 
-  const strictPredicate = renderBootstrapHybridOrgGatedPredicate({ orgColumn: descriptor.orgColumn });
+  const strictPredicate = renderBootstrapHybridOrgGatedPredicate({
+    orgColumn: descriptor.orgColumn,
+  });
   const predicate = `((${dormantCompatibilityPredicate}) OR ${strictPredicate})`;
 
   return [
@@ -655,19 +731,21 @@ export function renderBootstrapHybridOrgGatedPolicyStatements(descriptor, { poli
 
 function renderFkPathExists({ table, alias, parentPk, localFk, parentOrgColumn }) {
   return [
-    "EXISTS (",
+    'EXISTS (',
     `SELECT 1 FROM ${renderPolicyTarget(table)} AS ${quoteSqlIdentifier(alias)}`,
     `WHERE ${quoteSqlIdentifier(alias)}.${quoteSqlIdentifier(parentPk)} = ${quoteSqlIdentifier(localFk)}`,
     `AND ${quoteSqlIdentifier(alias)}.${quoteSqlIdentifier(parentOrgColumn)} = ${orgContextSql}`,
-    ")",
-  ].join(" ");
+    ')',
+  ].join(' ');
 }
 
-export function renderFkPathPredicate(descriptor, { mode = "dormant_permissive" } = {}) {
+export function renderFkPathPredicate(descriptor, { mode = 'dormant_permissive' } = {}) {
   assertMode(mode);
 
-  if (descriptor?.scopingKind !== "fk_path") {
-    throw new Error(`FK-path predicate requires fk_path descriptor for ${descriptor?.table ?? "<unknown>"}`);
+  if (descriptor?.scopingKind !== 'fk_path') {
+    throw new Error(
+      `FK-path predicate requires fk_path descriptor for ${descriptor?.table ?? '<unknown>'}`,
+    );
   }
 
   const fkPath = descriptor.fkPath;
@@ -687,19 +765,19 @@ export function renderFkPathPredicate(descriptor, { mode = "dormant_permissive" 
 
   const pathPredicate = `(${renderFkPathExists({
     table: fkPath.parentTable,
-    alias: "p0_8_4_parent",
+    alias: 'p0_8_4_parent',
     parentPk: fkPath.parentPk,
     localFk: fkPath.localFk,
     parentOrgColumn: fkPath.parentOrgColumn,
   })} AND ${renderFkPathExists({
     table: fkPath.crossCheckTable,
-    alias: "p0_8_4_cross",
+    alias: 'p0_8_4_cross',
     parentPk: fkPath.crossCheckPk,
     localFk: fkPath.crossCheckLocalFk,
     parentOrgColumn: fkPath.crossCheckOrgColumn,
   })})`;
 
-  if (mode === "dormant_permissive") {
+  if (mode === 'dormant_permissive') {
     return `(${orgContextSql} IS NULL OR ${pathPredicate})`;
   }
 
@@ -711,46 +789,52 @@ export function renderFkPathPredicate(descriptor, { mode = "dormant_permissive" 
 // public.be_patient_packages.platform_user_id), so this reuses the same parent-lookup shape as
 // renderFkPathExists above, just checking the patient column instead of the org column.
 export function renderFkPathPatientPredicate(descriptor) {
-  if (descriptor?.scopingKind !== "fk_path") {
-    throw new Error(`FK-path patient predicate requires fk_path descriptor for ${descriptor?.table ?? "<unknown>"}`);
+  if (descriptor?.scopingKind !== 'fk_path') {
+    throw new Error(
+      `FK-path patient predicate requires fk_path descriptor for ${descriptor?.table ?? '<unknown>'}`,
+    );
   }
 
   const fkPath = descriptor.fkPath;
   const patientColumn = descriptor.patientColumn;
-  const castType = descriptor.patientColumnCastType ?? "uuid";
+  const castType = descriptor.patientColumnCastType ?? 'uuid';
 
   if (!fkPath?.parentTable || !fkPath?.parentPk || !fkPath?.localFk) {
-    throw new Error(`FK-path patient predicate for ${descriptor.table} is missing parent path metadata`);
+    throw new Error(
+      `FK-path patient predicate for ${descriptor.table} is missing parent path metadata`,
+    );
   }
 
-  if (typeof patientColumn !== "string" || patientColumn.length === 0) {
+  if (typeof patientColumn !== 'string' || patientColumn.length === 0) {
     throw new Error(`FK-path patient predicate for ${descriptor.table} requires a patientColumn`);
   }
 
   const patientContextSql = patientContextSqlForCastType(castType);
-  const parentAlias = quoteSqlIdentifier("p0_8_4_patient_parent");
+  const parentAlias = quoteSqlIdentifier('p0_8_4_patient_parent');
   const existsSql = [
-    "EXISTS (",
+    'EXISTS (',
     `SELECT 1 FROM ${renderPolicyTarget(fkPath.parentTable)} AS ${parentAlias}`,
     `WHERE ${parentAlias}.${quoteSqlIdentifier(fkPath.parentPk)} = ${quoteSqlIdentifier(fkPath.localFk)}`,
     `AND ${parentAlias}.${quoteSqlIdentifier(patientColumn)} = ${patientContextSql}`,
-    ")",
-  ].join(" ");
+    ')',
+  ].join(' ');
 
   return `(${patientContextSql} IS NOT NULL AND ${existsSql})`;
 }
 
 export function renderFkPathAndPatientPredicate(
   descriptor,
-  { mode = "dormant_permissive", patientMode = "enforce" } = {},
+  { mode = 'dormant_permissive', patientMode = 'enforce' } = {},
 ) {
   assertPatientMode(patientMode);
 
   const orgPredicate = renderFkPathPredicate(descriptor, { mode });
-  const patientContextSql = patientContextSqlForCastType(descriptor.patientColumnCastType ?? "uuid");
+  const patientContextSql = patientContextSqlForCastType(
+    descriptor.patientColumnCastType ?? 'uuid',
+  );
   const patientPredicate = renderFkPathPatientPredicate(descriptor);
   const staffOrPatient =
-    patientMode === "dormant_symmetric"
+    patientMode === 'dormant_symmetric'
       ? `(${renderStaffActorCheck()} OR ${patientContextSql} IS NULL OR ${patientPredicate})`
       : `(${renderStaffActorCheck()} OR ${patientPredicate})`;
 
@@ -758,17 +842,22 @@ export function renderFkPathAndPatientPredicate(
 }
 
 export function renderFkPathDormantPolicyStatements(descriptor, { policyName }) {
-  if (descriptor?.scopingKind !== "fk_path") {
-    throw new Error(`FK-path policy requires fk_path descriptor for ${descriptor?.table ?? "<unknown>"}`);
+  if (descriptor?.scopingKind !== 'fk_path') {
+    throw new Error(
+      `FK-path policy requires fk_path descriptor for ${descriptor?.table ?? '<unknown>'}`,
+    );
   }
 
-  if (typeof policyName !== "string" || policyName.length === 0) {
-    throw new Error("Policy name must be a non-empty string");
+  if (typeof policyName !== 'string' || policyName.length === 0) {
+    throw new Error('Policy name must be a non-empty string');
   }
 
   const predicate = descriptor.patientColumn
-    ? renderFkPathAndPatientPredicate(descriptor, { mode: "dormant_permissive", patientMode: "dormant_symmetric" })
-    : renderFkPathPredicate(descriptor, { mode: "dormant_permissive" });
+    ? renderFkPathAndPatientPredicate(descriptor, {
+        mode: 'dormant_permissive',
+        patientMode: 'dormant_symmetric',
+      })
+    : renderFkPathPredicate(descriptor, { mode: 'dormant_permissive' });
 
   return [
     renderEnableRowLevelSecurity(descriptor.table),

@@ -17,6 +17,7 @@ Independent review — did NOT rely on audit #1 (Sonnet) conclusions; every item
 ### 1. Only docs changed — PASS
 
 `git diff --name-only dc7fe500..HEAD` returns exactly two files:
+
 - `apps/webapp/src/modules/media/media.md`
 - `docs/PATIENT_FILES_ISOLATION_INITIATIVE/LOG.md`
 
@@ -35,6 +36,7 @@ changed-file list returns nothing → **no code files touched.** Diffstat:
 
 Note (informational, NOT a defect): «Файлы клиентов» still appears elsewhere,
 and correctly so:
+
 - `clientFilesFolders.ts:6` — `CLIENT_FILES_ROOT_FOLDER_NAME_LEGACY` (intentional
   legacy-promote constant).
 - `REQUIREMENTS.md` / `ROADMAP.md` — historical context describing the old name
@@ -65,14 +67,17 @@ src/infra/repos/pgPatientFiles.test.ts
 src/app/api/admin/media/[id]/route.test.ts
 src/app-layer/media/clientMediaFolders.test.ts
 ```
+
 Result: **5 files, 52 tests, all pass** (rc=0).
 
 Independently also ran the LOG-referenced files that aren't in the prompt set:
+
 ```
 src/infra/repos/pgPatientFiles.g3.test.ts            (5)
 src/app/api/admin/media/folders/[id]/route.test.ts   (8)
 src/app/api/patient/media/program-submission/presign/route.test.ts (4)
 ```
+
 Result: **3 files, 17 tests, all pass** (rc=0).
 
 LOG.md claims a 63-test total. Cross-check: the four non-overlapping files in the

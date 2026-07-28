@@ -5,68 +5,102 @@
    This file ports almost verbatim into doctor.css later.
    ============================================================ */
 
-#app-shell-doctor{
+#app-shell-doctor {
   /* --- surfaces --- */
-  --background:#f9f9f6;            --color-background:#f9f9f6;       /* near-white warm canvas */
-  --card:#ffffff;                 --color-card:#ffffff;            /* white floating cards */
-  --popover:#ffffff;              --color-popover:#ffffff;
-  --muted:#eef0f2;                --color-muted:#eef0f2;
-  --muted-foreground:#5a6675;     --color-muted-foreground:#5a6675;
-  --secondary:#eef0f2;            --color-secondary:#eef0f2;
-  --secondary-foreground:#16202e; --color-secondary-foreground:#16202e;
-  --accent:#eef0f2;               --color-accent:#eef0f2;
-  --accent-foreground:#16202e;    --color-accent-foreground:#16202e;
+  --background: #f9f9f6;
+  --color-background: #f9f9f6; /* near-white warm canvas */
+  --card: #ffffff;
+  --color-card: #ffffff; /* white floating cards */
+  --popover: #ffffff;
+  --color-popover: #ffffff;
+  --muted: #eef0f2;
+  --color-muted: #eef0f2;
+  --muted-foreground: #5a6675;
+  --color-muted-foreground: #5a6675;
+  --secondary: #eef0f2;
+  --color-secondary: #eef0f2;
+  --secondary-foreground: #16202e;
+  --color-secondary-foreground: #16202e;
+  --accent: #eef0f2;
+  --color-accent: #eef0f2;
+  --accent-foreground: #16202e;
+  --color-accent-foreground: #16202e;
 
   /* --- text / ink --- */
-  --foreground:#16202e;           --color-foreground:#16202e;
+  --foreground: #16202e;
+  --color-foreground: #16202e;
 
   /* --- borders / inputs / focus --- */
-  --border:#e7e3db;               --color-border:#e7e3db;
-  --input:#e7e3db;                --color-input:#e7e3db;
-  --ring:#42608a;                 --color-ring:#42608a;
+  --border: #e7e3db;
+  --color-border: #e7e3db;
+  --input: #e7e3db;
+  --color-input: #e7e3db;
+  --ring: #42608a;
+  --color-ring: #42608a;
 
   /* --- brand accent: steel-blue --- */
-  --primary:#42608a;                   --color-primary:#42608a;
-  --primary-foreground:#ffffff;        --color-primary-foreground:#ffffff;
+  --primary: #42608a;
+  --color-primary: #42608a;
+  --primary-foreground: #ffffff;
+  --color-primary-foreground: #ffffff;
 
   /* --- semantic (brick danger; success/gold live in component partials) --- */
-  --destructive:#c2402f;          --color-destructive:#c2402f;
-  --destructive-foreground:#ffffff; --color-destructive-foreground:#ffffff;
+  --destructive: #c2402f;
+  --color-destructive: #c2402f;
+  --destructive-foreground: #ffffff;
+  --color-destructive-foreground: #ffffff;
 
   /* --- shape --- */
-  --radius:0.563rem;              /* 9px on cards/controls via shadcn */
+  --radius: 0.563rem; /* 9px on cards/controls via shadcn */
 }
 
 /* page canvas */
 #app-shell-doctor,
-#app-shell-content{ background:#f9f9f6; }
+#app-shell-content {
+  background: #f9f9f6;
+}
 
 /* per-page header bar → white (pages that have it) */
-#app-shell-doctor [data-doctor-page-header]{ background:#ffffff !important; box-shadow:none !important; }
+#app-shell-doctor [data-doctor-page-header] {
+  background: #ffffff !important;
+  box-shadow: none !important;
+}
 
 /* sidebar — colours taken from the design-lab control panel (owner pick).
    COLOURS ONLY (bg / text / active plate); font sizes unchanged. */
-html body #doctor-admin-sidebar{
-  background:#fbfaf8 !important;                 /* warm near-white panel */
-  border-right:1px solid #e2ddd3 !important;     /* warm divider */
+html body #doctor-admin-sidebar {
+  background: #fbfaf8 !important; /* warm near-white panel */
+  border-right: 1px solid #e2ddd3 !important; /* warm divider */
 }
 /* nav item text (inactive) + brand title → warm slate */
-html body #doctor-admin-sidebar .text-foreground{ color:#42474f !important; }
-html body #doctor-admin-sidebar a.hover\:bg-muted:hover{ background:#f0ece3 !important; }
-/* section caption (РАЗДЕЛЫ) + muted subtitles → warm muted */
-html body #doctor-admin-sidebar .text-muted-foreground{ color:#9a9384 !important; }
-/* active item → SOLID steel-blue plate + white text (like the lab panel) */
-html body #doctor-admin-sidebar a.bg-primary\/15{
-  background:#42608a !important;
-  color:#ffffff !important;
+html body #doctor-admin-sidebar .text-foreground {
+  color: #42474f !important;
 }
-html body #doctor-admin-sidebar a.bg-primary\/15 *{ color:#ffffff !important; }
-html body #doctor-admin-sidebar a.hover\:bg-primary\/15:hover{ background:#42608a !important; }
+html body #doctor-admin-sidebar a.hover\:bg-muted:hover {
+  background: #f0ece3 !important;
+}
+/* section caption (РАЗДЕЛЫ) + muted subtitles → warm muted */
+html body #doctor-admin-sidebar .text-muted-foreground {
+  color: #9a9384 !important;
+}
+/* active item → SOLID steel-blue plate + white text (like the lab panel) */
+html body #doctor-admin-sidebar a.bg-primary\/15 {
+  background: #42608a !important;
+  color: #ffffff !important;
+}
+html body #doctor-admin-sidebar a.bg-primary\/15 * {
+  color: #ffffff !important;
+}
+html body #doctor-admin-sidebar a.hover\:bg-primary\/15:hover {
+  background: #42608a !important;
+}
 
 /* white cards: low soft shadow, warm border, calmer 9px radius */
-#app-shell-content .bg-card{
-  background:#ffffff !important;
-  border-color:#e7e3db !important;
-  border-radius:9px !important;
-  box-shadow:0 1px 2px rgba(28,24,18,.05), 0 3px 8px rgba(28,24,18,.06) !important;
+#app-shell-content .bg-card {
+  background: #ffffff !important;
+  border-color: #e7e3db !important;
+  border-radius: 9px !important;
+  box-shadow:
+    0 1px 2px rgba(28, 24, 18, 0.05),
+    0 3px 8px rgba(28, 24, 18, 0.06) !important;
 }

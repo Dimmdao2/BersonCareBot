@@ -6,54 +6,58 @@
  * Usage: pnpm run stage13-preflight  (or node scripts/stage13-preflight.mjs)
  * Exit: 0 when all checks pass; 1 when any fail or DB env missing.
  */
-import { fileURLToPath } from "node:url";
-import path from "node:path";
-import { loadCutoverEnv } from "./load-cutover-env.mjs";
-import { runWithTimeout } from "./spawn-with-timeout.mjs";
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
+import { loadCutoverEnv } from './load-cutover-env.mjs';
+import { runWithTimeout } from './spawn-with-timeout.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const rootDir = path.resolve(__dirname, "..");
+const rootDir = path.resolve(__dirname, '..');
 
 loadCutoverEnv();
 
 const webappUrl = process.env.DATABASE_URL;
 const integratorUrl = process.env.INTEGRATOR_DATABASE_URL || process.env.SOURCE_DATABASE_URL;
 if (!webappUrl?.trim()) {
-  console.error("[stage13-preflight] DATABASE_URL is not set");
+  console.error('[stage13-preflight] DATABASE_URL is not set');
   process.exit(1);
 }
 if (!integratorUrl?.trim()) {
-  console.error("[stage13-preflight] INTEGRATOR_DATABASE_URL (or SOURCE_DATABASE_URL) is not set");
+  console.error('[stage13-preflight] INTEGRATOR_DATABASE_URL (or SOURCE_DATABASE_URL) is not set');
   process.exit(1);
 }
 
 const steps = [
-  () => runWithTimeout("pnpm", ["run", "stage12-gate"], { cwd: rootDir, name: "stage12-gate" }),
+  () => runWithTimeout('pnpm', ['run', 'stage12-gate'], { cwd: rootDir, name: 'stage12-gate' }),
   () =>
-    runWithTimeout("pnpm", ["--dir", "apps/webapp", "run", "reconcile-person-domain"], {
+    runWithTimeout('pnpm', ['--dir', 'apps/webapp', 'run', 'reconcile-person-domain'], {
       cwd: rootDir,
-      name: "reconcile-person-domain",
+      name: 'reconcile-person-domain',
     }),
   () =>
-    runWithTimeout("pnpm", ["--dir", "apps/webapp", "run", "reconcile-communication-domain"], {
+    runWithTimeout('pnpm', ['--dir', 'apps/webapp', 'run', 'reconcile-communication-domain'], {
       cwd: rootDir,
-      name: "reconcile-communication-domain",
+      name: 'reconcile-communication-domain',
     }),
   () =>
-    runWithTimeout("pnpm", ["--dir", "apps/webapp", "run", "reconcile-reminders-domain"], {
+    runWithTimeout('pnpm', ['--dir', 'apps/webapp', 'run', 'reconcile-reminders-domain'], {
       cwd: rootDir,
-      name: "reconcile-reminders-domain",
+      name: 'reconcile-reminders-domain',
     }),
   () =>
-    runWithTimeout("pnpm", ["--dir", "apps/webapp", "run", "reconcile-appointments-domain"], {
+    runWithTimeout('pnpm', ['--dir', 'apps/webapp', 'run', 'reconcile-appointments-domain'], {
       cwd: rootDir,
-      name: "reconcile-appointments-domain",
+      name: 'reconcile-appointments-domain',
     }),
   () =>
-    runWithTimeout("pnpm", ["--dir", "apps/webapp", "run", "reconcile-subscription-mailing-domain"], {
-      cwd: rootDir,
-      name: "reconcile-subscription-mailing-domain",
-    }),
+    runWithTimeout(
+      'pnpm',
+      ['--dir', 'apps/webapp', 'run', 'reconcile-subscription-mailing-domain'],
+      {
+        cwd: rootDir,
+        name: 'reconcile-subscription-mailing-domain',
+      },
+    ),
 ];
 
 let failed = null;
@@ -63,8 +67,8 @@ for (const step of steps) {
 }
 
 if (failed) {
-  console.error("[stage13-preflight] failed:", failed);
+  console.error('[stage13-preflight] failed:', failed);
   process.exit(1);
 }
-console.log("[stage13-preflight] ok: all checks passed");
+console.log('[stage13-preflight] ok: all checks passed');
 process.exit(0);

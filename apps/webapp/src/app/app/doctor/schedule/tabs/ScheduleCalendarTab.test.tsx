@@ -193,7 +193,8 @@ vi.mock('@/modules/booking-calendar/calendarCreateFieldMode', () => ({
 
 // appointmentStatusLabel
 vi.mock('@/modules/booking-calendar/appointmentStatusLabels', () => ({
-  appointmentStatusLabel: (status: string) => (status === 'confirmed' ? 'Подтверждена' : `status:${status}`),
+  appointmentStatusLabel: (status: string) =>
+    status === 'confirmed' ? 'Подтверждена' : `status:${status}`,
   isCancelledAppointmentStatus: () => false,
 }));
 
@@ -506,7 +507,9 @@ describe('ScheduleCalendarTab — v26 rebuild', () => {
         ...makeCalendarResponse(),
         filters: {
           specialists: [],
-          branches: [{ id: 'branch-online', label: 'Онлайн', shortLabel: 'Онлайн', color: '#7c3aed' }],
+          branches: [
+            { id: 'branch-online', label: 'Онлайн', shortLabel: 'Онлайн', color: '#7c3aed' },
+          ],
           rooms: [],
           services: [],
         },
@@ -768,7 +771,9 @@ describe('ScheduleCalendarTab — v26 rebuild', () => {
       setupFetchMock(makeCalendarResponse(events));
       const Tab = await setup();
       const user = userEvent.setup();
-      render(<Tab deepLinkParams={{ date: '2026-06-13', render: 'list' }} onDeepLinkChange={vi.fn()} />);
+      render(
+        <Tab deepLinkParams={{ date: '2026-06-13', render: 'list' }} onDeepLinkChange={vi.fn()} />,
+      );
 
       await waitFor(() => screen.getByTestId('list-appt-appt-status'));
 
@@ -949,7 +954,9 @@ describe('ScheduleCalendarTab — v26 rebuild', () => {
       const styleText = Array.from(document.querySelectorAll('style'))
         .map((style) => style.textContent ?? '')
         .join('\n');
-      expect(styleText).toContain('--fc-border-color: color-mix(in srgb, var(--border) 62%, transparent)');
+      expect(styleText).toContain(
+        '--fc-border-color: color-mix(in srgb, var(--border) 62%, transparent)',
+      );
       expect(styleText).toContain('color-mix(in srgb, var(--border) 52%, transparent)');
     });
 

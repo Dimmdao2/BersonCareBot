@@ -218,7 +218,7 @@
 
 **Сделано:**
 
-- Создана папка `docs/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/` с `README.md`, `STAGE_PLAN.md`, `LOG.md` *(2026-05-05: перенос в `docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/` — см. запись в [`../../../APP_RESTRUCTURE_INITIATIVE/LOG.md`](../../../APP_RESTRUCTURE_INITIATIVE/LOG.md))*.
+- Создана папка `docs/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/` с `README.md`, `STAGE_PLAN.md`, `LOG.md` _(2026-05-05: перенос в `docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/` — см. запись в [`../../../APP_RESTRUCTURE_INITIATIVE/LOG.md`](../../../APP_RESTRUCTURE_INITIATIVE/LOG.md))_.
 - Зафиксирована последовательность исполнения **A (1.0) → B (1.1a) → C (1.1)** и MVP-инварианты (без процентной аналитики; `started_at` для даты контроля).
 - Навигация: ссылки из корневого [`../README.md`](../../../README.md) (активные инициативы), [`../APP_RESTRUCTURE_INITIATIVE/README.md`](../../../APP_RESTRUCTURE_INITIATIVE/README.md) (таблица файлов, блок новых инициатив, «Связанные документы»), [`../APP_RESTRUCTURE_INITIATIVE/LOG.md`](../../../APP_RESTRUCTURE_INITIATIVE/LOG.md); в [`../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md`](../../../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md) — блок «Связанные документы», §3 и шаг §9 с указанием на эту папку.
 

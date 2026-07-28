@@ -38,7 +38,7 @@ Stripe Billing/Connect. Это не рекомендации заменить и
 3. Staff invite — не «создать пользователя», а lifecycle: role/capabilities до отправки, email activation,
    pending/resend/revoke, seat/plan failure, active/inactive и безопасная передача ownership.
 4. Patient invite — отдельный lifecycle от patient record: `not invited → invited → activated → active →
-   deactivated`. Email — основной проверяемый канал; прямую ссылку можно дать как controlled fallback. Новый resend
+deactivated`. Email — основной проверяемый канал; прямую ссылку можно дать как controlled fallback. Новый resend
    должен инвалидировать прежнюю ссылку или интерфейс должен требовать самую новую ссылку.
 5. Для UX-03 наиболее сильный evidence-backed кандидат — **одна organization-scoped patient record**, внутри
    которой записи имеют автора/специалиста, а история фильтруется по специалисту, типу и периоду. Permission
@@ -59,13 +59,13 @@ Stripe Billing/Connect. Это не рекомендации заменить и
 
 ## 3. Матрица продуктов
 
-| Продукт | Acquisition: solo / clinic | Staff и owner/admin | Patient entry / activation | Patient record, shared history, handoff | Branding / domain | Полезный сигнал для BersonCare |
-|---|---|---|---|---|---|---|
-| SimplePractice | Solo-тарифы и group flow 2–5 / 6+ специалистов разведены на pricing; group требует Plus | Один Account Owner; clinical и administrative roles можно сочетать; owner/manager управляет team | Email welcome; состояния «sent, not signed in», resend до первого входа, затем обычный portal URL; practice-wide и per-client portal access | Primary clinician; другим clinicians выдаётся access. Для частой работы нескольких clinicians допускаются отдельные client profiles, затем portal profile picker | Practice-wide portal URL; owner/manager настраивает его. Practice name и контакты видны пациенту | Хороший invite lifecycle и role composition; отдельные profiles на специалиста — предупреждение о фрагментации |
-| Jane | Одна account model от solo до clinic; первый practitioner включён, team добавляется; setup checklist clinic info → disciplines → treatments → staff → schedule | Один Account Owner, Full Access и granular staff access. Practitioner Limited видит свои schedule/patients; owner transfer требует подтверждённого работающего staff login | My Account создаётся из booking или Welcome Email. Staff и patient стороны разделены URL (`/admin` и `/account`) | Одна clinic patient profile и chart; shared charts имеют author/privacy. History/export фильтруется по practitioner. Между Jane accounts transfer — отдельный owner-authorized copy process | Clinic subdomain; branding на booking, My Account и email, но не admin shell. Старый URL остаётся redirect после rename | Сильный эталон author-attributed общей истории и безопасного URL migration; отдельные practice portals остаются ограничением |
-| Healthie | Solo Core/Essentials/Plus; Group добавляет provider/support seats и care teams; Enterprise — sub-org/white-label | Standard и Support — базовый тип; admin designation независим. Permission templates и granular permissions; один Account Owner | Client invite email → password. Time-limited link; resend создаёт новый link и инвалидирует старый; retry rate limit | Один client может иметь несколько assigned providers в Care Team. Email может вести к нескольким отдельным client portals/accounts с explicit toggle | Logo/name/colors и branded platform path; full web/mobile white-label — enterprise option | Полезны care team, permission templates и строгие invite recovery states; опасны неочевидно связанные дубли по email |
-| Practice Better | Individual tiers и отдельный Team plan; solo account может войти в Team с сохранением client records/resources | Один Team Owner; Practitioner, Admin user и Practice Admin; custom roles/permissions; practitioner/admin invite email | Invitation-only activation; явные statuses Not Invited, Invited, Activated, Last Active, Deactivated; resend, copy link, revoke | Несколько practitioners могут создать profiles для одного email; после linking patient получает profile picker. Shared team resources и explicit sharing recipients | Personalized URL и portal/email branding зависят от тарифа | Лучший status vocabulary для patient activation; profile picker полезен, но отдельные practitioner profiles не должны стать default BersonCare model |
-| Cliniko | Одна clinic account; practitioner count влияет на тариф, non-practitioner admin users бесплатны | Security role отделён от признака Practitioner. Administrator может менять subscription/users, но non-practitioner admin не может писать treatment notes | Public booking не требует login: данные сопоставляются с existing patient или создают record; patient portal invite не является основным паттерном продукта | Одна patient record хранит appointments, notes, communications и forms. History фильтруется по practitioner/business/record; ограничения чтения notes применяются отдельно. Duplicate records merge сохраняет историю | Business logo и online booking settings настраиваются по business/location | Самое прямое evidence для `one record + filter`, где permission не подменяется фильтром; полезен low-friction public booking |
+| Продукт         | Acquisition: solo / clinic                                                                                                                                     | Staff и owner/admin                                                                                                                                                        | Patient entry / activation                                                                                                                                  | Patient record, shared history, handoff                                                                                                                                                                               | Branding / domain                                                                                                       | Полезный сигнал для BersonCare                                                                                                                       |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| SimplePractice  | Solo-тарифы и group flow 2–5 / 6+ специалистов разведены на pricing; group требует Plus                                                                        | Один Account Owner; clinical и administrative roles можно сочетать; owner/manager управляет team                                                                           | Email welcome; состояния «sent, not signed in», resend до первого входа, затем обычный portal URL; practice-wide и per-client portal access                 | Primary clinician; другим clinicians выдаётся access. Для частой работы нескольких clinicians допускаются отдельные client profiles, затем portal profile picker                                                      | Practice-wide portal URL; owner/manager настраивает его. Practice name и контакты видны пациенту                        | Хороший invite lifecycle и role composition; отдельные profiles на специалиста — предупреждение о фрагментации                                       |
+| Jane            | Одна account model от solo до clinic; первый practitioner включён, team добавляется; setup checklist clinic info → disciplines → treatments → staff → schedule | Один Account Owner, Full Access и granular staff access. Practitioner Limited видит свои schedule/patients; owner transfer требует подтверждённого работающего staff login | My Account создаётся из booking или Welcome Email. Staff и patient стороны разделены URL (`/admin` и `/account`)                                            | Одна clinic patient profile и chart; shared charts имеют author/privacy. History/export фильтруется по practitioner. Между Jane accounts transfer — отдельный owner-authorized copy process                           | Clinic subdomain; branding на booking, My Account и email, но не admin shell. Старый URL остаётся redirect после rename | Сильный эталон author-attributed общей истории и безопасного URL migration; отдельные practice portals остаются ограничением                         |
+| Healthie        | Solo Core/Essentials/Plus; Group добавляет provider/support seats и care teams; Enterprise — sub-org/white-label                                               | Standard и Support — базовый тип; admin designation независим. Permission templates и granular permissions; один Account Owner                                             | Client invite email → password. Time-limited link; resend создаёт новый link и инвалидирует старый; retry rate limit                                        | Один client может иметь несколько assigned providers в Care Team. Email может вести к нескольким отдельным client portals/accounts с explicit toggle                                                                  | Logo/name/colors и branded platform path; full web/mobile white-label — enterprise option                               | Полезны care team, permission templates и строгие invite recovery states; опасны неочевидно связанные дубли по email                                 |
+| Practice Better | Individual tiers и отдельный Team plan; solo account может войти в Team с сохранением client records/resources                                                 | Один Team Owner; Practitioner, Admin user и Practice Admin; custom roles/permissions; practitioner/admin invite email                                                      | Invitation-only activation; явные statuses Not Invited, Invited, Activated, Last Active, Deactivated; resend, copy link, revoke                             | Несколько practitioners могут создать profiles для одного email; после linking patient получает profile picker. Shared team resources и explicit sharing recipients                                                   | Personalized URL и portal/email branding зависят от тарифа                                                              | Лучший status vocabulary для patient activation; profile picker полезен, но отдельные practitioner profiles не должны стать default BersonCare model |
+| Cliniko         | Одна clinic account; practitioner count влияет на тариф, non-practitioner admin users бесплатны                                                                | Security role отделён от признака Practitioner. Administrator может менять subscription/users, но non-practitioner admin не может писать treatment notes                   | Public booking не требует login: данные сопоставляются с existing patient или создают record; patient portal invite не является основным паттерном продукта | Одна patient record хранит appointments, notes, communications и forms. History фильтруется по practitioner/business/record; ограничения чтения notes применяются отдельно. Duplicate records merge сохраняет историю | Business logo и online booking settings настраиваются по business/location                                              | Самое прямое evidence для `one record + filter`, где permission не подменяется фильтром; полезен low-friction public booking                         |
 
 ## 4. Проверенные факты по продуктам
 
@@ -287,7 +287,7 @@ Stripe Billing/Connect. Это не рекомендации заменить и
 **Вывод для BersonCare**
 
 - Это прямое подтверждение композиции `единая карточка → разрешённый history set → default filter «мои» → optional
-  «вся доступная история» / specialist filter`. В BersonCare нельзя выводить option, который API затем массово
+«вся доступная история» / specialist filter`. В BersonCare нельзя выводить option, который API затем массово
   запрещает: capability и scope должны быть рассчитаны до screen composition.
 
 ## 5. Solo specialist и clinic specialist
@@ -305,16 +305,16 @@ Stripe Billing/Connect. Это не рекомендации заменить и
 
 Предпочтительная модель discovery:
 
-| Слой | Solo owner-specialist | Clinic specialist | Общий или различный |
-|---|---|---|---|
-| Identity | Один staff login | Один staff login в одной active organization | Общий |
-| Clinical home | Мой день, мои patients, мои tasks | Мой день, мои patients, team handoffs | Общая composition, разные capability blocks |
-| Patient list default | Все patients практики фактически равны «моим» | «Мои» по умолчанию; «все доступные в clinic» отдельно | Разный default/filter set |
-| Patient card | Полная разрешённая история без team filter | Разрешённая org history, default filtered to me | Общая record composition с дополнительной filter bar |
-| Team/handoff | Не показывать пустой team layer | Care team, transfer/assignment, pending handoffs | Только clinic |
-| Schedule | Личный calendar + setup shortcut | Личный calendar; org schedule/setup по capabilities | Общий calendar, разные management actions |
-| Management | Компактные practice settings | Отдельная organization management surface | Разная глубина IA |
-| Billing/plan | Solo usage/plan | Seats, roles, usage, billing | Разные summaries |
+| Слой                 | Solo owner-specialist                         | Clinic specialist                                     | Общий или различный                                  |
+| -------------------- | --------------------------------------------- | ----------------------------------------------------- | ---------------------------------------------------- |
+| Identity             | Один staff login                              | Один staff login в одной active organization          | Общий                                                |
+| Clinical home        | Мой день, мои patients, мои tasks             | Мой день, мои patients, team handoffs                 | Общая composition, разные capability blocks          |
+| Patient list default | Все patients практики фактически равны «моим» | «Мои» по умолчанию; «все доступные в clinic» отдельно | Разный default/filter set                            |
+| Patient card         | Полная разрешённая история без team filter    | Разрешённая org history, default filtered to me       | Общая record composition с дополнительной filter bar |
+| Team/handoff         | Не показывать пустой team layer               | Care team, transfer/assignment, pending handoffs      | Только clinic                                        |
+| Schedule             | Личный calendar + setup shortcut              | Личный calendar; org schedule/setup по capabilities   | Общий calendar, разные management actions            |
+| Management           | Компактные practice settings                  | Отдельная organization management surface             | Разная глубина IA                                    |
+| Billing/plan         | Solo usage/plan                               | Seats, roles, usage, billing                          | Разные summaries                                     |
 
 Одна полностью одинаковая sidebar для solo и clinic создаст пустые team abstractions у solo. Два независимых
 продукта создадут migration debt при росте solo → clinic. Нужна одна information architecture с ранним
@@ -324,15 +324,15 @@ Stripe Billing/Connect. Это не рекомендации заменить и
 
 ### 6.1 Сравнение двух моделей карточки
 
-| Критерий | Отдельная карточка на специалиста | Одна organization-scoped карточка |
-|---|---|---|
+| Критерий                 | Отдельная карточка на специалиста                                                                  | Одна organization-scoped карточка                                                                                   |
+| ------------------------ | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
 | Подтверждение продуктами | SimplePractice допускает multiple profiles; Practice Better использует practitioner profile picker | Cliniko имеет один history с practitioner filter; Jane — общую patient chart с author/privacy; Healthie — Care Team |
-| Непрерывность истории | Фрагментируется; нужны link/merge и отдельная отправка forms | Сохраняется, если каждая запись имеет author/context |
-| Privacy | Простая изоляция по profile, но есть риск ложной уверенности при shared contacts | Требует настоящего entry-level authorization и visibility policy |
-| Handoff внутри clinic | Похож на копирование/создание ещё одной карточки | Смена assignment/care team без копирования identity/history |
-| Billing/specialty walls | Может быть полезна при реальной необходимости раздельных claim/diagnosis records | Нужны scoped episodes/cases внутри общей identity record |
-| Patient UX | Profile picker даже внутри одной clinic | Organization context один; specialist attribution внутри событий |
-| Duplicate/merge risk | Высокий | Ниже, но identity resolution всё равно обязательна |
+| Непрерывность истории    | Фрагментируется; нужны link/merge и отдельная отправка forms                                       | Сохраняется, если каждая запись имеет author/context                                                                |
+| Privacy                  | Простая изоляция по profile, но есть риск ложной уверенности при shared contacts                   | Требует настоящего entry-level authorization и visibility policy                                                    |
+| Handoff внутри clinic    | Похож на копирование/создание ещё одной карточки                                                   | Смена assignment/care team без копирования identity/history                                                         |
+| Billing/specialty walls  | Может быть полезна при реальной необходимости раздельных claim/diagnosis records                   | Нужны scoped episodes/cases внутри общей identity record                                                            |
+| Patient UX               | Profile picker даже внутри одной clinic                                                            | Organization context один; specialist attribution внутри событий                                                    |
+| Duplicate/merge risk     | Высокий                                                                                            | Ниже, но identity resolution всё равно обязательна                                                                  |
 
 ### 6.2 Вывод для BersonCare — не решение
 
@@ -352,12 +352,12 @@ Stripe Billing/Connect. Это не рекомендации заменить и
 
 ### 6.3 «Передать пациента» — четыре разные операции
 
-| Операция | Эффект | История | Recovery / audit |
-|---|---|---|---|
-| Сменить primary specialist | Меняет default clinical owner | Не копируется и не исчезает | Кто/когда/почему; возврат previous assignment |
-| Добавить specialist в care team | Совместное сопровождение | Общая разрешённая history с author visibility | Remove member без удаления authored records |
-| Передать конкретный work item | Другой specialist получает appointment/task/program | Остальная patient ownership не меняется | Reassign/decline/return, notification status |
-| Transfer между organizations | Создаёт новую enrollment и, возможно, контролируемую копию records | Только явно разрешённый subset; source сохраняет retention obligations | Consent/authorization, source/destination acknowledgements, transfer log |
+| Операция                        | Эффект                                                             | История                                                                | Recovery / audit                                                         |
+| ------------------------------- | ------------------------------------------------------------------ | ---------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| Сменить primary specialist      | Меняет default clinical owner                                      | Не копируется и не исчезает                                            | Кто/когда/почему; возврат previous assignment                            |
+| Добавить specialist в care team | Совместное сопровождение                                           | Общая разрешённая history с author visibility                          | Remove member без удаления authored records                              |
+| Передать конкретный work item   | Другой specialist получает appointment/task/program                | Остальная patient ownership не меняется                                | Reassign/decline/return, notification status                             |
+| Transfer между organizations    | Создаёт новую enrollment и, возможно, контролируемую копию records | Только явно разрешённый subset; source сохраняет retention obligations | Consent/authorization, source/destination acknowledgements, transfer log |
 
 Owner decision должен назвать, какие из этих операций входят в launch scope. Одна кнопка «Передать пациента» без
 выбора semantics создаст ошибки доступа и неверные ожидания о clinical history.
@@ -407,27 +407,27 @@ Patient side:
 
 ## 8. Failure и recovery matrix
 
-| Сценарий | Официальное evidence | Требуемое состояние BersonCare — вывод |
-|---|---|---|
-| Staff email уже используется | SimplePractice блокирует invite существующего account; Healthie различает provider/client collision | Показывать conflict type; не советовать email alias; login/link-existing или owner/support flow |
-| Staff invite не дошёл | SimplePractice, Cliniko и Practice Better дают resend | Pending row, resend cooldown, check-address action, delivery timestamp |
-| Seat/plan limit | Practice Better блокирует invite при исчерпанном limit/add-on | Сохранить draft invite; CTA к plan/seat management; не терять выбранные permissions |
-| Staff покидает clinic | Cliniko требует сначала обработать future appointments; Jane разделяет No Access и Inactive | Offboarding checklist: appointments/tasks/care teams/ownership, затем deactivate; authored history сохраняется |
-| Owner уходит | Jane требует работающий login нового owner; Healthie запрещает просто сделать owner inactive | Transfer ownership wizard с preflight и second confirmation; запрет оставить organization без owner |
-| Patient invite отсутствует | Все portal-oriented products рекомендуют проверить address/spam и resend | Check masked address, correct email, resend; не раскрывать, существует ли чужая identity |
-| Patient invite истёк | Healthie: 4 дня; Auth0: expired state | Expired page с запросом нового invite у clinic, без повторного использования token |
-| Несколько invite links | Healthie инвалидирует прежний initial invite после resend; SimplePractice делает недействительными прежние returning-login links после нового запроса | Явно писать «используйте последнюю ссылку»; `superseded` telemetry, а точную initial-invite policy выбрать отдельно |
-| Invite отправлен не тому email | Auth0 требует вход с тем же email; Healthie позволяет correction + new invite | Не разрешать silently accept под другой identity; revoke, correct address, generate fresh invite |
-| Invite уже принят | SimplePractice/Practice Better меняют resend на ordinary login/password reset | Safe success/already-activated page → login/open app; не создавать вторую enrollment |
-| Portal выключен organization-wide | SimplePractice practice-wide toggle перекрывает per-client permission | Объяснять organization suspension, не изображать auth failure; staff видит impacted patients |
-| Duplicate patient | Cliniko merge необратим; Healthie предупреждает о linking по email | До merge — identity comparison; после merge — immutable audit; recovery через support для ошибочного merge |
-| Patient у нескольких specialists | Jane/Cliniko дают author/filter; Healthie Care Team; другие используют profile picker | Не создавать duplicate по умолчанию; показать care team и author на каждом clinical object |
-| Patient у нескольких organizations | Jane — отдельные portals; Healthie/Practice Better — toggle/profile picker | Organization picker с stable global identity; last-used context только если enrollment всё ещё active |
-| Practitioner deactivated, но есть future work | Cliniko требует reactivation для исправления appointments | Blocking offboarding summary и bulk reassignment; no silent orphan records |
-| URL/slug изменён | Jane сохраняет старый URL redirect | Stable canonical platform URL + alias redirect; loop detection; old links не ломать сразу |
-| Billing initial payment failed | Stripe `incomplete`/`incomplete_expired` | Organization onboarding/billing recovery отдельно от clinical data lifecycle |
-| Billing past due/unpaid | Stripe различает recoverable `past_due` и access-revoking `unpaid` | Grace/recovery banner, entitlement policy и platform-admin queue; не удалять organization/data |
-| Organization login connection misconfigured | Auth0 описывает error при отсутствии видимой connection | Platform-admin diagnostic state с repair action; не показывать generic wrong-password |
+| Сценарий                                      | Официальное evidence                                                                                                                                  | Требуемое состояние BersonCare — вывод                                                                              |
+| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Staff email уже используется                  | SimplePractice блокирует invite существующего account; Healthie различает provider/client collision                                                   | Показывать conflict type; не советовать email alias; login/link-existing или owner/support flow                     |
+| Staff invite не дошёл                         | SimplePractice, Cliniko и Practice Better дают resend                                                                                                 | Pending row, resend cooldown, check-address action, delivery timestamp                                              |
+| Seat/plan limit                               | Practice Better блокирует invite при исчерпанном limit/add-on                                                                                         | Сохранить draft invite; CTA к plan/seat management; не терять выбранные permissions                                 |
+| Staff покидает clinic                         | Cliniko требует сначала обработать future appointments; Jane разделяет No Access и Inactive                                                           | Offboarding checklist: appointments/tasks/care teams/ownership, затем deactivate; authored history сохраняется      |
+| Owner уходит                                  | Jane требует работающий login нового owner; Healthie запрещает просто сделать owner inactive                                                          | Transfer ownership wizard с preflight и second confirmation; запрет оставить organization без owner                 |
+| Patient invite отсутствует                    | Все portal-oriented products рекомендуют проверить address/spam и resend                                                                              | Check masked address, correct email, resend; не раскрывать, существует ли чужая identity                            |
+| Patient invite истёк                          | Healthie: 4 дня; Auth0: expired state                                                                                                                 | Expired page с запросом нового invite у clinic, без повторного использования token                                  |
+| Несколько invite links                        | Healthie инвалидирует прежний initial invite после resend; SimplePractice делает недействительными прежние returning-login links после нового запроса | Явно писать «используйте последнюю ссылку»; `superseded` telemetry, а точную initial-invite policy выбрать отдельно |
+| Invite отправлен не тому email                | Auth0 требует вход с тем же email; Healthie позволяет correction + new invite                                                                         | Не разрешать silently accept под другой identity; revoke, correct address, generate fresh invite                    |
+| Invite уже принят                             | SimplePractice/Practice Better меняют resend на ordinary login/password reset                                                                         | Safe success/already-activated page → login/open app; не создавать вторую enrollment                                |
+| Portal выключен organization-wide             | SimplePractice practice-wide toggle перекрывает per-client permission                                                                                 | Объяснять organization suspension, не изображать auth failure; staff видит impacted patients                        |
+| Duplicate patient                             | Cliniko merge необратим; Healthie предупреждает о linking по email                                                                                    | До merge — identity comparison; после merge — immutable audit; recovery через support для ошибочного merge          |
+| Patient у нескольких specialists              | Jane/Cliniko дают author/filter; Healthie Care Team; другие используют profile picker                                                                 | Не создавать duplicate по умолчанию; показать care team и author на каждом clinical object                          |
+| Patient у нескольких organizations            | Jane — отдельные portals; Healthie/Practice Better — toggle/profile picker                                                                            | Organization picker с stable global identity; last-used context только если enrollment всё ещё active               |
+| Practitioner deactivated, но есть future work | Cliniko требует reactivation для исправления appointments                                                                                             | Blocking offboarding summary и bulk reassignment; no silent orphan records                                          |
+| URL/slug изменён                              | Jane сохраняет старый URL redirect                                                                                                                    | Stable canonical platform URL + alias redirect; loop detection; old links не ломать сразу                           |
+| Billing initial payment failed                | Stripe `incomplete`/`incomplete_expired`                                                                                                              | Organization onboarding/billing recovery отдельно от clinical data lifecycle                                        |
+| Billing past due/unpaid                       | Stripe различает recoverable `past_due` и access-revoking `unpaid`                                                                                    | Grace/recovery banner, entitlement policy и platform-admin queue; не удалять organization/data                      |
+| Organization login connection misconfigured   | Auth0 описывает error при отсутствии видимой connection                                                                                               | Platform-admin diagnostic state с repair action; не показывать generic wrong-password                               |
 
 ## 9. Branding и domain patterns
 
@@ -481,17 +481,17 @@ Custom domain не должен:
 
 Global admin organization detail не должен иметь один общий toggle. Минимальные независимые оси:
 
-| Ось | Примеры состояний | Recovery owner |
-|---|---|---|
-| Organization lifecycle | draft, onboarding, active, suspended, closing, archived | Platform ops / organization owner |
-| Owner/staff identity | no owner, owner pending, active owner, ownership transfer pending | Identity/platform ops |
-| Subscription | trialing, active, past due, unpaid, canceled | Billing / organization owner |
-| Entitlement | enabled, grace, read-only, blocked | Product/billing policy |
-| Domain | not configured, pending DNS, verified, certificate error, disabled | Organization admin + platform ops |
-| Branding/publication | draft, review-needed, published, hidden | Organization admin |
-| Integrations | not configured, healthy, degraded, reauth required | Organization admin / platform ops |
-| Operational health | healthy, degraded, incident | Platform ops |
-| Data/tenant checks | healthy, migration pending, isolation incident | Restricted platform ops |
+| Ось                    | Примеры состояний                                                  | Recovery owner                    |
+| ---------------------- | ------------------------------------------------------------------ | --------------------------------- |
+| Organization lifecycle | draft, onboarding, active, suspended, closing, archived            | Platform ops / organization owner |
+| Owner/staff identity   | no owner, owner pending, active owner, ownership transfer pending  | Identity/platform ops             |
+| Subscription           | trialing, active, past due, unpaid, canceled                       | Billing / organization owner      |
+| Entitlement            | enabled, grace, read-only, blocked                                 | Product/billing policy            |
+| Domain                 | not configured, pending DNS, verified, certificate error, disabled | Organization admin + platform ops |
+| Branding/publication   | draft, review-needed, published, hidden                            | Organization admin                |
+| Integrations           | not configured, healthy, degraded, reauth required                 | Organization admin / platform ops |
+| Operational health     | healthy, degraded, incident                                        | Platform ops                      |
+| Data/tenant checks     | healthy, migration pending, isolation incident                     | Restricted platform ops           |
 
 Organization list должна поддерживать queues по recovery, а detail — audit trail и actor attribution. Global admin
 может repair platform state, но не должен незаметно выполнять clinical actions или входить в specialist workspace как

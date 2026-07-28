@@ -1,11 +1,11 @@
-"use client";
+'use client';
 
-import { useState, useTransition } from "react";
+import { useState, useTransition } from 'react';
 
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { Switch } from "@/shared/ui/doctor/primitives/switch";
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { Switch } from '@/shared/ui/doctor/primitives/switch';
 
 type Props = Readonly<{
   initialEnabled: boolean;
@@ -14,7 +14,7 @@ type Props = Readonly<{
 
 export function ErrorTrackingSettingsSection({ initialEnabled, hasStoredDsn }: Props) {
   const [enabled, setEnabled] = useState(initialEnabled);
-  const [dsn, setDsn] = useState("");
+  const [dsn, setDsn] = useState('');
   const [stored, setStored] = useState(hasStoredDsn);
   const [message, setMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -23,25 +23,29 @@ export function ErrorTrackingSettingsSection({ initialEnabled, hasStoredDsn }: P
     setMessage(null);
     startTransition(async () => {
       try {
-        const response = await fetch("/api/platform/error-tracking", {
-          method: "PUT",
-          headers: { "content-type": "application/json" },
+        const response = await fetch('/api/platform/error-tracking', {
+          method: 'PUT',
+          headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ enabled, dsn }),
         });
-        const body = await response.json() as {
+        const body = (await response.json()) as {
           ok?: boolean;
           config?: { hasStoredDsn?: boolean };
           error?: string;
         };
         if (!response.ok || body.ok !== true) {
-          setMessage(body.error === "invalid_dsn" ? "Укажите корректный HTTP(S) DSN" : "Не удалось сохранить");
+          setMessage(
+            body.error === 'invalid_dsn'
+              ? 'Укажите корректный HTTP(S) DSN'
+              : 'Не удалось сохранить',
+          );
           return;
         }
         setStored(body.config?.hasStoredDsn === true);
-        setDsn("");
-        setMessage("Сохранено. Новая конфигурация применяется после перезапуска процессов.");
+        setDsn('');
+        setMessage('Сохранено. Новая конфигурация применяется после перезапуска процессов.');
       } catch {
-        setMessage("Не удалось сохранить");
+        setMessage('Не удалось сохранить');
       }
     });
   }
@@ -57,7 +61,12 @@ export function ErrorTrackingSettingsSection({ initialEnabled, hasStoredDsn }: P
       <CardContent className="flex max-w-xl flex-col gap-4">
         <label className="flex items-center justify-between gap-4 text-sm">
           <span>Включить отправку ошибок</span>
-          <Switch checked={enabled} onCheckedChange={setEnabled} disabled={isPending} aria-label="Error tracking" />
+          <Switch
+            checked={enabled}
+            onCheckedChange={setEnabled}
+            disabled={isPending}
+            aria-label="Error tracking"
+          />
         </label>
         <label className="flex flex-col gap-1">
           <span className="text-xs font-medium">DSN</span>
@@ -65,7 +74,9 @@ export function ErrorTrackingSettingsSection({ initialEnabled, hasStoredDsn }: P
             type="password"
             value={dsn}
             onChange={(event) => setDsn(event.target.value)}
-            placeholder={stored ? "DSN сохранён; введите новый для замены" : "https://public@example.test/1"}
+            placeholder={
+              stored ? 'DSN сохранён; введите новый для замены' : 'https://public@example.test/1'
+            }
             disabled={isPending}
             autoComplete="off"
             spellCheck={false}
@@ -75,7 +86,11 @@ export function ErrorTrackingSettingsSection({ initialEnabled, hasStoredDsn }: P
           При включении DSN нужно ввести заново. Выключение очищает сохранённый DSN.
         </p>
         {message ? <p className="text-sm text-muted-foreground">{message}</p> : null}
-        <Button type="button" onClick={save} disabled={isPending || (enabled && dsn.trim().length === 0)}>
+        <Button
+          type="button"
+          onClick={save}
+          disabled={isPending || (enabled && dsn.trim().length === 0)}
+        >
           Сохранить
         </Button>
       </CardContent>

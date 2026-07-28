@@ -69,7 +69,9 @@ export async function resolveActiveOrganizationIdForMessengerIdentity(
   db: DbPort,
   input: { resource: MessengerIdentityResource; externalId: string },
 ): Promise<string | null> {
-  const res = await runIntegratorSql<{ organization_id: string }>(db, sql`
+  const res = await runIntegratorSql<{ organization_id: string }>(
+    db,
+    sql`
     WITH identity_user AS (
       SELECT identity_row.user_id
       FROM integrator.identities identity_row
@@ -94,7 +96,8 @@ export async function resolveActiveOrganizationIdForMessengerIdentity(
       ON active_user_orgs.platform_user_id = platform_user.id
     ORDER BY organization_id
     LIMIT 2
-  `);
+  `,
+  );
   return singleOrganizationId(res.rows);
 }
 
@@ -114,15 +117,20 @@ export async function resolveActiveOrganizationIdForMessengerIdentity(
  * more than one organization exists — i.e. when no single deployment-wide organization can be
  * inferred (empty DB, or a real multi-tenant deployment that has moved past this stopgap).
  */
-export async function resolveDeploymentSingleActiveOrganizationId(db: DbPort): Promise<string | null> {
+export async function resolveDeploymentSingleActiveOrganizationId(
+  db: DbPort,
+): Promise<string | null> {
   try {
-    const res = await runIntegratorSql<{ organization_id: string }>(db, sql`
+    const res = await runIntegratorSql<{ organization_id: string }>(
+      db,
+      sql`
       SELECT id::text AS organization_id
       FROM public.be_organizations
       WHERE is_active = true
       ORDER BY id
       LIMIT 2
-    `);
+    `,
+    );
     return singleOrganizationId(res.rows);
   } catch (err) {
     // eslint-disable-next-line no-secrets/no-secrets -- log-message identifier, not a secret
@@ -135,7 +143,9 @@ export async function resolveActiveOrganizationIdForIntegratorUserId(
   db: DbPort,
   integratorUserId: string,
 ): Promise<string | null> {
-  const res = await runIntegratorSql<{ organization_id: string }>(db, sql`
+  const res = await runIntegratorSql<{ organization_id: string }>(
+    db,
+    sql`
     WITH active_user_orgs AS (
       SELECT platform_user_id, organization_id
       FROM public.org_enrollments
@@ -152,7 +162,8 @@ export async function resolveActiveOrganizationIdForIntegratorUserId(
     WHERE platform_user.integrator_user_id = ${integratorUserId}::bigint
     ORDER BY organization_id
     LIMIT 2
-  `);
+  `,
+  );
   return singleOrganizationId(res.rows);
 }
 
@@ -167,7 +178,9 @@ export async function tryConsumeStart(db: DbPort, channelUserId: number): Promis
   const externalId = String(channelUserId);
   const debounceSec = TELEGRAM_START_DEBOUNCE_SECONDS;
   try {
-    const res = await runIntegratorSql<{ identity_id: string }>(db, sql`
+    const res = await runIntegratorSql<{ identity_id: string }>(
+      db,
+      sql`
     UPDATE telegram_state ts
     SET last_start_at = now(), updated_at = now()
     FROM identities i
@@ -176,10 +189,13 @@ export async function tryConsumeStart(db: DbPort, channelUserId: number): Promis
       AND i.external_id = ${externalId}
       AND (ts.last_start_at IS NULL OR ts.last_start_at < now() - (${debounceSec}::int * interval '1 second'))
     RETURNING ts.identity_id
-  `);
+  `,
+    );
     if ((res.rowCount ?? 0) > 0) return true;
 
-    const recent = await runIntegratorSql(db, sql`
+    const recent = await runIntegratorSql(
+      db,
+      sql`
       SELECT 1
       FROM telegram_state ts
       INNER JOIN identities i ON ts.identity_id = i.id
@@ -188,7 +204,8 @@ export async function tryConsumeStart(db: DbPort, channelUserId: number): Promis
         AND ts.last_start_at IS NOT NULL
         AND ts.last_start_at >= now() - (${debounceSec}::int * interval '1 second')
       LIMIT 1
-    `);
+    `,
+    );
     if ((recent.rowCount ?? 0) > 0) return false;
 
     return true;
@@ -207,7 +224,9 @@ export async function tryAdvanceLastUpdateId(
   updateId: number,
 ): Promise<boolean> {
   try {
-    const res = await runIntegratorSql(db, sql`
+    const res = await runIntegratorSql(
+      db,
+      sql`
     UPDATE telegram_state ts
     SET last_update_id = ${updateId}, updated_at = now()
     FROM identities i
@@ -215,7 +234,8 @@ export async function tryAdvanceLastUpdateId(
       AND i.resource = 'telegram'
       AND i.external_id = ${String(channelUserId)}
       AND (ts.last_update_id IS NULL OR ts.last_update_id < ${updateId})
-  `);
+  `,
+    );
     return res.rowCount === 1;
   } catch (err) {
     logger.error({ err }, 'tryAdvanceLastUpdateId error');
@@ -236,7 +256,9 @@ export async function upsertUser(
   const lastName = from.last_name ?? null;
 
   try {
-    const res = await runIntegratorSql<ChannelUserRow>(db, sql`
+    const res = await runIntegratorSql<ChannelUserRow>(
+      db,
+      sql`
     WITH existing_identity AS (
       SELECT i.id, i.user_id
       FROM identities i
@@ -291,7 +313,8 @@ export async function upsertUser(
     )
     SELECT ri.user_id::text AS id, ${channelId}::text AS channel_id
     FROM resolved_identity ri
-  `);
+  `,
+    );
     return res.rows[0] ?? null;
   } catch (err) {
     logger.error({ err }, 'upsertUser error');
@@ -307,7 +330,9 @@ export async function setUserState(
   resource: 'telegram' | 'max' = 'telegram',
 ): Promise<void> {
   try {
-    await runIntegratorSql(db, sql`
+    await runIntegratorSql(
+      db,
+      sql`
     WITH target_identity AS (
       SELECT i.id
       FROM identities i
@@ -326,7 +351,8 @@ export async function setUserState(
       RETURNING *
     )
     SELECT 1 FROM upsert_state
-  `);
+  `,
+    );
   } catch (err) {
     logger.error({ err }, 'setUserState error');
   }
@@ -339,7 +365,9 @@ export async function getUserState(
   resource: 'telegram' | 'max' = 'telegram',
 ): Promise<string | null> {
   try {
-    const res = await runIntegratorSql<{ state: string | null }>(db, sql`
+    const res = await runIntegratorSql<{ state: string | null }>(
+      db,
+      sql`
     SELECT ts.state
     FROM identities i
     LEFT JOIN telegram_state ts
@@ -347,7 +375,8 @@ export async function getUserState(
     WHERE i.resource = ${resource}
       AND i.external_id = ${channelUserId}
     LIMIT 1
-  `);
+  `,
+    );
     return res.rows[0]?.state ?? null;
   } catch (err) {
     logger.error({ err }, 'getUserState error');
@@ -386,15 +415,23 @@ export async function updateNotificationSettings(
 
   if (columns.length === 0) return;
 
-  const insertColList = sql.join(columns.map((c) => sql.raw(c)), sql.raw(', '));
-  const insertValList = sql.join(values.map((v) => sql`${v}`), sql.raw(', '));
+  const insertColList = sql.join(
+    columns.map((c) => sql.raw(c)),
+    sql.raw(', '),
+  );
+  const insertValList = sql.join(
+    values.map((v) => sql`${v}`),
+    sql.raw(', '),
+  );
   const updateSet = sql.join(
     columns.map((c) => sql.raw(`${c} = EXCLUDED.${c}`)),
     sql.raw(', '),
   );
 
   try {
-    await runIntegratorSql(db, sql`
+    await runIntegratorSql(
+      db,
+      sql`
     WITH target_identity AS (
       SELECT i.id
       FROM identities i
@@ -418,7 +455,8 @@ export async function updateNotificationSettings(
       RETURNING *
     )
     SELECT 1 FROM upsert_state
-  `);
+  `,
+    );
   } catch (err) {
     logger.error({ err }, 'updateNotificationSettings error');
   }
@@ -435,7 +473,9 @@ export async function getNotificationSettings(
       notify_msk: boolean | null;
       notify_online: boolean | null;
       notify_bookings: boolean | null;
-    }>(db, sql`
+    }>(
+      db,
+      sql`
     SELECT ts.notify_spb, ts.notify_msk, ts.notify_online, ts.notify_bookings
     FROM identities i
     LEFT JOIN telegram_state ts
@@ -443,7 +483,8 @@ export async function getNotificationSettings(
     WHERE i.resource = 'telegram'
       AND i.external_id = ${String(channelUserId)}
     LIMIT 1
-  `);
+  `,
+    );
 
     const row = res.rows[0];
     if (!row) return null;
@@ -461,7 +502,10 @@ export async function getNotificationSettings(
 }
 
 /** Finds channel user by normalized phone (Telegram only; for backward compat). */
-export async function findByPhone(db: DbPort, phoneNormalized: string): Promise<ChannelUserByPhone | null> {
+export async function findByPhone(
+  db: DbPort,
+  phoneNormalized: string,
+): Promise<ChannelUserByPhone | null> {
   return findByIdentityByPhone(db, phoneNormalized, 'telegram');
 }
 
@@ -476,14 +520,17 @@ export async function findByIdentityByPhone(
 ): Promise<ChannelUserByPhone | null> {
   if (resource === 'telegram' || resource === 'channel') {
     try {
-      const res = await runIntegratorSql<{ channel_id: string; username: string | null }>(db, sql`
+      const res = await runIntegratorSql<{ channel_id: string; username: string | null }>(
+        db,
+        sql`
       SELECT i.external_id::text AS channel_id, ts.username
       FROM contacts c
       JOIN identities i ON i.user_id = c.user_id AND i.resource = 'telegram'
       LEFT JOIN telegram_state ts ON ts.identity_id = i.id
       WHERE c.type = 'phone' AND c.value_normalized = ${phoneNormalized}
       LIMIT 1
-    `);
+    `,
+      );
       const row = res.rows[0];
       if (!row) return null;
       const chatId = Number(row.channel_id);
@@ -496,13 +543,16 @@ export async function findByIdentityByPhone(
   }
 
   try {
-    const res = await runIntegratorSql<{ channel_id: string }>(db, sql`
+    const res = await runIntegratorSql<{ channel_id: string }>(
+      db,
+      sql`
     SELECT i.external_id::text AS channel_id
     FROM contacts c
     JOIN identities i ON i.user_id = c.user_id AND i.resource = ${resource}
     WHERE c.type = 'phone' AND c.value_normalized = ${phoneNormalized}
     LIMIT 1
-  `);
+  `,
+    );
     const row = res.rows[0];
     if (!row) return null;
     const chatId = Number(row.channel_id);
@@ -551,7 +601,9 @@ export async function getLinkDataByIdentity(
         user_state: string | null;
         pub_phone: string | null;
         legacy_contact_phone: string | null;
-      }>(db, sql`
+      }>(
+        db,
+        sql`
       SELECT i.user_id::text AS user_id, i.external_id::text AS channel_id, ts.username, ts.state AS user_state,
              NULLIF(TRIM(pub.phone_normalized), '') AS pub_phone,
              cp.phone AS legacy_contact_phone
@@ -582,7 +634,8 @@ export async function getLinkDataByIdentity(
       ) cp ON true
       WHERE i.resource = ${resource} AND i.external_id = ${externalId}
       LIMIT 1
-    `);
+    `,
+      );
       const row = res.rows[0];
       if (!row) return null;
       const pub = row.pub_phone;
@@ -594,7 +647,12 @@ export async function getLinkDataByIdentity(
           'linkedPhone: empty public.phone_normalized, using integrator.contacts (label=resource)',
         );
       }
-      if (strategy === 'public_then_contacts' && pub?.trim() && leg?.trim() && pub.trim() !== leg.trim()) {
+      if (
+        strategy === 'public_then_contacts' &&
+        pub?.trim() &&
+        leg?.trim() &&
+        pub.trim() !== leg.trim()
+      ) {
         logger.info(
           { event: 'linked_phone_drift_mismatch', resource, externalId, strategy },
           'linkedPhone: public.platform_users and integrator.contacts disagree; COALESCE prefers public',
@@ -633,7 +691,9 @@ export async function getLinkDataByIdentity(
       user_state: string | null;
       pub_phone: string | null;
       legacy_contact_phone: string | null;
-    }>(db, sql`
+    }>(
+      db,
+      sql`
     SELECT i.user_id::text AS user_id, i.external_id::text AS channel_id,
            ts.state AS user_state,
            NULLIF(TRIM(pub.phone_normalized), '') AS pub_phone,
@@ -665,7 +725,8 @@ export async function getLinkDataByIdentity(
     ) cp ON true
     WHERE i.resource = ${resource} AND i.external_id = ${externalId}
     LIMIT 1
-  `);
+  `,
+    );
     const row = res.rows[0];
     if (!row) return null;
     const pub = row.pub_phone;
@@ -677,7 +738,12 @@ export async function getLinkDataByIdentity(
         'linkedPhone: empty public.phone_normalized, using integrator.contacts (label=resource)',
       );
     }
-    if (strategy === 'public_then_contacts' && pub?.trim() && leg?.trim() && pub.trim() !== leg.trim()) {
+    if (
+      strategy === 'public_then_contacts' &&
+      pub?.trim() &&
+      leg?.trim() &&
+      pub.trim() !== leg.trim()
+    ) {
       logger.info(
         { event: 'linked_phone_drift_mismatch', resource, externalId, strategy },
         'linkedPhone: public.platform_users and integrator.contacts disagree; COALESCE prefers public',
@@ -699,7 +765,10 @@ export async function getLinkDataByIdentity(
       userState: row.user_state,
     };
   } catch (err) {
-    logger.error({ err, resource, externalId, branch: 'non_telegram' }, 'getLinkDataByIdentity error');
+    logger.error(
+      { err, resource, externalId, branch: 'non_telegram' },
+      'getLinkDataByIdentity error',
+    );
     throw err;
   }
 }
@@ -710,20 +779,25 @@ export async function getChannelIdsByUserId(
   userId: string,
 ): Promise<Array<{ resource: string; externalId: string; chatId: number }>> {
   try {
-    const res = await runIntegratorSql<{ resource: string; external_id: string }>(db, sql`
+    const res = await runIntegratorSql<{ resource: string; external_id: string }>(
+      db,
+      sql`
     SELECT i.resource, i.external_id::text AS external_id
     FROM identities i
     WHERE i.user_id = ${userId} AND i.resource IN ('telegram', 'max')
     ORDER BY i.resource ASC
-  `);
-    return res.rows.map((row) => {
-      const chatId = Number(row.external_id);
-      return {
-        resource: row.resource,
-        externalId: row.external_id,
-        chatId: Number.isFinite(chatId) ? chatId : 0,
-      };
-    }).filter((row) => row.chatId > 0);
+  `,
+    );
+    return res.rows
+      .map((row) => {
+        const chatId = Number(row.external_id);
+        return {
+          resource: row.resource,
+          externalId: row.external_id,
+          chatId: Number.isFinite(chatId) ? chatId : 0,
+        };
+      })
+      .filter((row) => row.chatId > 0);
   } catch (err) {
     logger.warn({ err, userId }, 'getChannelIdsByUserId: query failed');
     return [];
@@ -755,7 +829,7 @@ export async function setUserPhone(
   db: DbPort,
   channelUserId: string,
   phoneNormalized: string,
-  resource: string = "telegram",
+  resource: string = 'telegram',
 ): Promise<SetUserPhoneOutcome> {
   const idRes = await runIntegratorSql<{ user_id: string }>(
     db,
@@ -811,11 +885,13 @@ export function createChannelUserPort(db: DbPort): ChannelUserPort & Notificatio
     upsertUser: (from) => upsertUser(db, from),
     setUserState: (channelUserId, state) => setUserState(db, channelUserId, state),
     setUserPhone: (channelUserId, phoneNormalized) =>
-      setUserPhone(db, channelUserId, phoneNormalized, "telegram"),
+      setUserPhone(db, channelUserId, phoneNormalized, 'telegram'),
     getUserState: (channelUserId) => getUserState(db, channelUserId),
-    tryAdvanceLastUpdateId: (channelUserId, updateId) => tryAdvanceLastUpdateId(db, channelUserId, updateId),
+    tryAdvanceLastUpdateId: (channelUserId, updateId) =>
+      tryAdvanceLastUpdateId(db, channelUserId, updateId),
     tryConsumeStart: (channelUserId) => tryConsumeStart(db, channelUserId),
     getNotificationSettings: (channelUserId) => getNotificationSettings(db, channelUserId),
-    updateNotificationSettings: (channelUserId, settings) => updateNotificationSettings(db, channelUserId, settings),
+    updateNotificationSettings: (channelUserId, settings) =>
+      updateNotificationSettings(db, channelUserId, settings),
   };
 }

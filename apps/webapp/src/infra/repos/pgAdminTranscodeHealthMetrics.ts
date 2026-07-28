@@ -1,13 +1,13 @@
-import { eq, sql } from "drizzle-orm";
-import { getDrizzle } from "@/app-layer/db/drizzle";
-import { runWebappPgText } from "@/infra/db/runWebappSql";
+import { eq, sql } from 'drizzle-orm';
+import { getDrizzle } from '@/app-layer/db/drizzle';
+import { runWebappPgText } from '@/infra/db/runWebappSql';
 import {
   legacyHlsBackfillCandidateWhereClause,
   legacyHlsReconcileEligibleForEnqueueSqlFilter,
   mediaReadableSql,
   VIDEO_HLS_LEGACY_MAX_OBJECT_BYTES,
-} from "@/infra/repos/mediaHlsLegacySqlFilters";
-import { mediaTranscodeJobs } from "../../../db/schema";
+} from '@/infra/repos/mediaHlsLegacySqlFilters';
+import { mediaTranscodeJobs } from '../../../db/schema';
 
 export type AdminTranscodeJobQueueMetrics = {
   pendingCount: number;
@@ -32,9 +32,9 @@ export async function loadAdminTranscodeMediaFileCounts(): Promise<{
   legacyReconcileCandidateCountWithinSizeCap: number;
   readableVideoReadyWithHlsCount: number;
 }> {
-  const core = legacyHlsBackfillCandidateWhereClause("m", false);
-  const sz = legacyHlsReconcileEligibleForEnqueueSqlFilter("m", VIDEO_HLS_LEGACY_MAX_OBJECT_BYTES);
-  const readable = mediaReadableSql("m");
+  const core = legacyHlsBackfillCandidateWhereClause('m', false);
+  const sz = legacyHlsReconcileEligibleForEnqueueSqlFilter('m', VIDEO_HLS_LEGACY_MAX_OBJECT_BYTES);
+  const readable = mediaReadableSql('m');
 
   const [candidatesResult, readyHlsResult] = await Promise.all([
     runWebappPgText<{ c: string }>(
@@ -78,11 +78,11 @@ export async function loadAdminTranscodeJobQueueMetrics(): Promise<AdminTranscod
     db
       .select({ c: sql<number>`count(*)::int`.mapWith(Number) })
       .from(mediaTranscodeJobs)
-      .where(eq(mediaTranscodeJobs.status, "pending")),
+      .where(eq(mediaTranscodeJobs.status, 'pending')),
     db
       .select({ c: sql<number>`count(*)::int`.mapWith(Number) })
       .from(mediaTranscodeJobs)
-      .where(eq(mediaTranscodeJobs.status, "processing")),
+      .where(eq(mediaTranscodeJobs.status, 'processing')),
     db
       .select({ c: sql<number>`count(*)::int`.mapWith(Number) })
       .from(mediaTranscodeJobs)
@@ -118,11 +118,15 @@ export async function loadAdminTranscodeJobQueueMetrics(): Promise<AdminTranscod
     db
       .select({ c: sql<number>`count(*)::int`.mapWith(Number) })
       .from(mediaTranscodeJobs)
-      .where(sql`${mediaTranscodeJobs.status} = 'done' AND ${mediaTranscodeJobs.finishedAt} IS NOT NULL`),
+      .where(
+        sql`${mediaTranscodeJobs.status} = 'done' AND ${mediaTranscodeJobs.finishedAt} IS NOT NULL`,
+      ),
     db
       .select({ c: sql<number>`count(*)::int`.mapWith(Number) })
       .from(mediaTranscodeJobs)
-      .where(sql`${mediaTranscodeJobs.status} = 'failed' AND ${mediaTranscodeJobs.finishedAt} IS NOT NULL`),
+      .where(
+        sql`${mediaTranscodeJobs.status} = 'failed' AND ${mediaTranscodeJobs.finishedAt} IS NOT NULL`,
+      ),
     db
       .select({
         avgMs: sql<string | null>`(
@@ -145,14 +149,15 @@ export async function loadAdminTranscodeJobQueueMetrics(): Promise<AdminTranscod
         )::text`,
       })
       .from(mediaTranscodeJobs)
-      .where(eq(mediaTranscodeJobs.status, "pending")),
+      .where(eq(mediaTranscodeJobs.status, 'pending')),
   ]);
 
   const pendingCount = pendingRow[0]?.c ?? 0;
   const avgRaw = avgRow[0]?.avgMs;
   const oldestRaw = oldestRow[0]?.oldestSec;
   const avgParsed = avgRaw != null && avgRaw.trim().length > 0 ? Number.parseFloat(avgRaw) : NaN;
-  const oldestParsed = oldestRaw != null && oldestRaw.trim().length > 0 ? Number.parseFloat(oldestRaw) : NaN;
+  const oldestParsed =
+    oldestRaw != null && oldestRaw.trim().length > 0 ? Number.parseFloat(oldestRaw) : NaN;
 
   return {
     pendingCount,
@@ -164,6 +169,7 @@ export async function loadAdminTranscodeJobQueueMetrics(): Promise<AdminTranscod
     doneLifetime: doneLifeRow[0]?.c ?? 0,
     failedLifetime: failedLifeRow[0]?.c ?? 0,
     avgProcessingMsDoneLastHour: Number.isFinite(avgParsed) ? Math.round(avgParsed) : null,
-    oldestPendingAgeSeconds: pendingCount > 0 && Number.isFinite(oldestParsed) ? Math.floor(oldestParsed) : null,
+    oldestPendingAgeSeconds:
+      pendingCount > 0 && Number.isFinite(oldestParsed) ? Math.floor(oldestParsed) : null,
   };
 }

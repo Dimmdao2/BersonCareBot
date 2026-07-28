@@ -1,4 +1,4 @@
-import type { AppSession, SessionUser } from "@/shared/types/session";
+import type { AppSession, SessionUser } from '@/shared/types/session';
 
 /**
  * The session user as presented to clients (`/api/me`, and every consumer of
@@ -11,7 +11,7 @@ import type { AppSession, SessionUser } from "@/shared/types/session";
  * authorization, and not display data — so this projection drops it rather than the response route
  * doing it, and every consumer of `getCurrentUser` gets the same guarantee.
  */
-export type CurrentUser = Omit<SessionUser, "sessionEpoch">;
+export type CurrentUser = Omit<SessionUser, 'sessionEpoch'>;
 
 export function getCurrentUser(session: AppSession | null): CurrentUser | null {
   if (!session?.user) return null;

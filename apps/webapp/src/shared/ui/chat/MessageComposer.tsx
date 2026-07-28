@@ -1,12 +1,7 @@
-"use client";
+'use client';
 
-import type {
-  ChangeEventHandler,
-  FocusEventHandler,
-  ReactNode,
-  Ref,
-} from "react";
-import { cn } from "@/lib/utils";
+import type { ChangeEventHandler, FocusEventHandler, ReactNode, Ref } from 'react';
+import { cn } from '@/lib/utils';
 
 export type MessageComposerTextareaProps = {
   ref?: Ref<HTMLTextAreaElement>;
@@ -18,14 +13,14 @@ export type MessageComposerTextareaProps = {
   disabled: boolean;
   maxLength?: number;
   rows?: number;
-  "aria-label": string;
+  'aria-label': string;
 };
 
 export type MessageComposerSubmitProps = {
-  type: "button";
+  type: 'button';
   disabled: boolean;
   onClick: () => void;
-  "aria-label"?: string;
+  'aria-label'?: string;
   children: ReactNode;
 };
 
@@ -106,13 +101,13 @@ export function MessageComposer({
     disabled: controlsDisabled,
     maxLength,
     rows,
-    "aria-label": ariaLabel,
+    'aria-label': ariaLabel,
   });
   const submit = renderSubmit({
-    type: "button",
+    type: 'button',
     disabled: controlsDisabled || (disableSubmitWhenEmpty && value.trim().length === 0),
     onClick: () => void onSubmit(),
-    "aria-label": submitAriaLabel,
+    'aria-label': submitAriaLabel,
     children: submitting ? submittingLabel : submitLabel,
   });
 

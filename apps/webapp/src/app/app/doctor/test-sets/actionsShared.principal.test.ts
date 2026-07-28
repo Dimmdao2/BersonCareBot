@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { TestSetWriteOptions } from "@/modules/tests/service";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { TestSetWriteOptions } from '@/modules/tests/service';
 
 const {
   archiveTestSetMock,
@@ -22,7 +22,7 @@ const {
     unarchiveTestSetMock: vi.fn(),
     updateTestSetMock: vi.fn(),
     withDoctorWorkspacePrincipalMock: vi.fn(
-      async <T,>(_workspace: { organizationId: string }, _source: string, fn: () => Promise<T>) => {
+      async <T>(_workspace: { organizationId: string }, _source: string, fn: () => Promise<T>) => {
         principalState.inside = true;
         try {
           return await fn();
@@ -35,15 +35,15 @@ const {
   };
 });
 
-vi.mock("@/app-layer/guards/requireRole", () => ({
+vi.mock('@/app-layer/guards/requireRole', () => ({
   requireDoctorWorkspaceContext: requireDoctorWorkspaceContextMock,
 }));
 
-vi.mock("@/app-layer/principal/withOrganizationPrincipal", () => ({
+vi.mock('@/app-layer/principal/withOrganizationPrincipal', () => ({
   withDoctorWorkspacePrincipal: withDoctorWorkspacePrincipalMock,
 }));
 
-vi.mock("@/app-layer/di/buildAppDeps", () => ({
+vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: () => ({
     testSets: {
       archiveTestSet: archiveTestSetMock,
@@ -62,15 +62,15 @@ import {
   saveTestSetCore,
   saveTestSetItemsCore,
   unarchiveTestSetCore,
-} from "./actionsShared";
+} from './actionsShared';
 
-const actorUserId = "00000000-0000-4000-8000-000000000001";
-const testSetId = "550e8400-e29b-41d4-a716-446655440000";
-const clinicalTestId = "650e8400-e29b-41d4-a716-446655440000";
+const actorUserId = '00000000-0000-4000-8000-000000000001';
+const testSetId = '550e8400-e29b-41d4-a716-446655440000';
+const clinicalTestId = '650e8400-e29b-41d4-a716-446655440000';
 
 function workspaceContext() {
   return {
-    organizationId: "org-1",
+    organizationId: 'org-1',
     session: {
       user: {
         userId: actorUserId,
@@ -92,7 +92,7 @@ async function runWriteOption<T>(options: TestSetWriteOptions | undefined, fn: (
   return options!.runTestSetWrite!(fn);
 }
 
-describe("doctor test set action shared principal writes", () => {
+describe('doctor test set action shared principal writes', () => {
   beforeEach(() => {
     archiveTestSetMock.mockReset();
     createTestSetMock.mockReset();
@@ -107,7 +107,7 @@ describe("doctor test set action shared principal writes", () => {
     requireDoctorWorkspaceContextMock.mockResolvedValue(workspaceContext());
   });
 
-  it("creates a test set inside doctor workspace principal with the create source", async () => {
+  it('creates a test set inside doctor workspace principal with the create source', async () => {
     createTestSetMock.mockImplementation(async (_input, _actorId, options: TestSetWriteOptions) =>
       runWriteOption(options, async () => {
         expect(principalState.inside).toBe(true);
@@ -115,25 +115,25 @@ describe("doctor test set action shared principal writes", () => {
       }),
     );
 
-    const result = await createTestSetDraftCore({ title: " Новый набор " });
+    const result = await createTestSetDraftCore({ title: ' Новый набор ' });
 
     expect(result).toEqual({ ok: true, setId: testSetId });
     expect(createTestSetMock).toHaveBeenCalledWith(
-      expect.objectContaining({ title: "Новый набор" }),
+      expect.objectContaining({ title: 'Новый набор' }),
       actorUserId,
       { runTestSetWrite: expect.any(Function) },
     );
     expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
       workspaceContext(),
-      "doctor.test-sets.create",
+      'doctor.test-sets.create',
       expect.any(Function),
     );
   });
 
-  it("keeps update pre-read outside principal, then updates metadata and items inside principal", async () => {
+  it('keeps update pre-read outside principal, then updates metadata and items inside principal', async () => {
     getTestSetMock.mockImplementation(async () => {
       expect(principalState.inside).toBe(false);
-      return { id: testSetId, isArchived: false, publicationStatus: "draft" };
+      return { id: testSetId, isArchived: false, publicationStatus: 'draft' };
     });
     updateTestSetMock.mockImplementation(async (_id, _input, options: TestSetWriteOptions) => {
       expect(principalState.inside).toBe(false);
@@ -152,7 +152,7 @@ describe("doctor test set action shared principal writes", () => {
     const result = await saveTestSetCore(
       formWith({
         id: testSetId,
-        title: " Обновлено ",
+        title: ' Обновлено ',
         itemsPayload: JSON.stringify([{ testId: clinicalTestId }]),
       }),
     );
@@ -161,18 +161,18 @@ describe("doctor test set action shared principal writes", () => {
     expect(withDoctorWorkspacePrincipalMock).toHaveBeenNthCalledWith(
       1,
       workspaceContext(),
-      "doctor.test-sets.update",
+      'doctor.test-sets.update',
       expect.any(Function),
     );
     expect(withDoctorWorkspacePrincipalMock).toHaveBeenNthCalledWith(
       2,
       workspaceContext(),
-      "doctor.test-sets.items.update",
+      'doctor.test-sets.items.update',
       expect.any(Function),
     );
   });
 
-  it("updates only items through the items source", async () => {
+  it('updates only items through the items source', async () => {
     getTestSetMock.mockImplementation(async () => {
       expect(principalState.inside).toBe(false);
       return { id: testSetId, isArchived: false };
@@ -193,16 +193,17 @@ describe("doctor test set action shared principal writes", () => {
     expect(result).toEqual({ ok: true });
     expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
       workspaceContext(),
-      "doctor.test-sets.items.update",
+      'doctor.test-sets.items.update',
       expect.any(Function),
     );
   });
 
-  it("archives and unarchives through source-tagged write options", async () => {
-    archiveTestSetMock.mockImplementation(async (_id, _archiveOptions, options: TestSetWriteOptions) =>
-      runWriteOption(options, async () => {
-        expect(principalState.inside).toBe(true);
-      }),
+  it('archives and unarchives through source-tagged write options', async () => {
+    archiveTestSetMock.mockImplementation(
+      async (_id, _archiveOptions, options: TestSetWriteOptions) =>
+        runWriteOption(options, async () => {
+          expect(principalState.inside).toBe(true);
+        }),
     );
     unarchiveTestSetMock.mockImplementation(async (_id, options: TestSetWriteOptions) =>
       runWriteOption(options, async () => {
@@ -211,23 +212,23 @@ describe("doctor test set action shared principal writes", () => {
     );
 
     expect(await archiveTestSetCore(formWith({ id: testSetId }))).toEqual({
-      kind: "archived",
+      kind: 'archived',
       id: testSetId,
     });
     expect(await unarchiveTestSetCore(formWith({ id: testSetId }))).toEqual({
-      kind: "unarchived",
+      kind: 'unarchived',
       id: testSetId,
     });
     expect(withDoctorWorkspacePrincipalMock).toHaveBeenNthCalledWith(
       1,
       workspaceContext(),
-      "doctor.test-sets.archive",
+      'doctor.test-sets.archive',
       expect.any(Function),
     );
     expect(withDoctorWorkspacePrincipalMock).toHaveBeenNthCalledWith(
       2,
       workspaceContext(),
-      "doctor.test-sets.unarchive",
+      'doctor.test-sets.unarchive',
       expect.any(Function),
     );
   });

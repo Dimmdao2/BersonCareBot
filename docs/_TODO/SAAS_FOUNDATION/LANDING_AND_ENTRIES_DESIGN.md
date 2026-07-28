@@ -74,7 +74,7 @@ Card #807 text (taskdb, verbatim, owner exploration 2026-07-16, armed 2026-07-17
   browser access should exist at all.** `ENTRY_AND_INVITE_JOURNEYS.md` §2 invariant 10 (:45): "Browser остаётся
   полноценным способом доступа; install и push не являются условиями активации." `BRANDING_DOMAIN_CONTRACT.md`
   §6 (:188): "Install is optional; browser entry remains complete. Push permission is a later, explicit user
-  gesture." Card #807's "reconsider the hard PWA install redirect" is asking implementation to *catch up* to
+  gesture." Card #807's "reconsider the hard PWA install redirect" is asking implementation to _catch up_ to
   already-ruled canon, not asking for a new product decision.
 - **Config-driven domain/public-base is already a sanctioned pattern, not a new mechanism to invent.**
   `.cursor/rules/000-critical-integration-config-in-db.mdc` (AGENTS.md §2) mandates DB-backed
@@ -85,12 +85,12 @@ Card #807 text (taskdb, verbatim, owner exploration 2026-07-16, armed 2026-07-17
 
 - **Exact route/shape of the tenant public page relative to `/book/{publicSlug}`.** `SCREEN_COMPOSITION.md` §2
   drafts `ORG-PUB-01` at candidate route `/o/[orgSlug]` and `ORG-PUB-02` at `/o/[orgSlug]/book/**` (:42-43) — but
-  `OWNER_RULINGS_2026-07-17.md` §1 (dated *after* the UX package, so it wins per `AGENTS.md`/`IMPLEMENTATION_
-  ROADMAP.md` §2 provenance order) confirms only `/book/{publicSlug}` for the **booking** link, and does not
+  `OWNER_RULINGS_2026-07-17.md` §1 (dated _after_ the UX package, so it wins per `AGENTS.md`/`IMPLEMENTATION_
+ROADMAP.md` §2 provenance order) confirms only `/book/{publicSlug}` for the **booking** link, and does not
   say where the organization **profile** (branding/services/specialists, i.e. `ORG-PUB-01`) lives relative to
   it. This is a genuine open IA question — flagged as owner decision O-1 in §8, not invented here.
 - **Whether the auth-intent split needs a visible UI toggle/selector, or two CTAs into the same shell is
-  enough.** The package fixes the *outcome* (specialist CTA primary, patient CTA secondary, one shared login
+  enough.** The package fixes the _outcome_ (specialist CTA primary, patient CTA secondary, one shared login
   surface, §0.a) but does not specify the interaction mechanism for choosing which mode of the shared auth
   surface renders by default. Current code already implements two separate CTAs landing on the same shell
   (§1.3) — #807 needs to confirm this pattern is sufficient or wants a different composition.
@@ -100,7 +100,7 @@ Card #807 text (taskdb, verbatim, owner exploration 2026-07-16, armed 2026-07-17
   service-worker caching, background sync or badge API as gated capabilities. Flagged as owner decision O-3.
 - **Whether the "future public widget... promoted to top-level origin due third-party-cookie limits" note in
   the card has any corresponding canon.** It does not appear anywhere in `TARGET_IA.md`, `ENTRY_AND_INVITE_
-  JOURNEYS.md`, `ROUTE_MIGRATION_MAP.md`, `SCREEN_COMPOSITION.md` or `IMPLEMENTATION_ROADMAP.md`. It is a
+JOURNEYS.md`, `ROUTE_MIGRATION_MAP.md`, `SCREEN_COMPOSITION.md` or `IMPLEMENTATION_ROADMAP.md`. It is a
   #807-local forward-looking note, not sanctioned UX-09 stage scope — treated as non-blocking backlog only
   (§6 Phase 5, not implemented).
 - **Exact copy/labels for the two landing CTAs.** Implementation detail, but per memory
@@ -133,7 +133,7 @@ specialist-oriented SaaS. It currently sells a free patient rehab app and instal
 `ROUTE_MIGRATION_MAP.md` row P01's disposition is still **unexecuted** — the split has not happened yet.
 
 `apps/webapp/src/components/landing/StandaloneRootRedirect.tsx:1-24` — when the installed PWA opens on `/`, it
-redirects to `/app/patient` (:19). This is a *separate* mechanism from the PWA install gate audited in §1.4 —
+redirects to `/app/patient` (:19). This is a _separate_ mechanism from the PWA install gate audited in §1.4 —
 it only fires when already standalone, is a convenience shortcut for returning installed users, and is
 explicitly **not** part of the "hard redirect" problem card #807 flags. It should be preserved as-is; §4 and §6
 must not conflate the two.
@@ -175,6 +175,7 @@ panel is a reasonable analogue for what the two production landing CTAs in §2/�
 ### 1.3 Hard PWA install redirect — confirmed exactly as the card describes, contradicts ruled canon
 
 `apps/webapp/src/shared/lib/pwa/pwaAppAccessPolicy.ts:1-55`:
+
 - `isPatientPwaGatedPath` (:13-16) — true for the entire `/app/patient` subtree.
 - `browserRequiresPwaStandaloneForAppPath` (:23-26), doc comment: "Patient cabinet (`/app/patient/**`) requires
   installed PWA (standalone) unless exempt. Doctor/admin/settings — browser OK." — i.e. **only** the patient
@@ -247,10 +248,11 @@ placeholder `https://bersoncare.ru`, fallback note "APP_BASE_URL из окруж
 
 **The gap is narrow and does not require inventing anything new.** Three call sites still hardcode the literal
 domain instead of using the existing accessor:
+
 - `apps/webapp/src/app/page.tsx:26,32` — `export const metadata` sets `metadataBase: new URL("https://
-  bersoncare.ru")` and `openGraph.url: "https://bersoncare.ru"` as static values.
+bersoncare.ru")` and `openGraph.url: "https://bersoncare.ru"` as static values.
 - `apps/webapp/src/components/landing/WrongBrowserBanner.tsx:14-15` — `const SITE_URL = "bersoncare.ru";
-  const SITE_HREF = "https://bersoncare.ru";`.
+const SITE_HREF = "https://bersoncare.ru";`.
 - `apps/webapp/src/shared/lib/buildCalendarLinks.ts:53-54` — ICS `UID` suffix literal `@bersoncare.ru` for both
   the with-`bookingId` and without-`bookingId` branches.
 
@@ -265,13 +267,13 @@ single-chokepoint convention (memory: `owner-prefers-single-chokepoint-no-dup`).
 This delta is additive/corrective over `ROUTE_MIGRATION_MAP.md` rows P01/P02/P04-P07 (§2 of that doc) and does
 not re-open rows this design does not touch.
 
-| Current | Target (per this card) | Status | Notes |
-|---|---|---|---|
-| `apps/webapp/src/app/page.tsx` (`/`) | `PUB-01` specialist-first landing | **unexecuted** (§1.1) | Reorder sections: specialist value/CTA leads; keep `InstallSection` and a compact patient "У меня есть приглашение / Войти" entry per `TARGET_IA.md` §3; do not remove patient-care proof, demote it to a supporting/trust section per `TARGET_IA.md` §10 ("Patient care proof supports the buyer story and does not become a patient-acquisition hero") |
-| `apps/webapp/src/app/app/*` (`AppEntryRsc`) | `PUB-03`/`PUB-04` (kept, no route rename) | **already correct shape** (§1.2) | Only change: accept an optional UX-only `intent` hint (§3) to pick which mode the shared shell defaults to; `getPostAuthRedirectTarget`/`getRedirectPathForRole` (redirectPolicy.ts) remain untouched and remain the sole redirect authority |
-| `apps/webapp/src/app/book/**` current wizard | `ORG-PUB-02` under owner-confirmed `/book/{publicSlug}` | **owned by #805**, not this card | This design consumes the resolved organization context on the landing/tenant page; it does not implement slug resolution, and must not fork a second booking entry point |
-| *(none exists)* organization public profile | `ORG-PUB-01` — route **needs-decision** (see O-1, §8) | **not built** | Branding + specialists/services/locations + booking CTA + patient-login CTA, per `SCREEN_COMPOSITION.md` §2; reuse published-projection concept from `BRANDING_DOMAIN_CONTRACT.md` §11 — no schema invented here |
-| `/#install` (landing anchor) | Voluntary install education section (kept), **no longer** a redirect target enforced against `/app/patient/**` | **partially built** (`InstallSection` exists; the enforced-redirect use in `pwaAppAccessPolicy.ts` is removed, §4) | The anchor/section itself is fine and stays; only its use as an *enforced gate destination* is removed |
+| Current                                      | Target (per this card)                                                                                         | Status                                                                                                             | Notes                                                                                                                                                                                                                                                                                                                                                    |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/webapp/src/app/page.tsx` (`/`)         | `PUB-01` specialist-first landing                                                                              | **unexecuted** (§1.1)                                                                                              | Reorder sections: specialist value/CTA leads; keep `InstallSection` and a compact patient "У меня есть приглашение / Войти" entry per `TARGET_IA.md` §3; do not remove patient-care proof, demote it to a supporting/trust section per `TARGET_IA.md` §10 ("Patient care proof supports the buyer story and does not become a patient-acquisition hero") |
+| `apps/webapp/src/app/app/*` (`AppEntryRsc`)  | `PUB-03`/`PUB-04` (kept, no route rename)                                                                      | **already correct shape** (§1.2)                                                                                   | Only change: accept an optional UX-only `intent` hint (§3) to pick which mode the shared shell defaults to; `getPostAuthRedirectTarget`/`getRedirectPathForRole` (redirectPolicy.ts) remain untouched and remain the sole redirect authority                                                                                                             |
+| `apps/webapp/src/app/book/**` current wizard | `ORG-PUB-02` under owner-confirmed `/book/{publicSlug}`                                                        | **owned by #805**, not this card                                                                                   | This design consumes the resolved organization context on the landing/tenant page; it does not implement slug resolution, and must not fork a second booking entry point                                                                                                                                                                                 |
+| _(none exists)_ organization public profile  | `ORG-PUB-01` — route **needs-decision** (see O-1, §8)                                                          | **not built**                                                                                                      | Branding + specialists/services/locations + booking CTA + patient-login CTA, per `SCREEN_COMPOSITION.md` §2; reuse published-projection concept from `BRANDING_DOMAIN_CONTRACT.md` §11 — no schema invented here                                                                                                                                         |
+| `/#install` (landing anchor)                 | Voluntary install education section (kept), **no longer** a redirect target enforced against `/app/patient/**` | **partially built** (`InstallSection` exists; the enforced-redirect use in `pwaAppAccessPolicy.ts` is removed, §4) | The anchor/section itself is fine and stays; only its use as an _enforced gate destination_ is removed                                                                                                                                                                                                                                                   |
 
 ---
 
@@ -331,7 +333,7 @@ not re-open rows this design does not touch.
   no change.
 - **Messenger mini-app detection (`isMessengerMiniAppHost`)** is a separate concern (bridges Telegram/MAX
   mini-app auth) and is unaffected — it continues to exist for its current purpose, just no longer needs to be
-  consulted for the *browser-access* decision once that decision is always "allow."
+  consulted for the _browser-access_ decision once that decision is always "allow."
 
 ---
 
@@ -412,11 +414,10 @@ delivery — all validation is DEV/TEST-only per `AGENTS.md` §1a/§1b and this 
 
 ## 7. Contradictions found
 
-1. **`SCREEN_COMPOSITION.md` candidate route `/o/[orgSlug]/book/**` for `ORG-PUB-02` (:43) vs.
-   `OWNER_RULINGS_2026-07-17.md` §1's confirmed `/book/{publicSlug}`** (dated *after* the UX package). Per
-   `IMPLEMENTATION_ROADMAP.md` §2 provenance order and `AGENTS.md`'s "dated document wins" convention, the
-   07-17 ruling wins for the booking route specifically. `SCREEN_COMPOSITION.md`'s route-column cell for
-   `ORG-PUB-02` is stale and should get a follow-up UX-06 amendment — out of scope for this design to edit
+1. **`SCREEN_COMPOSITION.md` candidate route `/o/[orgSlug]/book/**`for`ORG-PUB-02`(:43) vs.`OWNER_RULINGS_2026-07-17.md`§1's confirmed`/book/{publicSlug}`** (dated *after* the UX package). Per
+`IMPLEMENTATION_ROADMAP.md`§2 provenance order and`AGENTS.md`'s "dated document wins" convention, the
+07-17 ruling wins for the booking route specifically. `SCREEN_COMPOSITION.md`'s route-column cell for
+`ORG-PUB-02` is stale and should get a follow-up UX-06 amendment — out of scope for this design to edit
    directly (it is the audited package, not this card's artifact), flagged here so the amendment isn't missed.
 2. **Current `PwaAppAccessGate`/`pwaAppAccessPolicy.ts` hard-redirects browser access to the entire patient
    cabinet** (§1.3), directly contradicting `ENTRY_AND_INVITE_JOURNEYS.md` §2 invariant 10 and

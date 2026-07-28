@@ -9,31 +9,31 @@
  *   INTEGRATOR_DATABASE_URL=... DATABASE_URL=... node scripts/backfill-person-domain.mjs [--dry-run | --commit] [--limit=N] [--user-id=ID]
  * Defaults to --dry-run.
  */
-import "dotenv/config";
-import pg from "pg";
-import { loadCutoverEnv } from "../../../scripts/load-cutover-env.mjs";
+import 'dotenv/config';
+import pg from 'pg';
+import { loadCutoverEnv } from '../../../scripts/load-cutover-env.mjs';
 
 const { Client } = pg;
 
 loadCutoverEnv();
 
 const argv = process.argv.slice(2);
-const dryRun = !argv.includes("--commit");
-const limitArg = argv.find((a) => a.startsWith("--limit="));
-const userIdArg = argv.find((a) => a.startsWith("--user-id="));
+const dryRun = !argv.includes('--commit');
+const limitArg = argv.find((a) => a.startsWith('--limit='));
+const userIdArg = argv.find((a) => a.startsWith('--user-id='));
 const MAX_LIMIT = 500_000;
 
 function parseLimit(arg) {
-  if (!arg || !arg.includes("=")) return 0;
-  const raw = arg.slice(arg.indexOf("=") + 1);
+  if (!arg || !arg.includes('=')) return 0;
+  const raw = arg.slice(arg.indexOf('=') + 1);
   const n = parseInt(String(raw), 10);
   if (!Number.isFinite(n) || n < 0) return 0;
   return Math.min(n, MAX_LIMIT);
 }
 
 function parseUserId(arg) {
-  if (!arg || !arg.includes("=")) return null;
-  const raw = arg.slice(arg.indexOf("=") + 1).trim();
+  if (!arg || !arg.includes('=')) return null;
+  const raw = arg.slice(arg.indexOf('=') + 1).trim();
   return raw || null;
 }
 
@@ -44,28 +44,30 @@ const integratorUrl = process.env.INTEGRATOR_DATABASE_URL || process.env.SOURCE_
 const webappUrl = process.env.DATABASE_URL;
 
 if (!integratorUrl?.trim()) {
-  console.error("INTEGRATOR_DATABASE_URL (or SOURCE_DATABASE_URL) is not set");
+  console.error('INTEGRATOR_DATABASE_URL (or SOURCE_DATABASE_URL) is not set');
   process.exit(1);
 }
 if (!webappUrl?.trim()) {
-  console.error("DATABASE_URL is not set");
+  console.error('DATABASE_URL is not set');
   process.exit(1);
 }
 
 if (dryRun) {
-  console.log("[DRY-RUN] No writes will be performed. Pass --commit to write.");
+  console.log('[DRY-RUN] No writes will be performed. Pass --commit to write.');
 }
 
 const NOTIFY_TOPIC_MAP = [
-  { legacy: "notify_spb", topicCode: "booking_spb" },
-  { legacy: "notify_msk", topicCode: "booking_msk" },
-  { legacy: "notify_online", topicCode: "booking_online" },
-  { legacy: "notify_bookings", topicCode: "bookings" },
+  { legacy: 'notify_spb', topicCode: 'booking_spb' },
+  { legacy: 'notify_msk', topicCode: 'booking_msk' },
+  { legacy: 'notify_online', topicCode: 'booking_online' },
+  { legacy: 'notify_bookings', topicCode: 'bookings' },
 ];
 
 function displayNameFromLegacy(firstName, lastName) {
-  const parts = [firstName, lastName].filter((s) => s != null && String(s).trim() !== "").map((s) => String(s).trim());
-  return parts.join(" ").trim() || "";
+  const parts = [firstName, lastName]
+    .filter((s) => s != null && String(s).trim() !== '')
+    .map((s) => String(s).trim());
+  return parts.join(' ').trim() || '';
 }
 
 async function main() {
@@ -76,7 +78,7 @@ async function main() {
     await integrator.connect();
     await webapp.connect();
   } catch (err) {
-    console.error("DB connect error:", err.message);
+    console.error('DB connect error:', err.message);
     process.exit(1);
   }
 
@@ -90,21 +92,21 @@ async function main() {
   };
 
   try {
-    const userFilter = filterUserId ? "WHERE u.id = $1" : "";
+    const userFilter = filterUserId ? 'WHERE u.id = $1' : '';
     const userParams = filterUserId ? [filterUserId] : [];
-    const limitClause = limit > 0 ? `LIMIT ${limit}` : "";
+    const limitClause = limit > 0 ? `LIMIT ${limit}` : '';
     const usersRes = await integrator.query(
       `SELECT u.id AS user_id
        FROM users u
        ${userFilter}
        ORDER BY u.id ASC
        ${limitClause}`,
-      userParams
+      userParams,
     );
 
     const userIds = usersRes.rows.map((r) => String(r.user_id));
     if (userIds.length === 0) {
-      console.log(JSON.stringify({ ...stats, message: "No users to backfill" }, null, 2));
+      console.log(JSON.stringify({ ...stats, message: 'No users to backfill' }, null, 2));
       return;
     }
 
@@ -112,7 +114,7 @@ async function main() {
       `SELECT user_id, value_normalized AS phone
        FROM contacts
        WHERE user_id = ANY(SELECT unnest($1::text[])::bigint) AND type = 'phone' AND trim(value_normalized) != ''`,
-      [userIds]
+      [userIds],
     );
     const phoneByUser = new Map();
     for (const row of contactsRes.rows) {
@@ -125,7 +127,7 @@ async function main() {
        FROM identities i
        LEFT JOIN telegram_state ts ON ts.identity_id = i.id
        WHERE i.user_id = ANY(SELECT unnest($1::text[])::bigint)`,
-      [userIds]
+      [userIds],
     );
 
     const byUser = new Map();
@@ -133,7 +135,7 @@ async function main() {
       byUser.set(id, {
         integratorUserId: id,
         phone: phoneByUser.get(id) ?? null,
-        displayName: "",
+        displayName: '',
         bindings: [],
         topics: {},
       });
@@ -160,62 +162,62 @@ async function main() {
 
     for (let off = 0; off < userEntries.length; off += PERSON_BATCH) {
       const chunk = userEntries.slice(off, off + PERSON_BATCH);
-      if (!dryRun) await webapp.query("BEGIN");
+      if (!dryRun) await webapp.query('BEGIN');
       try {
         for (const [integratorUserId, u] of chunk) {
-      let platformUserId = null;
-      const existingByIntegrator = await webapp.query(
-        "SELECT id FROM platform_users WHERE integrator_user_id = $1",
-        [integratorUserId]
-      );
-      if (existingByIntegrator.rows.length > 0) {
-        platformUserId = existingByIntegrator.rows[0].id;
-        if (!dryRun) {
-          const updates = [];
-          const vals = [platformUserId];
-          let idx = 1;
-          if (u.displayName != null) {
-            updates.push(`display_name = $${++idx}`);
-            vals.push(u.displayName);
-          }
-          if (u.phone != null) {
-            const phoneIdx = ++idx;
-            updates.push(`phone_normalized = $${phoneIdx}`);
-            vals.push(u.phone);
-            // Align with integrator projection trust (PLATFORM_IDENTITY_ACCESS / patient_phone_trust_at).
-            updates.push(
-              `patient_phone_trust_at = CASE WHEN $${phoneIdx}::text IS NOT NULL AND trim($${phoneIdx}::text) <> '' THEN now() ELSE patient_phone_trust_at END`,
+          let platformUserId = null;
+          const existingByIntegrator = await webapp.query(
+            'SELECT id FROM platform_users WHERE integrator_user_id = $1',
+            [integratorUserId],
+          );
+          if (existingByIntegrator.rows.length > 0) {
+            platformUserId = existingByIntegrator.rows[0].id;
+            if (!dryRun) {
+              const updates = [];
+              const vals = [platformUserId];
+              let idx = 1;
+              if (u.displayName != null) {
+                updates.push(`display_name = $${++idx}`);
+                vals.push(u.displayName);
+              }
+              if (u.phone != null) {
+                const phoneIdx = ++idx;
+                updates.push(`phone_normalized = $${phoneIdx}`);
+                vals.push(u.phone);
+                // Align with integrator projection trust (PLATFORM_IDENTITY_ACCESS / patient_phone_trust_at).
+                updates.push(
+                  `patient_phone_trust_at = CASE WHEN $${phoneIdx}::text IS NOT NULL AND trim($${phoneIdx}::text) <> '' THEN now() ELSE patient_phone_trust_at END`,
+                );
+              }
+              if (updates.length > 0) {
+                updates.push('updated_at = now()');
+                await webapp.query(
+                  `UPDATE platform_users SET ${updates.join(', ')} WHERE id = $1`,
+                  vals,
+                );
+                stats.usersUpdated += 1;
+              }
+            }
+          } else if (u.phone) {
+            const existingByPhone = await webapp.query(
+              'SELECT id FROM platform_users WHERE phone_normalized = $1',
+              [u.phone],
             );
+            if (existingByPhone.rows.length > 0) {
+              platformUserId = existingByPhone.rows[0].id;
+              if (!dryRun) {
+                await webapp.query(
+                  `UPDATE platform_users SET integrator_user_id = $1, updated_at = now() WHERE id = $2`,
+                  [integratorUserId, platformUserId],
+                );
+                stats.usersUpdated += 1;
+              }
+            }
           }
-          if (updates.length > 0) {
-            updates.push("updated_at = now()");
-            await webapp.query(
-              `UPDATE platform_users SET ${updates.join(", ")} WHERE id = $1`,
-              vals
-            );
-            stats.usersUpdated += 1;
-          }
-        }
-      } else if (u.phone) {
-        const existingByPhone = await webapp.query(
-          "SELECT id FROM platform_users WHERE phone_normalized = $1",
-          [u.phone]
-        );
-        if (existingByPhone.rows.length > 0) {
-          platformUserId = existingByPhone.rows[0].id;
-          if (!dryRun) {
-            await webapp.query(
-              `UPDATE platform_users SET integrator_user_id = $1, updated_at = now() WHERE id = $2`,
-              [integratorUserId, platformUserId]
-            );
-            stats.usersUpdated += 1;
-          }
-        }
-      }
 
-      if (!platformUserId && !dryRun) {
-        const ins = await webapp.query(
-          `INSERT INTO platform_users (integrator_user_id, phone_normalized, display_name, patient_phone_trust_at)
+          if (!platformUserId && !dryRun) {
+            const ins = await webapp.query(
+              `INSERT INTO platform_users (integrator_user_id, phone_normalized, display_name, patient_phone_trust_at)
            VALUES ($1, $2, $3,
              CASE WHEN $2::text IS NOT NULL AND trim($2::text) <> '' THEN now() ELSE NULL END)
            ON CONFLICT (integrator_user_id) DO UPDATE SET
@@ -228,50 +230,50 @@ async function main() {
              END,
              updated_at = now()
            RETURNING id`,
-          [integratorUserId, u.phone ?? null, u.displayName ?? ""]
-        );
-        platformUserId = ins.rows[0].id;
-        stats.usersInserted += 1;
-      } else if (!platformUserId && dryRun) {
-        stats.usersInserted += 1;
-      }
+              [integratorUserId, u.phone ?? null, u.displayName ?? ''],
+            );
+            platformUserId = ins.rows[0].id;
+            stats.usersInserted += 1;
+          } else if (!platformUserId && dryRun) {
+            stats.usersInserted += 1;
+          }
 
-      if (platformUserId && u.bindings.length > 0 && !dryRun) {
-        for (const b of u.bindings) {
-          await webapp.query(
-            `INSERT INTO user_channel_bindings (user_id, channel_code, external_id)
+          if (platformUserId && u.bindings.length > 0 && !dryRun) {
+            for (const b of u.bindings) {
+              await webapp.query(
+                `INSERT INTO user_channel_bindings (user_id, channel_code, external_id)
              VALUES ($1, $2, $3)
              ON CONFLICT (channel_code, external_id) DO UPDATE SET user_id = EXCLUDED.user_id`,
-            [platformUserId, b.channelCode, b.externalId]
-          );
-          stats.bindingsUpserted += 1;
-        }
-      } else if (u.bindings.length > 0 && dryRun) {
-        stats.bindingsUpserted += u.bindings.length;
-      }
+                [platformUserId, b.channelCode, b.externalId],
+              );
+              stats.bindingsUpserted += 1;
+            }
+          } else if (u.bindings.length > 0 && dryRun) {
+            stats.bindingsUpserted += u.bindings.length;
+          }
 
-      const topicCodes = NOTIFY_TOPIC_MAP.map((m) => m.topicCode);
-      const topicsToUpsert = topicCodes.filter((code) => u.topics[code] !== undefined);
-      if (platformUserId && topicsToUpsert.length > 0 && !dryRun) {
-        for (const code of topicsToUpsert) {
-          const isEnabled = !!u.topics[code];
-          await webapp.query(
-            `INSERT INTO user_notification_topics (user_id, topic_code, is_enabled)
+          const topicCodes = NOTIFY_TOPIC_MAP.map((m) => m.topicCode);
+          const topicsToUpsert = topicCodes.filter((code) => u.topics[code] !== undefined);
+          if (platformUserId && topicsToUpsert.length > 0 && !dryRun) {
+            for (const code of topicsToUpsert) {
+              const isEnabled = !!u.topics[code];
+              await webapp.query(
+                `INSERT INTO user_notification_topics (user_id, topic_code, is_enabled)
              VALUES ($1, $2, $3)
              ON CONFLICT (user_id, topic_code) DO UPDATE SET is_enabled = EXCLUDED.is_enabled, updated_at = now()`,
-            [platformUserId, code, isEnabled]
-          );
-          stats.topicsUpserted += 1;
+                [platformUserId, code, isEnabled],
+              );
+              stats.topicsUpserted += 1;
+            }
+          } else if (topicsToUpsert.length > 0 && dryRun) {
+            stats.topicsUpserted += topicsToUpsert.length;
+          }
         }
-      } else if (topicsToUpsert.length > 0 && dryRun) {
-        stats.topicsUpserted += topicsToUpsert.length;
-      }
-        }
-        if (!dryRun) await webapp.query("COMMIT");
+        if (!dryRun) await webapp.query('COMMIT');
       } catch (err) {
         if (!dryRun) {
           try {
-            await webapp.query("ROLLBACK");
+            await webapp.query('ROLLBACK');
           } catch {
             // Best effort rollback; preserve original batch error.
           }

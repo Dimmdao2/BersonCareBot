@@ -16,7 +16,9 @@ export type EmailOtpPublicDbPort = {
     lastName: string;
     firstName: string;
     patronymic: string | null;
-  }): Promise<{ ok: true; userId: string; wasCreated: boolean } | { ok: false; reason: "duplicate_email" }>;
+  }): Promise<
+    { ok: true; userId: string; wasCreated: boolean } | { ok: false; reason: 'duplicate_email' }
+  >;
 
   /**
    * Atomically consume the latest challenge using only a pre-hashed code.
@@ -34,7 +36,7 @@ export type EmailOtpPublicDbPort = {
     | { ok: true; userId: string }
     | {
         ok: false;
-        code: "invalid_code" | "expired_code" | "too_many_attempts" | "email_conflict";
+        code: 'invalid_code' | 'expired_code' | 'too_many_attempts' | 'email_conflict';
         retryAfterSeconds?: number;
       }
   >;

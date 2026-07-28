@@ -1,34 +1,36 @@
-import { env } from "@/config/env";
-import { logger } from "@/app-layer/logging/logger";
-import { serializePresignFailureForLog } from "@/app-layer/media/presignLogRedaction";
-import { presignGetUrl } from "@/app-layer/media/s3Client";
-import { getMediaRowForPlayback } from "@/app-layer/media/s3MediaStorage";
-import type { MediaPlaybackPayload } from "@/modules/media/playbackPayloadTypes";
+import { env } from '@/config/env';
+import { logger } from '@/app-layer/logging/logger';
+import { serializePresignFailureForLog } from '@/app-layer/media/presignLogRedaction';
+import { presignGetUrl } from '@/app-layer/media/s3Client';
+import { getMediaRowForPlayback } from '@/app-layer/media/s3MediaStorage';
+import type { MediaPlaybackPayload } from '@/modules/media/playbackPayloadTypes';
 import {
   parseDefaultDeliveryConfig,
   resolveVideoPlaybackDelivery,
   type PlaybackDeliveryStrategy,
-} from "@/modules/media/playbackResolveDelivery";
+} from '@/modules/media/playbackResolveDelivery';
 import {
   parseAvailableQualitiesJson,
   parseVideoDeliveryOverride,
   parseVideoProcessingStatus,
-} from "@/modules/media/videoHlsFields";
-import { recordPlaybackResolutionEvent } from "@/app-layer/media/playbackResolutionEvents";
-import { recordPlaybackResolutionStat } from "@/app-layer/media/playbackStatsHourly";
-import { recordPlaybackUserVideoFirstResolve } from "@/app-layer/media/playbackUserVideoFirstResolve";
-import { getVideoPresignTtlSeconds } from "@/app-layer/media/videoPresignTtl";
-import { getPatientRuntimeBool, getPatientRuntimeValue } from "@/modules/system-settings/configAdapter";
-import { canAccessProgramSubmissionMedia } from "@/modules/media/programSubmissionPlaybackAccess";
-import type { AppSession } from "@/shared/types/session";
-import { isTrustedHlsArtifactS3Key, isTrustedPosterS3Key } from "@/shared/lib/hlsStorageLayout";
+} from '@/modules/media/videoHlsFields';
+import { recordPlaybackResolutionEvent } from '@/app-layer/media/playbackResolutionEvents';
+import { recordPlaybackResolutionStat } from '@/app-layer/media/playbackStatsHourly';
+import { recordPlaybackUserVideoFirstResolve } from '@/app-layer/media/playbackUserVideoFirstResolve';
+import { getVideoPresignTtlSeconds } from '@/app-layer/media/videoPresignTtl';
+import {
+  getPatientRuntimeBool,
+  getPatientRuntimeValue,
+} from '@/modules/system-settings/configAdapter';
+import { canAccessProgramSubmissionMedia } from '@/modules/media/programSubmissionPlaybackAccess';
+import type { AppSession } from '@/shared/types/session';
+import { isTrustedHlsArtifactS3Key, isTrustedPosterS3Key } from '@/shared/lib/hlsStorageLayout';
 import {
   databaseNameFromUrl,
   isSaasTestLocalMediaAllowed,
 } from '@/app-layer/media/localSaasTestFixtureMedia';
 
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export type ResolveMediaPlaybackFailure = { ok: false; status: number; error: string };
 export type ResolveMediaPlaybackSuccess = { ok: true; data: MediaPlaybackPayload };
@@ -46,8 +48,8 @@ export async function resolveMediaPlaybackPayload(input: {
 }): Promise<ResolveMediaPlaybackSuccess | ResolveMediaPlaybackFailure> {
   const t0 = performance.now();
   const { id, adminPrefer } = input;
-  if (!UUID_RE.test(id) || !(env.DATABASE_URL ?? "").trim()) {
-    return { ok: false, status: 404, error: "not found" };
+  if (!UUID_RE.test(id) || !(env.DATABASE_URL ?? '').trim()) {
+    return { ok: false, status: 404, error: 'not found' };
   }
 
   const row = await getMediaRowForPlayback(id, {
@@ -55,7 +57,7 @@ export async function resolveMediaPlaybackPayload(input: {
     allowPlatformBase: input.allowPlatformBase === true,
   });
   if (!row) {
-    return { ok: false, status: 404, error: "not found" };
+    return { ok: false, status: 404, error: 'not found' };
   }
 
   const localSaasTestFixture = isSaasTestLocalMediaAllowed({
@@ -64,15 +66,15 @@ export async function resolveMediaPlaybackPayload(input: {
     s3Key: row.s3_key,
     mimeType: row.mime_type,
   });
-  const playbackEnabled = await getPatientRuntimeBool("video_playback_api_enabled");
+  const playbackEnabled = await getPatientRuntimeBool('video_playback_api_enabled');
   if (!playbackEnabled && !localSaasTestFixture) {
-    return { ok: false, status: 503, error: "feature_disabled" };
+    return { ok: false, status: 503, error: 'feature_disabled' };
   }
 
   const presignExpiresSec = await getVideoPresignTtlSeconds();
 
-  const defaultRaw = await getPatientRuntimeValue("video_default_delivery");
-  const systemDefault = parseDefaultDeliveryConfig(defaultRaw, "auto");
+  const defaultRaw = await getPatientRuntimeValue('video_default_delivery');
+  const systemDefault = parseDefaultDeliveryConfig(defaultRaw, 'auto');
 
   if (
     !canAccessProgramSubmissionMedia(input.session, {
@@ -80,13 +82,13 @@ export async function resolveMediaPlaybackPayload(input: {
       uploadedBy: row.uploaded_by,
     })
   ) {
-    return { ok: false, status: 403, error: "forbidden" };
+    return { ok: false, status: 403, error: 'forbidden' };
   }
 
   const recordPatientPlaybackTelemetry =
-    input.session.user.role === "client" && row.usage_purpose !== "program_item_submission";
-  const mimeType = row.mime_type ?? "";
-  const isVideo = mimeType.toLowerCase().startsWith("video/");
+    input.session.user.role === 'client' && row.usage_purpose !== 'program_item_submission';
+  const mimeType = row.mime_type ?? '';
+  const isVideo = mimeType.toLowerCase().startsWith('video/');
 
   const videoProcessingStatus = parseVideoProcessingStatus(row.video_processing_status);
   const perFileOverride = parseVideoDeliveryOverride(row.video_delivery_override);
@@ -98,21 +100,26 @@ export async function resolveMediaPlaybackPayload(input: {
     logger.info(
       {
         mediaId: id,
-        delivery: "file",
+        delivery: 'file',
         hlsReady: false,
         fallbackUsed: false,
         strategy: systemDefault,
         latencyMs: Math.round(performance.now() - t0),
       },
-      "playback_resolved",
+      'playback_resolved',
     );
     if (recordPatientPlaybackTelemetry) {
       const userId = input.session.user.userId;
-      await recordPlaybackResolutionStat({ userId, mediaId: id, delivery: "file", fallbackUsed: false });
+      await recordPlaybackResolutionStat({
+        userId,
+        mediaId: id,
+        delivery: 'file',
+        fallbackUsed: false,
+      });
       await recordPlaybackResolutionEvent({
         userId,
         mediaId: id,
-        delivery: "file",
+        delivery: 'file',
         fallbackUsed: false,
       });
     }
@@ -120,7 +127,7 @@ export async function resolveMediaPlaybackPayload(input: {
       ok: true,
       data: {
         mediaId: id,
-        delivery: "file",
+        delivery: 'file',
         mimeType,
         durationSeconds: row.video_duration_seconds,
         posterUrl: null,
@@ -132,9 +139,8 @@ export async function resolveMediaPlaybackPayload(input: {
     };
   }
 
-  const rawMaster = row.hls_master_playlist_s3_key?.trim() ?? "";
-  const trustedMaster =
-    rawMaster && isTrustedHlsArtifactS3Key(id, rawMaster) ? rawMaster : null;
+  const rawMaster = row.hls_master_playlist_s3_key?.trim() ?? '';
+  const trustedMaster = rawMaster && isTrustedHlsArtifactS3Key(id, rawMaster) ? rawMaster : null;
 
   const resolved = resolveVideoPlaybackDelivery({
     systemDefaultDelivery: systemDefault,
@@ -144,26 +150,26 @@ export async function resolveMediaPlaybackPayload(input: {
     hlsMasterPlaylistS3Key: trustedMaster,
   });
 
-  let delivery: "hls" | "mp4" = "mp4";
+  let delivery: 'hls' | 'mp4' = 'mp4';
   let fallbackUsed = resolved.fallbackUsed;
   let masterUrl: string | null = null;
   let posterUrl: string | null = null;
 
   if (resolved.useHls && trustedMaster) {
-    delivery = "hls";
+    delivery = 'hls';
     masterUrl = `/api/media/${id}/hls/master.m3u8`;
   } else {
-    delivery = "mp4";
+    delivery = 'mp4';
   }
 
-  const rawPoster = row.poster_s3_key?.trim() ?? "";
+  const rawPoster = row.poster_s3_key?.trim() ?? '';
   if (rawPoster && isTrustedPosterS3Key(id, rawPoster)) {
     try {
       posterUrl = await presignGetUrl(rawPoster, presignExpiresSec);
     } catch (e) {
       logger.error(
-        { err: serializePresignFailureForLog(e), mediaId: id, presignTarget: "poster" },
-        "playback_presign_failed",
+        { err: serializePresignFailureForLog(e), mediaId: id, presignTarget: 'poster' },
+        'playback_presign_failed',
       );
     }
   }
@@ -177,7 +183,7 @@ export async function resolveMediaPlaybackPayload(input: {
       strategy: resolved.strategy,
       latencyMs: Math.round(performance.now() - t0),
     },
-    "playback_resolved",
+    'playback_resolved',
   );
 
   if (recordPatientPlaybackTelemetry) {
@@ -190,7 +196,7 @@ export async function resolveMediaPlaybackPayload(input: {
       fallbackUsed,
     });
 
-    if (delivery === "hls" || delivery === "mp4") {
+    if (delivery === 'hls' || delivery === 'mp4') {
       await recordPlaybackUserVideoFirstResolve({
         userId,
         mediaId: id,

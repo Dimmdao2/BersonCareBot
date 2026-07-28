@@ -45,10 +45,10 @@
 
 ## Endpoints (целевые)
 
-| Method | Path | Назначение |
-|--------|------|------------|
+| Method   | Path                             | Назначение                       |
+| -------- | -------------------------------- | -------------------------------- |
 | GET/POST | `/api/auth/email-setup/validate` | Проверка token → email для формы |
-| POST | `/api/auth/email-setup/complete` | Пароль + consume token |
-| POST | `/api/auth/email-setup/resend` | Новая ссылка (expired flow) |
+| POST     | `/api/auth/email-setup/complete` | Пароль + consume token           |
+| POST     | `/api/auth/email-setup/resend`   | Новая ссылка (expired flow)      |
 
 Имена уточнить в фазе 0 при согласовании.

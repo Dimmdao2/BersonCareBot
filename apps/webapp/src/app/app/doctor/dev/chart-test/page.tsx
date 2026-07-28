@@ -4,8 +4,8 @@
  *
  * Remove or gate behind IS_DEV before production merge.
  */
-import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
-import { ChartTestPageClient } from "./ChartTestPageClient";
+import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
+import { ChartTestPageClient } from './ChartTestPageClient';
 
 export default async function ChartTestPage() {
   await requireDoctorWorkspaceContext();

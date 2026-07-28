@@ -1,8 +1,8 @@
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 
 export async function DELETE(
   _request: Request,
@@ -12,19 +12,23 @@ export async function DELETE(
   if (!gate.ok) return gate.response;
 
   const { instanceId, messageId } = await context.params;
-  if (!z.string().uuid().safeParse(instanceId).success || !z.string().uuid().safeParse(messageId).success) {
-    return NextResponse.json({ ok: false, error: "invalid_id" }, { status: 400 });
+  if (
+    !z.string().uuid().safeParse(instanceId).success ||
+    !z.string().uuid().safeParse(messageId).success
+  ) {
+    return NextResponse.json({ ok: false, error: 'invalid_id' }, { status: 400 });
   }
 
   const deps = buildAppDeps();
   const instance = await deps.treatmentProgramInstance.getInstanceById(instanceId);
-  if (!instance || instance.organizationId !== gate.ctx.organizationId) return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  if (!instance || instance.organizationId !== gate.ctx.organizationId)
+    return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
 
   const identity = await deps.doctorClientsPort.getClientIdentity(instance.patientUserId);
-  if (!identity) return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  if (!identity) return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
 
-  if (instance.assignmentSource !== "doctor") {
-    return NextResponse.json({ ok: false, error: "program_not_doctor_assigned" }, { status: 400 });
+  if (instance.assignmentSource !== 'doctor') {
+    return NextResponse.json({ ok: false, error: 'program_not_doctor_assigned' }, { status: 400 });
   }
 
   try {
@@ -36,11 +40,13 @@ export async function DELETE(
     );
     return NextResponse.json({ ok: true, deleted: true });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "error";
+    const msg = e instanceof Error ? e.message : 'error';
     const status =
-      msg === "message_not_found" ? 404
-      : msg === "message_not_media" || msg === "message_not_deletable" ? 400
-      : 400;
+      msg === 'message_not_found'
+        ? 404
+        : msg === 'message_not_media' || msg === 'message_not_deletable'
+          ? 400
+          : 400;
     return NextResponse.json({ ok: false, error: msg }, { status });
   }
 }

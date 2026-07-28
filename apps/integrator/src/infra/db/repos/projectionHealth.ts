@@ -18,8 +18,7 @@ export async function getProjectionHealth(
   db: DbPort,
   options?: { retryThreshold?: number },
 ): Promise<ProjectionHealthSnapshot> {
-  return runWithInfraPrincipal(
-    { source: 'integrator-projection-health' },
-    () => readProjectionHealthSnapshot(db, options),
+  return runWithInfraPrincipal({ source: 'integrator-projection-health' }, () =>
+    readProjectionHealthSnapshot(db, options),
   );
 }

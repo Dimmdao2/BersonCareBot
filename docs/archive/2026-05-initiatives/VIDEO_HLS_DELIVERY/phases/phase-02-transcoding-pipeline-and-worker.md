@@ -16,7 +16,7 @@
 
 ### `apps/webapp` (backend)
 
-- Функция **enqueue transcode job** после `confirm` / `multipart complete` для `mime` video/* — **за флагом** `video_hls_pipeline_enabled` и `video_hls_new_uploads_auto_transcode` (точная политика в phase-06).
+- Функция **enqueue transcode job** после `confirm` / `multipart complete` для `mime` video/\* — **за флагом** `video_hls_pipeline_enabled` и `video_hls_new_uploads_auto_transcode` (точная политика в phase-06).
 - В фазе 02 достаточно **admin-only** или **internal script** endpoint для постановки job вручную (безопаснее для первого merge).
 - Таблица очереди, например `media_transcode_jobs`:
   - `id`, `media_id` FK, `status` (pending/processing/done/failed), `attempts`, `locked_at`, `locked_by`, `last_error`, `created_at`, `updated_at`.

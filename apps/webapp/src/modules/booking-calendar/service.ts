@@ -1,14 +1,17 @@
-import type { BookingSchedulingPort, ScheduleBlockRecord } from "@/modules/booking-scheduling/ports";
+import type {
+  BookingSchedulingPort,
+  ScheduleBlockRecord,
+} from '@/modules/booking-scheduling/ports';
 import {
   localDateKey,
   pickWorkingHours,
   workingIntervalsForDate,
   type WorkingDayRow,
   type WorkingHoursRow,
-} from "@/modules/booking-scheduling/computeSlots";
-import type { WorkingDayRecord } from "@/modules/booking-scheduling/ports";
-import { DateTime } from "luxon";
-import type { BookingCalendarPort, BookingCalendarService } from "./ports";
+} from '@/modules/booking-scheduling/computeSlots';
+import type { WorkingDayRecord } from '@/modules/booking-scheduling/ports';
+import { DateTime } from 'luxon';
+import type { BookingCalendarPort, BookingCalendarService } from './ports';
 import type {
   CalendarAggregate,
   CalendarBreakEvent,
@@ -16,7 +19,7 @@ import type {
   CalendarFilters,
   CalendarWorkingEvent,
   WorkingBounds,
-} from "./types";
+} from './types';
 
 type Deps = {
   calendarPort: BookingCalendarPort;
@@ -31,7 +34,7 @@ type Deps = {
 
 function mapBlock(block: ScheduleBlockRecord): CalendarBlockEvent {
   return {
-    kind: "block",
+    kind: 'block',
     id: block.id,
     startAt: block.startAt,
     endAt: block.endAt,
@@ -52,8 +55,8 @@ function enumerateDateKeys(rangeStart: string, rangeEnd: string, timeZone: strin
   const startKey = localDateKey(rangeStart, timeZone);
   const endKey = localDateKey(rangeEnd, timeZone);
   const out: string[] = [];
-  let cursor = DateTime.fromISO(startKey, { zone: "UTC" });
-  const end = DateTime.fromISO(endKey, { zone: "UTC" });
+  let cursor = DateTime.fromISO(startKey, { zone: 'UTC' });
+  const end = DateTime.fromISO(endKey, { zone: 'UTC' });
   while (cursor <= end) {
     out.push(cursor.toISODate()!);
     cursor = cursor.plus({ days: 1 });
@@ -61,7 +64,9 @@ function enumerateDateKeys(rangeStart: string, rangeEnd: string, timeZone: strin
   return out;
 }
 
-function mapWorkingRows(rows: Awaited<ReturnType<BookingSchedulingPort["listWorkingHours"]>>): WorkingHoursRow[] {
+function mapWorkingRows(
+  rows: Awaited<ReturnType<BookingSchedulingPort['listWorkingHours']>>,
+): WorkingHoursRow[] {
   return rows.map((r) => ({
     weekday: r.weekday,
     startMinute: r.startMinute,
@@ -114,9 +119,7 @@ function toEffectivePerDayRow(
   queriedBranchId: string | null | undefined,
 ): WorkingDayRow {
   const committedElsewhere =
-    record.branchId != null &&
-    queriedBranchId != null &&
-    record.branchId !== queriedBranchId;
+    record.branchId != null && queriedBranchId != null && record.branchId !== queriedBranchId;
   return {
     workDate: record.workDate,
     startMinute: record.startMinute,
@@ -130,7 +133,7 @@ async function listWorkingAndBreakEvents(
   filters: CalendarFilters,
   schedulingPort: BookingSchedulingPort,
 ): Promise<{ working: CalendarWorkingEvent[]; breaks: CalendarBreakEvent[] }> {
-  const timeZone = filters.timeZone ?? "Europe/Moscow";
+  const timeZone = filters.timeZone ?? 'Europe/Moscow';
   const dateKeys = enumerateDateKeys(filters.rangeStart, filters.rangeEnd, timeZone);
 
   const [rows, perDayRows] = await Promise.all([
@@ -184,8 +187,8 @@ async function listWorkingAndBreakEvents(
       const interval = intervals[i]!;
       const effectiveBranchId = perDayRecord?.branchId ?? filters.branchId ?? null;
       working.push({
-        kind: "working",
-        id: `working:${dateKey}:${i}:${filters.specialistId ?? "any"}:${filters.branchId ?? "any"}`,
+        kind: 'working',
+        id: `working:${dateKey}:${i}:${filters.specialistId ?? 'any'}:${filters.branchId ?? 'any'}`,
         startAt: new Date(interval.startMs).toISOString(),
         endAt: new Date(interval.endMs).toISOString(),
         specialistId: filters.specialistId ?? null,
@@ -196,8 +199,8 @@ async function listWorkingAndBreakEvents(
       const prev = intervals[i - 1]!;
       if (interval.startMs <= prev.endMs) continue;
       breaks.push({
-        kind: "break",
-        id: `break:${dateKey}:${i}:${filters.specialistId ?? "any"}:${filters.branchId ?? "any"}`,
+        kind: 'break',
+        id: `break:${dateKey}:${i}:${filters.specialistId ?? 'any'}:${filters.branchId ?? 'any'}`,
         startAt: new Date(prev.endMs).toISOString(),
         endAt: new Date(interval.startMs).toISOString(),
         specialistId: filters.specialistId ?? null,
@@ -231,13 +234,13 @@ export function createBookingCalendarService(deps: Deps): BookingCalendarService
       const blockEvents = blocks
         .filter(
           (b) =>
-            matchesOptionalFilter(b.specialistId, filters.specialistId)
-            && matchesOptionalFilter(b.branchId, filters.branchId)
-            && matchesOptionalFilter(b.roomId, filters.roomId),
+            matchesOptionalFilter(b.specialistId, filters.specialistId) &&
+            matchesOptionalFilter(b.branchId, filters.branchId) &&
+            matchesOptionalFilter(b.roomId, filters.roomId),
         )
         .map(mapBlock);
 
-      const timeZone = filters.timeZone ?? "Europe/Moscow";
+      const timeZone = filters.timeZone ?? 'Europe/Moscow';
       const workingBounds = showWorkingHours
         ? deriveWorkingBounds(workingAndBreak.working, timeZone)
         : null;
@@ -250,7 +253,7 @@ export function createBookingCalendarService(deps: Deps): BookingCalendarService
           ...workingAndBreak.breaks,
         ],
         filters: filterMeta,
-        readSource: "canonical",
+        readSource: 'canonical',
         showWorkingHours,
         workingBounds,
       };

@@ -1,7 +1,7 @@
-import { NextResponse } from "next/server";
-import { enterWithDbInfraPrincipal } from "@bersoncare/db-principal";
-import { logger } from "@/app-layer/logging/logger";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { NextResponse } from 'next/server';
+import { enterWithDbInfraPrincipal } from '@bersoncare/db-principal';
+import { logger } from '@/app-layer/logging/logger';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import {
   OPERATOR_HEARTBEAT_CONFIG_KEY,
   OPERATOR_HEARTBEAT_JOB_FAMILY,
@@ -10,8 +10,8 @@ import {
   parseOperatorHeartbeatStaleOverrides,
   resolveHeartbeatStaleAfterSec,
   type OperatorHeartbeatName,
-} from "@/modules/operator-health/heartbeat";
-import { getConfigValue } from "@/modules/system-settings/configAdapter";
+} from '@/modules/operator-health/heartbeat';
+import { getConfigValue } from '@/modules/system-settings/configAdapter';
 
 /**
  * Тело локального приёмника dead man's switch (design D-d).
@@ -27,7 +27,7 @@ import { getConfigValue } from "@/modules/system-settings/configAdapter";
 export async function recordHeartbeatPing(name: OperatorHeartbeatName): Promise<NextResponse> {
   const definition = findOperatorHeartbeat(name);
   if (!definition) {
-    return NextResponse.json({ ok: false, error: "unknown_heartbeat" }, { status: 404 });
+    return NextResponse.json({ ok: false, error: 'unknown_heartbeat' }, { status: 404 });
   }
   enterWithDbInfraPrincipal({ source: `api/internal/heartbeat/${name}:POST` });
   const receivedAt = new Date().toISOString();
@@ -37,11 +37,11 @@ export async function recordHeartbeatPing(name: OperatorHeartbeatName): Promise<
       jobKey: definition.jobKey,
       startedAtIso: receivedAt,
       durationMs: 0,
-      metaJson: { reason: "receiver" },
+      metaJson: { reason: 'receiver' },
     });
   } catch (err) {
-    logger.error({ err, heartbeat: name }, "[internal/heartbeat] record failed");
-    return NextResponse.json({ ok: false, error: "internal_error" }, { status: 500 });
+    logger.error({ err, heartbeat: name }, '[internal/heartbeat] record failed');
+    return NextResponse.json({ ok: false, error: 'internal_error' }, { status: 500 });
   }
   return NextResponse.json({ ok: true, heartbeat: name, receivedAt });
 }
@@ -49,7 +49,7 @@ export async function recordHeartbeatPing(name: OperatorHeartbeatName): Promise<
 export async function readHeartbeatVerdict(name: OperatorHeartbeatName): Promise<NextResponse> {
   const definition = findOperatorHeartbeat(name);
   if (!definition) {
-    return NextResponse.json({ ok: false, error: "unknown_heartbeat" }, { status: 404 });
+    return NextResponse.json({ ok: false, error: 'unknown_heartbeat' }, { status: 404 });
   }
   enterWithDbInfraPrincipal({ source: `api/internal/heartbeat/${name}:GET` });
   try {
@@ -58,7 +58,7 @@ export async function readHeartbeatVerdict(name: OperatorHeartbeatName): Promise
         OPERATOR_HEARTBEAT_JOB_FAMILY,
         definition.jobKey,
       ),
-      getConfigValue(OPERATOR_HEARTBEAT_CONFIG_KEY, "").catch(() => ""),
+      getConfigValue(OPERATOR_HEARTBEAT_CONFIG_KEY, '').catch(() => ''),
     ]);
     const verdict = classifyOperatorHeartbeat({
       name: definition.name,
@@ -70,7 +70,7 @@ export async function readHeartbeatVerdict(name: OperatorHeartbeatName): Promise
     });
     return NextResponse.json({ ok: true, verdict });
   } catch (err) {
-    logger.error({ err, heartbeat: name }, "[internal/heartbeat] read failed");
-    return NextResponse.json({ ok: false, error: "internal_error" }, { status: 500 });
+    logger.error({ err, heartbeat: name }, '[internal/heartbeat] read failed');
+    return NextResponse.json({ ok: false, error: 'internal_error' }, { status: 500 });
   }
 }

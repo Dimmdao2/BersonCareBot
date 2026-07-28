@@ -1,14 +1,14 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 const googleMocks = vi.hoisted(() => ({
-  getGoogleClientId: vi.fn().mockResolvedValue(""),
-  getGoogleClientSecret: vi.fn().mockResolvedValue(""),
-  getGoogleRedirectUri: vi.fn().mockResolvedValue(""),
+  getGoogleClientId: vi.fn().mockResolvedValue(''),
+  getGoogleClientSecret: vi.fn().mockResolvedValue(''),
+  getGoogleRedirectUri: vi.fn().mockResolvedValue(''),
   isGoogleCalendarPlatformAvailable: vi.fn().mockResolvedValue(true),
 }));
 
-vi.mock("@/modules/system-settings/integrationRuntime", async (importOriginal) => {
-  const m = await importOriginal<typeof import("@/modules/system-settings/integrationRuntime")>();
+vi.mock('@/modules/system-settings/integrationRuntime', async (importOriginal) => {
+  const m = await importOriginal<typeof import('@/modules/system-settings/integrationRuntime')>();
   return {
     ...m,
     getGoogleClientId: googleMocks.getGoogleClientId,
@@ -19,59 +19,65 @@ vi.mock("@/modules/system-settings/integrationRuntime", async (importOriginal) =
 });
 
 const clinicGateMock = vi.hoisted(() => vi.fn());
-vi.mock("@/app-layer/guards/requireRole", () => ({
+vi.mock('@/app-layer/guards/requireRole', () => ({
   requireClinicManagementApiContext: clinicGateMock,
 }));
 
-vi.mock("@/config/env", () => ({
-  env: { APP_BASE_URL: "http://localhost", SESSION_COOKIE_SECRET: "test-session-secret-16chars" },
+vi.mock('@/config/env', () => ({
+  env: { APP_BASE_URL: 'http://localhost', SESSION_COOKIE_SECRET: 'test-session-secret-16chars' },
   isProduction: false,
 }));
 
-import { POST } from "./route";
+import { POST } from './route';
 
-describe("POST /api/admin/google-calendar/start", () => {
+describe('POST /api/admin/google-calendar/start', () => {
   beforeEach(() => {
-    googleMocks.getGoogleClientId.mockResolvedValue("");
-    googleMocks.getGoogleClientSecret.mockResolvedValue("");
-    googleMocks.getGoogleRedirectUri.mockResolvedValue("");
+    googleMocks.getGoogleClientId.mockResolvedValue('');
+    googleMocks.getGoogleClientSecret.mockResolvedValue('');
+    googleMocks.getGoogleRedirectUri.mockResolvedValue('');
     googleMocks.isGoogleCalendarPlatformAvailable.mockResolvedValue(true);
     clinicGateMock.mockReset().mockResolvedValue({
       ok: false,
-      response: new Response(JSON.stringify({ ok: false, error: "unauthorized" }), { status: 401 }),
+      response: new Response(JSON.stringify({ ok: false, error: 'unauthorized' }), { status: 401 }),
     });
   });
 
-  it("returns 401 when not authenticated", async () => {
+  it('returns 401 when not authenticated', async () => {
     const res = await POST();
     expect(res.status).toBe(401);
   });
 
-  it("returns 403 when the platform guard rejects a foreign audience", async () => {
+  it('returns 403 when the platform guard rejects a foreign audience', async () => {
     clinicGateMock.mockResolvedValue({
       ok: false,
-      response: new Response(JSON.stringify({ ok: false, error: "forbidden" }), { status: 403 }),
+      response: new Response(JSON.stringify({ ok: false, error: 'forbidden' }), { status: 403 }),
     });
     const res = await POST();
     expect(res.status).toBe(403);
     expect(googleMocks.getGoogleClientId).not.toHaveBeenCalled();
   });
 
-  it("returns 501 when Google OAuth not configured", async () => {
+  it('returns 501 when Google OAuth not configured', async () => {
     clinicGateMock.mockResolvedValue({
       ok: true,
-      ctx: { organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", session: { user: { role: "doctor", userId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" } } },
+      ctx: {
+        organizationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        session: { user: { role: 'doctor', userId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' } },
+      },
     });
     const res = await POST();
     expect(res.status).toBe(501);
     const data = (await res.json()) as { error: string };
-    expect(data.error).toBe("not_configured");
+    expect(data.error).toBe('not_configured');
   });
 
-  it("refuses a clinic connection while the platform switch is off", async () => {
+  it('refuses a clinic connection while the platform switch is off', async () => {
     clinicGateMock.mockResolvedValue({
       ok: true,
-      ctx: { organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", session: { user: { role: "doctor", userId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" } } },
+      ctx: {
+        organizationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        session: { user: { role: 'doctor', userId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' } },
+      },
     });
     googleMocks.isGoogleCalendarPlatformAvailable.mockResolvedValue(false);
     googleMocks.getGoogleClientId.mockClear();
@@ -80,25 +86,30 @@ describe("POST /api/admin/google-calendar/start", () => {
     expect(googleMocks.getGoogleClientId).not.toHaveBeenCalled();
   });
 
-  it("returns 200 with authUrl when credentials present", async () => {
+  it('returns 200 with authUrl when credentials present', async () => {
     clinicGateMock.mockResolvedValue({
       ok: true,
-      ctx: { organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", session: { user: { role: "doctor", userId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" } } },
+      ctx: {
+        organizationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        session: { user: { role: 'doctor', userId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' } },
+      },
     });
-    googleMocks.getGoogleClientId.mockResolvedValue("test-client-id");
-    googleMocks.getGoogleClientSecret.mockResolvedValue("test-secret");
-    googleMocks.getGoogleRedirectUri.mockResolvedValue("http://localhost/api/admin/google-calendar/callback");
+    googleMocks.getGoogleClientId.mockResolvedValue('test-client-id');
+    googleMocks.getGoogleClientSecret.mockResolvedValue('test-secret');
+    googleMocks.getGoogleRedirectUri.mockResolvedValue(
+      'http://localhost/api/admin/google-calendar/callback',
+    );
 
     const res = await POST();
     expect(res.status).toBe(200);
     const data = (await res.json()) as { ok: boolean; authUrl: string };
     expect(data.ok).toBe(true);
-    expect(data.authUrl).toContain("accounts.google.com/o/oauth2");
-    expect(data.authUrl).toContain("client_id=test-client-id");
-    expect(data.authUrl).toContain("access_type=offline");
-    expect(data.authUrl).toContain("prompt=consent");
+    expect(data.authUrl).toContain('accounts.google.com/o/oauth2');
+    expect(data.authUrl).toContain('client_id=test-client-id');
+    expect(data.authUrl).toContain('access_type=offline');
+    expect(data.authUrl).toContain('prompt=consent');
     const u = new URL(data.authUrl);
-    const state = u.searchParams.get("state") ?? "";
-    expect(state.startsWith("v1.")).toBe(true);
+    const state = u.searchParams.get('state') ?? '';
+    expect(state.startsWith('v1.')).toBe(true);
   });
 });

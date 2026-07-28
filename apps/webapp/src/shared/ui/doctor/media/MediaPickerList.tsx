@@ -1,19 +1,19 @@
-"use client";
+'use client';
 
-import { memo, useState } from "react";
-import { Check, File, Music } from "lucide-react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/ui/doctor/primitives/tooltip";
-import type { MediaExerciseUsageEntry, MediaPreviewStatus } from "@/modules/media/types";
-import { cn } from "@/lib/utils";
-import { doctorInteractiveSurfaceButtonClass } from "@/shared/ui/doctor/doctorVisual";
-import { MediaThumb } from "@/shared/ui/doctor/media/MediaThumb";
-import { libraryMediaRowToPreviewUi } from "@/shared/ui/doctor/media/mediaPreviewUiModel";
-import { MediaPickerQuickPreviewDialog } from "@/shared/ui/doctor/media/MediaPickerQuickPreviewDialog";
+import { memo, useState } from 'react';
+import { Check, File, Music } from 'lucide-react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/shared/ui/doctor/primitives/tooltip';
+import type { MediaExerciseUsageEntry, MediaPreviewStatus } from '@/modules/media/types';
+import { cn } from '@/lib/utils';
+import { doctorInteractiveSurfaceButtonClass } from '@/shared/ui/doctor/doctorVisual';
+import { MediaThumb } from '@/shared/ui/doctor/media/MediaThumb';
+import { libraryMediaRowToPreviewUi } from '@/shared/ui/doctor/media/mediaPreviewUiModel';
+import { MediaPickerQuickPreviewDialog } from '@/shared/ui/doctor/media/MediaPickerQuickPreviewDialog';
 
 export type MediaListItem = {
   id: string;
-  kind: "image" | "video" | "audio" | "file";
+  kind: 'image' | 'video' | 'audio' | 'file';
   filename: string;
   /** Как в экране библиотеки: подпись в CMS; если пусто — показываем filename. */
   displayName?: string | null;
@@ -50,7 +50,7 @@ function exerciseUsageTooltipLines(usage: MediaExerciseUsageEntry[]): string {
   const slice = usage.slice(0, max);
   const lines = slice.map((u) => u.title.trim()).filter(Boolean);
   if (usage.length > max) lines.push(`… и ещё ${usage.length - max}`);
-  return lines.join("\n");
+  return lines.join('\n');
 }
 
 const MediaPickerListItem = memo(function MediaPickerListItem({
@@ -61,17 +61,18 @@ const MediaPickerListItem = memo(function MediaPickerListItem({
   onQuickPreview,
 }: ItemProps) {
   const title = item.displayName?.trim() || item.filename;
-  const showOriginalFilename = Boolean(item.displayName?.trim()) && item.displayName!.trim() !== item.filename;
+  const showOriginalFilename =
+    Boolean(item.displayName?.trim()) && item.displayName!.trim() !== item.filename;
   const date = (() => {
     try {
-      return new Date(item.createdAt).toLocaleString("ru-RU");
+      return new Date(item.createdAt).toLocaleString('ru-RU');
     } catch {
       return item.createdAt;
     }
   })();
 
   const hasExerciseUsage = Boolean(exerciseUsage?.length);
-  const usageTooltip = hasExerciseUsage ? exerciseUsageTooltipLines(exerciseUsage!) : "";
+  const usageTooltip = hasExerciseUsage ? exerciseUsageTooltipLines(exerciseUsage!) : '';
 
   return (
     <div className="relative flex flex-col gap-2 rounded-md border border-border p-3">
@@ -80,22 +81,29 @@ const MediaPickerListItem = memo(function MediaPickerListItem({
           <TooltipTrigger
             type="button"
             className="absolute top-2 right-2 z-10 flex size-5 cursor-default items-center justify-center rounded-full border border-green-600/30 bg-background shadow-sm"
-            aria-label={`Уже в упражнениях: ${usageTooltip.replaceAll("\n", ", ")}`}
+            aria-label={`Уже в упражнениях: ${usageTooltip.replaceAll('\n', ', ')}`}
           >
             <Check className="size-3 text-green-600" aria-hidden strokeWidth={3} />
           </TooltipTrigger>
-          <TooltipContent side="left" align="end" className="max-w-xs whitespace-pre-line text-left">
+          <TooltipContent
+            side="left"
+            align="end"
+            className="max-w-xs whitespace-pre-line text-left"
+          >
             {usageTooltip}
           </TooltipContent>
         </Tooltip>
       ) : null}
       <div className="relative min-h-20 overflow-hidden rounded border border-border/60 bg-muted/30">
-        {item.kind === "image" || item.kind === "video" ? (
+        {item.kind === 'image' || item.kind === 'video' ? (
           enableQuickPreview ? (
             <Button
               type="button"
               variant="ghost"
-              className={cn(doctorInteractiveSurfaceButtonClass, "block h-24 w-full cursor-zoom-in text-left")}
+              className={cn(
+                doctorInteractiveSurfaceButtonClass,
+                'block h-24 w-full cursor-zoom-in text-left',
+              )}
               aria-label={`Предпросмотр: ${title}`}
               onClick={() => onQuickPreview(item)}
             >
@@ -103,7 +111,7 @@ const MediaPickerListItem = memo(function MediaPickerListItem({
                 media={libraryMediaRowToPreviewUi(item)}
                 className="h-24 w-full"
                 imgClassName="h-24 w-full object-contain bg-muted/30"
-                labels={{ skipped: "Без превью", failed: "Нет превью" }}
+                labels={{ skipped: 'Без превью', failed: 'Нет превью' }}
               />
             </Button>
           ) : (
@@ -111,10 +119,10 @@ const MediaPickerListItem = memo(function MediaPickerListItem({
               media={libraryMediaRowToPreviewUi(item)}
               className="h-24 w-full"
               imgClassName="h-24 w-full object-contain bg-muted/30"
-              labels={{ skipped: "Без превью", failed: "Нет превью" }}
+              labels={{ skipped: 'Без превью', failed: 'Нет превью' }}
             />
           )
-        ) : item.kind === "audio" ? (
+        ) : item.kind === 'audio' ? (
           <div className="flex h-24 items-center justify-center bg-muted/30" aria-hidden>
             <Music className="h-8 w-8 text-muted-foreground" />
           </div>
@@ -163,21 +171,23 @@ export const MediaPickerList = memo(function MediaPickerList({
         <p className="text-sm text-muted-foreground">Загрузка...</p>
       ) : null}
       {!loading && items.length === 0 ? (
-        <p className="rounded-md border border-border p-3 text-sm text-muted-foreground">Нет файлов</p>
+        <p className="rounded-md border border-border p-3 text-sm text-muted-foreground">
+          Нет файлов
+        </p>
       ) : null}
       {items.length > 0 ? (
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-        {items.map((item) => (
-          <MediaPickerListItem
-            key={item.id}
-            item={item}
-            onSelect={onSelect}
-            exerciseUsage={exerciseUsageByMediaId?.[item.id.toLowerCase()]}
-            enableQuickPreview={enableQuickPreview}
-            onQuickPreview={setQuickPreviewItem}
-          />
-        ))}
-      </div>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {items.map((item) => (
+            <MediaPickerListItem
+              key={item.id}
+              item={item}
+              onSelect={onSelect}
+              exerciseUsage={exerciseUsageByMediaId?.[item.id.toLowerCase()]}
+              enableQuickPreview={enableQuickPreview}
+              onQuickPreview={setQuickPreviewItem}
+            />
+          ))}
+        </div>
       ) : null}
       <MediaPickerQuickPreviewDialog
         item={quickPreviewItem}

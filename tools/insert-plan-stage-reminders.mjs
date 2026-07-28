@@ -31,15 +31,39 @@ const reminder = [
 
 // These are reference/design/log documents whose incidental checkboxes are not work-plan stages.
 const rule3Excluded = new Map([
-  ['docs/APP_RESTRUCTURE_INITIATIVE/done/DOCTOR_TODAY_DASHBOARD_PLAN.md', 'historical completed-plan record, not an unfinished work plan'],
-  ['docs/ARCHITECTURE/DOCTOR_APP_UI_STYLE_GUIDE.md', 'style guide; checkboxes are conformance notes'],
-  ['docs/ARCHITECTURE/INTEGRATOR_PLATFORM_USER_MIGRATION_EXECUTION_LOG.md', 'execution log; checkboxes belong to log entries'],
-  ['docs/ARCHITECTURE/MAX_SETUP.md', 'integration setup reference; checkboxes are operator instructions'],
-  ['docs/ARCHITECTURE/SCALING_AND_LAUNCH_CAPACITY.md', 'architecture/capacity reference; checkboxes are launch-readiness evidence'],
+  [
+    'docs/APP_RESTRUCTURE_INITIATIVE/done/DOCTOR_TODAY_DASHBOARD_PLAN.md',
+    'historical completed-plan record, not an unfinished work plan',
+  ],
+  [
+    'docs/ARCHITECTURE/DOCTOR_APP_UI_STYLE_GUIDE.md',
+    'style guide; checkboxes are conformance notes',
+  ],
+  [
+    'docs/ARCHITECTURE/INTEGRATOR_PLATFORM_USER_MIGRATION_EXECUTION_LOG.md',
+    'execution log; checkboxes belong to log entries',
+  ],
+  [
+    'docs/ARCHITECTURE/MAX_SETUP.md',
+    'integration setup reference; checkboxes are operator instructions',
+  ],
+  [
+    'docs/ARCHITECTURE/SCALING_AND_LAUNCH_CAPACITY.md',
+    'architecture/capacity reference; checkboxes are launch-readiness evidence',
+  ],
   ['docs/_TODO/BOOKING_MULTISLOT_DESIGN.md', 'design note, not an execution plan'],
-  ['docs/_TODO/SAAS_FOUNDATION/ADMIN_BASELINE_AND_SUPPORT_CHAT_DESIGN.md', 'design document, not an execution plan'],
-  ['docs/_TODO/SAAS_FOUNDATION/LANDING_AND_ENTRIES_DESIGN.md', 'design document, not an execution plan'],
-  ['docs/_TODO/SAAS_FOUNDATION/PATIENT_INVITE_AND_MANUAL_CREATION_DESIGN.md', 'design document, not an execution plan'],
+  [
+    'docs/_TODO/SAAS_FOUNDATION/ADMIN_BASELINE_AND_SUPPORT_CHAT_DESIGN.md',
+    'design document, not an execution plan',
+  ],
+  [
+    'docs/_TODO/SAAS_FOUNDATION/LANDING_AND_ENTRIES_DESIGN.md',
+    'design document, not an execution plan',
+  ],
+  [
+    'docs/_TODO/SAAS_FOUNDATION/PATIENT_INVITE_AND_MANUAL_CREATION_DESIGN.md',
+    'design document, not an execution plan',
+  ],
 ]);
 
 async function walk(directory) {
@@ -47,7 +71,7 @@ async function walk(directory) {
   const files = [];
   for (const entry of entries) {
     const fullPath = resolve(directory, entry.name);
-    if (entry.isDirectory()) files.push(...await walk(fullPath));
+    if (entry.isDirectory()) files.push(...(await walk(fullPath)));
     else if (entry.isFile() && /\.mdx?$/i.test(entry.name)) files.push(fullPath);
   }
   return files;
@@ -55,12 +79,21 @@ async function walk(directory) {
 
 function isArchived(path) {
   const normalized = path.split(sep).join('/');
-  return normalized.includes('/archive/') || normalized.includes('/_ARCHIVE/') || normalized.includes('FULL_DEV_PLAN_DONE');
+  return (
+    normalized.includes('/archive/') ||
+    normalized.includes('/_ARCHIVE/') ||
+    normalized.includes('FULL_DEV_PLAN_DONE')
+  );
 }
 
 function headerDeclaresFinished(lines) {
-  const header = lines.slice(0, 12).filter((line) => /^#\s/.test(line)).join(' ');
-  return /^#\s+(?:\[?(?:SUPERSEDED|ARCHIVED|DONE)\]?\b|.*\b(?:SUPERSEDED|ARCHIVED)\s*$)/i.test(header);
+  const header = lines
+    .slice(0, 12)
+    .filter((line) => /^#\s/.test(line))
+    .join(' ');
+  return /^#\s+(?:\[?(?:SUPERSEDED|ARCHIVED|DONE)\]?\b|.*\b(?:SUPERSEDED|ARCHIVED)\s*$)/i.test(
+    header,
+  );
 }
 
 function isInFence(lines, index) {
@@ -74,7 +107,11 @@ function isInFence(lines, index) {
 function hasReminderBelow(lines, index) {
   for (let cursor = index + 1; cursor < Math.min(lines.length, index + 10); cursor += 1) {
     if (/^#{1,6}\s/.test(lines[cursor])) return false;
-    if (lines[cursor].includes('⛔ ПЕРЕД СТАРТОМ ЭТАПА') || lines[cursor].includes('⛔ ПЕРЕД ЗАПУСКОМ')) return true;
+    if (
+      lines[cursor].includes('⛔ ПЕРЕД СТАРТОМ ЭТАПА') ||
+      lines[cursor].includes('⛔ ПЕРЕД ЗАПУСКОМ')
+    )
+      return true;
   }
   return false;
 }
@@ -94,7 +131,9 @@ function targetHeadings(lines) {
   if (groupedWork.length > 0) return groupedWork;
 
   // A single-stage checklist with no work-group H2 gets its reminder after the H1.
-  const titleIndex = lines.findIndex((line, index) => !isInFence(lines, index) && /^#\s+/.test(line));
+  const titleIndex = lines.findIndex(
+    (line, index) => !isInFence(lines, index) && /^#\s+/.test(line),
+  );
   return titleIndex === -1 ? [] : [{ line: lines[titleIndex], index: titleIndex }];
 }
 
@@ -133,5 +172,8 @@ for (const file of await walk(docsRoot)) {
 }
 
 for (const [file, count] of results) console.log(`${file}: ${count}`);
-console.log(`Included: ${results.length}; insertions: ${results.reduce((sum, [, count]) => sum + count, 0)}.`);
-for (const [file, rule, reason] of excluded) console.log(`EXCLUDED rule ${rule}: ${file} — ${reason}`);
+console.log(
+  `Included: ${results.length}; insertions: ${results.reduce((sum, [, count]) => sum + count, 0)}.`,
+);
+for (const [file, rule, reason] of excluded)
+  console.log(`EXCLUDED rule ${rule}: ${file} — ${reason}`);

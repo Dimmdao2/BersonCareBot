@@ -1,62 +1,64 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const buildAppDepsMock = vi.hoisted(() => vi.fn());
 const requireDoctorWorkspaceApiContextMock = vi.hoisted(() => vi.fn());
 const requireEntitlementMock = vi.hoisted(() => vi.fn());
-const withDoctorWorkspacePrincipalMock = vi.hoisted(() => vi.fn((_: unknown, sourceOrFn: string | (() => unknown), maybeFn?: () => unknown) => {
-  const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
-  if (!fn) throw new Error("principal_callback_required");
-  return fn();
-}));
+const withDoctorWorkspacePrincipalMock = vi.hoisted(() =>
+  vi.fn((_: unknown, sourceOrFn: string | (() => unknown), maybeFn?: () => unknown) => {
+    const fn = typeof sourceOrFn === 'function' ? sourceOrFn : maybeFn;
+    if (!fn) throw new Error('principal_callback_required');
+    return fn();
+  }),
+);
 
-vi.mock("@/app-layer/guards/requireRole", () => ({
+vi.mock('@/app-layer/guards/requireRole', () => ({
   requireDoctorWorkspaceApiContext: () => requireDoctorWorkspaceApiContextMock(),
 }));
 
-vi.mock("@/app-layer/guards/requireEntitlement", () => ({
+vi.mock('@/app-layer/guards/requireEntitlement', () => ({
   requireEntitlementForMutation: (...args: unknown[]) => requireEntitlementMock(...args),
 }));
 
-vi.mock("@/app-layer/guards/doctorWorkspacePrincipal", () => ({
+vi.mock('@/app-layer/guards/doctorWorkspacePrincipal', () => ({
   withDoctorWorkspacePrincipal: (
     ctx: unknown,
     sourceOrFn: string | (() => unknown),
     maybeFn?: () => unknown,
   ) => {
-    const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
-    if (!fn) throw new Error("principal_callback_required");
+    const fn = typeof sourceOrFn === 'function' ? sourceOrFn : maybeFn;
+    if (!fn) throw new Error('principal_callback_required');
     return withDoctorWorkspacePrincipalMock(ctx, fn);
   },
 }));
 
-vi.mock("@/app-layer/di/buildAppDeps", () => ({
+vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: buildAppDepsMock,
 }));
 
-vi.mock("@/config/env", () => ({
+vi.mock('@/config/env', () => ({
   env: {},
   isS3MediaEnabled: () => false,
 }));
 
-import { GET, PATCH } from "./route";
+import { GET, PATCH } from './route';
 
-const ORG_ID = "10000000-0000-4000-8000-000000000001";
-const PATIENT_ID = "00000000-0000-4000-8000-000000000001";
-const CANONICAL_PATIENT_ID = "00000000-0000-4000-8000-000000000002";
-const FILE_ID = "00000000-0000-4000-8000-0000000000f1";
-const VISIT_ID = "00000000-0000-4000-8000-0000000000v1".replace("v", "a");
+const ORG_ID = '10000000-0000-4000-8000-000000000001';
+const PATIENT_ID = '00000000-0000-4000-8000-000000000001';
+const CANONICAL_PATIENT_ID = '00000000-0000-4000-8000-000000000002';
+const FILE_ID = '00000000-0000-4000-8000-0000000000f1';
+const VISIT_ID = '00000000-0000-4000-8000-0000000000v1'.replace('v', 'a');
 
 function fileRow(overrides: Partial<{ patientUserId: string; fileName: string }> = {}) {
   return {
     id: FILE_ID,
     patientUserId: CANONICAL_PATIENT_ID,
-    fileName: "blood.pdf",
-    s3Key: "patient-files/file-1/blood.pdf",
+    fileName: 'blood.pdf',
+    s3Key: 'patient-files/file-1/blood.pdf',
     ...overrides,
   };
 }
 
-describe("doctor patient file item route", () => {
+describe('doctor patient file item route', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     requireEntitlementMock.mockResolvedValue({ ok: true });
@@ -64,19 +66,19 @@ describe("doctor patient file item route", () => {
       ok: true,
       ctx: {
         organizationId: ORG_ID,
-        session: { user: { userId: "doc-1", role: "doctor" } },
+        session: { user: { userId: 'doc-1', role: 'doctor' } },
       },
     });
     withDoctorWorkspacePrincipalMock.mockImplementation(
       (_: unknown, sourceOrFn: string | (() => unknown), maybeFn?: () => unknown) => {
-        const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
-        if (!fn) throw new Error("principal_callback_required");
+        const fn = typeof sourceOrFn === 'function' ? sourceOrFn : maybeFn;
+        if (!fn) throw new Error('principal_callback_required');
         return fn();
       },
     );
   });
 
-  it("rejects file reads outside selected workspace", async () => {
+  it('rejects file reads outside selected workspace', async () => {
     const getClientIdentityForOrganization = vi.fn().mockResolvedValue(null);
     const getFile = vi.fn();
     buildAppDepsMock.mockReturnValue({
@@ -84,7 +86,7 @@ describe("doctor patient file item route", () => {
       patientFiles: { getFile },
     });
 
-    const res = await GET(new Request("http://localhost"), {
+    const res = await GET(new Request('http://localhost'), {
       params: Promise.resolve({ userId: PATIENT_ID, fileId: FILE_ID }),
     });
 
@@ -93,15 +95,17 @@ describe("doctor patient file item route", () => {
     expect(getFile).not.toHaveBeenCalled();
   });
 
-  it("reads file for canonical patient under selected workspace principal", async () => {
-    const getClientIdentityForOrganization = vi.fn().mockResolvedValue({ userId: CANONICAL_PATIENT_ID });
+  it('reads file for canonical patient under selected workspace principal', async () => {
+    const getClientIdentityForOrganization = vi
+      .fn()
+      .mockResolvedValue({ userId: CANONICAL_PATIENT_ID });
     const getFile = vi.fn().mockResolvedValue(fileRow());
     buildAppDepsMock.mockReturnValue({
       doctorClientsPort: { getClientIdentityForOrganization },
       patientFiles: { getFile },
     });
 
-    const res = await GET(new Request("http://localhost"), {
+    const res = await GET(new Request('http://localhost'), {
       params: Promise.resolve({ userId: PATIENT_ID, fileId: FILE_ID }),
     });
 
@@ -113,47 +117,53 @@ describe("doctor patient file item route", () => {
     );
   });
 
-  it("updates file visit/name under selected workspace principal", async () => {
-    const getClientIdentityForOrganization = vi.fn().mockResolvedValue({ userId: CANONICAL_PATIENT_ID });
+  it('updates file visit/name under selected workspace principal', async () => {
+    const getClientIdentityForOrganization = vi
+      .fn()
+      .mockResolvedValue({ userId: CANONICAL_PATIENT_ID });
     const getFile = vi.fn().mockResolvedValue(fileRow());
     const linkFileToVisit = vi.fn().mockResolvedValue(fileRow());
-    const renameFile = vi.fn().mockResolvedValue(fileRow({ fileName: "renamed.pdf" }));
+    const renameFile = vi.fn().mockResolvedValue(fileRow({ fileName: 'renamed.pdf' }));
     buildAppDepsMock.mockReturnValue({
       doctorClientsPort: { getClientIdentityForOrganization },
       patientFiles: { getFile, linkFileToVisit, renameFile },
     });
 
     const res = await PATCH(
-      new Request("http://localhost", {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ visitId: VISIT_ID, fileName: "renamed.pdf" }),
+      new Request('http://localhost', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ visitId: VISIT_ID, fileName: 'renamed.pdf' }),
       }),
       { params: Promise.resolve({ userId: PATIENT_ID, fileId: FILE_ID }) },
     );
 
     expect(res.status).toBe(200);
     expect(linkFileToVisit).toHaveBeenCalledWith(FILE_ID, VISIT_ID);
-    expect(renameFile).toHaveBeenCalledWith(FILE_ID, "renamed.pdf");
+    expect(renameFile).toHaveBeenCalledWith(FILE_ID, 'renamed.pdf');
     expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
       expect.objectContaining({ organizationId: ORG_ID }),
       expect.any(Function),
     );
   });
 
-  it("maps principal and visit mismatch errors to not_found", async () => {
-    const getClientIdentityForOrganization = vi.fn().mockResolvedValue({ userId: CANONICAL_PATIENT_ID });
+  it('maps principal and visit mismatch errors to not_found', async () => {
+    const getClientIdentityForOrganization = vi
+      .fn()
+      .mockResolvedValue({ userId: CANONICAL_PATIENT_ID });
     const getFile = vi.fn().mockResolvedValue(fileRow());
-    const linkFileToVisit = vi.fn().mockRejectedValue(new Error("patient_file_visit_patient_mismatch"));
+    const linkFileToVisit = vi
+      .fn()
+      .mockRejectedValue(new Error('patient_file_visit_patient_mismatch'));
     buildAppDepsMock.mockReturnValue({
       doctorClientsPort: { getClientIdentityForOrganization },
       patientFiles: { getFile, linkFileToVisit },
     });
 
     const res = await PATCH(
-      new Request("http://localhost", {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
+      new Request('http://localhost', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ visitId: VISIT_ID }),
       }),
       { params: Promise.resolve({ userId: PATIENT_ID, fileId: FILE_ID }) },
@@ -162,20 +172,20 @@ describe("doctor patient file item route", () => {
     expect(res.status).toBe(404);
   });
 
-  it("denies both link and rename mutations only after the trusted file scope is resolved", async () => {
+  it('denies both link and rename mutations only after the trusted file scope is resolved', async () => {
     const order: string[] = [];
     const getClientIdentityForOrganization = vi.fn().mockImplementation(async () => {
-      order.push("identity");
+      order.push('identity');
       return { userId: CANONICAL_PATIENT_ID };
     });
     const getFile = vi.fn().mockImplementation(async () => {
-      order.push("file");
+      order.push('file');
       return fileRow();
     });
     const linkFileToVisit = vi.fn();
     const renameFile = vi.fn();
     requireEntitlementMock.mockImplementation(async () => {
-      order.push("entitlement");
+      order.push('entitlement');
       return { ok: false, response: new Response(null, { status: 403 }) };
     });
     buildAppDepsMock.mockReturnValue({
@@ -184,19 +194,19 @@ describe("doctor patient file item route", () => {
     });
 
     const res = await PATCH(
-      new Request("http://localhost", {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ visitId: VISIT_ID, fileName: "renamed.pdf" }),
+      new Request('http://localhost', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ visitId: VISIT_ID, fileName: 'renamed.pdf' }),
       }),
       { params: Promise.resolve({ userId: PATIENT_ID, fileId: FILE_ID }) },
     );
 
     expect(res.status).toBe(403);
-    expect(order).toEqual(["identity", "file", "entitlement"]);
+    expect(order).toEqual(['identity', 'file', 'entitlement']);
     expect(requireEntitlementMock).toHaveBeenCalledWith(
       expect.objectContaining({ organizationId: ORG_ID }),
-      "files",
+      'files',
     );
     expect(linkFileToVisit).not.toHaveBeenCalled();
     expect(renameFile).not.toHaveBeenCalled();

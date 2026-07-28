@@ -21,12 +21,14 @@
 **Паттерн для каждого action:**
 
 Было:
+
 ```ts
   await deps.diaries.addSymptomEntry({ ... });
   revalidatePath(...);
 ```
 
 Стало:
+
 ```ts
   try {
     await deps.diaries.addSymptomEntry({ ... });
@@ -38,6 +40,7 @@
 ```
 
 Применить этот паттерн к:
+
 1. `profile/actions.ts` — `updateDisplayName`
 2. `diary/symptoms/actions.ts` — `addSymptomEntry`, `createSymptomTracking`
 3. `diary/lfk/actions.ts` — `addLfkSession`, `createLfkComplex`

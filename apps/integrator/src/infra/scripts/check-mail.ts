@@ -17,7 +17,9 @@ async function main(): Promise<void> {
 
     if (isResolvedMailerConfigured(resolved)) {
       console.log('Mailer configured (restricted DB-backed system_settings.smtp_outbound).');
-      console.log(`  SMTP: ${resolved.smtpHost}:${resolved.smtpPort} (secure: ${resolved.smtpSecure})`);
+      console.log(
+        `  SMTP: ${resolved.smtpHost}:${resolved.smtpPort} (secure: ${resolved.smtpSecure})`,
+      );
       console.log(`  From: ${resolved.fromAddress}`);
     } else {
       console.log('Mailer not configured (emails will not be sent).');

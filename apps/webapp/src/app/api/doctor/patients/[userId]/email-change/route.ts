@@ -10,65 +10,63 @@
  *   Returns { ok: true, pending: { email, expiresAt } | null }.
  */
 
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
-import { ensureAuthModulePortsBound } from "@/app-layer/di/bindAuthModulePorts";
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
+import { ensureAuthModulePortsBound } from '@/app-layer/di/bindAuthModulePorts';
 import {
   AUTH_CHANNEL_DISABLED_ERROR,
   isAuthChannelEnabled,
-} from "@/modules/auth/authChannelPolicy";
+} from '@/modules/auth/authChannelPolicy';
 import {
   startEmailChallenge,
   normalizeEmail,
   getPendingEmailChallenge,
-} from "@/modules/auth/emailAuth";
+} from '@/modules/auth/emailAuth';
 
 const bodySchema = z.object({
-  email: z.string().trim().min(1).max(320).email({ message: "Некорректный email" }),
+  email: z.string().trim().min(1).max(320).email({ message: 'Некорректный email' }),
 });
 
-export async function POST(
-  request: Request,
-  { params }: { params: Promise<{ userId: string }> },
-) {
+export async function POST(request: Request, { params }: { params: Promise<{ userId: string }> }) {
   ensureAuthModulePortsBound();
 
   const gate = await requireDoctorWorkspaceApiContext();
   if (!gate.ok) return gate.response;
 
-  if (gate.ctx.session.user.role !== "admin") {
+  if (gate.ctx.session.user.role !== 'admin') {
     return NextResponse.json(
-      { ok: false, error: "forbidden", message: "Только администратор может менять email пациента" },
+      {
+        ok: false,
+        error: 'forbidden',
+        message: 'Только администратор может менять email пациента',
+      },
       { status: 403 },
     );
   }
 
-  if (!(await isAuthChannelEnabled("email"))) {
-    return NextResponse.json(
-      { ok: false, error: AUTH_CHANNEL_DISABLED_ERROR },
-      { status: 503 },
-    );
+  if (!(await isAuthChannelEnabled('email'))) {
+    return NextResponse.json({ ok: false, error: AUTH_CHANNEL_DISABLED_ERROR }, { status: 503 });
   }
 
   const { userId } = await params;
   if (!z.string().uuid().safeParse(userId).success) {
-    return NextResponse.json({ ok: false, error: "invalid_user_id" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_user_id' }, { status: 400 });
   }
 
   let json: unknown;
   try {
     json = await request.json();
   } catch {
-    return NextResponse.json({ ok: false, error: "invalid_json" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_json' }, { status: 400 });
   }
 
   const parsed = bodySchema.safeParse(json);
   if (!parsed.success) {
     return NextResponse.json(
-      { ok: false, error: "validation_error", details: parsed.error.flatten() },
+      { ok: false, error: 'validation_error', details: parsed.error.flatten() },
       { status: 400 },
     );
   }
@@ -79,17 +77,17 @@ export async function POST(
     gate.ctx.organizationId,
   );
   if (!identity) {
-    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+    return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
 
   const result = await withDoctorWorkspacePrincipal(gate.ctx, () =>
-    startEmailChallenge(identity.userId, parsed.data.email, "patient_email_change"),
+    startEmailChallenge(identity.userId, parsed.data.email, 'patient_email_change'),
   );
   if (!result.ok) {
     const status =
-      result.code === "rate_limited" || result.code === "too_many_attempts"
+      result.code === 'rate_limited' || result.code === 'too_many_attempts'
         ? 429
-        : result.code === "email_send_failed"
+        : result.code === 'email_send_failed'
           ? 503
           : 400;
     return NextResponse.json(
@@ -101,7 +99,7 @@ export async function POST(
       {
         status,
         ...(result.retryAfterSeconds != null && {
-          headers: { "Retry-After": String(result.retryAfterSeconds) },
+          headers: { 'Retry-After': String(result.retryAfterSeconds) },
         }),
       },
     );
@@ -113,25 +111,26 @@ export async function POST(
   return NextResponse.json({ ok: true, pending: { email, expiresAt } });
 }
 
-export async function GET(
-  _request: Request,
-  { params }: { params: Promise<{ userId: string }> },
-) {
+export async function GET(_request: Request, { params }: { params: Promise<{ userId: string }> }) {
   ensureAuthModulePortsBound();
 
   const gate = await requireDoctorWorkspaceApiContext();
   if (!gate.ok) return gate.response;
 
-  if (gate.ctx.session.user.role !== "admin") {
+  if (gate.ctx.session.user.role !== 'admin') {
     return NextResponse.json(
-      { ok: false, error: "forbidden", message: "Только администратор может просматривать ожидающий email" },
+      {
+        ok: false,
+        error: 'forbidden',
+        message: 'Только администратор может просматривать ожидающий email',
+      },
       { status: 403 },
     );
   }
 
   const { userId } = await params;
   if (!z.string().uuid().safeParse(userId).success) {
-    return NextResponse.json({ ok: false, error: "invalid_user_id" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_user_id' }, { status: 400 });
   }
 
   const deps = buildAppDeps();
@@ -140,7 +139,7 @@ export async function GET(
     gate.ctx.organizationId,
   );
   if (!identity) {
-    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+    return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
 
   const pending = await withDoctorWorkspacePrincipal(gate.ctx, () =>

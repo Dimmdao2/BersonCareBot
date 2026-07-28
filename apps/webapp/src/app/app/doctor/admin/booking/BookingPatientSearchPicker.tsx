@@ -1,10 +1,10 @@
-"use client";
+'use client';
 
-import { useEffect, useState, useTransition } from "react";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { Label } from "@/shared/ui/doctor/primitives/label";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { BOOKING_FORM_MAX_WIDTH_CLASS } from "@/shared/ui/doctor/doctorWorkspaceLayout";
+import { useEffect, useState, useTransition } from 'react';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { Label } from '@/shared/ui/doctor/primitives/label';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { BOOKING_FORM_MAX_WIDTH_CLASS } from '@/shared/ui/doctor/doctorWorkspaceLayout';
 
 export type BookingPatientPick = {
   id: string;
@@ -18,7 +18,7 @@ type Props = {
 };
 
 export function BookingPatientSearchPicker({ value, onChange }: Props) {
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState('');
   const [results, setResults] = useState<BookingPatientPick[]>([]);
   const [pending, startTransition] = useTransition();
 
@@ -75,12 +75,14 @@ export function BookingPatientSearchPicker({ value, onChange }: Props) {
                     className="flex w-full flex-col items-start px-3 py-2 text-left hover:bg-muted"
                     onClick={() => {
                       onChange(c);
-                      setQuery("");
+                      setQuery('');
                       setResults([]);
                     }}
                   >
                     <span className="font-medium">{c.displayName}</span>
-                    {c.phone ? <span className="text-xs text-muted-foreground">{c.phone}</span> : null}
+                    {c.phone ? (
+                      <span className="text-xs text-muted-foreground">{c.phone}</span>
+                    ) : null}
                   </Button>
                 </li>
               ))}

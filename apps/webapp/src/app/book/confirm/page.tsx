@@ -1,9 +1,9 @@
-import { redirect } from "next/navigation";
-import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
-import { isPublicOnlineBookingCategory } from "@/shared/publicBook/onlineBookingCategories";
-import { publicBookPaths } from "@/shared/publicBook/paths";
-import { PublicBookingShell } from "../PublicBookingShell";
-import { PublicConfirmStepClient } from "./PublicConfirmStepClient";
+import { redirect } from 'next/navigation';
+import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
+import { isPublicOnlineBookingCategory } from '@/shared/publicBook/onlineBookingCategories';
+import { publicBookPaths } from '@/shared/publicBook/paths';
+import { PublicBookingShell } from '../PublicBookingShell';
+import { PublicConfirmStepClient } from './PublicConfirmStepClient';
 
 type Props = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -16,36 +16,36 @@ function first(v: string | string[] | undefined): string | undefined {
 
 function buildInPersonSlotBackQuery(raw: Record<string, string | string[] | undefined>): string {
   const q = new URLSearchParams();
-  q.set("type", "in_person");
+  q.set('type', 'in_person');
   const cityCode = first(raw.cityCode);
   const cityTitle = first(raw.cityTitle);
   const branchId = first(raw.branchId);
   const serviceId = first(raw.serviceId);
   const serviceTitle = first(raw.serviceTitle);
   const orgSlug = first(raw.orgSlug);
-  if (cityCode) q.set("cityCode", cityCode);
-  if (cityTitle != null) q.set("cityTitle", cityTitle);
-  if (branchId) q.set("branchId", branchId);
-  if (serviceId) q.set("serviceId", serviceId);
-  if (serviceTitle != null) q.set("serviceTitle", serviceTitle);
-  if (orgSlug) q.set("orgSlug", orgSlug);
+  if (cityCode) q.set('cityCode', cityCode);
+  if (cityTitle != null) q.set('cityTitle', cityTitle);
+  if (branchId) q.set('branchId', branchId);
+  if (serviceId) q.set('serviceId', serviceId);
+  if (serviceTitle != null) q.set('serviceTitle', serviceTitle);
+  if (orgSlug) q.set('orgSlug', orgSlug);
   const durationMinutes = first(raw.durationMinutes);
-  if (durationMinutes) q.set("durationMinutes", durationMinutes);
+  if (durationMinutes) q.set('durationMinutes', durationMinutes);
   return q.toString();
 }
 
 function buildOnlineSlotBackQuery(raw: Record<string, string | string[] | undefined>): string {
   const q = new URLSearchParams();
-  q.set("type", "online");
+  q.set('type', 'online');
   const category = first(raw.category);
-  if (category) q.set("category", category);
+  if (category) q.set('category', category);
   return q.toString();
 }
 
 export default async function PublicBookConfirmPage({ searchParams }: Props) {
   const raw = await searchParams;
   const type = first(raw.type)?.trim();
-  if (type !== "in_person" && type !== "online") {
+  if (type !== 'in_person' && type !== 'online') {
     redirect(publicBookPaths.new);
   }
 
@@ -54,11 +54,12 @@ export default async function PublicBookConfirmPage({ searchParams }: Props) {
   const slotEnd = first(raw.slotEnd)?.trim();
 
   if (!date || !slot || !slotEnd) {
-    const backQ = type === "online" ? buildOnlineSlotBackQuery(raw) : buildInPersonSlotBackQuery(raw);
+    const backQ =
+      type === 'online' ? buildOnlineSlotBackQuery(raw) : buildInPersonSlotBackQuery(raw);
     redirect(`${publicBookPaths.newSlot}?${backQ}`);
   }
 
-  if (type === "in_person") {
+  if (type === 'in_person') {
     const branchId = first(raw.branchId)?.trim();
     const serviceId = first(raw.serviceId)?.trim();
     if (!branchId || !serviceId) redirect(publicBookPaths.new);

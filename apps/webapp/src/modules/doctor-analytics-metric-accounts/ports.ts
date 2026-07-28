@@ -1,45 +1,45 @@
-import type { AdminStatsTimePreset } from "@/modules/admin-platform-stats/types";
+import type { AdminStatsTimePreset } from '@/modules/admin-platform-stats/types';
 
 export type DoctorAnalyticsMetricKey =
-  | "appointments_past_visits"
-  | "appointments_cancelled_visits"
-  | "appointments_bookings_created"
-  | "appointments_cancellation_actions"
-  | "appointments_reschedule_actions"
-  | "clients_total"
-  | "clients_phone_only"
-  | "clients_app_guests"
-  | "clients_segment_telegram_only"
-  | "clients_segment_max_only"
-  | "clients_segment_email_only"
-  | "clients_segment_telegram_email"
-  | "clients_segment_max_email"
-  | "clients_segment_phone_email_no_messenger"
-  | "clients_messenger_bot_blocked_telegram"
-  | "clients_messenger_bot_blocked_max"
-  | "registrations"
-  | "registrations_merges"
-  | "registrations_combined"
-  | "subscribers_total"
-  | "subscribers_delta"
-  | "today_appointments_today"
-  | "today_appointments_week"
-  | "today_cancellations_30d"
-  | "notif_reminders_sent"
-  | "notif_reminders_failed"
-  | "notif_push_opened";
+  | 'appointments_past_visits'
+  | 'appointments_cancelled_visits'
+  | 'appointments_bookings_created'
+  | 'appointments_cancellation_actions'
+  | 'appointments_reschedule_actions'
+  | 'clients_total'
+  | 'clients_phone_only'
+  | 'clients_app_guests'
+  | 'clients_segment_telegram_only'
+  | 'clients_segment_max_only'
+  | 'clients_segment_email_only'
+  | 'clients_segment_telegram_email'
+  | 'clients_segment_max_email'
+  | 'clients_segment_phone_email_no_messenger'
+  | 'clients_messenger_bot_blocked_telegram'
+  | 'clients_messenger_bot_blocked_max'
+  | 'registrations'
+  | 'registrations_merges'
+  | 'registrations_combined'
+  | 'subscribers_total'
+  | 'subscribers_delta'
+  | 'today_appointments_today'
+  | 'today_appointments_week'
+  | 'today_cancellations_30d'
+  | 'notif_reminders_sent'
+  | 'notif_reminders_failed'
+  | 'notif_push_opened';
 
 /** Drill-down on `/app/doctor` — doctor-safe API whitelist. */
 export const DOCTOR_TODAY_METRIC_KEYS = [
-  "today_appointments_today",
-  "today_appointments_week",
-  "today_cancellations_30d",
+  'today_appointments_today',
+  'today_appointments_week',
+  'today_cancellations_30d',
 ] as const satisfies readonly DoctorAnalyticsMetricKey[];
 
 export const NOTIFICATION_METRIC_KEYS = [
-  "notif_reminders_sent",
-  "notif_reminders_failed",
-  "notif_push_opened",
+  'notif_reminders_sent',
+  'notif_reminders_failed',
+  'notif_push_opened',
 ] as const satisfies readonly DoctorAnalyticsMetricKey[];
 
 export type DoctorAnalyticsMetricPeriod = {

@@ -1,10 +1,12 @@
-import { logger } from "@/infra/logging/logger";
-import type { NotificationDeliveryAttemptsPort } from "./ports";
-import type { RecordNotificationDeliveryAttemptInput } from "./types";
+import { logger } from '@/infra/logging/logger';
+import type { NotificationDeliveryAttemptsPort } from './ports';
+import type { RecordNotificationDeliveryAttemptInput } from './types';
 
 export function createNotificationDeliveryService(port: NotificationDeliveryAttemptsPort) {
   return {
-    async recordNotificationDeliveryAttempt(input: RecordNotificationDeliveryAttemptInput): Promise<void> {
+    async recordNotificationDeliveryAttempt(
+      input: RecordNotificationDeliveryAttemptInput,
+    ): Promise<void> {
       try {
         await port.recordAttempt(input);
       } catch (err) {
@@ -15,7 +17,7 @@ export function createNotificationDeliveryService(port: NotificationDeliveryAtte
             status: input.status,
             reason: input.reason,
           },
-          "notification_delivery_attempt_record_failed",
+          'notification_delivery_attempt_record_failed',
         );
       }
     },

@@ -5,11 +5,11 @@
 
 ## Три класса (не «убрать pg навсегда»)
 
-| Класс | Цель Wave 3 | Пример |
-|-------|-------------|--------|
-| **A** | Убрать необъяснённый `pool.query` / `client.query` / `DbPort.query` из runtime | `pgOnlineIntake.ts` → `runWebappSql` / Drizzle builder |
-| **B** | SQL-текст остаётся, выполнение только через `runWebappSql` / `runIntegratorSql` / `execute(sql)` | `projectionHealthCore.ts`, claim-CTE |
-| **C** | Осознанный permanent `pg` (транспорт TX, мигратор, ops, merge engine) | `migrate.ts`, `platform-merge`, `claim.ts` |
+| Класс | Цель Wave 3                                                                                      | Пример                                                 |
+| ----- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------ |
+| **A** | Убрать необъяснённый `pool.query` / `client.query` / `DbPort.query` из runtime                   | `pgOnlineIntake.ts` → `runWebappSql` / Drizzle builder |
+| **B** | SQL-текст остаётся, выполнение только через `runWebappSql` / `runIntegratorSql` / `execute(sql)` | `projectionHealthCore.ts`, claim-CTE                   |
+| **C** | Осознанный permanent `pg` (транспорт TX, мигратор, ops, merge engine)                            | `migrate.ts`, `platform-merge`, `claim.ts`             |
 
 ---
 
@@ -35,26 +35,26 @@
 
 ### Permanent Class C — не мигрировать на Drizzle builder
 
-| Артефакт | Доказательство | Действие Wave 3 |
-|----------|----------------|-----------------|
-| `packages/platform-merge` | **88** `query()` в `pgPlatformUserMerge.ts` + 4 в `mergeContactFallback.ts`; полиморфная merge-TX | Только ADR в LOG + RAW_SQL §4 (Wave 2 P8 уже зафиксировал) |
-| `packages/booking-rubitime-sync` | **4** `query()`; единый `SqlExecutor`; **27** unit-тестов | Permanent pg executor; не shared schema |
-| `apps/media-worker/src/jobs/claim.ts` | `FOR UPDATE SKIP LOCKED`; **4** теста в `claim.test.ts` | Class C permanent pg |
-| `apps/integrator/src/infra/db/migrate.ts` | **11** `db.query` (schema, ledger, BEGIN/COMMIT) | Class C |
-| `apps/integrator/src/infra/scripts/stage6-historical-time-backfill.ts` | SAVEPOINT batch ops | Class C one-off |
-| `apps/integrator/src/infra/scripts/resync-rubitime-records.ts` | динамический `UPDATE` | Class C ops |
-| `apps/integrator/src/infra/db/client.ts` | `DbPort` + health `SELECT 1` | Class C транспорт |
-| `apps/webapp/src/infra/db/client.ts` | healthcheck | Class C транспорт |
+| Артефакт                                                               | Доказательство                                                                                    | Действие Wave 3                                            |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| `packages/platform-merge`                                              | **88** `query()` в `pgPlatformUserMerge.ts` + 4 в `mergeContactFallback.ts`; полиморфная merge-TX | Только ADR в LOG + RAW_SQL §4 (Wave 2 P8 уже зафиксировал) |
+| `packages/booking-rubitime-sync`                                       | **4** `query()`; единый `SqlExecutor`; **27** unit-тестов                                         | Permanent pg executor; не shared schema                    |
+| `apps/media-worker/src/jobs/claim.ts`                                  | `FOR UPDATE SKIP LOCKED`; **4** теста в `claim.test.ts`                                           | Class C permanent pg                                       |
+| `apps/integrator/src/infra/db/migrate.ts`                              | **11** `db.query` (schema, ledger, BEGIN/COMMIT)                                                  | Class C                                                    |
+| `apps/integrator/src/infra/scripts/stage6-historical-time-backfill.ts` | SAVEPOINT batch ops                                                                               | Class C one-off                                            |
+| `apps/integrator/src/infra/scripts/resync-rubitime-records.ts`         | динамический `UPDATE`                                                                             | Class C ops                                                |
+| `apps/integrator/src/infra/db/client.ts`                               | `DbPort` + health `SELECT 1`                                                                      | Class C транспорт                                          |
+| `apps/webapp/src/infra/db/client.ts`                                   | healthcheck                                                                                       | Class C транспорт                                          |
 
 ### Permanent Class B — SQL остаётся, канал унифицирован
 
-| Артефакт | Доказательство | Действие Wave 3 |
-|----------|----------------|-----------------|
-| `projectionHealthCore.ts` | 5 параллельных агрегатов; Wave 2 P2: «builder не в DoD» | Формализовать Class B в RAW_SQL; не переписывать в `groupBy` |
-| Integrator claim paths | `projectionOutbox`, `jobQueue`, `outgoingDeliveryQueue` уже `runIntegratorSql` | Без изменений |
-| media-worker post-claim | `runMediaWorkerSql.ts` + `runMediaWorkerPgText` (фаза **10 done**) | Class B; qualified `public.*`; без shared schema |
-| Webapp media TX transport | `s3MediaStorage.ts`: **7** `client.query` — только BEGIN/COMMIT/ROLLBACK; домен на `runWebappSql` | Документировать Class C transport на dedicated client |
-| `channelLink.ts` | **6** вызовов — только BEGIN/COMMIT/ROLLBACK вокруг портов | Class C; не считать «незакрытым auth SQL» |
+| Артефакт                  | Доказательство                                                                                    | Действие Wave 3                                              |
+| ------------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| `projectionHealthCore.ts` | 5 параллельных агрегатов; Wave 2 P2: «builder не в DoD»                                           | Формализовать Class B в RAW_SQL; не переписывать в `groupBy` |
+| Integrator claim paths    | `projectionOutbox`, `jobQueue`, `outgoingDeliveryQueue` уже `runIntegratorSql`                    | Без изменений                                                |
+| media-worker post-claim   | `runMediaWorkerSql.ts` + `runMediaWorkerPgText` (фаза **10 done**)                                | Class B; qualified `public.*`; без shared schema             |
+| Webapp media TX transport | `s3MediaStorage.ts`: **7** `client.query` — только BEGIN/COMMIT/ROLLBACK; домен на `runWebappSql` | Документировать Class C transport на dedicated client        |
+| `channelLink.ts`          | **6** вызовов — только BEGIN/COMMIT/ROLLBACK вокруг портов                                        | Class C; не считать «незакрытым auth SQL»                    |
 
 ### Wave 2 закрыта
 
@@ -65,40 +65,40 @@
 
 **20 файлов** (без `migrate.ts` / scripts):
 
-| Файл | Вызовов `db.query` (оценка) | Сложн. |
-|------|------------------------------|--------|
-| `repos/idempotencyKeys.ts` | 2 | С (динамический whitelist) |
-| `repos/platformUserDeliveryPhone.ts` | 1 | Н |
-| `repos/patientHomeMorningPing.ts` | 3 | С |
-| `kernel/.../patientHomeMorningPing.ts` (handler) | 1 | Н |
-| `repos/adminStats.ts` | 3 | С |
-| `repos/linkedPhoneSource.ts` | 1 | Н |
-| `repos/resolvePlatformUserIdForRubitimeBooking.ts` | 2 | Н |
-| `repos/canonicalUserId.ts` | 2 | Н |
-| `repos/integrationDataQualityIncidents.ts` | 1 | С |
-| `infra/db/branchTimezone.ts` | 1 | С (cross-schema `public.booking_branches`) |
-| `infra/db/messengerStaffIds.ts` | 1 | Н |
-| `infra/db/adminIncidentAlertRelay.ts` | 1 | Н |
-| `config/smtpOutbound.ts` | 1 | Н |
-| `repos/operationalVerboseLog.ts` | 1 | Н |
-| `config/appBaseUrl.ts` | 1 | Н |
-| `config/appTimezone.ts` | 1 | Н |
-| `integrations/google-calendar/calendarDescription.ts` | 1 | Н |
-| `integrations/google-calendar/resolvePackageCalendarContext.ts` | 3 | С |
-| `integrations/google-calendar/runtimeConfig.ts` | 1 | Н |
-| `integrations/rubitime/rubitimeApiThrottle.ts` | 2 (`client.query` на dedicated connection) | С (session + advisory уже P3) |
+| Файл                                                            | Вызовов `db.query` (оценка)                | Сложн.                                     |
+| --------------------------------------------------------------- | ------------------------------------------ | ------------------------------------------ |
+| `repos/idempotencyKeys.ts`                                      | 2                                          | С (динамический whitelist)                 |
+| `repos/platformUserDeliveryPhone.ts`                            | 1                                          | Н                                          |
+| `repos/patientHomeMorningPing.ts`                               | 3                                          | С                                          |
+| `kernel/.../patientHomeMorningPing.ts` (handler)                | 1                                          | Н                                          |
+| `repos/adminStats.ts`                                           | 3                                          | С                                          |
+| `repos/linkedPhoneSource.ts`                                    | 1                                          | Н                                          |
+| `repos/resolvePlatformUserIdForRubitimeBooking.ts`              | 2                                          | Н                                          |
+| `repos/canonicalUserId.ts`                                      | 2                                          | Н                                          |
+| `repos/integrationDataQualityIncidents.ts`                      | 1                                          | С                                          |
+| `infra/db/branchTimezone.ts`                                    | 1                                          | С (cross-schema `public.booking_branches`) |
+| `infra/db/messengerStaffIds.ts`                                 | 1                                          | Н                                          |
+| `infra/db/adminIncidentAlertRelay.ts`                           | 1                                          | Н                                          |
+| `config/smtpOutbound.ts`                                        | 1                                          | Н                                          |
+| `repos/operationalVerboseLog.ts`                                | 1                                          | Н                                          |
+| `config/appBaseUrl.ts`                                          | 1                                          | Н                                          |
+| `config/appTimezone.ts`                                         | 1                                          | Н                                          |
+| `integrations/google-calendar/calendarDescription.ts`           | 1                                          | Н                                          |
+| `integrations/google-calendar/resolvePackageCalendarContext.ts` | 3                                          | С                                          |
+| `integrations/google-calendar/runtimeConfig.ts`                 | 1                                          | Н                                          |
+| `integrations/rubitime/rubitimeApiThrottle.ts`                  | 2 (`client.query` на dedicated connection) | С (session + advisory уже P3)              |
 
 **Не в списке P1+:** всё, что уже на `runIntegratorSql` (Wave 2 P1).
 
 ### Media-worker фаза IX
 
-| Файл | `pool.query` | Решение |
-|------|--------------|---------|
-| `processTranscodeJob.ts` | 10 | Мигрировать статусы/джойны → minimal `execute(sql)` или Drizzle без shared schema package |
-| `processProgramSubmissionTranscode.ts` | 7 | то же |
-| `watermarkEnabled.ts` | 1 | чтение `system_settings` → `execute` |
-| `pipelineEnabled.ts` | 1 | то же |
-| `jobs/claim.ts` | 8 | **Class C** |
+| Файл                                   | `pool.query` | Решение                                                                                   |
+| -------------------------------------- | ------------ | ----------------------------------------------------------------------------------------- |
+| `processTranscodeJob.ts`               | 10           | Мигрировать статусы/джойны → minimal `execute(sql)` или Drizzle без shared schema package |
+| `processProgramSubmissionTranscode.ts` | 7            | то же                                                                                     |
+| `watermarkEnabled.ts`                  | 1            | чтение `system_settings` → `execute`                                                      |
+| `pipelineEnabled.ts`                   | 1            | то же                                                                                     |
+| `jobs/claim.ts`                        | 8            | **Class C**                                                                               |
 
 ### Webapp — масштаб (prod, без `*.test.ts`)
 
@@ -151,6 +151,7 @@ Owner подтверждает smoke по чеклисту агента. Есл�
 ### 8) Legacy migrations webapp
 
 **Ответ:** добавляем отдельную фазу cutover (фаза 16) с целью снять зависимость runtime/deploy от `migrate:legacy`, но только если после фаз 09–15 больше нет raw-SQL/migration причин держать legacy runner в regular flow:
+
 - закрепить Drizzle-only bootstrap для `public` в runbook и CI policy;
 - убрать упоминания `migrate:legacy` из регулярных путей;
 - legacy runner оставить только как ручной аварийный recovery path с явным gate.
@@ -162,6 +163,7 @@ Owner подтверждает smoke по чеклисту агента. Есл�
 ### 9) Zod-политика для DB-слоя
 
 **Ответ:** в фазах 09–15 для всех затронутых DB-модулей обязательны:
+
 - Zod-схемы для JSON из БД (`system_settings`, payload/jsonb);
 - Zod-валидация внешних входов в репозиторий/adapter (где shape не гарантирован TS-типом);
 - запрет на новый код вида `JSON.parse(raw) as unknown` без `safeParse`.
@@ -175,14 +177,14 @@ Owner decision: `public` — canonical source of truth; `integrator` — тол�
 
 Предварительная классификация:
 
-| Группа | Решение по умолчанию |
-|--------|----------------------|
-| `integrator.system_settings` + `settingsSyncRoute` | удалить зеркало / читать `public.system_settings` напрямую |
-| `rubitime_branches/services/cooperators/booking_profiles` | сверить с `public.booking_*`; если покрыто — перевести reads на `public`, затем deprecate integrator tables |
+| Группа                                                                         | Решение по умолчанию                                                                                                                       |
+| ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `integrator.system_settings` + `settingsSyncRoute`                             | удалить зеркало / читать `public.system_settings` напрямую                                                                                 |
+| `rubitime_branches/services/cooperators/booking_profiles`                      | сверить с `public.booking_*`; если покрыто — перевести reads на `public`, затем deprecate integrator tables                                |
 | `rubitime_records` vs `public.appointment_records` / `public.patient_bookings` | оставить только если это непокрытый technical/raw external event log; если история уже покрыта `public`, не хранить отдельный бизнес-дубль |
-| `integrator.user_reminder_*` | проверить возможность dispatch напрямую из `public.reminder_*`; не расширять зеркало |
-| `integrator.users/identities/contacts` | оставить только channel/integration identity state, но не дублировать профиль пациента |
-| `projection_outbox` / retry jobs / delivery logs | оставить как техническую интеграторную state |
+| `integrator.user_reminder_*`                                                   | проверить возможность dispatch напрямую из `public.reminder_*`; не расширять зеркало                                                       |
+| `integrator.users/identities/contacts`                                         | оставить только channel/integration identity state, но не дублировать профиль пациента                                                     |
+| `projection_outbox` / retry jobs / delivery logs                               | оставить как техническую интеграторную state                                                                                               |
 
 ---
 

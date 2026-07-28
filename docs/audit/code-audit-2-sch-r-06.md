@@ -1,4 +1,5 @@
 # Code Audit 2 — SCH-R-06
+
 agentId: audit2-sch-r-06b
 Commit: 41103aa2 (cherry-pick of 025bdcc0 onto feat/doctor-ui-rebuild)
 Date: 2026-06-19
@@ -16,6 +17,7 @@ This audit evaluates commit `41103aa2` in `feat/doctor-ui-rebuild`, which is the
 PASS
 
 How verified:
+
 - `resolveEffectiveHours` (lines 143–161): returns `{ source: "template", startMinute, endMinute }` when no day record exists (or record has null startMinute and isClosed=false) AND `workingHours` has an active row for the date's weekday.
 - DayCell JSX (line 344–347): `effectiveHours?.source === "template"` renders `<div className="mt-0.5 text-[10px] leading-none italic text-muted-foreground">~{formatHourRange(...)}</div>`.
 - `italic` = Tailwind utility applying `font-style: italic` — confirmed present.
@@ -32,6 +34,7 @@ How verified:
 PASS (with documented note on branch-colored override)
 
 How verified:
+
 - `resolveEffectiveHours` (lines 150–153): `{ source: "override", startMinute, endMinute }` returned when `record.isClosed=false` AND `record.startMinute != null`.
 - **Cell background** (lines 307–309): `effectiveHours?.source === "override"` → `bg-primary/10 border-primary/30 hover:bg-primary/15`.
   - `--primary: hsl(215 35% 40%)` (light) / `hsl(215 38% 58%)` (dark) in `tailwind-engine.css` (lines 24, 109).
@@ -48,6 +51,7 @@ How verified:
 PASS
 
 How verified:
+
 - `resolveEffectiveHours` (line 150): `if (record.isClosed) return { source: "closed" }` — immediate return, takes priority over startMinute check. No dual-state possible at the type/logic level.
 - **Cell background** (lines 310–312): `effectiveHours?.source === "closed"` → `bg-destructive/5 border-destructive/20 hover:bg-destructive/10`.
   - `--destructive: hsl(0 55% 45%)` (light) / `oklch(0.62 0.16 25)` (dark) defined in `tailwind-engine.css` (lines 32, 117).
@@ -63,6 +67,7 @@ How verified:
 PASS
 
 How verified:
+
 - `postcss.config.mjs` uses `@tailwindcss/postcss` v4.3.0 (package.json lines 114, 132). Tailwind v4 confirmed.
 - `tailwind-engine.css` structure: `@import "tailwindcss"` → `@theme inline { --color-primary: var(--primary); --color-destructive: var(--destructive); --color-muted-foreground: var(--muted-foreground); }` → CSS custom properties in `:root` and `.dark`.
 - All utility classes used by SCH-R-06 are standard Tailwind v4 opacity-modifier syntax over theme tokens:
@@ -79,6 +84,7 @@ How verified:
 PASS
 
 How verified:
+
 - Diff: 7 insertions, 1 deletion — entirely additive except font-size change.
 - If/else chain ordering preserved and extended (lines 300–315):
   1. `isSelected` → `bg-primary/15 ring` (highest priority, unchanged)
@@ -100,6 +106,7 @@ How verified:
 PASS
 
 How verified:
+
 - `git log --oneline feat/doctor-ui-rebuild`: `41103aa2` appears at position 2 in history (after `3a1125e1 SCH-R-05`), after `9ea67baa` (QW-A3) and `947f6f59` (SCH-R-04+08). ✓
 - The cherry-pick correctly landed SCH-R-06 on the current branch tip without reverting any prior feature.
 - Commit message matches original intent and includes correct author attribution.
@@ -111,6 +118,7 @@ How verified:
 PASS
 
 How verified:
+
 - `EffectiveHours` type (lines 81–85) is a tagged union discriminated by `source`. Exactly one branch of the union is active at runtime; TypeScript enforces this at call sites.
 - `resolveEffectiveHours` has a strict priority order: (1) isClosed check → returns `closed`, (2) startMinute!=null check → returns `override`, (3) weekday template match → returns `template`, (4) fallback → `null`. These are mutually exclusive via early return statements; no two can fire simultaneously for the same record.
 - DayCell JSX uses `effectiveHours?.source === X` pattern in independent `{...}` blocks — each conditional independently reads `source`. Since `source` is a single discriminant string, at most one `source === X` is true per render cycle. No double-render risk.
@@ -122,6 +130,7 @@ How verified:
 RENDER-CONFIRM-NEEDED
 
 How verified:
+
 - Code analysis confirms all 3 states produce distinct visual output:
   - **template**: neutral white card + small `~9–18` text in italic muted grey
   - **override** (no branch): steel-blue 10% tint cell + bold blue `9–18` text
@@ -133,10 +142,10 @@ How verified:
 
 ## Issues Summary
 
-| # | Severity | Description |
-|---|----------|-------------|
-| 1 | Info | Override cells with a branchId show branch color tint (blue/green/violet) instead of primary blue. Bold text with `text-primary` still present. Three-state distinction preserved at the text level. Pre-existing behavior, not a regression. |
-| 2 | Info | Template cells have no special background (neutral card). Spec says "muted italic text" only — no tint required. Consistent with current reading. |
+| #   | Severity | Description                                                                                                                                                                                                                                   |
+| --- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Info     | Override cells with a branchId show branch color tint (blue/green/violet) instead of primary blue. Bold text with `text-primary` still present. Three-state distinction preserved at the text level. Pre-existing behavior, not a regression. |
+| 2   | Info     | Template cells have no special background (neutral card). Spec says "muted italic text" only — no tint required. Consistent with current reading.                                                                                             |
 
 No blocking issues found.
 
@@ -145,6 +154,7 @@ No blocking issues found.
 ## OVERALL: PASS
 
 The SCH-R-06 implementation in commit `41103aa2` (cherry-pick onto `feat/doctor-ui-rebuild`) is correct:
+
 - All 3 source states produce visually distinct styling via distinct CSS utility classes
 - CSS tokens (`--primary`, `--destructive`, `--muted-foreground`) are properly defined for both light and dark mode
 - Source conditions are mutually exclusive at both the type level and runtime

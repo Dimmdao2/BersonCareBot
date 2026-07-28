@@ -9,19 +9,19 @@
  * The specific /patients/[userId]/programs/[instanceId] route takes precedence
  * over this catch-all for valid program instance links.
  */
-import { redirect, notFound } from "next/navigation";
-import { z } from "zod";
-import { routePaths } from "@/app-layer/routes/paths";
+import { redirect, notFound } from 'next/navigation';
+import { z } from 'zod';
+import { routePaths } from '@/app-layer/routes/paths';
 
 const VALID_TABS = new Set([
-  "overview",
-  "karta",
-  "program",
-  "records",
-  "files",
-  "comms",
-  "finances",
-  "account",
+  'overview',
+  'karta',
+  'program',
+  'records',
+  'files',
+  'comms',
+  'finances',
+  'account',
 ]);
 
 type PageProps = {

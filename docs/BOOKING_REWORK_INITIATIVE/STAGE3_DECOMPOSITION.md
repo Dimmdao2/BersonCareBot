@@ -39,12 +39,12 @@
 
 Зона: карточка клиента (`DoctorClientMembershipsPanel`) и admin «Операции» / «Абонементы и продукты». Следовать [`.cursor/rules/doctor-ui-shared-primitives.mdc`](../../.cursor/rules/doctor-ui-shared-primitives.mdc) там, где секции в doctor admin; в **карточке клиента** — `doctorClientCardChrome` (`doctorClientStackedCardClass`, `doctorClientSectionTitleClass`), не `DoctorSection` с page-level `rounded-xl`, если это ломает плотность entity-card (см. `DOCTOR_APP_UI_STYLE_GUIDE` §9).
 
-| Зона | Паттерн | Запрещено |
-|------|---------|-----------|
-| Список абонементов | stacked cards / compact list | Сырой UUID записи в primary UI |
-| Сеансы по абонементу | таблица или stacked rows; фильтр «Показать прошедшие» | Поле «ID записи» для отвязки |
-| Диалоги отвязки / поздняя отвязка | shadcn `Dialog` §14; `Button default sm` | Молчаливое списание без выбора (ROADMAP §9.7) |
-| Ошибки mapping | `Badge` / текст «нет связи услуги» | Silent debit при unmapped (регрессия 2.2) |
+| Зона                              | Паттерн                                               | Запрещено                                     |
+| --------------------------------- | ----------------------------------------------------- | --------------------------------------------- |
+| Список абонементов                | stacked cards / compact list                          | Сырой UUID записи в primary UI                |
+| Сеансы по абонементу              | таблица или stacked rows; фильтр «Показать прошедшие» | Поле «ID записи» для отвязки                  |
+| Диалоги отвязки / поздняя отвязка | shadcn `Dialog` §14; `Button default sm`              | Молчаливое списание без выбора (ROADMAP §9.7) |
+| Ошибки mapping                    | `Badge` / текст «нет связи услуги»                    | Silent debit при unmapped (регрессия 2.2)     |
 
 ### Самопроверка UI (3.5)
 
@@ -62,15 +62,15 @@ pnpm --dir apps/webapp exec vitest run \
 
 ## Текущее состояние (baseline до этапа 3 — историческая справка)
 
-| Область | Было до 3.0–3.6 | Закрыто этапом 3 (2026-06-04) |
-|---------|------------------|-------------------------------|
-| DDL | `be_patient_packages.notes`, history events | UI «Комментарий», PATCH |
-| Create API | manual + catalog; `notes` только на manual | catalog `notes`; manual без обязательного `title` |
-| Reserve/consume/cancel | FEFO, hooks (этап 2) | Список сеансов + linkage/mapping в UI |
-| Mapping | fail-closed на create (2.2) | Бейдж «нет связи услуги» в sessions |
-| Staff detach | unlink/refund | `detach`, sessions actions, late/past guards, settings |
-| Policies | `freeCancelHoursBefore` | Поздняя ручная отвязка через detach + политику |
-| UI | UUID + поле «Название» | `PatientPackageCard`, sessions, history, без UUID |
+| Область                | Было до 3.0–3.6                             | Закрыто этапом 3 (2026-06-04)                          |
+| ---------------------- | ------------------------------------------- | ------------------------------------------------------ |
+| DDL                    | `be_patient_packages.notes`, history events | UI «Комментарий», PATCH                                |
+| Create API             | manual + catalog; `notes` только на manual  | catalog `notes`; manual без обязательного `title`      |
+| Reserve/consume/cancel | FEFO, hooks (этап 2)                        | Список сеансов + linkage/mapping в UI                  |
+| Mapping                | fail-closed на create (2.2)                 | Бейдж «нет связи услуги» в sessions                    |
+| Staff detach           | unlink/refund                               | `detach`, sessions actions, late/past guards, settings |
+| Policies               | `freeCancelHoursBefore`                     | Поздняя ручная отвязка через detach + политику         |
+| UI                     | UUID + поле «Название»                      | `PatientPackageCard`, sessions, history, без UUID      |
 
 Канон модуля: [`apps/webapp/src/modules/memberships/memberships.md`](../../apps/webapp/src/modules/memberships/memberships.md).
 
@@ -78,15 +78,15 @@ pnpm --dir apps/webapp exec vitest run \
 
 ## Обзор блоков
 
-| Блок | Цель | Breaking API |
-|------|------|--------------|
-| **3.0** | Комментарий + PATCH пакета | Нет (расширение) |
-| **3.1** | Индивидуальный абонемент без обязательного названия в UI | Нет (server default title) |
-| **3.2** | Списание по canonical service + видимость mapping | Нет |
-| **3.3** | Read-model «сеансы по абонементу» | Нет (новый GET) |
-| **3.4** | Detach: late choice, guards, settings | Расширение body существующих POST |
-| **3.5** | Карточка клиента (основной UX) | Нет |
-| **3.6** | Admin parity, docs, acceptance | Нет |
+| Блок    | Цель                                                     | Breaking API                      |
+| ------- | -------------------------------------------------------- | --------------------------------- |
+| **3.0** | Комментарий + PATCH пакета                               | Нет (расширение)                  |
+| **3.1** | Индивидуальный абонемент без обязательного названия в UI | Нет (server default title)        |
+| **3.2** | Списание по canonical service + видимость mapping        | Нет                               |
+| **3.3** | Read-model «сеансы по абонементу»                        | Нет (новый GET)                   |
+| **3.4** | Detach: late choice, guards, settings                    | Расширение body существующих POST |
+| **3.5** | Карточка клиента (основной UX)                           | Нет                               |
+| **3.6** | Admin parity, docs, acceptance                           | Нет                               |
 
 **Gate:** 3.5 не закрывается без 3.3 + 3.4. 3.4 late-choice использует политику отмены (3.4.2) и флаг §9.6 (3.4.1).
 
@@ -205,15 +205,15 @@ pnpm --dir apps/webapp exec vitest run \
 ```ts
 type PatientPackageSessionRow = {
   appointmentId: string;
-  startsAt: string;       // ISO
+  startsAt: string; // ISO
   endsAt: string | null;
-  status: string;         // appointment FSM status
+  status: string; // appointment FSM status
   branchTitle: string | null;
   serviceTitle: string;
   serviceId: string | null;
-  linkage: "reserved" | "consumed" | "penalty" | "released" | "refunded" | "none";
-  mappingStatus: "ok" | "mapping_missing" | "not_applicable";
-  isPast: boolean;        // startsAt < now (org TZ)
+  linkage: 'reserved' | 'consumed' | 'penalty' | 'released' | 'refunded' | 'none';
+  mappingStatus: 'ok' | 'mapping_missing' | 'not_applicable';
+  isPast: boolean; // startsAt < now (org TZ)
   actions: {
     canUnlinkReserve: boolean;
     canRefundConsumed: boolean;
@@ -225,21 +225,21 @@ type PatientPackageSessionRow = {
 
 **Правила `actions` (server-side, UI не вычисляет):**
 
-| linkage | canUnlinkReserve | canRefundConsumed |
-|---------|------------------|-------------------|
-| reserved (net reserve) | true | false |
-| consumed / penalty | false | true |
-| none | false | false (или manual consume если appointment без связи) |
+| linkage                | canUnlinkReserve | canRefundConsumed                                     |
+| ---------------------- | ---------------- | ----------------------------------------------------- |
+| reserved (net reserve) | true             | false                                                 |
+| consumed / penalty     | false            | true                                                  |
+| none                   | false            | false (или manual consume если appointment без связи) |
 
 `includePast=false` → только `startsAt >= now`.  
 `includePast=true` → будущие + прошедшие записи из того же набора.
 
 ### Шаги
 
-| # | Шаг | Проверка |
-|---|-----|----------|
-| 3.3.1 | Port + repo query | unit test repo or service with fixtures |
-| 3.3.2 | GET sessions route | route test doctor + admin |
+| #     | Шаг                                                                                       | Проверка                                     |
+| ----- | ----------------------------------------------------------------------------------------- | -------------------------------------------- |
+| 3.3.1 | Port + repo query                                                                         | unit test repo or service with fixtures      |
+| 3.3.2 | GET sessions route                                                                        | route test doctor + admin                    |
 | 3.3.3 | Оставить `getPatientPackageDetail` без `sessions`; использовать отдельный GET `/sessions` | route test подтверждает раздельные контракты |
 
 ### DoD 3.3
@@ -259,8 +259,8 @@ ROADMAP §9.3–§9.7: автоматический возврат резерв�
 
 ### 3.4.1 — system_settings (§9.6)
 
-| Ключ | scope | Тип | Default |
-|------|-------|-----|---------|
+| Ключ                                                | scope   | Тип     | Default |
+| --------------------------------------------------- | ------- | ------- | ------- |
 | `booking_allow_doctor_unlink_past_package_sessions` | `admin` | boolean | `false` |
 
 - Добавить в `ALLOWED_KEYS` (`system-settings/types.ts`)
@@ -294,11 +294,11 @@ ROADMAP §9.3–§9.7: автоматический возврат резерв�
 
 Маппинг:
 
-| outcome | Действие service |
-|---------|------------------|
-| `release_reserve` | `unlinkAppointmentFromPackage` |
+| outcome               | Действие service                                                                                                       |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `release_reserve`     | `unlinkAppointmentFromPackage`                                                                                         |
 | `charge_as_delivered` | при `linkage=reserved` → `consumeForAppointment`; при `linkage=none` и явно выбранной позиции пакета → `manualConsume` |
-| `refund_consumed` | `refundConsumedAppointmentPackage` |
+| `refund_consumed`     | `refundConsumedAppointmentPackage`                                                                                     |
 
 Сохранить старые routes `unlink` / `refund` как thin wrappers → `detach` (deprecated в api.md, не удалять в 3.4).
 
@@ -356,13 +356,13 @@ ROADMAP §9.4, §9.8: блок абонемента в `DoctorClientRecordsTab` 
 
 ### Шаги
 
-| # | Шаг | Проверка |
-|---|-----|----------|
-| 3.5.1 | 3.0–3.4 закрыты | DoD ниже |
-| 3.5.2 | Sessions list UI | RTL test: render sessions, toggle past |
-| 3.5.3 | Detach dialogs | test: double confirm; late choice |
-| 3.5.4 | Убрать UUID inputs | `rg "ID записи"` пусто |
-| 3.5.5 | ACCEPTANCE §3.5 | владелец |
+| #     | Шаг                | Проверка                               |
+| ----- | ------------------ | -------------------------------------- |
+| 3.5.1 | 3.0–3.4 закрыты    | DoD ниже                               |
+| 3.5.2 | Sessions list UI   | RTL test: render sessions, toggle past |
+| 3.5.3 | Detach dialogs     | test: double confirm; late choice      |
+| 3.5.4 | Убрать UUID inputs | `rg "ID записи"` пусто                 |
+| 3.5.5 | ACCEPTANCE §3.5    | владелец                               |
 
 ### DoD 3.5
 
@@ -422,13 +422,13 @@ pnpm --dir apps/webapp exec tsc --noEmit -p tsconfig.json
 
 ## Риски
 
-| Риск | Митигация |
-|------|-----------|
+| Риск                                            | Митигация                        |
+| ----------------------------------------------- | -------------------------------- |
 | Дублировать `freeCancelHours` в system_settings | §9.7 → только `booking-policies` |
-| Past unlink без guard | 3.4.1 + server-side `actions` |
-| Список сеансов N+1 | один SQL / batched titles в repo |
-| Regressия 2.2 fail-closed | 3.2 регрессионные тесты |
-| UUID UX остаётся в admin | 3.6 parity |
+| Past unlink без guard                           | 3.4.1 + server-side `actions`    |
+| Список сеансов N+1                              | один SQL / batched titles в repo |
+| Regressия 2.2 fail-closed                       | 3.2 регрессионные тесты          |
+| UUID UX остаётся в admin                        | 3.6 parity                       |
 
 ---
 

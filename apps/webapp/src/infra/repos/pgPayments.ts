@@ -1,11 +1,11 @@
-import { and, desc, eq } from "drizzle-orm";
-import type { DrizzleDb } from "@/app-layer/db/drizzle";
-import { runWithDbOrganizationPrincipal } from "@bersoncare/db-principal";
+import { and, desc, eq } from 'drizzle-orm';
+import type { DrizzleDb } from '@/app-layer/db/drizzle';
+import { runWithDbOrganizationPrincipal } from '@bersoncare/db-principal';
 import {
   getDrizzleOrMutationTx,
   runDrizzleMutationTransaction,
-} from "@/infra/db/drizzleMutationTx";
-import { runWebappPgText } from "@/infra/db/runWebappSql";
+} from '@/infra/db/drizzleMutationTx';
+import { runWebappPgText } from '@/infra/db/runWebappSql';
 import {
   bePaymentHistoryEvents,
   bePaymentIntents,
@@ -13,19 +13,19 @@ import {
   bePayments,
   bePrepaymentPolicies,
   beRefunds,
-} from "../../../db/schema/bookingPayments";
-import { beAppointments } from "../../../db/schema/bookingEngine";
+} from '../../../db/schema/bookingPayments';
+import { beAppointments } from '../../../db/schema/bookingEngine';
 import type {
   PaymentsPort,
   StoredPaymentProviderEvent,
   UpsertPrepaymentPolicyInput,
-} from "@/modules/payments/ports";
+} from '@/modules/payments/ports';
 import type {
   PaymentHistoryEventRecord,
   PaymentIntentRecord,
   PaymentRecord,
   PrepaymentPolicyRecord,
-} from "@/modules/payments/types";
+} from '@/modules/payments/types';
 
 function mapPolicy(row: typeof bePrepaymentPolicies.$inferSelect): PrepaymentPolicyRecord {
   return {
@@ -33,7 +33,7 @@ function mapPolicy(row: typeof bePrepaymentPolicies.$inferSelect): PrepaymentPol
     organizationId: row.organizationId,
     serviceId: row.serviceId,
     onlineCategory: row.onlineCategory,
-    mode: row.mode as PrepaymentPolicyRecord["mode"],
+    mode: row.mode as PrepaymentPolicyRecord['mode'],
     amountMinor: row.amountMinor,
     percentBps: row.percentBps,
     currency: row.currency,
@@ -112,9 +112,7 @@ function runPaymentMutation<T>(
   organizationId: string,
   fn: (db: DrizzleDb) => Promise<T>,
 ): Promise<T> {
-  return runWithDbOrganizationPrincipal(organizationId, () =>
-    runDrizzleMutationTransaction(fn),
-  );
+  return runWithDbOrganizationPrincipal(organizationId, () => runDrizzleMutationTransaction(fn));
 }
 
 export function createPgPaymentsPort(): PaymentsPort {
@@ -162,7 +160,7 @@ export function createPgPaymentsPort(): PaymentsPort {
       const now = new Date().toISOString();
       const serviceId = input.serviceId?.trim() || null;
       const onlineCategory = input.onlineCategory?.trim() || null;
-      if (!serviceId && !onlineCategory) throw new Error("policy_scope_required");
+      if (!serviceId && !onlineCategory) throw new Error('policy_scope_required');
 
       const existing = serviceId
         ? await this.getPrepaymentPolicyForService(input.organizationId, serviceId)
@@ -171,15 +169,15 @@ export function createPgPaymentsPort(): PaymentsPort {
       if (existing) {
         await runPaymentMutation(input.organizationId, (tx) =>
           tx
-          .update(bePrepaymentPolicies)
-          .set({
-            mode: input.mode,
-            amountMinor: input.amountMinor ?? null,
-            percentBps: input.percentBps ?? null,
-            currency: input.currency ?? "RUB",
-            isActive: input.isActive ?? true,
-            updatedAt: now,
-          })
+            .update(bePrepaymentPolicies)
+            .set({
+              mode: input.mode,
+              amountMinor: input.amountMinor ?? null,
+              percentBps: input.percentBps ?? null,
+              currency: input.currency ?? 'RUB',
+              isActive: input.isActive ?? true,
+              updatedAt: now,
+            })
             .where(eq(bePrepaymentPolicies.id, existing.id)),
         );
       } else {
@@ -191,7 +189,7 @@ export function createPgPaymentsPort(): PaymentsPort {
             mode: input.mode,
             amountMinor: input.amountMinor ?? null,
             percentBps: input.percentBps ?? null,
-            currency: input.currency ?? "RUB",
+            currency: input.currency ?? 'RUB',
             isActive: input.isActive ?? true,
             createdAt: now,
             updatedAt: now,
@@ -202,7 +200,7 @@ export function createPgPaymentsPort(): PaymentsPort {
       const row = serviceId
         ? await this.getPrepaymentPolicyForService(input.organizationId, serviceId)
         : await this.getPrepaymentPolicyForOnlineCategory(input.organizationId, onlineCategory!);
-      if (!row) throw new Error("policy_upsert_failed");
+      if (!row) throw new Error('policy_upsert_failed');
       return row;
     },
 
@@ -223,7 +221,11 @@ export function createPgPaymentsPort(): PaymentsPort {
 
     async findIntentById(id) {
       const db = getDrizzleOrMutationTx();
-      const rows = await db.select().from(bePaymentIntents).where(eq(bePaymentIntents.id, id)).limit(1);
+      const rows = await db
+        .select()
+        .from(bePaymentIntents)
+        .where(eq(bePaymentIntents.id, id))
+        .limit(1);
       return rows[0] ? mapIntent(rows[0]) : null;
     },
 
@@ -239,7 +241,7 @@ export function createPgPaymentsPort(): PaymentsPort {
           ),
         )
         .limit(1)
-        .for("update");
+        .for('update');
       return rows[0] ? mapIntent(rows[0]) : null;
     },
 
@@ -285,23 +287,23 @@ export function createPgPaymentsPort(): PaymentsPort {
       const now = new Date().toISOString();
       const inserted = await runPaymentMutation(input.organizationId, (tx) =>
         tx
-        .insert(bePaymentIntents)
-        .values({
-          organizationId: input.organizationId,
-          idempotencyKey: input.idempotencyKey,
-          providerId: input.providerId,
-          appointmentId: input.appointmentId ?? null,
-          platformUserId: input.platformUserId,
-          productRef: input.productRef ?? null,
-          amountMinor: input.amountMinor,
-          currency: input.currency,
-          status: "pending",
-          purpose: input.purpose ?? "appointment_prepayment",
-          providerIntentRef: input.providerIntentRef,
-          metadataJson: input.metadataJson ?? {},
-          createdAt: now,
-          updatedAt: now,
-        })
+          .insert(bePaymentIntents)
+          .values({
+            organizationId: input.organizationId,
+            idempotencyKey: input.idempotencyKey,
+            providerId: input.providerId,
+            appointmentId: input.appointmentId ?? null,
+            platformUserId: input.platformUserId,
+            productRef: input.productRef ?? null,
+            amountMinor: input.amountMinor,
+            currency: input.currency,
+            status: 'pending',
+            purpose: input.purpose ?? 'appointment_prepayment',
+            providerIntentRef: input.providerIntentRef,
+            metadataJson: input.metadataJson ?? {},
+            createdAt: now,
+            updatedAt: now,
+          })
           .returning(),
       );
       return mapIntent(inserted[0]!);
@@ -311,14 +313,14 @@ export function createPgPaymentsPort(): PaymentsPort {
       const now = new Date().toISOString();
       const rows = await runPaymentMutation(organizationId, (tx) =>
         tx
-        .update(bePaymentIntents)
-        .set({ status, updatedAt: now })
-        .where(
-          and(
-            eq(bePaymentIntents.id, intentId),
-            eq(bePaymentIntents.organizationId, organizationId),
-          ),
-        )
+          .update(bePaymentIntents)
+          .set({ status, updatedAt: now })
+          .where(
+            and(
+              eq(bePaymentIntents.id, intentId),
+              eq(bePaymentIntents.organizationId, organizationId),
+            ),
+          )
           .returning(),
       );
       return rows[0] ? mapIntent(rows[0]) : null;
@@ -326,7 +328,11 @@ export function createPgPaymentsPort(): PaymentsPort {
 
     async findPaymentByIntent(intentId) {
       const db = getDrizzleOrMutationTx();
-      const rows = await db.select().from(bePayments).where(eq(bePayments.paymentIntentId, intentId)).limit(1);
+      const rows = await db
+        .select()
+        .from(bePayments)
+        .where(eq(bePayments.paymentIntentId, intentId))
+        .limit(1);
       return rows[0] ? mapPayment(rows[0]) : null;
     },
 
@@ -344,21 +350,21 @@ export function createPgPaymentsPort(): PaymentsPort {
       const now = new Date().toISOString();
       const inserted = await runPaymentMutation(intent.organizationId, (tx) =>
         tx
-        .insert(bePayments)
-        .values({
-          organizationId: intent.organizationId,
-          paymentIntentId: intent.id,
-          appointmentId: intent.appointmentId,
-          platformUserId: intent.platformUserId,
-          providerId: intent.providerId,
-          amountMinor: intent.amountMinor,
-          currency: intent.currency,
-          status: "captured",
-          purpose: intent.purpose,
-          capturedAt: now,
-          createdAt: now,
-        })
-        .onConflictDoNothing()
+          .insert(bePayments)
+          .values({
+            organizationId: intent.organizationId,
+            paymentIntentId: intent.id,
+            appointmentId: intent.appointmentId,
+            platformUserId: intent.platformUserId,
+            providerId: intent.providerId,
+            amountMinor: intent.amountMinor,
+            currency: intent.currency,
+            status: 'captured',
+            purpose: intent.purpose,
+            capturedAt: now,
+            createdAt: now,
+          })
+          .onConflictDoNothing()
           .returning(),
       );
       if (inserted[0]) return mapPayment(inserted[0]);
@@ -366,7 +372,7 @@ export function createPgPaymentsPort(): PaymentsPort {
         tx.select().from(bePayments).where(eq(bePayments.paymentIntentId, intent.id)).limit(1),
       );
       const existing = existingRows[0] ? mapPayment(existingRows[0]) : null;
-      if (!existing) throw new Error("payment_create_failed");
+      if (!existing) throw new Error('payment_create_failed');
       return existing;
     },
 
@@ -375,29 +381,24 @@ export function createPgPaymentsPort(): PaymentsPort {
         tx
           .update(bePayments)
           .set({ status })
-          .where(
-            and(
-              eq(bePayments.id, paymentId),
-              eq(bePayments.organizationId, organizationId),
-            ),
-          ),
+          .where(and(eq(bePayments.id, paymentId), eq(bePayments.organizationId, organizationId))),
       );
     },
 
     async createRefund(input) {
       const inserted = await runPaymentMutation(input.organizationId, (tx) =>
         tx
-        .insert(beRefunds)
-        .values({
-          organizationId: input.organizationId,
-          paymentId: input.paymentId,
-          appointmentId: input.appointmentId,
-          amountMinor: input.amountMinor,
-          currency: input.currency,
-          status: input.status,
-          reason: input.reason ?? null,
-          providerRefundRef: input.providerRefundRef ?? null,
-        })
+          .insert(beRefunds)
+          .values({
+            organizationId: input.organizationId,
+            paymentId: input.paymentId,
+            appointmentId: input.appointmentId,
+            amountMinor: input.amountMinor,
+            currency: input.currency,
+            status: input.status,
+            reason: input.reason ?? null,
+            providerRefundRef: input.providerRefundRef ?? null,
+          })
           .returning({ id: beRefunds.id }),
       );
       return { id: inserted[0]!.id };
@@ -441,7 +442,7 @@ export function createPgPaymentsPort(): PaymentsPort {
           )
           .limit(1),
       );
-      if (!rows[0]) throw new Error("provider_event_persist_failed");
+      if (!rows[0]) throw new Error('provider_event_persist_failed');
       return mapProviderEvent(rows[0], false);
     },
 
@@ -463,8 +464,8 @@ export function createPgPaymentsPort(): PaymentsPort {
     async markProviderEventProcessed(id, organizationId) {
       await runPaymentMutation(organizationId, (tx) =>
         tx
-        .update(bePaymentProviderEvents)
-        .set({ processedAt: new Date().toISOString() })
+          .update(bePaymentProviderEvents)
+          .set({ processedAt: new Date().toISOString() })
           .where(
             and(
               eq(bePaymentProviderEvents.id, id),
@@ -483,7 +484,7 @@ export function createPgPaymentsPort(): PaymentsPort {
           and(
             eq(bePaymentHistoryEvents.organizationId, organizationId),
             eq(bePaymentHistoryEvents.paymentId, paymentId),
-            eq(bePaymentHistoryEvents.eventType, "payment_captured"),
+            eq(bePaymentHistoryEvents.eventType, 'payment_captured'),
           ),
         )
         .limit(1);
@@ -492,21 +493,24 @@ export function createPgPaymentsPort(): PaymentsPort {
 
     async appendHistoryEvent(input) {
       await runPaymentMutation(input.organizationId, (tx) =>
-        tx.insert(bePaymentHistoryEvents).values({
-          organizationId: input.organizationId,
-          appointmentId: input.appointmentId ?? null,
-          platformUserId: input.platformUserId ?? null,
-          paymentId: input.paymentId ?? null,
-          refundId: input.refundId ?? null,
-          eventType: input.eventType,
-          amountMinor: input.amountMinor ?? null,
-          currency: input.currency ?? null,
-          providerId: input.providerId ?? null,
-          status: input.status ?? null,
-          purpose: input.purpose ?? null,
-          comment: input.comment ?? null,
-          payloadJson: input.payloadJson ?? {},
-        }).onConflictDoNothing(),
+        tx
+          .insert(bePaymentHistoryEvents)
+          .values({
+            organizationId: input.organizationId,
+            appointmentId: input.appointmentId ?? null,
+            platformUserId: input.platformUserId ?? null,
+            paymentId: input.paymentId ?? null,
+            refundId: input.refundId ?? null,
+            eventType: input.eventType,
+            amountMinor: input.amountMinor ?? null,
+            currency: input.currency ?? null,
+            providerId: input.providerId ?? null,
+            status: input.status ?? null,
+            purpose: input.purpose ?? null,
+            comment: input.comment ?? null,
+            payloadJson: input.payloadJson ?? {},
+          })
+          .onConflictDoNothing(),
       );
     },
 
@@ -544,8 +548,8 @@ export function createPgPaymentsPort(): PaymentsPort {
     async setAppointmentPaymentRef(appointmentId, paymentId, organizationId) {
       await runPaymentMutation(organizationId, (tx) =>
         tx
-        .update(beAppointments)
-        .set({ paymentRef: paymentId, updatedAt: new Date().toISOString() })
+          .update(beAppointments)
+          .set({ paymentRef: paymentId, updatedAt: new Date().toISOString() })
           .where(
             and(
               eq(beAppointments.id, appointmentId),

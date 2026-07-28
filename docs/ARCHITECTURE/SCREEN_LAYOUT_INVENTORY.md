@@ -14,13 +14,13 @@
 
 ## 1. Shell Widths
 
-| Zone | Shell | Width | Notes |
-|---|---|---:|---|
-| Doctor | `DoctorWorkspaceShell` | content `max-w-7xl` | Desktop: left sidebar `w-56` + content. Mobile: fixed `DoctorHeader`. |
-| Doctor default page | `DoctorAppShell` | `mx-auto w-full max-w-7xl px-3 pt-3 pb-6` | Normal document scroll, `main` is `flex flex-col gap-3`. |
-| Doctor full-height page | `DoctorAppShell layout="full-height"` | same visible width, no bottom padding | Used when inner panes own scroll: patients, schedule, communications. |
-| Patient | `PatientAppShell` | mobile cap `430px`, desktop cap `min(1180px, 100% - 2rem)` | Bottom-nav shell by default. Content is one flex column. |
-| Patient embedded | `PatientAppShell patientEmbedMain` | `max-w-[480px]` | Used for embedded/auth contexts, not a regular page layout. |
+| Zone                    | Shell                                 |                                                      Width | Notes                                                                 |
+| ----------------------- | ------------------------------------- | ---------------------------------------------------------: | --------------------------------------------------------------------- |
+| Doctor                  | `DoctorWorkspaceShell`                |                                        content `max-w-7xl` | Desktop: left sidebar `w-56` + content. Mobile: fixed `DoctorHeader`. |
+| Doctor default page     | `DoctorAppShell`                      |                  `mx-auto w-full max-w-7xl px-3 pt-3 pb-6` | Normal document scroll, `main` is `flex flex-col gap-3`.              |
+| Doctor full-height page | `DoctorAppShell layout="full-height"` |                      same visible width, no bottom padding | Used when inner panes own scroll: patients, schedule, communications. |
+| Patient                 | `PatientAppShell`                     | mobile cap `430px`, desktop cap `min(1180px, 100% - 2rem)` | Bottom-nav shell by default. Content is one flex column.              |
+| Patient embedded        | `PatientAppShell patientEmbedMain`    |                                            `max-w-[480px]` | Used for embedded/auth contexts, not a regular page layout.           |
 
 ## 2. Layout Types
 
@@ -304,24 +304,24 @@ Routes/groups:
 
 ## 3. Quick Route-To-Layout Map
 
-| Route group | Layout |
-|---|---|
-| `/app/doctor` | L2 Today two-pane dashboard |
-| `/app/doctor/patients` | L4 patients workbench |
-| `/app/doctor/patients/[userId]` and subscriber detail | L5 entity card |
-| `/app/doctor/exercises`, `clinical-tests`, `recommendations`, `lfk-templates`, `test-sets`, `treatment-program-templates` | L3 catalog master-detail |
-| `/app/doctor/schedule` | L6 full-height tab shell; calendar tab has its own calendar grid |
-| `/app/doctor/communications` | L6 full-height tab shell; tabs often use L3-style split |
-| `/app/doctor/messages`, online-intake/comments/broadcasts tab bodies | L3-style split with asymmetric widths |
-| `/app/doctor/analytics`, `stats`, analytics subpages | L7 analytics tab/KPI/chart page |
-| `/app/doctor/content` | L8 CMS hub outlier |
-| `/app/doctor/content/library` | L9 media library |
-| doctor admin/settings/audit/health/appointments/courses/material-ratings/standalone editors | L1 stack page |
-| `/app/patient` | L11 patient today mosaic |
-| `/app/patient/treatment*` | L12 treatment program flow |
-| `/app/patient/messages`, `/notifications` | L13 patient chat variants |
-| `/app/patient/booking*` | L14 booking wizard |
-| patient profile/reminders/diary/help/content/sections/courses/purchases/memberships/settings/info | L10 patient standard stack |
+| Route group                                                                                                               | Layout                                                           |
+| ------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `/app/doctor`                                                                                                             | L2 Today two-pane dashboard                                      |
+| `/app/doctor/patients`                                                                                                    | L4 patients workbench                                            |
+| `/app/doctor/patients/[userId]` and subscriber detail                                                                     | L5 entity card                                                   |
+| `/app/doctor/exercises`, `clinical-tests`, `recommendations`, `lfk-templates`, `test-sets`, `treatment-program-templates` | L3 catalog master-detail                                         |
+| `/app/doctor/schedule`                                                                                                    | L6 full-height tab shell; calendar tab has its own calendar grid |
+| `/app/doctor/communications`                                                                                              | L6 full-height tab shell; tabs often use L3-style split          |
+| `/app/doctor/messages`, online-intake/comments/broadcasts tab bodies                                                      | L3-style split with asymmetric widths                            |
+| `/app/doctor/analytics`, `stats`, analytics subpages                                                                      | L7 analytics tab/KPI/chart page                                  |
+| `/app/doctor/content`                                                                                                     | L8 CMS hub outlier                                               |
+| `/app/doctor/content/library`                                                                                             | L9 media library                                                 |
+| doctor admin/settings/audit/health/appointments/courses/material-ratings/standalone editors                               | L1 stack page                                                    |
+| `/app/patient`                                                                                                            | L11 patient today mosaic                                         |
+| `/app/patient/treatment*`                                                                                                 | L12 treatment program flow                                       |
+| `/app/patient/messages`, `/notifications`                                                                                 | L13 patient chat variants                                        |
+| `/app/patient/booking*`                                                                                                   | L14 booking wizard                                               |
+| patient profile/reminders/diary/help/content/sections/courses/purchases/memberships/settings/info                         | L10 patient standard stack                                       |
 
 ## 4. Practical Notes For The Next UI Pass
 

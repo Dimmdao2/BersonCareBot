@@ -3,6 +3,7 @@
 Первый реальный domain move — перенос ownership person/contact/bindings/preferences из `integrator` в `webapp`.
 
 Связанные документы:
+
 - [DB_ZONES_RESTRUCTURE.md](./DB_ZONES_RESTRUCTURE.md) — общий roadmap (Этапы 3–4).
 - [DB_MIGRATION_PREPARATION_FOUNDATION.md](./DB_MIGRATION_PREPARATION_FOUNDATION.md) — Stage 1 артефакты.
 
@@ -11,6 +12,7 @@
 ## Цель
 
 `webapp.platform_users` становится единственным product master для:
+
 - person identity (кто этот пользователь);
 - verified contacts (телефон);
 - channel bindings (telegram / max / vk);
@@ -24,24 +26,24 @@
 
 ### ID mapping challenge
 
-| Сторона | Таблица | PK type |
-|---------|---------|---------|
-| integrator | `users` | `BIGSERIAL` (автоинкремент BIGINT) |
-| webapp | `platform_users` | `UUID` (gen_random_uuid) |
+| Сторона    | Таблица          | PK type                            |
+| ---------- | ---------------- | ---------------------------------- |
+| integrator | `users`          | `BIGSERIAL` (автоинкремент BIGINT) |
+| webapp     | `platform_users` | `UUID` (gen_random_uuid)           |
 
 **Bridge:** `phone_normalized` — общий ключ в `integrator.contacts` и `webapp.platform_users`.
 
 ### Identity model mismatch
 
-| integrator `identities` | webapp `user_channel_bindings` |
-|--------------------------|-------------------------------|
+| integrator `identities`                                     | webapp `user_channel_bindings`                                                   |
+| ----------------------------------------------------------- | -------------------------------------------------------------------------------- |
 | `(resource TEXT, external_id TEXT)` — resource любая строка | `(channel_code TEXT, external_id TEXT)` — channel_code ∈ {'telegram','max','vk'} |
-| FK → `users.id` (BIGINT) | FK → `platform_users.id` (UUID) |
+| FK → `users.id` (BIGINT)                                    | FK → `platform_users.id` (UUID)                                                  |
 
 ### Notification flags mismatch
 
-| integrator `telegram_state` | webapp `user_channel_preferences` |
-|-----------------------------|-----------------------------------|
+| integrator `telegram_state`                                                     | webapp `user_channel_preferences`                                           |
+| ------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
 | `notify_spb`, `notify_msk`, `notify_online`, `notify_bookings` — topic booleans | `is_enabled_for_messages`, `is_enabled_for_notifications` — channel toggles |
 
 Это **разные concerns**: topic preferences (какие города) vs channel delivery preferences (вкл/выкл канал). Нужна отдельная таблица для topic preferences в webapp.
@@ -67,6 +69,7 @@
 **Файл:** `apps/webapp/scripts/run-migrations.mjs`
 
 **Что сделать:**
+
 1. В начале `main()`, перед циклом миграций: `CREATE TABLE IF NOT EXISTS schema_migrations (filename TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT now())`.
 2. Перед выполнением каждого файла: `SELECT 1 FROM schema_migrations WHERE filename = $1`. Если есть — skip с логом `Skipping {file} (already applied)`.
 3. Выполнение миграции обернуть в `BEGIN` / `COMMIT`. При ошибке `ROLLBACK`.
@@ -114,6 +117,7 @@ Topic codes: `booking_spb`, `booking_msk`, `booking_online`, `bookings` (мап�
 #### 3.1 Новый repo: `apps/webapp/src/infra/repos/pgUserProjection.ts`
 
 Функция `upsertFromIntegratorProjection(params)`:
+
 1. Если `integrator_user_id` уже есть в `platform_users` → UPDATE `display_name`, `phone_normalized`.
 2. Иначе если `phone_normalized` совпадает → UPDATE `integrator_user_id`, `display_name`.
 3. Иначе → INSERT новый `platform_users` с `integrator_user_id`, `phone_normalized`, `display_name`.
@@ -121,6 +125,7 @@ Topic codes: `booking_spb`, `booking_msk`, `booking_online`, `bookings` (мап�
 5. Return `{ platformUserId: string }`.
 
 Функция `upsertNotificationTopics(params)`:
+
 1. Для каждого `{ topicCode, isEnabled }` → `INSERT INTO user_notification_topics ... ON CONFLICT (user_id, topic_code) DO UPDATE SET is_enabled = $3, updated_at = now()`.
 
 #### 3.2 Расширение `events.ts`
@@ -128,15 +133,18 @@ Topic codes: `booking_spb`, `booking_msk`, `booking_online`, `bookings` (мап�
 Добавить новые event handlers:
 
 **`user.upserted`** — payload: `{ integratorUserId, phoneNormalized?, displayName?, channelCode?, externalId? }`
+
 - Вызывает `deps.users.upsertFromProjection(...)`.
 - Return `{ accepted: true }`.
 
 **`contact.linked`** — payload: `{ integratorUserId, phoneNormalized }`
+
 - Ищет `platform_users` по `integrator_user_id`.
 - Обновляет `phone_normalized`.
 - Return `{ accepted: true }`.
 
 **`preferences.updated`** — payload: `{ integratorUserId, topics: { topicCode, isEnabled }[] }`
+
 - Ищет `platform_users` по `integrator_user_id`.
 - Вызывает `deps.preferences.upsertNotificationTopics(...)`.
 - Return `{ accepted: true }`.
@@ -144,6 +152,7 @@ Topic codes: `booking_spb`, `booking_msk`, `booking_online`, `bookings` (мап�
 #### 3.3 Расширение deps
 
 **`IntegratorEventsDeps`** в `events.ts`:
+
 ```typescript
 users: {
   upsertFromProjection: (params: {
@@ -155,13 +164,13 @@ users: {
   }) => Promise<{ platformUserId: string }>;
   findByIntegratorId: (integratorUserId: number) => Promise<{ platformUserId: string } | null>;
   updatePhone: (platformUserId: string, phoneNormalized: string) => Promise<void>;
-};
+}
 preferences: {
   upsertNotificationTopics: (params: {
     platformUserId: string;
     topics: { topicCode: string; isEnabled: boolean }[];
   }) => Promise<void>;
-};
+}
 ```
 
 **`route.ts`**: расширить вызов `handleIntegratorEvent(eventBody, { diaries: deps.diaries, users: deps.users, preferences: deps.preferences })`.
@@ -179,6 +188,7 @@ preferences: {
 **Файл:** `apps/integrator/src/infra/db/writePort.ts`
 
 Добавить optional `webappEventsPort` в параметры:
+
 ```typescript
 export function createDbWritePort(input: {
   db?: DbPort;
@@ -191,63 +201,82 @@ export function createDbWritePort(input: {
 После каждого успешного write, fire-and-forget emit (catch errors, log, не блокировать primary write):
 
 **После `user.upsert`:**
+
 ```typescript
 if (webappEventsPort) {
   const idKey = `user.upserted:${parsedId}:${Date.now()}`;
-  webappEventsPort.emit({
-    eventType: 'user.upserted',
-    idempotencyKey: idKey,
-    occurredAt: new Date().toISOString(),
-    payload: {
-      integratorUserId: Math.trunc(parsedId),
-      channelCode: resource,
-      externalId,
-      displayName: [firstName, lastName].filter(Boolean).join(' ') || undefined,
-    },
-  }).catch(err => logger.warn({ err, eventType: 'user.upserted' }, 'projection emit failed'));
+  webappEventsPort
+    .emit({
+      eventType: 'user.upserted',
+      idempotencyKey: idKey,
+      occurredAt: new Date().toISOString(),
+      payload: {
+        integratorUserId: Math.trunc(parsedId),
+        channelCode: resource,
+        externalId,
+        displayName: [firstName, lastName].filter(Boolean).join(' ') || undefined,
+      },
+    })
+    .catch((err) => logger.warn({ err, eventType: 'user.upserted' }, 'projection emit failed'));
 }
 ```
 
 **После `user.phone.link`:**
+
 ```typescript
 if (webappEventsPort) {
   // channelUserId is the telegram ID → resolve integrator user_id from identity
-  const link = await readPort?.readDb?.({ type: 'user.byIdentity', params: { resource, externalId: channelUserId } });
+  const link = await readPort?.readDb?.({
+    type: 'user.byIdentity',
+    params: { resource, externalId: channelUserId },
+  });
   const integratorUserId = link?.userId;
   if (integratorUserId) {
     const idKey = `contact.linked:${integratorUserId}:${phoneNormalized}`;
-    webappEventsPort.emit({
-      eventType: 'contact.linked',
-      idempotencyKey: idKey,
-      occurredAt: new Date().toISOString(),
-      payload: { integratorUserId: Number(integratorUserId), phoneNormalized },
-    }).catch(err => logger.warn({ err, eventType: 'contact.linked' }, 'projection emit failed'));
+    webappEventsPort
+      .emit({
+        eventType: 'contact.linked',
+        idempotencyKey: idKey,
+        occurredAt: new Date().toISOString(),
+        payload: { integratorUserId: Number(integratorUserId), phoneNormalized },
+      })
+      .catch((err) => logger.warn({ err, eventType: 'contact.linked' }, 'projection emit failed'));
   }
 }
 ```
 
 **После `notifications.update`:**
+
 ```typescript
 if (webappEventsPort) {
   // channelUserId → integrator user_id
-  const link = await readPort?.readDb?.({ type: 'user.byIdentity', params: { resource, externalId: String(channelUserId) } });
+  const link = await readPort?.readDb?.({
+    type: 'user.byIdentity',
+    params: { resource, externalId: String(channelUserId) },
+  });
   const integratorUserId = link?.userId;
   if (integratorUserId) {
     const topicMap: Record<string, string> = {
-      notify_spb: 'booking_spb', notify_msk: 'booking_msk',
-      notify_online: 'booking_online', notify_bookings: 'bookings',
+      notify_spb: 'booking_spb',
+      notify_msk: 'booking_msk',
+      notify_online: 'booking_online',
+      notify_bookings: 'bookings',
     };
     const topics = Object.entries(settings)
       .filter(([k]) => k in topicMap)
       .map(([k, v]) => ({ topicCode: topicMap[k], isEnabled: v }));
     if (topics.length > 0) {
       const idKey = `preferences.updated:${integratorUserId}:${Date.now()}`;
-      webappEventsPort.emit({
-        eventType: 'preferences.updated',
-        idempotencyKey: idKey,
-        occurredAt: new Date().toISOString(),
-        payload: { integratorUserId: Number(integratorUserId), topics },
-      }).catch(err => logger.warn({ err, eventType: 'preferences.updated' }, 'projection emit failed'));
+      webappEventsPort
+        .emit({
+          eventType: 'preferences.updated',
+          idempotencyKey: idKey,
+          occurredAt: new Date().toISOString(),
+          payload: { integratorUserId: Number(integratorUserId), topics },
+        })
+        .catch((err) =>
+          logger.warn({ err, eventType: 'preferences.updated' }, 'projection emit failed'),
+        );
     }
   }
 }
@@ -258,12 +287,14 @@ if (webappEventsPort) {
 **Файл:** `apps/integrator/src/app/di.ts`
 
 Передать `webappEventsPort` в `createDbWritePort`:
+
 ```typescript
 const webappEventsPort = createWebappEventsPort();
 const dbWritePort = input.dbWritePort ?? createDbWritePort({ db: dbPort, webappEventsPort });
 ```
 
 Также нужен `readPort` внутри writePort для resolve user_id. Добавить `readPort` в параметры `createDbWritePort`:
+
 ```typescript
 export function createDbWritePort(input: {
   db?: DbPort;
@@ -273,9 +304,11 @@ export function createDbWritePort(input: {
 ```
 
 И в `di.ts`:
+
 ```typescript
 const dbReadPort = input.dbReadPort ?? createDbReadPort({ db: dbPort });
-const dbWritePort = input.dbWritePort ?? createDbWritePort({ db: dbPort, webappEventsPort, readPort: dbReadPort });
+const dbWritePort =
+  input.dbWritePort ?? createDbWritePort({ db: dbPort, webappEventsPort, readPort: dbReadPort });
 ```
 
 ---
@@ -285,6 +318,7 @@ const dbWritePort = input.dbWritePort ?? createDbWritePort({ db: dbPort, webappE
 **Цель:** подтвердить, что projection работает end-to-end.
 
 Проверки:
+
 1. `pnpm run ci` проходит без ошибок.
 2. Новые event types зарегистрированы и обрабатываются в `events.ts`.
 3. Webapp migration runner корректно skip'ает уже применённые миграции.

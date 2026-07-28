@@ -4,24 +4,24 @@
 
 ## Через очередь (`outgoing_delivery_queue`)
 
-| Источник | Примечание |
-|----------|------------|
-| `reportOperatorFailure` → `enqueueOutgoingDeliveryIfAbsent` | Операторский Telegram-алерт по инциденту |
+| Источник                                                            | Примечание                                   |
+| ------------------------------------------------------------------- | -------------------------------------------- |
+| `reportOperatorFailure` → `enqueueOutgoingDeliveryIfAbsent`         | Операторский Telegram-алерт по инциденту     |
 | `reminders.dispatchDue` → `enqueueReminderDispatchBatchWithRetries` | Напоминания по каналам после `persistWrites` |
 
 ## Немедленный вызов `dispatchOutgoing` (вне worker-очереди)
 
 Сценарии, где доменный код всё ещё вызывает адаптер синхронно в контексте HTTP/webhook/job (не через таблицу очереди):
 
-| Область | Файл / вход |
-|---------|-------------|
-| Исходящий шлюз событий | `kernel/eventGateway/incomingEventPipeline.ts` |
-| Rubitime M2M / записи | `integrations/rubitime/recordM2mRoute.ts` |
-| Запрос контакта врача | `integrations/bersoncare/dispatchRequestContact.ts` |
-| OTP | `integrations/bersoncare/sendOtpRoute.ts` |
-| Relay outbound (webapp → канал) | `integrations/bersoncare/relayOutboundRoute.ts` |
-| Качество данных / таймзоны | `infra/db/dataQualityIncidentAlert.ts` |
-| Фоновые job из очереди задач | `infra/runtime/worker/jobExecutor.ts` (доставка как часть выполнения job) |
+| Область                         | Файл / вход                                                               |
+| ------------------------------- | ------------------------------------------------------------------------- |
+| Исходящий шлюз событий          | `kernel/eventGateway/incomingEventPipeline.ts`                            |
+| Rubitime M2M / записи           | `integrations/rubitime/recordM2mRoute.ts`                                 |
+| Запрос контакта врача           | `integrations/bersoncare/dispatchRequestContact.ts`                       |
+| OTP                             | `integrations/bersoncare/sendOtpRoute.ts`                                 |
+| Relay outbound (webapp → канал) | `integrations/bersoncare/relayOutboundRoute.ts`                           |
+| Качество данных / таймзоны      | `infra/db/dataQualityIncidentAlert.ts`                                    |
+| Фоновые job из очереди задач    | `infra/runtime/worker/jobExecutor.ts` (доставка как часть выполнения job) |
 
 ## Правило для будущих фич
 

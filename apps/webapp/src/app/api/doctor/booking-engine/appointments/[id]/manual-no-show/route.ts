@@ -1,9 +1,9 @@
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { runStaffManualNoShowAfterCanonical } from "@/app-layer/booking/staffManualNoShow";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
-import { requireDoctorBookingEngine } from "../../../_requireDoctorBookingEngine";
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { runStaffManualNoShowAfterCanonical } from '@/app-layer/booking/staffManualNoShow';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
+import { requireDoctorBookingEngine } from '../../../_requireDoctorBookingEngine';
 
 const bodySchema = z.object({
   reason: z.string().trim().max(400).optional(),
@@ -20,17 +20,17 @@ export async function POST(request: Request, context: RouteContext) {
   const { id: appointmentId } = await context.params;
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
   const deps = buildAppDeps();
   const lifecycle = deps.bookingAppointmentLifecycle;
   if (!lifecycle) {
-    return NextResponse.json({ ok: false, error: "lifecycle_unavailable" }, { status: 503 });
+    return NextResponse.json({ ok: false, error: 'lifecycle_unavailable' }, { status: 503 });
   }
-  const actorType = gate.ctx.session.user.role === "admin" ? "admin" : "specialist";
+  const actorType = gate.ctx.session.user.role === 'admin' ? 'admin' : 'specialist';
   const result = await withDoctorWorkspacePrincipal(
     gate.ctx,
-    "doctor.booking-engine.appointments.manual-no-show",
+    'doctor.booking-engine.appointments.manual-no-show',
     () =>
       lifecycle.staffMarkNoShow({
         appointmentId,
@@ -42,7 +42,7 @@ export async function POST(request: Request, context: RouteContext) {
       }),
   );
   if (!result.ok) {
-    const status = result.error === "not_found" ? 404 : 409;
+    const status = result.error === 'not_found' ? 404 : 409;
     return NextResponse.json({ ok: false, error: result.error }, { status });
   }
   const flags = await runStaffManualNoShowAfterCanonical({

@@ -23,34 +23,40 @@ import { stubIntegratorDrizzleForTests } from './stubIntegratorDrizzleForTests.j
 
 describe('writePort reminder/content projection events', () => {
   beforeEach(() => {
-    mockGetReminderOccurrenceContextForProjection.mockImplementation(async (_db: DbPort, occurrenceId: string) => {
-      if (occurrenceId === 'occ-2') {
+    mockGetReminderOccurrenceContextForProjection.mockImplementation(
+      async (_db: DbPort, occurrenceId: string) => {
+        if (occurrenceId === 'occ-2') {
+          return {
+            ruleId: 'rule-1',
+            userId: '42',
+            category: 'exercise',
+            status: 'failed',
+            occurredAt: '2025-01-01T12:00:00.000Z',
+            deliveryChannel: 'telegram',
+            errorCode: 'timeout',
+          };
+        }
         return {
           ruleId: 'rule-1',
           userId: '42',
           category: 'exercise',
-          status: 'failed',
+          status: 'sent',
           occurredAt: '2025-01-01T12:00:00.000Z',
           deliveryChannel: 'telegram',
-          errorCode: 'timeout',
+          errorCode: null,
         };
-      }
-      return {
-        ruleId: 'rule-1',
-        userId: '42',
-        category: 'exercise',
-        status: 'sent',
-        occurredAt: '2025-01-01T12:00:00.000Z',
-        deliveryChannel: 'telegram',
-        errorCode: null,
-      };
-    });
+      },
+    );
   });
   function makeMockDb(capture: {
     projectionInserts: { eventType: string; idempotencyKey: string; payload: unknown }[];
   }): DbPort {
     const query = vi.fn(async (sql: string, params: unknown[]) => {
-      if (typeof sql === 'string' && sql.includes('merged_into_user_id') && sql.includes('FROM users')) {
+      if (
+        typeof sql === 'string' &&
+        sql.includes('merged_into_user_id') &&
+        sql.includes('FROM users')
+      ) {
         return { rows: [{ merged_into_user_id: null }] } as Awaited<ReturnType<DbPort['query']>>;
       }
       if (
@@ -85,7 +91,9 @@ describe('writePort reminder/content projection events', () => {
   }
 
   it('reminders.rule.upsert enqueues reminder.rule.upserted', async () => {
-    const capture = { projectionInserts: [] as { eventType: string; idempotencyKey: string; payload: unknown }[] };
+    const capture = {
+      projectionInserts: [] as { eventType: string; idempotencyKey: string; payload: unknown }[],
+    };
     const db = makeMockDb(capture);
     const writePort = createDbWritePort({ db });
     await writePort.writeDb({
@@ -112,7 +120,9 @@ describe('writePort reminder/content projection events', () => {
   });
 
   it('reminders.occurrence.markSent enqueues reminder.occurrence.finalized', async () => {
-    const capture = { projectionInserts: [] as { eventType: string; idempotencyKey: string; payload: unknown }[] };
+    const capture = {
+      projectionInserts: [] as { eventType: string; idempotencyKey: string; payload: unknown }[],
+    };
     const db = makeMockDb(capture);
     const writePort = createDbWritePort({ db });
     await writePort.writeDb({
@@ -127,7 +137,9 @@ describe('writePort reminder/content projection events', () => {
   });
 
   it('reminders.occurrence.markFailed enqueues reminder.occurrence.finalized', async () => {
-    const capture = { projectionInserts: [] as { eventType: string; idempotencyKey: string; payload: unknown }[] };
+    const capture = {
+      projectionInserts: [] as { eventType: string; idempotencyKey: string; payload: unknown }[],
+    };
     const db = makeMockDb(capture);
     const writePort = createDbWritePort({ db });
     await writePort.writeDb({
@@ -141,7 +153,9 @@ describe('writePort reminder/content projection events', () => {
   });
 
   it('reminders.delivery.log enqueues reminder.delivery.logged', async () => {
-    const capture = { projectionInserts: [] as { eventType: string; idempotencyKey: string; payload: unknown }[] };
+    const capture = {
+      projectionInserts: [] as { eventType: string; idempotencyKey: string; payload: unknown }[],
+    };
     const db = makeMockDb(capture);
     const writePort = createDbWritePort({ db });
     await writePort.writeDb({
@@ -161,7 +175,9 @@ describe('writePort reminder/content projection events', () => {
   });
 
   it('content.access.grant.create enqueues content.access.granted', async () => {
-    const capture = { projectionInserts: [] as { eventType: string; idempotencyKey: string; payload: unknown }[] };
+    const capture = {
+      projectionInserts: [] as { eventType: string; idempotencyKey: string; payload: unknown }[],
+    };
     const db = makeMockDb(capture);
     const writePort = createDbWritePort({ db });
     await writePort.writeDb({
@@ -183,14 +199,24 @@ describe('writePort reminder/content projection events', () => {
   });
 
   it('reminders.rule.upsert: direct public write succeeds (platform user + one active org resolve) -> writes public.reminder_rules directly, NO outbox fallback, local user_reminder_rules write still happens', async () => {
-    const capture = { projectionInserts: [] as { eventType: string; idempotencyKey: string; payload: unknown }[] };
+    const capture = {
+      projectionInserts: [] as { eventType: string; idempotencyKey: string; payload: unknown }[],
+    };
     const publicInserts: unknown[][] = [];
     const localRuleUpserts: unknown[] = [];
     const query = vi.fn(async (sql: string, params: unknown[]) => {
-      if (typeof sql === 'string' && sql.includes('merged_into_user_id') && sql.includes('FROM users')) {
+      if (
+        typeof sql === 'string' &&
+        sql.includes('merged_into_user_id') &&
+        sql.includes('FROM users')
+      ) {
         return { rows: [{ merged_into_user_id: null }] } as Awaited<ReturnType<DbPort['query']>>;
       }
-      if (typeof sql === 'string' && sql.includes('FROM public.platform_users') && sql.includes('integrator_user_id =')) {
+      if (
+        typeof sql === 'string' &&
+        sql.includes('FROM public.platform_users') &&
+        sql.includes('integrator_user_id =')
+      ) {
         return { rows: [{ id: 'pu-1' }] } as Awaited<ReturnType<DbPort['query']>>;
       }
       if (typeof sql === 'string' && sql.includes('FROM public.org_enrollments')) {
@@ -198,7 +224,9 @@ describe('writePort reminder/content projection events', () => {
       }
       if (typeof sql === 'string' && sql.includes('INSERT INTO public.reminder_rules')) {
         publicInserts.push(params);
-        return { rows: [{ updated_at: '2025-01-01T12:00:00.000Z' }] } as Awaited<ReturnType<DbPort['query']>>;
+        return { rows: [{ updated_at: '2025-01-01T12:00:00.000Z' }] } as Awaited<
+          ReturnType<DbPort['query']>
+        >;
       }
       return { rows: [] } as Awaited<ReturnType<DbPort['query']>>;
     });
@@ -231,7 +259,9 @@ describe('writePort reminder/content projection events', () => {
       },
     });
     // Direct write succeeded -> no reminder.rule.upserted outbox fallback event.
-    expect(capture.projectionInserts.filter((e) => e.eventType === REMINDER_RULE_UPSERTED)).toHaveLength(0);
+    expect(
+      capture.projectionInserts.filter((e) => e.eventType === REMINDER_RULE_UPSERTED),
+    ).toHaveLength(0);
     // ...but the direct public write DID happen, with the full field set (including linkedObjectType/Id,
     // which the OLD narrow projection payload never carried).
     expect(publicInserts).toHaveLength(1);
@@ -264,17 +294,29 @@ describe('writePort reminder/content projection events', () => {
   });
 
   it('reminders.rule.upsert: direct write failure (ambiguous org) falls back to the durable outbox with the SAME narrow payload shape as before D5, plus an operator incident', async () => {
-    const capture = { projectionInserts: [] as { eventType: string; idempotencyKey: string; payload: unknown }[] };
+    const capture = {
+      projectionInserts: [] as { eventType: string; idempotencyKey: string; payload: unknown }[],
+    };
     const query = vi.fn(async (sql: string) => {
-      if (typeof sql === 'string' && sql.includes('merged_into_user_id') && sql.includes('FROM users')) {
+      if (
+        typeof sql === 'string' &&
+        sql.includes('merged_into_user_id') &&
+        sql.includes('FROM users')
+      ) {
         return { rows: [{ merged_into_user_id: null }] } as Awaited<ReturnType<DbPort['query']>>;
       }
-      if (typeof sql === 'string' && sql.includes('FROM public.platform_users') && sql.includes('integrator_user_id =')) {
+      if (
+        typeof sql === 'string' &&
+        sql.includes('FROM public.platform_users') &&
+        sql.includes('integrator_user_id =')
+      ) {
         return { rows: [{ id: 'pu-1' }] } as Awaited<ReturnType<DbPort['query']>>;
       }
       if (typeof sql === 'string' && sql.includes('FROM public.org_enrollments')) {
         // 2 active orgs -> ambiguous, D2's resolveExactActiveOrganizationId fail-closed.
-        return { rows: [{ organization_id: 'org-1' }, { organization_id: 'org-2' }] } as Awaited<ReturnType<DbPort['query']>>;
+        return { rows: [{ organization_id: 'org-1' }, { organization_id: 'org-2' }] } as Awaited<
+          ReturnType<DbPort['query']>
+        >;
       }
       return { rows: [] } as Awaited<ReturnType<DbPort['query']>>;
     });
@@ -307,7 +349,9 @@ describe('writePort reminder/content projection events', () => {
   });
 
   it('reminder.rule.upsert idempotency key is deterministic', async () => {
-    const capture = { projectionInserts: [] as { eventType: string; idempotencyKey: string; payload: unknown }[] };
+    const capture = {
+      projectionInserts: [] as { eventType: string; idempotencyKey: string; payload: unknown }[],
+    };
     const db = makeMockDb(capture);
     const writePort = createDbWritePort({ db });
     await writePort.writeDb({

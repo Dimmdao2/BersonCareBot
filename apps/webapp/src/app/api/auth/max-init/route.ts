@@ -1,29 +1,32 @@
-import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipal';
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import {
   newRegistrationAttemptId,
   recordAuthRegistrationAttempt,
   recordAuthRegistrationFailure,
   recordAuthRegistrationSuccess,
-} from "@/app-layer/product-analytics/recordAuthRegistration";
-import { recordAuthLogin } from "@/app-layer/product-analytics/recordAuthLogin";
-import { isMiniappAuthVerboseServerLogEnabled } from "@/modules/auth/miniappAuthVerboseServerLog";
-import { logAuthRouteTiming } from "@/modules/auth/authRouteObservability";
-import { logger } from "@/app-layer/logging/logger";
-import { PLATFORM_COOKIE_MAX_AGE, PLATFORM_COOKIE_NAME } from "@/shared/lib/platform";
-import { isAuthChannelEnabled } from "@/modules/auth/authChannelPolicy";
+} from '@/app-layer/product-analytics/recordAuthRegistration';
+import { recordAuthLogin } from '@/app-layer/product-analytics/recordAuthLogin';
+import { isMiniappAuthVerboseServerLogEnabled } from '@/modules/auth/miniappAuthVerboseServerLog';
+import { logAuthRouteTiming } from '@/modules/auth/authRouteObservability';
+import { logger } from '@/app-layer/logging/logger';
+import { PLATFORM_COOKIE_MAX_AGE, PLATFORM_COOKIE_NAME } from '@/shared/lib/platform';
+import { isAuthChannelEnabled } from '@/modules/auth/authChannelPolicy';
 
 const bodySchema = z.object({
   initData: z.string().trim().min(1),
 });
 
-const ROUTE = "auth/max-init";
+const ROUTE = 'auth/max-init';
 
 /** Безопасное описание payload: длина и имена query-параметров (значения не логируем). */
-function maxInitDataLogFields(initData: string): { initDataLength: number; initDataKeys: string[] } {
-  const trimmed = initData.trim().replace(/^\?/, "");
+function maxInitDataLogFields(initData: string): {
+  initDataLength: number;
+  initDataKeys: string[];
+} {
+  const trimmed = initData.trim().replace(/^\?/, '');
   try {
     const params = new URLSearchParams(trimmed);
     const keys = [...new Set([...params.keys()])].sort();
@@ -33,20 +36,23 @@ function maxInitDataLogFields(initData: string): { initDataLength: number; initD
   }
 }
 
-function requestDiagnostics(request: Request, correlationId: string | undefined): {
+function requestDiagnostics(
+  request: Request,
+  correlationId: string | undefined,
+): {
   requestUri: string;
   queryArgs: string;
   userAgent: string | null;
-  authFlow: "max_initData";
+  authFlow: 'max_initData';
   correlationId: string | undefined;
 } {
   const u = new URL(request.url);
-  const queryArgs = u.search.startsWith("?") ? u.search.slice(1) : u.search;
+  const queryArgs = u.search.startsWith('?') ? u.search.slice(1) : u.search;
   return {
     requestUri: `${u.pathname}${u.search}`,
     queryArgs,
-    userAgent: request.headers.get("user-agent"),
-    authFlow: "max_initData",
+    userAgent: request.headers.get('user-agent'),
+    authFlow: 'max_initData',
     correlationId,
   };
 }
@@ -56,10 +62,7 @@ function requestDiagnostics(request: Request, correlationId: string | undefined)
  * Подпись: https://dev.max.ru/docs/webapps/validation ; ключ: `max_bot_api_key` в admin settings.
  */
 export async function POST(request: Request) {
-  const correlationId = stampBootstrapPrincipal(
-    "api/auth/max-init:POST",
-    request,
-  );
+  const correlationId = stampBootstrapPrincipal('api/auth/max-init:POST', request);
   const startedAt = Date.now();
   const diag = requestDiagnostics(request, correlationId);
   const raw = (await request.json().catch(() => null)) as unknown;
@@ -67,49 +70,49 @@ export async function POST(request: Request) {
   if (!parsed.success) {
     await recordAuthRegistrationFailure({
       attemptId: newRegistrationAttemptId(),
-      authMethod: "max_init",
-      stage: "start",
-      entryChannel: "max",
-      contactType: "oauth_provider",
-      contactValue: "max",
-      errorCode: "invalid_body",
+      authMethod: 'max_init',
+      stage: 'start',
+      entryChannel: 'max',
+      contactType: 'oauth_provider',
+      contactValue: 'max',
+      errorCode: 'invalid_body',
     });
     logger.warn(
       {
         route: ROUTE,
-        outcome: "invalid_body",
-        messenger: "max",
-        miniappAuthOutcome: "invalid_body",
+        outcome: 'invalid_body',
+        messenger: 'max',
+        miniappAuthOutcome: 'invalid_body',
         ...diag,
         hasInitData: false,
         validationOk: false,
       },
-      "MAX Mini App: запрос без валидного initData в JSON",
+      'MAX Mini App: запрос без валидного initData в JSON',
     );
-    const res = NextResponse.json({ ok: false, error: "initData is required" }, { status: 400 });
+    const res = NextResponse.json({ ok: false, error: 'initData is required' }, { status: 400 });
     logAuthRouteTiming({
       route: ROUTE,
       request,
       startedAt,
       status: 400,
-      outcome: "invalid_body",
-      errorType: "validation",
+      outcome: 'invalid_body',
+      errorType: 'validation',
     });
     return res;
   }
-  if (!(await isAuthChannelEnabled("max"))) {
-    return NextResponse.json({ ok: false, error: "auth_channel_disabled" }, { status: 403 });
+  if (!(await isAuthChannelEnabled('max'))) {
+    return NextResponse.json({ ok: false, error: 'auth_channel_disabled' }, { status: 403 });
   }
   const { initData } = parsed.data;
   const fields = maxInitDataLogFields(initData);
   const attemptId = newRegistrationAttemptId();
   await recordAuthRegistrationAttempt({
     attemptId,
-    authMethod: "max_init",
-    stage: "start",
-    entryChannel: "max",
-    contactType: "oauth_provider",
-    contactValue: "max",
+    authMethod: 'max_init',
+    stage: 'start',
+    entryChannel: 'max',
+    contactType: 'oauth_provider',
+    contactValue: 'max',
   });
 
   const deps = buildAppDeps();
@@ -118,56 +121,56 @@ export async function POST(request: Request) {
     logger.info(
       {
         route: ROUTE,
-        outcome: "verbose_raw_log",
-        messenger: "max",
+        outcome: 'verbose_raw_log',
+        messenger: 'max',
         ...diag,
         initDataRawFull: initData,
       },
-      "MINIAPP_AUTH_VERBOSE: полный initData (MAX), см. journalctl webapp",
+      'MINIAPP_AUTH_VERBOSE: полный initData (MAX), см. journalctl webapp',
     );
   }
 
   logger.info(
     {
       route: ROUTE,
-      outcome: "attempt",
+      outcome: 'attempt',
       ...diag,
       ...fields,
       hasInitData: true,
     },
-    "MAX Mini App: получен initData, проверка подписи",
+    'MAX Mini App: получен initData, проверка подписи',
   );
   const result = await deps.auth.exchangeMaxInitData(initData);
-  if (result && "denied" in result && result.denied) {
+  if (result && 'denied' in result && result.denied) {
     const reason = result.reason;
     await recordAuthRegistrationFailure({
       attemptId,
-      authMethod: "max_init",
-      stage: "session_set",
-      entryChannel: "max",
-      contactType: "oauth_provider",
-      contactValue: "max",
-      errorCode: reason === "max_bot_api_key_missing" ? "config" : "access_denied",
+      authMethod: 'max_init',
+      stage: 'session_set',
+      entryChannel: 'max',
+      contactType: 'oauth_provider',
+      contactValue: 'max',
+      errorCode: reason === 'max_bot_api_key_missing' ? 'config' : 'access_denied',
     });
-    const configMissing = reason === "max_bot_api_key_missing";
+    const configMissing = reason === 'max_bot_api_key_missing';
     logger.warn(
       {
         route: ROUTE,
-        outcome: configMissing ? "max_unavailable" : "access_denied",
+        outcome: configMissing ? 'max_unavailable' : 'access_denied',
         denyReason: reason,
         validationOk: false,
-        miniappAuthOutcome: configMissing ? "max_unavailable" : undefined,
+        miniappAuthOutcome: configMissing ? 'max_unavailable' : undefined,
         ...diag,
         ...fields,
       },
       configMissing
-        ? "MAX Mini App: сервер не настроен (отсутствует max_bot_api_key в system_settings)"
-        : "MAX Mini App: initData не прошёл проверку или доступ запрещён",
+        ? 'MAX Mini App: сервер не настроен (отсутствует max_bot_api_key в system_settings)'
+        : 'MAX Mini App: initData не прошёл проверку или доступ запрещён',
     );
     const res = NextResponse.json(
       configMissing
-        ? { ok: false, error: "max_unavailable", denyReason: reason }
-        : { ok: false, error: "access_denied", denyReason: reason },
+        ? { ok: false, error: 'max_unavailable', denyReason: reason }
+        : { ok: false, error: 'access_denied', denyReason: reason },
       { status: 403 },
     );
     logAuthRouteTiming({
@@ -175,25 +178,25 @@ export async function POST(request: Request) {
       request,
       startedAt,
       status: 403,
-      outcome: configMissing ? "max_unavailable" : "access_denied",
-      errorType: "denied",
+      outcome: configMissing ? 'max_unavailable' : 'access_denied',
+      errorType: 'denied',
     });
     return res;
   }
 
-  if (!result || !("session" in result)) {
+  if (!result || !('session' in result)) {
     logger.warn(
-      { route: ROUTE, outcome: "unexpected_denied", validationOk: false, ...diag, ...fields },
-      "MAX Mini App: неожиданный отказ без session",
+      { route: ROUTE, outcome: 'unexpected_denied', validationOk: false, ...diag, ...fields },
+      'MAX Mini App: неожиданный отказ без session',
     );
-    const res = NextResponse.json({ ok: false, error: "access_denied" }, { status: 403 });
+    const res = NextResponse.json({ ok: false, error: 'access_denied' }, { status: 403 });
     logAuthRouteTiming({
       route: ROUTE,
       request,
       startedAt,
       status: 403,
-      outcome: "unexpected_denied",
-      errorType: "denied",
+      outcome: 'unexpected_denied',
+      errorType: 'denied',
     });
     return res;
   }
@@ -201,17 +204,17 @@ export async function POST(request: Request) {
   const u = exchange.session.user;
   await recordAuthLogin({
     userId: u.userId,
-    entryChannel: "max",
-    authMethod: "max_initData",
+    entryChannel: 'max',
+    authMethod: 'max_initData',
   });
-  if (exchange.accountOutcome === "created") {
+  if (exchange.accountOutcome === 'created') {
     await recordAuthRegistrationSuccess({
       attemptId,
-      authMethod: "max_init",
-      stage: "session_set",
-      entryChannel: "max",
-      contactType: "oauth_provider",
-      contactValue: "max",
+      authMethod: 'max_init',
+      stage: 'session_set',
+      entryChannel: 'max',
+      contactType: 'oauth_provider',
+      contactValue: 'max',
       userId: u.userId,
       isNewAccount: true,
     });
@@ -219,8 +222,8 @@ export async function POST(request: Request) {
   logger.info(
     {
       route: ROUTE,
-      outcome: "ok",
-      miniappAuthOutcome: "session_ok",
+      outcome: 'ok',
+      miniappAuthOutcome: 'session_ok',
       validationOk: true,
       ...diag,
       ...fields,
@@ -228,7 +231,7 @@ export async function POST(request: Request) {
       hasMaxBinding: Boolean(u.bindings?.maxId?.trim()),
       redirectTo: exchange.redirectTo,
     },
-    "MAX Mini App: initData принят, сессия создана",
+    'MAX Mini App: initData принят, сессия создана',
   );
 
   const response = NextResponse.json({
@@ -236,13 +239,13 @@ export async function POST(request: Request) {
     role: exchange.session.user.role,
     redirectTo: exchange.redirectTo,
   });
-  const isProd = process.env.NODE_ENV === "production";
+  const isProd = process.env.NODE_ENV === 'production';
   response.cookies.set({
     name: PLATFORM_COOKIE_NAME,
-    value: "bot",
-    path: "/",
+    value: 'bot',
+    path: '/',
     maxAge: PLATFORM_COOKIE_MAX_AGE,
-    sameSite: isProd ? "none" : "lax",
+    sameSite: isProd ? 'none' : 'lax',
     secure: isProd,
     httpOnly: false,
   });
@@ -251,7 +254,7 @@ export async function POST(request: Request) {
     request,
     startedAt,
     status: 200,
-    outcome: "session_ok",
+    outcome: 'session_ok',
   });
   return response;
 }

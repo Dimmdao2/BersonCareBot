@@ -5,19 +5,19 @@ status: completed
 isProject: false
 todos:
   - id: w3-p13a-catalog-read-write
-    content: "13A: pgBookingCatalog.ts (37) — сначала read paths, затем write paths, без big-bang rewrite."
+    content: '13A: pgBookingCatalog.ts (37) — сначала read paths, затем write paths, без big-bang rewrite.'
     status: completed
   - id: w3-p13b-bookings-appointments
-    content: "13B: pgPatientBookings.ts (15), pgDoctorAppointments.ts (11), pgAppointmentProjection.ts (9), pgBookingCalendarLegacy.ts (1)."
+    content: '13B: pgPatientBookings.ts (15), pgDoctorAppointments.ts (11), pgAppointmentProjection.ts (9), pgBookingCalendarLegacy.ts (1).'
     status: completed
   - id: w3-p13c-doctor-clients-analytics
-    content: "13C: pgDoctorClients.ts (18), pgDoctorAnalyticsMetricAccounts.ts (25), createDoctorClient.ts (7), pgDoctorNotes.ts (2), pgBranches.ts (2)."
+    content: '13C: pgDoctorClients.ts (18), pgDoctorAnalyticsMetricAccounts.ts (25), createDoctorClient.ts (7), pgDoctorNotes.ts (2), pgBranches.ts (2).'
     status: completed
   - id: w3-p13d-motivation-and-tail
-    content: "13D: motivation/actions.ts (thin), pgDoctorMotivationQuotesEditor (writes/reorder), pgDoctorBroadcastDelivery.ts (6), pgDoctorProactiveInsights.ts (5) — SQL в infra."
+    content: '13D: motivation/actions.ts (thin), pgDoctorMotivationQuotesEditor (writes/reorder), pgDoctorBroadcastDelivery.ts (6), pgDoctorProactiveInsights.ts (5) — SQL в infra.'
     status: completed
   - id: w3-p13-verify
-    content: "13E: booking-rubitime-sync consumer tests + doctor clients/appointments/analytics parity checks + rg ноль по scope."
+    content: '13E: booking-rubitime-sync consumer tests + doctor clients/appointments/analytics parity checks + rg ноль по scope.'
     status: completed
 ---
 
@@ -123,22 +123,22 @@ todos:
 
 ## Scope
 
-| Файл | queries |
-|------|---------|
-| `pgBookingCatalog.ts` | 37 |
-| `pgDoctorAnalyticsMetricAccounts.ts` | 25 |
-| `pgDoctorClients.ts` | 18 |
-| `pgPatientBookings.ts` | 15 |
-| `pgDoctorAppointments.ts` | 11 |
-| `motivation/actions.ts` | 0 (13D: thin; baseline 10 → SQL в `pgDoctorMotivationQuotesEditor`) |
-| `pgAppointmentProjection.ts` | 9 |
-| `createDoctorClient.ts` | 7 |
-| `pgBookingCalendarLegacy.ts` | 1 |
-| `pgDoctorBroadcastDelivery.ts` | 6 |
-| `pgDoctorProactiveInsights.ts` | 5 |
-| `pgDoctorNotes.ts` | 2 |
-| `pgBranches.ts` | 2 |
-| `pgDoctorMotivationQuotesEditor.ts` | writes/reorder (13D; list — Drizzle) |
+| Файл                                 | queries                                                             |
+| ------------------------------------ | ------------------------------------------------------------------- |
+| `pgBookingCatalog.ts`                | 37                                                                  |
+| `pgDoctorAnalyticsMetricAccounts.ts` | 25                                                                  |
+| `pgDoctorClients.ts`                 | 18                                                                  |
+| `pgPatientBookings.ts`               | 15                                                                  |
+| `pgDoctorAppointments.ts`            | 11                                                                  |
+| `motivation/actions.ts`              | 0 (13D: thin; baseline 10 → SQL в `pgDoctorMotivationQuotesEditor`) |
+| `pgAppointmentProjection.ts`         | 9                                                                   |
+| `createDoctorClient.ts`              | 7                                                                   |
+| `pgBookingCalendarLegacy.ts`         | 1                                                                   |
+| `pgDoctorBroadcastDelivery.ts`       | 6                                                                   |
+| `pgDoctorProactiveInsights.ts`       | 5                                                                   |
+| `pgDoctorNotes.ts`                   | 2                                                                   |
+| `pgBranches.ts`                      | 2                                                                   |
+| `pgDoctorMotivationQuotesEditor.ts`  | writes/reorder (13D; list — Drizzle)                                |
 
 **Вне scope:** `packages/booking-rubitime-sync` internals.
 

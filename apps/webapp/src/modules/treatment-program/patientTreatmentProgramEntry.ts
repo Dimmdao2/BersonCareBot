@@ -1,14 +1,12 @@
-import { logger } from "@/infra/logging/logger";
-import { pickActivePlanInstance } from "./pickActivePlanInstance";
-import { SECOND_ACTIVE_TREATMENT_PROGRAM_MESSAGE } from "./instance-service";
-import type { TreatmentProgramInstanceSummary } from "./types";
+import { logger } from '@/infra/logging/logger';
+import { pickActivePlanInstance } from './pickActivePlanInstance';
+import { SECOND_ACTIVE_TREATMENT_PROGRAM_MESSAGE } from './instance-service';
+import type { TreatmentProgramInstanceSummary } from './types';
 
 export type PatientTreatmentProgramEntryDeps = {
   treatmentProgramInstance: {
     listForPatient(patientUserId: string): Promise<TreatmentProgramInstanceSummary[]>;
-    ensureDefaultPromoProgramForPatient(params: {
-      patientUserId: string;
-    }): Promise<{ id: string }>;
+    ensureDefaultPromoProgramForPatient(params: { patientUserId: string }): Promise<{ id: string }>;
   };
   treatmentProgram: {
     getTemplate(id: string): Promise<{ status: string } | null>;
@@ -19,9 +17,9 @@ export type PatientTreatmentProgramEntryDeps = {
 };
 
 export type PatientTreatmentProgramEntryResult =
-  | { kind: "redirect"; instanceId: string }
+  | { kind: 'redirect'; instanceId: string }
   | {
-      kind: "list";
+      kind: 'list';
       archived: TreatmentProgramInstanceSummary[];
       promoEnsureFailed: boolean;
     };
@@ -35,7 +33,7 @@ async function tryEnsureDefaultPromoInstanceId(
 
   try {
     const tpl = await deps.treatmentProgram.getTemplate(promoTplId);
-    if (!tpl || tpl.status !== "published") return null;
+    if (!tpl || tpl.status !== 'published') return null;
     const ensured = await deps.treatmentProgramInstance.ensureDefaultPromoProgramForPatient({
       patientUserId,
     });
@@ -48,8 +46,8 @@ async function tryEnsureDefaultPromoInstanceId(
       if (active) return active.id;
     }
     logger.warn({
-      scope: "patient_treatment_entry",
-      event: "ensure_default_promo_failed",
+      scope: 'patient_treatment_entry',
+      event: 'ensure_default_promo_failed',
       patientUserId,
       error: msg,
     });
@@ -68,11 +66,11 @@ export async function resolvePatientTreatmentProgramEntry(
 
   const active = pickActivePlanInstance(list);
   if (active) {
-    return { kind: "redirect", instanceId: active.id };
+    return { kind: 'redirect', instanceId: active.id };
   }
 
   const archived = list
-    .filter((p) => p.status === "completed")
+    .filter((p) => p.status === 'completed')
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || b.id.localeCompare(a.id));
 
   const promoTplId = await deps.systemSettings.getPatientDefaultPromoTreatmentProgramTemplateId();
@@ -80,12 +78,12 @@ export async function resolvePatientTreatmentProgramEntry(
   if (promoTplId?.trim()) {
     const ensuredId = await tryEnsureDefaultPromoInstanceId(deps, patientUserId);
     if (ensuredId) {
-      return { kind: "redirect", instanceId: ensuredId };
+      return { kind: 'redirect', instanceId: ensuredId };
     }
     promoEnsureFailed = true;
   }
 
-  return { kind: "list", archived, promoEnsureFailed };
+  return { kind: 'list', archived, promoEnsureFailed };
 }
 
 /** Active program for reminders / go-targets (promo materialized when needed). */

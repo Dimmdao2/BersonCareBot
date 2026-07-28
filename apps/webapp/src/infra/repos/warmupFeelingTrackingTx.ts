@@ -2,7 +2,7 @@
  * Upsert трекинга `warmup_feeling` внутри Drizzle-транзакции (тот же SQL, что {@link pgSymptomDiary.ensureWarmupFeelingTracking},
  * но на переданном `tx`, чтобы симптом + completion были атомарны с записью симптома).
  */
-import { sql } from "drizzle-orm";
+import { sql } from 'drizzle-orm';
 
 /** Минимальный контракт сессии транзакции Drizzle (node-postgres). */
 export type DrizzleTxExecute = {
@@ -39,6 +39,6 @@ export async function upsertWarmupFeelingTrackingIdInTx(
   `);
   const rows = res.rows as { id: string }[];
   const id = rows[0]?.id;
-  if (!id) throw new Error("warmup_feeling_tracking_upsert_failed");
+  if (!id) throw new Error('warmup_feeling_tracking_upsert_failed');
   return id;
 }

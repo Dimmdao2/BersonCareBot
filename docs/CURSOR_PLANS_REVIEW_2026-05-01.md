@@ -14,10 +14,10 @@
 В корне **`<репо>/.cursor/plans/`** осталось ровно два plan-файла; все остальные репозиторные планы находятся в
 `archive/`. Это не task queue: оперативные статусы берутся из taskdb, а scope — из текущего owner-roadmap.
 
-| План | Текущая трактовка |
-|---|---|
+| План                                         | Текущая трактовка                                                                                                                                                                                                                                                                                                                                                                                    |
+| -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `doctor_communications_client_shell.plan.md` | Исторический implementation artifact. Почти все todos закрыты, но общий `status: pending` и live-verify остались незавершёнными. Его старый product/layout acceptance заменён C1 owner-roadmap и taskdb `#852`; оставшийся технический live-check нужно сопоставить с текущей acceptance, а не возобновлять весь план. Архивировать после этой сверки и owner acceptance соответствующего UI-пакета. |
-| `fio_identity_cleanup.plan.md` | Живой long-running tracker FIO. Frontmatter `fio-7`/`fio-8` отстал от факта: phases 7–8 закрыты taskdb `#856` и initiative README. Файл защищён от механической правки в `#912`; остаток — `#857`/`#858`, оба owner-gated/blocked. |
+| `fio_identity_cleanup.plan.md`               | Живой long-running tracker FIO. Frontmatter `fio-7`/`fio-8` отстал от факта: phases 7–8 закрыты taskdb `#856` и initiative README. Файл защищён от механической правки в `#912`; остаток — `#857`/`#858`, оба owner-gated/blocked.                                                                                                                                                                   |
 
 Канонический execution index: [`INITIATIVES.md`](INITIATIVES.md). Снимок домашнего `~/.cursor/plans` ниже остаётся
 историческим и не должен использоваться для восстановления очереди.
@@ -51,32 +51,32 @@
 
 Помечены в чек-листе `completed` / `status: completed` (где не было) и перенесены в **`archive/2026-05-01-closed/`**:
 
-| Файл | Комментарий |
-|------|----------------|
-| `bersoncare_full_decomposition_18eb957a.plan.md` | Уже был `status: completed`; добавлен `completed_at`. |
-| `patient_ui_standards_e00a01f5.plan.md` | Все todos `completed` → план закрыт. |
-| `patient_nav_fab_removal_bab577f9.plan.md` | Часть пунктов `cancelled` по решению; план закрыт с `executionNote`. |
-| `unified-media-preview-click-pattern_df9abc7e.plan.md` | Все рабочие todos `completed` / отмена осознанная. |
-| `bot_menu_and_max_start_parity_10a46796.plan.md` | Все фазы закрыты или `cancelled`. |
-| `media_upload_&_attachment_377d865c.plan.md` | Все фазы закрыты или `cancelled`. |
+| Файл                                                   | Комментарий                                                          |
+| ------------------------------------------------------ | -------------------------------------------------------------------- |
+| `bersoncare_full_decomposition_18eb957a.plan.md`       | Уже был `status: completed`; добавлен `completed_at`.                |
+| `patient_ui_standards_e00a01f5.plan.md`                | Все todos `completed` → план закрыт.                                 |
+| `patient_nav_fab_removal_bab577f9.plan.md`             | Часть пунктов `cancelled` по решению; план закрыт с `executionNote`. |
+| `unified-media-preview-click-pattern_df9abc7e.plan.md` | Все рабочие todos `completed` / отмена осознанная.                   |
+| `bot_menu_and_max_start_parity_10a46796.plan.md`       | Все фазы закрыты или `cancelled`.                                    |
+| `media_upload_&_attachment_377d865c.plan.md`           | Все фазы закрыты или `cancelled`.                                    |
 
 В **`archive/2026-05-01-obsolete/`** (пустые или дублирующие закрытый контент):
 
-| Файл | Причина |
-|------|---------|
+| Файл                                           | Причина                                                                                                                         |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
 | `fix_migration_orchestration_bedc03f1.plan.md` | Пустой `todos: []` и тело; актуальный закрытый план — `archive/2026-05-01-closed/fix_migration_orchestration_a945a419.plan.md`. |
-| `media_upload_&_attachment_fa8fcec0.plan.md` | Пустой stub; полный план — закрытый `media_upload_&_attachment_377d865c` в том же архиве. |
+| `media_upload_&_attachment_fa8fcec0.plan.md`   | Пустой stub; полный план — закрытый `media_upload_&_attachment_377d865c` в том же архиве.                                       |
 
 ## Архив: волна 2026-05-01 (частично закрытые + Storylama)
 
 Помечены **`status: obsolete`** + `obsolete_reason` / `obsolete_at` и перенесены в **`archive/2026-05-01-obsolete/`**:
 
-| Файл | Пометка |
-|------|---------|
-| `platform_user_merge_&_dedup_a6e3f1c6.plan.md` | Частично по YAML; дальше — по `docs/ARCHITECTURE/PLATFORM_USER_MERGE.md` и логам. |
-| `s3_media_storage_migration_fd9e71d1.plan.md` | Частично; остаток presign/confirm — по текущему коду и деплой-докам. |
-| `web_ui_audit_and_fix_faf118b8.plan.md` | Частично; чек-лист ориентирован на старый webapp/Storylama-наследие в структуре экранов. |
-| `storylama_cleanup_plan_388c3629.plan.md` | План стабилизации репозитория **Storylama**; для BersonCare не ведётся. |
+| Файл                                                                    | Пометка                                                                                             |
+| ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `platform_user_merge_&_dedup_a6e3f1c6.plan.md`                          | Частично по YAML; дальше — по `docs/ARCHITECTURE/PLATFORM_USER_MERGE.md` и логам.                   |
+| `s3_media_storage_migration_fd9e71d1.plan.md`                           | Частично; остаток presign/confirm — по текущему коду и деплой-докам.                                |
+| `web_ui_audit_and_fix_faf118b8.plan.md`                                 | Частично; чек-лист ориентирован на старый webapp/Storylama-наследие в структуре экранов.            |
+| `storylama_cleanup_plan_388c3629.plan.md`                               | План стабилизации репозитория **Storylama**; для BersonCare не ведётся.                             |
 | `лёгкий,_быстрый_и_стабильный_вход_на_всех_платформах_edb6e13c.plan.md` | Инженерные todos закрыты; оставался только блок ручной верификации — не держим как активный трекер. |
 
 ## Счётчики (**снимок на конец ревизии 2026-05-01**, только домашний `~/.cursor/plans`)
@@ -101,13 +101,13 @@
 
 На дату снимка в корне рассматривали **только** планы со **структурированным** списком `todos` / `- id:`.
 
-| Файл | Открытых по YAML | Заметка |
-|------|------------------|---------|
-| `rubitime_booking_rework_d75a62d4.plan.md` | 7 `pending` | Основной открытый трек по очной записи / каталогу. |
-| `integration-keys-db-admin_fffecfed.plan.md` | 6 `pending` | DB-backed интеграционные ключи. |
+| Файл                                                    | Открытых по YAML      | Заметка                                                                                                                              |
+| ------------------------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `rubitime_booking_rework_d75a62d4.plan.md`              | 7 `pending`           | Основной открытый трек по очной записи / каталогу.                                                                                   |
+| `integration-keys-db-admin_fffecfed.plan.md`            | 6 `pending`           | DB-backed интеграционные ключи.                                                                                                      |
 | `notifications_topics_system_settings_450b7cc3.plan.md` | 6 `pending` на снимке | Темы рассылок в `system_settings`; при последующем закрытии всех todo файл переносился в `2026-05-14-closed` (см. каталог на диске). |
-| `fix-booking-rubitime_ad1df272.plan.md` | 0 (все `done`) | Перенесён **2026-05-14** в `~/.cursor/plans/archive/2026-05-14-closed/`. |
-| `quick_durable_ia_cleanup_e4cbf8dd.plan.md` | 0 (все `completed`) | Перенесён **2026-05-14** в `~/.cursor/plans/archive/2026-05-14-closed/`. |
+| `fix-booking-rubitime_ad1df272.plan.md`                 | 0 (все `done`)        | Перенесён **2026-05-14** в `~/.cursor/plans/archive/2026-05-14-closed/`.                                                             |
+| `quick_durable_ia_cleanup_e4cbf8dd.plan.md`             | 0 (все `completed`)   | Перенесён **2026-05-14** в `~/.cursor/plans/archive/2026-05-14-closed/`.                                                             |
 
 **2026-05-14:** из корня **домашнего** каталога дополнительно убрано **67** файлов с полностью закрытыми structured todos (в том числе часть строк выше, не только две последние) — каталог `~/.cursor/plans/archive/2026-05-14-closed/`. Текущий список в корне **не** восстанавливать из этой таблицы — смотреть диск или опираться на **`<репо>/.cursor/plans/`** для задач монорепозитория.
 
@@ -127,4 +127,4 @@
 
 ---
 
-*Путь к планам на машине: `/home/dev/.cursor/plans`. Этот файл в репозитории — фиксация методики и снимка состояния на 2026-05-01 (таблицы ниже по смыслу исторические); актуальные пути к архивам IDE — см. блок 2026-05-14 выше и [`docs/TODO.md`](TODO.md) §Cursor-планы.*
+_Путь к планам на машине: `/home/dev/.cursor/plans`. Этот файл в репозитории — фиксация методики и снимка состояния на 2026-05-01 (таблицы ниже по смыслу исторические); актуальные пути к архивам IDE — см. блок 2026-05-14 выше и [`docs/TODO.md`](TODO.md) §Cursor-планы._

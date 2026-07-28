@@ -1,23 +1,23 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { AlertTriangle } from "lucide-react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { cn } from "@/lib/utils";
-import { getDoctorSectionItemClass } from "@/shared/ui/doctor/doctorVisual";
-import { doctorInlineLinkClass } from "@/shared/ui/doctor/doctorVisual";
-import type { SpecialistTaskRow as Task } from "@/modules/specialist-tasks/types";
-import { isSpecialistTaskOverdue } from "@/modules/specialist-tasks/taskPriority";
-import { patientCardHref } from "@/app/app/doctor/patients/patientCardHref";
-import { DEFAULT_APP_DISPLAY_TIMEZONE } from "@/modules/system-settings/calendarIana";
+import Link from 'next/link';
+import { AlertTriangle } from 'lucide-react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { cn } from '@/lib/utils';
+import { getDoctorSectionItemClass } from '@/shared/ui/doctor/doctorVisual';
+import { doctorInlineLinkClass } from '@/shared/ui/doctor/doctorVisual';
+import type { SpecialistTaskRow as Task } from '@/modules/specialist-tasks/types';
+import { isSpecialistTaskOverdue } from '@/modules/specialist-tasks/taskPriority';
+import { patientCardHref } from '@/app/app/doctor/patients/patientCardHref';
+import { DEFAULT_APP_DISPLAY_TIMEZONE } from '@/modules/system-settings/calendarIana';
 
 function formatWhen(iso: string | null, displayIana?: string): string | null {
   if (!iso) return null;
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return null;
-  return d.toLocaleString("ru-RU", {
-    dateStyle: "short",
-    timeStyle: "short",
+  return d.toLocaleString('ru-RU', {
+    dateStyle: 'short',
+    timeStyle: 'short',
     timeZone: displayIana ?? DEFAULT_APP_DISPLAY_TIMEZONE,
   });
 }
@@ -37,8 +37,8 @@ export function SpecialistTaskRow({ task, onComplete, onEdit, busy, displayIana 
   return (
     <li
       className={cn(
-        "flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between",
-        getDoctorSectionItemClass(overdue || task.isImportant ? "urgent" : "neutral"),
+        'flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between',
+        getDoctorSectionItemClass(overdue || task.isImportant ? 'urgent' : 'neutral'),
       )}
     >
       <div className="min-w-0 flex-1">
@@ -50,7 +50,9 @@ export function SpecialistTaskRow({ task, onComplete, onEdit, busy, displayIana 
               Важное
             </span>
           ) : null}
-          {overdue ? <span className="text-xs font-medium text-destructive">Просрочено</span> : null}
+          {overdue ? (
+            <span className="text-xs font-medium text-destructive">Просрочено</span>
+          ) : null}
           <span className="text-xs text-muted-foreground">Открыта</span>
         </div>
         {/* Patient link (S2.8): show when task is linked to a patient */}
@@ -66,7 +68,9 @@ export function SpecialistTaskRow({ task, onComplete, onEdit, busy, displayIana 
           </p>
         ) : null}
         {formatWhen(task.createdAt, displayIana) ? (
-          <p className="text-xs text-muted-foreground">Поставлена: {formatWhen(task.createdAt, displayIana)}</p>
+          <p className="text-xs text-muted-foreground">
+            Поставлена: {formatWhen(task.createdAt, displayIana)}
+          </p>
         ) : null}
         {dueLabel ? <p className="text-xs text-muted-foreground">Срок: {dueLabel}</p> : null}
         {task.description?.trim() ? (
@@ -74,7 +78,13 @@ export function SpecialistTaskRow({ task, onComplete, onEdit, busy, displayIana 
         ) : null}
       </div>
       <div className="flex shrink-0 gap-2">
-        <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => onEdit(task)}>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={busy}
+          onClick={() => onEdit(task)}
+        >
           Изменить
         </Button>
         <Button type="button" size="sm" disabled={busy} onClick={() => onComplete(task.id)}>

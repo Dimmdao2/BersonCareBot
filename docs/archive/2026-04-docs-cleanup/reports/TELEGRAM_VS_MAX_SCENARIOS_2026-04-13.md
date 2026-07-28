@@ -43,27 +43,27 @@ flowchart LR
 
 ## Таблица: насколько совпадают сценарии
 
-| Область | Telegram | Max | Комментарий |
-|--------|----------|-----|-------------|
-| `/start` без телефона | Reply `request_contact` | Inline `request_contact` | Как раньше |
-| `/start` с телефоном | Reply `chooseMenu` | Inline `main` (3 кнопки) | Один смысл |
-| Deep link `link_*`, `setphone`, Rubitime, `noticeme`, `start.set` | `mapBodyToIncoming` + `messengerStartParse` | `fromMax` + тот же `messengerStartParse` | Паритет |
-| Антидуп голого `/start` | `tryConsumeStart` (только `resource=telegram`) | Пока нет на уровне pipeline | См. INTEGRATOR doc |
-| Запись на приём | `telegram.booking.*` | `max.booking.*`, `/book` | См. TELEGRAM_BOOKING_INLINE_NAV |
-| Slash | Reply-текст | `/book`, `/diary`, `/menu` | MAX_SETUP |
-| Уведомления | Вебапп | Вебапп | Бот-инлайн убран |
-| Произвольный текст | `telegram.default` / draft | `max.default` + draft | Как раньше |
+| Область                                                           | Telegram                                       | Max                                      | Комментарий                     |
+| ----------------------------------------------------------------- | ---------------------------------------------- | ---------------------------------------- | ------------------------------- |
+| `/start` без телефона                                             | Reply `request_contact`                        | Inline `request_contact`                 | Как раньше                      |
+| `/start` с телефоном                                              | Reply `chooseMenu`                             | Inline `main` (3 кнопки)                 | Один смысл                      |
+| Deep link `link_*`, `setphone`, Rubitime, `noticeme`, `start.set` | `mapBodyToIncoming` + `messengerStartParse`    | `fromMax` + тот же `messengerStartParse` | Паритет                         |
+| Антидуп голого `/start`                                           | `tryConsumeStart` (только `resource=telegram`) | Пока нет на уровне pipeline              | См. INTEGRATOR doc              |
+| Запись на приём                                                   | `telegram.booking.*`                           | `max.booking.*`, `/book`                 | См. TELEGRAM_BOOKING_INLINE_NAV |
+| Slash                                                             | Reply-текст                                    | `/book`, `/diary`, `/menu`               | MAX_SETUP                       |
+| Уведомления                                                       | Вебапп                                         | Вебапп                                   | Бот-инлайн убран                |
+| Произвольный текст                                                | `telegram.default` / draft                     | `max.default` + draft                    | Как раньше                      |
 
 ---
 
 ## Документация (синхронизация)
 
-| Документ | Статус |
-|----------|--------|
-| `INTEGRATOR_TELEGRAM_START_SCRIPTS.md` | Max + общий парсер + `MESSENGER_START_SPECIAL_ACTIONS` + debounce Max |
-| `TELEGRAM_BOOKING_INLINE_NAV.md` | Актуально для ветки записи |
-| `ARCHITECTURE/MAX_SETUP.md` | Slash, WebApp, deep link (все `/start` аргументы как в TG) |
-| `ARCHITECTURE/MAX_CAPABILITY_MATRIX.md` | Уточнить при изменении API Max |
+| Документ                                | Статус                                                                |
+| --------------------------------------- | --------------------------------------------------------------------- |
+| `INTEGRATOR_TELEGRAM_START_SCRIPTS.md`  | Max + общий парсер + `MESSENGER_START_SPECIAL_ACTIONS` + debounce Max |
+| `TELEGRAM_BOOKING_INLINE_NAV.md`        | Актуально для ветки записи                                            |
+| `ARCHITECTURE/MAX_SETUP.md`             | Slash, WebApp, deep link (все `/start` аргументы как в TG)            |
+| `ARCHITECTURE/MAX_CAPABILITY_MATRIX.md` | Уточнить при изменении API Max                                        |
 
 ---
 
@@ -75,4 +75,4 @@ flowchart LR
 
 ---
 
-*Отчёт отражает состояние репозитория после сведения меню и паритета `/start`.*
+_Отчёт отражает состояние репозитория после сведения меню и паритета `/start`._

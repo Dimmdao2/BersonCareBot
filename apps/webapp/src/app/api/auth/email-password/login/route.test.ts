@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { getCurrentDbPrincipal } from "@bersoncare/db-principal";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { getCurrentDbPrincipal } from '@bersoncare/db-principal';
 
 const verifyLoginMock = vi.fn();
 const findByUserIdMock = vi.fn();
@@ -15,7 +15,7 @@ const checkAuthConfirmRateLimitMock = vi.fn();
 const waitForPasswordFailureDelayMock = vi.fn();
 const ensureAuthModulePortsBoundMock = vi.fn();
 
-vi.mock("@/app-layer/di/buildAppDeps", () => ({
+vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: () => ({
     userPasswordCredentials: {
       verifyEmailPasswordForLogin: verifyLoginMock,
@@ -24,68 +24,72 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
     },
     userByPhone: { findByUserId: findByUserIdMock },
     userProjection: { updateRole: vi.fn() },
-    staffSecurity: { getStatus: getStatusMock, ensureProfile: ensureProfileMock, beginLogin: beginLoginMock },
+    staffSecurity: {
+      getStatus: getStatusMock,
+      ensureProfile: ensureProfileMock,
+      beginLogin: beginLoginMock,
+    },
     organizationProvisioning: {
       getLatestSpecialistSignupIntentForUser: getLatestSpecialistSignupIntentForUserMock,
     },
   }),
 }));
 
-vi.mock("@/app-layer/di/bindAuthModulePorts", () => ({
+vi.mock('@/app-layer/di/bindAuthModulePorts', () => ({
   ensureAuthModulePortsBound: () => ensureAuthModulePortsBoundMock(),
 }));
 
-vi.mock("@/modules/auth/envRole", () => ({
-  resolveRoleFromEnv: () => "doctor",
+vi.mock('@/modules/auth/envRole', () => ({
+  resolveRoleFromEnv: () => 'doctor',
   reconcileDbRoleWithEnvRole: (role: string) => role,
 }));
 
-vi.mock("@/modules/auth/service", () => ({
+vi.mock('@/modules/auth/service', () => ({
   setSessionFromUser: (...args: unknown[]) => setSessionFromUserMock(...args),
 }));
 
-vi.mock("@/modules/auth/staffLoginContinuation", () => ({
+vi.mock('@/modules/auth/staffLoginContinuation', () => ({
   issueStaffLoginContinuation: (...args: unknown[]) => issueContinuationMock(...args),
 }));
 
-vi.mock("@/modules/auth/authConfirmRateLimit", () => ({
+vi.mock('@/modules/auth/authConfirmRateLimit', () => ({
   AUTH_CONFIRM_RATE_LIMIT_SEC: 600,
   checkAuthConfirmRateLimit: (...args: unknown[]) => checkAuthConfirmRateLimitMock(...args),
 }));
 
-vi.mock("@/modules/auth/passwordLoginProtection", () => ({
+vi.mock('@/modules/auth/passwordLoginProtection', () => ({
   PASSWORD_LOCK_SECONDS: 900,
-  passwordFailurePrincipalId: () => "22222222-2222-4222-8222-222222222222",
+  passwordFailurePrincipalId: () => '22222222-2222-4222-8222-222222222222',
   waitForPasswordFailureDelay: (...args: unknown[]) => waitForPasswordFailureDelayMock(...args),
 }));
 
-import { POST } from "./route";
+import { POST } from './route';
 
 const user = {
-  userId: "11111111-1111-4111-8111-111111111111",
-  role: "doctor" as const,
-  displayName: "Owner Doctor",
+  userId: '11111111-1111-4111-8111-111111111111',
+  role: 'doctor' as const,
+  displayName: 'Owner Doctor',
   bindings: {},
   securityVersion: 1,
   securityFactorRequired: true,
 };
 
 function loginRequest() {
-  return new Request("http://localhost/api/auth/email-password/login", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ email: "owner@example.test", password: "correct-password" }),
+  return new Request('http://localhost/api/auth/email-password/login', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ email: 'owner@example.test', password: 'correct-password' }),
   });
 }
 
-describe("POST /api/auth/email-password/login", () => {
+describe('POST /api/auth/email-password/login', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     checkAuthConfirmRateLimitMock.mockResolvedValue({ limited: false });
     verifyLoginMock.mockResolvedValue({ ok: true, userId: user.userId, emailVerified: true });
     findByUserIdMock.mockImplementation(async (userId: string) => {
       expect(getCurrentDbPrincipal()).toMatchObject({
-        kind: "patient",
+        kind: 'patient',
         platformUserId: userId,
       });
       return user;
@@ -94,19 +98,19 @@ describe("POST /api/auth/email-password/login", () => {
     ensureProfileMock.mockResolvedValue({ enrolled: false, replacementRequired: false });
   });
 
-  it("returns the shared per-IP 429 before parsing credentials", async () => {
+  it('returns the shared per-IP 429 before parsing credentials', async () => {
     checkAuthConfirmRateLimitMock.mockResolvedValueOnce({
       limited: true,
-      reason: "rate_limited",
+      reason: 'rate_limited',
     });
 
     const response = await POST(loginRequest());
 
     expect(response.status).toBe(429);
-    expect(response.headers.get("Retry-After")).toBe("600");
+    expect(response.headers.get('Retry-After')).toBe('600');
     await expect(response.json()).resolves.toMatchObject({
       ok: false,
-      error: "rate_limited",
+      error: 'rate_limited',
       retryAfterSeconds: 600,
     });
     expect(verifyLoginMock).not.toHaveBeenCalled();
@@ -116,10 +120,10 @@ describe("POST /api/auth/email-password/login", () => {
     );
   });
 
-  it("returns proxy_configuration when the shared IP chokepoint cannot resolve a trusted key", async () => {
+  it('returns proxy_configuration when the shared IP chokepoint cannot resolve a trusted key', async () => {
     checkAuthConfirmRateLimitMock.mockResolvedValueOnce({
       limited: true,
-      reason: "proxy_configuration",
+      reason: 'proxy_configuration',
     });
 
     const response = await POST(loginRequest());
@@ -127,12 +131,12 @@ describe("POST /api/auth/email-password/login", () => {
     expect(response.status).toBe(503);
     await expect(response.json()).resolves.toMatchObject({
       ok: false,
-      error: "proxy_configuration",
+      error: 'proxy_configuration',
     });
     expect(verifyLoginMock).not.toHaveBeenCalled();
   });
 
-  it("keeps existing-account and nonexistent-account password failures identical, including delay", async () => {
+  it('keeps existing-account and nonexistent-account password failures identical, including delay', async () => {
     const failure = {
       ok: false as const,
       passwordChecked: true,
@@ -154,14 +158,14 @@ describe("POST /api/auth/email-password/login", () => {
     expect(existingBody).toEqual(missingBody);
     expect(existingBody).toEqual({
       ok: false,
-      error: "invalid_credentials",
-      message: "Email или пароль неверны. Проверьте данные или восстановите пароль.",
+      error: 'invalid_credentials',
+      message: 'Email или пароль неверны. Проверьте данные или восстановите пароль.',
     });
     expect(waitForPasswordFailureDelayMock.mock.calls).toEqual([[30], [30]]);
     expect(recordFailedPasswordAttemptMock).toHaveBeenCalledTimes(2);
   });
 
-  it("returns the same temporary lock response on the tenth failure for any identifier", async () => {
+  it('returns the same temporary lock response on the tenth failure for any identifier', async () => {
     const locked = {
       ok: false as const,
       passwordChecked: true,
@@ -179,11 +183,11 @@ describe("POST /api/auth/email-password/login", () => {
 
     expect(existingResponse.status).toBe(429);
     expect(missingResponse.status).toBe(429);
-    expect(existingResponse.headers.get("Retry-After")).toBe("900");
+    expect(existingResponse.headers.get('Retry-After')).toBe('900');
     expect(await existingResponse.json()).toEqual(await missingResponse.json());
   });
 
-  it("does not extend an already active account lock", async () => {
+  it('does not extend an already active account lock', async () => {
     verifyLoginMock.mockResolvedValueOnce({
       ok: false,
       accountUserId: user.userId,
@@ -197,28 +201,25 @@ describe("POST /api/auth/email-password/login", () => {
     const response = await POST(loginRequest());
 
     expect(response.status).toBe(429);
-    expect(response.headers.get("Retry-After")).toBe("61");
+    expect(response.headers.get('Retry-After')).toBe('61');
     expect(recordFailedPasswordAttemptMock).not.toHaveBeenCalled();
   });
 
-  it("resets the account counter after a successful primary password proof", async () => {
+  it('resets the account counter after a successful primary password proof', async () => {
     getStatusMock.mockResolvedValue(null);
 
     const response = await POST(loginRequest());
 
     expect(response.status).toBe(200);
-    expect(resetFailedPasswordAttemptsMock).toHaveBeenCalledWith(
-      user.userId,
-      "owner@example.test",
-    );
+    expect(resetFailedPasswordAttemptsMock).toHaveBeenCalledWith(user.userId, 'owner@example.test');
   });
 
-  it("does not issue a staff session before the enrolled factor is completed", async () => {
+  it('does not issue a staff session before the enrolled factor is completed', async () => {
     getStatusMock.mockResolvedValue({ enrolled: true, replacementRequired: false });
     beginLoginMock.mockResolvedValue({
       required: true,
-      token: "one-time-login-token",
-      expiresAt: "2030-01-01T00:00:00.000Z",
+      token: 'one-time-login-token',
+      expiresAt: '2030-01-01T00:00:00.000Z',
       replacementRequired: false,
     });
 
@@ -227,61 +228,67 @@ describe("POST /api/auth/email-password/login", () => {
     await expect(response.json()).resolves.toEqual({ ok: true, factorRequired: true });
     expect(issueContinuationMock).toHaveBeenCalledWith({
       userId: user.userId,
-      token: "one-time-login-token",
-      expiresAt: "2030-01-01T00:00:00.000Z",
+      token: 'one-time-login-token',
+      expiresAt: '2030-01-01T00:00:00.000Z',
     });
     expect(setSessionFromUserMock).not.toHaveBeenCalled();
   });
 
-  it("issues only a restricted enrollment session for a new self-signup profile", async () => {
+  it('issues only a restricted enrollment session for a new self-signup profile', async () => {
     getStatusMock.mockResolvedValue({ enrolled: false, replacementRequired: false });
 
     const response = await POST(loginRequest());
     await expect(response.json()).resolves.toEqual({
       ok: true,
-      redirectTo: "/app/account?tab=security",
+      redirectTo: '/app/account?tab=security',
     });
     expect(setSessionFromUserMock).toHaveBeenCalledWith(user, {
-      staffSecurity: { assurance: "pending_enrollment" },
+      staffSecurity: { assurance: 'pending_enrollment' },
     });
   });
 
-  it("keeps legacy staff login compatible until that account explicitly starts enrollment", async () => {
+  it('keeps legacy staff login compatible until that account explicitly starts enrollment', async () => {
     getStatusMock.mockResolvedValue(null);
     const response = await POST(loginRequest());
     expect(response.status).toBe(200);
     expect(setSessionFromUserMock).toHaveBeenCalledWith(user, {});
   });
 
-  it("recovers a verified specialist signup without granting an unrestricted legacy session", async () => {
+  it('recovers a verified specialist signup without granting an unrestricted legacy session', async () => {
     getStatusMock.mockResolvedValue(null);
     getLatestSpecialistSignupIntentForUserMock.mockResolvedValue({
-      id: "intent-1",
+      id: 'intent-1',
       userId: user.userId,
-      status: "pending",
+      status: 'pending',
     });
 
     const response = await POST(loginRequest());
     expect(response.status).toBe(200);
     expect(ensureProfileMock).toHaveBeenCalledWith();
     expect(setSessionFromUserMock).toHaveBeenCalledWith(
-      { ...user, role: "doctor" },
-      { staffSecurity: { assurance: "pending_enrollment" } },
+      { ...user, role: 'doctor' },
+      { staffSecurity: { assurance: 'pending_enrollment' } },
     );
     await expect(response.json()).resolves.toEqual({
       ok: true,
-      redirectTo: "/app/account?tab=security",
+      redirectTo: '/app/account?tab=security',
     });
   });
 
-  it("fails closed when secure signup recovery cannot initialize", async () => {
+  it('fails closed when secure signup recovery cannot initialize', async () => {
     getStatusMock.mockResolvedValue(null);
-    getLatestSpecialistSignupIntentForUserMock.mockResolvedValue({ id: "intent-1", userId: user.userId });
-    ensureProfileMock.mockRejectedValue(new Error("database_unavailable"));
+    getLatestSpecialistSignupIntentForUserMock.mockResolvedValue({
+      id: 'intent-1',
+      userId: user.userId,
+    });
+    ensureProfileMock.mockRejectedValue(new Error('database_unavailable'));
 
     const response = await POST(loginRequest());
     expect(response.status).toBe(503);
     expect(setSessionFromUserMock).not.toHaveBeenCalled();
-    await expect(response.json()).resolves.toMatchObject({ ok: false, error: "security_setup_pending" });
+    await expect(response.json()).resolves.toMatchObject({
+      ok: false,
+      error: 'security_setup_pending',
+    });
   });
 });

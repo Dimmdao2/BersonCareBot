@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 /**
  * Микро-график (полоски) статистики выполнения упражнения за последнюю неделю.
@@ -13,8 +13,8 @@
  * Канон: h-8 контролы, text-xs, text-[10px] для осей, без теней, rounded-md.
  */
 
-import { cn } from "@/lib/utils";
-import type { LfkPostSessionDifficulty } from "@/modules/treatment-program/types";
+import { cn } from '@/lib/utils';
+import type { LfkPostSessionDifficulty } from '@/modules/treatment-program/types';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -26,33 +26,33 @@ export type ExerciseMetricPoint = {
   difficulty: LfkPostSessionDifficulty | null;
 };
 
-type MetricKey = "reps" | "weightKg" | "sets" | "difficulty";
+type MetricKey = 'reps' | 'weightKg' | 'sets' | 'difficulty';
 
 const METRIC_LABELS: Record<MetricKey, string> = {
-  reps: "повт.",
-  weightKg: "кг",
-  sets: "подх.",
-  difficulty: "тяжесть",
+  reps: 'повт.',
+  weightKg: 'кг',
+  sets: 'подх.',
+  difficulty: 'тяжесть',
 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function difficultyColor(d: LfkPostSessionDifficulty): string {
-  if (d === "easy") return "bg-emerald-500";
-  if (d === "medium") return "bg-amber-400";
-  return "bg-destructive";
+  if (d === 'easy') return 'bg-emerald-500';
+  if (d === 'medium') return 'bg-amber-400';
+  return 'bg-destructive';
 }
 
 function difficultyLabel(d: LfkPostSessionDifficulty): string {
-  if (d === "easy") return "легко";
-  if (d === "medium") return "норм.";
-  return "тяжело";
+  if (d === 'easy') return 'легко';
+  if (d === 'medium') return 'норм.';
+  return 'тяжело';
 }
 
 function formatDate(iso: string): string {
   const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleString("ru-RU", { day: "2-digit", month: "2-digit" });
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit' });
 }
 
 /**
@@ -79,9 +79,7 @@ function MetricRow({ label, points, renderBar }: MetricRowProps) {
       <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
         {label}
       </span>
-      <div className="flex items-end gap-1">
-        {points.map((p, i) => renderBar(p, i))}
-      </div>
+      <div className="flex items-end gap-1">{points.map((p, i) => renderBar(p, i))}</div>
     </div>
   );
 }
@@ -124,7 +122,7 @@ function DifficultyBar({ value, dateLabel }: DifficultyBarProps) {
       className="flex flex-col items-center gap-0.5"
       title={`${dateLabel}: ${difficultyLabel(value)}`}
     >
-      <div className={cn("w-3 h-3 rounded-full", difficultyColor(value))} />
+      <div className={cn('w-3 h-3 rounded-full', difficultyColor(value))} />
       <span className="text-[9px] text-muted-foreground leading-none">{dateLabel}</span>
     </div>
   );
@@ -140,7 +138,7 @@ type ExerciseMicroChartProps = {
 export function ExerciseMicroChart({ points, className }: ExerciseMicroChartProps) {
   if (points.length === 0) {
     return (
-      <p className={cn("text-[10px] text-muted-foreground", className)}>
+      <p className={cn('text-[10px] text-muted-foreground', className)}>
         Нет данных за последние 7 дней
       </p>
     );
@@ -155,28 +153,22 @@ export function ExerciseMicroChart({ points, className }: ExerciseMicroChartProp
   const hasSets = ordered.some((p) => p.sets !== null);
   const hasDifficulty = ordered.some((p) => p.difficulty !== null);
 
-  const maxReps = hasReps
-    ? Math.max(...ordered.map((p) => p.reps ?? 0))
-    : 0;
-  const maxWeightKg = hasWeightKg
-    ? Math.max(...ordered.map((p) => p.weightKg ?? 0))
-    : 0;
-  const maxSets = hasSets
-    ? Math.max(...ordered.map((p) => p.sets ?? 0))
-    : 0;
+  const maxReps = hasReps ? Math.max(...ordered.map((p) => p.reps ?? 0)) : 0;
+  const maxWeightKg = hasWeightKg ? Math.max(...ordered.map((p) => p.weightKg ?? 0)) : 0;
+  const maxSets = hasSets ? Math.max(...ordered.map((p) => p.sets ?? 0)) : 0;
 
   const hasAnyMetric = hasReps || hasWeightKg || hasSets || hasDifficulty;
 
   if (!hasAnyMetric) {
     return (
-      <p className={cn("text-[10px] text-muted-foreground", className)}>
+      <p className={cn('text-[10px] text-muted-foreground', className)}>
         Выполнено {ordered.length} раз, метрики не зафиксированы
       </p>
     );
   }
 
   return (
-    <div className={cn("flex flex-row flex-wrap items-start gap-x-4 gap-y-2", className)}>
+    <div className={cn('flex flex-row flex-wrap items-start gap-x-4 gap-y-2', className)}>
       {hasReps && (
         <MetricRow
           label={METRIC_LABELS.reps}
@@ -228,11 +220,7 @@ export function ExerciseMicroChart({ points, className }: ExerciseMicroChartProp
           label={METRIC_LABELS.difficulty}
           points={ordered.filter((p) => p.difficulty !== null)}
           renderBar={(p, i) => (
-            <DifficultyBar
-              key={i}
-              value={p.difficulty!}
-              dateLabel={formatDate(p.at)}
-            />
+            <DifficultyBar key={i} value={p.difficulty!} dateLabel={formatDate(p.at)} />
           )}
         />
       )}

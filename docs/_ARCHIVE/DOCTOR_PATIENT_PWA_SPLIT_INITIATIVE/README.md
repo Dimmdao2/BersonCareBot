@@ -17,11 +17,11 @@ Staff runtime: `/app/doctor/**`, `/app/settings/**`, `/app/admin/**`, guards, do
 
 ## Цели (выполнены)
 
-| Волна | Цель |
-|-------|------|
-| **1** | Кабинет специалиста — самостоятельный runtime в браузере (guards, CSS, redirects) |
-| **2 §A** | Cross-zone block + toast на своём hub (без forbidden-экранов) |
-| **2 §B** | Staff PWA: manifest, иконки BersonAdmin, install, SW register |
+| Волна       | Цель                                                                                                                                                                             |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **1**       | Кабинет специалиста — самостоятельный runtime в браузере (guards, CSS, redirects)                                                                                                |
+| **2 §A**    | Cross-zone block + toast на своём hub (без forbidden-экранов)                                                                                                                    |
+| **2 §B**    | Staff PWA: manifest, иконки BersonAdmin, install, SW register                                                                                                                    |
 | **post-§B** | Staff web push + матрица каналов (`/app/settings`, `/api/doctor/web-push/*`); **push — основной канал** — [`NOTIFICATION_CHANNELS.md`](../ARCHITECTURE/NOTIFICATION_CHANNELS.md) |
 
 UI/CSS split закрыт ранее: [`PATIENT_DOCTOR_UI_SPLIT`](../archive/2026-06-initiatives/PATIENT_DOCTOR_UI_SPLIT_INITIATIVE/README.md).
@@ -49,13 +49,13 @@ UI/CSS split закрыт ранее: [`PATIENT_DOCTOR_UI_SPLIT`](../archive/202
 
 ## Код
 
-| Область | Файлы |
-|---------|--------|
-| Doctor layout + CSS | `doctor/layout.tsx`, `styles/doctor.css` |
-| Settings / admin | `settings/layout.tsx`, `admin/layout.tsx` |
-| Guards §A | `requireRole.ts` |
-| Toast §A | `appAccessDeniedToast.ts`, `AppAccessDeniedToastEffect.tsx`; shells + `LandingPwaClientBootstrap` |
-| Staff PWA §B | `staffPwaManifest.ts`, `staffPwaLayoutMetadata.ts`, `staffPwaInstallState.ts`, `manifest-staff.webmanifest/route.ts`, `doctor/install/page.tsx`, `StaffPwaBootstrap`, `StaffPwaInstallSection`, `public/staff-pwa-icon-*` |
-| Staff push | `modules/doctor-notifications/`, `api/doctor/web-push/*`, `DoctorNotificationChannelsSection`, `StaffWebPushBootstrap`, `staffWebPushApi.ts` |
-| Навигация install | `routePaths.doctorInstall`, `DoctorAdminSidebar`, `DoctorHeader` Sheet |
-| Тесты | **63** fast (49 §A+§B + 14 staff push) — [`WAVE2_STAFF_PWA.md`](WAVE2_STAFF_PWA.md) §Проверки |
+| Область             | Файлы                                                                                                                                                                                                                     |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Doctor layout + CSS | `doctor/layout.tsx`, `styles/doctor.css`                                                                                                                                                                                  |
+| Settings / admin    | `settings/layout.tsx`, `admin/layout.tsx`                                                                                                                                                                                 |
+| Guards §A           | `requireRole.ts`                                                                                                                                                                                                          |
+| Toast §A            | `appAccessDeniedToast.ts`, `AppAccessDeniedToastEffect.tsx`; shells + `LandingPwaClientBootstrap`                                                                                                                         |
+| Staff PWA §B        | `staffPwaManifest.ts`, `staffPwaLayoutMetadata.ts`, `staffPwaInstallState.ts`, `manifest-staff.webmanifest/route.ts`, `doctor/install/page.tsx`, `StaffPwaBootstrap`, `StaffPwaInstallSection`, `public/staff-pwa-icon-*` |
+| Staff push          | `modules/doctor-notifications/`, `api/doctor/web-push/*`, `DoctorNotificationChannelsSection`, `StaffWebPushBootstrap`, `staffWebPushApi.ts`                                                                              |
+| Навигация install   | `routePaths.doctorInstall`, `DoctorAdminSidebar`, `DoctorHeader` Sheet                                                                                                                                                    |
+| Тесты               | **63** fast (49 §A+§B + 14 staff push) — [`WAVE2_STAFF_PWA.md`](WAVE2_STAFF_PWA.md) §Проверки                                                                                                                             |

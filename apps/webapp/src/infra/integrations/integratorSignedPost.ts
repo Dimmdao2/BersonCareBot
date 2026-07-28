@@ -1,26 +1,29 @@
-import { createHmac } from "node:crypto";
-import { getCurrentCorrelationIdHeader } from "@bersoncare/db-principal";
-import { getIntegratorApiUrl, getIntegratorWebhookSecret } from "@/modules/system-settings/integrationRuntime";
+import { createHmac } from 'node:crypto';
+import { getCurrentCorrelationIdHeader } from '@bersoncare/db-principal';
+import {
+  getIntegratorApiUrl,
+  getIntegratorWebhookSecret,
+} from '@/modules/system-settings/integrationRuntime';
 
 export async function postIntegratorSignedJson(
   path: string,
-  body: unknown
+  body: unknown,
 ): Promise<{ ok: boolean; status: number; json: unknown; text?: string }> {
   const base = (await getIntegratorApiUrl()).trim();
   const secret = (await getIntegratorWebhookSecret()).trim();
   if (!base || !secret) {
-    return { ok: false, status: 0, json: { error: "integrator_not_configured" } };
+    return { ok: false, status: 0, json: { error: 'integrator_not_configured' } };
   }
   const raw = JSON.stringify(body);
   const timestamp = String(Math.floor(Date.now() / 1000));
-  const signature = createHmac("sha256", secret).update(`${timestamp}.${raw}`).digest("base64url");
-  const url = `${base.replace(/\/$/, "")}${path.startsWith("/") ? path : `/${path}`}`;
+  const signature = createHmac('sha256', secret).update(`${timestamp}.${raw}`).digest('base64url');
+  const url = `${base.replace(/\/$/, '')}${path.startsWith('/') ? path : `/${path}`}`;
   const res = await fetch(url, {
-    method: "POST",
+    method: 'POST',
     headers: {
-      "Content-Type": "application/json",
-      "X-Bersoncare-Timestamp": timestamp,
-      "X-Bersoncare-Signature": signature,
+      'Content-Type': 'application/json',
+      'X-Bersoncare-Timestamp': timestamp,
+      'X-Bersoncare-Signature': signature,
       ...getCurrentCorrelationIdHeader(),
     },
     body: raw,

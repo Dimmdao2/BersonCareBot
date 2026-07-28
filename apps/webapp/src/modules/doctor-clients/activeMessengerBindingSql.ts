@@ -26,7 +26,7 @@ export function sqlActiveMessengerBinding(userIdExpr: string): string {
   )`;
 }
 
-export function sqlMessengerBotBlocked(userIdExpr: string, channel: "telegram" | "max"): string {
+export function sqlMessengerBotBlocked(userIdExpr: string, channel: 'telegram' | 'max'): string {
   return `EXISTS (
     SELECT 1 FROM user_channel_bindings ucb
     WHERE ucb.user_id = ${userIdExpr}

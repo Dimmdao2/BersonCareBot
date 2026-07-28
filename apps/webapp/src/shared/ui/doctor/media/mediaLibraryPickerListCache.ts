@@ -1,4 +1,4 @@
-import type { MediaListItem } from "@/shared/ui/doctor/media/MediaPickerList";
+import type { MediaListItem } from '@/shared/ui/doctor/media/MediaPickerList';
 
 export type MediaLibraryPickerListCacheEntry = {
   items: MediaListItem[];
@@ -10,7 +10,9 @@ export type MediaLibraryPickerListCacheEntry = {
 /** Server-fetched rows keyed by full `listUrl` (kind, folder, sort, q, limit; offset always 0). */
 const mediaLibraryPickerListCache = new Map<string, MediaLibraryPickerListCacheEntry>();
 
-export function getMediaLibraryPickerListCached(listUrl: string): MediaLibraryPickerListCacheEntry | undefined {
+export function getMediaLibraryPickerListCached(
+  listUrl: string,
+): MediaLibraryPickerListCacheEntry | undefined {
   return mediaLibraryPickerListCache.get(listUrl);
 }
 

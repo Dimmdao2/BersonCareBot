@@ -11,19 +11,19 @@
  *
  * Defaults to --dry-run. Use --commit to write.
  */
-import "dotenv/config";
-import pg from "pg";
-import { loadCutoverEnv } from "../../../scripts/load-cutover-env.mjs";
+import 'dotenv/config';
+import pg from 'pg';
+import { loadCutoverEnv } from '../../../scripts/load-cutover-env.mjs';
 
 const args = process.argv.slice(2);
 loadCutoverEnv();
-const dryRun = args.includes("--dry-run") || !args.includes("--commit");
-const limitArg = args.find((a) => a.startsWith("--limit="));
+const dryRun = args.includes('--dry-run') || !args.includes('--commit');
+const limitArg = args.find((a) => a.startsWith('--limit='));
 /** Safe row cap for backfill (avoids accidental huge LIMIT / NaN in SQL). */
 const MAX_BACKFILL_LIMIT = 500_000;
 function parseBackfillLimit(arg) {
-  if (!arg || !arg.includes("=")) return 0;
-  const raw = arg.slice(arg.indexOf("=") + 1);
+  if (!arg || !arg.includes('=')) return 0;
+  const raw = arg.slice(arg.indexOf('=') + 1);
   const n = parseInt(String(raw), 10);
   if (!Number.isFinite(n) || n < 0) return 0;
   return Math.min(n, MAX_BACKFILL_LIMIT);
@@ -34,16 +34,16 @@ const sourceUrl = process.env.INTEGRATOR_DATABASE_URL || process.env.SOURCE_DATA
 const targetUrl = process.env.DATABASE_URL;
 
 if (!sourceUrl?.trim()) {
-  console.error("INTEGRATOR_DATABASE_URL or SOURCE_DATABASE_URL is not set");
+  console.error('INTEGRATOR_DATABASE_URL or SOURCE_DATABASE_URL is not set');
   process.exit(1);
 }
 if (!targetUrl?.trim()) {
-  console.error("DATABASE_URL is not set");
+  console.error('DATABASE_URL is not set');
   process.exit(1);
 }
 
 if (dryRun) {
-  console.log("[DRY-RUN] No writes. Pass --commit to write.");
+  console.log('[DRY-RUN] No writes. Pass --commit to write.');
 }
 
 const BACKFILL_WRITE_BATCH = 1000;
@@ -55,18 +55,18 @@ async function main() {
   await src.connect();
   await dst.connect();
 
-  const limitClause = limit > 0 ? ` LIMIT ${limit}` : "";
+  const limitClause = limit > 0 ? ` LIMIT ${limit}` : '';
 
   try {
     // mailing_topics
     const { rows: topics } = await src.query(
-      `SELECT id, code, title, key, is_active FROM mailing_topics ORDER BY id${limitClause}`
+      `SELECT id, code, title, key, is_active FROM mailing_topics ORDER BY id${limitClause}`,
     );
     console.log(`mailing_topics to backfill: ${topics.length}`);
     if (!dryRun && topics.length > 0) {
       for (let i = 0; i < topics.length; i += BACKFILL_WRITE_BATCH) {
         const chunk = topics.slice(i, i + BACKFILL_WRITE_BATCH);
-        await dst.query("BEGIN");
+        await dst.query('BEGIN');
         try {
           for (const row of chunk) {
             await dst.query(
@@ -75,13 +75,13 @@ async function main() {
            ON CONFLICT (integrator_topic_id) DO UPDATE SET
              code = EXCLUDED.code, title = EXCLUDED.title, key = EXCLUDED.key,
              is_active = EXCLUDED.is_active, updated_at = now()`,
-              [String(row.id), row.code, row.title, row.key, row.is_active ?? true]
+              [String(row.id), row.code, row.title, row.key, row.is_active ?? true],
             );
           }
-          await dst.query("COMMIT");
+          await dst.query('COMMIT');
         } catch (err) {
           try {
-            await dst.query("ROLLBACK");
+            await dst.query('ROLLBACK');
           } catch {
             // Best effort rollback; preserve original batch error.
           }
@@ -92,13 +92,13 @@ async function main() {
 
     // user_subscriptions
     const { rows: subs } = await src.query(
-      `SELECT user_id, topic_id, is_active, updated_at FROM user_subscriptions ORDER BY user_id, topic_id${limitClause}`
+      `SELECT user_id, topic_id, is_active, updated_at FROM user_subscriptions ORDER BY user_id, topic_id${limitClause}`,
     );
     console.log(`user_subscriptions to backfill: ${subs.length}`);
     if (!dryRun && subs.length > 0) {
       for (let i = 0; i < subs.length; i += BACKFILL_WRITE_BATCH) {
         const chunk = subs.slice(i, i + BACKFILL_WRITE_BATCH);
-        await dst.query("BEGIN");
+        await dst.query('BEGIN');
         try {
           for (const row of chunk) {
             await dst.query(
@@ -106,13 +106,18 @@ async function main() {
            VALUES ($1, $2, $3, $4::timestamptz)
            ON CONFLICT (integrator_user_id, integrator_topic_id) DO UPDATE SET
              is_active = EXCLUDED.is_active, updated_at = EXCLUDED.updated_at`,
-              [String(row.user_id), String(row.topic_id), row.is_active ?? true, row.updated_at ?? new Date().toISOString()]
+              [
+                String(row.user_id),
+                String(row.topic_id),
+                row.is_active ?? true,
+                row.updated_at ?? new Date().toISOString(),
+              ],
             );
           }
-          await dst.query("COMMIT");
+          await dst.query('COMMIT');
         } catch (err) {
           try {
-            await dst.query("ROLLBACK");
+            await dst.query('ROLLBACK');
           } catch {
             // Best effort rollback; preserve original batch error.
           }
@@ -123,26 +128,32 @@ async function main() {
 
     // mailing_logs (integrator column is "error", webapp is "error_text")
     const { rows: logs } = await src.query(
-      `SELECT user_id, mailing_id, status, sent_at, error FROM mailing_logs ORDER BY user_id, mailing_id${limitClause}`
+      `SELECT user_id, mailing_id, status, sent_at, error FROM mailing_logs ORDER BY user_id, mailing_id${limitClause}`,
     );
     console.log(`mailing_logs to backfill: ${logs.length}`);
     if (!dryRun && logs.length > 0) {
       for (let i = 0; i < logs.length; i += BACKFILL_WRITE_BATCH) {
         const chunk = logs.slice(i, i + BACKFILL_WRITE_BATCH);
-        await dst.query("BEGIN");
+        await dst.query('BEGIN');
         try {
           for (const row of chunk) {
             await dst.query(
               `INSERT INTO mailing_logs_webapp (integrator_user_id, integrator_mailing_id, status, sent_at, error_text)
            VALUES ($1, $2, $3, $4::timestamptz, $5)
            ON CONFLICT (integrator_user_id, integrator_mailing_id) DO NOTHING`,
-              [String(row.user_id), String(row.mailing_id), row.status, row.sent_at ?? new Date().toISOString(), row.error ?? null]
+              [
+                String(row.user_id),
+                String(row.mailing_id),
+                row.status,
+                row.sent_at ?? new Date().toISOString(),
+                row.error ?? null,
+              ],
             );
           }
-          await dst.query("COMMIT");
+          await dst.query('COMMIT');
         } catch (err) {
           try {
-            await dst.query("ROLLBACK");
+            await dst.query('ROLLBACK');
           } catch {
             // Best effort rollback; preserve original batch error.
           }
@@ -151,7 +162,7 @@ async function main() {
       }
     }
 
-    console.log("Backfill subscription/mailing domain done.");
+    console.log('Backfill subscription/mailing domain done.');
   } finally {
     await src.end();
     await dst.end();

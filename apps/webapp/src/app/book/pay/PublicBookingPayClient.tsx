@@ -1,10 +1,10 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
-import { Button } from "@/shared/ui/patient/primitives/button";
-import { publicBookPaths } from "@/shared/publicBook/paths";
-import toast from "react-hot-toast";
+import { useCallback, useEffect, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
+import { Button } from '@/shared/ui/patient/primitives/button';
+import { publicBookPaths } from '@/shared/publicBook/paths';
+import toast from 'react-hot-toast';
 
 type Props = { bookingId: string; contactPhone: string };
 
@@ -25,7 +25,7 @@ export function PublicBookingPayClient({ bookingId, contactPhone }: Props) {
       error?: string;
     };
     if (!json.ok) {
-      setError(json.error ?? "load_failed");
+      setError(json.error ?? 'load_failed');
       return;
     }
     setIntentId(json.intentId ?? null);
@@ -41,23 +41,25 @@ export function PublicBookingPayClient({ bookingId, contactPhone }: Props) {
   function payMock() {
     if (!intentId) return;
     startTransition(async () => {
-      const res = await fetch("/api/booking/public/payments/mock-complete", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const res = await fetch('/api/booking/public/payments/mock-complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ intentId, bookingId, contactPhone }),
       });
       const json = (await res.json()) as { ok?: boolean; error?: string };
       if (!json.ok) {
-        setError(json.error ?? "payment_failed");
+        setError(json.error ?? 'payment_failed');
         return;
       }
-      toast.success("Оплата прошла");
+      toast.success('Оплата прошла');
       router.push(publicBookPaths.done);
     });
   }
 
   const amountRub =
-    amountMinor != null ? (amountMinor / 100).toLocaleString("ru-RU", { style: "currency", currency: "RUB" }) : null;
+    amountMinor != null
+      ? (amountMinor / 100).toLocaleString('ru-RU', { style: 'currency', currency: 'RUB' })
+      : null;
 
   return (
     <div className="mx-auto flex max-w-md flex-col gap-4 p-4">

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 const {
   validateTokenForForm,
@@ -16,7 +16,7 @@ const {
   setSessionFromUser: vi.fn(),
 }));
 
-vi.mock("@/app-layer/di/buildAppDeps", () => ({
+vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: () => ({
     emailSetupFlow: { validateTokenForForm, completeEmailSetup, resendFromExpiredToken },
     userByPhone: { findByUserId },
@@ -24,16 +24,16 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
   }),
 }));
 
-vi.mock("@/modules/auth/service", () => ({
+vi.mock('@/modules/auth/service', () => ({
   setSessionFromUser,
 }));
 
-import { POST as validatePost } from "./validate/route";
-import { POST as completePost } from "./complete/route";
-import { POST as resendPost } from "./resend/route";
-import * as authChannelPolicy from "@/modules/auth/authChannelPolicy";
+import { POST as validatePost } from './validate/route';
+import { POST as completePost } from './complete/route';
+import { POST as resendPost } from './resend/route';
+import * as authChannelPolicy from '@/modules/auth/authChannelPolicy';
 
-describe("email-setup API routes", () => {
+describe('email-setup API routes', () => {
   beforeEach(() => {
     validateTokenForForm.mockReset();
     completeEmailSetup.mockReset();
@@ -43,57 +43,57 @@ describe("email-setup API routes", () => {
     setSessionFromUser.mockReset();
   });
 
-  it("validate is neutral and does not read token/email when the email channel is disabled", async () => {
-    const policy = vi.spyOn(authChannelPolicy, "isAuthChannelEnabled").mockResolvedValue(false);
+  it('validate is neutral and does not read token/email when the email channel is disabled', async () => {
+    const policy = vi.spyOn(authChannelPolicy, 'isAuthChannelEnabled').mockResolvedValue(false);
     try {
       const res = await validatePost(
-        new Request("http://localhost/api/auth/email-setup/validate", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ token: "est_known" }),
+        new Request('http://localhost/api/auth/email-setup/validate', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ token: 'est_known' }),
         }),
       );
 
       expect(res.status).toBe(503);
-      await expect(res.json()).resolves.toEqual({ ok: false, error: "auth_channel_disabled" });
+      await expect(res.json()).resolves.toEqual({ ok: false, error: 'auth_channel_disabled' });
       expect(validateTokenForForm).not.toHaveBeenCalled();
     } finally {
       policy.mockRestore();
     }
   });
 
-  it("resend does not inspect or issue a setup link when the email channel is disabled", async () => {
-    const policy = vi.spyOn(authChannelPolicy, "isAuthChannelEnabled").mockResolvedValue(false);
+  it('resend does not inspect or issue a setup link when the email channel is disabled', async () => {
+    const policy = vi.spyOn(authChannelPolicy, 'isAuthChannelEnabled').mockResolvedValue(false);
     try {
       const res = await resendPost(
-        new Request("http://localhost/api/auth/email-setup/resend", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ token: "est_expired" }),
+        new Request('http://localhost/api/auth/email-setup/resend', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ token: 'est_expired' }),
         }),
       );
 
       expect(res.status).toBe(503);
-      await expect(res.json()).resolves.toEqual({ ok: false, error: "auth_channel_disabled" });
+      await expect(res.json()).resolves.toEqual({ ok: false, error: 'auth_channel_disabled' });
       expect(resendFromExpiredToken).not.toHaveBeenCalled();
     } finally {
       policy.mockRestore();
     }
   });
 
-  it("complete does not consume a setup link or mutate credentials when email is disabled", async () => {
-    const policy = vi.spyOn(authChannelPolicy, "isAuthChannelEnabled").mockResolvedValue(false);
+  it('complete does not consume a setup link or mutate credentials when email is disabled', async () => {
+    const policy = vi.spyOn(authChannelPolicy, 'isAuthChannelEnabled').mockResolvedValue(false);
     try {
       const res = await completePost(
-        new Request("http://localhost/api/auth/email-setup/complete", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ token: "est_known", password: "secret1234" }),
+        new Request('http://localhost/api/auth/email-setup/complete', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ token: 'est_known', password: 'secret1234' }),
         }),
       );
 
       expect(res.status).toBe(503);
-      await expect(res.json()).resolves.toEqual({ ok: false, error: "auth_channel_disabled" });
+      await expect(res.json()).resolves.toEqual({ ok: false, error: 'auth_channel_disabled' });
       expect(completeEmailSetup).not.toHaveBeenCalled();
       expect(findByUserId).not.toHaveBeenCalled();
       expect(setSessionFromUser).not.toHaveBeenCalled();
@@ -102,80 +102,80 @@ describe("email-setup API routes", () => {
     }
   });
 
-  it("validate returns email for active token", async () => {
+  it('validate returns email for active token', async () => {
     validateTokenForForm.mockResolvedValueOnce({
       ok: true,
-      email: "user@example.com",
-      status: "ready",
+      email: 'user@example.com',
+      status: 'ready',
     });
 
     const res = await validatePost(
-      new Request("http://localhost/api/auth/email-setup/validate", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ token: "est_abc" }),
+      new Request('http://localhost/api/auth/email-setup/validate', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ token: 'est_abc' }),
       }),
     );
 
     expect(res.status).toBe(200);
     const body = (await res.json()) as { ok: boolean; email: string };
-    expect(body).toEqual({ ok: true, email: "user@example.com", status: "ready" });
+    expect(body).toEqual({ ok: true, email: 'user@example.com', status: 'ready' });
   });
 
-  it("validate returns 410 expired with email", async () => {
+  it('validate returns 410 expired with email', async () => {
     validateTokenForForm.mockResolvedValueOnce({
       ok: false,
-      error: "expired",
-      email: "user@example.com",
+      error: 'expired',
+      email: 'user@example.com',
     });
 
     const res = await validatePost(
-      new Request("http://localhost/api/auth/email-setup/validate", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ token: "est_old" }),
+      new Request('http://localhost/api/auth/email-setup/validate', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ token: 'est_old' }),
       }),
     );
 
     expect(res.status).toBe(410);
     const body = (await res.json()) as { error: string; email: string };
-    expect(body.error).toBe("expired");
-    expect(body.email).toBe("user@example.com");
+    expect(body.error).toBe('expired');
+    expect(body.email).toBe('user@example.com');
   });
 
-  it("complete sets session and returns redirect", async () => {
-    const uid = "550e8400-e29b-41d4-a716-446655440000";
+  it('complete sets session and returns redirect', async () => {
+    const uid = '550e8400-e29b-41d4-a716-446655440000';
     completeEmailSetup.mockResolvedValueOnce({ ok: true, userId: uid });
     findByUserId.mockResolvedValueOnce({
       userId: uid,
-      role: "client",
+      role: 'client',
       phone: null,
       bindings: { telegramId: null, maxId: null },
     });
 
     const res = await completePost(
-      new Request("http://localhost/api/auth/email-setup/complete", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ token: "est_ok", password: "secret1234" }),
+      new Request('http://localhost/api/auth/email-setup/complete', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ token: 'est_ok', password: 'secret1234' }),
       }),
     );
 
     expect(res.status).toBe(200);
     const body = (await res.json()) as { ok: boolean; redirectTo: string };
     expect(body.ok).toBe(true);
-    expect(body.redirectTo).toBe("/app/patient");
+    expect(body.redirectTo).toBe('/app/patient');
     expect(setSessionFromUser).toHaveBeenCalledTimes(1);
   });
 
-  it("resend returns ok", async () => {
+  it('resend returns ok', async () => {
     resendFromExpiredToken.mockResolvedValueOnce({ ok: true });
 
     const res = await resendPost(
-      new Request("http://localhost/api/auth/email-setup/resend", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ token: "est_expired" }),
+      new Request('http://localhost/api/auth/email-setup/resend', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ token: 'est_expired' }),
       }),
     );
 

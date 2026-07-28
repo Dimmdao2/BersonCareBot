@@ -55,18 +55,18 @@ patient-replay audit завершён с **PASS — UX-01 factual current-state 
 
 ## Главные разрывы
 
-| Область | Текущее состояние | Нужный discovery result |
-|---|---|---|
-| Platform landing | Прежде всего patient/PWA | Specialist-oriented acquisition IA с компактным patient entry |
-| Staff invite | Создаётся URL для ручного копирования | Delivery, accept, first-login, expired/revoked/error flows |
-| Patient invite | Единого SaaS join flow не найдено | Email-first invite, SMS fallback, activation, enrollment, install |
-| Organization workspace | Members/settings смешаны с doctor navigation | Целевая management IA и связь с clinical mode |
-| Global admin | Встроен в doctor sidebar | Отдельная platform-operations IA |
-| Multi-org patient | Data foundation существует | Явный context selection и cross-org UX contract |
-| Multi-specialist patient | Специалист присутствует в отдельных доменах | Единая модель attribution, conversations и appointments |
-| Branding | В основном platform BersonCare | Surface matrix и entitlement tiers |
-| Custom domains | Roadmap contract, UI нет | Verification/status/error/canonical redirect UX |
-| Public organization page | Target projection описана, UI не закрыт | Directory/profile/booking/join screen composition |
+| Область                  | Текущее состояние                            | Нужный discovery result                                           |
+| ------------------------ | -------------------------------------------- | ----------------------------------------------------------------- |
+| Platform landing         | Прежде всего patient/PWA                     | Specialist-oriented acquisition IA с компактным patient entry     |
+| Staff invite             | Создаётся URL для ручного копирования        | Delivery, accept, first-login, expired/revoked/error flows        |
+| Patient invite           | Единого SaaS join flow не найдено            | Email-first invite, SMS fallback, activation, enrollment, install |
+| Organization workspace   | Members/settings смешаны с doctor navigation | Целевая management IA и связь с clinical mode                     |
+| Global admin             | Встроен в doctor sidebar                     | Отдельная platform-operations IA                                  |
+| Multi-org patient        | Data foundation существует                   | Явный context selection и cross-org UX contract                   |
+| Multi-specialist patient | Специалист присутствует в отдельных доменах  | Единая модель attribution, conversations и appointments           |
+| Branding                 | В основном platform BersonCare               | Surface matrix и entitlement tiers                                |
+| Custom domains           | Roadmap contract, UI нет                     | Verification/status/error/canonical redirect UX                   |
+| Public organization page | Target projection описана, UI не закрыт      | Directory/profile/booking/join screen composition                 |
 
 ## Нельзя заключать без аудита
 

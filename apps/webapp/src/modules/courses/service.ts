@@ -1,9 +1,6 @@
-import { assertUuid } from "@/modules/treatment-program/service";
-import {
-  CourseArchiveNotFoundError,
-  CourseUsageConfirmationRequiredError,
-} from "./errors";
-import type { CourseIntroPagesPort, CoursesPort } from "./ports";
+import { assertUuid } from '@/modules/treatment-program/service';
+import { CourseArchiveNotFoundError, CourseUsageConfirmationRequiredError } from './errors';
+import type { CourseIntroPagesPort, CoursesPort } from './ports';
 import type {
   ArchiveCourseOptions,
   CourseCatalogItem,
@@ -11,14 +8,14 @@ import type {
   CreateCourseInput,
   IntroLessonPageRecord,
   UpdateCourseInput,
-} from "./types";
-import { COURSE_LESSON_SECTIONS, courseArchiveRequiresAcknowledgement } from "./types";
+} from './types';
+import { COURSE_LESSON_SECTIONS, courseArchiveRequiresAcknowledgement } from './types';
 
 type AssignTemplate = (input: {
   templateId: string;
   patientUserId: string;
   assignedBy: string | null;
-  assignmentSource?: import("@/modules/treatment-program/types").TreatmentProgramAssignmentSource;
+  assignmentSource?: import('@/modules/treatment-program/types').TreatmentProgramAssignmentSource;
 }) => Promise<unknown>;
 
 function isCourseLessonSection(section: string): boolean {
@@ -26,14 +23,17 @@ function isCourseLessonSection(section: string): boolean {
 }
 
 function enrollmentOpen(accessSettings: Record<string, unknown>): boolean {
-  return accessSettings.enrollment !== "closed";
+  return accessSettings.enrollment !== 'closed';
 }
 
 export type CourseWriteOptions = {
   runCourseWrite?: <T>(fn: () => Promise<T>) => Promise<T>;
 };
 
-function runCourseWrite<T>(options: CourseWriteOptions | undefined, fn: () => Promise<T>): Promise<T> {
+function runCourseWrite<T>(
+  options: CourseWriteOptions | undefined,
+  fn: () => Promise<T>,
+): Promise<T> {
   return options?.runCourseWrite ? options.runCourseWrite(fn) : fn();
 }
 
@@ -41,7 +41,7 @@ export function assertValidIntroLessonPage(
   row: IntroLessonPageRecord | null,
 ): asserts row is IntroLessonPageRecord {
   if (!row) {
-    throw new Error("Страница вступительного урока не найдена");
+    throw new Error('Страница вступительного урока не найдена');
   }
   if (!isCourseLessonSection(row.section)) {
     throw new Error(
@@ -49,14 +49,17 @@ export function assertValidIntroLessonPage(
     );
   }
   if (!row.requiresAuth) {
-    throw new Error("Урок курса должен быть с requires_auth = true");
+    throw new Error('Урок курса должен быть с requires_auth = true');
   }
   if (!row.isPublished || row.archivedAt || row.deletedAt) {
-    throw new Error("Страница вступительного урока должна быть опубликована и не в архиве");
+    throw new Error('Страница вступительного урока должна быть опубликована и не в архиве');
   }
 }
 
-async function toCatalogItem(r: CourseRecord, introPages: CourseIntroPagesPort): Promise<CourseCatalogItem> {
+async function toCatalogItem(
+  r: CourseRecord,
+  introPages: CourseIntroPagesPort,
+): Promise<CourseCatalogItem> {
   let introContentSlug: string | null = null;
   if (r.introLessonPageId) {
     const page = await introPages.getById(r.introLessonPageId);
@@ -106,7 +109,7 @@ export function createCoursesService(deps: {
     },
 
     async listCoursesForDoctor(
-      filter: { status?: CourseRecord["status"] | null; includeArchived?: boolean } = {},
+      filter: { status?: CourseRecord['status'] | null; includeArchived?: boolean } = {},
     ) {
       return courses.listForDoctor({
         status: filter.status ?? null,
@@ -122,13 +125,13 @@ export function createCoursesService(deps: {
     async getCourseUsage(courseId: string) {
       assertUuid(courseId);
       const snap = await courses.getCourseUsageSummary(courseId.trim());
-      if (!snap) throw new Error("Курс не найден");
+      if (!snap) throw new Error('Курс не найден');
       return snap;
     },
 
     async createCourse(input: CreateCourseInput, options?: CourseWriteOptions) {
-      const title = input.title?.trim() ?? "";
-      if (!title) throw new Error("Название курса обязательно");
+      const title = input.title?.trim() ?? '';
+      if (!title) throw new Error('Название курса обязательно');
       assertUuid(input.programTemplateId);
       if (input.introLessonPageId) {
         assertUuid(input.introLessonPageId);
@@ -139,7 +142,9 @@ export function createCoursesService(deps: {
         courses.create({
           ...input,
           title,
-          description: input.description?.trim() ? input.description.trim() : input.description ?? null,
+          description: input.description?.trim()
+            ? input.description.trim()
+            : (input.description ?? null),
         }),
       );
     },
@@ -154,7 +159,7 @@ export function createCoursesService(deps: {
       const patch: UpdateCourseInput = { ...input };
       if (input.title !== undefined) {
         const t = input.title.trim();
-        if (!t) throw new Error("Название курса обязательно");
+        if (!t) throw new Error('Название курса обязательно');
         patch.title = t;
       }
       if (input.programTemplateId !== undefined) {
@@ -166,10 +171,10 @@ export function createCoursesService(deps: {
         assertValidIntroLessonPage(page);
       }
 
-      if (input.status === "archived") {
+      if (input.status === 'archived') {
         const existing = await courses.getById(id.trim());
         if (!existing) throw new CourseArchiveNotFoundError();
-        if (existing.status !== "archived") {
+        if (existing.status !== 'archived') {
           const usage = await courses.getCourseUsageSummary(id.trim());
           if (!usage) throw new CourseArchiveNotFoundError();
           if (courseArchiveRequiresAcknowledgement(usage) && !options?.acknowledgeUsageWarning) {
@@ -187,25 +192,25 @@ export function createCoursesService(deps: {
      * «Покупка»: та же цепочка, что назначение врача (фаза 4) — deep copy шаблона в экземпляр.
      */
     async enrollPatient(params: { courseId: string; patientUserId: string }) {
-      const courseId = params.courseId?.trim() ?? "";
-      const patientUserId = params.patientUserId?.trim() ?? "";
+      const courseId = params.courseId?.trim() ?? '';
+      const patientUserId = params.patientUserId?.trim() ?? '';
       assertUuid(courseId);
       assertUuid(patientUserId);
       const course = await courses.getById(courseId);
       if (!course) {
-        throw new Error("Курс не найден");
+        throw new Error('Курс не найден');
       }
-      if (course.status !== "published") {
-        throw new Error("Доступна только запись на опубликованный курс");
+      if (course.status !== 'published') {
+        throw new Error('Доступна только запись на опубликованный курс');
       }
       if (!enrollmentOpen(course.accessSettings)) {
-        throw new Error("Запись на курс закрыта");
+        throw new Error('Запись на курс закрыта');
       }
       return assignTemplateToPatient({
         templateId: course.programTemplateId,
         patientUserId,
         assignedBy: null,
-        assignmentSource: "course",
+        assignmentSource: 'course',
       });
     },
   };

@@ -1,81 +1,78 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { patientCardHref } from "../patients/patientCardHref";
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { DateTime } from "luxon";
-import { MessageCircle, Phone, X } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { Badge } from "@/shared/ui/doctor/primitives/badge";
-import { Button, buttonVariants } from "@/shared/ui/doctor/primitives/button";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { Label } from "@/shared/ui/doctor/primitives/label";
+import Link from 'next/link';
+import { patientCardHref } from '../patients/patientCardHref';
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
+import { DateTime } from 'luxon';
+import { MessageCircle, Phone, X } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { Badge } from '@/shared/ui/doctor/primitives/badge';
+import { Button, buttonVariants } from '@/shared/ui/doctor/primitives/button';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { Label } from '@/shared/ui/doctor/primitives/label';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/ui/doctor/primitives/select";
-import { Switch } from "@/shared/ui/doctor/primitives/switch";
-import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
+} from '@/shared/ui/doctor/primitives/select';
+import { Switch } from '@/shared/ui/doctor/primitives/switch';
+import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
 import {
   doctorClientOverviewPrimaryCardClass,
   doctorClientSectionTitleClass,
-} from "../clients/doctorClientCardChrome";
+} from '../clients/doctorClientCardChrome';
 import type {
   CalendarAppointmentEvent,
   CalendarFilterMeta,
   CalendarServiceFilterOption,
-} from "@/modules/booking-calendar/types";
-import type { CalendarCreateActiveFilters } from "@/modules/booking-calendar/calendarCreateFieldMode";
+} from '@/modules/booking-calendar/types';
+import type { CalendarCreateActiveFilters } from '@/modules/booking-calendar/calendarCreateFieldMode';
 import {
   resolveCalendarCreateFieldMode,
   resolveCalendarCreateFieldValue,
-} from "@/modules/booking-calendar/calendarCreateFieldMode";
+} from '@/modules/booking-calendar/calendarCreateFieldMode';
 import type {
   AppointmentCancellationRecord,
   AppointmentRescheduleRecord,
-} from "@/modules/booking-appointment-lifecycle/ports";
+} from '@/modules/booking-appointment-lifecycle/ports';
 import {
   appointmentStatusLabel,
   isCancelledAppointmentStatus,
   isStaffDeletableCancelledStatus,
-} from "@/modules/booking-calendar/appointmentStatusLabels";
-import {
-  cancellationDecisionTypeLabel,
-  paymentStatusLabel,
-} from "@/modules/client-history/labels";
-import { AppointmentStaffCommentsSection } from "@/app/app/doctor/clients/AppointmentStaffCommentsSection";
-import { DoctorOpenChatButton } from "@/shared/ui/doctor/DoctorOpenChatButton";
-import { phoneToTelHref } from "@/shared/lib/phoneLinks";
+} from '@/modules/booking-calendar/appointmentStatusLabels';
+import { cancellationDecisionTypeLabel, paymentStatusLabel } from '@/modules/client-history/labels';
+import { AppointmentStaffCommentsSection } from '@/app/app/doctor/clients/AppointmentStaffCommentsSection';
+import { DoctorOpenChatButton } from '@/shared/ui/doctor/DoctorOpenChatButton';
+import { phoneToTelHref } from '@/shared/lib/phoneLinks';
 import {
   DoctorCalendarPatientSearch,
   type CalendarPatientOption,
-} from "./DoctorCalendarPatientSearch";
-import { DoctorCalendarCreateFormField } from "./DoctorCalendarCreateFormField";
-import { DoctorDateTimePicker } from "@/shared/ui/doctor/DoctorDateTimePicker";
-import { formatPatientPackageShortLabel } from "@/modules/memberships/display";
+} from './DoctorCalendarPatientSearch';
+import { DoctorCalendarCreateFormField } from './DoctorCalendarCreateFormField';
+import { DoctorDateTimePicker } from '@/shared/ui/doctor/DoctorDateTimePicker';
+import { formatPatientPackageShortLabel } from '@/modules/memberships/display';
 
 // R21: причины отмены, отправляемые как reason в API.
 const CANCEL_REASONS = [
-  { value: "Пациент перенёс", label: "Пациент перенёс" },
-  { value: "Пациент отменил", label: "Пациент отменил" },
-  { value: "Не пришёл", label: "Не пришёл" },
-  { value: "По состоянию здоровья", label: "По состоянию здоровья" },
-  { value: "Другая", label: "Другая" },
+  { value: 'Пациент перенёс', label: 'Пациент перенёс' },
+  { value: 'Пациент отменил', label: 'Пациент отменил' },
+  { value: 'Не пришёл', label: 'Не пришёл' },
+  { value: 'По состоянию здоровья', label: 'По состоянию здоровья' },
+  { value: 'Другая', label: 'Другая' },
 ] as const;
 
 // R21: бесплатная/штрафная → decisionType API.
 const CANCEL_CHARGE = [
-  { value: "free", label: "Бесплатная" },
-  { value: "penalized", label: "Штрафная" },
+  { value: 'free', label: 'Бесплатная' },
+  { value: 'penalized', label: 'Штрафная' },
 ] as const;
 
 // R20: классификация уже отменённой записи (бесплатная/платная) — пока нефункц. плейсхолдер.
 const POST_CANCEL_CLASS = [
-  { value: "free", label: "Бесплатная" },
-  { value: "paid", label: "Платная" },
+  { value: 'free', label: 'Бесплатная' },
+  { value: 'paid', label: 'Платная' },
 ] as const;
 
 type Props = {
@@ -112,15 +109,15 @@ function formatEventAt(iso: string, timeZone: string): string {
   let dt = DateTime.fromISO(iso, { setZone: true });
   if (!dt.isValid) dt = DateTime.fromSQL(iso, { setZone: true });
   if (!dt.isValid) dt = DateTime.fromJSDate(new Date(iso));
-  if (!dt.isValid) return "—";
-  return dt.setZone(timeZone).toFormat("dd.MM.yyyy HH:mm");
+  if (!dt.isValid) return '—';
+  return dt.setZone(timeZone).toFormat('dd.MM.yyyy HH:mm');
 }
 
 function parseEventDateTime(iso: string, timeZone: string): DateTime {
   let dt = DateTime.fromISO(iso, { setZone: true });
   if (!dt.isValid) dt = DateTime.fromSQL(iso, { setZone: true });
   if (!dt.isValid) dt = DateTime.fromJSDate(new Date(iso));
-  return dt.isValid ? dt.setZone(timeZone).startOf("minute") : dt;
+  return dt.isValid ? dt.setZone(timeZone).startOf('minute') : dt;
 }
 
 function isSameCalendarMinute(left: string, right: string, timeZone: string): boolean {
@@ -136,30 +133,36 @@ function isDifferentCalendarMinute(left: string, right: string, timeZone: string
 }
 
 function appointmentStatusToneClass(status: string): string {
-  if (["confirmed", "paid", "completed", "visit_confirmed", "charged_to_package"].includes(status)) {
-    return "border-emerald-500/40 bg-emerald-500/10 text-emerald-900 dark:text-emerald-100";
+  if (
+    ['confirmed', 'paid', 'completed', 'visit_confirmed', 'charged_to_package'].includes(status)
+  ) {
+    return 'border-emerald-500/40 bg-emerald-500/10 text-emerald-900 dark:text-emerald-100';
   }
-  if (["cancelled_by_patient", "cancelled_by_specialist", "late_cancellation", "no_show"].includes(status)) {
-    return "border-destructive/30 bg-destructive/15 text-destructive";
+  if (
+    ['cancelled_by_patient', 'cancelled_by_specialist', 'late_cancellation', 'no_show'].includes(
+      status,
+    )
+  ) {
+    return 'border-destructive/30 bg-destructive/15 text-destructive';
   }
-  if (status === "rescheduled") {
-    return "border-purple-500/40 bg-purple-500/10 text-purple-800 dark:text-purple-200";
+  if (status === 'rescheduled') {
+    return 'border-purple-500/40 bg-purple-500/10 text-purple-800 dark:text-purple-200';
   }
-  if (["awaiting_payment", "manual_review_required"].includes(status)) {
-    return "border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-100";
+  if (['awaiting_payment', 'manual_review_required'].includes(status)) {
+    return 'border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-100';
   }
-  return "border-primary/30 bg-primary/10 text-primary";
+  return 'border-primary/30 bg-primary/10 text-primary';
 }
 
 function noneValue() {
-  return "__none__";
+  return '__none__';
 }
 
 function panelErrorLabel(error: string | undefined): string {
-  if (!error) return "Ошибка";
-  if (error === "external_slot_taken") return "Время уже занято во внешней записи.";
-  if (error === "slot_overlap") return "Слот уже занят.";
-  if (error === "not_cancelled") return "Сначала отмените запись.";
+  if (!error) return 'Ошибка';
+  if (error === 'external_slot_taken') return 'Время уже занято во внешней записи.';
+  if (error === 'slot_overlap') return 'Слот уже занят.';
+  if (error === 'not_cancelled') return 'Сначала отмените запись.';
   return error;
 }
 
@@ -178,7 +181,7 @@ function listCreateServicesForSelection(
 }
 
 export function DoctorCalendarEventPanel(props: Props) {
-  return <DoctorCalendarEventPanelInner key={props.selected?.id ?? "none"} {...props} />;
+  return <DoctorCalendarEventPanelInner key={props.selected?.id ?? 'none'} {...props} />;
 }
 
 function DoctorCalendarEventPanelInner({
@@ -198,31 +201,31 @@ function DoctorCalendarEventPanelInner({
   showCloseControl = true,
 }: Props) {
   // §3.6: если startInCreate=true — сразу в режиме создания, минуя плейсхолдер
-  const [mode, setMode] = useState<"view" | "create" | "reschedule" | "cancel">(
-    startInCreate ? "create" : "view",
+  const [mode, setMode] = useState<'view' | 'create' | 'reschedule' | 'cancel'>(
+    startInCreate ? 'create' : 'view',
   );
   // R20: классификация уже отменённой записи (бесплатная/платная) — нефункц. плейсхолдер
-  const [postCancelClass, setPostCancelClass] = useState("free");
+  const [postCancelClass, setPostCancelClass] = useState('free');
   // R21: поля формы отмены
-  const [cancelReason, setCancelReason] = useState("");
-  const [cancelComment, setCancelComment] = useState("");
-  const [cancelCharge, setCancelCharge] = useState("free");
+  const [cancelReason, setCancelReason] = useState('');
+  const [cancelComment, setCancelComment] = useState('');
+  const [cancelCharge, setCancelCharge] = useState('free');
   const [cancelNotify, setCancelNotify] = useState(true);
-  const [newStartLocal, setNewStartLocal] = useState("");
-  const [newEndLocal, setNewEndLocal] = useState("");
+  const [newStartLocal, setNewStartLocal] = useState('');
+  const [newEndLocal, setNewEndLocal] = useState('');
   const [message, setMessage] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [lifecycle, setLifecycle] = useState<LifecycleResponse | null>(null);
   const [phoneCopied, setPhoneCopied] = useState(false);
 
-  const [createStart, setCreateStart] = useState("");
+  const [createStart, setCreateStart] = useState('');
   const [createSpecialistId, setCreateSpecialistId] = useState<string | null>(null);
   const [createBranchId, setCreateBranchId] = useState<string | null>(null);
   const [createServiceId, setCreateServiceId] = useState<string | null>(null);
   const [createPatient, setCreatePatient] = useState<CalendarPatientOption | null>(null);
   const createManualRequestIdRef = useRef(crypto.randomUUID());
   // R16: комментарий, добавляемый сразу после создания записи (staff-коммент).
-  const [createComment, setCreateComment] = useState("");
+  const [createComment, setCreateComment] = useState('');
   const selectedId = selected?.id ?? null;
 
   async function copyPatientPhone(phone: string) {
@@ -255,14 +258,14 @@ function DoctorCalendarEventPanelInner({
     if (!startInCreate) return;
     const nextSpecialistId =
       resolveCalendarCreateFieldValue(filterMeta.specialists, activeFilters.specialistId, null) ??
-        filterMeta.specialists[0]?.id ??
-        null;
+      filterMeta.specialists[0]?.id ??
+      null;
     const nextBranchId =
       createInitialBranchId ??
-        resolveCalendarCreateFieldValue(filterMeta.branches, activeFilters.branchId, null);
+      resolveCalendarCreateFieldValue(filterMeta.branches, activeFilters.branchId, null);
     const initialServiceId =
       createInitialServiceId ??
-        resolveCalendarCreateFieldValue(filterMeta.services, activeFilters.serviceId, null);
+      resolveCalendarCreateFieldValue(filterMeta.services, activeFilters.serviceId, null);
     const initialServices = listCreateServicesForSelection(
       filterMeta.services,
       nextSpecialistId,
@@ -279,7 +282,7 @@ function DoctorCalendarEventPanelInner({
   }, [startInCreate, createInitialStart, createInitialBranchId, createInitialServiceId]);
 
   useEffect(() => {
-    if (mode !== "create") onCreateDirtyChange?.(false);
+    if (mode !== 'create') onCreateDirtyChange?.(false);
   }, [mode, onCreateDirtyChange]);
 
   const markCreateDirty = () => {
@@ -288,12 +291,7 @@ function DoctorCalendarEventPanelInner({
   };
 
   const createServiceOptions = useMemo(
-    () =>
-      listCreateServicesForSelection(
-        filterMeta.services,
-        createSpecialistId,
-        createBranchId,
-      ),
+    () => listCreateServicesForSelection(filterMeta.services, createSpecialistId, createBranchId),
     [createBranchId, createSpecialistId, filterMeta.services],
   );
 
@@ -343,7 +341,7 @@ function DoctorCalendarEventPanelInner({
     setCreateServiceId(
       nextServices.some((service) => service.id === nextServiceId) ? nextServiceId : null,
     );
-    setMode("create");
+    setMode('create');
   };
 
   if (!selected) {
@@ -351,7 +349,7 @@ function DoctorCalendarEventPanelInner({
       <div className={doctorClientOverviewPrimaryCardClass}>
         <div className="mb-3 flex items-center justify-between gap-2">
           <h2 className={doctorClientSectionTitleClass}>Запись</h2>
-          {mode === "view" ? (
+          {mode === 'view' ? (
             <Button type="button" size="sm" variant="outline" onClick={openCreateForm}>
               Создать
             </Button>
@@ -362,13 +360,13 @@ function DoctorCalendarEventPanelInner({
               type="button"
               size="sm"
               variant="ghost"
-              onClick={() => (startInCreate ? onClose() : setMode("view"))}
+              onClick={() => (startInCreate ? onClose() : setMode('view'))}
             >
               ×
             </Button>
           )}
         </div>
-        {mode === "view" ? (
+        {mode === 'view' ? (
           <p className="text-sm text-muted-foreground">Выберите событие в календаре.</p>
         ) : (
           <CreateForm
@@ -414,7 +412,7 @@ function DoctorCalendarEventPanelInner({
               markCreateDirty();
             }}
             // §3.6: если открыто через startInCreate — отмена закрывает панель
-            onCancel={() => (startInCreate ? onClose() : setMode("view"))}
+            onCancel={() => (startInCreate ? onClose() : setMode('view'))}
             onSubmit={() => {
               if (
                 !createStart ||
@@ -424,7 +422,7 @@ function DoctorCalendarEventPanelInner({
                 !createSpecialistId ||
                 !createServiceOptions.some((service) => service.id === createServiceId)
               ) {
-                setMessage("Заполните филиал, услугу и специалиста.");
+                setMessage('Заполните филиал, услугу и специалиста.');
                 return;
               }
               const startAt = new Date(createStart).toISOString();
@@ -435,7 +433,7 @@ function DoctorCalendarEventPanelInner({
                 createPatient?.isNew === true &&
                 (!createPatient.lastName?.trim() || !createPatient.firstName?.trim())
               ) {
-                setMessage("Укажите фамилию и имя пациента.");
+                setMessage('Укажите фамилию и имя пациента.');
                 return;
               }
               startTransition(async () => {
@@ -445,13 +443,13 @@ function DoctorCalendarEventPanelInner({
                     ? `${apiBase}/appointments/manual-patient-visit`
                     : `${apiBase}/appointments/manual`,
                   {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                       ...(isNewPatient
-                          ? {
+                        ? {
                             requestId: createManualRequestIdRef.current,
-                            kind: "scheduled",
+                            kind: 'scheduled',
                             lastName: createPatient.lastName,
                             firstName: createPatient.firstName,
                             patronymic: createPatient.patronymic ?? null,
@@ -476,22 +474,22 @@ function DoctorCalendarEventPanelInner({
                   error?: string;
                   appointment?: { id?: string };
                 };
-                setMessage(json.ok ? "Создано" : panelErrorLabel(json.error));
+                setMessage(json.ok ? 'Создано' : panelErrorLabel(json.error));
                 if (json.ok) {
                   createManualRequestIdRef.current = crypto.randomUUID();
                   // R16: после создания (есть id) добавляем staff-коммент отдельным запросом.
                   const newId = json.appointment?.id;
                   if (newId && createComment.trim()) {
                     await fetch(`${apiBase}/appointments/${encodeURIComponent(newId)}/comments`, {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ body: createComment.trim() }),
                     }).catch(() => undefined);
                   }
-                  setCreateComment("");
-                  setMode("view");
+                  setCreateComment('');
+                  setMode('view');
                   onChanged();
-                } else if (json.error === "external_slot_taken") {
+                } else if (json.error === 'external_slot_taken') {
                   onChanged();
                 }
               });
@@ -507,22 +505,22 @@ function DoctorCalendarEventPanelInner({
   const isSoloMode = filterMeta.specialists.length === 1;
   const hasRealOriginalStart = Boolean(
     selected.originalStartAt &&
-      isDifferentCalendarMinute(selected.originalStartAt, selected.startAt, timeZone),
+    isDifferentCalendarMinute(selected.originalStartAt, selected.startAt, timeZone),
   );
-  const relevantReschedules = (lifecycle?.reschedules ?? []).filter((r) =>
-    isSameCalendarMinute(r.toStartAt, selected.startAt, timeZone) ||
-    isSameCalendarMinute(r.fromStartAt, selected.startAt, timeZone) ||
-    (selected.originalStartAt ? isSameCalendarMinute(r.fromStartAt, selected.originalStartAt, timeZone) : false),
+  const relevantReschedules = (lifecycle?.reschedules ?? []).filter(
+    (r) =>
+      isSameCalendarMinute(r.toStartAt, selected.startAt, timeZone) ||
+      isSameCalendarMinute(r.fromStartAt, selected.startAt, timeZone) ||
+      (selected.originalStartAt
+        ? isSameCalendarMinute(r.fromStartAt, selected.originalStartAt, timeZone)
+        : false),
   );
 
   return (
     <div className={doctorClientOverviewPrimaryCardClass}>
       <div
         data-testid="appointment-detail-header"
-        className={cn(
-          "flex items-start justify-between gap-3",
-          !showCloseControl && "pr-10",
-        )}
+        className={cn('flex items-start justify-between gap-3', !showCloseControl && 'pr-10')}
       >
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -532,10 +530,10 @@ function DoctorCalendarEventPanelInner({
                   href={patientCardHref(selected.platformUserId)}
                   className="text-primary underline-offset-2 hover:underline"
                 >
-                  {selected.patientName ?? "Запись"}
+                  {selected.patientName ?? 'Запись'}
                 </Link>
               ) : (
-                selected.patientName ?? "Запись"
+                (selected.patientName ?? 'Запись')
               )}
             </h2>
             <div className="ml-auto flex shrink-0 items-center gap-1.5">
@@ -557,9 +555,9 @@ function DoctorCalendarEventPanelInner({
                   <a
                     href={patientPhoneHref}
                     className={buttonVariants({
-                      variant: "outline",
-                      size: "icon-sm",
-                      className: "rounded-full md:hidden",
+                      variant: 'outline',
+                      size: 'icon-sm',
+                      className: 'rounded-full md:hidden',
                     })}
                     aria-label={`Позвонить: ${selected.patientPhone}`}
                     title="Телефон"
@@ -605,7 +603,7 @@ function DoctorCalendarEventPanelInner({
         <Badge
           variant="outline"
           className={cn(
-            "h-7 rounded-full px-3 text-sm font-medium",
+            'h-7 rounded-full px-3 text-sm font-medium',
             appointmentStatusToneClass(selected.status),
           )}
         >
@@ -622,16 +620,16 @@ function DoctorCalendarEventPanelInner({
         <dl className="space-y-2">
           <div>
             <dt className="text-xs text-muted-foreground">Филиал</dt>
-            <dd>{selected.branchTitle ?? "—"}</dd>
+            <dd>{selected.branchTitle ?? '—'}</dd>
           </div>
           <div>
             <dt className="text-xs text-muted-foreground">Услуга</dt>
-            <dd>{selected.serviceTitle ?? "—"}</dd>
+            <dd>{selected.serviceTitle ?? '—'}</dd>
           </div>
           {!isSoloMode ? (
             <div>
               <dt className="text-xs text-muted-foreground">Специалист</dt>
-              <dd>{selected.specialistName ?? "—"}</dd>
+              <dd>{selected.specialistName ?? '—'}</dd>
             </div>
           ) : null}
           {selected.roomTitle ? (
@@ -646,13 +644,13 @@ function DoctorCalendarEventPanelInner({
           <div className="flex justify-center py-1">
             <Link
               href={patientCardHref(selected.platformUserId, {
-                tab: "karta",
+                tab: 'karta',
                 createVisitFrom: selected.id,
                 visitDate: selected.startAt ? selected.startAt.slice(0, 10) : undefined,
               })}
               className={buttonVariants({
-                size: "sm",
-                className: "h-9 px-4 text-sm",
+                size: 'sm',
+                className: 'h-9 px-4 text-sm',
               })}
             >
               Создать визит из записи
@@ -683,8 +681,9 @@ function DoctorCalendarEventPanelInner({
           <div className="space-y-1 border-t border-border pt-2">
             {relevantReschedules.map((r) => (
               <p key={r.id} className="text-xs text-muted-foreground">
-                Перенос: {formatEventAt(r.fromStartAt, timeZone)} → {formatEventAt(r.toStartAt, timeZone)}
-                {r.staffComment ? ` · ${r.staffComment}` : ""}
+                Перенос: {formatEventAt(r.fromStartAt, timeZone)} →{' '}
+                {formatEventAt(r.toStartAt, timeZone)}
+                {r.staffComment ? ` · ${r.staffComment}` : ''}
               </p>
             ))}
           </div>
@@ -694,7 +693,7 @@ function DoctorCalendarEventPanelInner({
             {lifecycle.cancellations.map((c) => (
               <p key={c.id} className="text-xs text-muted-foreground">
                 Отмена ({cancellationDecisionTypeLabel(c.cancellationType)})
-                {c.staffComment ? `: ${c.staffComment}` : ""}
+                {c.staffComment ? `: ${c.staffComment}` : ''}
               </p>
             ))}
           </div>
@@ -703,7 +702,7 @@ function DoctorCalendarEventPanelInner({
 
       <AppointmentStaffCommentsSection appointmentId={selected.id} onChanged={onChanged} />
 
-      {mode === "reschedule" ? (
+      {mode === 'reschedule' ? (
         <div className="mt-3 space-y-2 border-t border-border pt-3">
           <Label>Начало</Label>
           <DoctorDateTimePicker value={newStartLocal} onChange={setNewStartLocal} />
@@ -713,13 +712,13 @@ function DoctorCalendarEventPanelInner({
       ) : null}
 
       {/* R21: форма отмены разворачивается ВНИЗУ карточки */}
-      {mode === "cancel" ? (
+      {mode === 'cancel' ? (
         <div className="mt-3 space-y-2 border-t border-border pt-3">
           <Label>Причина отмены</Label>
-          <Select value={cancelReason} onValueChange={(v) => setCancelReason(v ?? "")}>
+          <Select value={cancelReason} onValueChange={(v) => setCancelReason(v ?? '')}>
             <SelectTrigger
               displayLabel={
-                CANCEL_REASONS.find((r) => r.value === cancelReason)?.label ?? "Выберите причину"
+                CANCEL_REASONS.find((r) => r.value === cancelReason)?.label ?? 'Выберите причину'
               }
             >
               <SelectValue />
@@ -740,7 +739,7 @@ function DoctorCalendarEventPanelInner({
             placeholder="Комментарий для истории записи"
           />
           <Label>Начисление</Label>
-          <Select value={cancelCharge} onValueChange={(v) => setCancelCharge(v ?? "free")}>
+          <Select value={cancelCharge} onValueChange={(v) => setCancelCharge(v ?? 'free')}>
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
@@ -763,10 +762,8 @@ function DoctorCalendarEventPanelInner({
       <div className="mt-4 flex flex-wrap items-center gap-2">
         {isCancelledAppointmentStatus(selected.status) ? (
           <>
-            <Select value={postCancelClass} onValueChange={(v) => setPostCancelClass(v ?? "free")}>
-              <SelectTrigger
-                className="w-[8.5rem]"
-              >
+            <Select value={postCancelClass} onValueChange={(v) => setPostCancelClass(v ?? 'free')}>
+              <SelectTrigger className="w-[8.5rem]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -786,15 +783,18 @@ function DoctorCalendarEventPanelInner({
                 disabled={pending}
                 onClick={() => {
                   // R22: удаление уже отменённой записи — пациенту не уведомляем (purge без side-effects).
-                  if (!window.confirm("Удалить запись из календаря и кабинета пациента?")) return;
+                  if (!window.confirm('Удалить запись из календаря и кабинета пациента?')) return;
                   startTransition(async () => {
-                    const res = await fetch(`${apiBase}/appointments/${encodeURIComponent(selected.id)}/delete`, {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({}),
-                    });
+                    const res = await fetch(
+                      `${apiBase}/appointments/${encodeURIComponent(selected.id)}/delete`,
+                      {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({}),
+                      },
+                    );
                     const json = (await res.json()) as { ok?: boolean; error?: string };
-                    setMessage(json.ok ? "Удалено" : panelErrorLabel(json.error));
+                    setMessage(json.ok ? 'Удалено' : panelErrorLabel(json.error));
                     if (json.ok) onChanged();
                   });
                 }}
@@ -803,7 +803,7 @@ function DoctorCalendarEventPanelInner({
               </Button>
             ) : null}
           </>
-        ) : mode === "reschedule" ? (
+        ) : mode === 'reschedule' ? (
           <>
             <Button
               type="button"
@@ -814,33 +814,44 @@ function DoctorCalendarEventPanelInner({
                 const newEndAt = new Date(newEndLocal).toISOString();
                 const durationMinutes = Math.max(
                   1,
-                  Math.round((new Date(newEndAt).getTime() - new Date(newStartAt).getTime()) / 60_000),
+                  Math.round(
+                    (new Date(newEndAt).getTime() - new Date(newStartAt).getTime()) / 60_000,
+                  ),
                 );
                 startTransition(async () => {
-                  const res = await fetch(`${apiBase}/appointments/${encodeURIComponent(selected.id)}/manual-reschedule`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ newStartAt, newEndAt, durationMinutes }),
-                  });
+                  const res = await fetch(
+                    `${apiBase}/appointments/${encodeURIComponent(selected.id)}/manual-reschedule`,
+                    {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ newStartAt, newEndAt, durationMinutes }),
+                    },
+                  );
                   const json = (await res.json()) as { ok?: boolean; error?: string };
-                  setMessage(json.ok ? "Перенесено" : panelErrorLabel(json.error));
+                  setMessage(json.ok ? 'Перенесено' : panelErrorLabel(json.error));
                   if (json.ok) {
                     onChanged();
-                  } else if (json.error === "external_slot_taken") {
+                  } else if (json.error === 'external_slot_taken') {
                     onChanged();
                   } else {
-                    setMode("view");
+                    setMode('view');
                   }
                 });
               }}
             >
               Сохранить
             </Button>
-            <Button type="button" size="sm" variant="outline" disabled={pending} onClick={() => setMode("view")}>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={pending}
+              onClick={() => setMode('view')}
+            >
               Отмена
             </Button>
           </>
-        ) : mode === "cancel" ? (
+        ) : mode === 'cancel' ? (
           <>
             <Button
               type="button"
@@ -850,34 +861,55 @@ function DoctorCalendarEventPanelInner({
               disabled={pending}
               onClick={() => {
                 startTransition(async () => {
-                  const res = await fetch(`${apiBase}/appointments/${encodeURIComponent(selected.id)}/manual-cancel`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      decisionType: cancelCharge,
-                      ...(cancelReason ? { reason: cancelReason } : {}),
-                      ...(cancelComment.trim() ? { staffComment: cancelComment.trim() } : {}),
-                      notifyPatient: cancelNotify,
-                    }),
-                  });
+                  const res = await fetch(
+                    `${apiBase}/appointments/${encodeURIComponent(selected.id)}/manual-cancel`,
+                    {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        decisionType: cancelCharge,
+                        ...(cancelReason ? { reason: cancelReason } : {}),
+                        ...(cancelComment.trim() ? { staffComment: cancelComment.trim() } : {}),
+                        notifyPatient: cancelNotify,
+                      }),
+                    },
+                  );
                   const json = (await res.json()) as { ok?: boolean; error?: string };
-                  setMessage(json.ok ? "Отменено" : panelErrorLabel(json.error));
+                  setMessage(json.ok ? 'Отменено' : panelErrorLabel(json.error));
                   if (json.ok) onChanged();
                 });
               }}
             >
               Подтвердить отмену
             </Button>
-            <Button type="button" size="sm" variant="outline" disabled={pending} onClick={() => setMode("view")}>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={pending}
+              onClick={() => setMode('view')}
+            >
               Отмена
             </Button>
           </>
         ) : (
           <>
-            <Button type="button" size="sm" variant="outline" disabled={pending} onClick={() => setMode("reschedule")}>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={pending}
+              onClick={() => setMode('reschedule')}
+            >
               Перенести
             </Button>
-            <Button type="button" size="sm" variant="outline" disabled={pending} onClick={() => setMode("cancel")}>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={pending}
+              onClick={() => setMode('cancel')}
+            >
               Отменить
             </Button>
           </>
@@ -912,10 +944,16 @@ type CreateFormProps = {
 
 function CreateForm(props: CreateFormProps) {
   const durationLabel =
-    props.createDurationMinutes != null ? `${props.createDurationMinutes} мин` : "—";
+    props.createDurationMinutes != null ? `${props.createDurationMinutes} мин` : '—';
 
-  const branchMode = resolveCalendarCreateFieldMode(props.filterMeta.branches, props.activeFilters.branchId);
-  const serviceMode = resolveCalendarCreateFieldMode(props.serviceOptions, props.activeFilters.serviceId);
+  const branchMode = resolveCalendarCreateFieldMode(
+    props.filterMeta.branches,
+    props.activeFilters.branchId,
+  );
+  const serviceMode = resolveCalendarCreateFieldMode(
+    props.serviceOptions,
+    props.activeFilters.serviceId,
+  );
 
   return (
     <div className="mt-3 space-y-2 border-t border-border pt-3">

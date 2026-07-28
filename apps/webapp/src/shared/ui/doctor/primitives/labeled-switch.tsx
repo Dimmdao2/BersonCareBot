@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { cn } from "@/lib/utils";
-import { Switch } from "./switch";
+import { cn } from '@/lib/utils';
+import { Switch } from './switch';
 
 type LabeledSwitchProps = {
   label: string;
@@ -30,7 +30,7 @@ export function LabeledSwitch({
         checked={checked}
         onCheckedChange={onCheckedChange}
         disabled={disabled}
-        className={cn("mt-0.5 shrink-0", switchClassName)}
+        className={cn('mt-0.5 shrink-0', switchClassName)}
       />
     </div>
   );

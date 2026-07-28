@@ -16,21 +16,21 @@
 
 ### 1.1 Транзакционность
 
-| Критерий | Факт в коде | Вердикт |
-|----------|-------------|---------|
-| Все мутации в одной транзакции | Вся логика после валидации выполняется внутри `return db.tx(async (tx) => { ... })`; финальный `UPDATE users … merged_into_user_id` и realign outbox — в том же callback. | **PASS** |
-| Откат при ошибке | `createDbPort().tx` при исключении выполняет `ROLLBACK` и пробрасывает ошибку ([`client.ts`](../../apps/integrator/src/infra/db/client.ts)). | **PASS** |
-| Dry-run | `dryRun: true` возвращает результат **до** любых `UPDATE`/`DELETE` доменных таблиц и outbox; транзакция при этом **коммитится** (фактически no-op мутаций). Семантика явно задокументирована в JSDoc `mergeIntegratorUsers` и в [`STAGE_3_TRANSACTIONAL_MERGE_AND_OUTBOX.md`](STAGE_3_TRANSACTIONAL_MERGE_AND_OUTBOX.md) — не «ROLLBACK preview». | **PASS** |
+| Критерий                       | Факт в коде                                                                                                                                                                                                                                                                                                                                       | Вердикт  |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| Все мутации в одной транзакции | Вся логика после валидации выполняется внутри `return db.tx(async (tx) => { ... })`; финальный `UPDATE users … merged_into_user_id` и realign outbox — в том же callback.                                                                                                                                                                         | **PASS** |
+| Откат при ошибке               | `createDbPort().tx` при исключении выполняет `ROLLBACK` и пробрасывает ошибку ([`client.ts`](../../apps/integrator/src/infra/db/client.ts)).                                                                                                                                                                                                      | **PASS** |
+| Dry-run                        | `dryRun: true` возвращает результат **до** любых `UPDATE`/`DELETE` доменных таблиц и outbox; транзакция при этом **коммитится** (фактически no-op мутаций). Семантика явно задокументирована в JSDoc `mergeIntegratorUsers` и в [`STAGE_3_TRANSACTIONAL_MERGE_AND_OUTBOX.md`](STAGE_3_TRANSACTIONAL_MERGE_AND_OUTBOX.md) — не «ROLLBACK preview». | **PASS** |
 
 **Вывод §1.1:** merge **транзакционный** в смысле ACID одной БД-операции `tx`: либо все шаги коммитятся, либо откат без частичного применения доменных правок.
 
 ### 1.2 Идемпотентность
 
-| Сценарий | Поведение | Вердикт |
-|----------|-----------|---------|
-| Повтор после **сбоя до COMMIT** | Повторный вызов с теми же `(winner, loser)` снова проходит валидацию и выполняет merge с чистого состояния. | **PASS** (at-least-once safe retry) |
-| Повтор после **успешного COMMIT** (тот же winner/loser) | Если `loser.merged_into_user_id` указывает на `winner` — возврат успеха с `alreadyMerged: true`, нулевые счётчики (идемпотентный no-op). Если loser — alias **другого** пользователя — `ALREADY_MERGED_ALIAS`. | **PASS** (после follow-up §10) |
-| Повтор с **переставленными** winner/loser | Иной смысл операции; возможны отказы по бизнес-инвариантам (alias, отсутствие строк и т.д.) — ожидаемо. | **N/A** |
+| Сценарий                                                | Поведение                                                                                                                                                                                                      | Вердикт                             |
+| ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
+| Повтор после **сбоя до COMMIT**                         | Повторный вызов с теми же `(winner, loser)` снова проходит валидацию и выполняет merge с чистого состояния.                                                                                                    | **PASS** (at-least-once safe retry) |
+| Повтор после **успешного COMMIT** (тот же winner/loser) | Если `loser.merged_into_user_id` указывает на `winner` — возврат успеха с `alreadyMerged: true`, нулевые счётчики (идемпотентный no-op). Если loser — alias **другого** пользователя — `ALREADY_MERGED_ALIAS`. | **PASS** (после follow-up §10)      |
+| Повтор с **переставленными** winner/loser               | Иной смысл операции; возможны отказы по бизнес-инвариантам (alias, отсутствие строк и т.д.) — ожидаемо.                                                                                                        | **N/A**                             |
 
 **Вывод §1.2:** реализованы **крэш-безопасный retry** и **идемпотентный успех** при повторе того же merge после успеха (ветка `alreadyMerged`).
 
@@ -38,11 +38,11 @@
 
 ## 2) Порядок блокировок и deadlock
 
-| Критерий | Факт в коде | Вердикт |
-|----------|-------------|---------|
-| Детерминированный порядок lock на `users` | Первый SQL в tx: `SELECT id FROM users WHERE id IN ($1,$2) ORDER BY id ASC FOR UPDATE` — PostgreSQL блокирует строки в порядке возрастания `id`, независимо от того, кто передан первым аргументом (`winner` или `loser`). | **PASS** |
-| Два concurrent merge разных пар | Оба сначала берут lock на меньший `id` из своей пары — классический приём снижения risk deadlock на паре строк `users`. | **PASS** (для вызовов **только** через эту функцию) |
-| Иные кодовые пути | Другие части integrator **не обязаны** брать lock на двух `users` в том же порядке; если позже появится второй путь с `FOR UPDATE` двух пользователей в ином порядке — теоретический cross-path deadlock. | **GAP (мониторинг)** — вне объёма одного файла; зафиксировать в конвенциях при добавлении multi-user locks |
+| Критерий                                  | Факт в коде                                                                                                                                                                                                                | Вердикт                                                                                                    |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Детерминированный порядок lock на `users` | Первый SQL в tx: `SELECT id FROM users WHERE id IN ($1,$2) ORDER BY id ASC FOR UPDATE` — PostgreSQL блокирует строки в порядке возрастания `id`, независимо от того, кто передан первым аргументом (`winner` или `loser`). | **PASS**                                                                                                   |
+| Два concurrent merge разных пар           | Оба сначала берут lock на меньший `id` из своей пары — классический приём снижения risk deadlock на паре строк `users`.                                                                                                    | **PASS** (для вызовов **только** через эту функцию)                                                        |
+| Иные кодовые пути                         | Другие части integrator **не обязаны** брать lock на двух `users` в том же порядке; если позже появится второй путь с `FOR UPDATE` двух пользователей в ином порядке — теоретический cross-path deadlock.                  | **GAP (мониторинг)** — вне объёма одного файла; зафиксировать в конвенциях при добавлении multi-user locks |
 
 **Вывод §2:** для **самого** `mergeIntegratorUsers` порядок **не deadlock-prone** относительно второго такого же merge. Риск остаётся только при **будущих** альтернативных путях блокировки тех же строк.
 
@@ -50,12 +50,12 @@
 
 ## 3) Outbox rewrite и UNIQUE(`idempotency_key`)
 
-| Критерий | Факт в коде | Вердикт |
-|----------|-------------|---------|
-| Обновление ключа без нарушения UNIQUE | Перед `UPDATE … SET idempotency_key = $newKey` выполняется `SELECT … WHERE idempotency_key = $newKey AND id <> $currentId`. Если строка найдена — ключ **не** меняют; текущая строка переводится в `cancelled` с `last_error`. | **PASS** |
-| Два pending-row в одной транзакции → один новый ключ | Обработка `ORDER BY id::bigint ASC`: первая строка занимает `newKey`, вторая при проверке видит коллизию и уходит в **dedup/cancelled**. | **PASS** |
-| Ключ не меняется | Ветка `newKey === row.idempotency_key` — только `UPDATE payload`, UNIQUE не затрагивается. | **PASS** |
-| Гонка вне транзакции | Все проверки и `UPDATE` outbox выполняются в **той же** `db.tx`, что и merge. | **PASS** |
+| Критерий                                             | Факт в коде                                                                                                                                                                                                                    | Вердикт  |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------- |
+| Обновление ключа без нарушения UNIQUE                | Перед `UPDATE … SET idempotency_key = $newKey` выполняется `SELECT … WHERE idempotency_key = $newKey AND id <> $currentId`. Если строка найдена — ключ **не** меняют; текущая строка переводится в `cancelled` с `last_error`. | **PASS** |
+| Два pending-row в одной транзакции → один новый ключ | Обработка `ORDER BY id::bigint ASC`: первая строка занимает `newKey`, вторая при проверке видит коллизию и уходит в **dedup/cancelled**.                                                                                       | **PASS** |
+| Ключ не меняется                                     | Ветка `newKey === row.idempotency_key` — только `UPDATE payload`, UNIQUE не затрагивается.                                                                                                                                     | **PASS** |
+| Гонка вне транзакции                                 | Все проверки и `UPDATE` outbox выполняются в **той же** `db.tx`, что и merge.                                                                                                                                                  | **PASS** |
 
 **Вывод §3:** при соблюдении текущей логики **duplicate `idempotency_key` из-за rewrite в одном merge** не создаётся.
 
@@ -63,14 +63,14 @@
 
 ## 4) Поведение при коллизиях (явность)
 
-| Класс коллизии | Политика в коде | Достаточно явно для оператора/логов? |
-|----------------|-----------------|--------------------------------------|
-| Одинаковый `(resource, external_id)` в `identities` (loser vs winner) | Repoint `telegram_state` / `message_drafts` / открытых дубликатов `conversations` (partial unique), `user_questions`, затем `DELETE` loser `identity`. | **PASS** (детерминированный порядок SQL) |
-| `contacts` `(type, value_normalized)` | `DELETE` строк loser, конфликтующих с winner; затем `UPDATE user_id` остальных. | **PASS** |
-| `user_reminder_rules` `(user_id, category)` | Аналогично: `DELETE` дубликаты loser, затем `UPDATE`. | **PASS** |
-| `user_subscriptions` / `mailing_logs` (составной PK с `user_id`) | `DELETE` дубликаты loser; затем `UPDATE`. | **PASS** |
-| Outbox: новый idempotency key уже существует | `status = 'cancelled'`, `last_error = 'merge:user deduped (winner idempotency_key already present)'`. | **PASS** (фиксированная строка + счётчик `projectionOutboxDedupedCancelled` в результате и `logger.info`) |
-| Winner или loser — alias до merge | `MergeIntegratorUsersError` `ALREADY_MERGED_ALIAS` с текстом сообщения. | **PASS** |
+| Класс коллизии                                                        | Политика в коде                                                                                                                                        | Достаточно явно для оператора/логов?                                                                      |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
+| Одинаковый `(resource, external_id)` в `identities` (loser vs winner) | Repoint `telegram_state` / `message_drafts` / открытых дубликатов `conversations` (partial unique), `user_questions`, затем `DELETE` loser `identity`. | **PASS** (детерминированный порядок SQL)                                                                  |
+| `contacts` `(type, value_normalized)`                                 | `DELETE` строк loser, конфликтующих с winner; затем `UPDATE user_id` остальных.                                                                        | **PASS**                                                                                                  |
+| `user_reminder_rules` `(user_id, category)`                           | Аналогично: `DELETE` дубликаты loser, затем `UPDATE`.                                                                                                  | **PASS**                                                                                                  |
+| `user_subscriptions` / `mailing_logs` (составной PK с `user_id`)      | `DELETE` дубликаты loser; затем `UPDATE`.                                                                                                              | **PASS**                                                                                                  |
+| Outbox: новый idempotency key уже существует                          | `status = 'cancelled'`, `last_error = 'merge:user deduped (winner idempotency_key already present)'`.                                                  | **PASS** (фиксированная строка + счётчик `projectionOutboxDedupedCancelled` в результате и `logger.info`) |
+| Winner или loser — alias до merge                                     | `MergeIntegratorUsersError` `ALREADY_MERGED_ALIAS` с текстом сообщения.                                                                                | **PASS**                                                                                                  |
 
 **Оговорка (scope Stage 3):** строки outbox со статусом **`done`** / **`dead`** с устаревшим `integratorUserId` loser **не** переписываются этим merge — это согласовано с разделением на Stage 4 (webapp realignment), см. [`STAGE_3_TRANSACTIONAL_MERGE_AND_OUTBOX.md`](STAGE_3_TRANSACTIONAL_MERGE_AND_OUTBOX.md).
 
@@ -88,13 +88,13 @@
 
 ## 6) CI evidence
 
-| Проверка | Результат (зафиксировано в репозитории) |
-|----------|----------------------------------------|
-| Полный pipeline из корня | `pnpm run ci` — **exit 0** |
-| Integrator tests | **646 passed**, 6 skipped (после follow-up §10; см. [`AGENT_EXECUTION_LOG.md`](AGENT_EXECUTION_LOG.md)) |
-| Webapp tests | **1397 passed**, 5 skipped (монорепо; актуально на момент закрытия хвостов docs Stage 3/4) |
-| Сборки | `apps/integrator` + `apps/webapp` production build — **OK** |
-| Audit prod dependencies | `pnpm audit --prod` — **No known vulnerabilities** (в конце `pnpm run ci`) |
+| Проверка                 | Результат (зафиксировано в репозитории)                                                                 |
+| ------------------------ | ------------------------------------------------------------------------------------------------------- |
+| Полный pipeline из корня | `pnpm run ci` — **exit 0**                                                                              |
+| Integrator tests         | **646 passed**, 6 skipped (после follow-up §10; см. [`AGENT_EXECUTION_LOG.md`](AGENT_EXECUTION_LOG.md)) |
+| Webapp tests             | **1397 passed**, 5 skipped (монорепо; актуально на момент закрытия хвостов docs Stage 3/4)              |
+| Сборки                   | `apps/integrator` + `apps/webapp` production build — **OK**                                             |
+| Audit prod dependencies  | `pnpm audit --prod` — **No known vulnerabilities** (в конце `pnpm run ci`)                              |
 
 **Воспроизведение:**
 
@@ -109,13 +109,13 @@ pnpm run ci
 
 ## 7) Сводный вердикт по запросу аудита
 
-| # | Вопрос | Вердикт |
-|---|--------|---------|
-| 1 | Merge транзакционный и идемпотентный | **PASS** (транзакция + `alreadyMerged` при повторе того же merge после успеха). |
-| 2 | Нет deadlock-prone порядка для merge | **PASS** (детерминированный `ORDER BY id ASC FOR UPDATE` на `users`). |
-| 3 | Outbox rewrite не создаёт duplicate `idempotency_key` | **PASS** (проверка + ветка `cancelled`). |
-| 4 | Поведение при коллизиях clearly defined | **PASS** (см. §4; исторические `done` — вне scope). |
-| 5 | CI evidence есть | **PASS** (§6 + execution log). |
+| #   | Вопрос                                                | Вердикт                                                                         |
+| --- | ----------------------------------------------------- | ------------------------------------------------------------------------------- |
+| 1   | Merge транзакционный и идемпотентный                  | **PASS** (транзакция + `alreadyMerged` при повторе того же merge после успеха). |
+| 2   | Нет deadlock-prone порядка для merge                  | **PASS** (детерминированный `ORDER BY id ASC FOR UPDATE` на `users`).           |
+| 3   | Outbox rewrite не создаёт duplicate `idempotency_key` | **PASS** (проверка + ветка `cancelled`).                                        |
+| 4   | Поведение при коллизиях clearly defined               | **PASS** (см. §4; исторические `done` — вне scope).                             |
+| 5   | CI evidence есть                                      | **PASS** (§6 + execution log).                                                  |
 
 **Общий вердикт Stage 3 (репозиторий) после follow-up §10:** **PASS** по целевому чеклисту аудита.
 
@@ -123,13 +123,13 @@ pnpm run ci
 
 ## 10) Follow-up 2026-04-10 — закрытие FINDING / GAP Stage 3
 
-| MANDATORY / тема | Сделано |
-|------------------|---------|
-| §1 Идемпотентность | `mergeIntegratorUsers`: если `loser.merged_into_user_id === winner` → `alreadyMerged: true`, нулевые счётчики; иной alias → `ALREADY_MERGED_ALIAS`. Тесты в `mergeIntegratorUsers.test.ts`. |
+| MANDATORY / тема             | Сделано                                                                                                                                                                                                                                                                                                                                        |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| §1 Идемпотентность           | `mergeIntegratorUsers`: если `loser.merged_into_user_id === winner` → `alreadyMerged: true`, нулевые счётчики; иной alias → `ALREADY_MERGED_ALIAS`. Тесты в `mergeIntegratorUsers.test.ts`.                                                                                                                                                    |
 | §2 `cancelled` в мониторинге | `cancelledCount` в [`projectionHealth.ts`](../../apps/integrator/src/infra/db/repos/projectionHealth.ts) и [`projection-health.mjs`](../../apps/integrator/scripts/projection-health.mjs); не входит в `isProjectionHealthDegraded`. Пункты в [`CUTOVER_RUNBOOK.md`](CUTOVER_RUNBOOK.md) Deploy 3 и [`CHECKLISTS.md`](CHECKLISTS.md) Deploy 3. |
-| §3 Покрытие outbox | Доп. фильтр `payload::text LIKE …` для строковых `"integratorUserId"` / `"integrator_user_id"` в глубине JSON (осторожно: только quoted, см. §5). |
-| §4 Гонка `processing` | Realign только `status = 'pending'`; `processing` не трогаем. |
-| §5 Dry-run | JSDoc на `mergeIntegratorUsers` + раздел в [`STAGE_3_TRANSACTIONAL_MERGE_AND_OUTBOX.md`](STAGE_3_TRANSACTIONAL_MERGE_AND_OUTBOX.md). |
+| §3 Покрытие outbox           | Доп. фильтр `payload::text LIKE …` для строковых `"integratorUserId"` / `"integrator_user_id"` в глубине JSON (осторожно: только quoted, см. §5).                                                                                                                                                                                              |
+| §4 Гонка `processing`        | Realign только `status = 'pending'`; `processing` не трогаем.                                                                                                                                                                                                                                                                                  |
+| §5 Dry-run                   | JSDoc на `mergeIntegratorUsers` + раздел в [`STAGE_3_TRANSACTIONAL_MERGE_AND_OUTBOX.md`](STAGE_3_TRANSACTIONAL_MERGE_AND_OUTBOX.md).                                                                                                                                                                                                           |
 
 **CI:** актуальные числа тестов — в [`AGENT_EXECUTION_LOG.md`](AGENT_EXECUTION_LOG.md) (записи Stage 3 / follow-up / синхронизация §6 с монорепо).
 

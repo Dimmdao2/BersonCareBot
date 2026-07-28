@@ -4,12 +4,15 @@
  * Retry: 0s → 10s → 60s → 5min (4 попытки).
  * Idempotency key: `${organizationId ?? "global"}:${messageId}:${channel}:${recipient}`.
  */
-import { createHmac } from "node:crypto";
-import { getCurrentCorrelationIdHeader } from "@bersoncare/db-principal";
-import { getIntegratorApiUrl, getIntegratorWebhookSecret } from "@/modules/system-settings/integrationRuntime";
+import { createHmac } from 'node:crypto';
+import { getCurrentCorrelationIdHeader } from '@bersoncare/db-principal';
+import {
+  getIntegratorApiUrl,
+  getIntegratorWebhookSecret,
+} from '@/modules/system-settings/integrationRuntime';
 
 export type RelayResult =
-  | { ok: true; status: "accepted" | "duplicate" | "skipped" }
+  | { ok: true; status: 'accepted' | 'duplicate' | 'skipped' }
   | { ok: false; reason: string };
 
 export type RelayInlineButton = { text: string; callback_data: string };
@@ -43,8 +46,10 @@ type RelayOutboundBaseParams<C extends string> = {
 };
 
 export type RelayOutboundParams<C extends string = string> = RelayOutboundBaseParams<C> &
-  (C extends "web_push"
-    ? { /** Verified tenant carried into the integrator dispatch principal. */ organizationId: string }
+  (C extends 'web_push'
+    ? {
+        /** Verified tenant carried into the integrator dispatch principal. */ organizationId: string;
+      }
     : { organizationId?: string });
 
 export type RelayOutboundDeps = {
@@ -65,7 +70,7 @@ const DEFAULT_RETRY_DELAYS_MS = [0, 10_000, 60_000, 300_000];
 let warnedMissingUrl = false;
 
 function signPayload(timestamp: string, rawBody: string, secret: string): string {
-  return createHmac("sha256", secret).update(`${timestamp}.${rawBody}`).digest("base64url");
+  return createHmac('sha256', secret).update(`${timestamp}.${rawBody}`).digest('base64url');
 }
 
 function sleep(ms: number): Promise<void> {
@@ -76,20 +81,16 @@ type AttemptResult =
   | { ok: true; status: string }
   | { ok: false; error: string; httpStatus: number };
 
-async function attemptRelay(
-  url: string,
-  body: string,
-  secret: string,
-): Promise<AttemptResult> {
+async function attemptRelay(url: string, body: string, secret: string): Promise<AttemptResult> {
   const timestamp = String(Math.floor(Date.now() / 1000));
   const signature = signPayload(timestamp, body, secret);
 
   const res = await fetch(url, {
-    method: "POST",
+    method: 'POST',
     headers: {
-      "Content-Type": "application/json",
-      "X-Bersoncare-Timestamp": timestamp,
-      "X-Bersoncare-Signature": signature,
+      'Content-Type': 'application/json',
+      'X-Bersoncare-Timestamp': timestamp,
+      'X-Bersoncare-Signature': signature,
       ...getCurrentCorrelationIdHeader(),
     },
     body,
@@ -104,7 +105,7 @@ async function attemptRelay(
   if (!res.ok) {
     return { ok: false, error: data.error ?? `http_${res.status}`, httpStatus: res.status };
   }
-  return { ok: true, status: data.status ?? "accepted" };
+  return { ok: true, status: data.status ?? 'accepted' };
 }
 
 export async function relayOutbound<C extends string>(
@@ -118,21 +119,21 @@ export async function relayOutbound<C extends string>(
   if (!integratorUrl) {
     if (!warnedMissingUrl) {
       warnedMissingUrl = true;
-      console.warn("[relay] INTEGRATOR_API_URL не задан — outbound relay отключён");
+      console.warn('[relay] INTEGRATOR_API_URL не задан — outbound relay отключён');
     }
-    return { ok: false, reason: "no_integrator_url" };
+    return { ok: false, reason: 'no_integrator_url' };
   }
 
   if (shouldDispatchRelay) {
     const allowed = await shouldDispatchRelay({ channel, recipient });
     if (!allowed) {
-      return { ok: false, reason: "dev_mode_skip" };
+      return { ok: false, reason: 'dev_mode_skip' };
     }
   }
 
   const secret = (await getIntegratorWebhookSecret()).trim();
-  const idempotencyKey = `${params.organizationId ?? "global"}:${messageId}:${channel}:${recipient}`;
-  const url = `${integratorUrl.replace(/\/$/, "")}/api/bersoncare/relay-outbound`;
+  const idempotencyKey = `${params.organizationId ?? 'global'}:${messageId}:${channel}:${recipient}`;
+  const url = `${integratorUrl.replace(/\/$/, '')}/api/bersoncare/relay-outbound`;
 
   const bodyObj: Record<string, unknown> = { messageId, channel, recipient, text, idempotencyKey };
   if (params.organizationId) {
@@ -159,7 +160,7 @@ export async function relayOutbound<C extends string>(
   }
   const rawBody = JSON.stringify(bodyObj);
 
-  let lastError: string = "unknown";
+  let lastError: string = 'unknown';
 
   for (let attempt = 0; attempt < retryDelaysMs.length; attempt++) {
     if (attempt > 0) {
@@ -170,7 +171,10 @@ export async function relayOutbound<C extends string>(
       if (result.ok) {
         return {
           ok: true,
-          status: result.status === "duplicate" || result.status === "skipped" ? result.status : "accepted",
+          status:
+            result.status === 'duplicate' || result.status === 'skipped'
+              ? result.status
+              : 'accepted',
         };
       }
       lastError = result.error;
@@ -180,7 +184,7 @@ export async function relayOutbound<C extends string>(
         return { ok: false, reason: lastError };
       }
     } catch (err) {
-      lastError = err instanceof Error ? err.message : "fetch_error";
+      lastError = err instanceof Error ? err.message : 'fetch_error';
     }
   }
 

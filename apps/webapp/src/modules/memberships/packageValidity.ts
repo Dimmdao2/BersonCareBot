@@ -1,10 +1,10 @@
-import type { PatientPackageRecord } from "./types";
+import type { PatientPackageRecord } from './types';
 
 export function isPatientPackageWithinValidity(
-  pkg: Pick<PatientPackageRecord, "status" | "validFrom" | "validUntil">,
+  pkg: Pick<PatientPackageRecord, 'status' | 'validFrom' | 'validUntil'>,
   now: Date = new Date(),
 ): boolean {
-  if (pkg.status !== "active") return false;
+  if (pkg.status !== 'active') return false;
   const t = now.getTime();
   if (pkg.validFrom) {
     const from = new Date(pkg.validFrom).getTime();
@@ -18,10 +18,10 @@ export function isPatientPackageWithinValidity(
 }
 
 export function isPatientPackageExpired(
-  pkg: Pick<PatientPackageRecord, "validUntil" | "status">,
+  pkg: Pick<PatientPackageRecord, 'validUntil' | 'status'>,
   now: Date = new Date(),
 ): boolean {
-  if (pkg.status === "expired" || pkg.status === "cancelled") return pkg.status === "expired";
+  if (pkg.status === 'expired' || pkg.status === 'cancelled') return pkg.status === 'expired';
   if (!pkg.validUntil) return false;
   return new Date(pkg.validUntil).getTime() < now.getTime();
 }

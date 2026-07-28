@@ -2,8 +2,8 @@
  * DB implementation for the public email-OTP login flow port.
  * Satisfies EmailOtpPublicDbPort from modules/auth/emailOtpPublicPort.ts.
  */
-import { runWebappPgText } from "@/infra/db/runWebappSql";
-import type { EmailOtpPublicDbPort } from "@/modules/auth/emailOtpPublicPort";
+import { runWebappPgText } from '@/infra/db/runWebappSql';
+import type { EmailOtpPublicDbPort } from '@/modules/auth/emailOtpPublicPort';
 
 export function createPgEmailOtpPublicPort(): EmailOtpPublicDbPort {
   return {
@@ -14,7 +14,7 @@ export function createPgEmailOtpPublicPort(): EmailOtpPublicDbPort {
         [emailNorm],
       );
       const row = result.rows[0];
-      if (!row) throw new Error("email_otp_public_find_or_create_user_failed");
+      if (!row) throw new Error('email_otp_public_find_or_create_user_failed');
       return { userId: row.user_id, wasCreated: row.was_created };
     },
 
@@ -39,15 +39,15 @@ export function createPgEmailOtpPublicPort(): EmailOtpPublicDbPort {
         [input.emailNormalized, input.lastName, input.firstName, input.patronymic],
       );
       const row = result.rows[0];
-      if (!row) throw new Error("email_otp_public_register_patient_failed");
-      if (!row.ok || !row.user_id) return { ok: false, reason: "duplicate_email" };
+      if (!row) throw new Error('email_otp_public_register_patient_failed');
+      if (!row.ok || !row.user_id) return { ok: false, reason: 'duplicate_email' };
       return { ok: true, userId: row.user_id, wasCreated: row.was_created };
     },
 
     async consumeLatestEmailChallenge(emailNorm, codeHash) {
       const result = await runWebappPgText<{
         ok: boolean;
-        code: "invalid_code" | "expired_code" | "too_many_attempts" | "email_conflict" | null;
+        code: 'invalid_code' | 'expired_code' | 'too_many_attempts' | 'email_conflict' | null;
         user_id: string | null;
         retry_after_seconds: number | null;
       }>(
@@ -56,9 +56,9 @@ export function createPgEmailOtpPublicPort(): EmailOtpPublicDbPort {
         [emailNorm, codeHash],
       );
       const row = result.rows[0];
-      if (!row) throw new Error("email_otp_public_consume_latest_challenge_failed");
+      if (!row) throw new Error('email_otp_public_consume_latest_challenge_failed');
       if (row.ok && row.user_id) return { ok: true as const, userId: row.user_id };
-      if (!row.code) throw new Error("email_otp_public_consume_latest_challenge_invalid_result");
+      if (!row.code) throw new Error('email_otp_public_consume_latest_challenge_invalid_result');
       return {
         ok: false as const,
         code: row.code,
@@ -114,7 +114,7 @@ export const inMemoryEmailOtpPublicPort: EmailOtpPublicDbPort = {
   },
 
   async consumeLatestEmailChallenge(_emailNorm, _codeHash) {
-    return { ok: false as const, code: "expired_code" as const };
+    return { ok: false as const, code: 'expired_code' as const };
   },
 
   async findEmailSendCooldownByEmail(emailNorm) {

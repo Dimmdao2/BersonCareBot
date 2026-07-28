@@ -1,16 +1,16 @@
-import { createHash } from "node:crypto";
-import { eq, sql } from "drizzle-orm";
-import type { DrizzleDb } from "@/app-layer/db/drizzle";
-import { stableStringifyForIdempotency } from "@/infra/idempotency/integratorEventSemanticHash";
+import { createHash } from 'node:crypto';
+import { eq, sql } from 'drizzle-orm';
+import type { DrizzleDb } from '@/app-layer/db/drizzle';
+import { stableStringifyForIdempotency } from '@/infra/idempotency/integratorEventSemanticHash';
 import {
   manualPatientCommands,
   type ManualPatientCommandKind,
-} from "../../../db/schema/manualPatientCommands";
+} from '../../../db/schema/manualPatientCommands';
 
 export type ManualPatientCommand = typeof manualPatientCommands.$inferSelect;
 
 export function manualPatientCommandFingerprint(semantic: unknown): string {
-  return createHash("sha256").update(stableStringifyForIdempotency(semantic)).digest("hex");
+  return createHash('sha256').update(stableStringifyForIdempotency(semantic)).digest('hex');
 }
 
 /** UUIDs are globally unique commands: organization is payload authority, not part of the lock key. */
@@ -44,7 +44,7 @@ export function assertManualPatientCommandReplay(
     command.commandKind !== expected.commandKind ||
     command.requestFingerprint !== expected.requestFingerprint
   ) {
-    throw new Error("idempotency_conflict");
+    throw new Error('idempotency_conflict');
   }
 }
 
@@ -62,7 +62,7 @@ export async function insertManualPatientCommand(
 }
 
 export function isManualPatientCommandUniqueViolation(error: unknown): boolean {
-  if (typeof error !== "object" || error === null) return false;
+  if (typeof error !== 'object' || error === null) return false;
   const value = error as { code?: unknown; constraint?: unknown };
-  return value.code === "23505" && value.constraint === "manual_patient_commands_pkey";
+  return value.code === '23505' && value.constraint === 'manual_patient_commands_pkey';
 }

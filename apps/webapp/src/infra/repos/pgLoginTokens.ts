@@ -1,9 +1,9 @@
 /** Wave 3 phase 15B — domain SQL via `runWebappPgText`. */
-import { runWebappPgText } from "@/infra/db/runWebappSql";
-import type { LoginTokenRow, LoginTokensPort } from "@/modules/auth/loginTokensPort";
+import { runWebappPgText } from '@/infra/db/runWebappSql';
+import type { LoginTokenRow, LoginTokensPort } from '@/modules/auth/loginTokensPort';
 
 function toDateField(v: Date | string): Date {
-  return typeof v === "string" ? new Date(v) : v;
+  return typeof v === 'string' ? new Date(v) : v;
 }
 
 function nullableDateField(v: Date | string | null): Date | null {
@@ -46,8 +46,8 @@ export const pgLoginTokensPort: LoginTokensPort = {
       id: r.id,
       tokenHash,
       userId: r.user_id,
-      method: r.method as LoginTokenRow["method"],
-      status: r.status as LoginTokenRow["status"],
+      method: r.method as LoginTokenRow['method'],
+      status: r.status as LoginTokenRow['status'],
       expiresAt: toDateField(r.expires_at),
       confirmedAt: nullableDateField(r.confirmed_at),
       sessionIssuedAt: nullableDateField(r.session_issued_at),
@@ -55,10 +55,7 @@ export const pgLoginTokensPort: LoginTokensPort = {
   },
 
   async markExpiredIfPast(_now: Date): Promise<void> {
-    await runWebappPgText(
-      `SELECT app.auth_login_token_expire_past()`,
-      [],
-    );
+    await runWebappPgText(`SELECT app.auth_login_token_expire_past()`, []);
   },
 
   async confirmByTokenHash(tokenHash: string, _now: Date): Promise<boolean> {
@@ -70,9 +67,8 @@ export const pgLoginTokensPort: LoginTokensPort = {
   },
 
   async markSessionIssued(tokenHash: string, _at: Date): Promise<void> {
-    await runWebappPgText(
-      `SELECT app.auth_login_token_mark_session_issued($1::text) AS marked`,
-      [tokenHash],
-    );
+    await runWebappPgText(`SELECT app.auth_login_token_mark_session_issued($1::text) AS marked`, [
+      tokenHash,
+    ]);
   },
 };

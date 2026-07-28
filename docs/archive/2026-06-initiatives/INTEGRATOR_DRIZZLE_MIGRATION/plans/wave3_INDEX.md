@@ -28,19 +28,19 @@
 
 ## Фазы (порядок исполнения)
 
-| # | Файл плана | Размер | Область | PR |
-|---|------------|--------|---------|-----|
-| 00 | [wave3_phase_00_baseline_adr.plan.md](./wave3_phase_00_baseline_adr.plan.md) | S | Baseline `rg`, Class A/B/C, ADR permanent zones | docs (**done** 2026-06-05) |
-| 08 | [wave3_phase_08_integrator_schema_reduction.plan.md](./wave3_phase_08_integrator_schema_reduction.plan.md) | L | Убрать/перенести дубли integrator после unified DB | 1 (**done** 2026-06-06) |
-| 09 | [wave3_phase_09_integrator_p1plus.plan.md](./wave3_phase_09_integrator_p1plus.plan.md) | M | Integrator P1+ (декомпозиция 09A-09E) | 1 (**done** 2026-06-06) |
-| 10 | [wave3_phase_10_media_worker_ix.plan.md](./wave3_phase_10_media_worker_ix.plan.md) | M | media-worker IX (декомпозиция 10A-10C) | 1 (**done** 2026-06-06) |
-| 11 | [wave3_phase_11_webapp_app_layer_auth.plan.md](./wave3_phase_11_webapp_app_layer_auth.plan.md) | S | app-layer health/media; auth TX tail; мелкие outliers | 1 (**done** 2026-06-06) |
-| 12 | [wave3_phase_12_webapp_intake_purge_identity.plan.md](./wave3_phase_12_webapp_intake_purge_identity.plan.md) | L | intake/purge/identity (декомпозиция 12A-12E) | 1 (**done** 2026-06-06) |
-| 13 | [wave3_phase_13_webapp_booking_doctor.plan.md](./wave3_phase_13_webapp_booking_doctor.plan.md) | L | booking/doctor (декомпозиция 13A-13E) | 1 (**done** 2026-06-06) |
-| 14 | [wave3_phase_14_webapp_comms_projection.plan.md](./wave3_phase_14_webapp_comms_projection.plan.md) | L | comms/projection (декомпозиция 14A-14E) | 1 (**done** 2026-06-06) |
-| 15 | [wave3_phase_15_webapp_long_tail.plan.md](./wave3_phase_15_webapp_long_tail.plan.md) | M | long tail (декомпозиция 15A-15F) | 1 (**done** 2026-06-06) |
-| 16 | [wave3_phase_16_legacy_cutover.plan.md](./wave3_phase_16_legacy_cutover.plan.md) | M | webapp legacy migration dependency cutover (`migrate:legacy`) | 1 (**done** 2026-06-06) |
-| 17 | [wave3_phase_17_closeout.plan.md](./wave3_phase_17_closeout.plan.md) | S | docs sync, staging smoke gate, full CI, archive | 1 (**done** 2026-06-06; staging smoke **PASS**) |
+| #   | Файл плана                                                                                                   | Размер | Область                                                       | PR                                              |
+| --- | ------------------------------------------------------------------------------------------------------------ | ------ | ------------------------------------------------------------- | ----------------------------------------------- |
+| 00  | [wave3_phase_00_baseline_adr.plan.md](./wave3_phase_00_baseline_adr.plan.md)                                 | S      | Baseline `rg`, Class A/B/C, ADR permanent zones               | docs (**done** 2026-06-05)                      |
+| 08  | [wave3_phase_08_integrator_schema_reduction.plan.md](./wave3_phase_08_integrator_schema_reduction.plan.md)   | L      | Убрать/перенести дубли integrator после unified DB            | 1 (**done** 2026-06-06)                         |
+| 09  | [wave3_phase_09_integrator_p1plus.plan.md](./wave3_phase_09_integrator_p1plus.plan.md)                       | M      | Integrator P1+ (декомпозиция 09A-09E)                         | 1 (**done** 2026-06-06)                         |
+| 10  | [wave3_phase_10_media_worker_ix.plan.md](./wave3_phase_10_media_worker_ix.plan.md)                           | M      | media-worker IX (декомпозиция 10A-10C)                        | 1 (**done** 2026-06-06)                         |
+| 11  | [wave3_phase_11_webapp_app_layer_auth.plan.md](./wave3_phase_11_webapp_app_layer_auth.plan.md)               | S      | app-layer health/media; auth TX tail; мелкие outliers         | 1 (**done** 2026-06-06)                         |
+| 12  | [wave3_phase_12_webapp_intake_purge_identity.plan.md](./wave3_phase_12_webapp_intake_purge_identity.plan.md) | L      | intake/purge/identity (декомпозиция 12A-12E)                  | 1 (**done** 2026-06-06)                         |
+| 13  | [wave3_phase_13_webapp_booking_doctor.plan.md](./wave3_phase_13_webapp_booking_doctor.plan.md)               | L      | booking/doctor (декомпозиция 13A-13E)                         | 1 (**done** 2026-06-06)                         |
+| 14  | [wave3_phase_14_webapp_comms_projection.plan.md](./wave3_phase_14_webapp_comms_projection.plan.md)           | L      | comms/projection (декомпозиция 14A-14E)                       | 1 (**done** 2026-06-06)                         |
+| 15  | [wave3_phase_15_webapp_long_tail.plan.md](./wave3_phase_15_webapp_long_tail.plan.md)                         | M      | long tail (декомпозиция 15A-15F)                              | 1 (**done** 2026-06-06)                         |
+| 16  | [wave3_phase_16_legacy_cutover.plan.md](./wave3_phase_16_legacy_cutover.plan.md)                             | M      | webapp legacy migration dependency cutover (`migrate:legacy`) | 1 (**done** 2026-06-06)                         |
+| 17  | [wave3_phase_17_closeout.plan.md](./wave3_phase_17_closeout.plan.md)                                         | S      | docs sync, staging smoke gate, full CI, archive               | 1 (**done** 2026-06-06; staging smoke **PASS**) |
 
 **Итого:** ~8 code PR + 1 docs baseline + 1 closeout (или baseline+09 в одном PR по согласованию).
 
@@ -104,7 +104,7 @@
 
 ## Связь с DRIZZLE_TRANSITION_PLAN фазами IX–X
 
-| Старый номер | Wave 3 |
-|--------------|--------|
-| IX media-worker | Фаза **10** |
+| Старый номер       | Wave 3                                                  |
+| ------------------ | ------------------------------------------------------- |
+| IX media-worker    | Фаза **10**                                             |
 | X webapp + scripts | Фазы **11–15** + integrator scripts Class C в **00/17** |

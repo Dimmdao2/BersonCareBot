@@ -2,7 +2,7 @@ import {
   getConfigValue,
   getIsSmtpOutboundConfiguredOrNull,
   getPublicRuntimeBool,
-} from "@/modules/system-settings/configAdapter";
+} from '@/modules/system-settings/configAdapter';
 import {
   getGoogleClientId,
   getGoogleClientSecret,
@@ -12,10 +12,10 @@ import {
   getYandexOauthClientId,
   getYandexOauthClientSecret,
   getYandexOauthRedirectUri,
-} from "@/modules/system-settings/integrationRuntime";
-import { smtpInnerFromValueJson } from "@/modules/system-settings/smtpOutboundPatch";
+} from '@/modules/system-settings/integrationRuntime';
+import { smtpInnerFromValueJson } from '@/modules/system-settings/smtpOutboundPatch';
 
-export type AuthChannel = "email" | "sms" | "telegram" | "max";
+export type AuthChannel = 'email' | 'sms' | 'telegram' | 'max';
 
 export type AuthChannelPolicy = Readonly<Record<AuthChannel, boolean>>;
 
@@ -23,13 +23,13 @@ export type AuthChannelPolicy = Readonly<Record<AuthChannel, boolean>>;
 export type AuthChannelDetail = Readonly<{ enabled: boolean; configured: boolean }>;
 export type AuthChannelPolicyDetail = Readonly<Record<AuthChannel, AuthChannelDetail>>;
 
-export const AUTH_CHANNEL_DISABLED_ERROR = "auth_channel_disabled" as const;
+export const AUTH_CHANNEL_DISABLED_ERROR = 'auth_channel_disabled' as const;
 
 const SETTING_BY_CHANNEL = {
-  email: "auth_email_enabled",
-  sms: "auth_sms_enabled",
-  telegram: "auth_telegram_enabled",
-  max: "auth_max_enabled",
+  email: 'auth_email_enabled',
+  sms: 'auth_sms_enabled',
+  telegram: 'auth_telegram_enabled',
+  max: 'auth_max_enabled',
 } as const;
 
 /**
@@ -61,7 +61,7 @@ async function isSmtpConfigured(): Promise<boolean> {
   }
   if (viaAccessor !== null) return viaAccessor;
 
-  const raw = await getConfigValue("smtp_outbound", "");
+  const raw = await getConfigValue('smtp_outbound', '');
   if (!raw.trim()) return false;
   try {
     return smtpInnerFromValueJson(JSON.parse(raw)).success === true;
@@ -71,7 +71,7 @@ async function isSmtpConfigured(): Promise<boolean> {
 }
 
 async function isSmsProviderConfigured(): Promise<boolean> {
-  const raw = await getConfigValue("smsc_api_key", "");
+  const raw = await getConfigValue('smsc_api_key', '');
   return raw.trim().length > 0;
 }
 
@@ -95,23 +95,23 @@ async function isMaxBotConfigured(): Promise<boolean> {
  * view to show a warning next to the toggle.
  */
 async function isChannelConfigured(channel: AuthChannel): Promise<boolean> {
-  if (channel === "email") return isSmtpConfigured();
-  if (channel === "sms") return isSmsProviderConfigured();
-  if (channel === "telegram") return isTelegramBotConfigured();
+  if (channel === 'email') return isSmtpConfigured();
+  if (channel === 'sms') return isSmsProviderConfigured();
+  if (channel === 'telegram') return isTelegramBotConfigured();
   return isMaxBotConfigured();
 }
 
 /** Admin toggle only — unchanged contract (pre-existing, ~30 server-enforcing routes rely on this). */
 export async function isAuthChannelEnabled(channel: AuthChannel): Promise<boolean> {
-  return getPublicRuntimeBool(SETTING_BY_CHANNEL[channel], "public_auth_config");
+  return getPublicRuntimeBool(SETTING_BY_CHANNEL[channel], 'public_auth_config');
 }
 
 export async function getAuthChannelPolicy(): Promise<AuthChannelPolicy> {
   const [email, sms, telegram, max] = await Promise.all([
-    isAuthChannelEnabled("email"),
-    isAuthChannelEnabled("sms"),
-    isAuthChannelEnabled("telegram"),
-    isAuthChannelEnabled("max"),
+    isAuthChannelEnabled('email'),
+    isAuthChannelEnabled('sms'),
+    isAuthChannelEnabled('telegram'),
+    isAuthChannelEnabled('max'),
   ]);
   return { email, sms, telegram, max };
 }
@@ -132,11 +132,11 @@ export async function getClientVisibleAuthChannelPolicy(): Promise<AuthChannelPo
 
 /** Admin-only detail view: raw toggle state and configuration status, kept separate. */
 export async function getAuthChannelPolicyDetail(): Promise<AuthChannelPolicyDetail> {
-  const channels: readonly AuthChannel[] = ["email", "sms", "telegram", "max"];
+  const channels: readonly AuthChannel[] = ['email', 'sms', 'telegram', 'max'];
   const entries = await Promise.all(
     channels.map(async (channel) => {
       const [enabled, configured] = await Promise.all([
-        getPublicRuntimeBool(SETTING_BY_CHANNEL[channel], "public_auth_config"),
+        getPublicRuntimeBool(SETTING_BY_CHANNEL[channel], 'public_auth_config'),
         isChannelConfigured(channel),
       ]);
       return [channel, { enabled, configured }] as const;
@@ -153,20 +153,20 @@ export async function getAuthChannelPolicyDetail(): Promise<AuthChannelPolicyDet
  * public projection (DB trigger, migrations 0193/0209/0210) is left untouched for compatibility
  * but is no longer the source of truth for this gate, so it never goes stale relative to it.
  */
-export type OAuthProvider = "google" | "yandex";
+export type OAuthProvider = 'google' | 'yandex';
 export type OAuthProviderDetail = Readonly<{ enabled: boolean; configured: boolean }>;
 export type OAuthProviderPolicyDetail = Readonly<Record<OAuthProvider, OAuthProviderDetail>>;
 
 const OAUTH_TOGGLE_SETTING_BY_PROVIDER = {
-  google: "auth_oauth_google_enabled",
-  yandex: "auth_oauth_yandex_enabled",
+  google: 'auth_oauth_google_enabled',
+  yandex: 'auth_oauth_yandex_enabled',
 } as const;
 
 async function isOAuthProviderConfigured(provider: OAuthProvider): Promise<boolean> {
   // Cross-check against the actual credential getters, not only the derived public projection —
   // the projection is refreshed by a DB trigger on credential writes, but reading the source
   // values directly here avoids any dependency on projection freshness for server-side gating.
-  if (provider === "google") {
+  if (provider === 'google') {
     const [id, secret, redirect] = await Promise.all([
       getGoogleClientId(),
       getGoogleClientSecret(),
@@ -185,7 +185,7 @@ async function isOAuthProviderConfigured(provider: OAuthProvider): Promise<boole
 /** Effective OAuth login availability = admin toggle AND configured. Fail-closed either way. */
 export async function isOAuthProviderEnabled(provider: OAuthProvider): Promise<boolean> {
   const [enabled, configured] = await Promise.all([
-    getPublicRuntimeBool(OAUTH_TOGGLE_SETTING_BY_PROVIDER[provider], "public_auth_config"),
+    getPublicRuntimeBool(OAUTH_TOGGLE_SETTING_BY_PROVIDER[provider], 'public_auth_config'),
     isOAuthProviderConfigured(provider),
   ]);
   return enabled && configured;
@@ -193,11 +193,11 @@ export async function isOAuthProviderEnabled(provider: OAuthProvider): Promise<b
 
 /** Admin-only detail view for the OAuth toggles (raw toggle + configuration status). */
 export async function getOAuthProviderPolicyDetail(): Promise<OAuthProviderPolicyDetail> {
-  const providers: readonly OAuthProvider[] = ["google", "yandex"];
+  const providers: readonly OAuthProvider[] = ['google', 'yandex'];
   const entries = await Promise.all(
     providers.map(async (provider) => {
       const [enabled, configured] = await Promise.all([
-        getPublicRuntimeBool(OAUTH_TOGGLE_SETTING_BY_PROVIDER[provider], "public_auth_config"),
+        getPublicRuntimeBool(OAUTH_TOGGLE_SETTING_BY_PROVIDER[provider], 'public_auth_config'),
         isOAuthProviderConfigured(provider),
       ]);
       return [provider, { enabled, configured }] as const;

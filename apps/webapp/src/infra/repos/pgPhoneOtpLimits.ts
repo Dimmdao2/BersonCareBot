@@ -1,10 +1,10 @@
-import { runWebappPgText } from "@/infra/db/runWebappSql";
+import { runWebappPgText } from '@/infra/db/runWebappSql';
 
 export async function findPhoneOtpLock(
   phoneNormalized: string,
 ): Promise<{ locked_until: string | number } | null> {
   const lockRow = await runWebappPgText<{ locked_until: string | number }>(
-    "SELECT locked_until FROM app.phone_auth_find_otp_lock($1::text)",
+    'SELECT locked_until FROM app.phone_auth_find_otp_lock($1::text)',
     [phoneNormalized],
   );
   return lockRow.rows[0] ?? null;
@@ -14,7 +14,7 @@ export async function findLatestPhoneChallengeCreatedAt(
   phoneNormalized: string,
 ): Promise<Date | null> {
   const lastCh = await runWebappPgText<{ max_created: Date | string | null }>(
-    "SELECT max_created FROM app.phone_auth_find_latest_challenge_created_at($1::text)",
+    'SELECT max_created FROM app.phone_auth_find_latest_challenge_created_at($1::text)',
     [phoneNormalized],
   );
   const raw = lastCh.rows[0]?.max_created;
@@ -39,9 +39,12 @@ export async function findLatestPhoneChallengeCreatedAt(
  * A booking-triggered lock can therefore leave a stale cycle value here; harmless, because this
  * formula re-caps at 1800s regardless of the exponent it reads.
  */
-export async function registerPhoneOtpLockout(phoneNormalized: string, nowSec: number): Promise<number> {
+export async function registerPhoneOtpLockout(
+  phoneNormalized: string,
+  nowSec: number,
+): Promise<number> {
   const r = await runWebappPgText<{ locked_until: string | number }>(
-    "SELECT locked_until FROM app.phone_auth_register_otp_lockout($1::text, $2::bigint)",
+    'SELECT locked_until FROM app.phone_auth_register_otp_lockout($1::text, $2::bigint)',
     [phoneNormalized, nowSec],
   );
   return Number(r.rows[0]!.locked_until);
@@ -49,7 +52,7 @@ export async function registerPhoneOtpLockout(phoneNormalized: string, nowSec: n
 
 /** NIST SP 800-63B §5.2.2: disregard previous failed attempts after a successful verification. */
 export async function resetPhoneOtpLockout(phoneNormalized: string): Promise<void> {
-  await runWebappPgText("SELECT app.phone_auth_reset_otp_lockout($1::text)", [phoneNormalized]);
+  await runWebappPgText('SELECT app.phone_auth_reset_otp_lockout($1::text)', [phoneNormalized]);
 }
 
 export const pgPhoneOtpLimitsPort = {

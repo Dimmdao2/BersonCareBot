@@ -1,15 +1,23 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import Link from "next/link";
-import { ChevronDown } from "lucide-react";
-import { Badge } from "@/shared/ui/doctor/primitives/badge";
-import { buttonVariants } from "@/shared/ui/doctor/primitives/button-variants";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/shared/ui/doctor/primitives/collapsible";
-import type { DoctorClientActiveProgramTreeModel } from "@/modules/doctor-client-card/types";
-import { cn } from "@/lib/utils";
-import { doctorClientTreatmentProgramInstanceHref } from "./doctorClientInstanceHref";
-import { doctorClientSectionTitleClass, doctorClientStackedCardClass, doctorClientInsetListRowClass } from "./doctorClientCardChrome";
+import { useState } from 'react';
+import Link from 'next/link';
+import { ChevronDown } from 'lucide-react';
+import { Badge } from '@/shared/ui/doctor/primitives/badge';
+import { buttonVariants } from '@/shared/ui/doctor/primitives/button-variants';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/shared/ui/doctor/primitives/collapsible';
+import type { DoctorClientActiveProgramTreeModel } from '@/modules/doctor-client-card/types';
+import { cn } from '@/lib/utils';
+import { doctorClientTreatmentProgramInstanceHref } from './doctorClientInstanceHref';
+import {
+  doctorClientSectionTitleClass,
+  doctorClientStackedCardClass,
+  doctorClientInsetListRowClass,
+} from './doctorClientCardChrome';
 
 type Props = {
   userId: string;
@@ -21,7 +29,7 @@ function ItemRow(props: {
   userId: string;
   instanceId: string;
   profileListScope?: string;
-  item: DoctorClientActiveProgramTreeModel["stages"][number]["ungroupedItems"][number];
+  item: DoctorClientActiveProgramTreeModel['stages'][number]['ungroupedItems'][number];
 }) {
   const { userId, instanceId, profileListScope, item } = props;
   const href = doctorClientTreatmentProgramInstanceHref(userId, instanceId, {
@@ -30,7 +38,7 @@ function ItemRow(props: {
   });
   return (
     <li>
-      <Link href={href} className={cn(doctorClientInsetListRowClass, "group items-start text-sm")}>
+      <Link href={href} className={cn(doctorClientInsetListRowClass, 'group items-start text-sm')}>
         <span className="min-w-0 flex-1">
           <span className="block truncate font-medium">{item.title}</span>
           <span className="mt-0.5 block text-xs text-muted-foreground">{item.itemTypeLabel}</span>
@@ -69,7 +77,7 @@ export function DoctorClientActiveProgramPanel({ userId, profileListScope, tree 
     <div id="doctor-client-section-active-program" className="mb-6 flex flex-col gap-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className={doctorClientSectionTitleClass}>{tree.instanceTitle}</h3>
-        <Link href={editorHref} className={cn(buttonVariants({ variant: "default", size: "sm" }))}>
+        <Link href={editorHref} className={cn(buttonVariants({ variant: 'default', size: 'sm' }))}>
           Открыть программу
         </Link>
       </div>
@@ -88,12 +96,17 @@ export function DoctorClientActiveProgramPanel({ userId, profileListScope, tree 
             >
               <CollapsibleTrigger className="flex w-full items-center gap-2 px-3 py-2 text-left">
                 <ChevronDown
-                  className={cn("size-4 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")}
+                  className={cn(
+                    'size-4 shrink-0 text-muted-foreground transition-transform',
+                    open && 'rotate-180',
+                  )}
                   aria-hidden
                 />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-medium">{stage.title}</span>
-                  <span className="mt-0.5 block text-xs text-muted-foreground">{stage.statusLabel}</span>
+                  <span className="mt-0.5 block text-xs text-muted-foreground">
+                    {stage.statusLabel}
+                  </span>
                 </span>
                 <span className="text-xs text-muted-foreground tabular-nums">
                   Активных: {itemCount}
@@ -103,7 +116,9 @@ export function DoctorClientActiveProgramPanel({ userId, profileListScope, tree 
                 {stage.groups.map((group) => (
                   <div key={group.id} className="mb-3 last:mb-0">
                     {group.title ? (
-                      <p className="mb-1.5 text-xs font-medium text-muted-foreground">{group.title}</p>
+                      <p className="mb-1.5 text-xs font-medium text-muted-foreground">
+                        {group.title}
+                      </p>
                     ) : null}
                     <ul className="m-0 list-none space-y-1 p-0">
                       {group.items.map((item) => (

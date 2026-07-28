@@ -47,7 +47,7 @@ different — see §1.
 
 `deploy/host/deploy-test.sh` (this branch) always runs the **full closure** `deploy-test-saas.sh
 --strict-preflight` / `--post-migration-closure` (`deploy/host/deploy-test.sh:149,193` — this is not the
-"full reset" wrapper, it's the *ordinary* code-only test deploy, and it still applies every overlay below).
+"full reset" wrapper, it's the _ordinary_ code-only test deploy, and it still applies every overlay below).
 That closure applies, in order (`deploy/host/deploy-test-saas.sh:1760-1780`):
 
 1. `p0-5b-role-split-staff-patient.sql` — creates `app_owner` (NOLOGIN, BYPASSRLS, 0 members), `app_staff`
@@ -100,6 +100,7 @@ SELECT column_name FROM information_schema.columns
 WHERE table_schema='public' AND table_name='platform_users' AND column_name='organization_id';
 -- 0 rows — the column doesn't exist
 ```
+
 282 rows on TEST (count only, no PII). Matches the memory finding
 `platform-users-has-no-rls-single-wall-on-pii.md` — this table carries identity PII (name/phone/email/DOB)
 and has neither RLS nor a tenant column; membership/org scoping lives one hop away in
@@ -117,6 +118,7 @@ freshly cut-over PROD.
 git ls-tree -r --name-only main -- apps/webapp/db/drizzle-migrations | grep -c '\.sql$'   -> 136
 git ls-tree -r --name-only HEAD -- apps/webapp/db/drizzle-migrations | grep -c '\.sql$'    -> 251
 ```
+
 `main`'s last migration is `0135_clinical_diagnosis_add_comment.sql`. The **entire organization/tenant model
 starts at `0141_be_organization_members.sql`** and the entire role-split/RLS/FORCE apparatus is
 `0169` onward. So a PROD deploy from `main` today has **no `be_organizations` table, no
@@ -148,9 +150,10 @@ successful from-zero rehearsal, not a repeatable, CI-gated path — the fixes li
 ```
 grep -lE "app_staff|app_patient|app_owner" apps/webapp/db/drizzle-migrations/*.sql | wc -l   -> 30
 ```
-First is `0175_p0_8_b4_roles_1_is_staff_wall_rls.sql`, whose own header states: *"Dormant in prod today: the
+
+First is `0175_p0_8_b4_roles_1_is_staff_wall_rls.sql`, whose own header states: _"Dormant in prod today: the
 app DB role still has BYPASSRLS... the new app_staff/app_patient roles from p0-5b are not wired into any
-runtime DATABASE_URL."* This is the migration author's own contemporaneous confirmation of the same
+runtime DATABASE_URL."_ This is the migration author's own contemporaneous confirmation of the same
 divergence, written into the repo in real time — not just my present-day inference.
 
 ### 2.4 The org backfill is anchored to the owner's specific identities, not generic
@@ -177,7 +180,7 @@ moment (data changes daily on real PROD).
 via `git diff main..HEAD`) have **no `User=`/`Group=` directive**. Absent one, systemd runs a system-manager
 unit as **root**. Only `bersoncarebot-webapp-prod.service` sets `User=deploy Group=deploy` explicitly. This
 matches `docs/_TODO/RU_PRIVACY_AND_PRODUCTION_READINESS/stages/INFRA-01_ENCRYPTED_PROD_MIGRATION.md` I1's own
-checklist item: *"Перевести API/worker/scheduler/media-worker/webapp на отдельные non-root service users"* —
+checklist item: _"Перевести API/worker/scheduler/media-worker/webapp на отдельные non-root service users"_ —
 i.e. this is a known, already-scoped, **not-yet-done** item, independent of the SaaS DB work.
 
 ### 3.2 TEST is mid-flight on OS identity hardening PROD hasn't started
@@ -189,8 +192,8 @@ the unrelated `tgcarebot` project's OS account). The runbook's target: dedicated
 system accounts (`nologin`, no sudo, own primary group only), plus removing `local all all peer` from
 `pg_hba.conf` (TEST currently allows any local OS user to `psql` in as any DB role by peer auth — the runbook
 proves nothing depends on it, since every app connection is already TCP+`scram-sha-256`). **This delta is
-explicitly PROD's future shape, not PROD's current shape** — the runbook's own line 12-13: *"PROD (135.x)
-untouched — deltas noted inline where PROD will eventually differ."* This is the memory item referenced by the
+explicitly PROD's future shape, not PROD's current shape** — the runbook's own line 12-13: _"PROD (135.x)
+untouched — deltas noted inline where PROD will eventually differ."_ This is the memory item referenced by the
 owner's prompt ("TEST just moved... TEST is now ahead of PROD here") — confirmed accurate, and it is a
 **TEST-only, in-progress** change as of this writing, not yet verified end-to-end (the runbook's own §4
 verification checklist had not, as far as the repo shows, been executed and confirmed at the time this
@@ -210,9 +213,9 @@ is real, separately-scoped infra work — it is not a byproduct of merging the S
 ### 3.4 Secrets: PROD's SMTP credential situation is already resolved, worth carrying forward
 
 `docs/_TODO/SAAS_FOUNDATION/SAAS_PROD_DEPLOY_PROCESS.md` §3.6 records a corrected 2026-07-25 finding: PROD's
-real SMTP credential (`system_settings.smtp_outbound`) travels *with* the prod dump and does not need separate
+real SMTP credential (`system_settings.smtp_outbound`) travels _with_ the prod dump and does not need separate
 provisioning — but a TEST-only reset overlay (`test-settings-override.sql:88-91`) nulls it on TEST, which
-previously caused a false "SMTP missing" conclusion when someone queried the *restored TEST DB* instead of the
+previously caused a false "SMTP missing" conclusion when someone queried the _restored TEST DB_ instead of the
 dump. Relevant here only as a documented trap: **querying TEST is not always a valid proxy for PROD state**,
 even for things that "travel with the dump," because TEST's own reset/override machinery actively rewrites
 values (SMTP, OAuth redirect URIs, base URLs, feature toggles) by design.
@@ -226,7 +229,7 @@ the SaaS migration/backfill chain. Where TEST's shape reflects genuine pre-exist
 migration-time construction is called out explicitly per item — conflating the two would be the exact mistake
 §3.4 documents happening once already.**
 
-- **`be_organizations`: 2 rows on TEST.** This is *not* a PROD-data fact — PROD's dump (pre-`0141`) has no
+- **`be_organizations`: 2 rows on TEST.** This is _not_ a PROD-data fact — PROD's dump (pre-`0141`) has no
   `be_organizations` table at all. TEST's 2 rows are constructed by the migration/seed chain itself
   (`0143_seed_staff_organization_members.sql`, the "KNOWN ANCHORS" `ORG_ID` constant, and the demo-clinics
   fixture referenced in `docs/_TODO/SAAS_FOUNDATION/SAAS_PROD_DEPLOY_PROCESS.md` §2.2(a)). A fresh cutover
@@ -236,8 +239,8 @@ migration-time construction is called out explicitly per item — conflating the
 - **`be_organization_members`: 2 rows, 0 with NULL `organization_id`.** Consistent with the doctor-only
   membership seed (`0143`) — proxy quality: HIGH, this mechanism is deterministic and re-derivable from real
   PROD data the same way.
-- **`platform_users`: 282 rows (count only, TEST).** This *is* real PROD-derived volume (platform_users predates
-  the SaaS work and is not migration-constructed) — proxy quality: HIGH for row count, but the *shape*
+- **`platform_users`: 282 rows (count only, TEST).** This _is_ real PROD-derived volume (platform_users predates
+  the SaaS work and is not migration-constructed) — proxy quality: HIGH for row count, but the _shape_
   (no `organization_id` column, no RLS — §1.4) is a schema fact true on both TEST and a freshly-migrated PROD
   alike, not something the migration chain changes.
 - **`patient_bookings`: 263 rows (count only, TEST).** Real dump-derived data; no `organization_id` column on
@@ -255,7 +258,7 @@ migration-time construction is called out explicitly per item — conflating the
 - **ФИО (structured name) backfill is TEST-hardcoded today.** `apps/webapp/scripts/fio-backfill/*` hardcodes
   `targetDatabase="bersoncarebot_test"` and throws on any other target; a PROD-authorized path
   (`--allow-authorized-prod-target` + exact DB match, mirroring the RLS-finalizer's own gate pattern) landed
-  2026-07-25 per that doc §8 "B-8... DONE" — so the *mechanism* exists, but has never been run against real
+  2026-07-25 per that doc §8 "B-8... DONE" — so the _mechanism_ exists, but has never been run against real
   PROD data, only proven via the same TEST-copy-of-dump.
 
 ---
@@ -274,8 +277,8 @@ migration-time construction is called out explicitly per item — conflating the
 3. **Merging `feat/doctor-ui-rebuild` (or any equivalent) into `main`.** 1,831 commits, 3,729 files. This has
    never been attempted, let alone landed. It is a precondition for `deploy-prod.sh` to pull anything but the
    July 1 codebase, and is its own significant integration risk (merge conflicts, CI status — the most recent
-   commits on this branch describe CI as red as of 2026-07-26, per `git log`: *"docs: close F-4/F-5 and finish
-   the handoff — CI is red and left for the next session"*).
+   commits on this branch describe CI as red as of 2026-07-26, per `git log`: _"docs: close F-4/F-5 and finish
+   the handoff — CI is red and left for the next session"_).
 4. **The strict-RLS finalizer (`test-strict-rls-finalizer.sql -v allow_authorized_prod_target=1`) against a
    real PROD-named database.** Built and gated (§3.5 of the process doc), never invoked outside TEST.
 5. **The B-1/B-2 OS-identity split, end to end, verified.** Authorized and (per the runbook document) executed
@@ -285,7 +288,7 @@ migration-time construction is called out explicitly per item — conflating the
    present in the TEST runbook's stated scope.
 6. **Root→non-root conversion of api/worker/scheduler/media-worker (§3.1) anywhere, including TEST.** This is
    scoped only in `INFRA-01` as a checklist item; no runbook or execution evidence exists in the repo for it,
-   TEST included (TEST's split runbook only covers webapp+api, and even there only flips *ownership*, not
+   TEST included (TEST's split runbook only covers webapp+api, and even there only flips _ownership_, not
    root-vs-non-root — TEST's services were already non-root under `deploy`).
 7. **A restore/DR drill of an encrypted backup** (`INFRA-01` `DR-01/02`) — gates the whole cutover per that
    doc's own dependency list (`I0`), unchecked.
@@ -309,7 +312,7 @@ yet fully codified**, correct order:
    migration chain runs** — this ordering was discovered the hard way in the one rehearsal that exists
    (§2.2's "HARD PREREQUISITE"), and inverts the naive assumption that migrations happen first.
    `docs/_TODO/SAAS_FOUNDATION/SAAS_PROD_DEPLOY_PROCESS.md` §2.1 already states this reordering explicitly:
-   *"roles only → migrate → grants"* for a virgin host.
+   _"roles only → migrate → grants"_ for a virgin host.
 4. A fresh PROD dump, restored, with the identity data-fix (`p0-data-fix-doctor-admin-split.sql`) applied
    before the org-membership seed migration (`0143`) — order matters, already documented and scripted.
 5. The full migration chain (0000–0250), including the fail-fast anchor checks (§2.4) — expect this to
@@ -333,7 +336,7 @@ to surprise a real cutover if skipped or under-tested.
 
 ## 7. What can only be found by doing it
 
-- **Whether the fresh-dump migration chain still runs clean against a *current* PROD dump.** The anchors
+- **Whether the fresh-dump migration chain still runs clean against a _current_ PROD dump.** The anchors
   (§2.4) are exact-match assertions against live identity data that changes daily; no amount of reading proves
   they still hold — only a rehearsal against a dump pulled close to the actual cutover date will.
 - **Whether `main`, once fast-forwarded 1,831 commits, actually builds and passes full CI on the target host.**
@@ -344,7 +347,7 @@ to surprise a real cutover if skipped or under-tested.
   runbook explicitly did not model (PROD's `deploy` additionally holds the `tgcarebot` sudo escape hatch —
   §3.2). Whether narrowing `pg_hba.conf`'s catch-all breaks anything PROD-specific can only be proven by
   auditing PROD's actual `psql` call sites and cron jobs the way the TEST runbook did for TEST (`§1
-  Discovery`) — not assumed to transfer.
+Discovery`) — not assumed to transfer.
 - **Whether the manual §3 grant sequence (7 hand-run steps) is actually complete** for PROD's role names —
   it has literally never been executed against a real PROD-shaped role set; the "MANUAL" designation in the
   owner's own plan doc is itself an admission that this hasn't been proven mechanically.
@@ -381,13 +384,13 @@ schedule risk:
    run for real).
 5. **A from-zero rehearsal took 8 fix-and-retry cycles the one time it was attempted** (§2.2). Each cycle on a
    real cutover costs real time and, past the point of no return, real downtime — this argues for at least one
-   more full disposable rehearsal *after* incorporating this document's findings, before touching real PROD.
+   more full disposable rehearsal _after_ incorporating this document's findings, before touching real PROD.
 6. **Owner/legal/external gates are outside engineering's control entirely** (Selectel region confirmation,
    RKN/PR-04 notification, crypto ADR sign-off, DR restore drill with the owner's own age-key) and have no
    estimate here — they are calendar-bound by the owner and external parties, not by agent throughput.
 
 Put together: the DB-migration mechanics alone (§2, §6) are roughly a rehearsed **week** of focused work
-*given* the branch is already on `main` and roles/scripting gaps (§8.3) are closed. Add the merge (§8.1) and
+_given_ the branch is already on `main` and roles/scripting gaps (§8.3) are closed. Add the merge (§8.1) and
 the new-host build (§8.2), both of which are prerequisites, not parallel nice-to-haves for the DB work to
 matter, and the realistic total is **measured in weeks**, gated at several points by explicit owner decisions
 this document does not make on the owner's behalf (§5 items 3, 4; §8 items 3, 4).
@@ -408,9 +411,9 @@ These cannot be resolved from this repo, TEST, or documentation, and were not gu
    still exactly as described in the TEST discovery** — that discovery was run against TEST's own `deploy`
    account, explicitly scoped to TEST (`B1_B2_IDENTITY_SPLIT_RUNBOOK.md` line 12: "PROD (135.x) untouched").
 4. **Real PROD data volume/shape for `appointment_records`, `patient_bookings`, and any other table without an
-   `organization_id` column** — TEST's counts (§4) are dump-derived and a reasonable proxy for *shape*, but
-   not for *current* row counts, since real PROD keeps accumulating data the TEST dump doesn't reflect.
-5. **Whether the SMTP credential and other `system_settings` values in the *current* PROD dump still match
+   `organization_id` column** — TEST's counts (§4) are dump-derived and a reasonable proxy for _shape_, but
+   not for _current_ row counts, since real PROD keeps accumulating data the TEST dump doesn't reflect.
+5. **Whether the SMTP credential and other `system_settings` values in the _current_ PROD dump still match
    what was found 2026-07-25** (§3.4) — that was a one-time check against a dump that is now stale.
 6. **Exact downtime/backup-duration numbers** for the pre-migration `pg_dump` step against real PROD data size
    (§7) — needed for the `INFRA-01` I0 RPO/RTO gate, not derivable from TEST's smaller/differently-shaped copy.

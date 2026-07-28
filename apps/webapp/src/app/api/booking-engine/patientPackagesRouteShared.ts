@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
-import { isPlatformUserUuid } from "@/shared/platform-user/isPlatformUserUuid";
+import { NextResponse } from 'next/server';
+import { isPlatformUserUuid } from '@/shared/platform-user/isPlatformUserUuid';
 
 export function resolveAssignedByPlatformUserId(userId: string): string | null {
   return isPlatformUserUuid(userId) ? userId : null;
@@ -23,7 +23,7 @@ const ERROR_STATUS: Record<string, number> = {
 };
 
 export function membershipErrorResponse(err: unknown): NextResponse {
-  const code = err instanceof Error ? err.message : "failed";
+  const code = err instanceof Error ? err.message : 'failed';
   const status = ERROR_STATUS[code] ?? 500;
   return NextResponse.json({ ok: false, error: code }, { status });
 }

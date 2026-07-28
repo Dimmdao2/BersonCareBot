@@ -1,6 +1,10 @@
-import type { CreateSpecialistTaskInput, SpecialistTasksPort, UpdateSpecialistTaskInput } from "./ports";
-import { pickNextImportantOrOverdue } from "./taskPriority";
-import type { SpecialistTaskPatientSummary } from "./types";
+import type {
+  CreateSpecialistTaskInput,
+  SpecialistTasksPort,
+  UpdateSpecialistTaskInput,
+} from './ports';
+import { pickNextImportantOrOverdue } from './taskPriority';
+import type { SpecialistTaskPatientSummary } from './types';
 
 function trimTitle(title: string): string {
   return title.trim();
@@ -8,7 +12,7 @@ function trimTitle(title: string): string {
 
 export function createSpecialistTasksService(port: SpecialistTasksPort) {
   return {
-    listForOwner(params: Parameters<SpecialistTasksPort["listForOwner"]>[0]) {
+    listForOwner(params: Parameters<SpecialistTasksPort['listForOwner']>[0]) {
       return port.listForOwner(params);
     },
 
@@ -29,13 +33,16 @@ export function createSpecialistTasksService(port: SpecialistTasksPort) {
       });
     },
 
-    getPatientSummary(ownerUserId: string, patientUserId: string): Promise<SpecialistTaskPatientSummary> {
+    getPatientSummary(
+      ownerUserId: string,
+      patientUserId: string,
+    ): Promise<SpecialistTaskPatientSummary> {
       return port.getPatientSummary(ownerUserId, patientUserId);
     },
 
     async create(input: CreateSpecialistTaskInput) {
       const title = trimTitle(input.title);
-      if (!title) throw new Error("empty_title");
+      if (!title) throw new Error('empty_title');
       const description = input.description?.trim() ? input.description.trim() : null;
       return port.create({ ...input, title, description });
     },
@@ -43,7 +50,7 @@ export function createSpecialistTasksService(port: SpecialistTasksPort) {
     async update(taskId: string, ownerUserId: string, patch: UpdateSpecialistTaskInput) {
       if (patch.title !== undefined) {
         const title = trimTitle(patch.title);
-        if (!title) throw new Error("empty_title");
+        if (!title) throw new Error('empty_title');
         patch = { ...patch, title };
       }
       if (patch.description !== undefined) {

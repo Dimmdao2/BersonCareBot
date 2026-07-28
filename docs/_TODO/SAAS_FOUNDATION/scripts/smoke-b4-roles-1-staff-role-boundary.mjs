@@ -43,39 +43,41 @@
  * prod/test-shaped names, exactly like every other script in this directory. No push/deploy.
  */
 
-import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const repoRoot = path.resolve(__dirname, "..", "..", "..", "..");
+const repoRoot = path.resolve(__dirname, '..', '..', '..', '..');
 
 const dbName = `bcb_saas_b4_roles_1_scratch_${process.pid}_${Date.now()}`;
 
-if (!dbName.startsWith("bcb_saas_") || !dbName.includes("scratch")) {
+if (!dbName.startsWith('bcb_saas_') || !dbName.includes('scratch')) {
   throw new Error(`refusing unsafe scratch DB name: ${dbName}`);
 }
 if (/bcb_webapp_(dev|prod|test)/.test(dbName)) {
-  throw new Error("refusing dev/prod/test-shaped scratch DB name");
+  throw new Error('refusing dev/prod/test-shaped scratch DB name');
 }
 
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
     cwd: repoRoot,
-    encoding: "utf8",
-    stdio: options.input != null ? ["pipe", "pipe", "pipe"] : "inherit",
+    encoding: 'utf8',
+    stdio: options.input != null ? ['pipe', 'pipe', 'pipe'] : 'inherit',
     input: options.input,
   });
 
   if (result.error) {
-    throw new Error(`${command} ${args.join(" ")} failed to start: ${result.error.message}`);
+    throw new Error(`${command} ${args.join(' ')} failed to start: ${result.error.message}`);
   }
 
   if (result.status !== 0) {
     if (result.stdout) process.stdout.write(result.stdout);
     if (result.stderr) process.stderr.write(result.stderr);
-    throw new Error(`${command} ${args.join(" ")} failed with ${result.status ?? "unknown status"}`);
+    throw new Error(
+      `${command} ${args.join(' ')} failed with ${result.status ?? 'unknown status'}`,
+    );
   }
 
   if (result.stdout) process.stdout.write(result.stdout);
@@ -85,18 +87,20 @@ function run(command, args, options = {}) {
 
 // Autocommit (no --single-transaction) -- see file header for why.
 function psql(sql, { database = dbName } = {}) {
-  run("sudo", ["-n", "-u", "postgres", "psql", "-v", "ON_ERROR_STOP=1", "-d", database], { input: sql });
+  run('sudo', ['-n', '-u', 'postgres', 'psql', '-v', 'ON_ERROR_STOP=1', '-d', database], {
+    input: sql,
+  });
 }
 
 function readRepoFile(relPath) {
-  return readFileSync(path.join(repoRoot, relPath), "utf8");
+  return readFileSync(path.join(repoRoot, relPath), 'utf8');
 }
 
 // The role-split deploy script and the app.is_staff() function+policy migration are read from the
 // REAL committed files (not re-typed here) so this smoke proves the actual artifacts, not a copy.
-const roleSplitSql = readRepoFile("deploy/postgres/p0-5b-role-split-staff-patient.sql");
+const roleSplitSql = readRepoFile('deploy/postgres/p0-5b-role-split-staff-patient.sql');
 const migration0175Text = readRepoFile(
-  "apps/webapp/db/drizzle-migrations/0175_p0_8_b4_roles_1_is_staff_wall_rls.sql",
+  'apps/webapp/db/drizzle-migrations/0175_p0_8_b4_roles_1_is_staff_wall_rls.sql',
 );
 
 // Extract just the "preamble" (everything before the first per-table ALTER TABLE block) -- the
@@ -104,59 +108,64 @@ const migration0175Text = readRepoFile(
 // smoke-r2-real-policy-isolation.mjs uses to pull blocks out of a real generated migration file.
 const firstAlterIndex = migration0175Text.search(/^ALTER TABLE /m);
 if (firstAlterIndex < 0) {
-  throw new Error("0175 migration: could not locate the first ALTER TABLE statement");
+  throw new Error('0175 migration: could not locate the first ALTER TABLE statement');
 }
 const isStaffFunctionSql = migration0175Text.slice(0, firstAlterIndex);
-if (!isStaffFunctionSql.includes("CREATE OR REPLACE FUNCTION app.is_staff()")) {
-  throw new Error("0175 migration preamble is missing the app.is_staff() function definition");
+if (!isStaffFunctionSql.includes('CREATE OR REPLACE FUNCTION app.is_staff()')) {
+  throw new Error('0175 migration preamble is missing the app.is_staff() function definition');
 }
 
 // ---------------------------------------------------------------------------
 // Fixture ids (namespace "b4r1", distinct from every other smoke's fixture namespace)
 // ---------------------------------------------------------------------------
-const orgA = "b4000000-0000-4000-8000-0000000000a1";
-const patientA1 = "b4000000-0000-4000-8000-00000000a101";
-const patientA2 = "b4000000-0000-4000-8000-00000000a102";
+const orgA = 'b4000000-0000-4000-8000-0000000000a1';
+const patientA1 = 'b4000000-0000-4000-8000-00000000a101';
+const patientA2 = 'b4000000-0000-4000-8000-00000000a102';
 
 // Two REAL rendered policies (via the actual renderer functions, same code path 0175 used) --
 // direct-column (proves the base wiring) and a chain/EXISTS shape (proves is_staff() still composes
 // correctly inside the more complex EXISTS predicates, matching e.g. be_appointment_cancellations
 // in 0175).
 const { renderOrgDormantPolicyStatements, renderOrgColumnDormantPolicyStatements } = await import(
-  path.join(__dirname, "rls-sql-renderer.mjs")
+  path.join(__dirname, 'rls-sql-renderer.mjs')
 );
 
 const directDescriptor = {
-  table: "public.b4r1_direct_patient_rows",
-  scopingKind: "direct_org_column",
-  orgColumn: "organization_id",
-  patientColumn: "patient_user_id",
-  patientColumnCastType: "uuid",
+  table: 'public.b4r1_direct_patient_rows',
+  scopingKind: 'direct_org_column',
+  orgColumn: 'organization_id',
+  patientColumn: 'patient_user_id',
+  patientColumnCastType: 'uuid',
 };
 
 const chainDescriptor = {
-  table: "public.b4r1_chain_child_rows",
-  scopingKind: "denorm_org_column",
-  orgColumn: "organization_id",
+  table: 'public.b4r1_chain_child_rows',
+  scopingKind: 'denorm_org_column',
+  orgColumn: 'organization_id',
   patientChain: {
     hops: [
-      { table: "public.b4r1_direct_patient_rows", alias: "b4r1_parent", parentPk: "id", localFk: "parent_id" },
+      {
+        table: 'public.b4r1_direct_patient_rows',
+        alias: 'b4r1_parent',
+        parentPk: 'id',
+        localFk: 'parent_id',
+      },
     ],
-    terminalColumn: "patient_user_id",
-    castType: "uuid",
+    terminalColumn: 'patient_user_id',
+    castType: 'uuid',
   },
 };
 
 const directPolicySql = renderOrgDormantPolicyStatements(directDescriptor, {
-  policyName: "smoke_b4r1_direct",
-}).join("\n");
+  policyName: 'smoke_b4r1_direct',
+}).join('\n');
 const chainPolicySql = renderOrgColumnDormantPolicyStatements(chainDescriptor, {
-  policyName: "smoke_b4r1_chain",
-  scopingKinds: ["denorm_org_column"],
-}).join("\n");
+  policyName: 'smoke_b4r1_chain',
+  scopingKinds: ['denorm_org_column'],
+}).join('\n');
 
-if (!directPolicySql.includes("app.is_staff()") || !chainPolicySql.includes("app.is_staff()")) {
-  throw new Error("Rendered smoke policies do not reference app.is_staff() -- renderer regression");
+if (!directPolicySql.includes('app.is_staff()') || !chainPolicySql.includes('app.is_staff()')) {
+  throw new Error('Rendered smoke policies do not reference app.is_staff() -- renderer regression');
 }
 
 const schemaSql = String.raw`
@@ -196,7 +205,7 @@ function fatal(assertionVar, message) {
     `\\echo 'FATAL: ${message}'`,
     `SELECT 1/0; -- forces a real error under ON_ERROR_STOP`,
     `\\endif`,
-  ].join("\n");
+  ].join('\n');
 }
 
 // ---------------------------------------------------------------------------
@@ -206,13 +215,13 @@ const proofA = String.raw`
 SET SESSION AUTHORIZATION app_staff;
 SET app.org = '${orgA}';
 SELECT (app.is_staff() = true)::int AS b4r1_a_is_staff_true \gset
-${fatal("b4r1_a_is_staff_true", "(a) app_staff session must have app.is_staff() = true")}
+${fatal('b4r1_a_is_staff_true', '(a) app_staff session must have app.is_staff() = true')}
 
 SELECT (count(*) = 2)::int AS b4r1_a_direct_sees_both FROM public.b4r1_direct_patient_rows \gset
-${fatal("b4r1_a_direct_sees_both", "(a) app_staff must see BOTH patients direct-column rows (org-wide)")}
+${fatal('b4r1_a_direct_sees_both', '(a) app_staff must see BOTH patients direct-column rows (org-wide)')}
 
 SELECT (count(*) = 2)::int AS b4r1_a_chain_sees_both FROM public.b4r1_chain_child_rows \gset
-${fatal("b4r1_a_chain_sees_both", "(a) app_staff must see BOTH patients chain rows (org-wide)")}
+${fatal('b4r1_a_chain_sees_both', '(a) app_staff must see BOTH patients chain rows (org-wide)')}
 
 RESET SESSION AUTHORIZATION;
 `;
@@ -226,16 +235,16 @@ SET app.org = '${orgA}';
 SET app.patient_user_id = '${patientA1}';
 
 SELECT (app.is_staff() = false)::int AS b4r1_b_is_staff_false \gset
-${fatal("b4r1_b_is_staff_false", "(b) app_patient session must have app.is_staff() = false")}
+${fatal('b4r1_b_is_staff_false', '(b) app_patient session must have app.is_staff() = false')}
 
 SELECT (count(*) = 1)::int AS b4r1_b_direct_own_only FROM public.b4r1_direct_patient_rows \gset
-${fatal("b4r1_b_direct_own_only", "(b) app_patient (patientA1) must see exactly its own direct-column row")}
+${fatal('b4r1_b_direct_own_only', '(b) app_patient (patientA1) must see exactly its own direct-column row')}
 
 SELECT (count(*) = 0)::int AS b4r1_b_direct_no_other FROM public.b4r1_direct_patient_rows WHERE patient_user_id = '${patientA2}' \gset
-${fatal("b4r1_b_direct_no_other", "(b) app_patient (patientA1) must NOT see the other patients direct-column row")}
+${fatal('b4r1_b_direct_no_other', '(b) app_patient (patientA1) must NOT see the other patients direct-column row')}
 
 SELECT (count(*) = 1)::int AS b4r1_b_chain_own_only FROM public.b4r1_chain_child_rows \gset
-${fatal("b4r1_b_chain_own_only", "(b) app_patient (patientA1) must see exactly its own chain row")}
+${fatal('b4r1_b_chain_own_only', '(b) app_patient (patientA1) must see exactly its own chain row')}
 `;
 
 // ---------------------------------------------------------------------------
@@ -274,7 +283,7 @@ SELECT 1/0;
 \endif
 
 SELECT (current_user = 'app_patient')::int AS b4r1_c_still_patient \gset
-${fatal("b4r1_c_still_patient", "(c) session must still be app_patient after the rejected SET ROLE app_staff")}
+${fatal('b4r1_c_still_patient', '(c) session must still be app_patient after the rejected SET ROLE app_staff')}
 `;
 
 // ---------------------------------------------------------------------------
@@ -285,25 +294,25 @@ RESET app.org;
 RESET app.patient_user_id;
 
 SELECT (count(*) = 0)::int AS b4r1_d_direct_denies FROM public.b4r1_direct_patient_rows \gset
-${fatal("b4r1_d_direct_denies", "(d) empty context (app_patient, no app.org/app.patient_user_id) must deny the direct-column table")}
+${fatal('b4r1_d_direct_denies', '(d) empty context (app_patient, no app.org/app.patient_user_id) must deny the direct-column table')}
 
 SELECT (count(*) = 0)::int AS b4r1_d_chain_denies FROM public.b4r1_chain_child_rows \gset
-${fatal("b4r1_d_chain_denies", "(d) empty context (app_patient, no app.org/app.patient_user_id) must deny the chain table")}
+${fatal('b4r1_d_chain_denies', '(d) empty context (app_patient, no app.org/app.patient_user_id) must deny the chain table')}
 
 RESET SESSION AUTHORIZATION;
 \echo 'B4-roles-1 smoke: all four proofs (a/b/c/d) CONFIRMED.'
 `;
 
 try {
-  run("sudo", ["-n", "-u", "postgres", "createdb", dbName]);
+  run('sudo', ['-n', '-u', 'postgres', 'createdb', dbName]);
 
-  console.log("--- phase 1: p0-5b role split (app_staff/app_patient, real deploy script) ---");
+  console.log('--- phase 1: p0-5b role split (app_staff/app_patient, real deploy script) ---');
   psql(roleSplitSql);
 
-  console.log("--- phase 2: app.is_staff() function (real preamble of migration 0175) ---");
+  console.log('--- phase 2: app.is_staff() function (real preamble of migration 0175) ---');
   psql(isStaffFunctionSql);
 
-  console.log("--- phase 3: synthetic schema + REAL rendered policies (direct + chain shapes) ---");
+  console.log('--- phase 3: synthetic schema + REAL rendered policies (direct + chain shapes) ---');
   psql(schemaSql);
   psql(grantSql);
 
@@ -313,13 +322,15 @@ try {
   // `sudo -u postgres psql` invocation is a brand-new connection (back to the postgres superuser),
   // so splitting these into separate psql() calls would silently make every proof run as superuser
   // again and prove nothing.
-  console.log("--- phases 4-7: proofs (a) staff org-wide, (b) patient own-only, (c) escalation rejected, (d) empty-context deny ---");
-  psql([proofA, proofB, proofC, proofD].join("\n"));
+  console.log(
+    '--- phases 4-7: proofs (a) staff org-wide, (b) patient own-only, (c) escalation rejected, (d) empty-context deny ---',
+  );
+  psql([proofA, proofB, proofC, proofD].join('\n'));
 
   console.log(`smoke-b4-roles-1-staff-role-boundary: OK (${dbName})`);
 } finally {
-  run("sudo", ["-n", "-u", "postgres", "dropdb", "--if-exists", dbName]);
-  run("sudo", ["-n", "-u", "postgres", "psql", "-v", "ON_ERROR_STOP=1", "-d", "postgres"], {
-    input: "DROP ROLE IF EXISTS app_patient;\nDROP ROLE IF EXISTS app_staff;\n",
+  run('sudo', ['-n', '-u', 'postgres', 'dropdb', '--if-exists', dbName]);
+  run('sudo', ['-n', '-u', 'postgres', 'psql', '-v', 'ON_ERROR_STOP=1', '-d', 'postgres'], {
+    input: 'DROP ROLE IF EXISTS app_patient;\nDROP ROLE IF EXISTS app_staff;\n',
   });
 }

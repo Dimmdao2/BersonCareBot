@@ -1,17 +1,17 @@
-"use server";
+'use server';
 
 /**
  * Серверные действия для страницы дневника ЛФК.
  */
 
-import { revalidatePath } from "next/cache";
-import { requirePatientAccessWithPhone } from "@/app-layer/guards/requireRole";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { routePaths } from "@/app-layer/routes/paths";
-import { logger, serializeError } from "@/infra/logging/logger";
+import { revalidatePath } from 'next/cache';
+import { requirePatientAccessWithPhone } from '@/app-layer/guards/requireRole';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { routePaths } from '@/app-layer/routes/paths';
+import { logger, serializeError } from '@/infra/logging/logger';
 
 function parseOptionalInt(raw: unknown): number | null {
-  if (typeof raw !== "string" || !raw.trim()) return null;
+  if (typeof raw !== 'string' || !raw.trim()) return null;
   const n = Number.parseInt(raw, 10);
   return Number.isNaN(n) ? null : n;
 }
@@ -19,8 +19,8 @@ function parseOptionalInt(raw: unknown): number | null {
 /** Принимает данные формы, проверяет доступ пациента и комплекс, сохраняет отметку занятия и обновляет страницу. */
 export async function markLfkSession(formData: FormData) {
   const session = await requirePatientAccessWithPhone(routePaths.diary);
-  const complexId = formData.get("complexId");
-  if (typeof complexId !== "string" || !complexId.trim()) {
+  const complexId = formData.get('complexId');
+  if (typeof complexId !== 'string' || !complexId.trim()) {
     return;
   }
   const deps = buildAppDeps();
@@ -29,10 +29,15 @@ export async function markLfkSession(formData: FormData) {
     return;
   }
 
-  const dateRaw = formData.get("sessionDate");
-  const timeRaw = formData.get("sessionTime");
+  const dateRaw = formData.get('sessionDate');
+  const timeRaw = formData.get('sessionTime');
   let completedAt = new Date().toISOString();
-  if (typeof dateRaw === "string" && dateRaw.trim() && typeof timeRaw === "string" && timeRaw.trim()) {
+  if (
+    typeof dateRaw === 'string' &&
+    dateRaw.trim() &&
+    typeof timeRaw === 'string' &&
+    timeRaw.trim()
+  ) {
     const iso = `${dateRaw.trim()}T${timeRaw.trim()}:00`;
     const d = new Date(iso);
     if (!Number.isNaN(d.getTime())) {
@@ -40,11 +45,11 @@ export async function markLfkSession(formData: FormData) {
     }
   }
 
-  const durationMinutes = parseOptionalInt(formData.get("durationMinutes"));
-  const difficulty0_10 = parseOptionalInt(formData.get("difficulty0_10"));
-  const pain0_10 = parseOptionalInt(formData.get("pain0_10"));
-  const commentRaw = formData.get("comment");
-  let comment: string | null = typeof commentRaw === "string" ? commentRaw.trim() : null;
+  const durationMinutes = parseOptionalInt(formData.get('durationMinutes'));
+  const difficulty0_10 = parseOptionalInt(formData.get('difficulty0_10'));
+  const pain0_10 = parseOptionalInt(formData.get('pain0_10'));
+  const commentRaw = formData.get('comment');
+  let comment: string | null = typeof commentRaw === 'string' ? commentRaw.trim() : null;
   if (comment && comment.length > 200) {
     comment = comment.slice(0, 200);
   }
@@ -53,7 +58,7 @@ export async function markLfkSession(formData: FormData) {
     await deps.diaries.addLfkSession({
       userId: session.user.userId,
       complexId: complexId.trim(),
-      source: "webapp",
+      source: 'webapp',
       completedAt,
       recordedAt: completedAt,
       durationMinutes,
@@ -62,7 +67,7 @@ export async function markLfkSession(formData: FormData) {
       comment,
     });
   } catch (err) {
-    logger.error({ err: serializeError(err) }, "markLfkSession failed");
+    logger.error({ err: serializeError(err) }, 'markLfkSession failed');
     return;
   }
   revalidatePath(routePaths.diary);
@@ -76,19 +81,19 @@ export async function createLfkComplex(_formData: FormData) {
 
 export async function updateLfkJournalSession(formData: FormData): Promise<{ ok: boolean }> {
   const session = await requirePatientAccessWithPhone(routePaths.diaryLfkJournal);
-  const sessionIdRaw = formData.get("sessionId");
-  const sessionId = typeof sessionIdRaw === "string" ? sessionIdRaw.trim() : "";
-  const completedAtVal = formData.get("completedAt");
-  const completedAtRaw = typeof completedAtVal === "string" ? completedAtVal.trim() : "";
+  const sessionIdRaw = formData.get('sessionId');
+  const sessionId = typeof sessionIdRaw === 'string' ? sessionIdRaw.trim() : '';
+  const completedAtVal = formData.get('completedAt');
+  const completedAtRaw = typeof completedAtVal === 'string' ? completedAtVal.trim() : '';
   if (!sessionId || !completedAtRaw) return { ok: false };
   const completedAt = new Date(completedAtRaw);
   if (Number.isNaN(completedAt.getTime())) return { ok: false };
 
-  const durationMinutes = parseOptionalInt(formData.get("durationMinutes"));
-  const difficulty0_10 = parseOptionalInt(formData.get("difficulty0_10"));
-  const pain0_10 = parseOptionalInt(formData.get("pain0_10"));
-  const commentRaw = formData.get("comment");
-  let comment: string | null = typeof commentRaw === "string" ? commentRaw.trim() : null;
+  const durationMinutes = parseOptionalInt(formData.get('durationMinutes'));
+  const difficulty0_10 = parseOptionalInt(formData.get('difficulty0_10'));
+  const pain0_10 = parseOptionalInt(formData.get('pain0_10'));
+  const commentRaw = formData.get('comment');
+  let comment: string | null = typeof commentRaw === 'string' ? commentRaw.trim() : null;
   if (comment && comment.length > 200) {
     comment = comment.slice(0, 200);
   }
@@ -109,7 +114,7 @@ export async function updateLfkJournalSession(formData: FormData): Promise<{ ok:
       comment,
     });
   } catch (e) {
-    logger.error({ err: serializeError(e) }, "updateLfkJournalSession failed");
+    logger.error({ err: serializeError(e) }, 'updateLfkJournalSession failed');
     return { ok: false };
   }
   revalidatePath(routePaths.diary);
@@ -119,8 +124,8 @@ export async function updateLfkJournalSession(formData: FormData): Promise<{ ok:
 
 export async function deleteLfkJournalSession(formData: FormData): Promise<{ ok: boolean }> {
   const session = await requirePatientAccessWithPhone(routePaths.diaryLfkJournal);
-  const sessionIdRaw = formData.get("sessionId");
-  const sessionId = typeof sessionIdRaw === "string" ? sessionIdRaw.trim() : "";
+  const sessionIdRaw = formData.get('sessionId');
+  const sessionId = typeof sessionIdRaw === 'string' ? sessionIdRaw.trim() : '';
   if (!sessionId) return { ok: false };
   const deps = buildAppDeps();
   const userId = session.user.userId;
@@ -129,7 +134,7 @@ export async function deleteLfkJournalSession(formData: FormData): Promise<{ ok:
   try {
     await deps.diaries.deleteLfkSession({ userId, sessionId });
   } catch (e) {
-    logger.error({ err: serializeError(e) }, "deleteLfkJournalSession failed");
+    logger.error({ err: serializeError(e) }, 'deleteLfkJournalSession failed');
     return { ok: false };
   }
   revalidatePath(routePaths.diary);

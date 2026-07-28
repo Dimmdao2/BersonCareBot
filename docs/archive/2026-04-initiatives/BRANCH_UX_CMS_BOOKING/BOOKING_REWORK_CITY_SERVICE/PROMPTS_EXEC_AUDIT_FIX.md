@@ -914,4 +914,3 @@ docs/BRANCH_UX_CMS_BOOKING/BOOKING_REWORK_CITY_SERVICE/STAGE_15_FINAL_TEST_AUDIT
 Только scope аудита, без нового функционала.
 Обнови EXECUTION_LOG.md. Прогони pnpm run ci. Зафиксируй финальный SHA.
 ```
-

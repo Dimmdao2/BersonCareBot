@@ -5,25 +5,25 @@
  * SQLSTATE/cause. Diagnostics expose only the migration tag, index and allowlisted category;
  * SQL, parameters, connection strings and database data are never rendered.
  */
-import { config } from "dotenv";
-import { drizzle } from "drizzle-orm/node-postgres";
-import { migrate } from "drizzle-orm/node-postgres/migrator";
-import { readMigrationFiles } from "drizzle-orm/migrator";
-import fs from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import pg from "pg";
+import { config } from 'dotenv';
+import { drizzle } from 'drizzle-orm/node-postgres';
+import { migrate } from 'drizzle-orm/node-postgres/migrator';
+import { readMigrationFiles } from 'drizzle-orm/migrator';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import pg from 'pg';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const webappRoot = path.join(__dirname, "..");
-const migrationsFolder = path.join(webappRoot, "db", "drizzle-migrations");
-const journalPath = path.join(migrationsFolder, "meta", "_journal.json");
+const webappRoot = path.join(__dirname, '..');
+const migrationsFolder = path.join(webappRoot, 'db', 'drizzle-migrations');
+const journalPath = path.join(migrationsFolder, 'meta', '_journal.json');
 
-const OBJECT_CONFLICT_SQLSTATES = new Set(["23505", "42701", "42710", "42P06", "42P07"]);
-const SCHEMA_MISMATCH_SQLSTATES = new Set(["3F000", "42703", "42883", "42P01"]);
+const OBJECT_CONFLICT_SQLSTATES = new Set(['23505', '42701', '42710', '42P06', '42P07']);
+const SCHEMA_MISMATCH_SQLSTATES = new Set(['3F000', '42703', '42883', '42P01']);
 
 function extractLabeledSqlstate(raw) {
-  for (const line of String(raw ?? "").split(/\r?\n/)) {
+  for (const line of String(raw ?? '').split(/\r?\n/)) {
     const match = line.match(
       /^\s*["']?(?:sqlstate|code)["']?\s*[:=]\s*["']?([0-9A-Z]{5})["']?\s*,?\s*$/i,
     );
@@ -34,21 +34,21 @@ function extractLabeledSqlstate(raw) {
 
 function hasExactRoleMembershipError(raw) {
   return /(?:^|\n)(?:PostgresError|error):\s*must be member of role(?:\s+"?[a-z_][a-z0-9_]*"?)?\s*(?:\n|$)/im.test(
-    String(raw ?? ""),
+    String(raw ?? ''),
   );
 }
 
 export function classifyMigrationFailureOutput(raw) {
   const sqlstate = extractLabeledSqlstate(raw);
-  let reason = "migration_failed";
-  if (sqlstate === "42501") {
-    reason = hasExactRoleMembershipError(raw) ? "role_membership_required" : "permission_denied";
-  } else if (sqlstate === "28000" || sqlstate === "28P01") {
-    reason = "permission_denied";
+  let reason = 'migration_failed';
+  if (sqlstate === '42501') {
+    reason = hasExactRoleMembershipError(raw) ? 'role_membership_required' : 'permission_denied';
+  } else if (sqlstate === '28000' || sqlstate === '28P01') {
+    reason = 'permission_denied';
   } else if (sqlstate && OBJECT_CONFLICT_SQLSTATES.has(sqlstate)) {
-    reason = "object_conflict";
+    reason = 'object_conflict';
   } else if (sqlstate && SCHEMA_MISMATCH_SQLSTATES.has(sqlstate)) {
-    reason = "schema_mismatch";
+    reason = 'schema_mismatch';
   }
   return { reason, sqlstate };
 }
@@ -57,7 +57,7 @@ function errorChain(error) {
   const chain = [];
   const seen = new Set();
   let current = error;
-  while (current && typeof current === "object" && !seen.has(current) && chain.length < 8) {
+  while (current && typeof current === 'object' && !seen.has(current) && chain.length < 8) {
     seen.add(current);
     chain.push(current);
     current = current.cause;
@@ -67,20 +67,26 @@ function errorChain(error) {
 
 export function classifyStructuredMigrationFailure(error) {
   const chain = errorChain(error);
-  const sqlstate = chain
-    .map((item) => item.code)
-    .find((code) => typeof code === "string" && /^[0-9A-Z]{5}$/i.test(code))
-    ?.toUpperCase() ?? null;
+  const sqlstate =
+    chain
+      .map((item) => item.code)
+      .find((code) => typeof code === 'string' && /^[0-9A-Z]{5}$/i.test(code))
+      ?.toUpperCase() ?? null;
   const membership = chain.some(
-    (item) => typeof item.message === "string" && /^must be member of role(?:\s+"?[a-z_][a-z0-9_]*"?)?$/i.test(item.message),
+    (item) =>
+      typeof item.message === 'string' &&
+      /^must be member of role(?:\s+"?[a-z_][a-z0-9_]*"?)?$/i.test(item.message),
   );
   return classifyMigrationFailureOutput(
-    `${membership ? "PostgresError: must be member of role\n" : ""}${sqlstate ? `code: ${sqlstate}` : ""}`,
+    `${membership ? 'PostgresError: must be member of role\n' : ''}${sqlstate ? `code: ${sqlstate}` : ''}`,
   );
 }
 
 function normalizeStatement(value) {
-  return String(value ?? "").trim().replace(/;\s*$/, "").trim();
+  return String(value ?? '')
+    .trim()
+    .replace(/;\s*$/, '')
+    .trim();
 }
 
 export function findMigrationIdentity(query, migrations, journalEntries) {
@@ -101,40 +107,47 @@ export function findMigrationIdentity(query, migrations, journalEntries) {
 }
 
 function queryFromError(error) {
-  return errorChain(error)
-    .map((item) => item.query)
-    .find((query) => typeof query === "string") ?? null;
+  return (
+    errorChain(error)
+      .map((item) => item.query)
+      .find((query) => typeof query === 'string') ?? null
+  );
 }
 
 export function renderStructuredMigrationFailureDiagnostic(error, migrations, journalEntries) {
   const diagnostic = classifyStructuredMigrationFailure(error);
   const identity = findMigrationIdentity(queryFromError(error), migrations, journalEntries);
-  return `[migrate] failure migration=${identity?.tag ?? "unknown"} idx=${identity?.idx ?? "unknown"} reason=${diagnostic.reason} sqlstate=${diagnostic.sqlstate ?? "unknown"}`;
+  return `[migrate] failure migration=${identity?.tag ?? 'unknown'} idx=${identity?.idx ?? 'unknown'} reason=${diagnostic.reason} sqlstate=${diagnostic.sqlstate ?? 'unknown'}`;
 }
 
-if (process.argv.includes("--self-test")) {
+if (process.argv.includes('--self-test')) {
   const sample = [
-    "PostgresError: must be member of role app_owner",
-    "code: 42501",
+    'PostgresError: must be member of role app_owner',
+    'code: 42501',
     "Error: Failed query: INSERT INTO private_table VALUES ('TOP_SECRET')",
-    "params: +79991234567 user@example.test",
-  ].join("\n");
+    'params: +79991234567 user@example.test',
+  ].join('\n');
   const renderedLegacy = classifyMigrationFailureOutput(sample);
-  if (renderedLegacy.reason !== "role_membership_required" || renderedLegacy.sqlstate !== "42501") {
-    throw new Error("migration diagnostic self-test lost the allowlisted category or SQLSTATE");
+  if (renderedLegacy.reason !== 'role_membership_required' || renderedLegacy.sqlstate !== '42501') {
+    throw new Error('migration diagnostic self-test lost the allowlisted category or SQLSTATE');
   }
 
-  const structuredError = Object.assign(new Error("Failed query: TOP_SECRET"), {
+  const structuredError = Object.assign(new Error('Failed query: TOP_SECRET'), {
     query: "SELECT 'TOP_SECRET'",
-    cause: Object.assign(new Error("function private.secret() does not exist"), { code: "42883" }),
+    cause: Object.assign(new Error('function private.secret() does not exist'), { code: '42883' }),
   });
   const rendered = renderStructuredMigrationFailureDiagnostic(
     structuredError,
     [{ folderMillis: 123, sql: ["SELECT 'TOP_SECRET';"] }],
-    [{ idx: 198, when: 123, tag: "0198_patient_visible_catalog_reads" }],
+    [{ idx: 198, when: 123, tag: '0198_patient_visible_catalog_reads' }],
   );
-  if (rendered !== "[migrate] failure migration=0198_patient_visible_catalog_reads idx=198 reason=schema_mismatch sqlstate=42883") {
-    throw new Error("structured migration diagnostic self-test lost migration identity or SQLSTATE");
+  if (
+    rendered !==
+    '[migrate] failure migration=0198_patient_visible_catalog_reads idx=198 reason=schema_mismatch sqlstate=42883'
+  ) {
+    throw new Error(
+      'structured migration diagnostic self-test lost migration identity or SQLSTATE',
+    );
   }
   const ambiguous = renderStructuredMigrationFailureDiagnostic(
     structuredError,
@@ -143,34 +156,42 @@ if (process.argv.includes("--self-test")) {
       { folderMillis: 124, sql: ["SELECT 'TOP_SECRET';"] },
     ],
     [
-      { idx: 198, when: 123, tag: "0198_patient_visible_catalog_reads" },
-      { idx: 199, when: 124, tag: "0199_current_patient_booking_rows" },
+      { idx: 198, when: 123, tag: '0198_patient_visible_catalog_reads' },
+      { idx: 199, when: 124, tag: '0199_current_patient_booking_rows' },
     ],
   );
-  if (!ambiguous.includes("migration=unknown idx=unknown")) {
-    throw new Error("structured migration diagnostic self-test misattributed duplicate SQL");
+  if (!ambiguous.includes('migration=unknown idx=unknown')) {
+    throw new Error('structured migration diagnostic self-test misattributed duplicate SQL');
   }
-  for (const forbidden of ["TOP_SECRET", "SELECT", "private.secret", "app_owner", "+79991234567", "user@example.test"]) {
-    if (rendered.includes(forbidden)) throw new Error(`migration diagnostic self-test leaked ${forbidden}`);
+  for (const forbidden of [
+    'TOP_SECRET',
+    'SELECT',
+    'private.secret',
+    'app_owner',
+    '+79991234567',
+    'user@example.test',
+  ]) {
+    if (rendered.includes(forbidden))
+      throw new Error(`migration diagnostic self-test leaked ${forbidden}`);
   }
-  if (classifyMigrationFailureOutput("unlabeled 42501").sqlstate !== null) {
-    throw new Error("migration diagnostic self-test accepted an unlabeled SQLSTATE");
+  if (classifyMigrationFailureOutput('unlabeled 42501').sqlstate !== null) {
+    throw new Error('migration diagnostic self-test accepted an unlabeled SQLSTATE');
   }
-  console.log("run-webapp-drizzle-migrate diagnostic self-test: OK");
+  console.log('run-webapp-drizzle-migrate diagnostic self-test: OK');
   process.exit(0);
 }
 
-config({ path: path.join(webappRoot, ".env.dev") });
-config({ path: path.join(webappRoot, ".env") });
+config({ path: path.join(webappRoot, '.env.dev') });
+config({ path: path.join(webappRoot, '.env') });
 
 const url = process.env.DATABASE_URL?.trim();
 if (!url) {
-  console.error("[migrate] DATABASE_URL is not set (export it or use apps/webapp/.env.dev / .env)");
+  console.error('[migrate] DATABASE_URL is not set (export it or use apps/webapp/.env.dev / .env)');
   process.exit(1);
 }
 
 const migrations = readMigrationFiles({ migrationsFolder });
-const journalEntries = JSON.parse(fs.readFileSync(journalPath, "utf8")).entries;
+const journalEntries = JSON.parse(fs.readFileSync(journalPath, 'utf8')).entries;
 const pool = new pg.Pool({ connectionString: url, max: 1 });
 let exitCode = 0;
 try {
@@ -179,7 +200,7 @@ try {
 } catch (error) {
   exitCode = 1;
   console.error(renderStructuredMigrationFailureDiagnostic(error, migrations, journalEntries));
-  console.error("[migrate] Drizzle migration failed; raw SQL and parameters suppressed");
+  console.error('[migrate] Drizzle migration failed; raw SQL and parameters suppressed');
 } finally {
   await pool.end();
 }

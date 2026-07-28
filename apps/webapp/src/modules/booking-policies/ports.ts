@@ -3,7 +3,7 @@ import type {
   PolicyAppointmentContext,
   PolicyScopeLevel,
   ReschedulePolicy,
-} from "./types";
+} from './types';
 
 export type UpsertCancellationPolicyInput = {
   id?: string;
@@ -14,7 +14,7 @@ export type UpsertCancellationPolicyInput = {
   isActive: boolean;
   freeCancelHoursBefore: number;
   cancellationAllowed: boolean;
-  lateCancellationBehavior: CancellationPolicy["lateCancellationBehavior"];
+  lateCancellationBehavior: CancellationPolicy['lateCancellationBehavior'];
   refundPrepaymentOnLate: string;
   chargePackageSessionOnLate: boolean;
   requiresStaffConfirmation: boolean;
@@ -36,7 +36,7 @@ export type UpsertReschedulePolicyInput = {
   allowDifferentCity: boolean;
   allowDifferentSpecialist: boolean;
   allowDifferentService: boolean;
-  limitExceededBehavior: ReschedulePolicy["limitExceededBehavior"];
+  limitExceededBehavior: ReschedulePolicy['limitExceededBehavior'];
   requiresStaffConfirmation: boolean;
   notifyPatient: boolean;
   notifyStaff: boolean;

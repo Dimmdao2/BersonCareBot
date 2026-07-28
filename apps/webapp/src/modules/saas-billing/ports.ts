@@ -1,14 +1,10 @@
-import type { PaymentProviderPort } from "@/modules/payments/providerPort";
-import type { PaymentProviderConfig } from "@/modules/payments/types";
-import type { OrgCommercialLifecycleState } from "@/modules/org-entitlements/types";
+import type { PaymentProviderPort } from '@/modules/payments/providerPort';
+import type { PaymentProviderConfig } from '@/modules/payments/types';
+import type { OrgCommercialLifecycleState } from '@/modules/org-entitlements/types';
 
-export type SaasBillingSource = "manual" | "paid_subscription";
-export type SaasBillingSubscriptionStatus =
-  | "pending_payment"
-  | "active"
-  | "expired"
-  | "cancelled";
-export type SaasBillingInvoiceStatus = "draft" | "pending" | "paid" | "failed" | "void";
+export type SaasBillingSource = 'manual' | 'paid_subscription';
+export type SaasBillingSubscriptionStatus = 'pending_payment' | 'active' | 'expired' | 'cancelled';
+export type SaasBillingInvoiceStatus = 'draft' | 'pending' | 'paid' | 'failed' | 'void';
 
 export type SaasBillingSubscription = {
   id: string;
@@ -35,7 +31,7 @@ export type SaasBillingInvoice = {
   tariffName: string;
   amountMinor: number;
   currency: string;
-  tariffBillingPeriod: "day" | "month" | "year";
+  tariffBillingPeriod: 'day' | 'month' | 'year';
   servicePeriodStartsAt: string;
   servicePeriodEndsAt: string;
   status: SaasBillingInvoiceStatus;
@@ -158,9 +154,7 @@ export type SaasBillingSettingsReadPort = {
   getSaasBillingPaymentProviderValue(): Promise<unknown>;
 };
 
-export type SaasBillingPaymentProviderResolver = (
-  providerId: string,
-) => PaymentProviderPort;
+export type SaasBillingPaymentProviderResolver = (providerId: string) => PaymentProviderPort;
 
 export type ResolvedSaasBillingPaymentProvider = {
   providerId: string;

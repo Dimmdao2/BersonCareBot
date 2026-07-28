@@ -1,11 +1,11 @@
-import { DateTime } from "luxon";
-import { isWellbeingGeneralMirrorNote } from "@/modules/diaries/wellbeingGeneralMirrorNote";
+import { DateTime } from 'luxon';
+import { isWellbeingGeneralMirrorNote } from '@/modules/diaries/wellbeingGeneralMirrorNote';
 import {
   PROACTIVE_PROGRAM_INACTIVITY_DAYS,
   PROACTIVE_WELLBEING_LOW_MAX_VALUE,
   PROACTIVE_WELLBEING_LOW_STREAK_DAYS,
-} from "./constants";
-import type { ProactiveInsightKind, ProactiveInsightRow } from "./types";
+} from './constants';
+import type { ProactiveInsightKind, ProactiveInsightRow } from './types';
 
 export type ProactivePatientRef = {
   patientUserId: string;
@@ -36,7 +36,7 @@ function resolveStreakEndDay(now: DateTime, daily: Map<string, number>): string 
 }
 
 function localDayKey(recordedAt: string, iana: string): string | null {
-  const dt = DateTime.fromISO(recordedAt, { zone: "utc" }).setZone(iana);
+  const dt = DateTime.fromISO(recordedAt, { zone: 'utc' }).setZone(iana);
   return dt.isValid ? dt.toISODate() : null;
 }
 
@@ -98,11 +98,11 @@ export function detectWellbeingLowStreakInsights(params: {
     }
     if (!allLow || streakDayKeys.length < streakDays) continue;
 
-    const sortAt = end.endOf("day").toUTC().toISO() ?? now.toUTC().toISO()!;
+    const sortAt = end.endOf('day').toUTC().toISO() ?? now.toUTC().toISO()!;
     out.push({
-      kind: "wellbeing_low_streak",
+      kind: 'wellbeing_low_streak',
       patientUserId: p.patientUserId,
-      patientDisplayName: p.displayName.trim() || "—",
+      patientDisplayName: p.displayName.trim() || '—',
       summary: `Низкое самочувствие ${streakDays} дн. подряд`,
       sortAt,
     });
@@ -127,16 +127,14 @@ export function detectProgramInactivityInsights(params: {
     const act = activityByPatient.get(p.patientUserId);
     if (!act?.hasActiveDoctorProgram) continue;
     const lastDone = act.lastDoneAt ? DateTime.fromISO(act.lastDoneAt) : null;
-    const inactive =
-      !lastDone?.isValid || lastDone < cutoff;
+    const inactive = !lastDone?.isValid || lastDone < cutoff;
     if (!inactive) continue;
 
-    const sortAt =
-      lastDone?.isValid ? lastDone.toUTC().toISO()! : cutoff.toUTC().toISO()!;
+    const sortAt = lastDone?.isValid ? lastDone.toUTC().toISO()! : cutoff.toUTC().toISO()!;
     out.push({
-      kind: "program_inactivity",
+      kind: 'program_inactivity',
       patientUserId: p.patientUserId,
-      patientDisplayName: p.displayName.trim() || "—",
+      patientDisplayName: p.displayName.trim() || '—',
       summary: `Нет отметок по программе ${inactiveDays}+ дн.`,
       sortAt,
       ...(act.activeInstanceId ? { activeProgramInstanceId: act.activeInstanceId } : {}),
@@ -165,6 +163,6 @@ export function mergeProactiveInsights(
 }
 
 export function proactiveInsightKindLabelRu(kind: ProactiveInsightKind): string {
-  if (kind === "wellbeing_low_streak") return "Самочувствие";
-  return "Программа";
+  if (kind === 'wellbeing_low_streak') return 'Самочувствие';
+  return 'Программа';
 }

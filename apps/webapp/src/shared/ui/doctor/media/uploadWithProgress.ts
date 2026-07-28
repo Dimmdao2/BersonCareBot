@@ -1,12 +1,12 @@
-"use client";
+'use client';
 
 export class UploadRequestError extends Error {
   status: number;
   data: unknown;
 
   constructor(status: number, data: unknown) {
-    super("upload_request_failed");
-    this.name = "UploadRequestError";
+    super('upload_request_failed');
+    this.name = 'UploadRequestError';
     this.status = status;
     this.data = data;
   }
@@ -27,7 +27,7 @@ export function uploadWithProgress<T>({
 }: UploadWithProgressArgs): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open("POST", url);
+    xhr.open('POST', url);
     xhr.withCredentials = withCredentials;
 
     xhr.upload.onprogress = (event) => {
@@ -36,7 +36,7 @@ export function uploadWithProgress<T>({
     };
 
     xhr.onerror = () => {
-      reject(new UploadRequestError(0, { error: "network_error" }));
+      reject(new UploadRequestError(0, { error: 'network_error' }));
     };
 
     xhr.onload = () => {
@@ -73,8 +73,8 @@ export function putWithProgress({
 }: PutWithProgressArgs): Promise<void> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open("PUT", url);
-    xhr.setRequestHeader("Content-Type", contentType);
+    xhr.open('PUT', url);
+    xhr.setRequestHeader('Content-Type', contentType);
 
     xhr.upload.onprogress = (event) => {
       if (!event.lengthComputable) return;
@@ -82,7 +82,7 @@ export function putWithProgress({
     };
 
     xhr.onerror = () => {
-      reject(new UploadRequestError(0, { error: "network_error" }));
+      reject(new UploadRequestError(0, { error: 'network_error' }));
     };
 
     xhr.onload = () => {
@@ -111,20 +111,25 @@ type PutPartArgs = {
 };
 
 /** Multipart UploadPart: no Content-Type header (must match presigned request). Returns raw ETag header value. */
-export function putPartWithProgress({ url, body, onProgress, signal }: PutPartArgs): Promise<string> {
+export function putPartWithProgress({
+  url,
+  body,
+  onProgress,
+  signal,
+}: PutPartArgs): Promise<string> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open("PUT", url);
+    xhr.open('PUT', url);
 
     const onAbort = () => {
       xhr.abort();
     };
     if (signal) {
       if (signal.aborted) {
-        reject(new UploadRequestError(0, { error: "aborted" }));
+        reject(new UploadRequestError(0, { error: 'aborted' }));
         return;
       }
-      signal.addEventListener("abort", onAbort);
+      signal.addEventListener('abort', onAbort);
     }
 
     xhr.upload.onprogress = (event) => {
@@ -133,16 +138,16 @@ export function putPartWithProgress({ url, body, onProgress, signal }: PutPartAr
     };
 
     xhr.onerror = () => {
-      if (signal) signal.removeEventListener("abort", onAbort);
-      reject(new UploadRequestError(0, { error: "network_error" }));
+      if (signal) signal.removeEventListener('abort', onAbort);
+      reject(new UploadRequestError(0, { error: 'network_error' }));
     };
 
     xhr.onload = () => {
-      if (signal) signal.removeEventListener("abort", onAbort);
+      if (signal) signal.removeEventListener('abort', onAbort);
       if (xhr.status >= 200 && xhr.status < 300) {
-        const etag = xhr.getResponseHeader("ETag");
+        const etag = xhr.getResponseHeader('ETag');
         if (!etag) {
-          reject(new UploadRequestError(xhr.status, { error: "missing_etag" }));
+          reject(new UploadRequestError(xhr.status, { error: 'missing_etag' }));
           return;
         }
         resolve(etag);

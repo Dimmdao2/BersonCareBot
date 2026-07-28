@@ -44,36 +44,36 @@ node docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r1-state-history-proof.mjs
 
 Target DB alias: `bcb_webapp_dev` on loopback.
 
-| Check | Result |
-| --- | ---: |
-| Script verdict | PASS |
-| `be_appointments` with `source='rubitime_projection'` | 356 |
-| Live `rubitime_projection` appointments | 287 |
-| Live missing `be_appointment_events` | 0 |
-| Live missing `be_appointment_history_events` | 0 |
-| Live missing Rubitime baseline/sync history | 0 |
-| `integrator.rubitime_events` rows retained | 369 |
-| `integrator.rubitime_records` rows retained | 91 |
-| `appointment_records` rows retained | 403 |
+| Check                                                 | Result |
+| ----------------------------------------------------- | -----: |
+| Script verdict                                        |   PASS |
+| `be_appointments` with `source='rubitime_projection'` |    356 |
+| Live `rubitime_projection` appointments               |    287 |
+| Live missing `be_appointment_events`                  |      0 |
+| Live missing `be_appointment_history_events`          |      0 |
+| Live missing Rubitime baseline/sync history           |      0 |
+| `integrator.rubitime_events` rows retained            |    369 |
+| `integrator.rubitime_records` rows retained           |     91 |
+| `appointment_records` rows retained                   |    403 |
 
 Canonical event buckets for `rubitime_projection` appointments:
 
-| Event type | Count |
-| --- | ---: |
-| `projected_from_rubitime` | 356 |
-| `rubitime_projection_synced` | 24 |
-| `rescheduled` | 2 |
-| `cancelled` | 1 |
+| Event type                   | Count |
+| ---------------------------- | ----: |
+| `projected_from_rubitime`    |   356 |
+| `rubitime_projection_synced` |    24 |
+| `rescheduled`                |     2 |
+| `cancelled`                  |     1 |
 
 Canonical history buckets for `rubitime_projection` appointments:
 
-| Event type | Count |
-| --- | ---: |
-| `projected_from_rubitime` | 356 |
-| `rubitime_projection_synced` | 24 |
-| `rubitime_projection_mapping_recovered` | 10 |
-| `rescheduled` | 2 |
-| `cancelled` | 1 |
+| Event type                              | Count |
+| --------------------------------------- | ----: |
+| `projected_from_rubitime`               |   356 |
+| `rubitime_projection_synced`            |    24 |
+| `rubitime_projection_mapping_recovered` |    10 |
+| `rescheduled`                           |     2 |
+| `cancelled`                             |     1 |
 
 ## Raw Provider Archive Disposition
 
@@ -99,10 +99,10 @@ R1 decision:
 
 Static code proof from the script:
 
-| Area | `rubitime_events` refs |
-| --- | --- |
-| `apps/webapp/src` | only `apps/webapp/src/infra/platformUserFullPurge.ts` (deletion/purge path, not product runtime read) |
-| `apps/integrator/src` | schema/migration docs only in the current static scan |
+| Area                  | `rubitime_events` refs                                                                                |
+| --------------------- | ----------------------------------------------------------------------------------------------------- |
+| `apps/webapp/src`     | only `apps/webapp/src/infra/platformUserFullPurge.ts` (deletion/purge path, not product runtime read) |
+| `apps/integrator/src` | schema/migration docs only in the current static scan                                                 |
 
 ## Runtime Boundary
 
@@ -111,4 +111,3 @@ This proof closes raw-provider-event dependency for R1/R2 entry only.
 It does **not** close all legacy `appointment_records` consumers. `appointment_records` remains a deprecated but live
 legacy projection until the R2/R3 checklist migrates or explicitly assigns doctor/client history, memberships/packages,
 analytics, slots/create, lifecycle, Google Calendar, and rollback boundaries.
-

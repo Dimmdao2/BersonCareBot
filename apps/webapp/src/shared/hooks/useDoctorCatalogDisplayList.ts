@@ -1,8 +1,8 @@
-import { useMemo } from "react";
-import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
-import { isDoctorCatalogMissingFilter } from "@/shared/lib/doctorCatalogEmptyFieldFilter";
-import { normalizeRuSearchString } from "@/shared/lib/ruSearchNormalize";
-import type { TitleSortValue } from "@/shared/ui/doctor/DoctorCatalogTitleSortSelect";
+import { useMemo } from 'react';
+import type { ExerciseLoadType } from '@/modules/lfk-exercises/types';
+import { isDoctorCatalogMissingFilter } from '@/shared/lib/doctorCatalogEmptyFieldFilter';
+import { normalizeRuSearchString } from '@/shared/lib/ruSearchNormalize';
+import type { TitleSortValue } from '@/shared/ui/doctor/DoctorCatalogTitleSortSelect';
 
 type WithTitle = { title: string };
 
@@ -30,9 +30,9 @@ export function useDoctorCatalogDisplayList<T extends WithTitle>(
   titleSort: TitleSortValue,
   options?: DoctorCatalogDisplayListOptions<T>,
 ): T[] {
-  const regionCode = options?.regionCode?.trim() ?? "";
+  const regionCode = options?.regionCode?.trim() ?? '';
   const loadType = options?.loadType ?? null;
-  const tertiaryCode = options?.tertiaryCode?.trim() ?? "";
+  const tertiaryCode = options?.tertiaryCode?.trim() ?? '';
   const getItemRegionCodes = options?.getItemRegionCodes;
   const getItemRegionCode = options?.getItemRegionCode;
   const getItemLoadType = options?.getItemLoadType;
@@ -75,10 +75,10 @@ export function useDoctorCatalogDisplayList<T extends WithTitle>(
       }
     }
 
-    if (titleSort === "asc" || titleSort === "desc") {
+    if (titleSort === 'asc' || titleSort === 'desc') {
       out = [...out].sort((a, b) => {
-        const cmp = a.title.localeCompare(b.title, "ru", { sensitivity: "base" });
-        return titleSort === "asc" ? cmp : -cmp;
+        const cmp = a.title.localeCompare(b.title, 'ru', { sensitivity: 'base' });
+        return titleSort === 'asc' ? cmp : -cmp;
       });
     }
     return out;

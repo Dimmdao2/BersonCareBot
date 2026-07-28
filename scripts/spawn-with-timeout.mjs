@@ -3,11 +3,11 @@
  * Current callers pass repository-owned executable names and argv literals; commands never run through a shell.
  * Env: STAGE_GATE_TIMEOUT_MS (milliseconds), default 120000.
  */
-import { spawn } from "node:child_process";
+import { spawn } from 'node:child_process';
 
 function parseTimeoutMs() {
   const raw = process.env.STAGE_GATE_TIMEOUT_MS;
-  if (raw == null || raw === "") return 120_000;
+  if (raw == null || raw === '') return 120_000;
   const n = Number.parseInt(String(raw), 10);
   return Number.isFinite(n) && n > 0 ? n : 120_000;
 }
@@ -26,25 +26,25 @@ export function runWithTimeout(cmd, args, opts) {
     let timedOut = false;
     const child = spawn(cmd, args, {
       cwd,
-      stdio: "inherit",
+      stdio: 'inherit',
       shell: false,
-      detached: process.platform !== "win32",
+      detached: process.platform !== 'win32',
     });
     const timer = setTimeout(() => {
       timedOut = true;
       console.error(`[${name}] TIMEOUT after ${timeoutMs}ms — sending SIGTERM`);
       try {
-        if (process.platform !== "win32" && typeof child.pid === "number") {
-          process.kill(-child.pid, "SIGTERM");
+        if (process.platform !== 'win32' && typeof child.pid === 'number') {
+          process.kill(-child.pid, 'SIGTERM');
         } else {
-          child.kill("SIGTERM");
+          child.kill('SIGTERM');
         }
       } catch {
         /* ignore */
       }
     }, timeoutMs);
 
-    child.on("close", (code) => {
+    child.on('close', (code) => {
       clearTimeout(timer);
       if (timedOut) {
         console.error(`[${name}] failed: timed out after ${timeoutMs}ms`);
@@ -53,7 +53,7 @@ export function runWithTimeout(cmd, args, opts) {
       }
       resolve(code !== 0 ? name : null);
     });
-    child.on("error", (err) => {
+    child.on('error', (err) => {
       clearTimeout(timer);
       console.error(`[${name}] spawn error:`, err.message);
       resolve(name);

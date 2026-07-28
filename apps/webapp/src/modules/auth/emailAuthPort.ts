@@ -7,15 +7,15 @@
  * shares that same DB engine via POST /api/clinic/invites/accept/confirm.
  */
 export type EmailChallengePurpose =
-  | "login"
-  | "public_registration"
-  | "clinic_invite"
-  | "specialist_signup"
-  | "password_reset"
-  | "password_setup"
-  | "password_register"
-  | "email_verify"
-  | "patient_email_change";
+  | 'login'
+  | 'public_registration'
+  | 'clinic_invite'
+  | 'specialist_signup'
+  | 'password_reset'
+  | 'password_setup'
+  | 'password_register'
+  | 'email_verify'
+  | 'patient_email_change';
 
 export type EmailChallengeRow = {
   id: string;
@@ -38,7 +38,7 @@ export type EmailChallengeCodeRow = {
 
 export type ClaimVerifiedEmailResult =
   | { ok: true; merged: boolean }
-  | { ok: false; code: "email_conflict" };
+  | { ok: false; code: 'email_conflict' };
 
 export type ClaimVerifiedEmailOptions = {
   /** Server-resolved organization scope used only for an authenticated profile merge. */
@@ -57,7 +57,10 @@ export type EmailAuthDbPort = {
   }) => Promise<string>;
   deleteEmailChallengeById: (challengeId: string) => Promise<void>;
   upsertEmailSendCooldown: (userId: string, emailNormalized: string) => Promise<void>;
-  findEmailChallengeForConfirm: (challengeId: string, userId: string) => Promise<EmailChallengeRow | null>;
+  findEmailChallengeForConfirm: (
+    challengeId: string,
+    userId: string,
+  ) => Promise<EmailChallengeRow | null>;
   /**
    * Atomic wrong-attempt increment: the database computes `attempts + 1` itself (see
    * `app.email_auth_increment_email_challenge_attempts`, migration 0247) — the caller never passes
@@ -74,10 +77,19 @@ export type EmailAuthDbPort = {
     email: string,
     options?: ClaimVerifiedEmailOptions,
   ) => Promise<ClaimVerifiedEmailResult>;
-  findEmailChallengeForConsume: (challengeId: string, userId: string) => Promise<EmailChallengeCodeRow | null>;
-  findLatestEmailChallengeForUser: (userId: string, nowSec: number) => Promise<EmailChallengeCodeRow | null>;
+  findEmailChallengeForConsume: (
+    challengeId: string,
+    userId: string,
+  ) => Promise<EmailChallengeCodeRow | null>;
+  findLatestEmailChallengeForUser: (
+    userId: string,
+    nowSec: number,
+  ) => Promise<EmailChallengeCodeRow | null>;
   /** Returns the latest unexpired challenge for a user, including the pending email address. */
-  findLatestPendingEmailChallengeForUser: (userId: string, nowSec: number) => Promise<EmailChallengeRow | null>;
+  findLatestPendingEmailChallengeForUser: (
+    userId: string,
+    nowSec: number,
+  ) => Promise<EmailChallengeRow | null>;
   /**
    * Decaying OTP lockout (night plan C-2 step 3): read-only gate check for `startEmailChallenge`.
    * Returns the current `locked_until` epoch second for this user, or null if never locked / reset.

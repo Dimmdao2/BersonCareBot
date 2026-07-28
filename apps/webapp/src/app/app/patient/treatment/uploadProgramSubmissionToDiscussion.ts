@@ -1,8 +1,8 @@
 import {
   uploadProgramSubmissionMedia,
   waitForProgramSubmissionMediaReady,
-} from "@/app/app/patient/treatment/uploadProgramSubmissionMedia";
-import { attachProgramItemDiscussionMedia } from "@/app/app/patient/treatment/attachProgramItemDiscussionMedia";
+} from '@/app/app/patient/treatment/uploadProgramSubmissionMedia';
+import { attachProgramItemDiscussionMedia } from '@/app/app/patient/treatment/attachProgramItemDiscussionMedia';
 
 export async function uploadProgramSubmissionToDiscussion(params: {
   instanceId: string;
@@ -16,7 +16,7 @@ export async function uploadProgramSubmissionToDiscussion(params: {
   if (uploaded.isVideo) {
     const ready = await waitForProgramSubmissionMediaReady(uploaded.mediaId);
     if (!ready) {
-      return { ok: false, error: "video_processing_timeout" };
+      return { ok: false, error: 'video_processing_timeout' };
     }
   }
   const attached = await attachProgramItemDiscussionMedia({

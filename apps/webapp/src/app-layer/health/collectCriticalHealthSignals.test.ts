@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const getConfigBoolMock = vi.hoisted(() => vi.fn());
 const loadTranscodeMetricsMock = vi.hoisted(() => vi.fn());
@@ -9,29 +9,31 @@ const readIsolationHealthMock = vi.hoisted(() => vi.fn());
 const readIsolationCanaryMock = vi.hoisted(() => vi.fn());
 const listOpenIncidentsMock = vi.hoisted(() => vi.fn());
 
-vi.mock("@/modules/system-settings/configAdapter", () => ({
+vi.mock('@/modules/system-settings/configAdapter', () => ({
   getConfigBool: getConfigBoolMock,
 }));
 
-vi.mock("@/app-layer/media/adminTranscodeHealthMetrics", () => ({
+vi.mock('@/app-layer/media/adminTranscodeHealthMetrics', () => ({
   loadAdminTranscodeHealthMetricsSafe: loadTranscodeMetricsMock,
 }));
 
-vi.mock("@/app-layer/health/proxyIntegratorProjectionHealth", () => ({
-  proxyIntegratorProjectionHealth: vi.fn().mockResolvedValue(
-    new Response(JSON.stringify({ deadCount: 0, retriesOverThreshold: 0 }), { status: 200 }),
-  ),
+vi.mock('@/app-layer/health/proxyIntegratorProjectionHealth', () => ({
+  proxyIntegratorProjectionHealth: vi
+    .fn()
+    .mockResolvedValue(
+      new Response(JSON.stringify({ deadCount: 0, retriesOverThreshold: 0 }), { status: 200 }),
+    ),
 }));
 
-vi.mock("@/config/env", () => ({
-  env: { INTEGRATOR_API_URL: "" },
+vi.mock('@/config/env', () => ({
+  env: { INTEGRATOR_API_URL: '' },
 }));
 
-vi.mock("@/infra/db/client", () => ({
+vi.mock('@/infra/db/client', () => ({
   getCurrentWebappPoolRoutingMetrics: getPoolRoutingMetricsMock,
 }));
 
-vi.mock("@/app-layer/di/buildAppDeps", () => ({
+vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: () => ({
     health: { checkDbHealth: checkDbMock },
     operatorHealthRead: {
@@ -59,18 +61,18 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
 import {
   collectCriticalHealthSignals,
   collectOperatorHealthBannerInput,
-} from "./collectCriticalHealthSignals";
-import { resetTenantIsolationCriticalHealthForTest } from "@/modules/operator-health/tenantIsolationCriticalHealth";
+} from './collectCriticalHealthSignals';
+import { resetTenantIsolationCriticalHealthForTest } from '@/modules/operator-health/tenantIsolationCriticalHealth';
 
-describe("collectCriticalHealthSignals", () => {
+describe('collectCriticalHealthSignals', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     resetTenantIsolationCriticalHealthForTest();
     checkDbMock.mockResolvedValue(true);
     getOperatorJobStatusMock.mockResolvedValue(null);
     getConfigBoolMock.mockImplementation(async (key: string) => {
-      if (key === "video_hls_pipeline_enabled") return false;
-      if (key === "video_hls_reconcile_enabled") return false;
+      if (key === 'video_hls_pipeline_enabled') return false;
+      if (key === 'video_hls_reconcile_enabled') return false;
       return false;
     });
     loadTranscodeMetricsMock.mockResolvedValue(null);
@@ -83,32 +85,34 @@ describe("collectCriticalHealthSignals", () => {
       webPushReminderSelections: 0,
     });
     readIsolationHealthMock.mockResolvedValue({
-      status: "okay",
+      status: 'okay',
       active: { unexplained: 0 },
     });
     readIsolationCanaryMock.mockResolvedValue({ organizations: [], truncated: false });
     listOpenIncidentsMock.mockResolvedValue([]);
   });
 
-  it("does not mark video transcode error when pipeline disabled and metrics unavailable", async () => {
+  it('does not mark video transcode error when pipeline disabled and metrics unavailable', async () => {
     const input = await collectCriticalHealthSignals();
-    expect(input.videoTranscodeStatus).toBe("ok");
+    expect(input.videoTranscodeStatus).toBe('ok');
   });
 
-  it("marks video transcode error when pipeline enabled and metrics unavailable", async () => {
-    getConfigBoolMock.mockImplementation(async (key: string) => key === "video_hls_pipeline_enabled");
+  it('marks video transcode error when pipeline enabled and metrics unavailable', async () => {
+    getConfigBoolMock.mockImplementation(
+      async (key: string) => key === 'video_hls_pipeline_enabled',
+    );
     const input = await collectCriticalHealthSignals();
-    expect(input.videoTranscodeStatus).toBe("error");
+    expect(input.videoTranscodeStatus).toBe('error');
   });
 
-  it("collects a recent synchronous provider incident into the bounded critical input", async () => {
+  it('collects a recent synchronous provider incident into the bounded critical input', async () => {
     listOpenIncidentsMock.mockResolvedValue([
       {
-        id: "incident-id",
-        dedupKey: "outbound_delivery_provider:email:provider_send_failed",
-        direction: "outbound_delivery_provider",
-        integration: "email",
-        errorClass: "provider_send_failed",
+        id: 'incident-id',
+        dedupKey: 'outbound_delivery_provider:email:provider_send_failed',
+        direction: 'outbound_delivery_provider',
+        integration: 'email',
+        errorClass: 'provider_send_failed',
         errorDetail: null,
         openedAt: new Date(Date.now() - 10 * 60_000).toISOString(),
         lastSeenAt: new Date(Date.now() - 5 * 60_000).toISOString(),
@@ -121,22 +125,22 @@ describe("collectCriticalHealthSignals", () => {
     expect(input.outboundDeliveryProvider).toMatchObject({
       recentIncidentCount: 1,
       openIncidentCount: 1,
-      openIncidents: [expect.objectContaining({ id: "incident-id", alertSentAt: null })],
+      openIncidents: [expect.objectContaining({ id: 'incident-id', alertSentAt: null })],
     });
     expect(listOpenIncidentsMock).toHaveBeenCalledWith(100);
   });
 
-  it("collects a probe incident only after the integrator has opened its configured-threshold incident", async () => {
+  it('collects a probe incident only after the integrator has opened its configured-threshold incident', async () => {
     listOpenIncidentsMock.mockResolvedValue([
       {
-        id: "probe-incident-id",
-        dedupKey: "outbound:telegram:telegram_probe_failed",
-        direction: "outbound",
-        integration: "telegram",
-        errorClass: "telegram_probe_failed",
+        id: 'probe-incident-id',
+        dedupKey: 'outbound:telegram:telegram_probe_failed',
+        direction: 'outbound',
+        integration: 'telegram',
+        errorClass: 'telegram_probe_failed',
         errorDetail: null,
-        openedAt: "2026-07-27T12:00:00.000Z",
-        lastSeenAt: "2026-07-27T12:00:00.000Z",
+        openedAt: '2026-07-27T12:00:00.000Z',
+        lastSeenAt: '2026-07-27T12:00:00.000Z',
         occurrenceCount: 1,
         alertSentAt: null,
       },
@@ -147,23 +151,23 @@ describe("collectCriticalHealthSignals", () => {
     expect(input.probeIncidentsOpenCount).toBe(1);
   });
 
-  it("feeds existing routing and isolation diagnostics into the critical snapshot", async () => {
+  it('feeds existing routing and isolation diagnostics into the critical snapshot', async () => {
     getPoolRoutingMetricsMock.mockReturnValue({
       missingPrincipalSelections: 2,
     });
     readIsolationHealthMock.mockResolvedValue({
-      status: "critical",
+      status: 'critical',
       active: { unexplained: 3 },
     });
     const input = await collectCriticalHealthSignals();
     expect(input.tenantIsolation).toEqual({
       runtime: { critical: true, missingPrincipalDelta: 2 },
-      diagnostics: { status: "critical", activeUnexplainedEvents: 3 },
-      wentDark: { status: "priming", affectedOrganizations: 0 },
+      diagnostics: { status: 'critical', activeUnexplainedEvents: 3 },
+      wentDark: { status: 'priming', affectedOrganizations: 0 },
     });
   });
 
-  it("keeps isolation reads and state advancement out of the doctor banner request path", async () => {
+  it('keeps isolation reads and state advancement out of the doctor banner request path', async () => {
     const input = await collectOperatorHealthBannerInput();
     expect(input.tenantIsolation).toBeUndefined();
     expect(readIsolationHealthMock).not.toHaveBeenCalled();

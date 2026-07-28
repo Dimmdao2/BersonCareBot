@@ -1,6 +1,6 @@
-import type { ChannelBindings } from "@/shared/types/session";
-import type { MessageLogListParams, MessageLogPort } from "./ports";
-import { normalizeMessageLogListParams } from "./messageLogListQuery";
+import type { ChannelBindings } from '@/shared/types/session';
+import type { MessageLogListParams, MessageLogPort } from './ports';
+import { normalizeMessageLogListParams } from './messageLogListQuery';
 
 export type PrepareDraftParams = { userId: string };
 export type PrepareDraftResult = {
@@ -19,16 +19,22 @@ export type SendMessageCommand = {
 };
 
 export type DoctorMessagingServiceDeps = {
-  getClientIdentity: (userId: string) => Promise<{ userId: string; displayName: string; bindings: ChannelBindings } | null>;
-  getDeliveryTargets: (params: { phone?: string; telegramId?: string; maxId?: string }) => Promise<{ channelBindings: ChannelBindings } | null>;
+  getClientIdentity: (
+    userId: string,
+  ) => Promise<{ userId: string; displayName: string; bindings: ChannelBindings } | null>;
+  getDeliveryTargets: (params: {
+    phone?: string;
+    telegramId?: string;
+    maxId?: string;
+  }) => Promise<{ channelBindings: ChannelBindings } | null>;
   messageLogPort: MessageLogPort;
 };
 
 function bindingsToChannelList(b: ChannelBindings): string[] {
   const out: string[] = [];
-  if (b.telegramId) out.push("telegram");
-  if (b.maxId) out.push("max");
-  if (b.vkId) out.push("vk");
+  if (b.telegramId) out.push('telegram');
+  if (b.maxId) out.push('max');
+  if (b.vkId) out.push('vk');
   return out;
 }
 
@@ -59,9 +65,11 @@ export function createDoctorMessagingService(deps: DoctorMessagingServiceDeps) {
       };
     },
 
-    async sendMessage(command: SendMessageCommand): Promise<{ success: boolean; entry: { id: string } }> {
+    async sendMessage(
+      command: SendMessageCommand,
+    ): Promise<{ success: boolean; entry: { id: string } }> {
       const channelsUsed = bindingsToChannelList(command.channelBindings);
-      const outcome = channelsUsed.length === 0 ? "failed" as const : "sent";
+      const outcome = channelsUsed.length === 0 ? ('failed' as const) : 'sent';
       const entry = await deps.messageLogPort.append({
         userId: command.userId,
         senderId: command.senderId,
@@ -69,13 +77,16 @@ export function createDoctorMessagingService(deps: DoctorMessagingServiceDeps) {
         category: command.category,
         channelBindingsUsed: bindingsToLogRecord(command.channelBindings),
         outcome,
-        errorMessage: outcome === "failed" ? "no channels" : null,
+        errorMessage: outcome === 'failed' ? 'no channels' : null,
       });
-      return { success: outcome !== "failed", entry: { id: entry.id } };
+      return { success: outcome !== 'failed', entry: { id: entry.id } };
     },
 
     async listMessageHistory(params: { userId: string; page?: number; pageSize?: number }) {
-      const normalized = normalizeMessageLogListParams({ page: params.page, pageSize: params.pageSize });
+      const normalized = normalizeMessageLogListParams({
+        page: params.page,
+        pageSize: params.pageSize,
+      });
       return deps.messageLogPort.listByUser(params.userId, normalized);
     },
 

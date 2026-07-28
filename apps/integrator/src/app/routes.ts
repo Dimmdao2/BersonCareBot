@@ -65,9 +65,8 @@ function createResolveOrganizationIdForMessengerIdentity(): (
   return async (externalId, resource) => {
     try {
       const db = createDbPort();
-      return await runWithBootstrapPrincipal(
-        { source: `${resource}-webhook:pre-routing` },
-        () => resolveActiveOrganizationIdForMessengerIdentity(db, { resource, externalId }),
+      return await runWithBootstrapPrincipal({ source: `${resource}-webhook:pre-routing` }, () =>
+        resolveActiveOrganizationIdForMessengerIdentity(db, { resource, externalId }),
       );
     } catch (error) {
       reportIntegratorIsolationFailure(error);
@@ -82,9 +81,8 @@ function createResolveOrganizationIdForIntegratorUserId(): (
   return async (integratorUserId) => {
     try {
       const db = createDbPort();
-      return await runWithBootstrapPrincipal(
-        { source: 'integrator-user-org-resolution' },
-        () => resolveActiveOrganizationIdForIntegratorUserId(db, integratorUserId),
+      return await runWithBootstrapPrincipal({ source: 'integrator-user-org-resolution' }, () =>
+        resolveActiveOrganizationIdForIntegratorUserId(db, integratorUserId),
       );
     } catch (error) {
       reportIntegratorIsolationFailure(error);
@@ -120,7 +118,8 @@ function createResolveDeploymentOrganizationId(): () => Promise<string | null> {
  */
 export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promise<void> {
   const resolveIntegratorUserIdForMessenger = createResolveIntegratorUserIdForMessenger();
-  const resolveOrganizationIdForMessengerIdentity = createResolveOrganizationIdForMessengerIdentity();
+  const resolveOrganizationIdForMessengerIdentity =
+    createResolveOrganizationIdForMessengerIdentity();
   const resolveOrganizationIdForIntegratorUserId = createResolveOrganizationIdForIntegratorUserId();
   const resolveDeploymentOrganizationId = createResolveDeploymentOrganizationId();
   const authChannelPolicyDb = createDbPort();

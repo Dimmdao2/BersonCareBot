@@ -1,38 +1,45 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { Check } from "lucide-react";
-import { Button, buttonVariants } from "@/shared/ui/doctor/primitives/button";
-import { Input } from "@/shared/ui/doctor/primitives/input";
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
+import { Check } from 'lucide-react';
+import { Button, buttonVariants } from '@/shared/ui/doctor/primitives/button';
+import { Input } from '@/shared/ui/doctor/primitives/input';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/ui/doctor/primitives/select";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/ui/doctor/primitives/tooltip";
-import type { MediaExerciseUsageEntry, MediaFolderRecord } from "@/modules/media/types";
-import { cn } from "@/lib/utils";
-import { doctorPageStackClass, doctorSectionCardClass, doctorSectionTitleClass } from "@/shared/ui/doctor/doctorVisual";
-import type { MediaListItem } from "@/shared/ui/doctor/media/MediaPickerList";
-import { MediaThumb } from "@/shared/ui/doctor/media/MediaThumb";
-import { libraryMediaRowToPreviewUi } from "@/shared/ui/doctor/media/mediaPreviewUiModel";
-import { buildAdminMediaListUrl } from "@/shared/ui/doctor/media/useMediaLibraryPickerItems";
-import { MediaPickerListFooter } from "@/shared/ui/doctor/media/MediaPickerListFooter";
-import { useMediaPickerFilteredList } from "@/shared/ui/doctor/media/useMediaPickerFilteredList";
+} from '@/shared/ui/doctor/primitives/select';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/shared/ui/doctor/primitives/tooltip';
+import type { MediaExerciseUsageEntry, MediaFolderRecord } from '@/modules/media/types';
+import { cn } from '@/lib/utils';
+import {
+  doctorPageStackClass,
+  doctorSectionCardClass,
+  doctorSectionTitleClass,
+} from '@/shared/ui/doctor/doctorVisual';
+import type { MediaListItem } from '@/shared/ui/doctor/media/MediaPickerList';
+import { MediaThumb } from '@/shared/ui/doctor/media/MediaThumb';
+import { libraryMediaRowToPreviewUi } from '@/shared/ui/doctor/media/mediaPreviewUiModel';
+import { buildAdminMediaListUrl } from '@/shared/ui/doctor/media/useMediaLibraryPickerItems';
+import { MediaPickerListFooter } from '@/shared/ui/doctor/media/MediaPickerListFooter';
+import { useMediaPickerFilteredList } from '@/shared/ui/doctor/media/useMediaPickerFilteredList';
 
 import {
   type MediaLibraryListSortPreset,
   MEDIA_LIBRARY_LIST_SORT_OPTIONS,
   mediaLibraryListSortLabel,
   parseMediaLibraryListSortPreset,
-} from "@/shared/ui/doctor/media/mediaLibraryListSortOptions";
-import { bulkCreateExercisesFromMedia } from "./actions";
-import { EXERCISES_PATH } from "./exercisesPaths";
-import { exerciseMediaTypeFromPick, exerciseTitleFromLibraryItem } from "./exerciseMediaFromLibrary";
+} from '@/shared/ui/doctor/media/mediaLibraryListSortOptions';
+import { bulkCreateExercisesFromMedia } from './actions';
+import { EXERCISES_PATH } from './exercisesPaths';
+import {
+  exerciseMediaTypeFromPick,
+  exerciseTitleFromLibraryItem,
+} from './exerciseMediaFromLibrary';
 
 function folderPathLabel(folder: MediaFolderRecord, all: MediaFolderRecord[]): string {
   const byId = new Map(all.map((f) => [f.id, f]));
@@ -44,7 +51,7 @@ function folderPathLabel(folder: MediaFolderRecord, all: MediaFolderRecord[]): s
     parts.unshift(cur.name);
     cur = cur.parentId ? byId.get(cur.parentId) : undefined;
   }
-  return parts.join(" / ");
+  return parts.join(' / ');
 }
 
 function exerciseUsageTooltipLines(usage: MediaExerciseUsageEntry[]): string {
@@ -52,7 +59,7 @@ function exerciseUsageTooltipLines(usage: MediaExerciseUsageEntry[]): string {
   const slice = usage.slice(0, max);
   const lines = slice.map((u) => u.title.trim()).filter(Boolean);
   if (usage.length > max) lines.push(`… и ещё ${usage.length - max}`);
-  return lines.join("\n");
+  return lines.join('\n');
 }
 
 function MediaCard({
@@ -68,7 +75,7 @@ function MediaCard({
 }) {
   const title = item.displayName?.trim() || item.filename;
   const hasExerciseUsage = Boolean(exerciseUsage?.length);
-  const usageTooltip = hasExerciseUsage ? exerciseUsageTooltipLines(exerciseUsage!) : "";
+  const usageTooltip = hasExerciseUsage ? exerciseUsageTooltipLines(exerciseUsage!) : '';
 
   const thumbMedia = libraryMediaRowToPreviewUi(item);
 
@@ -79,11 +86,15 @@ function MediaCard({
           <TooltipTrigger
             type="button"
             className="absolute top-2 right-2 z-10 flex size-5 cursor-default items-center justify-center rounded-full border border-green-600/30 bg-background shadow-sm"
-            aria-label={`Уже в упражнениях: ${usageTooltip.replaceAll("\n", ", ")}`}
+            aria-label={`Уже в упражнениях: ${usageTooltip.replaceAll('\n', ', ')}`}
           >
             <Check className="size-3 text-green-600" aria-hidden strokeWidth={3} />
           </TooltipTrigger>
-          <TooltipContent side="left" align="end" className="max-w-xs whitespace-pre-line text-left">
+          <TooltipContent
+            side="left"
+            align="end"
+            className="max-w-xs whitespace-pre-line text-left"
+          >
             {usageTooltip}
           </TooltipContent>
         </Tooltip>
@@ -93,7 +104,7 @@ function MediaCard({
           media={thumbMedia}
           className="h-24 w-full"
           imgClassName="h-24 w-full object-contain bg-muted/30"
-          labels={{ skipped: "Без превью", failed: "Нет превью" }}
+          labels={{ skipped: 'Без превью', failed: 'Нет превью' }}
         />
       </div>
       <p className="min-h-10 break-words line-clamp-2 text-sm font-medium" title={title}>
@@ -106,11 +117,11 @@ function MediaCard({
         variant="outline"
         className={cn(
           selected &&
-            "border-green-600 bg-green-600 text-white hover:bg-green-700 hover:text-white hover:border-green-700",
+            'border-green-600 bg-green-600 text-white hover:bg-green-700 hover:text-white hover:border-green-700',
         )}
         onClick={onToggle}
       >
-        {selected ? "Снять выбор" : "Выбрать"}
+        {selected ? 'Снять выбор' : 'Выбрать'}
       </Button>
     </div>
   );
@@ -126,7 +137,7 @@ export function AutoCreateExercisesClient() {
     failed: number;
   } | null>(null);
 
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState('');
   const [folders, setFolders] = useState<MediaFolderRecord[]>([]);
   const [foldersLoaded, setFoldersLoaded] = useState(false);
   const [newOnly, setNewOnly] = useState(true);
@@ -136,7 +147,7 @@ export function AutoCreateExercisesClient() {
   >({});
   const [usageReady, setUsageReady] = useState(false);
   const [selectedById, setSelectedById] = useState<Map<string, MediaListItem>>(new Map());
-  const [listSortPreset, setListSortPreset] = useState<MediaLibraryListSortPreset>("date:desc");
+  const [listSortPreset, setListSortPreset] = useState<MediaLibraryListSortPreset>('date:desc');
 
   const { sortBy: listSortBy, sortDir: listSortDir } = useMemo(
     () => parseMediaLibraryListSortPreset(listSortPreset),
@@ -146,7 +157,7 @@ export function AutoCreateExercisesClient() {
   const listUrl = useMemo(
     () =>
       buildAdminMediaListUrl({
-        apiKind: "video",
+        apiKind: 'video',
         folderId: pickerFolderId,
         sortBy: listSortBy,
         sortDir: listSortDir,
@@ -168,17 +179,17 @@ export function AutoCreateExercisesClient() {
   } = useMediaPickerFilteredList({
     open: true,
     listUrl,
-    kind: "video",
+    kind: 'video',
     query,
   });
 
   useEffect(() => {
     const ac = new AbortController();
     queueMicrotask(() => setFoldersLoaded(false));
-    fetch("/api/admin/media/folders?flat=true", { credentials: "same-origin", signal: ac.signal })
+    fetch('/api/admin/media/folders?flat=true', { credentials: 'same-origin', signal: ac.signal })
       .then(async (res) => {
         const data = (await res.json()) as { ok?: boolean; items?: MediaFolderRecord[] };
-        if (!res.ok || !data.ok) throw new Error("folders_failed");
+        if (!res.ok || !data.ok) throw new Error('folders_failed');
         return data.items ?? [];
       })
       .then((list) => {
@@ -211,10 +222,10 @@ export function AutoCreateExercisesClient() {
 
     const runUsageFetch = () => {
       if (ac.signal.aborted || requestId !== usageRequestRef.current) return;
-      fetch("/api/admin/media/exercise-usage", {
-        method: "POST",
-        credentials: "same-origin",
-        headers: { "Content-Type": "application/json" },
+      fetch('/api/admin/media/exercise-usage', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ids }),
         signal: ac.signal,
       })
@@ -224,7 +235,7 @@ export function AutoCreateExercisesClient() {
             usage?: Record<string, MediaExerciseUsageEntry[]>;
             error?: string;
           };
-          if (!res.ok || !data.ok) throw new Error(data.error ?? "usage_failed");
+          if (!res.ok || !data.ok) throw new Error(data.error ?? 'usage_failed');
           return data.usage ?? {};
         })
         .then((raw) => {
@@ -245,7 +256,7 @@ export function AutoCreateExercisesClient() {
 
     let idleCallbackId: number | undefined;
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
-    if (typeof window !== "undefined" && "requestIdleCallback" in window) {
+    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
       idleCallbackId = window.requestIdleCallback(runUsageFetch, { timeout: 400 });
     } else {
       timeoutId = setTimeout(runUsageFetch, 0);
@@ -253,7 +264,11 @@ export function AutoCreateExercisesClient() {
 
     return () => {
       ac.abort();
-      if (idleCallbackId !== undefined && typeof window !== "undefined" && "cancelIdleCallback" in window) {
+      if (
+        idleCallbackId !== undefined &&
+        typeof window !== 'undefined' &&
+        'cancelIdleCallback' in window
+      ) {
         window.cancelIdleCallback(idleCallbackId);
       }
       if (timeoutId !== undefined) clearTimeout(timeoutId);
@@ -265,19 +280,23 @@ export function AutoCreateExercisesClient() {
     return folders.slice().sort((a, b) => {
       const pa = folderPathLabel(a, folders);
       const pb = folderPathLabel(b, folders);
-      return pa.localeCompare(pb, "ru");
+      return pa.localeCompare(pb, 'ru');
     });
   }, [folders]);
 
   const folderSelectValue =
-    pickerFolderId === undefined ? "__all__" : pickerFolderId === null ? "__root__" : pickerFolderId;
+    pickerFolderId === undefined
+      ? '__all__'
+      : pickerFolderId === null
+        ? '__root__'
+        : pickerFolderId;
 
   const folderSelectDisplayLabel = useMemo(() => {
-    if (pickerFolderId === undefined) return "Все папки";
-    if (pickerFolderId === null) return "Корень";
+    if (pickerFolderId === undefined) return 'Все папки';
+    if (pickerFolderId === null) return 'Корень';
     const f = folders.find((x) => x.id === pickerFolderId);
     if (f) return folderPathLabel(f, folders);
-    return foldersLoaded ? pickerFolderId : "Загрузка…";
+    return foldersLoaded ? pickerFolderId : 'Загрузка…';
   }, [pickerFolderId, folders, foldersLoaded]);
 
   const displayedItems = useMemo(() => {
@@ -292,7 +311,7 @@ export function AutoCreateExercisesClient() {
     return [...selectedById.values()].sort((a, b) => {
       const ta = exerciseTitleFromLibraryItem(a);
       const tb = exerciseTitleFromLibraryItem(b);
-      return ta.localeCompare(tb, "ru");
+      return ta.localeCompare(tb, 'ru');
     });
   }, [selectedById]);
 
@@ -354,14 +373,17 @@ export function AutoCreateExercisesClient() {
   return (
     <div className={doctorPageStackClass}>
       <div className="flex flex-wrap items-center gap-2">
-        <Link href={EXERCISES_PATH} className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}>
+        <Link
+          href={EXERCISES_PATH}
+          className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}
+        >
           ← К упражнениям
         </Link>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <section className={doctorSectionCardClass}>
-          <h2 className={cn("mb-3", doctorSectionTitleClass)}>Медиа</h2>
+          <h2 className={cn('mb-3', doctorSectionTitleClass)}>Медиа</h2>
           <div className="mb-3 flex flex-wrap gap-2">
             <Button type="button" size="sm" variant="secondary" onClick={selectAllVisible}>
               Выбрать все
@@ -387,8 +409,8 @@ export function AutoCreateExercisesClient() {
                 <Select
                   value={folderSelectValue}
                   onValueChange={(v) => {
-                    if (v === "__all__") setPickerFolderId(undefined);
-                    else if (v === "__root__") setPickerFolderId(null);
+                    if (v === '__all__') setPickerFolderId(undefined);
+                    else if (v === '__root__') setPickerFolderId(null);
                     else setPickerFolderId(v);
                   }}
                   disabled={!foldersLoaded}
@@ -409,9 +431,14 @@ export function AutoCreateExercisesClient() {
               </div>
               <div className="flex min-w-[10rem] flex-1 flex-col gap-1">
                 <span className="text-xs text-muted-foreground">Порядок списка</span>
-                <Select value={listSortPreset} onValueChange={(v) => setListSortPreset(v as MediaLibraryListSortPreset)}>
+                <Select
+                  value={listSortPreset}
+                  onValueChange={(v) => setListSortPreset(v as MediaLibraryListSortPreset)}
+                >
                   <SelectTrigger size="sm" className="w-full text-left">
-                    <SelectValue placeholder="Порядок списка">{mediaLibraryListSortLabel(listSortPreset)}</SelectValue>
+                    <SelectValue placeholder="Порядок списка">
+                      {mediaLibraryListSortLabel(listSortPreset)}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {MEDIA_LIBRARY_LIST_SORT_OPTIONS.map((o) => (
@@ -429,8 +456,10 @@ export function AutoCreateExercisesClient() {
                     type="button"
                     variant="ghost"
                     className={cn(
-                      "rounded px-1.5 py-0.5 transition-colors h-auto text-[11px] font-normal",
-                      !newOnly ? "bg-background font-medium shadow-sm" : "text-muted-foreground hover:text-foreground",
+                      'rounded px-1.5 py-0.5 transition-colors h-auto text-[11px] font-normal',
+                      !newOnly
+                        ? 'bg-background font-medium shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground',
                     )}
                     onClick={() => setNewOnly(false)}
                   >
@@ -441,8 +470,10 @@ export function AutoCreateExercisesClient() {
                     type="button"
                     variant="ghost"
                     className={cn(
-                      "rounded px-1.5 py-0.5 transition-colors h-auto text-[11px] font-normal",
-                      newOnly ? "bg-background font-medium shadow-sm" : "text-muted-foreground hover:text-foreground",
+                      'rounded px-1.5 py-0.5 transition-colors h-auto text-[11px] font-normal',
+                      newOnly
+                        ? 'bg-background font-medium shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground',
                     )}
                     onClick={() => setNewOnly(true)}
                   >
@@ -457,7 +488,9 @@ export function AutoCreateExercisesClient() {
             {listError ? <p className="text-sm text-destructive">{listError}</p> : null}
             {listLoading ? <p className="text-sm text-muted-foreground">Загрузка...</p> : null}
             {!listLoading && !listError && displayedItems.length === 0 && !serverSearchPending ? (
-              <p className="rounded-md border border-border p-3 text-sm text-muted-foreground">Нет видео</p>
+              <p className="rounded-md border border-border p-3 text-sm text-muted-foreground">
+                Нет видео
+              </p>
             ) : null}
             {!listLoading && !listError && displayedItems.length > 0 ? (
               <div className="grid max-h-[65vh] grid-cols-1 gap-2 overflow-auto sm:grid-cols-2">
@@ -498,8 +531,8 @@ export function AutoCreateExercisesClient() {
           ) : null}
           {lastResult && lastResult.created === 0 ? (
             <p className="text-sm text-muted-foreground">
-              Создано: {lastResult.created}, пропущено (уже в упражнениях): {lastResult.skippedLinked}, ошибок:{" "}
-              {lastResult.failed}
+              Создано: {lastResult.created}, пропущено (уже в упражнениях):{' '}
+              {lastResult.skippedLinked}, ошибок: {lastResult.failed}
             </p>
           ) : null}
           <ul className="max-h-[50vh] flex-1 list-inside list-disc overflow-auto text-sm">
@@ -519,7 +552,7 @@ export function AutoCreateExercisesClient() {
             className="w-full sm:w-auto"
             onClick={handleCreate}
           >
-            {pending ? "Создание…" : `Создать упражнения (${selectedList.length})`}
+            {pending ? 'Создание…' : `Создать упражнения (${selectedList.length})`}
           </Button>
         </section>
       </div>

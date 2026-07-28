@@ -1,10 +1,10 @@
-import type { NotificationDeliveryAttemptsPort } from "@/modules/notification-delivery/ports";
+import type { NotificationDeliveryAttemptsPort } from '@/modules/notification-delivery/ports';
 import type {
   NotificationDeliveryChannel,
   NotificationDeliveryHealthSnapshot,
   RecordNotificationDeliveryAttemptInput,
-} from "@/modules/notification-delivery/types";
-import { NOTIFICATION_DELIVERY_CHANNELS } from "@/modules/notification-delivery/types";
+} from '@/modules/notification-delivery/types';
+import { NOTIFICATION_DELIVERY_CHANNELS } from '@/modules/notification-delivery/types';
 
 type StoredAttempt = RecordNotificationDeliveryAttemptInput & { createdAt: string; id: string };
 
@@ -39,17 +39,21 @@ export const inMemoryNotificationDeliveryAttemptsPort: NotificationDeliveryAttem
           lastErrorMessage: null as string | null,
         },
       ]),
-    ) as NotificationDeliveryHealthSnapshot["byChannel"];
+    ) as NotificationDeliveryHealthSnapshot['byChannel'];
 
     for (const a of recent) {
       const agg = byChannel[a.channel];
-      if (a.status === "success") agg.successCount += 1;
-      if (a.status === "failed") agg.failedCount += 1;
-      if (a.status === "skipped") agg.skippedCount += 1;
+      if (a.status === 'success') agg.successCount += 1;
+      if (a.status === 'failed') agg.failedCount += 1;
+      if (a.status === 'skipped') agg.skippedCount += 1;
       const ts = a.createdAt;
       if (!agg.lastAttemptAt || ts > agg.lastAttemptAt) agg.lastAttemptAt = ts;
-      if (a.status === "success" && (!agg.lastSuccessAt || ts > agg.lastSuccessAt)) agg.lastSuccessAt = ts;
-      if ((a.status === "failed" || a.status === "skipped") && (!agg.lastErrorAt || ts > agg.lastErrorAt)) {
+      if (a.status === 'success' && (!agg.lastSuccessAt || ts > agg.lastSuccessAt))
+        agg.lastSuccessAt = ts;
+      if (
+        (a.status === 'failed' || a.status === 'skipped') &&
+        (!agg.lastErrorAt || ts > agg.lastErrorAt)
+      ) {
         agg.lastErrorAt = ts;
         agg.lastProviderStatusCode = a.providerStatusCode ?? null;
         agg.lastErrorReason = a.reason ?? null;
@@ -58,13 +62,13 @@ export const inMemoryNotificationDeliveryAttemptsPort: NotificationDeliveryAttem
     }
 
     const recentIssues = recent
-      .filter((a) => a.status === "failed" || a.status === "skipped")
+      .filter((a) => a.status === 'failed' || a.status === 'skipped')
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
       .slice(0, 10)
       .map((a) => ({
         createdAt: a.createdAt,
         channel: a.channel,
-        status: a.status as "failed" | "skipped",
+        status: a.status as 'failed' | 'skipped',
         reason: a.reason ?? null,
         topicCode: a.topicCode ?? null,
         recipientRef: a.recipientRef ?? null,

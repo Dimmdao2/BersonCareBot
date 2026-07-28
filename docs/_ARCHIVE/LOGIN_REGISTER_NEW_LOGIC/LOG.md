@@ -28,12 +28,12 @@
 
 **Зафиксировано до правок** (ручной smoke, dev/staging):
 
-| # | Кейс | Наблюдение |
-|---|------|------------|
-| 1 | PWA login → TG → контакт | Нет автовхода; poll `otp_ready` → форма OTP в браузере |
-| 2 | После «Аккаунт создан» в боте | Снова висит «Предоставить контакт», главное меню не показывается |
-| 3 | «Отмена» / «Вернуться в меню» в phoneauth | «Отправить ваш вопрос Дмитрию?» (catch-all `menu.default`) |
-| 4 | `profile_bind` с сессией | Ожидаемо: poll `consumed`, без OTP (не регрессить) |
+| #   | Кейс                                      | Наблюдение                                                       |
+| --- | ----------------------------------------- | ---------------------------------------------------------------- |
+| 1   | PWA login → TG → контакт                  | Нет автовхода; poll `otp_ready` → форма OTP в браузере           |
+| 2   | После «Аккаунт создан» в боте             | Снова висит «Предоставить контакт», главное меню не показывается |
+| 3   | «Отмена» / «Вернуться в меню» в phoneauth | «Отправить ваш вопрос Дмитрию?» (catch-all `menu.default`)       |
+| 4   | `profile_bind` с сессией                  | Ожидаемо: poll `consumed`, без OTP (не регрессить)               |
 
 **Планы:** `.cursor/plans/archive/phone_messenger_bind_pwa_autologin.plan.md` (A), `.cursor/plans/archive/phone_messenger_bind_bot_ux.plan.md` (B).
 
@@ -69,13 +69,13 @@
 
 **Ручной smoke (чеклист prod/staging — заполнить при деплое):**
 
-| # | Кейс | Ожидание | Статус |
-|---|------|----------|--------|
-| 1 | PWA login → TG → контакт | Автовход в PWA + меню в боте (не contact KB) | ☐ |
-| 2 | PWA login → Max → контакт | То же на Max | ☐ |
-| 3 | «Отмена» / «Вернуться в меню» в phoneauth | `phoneAuthCancelled` или меню; не `confirmQuestion` | ☐ |
-| 4 | `profile_bind` с сессией | poll `consumed`, меню в TG, без OTP | ☐ |
-| 5 | Повторный контакт (replay) | PWA idempotent finish; бот — меню без второго OTP-текста | ☐ |
+| #   | Кейс                                      | Ожидание                                                 | Статус |
+| --- | ----------------------------------------- | -------------------------------------------------------- | ------ |
+| 1   | PWA login → TG → контакт                  | Автовход в PWA + меню в боте (не contact KB)             | ☐      |
+| 2   | PWA login → Max → контакт                 | То же на Max                                             | ☐      |
+| 3   | «Отмена» / «Вернуться в меню» в phoneauth | `phoneAuthCancelled` или меню; не `confirmQuestion`      | ☐      |
+| 4   | `profile_bind` с сессией                  | poll `consumed`, меню в TG, без OTP                      | ☐      |
+| 5   | Повторный контакт (replay)                | PWA idempotent finish; бот — меню без второго OTP-текста | ☐      |
 
 Runbook: `docs/OPERATIONS/PHONE_MESSENGER_AUTH_RUNBOOK.md` §Smoke.
 

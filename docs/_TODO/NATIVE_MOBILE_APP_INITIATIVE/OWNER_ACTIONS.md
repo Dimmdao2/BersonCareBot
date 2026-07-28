@@ -2,18 +2,18 @@
 
 Агенты могут подготовить код, инструкции, store texts и evidence. Следующие действия требуют владельца.
 
-| ID | Что сделать | Когда | Что сохранить как evidence |
-|---|---|---|---|
-| `MOB-O1` | Выбрать first release persona: patient / staff / оба | до `MOB-00` acceptance | dated decision |
-| `MOB-O2` | Выбрать distribution order: RuStore/direct Android, Google Play, App Store | до build/release design | dated decision |
-| `MOB-O3` | Утвердить единый platform binary; per-org native apps оставить отдельным будущим решением | до bundle IDs | dated decision |
-| `MOB-O4` | Выбрать store billing model вместе с billing owner: IAP/store billing, consumption-only companion или другой допустимый путь | до mobile checkout UI | written decision + policy review |
-| `MOB-O5` | Открыть Apple Developer account от правильного seller/legal entity; для организации подготовить D-U-N-S, полномочия, work email/site | до iOS signing/APNs | account/team IDs без private keys |
-| `MOB-O6` | Открыть Android developer/distribution accounts и Firebase project под правильной организацией | до Android push/store | project/app IDs без service keys |
-| `MOB-O7` | Предоставить owner-approved macOS/Xcode runner или физический Mac для iOS build/signing | до `MOB-01` iOS PASS | runner ownership/access record |
-| `MOB-O8` | Заказать legal/privacy review Apple/Google/APNs/FCM и трансграничной передачи token/payload metadata (`G-04B`) | до real provider TEST/PROD | заключение/DPA/vendor register |
-| `MOB-O9` | После agent census одним пакетом принять/скорректировать exact event/field preview matrix и service email/SMS/operator allowlists; общий принцип полезного push уже решён и не переоткрывается | до `NTF-01/N3` content builders и production | dated field matrix acceptance + `G-04B` linkage |
-| `MOB-O10` | Провести real-device acceptance и вручную открыть store submission/release window | каждый release | checklist, store submission ID, source SHA |
+| ID        | Что сделать                                                                                                                                                                                    | Когда                                        | Что сохранить как evidence                      |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- | ----------------------------------------------- |
+| `MOB-O1`  | Выбрать first release persona: patient / staff / оба                                                                                                                                           | до `MOB-00` acceptance                       | dated decision                                  |
+| `MOB-O2`  | Выбрать distribution order: RuStore/direct Android, Google Play, App Store                                                                                                                     | до build/release design                      | dated decision                                  |
+| `MOB-O3`  | Утвердить единый platform binary; per-org native apps оставить отдельным будущим решением                                                                                                      | до bundle IDs                                | dated decision                                  |
+| `MOB-O4`  | Выбрать store billing model вместе с billing owner: IAP/store billing, consumption-only companion или другой допустимый путь                                                                   | до mobile checkout UI                        | written decision + policy review                |
+| `MOB-O5`  | Открыть Apple Developer account от правильного seller/legal entity; для организации подготовить D-U-N-S, полномочия, work email/site                                                           | до iOS signing/APNs                          | account/team IDs без private keys               |
+| `MOB-O6`  | Открыть Android developer/distribution accounts и Firebase project под правильной организацией                                                                                                 | до Android push/store                        | project/app IDs без service keys                |
+| `MOB-O7`  | Предоставить owner-approved macOS/Xcode runner или физический Mac для iOS build/signing                                                                                                        | до `MOB-01` iOS PASS                         | runner ownership/access record                  |
+| `MOB-O8`  | Заказать legal/privacy review Apple/Google/APNs/FCM и трансграничной передачи token/payload metadata (`G-04B`)                                                                                 | до real provider TEST/PROD                   | заключение/DPA/vendor register                  |
+| `MOB-O9`  | После agent census одним пакетом принять/скорректировать exact event/field preview matrix и service email/SMS/operator allowlists; общий принцип полезного push уже решён и не переоткрывается | до `NTF-01/N3` content builders и production | dated field matrix acceptance + `G-04B` linkage |
+| `MOB-O10` | Провести real-device acceptance и вручную открыть store submission/release window                                                                                                              | каждый release                               | checklist, store submission ID, source SHA      |
 
 ## Важные внешние gates
 

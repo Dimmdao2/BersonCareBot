@@ -23,7 +23,10 @@ export async function handleStart(
 
   if (isExternalRecordId) {
     if (!hasLinkedPhone) {
-      return { consumed: true, actions: await requestPhoneLink(chatId, String(channelUserId), userPort, content) };
+      return {
+        consumed: true,
+        actions: await requestPhoneLink(chatId, String(channelUserId), userPort, content),
+      };
     }
     await userPort.setUserState(String(channelUserId), 'idle');
     return {
@@ -80,7 +83,12 @@ export async function handleAsk(
   }
   await userPort.setUserState(channelUserId, 'waiting_for_question');
   return [
-    { type: 'sendMessage', chatId, text: content.messages.describeQuestion, replyMarkup: mainMenuMarkup(content) },
+    {
+      type: 'sendMessage',
+      chatId,
+      text: content.messages.describeQuestion,
+      replyMarkup: mainMenuMarkup(content),
+    },
   ];
 }
 
@@ -137,7 +145,12 @@ export async function handleMore(
     return requestPhoneLink(chatId, channelUserId, userPort, content);
   }
   return [
-    { type: 'sendMessage', chatId, text: content.messages.chooseMenu, replyMarkup: content.moreMenuInline },
+    {
+      type: 'sendMessage',
+      chatId,
+      text: content.messages.chooseMenu,
+      replyMarkup: content.moreMenuInline,
+    },
   ];
 }
 
@@ -152,6 +165,11 @@ export async function handleDefaultIdle(
     return requestPhoneLink(chatId, channelUserId, userPort, content);
   }
   return [
-    { type: 'sendMessage', chatId, text: content.messages.chooseMenu, replyMarkup: mainMenuMarkup(content) },
+    {
+      type: 'sendMessage',
+      chatId,
+      text: content.messages.chooseMenu,
+      replyMarkup: mainMenuMarkup(content),
+    },
   ];
 }

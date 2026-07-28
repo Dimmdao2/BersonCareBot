@@ -75,4 +75,3 @@ No full root CI here.
 
 - Editors can understand what they configure without reading code.
 - No runtime behavior changes.
-

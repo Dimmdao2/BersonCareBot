@@ -3,7 +3,7 @@
  * Idempotent by integrator ids; used for product reads and ingest from integrator events.
  */
 
-import { runWebappPgText } from "@/infra/db/runWebappSql";
+import { runWebappPgText } from '@/infra/db/runWebappSql';
 
 export type MailingTopicRow = {
   integratorTopicId: string;
@@ -77,12 +77,7 @@ export function createPgSubscriptionMailingProjectionPort(): SubscriptionMailing
         ON CONFLICT (integrator_user_id, integrator_topic_id) DO UPDATE SET
           is_active = EXCLUDED.is_active,
           updated_at = EXCLUDED.updated_at`,
-        [
-          params.integratorUserId,
-          params.integratorTopicId,
-          params.isActive,
-          params.updatedAt,
-        ],
+        [params.integratorUserId, params.integratorTopicId, params.isActive, params.updatedAt],
       );
     },
 
@@ -122,7 +117,9 @@ export function createPgSubscriptionMailingProjectionPort(): SubscriptionMailing
       }));
     },
 
-    async listSubscriptionsByIntegratorUserId(integratorUserId: string): Promise<UserSubscriptionRow[]> {
+    async listSubscriptionsByIntegratorUserId(
+      integratorUserId: string,
+    ): Promise<UserSubscriptionRow[]> {
       const result = await runWebappPgText<{
         integrator_topic_id: string;
         code: string;

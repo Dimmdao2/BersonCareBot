@@ -1,17 +1,17 @@
-import { timingSafeEqual } from "node:crypto";
-import { NextResponse } from "next/server";
-import { enterWithDbInfraPrincipal } from "@bersoncare/db-principal";
-import { env } from "@/config/env";
-import { logger } from "@/app-layer/logging/logger";
-import { recordOperatorCronJobTickBestEffort } from "@/app-layer/operator-health/recordOperatorCronJobTick";
+import { timingSafeEqual } from 'node:crypto';
+import { NextResponse } from 'next/server';
+import { enterWithDbInfraPrincipal } from '@bersoncare/db-principal';
+import { env } from '@/config/env';
+import { logger } from '@/app-layer/logging/logger';
+import { recordOperatorCronJobTickBestEffort } from '@/app-layer/operator-health/recordOperatorCronJobTick';
 import {
   OPERATOR_MEDIA_JOB_FAMILY,
   OPERATOR_MEDIA_PREVIEW_PROCESS_JOB_KEY,
-} from "@/modules/operator-health/reconcileJobKeys";
+} from '@/modules/operator-health/reconcileJobKeys';
 
 function bearerMatchesSecret(token: string, secret: string): boolean {
-  const a = Buffer.from(token, "utf8");
-  const b = Buffer.from(secret, "utf8");
+  const a = Buffer.from(token, 'utf8');
+  const b = Buffer.from(secret, 'utf8');
   if (a.length !== b.length) {
     return false;
   }
@@ -26,20 +26,20 @@ function bearerMatchesSecret(token: string, secret: string): boolean {
 export async function POST(request: Request) {
   const secret = env.INTERNAL_JOB_SECRET;
   if (!secret) {
-    return NextResponse.json({ ok: false, error: "not_configured" }, { status: 503 });
+    return NextResponse.json({ ok: false, error: 'not_configured' }, { status: 503 });
   }
 
-  const auth = request.headers.get("authorization") ?? "";
-  const token = auth.startsWith("Bearer ") ? auth.slice(7).trim() : "";
+  const auth = request.headers.get('authorization') ?? '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
   if (!token || !bearerMatchesSecret(token, secret)) {
-    return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+    return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 });
   }
-  enterWithDbInfraPrincipal({ source: "api/internal/media-preview/process:POST" });
+  enterWithDbInfraPrincipal({ source: 'api/internal/media-preview/process:POST' });
 
   let limit = 10;
   try {
     const url = new URL(request.url);
-    const q = url.searchParams.get("limit");
+    const q = url.searchParams.get('limit');
     if (q) limit = Number.parseInt(q, 10);
   } catch {
     /* ignore */
@@ -49,8 +49,10 @@ export async function POST(request: Request) {
   const startedAtIso = new Date(startedAt).toISOString();
 
   try {
-    const { processMediaPreviewBatch } = await import("@/app-layer/media/mediaPreviewWorker");
-    const { processed, errors } = await processMediaPreviewBatch(Number.isFinite(limit) ? limit : 10);
+    const { processMediaPreviewBatch } = await import('@/app-layer/media/mediaPreviewWorker');
+    const { processed, errors } = await processMediaPreviewBatch(
+      Number.isFinite(limit) ? limit : 10,
+    );
     await recordOperatorCronJobTickBestEffort({
       jobFamily: OPERATOR_MEDIA_JOB_FAMILY,
       jobKey: OPERATOR_MEDIA_PREVIEW_PROCESS_JOB_KEY,
@@ -70,7 +72,7 @@ export async function POST(request: Request) {
       success: false,
       error: msg,
     });
-    logger.error({ err: e }, "[internal/media-preview/process] failed");
-    return NextResponse.json({ ok: false, error: "process_failed" }, { status: 500 });
+    logger.error({ err: e }, '[internal/media-preview/process] failed');
+    return NextResponse.json({ ok: false, error: 'process_failed' }, { status: 500 });
   }
 }

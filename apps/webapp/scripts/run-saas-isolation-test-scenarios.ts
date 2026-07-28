@@ -6,9 +6,7 @@ import {
   runSaasIsolationTestScenarios,
   type SaasIsolationTestScenarioState,
 } from '../src/modules/operator-health/saasIsolationTestScenarioRunner';
-import {
-  parseSaasIsolationTestScenarioCliArgs,
-} from '../src/modules/operator-health/saasIsolationTestScenarioCliArgs';
+import { parseSaasIsolationTestScenarioCliArgs } from '../src/modules/operator-health/saasIsolationTestScenarioCliArgs';
 
 const REQUIRED_DATABASE = 'bersoncarebot_test';
 

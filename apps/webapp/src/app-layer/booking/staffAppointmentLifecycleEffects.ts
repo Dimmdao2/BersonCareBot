@@ -1,19 +1,19 @@
-import type { createBookingAppointmentLifecycleService } from "@/modules/booking-appointment-lifecycle/service";
-import type { CancellationPolicy, ReschedulePolicy } from "@/modules/booking-policies/types";
-import type { BeAppointment } from "@/modules/booking-engine/types";
+import type { createBookingAppointmentLifecycleService } from '@/modules/booking-appointment-lifecycle/service';
+import type { CancellationPolicy, ReschedulePolicy } from '@/modules/booking-policies/types';
+import type { BeAppointment } from '@/modules/booking-engine/types';
 import {
   buildBookingNotificationsSent,
   resolveBookingNotifyTargets,
   type BookingLifecycleNotificationsSettings,
-} from "@/modules/patient-booking/bookingLifecycleNotifications";
-import type { AppointmentProjectionPort, BookingSyncPort } from "@/modules/patient-booking/ports";
-import type { PatientBookingRecord } from "@/modules/patient-booking/types";
-import { emitStaffCanonicalBookingEvent } from "@/app-layer/booking/staffBookingIntegratorEvent";
+} from '@/modules/patient-booking/bookingLifecycleNotifications';
+import type { AppointmentProjectionPort, BookingSyncPort } from '@/modules/patient-booking/ports';
+import type { PatientBookingRecord } from '@/modules/patient-booking/types';
+import { emitStaffCanonicalBookingEvent } from '@/app-layer/booking/staffBookingIntegratorEvent';
 import {
   projectCanonicalAppointmentCancelled,
   projectCanonicalAppointmentNoShow,
   projectCanonicalAppointmentRescheduled,
-} from "@/modules/patient-booking/projectCanonicalAppointment";
+} from '@/modules/patient-booking/projectCanonicalAppointment';
 
 type LifecycleService = ReturnType<typeof createBookingAppointmentLifecycleService>;
 
@@ -23,15 +23,15 @@ async function projectionFromAppointment(
 ) {
   const attr = appt.attributionJson ?? {};
   const contactName =
-    typeof attr.contact_name === "string"
+    typeof attr.contact_name === 'string'
       ? attr.contact_name
-      : typeof attr.contactName === "string"
+      : typeof attr.contactName === 'string'
         ? attr.contactName
-        : "Пациент";
+        : 'Пациент';
   const serviceTitle =
-    typeof attr.service_title === "string"
+    typeof attr.service_title === 'string'
       ? attr.service_title
-      : typeof attr.serviceTitle === "string"
+      : typeof attr.serviceTitle === 'string'
         ? attr.serviceTitle
         : null;
   return {
@@ -63,13 +63,13 @@ export async function applyStaffCancelSideEffects(opts: {
   }
   const integratorStatus = await emitStaffCanonicalBookingEvent({
     syncPort: opts.syncPort,
-    eventType: "booking.cancelled",
+    eventType: 'booking.cancelled',
     appointment: opts.appointment,
     bookingRow: opts.bookingRow,
     suppressPatientNotification: opts.suppressPatientNotification === true,
   });
   const resolvedCancelNotify = resolveBookingNotifyTargets(
-    "booking.cancelled",
+    'booking.cancelled',
     opts.cancelPolicy,
     opts.lifecycleNotificationSettings ?? null,
   );
@@ -80,7 +80,7 @@ export async function applyStaffCancelSideEffects(opts: {
     opts.appointment.id,
     opts.organizationId,
     buildBookingNotificationsSent({
-      eventType: "booking.cancelled",
+      eventType: 'booking.cancelled',
       idempotencyKey: `staff.cancelled:${opts.appointment.id}`,
       notifyPatient: cancelNotify.notifyPatient,
       notifyStaff: cancelNotify.notifyStaff,
@@ -117,14 +117,14 @@ export async function applyStaffNoShowSideEffects(opts: {
   // suppressPatientNotification travels exactly as in the staff-cancel path (R21).
   const integratorStatus = await emitStaffCanonicalBookingEvent({
     syncPort: opts.syncPort,
-    eventType: "booking.cancelled",
+    eventType: 'booking.cancelled',
     appointment: opts.appointment,
     bookingRow: opts.bookingRow,
     suppressPatientNotification: opts.suppressPatientNotification === true,
   });
   // Use booking.cancelled policy for notification targets (no separate no-show policy exists yet).
   const noShowNotifyRaw = resolveBookingNotifyTargets(
-    "booking.cancelled",
+    'booking.cancelled',
     // Default: notify patient on no-show unless suppressed.
     { notifyPatient: true, notifyStaff: true },
     opts.lifecycleNotificationSettings ?? null,
@@ -136,7 +136,7 @@ export async function applyStaffNoShowSideEffects(opts: {
     opts.appointment.id,
     opts.organizationId,
     buildBookingNotificationsSent({
-      eventType: "booking.cancelled",
+      eventType: 'booking.cancelled',
       idempotencyKey: `staff.no_show:${opts.appointment.id}`,
       notifyPatient: noShowNotify.notifyPatient,
       notifyStaff: noShowNotify.notifyStaff,
@@ -164,12 +164,12 @@ export async function applyStaffRescheduleSideEffects(opts: {
   }
   const integratorStatus = await emitStaffCanonicalBookingEvent({
     syncPort: opts.syncPort,
-    eventType: "booking.rescheduled",
+    eventType: 'booking.rescheduled',
     appointment: opts.appointment,
     bookingRow: opts.bookingRow,
   });
   const rescheduleNotify = resolveBookingNotifyTargets(
-    "booking.rescheduled",
+    'booking.rescheduled',
     opts.reschedulePolicy,
     opts.lifecycleNotificationSettings ?? null,
   );
@@ -177,7 +177,7 @@ export async function applyStaffRescheduleSideEffects(opts: {
     opts.appointment.id,
     opts.organizationId,
     buildBookingNotificationsSent({
-      eventType: "booking.rescheduled",
+      eventType: 'booking.rescheduled',
       idempotencyKey: `staff.rescheduled:${opts.appointment.id}:${opts.appointment.startAt}`,
       notifyPatient: rescheduleNotify.notifyPatient,
       notifyStaff: rescheduleNotify.notifyStaff,

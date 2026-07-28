@@ -1,13 +1,13 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { normalizeRuSearchString } from "@/shared/lib/ruSearchNormalize";
-import type { MediaListItem } from "@/shared/ui/doctor/media/MediaPickerList";
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { normalizeRuSearchString } from '@/shared/lib/ruSearchNormalize';
+import type { MediaListItem } from '@/shared/ui/doctor/media/MediaPickerList';
 import {
   getMediaLibraryPickerListCached,
   invalidateMediaLibraryPickerListCache,
   setMediaLibraryPickerListCached,
-} from "@/shared/ui/doctor/media/mediaLibraryPickerListCache";
+} from '@/shared/ui/doctor/media/mediaLibraryPickerListCache';
 
 /** Page size for picker list requests (API max 200). */
 export const MEDIA_LIBRARY_PICKER_PAGE_SIZE = 50;
@@ -15,7 +15,7 @@ export const MEDIA_LIBRARY_PICKER_PAGE_SIZE = 50;
 /** @deprecated Use {@link MEDIA_LIBRARY_PICKER_PAGE_SIZE}; kept for tests/docs referencing the old cap. */
 export const MEDIA_LIBRARY_PICKER_LIST_LIMIT = 200;
 
-export type AdminMediaListUrlSortBy = "date" | "size" | "type" | "name";
+export type AdminMediaListUrlSortBy = 'date' | 'size' | 'type' | 'name';
 
 export function buildAdminMediaListUrl(args: {
   apiKind: string;
@@ -23,30 +23,30 @@ export function buildAdminMediaListUrl(args: {
   /** При выборе конкретной папки — включать вложенные (как в экране библиотеки). По умолчанию `true` для uuid-папки. */
   includeDescendants?: boolean;
   sortBy?: AdminMediaListUrlSortBy;
-  sortDir?: "asc" | "desc";
+  sortDir?: 'asc' | 'desc';
   q?: string;
   offset?: number;
   limit?: number;
 }): string {
   const p = new URLSearchParams();
-  p.set("kind", args.apiKind);
-  p.set("sortBy", args.sortBy ?? "date");
-  p.set("sortDir", args.sortDir ?? "desc");
-  p.set("limit", String(args.limit ?? MEDIA_LIBRARY_PICKER_PAGE_SIZE));
-  p.set("offset", String(args.offset ?? 0));
-  if (args.q?.trim()) p.set("q", args.q.trim());
+  p.set('kind', args.apiKind);
+  p.set('sortBy', args.sortBy ?? 'date');
+  p.set('sortDir', args.sortDir ?? 'desc');
+  p.set('limit', String(args.limit ?? MEDIA_LIBRARY_PICKER_PAGE_SIZE));
+  p.set('offset', String(args.offset ?? 0));
+  if (args.q?.trim()) p.set('q', args.q.trim());
   if (args.folderId !== undefined) {
-    if (args.folderId === null) p.set("folderId", "root");
+    if (args.folderId === null) p.set('folderId', 'root');
     else {
-      p.set("folderId", args.folderId);
+      p.set('folderId', args.folderId);
       const includeDescendants = args.includeDescendants ?? true;
-      if (includeDescendants) p.set("includeDescendants", "true");
+      if (includeDescendants) p.set('includeDescendants', 'true');
     }
   }
   return `/api/admin/media?${p.toString()}`;
 }
 
-export type MediaLibraryPickerKindFilter = "image" | "video" | "image_or_video" | "all";
+export type MediaLibraryPickerKindFilter = 'image' | 'video' | 'image_or_video' | 'all';
 
 /**
  * After server list: for `image_or_video` the API uses `kind=all`, so narrow to image|video in UI.
@@ -55,8 +55,8 @@ export function narrowMediaLibraryPickerItemsByKind(
   items: MediaListItem[],
   kind: MediaLibraryPickerKindFilter,
 ): MediaListItem[] {
-  if (kind === "image_or_video") {
-    return items.filter((i) => i.kind === "image" || i.kind === "video");
+  if (kind === 'image_or_video') {
+    return items.filter((i) => i.kind === 'image' || i.kind === 'video');
   }
   return items;
 }
@@ -64,12 +64,15 @@ export function narrowMediaLibraryPickerItemsByKind(
 /**
  * @deprecated Prefer server `q` in {@link buildAdminMediaListUrl}. Kept for unit tests.
  */
-export function filterMediaLibraryPickerItemsByQuery(items: MediaListItem[], query: string): MediaListItem[] {
+export function filterMediaLibraryPickerItemsByQuery(
+  items: MediaListItem[],
+  query: string,
+): MediaListItem[] {
   const needle = normalizeRuSearchString(query.trim());
   if (!needle) return items;
   return items.filter((item) => {
     const filename = normalizeRuSearchString(item.filename);
-    const displayName = item.displayName ? normalizeRuSearchString(item.displayName) : "";
+    const displayName = item.displayName ? normalizeRuSearchString(item.displayName) : '';
     return filename.includes(needle) || displayName.includes(needle);
   });
 }
@@ -112,36 +115,39 @@ export function useMediaLibraryPickerItems(options: {
 
   const loading = open && inFlight && !loadingMore;
 
-  const fetchPage = useCallback(async (url: string, offset: number, append: boolean, requestId: number) => {
-    const pageUrl = (() => {
-      const u = new URL(url, "http://local");
-      u.searchParams.set("offset", String(offset));
-      return `${u.pathname}?${u.searchParams.toString()}`;
-    })();
+  const fetchPage = useCallback(
+    async (url: string, offset: number, append: boolean, requestId: number) => {
+      const pageUrl = (() => {
+        const u = new URL(url, 'http://local');
+        u.searchParams.set('offset', String(offset));
+        return `${u.pathname}?${u.searchParams.toString()}`;
+      })();
 
-    const res = await fetch(pageUrl, { credentials: "same-origin" });
-    const data = (await res.json()) as ListResponse;
-    if (!res.ok || !data.ok) throw new Error(data.error ?? "load_failed");
-    if (requestId !== latestRequestRef.current) return;
+      const res = await fetch(pageUrl, { credentials: 'same-origin' });
+      const data = (await res.json()) as ListResponse;
+      if (!res.ok || !data.ok) throw new Error(data.error ?? 'load_failed');
+      if (requestId !== latestRequestRef.current) return;
 
-    const incoming = data.items ?? [];
-    setItems((prev) => {
-      if (!append) return incoming;
-      const known = new Set(prev.map((i) => i.id));
-      return [...prev, ...incoming.filter((i) => !known.has(i.id))];
-    });
-    setHasMore(Boolean(data.hasMore));
-    setNextOffset(data.nextOffset ?? offset + incoming.length);
-    setTotal(typeof data.total === "number" ? data.total : null);
-    if (!append) {
-      setMediaLibraryPickerListCached(listUrl, {
-        items: incoming,
-        hasMore: Boolean(data.hasMore),
-        nextOffset: data.nextOffset ?? incoming.length,
-        total: typeof data.total === "number" ? data.total : null,
+      const incoming = data.items ?? [];
+      setItems((prev) => {
+        if (!append) return incoming;
+        const known = new Set(prev.map((i) => i.id));
+        return [...prev, ...incoming.filter((i) => !known.has(i.id))];
       });
-    }
-  }, [listUrl]);
+      setHasMore(Boolean(data.hasMore));
+      setNextOffset(data.nextOffset ?? offset + incoming.length);
+      setTotal(typeof data.total === 'number' ? data.total : null);
+      if (!append) {
+        setMediaLibraryPickerListCached(listUrl, {
+          items: incoming,
+          hasMore: Boolean(data.hasMore),
+          nextOffset: data.nextOffset ?? incoming.length,
+          total: typeof data.total === 'number' ? data.total : null,
+        });
+      }
+    },
+    [listUrl],
+  );
 
   useEffect(() => {
     if (!open) {
@@ -183,7 +189,7 @@ export function useMediaLibraryPickerItems(options: {
       void fetchPage(listUrl, 0, false, requestId)
         .catch(() => {
           if (requestId !== latestRequestRef.current) return;
-          setError("Не удалось загрузить библиотеку");
+          setError('Не удалось загрузить библиотеку');
           setItems([]);
         })
         .finally(() => {
@@ -201,7 +207,7 @@ export function useMediaLibraryPickerItems(options: {
     void fetchPage(listUrl, nextOffset, true, requestId)
       .catch(() => {
         if (requestId !== latestRequestRef.current) return;
-        setError("Не удалось загрузить следующую страницу");
+        setError('Не удалось загрузить следующую страницу');
       })
       .finally(() => {
         if (requestId !== latestRequestRef.current) return;
@@ -213,4 +219,4 @@ export function useMediaLibraryPickerItems(options: {
   return { items, loading, loadingMore, hasMore, total, error, loadMore };
 }
 
-export { invalidateMediaLibraryPickerListCache } from "@/shared/ui/doctor/media/mediaLibraryPickerListCache";
+export { invalidateMediaLibraryPickerListCache } from '@/shared/ui/doctor/media/mediaLibraryPickerListCache';

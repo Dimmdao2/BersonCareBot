@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { hasBusyOperations } from "@/shared/lib/busyRegistry";
-import { isReloadDeniedPath } from "@/shared/lib/reloadDenylist";
+import { hasBusyOperations } from '@/shared/lib/busyRegistry';
+import { isReloadDeniedPath } from '@/shared/lib/reloadDenylist';
 import {
   AUTO_RELOAD_ENABLED,
   RELOAD_COOLDOWN_MS,
@@ -12,9 +12,9 @@ import {
   RELOAD_RECHECK_DELAY_MS,
   RELOAD_STATE_KEY,
   RELOAD_WINDOW_MS,
-} from "@/shared/lib/reloadConstants";
+} from '@/shared/lib/reloadConstants';
 
-type ReloadReason = "version-mismatch" | "stale-server-action";
+type ReloadReason = 'version-mismatch' | 'stale-server-action';
 
 type ReloadState = {
   lastReloadAt: number;
@@ -59,10 +59,10 @@ function readJsonStorage<T>(storage: Storage, key: string): T | null {
 
 function getTabId(): string | null {
   try {
-    const existing = sessionStorage.getItem("bcb:reload:tab-id");
+    const existing = sessionStorage.getItem('bcb:reload:tab-id');
     if (existing) return existing;
     const created = `tab-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-    sessionStorage.setItem("bcb:reload:tab-id", created);
+    sessionStorage.setItem('bcb:reload:tab-id', created);
     return created;
   } catch {
     return null;
@@ -70,31 +70,31 @@ function getTabId(): string | null {
 }
 
 function getCurrentBuildId(): string {
-  if (typeof document === "undefined") return "";
+  if (typeof document === 'undefined') return '';
   const meta = document.querySelector('meta[name="x-build-id"]');
-  const value = meta?.getAttribute("content");
-  return value?.trim() || "";
+  const value = meta?.getAttribute('content');
+  return value?.trim() || '';
 }
 
 function hasActiveInput(): boolean {
-  if (typeof document === "undefined") return false;
+  if (typeof document === 'undefined') return false;
   const active = document.activeElement;
   if (!active) return false;
   const tag = active.tagName.toLowerCase();
-  if (tag === "input" || tag === "textarea" || tag === "select") {
+  if (tag === 'input' || tag === 'textarea' || tag === 'select') {
     return true;
   }
-  return active.getAttribute("contenteditable") === "true";
+  return active.getAttribute('contenteditable') === 'true';
 }
 
 function canReloadNow(pathname: string): string | null {
-  if (typeof document === "undefined" || typeof window === "undefined") {
-    return "not-in-browser";
+  if (typeof document === 'undefined' || typeof window === 'undefined') {
+    return 'not-in-browser';
   }
-  if (document.visibilityState !== "visible") return "tab-hidden";
-  if (isReloadDeniedPath(pathname)) return "denylist-path";
-  if (hasActiveInput()) return "active-input";
-  if (hasBusyOperations()) return "busy-operations";
+  if (document.visibilityState !== 'visible') return 'tab-hidden';
+  if (isReloadDeniedPath(pathname)) return 'denylist-path';
+  if (hasActiveInput()) return 'active-input';
+  if (hasBusyOperations()) return 'busy-operations';
   return null;
 }
 
@@ -106,7 +106,7 @@ function getReloadState(now: number): ReloadState | null {
         lastReloadAt: 0,
         count: 0,
         windowStartedAt: now,
-        lastBuildId: "",
+        lastBuildId: '',
       };
     }
     if (now - state.windowStartedAt > RELOAD_WINDOW_MS) {
@@ -136,13 +136,13 @@ function acquireLock(now: number, tabId: string): { ok: boolean; reason?: string
   try {
     const current = readJsonStorage<ReloadLock>(localStorage, RELOAD_PENDING_LOCK_KEY);
     if (current && now - current.takenAt < RELOAD_LOCK_TTL_MS && current.tabId !== tabId) {
-      return { ok: false, reason: "locked-by-other-tab" };
+      return { ok: false, reason: 'locked-by-other-tab' };
     }
     const next: ReloadLock = { takenAt: now, tabId };
     localStorage.setItem(RELOAD_PENDING_LOCK_KEY, JSON.stringify(next));
     return { ok: true };
   } catch {
-    return { ok: false, reason: "storage-unavailable" };
+    return { ok: false, reason: 'storage-unavailable' };
   }
 }
 
@@ -150,7 +150,7 @@ function scheduleDeferred(reason: ReloadReason, desiredBuildId?: string): void {
   if (deferredState) {
     return;
   }
-  if (typeof window === "undefined" || typeof document === "undefined") {
+  if (typeof window === 'undefined' || typeof document === 'undefined') {
     return;
   }
 
@@ -163,16 +163,16 @@ function scheduleDeferred(reason: ReloadReason, desiredBuildId?: string): void {
   };
   const cleanup = () => {
     if (!deferredState) return;
-    window.removeEventListener("focus", onEvent);
-    window.removeEventListener("pointerup", onEvent);
-    window.removeEventListener("visibilitychange", onEvent);
+    window.removeEventListener('focus', onEvent);
+    window.removeEventListener('pointerup', onEvent);
+    window.removeEventListener('visibilitychange', onEvent);
     window.clearTimeout(deferredState.timerId);
     deferredState = null;
   };
 
-  window.addEventListener("focus", onEvent, { once: true });
-  window.addEventListener("pointerup", onEvent, { once: true });
-  window.addEventListener("visibilitychange", onEvent, { once: true });
+  window.addEventListener('focus', onEvent, { once: true });
+  window.addEventListener('pointerup', onEvent, { once: true });
+  window.addEventListener('visibilitychange', onEvent, { once: true });
   const timerId = window.setTimeout(() => cleanup(), RELOAD_DEFER_TIMEOUT_MS);
   deferredState = { timerId, cleanup };
 }
@@ -189,14 +189,14 @@ export async function safeReload(reason: ReloadReason, desiredBuildId?: string):
   if (!AUTO_RELOAD_ENABLED) {
     return false;
   }
-  if (typeof window === "undefined") {
+  if (typeof window === 'undefined') {
     return false;
   }
 
   const now = Date.now();
   const tabId = getTabId();
   if (!tabId) {
-    warn("deferred:storage-unavailable", { reason });
+    warn('deferred:storage-unavailable', { reason });
     return false;
   }
 
@@ -210,37 +210,37 @@ export async function safeReload(reason: ReloadReason, desiredBuildId?: string):
 
   const state = getReloadState(now);
   if (!state) {
-    warn("deferred:storage-unavailable", { reason });
+    warn('deferred:storage-unavailable', { reason });
     return false;
   }
 
   if (now - state.lastReloadAt < RELOAD_COOLDOWN_MS) {
-    log("deferred:cooldown", { reason });
+    log('deferred:cooldown', { reason });
     scheduleDeferred(reason, desiredBuildId);
     return false;
   }
 
   if (state.count >= RELOAD_MAX_COUNT) {
-    warn("loop-break:max-count", { reason });
+    warn('loop-break:max-count', { reason });
     return false;
   }
 
   const currentBuildId = getCurrentBuildId();
   if (state.lastBuildId && currentBuildId && state.lastBuildId === currentBuildId) {
-    warn("loop-break:same-build-id", { reason, buildId: currentBuildId });
+    warn('loop-break:same-build-id', { reason, buildId: currentBuildId });
     return false;
   }
 
   const lock = acquireLock(now, tabId);
   if (!lock.ok) {
-    if (lock.reason === "locked-by-other-tab") {
-      log("deferred:locked-by-other-tab", { reason });
+    if (lock.reason === 'locked-by-other-tab') {
+      log('deferred:locked-by-other-tab', { reason });
       window.setTimeout(() => {
         void safeReload(reason, desiredBuildId);
       }, RELOAD_RECHECK_DELAY_MS);
       return false;
     }
-    warn("deferred:storage-unavailable", { reason });
+    warn('deferred:storage-unavailable', { reason });
     return false;
   }
 
@@ -251,15 +251,15 @@ export async function safeReload(reason: ReloadReason, desiredBuildId?: string):
     lastBuildId: desiredBuildId || currentBuildId,
   };
   if (!saveReloadState(nextState)) {
-    warn("deferred:storage-unavailable", { reason });
+    warn('deferred:storage-unavailable', { reason });
     return false;
   }
 
   releaseDeferredListeners();
 
   const url = new URL(window.location.href);
-  url.searchParams.set("_v", String(now));
-  log("reloaded", { reason, buildId: desiredBuildId || currentBuildId });
+  url.searchParams.set('_v', String(now));
+  log('reloaded', { reason, buildId: desiredBuildId || currentBuildId });
   window.location.replace(url.toString());
   return true;
 }

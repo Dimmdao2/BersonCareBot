@@ -10,6 +10,7 @@
 ## Обязательные правила
 
 ### Проверки
+
 - **После каждого шага** — только targeted-проверки затронутых файлов:
   ```bash
   pnpm --dir apps/webapp exec tsc --noEmit
@@ -24,11 +25,13 @@
 ## Шаг G.1 — STUB-03: OAuth callback (Yandex/Google/Apple)
 
 **Файлы:**
+
 - `apps/webapp/src/app/api/auth/oauth/callback/route.ts` (переписать)
 - `apps/webapp/src/modules/auth/oauthService.ts` (новый или расширить существующий)
 - `apps/webapp/src/infra/repos/pgOAuthBindings.ts` (проверить/расширить)
 
 **Действия:**
+
 1. Реализовать CSRF-защиту через `state`:
    - При `GET /api/auth/oauth/start?provider=yandex` → генерировать `state`, сохранить в httpOnly cookie.
    - В `callback` → сверить `state` из query с cookie. При несовпадении → 403.
@@ -42,6 +45,7 @@
 6. Redirect на `/app/patient` (или `/app/doctor` по роли).
 
 **Тесты:**
+
 - Unit: state mismatch → 403.
 - Unit: valid flow с мок fetch к provider → session created.
 - Integration: route test с моками OAuth providers.
@@ -53,9 +57,11 @@
 ## Шаг G.2 — Stage 10 E2E: upload → saveContentPage
 
 **Файлы:**
+
 - `apps/webapp/e2e/cms-content.test.ts` (новый)
 
 **Действия:**
+
 1. Реализовать e2e in-process тест:
    - Мок сессии врача.
    - `POST /api/media/upload` с валидным JPEG → получить `mediaId`.

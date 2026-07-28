@@ -1,10 +1,10 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { Badge } from "@/shared/ui/doctor/primitives/badge";
-import { cn } from "@/lib/utils";
-import type { ReferenceCategory } from "@/modules/references/types";
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { Badge } from '@/shared/ui/doctor/primitives/badge';
+import { cn } from '@/lib/utils';
+import type { ReferenceCategory } from '@/modules/references/types';
 
 export type ReferenceSystemSidebarLink = { href: string; label: string };
 
@@ -21,7 +21,9 @@ export function ReferencesSidebar({
     <aside className="rounded-xl border border-border bg-card p-3 lg:sticky lg:top-[calc(3.5rem_+_env(safe-area-inset-top,0px))] lg:max-h-[calc(100dvh_-_3.5rem_-_env(safe-area-inset-top,0px)_-_1.25rem)] lg:overflow-hidden">
       {systemLinks.length > 0 ? (
         <div className="mb-3 border-b border-border pb-3">
-          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Системные</p>
+          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Системные
+          </p>
           <ul className="flex flex-col gap-1">
             {systemLinks.map((link) => {
               const active = pathname === link.href;
@@ -30,9 +32,9 @@ export function ReferencesSidebar({
                   <Link
                     href={link.href}
                     className={cn(
-                      "flex items-center rounded-md border border-transparent px-2 py-2 text-sm hover:bg-muted",
+                      'flex items-center rounded-md border border-transparent px-2 py-2 text-sm hover:bg-muted',
                       active &&
-                        "border-primary/25 bg-primary/15 text-primary hover:bg-primary/20 dark:bg-primary/20 dark:hover:bg-primary/25",
+                        'border-primary/25 bg-primary/15 text-primary hover:bg-primary/20 dark:bg-primary/20 dark:hover:bg-primary/25',
                     )}
                   >
                     <span className="truncate">{link.label}</span>
@@ -53,14 +55,14 @@ export function ReferencesSidebar({
               <Link
                 href={href}
                 className={cn(
-                  "flex items-center justify-between rounded-md border border-transparent px-2 py-2 text-sm hover:bg-muted",
+                  'flex items-center justify-between rounded-md border border-transparent px-2 py-2 text-sm hover:bg-muted',
                   active &&
-                    "border-primary/25 bg-primary/15 text-primary hover:bg-primary/20 dark:bg-primary/20 dark:hover:bg-primary/25",
+                    'border-primary/25 bg-primary/15 text-primary hover:bg-primary/20 dark:bg-primary/20 dark:hover:bg-primary/25',
                 )}
               >
                 <span className="truncate">{cat.title}</span>
-                <Badge variant={cat.isUserExtensible ? "secondary" : "outline"}>
-                  {cat.isUserExtensible ? "Расш." : "Сист."}
+                <Badge variant={cat.isUserExtensible ? 'secondary' : 'outline'}>
+                  {cat.isUserExtensible ? 'Расш.' : 'Сист.'}
                 </Badge>
               </Link>
             </li>

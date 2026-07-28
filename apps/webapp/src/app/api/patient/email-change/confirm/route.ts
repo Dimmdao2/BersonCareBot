@@ -10,16 +10,16 @@
  *   2. Patient receives code, submits here → email switches.
  */
 
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { requirePatientApiSession } from "@/app-layer/guards/requireRole";
-import { ensureAuthModulePortsBound } from "@/app-layer/di/bindAuthModulePorts";
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { requirePatientApiSession } from '@/app-layer/guards/requireRole';
+import { ensureAuthModulePortsBound } from '@/app-layer/di/bindAuthModulePorts';
 import {
   AUTH_CHANNEL_DISABLED_ERROR,
   isAuthChannelEnabled,
-} from "@/modules/auth/authChannelPolicy";
-import { confirmLatestEmailChallengeCodeForUser } from "@/modules/auth/emailAuth";
-import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
+} from '@/modules/auth/authChannelPolicy';
+import { confirmLatestEmailChallengeCodeForUser } from '@/modules/auth/emailAuth';
+import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 
 const bodySchema = z.object({
   code: z.string().trim().min(4).max(12),
@@ -31,24 +31,24 @@ export async function POST(request: Request) {
   const gate = await requirePatientApiSession();
   if (!gate.ok) {
     if (gate.response.status === 401) {
-      return NextResponse.json({ ok: false, error: "unauthorized", message: "Требуется вход" }, { status: 401 });
+      return NextResponse.json(
+        { ok: false, error: 'unauthorized', message: 'Требуется вход' },
+        { status: 401 },
+      );
     }
     return gate.response;
   }
   const session = gate.session;
 
-  if (!(await isAuthChannelEnabled("email"))) {
-    return NextResponse.json(
-      { ok: false, error: AUTH_CHANNEL_DISABLED_ERROR },
-      { status: 503 },
-    );
+  if (!(await isAuthChannelEnabled('email'))) {
+    return NextResponse.json({ ok: false, error: AUTH_CHANNEL_DISABLED_ERROR }, { status: 503 });
   }
 
   const json = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(json);
   if (!parsed.success) {
     return NextResponse.json(
-      { ok: false, error: "validation_error", message: "Некорректный код" },
+      { ok: false, error: 'validation_error', message: 'Некорректный код' },
       { status: 400 },
     );
   }
@@ -57,16 +57,12 @@ export async function POST(request: Request) {
   const result = await confirmLatestEmailChallengeCodeForUser(
     session.user.userId,
     parsed.data.code,
-    "patient_email_change",
+    'patient_email_change',
     organizationId ? { profileBindOrganizationId: organizationId } : undefined,
   );
   if (!result.ok) {
     const status =
-      result.code === "too_many_attempts"
-        ? 429
-        : result.code === "email_conflict"
-          ? 409
-          : 400;
+      result.code === 'too_many_attempts' ? 429 : result.code === 'email_conflict' ? 409 : 400;
     return NextResponse.json(
       {
         ok: false,
@@ -77,7 +73,7 @@ export async function POST(request: Request) {
       {
         status,
         ...(result.retryAfterSeconds != null && {
-          headers: { "Retry-After": String(result.retryAfterSeconds) },
+          headers: { 'Retry-After': String(result.retryAfterSeconds) },
         }),
       },
     );
@@ -88,15 +84,15 @@ export async function POST(request: Request) {
 
 function errMsg(code: string): string {
   switch (code) {
-    case "invalid_code":
-      return "Неверный код";
-    case "expired_code":
-      return "Код истёк. Попросите администратора выслать новый.";
-    case "too_many_attempts":
-      return "Превышено число попыток.";
-    case "email_conflict":
-      return "Этот email уже используется другим аккаунтом";
+    case 'invalid_code':
+      return 'Неверный код';
+    case 'expired_code':
+      return 'Код истёк. Попросите администратора выслать новый.';
+    case 'too_many_attempts':
+      return 'Превышено число попыток.';
+    case 'email_conflict':
+      return 'Этот email уже используется другим аккаунтом';
     default:
-      return "Ошибка подтверждения";
+      return 'Ошибка подтверждения';
   }
 }

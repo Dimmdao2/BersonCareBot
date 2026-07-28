@@ -1,8 +1,8 @@
-import type { ReactNode } from "react";
-import Link from "next/link";
-import { CheckCircle2, Clock3, PlayCircle, Sparkles } from "lucide-react";
-import type { ResolvedPatientHomeBlockItem } from "@/modules/patient-home/todayConfig";
-import { routePaths } from "@/app-layer/routes/paths";
+import type { ReactNode } from 'react';
+import Link from 'next/link';
+import { CheckCircle2, Clock3, PlayCircle, Sparkles } from 'lucide-react';
+import type { ResolvedPatientHomeBlockItem } from '@/modules/patient-home/todayConfig';
+import { routePaths } from '@/app-layer/routes/paths';
 import {
   patientHomeHeroCardGeometryClass,
   patientHomeHeroBadgeClass,
@@ -12,15 +12,15 @@ import {
   patientHomeHeroTextColumnClass,
   patientHomeHeroTitleClampClass,
   patientHomeCardSubtitleClampXsClass,
-} from "./patientHomeCardStyles";
-import { appLoginWithNextHref, stripApiMediaForAnonymousGuest } from "./patientHomeGuestNav";
-import { PatientHomeSafeImage } from "./PatientHomeSafeImage";
+} from './patientHomeCardStyles';
+import { appLoginWithNextHref, stripApiMediaForAnonymousGuest } from './patientHomeGuestNav';
+import { PatientHomeSafeImage } from './PatientHomeSafeImage';
 import {
   patientHeroPrimaryActionClass,
   patientHeroWarmupDoneCtaClass,
   patientMutedTextClass,
-} from "@/shared/ui/patient/patientVisual";
-import { cn } from "@/lib/utils";
+} from '@/shared/ui/patient/patientVisual';
+import { cn } from '@/lib/utils';
 
 type Props = {
   warmup: ResolvedPatientHomeBlockItem | null;
@@ -35,14 +35,12 @@ type Props = {
   warmupCooldownCaption?: string | null;
 };
 
-const FALLBACK_DURATION_BADGE_LABEL = "5 мин";
+const FALLBACK_DURATION_BADGE_LABEL = '5 мин';
 
 function HeroBadgeRow() {
   return (
     <div className="relative z-20 flex h-6 shrink-0 items-start justify-start gap-1.5">
-      <span className={patientHomeHeroBadgeClass}>
-        Разминка дня
-      </span>
+      <span className={patientHomeHeroBadgeClass}>Разминка дня</span>
       <span className={patientHomeHeroDurationBadgeClass}>
         <Clock3 className="size-3.5 shrink-0" aria-hidden />
         {FALLBACK_DURATION_BADGE_LABEL}
@@ -94,8 +92,7 @@ export function PatientHomeDailyWarmupCard({
   const heroImageUrl = stripApiMediaForAnonymousGuest(page.imageUrl, anonymousGuest);
   const warmupHref = routePaths.patientGoDailyWarmup;
   const warmupLinkHref = anonymousGuest ? appLoginWithNextHref(warmupHref) : warmupHref;
-  const showWarmupDoneHero =
-    personalTierOk && !anonymousGuest && warmupRecentlyCompletedHero;
+  const showWarmupDoneHero = personalTierOk && !anonymousGuest && warmupRecentlyCompletedHero;
 
   return (
     <section aria-labelledby="patient-home-warmup-heading">
@@ -105,56 +102,59 @@ export function PatientHomeDailyWarmupCard({
           <h2 id="patient-home-warmup-heading" className={patientHomeHeroTitleClampClass}>
             {page.title}
           </h2>
-          {page.summary?.trim() ?
+          {page.summary?.trim() ? (
             <p className={patientHomeHeroSummaryClampClass}>{page.summary.trim()}</p>
-          : <div className="mt-1 min-h-8 shrink-0 md:mt-2 md:min-h-[3rem]" aria-hidden />}
+          ) : (
+            <div className="mt-1 min-h-8 shrink-0 md:mt-2 md:min-h-[3rem]" aria-hidden />
+          )}
           <div className="mt-auto flex shrink-0 flex-col gap-2 pb-3 pt-6 md:pb-[34px]">
-            {showWarmupDoneHero ?
+            {showWarmupDoneHero ? (
               <div className="flex min-w-0 flex-col gap-1">
                 <span
                   role="status"
-                  className={cn(patientHeroWarmupDoneCtaClass, "select-none")}
+                  className={cn(patientHeroWarmupDoneCtaClass, 'select-none')}
                   aria-label="Разминка дня уже отмечена выполненной"
                 >
                   <CheckCircle2 className="size-4 shrink-0 sm:size-[18px] md:size-5" aria-hidden />
                   Разминка выполнена
                 </span>
-                {warmupCooldownCaption?.trim() ?
+                {warmupCooldownCaption?.trim() ? (
                   <p
                     className={cn(
                       patientMutedTextClass,
-                      "max-w-full text-xs leading-snug -mb-2 md:-mb-3",
+                      'max-w-full text-xs leading-snug -mb-2 md:-mb-3',
                     )}
                   >
                     {warmupCooldownCaption.trim()}
                   </p>
-                : null}
+                ) : null}
               </div>
-            : <Link
+            ) : (
+              <Link
                 href={warmupLinkHref}
                 prefetch={false}
                 className={cn(
                   patientHeroPrimaryActionClass,
-                  "min-h-11 w-fit shrink-0 px-4 py-2 text-sm shadow-[0_6px_14px_rgba(40,77,160,0.24)] md:min-h-12 md:w-[22rem] md:pr-5 md:text-base xl:w-[24rem]",
+                  'min-h-11 w-fit shrink-0 px-4 py-2 text-sm shadow-[0_6px_14px_rgba(40,77,160,0.24)] md:min-h-12 md:w-[22rem] md:pr-5 md:text-base xl:w-[24rem]',
                 )}
               >
                 <PlayCircle className="size-5 shrink-0 md:size-6" aria-hidden />
                 Начать разминку
               </Link>
-            }
-            {anonymousGuest || !personalTierOk ?
+            )}
+            {anonymousGuest || !personalTierOk ? (
               <div className="hidden h-[2.75rem] shrink-0 overflow-hidden md:block">
-                {anonymousGuest ?
+                {anonymousGuest ? (
                   <p className={patientHomeCardSubtitleClampXsClass}>
                     Войдите, чтобы открыть материал и отмечать прогресс выполнения.
                   </p>
-                : !personalTierOk ?
+                ) : !personalTierOk ? (
                   <p className={patientHomeCardSubtitleClampXsClass}>
                     Активируйте профиль пациента, чтобы отмечать прогресс выполнения.
                   </p>
-                : null}
+                ) : null}
               </div>
-            : null}
+            ) : null}
           </div>
         </div>
         <HeroImageSlotDecor>

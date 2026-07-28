@@ -12,6 +12,7 @@
 
 ```markdown
 ### Sx.Tyy - <task title>
+
 - Status:
 - Agent/model:
 - Started at:
@@ -28,6 +29,7 @@
 
 ```markdown
 ### Stage x - AUDIT
+
 - Auditor/model: Composer 2
 - Verdict: pass | rework
 - Findings:
@@ -43,21 +45,22 @@
 
 ## BOOKING_LIFECYCLE_FIX Stage 1
 
-| Task | File | Status |
-|------|------|--------|
-| 1.1 Retry `postSigned` (3×, backoff 1s/2s/4s, 5xx + `TypeError`) | `apps/webapp/src/modules/integrator/bookingM2mApi.ts` | done |
-| 1.2 `createBooking` guard: missing `rubitimeId` → `failed_sync` + `rubitime_id_missing` | `apps/webapp/src/modules/patient-booking/service.ts` | done |
-| 1.3 `upsertFromRubitime` fallback: native + phone + `slot_start` | `apps/webapp/src/infra/repos/pgPatientBookings.ts` | done |
-| 1.4 `postRubitimeApi2` retry (3×, backoff 1s/2s/4s, 5xx + `TypeError`; 4xx без ретрая; envelope `status !== ok` без ретрая) | `apps/integrator/src/integrations/rubitime/client.ts` | done |
-| 1.5 `dispatchOutgoing` `maxAttempts: 3` (patient + doctor TG/MAX) | `apps/integrator/src/integrations/rubitime/recordM2mRoute.ts` | done |
-| 1.6 Tests | `service.test.ts`, `pgPatientBookings.test.ts`, `inMemoryPatientBookings.test.ts`, `bookingM2mApi.test.ts`, `client.test.ts` | done |
-| 1.7 CI | — | done |
-| 1.8 In-memory parity: тот же fallback `upsertFromRubitime` (native + phone + slot, `ORDER BY created_at DESC` → max `createdAt`) | `apps/webapp/src/infra/repos/inMemoryPatientBookings.ts` | done |
-| 1.9 SQL cleanup (диагностика / `failed_sync` / reconcile webapp↔integrator) | `docs/BRANCH_UX_CMS_BOOKING/BOOKING_LIFECYCLE_FIX/cleanup_*.sql` | done |
+| Task                                                                                                                             | File                                                                                                                         | Status |
+| -------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ------ |
+| 1.1 Retry `postSigned` (3×, backoff 1s/2s/4s, 5xx + `TypeError`)                                                                 | `apps/webapp/src/modules/integrator/bookingM2mApi.ts`                                                                        | done   |
+| 1.2 `createBooking` guard: missing `rubitimeId` → `failed_sync` + `rubitime_id_missing`                                          | `apps/webapp/src/modules/patient-booking/service.ts`                                                                         | done   |
+| 1.3 `upsertFromRubitime` fallback: native + phone + `slot_start`                                                                 | `apps/webapp/src/infra/repos/pgPatientBookings.ts`                                                                           | done   |
+| 1.4 `postRubitimeApi2` retry (3×, backoff 1s/2s/4s, 5xx + `TypeError`; 4xx без ретрая; envelope `status !== ok` без ретрая)      | `apps/integrator/src/integrations/rubitime/client.ts`                                                                        | done   |
+| 1.5 `dispatchOutgoing` `maxAttempts: 3` (patient + doctor TG/MAX)                                                                | `apps/integrator/src/integrations/rubitime/recordM2mRoute.ts`                                                                | done   |
+| 1.6 Tests                                                                                                                        | `service.test.ts`, `pgPatientBookings.test.ts`, `inMemoryPatientBookings.test.ts`, `bookingM2mApi.test.ts`, `client.test.ts` | done   |
+| 1.7 CI                                                                                                                           | —                                                                                                                            | done   |
+| 1.8 In-memory parity: тот же fallback `upsertFromRubitime` (native + phone + slot, `ORDER BY created_at DESC` → max `createdAt`) | `apps/webapp/src/infra/repos/inMemoryPatientBookings.ts`                                                                     | done   |
+| 1.9 SQL cleanup (диагностика / `failed_sync` / reconcile webapp↔integrator)                                                      | `docs/BRANCH_UX_CMS_BOOKING/BOOKING_LIFECYCLE_FIX/cleanup_*.sql`                                                             | done   |
 
 - CI evidence: green, 2026-04-02 (`pnpm run ci`); 1.4/1.8/1.9 зафиксированы в том же прогоне
 
 ### BOOKING_LIFECYCLE_FIX — parity integrator + in-memory + SQL cleanup (2026-04-02)
+
 - Status: done
 - Agent/model: Cursor agent
 - Files changed:
@@ -76,6 +79,7 @@
 ## Stage 1 - F-01
 
 ### S1.T01 - Зафиксировать целевой контракт ingest resiliency
+
 - Status: done
 - Agent/model: Cursor agent
 - Files changed:
@@ -87,6 +91,7 @@
 - Evidence: recoverable = 0/5xx/503/429/408; non-recoverable = 4xx except 429/408
 
 ### S1.T02 - User linking по телефону
+
 - Status: done
 - Files changed:
   - `apps/webapp/src/shared/phone/normalizeRuPhoneE164.ts` + test
@@ -100,6 +105,7 @@
 - CI: green
 
 ### S1.T03 - Очередь/worker/retry/backoff
+
 - Status: done
 - Files changed:
   - `apps/integrator/src/infra/runtime/worker/projectionWorker.ts` — non-recoverable emit → immediate dead; backoff cap 3600s
@@ -109,6 +115,7 @@
 - CI: green
 
 ### S1.T04 - Dead-letter + requeue
+
 - Status: done
 - Files changed:
   - `apps/webapp/scripts/requeue-projection-outbox-dead.ts` — dry-run / `--commit`, фильтры event-type / error substring
@@ -117,6 +124,7 @@
 - CI: green
 
 ### S1.T05 - Проверки этапа и gate
+
 - Status: done
 - Tests: полный `pnpm run ci`
 - Gate evidence (SQL — на стенде с БД, не в CI):
@@ -124,6 +132,7 @@
   - Локально: CI green = предусловие gate; метрика dead по БД — после деплоя миграции 052 и прогона worker.
 
 ### Stage 1 - AUDIT
+
 - Auditor/model: Composer 2
 - Verdict: **pass** (код + CI; SQL-метрика dead на целевой БД — постдеплойная проверка по runbook)
 - Findings (audit 2026-04-02) — закрыто:
@@ -135,6 +144,7 @@
 - Approved at: 2026-04-02
 
 ### Stage 1 - FIX (post-audit)
+
 - Status: done
 - Files changed:
   - `apps/webapp/src/infra/repos/pgUserByPhone.ts` — при `>1` пользователе с тем же телефоном `findByPhone` → `null`
@@ -144,6 +154,7 @@
 - CI: `pnpm run ci` — pass (2026-04-02)
 
 ### INCIDENT HOTFIX — native booking (slots / дубли / RU / UX)
+
 - Status: done
 - Agent/model: Cursor agent
 - RCA (кратко):
@@ -165,6 +176,7 @@
 - CI: `pnpm run ci` — pass (2026-04-02)
 
 ### HOTFIX PLAN — BOOKING FLOW (baseline + decisions, для слабого агента)
+
 - Status: done
 - Agent/model: Cursor agent
 - Started at: 2026-04-02
@@ -179,6 +191,7 @@
 - Evidence (после прогона): см. HOTFIX.S7 ниже.
 
 ### HOTFIX.S7 — финальные проверки
+
 - Status: done
 - Tests: `service.test.ts` (в т.ч. `cancelBooking: sync failure invalidates slots cache...`), `pgPatientBookings.test.ts`, `bookingCreateErrorMessages.test.ts`; полный `pnpm --dir apps/webapp vitest --run`
 - CI: `pnpm run ci` — pass (2026-04-02)
@@ -190,16 +203,16 @@
 
 **Вывод:** по scope HOTFIX PLAN (кэш, дубли, RU, toast, «Изменить», тесты, CI) **критичных и обязательных доделок нет** — закрыто. Ниже — пометки по желательным/техдолгу вне scope.
 
-| Приоритет | Пункт | ✓/✗ | Комментарий |
-|-----------|--------|-----|-------------|
-| **критично** | S1–S7 реализованы, `pnpm run ci` green | ✓ | Блокирующих задач нет. |
-| **критично** | Инвалидация кэша при `cancel_sync_failed` | ✓ | Закрыто в `service.ts` + тест. |
-| **важно** | Соответствие плана и EXCLUDE в БД (`041`): pre-check шире статусов, чем `EXCLUDE` только для `confirmed`/`rescheduled` | ✓ | Ожидаемо: узкий EXCLUDE + широкий pre-check; не баг. |
-| **низкий** | Дословная строка «INCIDENT HOTFIX execution started» в логе | ✗ | Вместо неё блок «HOTFIX PLAN — BOOKING FLOW» с тем же смыслом; править не обязательно. |
-| **низкий** | Отдельный тест parity `inMemoryPatientBookings` vs PG (fallback `upsertFromRubitime`) | ✓ | Закрыто: `inMemoryPatientBookings.test.ts` — native + `rubitimeId: null` → webhook с тем же phone/slot; см. также задачу 1.8 в таблице BOOKING_LIFECYCLE_FIX. |
-| **опционально (вне scope плана)** | Client auto-refresh слотов раз в 60с | ✗ | Явно **не** делали по решению плана. |
-| **опционально (продукт)** | Overlap по ресурсу врача/услуги вместо global | ✗ | Отдельная фича + миграция; не входит в этот hotfix. |
-| **операционно** | Перед merge: повторить `pnpm run ci` на актуальном `main` | — | Рекомендация, не дефект кода. |
+| Приоритет                         | Пункт                                                                                                                  | ✓/✗ | Комментарий                                                                                                                                                   |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **критично**                      | S1–S7 реализованы, `pnpm run ci` green                                                                                 | ✓   | Блокирующих задач нет.                                                                                                                                        |
+| **критично**                      | Инвалидация кэша при `cancel_sync_failed`                                                                              | ✓   | Закрыто в `service.ts` + тест.                                                                                                                                |
+| **важно**                         | Соответствие плана и EXCLUDE в БД (`041`): pre-check шире статусов, чем `EXCLUDE` только для `confirmed`/`rescheduled` | ✓   | Ожидаемо: узкий EXCLUDE + широкий pre-check; не баг.                                                                                                          |
+| **низкий**                        | Дословная строка «INCIDENT HOTFIX execution started» в логе                                                            | ✗   | Вместо неё блок «HOTFIX PLAN — BOOKING FLOW» с тем же смыслом; править не обязательно.                                                                        |
+| **низкий**                        | Отдельный тест parity `inMemoryPatientBookings` vs PG (fallback `upsertFromRubitime`)                                  | ✓   | Закрыто: `inMemoryPatientBookings.test.ts` — native + `rubitimeId: null` → webhook с тем же phone/slot; см. также задачу 1.8 в таблице BOOKING_LIFECYCLE_FIX. |
+| **опционально (вне scope плана)** | Client auto-refresh слотов раз в 60с                                                                                   | ✗   | Явно **не** делали по решению плана.                                                                                                                          |
+| **опционально (продукт)**         | Overlap по ресурсу врача/услуги вместо global                                                                          | ✗   | Отдельная фича + миграция; не входит в этот hotfix.                                                                                                           |
+| **операционно**                   | Перед merge: повторить `pnpm run ci` на актуальном `main`                                                              | —   | Рекомендация, не дефект кода.                                                                                                                                 |
 
 Кратко: **доделывать по hotfix-плану ничего не нужно**; крестики только у косметики/опций вне scope.
 
@@ -208,6 +221,7 @@
 ## Stage 2 - F-04
 
 ### S2.T01 - Контракт полного compat enrichment
+
 - Status: done
 - Agent/model: Cursor agent
 - Files changed:
@@ -217,9 +231,10 @@
 - CI: `pnpm run ci` (2026-04-02, SHA `98e98d365a43a4e7105729f51f18b00ada4a061d`)
 
 ### S2.T02 - Реальный lookup branch_service_id
+
 - Status: done
 - Files changed:
-  - `apps/webapp/src/infra/repos/rubitimeBranchServiceLookup.ts` *(superseded 2026-06: `@bersoncare/booking-rubitime-sync`)* — deterministic SQL lookup + ambiguous без cooperator
+  - `apps/webapp/src/infra/repos/rubitimeBranchServiceLookup.ts` _(superseded 2026-06: `@bersoncare/booking-rubitime-sync`)_ — deterministic SQL lookup + ambiguous без cooperator
   - `apps/webapp/src/infra/repos/pgPatientBookings.ts` — merge lookup, snapshot/FK columns, `lookup_miss`/`ambiguous` логи
   - `apps/webapp/src/modules/patient-booking/compatSyncQuality.ts` — реальные критерии `full` (в т.ч. `branch_service_id`)
   - `apps/webapp/src/modules/integrator/events.ts` — `rubitimeCooperatorId` из payload
@@ -230,6 +245,7 @@
 - CI: green (тот же SHA до аудита; после remediation — см. Stage 2 AUDIT)
 
 ### S2.T03 - Provenance (createdBy/updatedBy/sourceActor)
+
 - Status: done
 - Files changed:
   - `apps/webapp/migrations/053_patient_bookings_compat_provenance.sql` — `provenance_created_by`, `provenance_updated_by`
@@ -239,6 +255,7 @@
 - CI: green
 
 ### S2.T04 - UI маркер происхождения
+
 - Status: done (расширено после аудита: врачебный UI)
 - Files changed:
   - `apps/webapp/src/shared/lib/scheduleRecordProvenance.ts` — единый `SCHEDULE_RECORD_PROVENANCE_PREFIX`
@@ -251,6 +268,7 @@
 - CI: green
 
 ### S2.T05 - Backfill + CI + gate evidence
+
 - Status: done
 - Files changed:
   - `apps/webapp/scripts/backfill-rubitime-compat-snapshots.ts` — phase 1 payload + phase 2 catalog, counters (`snapshot_*`, `catalog_*`); в JSON-выводе добавлено поле `catalog_degraded` (= `catalog_lookup_miss` + `catalog_lookup_ambiguous`) для согласования с S2.T05 «degraded»
@@ -259,6 +277,7 @@
 - CI: `pnpm run ci` — pass (после remediation)
 
 ### Stage 2 - AUDIT
+
 - Auditor/model: Composer 2 (первичный аудит: rework по doctor UI + тестам lookup-path + счётчику backfill)
 - Verdict (remediation): **pass** — маркер «Из расписания · » в кабинете врача (дашборд, список записей, карточка клиента: предстоящие + история), тесты `upsertFromRubitime` с моком `lookupBranchServiceByRubitimeIds`, поле `catalog_degraded` в JSON-выводе backfill; проверки: `pnpm run ci` — pass (2026-04-02, после патча в рабочем дереве)
 
@@ -267,6 +286,7 @@
 ## Stage 3 - F-03
 
 ### S3.T01 - Зафиксировать контракт attachmentFileIds
+
 - Status: done
 - Agent/model: Cursor agent
 - Files changed:
@@ -277,6 +297,7 @@
 - CI: см. S3.T05
 
 ### S3.T02 - Resolver media_files.id -> s3_key
+
 - Status: done
 - Files changed:
   - `apps/webapp/src/infra/repos/pgMediaFileIntakeResolve.ts` — `resolveMediaFileForLfkAttachment` (owner `uploaded_by`, статус не `pending`/`deleting`, `s3_key` обязателен)
@@ -284,6 +305,7 @@
 - Tests: `service.test.ts` (in-memory mock map: свой файл / чужой / unknown); `pgMediaFileIntakeResolve.test.ts` — mock `PoolClient`: успех, нет строки, чужой owner, `pending`/`deleting`, пустой `s3_key`
 
 ### S3.T03 - Persist mixed attachments (url + file)
+
 - Status: done
 - Files changed:
   - `apps/webapp/src/modules/online-intake/service.ts` — дедуп URL и file id (порядок первых вхождений), затем PG/in-memory
@@ -292,6 +314,7 @@
 - Tests: `service.test.ts` — mixed order, dedupe
 
 ### S3.T04 - Doctor visibility + e2e tests
+
 - Status: done
 - Files changed:
   - `apps/webapp/src/infra/s3/client.ts` — `presignGetUrl` (default 3600s)
@@ -304,11 +327,13 @@
 - Примечание: отдельного GET пациента по id заявки нет — чужие вложения недоступны через patient API; доступ к деталям врача у пациента блокируется `canAccessDoctor`
 
 ### S3.T05 - Финальная проверка этапа
+
 - Status: done
 - CI: `pnpm run ci` — pass (после remediation Stage 3 audit; см. SHA в блоке AUDIT ниже)
 - Evidence: unit-тесты выше + `pgMediaFileIntakeResolve.test.ts` + `doctor/online-intake/[id]/route.test.ts`; чекбоксы в `STAGE_3_F03_ATTACHMENT_FILE_IDS.md` закрыты; ручной e2e с реальной БД/S3 — на стенде после деплоя
 
 ### Stage 3 - AUDIT
+
 - Auditor/model: Composer 2 (первичный аудит: medium — без изолированных тестов PG-резолвера и явного теста изоляции пациента)
 - Verdict (remediation): **pass** — добавлены `pgMediaFileIntakeResolve.test.ts` (ownership/status/s3_key), `app/api/doctor/online-intake/[id]/route.test.ts` (`client` → 403), обновлены `STAGE_3_F03_ATTACHMENT_FILE_IDS.md` и этот лог; локальная проверка: `pnpm run ci` — pass (2026-04-02)
 
@@ -317,6 +342,7 @@
 ## Stage 4 - F-02
 
 ### S4.T01 - Зафиксировать контракт doctor responses
+
 - Status: done
 - Agent/model: Cursor agent
 - Files changed:
@@ -326,6 +352,7 @@
 - CI: см. S4.T05
 
 ### S4.T02 - Join с `platform_users` в doctor list
+
 - Status: done
 - Files changed:
   - `apps/webapp/src/infra/repos/pgOnlineIntake.ts` — `listRequestsForDoctor`: `LEFT JOIN platform_users`, `COALESCE(display_name/phone_normalized)`
@@ -335,6 +362,7 @@
 - Tests: `service.test.ts` (doctor identity), `route.test.ts`
 
 ### S4.T03 - Join в doctor details + унификация mapper
+
 - Status: done
 - Files changed:
   - `apps/webapp/src/infra/repos/pgOnlineIntake.ts` — `getByIdForDoctor` (join + те же поля, что в list)
@@ -343,6 +371,7 @@
   - `apps/webapp/src/app/api/doctor/online-intake/[id]/route.ts` — убран второй SQL к `platform_users`; 401/403/404 без изменений по смыслу
 
 ### S4.T04 - UI врача без fallback-заглушек (normal path)
+
 - Status: done
 - Files changed:
   - `apps/webapp/src/app/app/doctor/online-intake/DoctorOnlineIntakeClient.tsx` — без изменений логики отображения (уже без `—`/`неизвестно`); контрактные поля приходят с API
@@ -350,11 +379,13 @@
 - Tests: `DoctorOnlineIntakeClient.test.tsx`
 
 ### S4.T05 - Финальные проверки и gate
+
 - Status: done
 - CI: `pnpm run ci` — pass (локально, 2026-04-03)
 - Evidence: webapp `service.test.ts`, `doctorIntakeDetailResponse.test.ts`, `api/doctor/online-intake/route.test.ts`, `DoctorOnlineIntakeClient.test.tsx`; полный CI как выше
 
 ### Stage 4 - AUDIT
+
 - Auditor/model: Composer 2 (первичный аудит: low — лишний `userId` в list JSON, `changedBy` nullable vs контракт, слабые ассерты identity в `doctorIntakeDetailResponse.test`)
 - Verdict (remediation): **pass** — `GET /api/doctor/online-intake` маппит items без `userId` (`toDoctorListItem` в `route.ts`); `buildDoctorOnlineIntakeDetailResponse` отдаёт `statusHistory[].changedBy` как `string` (`null` → `""`); расширены `doctorIntakeDetailResponse.test.ts`; `route.test.ts` проверяет отсутствие `userId`; локально `pnpm run ci` — pass (2026-04-03, повтор после remediation)
 
@@ -363,6 +394,7 @@
 ## Stage 5 - F-06 (notification deep-link на заявку)
 
 ### S5.T01 - Зафиксировать deep-link контракт
+
 - Status: done
 - Agent/model: Cursor agent
 - Files changed:
@@ -371,12 +403,14 @@
 - Tests: не требовались (док)
 
 ### S5.T02 - Генерация deep-link в notification relay
+
 - Status: done
 - Files changed:
   - `apps/webapp/src/modules/online-intake/intakeNotificationRelay.ts` — `buildIntakeDeepLink(requestId)`, префикс «Карточка:» в тексте
 - Tests: `intakeNotificationRelay.test.ts` — URL содержит `/app/doctor/online-intake/{id}`; `buildIntakeDeepLink` unit cases
 
 ### S5.T03 - Шаблоны каналов TG/MAX
+
 - Status: done
 - Files changed:
   - `apps/integrator/src/content/telegram/user/templates.json` — ключ `doctor.onlineIntake.notify` (плейсхолдеры `typeLabel`, `patientName`, `summaryPart`, `deepLink`)
@@ -384,6 +418,7 @@
 - Note: фактическая отправка online-intake по-прежнему идёт relay-outbound с полным текстом из webapp; шаблон зафиксирован для консистентности и возможного reuse
 
 ### S5.T04 - Doctor routing (карточка по ссылке)
+
 - Status: done
 - Files changed:
   - `apps/webapp/src/app/app/doctor/online-intake/[requestId]/page.tsx` — маршрут с `initialOpenRequestId`
@@ -391,6 +426,7 @@
 - Tests: `DoctorOnlineIntakeClient.test.tsx` — deep-link без строки в списке
 
 ### S5.T05 - Smoke и gate
+
 - Status: done
 - Evidence:
   - Автоматический smoke: `intakeNotificationRelay.test.ts` (URL + requestId в path), `DoctorOnlineIntakeClient.test.tsx` (открытие карточки по `initialOpenRequestId`)
@@ -398,6 +434,7 @@
 - CI: `pnpm run ci` — pass (2026-04-03)
 
 ### Stage 5 - AUDIT
+
 - Auditor/model: Composer 2
 - Verdict: pass
 - Evidence checked:
@@ -406,6 +443,7 @@
   - Шаблоны TG/MAX синхронизированы (`doctor.onlineIntake.notify`)
 
 ### Stage 5 - AUDIT remediation (post-audit F-06)
+
 - Status: done
 - Agent/model: Cursor agent
 - Findings закрыты:
@@ -422,29 +460,34 @@
 ## Stage 6 - F-05
 
 ### S6.T01 - README index к фактической структуре
+
 - Status: done
 - Agent/model: Cursor agent
 - Files changed:
   - `docs/BRANCH_UX_CMS_BOOKING/BOOKING_REWORK_CITY_SERVICE/README.md` — Stages 8–15: вариант B (таблица ссылок на `EXECUTION_LOG`, `AUDIT_STAGE_8_15.md`, `STAGE_9_ONLINE_INTAKE.md`; без битых `STAGE_8_*.md` … `STAGE_15_*.md`)
 
 ### S6.T02 - Stage-summary из EXECUTION_LOG/CHECKLISTS
+
 - Status: done
 - Files changed:
   - `docs/.../AUDIT_STAGE_8_15.md` — §8 «Stage summaries (variant B)»
   - `docs/.../EXECUTION_LOG.md` — секция «SHA + CI traceability»; обновлён итог Stages 8–15
 
 ### S6.T03 - Закрыть online-safe gate
+
 - Status: done
 - Files changed:
   - `docs/.../CHECKLISTS.md` §7 — пункт online-safe gate
   - `docs/.../CUTOVER_RUNBOOK.md` §6 — чекбоксы 6.1 и операторские 6.2–6.3
 
 ### S6.T04 - Закрыть SHA+CI traceability (Stages 8–15)
+
 - Status: done
 - Files changed:
   - `docs/.../EXECUTION_LOG.md` — таблица «SHA + CI traceability»; `CHECKLISTS.md` §7 (пункт про SHA+CI)
 
 ### S6.T05 - Финальная docs-синхронизация + AGENT_EXECUTION_LOG
+
 - Status: done
 - Files changed:
   - `docs/.../COMPATIBILITY_RUBITIME_WEBAPP.md` — ссылка на §Stage 11 вместо несуществующего `STAGE_11_*.md`
@@ -454,10 +497,12 @@
   - `GLOBAL_FIX/AGENT_EXECUTION_LOG.md` — этот блок
 
 ### Evidence (Stage 6)
+
 - Tests: не требуются (документация)
 - CI: `pnpm run ci` — pass (2026-04-03); HEAD `b8c08689bf7c49e790cf1691d6af6396a4b59774` (таблица SHA+CI в `BOOKING_REWORK_CITY_SERVICE/EXECUTION_LOG.md`)
 
 ### Stage 6 - AUDIT
+
 - Auditor/model: Composer 2
 - Verdict: pass (doc-sync scope: `STAGE_6_F05_DOCS_STAGES_8_15_SYNC.md`)
 - Findings:
@@ -475,6 +520,7 @@
 ## Stage 7 - Final integration audit
 
 ### S7.T01 - Full CI (`pnpm run ci`)
+
 - Status: done
 - Agent/model: Cursor agent
 - Started at: 2026-04-03 (UTC)
@@ -484,6 +530,7 @@
 - CI: **green** (lint, typecheck, integrator+webapp tests, builds, `pnpm audit --prod`)
 
 ### S7.T02 - SQL metrics (compat/inbox/outbox)
+
 - Status: done
 - Datasource notes:
   - **Webapp DB:** `DATABASE_URL` из `apps/webapp/.env.dev` (`bcb_webapp_dev`) — полная схема миграций.
@@ -501,6 +548,7 @@
 - Интерпретация: на локальных dev-БД нет регрессионных сигналов и нет «новых» dead по `platform_user`; prod/stage — повторить те же запросы по `CUTOVER_RUNBOOK.md` / `PROD_BOOKING_INCIDENT_REMEDIATION.md` при необходимости оператора.
 
 ### S7.T03 - Ручной smoke (booking/intake/doctor)
+
 - Status: done (e2e глазами оператора заменён на **релизный эквивалент**: полный CI + целевые автотесты уже внутри `pnpm run ci`)
 - Evidence (сценарии Stage 7 doc ↔ тесты/слой):
   1. **Booking ingest + compat update:** `events.test.ts`, `pgPatientBookings.test.ts`, `service.test.ts` (integrator projection + webapp upsert) — зелёны в полном CI.
@@ -511,10 +559,12 @@
 - Примечание: точечный `vitest run` только подмножества файлов в этой среде дал warning/globalSetup на миграциях и один suite-fail по окружению; **источник истины для smoke — успешный полный `pnpm run ci` на SHA выше.**
 
 ### S7.T04 - Финальный аудит-вердикт
+
 - Status: done
 - Release verdict: **`approve_for_release`** (при условии приёмки оператором на целевом стенде для пункта 4 S7.T03 — реальные TG/MAX, если требуется продуктом)
 
 ### Stage 7 - AUDIT
+
 - Auditor/model: Composer 2
 - Verdict: **pass**
 - Findings: нет блокеров по коду/CI; SQL на dev-БД — пустые/нулевые метрики без аномалий; outbox пуст.
@@ -525,14 +575,15 @@
 - Approved at: 2026-04-03
 
 ### Stage 7 — remediation (закрытие замечаний финального аудита)
+
 - Status: done
 - Agent/model: Cursor agent
 - Назначение: закрыть findings post–Stage 7 (актуальный SHA, корректный SQL join для intake, явное разделение gate vs операторский клик TG/MAX); устранить хрупкость Vitest при `NODE_ENV` из `.env.dev` и стабилизировать `next build`.
 
-| Finding (severity) | Fix | Evidence |
-|------------------|-----|----------|
-| [info] Устаревший SHA и неверное имя FK в тексте S7.T02 (`platform_user_id` vs фактический `user_id`) | Обновлены S7.T01/S7.T02/итоговый блок: SHA `ff342066…`; в S7.T02 явно указан join `user_id` → `platform_users.id` и миграция `048_online_intake.sql` | `AGENT_EXECUTION_LOG.md` (этот файл) |
-| [low] Неоднозначность: gate S7 vs «ручной» клик из TG/MAX | В S7.T03 добавлено: gate PASS по п.1–3 и автопроверке п.4 при green CI; клик из реального мессенджера — операторская приёмка, не блокер gate по коду | `AGENT_EXECUTION_LOG.md` §S7.T03 |
+| Finding (severity)                                                                                                       | Fix                                                                                                                                                                                  | Evidence                                                                                                                                              |
+| ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [info] Устаревший SHA и неверное имя FK в тексте S7.T02 (`platform_user_id` vs фактический `user_id`)                    | Обновлены S7.T01/S7.T02/итоговый блок: SHA `ff342066…`; в S7.T02 явно указан join `user_id` → `platform_users.id` и миграция `048_online_intake.sql`                                 | `AGENT_EXECUTION_LOG.md` (этот файл)                                                                                                                  |
+| [low] Неоднозначность: gate S7 vs «ручной» клик из TG/MAX                                                                | В S7.T03 добавлено: gate PASS по п.1–3 и автопроверке п.4 при green CI; клик из реального мессенджера — операторская приёмка, не блокер gate по коду                                 | `AGENT_EXECUTION_LOG.md` §S7.T03                                                                                                                      |
 | [tech] После загрузки `.env.dev` Vitest терял тестовые дефолты (`isTest`, HMAC webhook, `__testConfirmLoginTokenByHash`) | `isTest` учитывает `VITEST_WORKER_ID`; `DATABASE_URL` transform через `isTest`; `__testConfirmLoginTokenByHash` разрешён в Vitest worker; `next build` с явным `NODE_ENV=production` | `apps/webapp/src/config/env.ts`, `apps/webapp/src/infra/repos/inMemoryLoginTokens.ts`, `apps/webapp/package.json`; `pnpm run ci` green на `ff342066…` |
 
 ---
@@ -559,41 +610,50 @@
 - **остаточный dead:** `id=498` (`slot_no_overlap`) — intentional technical block-window record (`+70000000000`, `БЛОК ОКНА`), оставлен в `dead` как non-actionable.
 
 ### INCIDENT.S0 — baseline + RCA
+
 - Status: done
 - Files: `AGENT_EXECUTION_LOG.md` (этот блок), `PROD_BOOKING_INCIDENT_REMEDIATION.md`
 
 ### INCIDENT.S1 — integrator create-record time
+
 - Status: done
 - Files: `apps/integrator/src/config/appTimezone.ts` (`formatIsoInstantAsRubitimeRecordLocal`), `recordM2mRoute.ts`, `appTimezone.test.ts`, `recordM2mRoute.test.ts`
 
 ### INCIDENT.S2 — webapp upsertFromRubitime / projection SQL
+
 - Status: done
 - Files: `apps/webapp/src/infra/repos/pgPatientBookings.ts` (явные `::text` / `::integer` в UPDATE, колонка `rubitime_manage_url`), `pgPatientBookings.test.ts`
 
 ### INCIDENT.S3 — exact Rubitime manage link
+
 - Status: done
 - Files: migration `054_patient_bookings_rubitime_manage_url.sql`, `types.ts`, `ports.ts`, `events.ts`, `service.ts` + `rubitimeManageUrl.ts`, cabinet components, `inMemoryPatientBookings.ts`, `CabinetActiveBookings.test.tsx`
 - Tests: `apps/webapp/src/app/app/patient/cabinet/CabinetActiveBookings.test.tsx` — кнопка «Изменить» только для валидного HTTPS `rubitimeManageUrl`; при `null`/unsafe URL кнопки нет (без fallback в `support_contact_url`)
 
 ### INCIDENT.S4 — CI
+
 - Status: done
 - CI: `pnpm run ci` green (lint, typecheck, integrator+webapp tests, build, audit)
 
 ### INCIDENT.S5 — prod runbook
+
 - Status: done
 - File: `docs/BRANCH_UX_CMS_BOOKING/BOOKING_LIFECYCLE_FIX/PROD_BOOKING_INCIDENT_REMEDIATION.md`
 - Notes: runbook расширен до operator-grade: обязательная диагностика, replay команды `requeue-projection-outbox-dead.ts` (dry-run/commit/verify), транзакционные шаблоны reconcile (wrong-time, stale-cancel, URL backfill), обязательный closeout payload
 
 ### INCIDENT.S6 — post-deploy smoke
+
 - Status: in_progress
 - Evidence: host SHA/services/health подтверждены; replay outbox выполнен и стабилизирован (`done=93`, `dead=1` intentional).
 - Remaining: финальный продуктовый smoke по кабинету пациента (подтвердить отсутствие ложных historical rows для `+79189000782` через targeted reconcile decision).
 
 ### INCIDENT.S7 — closeout
+
 - Status: blocked (закрывается только после S6)
 - **Residual risks:** старые строки без `rubitime_manage_url`; replay dead events нужен по факту id из prod.
 
 ### INCIDENT.REMEDIATION.AUDITFIX — post-audit corrections
+
 - Status: done
 - Agent/model: Cursor agent
 - Files changed:
@@ -609,6 +669,7 @@
   - Этот блок закрывает замечания аудита по S3/S5. S6/S7 остаются operator-dependent.
 
 ### INCIDENT.REMEDIATION.CANCELLED_PROJECTION_HIDE
+
 - Status: done
 - Agent/model: Cursor agent
 - Files changed:
@@ -623,6 +684,7 @@
   - Цель: remove/delete из Rubitime не оставляет «Запись из расписания» в журнале пациента.
 
 ### INCIDENT.REMEDIATION.BOOKING_TIME_AND_OVERLAP_V2
+
 - Status: done
 - Problem (prod-like):
   1. **Журнал / отменённая запись:** время в `patient_bookings` сдвигалось (например +1 ч к Москве), потому что webhook `appointment.record.upserted` передаёт `recordAt` как **наивную** строку без TZ; в UPDATE пути `upsertFromRubitime` она кастилась в `timestamptz` в контексте session TZ и **перезаписывала** корректный `slot_start` у **native**-строки.
@@ -643,6 +705,7 @@
   - После merge: применить webapp-миграции на prod (`055_...`), иначе constraint останется старым.
 
 ### INCIDENT.PROD.EXECUTION.LOG — outbox replay timeline (operator)
+
 - Status: done
 - Host SHA: `27193e3897d9ce74c6980e2f0d2705d4bedbce72`
 - Steps:
@@ -656,6 +719,7 @@
   - `dead=1` (`id=498`, `slot_no_overlap`, technical window block record)
 
 ### INCIDENT.HOTFIX.RU_PHONE_FORMATS
+
 - Status: done
 - Agent/model: Cursor agent
 - Summary: единая нормализация РФ-телефонов (`+7` / `7` / `8` / `00 7`, локальный 10-значный → `+7XXXXXXXXXX`) в webapp и integrator; убран дубликат нормализатора в in-memory auth repo.
@@ -668,6 +732,7 @@
 ## TIMEZONE_UTC_NORMALIZATION — Stage 5 (убрать +03:00 в slot-потоках)
 
 ### S5.T01 — Параметризовать `scheduleNormalizer`
+
 - Status: done
 - Agent/model: Cursor agent
 - Files changed:
@@ -675,12 +740,14 @@
 - Tests: `apps/integrator/src/integrations/rubitime/scheduleNormalizer.test.ts` (в т.ч. Samara/Moscow)
 
 ### S5.T02 — Протащить timezone в `recordM2mRoute`
+
 - Status: done
 - Files changed:
   - `apps/integrator/src/integrations/rubitime/recordM2mRoute.ts` — `createGetBranchTimezoneWithDataQuality` по `integrator_branch_id`; слоты и create-record (v1/v2) используют timezone филиала; при fallback из resolver — инцидент + Telegram (как в Stage 1)
   - `apps/integrator/src/integrations/rubitime/recordM2mRoute.test.ts` — mock `branchTimezone` → стабильный `Europe/Moscow`
 
 ### S5.T03 — Webapp `bookingM2mApi`
+
 - Status: done
 - Files changed:
   - `apps/webapp/src/modules/integrator/bookingM2mApi.ts` — убран `DEFAULT_SLOT_TZ`; v2 `times[]` через IANA из запроса; v1 legacy `times[]` → `getAppDisplayTimeZone()` как резерв; настенное время → UTC через **luxon** в этом модуле (без re-export из integrator — иначе Next production build не резолвит путь)
@@ -688,12 +755,14 @@
   - `apps/webapp/src/modules/patient-booking/service.ts` — передаёт `resolved.branch.timezone`
 
 ### S5.T04 — Тесты Samara/Moscow
+
 - Status: done
 - Tests:
   - Integrator: `scheduleNormalizer.test.ts` — `2026-04-07 11:00` → `07:00Z` (Samara), `08:00Z` (Moscow); существующие MSK-кейсы на `Europe/Moscow`
   - Webapp: `bookingM2mApi.test.ts` — то же различие на v2 `times[]` + MSK 10:00 → `07:00Z`
 
 ### Stage 5 gate (TIMEZONE)
+
 - Хардкоды `+03:00` / `+03` убраны из продуктового кода slot-потоков (`scheduleNormalizer`, `bookingM2mApi` v2 expansion); остаются в тестах/других модулях вне scope Stage 5 (напр. `formatBusinessDateTime`).
 - CI: `pnpm run ci` — **pass** (local, 2026-04-04): lint, typecheck, integrator+webapp tests, integrator+webapp build, `audit --prod`.
 

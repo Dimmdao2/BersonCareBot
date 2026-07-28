@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
 
-import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
-import { ClientContactPieChart } from "./ClientContactPieChart";
-import { emptyClientContactBreakdown } from "@/modules/doctor-clients/clientContactSegments";
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { describe, expect, it, vi } from 'vitest';
+import { ClientContactPieChart } from './ClientContactPieChart';
+import { emptyClientContactBreakdown } from '@/modules/doctor-clients/clientContactSegments';
 
-vi.mock("recharts", () => ({
+vi.mock('recharts', () => ({
   ResponsiveContainer: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   PieChart: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   Pie: () => null,
@@ -14,8 +14,8 @@ vi.mock("recharts", () => ({
   Tooltip: () => null,
 }));
 
-describe("ClientContactPieChart", () => {
-  it("opens segment list when legend row is clicked", async () => {
+describe('ClientContactPieChart', () => {
+  it('opens segment list when legend row is clicked', async () => {
     const user = userEvent.setup();
     const onSegmentClick = vi.fn();
     const breakdown = {
@@ -25,10 +25,10 @@ describe("ClientContactPieChart", () => {
 
     render(<ClientContactPieChart breakdown={breakdown} onSegmentClick={onSegmentClick} />);
 
-    await user.click(screen.getByRole("button", { name: /Только ТГ: 3 — открыть список/i }));
-    expect(onSegmentClick).toHaveBeenCalledWith("telegram_only", "Только ТГ");
+    await user.click(screen.getByRole('button', { name: /Только ТГ: 3 — открыть список/i }));
+    expect(onSegmentClick).toHaveBeenCalledWith('telegram_only', 'Только ТГ');
 
-    await user.click(screen.getByRole("button", { name: /Только Макс: 1 — открыть список/i }));
-    expect(onSegmentClick).toHaveBeenCalledWith("max_only", "Только Макс");
+    await user.click(screen.getByRole('button', { name: /Только Макс: 1 — открыть список/i }));
+    expect(onSegmentClick).toHaveBeenCalledWith('max_only', 'Только Макс');
   });
 });

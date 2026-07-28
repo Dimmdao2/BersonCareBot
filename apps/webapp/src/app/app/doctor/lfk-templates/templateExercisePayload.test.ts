@@ -1,19 +1,19 @@
-import { describe, expect, it } from "vitest";
-import { editorLinesToTemplateExerciseInputs } from "./templateExercisePayload";
+import { describe, expect, it } from 'vitest';
+import { editorLinesToTemplateExerciseInputs } from './templateExercisePayload';
 
-describe("editorLinesToTemplateExerciseInputs", () => {
-  it("assigns sort_order from visual order after reorder", () => {
+describe('editorLinesToTemplateExerciseInputs', () => {
+  it('assigns sort_order from visual order after reorder', () => {
     const payload = editorLinesToTemplateExerciseInputs([
       {
-        exerciseId: "c",
+        exerciseId: 'c',
         reps: 10,
         sets: 2,
-        side: "both",
+        side: 'both',
         maxPain0_10: 3,
-        comment: "x",
+        comment: 'x',
       },
       {
-        exerciseId: "a",
+        exerciseId: 'a',
         reps: null,
         sets: null,
         side: null,
@@ -21,7 +21,7 @@ describe("editorLinesToTemplateExerciseInputs", () => {
         comment: null,
       },
     ]);
-    expect(payload.map((p) => p.exerciseId)).toEqual(["c", "a"]);
+    expect(payload.map((p) => p.exerciseId)).toEqual(['c', 'a']);
     expect(payload.map((p) => p.sortOrder)).toEqual([0, 1]);
   });
 });

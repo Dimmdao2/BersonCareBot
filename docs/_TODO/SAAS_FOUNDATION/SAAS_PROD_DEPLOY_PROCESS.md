@@ -13,6 +13,7 @@
 > This is the entry point; deep detail lives in the linked docs (don't duplicate — follow the links).
 >
 > **Authoritative sub-docs (linked, still valid):**
+>
 > - Host/cutover phases I0–I6 (build new encrypted prod, rehearse, GO): `../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/INFRA-01_ENCRYPTED_PROD_MIGRATION.md`
 > - DB migration mechanics (fresh dump → hard migration): `HARD_MIGRATION_PROTOCOL.md` + wrapper `deploy/host/deploy-test-full-reset.sh` (internal engine `deploy/host/deploy-test-saas.sh`)
 > - DB deploy sequence + PROD mapping notes: `SAAS_DEPLOY_SEQUENCE.md`
@@ -24,6 +25,7 @@
 > destructive prod steps autonomously. TEST rehearses everything first.
 
 ## MASTER ORDERED CHECKLIST (the single sequence — follow top to bottom)
+
 > This is THE instruction. Each step links to its detail section below. Status legend:
 > ✅SCRIPT (one command, proven) · ✍️MANUAL (exact commands here) · ⛔BLOCKED (needs a build first — see §8 Blockers).
 > **Hard ordering (not preference):** identity-fix #2 → migrations #3 → test-cleanup #4 → CSV backfill #5 →
@@ -68,6 +70,7 @@ onto the SaaS schema, provision runtime roles+grants, deploy services, verify, c
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
 From INFRA-01 §I0 + RU-privacy MASTER_PLAN. Owner + external, not engineering capacity:
+
 - [ ] PR-00/PR-01 scope-lock + processing register; Selectel response O-02; RKN notification reconciled (PR-04 ISPDn gate).
 - [ ] CRYPTO-01/C0 crypto ADR; SEC-02 host/secrets; DR-01/02 backup+restore drill proven (needs owner age-key).
 - [ ] Stable SaaS release SHA (green full CI); owner resources O-07 (new VPS); GO decision.
@@ -77,7 +80,7 @@ From INFRA-01 §I0 + RU-privacy MASTER_PLAN. Owner + external, not engineering c
       **SMTP creds = already in the prod dump's `system_settings`** (no separate provisioning) — **CORRECT.
       The owner was right.** My 2026-07-25 "VERIFIED FALSE" reversal was itself wrong and is withdrawn; see the
       corrected §3.6. `system_settings.smtp_outbound` carries a real object (`from, host, port, user, secure,
-      password`) in the dump. I had queried the **restored TEST database**, where the reset overlay had already
+    password`) in the dump. I had queried the **restored TEST database**, where the reset overlay had already
       nulled it, instead of querying the dump — so I measured our own scrub and called it prod's state.
       taskdb #995 stays CLOSED, but for the opposite reason: the keys exist and have been located.
 
@@ -91,6 +94,7 @@ From INFRA-01 §I0 + RU-privacy MASTER_PLAN. Owner + external, not engineering c
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
 Rehearse on a disposable prod-copy first (INFRA-01 §I2), then run on the new prod host in the cutover window.
+
 - **Script:** the fresh-dump hard migration — `HARD_MIGRATION_PROTOCOL.md` + `deploy/host/deploy-test-full-reset.sh`
   (owner-gated wrapper; NOT the plain `deploy-test.sh`/`pnpm migrate`, which is insufficient for the SaaS branch on a
   real prod DB — see SAAS_DEPLOY_SEQUENCE.md for why: data-fix-before-membership-seed + temp-BYPASSRLS migrator).
@@ -98,6 +102,7 @@ Rehearse on a disposable prod-copy first (INFRA-01 §I2), then run on the new pr
   → safe overlays → FORCE with catalog/semantic assertions).
 
 ## 2.1 From-zero rehearsal findings — HARD prerequisites and fixes (2026-07-25)
+
 **Owner ruling 2026-07-25:** if a migration or grant step genuinely cannot be scripted, doing it BY HAND
 once, at the cutover, is ALLOWED — do not burn hours automating an unsolvable step. The absolute
 requirement is that every such step is written HERE, in exact order, with the exact commands, so the whole
@@ -110,14 +115,14 @@ not create. A from-zero restore exposed a chain that **could not run on real pro
 documented cutover order (migrations → cleanup → roles/grants → overlays) was unrunnable as written.
 Eight rehearsal runs, each surfacing a distinct defect; all fixed:
 
-| # | Defect (from-zero only) | Fix |
-|---|---|---|
-| 1 | `/tmp/bcb-prod-fresh.dump` left from a previous run is chowned `postgres:0600`, so the next pull dies with `Permission denied` **mid-reset**, after TEST writers are stopped | `15fdac233` — remove the stale artifact before pulling |
-| 2 | identity data-fix asserted a live `dimmdao@gmail.com` row that does not exist on prod (steps 1+3 free that email) | `10b29f4ce` — CREATE the clean global-admin account when absent (owner instruction #3) |
-| 3 | migration `0218` spells `app.current_org_id()` into POLICY expressions; no migration creates it (only the post-chain overlay does) → whole batch aborts `P0001`/rolls back | `f1fe3e943` — fail-closed bootstrap stub in `0175` |
-| 4 | `0219` resolves `app.current_patient_user_id()` eagerly → `42883 undefined_function` | `9f95bdfab` — stubs for the other two accessors (16 migrations depend on them) |
-| 5 | `0225` runs `ALTER FUNCTION … OWNER TO app_owner`, which requires MEMBERSHIP in `app_owner` — deliberately zero-member | `4f8565647` — temporary membership for the migrate step only, revoked + **unconditionally re-asserted** back to zero members |
-| 6 | same `ALTER … OWNER TO app_owner` also requires the NEW owner to hold **CREATE on the schema**; `app_owner` had neither USAGE nor CREATE on `app` at migration time (USAGE is granted only by the post-chain `e1-webapp-runtime-config.sql:71`) → `42501 permission denied for schema app` | `15d9748be` — `GRANT USAGE, CREATE ON SCHEMA app TO app_owner` in `0175`, role-existence guarded |
+| #   | Defect (from-zero only)                                                                                                                                                                                                                                                                    | Fix                                                                                                                          |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `/tmp/bcb-prod-fresh.dump` left from a previous run is chowned `postgres:0600`, so the next pull dies with `Permission denied` **mid-reset**, after TEST writers are stopped                                                                                                               | `15fdac233` — remove the stale artifact before pulling                                                                       |
+| 2   | identity data-fix asserted a live `dimmdao@gmail.com` row that does not exist on prod (steps 1+3 free that email)                                                                                                                                                                          | `10b29f4ce` — CREATE the clean global-admin account when absent (owner instruction #3)                                       |
+| 3   | migration `0218` spells `app.current_org_id()` into POLICY expressions; no migration creates it (only the post-chain overlay does) → whole batch aborts `P0001`/rolls back                                                                                                                 | `f1fe3e943` — fail-closed bootstrap stub in `0175`                                                                           |
+| 4   | `0219` resolves `app.current_patient_user_id()` eagerly → `42883 undefined_function`                                                                                                                                                                                                       | `9f95bdfab` — stubs for the other two accessors (16 migrations depend on them)                                               |
+| 5   | `0225` runs `ALTER FUNCTION … OWNER TO app_owner`, which requires MEMBERSHIP in `app_owner` — deliberately zero-member                                                                                                                                                                     | `4f8565647` — temporary membership for the migrate step only, revoked + **unconditionally re-asserted** back to zero members |
+| 6   | same `ALTER … OWNER TO app_owner` also requires the NEW owner to hold **CREATE on the schema**; `app_owner` had neither USAGE nor CREATE on `app` at migration time (USAGE is granted only by the post-chain `e1-webapp-runtime-config.sql:71`) → `42501 permission denied for schema app` | `15d9748be` — `GRANT USAGE, CREATE ON SCHEMA app TO app_owner` in `0175`, role-existence guarded                             |
 
 **HARD PREREQUISITE discovered — runtime roles must exist BEFORE the migration chain.** Migrations
 GRANT to / transfer ownership to `app_owner`, `app_staff`, `app_patient`. On this box those cluster-level
@@ -131,6 +136,7 @@ a role is missing. **This reorders the master checklist for a virgin host: 9(rol
 `apps/webapp/scripts/run-webapp-drizzle-migrate.mjs` prints only `reason=… sqlstate=…` and suppresses raw
 SQL/params so PII never reaches logs. To get the real message + failing statement without weakening that,
 replay on a scratch copy (≈2 min loop instead of a ≈10 min full reset):
+
 ```bash
 # 1. scratch DB from the same dump, owned by the migrator role
 sudo -u postgres psql -c "DROP DATABASE IF EXISTS bcb_migrate_probe;"
@@ -141,10 +147,12 @@ sudo -u postgres pg_restore --no-owner --no-acl -d bcb_migrate_probe /tmp/bcb-pr
 #    then run the identity data-fix, then the integrator + webapp chains
 # 3. run drizzle migrate from a throwaway script that prints error.cause chain verbatim
 ```
+
 Note `sudo -u postgres` cannot read files under `/home/dev` — always pipe SQL via stdin
 (`… | sudo -u postgres psql`), never `-f /home/dev/...`.
 
 **MANDATORY probe teardown.** Any elevation granted for diagnosis must be revoked before the next deploy:
+
 ```bash
 sudo -u postgres psql -c "REVOKE app_owner FROM bersoncarebot_test;"
 sudo -u postgres psql -c "ALTER ROLE bersoncarebot_test NOBYPASSRLS;"
@@ -153,11 +161,13 @@ sudo -u postgres psql -c "DROP ROLE IF EXISTS bcb_probe_login;"
 # verify BOTH are false:
 sudo -u postgres psql -tAc "SELECT pg_has_role('bersoncarebot_test','app_owner','member'), (SELECT rolbypassrls FROM pg_roles WHERE rolname='bersoncarebot_test');"
 ```
+
 Proven live on 2026-07-25: leftover probe membership made the next deploy abort with
 `FATAL: role bersoncarebot_test already has membership in app_owner before deploy`. That is the guard
 working as designed (fail-closed on pre-existing elevation) — not a bug to work around.
 
 ## 2.2 Closure findings — verification apparatus depends on retired demo fixtures (2026-07-25)
+
 The post-migration closure itself now runs end to end on a from-zero prod dump: roles+grants → protected
 principal helpers → reviewed overlays → isolation telemetry → integrator login grants → **reversible SaaS
 isolation scenario proof** → TEST settings → **base policies → safe overlays → exact FORCE assertions** →
@@ -181,6 +191,7 @@ signed sessions for real users. Until one is chosen, authenticated product surfa
 automation.
 
 **(a.1) Owner rulings 2026-07-25 on the two blockers, and what they produced.**
+
 - **ФИО drift → "применяй" (DONE).** The reviewed manifest is snapshot-bound, and one client row had changed on prod
   after the review (display name `Ольга Альмендингер` → `Olga A`, with first/last stored swapped). Procedure used,
   and the one to repeat at the real cutover: update ONLY that row's `expectedBefore` to the current live value,
@@ -201,17 +212,21 @@ automation.
 **(b) A failed closure gate leaves TEST DOWN.** The failure path stops the TEST units (observed: webapp
 started 15:44:54, served 200s, was SIGTERM'd at 15:45:05 when the smoke gate failed). So an aborted closure
 is not just "gate red" — the environment goes offline. Restart explicitly after fixing a gate:
+
 ```bash
 sudo systemctl start bersoncarebot-webapp-test bersoncarebot-api-test bersoncarebot-worker-test \
   bersoncarebot-scheduler-test bersoncarebot-media-worker-test
 ```
+
 For the real cutover this matters more: budget for the fact that a red gate takes the environment down, and
 verify services are up as an explicit final step.
 
 ## 2.5 Legacy / Rubitime table cleanup (SCRIPTED runbooks + owner-gated destructive step)
+
 The fresh-dump migration (§2) restores the OLD prod DB, so **Rubitime + legacy tables come along** and must be
 cleaned as an explicit, owner-gated, destructive step — NOT a blind `DROP`. **Authoritative runbooks (this process
 just sequences + links them — the runbooks are binding):**
+
 - Master: `RUBITIME_RETIREMENT_EXECUTION_PLAN.md`.
 - What to archive / drop / KEEP: `RUBITIME_RETIREMENT_R7_TABLE_DISPOSITION.md` (+ gate `pnpm run check:rubitime-r7-table-disposition`).
 - Binding executable R7 spec: `RUBITIME_RETIREMENT_R7_ARCHIVE_DROP_RUNBOOK.md`. Cleanup order: `RUBITIME_RETIREMENT_DB_CLEANUP_SEQUENCE.md`.
@@ -232,10 +247,11 @@ authorization of the exact destructive batch**. Then restore/migrate proof on a 
 
 **Archive+drop tooling (B-7(b), landed 2026-07-25):** the archive is a script, not prose —
 `deploy/host/archive-rubitime-retirement-tables.sh` (`--execute` + exact `--expected-database` + loopback-only
-+ owner-gated `--allow-authorized-prod-target`; archive → SHA256SUMS → verify → drop hand-off through
-`pnpm run migrate`, never an ad-hoc DROP). Its drop half is the repo migration
-`apps/webapp/db/drizzle-migrations/0237_r7_drop_public_rubitime_mirror_tables.sql`, which drops ONLY
-`public.rubitime_records`/`public.rubitime_events`. Exact invocation: runbook §3.
+
+- owner-gated `--allow-authorized-prod-target`; archive → SHA256SUMS → verify → drop hand-off through
+  `pnpm run migrate`, never an ad-hoc DROP). Its drop half is the repo migration
+  `apps/webapp/db/drizzle-migrations/0237_r7_drop_public_rubitime_mirror_tables.sql`, which drops ONLY
+  `public.rubitime_records`/`public.rubitime_events`. Exact invocation: runbook §3.
 
 **Current status (2026-07-25):** Track C R1–R2 done, R3–R6 code-only. R7 **archive is now scripted and proven
 on TEST** (`bersoncarebot_test`: `public.appointment_records` 458 rows, `integrator.rubitime_records` 91 rows,
@@ -268,6 +284,7 @@ should be retired/reduced post-cutover, not reused as a service login.)
 
 **Run these overlays against prod (order matters), substituting the prod integrator/service role names for the
 `-v ..._role=` variables** (mirror `deploy-test-saas.sh`'s closure order):
+
 1. `deploy/postgres/p2-b-protected-principal-context.sql` — principal-context functions + api role NOINHERIT + SET-only memberships.
 2. `deploy/postgres/d3-4-bootstrap-base-login-read-grants.sql` — webapp bootstrap/base-login grants (→ the nonstaff/webapp role, NOT the integrator role).
 3. `deploy/postgres/c4-operational-runtime.sql` (+ `deploy/host/provision-c4-operational-runtime.sh`) — 5-contour operational roles.
@@ -276,7 +293,7 @@ should be retired/reduced post-cutover, not reused as a service login.)
 6. `deploy/postgres/saas-isolation-telemetry.sql` — `report_saas_isolation_event` EXECUTE.
 7. **Migration-ledger read (MANUAL one-off — currently only bash-inline in `deploy-test-saas.sh:605`, not a reusable `.sql`):**
    `GRANT USAGE ON SCHEMA integrator TO <prod integrator role>; GRANT SELECT ON TABLE integrator.schema_migrations TO <prod integrator role>;`
-   *(If/when scripted: extract to a `.sql` overlay and move this into step list; until then it's a documented manual command.)*
+   _(If/when scripted: extract to a `.sql` overlay and move this into step list; until then it's a documented manual command.)_
 
 **MANDATORY-automate regardless of ownership:** steps 4 (the 4 `app.*` EXECUTE) + 7 (schema_migrations SELECT) —
 table ownership can NEVER cover function-level privileges or a separate-identity ledger read.
@@ -285,6 +302,7 @@ table ownership can NEVER cover function-level privileges or a separate-identity
 was pollution, not canonical (see `ROLE_GRANTS_PROVENANCE_AND_PROD_MIGRATION_PLAN.md` §1). Only the overlays above.
 
 ## 3.5 Install walls: strict RLS + FORCE (item #9 in §7) — MANUAL invocation, owner-GATED
+
 **Context:** the policy `\ir` includes (`phase4-locked-helper-rls-policies.sql`, the reviewed overlays, and
 `phase4-force-rls-cutover.sql`) are already generic/reusable — none of them hardcode a TEST database name. The only
 prod blocker was the finalizer's own DB-name guard, which by design refuses to run against anything that isn't
@@ -298,6 +316,7 @@ runtime services restart — per `HARD_MIGRATION_PROTOCOL.md` §10 ("B1, A2, and
 this exact ordering for the TEST wrapper and applies unchanged to prod.
 
 **Invocation (owner-authorized operator only):**
+
 ```bash
 sudo -u postgres psql -d "$PROD_DB" -X -v ON_ERROR_STOP=1 \
   -v allow_authorized_prod_target=1 \
@@ -307,6 +326,7 @@ sudo -u postgres psql -d "$PROD_DB" -X -v ON_ERROR_STOP=1 \
   -v phase4_owner_role="$PROD_OWNER_ROLE" \
   -f deploy/postgres/test-strict-rls-finalizer.sql
 ```
+
 - `allow_authorized_prod_target=1` is the explicit gate — omitted or any value other than `1` and the file behaves
   exactly as it always has on TEST (refuses any non-`bersoncarebot_test`/non-disposable database name).
 - Even with the flag set, the file still hard-requires `current_database()` to equal the operator-supplied
@@ -324,6 +344,7 @@ global-admin account, which is a clean credential-less row whose only entry path
 
 **The credential IS in the prod dump.** Proven by restoring the dump's `system_settings` into a scratch database
 and inspecting it there — never by querying a restored TEST DB:
+
 ```bash
 sudo -u postgres psql -c "CREATE DATABASE bcb_smtp_probe_scratch"
 sudo -u postgres pg_restore --schema-only -t system_settings -d bcb_smtp_probe_scratch "$DUMP"
@@ -409,26 +430,25 @@ email-code option, because the public login path runs under a bootstrap principa
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-
 > ⚠️ **SUPERSEDED (2026-07-26)** — item 2 below describes the old session-only `admin_emails` elevation as a
 > "harmless redundant belt" beside the persisted role; that allowlist grant path is now the superseded scheme.
 > Canon: [ADMIN_ACCESS_MODEL.md](../../ARCHITECTURE/ADMIN_ACCESS_MODEL.md).
 
 Cross-cutting finding (READ FIRST): **almost every destructive DB-mutation script has a hard code-level refusal of any DB name containing `prod`/`production`/`live`, with NO override flag** (the "prod untouchable" rule, baked in). So the audited single-command paths are proven on TEST/disposable copies but **cannot literally be pointed at the real prod DB** until a reviewed unlock (an explicit-flag gate on the guard) or a temporarily-renamed DB is arranged. This is engineering work, separate from the (proven) business logic. **#9 is the first item where this unlock is now built** (`-v allow_authorized_prod_target=1`, §3.5) — same explicit-flag pattern (not a blanket removal) is the model for #3's still-open guard.
 
-| # | Step | Asset | Status |
-|---|---|---|---|
-| 1 | Specialist/doctor merge + identity data-fix | `deploy/postgres/p0-data-fix-doctor-admin-split.sql` (identity roles; runs BEFORE migrations via `deploy-test-saas.sh` DATAFIX) + `apps/webapp/scripts/consolidate-specialist-identity.ts` (specialist-row dup merge, dry-run default, `--commit`) | READY (identity data-fix) — anchors: DOCTOR = phone `+79643805480` + `dimmdao@yandex.ru` (role doctor), CLIENT tezka `+79189000782` = no email. **consolidate-specialist-identity** still PARTIAL (canonical UUID is a TEST constant; needs real-data re-derivation). Idempotent; STOPS loudly on un-merged dup. |
-| 2 | Global-admin account (**HARD role, owner 2026-07-25**) | `deploy/postgres/p0-data-fix-doctor-admin-split.sql` (hard-sets `dimmdao@gmail.com` → `platform_users.role='admin'`) + migration `0233_global_admin_hard_role.sql` (asserts the same in the migration chain) | READY — **CORRECTED**: the global admin is a real persisted `role='admin'` (a dedicated account, separate from the doctor), NOT the old session-only `admin_emails` elevation. `service.ts:102` maps `role='admin'`→adminMode. Membership seed 0143 is doctor-only, so a persisted admin is never seeded into an org. `admin_emails` stays as a harmless redundant belt. |
-| 3 | Delete old test records | `purge-placeholder-bookings.ts` + `backfill-...--cleanup-only --delete-test ...` (`purge-placeholder-bookings-safety.ts`) | PARTIAL/BLOCKED — safety module unconditionally refuses prod-named DB; needs reviewed override before cutover |
-| 4 | Rubitime CSV → canonical schema | `apps/webapp/scripts/backfill-canonical-from-legacy-appointments.ts` (idempotent). NB older `backfill-rubitime-records-and-clients.ts` targeted the OLD schema, ran on prod 2026-06-13 — superseded, different target | COMPLETE (mechanism) — needs real CSV+hashes + invocation once #3 guard solved |
-| 5 | Drop integrator-duplicate + rubitime tables | rubitime drop migration `apps/integrator/.../20260724_0002_drop_r7_raw_tables.sql` (authored; **CORRECTED 2026-07-25: it WAS applied + ledger-tracked on TEST** — `integrator.schema_migrations` row `applied_at 2026-07-24 17:34:46+03`, see `RUBITIME_RETIREMENT_R7_TABLE_DISPOSITION.md` "reconciled TEST status". The old "unapplied even on TEST" line was stale prose); integrator-duplicate removal = Track D (#7) | PARTIAL/GAP — migration proven on TEST; prod rehearsal + `R7_DROP_RESTORE_PROOF.md` outstanding |
-| 6 | Cut legacy tables | same R7 drop migration; archive-then-drop is now **SCRIPTED**: `deploy/host/archive-rubitime-retirement-tables.sh` (archive+SHA+verify, gated) + migration `0237_r7_drop_public_rubitime_mirror_tables.sql` (drops `public.rubitime_records`/`public.rubitime_events` only); `booking_*` catalog **blocked** on Track C R3-CATALOG (`branchServiceId` removal, not done) | PARTIAL — archive script EXISTS + proven on TEST; `appointment_records` **drop** still blocked by live runtime refs (archive only); `booking_*` still blocked |
-| 7 | Track D — integrator writes public directly, no HTTP transport | D0/D1/D2 merged (`directPublic/*`); D3–D10 unstarted; doc says "PROD out of scope" now | PARTIAL (3/11); prod-cutover implication undocumented |
-| 8 | Roles + grants | overlays exist + proven on TEST (§3 above); **no `deploy-prod-saas.sh`** (deploy-prod.sh has ZERO grants) | PARTIAL — manual-by-choice; script = taskdb #994, not built |
-| 9 | Install walls (strict RLS + FORCE) | policy `\ir` includes reusable (verified no hardcoded TEST DB name); finalizer `test-strict-rls-finalizer.sql` now supports an explicit-flag prod unlock (`-v allow_authorized_prod_target=1` + exact `test_expected_database` match) — see §3.5 | EXISTS — invocation documented in §3.5; no separate `prod-strict-rls-finalizer.sql` needed |
-| 10 | Post-cutover verification | `assert-c4-operational-runtime-ready.sh` + `assert_*` gates + `smoke-saas-product.mjs --mode=locked --base-url=…` (env-parameterized, no prod lockout) | COMPLETE — genuinely prod-ready as-is |
-| 11 | Fix ФИО by reviewed table | `apps/webapp/scripts/fio-backfill/*` — hardcoded `targetDatabase="bersoncarebot_test"`, throws if env≠TEST | GAP for prod — TEST-only by design; prod "Phase 9" (`.cursor/plans/fio_identity_cleanup.plan.md`, taskdb #857) unimplemented |
+| #   | Step                                                           | Asset                                                                                                                                                                                                                                                                                                                                                                                                                     | Status                                                                                                                                                                                                                                                                                                                                                                   |
+| --- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | Specialist/doctor merge + identity data-fix                    | `deploy/postgres/p0-data-fix-doctor-admin-split.sql` (identity roles; runs BEFORE migrations via `deploy-test-saas.sh` DATAFIX) + `apps/webapp/scripts/consolidate-specialist-identity.ts` (specialist-row dup merge, dry-run default, `--commit`)                                                                                                                                                                        | READY (identity data-fix) — anchors: DOCTOR = phone `+79643805480` + `dimmdao@yandex.ru` (role doctor), CLIENT tezka `+79189000782` = no email. **consolidate-specialist-identity** still PARTIAL (canonical UUID is a TEST constant; needs real-data re-derivation). Idempotent; STOPS loudly on un-merged dup.                                                         |
+| 2   | Global-admin account (**HARD role, owner 2026-07-25**)         | `deploy/postgres/p0-data-fix-doctor-admin-split.sql` (hard-sets `dimmdao@gmail.com` → `platform_users.role='admin'`) + migration `0233_global_admin_hard_role.sql` (asserts the same in the migration chain)                                                                                                                                                                                                              | READY — **CORRECTED**: the global admin is a real persisted `role='admin'` (a dedicated account, separate from the doctor), NOT the old session-only `admin_emails` elevation. `service.ts:102` maps `role='admin'`→adminMode. Membership seed 0143 is doctor-only, so a persisted admin is never seeded into an org. `admin_emails` stays as a harmless redundant belt. |
+| 3   | Delete old test records                                        | `purge-placeholder-bookings.ts` + `backfill-...--cleanup-only --delete-test ...` (`purge-placeholder-bookings-safety.ts`)                                                                                                                                                                                                                                                                                                 | PARTIAL/BLOCKED — safety module unconditionally refuses prod-named DB; needs reviewed override before cutover                                                                                                                                                                                                                                                            |
+| 4   | Rubitime CSV → canonical schema                                | `apps/webapp/scripts/backfill-canonical-from-legacy-appointments.ts` (idempotent). NB older `backfill-rubitime-records-and-clients.ts` targeted the OLD schema, ran on prod 2026-06-13 — superseded, different target                                                                                                                                                                                                     | COMPLETE (mechanism) — needs real CSV+hashes + invocation once #3 guard solved                                                                                                                                                                                                                                                                                           |
+| 5   | Drop integrator-duplicate + rubitime tables                    | rubitime drop migration `apps/integrator/.../20260724_0002_drop_r7_raw_tables.sql` (authored; **CORRECTED 2026-07-25: it WAS applied + ledger-tracked on TEST** — `integrator.schema_migrations` row `applied_at 2026-07-24 17:34:46+03`, see `RUBITIME_RETIREMENT_R7_TABLE_DISPOSITION.md` "reconciled TEST status". The old "unapplied even on TEST" line was stale prose); integrator-duplicate removal = Track D (#7) | PARTIAL/GAP — migration proven on TEST; prod rehearsal + `R7_DROP_RESTORE_PROOF.md` outstanding                                                                                                                                                                                                                                                                          |
+| 6   | Cut legacy tables                                              | same R7 drop migration; archive-then-drop is now **SCRIPTED**: `deploy/host/archive-rubitime-retirement-tables.sh` (archive+SHA+verify, gated) + migration `0237_r7_drop_public_rubitime_mirror_tables.sql` (drops `public.rubitime_records`/`public.rubitime_events` only); `booking_*` catalog **blocked** on Track C R3-CATALOG (`branchServiceId` removal, not done)                                                  | PARTIAL — archive script EXISTS + proven on TEST; `appointment_records` **drop** still blocked by live runtime refs (archive only); `booking_*` still blocked                                                                                                                                                                                                            |
+| 7   | Track D — integrator writes public directly, no HTTP transport | D0/D1/D2 merged (`directPublic/*`); D3–D10 unstarted; doc says "PROD out of scope" now                                                                                                                                                                                                                                                                                                                                    | PARTIAL (3/11); prod-cutover implication undocumented                                                                                                                                                                                                                                                                                                                    |
+| 8   | Roles + grants                                                 | overlays exist + proven on TEST (§3 above); **no `deploy-prod-saas.sh`** (deploy-prod.sh has ZERO grants)                                                                                                                                                                                                                                                                                                                 | PARTIAL — manual-by-choice; script = taskdb #994, not built                                                                                                                                                                                                                                                                                                              |
+| 9   | Install walls (strict RLS + FORCE)                             | policy `\ir` includes reusable (verified no hardcoded TEST DB name); finalizer `test-strict-rls-finalizer.sql` now supports an explicit-flag prod unlock (`-v allow_authorized_prod_target=1` + exact `test_expected_database` match) — see §3.5                                                                                                                                                                          | EXISTS — invocation documented in §3.5; no separate `prod-strict-rls-finalizer.sql` needed                                                                                                                                                                                                                                                                               |
+| 10  | Post-cutover verification                                      | `assert-c4-operational-runtime-ready.sh` + `assert_*` gates + `smoke-saas-product.mjs --mode=locked --base-url=…` (env-parameterized, no prod lockout)                                                                                                                                                                                                                                                                    | COMPLETE — genuinely prod-ready as-is                                                                                                                                                                                                                                                                                                                                    |
+| 11  | Fix ФИО by reviewed table                                      | `apps/webapp/scripts/fio-backfill/*` — hardcoded `targetDatabase="bersoncarebot_test"`, throws if env≠TEST                                                                                                                                                                                                                                                                                                                | GAP for prod — TEST-only by design; prod "Phase 9" (`.cursor/plans/fio_identity_cleanup.plan.md`, taskdb #857) unimplemented                                                                                                                                                                                                                                             |
 
 **Ready against prod today:** #1/#2 identity data-fix (doctor merge + **hard global admin**, corrected 2026-07-25),
 #6's archive+mirror-drop tooling (gated flag, same shape as §3.5 — B-7(b), 2026-07-25), #9 (walls finalizer, gated
@@ -473,17 +493,17 @@ independent audit. Until they land, a clean run covers only steps 2→3→4→9�
     Invocation: runbook §3.
   - **(a) PARTLY DONE.** The archive ran on TEST under the owner's TEST-only authorization (3 tables archived +
     verified, 2 recorded missing) and the mirror-drop migration was applied + re-applied on a disposable scratch DB.
-    The earlier "not executed even on TEST" line for the *integrator* R7 drop migration was stale — that migration
+    The earlier "not executed even on TEST" line for the _integrator_ R7 drop migration was stale — that migration
     is applied and ledger-tracked on TEST (see §7 row 5). **Still open:** the prod-side rehearsal on a fresh
     disposable prod copy, and writing `RUBITIME_RETIREMENT_R7_DROP_RESTORE_PROOF.md` (the doc the
     `--require-drop-ready` gate waits on).
-  - **STILL BLOCKED, NOT BUILT: `public.appointment_records` DROP.** Only its *archive* is scripted. The table has
+  - **STILL BLOCKED, NOT BUILT: `public.appointment_records` DROP.** Only its _archive_ is scripted. The table has
     live bidirectional runtime traffic (`pgAppointmentProjection.ts`, `pgDoctorAppointments.ts`,
     `publicAppointmentRecordSync.ts`, the admin soft-delete route), and both the runbook ("Do not drop
     `public.appointment_records` until every runtime reference is gone") and the disposition doc ("KEEP for now,
     ARCHIVE+DROP deferred") forbid authoring the drop. Removing those readers/writers is its own build task.
   - **(c) STILL BLOCKED — and this doc's earlier premise was WRONG (corrected 2026-07-25).**
-    Track C R3-CATALOG landed its *dead-code* half (see below) but **cannot** reach zero runtime references on its own.
+    Track C R3-CATALOG landed its _dead-code_ half (see below) but **cannot** reach zero runtime references on its own.
     - **DONE (verified):** the dead legacy-catalog reads are gone — `pgBookingCatalog.listServicesByCity`
       / `listCitiesForPatient`, `modules/booking-catalog/service.ts`, and `apps/integrator/.../branchTimezone.ts`
       (the last integrator read of `booking_branches` + `branches`). Independently re-checked: zero live callers,
@@ -522,6 +542,7 @@ independent audit. Until they land, a clean run covers only steps 2→3→4→9�
 Tracking: taskdb #996 (this program), #995 (locate SMTP keys in the dump — needed by step 9/§3), #994 (`deploy-prod-saas.sh`).
 
 ---
+
 _Maintenance: when a grant/overlay changes, update §3 here. If the prod grant closure ever gets scripted into a real
 `deploy-prod-saas.sh` (taskdb #994), replace §3's manual invocation with the script name + keep the topology
 prerequisite. Keep this doc the single entry point (link from `docs/CURRENT_AUTHORITY_MAP.md`)._

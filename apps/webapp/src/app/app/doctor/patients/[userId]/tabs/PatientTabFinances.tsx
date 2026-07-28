@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 /**
  * PatientTabFinances — «Финансы» tab for the patient card.
@@ -11,20 +11,20 @@
  * FIN-05
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   doctorSectionCardClass,
   doctorSectionTitleClass,
   doctorStatCardShellClass,
   doctorMetricValueClass,
   doctorMetricLabelClass,
-} from "@/shared/ui/doctor/doctorVisual";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { Label } from "@/shared/ui/doctor/primitives/label";
-import { cn } from "@/lib/utils";
-import { DoctorClientMembershipsPanel } from "@/app/app/doctor/clients/DoctorClientMembershipsPanel";
-import type { PatientAppointmentItem } from "@/modules/doctor-clients/ports";
+} from '@/shared/ui/doctor/doctorVisual';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { Label } from '@/shared/ui/doctor/primitives/label';
+import { cn } from '@/lib/utils';
+import { DoctorClientMembershipsPanel } from '@/app/app/doctor/clients/DoctorClientMembershipsPanel';
+import type { PatientAppointmentItem } from '@/modules/doctor-clients/ports';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -33,7 +33,7 @@ import type { PatientAppointmentItem } from "@/modules/doctor-clients/ports";
 type PaymentTimelineEntry = {
   id: string;
   occurredAt: string;
-  kind: "cash" | "acquiring" | "booking_prepayment" | "booking_refund";
+  kind: 'cash' | 'acquiring' | 'booking_prepayment' | 'booking_refund';
   status: string;
   amountMinor: number | null;
   currency: string;
@@ -54,16 +54,16 @@ type TimelineResponse = {
 // ---------------------------------------------------------------------------
 
 /** Format minor units (kopecks) → "1 234,56 ₽" */
-function fmtMinor(minor: number | null, currency = "RUB"): string {
-  if (minor == null) return "—";
-  const symbol = currency === "RUB" ? "₽" : currency;
+function fmtMinor(minor: number | null, currency = 'RUB'): string {
+  if (minor == null) return '—';
+  const symbol = currency === 'RUB' ? '₽' : currency;
   const rubles = minor / 100;
   return (
-    rubles.toLocaleString("ru-RU", {
+    rubles.toLocaleString('ru-RU', {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }) +
-    " " +
+    ' ' +
     symbol
   );
 }
@@ -71,14 +71,14 @@ function fmtMinor(minor: number | null, currency = "RUB"): string {
 /** Format ISO datetime → "DD.MM.YYYY HH:MM" */
 function fmtDateTime(iso: string): string {
   const d = new Date(iso);
-  if (isNaN(d.getTime())) return "—";
-  return d.toLocaleString("ru-RU", {
-    timeZone: "Europe/Moscow",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
+  if (isNaN(d.getTime())) return '—';
+  return d.toLocaleString('ru-RU', {
+    timeZone: 'Europe/Moscow',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
   });
 }
 
@@ -86,25 +86,25 @@ function fmtDateTime(iso: string): string {
 // Kind badge
 // ---------------------------------------------------------------------------
 
-const KIND_LABEL: Record<PaymentTimelineEntry["kind"], string> = {
-  cash: "НАЛ",
-  acquiring: "ЭКВ",
-  booking_prepayment: "ПРЕДОП",
-  booking_refund: "ВОЗВРАТ",
+const KIND_LABEL: Record<PaymentTimelineEntry['kind'], string> = {
+  cash: 'НАЛ',
+  acquiring: 'ЭКВ',
+  booking_prepayment: 'ПРЕДОП',
+  booking_refund: 'ВОЗВРАТ',
 };
 
-const KIND_BADGE_CLASS: Record<PaymentTimelineEntry["kind"], string> = {
-  cash: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400",
-  acquiring: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
-  booking_prepayment: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400",
-  booking_refund: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400",
+const KIND_BADGE_CLASS: Record<PaymentTimelineEntry['kind'], string> = {
+  cash: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400',
+  acquiring: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
+  booking_prepayment: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400',
+  booking_refund: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400',
 };
 
-function KindBadge({ kind }: { kind: PaymentTimelineEntry["kind"] }) {
+function KindBadge({ kind }: { kind: PaymentTimelineEntry['kind'] }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+        'inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
         KIND_BADGE_CLASS[kind],
       )}
     >
@@ -118,22 +118,22 @@ function KindBadge({ kind }: { kind: PaymentTimelineEntry["kind"] }) {
 // ---------------------------------------------------------------------------
 
 const STATUS_LABEL: Record<string, string> = {
-  paid: "оплачен",
-  pending: "ожидает",
-  refunded: "возврат",
-  failed: "отклонён",
+  paid: 'оплачен',
+  pending: 'ожидает',
+  refunded: 'возврат',
+  failed: 'отклонён',
 };
 
 function StatusText({ status }: { status: string }) {
   const label = STATUS_LABEL[status] ?? status;
   const cls =
-    status === "paid"
-      ? "text-emerald-700 dark:text-emerald-400"
-      : status === "failed"
-      ? "text-destructive"
-      : status === "refunded"
-      ? "text-orange-600 dark:text-orange-400"
-      : "text-muted-foreground";
+    status === 'paid'
+      ? 'text-emerald-700 dark:text-emerald-400'
+      : status === 'failed'
+        ? 'text-destructive'
+        : status === 'refunded'
+          ? 'text-orange-600 dark:text-orange-400'
+          : 'text-muted-foreground';
   return <span className={cls}>{label}</span>;
 }
 
@@ -171,15 +171,18 @@ function formatAppointmentOption(item: PatientAppointmentItem): { id: string; la
   const date = new Date(item.dateTime);
   const dateLabel = Number.isNaN(date.getTime())
     ? item.dateTime
-    : date.toLocaleString("ru-RU", {
-        timeZone: "Europe/Moscow",
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
+    : date.toLocaleString('ru-RU', {
+        timeZone: 'Europe/Moscow',
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
       });
-  return { id: item.id, label: [dateLabel, item.serviceName, item.location].filter(Boolean).join(" · ") };
+  return {
+    id: item.id,
+    label: [dateLabel, item.serviceName, item.location].filter(Boolean).join(' · '),
+  };
 }
 
 export function PatientTabFinances({ userId, initialData, initialAppointments }: Props) {
@@ -189,22 +192,26 @@ export function PatientTabFinances({ userId, initialData, initialAppointments }:
   );
   // ---- Timeline state ----
   const [loading, setLoading] = useState(initialData == null);
-  const [timeline, setTimeline] = useState<PaymentTimelineEntry[]>(() => initialData?.timeline ?? []);
+  const [timeline, setTimeline] = useState<PaymentTimelineEntry[]>(
+    () => initialData?.timeline ?? [],
+  );
   const [totalCashMinor, setTotalCashMinor] = useState(() => initialData?.totalCashMinor ?? 0);
-  const [totalAcquiringMinor, setTotalAcquiringMinor] = useState(() => initialData?.totalAcquiringMinor ?? 0);
+  const [totalAcquiringMinor, setTotalAcquiringMinor] = useState(
+    () => initialData?.totalAcquiringMinor ?? 0,
+  );
   const [timelineError, setTimelineError] = useState<string | null>(null);
 
   // ---- Cash form state ----
-  const [cashAmount, setCashAmount] = useState("");
-  const [cashService, setCashService] = useState("");
-  const [cashComment, setCashComment] = useState("");
+  const [cashAmount, setCashAmount] = useState('');
+  const [cashService, setCashService] = useState('');
+  const [cashComment, setCashComment] = useState('');
   const [cashSubmitting, setCashSubmitting] = useState(false);
   const [cashError, setCashError] = useState<string | null>(null);
   const [cashSuccess, setCashSuccess] = useState(false);
 
   // ---- Acquiring form state ----
-  const [acqAmount, setAcqAmount] = useState("");
-  const [acqDescription, setAcqDescription] = useState("");
+  const [acqAmount, setAcqAmount] = useState('');
+  const [acqDescription, setAcqDescription] = useState('');
   const [acqSubmitting, setAcqSubmitting] = useState(false);
   const [acqError, setAcqError] = useState<string | null>(null);
   const [acqRedirectUrl, setAcqRedirectUrl] = useState<string | null>(null);
@@ -216,22 +223,22 @@ export function PatientTabFinances({ userId, initialData, initialAppointments }:
     setTimelineError(null);
     try {
       const res = await fetch(`/api/doctor/patients/${userId}/payment-timeline`, {
-        credentials: "include",
+        credentials: 'include',
       });
       if (!res.ok) {
-        setTimelineError("Не удалось загрузить историю платежей");
+        setTimelineError('Не удалось загрузить историю платежей');
         return;
       }
       const data: TimelineResponse = await res.json();
       if (!data.ok) {
-        setTimelineError("Ошибка при загрузке истории платежей");
+        setTimelineError('Ошибка при загрузке истории платежей');
         return;
       }
       setTimeline(data.timeline);
       setTotalCashMinor(data.totalCashMinor);
       setTotalAcquiringMinor(data.totalAcquiringMinor);
     } catch {
-      setTimelineError("Ошибка сети");
+      setTimelineError('Ошибка сети');
     } finally {
       setLoading(false);
     }
@@ -241,15 +248,15 @@ export function PatientTabFinances({ userId, initialData, initialAppointments }:
   useEffect(() => {
     if (initialData != null) return;
     void fetchTimeline();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ---- Submit cash payment ----
   async function submitCash(e: React.FormEvent) {
     e.preventDefault();
-    const parsed = parseFloat(cashAmount.replace(",", "."));
+    const parsed = parseFloat(cashAmount.replace(',', '.'));
     if (isNaN(parsed) || parsed <= 0) {
-      setCashError("Введите корректную сумму");
+      setCashError('Введите корректную сумму');
       return;
     }
     const amountMinor = Math.round(parsed * 100);
@@ -259,9 +266,9 @@ export function PatientTabFinances({ userId, initialData, initialAppointments }:
     setCashSuccess(false);
     try {
       const res = await fetch(`/api/doctor/patients/${userId}/payments`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           amountMinor,
           comment: cashComment.trim() || undefined,
@@ -270,16 +277,16 @@ export function PatientTabFinances({ userId, initialData, initialAppointments }:
       });
       if (!res.ok) {
         const json: { error?: string } = await res.json().catch(() => ({}));
-        setCashError(json.error ?? "Ошибка сохранения");
+        setCashError(json.error ?? 'Ошибка сохранения');
         return;
       }
-      setCashAmount("");
-      setCashService("");
-      setCashComment("");
+      setCashAmount('');
+      setCashService('');
+      setCashComment('');
       setCashSuccess(true);
       await fetchTimeline();
     } catch {
-      setCashError("Ошибка сети");
+      setCashError('Ошибка сети');
     } finally {
       setCashSubmitting(false);
     }
@@ -288,9 +295,9 @@ export function PatientTabFinances({ userId, initialData, initialAppointments }:
   // ---- Submit acquiring charge ----
   async function submitAcquiring(e: React.FormEvent) {
     e.preventDefault();
-    const parsed = parseFloat(acqAmount.replace(",", "."));
+    const parsed = parseFloat(acqAmount.replace(',', '.'));
     if (isNaN(parsed) || parsed <= 0) {
-      setAcqError("Введите корректную сумму");
+      setAcqError('Введите корректную сумму');
       return;
     }
     const amountMinor = Math.round(parsed * 100);
@@ -301,31 +308,30 @@ export function PatientTabFinances({ userId, initialData, initialAppointments }:
     setAcqCopied(false);
     try {
       const res = await fetch(`/api/doctor/patients/${userId}/acquiring-charge`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           amountMinor,
           description: acqDescription.trim() || undefined,
         }),
       });
       if (res.status === 503) {
-        setAcqError("Провайдер не настроен");
+        setAcqError('Провайдер не настроен');
         return;
       }
       if (!res.ok) {
         const json: { error?: string; reason?: string } = await res.json().catch(() => ({}));
-        setAcqError(json.error ?? json.reason ?? "Ошибка при создании платежа");
+        setAcqError(json.error ?? json.reason ?? 'Ошибка при создании платежа');
         return;
       }
-      const data: { ok: boolean; paymentId: string; redirectUrl: string | null } =
-        await res.json();
+      const data: { ok: boolean; paymentId: string; redirectUrl: string | null } = await res.json();
       setAcqRedirectUrl(data.redirectUrl);
-      setAcqAmount("");
-      setAcqDescription("");
+      setAcqAmount('');
+      setAcqDescription('');
       await fetchTimeline();
     } catch {
-      setAcqError("Ошибка сети");
+      setAcqError('Ошибка сети');
     } finally {
       setAcqSubmitting(false);
     }
@@ -358,7 +364,7 @@ export function PatientTabFinances({ userId, initialData, initialAppointments }:
             <p className={doctorMetricLabelClass}>Эквайринг</p>
             <p className={doctorMetricValueClass}>{fmtMinor(totalAcquiringMinor)}</p>
           </div>
-          <div className={cn(doctorStatCardShellClass, "col-span-2 sm:col-span-1")}>
+          <div className={cn(doctorStatCardShellClass, 'col-span-2 sm:col-span-1')}>
             <p className={doctorMetricLabelClass}>Итого</p>
             <p className={doctorMetricValueClass}>
               {fmtMinor(totalCashMinor + totalAcquiringMinor)}
@@ -372,7 +378,11 @@ export function PatientTabFinances({ userId, initialData, initialAppointments }:
       ================================================================ */}
       <div className={doctorSectionCardClass}>
         <p className={doctorSectionTitleClass}>Абонементы</p>
-        <DoctorClientMembershipsPanel platformUserId={userId} appointments={appointments} showCreateForm />
+        <DoctorClientMembershipsPanel
+          platformUserId={userId}
+          appointments={appointments}
+          showCreateForm
+        />
       </div>
 
       {/* ================================================================
@@ -381,13 +391,9 @@ export function PatientTabFinances({ userId, initialData, initialAppointments }:
       <div className={doctorSectionCardClass}>
         <p className={doctorSectionTitleClass}>История платежей</p>
 
-        {loading && (
-          <p className="text-sm text-muted-foreground">Загрузка…</p>
-        )}
+        {loading && <p className="text-sm text-muted-foreground">Загрузка…</p>}
 
-        {!loading && timelineError && (
-          <p className="text-sm text-destructive">{timelineError}</p>
-        )}
+        {!loading && timelineError && <p className="text-sm text-destructive">{timelineError}</p>}
 
         {!loading && !timelineError && timeline.length === 0 && (
           <p className="text-sm text-muted-foreground">Платёжная история пуста</p>
@@ -424,7 +430,7 @@ export function PatientTabFinances({ userId, initialData, initialAppointments }:
                       <StatusText status={entry.status} />
                     </td>
                     <td className="py-1.5 text-muted-foreground max-w-[180px] truncate">
-                      {entry.description ?? "—"}
+                      {entry.description ?? '—'}
                     </td>
                   </tr>
                 ))}
@@ -493,22 +499,13 @@ export function PatientTabFinances({ userId, initialData, initialAppointments }:
                 />
               </div>
 
-              {cashError && (
-                <p className="text-xs text-destructive">{cashError}</p>
-              )}
+              {cashError && <p className="text-xs text-destructive">{cashError}</p>}
               {cashSuccess && (
-                <p className="text-xs text-emerald-700 dark:text-emerald-400">
-                  Платёж записан
-                </p>
+                <p className="text-xs text-emerald-700 dark:text-emerald-400">Платёж записан</p>
               )}
 
-              <Button
-                type="submit"
-                size="sm"
-                disabled={cashSubmitting}
-                className="self-start"
-              >
-                {cashSubmitting ? "Сохранение…" : "Записать наличные"}
+              <Button type="submit" size="sm" disabled={cashSubmitting} className="self-start">
+                {cashSubmitting ? 'Сохранение…' : 'Записать наличные'}
               </Button>
             </form>
           </div>
@@ -552,17 +549,10 @@ export function PatientTabFinances({ userId, initialData, initialAppointments }:
                 />
               </div>
 
-              {acqError && (
-                <p className="text-xs text-destructive">{acqError}</p>
-              )}
+              {acqError && <p className="text-xs text-destructive">{acqError}</p>}
 
-              <Button
-                type="submit"
-                size="sm"
-                disabled={acqSubmitting}
-                className="self-start"
-              >
-                {acqSubmitting ? "Создание…" : "Создать ссылку на оплату"}
+              <Button type="submit" size="sm" disabled={acqSubmitting} className="self-start">
+                {acqSubmitting ? 'Создание…' : 'Создать ссылку на оплату'}
               </Button>
             </form>
 
@@ -578,7 +568,7 @@ export function PatientTabFinances({ userId, initialData, initialAppointments }:
                   onClick={handleCopyLink}
                   className="self-start"
                 >
-                  {acqCopied ? "Скопировано!" : "Скопировать ссылку"}
+                  {acqCopied ? 'Скопировано!' : 'Скопировать ссылку'}
                 </Button>
               </div>
             )}

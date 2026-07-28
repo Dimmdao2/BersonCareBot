@@ -1,4 +1,4 @@
-import type { PendingProgramTestEvaluationRow } from "@/modules/treatment-program/types";
+import type { PendingProgramTestEvaluationRow } from '@/modules/treatment-program/types';
 
 export type PendingProgramTestEvaluationGroup = {
   attemptId: string;

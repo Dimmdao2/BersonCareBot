@@ -5,6 +5,7 @@
 ## Цель
 
 Привести шапку и drawer-меню пациента к целевому виду:
+
 - Центр шапки: иконка дома (вместо текста с названием страницы).
 - Drawer: осмысленные пункты (профиль, записи, уведомления, выход).
 - Название текущей страницы — под шапкой в основном контенте.
@@ -16,19 +17,36 @@
 **Файл:** `apps/webapp/src/shared/ui/PatientHeader.tsx`
 
 **Найти:**
+
 ```tsx
 <div className="patient-header__center">
   <Link href="/app/patient" className="patient-header__title" prefetch={false}>
-    {title?.trim() ?? "BERSONCARE"}
+    {title?.trim() ?? 'BERSONCARE'}
   </Link>
 </div>
 ```
 
 **Заменить на:**
+
 ```tsx
 <div className="patient-header__center">
-  <Link href="/app/patient" className="patient-header__home-link" prefetch={false} aria-label="Главное меню">
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+  <Link
+    href="/app/patient"
+    className="patient-header__home-link"
+    prefetch={false}
+    aria-label="Главное меню"
+  >
+    <svg
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
       <path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8" />
       <path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
     </svg>
@@ -49,6 +67,7 @@ SVG — это lucide-react иконка `House`. Если в проекте п�
 В варианте `patient` — добавить заголовок `<h1>` над `{children}` в `<main>`:
 
 **Найти (вариант patient):**
+
 ```tsx
 <main id="app-shell-content" className="content-area">
   {children}
@@ -56,6 +75,7 @@ SVG — это lucide-react иконка `House`. Если в проекте п�
 ```
 
 **Заменить на:**
+
 ```tsx
 <main id="app-shell-content" className="content-area">
   {title && <h1 className="page-title">{title}</h1>}
@@ -66,6 +86,7 @@ SVG — это lucide-react иконка `House`. Если в проекте п�
 **Файл:** `apps/webapp/src/app/globals.css`
 
 Добавить стиль для `.page-title`:
+
 ```css
 .page-title {
   margin: 0;
@@ -78,12 +99,9 @@ SVG — это lucide-react иконка `House`. Если в проекте п�
 **Файл:** `apps/webapp/src/shared/ui/PatientHeader.tsx`
 
 Убрать передачу `title` в `<PatientHeader>` из `AppShell`:
+
 ```tsx
-<PatientHeader
-  showBack={!!backHref}
-  backHref={backHref}
-  backLabel={backLabel}
-/>
+<PatientHeader showBack={!!backHref} backHref={backHref} backLabel={backLabel} />
 ```
 
 ### Шаг 1.3: Добавить CSS для иконки дома
@@ -91,6 +109,7 @@ SVG — это lucide-react иконка `House`. Если в проекте п�
 **Файл:** `apps/webapp/src/app/globals.css`
 
 Добавить:
+
 ```css
 .patient-header__home-link {
   display: inline-flex;
@@ -115,22 +134,24 @@ SVG — это lucide-react иконка `House`. Если в проекте п�
 **Файл:** `apps/webapp/src/shared/ui/PatientHeader.tsx`
 
 **Найти:**
+
 ```tsx
 const MENU_ITEMS: { id: string; label: string; href: string }[] = [
-  { id: "cabinet", label: "Профиль", href: "/app/patient/cabinet" },
-  { id: "security", label: "Безопасность", href: "/app/settings" },
-  { id: "notifications", label: "Настройки уведомлений", href: "/app/settings" },
-  { id: "emergency", label: "Связь с поддержкой", href: "/app/patient/emergency" },
-  { id: "help", label: "Справка", href: "/app/settings" },
+  { id: 'cabinet', label: 'Профиль', href: '/app/patient/cabinet' },
+  { id: 'security', label: 'Безопасность', href: '/app/settings' },
+  { id: 'notifications', label: 'Настройки уведомлений', href: '/app/settings' },
+  { id: 'emergency', label: 'Связь с поддержкой', href: '/app/patient/emergency' },
+  { id: 'help', label: 'Справка', href: '/app/settings' },
 ];
 ```
 
 **Заменить на:**
+
 ```tsx
 const MENU_ITEMS: { id: string; label: string; href: string }[] = [
-  { id: "profile", label: "Мой профиль", href: "/app/patient/profile" },
-  { id: "cabinet", label: "Мои записи", href: "/app/patient/cabinet" },
-  { id: "notifications", label: "Настройки уведомлений", href: "/app/patient/notifications" },
+  { id: 'profile', label: 'Мой профиль', href: '/app/patient/profile' },
+  { id: 'cabinet', label: 'Мои записи', href: '/app/patient/cabinet' },
+  { id: 'notifications', label: 'Настройки уведомлений', href: '/app/patient/notifications' },
 ];
 ```
 
@@ -158,6 +179,7 @@ const MENU_ITEMS: { id: string; label: string; href: string }[] = [
 **Файл:** `apps/webapp/src/app/globals.css`
 
 Добавить стили:
+
 ```css
 .drawer-nav__divider {
   height: 1px;
@@ -181,6 +203,7 @@ const MENU_ITEMS: { id: string; label: string; href: string }[] = [
 **Файл:** `apps/webapp/src/app-layer/routes/paths.ts`
 
 Добавить:
+
 ```ts
 profile: "/app/patient/profile",
 notifications: "/app/patient/notifications",

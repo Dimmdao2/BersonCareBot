@@ -30,12 +30,12 @@ The final gate must fail until `RUBITIME_RETIREMENT_R6_CUTOFF_DRAIN_PROOF.md`,
 
 ## Keep / Defer
 
-| Table | Decision | Reason |
-| --- | --- | --- |
-| `public.patient_bookings` | `keep` | Canonical patient booking history/runtime table. It is not Rubitime raw history and must not be dropped by Rubitime retirement. |
-| `public.be_external_entity_mappings` | `keep` | Canonical external identity/mapping table. Rubitime rows can be handled by a later traceability policy, but the table itself remains live. |
-| `integrator.booking_calendar_map` | `keep_until_replacement` | Active provider-neutral Google Calendar map while GCal sync is live. It may only be replaced by a tested canonical map/rekey migration. |
-| `public.booking_*` | `defer_drop` | Legacy public catalog compatibility. These tables are not Rubitime raw provider history and are not dropped by the Rubitime raw-table retirement batch. |
+| Table                                | Decision                 | Reason                                                                                                                                                  |
+| ------------------------------------ | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `public.patient_bookings`            | `keep`                   | Canonical patient booking history/runtime table. It is not Rubitime raw history and must not be dropped by Rubitime retirement.                         |
+| `public.be_external_entity_mappings` | `keep`                   | Canonical external identity/mapping table. Rubitime rows can be handled by a later traceability policy, but the table itself remains live.              |
+| `integrator.booking_calendar_map`    | `keep_until_replacement` | Active provider-neutral Google Calendar map while GCal sync is live. It may only be replaced by a tested canonical map/rekey migration.                 |
+| `public.booking_*`                   | `defer_drop`             | Legacy public catalog compatibility. These tables are not Rubitime raw provider history and are not dropped by the Rubitime raw-table retirement batch. |
 
 ## Archive Before Drop
 
@@ -89,8 +89,8 @@ live TEST (`bersoncarebot_test`) on 2026-07-24 by this worker:
   `rubitime_records`, `rubitime_events`, `rubitime_api_throttle`, `rubitime_booking_profiles`, `rubitime_branches`,
   `rubitime_services`, `rubitime_cooperators`.
 - **Migration ledger**: the migration IS tracked. `SELECT version, applied_at FROM integrator.schema_migrations
-  WHERE version = 'rubitime:20260724_0002_drop_r7_raw_tables.sql'` returns one row, `applied_at = 2026-07-24
-  17:34:46.503155+03` -- consistent with the merge commit timestamp (`50880c042`, 17:32:15+03) and the doc-update
+WHERE version = 'rubitime:20260724_0002_drop_r7_raw_tables.sql'` returns one row, `applied_at = 2026-07-24
+17:34:46.503155+03` -- consistent with the merge commit timestamp (`50880c042`, 17:32:15+03) and the doc-update
   commit (`40a9f9bed`, 17:35:59+03) from the same session.
 - **Verdict**: the "R7 applied on TEST" report was **correct**. The later "unapplied even on TEST" report was
   **stale/incorrect** -- most likely produced by reading this doc's own "Current Status" prose (which still said
@@ -146,7 +146,7 @@ or drops `public.appointment_records`.
 - **`public.appointment_records` drop remains UNAUTHORED and blocked** — see the Track C section below.
   Its archive is scripted; its drop is not, and this doc is the reason.
 - The seven `integrator.rubitime_*` tables keep their existing landed drop migration
-  (`20260724_0002_drop_r7_raw_tables.sql`); 0237 does not duplicate it. They are still *archive* targets
+  (`20260724_0002_drop_r7_raw_tables.sql`); 0237 does not duplicate it. They are still _archive_ targets
   because a fresh pre-SaaS prod dump brings them back before that migration runs — confirmed live on
   2026-07-25, when the TEST rebuild restored `integrator.rubitime_records` (91 rows) and
   `integrator.rubitime_events` (418 rows) and the script archived both.
@@ -155,12 +155,12 @@ or drops `public.appointment_records`.
   three R7 docs. Adding them would expand the doc-approved archive set.
 
 **Recorded ambiguity (not guessed, not resolved by the worker):** `public.rubitime_records` /
-`public.rubitime_events` are classified `archive_if_present` under the *Archive-before-drop* heading in
+`public.rubitime_events` are classified `archive_if_present` under the _Archive-before-drop_ heading in
 `RUBITIME_RETIREMENT_DB_CLEANUP_SEQUENCE.md`:209 and appear under "## Archive Before Drop" here, but they
 are absent from the runbook's explicit "Drop candidates" bullet list. The reading taken is that
 "archive-before-drop" is itself the drop authorization, conditional on existence — which is why the
 migration is `IF EXISTS`/no-op-safe. `to_regclass('public.rubitime_records')` and
-`to_regclass('public.rubitime_events')` were both NULL on `bersoncarebot_test` on 2026-07-25 *after* the
+`to_regclass('public.rubitime_events')` were both NULL on `bersoncarebot_test` on 2026-07-25 _after_ the
 TEST rebuild had restored the fresh prod dump (proved by `integrator.rubitime_records` reappearing in the
 same check), so on current evidence the pair is absent from the prod dump too and the migration is a no-op
 everywhere today. It exists to close the docs' "if they exist" branch deterministically instead of
@@ -180,7 +180,7 @@ on both webapp and integrator sides -- dropping it would break the live doctor a
   `INSERT INTO appointment_records (...) ON CONFLICT (integrator_record_id) DO UPDATE ...` and
   `UPDATE appointment_records SET deleted_at = now() ...` statements (lines ~179-471).
 - **Reads (webapp, doctor-facing)**: `apps/webapp/src/infra/repos/pgDoctorAppointments.ts` -- ~15 `FROM
-  appointment_records` / `appointment_records AS a` queries backing the doctor appointments list/detail views
+appointment_records` / `appointment_records AS a` queries backing the doctor appointments list/detail views
   (lines ~146-430).
 - **Live admin API**: `apps/webapp/src/app/api/admin/appointment-records/[integratorRecordId]/soft-delete/route.ts`.
 - **Drizzle schema declaration (integrator)**: `apps/integrator/src/infra/db/schema/integratorDomainRepos.ts:170-189`
@@ -195,16 +195,16 @@ would be premature and the archived snapshot would go stale immediately.
 
 ## Track C — `public.booking_*` legacy catalog disposition: still BLOCKED after R3C-11 (worker verification, 2026-07-24)
 
-**Corrects/supersedes** the line "legacy booking_* catalog drop (unblocked by R3C-11, separate step)" in
+**Corrects/supersedes** the line "legacy booking\_\* catalog drop (unblocked by R3C-11, separate step)" in
 `RUBITIME_RETIREMENT_TEST_R6_R7_PROGRESS_2026-07-24.md`'s Status section -- that line is **inaccurate**, marked
 `SUPERSEDED` there; the accurate status is here.
 
 R3C-11 (commit `9745197c2`, merged `3bd10feb6`) removed exactly one thing: the dead
 `bookingCatalog.resolveBranchService` compatibility method and its `booking_branch_services`/`booking_branches`/
 `booking_cities`/`booking_services` JOIN, which was the last reachable call in the **patient/public** create path
-(`RUBITIME_RETIREMENT_R3_CATALOG_PROOF.md`). Its own commit message says explicitly: *"pgBookingCatalog's admin
-CRUD + pgRubitimeMapping's admin mapping-status view keep their own booking_* reads unchanged (out of scope,
-still R7-disposition-tracked)."* That remains true today -- verified live:
+(`RUBITIME_RETIREMENT_R3_CATALOG_PROOF.md`). Its own commit message says explicitly: _"pgBookingCatalog's admin
+CRUD + pgRubitimeMapping's admin mapping-status view keep their own booking\__ reads unchanged (out of scope,
+still R7-disposition-tracked)."\* That remains true today -- verified live:
 
 - **Live admin CRUD API (10 routes)**, all reading/writing `booking_cities` / `booking_branches` / `booking_services`
   / `booking_specialists` / `booking_branch_services` via raw SQL in
@@ -218,9 +218,9 @@ still R7-disposition-tracked)."* That remains true today -- verified live:
     `buildAppDeps().bookingCatalogPort` -> `createPgBookingCatalogPort()`.
 - **Admin mapping-status view**: `apps/webapp/src/infra/repos/pgRubitimeMapping.ts:165-168` --
   `FROM booking_branch_services bbs JOIN booking_branches br ... JOIN booking_specialists sp ... JOIN
-  booking_services svc ...`.
+booking_services svc ...`.
 
-**Disposition: KEEP / defer_drop, unchanged from the Keep/Defer table above.** `branchServiceId` is only *partially*
+**Disposition: KEEP / defer_drop, unchanged from the Keep/Defer table above.** `branchServiceId` is only _partially_
 retired (the patient/public compat resolver is gone; `patient_bookings.branchServiceId` stays as a historical
 trace-only column, untouched by design). The tables themselves are not ref-free -- live admin CRUD depends on them.
 No drop migration is authored for `booking_*` in this pass. To actually unblock the drop, the admin

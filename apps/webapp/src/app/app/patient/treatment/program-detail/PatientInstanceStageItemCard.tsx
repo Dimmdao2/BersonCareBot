@@ -1,39 +1,36 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { Button, buttonVariants } from "@/shared/ui/patient/primitives/button";
-import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
-import { effectiveInstanceStageItemComment } from "@/modules/treatment-program/types";
-import { patientStageItemShowsNewBadge } from "@/modules/treatment-program/stage-semantics";
-import { PatientTestSetProgressForm } from "@/app/app/patient/treatment/PatientTestSetProgressForm";
-import type { PatientTestSetPageServerSnapshot } from "@/modules/treatment-program/progress-service";
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { Button, buttonVariants } from '@/shared/ui/patient/primitives/button';
+import type { TreatmentProgramInstanceDetail } from '@/modules/treatment-program/types';
+import { effectiveInstanceStageItemComment } from '@/modules/treatment-program/types';
+import { patientStageItemShowsNewBadge } from '@/modules/treatment-program/stage-semantics';
+import { PatientTestSetProgressForm } from '@/app/app/patient/treatment/PatientTestSetProgressForm';
+import type { PatientTestSetPageServerSnapshot } from '@/modules/treatment-program/progress-service';
 import {
   pickRecommendationRowPreviewMedia,
   parseRecommendationMediaFromSnapshot,
   recommendationBodyMdPreviewPlain,
-} from "@/app/app/patient/treatment/stageItemSnapshot";
-import { PatientCatalogMediaStaticThumb } from "@/shared/ui/patient/PatientCatalogMediaStaticThumb";
-import { AlertTriangle, MessageCircle } from "lucide-react";
-import { cn } from "@/lib/utils";
-import {
-  patientMutedTextClass,
-  patientPillClass,
-} from "@/shared/ui/patient/patientVisual";
-import { patientTreatmentProgramListItemClass } from "@/app/app/patient/treatment/program-detail/patientTreatmentProgramListItemClass";
-import { snapshotTitle } from "@/app/app/patient/treatment/program-detail/patientPlanDetailFormatters";
-import { usePostMarkItemViewedWhenVisible } from "@/app/app/patient/treatment/program-detail/usePostMarkItemViewedWhenVisible";
-import { treatmentProgramItemToRatingTarget } from "@/modules/material-rating/mapProgramItemToTarget";
-import { MaterialRatingBlock } from "@/shared/ui/patient/material-rating/MaterialRatingBlock";
-import { PatientProgramItemExecutionRow } from "@/app/app/patient/treatment/PatientProgramItemExecutionRow";
-import type { ProgramItemLastDoneSummary } from "@/app/app/patient/treatment/programItemExecutionDisplay";
+} from '@/app/app/patient/treatment/stageItemSnapshot';
+import { PatientCatalogMediaStaticThumb } from '@/shared/ui/patient/PatientCatalogMediaStaticThumb';
+import { AlertTriangle, MessageCircle } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { patientMutedTextClass, patientPillClass } from '@/shared/ui/patient/patientVisual';
+import { patientTreatmentProgramListItemClass } from '@/app/app/patient/treatment/program-detail/patientTreatmentProgramListItemClass';
+import { snapshotTitle } from '@/app/app/patient/treatment/program-detail/patientPlanDetailFormatters';
+import { usePostMarkItemViewedWhenVisible } from '@/app/app/patient/treatment/program-detail/usePostMarkItemViewedWhenVisible';
+import { treatmentProgramItemToRatingTarget } from '@/modules/material-rating/mapProgramItemToTarget';
+import { MaterialRatingBlock } from '@/shared/ui/patient/material-rating/MaterialRatingBlock';
+import { PatientProgramItemExecutionRow } from '@/app/app/patient/treatment/PatientProgramItemExecutionRow';
+import type { ProgramItemLastDoneSummary } from '@/app/app/patient/treatment/programItemExecutionDisplay';
 
 export function PatientInstanceStageItemCard(props: {
   instanceId: string;
-  stage: TreatmentProgramInstanceDetail["stages"][number];
+  stage: TreatmentProgramInstanceDetail['stages'][number];
   groupTitle: string | null;
-  item: TreatmentProgramInstanceDetail["stages"][number]["items"][number];
+  item: TreatmentProgramInstanceDetail['stages'][number]['items'][number];
   base: string;
   busy: string | null;
   setBusy: (v: string | null) => void;
@@ -41,7 +38,7 @@ export function PatientInstanceStageItemCard(props: {
   refresh: () => Promise<void>;
   contentBlocked: boolean;
   /** Только просмотр: без отметок, чек-листов и полей ввода. */
-  itemInteraction: "full" | "readOnly";
+  itemInteraction: 'full' | 'readOnly';
   doneItemIds: string[];
   onDoneItemIds: (ids: string[]) => void;
   /** Сколько строк `done` за сегодня по этому элементу (GET checklist-today). */
@@ -81,25 +78,26 @@ export function PatientInstanceStageItemCard(props: {
     appDisplayTimeZone,
   } = props;
   const router = useRouter();
-  const readOnly = itemInteraction === "readOnly";
+  const readOnly = itemInteraction === 'readOnly';
   const [markingViewed, setMarkingViewed] = useState(false);
   const [lastDoneSummary, setLastDoneSummary] = useState<ProgramItemLastDoneSummary | null>(null);
-  const showsNew =
-    !readOnly && patientStageItemShowsNewBadge(item, contentBlocked);
+  const showsNew = !readOnly && patientStageItemShowsNewBadge(item, contentBlocked);
   const recommendationPreviewMedia = useMemo(() => {
-    if (item.itemType !== "recommendation") return null;
+    if (item.itemType !== 'recommendation') return null;
     return pickRecommendationRowPreviewMedia(parseRecommendationMediaFromSnapshot(item.snapshot));
   }, [item.itemType, item.snapshot]);
   const recommendationBodyPreview = useMemo(() => {
-    if (item.itemType !== "recommendation") return "";
+    if (item.itemType !== 'recommendation') return '';
     return recommendationBodyMdPreviewPlain(item.snapshot.bodyMd);
   }, [item.itemType, item.snapshot]);
-  const [clinicalTestSnap, setClinicalTestSnap] = useState<PatientTestSetPageServerSnapshot | null>(null);
+  const [clinicalTestSnap, setClinicalTestSnap] = useState<PatientTestSetPageServerSnapshot | null>(
+    null,
+  );
   const [clinicalTestSnapLoaded, setClinicalTestSnapLoaded] = useState(false);
 
   const reloadClinicalTestSnap = useCallback(
     async (signal?: AbortSignal) => {
-      if (item.itemType !== "clinical_test" || readOnly || contentBlocked) {
+      if (item.itemType !== 'clinical_test' || readOnly || contentBlocked) {
         setClinicalTestSnap(null);
         setClinicalTestSnapLoaded(true);
         return;
@@ -138,16 +136,19 @@ export function PatientInstanceStageItemCard(props: {
   }, [reloadClinicalTestSnap]);
 
   useEffect(() => {
-    if (item.itemType !== "exercise" || !lastDoneAtIsoByItemId?.[item.id]) {
+    if (item.itemType !== 'exercise' || !lastDoneAtIsoByItemId?.[item.id]) {
       setLastDoneSummary(null);
       return;
     }
     const ac = new AbortController();
     void (async () => {
       try {
-        const res = await fetch(`${base}/${encodeURIComponent(item.id)}/progress/complete/metrics`, {
-          signal: ac.signal,
-        });
+        const res = await fetch(
+          `${base}/${encodeURIComponent(item.id)}/progress/complete/metrics`,
+          {
+            signal: ac.signal,
+          },
+        );
         const data = (await res.json().catch(() => null)) as {
           ok?: boolean;
           metrics?: {
@@ -184,9 +185,9 @@ export function PatientInstanceStageItemCard(props: {
     <Link
       href={itemDetailHref}
       className={cn(
-        buttonVariants({ variant: "outline", size: "sm" }),
-        "inline-flex shrink-0 items-center justify-center",
-        item.itemType === "recommendation" ? "h-8 px-2.5 text-xs" : "h-8",
+        buttonVariants({ variant: 'outline', size: 'sm' }),
+        'inline-flex shrink-0 items-center justify-center',
+        item.itemType === 'recommendation' ? 'h-8 px-2.5 text-xs' : 'h-8',
       )}
     >
       Открыть
@@ -198,21 +199,21 @@ export function PatientInstanceStageItemCard(props: {
       <div
         className={cn(
           patientTreatmentProgramListItemClass,
-          "cursor-pointer border-[var(--patient-border)]/80 transition-[filter] hover:brightness-[0.97] active:brightness-[0.95]",
+          'cursor-pointer border-[var(--patient-border)]/80 transition-[filter] hover:brightness-[0.97] active:brightness-[0.95]',
           neutralItemChrome
-            ? "bg-[var(--patient-card-bg)]"
-            : "bg-[var(--patient-color-primary-soft)]/10",
-          item.itemType === "recommendation" &&
-            cn("flex h-14 items-center gap-2 overflow-hidden py-0 pl-0 pr-2 lg:gap-2.5 lg:pr-2.5"),
+            ? 'bg-[var(--patient-card-bg)]'
+            : 'bg-[var(--patient-color-primary-soft)]/10',
+          item.itemType === 'recommendation' &&
+            cn('flex h-14 items-center gap-2 overflow-hidden py-0 pl-0 pr-2 lg:gap-2.5 lg:pr-2.5'),
         )}
         onClick={(e) => {
           const el = e.target as HTMLElement;
-          if (el.closest("button,a,[data-radix-collection-item]")) return;
+          if (el.closest('button,a,[data-radix-collection-item]')) return;
           router.push(itemDetailHref);
         }}
         onKeyDown={(e) => {
           if (e.target !== e.currentTarget) return;
-          if (e.key === "Enter" || e.key === " ") {
+          if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
             router.push(itemDetailHref);
           }
@@ -221,7 +222,7 @@ export function PatientInstanceStageItemCard(props: {
         tabIndex={0}
         aria-label={`Открыть: ${snapshotTitle(item.snapshot, item.itemType)}`}
       >
-        {item.itemType === "recommendation" ? (
+        {item.itemType === 'recommendation' ? (
           <PatientCatalogMediaStaticThumb
             media={recommendationPreviewMedia}
             frameClassName="size-14 shrink-0 rounded-l-lg rounded-r-none border-y border-r border-[var(--patient-border)]/70"
@@ -230,19 +231,19 @@ export function PatientInstanceStageItemCard(props: {
         ) : null}
         <div
           className={cn(
-            item.itemType === "recommendation" &&
-              "flex min-h-0 min-w-0 flex-1 flex-col justify-center gap-0.5 overflow-hidden py-0 pr-0",
+            item.itemType === 'recommendation' &&
+              'flex min-h-0 min-w-0 flex-1 flex-col justify-center gap-0.5 overflow-hidden py-0 pr-0',
           )}
         >
           <p
             className={cn(
-              "text-sm font-medium",
-              item.itemType === "recommendation"
-                ? "flex min-w-0 items-center gap-2 leading-tight"
-                : "flex flex-wrap items-center gap-2",
+              'text-sm font-medium',
+              item.itemType === 'recommendation'
+                ? 'flex min-w-0 items-center gap-2 leading-tight'
+                : 'flex flex-wrap items-center gap-2',
             )}
           >
-            <span className={cn(item.itemType === "recommendation" && "min-w-0 truncate")}>
+            <span className={cn(item.itemType === 'recommendation' && 'min-w-0 truncate')}>
               {snapshotTitle(item.snapshot, item.itemType)}
             </span>
             {showsNew ? (
@@ -261,7 +262,7 @@ export function PatientInstanceStageItemCard(props: {
                     try {
                       const res = await fetch(
                         `/api/patient/treatment-program-instances/${encodeURIComponent(instanceId)}/items/${encodeURIComponent(item.id)}/mark-viewed`,
-                        { method: "POST" },
+                        { method: 'POST' },
                       );
                       if (res.ok) {
                         await refresh();
@@ -276,11 +277,11 @@ export function PatientInstanceStageItemCard(props: {
                 </Button>
               </span>
             ) : null}
-            {item.itemType !== "recommendation" ? (
-              <span className={cn(patientMutedTextClass, "font-normal")}>({item.itemType})</span>
+            {item.itemType !== 'recommendation' ? (
+              <span className={cn(patientMutedTextClass, 'font-normal')}>({item.itemType})</span>
             ) : null}
           </p>
-          {item.itemType !== "recommendation" && appDisplayTimeZone ? (
+          {item.itemType !== 'recommendation' && appDisplayTimeZone ? (
             <PatientProgramItemExecutionRow
               lastIso={lastDoneAtIsoByItemId?.[item.id] ?? null}
               todayCount={todayChecklistDoneCount ?? 0}
@@ -290,28 +291,23 @@ export function PatientInstanceStageItemCard(props: {
               className="mt-1"
             />
           ) : null}
-          {item.itemType !== "recommendation" ? (
+          {item.itemType !== 'recommendation' ? (
             <div className="mt-1 flex justify-end">{openDetailLink}</div>
           ) : null}
-          {item.itemType === "recommendation" && recommendationBodyPreview ? (
-            <p
-              className={cn(
-                patientMutedTextClass,
-                "line-clamp-1 min-w-0 text-xs leading-tight",
-              )}
-            >
+          {item.itemType === 'recommendation' && recommendationBodyPreview ? (
+            <p className={cn(patientMutedTextClass, 'line-clamp-1 min-w-0 text-xs leading-tight')}>
               {recommendationBodyPreview}
             </p>
           ) : null}
-          {effectiveInstanceStageItemComment(item) && item.itemType !== "recommendation" ? (
-            <p className={cn(patientMutedTextClass, "mt-1 text-xs")}>
-              Комментарий:{" "}
+          {effectiveInstanceStageItemComment(item) && item.itemType !== 'recommendation' ? (
+            <p className={cn(patientMutedTextClass, 'mt-1 text-xs')}>
+              Комментарий:{' '}
               <span className="text-foreground">{effectiveInstanceStageItemComment(item)}</span>
             </p>
           ) : null}
-          {item.itemType !== "recommendation" ? (
-            <p className={cn(patientMutedTextClass, "mt-1 text-xs")}>
-              Элемент:{" "}
+          {item.itemType !== 'recommendation' ? (
+            <p className={cn(patientMutedTextClass, 'mt-1 text-xs')}>
+              Элемент:{' '}
               {item.completedAt ? (
                 <span className="text-emerald-600 dark:text-emerald-400">выполнен</span>
               ) : (
@@ -320,19 +316,25 @@ export function PatientInstanceStageItemCard(props: {
             </p>
           ) : null}
           {/* QW-A3: icon row — comments · contraindications · execution dots */}
-          {item.itemType !== "recommendation" ? (
+          {item.itemType !== 'recommendation' ? (
             <div className="mt-1 flex min-w-0 flex-wrap items-center gap-2">
               {(discussionSummary?.totalCount ?? 0) > 0 ? (
                 <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
                   <MessageCircle className="size-3.5 shrink-0" aria-hidden />
                   <span className="tabular-nums">{discussionSummary!.totalCount}</span>
                   {(discussionSummary?.unreadCount ?? 0) > 0 ? (
-                    <span className="size-1.5 shrink-0 rounded-full bg-destructive" aria-label="непрочитанные" />
+                    <span
+                      className="size-1.5 shrink-0 rounded-full bg-destructive"
+                      aria-label="непрочитанные"
+                    />
                   ) : null}
                 </span>
               ) : null}
               {Boolean((item.snapshot as Record<string, unknown>)?.contraindications) ? (
-                <AlertTriangle className="size-3.5 shrink-0 text-amber-500" aria-label="Противопоказания" />
+                <AlertTriangle
+                  className="size-3.5 shrink-0 text-amber-500"
+                  aria-label="Противопоказания"
+                />
               ) : null}
             </div>
           ) : null}
@@ -357,17 +359,21 @@ export function PatientInstanceStageItemCard(props: {
             );
           })()}
 
-          {!contentBlocked && !readOnly && itemInteraction === "full" ? (
-            item.itemType === "clinical_test" ? (
-              <div className="mt-2" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+          {!contentBlocked && !readOnly && itemInteraction === 'full' ? (
+            item.itemType === 'clinical_test' ? (
+              <div
+                className="mt-2"
+                onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => e.stopPropagation()}
+              >
                 {!clinicalTestSnapLoaded ? (
-                  <p className={cn(patientMutedTextClass, "text-xs")}>Загрузка…</p>
+                  <p className={cn(patientMutedTextClass, 'text-xs')}>Загрузка…</p>
                 ) : (
                   <PatientTestSetProgressForm
                     instanceId={instanceId}
                     itemId={item.id}
                     snapshot={item.snapshot as Record<string, unknown>}
-                    readOnlySummary={clinicalTestSnap?.variant === "readonly_submitted"}
+                    readOnlySummary={clinicalTestSnap?.variant === 'readonly_submitted'}
                     interactionDisabled={false}
                     baseUrl={base}
                     busy={busy}
@@ -383,13 +389,13 @@ export function PatientInstanceStageItemCard(props: {
               </div>
             ) : null
           ) : null}
-          {!contentBlocked && readOnly && item.itemType === "clinical_test" ? (
+          {!contentBlocked && readOnly && item.itemType === 'clinical_test' ? (
             <p className="mt-2 text-xs text-emerald-600 dark:text-emerald-400">
-              {item.completedAt ? "Тест пройден." : "Тест не выполнялся."}
+              {item.completedAt ? 'Тест пройден.' : 'Тест не выполнялся.'}
             </p>
           ) : null}
         </div>
-        {item.itemType === "recommendation" ? openDetailLink : null}
+        {item.itemType === 'recommendation' ? openDetailLink : null}
       </div>
     </li>
   );

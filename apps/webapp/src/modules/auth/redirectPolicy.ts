@@ -2,23 +2,23 @@
  * Единая политика редиректов и безопасного next.
  * Используется в auth service, guards, app entry page и AuthBootstrap.
  */
-import type { UserRole } from "@/shared/types/session";
-import { routePaths } from "@/app-layer/routes/paths";
+import type { UserRole } from '@/shared/types/session';
+import { routePaths } from '@/app-layer/routes/paths';
 
-const SAFE_NEXT_PREFIX = "/app/patient";
-const SAFE_NEXT_EXCLUDE = "/app/patient/bind-phone";
-const SAFE_STAFF_FIRST_RUN_FALLBACK = "/app/account?tab=security";
+const SAFE_NEXT_PREFIX = '/app/patient';
+const SAFE_NEXT_EXCLUDE = '/app/patient/bind-phone';
+const SAFE_STAFF_FIRST_RUN_FALLBACK = '/app/account?tab=security';
 
 /** Путь для редиректа по роли (doctor и admin ведут в один workspace). */
 export function getRedirectPathForRole(role: UserRole): string {
-  if (role === "doctor" || role === "admin") return routePaths.doctor;
+  if (role === 'doctor' || role === 'admin') return routePaths.doctor;
   return routePaths.patient;
 }
 
 /** Проверка, что next= безопасен для редиректа (только patient subtree, без bind-phone). */
 export function isSafeNext(next: string | null): next is string {
-  if (!next || typeof next !== "string") return false;
-  const path = next.startsWith("/") ? next : new URL(next, "http://localhost").pathname;
+  if (!next || typeof next !== 'string') return false;
+  const path = next.startsWith('/') ? next : new URL(next, 'http://localhost').pathname;
   return path.startsWith(SAFE_NEXT_PREFIX) && !path.startsWith(SAFE_NEXT_EXCLUDE);
 }
 
@@ -32,7 +32,7 @@ export function getPostAuthRedirectTarget(
   nextParam: string | null,
   fallbackRedirectTo?: string | null,
 ): string {
-  if (role !== "client") {
+  if (role !== 'client') {
     return fallbackRedirectTo === SAFE_STAFF_FIRST_RUN_FALLBACK
       ? SAFE_STAFF_FIRST_RUN_FALLBACK
       : getRedirectPathForRole(role);

@@ -1,40 +1,43 @@
-import Link from "next/link";
-import { Calendar, Zap } from "lucide-react";
-import type { ResolvedSosCard } from "@/modules/patient-home/patientHomeResolvers";
-import { routePaths } from "@/app-layer/routes/paths";
-import { patientHomeSosSubtitleClampClass } from "./patientHomeCardStyles";
-import { appLoginWithNextHref } from "./patientHomeGuestNav";
-import { PatientHomeSafeImage } from "./PatientHomeSafeImage";
+import Link from 'next/link';
+import { Calendar, Zap } from 'lucide-react';
+import type { ResolvedSosCard } from '@/modules/patient-home/patientHomeResolvers';
+import { routePaths } from '@/app-layer/routes/paths';
+import { patientHomeSosSubtitleClampClass } from './patientHomeCardStyles';
+import { appLoginWithNextHref } from './patientHomeGuestNav';
+import { PatientHomeSafeImage } from './PatientHomeSafeImage';
 import {
   patientButtonDangerOutlineClass,
   patientButtonGhostLinkClass,
   patientButtonSuccessClass,
-} from "@/shared/ui/patient/patientVisual";
-import { cn } from "@/lib/utils";
+} from '@/shared/ui/patient/patientVisual';
+import { cn } from '@/lib/utils';
 
 const splitHeadingClass =
-  "font-sans text-sm font-medium leading-snug tracking-tight text-[var(--patient-block-heading)]";
+  'font-sans text-sm font-medium leading-snug tracking-tight text-[var(--patient-block-heading)]';
 
-const dangerHalfBgClass = "bg-[var(--patient-color-danger-soft)]";
-const successHalfBgClass = "bg-[var(--patient-color-success-soft)]";
+const dangerHalfBgClass = 'bg-[var(--patient-color-danger-soft)]';
+const successHalfBgClass = 'bg-[var(--patient-color-success-soft)]';
 
 const outerChromeClass = cn(
-  "overflow-hidden rounded-[var(--patient-card-radius-mobile)] md:rounded-[var(--patient-card-radius-desktop)]",
-  "border border-[var(--patient-border)] shadow-[var(--patient-shadow-card-mobile)] md:shadow-[var(--patient-shadow-card-desktop)]",
+  'overflow-hidden rounded-[var(--patient-card-radius-mobile)] md:rounded-[var(--patient-card-radius-desktop)]',
+  'border border-[var(--patient-border)] shadow-[var(--patient-shadow-card-mobile)] md:shadow-[var(--patient-shadow-card-desktop)]',
 );
 
 const sosIconShellClass =
-  "inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-[var(--patient-color-danger)] text-white md:size-10";
+  'inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-[var(--patient-color-danger)] text-white md:size-10';
 const bookingIconShellClass =
-  "inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-[#dcfce7] text-[var(--patient-color-success)] md:size-10";
+  'inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-[#dcfce7] text-[var(--patient-color-success)] md:size-10';
 
 const sosButtonClass = cn(
   patientButtonDangerOutlineClass,
-  "!min-h-8 shrink-0 px-2.5 py-1.5 text-xs font-semibold text-[#8a3a3a]",
-  "border-[#d8a3a3] hover:bg-[#fff1f1]/80 active:bg-[#fee7e7]/80",
+  '!min-h-8 shrink-0 px-2.5 py-1.5 text-xs font-semibold text-[#8a3a3a]',
+  'border-[#d8a3a3] hover:bg-[#fff1f1]/80 active:bg-[#fee7e7]/80',
 );
 
-const bookingButtonClass = cn(patientButtonSuccessClass, "!min-h-8 px-3 py-1.5 text-xs font-semibold sm:!min-h-8");
+const bookingButtonClass = cn(
+  patientButtonSuccessClass,
+  '!min-h-8 px-3 py-1.5 text-xs font-semibold sm:!min-h-8',
+);
 
 type Props = {
   sos: ResolvedSosCard | null;
@@ -55,25 +58,29 @@ export function PatientHomeSosBookingSplitCard({
   sosIconUrl,
   bookingIconUrl,
 }: Props) {
-  const bookingHref = anonymousGuest ? appLoginWithNextHref(routePaths.patientBooking) : routePaths.patientBooking;
+  const bookingHref = anonymousGuest
+    ? appLoginWithNextHref(routePaths.patientBooking)
+    : routePaths.patientBooking;
 
-  const sosCopy = "Рекомендации по облегчению боли";
+  const sosCopy = 'Рекомендации по облегчению боли';
 
-  const bookingFooter =
-    anonymousGuest ?
-      <p className="text-[10px] leading-tight text-[var(--patient-block-caption)]">
-        Запись откроется после входа
-        <Link href={appLoginWithNextHref(routePaths.patient)} className="sr-only">
-          Войти
-        </Link>
-      </p>
-    : !personalTierOk ?
-      <p className="min-w-0 text-[10px] leading-tight">
-        <Link href={`${routePaths.bindPhone}?next=${encodeURIComponent(routePaths.patient)}`} className={patientButtonGhostLinkClass}>
-          Активировать профиль
-        </Link>
-      </p>
-    : null;
+  const bookingFooter = anonymousGuest ? (
+    <p className="text-[10px] leading-tight text-[var(--patient-block-caption)]">
+      Запись откроется после входа
+      <Link href={appLoginWithNextHref(routePaths.patient)} className="sr-only">
+        Войти
+      </Link>
+    </p>
+  ) : !personalTierOk ? (
+    <p className="min-w-0 text-[10px] leading-tight">
+      <Link
+        href={`${routePaths.bindPhone}?next=${encodeURIComponent(routePaths.patient)}`}
+        className={patientButtonGhostLinkClass}
+      >
+        Активировать профиль
+      </Link>
+    </p>
+  ) : null;
 
   const renderSosHalf = () => {
     if (!showSosHalf || !sos) return null;
@@ -81,7 +88,7 @@ export function PatientHomeSosBookingSplitCard({
       <section
         aria-labelledby="patient-home-sos-heading"
         className={cn(
-          "flex min-h-[88px] min-w-0 flex-1 flex-col justify-between gap-2 p-3 md:min-h-[120px] md:gap-2 md:p-[14px]",
+          'flex min-h-[88px] min-w-0 flex-1 flex-col justify-between gap-2 p-3 md:min-h-[120px] md:gap-2 md:p-[14px]',
           dangerHalfBgClass,
         )}
       >
@@ -96,13 +103,15 @@ export function PatientHomeSosBookingSplitCard({
             />
           </div>
           <div className="min-w-0 flex-1">
-            <h3 id="patient-home-sos-heading" className={cn(splitHeadingClass, "line-clamp-2")}>
+            <h3 id="patient-home-sos-heading" className={cn(splitHeadingClass, 'line-clamp-2')}>
               Если болит сейчас
             </h3>
-            <p className={cn(patientHomeSosSubtitleClampClass, "mt-0.5 text-xs leading-snug")}>{sosCopy}</p>
+            <p className={cn(patientHomeSosSubtitleClampClass, 'mt-0.5 text-xs leading-snug')}>
+              {sosCopy}
+            </p>
           </div>
         </div>
-        <Link href={sos.href} prefetch={false} className={cn(sosButtonClass, "w-full")}>
+        <Link href={sos.href} prefetch={false} className={cn(sosButtonClass, 'w-full')}>
           Посмотреть
         </Link>
       </section>
@@ -115,7 +124,7 @@ export function PatientHomeSosBookingSplitCard({
       <section
         aria-labelledby="patient-home-booking-heading"
         className={cn(
-          "flex min-h-[88px] min-w-0 flex-1 flex-col justify-between gap-2 p-3 md:min-h-[120px] md:gap-2 md:p-[14px]",
+          'flex min-h-[88px] min-w-0 flex-1 flex-col justify-between gap-2 p-3 md:min-h-[120px] md:gap-2 md:p-[14px]',
           successHalfBgClass,
         )}
       >
@@ -130,14 +139,16 @@ export function PatientHomeSosBookingSplitCard({
             />
           </div>
           <div className="min-w-0 flex-1">
-            <h3 id="patient-home-booking-heading" className={cn(splitHeadingClass, "pt-0.5")}>
+            <h3 id="patient-home-booking-heading" className={cn(splitHeadingClass, 'pt-0.5')}>
               Записаться
             </h3>
-            <p className={cn(patientHomeSosSubtitleClampClass, "mt-0.5 text-xs leading-snug")}>Очно или онлайн</p>
+            <p className={cn(patientHomeSosSubtitleClampClass, 'mt-0.5 text-xs leading-snug')}>
+              Очно или онлайн
+            </p>
           </div>
         </div>
         <div className="flex min-h-0 flex-col gap-1.5">
-          <Link href={bookingHref} prefetch={false} className={cn(bookingButtonClass, "w-full")}>
+          <Link href={bookingHref} prefetch={false} className={cn(bookingButtonClass, 'w-full')}>
             Записаться
           </Link>
           {bookingFooter}

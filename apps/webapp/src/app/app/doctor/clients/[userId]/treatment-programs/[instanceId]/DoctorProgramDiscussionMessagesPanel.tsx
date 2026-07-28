@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { CornerDownLeft, SendHorizontal, Trash2 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
+import { CornerDownLeft, SendHorizontal, Trash2 } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
 import {
   Dialog,
   DialogContent,
@@ -10,16 +10,19 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/shared/ui/doctor/primitives/dialog";
-import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
-import type { ProgramItemDiscussionMessage } from "@/modules/program-item-discussion/types";
-import { cn } from "@/lib/utils";
-import { formatChatMessageTimeRu, formatChatRelativeDateLabelRu } from "@/modules/messaging/messageFormatting";
-import { chatMessageDeliveryStatus } from "@/modules/messaging/chatMessageDeliveryStatus";
-import { ChatBubbleOutgoingMeta } from "@/shared/ui/chat/ChatBubbleOutgoingMeta";
-import { chatThreadSurfaceClass } from "@/shared/ui/chat/chatThreadSurface";
-import { MessageComposer } from "@/shared/ui/chat/MessageComposer";
-import { ProgramItemDiscussionMessageBody } from "@/app/app/patient/treatment/ProgramItemDiscussionMessageBody";
+} from '@/shared/ui/doctor/primitives/dialog';
+import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
+import type { ProgramItemDiscussionMessage } from '@/modules/program-item-discussion/types';
+import { cn } from '@/lib/utils';
+import {
+  formatChatMessageTimeRu,
+  formatChatRelativeDateLabelRu,
+} from '@/modules/messaging/messageFormatting';
+import { chatMessageDeliveryStatus } from '@/modules/messaging/chatMessageDeliveryStatus';
+import { ChatBubbleOutgoingMeta } from '@/shared/ui/chat/ChatBubbleOutgoingMeta';
+import { chatThreadSurfaceClass } from '@/shared/ui/chat/chatThreadSurface';
+import { MessageComposer } from '@/shared/ui/chat/MessageComposer';
+import { ProgramItemDiscussionMessageBody } from '@/app/app/patient/treatment/ProgramItemDiscussionMessageBody';
 
 function compareMessages(a: ProgramItemDiscussionMessage, b: ProgramItemDiscussionMessage): number {
   const byDate = a.createdAt.localeCompare(b.createdAt);
@@ -58,7 +61,7 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
   const sortedMessages = useMemo(() => [...messages].sort(compareMessages), [messages]);
   const showItemLabels = itemLabelById != null && itemLabelById.size > 0;
   const [activeReplyMessageId, setActiveReplyMessageId] = useState<string | null>(null);
-  const [replyDraft, setReplyDraft] = useState("");
+  const [replyDraft, setReplyDraft] = useState('');
   const [replySending, setReplySending] = useState(false);
   const [replyError, setReplyError] = useState<string | null>(null);
   const [touchReplyTargetId, setTouchReplyTargetId] = useState<string | null>(null);
@@ -76,18 +79,18 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
   const ignoreTapMessageIdRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
-    const hoverMedia = window.matchMedia("(hover: hover)");
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+    const hoverMedia = window.matchMedia('(hover: hover)');
     const sync = () => {
       setSupportsHover(hoverMedia.matches);
-      setTouchEnabled((typeof navigator !== "undefined" ? navigator.maxTouchPoints : 0) > 0);
+      setTouchEnabled((typeof navigator !== 'undefined' ? navigator.maxTouchPoints : 0) > 0);
     };
     sync();
-    if (typeof hoverMedia.addEventListener === "function") {
-      hoverMedia.addEventListener("change", sync);
-      return () => hoverMedia.removeEventListener("change", sync);
+    if (typeof hoverMedia.addEventListener === 'function') {
+      hoverMedia.addEventListener('change', sync);
+      return () => hoverMedia.removeEventListener('change', sync);
     }
-    if (typeof hoverMedia.addListener === "function") {
+    if (typeof hoverMedia.addListener === 'function') {
       hoverMedia.addListener(sync);
       return () => hoverMedia.removeListener(sync);
     }
@@ -98,20 +101,20 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
     if (!activeReplyMessageId) return;
     if (sortedMessages.some((message) => message.id === activeReplyMessageId)) return;
     setActiveReplyMessageId(null);
-    setReplyDraft("");
+    setReplyDraft('');
     setReplyError(null);
   }, [activeReplyMessageId, sortedMessages]);
 
   const openReplyComposer = (messageId: string) => {
     setActiveReplyMessageId(messageId);
-    setReplyDraft("");
+    setReplyDraft('');
     setReplyError(null);
     setTouchReplyTargetId(null);
   };
 
   const closeReplyComposer = () => {
     setActiveReplyMessageId(null);
-    setReplyDraft("");
+    setReplyDraft('');
     setReplyError(null);
   };
 
@@ -122,7 +125,7 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
     try {
       const result = await onDeleteMediaMessage(deleteTarget.id);
       if (!result.ok) {
-        setDeleteError(result.error ?? "Не удалось удалить файл из чата");
+        setDeleteError(result.error ?? 'Не удалось удалить файл из чата');
         return;
       }
       setDeleteTarget(null);
@@ -135,7 +138,7 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
     if (!onSendReply || replySending) return;
     const text = replyDraft.trim();
     if (!text) {
-      setReplyError("Введите ответ");
+      setReplyError('Введите ответ');
       return;
     }
     setReplySending(true);
@@ -143,7 +146,7 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
     try {
       const result = await onSendReply(message.instanceStageItemId, text);
       if (!result.ok) {
-        setReplyError(result.error ?? "Не удалось отправить ответ");
+        setReplyError(result.error ?? 'Не удалось отправить ответ');
         return;
       }
       closeReplyComposer();
@@ -164,10 +167,20 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
           </DialogHeader>
           {deleteError ? <p className="text-sm text-destructive">{deleteError}</p> : null}
           <DialogFooter className="gap-2 sm:gap-0">
-            <Button type="button" variant="outline" onClick={() => setDeleteTarget(null)} disabled={deletePending}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setDeleteTarget(null)}
+              disabled={deletePending}
+            >
               Отмена
             </Button>
-            <Button type="button" variant="destructive" onClick={() => void confirmDeleteMedia()} disabled={deletePending}>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => void confirmDeleteMedia()}
+              disabled={deletePending}
+            >
               Удалить
             </Button>
           </DialogFooter>
@@ -182,19 +195,22 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
           disabled={loading || loadingOlder}
           onClick={onLoadOlder}
         >
-          {loadingOlder ? "Загрузка..." : "Показать предыдущие"}
+          {loadingOlder ? 'Загрузка...' : 'Показать предыдущие'}
         </Button>
       ) : null}
-      <div className={cn("min-h-0 flex-1 overflow-y-auto space-y-4 pb-2", chatThreadSurfaceClass)} data-testid="doctor-program-discussion-messages">
+      <div
+        className={cn('min-h-0 flex-1 overflow-y-auto space-y-4 pb-2', chatThreadSurfaceClass)}
+        data-testid="doctor-program-discussion-messages"
+      >
         {sortedMessages.length === 0 ? (
           <p className="text-center text-sm text-muted-foreground">
-            {loading ? "Загрузка..." : "Пока нет сообщений."}
+            {loading ? 'Загрузка...' : 'Пока нет сообщений.'}
           </p>
         ) : (
           sortedMessages.map((m) => {
-            const fromPatient = m.senderRole === "patient";
+            const fromPatient = m.senderRole === 'patient';
             const itemLabel = showItemLabels ? itemLabelById.get(m.instanceStageItemId) : null;
-            const authorLabel = fromPatient ? "Пациент" : "Врач";
+            const authorLabel = fromPatient ? 'Пациент' : 'Врач';
             const peerCursor =
               peerLastReadAtByStageItemId?.[m.instanceStageItemId] ?? peerLastReadAt ?? null;
             const deliveryStatus = !fromPatient
@@ -204,13 +220,18 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
               fromPatient && onSendReply
                 ? activeReplyMessageId === m.id || touchReplyTargetId === m.id
                 : false;
-            const canDeleteMedia = fromPatient && Boolean(m.mediaFileId) && Boolean(onDeleteMediaMessage);
+            const canDeleteMedia =
+              fromPatient && Boolean(m.mediaFileId) && Boolean(onDeleteMediaMessage);
             return (
               <div
                 key={m.id}
                 className={cn(
-                  "group/row relative flex w-full flex-col gap-1",
-                  fromPatient ? (canDeleteMedia ? "items-start pr-20" : "items-start pr-12") : "items-end",
+                  'group/row relative flex w-full flex-col gap-1',
+                  fromPatient
+                    ? canDeleteMedia
+                      ? 'items-start pr-20'
+                      : 'items-start pr-12'
+                    : 'items-end',
                 )}
                 onClick={() => {
                   if (!touchEnabled || supportsHover || !fromPatient || !onSendReply) return;
@@ -244,8 +265,8 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
                 </p>
                 <div
                   className={cn(
-                    "max-w-[min(100%,22rem)] rounded-md border px-3 py-2 text-sm shadow-sm",
-                    fromPatient ? "border-border bg-muted/20" : "border-primary/20 bg-primary/5",
+                    'max-w-[min(100%,22rem)] rounded-md border px-3 py-2 text-sm shadow-sm',
+                    fromPatient ? 'border-border bg-muted/20' : 'border-primary/20 bg-primary/5',
                   )}
                   onTouchStart={
                     fromPatient && onSendReply && touchEnabled
@@ -266,7 +287,8 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
                       ? (event) => {
                           const state = touchDragRef.current;
                           const touch = event.touches[0];
-                          if (!state || !touch || state.messageId !== m.id || state.openedBySwipe) return;
+                          if (!state || !touch || state.messageId !== m.id || state.openedBySwipe)
+                            return;
                           const dx = touch.clientX - state.startX;
                           const dy = touch.clientY - state.startY;
                           if (dx <= -48 && Math.abs(dy) <= 28) {
@@ -293,13 +315,13 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
                   }
                 >
                   <ProgramItemDiscussionMessageBody message={m} mine={false} />
-                  {!fromPatient && deliveryStatus ?
+                  {!fromPatient && deliveryStatus ? (
                     <ChatBubbleOutgoingMeta
                       timeLabel={formatChatMessageTimeRu(m.createdAt)}
                       deliveryStatus={deliveryStatus}
                       ticksClassName="text-primary"
                     />
-                  : null}
+                  ) : null}
                 </div>
                 {fromPatient && onSendReply ? (
                   <Button
@@ -307,12 +329,12 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
                     size="icon"
                     variant="outline"
                     className={cn(
-                      "absolute right-0 bottom-1 size-8 rounded-full border-border/70 bg-background/95 shadow-sm transition-opacity",
+                      'absolute right-0 bottom-1 size-8 rounded-full border-border/70 bg-background/95 shadow-sm transition-opacity',
                       touchEnabled && !supportsHover
                         ? replyAffordanceVisible
-                          ? "opacity-100"
-                          : "pointer-events-none opacity-0"
-                        : "pointer-events-none opacity-0 group-hover/row:pointer-events-auto group-hover/row:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100",
+                          ? 'opacity-100'
+                          : 'pointer-events-none opacity-0'
+                        : 'pointer-events-none opacity-0 group-hover/row:pointer-events-auto group-hover/row:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100',
                     )}
                     aria-label="Ответить"
                     onClick={(event) => {
@@ -329,11 +351,11 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
                     size="icon"
                     variant="outline"
                     className={cn(
-                      "absolute bottom-1 size-8 rounded-full border-border/70 bg-background/95 shadow-sm transition-opacity",
-                      onSendReply ? "right-10" : "right-0",
+                      'absolute bottom-1 size-8 rounded-full border-border/70 bg-background/95 shadow-sm transition-opacity',
+                      onSendReply ? 'right-10' : 'right-0',
                       touchEnabled && !supportsHover
-                        ? "opacity-100"
-                        : "pointer-events-none opacity-0 group-hover/row:pointer-events-auto group-hover/row:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100",
+                        ? 'opacity-100'
+                        : 'pointer-events-none opacity-0 group-hover/row:pointer-events-auto group-hover/row:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100',
                     )}
                     aria-label="Удалить файл из чата"
                     onClick={(event) => {
@@ -369,18 +391,16 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
                       submitAriaLabel="Отправить ответ"
                       maxLength={4000}
                       rows={3}
-                      className={`mt-1 rounded-md border border-border bg-background p-2${replySending ? " pointer-events-none opacity-50" : ""}`}
+                      className={`mt-1 rounded-md border border-border bg-background p-2${replySending ? ' pointer-events-none opacity-50' : ''}`}
                       actionsClassName="mt-2 flex justify-end"
                       renderTextarea={(props) => <Textarea {...props} />}
                       renderSubmit={(props) => (
-                        <Button
-                          {...props}
-                          size="sm"
-                          className="rounded-full"
-                        />
+                        <Button {...props} size="sm" className="rounded-full" />
                       )}
                     />
-                    {replyError ? <p className="mt-1 text-xs text-destructive">{replyError}</p> : null}
+                    {replyError ? (
+                      <p className="mt-1 text-xs text-destructive">{replyError}</p>
+                    ) : null}
                   </div>
                 ) : null}
               </div>

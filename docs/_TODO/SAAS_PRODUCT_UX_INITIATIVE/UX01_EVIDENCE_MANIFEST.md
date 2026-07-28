@@ -27,15 +27,15 @@ routes/states but no hashes or dimensions; file existence and dimensions are rec
 
 ## DEV retained files
 
-| Slice | Files | Classification |
-|---|---|---|
-| Public | `desktop-login.png`, `mobile-login.png`, `mobile-root.png` | 3 valid |
-| Registration | `desktop-registration.png`, `mobile-registration.png` | 2 valid: specialist/organization signup; no submit |
-| Patient replay | `desktop-today.png`, `desktop-booking.png`, `desktop-treatment.png`, `desktop-profile.png`, `desktop-notification-settings.png`, `mobile-today.png`, `mobile-booking.png`, `mobile-treatment.png`, `mobile-profile.png` | 7 valid + 2 finding-only Today error boundaries |
-| Doctor | `desktop-today.png`, `mobile-today.png`, `desktop-patients.png`, `desktop-schedule.png`, `desktop-lfk.png` | 5 valid |
-| Clinic admin | `desktop-today.png`, `mobile-today.png`, `desktop-clinic-members.png`, `desktop-clinic-settings.png` | 4 valid |
-| Global admin | `00-shell-today-desktop.png`, `01-shell-today-mobile.png`, `10-analytics-desktop.png`, `20-system-health-desktop.png`, `22-audit-log-desktop.png`, `40-platform-promo-desktop.png` | 5 valid + 1 finding-only |
-| **DEV selected total** | **29** | **26 valid + 3 finding-only** |
+| Slice                  | Files                                                                                                                                                                                                                   | Classification                                     |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| Public                 | `desktop-login.png`, `mobile-login.png`, `mobile-root.png`                                                                                                                                                              | 3 valid                                            |
+| Registration           | `desktop-registration.png`, `mobile-registration.png`                                                                                                                                                                   | 2 valid: specialist/organization signup; no submit |
+| Patient replay         | `desktop-today.png`, `desktop-booking.png`, `desktop-treatment.png`, `desktop-profile.png`, `desktop-notification-settings.png`, `mobile-today.png`, `mobile-booking.png`, `mobile-treatment.png`, `mobile-profile.png` | 7 valid + 2 finding-only Today error boundaries    |
+| Doctor                 | `desktop-today.png`, `mobile-today.png`, `desktop-patients.png`, `desktop-schedule.png`, `desktop-lfk.png`                                                                                                              | 5 valid                                            |
+| Clinic admin           | `desktop-today.png`, `mobile-today.png`, `desktop-clinic-members.png`, `desktop-clinic-settings.png`                                                                                                                    | 4 valid                                            |
+| Global admin           | `00-shell-today-desktop.png`, `01-shell-today-mobile.png`, `10-analytics-desktop.png`, `20-system-health-desktop.png`, `22-audit-log-desktop.png`, `40-platform-promo-desktop.png`                                      | 5 valid + 1 finding-only                           |
+| **DEV selected total** | **29**                                                                                                                                                                                                                  | **26 valid + 3 finding-only**                      |
 
 Deleted privacy-review attempts are not retained or counted: doctor communications; global health archive, app settings,
 auth settings, integrations and technical settings. Obsolete `/app/patient/home` 404 helper captures were deleted.
@@ -43,12 +43,12 @@ The two earlier maintenance captures remain historical files but are superseded/
 
 ## TEST selection and supersession
 
-| Source run | Raw | Valid current | Finding-only current | Excluded |
-|---|---:|---:|---:|---:|
-| `13-50-53Z` | 40 | 32 | 2 references findings | 6 superseded Today/legacy appointments |
-| `14-48-56Z` | 12 | 4 | 0 | 8 KPI-bearing schedule findings superseded |
-| `15-42-10Z` | 4 | 4 | 0 | 0 |
-| **TEST selected** | **56** | **40** | **2** | **14** |
+| Source run        |    Raw | Valid current |  Finding-only current |                                   Excluded |
+| ----------------- | -----: | ------------: | --------------------: | -----------------------------------------: |
+| `13-50-53Z`       |     40 |            32 | 2 references findings |     6 superseded Today/legacy appointments |
+| `14-48-56Z`       |     12 |             4 |                     0 | 8 KPI-bearing schedule findings superseded |
+| `15-42-10Z`       |      4 |             4 |                     0 |                                          0 |
+| **TEST selected** | **56** |        **40** |                 **2** |                                     **14** |
 
 Current TEST findings retained only as findings: `66-clinic-a-lfk-references-finding.png` and `66-clinic-b-lfk-references-finding.png`.
 
@@ -56,13 +56,13 @@ Final schedule truth comes from `15-42-10Z`; corrected Today/badge truth comes f
 
 ## Aggregate current evidence
 
-| Classification | PNG |
-|---|---:|
-| Safe retained/referenced | 71 |
-| Valid product/role-state | 66 |
-| Finding-only | 5 |
-| Superseded TEST, excluded | 14 |
-| Historical maintenance, excluded | 2 |
+| Classification                   | PNG |
+| -------------------------------- | --: |
+| Safe retained/referenced         |  71 |
+| Valid product/role-state         |  66 |
+| Finding-only                     |   5 |
+| Superseded TEST, excluded        |  14 |
+| Historical maintenance, excluded |   2 |
 
 The two identical mobile shell hashes for doctor and clinic-admin remain separate role attempts/files but do not by themselves prove different expanded mobile menus; role boundary proof comes from the corresponding desktop navigation and manifests.
 

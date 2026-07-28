@@ -6,7 +6,10 @@
  */
 import '../../config/loadEnv.js';
 import { createDbPort } from '../db/client.js';
-import { listOpenConversationsOlderThan, setConversationState } from '../db/repos/messageThreads.js';
+import {
+  listOpenConversationsOlderThan,
+  setConversationState,
+} from '../db/repos/messageThreads.js';
 import { logger } from '../observability/logger.js';
 
 const STALE_HOURS = 24;
@@ -35,7 +38,10 @@ async function main(): Promise<void> {
       closedAt: new Date().toISOString(),
       closeReason: 'auto_24h',
     });
-    logger.info({ conversationId: row.id, lastMessageAt: row.last_message_at }, 'auto-close: closed');
+    logger.info(
+      { conversationId: row.id, lastMessageAt: row.last_message_at },
+      'auto-close: closed',
+    );
   }
 }
 

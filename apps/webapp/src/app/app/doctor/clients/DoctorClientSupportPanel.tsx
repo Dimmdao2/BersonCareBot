@@ -1,9 +1,12 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useState } from "react";
-import { Switch } from "@/shared/ui/doctor/primitives/switch";
-import { Label } from "@/shared/ui/doctor/primitives/label";
-import type { ClientSupportProfile, PatientProgramInteractionPolicy } from "@/modules/doctor-clients/supportPolicy";
+import { useCallback, useEffect, useState } from 'react';
+import { Switch } from '@/shared/ui/doctor/primitives/switch';
+import { Label } from '@/shared/ui/doctor/primitives/label';
+import type {
+  ClientSupportProfile,
+  PatientProgramInteractionPolicy,
+} from '@/modules/doctor-clients/supportPolicy';
 
 type SupportSettingsResponse = {
   ok?: boolean;
@@ -23,8 +26,12 @@ export function DoctorClientSupportPanel({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [onSupport, setOnSupport] = useState(() => initialEffectivePolicy?.onSupport ?? false);
-  const [commentsAllowed, setCommentsAllowed] = useState(() => initialEffectivePolicy?.commentsAllowed ?? false);
-  const [mediaAllowed, setMediaAllowed] = useState(() => initialEffectivePolicy?.mediaAllowed ?? false);
+  const [commentsAllowed, setCommentsAllowed] = useState(
+    () => initialEffectivePolicy?.commentsAllowed ?? false,
+  );
+  const [mediaAllowed, setMediaAllowed] = useState(
+    () => initialEffectivePolicy?.mediaAllowed ?? false,
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -35,14 +42,14 @@ export function DoctorClientSupportPanel({
       );
       const data = (await res.json()) as SupportSettingsResponse;
       if (!res.ok || !data.ok || !data.effectivePolicy) {
-        setError("Не удалось загрузить настройки сопровождения");
+        setError('Не удалось загрузить настройки сопровождения');
         return;
       }
       setOnSupport(data.effectivePolicy.onSupport);
       setCommentsAllowed(data.effectivePolicy.commentsAllowed);
       setMediaAllowed(data.effectivePolicy.mediaAllowed);
     } catch {
-      setError("Ошибка сети");
+      setError('Ошибка сети');
     } finally {
       setLoading(false);
     }
@@ -52,7 +59,7 @@ export function DoctorClientSupportPanel({
     // Skip initial fetch when SSR data provided; load() is still called after PATCH.
     if (initialEffectivePolicy != null) return;
     void load();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const patch = async (body: Record<string, unknown>) => {
@@ -62,21 +69,21 @@ export function DoctorClientSupportPanel({
       const res = await fetch(
         `/api/doctor/clients/${encodeURIComponent(patientUserId)}/support-settings`,
         {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
         },
       );
       const data = (await res.json()) as SupportSettingsResponse;
       if (!res.ok || !data.ok || !data.effectivePolicy) {
-        setError("Не удалось сохранить");
+        setError('Не удалось сохранить');
         return;
       }
       setOnSupport(data.effectivePolicy.onSupport);
       setCommentsAllowed(data.effectivePolicy.commentsAllowed);
       setMediaAllowed(data.effectivePolicy.mediaAllowed);
     } catch {
-      setError("Ошибка сети");
+      setError('Ошибка сети');
     } finally {
       setSaving(false);
     }

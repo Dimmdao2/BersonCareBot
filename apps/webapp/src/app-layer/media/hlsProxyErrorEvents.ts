@@ -1,8 +1,11 @@
-import { lt, sql } from "drizzle-orm";
-import { getDrizzle } from "@/app-layer/db/drizzle";
-import { logger } from "@/app-layer/logging/logger";
-import { mediaHlsProxyErrorEvents } from "../../../db/schema";
-import { type HlsProxyArtifactKind, type HlsProxyReasonCodeDb } from "@/modules/media/hlsProxyTelemetry";
+import { lt, sql } from 'drizzle-orm';
+import { getDrizzle } from '@/app-layer/db/drizzle';
+import { logger } from '@/app-layer/logging/logger';
+import { mediaHlsProxyErrorEvents } from '../../../db/schema';
+import {
+  type HlsProxyArtifactKind,
+  type HlsProxyReasonCodeDb,
+} from '@/modules/media/hlsProxyTelemetry';
 
 export const MEDIA_HLS_PROXY_ERROR_RETENTION_DAYS_DEFAULT = 90;
 
@@ -12,7 +15,10 @@ function trimObjectSuffix(key: string): string | null {
   return t.length > 128 ? t.slice(-128) : t;
 }
 
-const NO_PERSIST_REASONS = new Set<HlsProxyReasonCodeDb>(["session_unauthorized", "feature_disabled"]);
+const NO_PERSIST_REASONS = new Set<HlsProxyReasonCodeDb>([
+  'session_unauthorized',
+  'feature_disabled',
+]);
 
 export function shouldRecordMediaHlsProxyError(reason: HlsProxyReasonCodeDb): boolean {
   return !NO_PERSIST_REASONS.has(reason);
@@ -45,7 +51,7 @@ export async function recordMediaHlsProxyErrorEventIfNeeded(input: {
         userId: input.userId,
         reasonCode: input.reasonCode,
       },
-      "media_hls_proxy_error_event_write_failed",
+      'media_hls_proxy_error_event_write_failed',
     );
   }
 }
@@ -63,7 +69,7 @@ export async function purgeStaleMediaHlsProxyErrorEvents(input: {
       .select({ c: sql<string>`count(*)::text` })
       .from(mediaHlsProxyErrorEvents)
       .where(lt(mediaHlsProxyErrorEvents.createdAt, cutoffExpr));
-    const deleted = Number.parseInt(row[0]?.c ?? "0", 10) || 0;
+    const deleted = Number.parseInt(row[0]?.c ?? '0', 10) || 0;
     return { deleted, dryRun: true, retentionDays: days };
   }
 

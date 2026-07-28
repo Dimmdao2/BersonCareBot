@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 
-import { writeFileSync } from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { writeFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const repoRoot = path.resolve(__dirname, "..", "..", "..", "..");
-export const s5ConfigReaderArtifactPath = "deploy/postgres/s5-config-reader-runtime.sql";
+const repoRoot = path.resolve(__dirname, '..', '..', '..', '..');
+export const s5ConfigReaderArtifactPath = 'deploy/postgres/s5-config-reader-runtime.sql';
 
 export function renderS5ConfigReaderSql() {
   return `-- S5-2 least-privilege restricted settings reader.
@@ -136,11 +136,11 @@ COMMIT;
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const command = process.argv[2] ?? "--stdout";
+  const command = process.argv[2] ?? '--stdout';
   const artifact = renderS5ConfigReaderSql();
-  if (command === "--stdout") {
+  if (command === '--stdout') {
     process.stdout.write(artifact);
-  } else if (command === "--write") {
+  } else if (command === '--write') {
     writeFileSync(path.join(repoRoot, s5ConfigReaderArtifactPath), artifact);
     console.log(`wrote ${s5ConfigReaderArtifactPath}`);
   } else {

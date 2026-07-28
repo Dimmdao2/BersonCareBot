@@ -32,7 +32,9 @@ function request(email: string): Request {
 describe('POST /api/join/email/start', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    readContinuationMock.mockResolvedValue('continuation-token-with-at-least-thirty-two-characters');
+    readContinuationMock.mockResolvedValue(
+      'continuation-token-with-at-least-thirty-two-characters',
+    );
     checkRateLimitMock.mockResolvedValue('ok');
     startEmailProofMock.mockResolvedValue({ ok: true, retryAfterSeconds: 60 });
   });

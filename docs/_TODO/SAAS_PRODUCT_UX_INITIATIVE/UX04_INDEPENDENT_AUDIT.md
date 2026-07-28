@@ -167,23 +167,23 @@ TTL/resend values.
 
 ## 4. Acceptance trace
 
-| Область | Результат |
-|---|---|
-| Семь mandatory journeys присутствуют | PASS |
-| Trigger / actor / channel / trusted organization source | PASS |
-| Staff one-org и patient multi-org target boundary | PASS target; FAIL current-gap honesty |
-| Email binding, SMS fallback и no SMS elevation | PASS |
-| Identity resolution и canonical patient reuse | FAIL: patient auth policy/persona collision incomplete |
-| Membership/enrollment exactly once и transaction boundary | PARTIAL: target intent есть; lifecycle/idempotency contract incomplete |
-| Delivery outcome отдельно от acceptance | FAIL: prose correct, state machine/list conflates axes |
-| Wrong-recipient / expiry / revoke / replay / concurrency | PARTIAL: recovery present; accepted-user/token exchange checks incomplete |
-| Privacy до auth и redirect/token hygiene | FAIL: current full-email leak omitted; exchange continuation unspecified |
-| Public booking → enrollment → portal | PARTIAL: target sound; continuation/internal-id boundary incomplete |
-| Returning multi-org context and deep-link authorization | PASS, subject to OM-3 ruling |
-| Install after value and explicit push consent | PARTIAL: first installed launch/session recovery absent |
-| Staff password and 2FA target/recovery | PARTIAL: password direction sound; full 2FA mechanics incomplete |
-| Current versus target honesty | FAIL: specialist binding, retry/session, other-org acceptance and privacy gaps omitted |
-| Owner decisions versus agent/architecture decisions | FAIL: patient auth ruling blurred; technical invariants over-escalated |
+| Область                                                   | Результат                                                                              |
+| --------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| Семь mandatory journeys присутствуют                      | PASS                                                                                   |
+| Trigger / actor / channel / trusted organization source   | PASS                                                                                   |
+| Staff one-org и patient multi-org target boundary         | PASS target; FAIL current-gap honesty                                                  |
+| Email binding, SMS fallback и no SMS elevation            | PASS                                                                                   |
+| Identity resolution и canonical patient reuse             | FAIL: patient auth policy/persona collision incomplete                                 |
+| Membership/enrollment exactly once и transaction boundary | PARTIAL: target intent есть; lifecycle/idempotency contract incomplete                 |
+| Delivery outcome отдельно от acceptance                   | FAIL: prose correct, state machine/list conflates axes                                 |
+| Wrong-recipient / expiry / revoke / replay / concurrency  | PARTIAL: recovery present; accepted-user/token exchange checks incomplete              |
+| Privacy до auth и redirect/token hygiene                  | FAIL: current full-email leak omitted; exchange continuation unspecified               |
+| Public booking → enrollment → portal                      | PARTIAL: target sound; continuation/internal-id boundary incomplete                    |
+| Returning multi-org context and deep-link authorization   | PASS, subject to OM-3 ruling                                                           |
+| Install after value and explicit push consent             | PARTIAL: first installed launch/session recovery absent                                |
+| Staff password and 2FA target/recovery                    | PARTIAL: password direction sound; full 2FA mechanics incomplete                       |
+| Current versus target honesty                             | FAIL: specialist binding, retry/session, other-org acceptance and privacy gaps omitted |
+| Owner decisions versus agent/architecture decisions       | FAIL: patient auth ruling blurred; technical invariants over-escalated                 |
 
 ## 5. Re-audit gate
 
@@ -209,25 +209,25 @@ owner decisions.
 
 ### 6.2 Проверка F1-F5
 
-| Finding | Результат re-audit |
-|---|---|
-| F1 — auth/persona/2FA | PASS: patient target буквально passwordless OTP; current password/OAuth отделены как compatibility facts; staff остаётся email+password; recovery не расходует invite; patient+staff persona только additive либо fail-closed link/support; полные 2FA setup/recovery/replacement/session-revocation states заданы, а открыты только factor/roles/grace/step-up policy |
-| F2 — current-vs-target honesty | PASS: deferred specialist binding зафиксирован для signup и staff invite; `challengeId` session-reissue defect, missing other-active-org check, coarse role overwrite, pre-auth full-email leak, incomplete lifecycle/delivery и public-booking internal `userId` перечислены как current gaps, не target behavior |
-| F3 — lifecycle/token exchange | PASS: relationship, immutable delivery attempts и auth/proof разведены в три независимые оси; exactly-once row lock/uniqueness/idempotency, fresh invite on resend, immutable predecessor trail, raw-token URL scrub, narrow continuation, accepted-user replay match и cross-origin restriction заданы явно |
-| F4 — installed PWA/push | PASS: browser→installed first launch, valid/missing session, passwordless re-auth без повторного invite consumption, server-side org restoration, iOS/manual/already-installed states, explicit push gesture, permission/subscription rotation и deep-link enrollment recheck покрыты |
-| F5 — screen/state parity | PASS: `UX04_SCREEN_STATE_LIST.md` синхронно отражает исправленный contract без parallel list; PIN-08 добавляет first installed launch, PIN-09 — полный push lifecycle; staff/persona, token scrub, delivery axes, replay и 2FA recovery states представлены буквально |
+| Finding                        | Результат re-audit                                                                                                                                                                                                                                                                                                                                                     |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F1 — auth/persona/2FA          | PASS: patient target буквально passwordless OTP; current password/OAuth отделены как compatibility facts; staff остаётся email+password; recovery не расходует invite; patient+staff persona только additive либо fail-closed link/support; полные 2FA setup/recovery/replacement/session-revocation states заданы, а открыты только factor/roles/grace/step-up policy |
+| F2 — current-vs-target honesty | PASS: deferred specialist binding зафиксирован для signup и staff invite; `challengeId` session-reissue defect, missing other-active-org check, coarse role overwrite, pre-auth full-email leak, incomplete lifecycle/delivery и public-booking internal `userId` перечислены как current gaps, не target behavior                                                     |
+| F3 — lifecycle/token exchange  | PASS: relationship, immutable delivery attempts и auth/proof разведены в три независимые оси; exactly-once row lock/uniqueness/idempotency, fresh invite on resend, immutable predecessor trail, raw-token URL scrub, narrow continuation, accepted-user replay match и cross-origin restriction заданы явно                                                           |
+| F4 — installed PWA/push        | PASS: browser→installed first launch, valid/missing session, passwordless re-auth без повторного invite consumption, server-side org restoration, iOS/manual/already-installed states, explicit push gesture, permission/subscription rotation и deep-link enrollment recheck покрыты                                                                                  |
+| F5 — screen/state parity       | PASS: `UX04_SCREEN_STATE_LIST.md` синхронно отражает исправленный contract без parallel list; PIN-08 добавляет first installed launch, PIN-09 — полный push lifecycle; staff/persona, token scrub, delivery axes, replay и 2FA recovery states представлены буквально                                                                                                  |
 
 ### 6.3 Полный journey trace
 
-| Journey | Trigger/channel/trust | Identity/relationship outcome | Recovery/privacy | Результат |
-|---|---|---|---|---|
-| J1 solo signup | Landing CTA, email challenge, server-side signup intent | Verified staff identity → owner membership → отдельно authorized specialist binding | Duplicate/expired/partial provisioning, no unauthenticated `challengeId` retry in target, full security setup | PASS |
-| J2 staff invite | Authorized team management, primary email, hash-only invite | Email+password staff auth; exactly-one same-org membership; other-org/persona collision fail closed | Masked preview, seat/org unavailable, supersede/correction, 2FA recovery, no client role/binding authority | PASS |
-| J3 patient email invite | Org-bound invite, email primary | Passwordless canonical patient proof → exactly-one org enrollment; multi-org adds enrollment, not identity | Wrong address, inaccessible channel, idempotent replay, first value, install/first-launch/push recovery | PASS |
-| J4 SMS fallback | Additional attempt on same invite | No new identity/invite/enrollment and no email-proof bypass | Consent/suppression/opt-out/rate limits; neutral copy; no SMS topic-default side effect | PASS |
-| J5 public booking | Published server-resolved branch/service/slot | Canonical phone identity + target atomic appointment/enrollment; portal session remains separate | Ambiguous identity, slot/delivery failure, signed continuation, no internal id authority, exact appointment first value | PASS |
-| J6 returning multi-org | Neutral/PWA/trusted object entry | Global auth then server-resolved active enrollment; no staff-style org switch semantics | Chooser on ambiguity, revoked/foreign target denial, cache/count isolation, installed re-auth | PASS subject to OM-3 presentation ruling |
-| J7 terminal/wrong-recipient | Server-classified invite lifecycle | No mutation for terminal token; exact existing relationship only after auth + accepted-user/live-relationship match | Invalid/expired/revoked/superseded/wrong account/seat/org/concurrency states remain neutral and audit-visible | PASS |
+| Journey                     | Trigger/channel/trust                                       | Identity/relationship outcome                                                                                       | Recovery/privacy                                                                                                        | Результат                                |
+| --------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
+| J1 solo signup              | Landing CTA, email challenge, server-side signup intent     | Verified staff identity → owner membership → отдельно authorized specialist binding                                 | Duplicate/expired/partial provisioning, no unauthenticated `challengeId` retry in target, full security setup           | PASS                                     |
+| J2 staff invite             | Authorized team management, primary email, hash-only invite | Email+password staff auth; exactly-one same-org membership; other-org/persona collision fail closed                 | Masked preview, seat/org unavailable, supersede/correction, 2FA recovery, no client role/binding authority              | PASS                                     |
+| J3 patient email invite     | Org-bound invite, email primary                             | Passwordless canonical patient proof → exactly-one org enrollment; multi-org adds enrollment, not identity          | Wrong address, inaccessible channel, idempotent replay, first value, install/first-launch/push recovery                 | PASS                                     |
+| J4 SMS fallback             | Additional attempt on same invite                           | No new identity/invite/enrollment and no email-proof bypass                                                         | Consent/suppression/opt-out/rate limits; neutral copy; no SMS topic-default side effect                                 | PASS                                     |
+| J5 public booking           | Published server-resolved branch/service/slot               | Canonical phone identity + target atomic appointment/enrollment; portal session remains separate                    | Ambiguous identity, slot/delivery failure, signed continuation, no internal id authority, exact appointment first value | PASS                                     |
+| J6 returning multi-org      | Neutral/PWA/trusted object entry                            | Global auth then server-resolved active enrollment; no staff-style org switch semantics                             | Chooser on ambiguity, revoked/foreign target denial, cache/count isolation, installed re-auth                           | PASS subject to OM-3 presentation ruling |
+| J7 terminal/wrong-recipient | Server-classified invite lifecycle                          | No mutation for terminal token; exact existing relationship only after auth + accepted-user/live-relationship match | Invalid/expired/revoked/superseded/wrong account/seat/org/concurrency states remain neutral and audit-visible           | PASS                                     |
 
 ### 6.4 Security, privacy and provenance trace
 

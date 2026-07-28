@@ -1,11 +1,11 @@
-"use client";
+'use client';
 
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { cn } from "@/lib/utils";
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { cn } from '@/lib/utils';
 
-const rowClass = "flex flex-wrap gap-2 border-t border-border/60 pt-4";
+const rowClass = 'flex flex-wrap gap-2 border-t border-border/60 pt-4';
 
-type SizeProp = { size?: "default" | "sm" };
+type SizeProp = { size?: 'default' | 'sm' };
 
 type Base = {
   className?: string;
@@ -20,19 +20,19 @@ type Base = {
   persistDisabled?: boolean;
   /** Полная замена правила disabled для «Опубликовать» (если задано). */
   publishDisabled?: boolean;
-  buttonSize?: SizeProp["size"];
-  saveVariant?: "default" | "secondary";
+  buttonSize?: SizeProp['size'];
+  saveVariant?: 'default' | 'secondary';
   intentName?: string;
 };
 
 export type DoctorCatalogPersistPublishBarCallbacksProps = Base & {
-  mode: "callbacks";
+  mode: 'callbacks';
   onPersist: () => void;
   onPublish: () => void;
 };
 
 export type DoctorCatalogPersistPublishBarFormIntentProps = Base & {
-  mode: "formIntent";
+  mode: 'formIntent';
   formId: string;
   saveIntentValue: string;
   publishIntentValue: string;
@@ -50,19 +50,19 @@ export function DoctorCatalogPersistPublishBar(props: DoctorCatalogPersistPublis
     isPublished,
     catalogRecordExists,
     persistLabel,
-    persistPendingLabel = "Сохранение…",
+    persistPendingLabel = 'Сохранение…',
     persistDisabled: persistDisabledOverride,
     publishDisabled: publishDisabledOverride,
     buttonSize,
-    saveVariant = "default",
-    intentName = "intent",
+    saveVariant = 'default',
+    intentName = 'intent',
   } = props;
 
   const persistDisabled = persistDisabledOverride ?? (isArchived || pending);
   const publishDisabledDefault = !catalogRecordExists || isArchived || pending || isPublished;
   const publishDisabled = publishDisabledOverride ?? publishDisabledDefault;
 
-  const sz = buttonSize === "sm" ? ({ size: "sm" as const } satisfies SizeProp) : {};
+  const sz = buttonSize === 'sm' ? ({ size: 'sm' as const } satisfies SizeProp) : {};
 
   const persistCommon = {
     ...sz,
@@ -71,7 +71,7 @@ export function DoctorCatalogPersistPublishBar(props: DoctorCatalogPersistPublis
   } as const;
 
   const persistNode =
-    props.mode === "callbacks" ? (
+    props.mode === 'callbacks' ? (
       <Button type="button" {...persistCommon} onClick={props.onPersist}>
         {pending ? persistPendingLabel : persistLabel}
       </Button>
@@ -94,7 +94,7 @@ export function DoctorCatalogPersistPublishBar(props: DoctorCatalogPersistPublis
   );
 
   const publishNode =
-    props.mode === "callbacks" ? (
+    props.mode === 'callbacks' ? (
       isPublished ? (
         publishPublishedNode
       ) : (

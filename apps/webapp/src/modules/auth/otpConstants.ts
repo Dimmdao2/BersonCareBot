@@ -65,7 +65,7 @@ export function nextOtpLockoutDurationSeconds(previousCycles: number): number {
 }
 
 export const OTP_TOO_MANY_ATTEMPTS_MESSAGE =
-  "Превышено количество попыток. Запросите новый код через 10 минут.";
+  'Превышено количество попыток. Запросите новый код через 10 минут.';
 
 /** Сообщение для rate limit / cooldown с обратным отсчётом. */
 export function formatOtpRetryAfterMessage(retryAfterSeconds: number): string {

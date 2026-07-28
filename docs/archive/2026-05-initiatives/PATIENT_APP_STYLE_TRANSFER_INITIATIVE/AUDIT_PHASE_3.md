@@ -10,16 +10,16 @@
 
 ## 2. Style-Only Scope Check
 
-| Вопрос (`AUDIT_TEMPLATE.md` §2) | Результат |
-|----------------------------------|-----------|
-| Content/copy не менялся? | **Да** — по **`LOG.md` (Phase 3 EXEC)** и ревью ключевых файлов: строки пользовательского текста не переписывались ради стиля; замены касались `className`/импортов примитивов. |
-| Порядок секций / structure / flow? | **Да** — те же секции и блоки (профиль, списки напоминаний, панели дневника, утилиты). |
-| Ссылки, маршруты, query params? | **Да** — см. § «Особые проверки» ниже: `?tab=` для дневника, пути журналов и API в клиентах напоминаний сохранены. |
-| Data fetching? | **Да** — серверные `page.tsx` и клиентские `fetch` без смены URL/метода/тела по смыслу. |
-| Services / repos / API routes / migrations? | **Да** — Phase 3 затрагивает patient UI; отдельные изменения API/сервисов под эту фазу не ожидались. |
-| Doctor / admin? | **Да** — не в scope Phase 3. |
-| Patient primitives вместо разовой стилизации? | **Да** — используются `patientSectionSurfaceClass`, `patientCardClass`, `patientListItemClass`, `patientMutedTextClass`, `patientInlineLinkClass` и др. из `patientVisual.ts` (`LOG.md`). |
-| Home-specific geometry не разнесена на чужие страницы? | **Да** — вкладки дневника используют patient-токены и фон sticky через `--patient-bg`, без импорта геометрии главной. |
+| Вопрос (`AUDIT_TEMPLATE.md` §2)                        | Результат                                                                                                                                                                                 |
+| ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Content/copy не менялся?                               | **Да** — по **`LOG.md` (Phase 3 EXEC)** и ревью ключевых файлов: строки пользовательского текста не переписывались ради стиля; замены касались `className`/импортов примитивов.           |
+| Порядок секций / structure / flow?                     | **Да** — те же секции и блоки (профиль, списки напоминаний, панели дневника, утилиты).                                                                                                    |
+| Ссылки, маршруты, query params?                        | **Да** — см. § «Особые проверки» ниже: `?tab=` для дневника, пути журналов и API в клиентах напоминаний сохранены.                                                                        |
+| Data fetching?                                         | **Да** — серверные `page.tsx` и клиентские `fetch` без смены URL/метода/тела по смыслу.                                                                                                   |
+| Services / repos / API routes / migrations?            | **Да** — Phase 3 затрагивает patient UI; отдельные изменения API/сервисов под эту фазу не ожидались.                                                                                      |
+| Doctor / admin?                                        | **Да** — не в scope Phase 3.                                                                                                                                                              |
+| Patient primitives вместо разовой стилизации?          | **Да** — используются `patientSectionSurfaceClass`, `patientCardClass`, `patientListItemClass`, `patientMutedTextClass`, `patientInlineLinkClass` и др. из `patientVisual.ts` (`LOG.md`). |
+| Home-specific geometry не разнесена на чужие страницы? | **Да** — вкладки дневника используют patient-токены и фон sticky через `--patient-bg`, без импорта геометрии главной.                                                                     |
 
 ## 3. Mandatory Fixes
 
@@ -36,30 +36,30 @@ No mandatory fixes.
 
 ## 5. Checks Reviewed/Run
 
-| Проверка | Статус |
-|----------|--------|
+| Проверка                       | Статус                                                                                                                                                                                    |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | По **`LOG.md` (Phase 3 EXEC)** | Зафиксированы: eslint по затронутым patient-маршрутам Phase 3; `pnpm --dir apps/webapp typecheck`; vitest: `LfkComplexCard.test.tsx`, `reminders/actions.test.ts`, `ProfileForm.test.tsx` |
-| В этой audit-сессии | Повторный eslint/typecheck/vitest **не запускались** |
-| Root `pnpm run ci` | Не требовался политикой audit / записью EXEC |
+| В этой audit-сессии            | Повторный eslint/typecheck/vitest **не запускались**                                                                                                                                      |
+| Root `pnpm run ci`             | Не требовался политикой audit / записью EXEC                                                                                                                                              |
 
 ## 6. Route/Component Coverage
 
 Сверка с **`CHECKLISTS.md` §4** (Phase 3 matrix) и **`03_INTERACTIVE_PAGES_STYLE_PLAN.md`**:
 
-| Маршрут / область | Компоненты / примечание |
-|-------------------|-------------------------|
-| `/app/patient/profile` | Аккордеон/форма/PIN/ purge / OTP-канал (`LOG.md`) |
-| `/app/patient/notifications` | `page.tsx`, `ChannelNotificationToggles`, `SubscriptionsList` |
-| `/app/patient/reminders` | `page.tsx`, `ReminderRulesClient` |
-| `/app/patient/reminders/journal/[ruleId]` | `page.tsx` |
-| `/app/patient/diary` | `page.tsx`, `DiaryTabsClient`, симптомы/ЛФК секции |
-| `/app/patient/diary/symptoms*` | `SymptomsTrackingSectionClient`, `CreateTrackingForm`, `SymptomTrackingRow`, журнал страница + клиент |
-| `/app/patient/diary/lfk*` | `LfkComplexCard`, `LfkDiarySectionClient`, `LfkSessionForm`, журнал страница + клиент |
-| `/app/patient/support` | `page.tsx`, `PatientSupportForm` |
-| `/app/patient/help` | `page.tsx` (+ ссылки на те же `routePaths`) |
-| `/app/patient/purchases` | `page.tsx` |
-| `/app/patient/bind-phone` | `page.tsx`, `PatientBindPhoneClient`, `PatientBrowserMessengerBindPanel`; **`PatientBindPhoneSection`** (кабинет) |
-| `/app/patient/install` | `page.tsx` |
+| Маршрут / область                         | Компоненты / примечание                                                                                           |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `/app/patient/profile`                    | Аккордеон/форма/PIN/ purge / OTP-канал (`LOG.md`)                                                                 |
+| `/app/patient/notifications`              | `page.tsx`, `ChannelNotificationToggles`, `SubscriptionsList`                                                     |
+| `/app/patient/reminders`                  | `page.tsx`, `ReminderRulesClient`                                                                                 |
+| `/app/patient/reminders/journal/[ruleId]` | `page.tsx`                                                                                                        |
+| `/app/patient/diary`                      | `page.tsx`, `DiaryTabsClient`, симптомы/ЛФК секции                                                                |
+| `/app/patient/diary/symptoms*`            | `SymptomsTrackingSectionClient`, `CreateTrackingForm`, `SymptomTrackingRow`, журнал страница + клиент             |
+| `/app/patient/diary/lfk*`                 | `LfkComplexCard`, `LfkDiarySectionClient`, `LfkSessionForm`, журнал страница + клиент                             |
+| `/app/patient/support`                    | `page.tsx`, `PatientSupportForm`                                                                                  |
+| `/app/patient/help`                       | `page.tsx` (+ ссылки на те же `routePaths`)                                                                       |
+| `/app/patient/purchases`                  | `page.tsx`                                                                                                        |
+| `/app/patient/bind-phone`                 | `page.tsx`, `PatientBindPhoneClient`, `PatientBrowserMessengerBindPanel`; **`PatientBindPhoneSection`** (кабинет) |
+| `/app/patient/install`                    | `page.tsx`                                                                                                        |
 
 Установка приложения в матрице **`CHECKLISTS.md`** явно не перечислена — покрыта в EXEC как утилитарная страница (**`LOG.md`**).
 
@@ -91,7 +91,7 @@ No mandatory fixes.
 
 ### Tab semantics сохранены
 
-- **`DiaryTabsClient`**: тип вкладки по-прежнему `searchParams.get("tab") === "lfk" ? "lfk" : "symptoms"`; при смене вкладки — `router.replace(\`/app/patient/diary?tab=${next}\`)` с `next === "lfk" | "symptoms"`. Изменены только **`className`** у `TabsTrigger` (patient-токены вместо `text-muted-foreground` / `data-active:*` на generic tokens).
+- **`DiaryTabsClient`**: тип вкладки по-прежнему `searchParams.get("tab") === "lfk" ? "lfk" : "symptoms"`; при смене вкладки — `router.replace(\`/app/patient/diary?tab=${next}\`)`с`next === "lfk" | "symptoms"`. Изменены только **`className`** у `TabsTrigger`(patient-токены вместо`text-muted-foreground`/`data-active:\*` на generic tokens).
 
 ### Продуктовых решений не изобретено
 
@@ -101,15 +101,15 @@ No mandatory fixes.
 
 ## Приложение — сверка с чеклистом `03_INTERACTIVE_PAGES_STYLE_PLAN.md`
 
-| Пункт плана | Оценка |
-|-------------|--------|
-| Profile accordion/card chrome | **Да** (по **`LOG.md`** Phase 3) |
-| Notification list/toggle chrome | **Да** |
-| Reminder rule cards chrome | **Да** |
-| Diary tabs chrome без смены семантики вкладок | **Да** (`DiaryTabsClient`) |
-| Symptom/LFK cards/forms chrome | **Да** |
-| Utility pages surfaces | **Да** (+ install / `PatientBindPhoneSection` в EXEC) |
-| Destructive actions визуально различимы | **Да** — семантика `variant="destructive"` и т.п. не убиралась ради «красоты» (purge и др. по прежним паттернам) |
-| Тесты обновлены только при необходимости | По **`LOG.md`** — targeted vitest без указания массовых правок тестов под разметку |
-| Product gaps — не чинить продукт | **Да** |
-| **`LOG.md` обновлён** | **Да** |
+| Пункт плана                                   | Оценка                                                                                                           |
+| --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Profile accordion/card chrome                 | **Да** (по **`LOG.md`** Phase 3)                                                                                 |
+| Notification list/toggle chrome               | **Да**                                                                                                           |
+| Reminder rule cards chrome                    | **Да**                                                                                                           |
+| Diary tabs chrome без смены семантики вкладок | **Да** (`DiaryTabsClient`)                                                                                       |
+| Symptom/LFK cards/forms chrome                | **Да**                                                                                                           |
+| Utility pages surfaces                        | **Да** (+ install / `PatientBindPhoneSection` в EXEC)                                                            |
+| Destructive actions визуально различимы       | **Да** — семантика `variant="destructive"` и т.п. не убиралась ради «красоты» (purge и др. по прежним паттернам) |
+| Тесты обновлены только при необходимости      | По **`LOG.md`** — targeted vitest без указания массовых правок тестов под разметку                               |
+| Product gaps — не чинить продукт              | **Да**                                                                                                           |
+| **`LOG.md` обновлён**                         | **Да**                                                                                                           |

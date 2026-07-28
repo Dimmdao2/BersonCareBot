@@ -1,15 +1,15 @@
-"use client";
+'use client';
 
-import dynamic from "next/dynamic";
-import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
-import { buttonVariants } from "@/shared/ui/patient/primitives/button-variants";
-import { cn } from "@/lib/utils";
-import { routePaths } from "@/app-layer/routes/paths";
-import { formatDiaryDayShortRu } from "@/modules/diaries/stats/formatDiaryDay";
-import { DiaryStatsPeriodBar, type DiaryStatsPeriod } from "./DiaryStatsPeriodBar";
+import dynamic from 'next/dynamic';
+import Link from 'next/link';
+import { useCallback, useEffect, useState } from 'react';
+import { buttonVariants } from '@/shared/ui/patient/primitives/button-variants';
+import { cn } from '@/lib/utils';
+import { routePaths } from '@/app-layer/routes/paths';
+import { formatDiaryDayShortRu } from '@/modules/diaries/stats/formatDiaryDay';
+import { DiaryStatsPeriodBar, type DiaryStatsPeriod } from './DiaryStatsPeriodBar';
 
-const RechartsLfk = dynamic(() => import("./DiaryLineChartRecharts"), {
+const RechartsLfk = dynamic(() => import('./DiaryLineChartRecharts'), {
   ssr: false,
   loading: () => <div className="bg-muted/50 h-[240px] w-full animate-pulse rounded-md" />,
 });
@@ -39,13 +39,13 @@ type DetailPayload = {
 };
 
 export function LfkStatsTable({ complexes }: { complexes: LfkStatsComplexOption[] }) {
-  const [period, setPeriod] = useState<DiaryStatsPeriod>("week");
+  const [period, setPeriod] = useState<DiaryStatsPeriod>('week');
   const [offset, setOffset] = useState(0);
   const [detailComplexId, setDetailComplexId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [overview, setOverview] = useState<OverviewPayload["overview"]>(null);
-  const [detail, setDetail] = useState<DetailPayload["detail"] | null>(null);
+  const [overview, setOverview] = useState<OverviewPayload['overview']>(null);
+  const [detail, setDetail] = useState<DetailPayload['detail'] | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -56,20 +56,22 @@ export function LfkStatsTable({ complexes }: { complexes: LfkStatsComplexOption[
         offset: String(offset),
       });
       if (detailComplexId) {
-        qs.set("complexId", detailComplexId);
+        qs.set('complexId', detailComplexId);
       }
-      const res = await fetch(`/api/patient/diary/lfk-stats?${qs.toString()}`, { credentials: "include" });
+      const res = await fetch(`/api/patient/diary/lfk-stats?${qs.toString()}`, {
+        credentials: 'include',
+      });
       if (res.status === 401 || res.status === 403) {
-        setError(res.status === 403 ? "Доступ запрещён" : "Требуется вход");
+        setError(res.status === 403 ? 'Доступ запрещён' : 'Требуется вход');
         return;
       }
       if (!res.ok) {
-        setError("Не удалось загрузить статистику ЛФК");
+        setError('Не удалось загрузить статистику ЛФК');
         return;
       }
       const data = (await res.json()) as OverviewPayload | DetailPayload;
       if (!data.ok) {
-        setError("Ошибка ответа");
+        setError('Ошибка ответа');
         return;
       }
       if (data.detail) {
@@ -80,7 +82,7 @@ export function LfkStatsTable({ complexes }: { complexes: LfkStatsComplexOption[
         setDetail(null);
       }
     } catch {
-      setError("Сеть недоступна");
+      setError('Сеть недоступна');
     } finally {
       setLoading(false);
     }
@@ -100,10 +102,10 @@ export function LfkStatsTable({ complexes }: { complexes: LfkStatsComplexOption[
           <span className="text-muted-foreground">Режим</span>
           <select
             className="h-10 w-full rounded-xl border border-input bg-background px-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring min-w-[200px]"
-            value={detailComplexId ?? ""}
+            value={detailComplexId ?? ''}
             onChange={(e) => {
               const v = e.target.value;
-              setDetailComplexId(v === "" ? null : v);
+              setDetailComplexId(v === '' ? null : v);
               setOffset(0);
             }}
           >
@@ -140,7 +142,10 @@ export function LfkStatsTable({ complexes }: { complexes: LfkStatsComplexOption[
               <tr className="bg-muted/40">
                 <th className="border-border px-2 py-2 text-left font-medium">День</th>
                 {complexes.map((c) => (
-                  <th key={c.id} className="border-border max-w-[120px] px-2 py-2 text-center font-medium">
+                  <th
+                    key={c.id}
+                    className="border-border max-w-[120px] px-2 py-2 text-center font-medium"
+                  >
                     {c.title}
                   </th>
                 ))}
@@ -156,8 +161,8 @@ export function LfkStatsTable({ complexes }: { complexes: LfkStatsComplexOption[
                     const done = overview.matrix[i]?.[j];
                     return (
                       <td key={c.id} className="border-border px-2 py-1 text-center">
-                        <span aria-label={done ? "занятие отмечено" : "нет занятия"}>
-                          {done ? "✓" : "—"}
+                        <span aria-label={done ? 'занятие отмечено' : 'нет занятия'}>
+                          {done ? '✓' : '—'}
                         </span>
                       </td>
                     );
@@ -173,16 +178,25 @@ export function LfkStatsTable({ complexes }: { complexes: LfkStatsComplexOption[
         <div className="flex flex-col gap-2">
           <p className="text-sm font-medium">{detail.complex.title}</p>
           {detail.chartPoints.length === 0 ? (
-            <p className="text-muted-foreground text-sm">Нет данных с оценками боли/сложности за выбранный период.</p>
+            <p className="text-muted-foreground text-sm">
+              Нет данных с оценками боли/сложности за выбранный период.
+            </p>
           ) : (
             <div className="mt-6">
-              <RechartsLfk points={detail.chartPoints} period={period} valueTooltipLabel="Боль / сложность" />
+              <RechartsLfk
+                points={detail.chartPoints}
+                period={period}
+                valueTooltipLabel="Боль / сложность"
+              />
             </div>
           )}
           <div className="mt-6">
             <Link
               href={`${routePaths.diaryLfkJournal}?complexId=${encodeURIComponent(detail.complex.id)}&period=${period}&offset=${offset}`}
-              className={cn(buttonVariants({ variant: "outline", size: "sm" }), "inline-flex text-xs")}
+              className={cn(
+                buttonVariants({ variant: 'outline', size: 'sm' }),
+                'inline-flex text-xs',
+              )}
             >
               Открыть журнал
             </Link>

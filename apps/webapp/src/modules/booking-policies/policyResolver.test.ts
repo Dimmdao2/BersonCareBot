@@ -1,27 +1,29 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from 'vitest';
 import {
   evaluateCancellationEligibility,
   evaluateRescheduleEligibility,
   pickHighestPriorityPolicy,
-} from "./policyResolver";
-import type { CancellationPolicy, PolicyAppointmentContext, ReschedulePolicy } from "./types";
+} from './policyResolver';
+import type { CancellationPolicy, PolicyAppointmentContext, ReschedulePolicy } from './types';
 
 const baseCtx: PolicyAppointmentContext = {
-  organizationId: "org-1",
-  specialistId: "spec-1",
-  serviceId: "svc-1",
+  organizationId: 'org-1',
+  specialistId: 'spec-1',
+  serviceId: 'svc-1',
 };
 
-function cancelPolicy(partial: Partial<CancellationPolicy> & Pick<CancellationPolicy, "id" | "scopeLevel">): CancellationPolicy {
+function cancelPolicy(
+  partial: Partial<CancellationPolicy> & Pick<CancellationPolicy, 'id' | 'scopeLevel'>,
+): CancellationPolicy {
   return {
-    organizationId: "org-1",
-    scopeEntityId: partial.scopeLevel === "organization" ? "org-1" : baseCtx.specialistId,
-    title: "t",
+    organizationId: 'org-1',
+    scopeEntityId: partial.scopeLevel === 'organization' ? 'org-1' : baseCtx.specialistId,
+    title: 't',
     isActive: true,
     freeCancelHoursBefore: 72,
     cancellationAllowed: true,
-    lateCancellationBehavior: "penalty",
-    refundPrepaymentOnLate: "manual",
+    lateCancellationBehavior: 'penalty',
+    refundPrepaymentOnLate: 'manual',
     chargePackageSessionOnLate: false,
     requiresStaffConfirmation: false,
     notifyPatient: true,
@@ -31,24 +33,24 @@ function cancelPolicy(partial: Partial<CancellationPolicy> & Pick<CancellationPo
   };
 }
 
-describe("pickHighestPriorityPolicy", () => {
-  it("prefers service over organization", () => {
-    const org = cancelPolicy({ id: "o", scopeLevel: "organization" });
-    const svc = cancelPolicy({ id: "s", scopeLevel: "service", scopeEntityId: "svc-1" });
+describe('pickHighestPriorityPolicy', () => {
+  it('prefers service over organization', () => {
+    const org = cancelPolicy({ id: 'o', scopeLevel: 'organization' });
+    const svc = cancelPolicy({ id: 's', scopeLevel: 'service', scopeEntityId: 'svc-1' });
     const picked = pickHighestPriorityPolicy([org, svc], baseCtx, (p, c) => {
-      if (p.scopeLevel === "organization") return true;
+      if (p.scopeLevel === 'organization') return true;
       return p.scopeEntityId === c.serviceId;
     });
-    expect(picked?.id).toBe("s");
+    expect(picked?.id).toBe('s');
   });
 });
 
-describe("evaluateCancellationEligibility §8.4 anti-bypass", () => {
-  const referenceStart = "2026-06-10T10:00:00.000Z";
-  const policy = cancelPolicy({ id: "p", scopeLevel: "organization", freeCancelHoursBefore: 72 });
+describe('evaluateCancellationEligibility §8.4 anti-bypass', () => {
+  const referenceStart = '2026-06-10T10:00:00.000Z';
+  const policy = cancelPolicy({ id: 'p', scopeLevel: 'organization', freeCancelHoursBefore: 72 });
 
-  it("allows free cancel when within window from original and no forfeiting reschedule", () => {
-    const now = new Date("2026-06-07T10:00:00.000Z");
+  it('allows free cancel when within window from original and no forfeiting reschedule', () => {
+    const now = new Date('2026-06-07T10:00:00.000Z');
     const result = evaluateCancellationEligibility({
       referenceStartAt: referenceStart,
       policy,
@@ -56,43 +58,43 @@ describe("evaluateCancellationEligibility §8.4 anti-bypass", () => {
       now,
     });
     expect(result.isFree).toBe(true);
-    expect(result.reasonCode).toBe("free");
+    expect(result.reasonCode).toBe('free');
   });
 
-  it("maps late cancel to package_charged when chargePackageSessionOnLate is set", () => {
-    const now = new Date("2026-06-09T10:00:00.000Z");
+  it('maps late cancel to package_charged when chargePackageSessionOnLate is set', () => {
+    const now = new Date('2026-06-09T10:00:00.000Z');
     const result = evaluateCancellationEligibility({
       referenceStartAt: referenceStart,
       policy: cancelPolicy({
-        id: "p2",
-        scopeLevel: "organization",
-        lateCancellationBehavior: "penalty",
+        id: 'p2',
+        scopeLevel: 'organization',
+        lateCancellationBehavior: 'penalty',
         chargePackageSessionOnLate: true,
       }),
       rescheduleHistory: [],
       now,
     });
     expect(result.isFree).toBe(false);
-    expect(result.decisionType).toBe("package_charged");
+    expect(result.decisionType).toBe('package_charged');
   });
 
-  it("denies free cancel after reschedule when original was already inside late window", () => {
-    const rescheduleAt = "2026-06-09T10:00:00.000Z";
-    const now = new Date("2026-06-15T10:00:00.000Z");
+  it('denies free cancel after reschedule when original was already inside late window', () => {
+    const rescheduleAt = '2026-06-09T10:00:00.000Z';
+    const now = new Date('2026-06-15T10:00:00.000Z');
     const result = evaluateCancellationEligibility({
       referenceStartAt: referenceStart,
       policy,
-      rescheduleHistory: [{ actorType: "patient", createdAt: rescheduleAt }],
+      rescheduleHistory: [{ actorType: 'patient', createdAt: rescheduleAt }],
       now,
     });
     expect(result.isFree).toBe(false);
-    expect(result.reasonCode).toBe("forfeited_by_reschedule");
+    expect(result.reasonCode).toBe('forfeited_by_reschedule');
   });
 
-  it("would allow free cancel by new date alone but forfeiture blocks it", () => {
-    const rescheduleAt = "2026-06-09T10:00:00.000Z";
-    const newStart = "2026-06-20T10:00:00.000Z";
-    const now = new Date("2026-06-12T10:00:00.000Z");
+  it('would allow free cancel by new date alone but forfeiture blocks it', () => {
+    const rescheduleAt = '2026-06-09T10:00:00.000Z';
+    const newStart = '2026-06-20T10:00:00.000Z';
+    const now = new Date('2026-06-12T10:00:00.000Z');
     const byNewDate = evaluateCancellationEligibility({
       referenceStartAt: newStart,
       policy,
@@ -103,20 +105,20 @@ describe("evaluateCancellationEligibility §8.4 anti-bypass", () => {
     const withHistory = evaluateCancellationEligibility({
       referenceStartAt: referenceStart,
       policy,
-      rescheduleHistory: [{ actorType: "patient", createdAt: rescheduleAt }],
+      rescheduleHistory: [{ actorType: 'patient', createdAt: rescheduleAt }],
       now,
     });
     expect(withHistory.isFree).toBe(false);
   });
 });
 
-describe("evaluateRescheduleEligibility", () => {
+describe('evaluateRescheduleEligibility', () => {
   const policy: ReschedulePolicy = {
-    id: "r",
-    organizationId: "org-1",
-    scopeLevel: "organization",
-    scopeEntityId: "org-1",
-    title: "t",
+    id: 'r',
+    organizationId: 'org-1',
+    scopeLevel: 'organization',
+    scopeEntityId: 'org-1',
+    title: 't',
     isActive: true,
     selfRescheduleHoursBefore: 48,
     maxSelfReschedules: 1,
@@ -124,21 +126,21 @@ describe("evaluateRescheduleEligibility", () => {
     allowDifferentCity: false,
     allowDifferentSpecialist: false,
     allowDifferentService: false,
-    limitExceededBehavior: "manual_request",
+    limitExceededBehavior: 'manual_request',
     requiresStaffConfirmation: false,
     notifyPatient: true,
     notifyStaff: true,
     sortOrder: 0,
   };
 
-  it("blocks when reschedule limit exceeded", () => {
+  it('blocks when reschedule limit exceeded', () => {
     const result = evaluateRescheduleEligibility({
-      currentStartAt: "2026-06-10T10:00:00.000Z",
+      currentStartAt: '2026-06-10T10:00:00.000Z',
       policy,
       rescheduleCount: 1,
-      now: new Date("2026-06-07T10:00:00.000Z"),
+      now: new Date('2026-06-07T10:00:00.000Z'),
     });
     expect(result.allowed).toBe(false);
-    expect(result.reasonCode).toBe("limit_exceeded");
+    expect(result.reasonCode).toBe('limit_exceeded');
   });
 });

@@ -46,15 +46,15 @@ B1 ──► B3, B4, B5, B6 (параллель по ресурсам)
 
 Уточнять перед каждым этапом через `rg` / дерево файлов.
 
-| Область | Типичные пути |
-|---------|----------------|
-| Фильтры каталогов | `apps/webapp/src/shared/lib/doctorCatalogListStatus.ts`, новый `shared/ui/doctor/CatalogStatusFilters.tsx` |
-| Клинические тесты | `apps/webapp/src/app/app/doctor/clinical-tests/`, `apps/webapp/src/modules/tests/` |
-| Наборы тестов | `apps/webapp/src/app/app/doctor/test-sets/TestSetItemsForm.tsx` |
-| Рекомендации | `apps/webapp/src/app/app/doctor/recommendations/`, `apps/webapp/src/modules/recommendations/` |
-| Комплексы ЛФК | `apps/webapp/src/app/app/doctor/lfk-templates/` |
-| Шаблоны программ | `apps/webapp/src/app/app/doctor/treatment-program-templates/**` (в т.ч. `TreatmentProgramConstructorClient.tsx`) |
-| Схема БД | `apps/webapp/db/schema/**`, миграции `drizzle-kit` |
+| Область           | Типичные пути                                                                                                    |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Фильтры каталогов | `apps/webapp/src/shared/lib/doctorCatalogListStatus.ts`, новый `shared/ui/doctor/CatalogStatusFilters.tsx`       |
+| Клинические тесты | `apps/webapp/src/app/app/doctor/clinical-tests/`, `apps/webapp/src/modules/tests/`                               |
+| Наборы тестов     | `apps/webapp/src/app/app/doctor/test-sets/TestSetItemsForm.tsx`                                                  |
+| Рекомендации      | `apps/webapp/src/app/app/doctor/recommendations/`, `apps/webapp/src/modules/recommendations/`                    |
+| Комплексы ЛФК     | `apps/webapp/src/app/app/doctor/lfk-templates/`                                                                  |
+| Шаблоны программ  | `apps/webapp/src/app/app/doctor/treatment-program-templates/**` (в т.ч. `TreatmentProgramConstructorClient.tsx`) |
+| Схема БД          | `apps/webapp/db/schema/**`, миграции `drizzle-kit`                                                               |
 
 **Справочник типа нагрузки упражнения (`load_type`):** см. [`EXERCISE_LOAD_TYPE_FROM_REFS_PLAN.md`](EXERCISE_LOAD_TYPE_FROM_REFS_PLAN.md) (закрыто 2026-05-04).
 

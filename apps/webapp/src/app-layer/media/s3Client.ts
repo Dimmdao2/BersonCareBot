@@ -13,5 +13,5 @@ export {
   s3HeadObjectDetails,
   s3ObjectKey,
   s3CreateMultipartUpload,
-} from "@/infra/s3/client";
-export type { S3GetObjectStreamFailureReason, S3GetObjectStreamResult } from "@/infra/s3/client";
+} from '@/infra/s3/client';
+export type { S3GetObjectStreamFailureReason, S3GetObjectStreamResult } from '@/infra/s3/client';

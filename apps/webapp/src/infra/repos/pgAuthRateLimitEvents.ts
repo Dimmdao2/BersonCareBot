@@ -1,6 +1,6 @@
-import { sql } from "drizzle-orm";
-import { runWebappPgText, runWebappSql, runWebappTransaction } from "@/infra/db/runWebappSql";
-import type { AuthRateLimitAttemptResult } from "@/modules/auth/authRateLimitPort";
+import { sql } from 'drizzle-orm';
+import { runWebappPgText, runWebappSql, runWebappTransaction } from '@/infra/db/runWebappSql';
+import type { AuthRateLimitAttemptResult } from '@/modules/auth/authRateLimitPort';
 
 export type AuthRateLimitCheckParams = {
   scope: string;
@@ -16,7 +16,9 @@ export type AuthRateLimitCheckParams = {
 export const AUTH_RATE_LIMIT_SCOPE_PRUNE_MAX_BATCH = 1_000;
 
 /** Returns `true` when the key is rate-limited (event not recorded). */
-export async function checkAndRecordAuthRateLimitEvent(params: AuthRateLimitCheckParams): Promise<boolean> {
+export async function checkAndRecordAuthRateLimitEvent(
+  params: AuthRateLimitCheckParams,
+): Promise<boolean> {
   return (await recordAndCountAuthRateLimitEvent(params)).limited;
 }
 
@@ -31,7 +33,7 @@ export async function recordAndCountAuthRateLimitEvent(
     if (scopePrune) {
       const pruneLockKey = `auth-rate-limit-scope-prune:${scope}`;
       const lockResult = await runWebappPgText<{ acquired: boolean }>(
-        "SELECT pg_try_advisory_xact_lock(hashtext($1::text)) AS acquired",
+        'SELECT pg_try_advisory_xact_lock(hashtext($1::text)) AS acquired',
         [pruneLockKey],
         tx,
       );
@@ -43,7 +45,7 @@ export async function recordAndCountAuthRateLimitEvent(
           Math.min(AUTH_RATE_LIMIT_SCOPE_PRUNE_MAX_BATCH, Math.floor(scopePrune.batchSize)),
         );
         await runWebappPgText(
-          "SELECT app.auth_rate_limit_prune_scope($1, $2, $3)",
+          'SELECT app.auth_rate_limit_prune_scope($1, $2, $3)',
           [scope, retentionCutoff, batchSize],
           tx,
         );
@@ -54,26 +56,22 @@ export async function recordAndCountAuthRateLimitEvent(
 
     const windowStart = new Date(Date.now() - windowMs);
     await runWebappPgText(
-      "SELECT app.auth_rate_limit_prune_key($1, $2, $3)",
+      'SELECT app.auth_rate_limit_prune_key($1, $2, $3)',
       [scope, key, windowStart],
       tx,
     );
 
     const countResult = await runWebappPgText<{ c: string }>(
-      "SELECT app.auth_rate_limit_count($1, $2)::text AS c",
+      'SELECT app.auth_rate_limit_count($1, $2)::text AS c',
       [scope, key],
       tx,
     );
-    const attempts = Number.parseInt(countResult.rows[0]?.c ?? "0", 10);
+    const attempts = Number.parseInt(countResult.rows[0]?.c ?? '0', 10);
     if (attempts >= maxPerWindow) {
       return { limited: true, attempts };
     }
 
-    await runWebappPgText(
-      "SELECT app.auth_rate_limit_record($1, $2)",
-      [scope, key],
-      tx,
-    );
+    await runWebappPgText('SELECT app.auth_rate_limit_record($1, $2)', [scope, key], tx);
     return { limited: false, attempts: attempts + 1 };
   });
 }
@@ -89,16 +87,16 @@ export async function countActiveAuthRateLimitEvents(params: {
   return runWebappTransaction(async (tx) => {
     await runWebappSql(tx, sql`SELECT pg_advisory_xact_lock(hashtext(${lockKey}::text))`);
     await runWebappPgText(
-      "SELECT app.auth_rate_limit_prune_key($1, $2, $3)",
+      'SELECT app.auth_rate_limit_prune_key($1, $2, $3)',
       [scope, key, new Date(Date.now() - windowMs)],
       tx,
     );
     const countResult = await runWebappPgText<{ c: string }>(
-      "SELECT app.auth_rate_limit_count($1, $2)::text AS c",
+      'SELECT app.auth_rate_limit_count($1, $2)::text AS c',
       [scope, key],
       tx,
     );
-    return Number.parseInt(countResult.rows[0]?.c ?? "0", 10);
+    return Number.parseInt(countResult.rows[0]?.c ?? '0', 10);
   });
 }
 
@@ -112,7 +110,7 @@ export async function resetAuthRateLimitEvents(params: {
   await runWebappTransaction(async (tx) => {
     await runWebappSql(tx, sql`SELECT pg_advisory_xact_lock(hashtext(${lockKey}::text))`);
     await runWebappPgText(
-      "SELECT app.auth_rate_limit_prune_key($1, $2, $3)",
+      'SELECT app.auth_rate_limit_prune_key($1, $2, $3)',
       [scope, key, new Date()],
       tx,
     );

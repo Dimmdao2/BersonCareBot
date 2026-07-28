@@ -1,172 +1,172 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { RelayResult } from "@/modules/messaging/relayOutbound";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { RelayResult } from '@/modules/messaging/relayOutbound';
 
 const { relayMock, getConfigValueMock } = vi.hoisted(() => ({
-  relayMock: vi.fn(async (): Promise<RelayResult> => ({ ok: true, status: "accepted" })),
-  getConfigValueMock: vi.fn(async (_key: string, _fallback: string) => ""),
+  relayMock: vi.fn(async (): Promise<RelayResult> => ({ ok: true, status: 'accepted' })),
+  getConfigValueMock: vi.fn(async (_key: string, _fallback: string) => ''),
 }));
 
-vi.mock("@/modules/messaging/relayOutbound", () => ({
+vi.mock('@/modules/messaging/relayOutbound', () => ({
   relayOutbound: relayMock,
 }));
 
-vi.mock("@/modules/system-settings/configAdapter", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/modules/system-settings/configAdapter")>();
+vi.mock('@/modules/system-settings/configAdapter', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/modules/system-settings/configAdapter')>();
   return {
     ...actual,
     getConfigValue: (key: string, fallback: string) => getConfigValueMock(key, fallback),
   };
 });
 
-import { buildIntakeDeepLink, createIntakeNotificationRelay } from "./intakeNotificationRelay";
+import { buildIntakeDeepLink, createIntakeNotificationRelay } from './intakeNotificationRelay';
 
-describe("intakeNotificationRelay", () => {
+describe('intakeNotificationRelay', () => {
   beforeEach(() => {
     relayMock.mockReset();
     getConfigValueMock.mockReset();
-    relayMock.mockResolvedValue({ ok: true, status: "accepted" });
-    getConfigValueMock.mockImplementation(async () => "");
+    relayMock.mockResolvedValue({ ok: true, status: 'accepted' });
+    getConfigValueMock.mockImplementation(async () => '');
   });
 
-  it("sends telegram and max when targets present", async () => {
+  it('sends telegram and max when targets present', async () => {
     getConfigValueMock.mockImplementation(async (key: string) => {
-      if (key === "admin_telegram_ids") return "111";
-      if (key === "admin_max_ids") return "max-1";
-      return "";
+      if (key === 'admin_telegram_ids') return '111';
+      if (key === 'admin_max_ids') return 'max-1';
+      return '';
     });
 
     const port = createIntakeNotificationRelay();
     await port.notifyNewIntakeRequest({
-      requestId: "req-1",
-      type: "lfk",
-      patientName: "Иван",
-      patientPhone: "+7900",
-      summary: "Кратко",
+      requestId: 'req-1',
+      type: 'lfk',
+      patientName: 'Иван',
+      patientPhone: '+7900',
+      summary: 'Кратко',
     });
 
     expect(relayMock).toHaveBeenCalledTimes(2);
     expect(relayMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        channel: "telegram",
-        recipient: "111",
-        messageId: "req-1:tg:111",
+        channel: 'telegram',
+        recipient: '111',
+        messageId: 'req-1:tg:111',
         text: expect.stringMatching(/\/app\/doctor\/online-intake\/req-1/),
       }),
     );
     expect(relayMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        channel: "max",
-        recipient: "max-1",
-        messageId: "req-1:max:max-1",
+        channel: 'max',
+        recipient: 'max-1',
+        messageId: 'req-1:max:max-1',
         text: expect.stringMatching(/\/app\/doctor\/online-intake\/req-1/),
       }),
     );
   });
 
-  it("deduplicates same id in admin and doctor lists", async () => {
+  it('deduplicates same id in admin and doctor lists', async () => {
     getConfigValueMock.mockImplementation(async (key: string) => {
-      if (key === "admin_telegram_ids") return "999";
-      if (key === "doctor_telegram_ids") return "999";
-      return "";
+      if (key === 'admin_telegram_ids') return '999';
+      if (key === 'doctor_telegram_ids') return '999';
+      return '';
     });
 
     const port = createIntakeNotificationRelay();
     await port.notifyNewIntakeRequest({
-      requestId: "req-dedupe",
-      type: "nutrition",
-      patientName: "Мария",
-      patientPhone: "+7901",
-      summary: "",
+      requestId: 'req-dedupe',
+      type: 'nutrition',
+      patientName: 'Мария',
+      patientPhone: '+7901',
+      summary: '',
     });
 
     expect(relayMock).toHaveBeenCalledTimes(1);
     expect(relayMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        channel: "telegram",
-        recipient: "999",
-        messageId: "req-dedupe:tg:999",
+        channel: 'telegram',
+        recipient: '999',
+        messageId: 'req-dedupe:tg:999',
       }),
     );
   });
 
-  it("parses mixed separators for targets", async () => {
+  it('parses mixed separators for targets', async () => {
     getConfigValueMock.mockImplementation(async (key: string) => {
-      if (key === "admin_telegram_ids") return "111,222 333\n333";
-      if (key === "doctor_telegram_ids") return "444;555";
-      if (key === "admin_max_ids") return "max-1 max-2";
-      return "";
+      if (key === 'admin_telegram_ids') return '111,222 333\n333';
+      if (key === 'doctor_telegram_ids') return '444;555';
+      if (key === 'admin_max_ids') return 'max-1 max-2';
+      return '';
     });
 
     const port = createIntakeNotificationRelay();
     await port.notifyNewIntakeRequest({
-      requestId: "req-mixed",
-      type: "nutrition",
-      patientName: "Павел",
-      patientPhone: "+7905",
-      summary: "",
+      requestId: 'req-mixed',
+      type: 'nutrition',
+      patientName: 'Павел',
+      patientPhone: '+7905',
+      summary: '',
     });
 
     expect(relayMock).toHaveBeenCalledTimes(7);
   });
 
-  it("skips send when no targets configured", async () => {
+  it('skips send when no targets configured', async () => {
     const port = createIntakeNotificationRelay();
     await port.notifyNewIntakeRequest({
-      requestId: "req-empty",
-      type: "lfk",
-      patientName: "X",
-      patientPhone: "+7902",
-      summary: "текст",
+      requestId: 'req-empty',
+      type: 'lfk',
+      patientName: 'X',
+      patientPhone: '+7902',
+      summary: 'текст',
     });
 
     expect(relayMock).not.toHaveBeenCalled();
   });
 
-  it("does not throw when relay returns ok: false", async () => {
+  it('does not throw when relay returns ok: false', async () => {
     getConfigValueMock.mockImplementation(async (key: string) => {
-      if (key === "admin_telegram_ids") return "222";
-      return "";
+      if (key === 'admin_telegram_ids') return '222';
+      return '';
     });
-    relayMock.mockResolvedValue({ ok: false, reason: "no_integrator_url" });
+    relayMock.mockResolvedValue({ ok: false, reason: 'no_integrator_url' });
 
     const port = createIntakeNotificationRelay();
     await expect(
       port.notifyNewIntakeRequest({
-        requestId: "req-fail",
-        type: "lfk",
-        patientName: "Y",
-        patientPhone: "+7903",
-        summary: "",
+        requestId: 'req-fail',
+        type: 'lfk',
+        patientName: 'Y',
+        patientPhone: '+7903',
+        summary: '',
       }),
     ).resolves.toBeUndefined();
   });
 
-  it("does not throw when relay throws", async () => {
+  it('does not throw when relay throws', async () => {
     getConfigValueMock.mockImplementation(async (key: string) => {
-      if (key === "admin_telegram_ids") return "333";
-      return "";
+      if (key === 'admin_telegram_ids') return '333';
+      return '';
     });
-    relayMock.mockRejectedValue(new Error("network down"));
+    relayMock.mockRejectedValue(new Error('network down'));
 
     const port = createIntakeNotificationRelay();
     await expect(
       port.notifyNewIntakeRequest({
-        requestId: "req-throw",
-        type: "lfk",
-        patientName: "Z",
-        patientPhone: "+7904",
-        summary: "",
+        requestId: 'req-throw',
+        type: 'lfk',
+        patientName: 'Z',
+        patientPhone: '+7904',
+        summary: '',
       }),
     ).resolves.toBeUndefined();
   });
 
-  it("buildIntakeDeepLink includes request id in path", () => {
-    expect(buildIntakeDeepLink("550e8400-e29b-41d4-a716-446655440000")).toContain(
-      "/app/doctor/online-intake/550e8400-e29b-41d4-a716-446655440000",
+  it('buildIntakeDeepLink includes request id in path', () => {
+    expect(buildIntakeDeepLink('550e8400-e29b-41d4-a716-446655440000')).toContain(
+      '/app/doctor/online-intake/550e8400-e29b-41d4-a716-446655440000',
     );
   });
 
-  it("buildIntakeDeepLink falls back to list path when request id empty", () => {
-    expect(buildIntakeDeepLink("  ")).toMatch(/\/app\/doctor\/online-intake$/);
+  it('buildIntakeDeepLink falls back to list path when request id empty', () => {
+    expect(buildIntakeDeepLink('  ')).toMatch(/\/app\/doctor\/online-intake$/);
   });
 });

@@ -1,7 +1,7 @@
-import pino from "pino";
-import { randomUUID } from "node:crypto";
-import { getCurrentObservabilityContext } from "@bersoncare/db-principal";
-import { env } from "@/config/env";
+import pino from 'pino';
+import { randomUUID } from 'node:crypto';
+import { getCurrentObservabilityContext } from '@bersoncare/db-principal';
+import { env } from '@/config/env';
 
 /**
  * Unified error shape for pino serializers (aligned with integrator) — safe-by-
@@ -18,10 +18,10 @@ export type SerializedError = {
 const PG_SQLSTATE_PATTERN = /^[0-9A-Z]{5}$/;
 
 /** PostgreSQL SQLSTATE ("code") and its class (first 2 chars), if the shape matches. */
-function safePgErrorCode(err: unknown): Pick<SerializedError, "code" | "class"> {
-  if (err !== null && typeof err === "object" && "code" in err) {
+function safePgErrorCode(err: unknown): Pick<SerializedError, 'code' | 'class'> {
+  if (err !== null && typeof err === 'object' && 'code' in err) {
     const code = (err as { code?: unknown }).code;
-    if (typeof code === "string" && PG_SQLSTATE_PATTERN.test(code)) {
+    if (typeof code === 'string' && PG_SQLSTATE_PATTERN.test(code)) {
       return { code, class: code.slice(0, 2) };
     }
   }
@@ -42,25 +42,25 @@ export function serializeError(err: unknown): SerializedError {
     };
   }
 
-  if (typeof err === "object" && err !== null) {
+  if (typeof err === 'object' && err !== null) {
     const e = err as { name?: unknown };
     return {
-      type: typeof e.name === "string" ? e.name : "ErrorLike",
+      type: typeof e.name === 'string' ? e.name : 'ErrorLike',
       ...safePgErrorCode(err),
     };
   }
 
-  return { type: "UnknownError" };
+  return { type: 'UnknownError' };
 }
 
 function buildTransport(): pino.TransportSingleOptions | undefined {
-  const isDev = env.NODE_ENV === "development";
-  const isTest = env.NODE_ENV === "test";
+  const isDev = env.NODE_ENV === 'development';
+  const isTest = env.NODE_ENV === 'test';
   if (!isDev || isTest) return undefined;
 
   return {
-    target: "pino-pretty",
-    options: { colorize: true, translateTime: "SYS:standard" },
+    target: 'pino-pretty',
+    options: { colorize: true, translateTime: 'SYS:standard' },
   };
 }
 
@@ -68,25 +68,25 @@ const transport = buildTransport();
 
 /** Root logger: JSON in prod/test, pretty in development. */
 export const logger = pino({
-  level: env.LOG_LEVEL ?? "info",
+  level: env.LOG_LEVEL ?? 'info',
   ...(transport ? { transport } : {}),
-  base: { service: "bersoncare-webapp", pid: process.pid },
+  base: { service: 'bersoncare-webapp', pid: process.pid },
   mixin: getCurrentObservabilityContext,
   redact: {
     paths: [
-      "headers.authorization",
-      "headers.cookie",
-      "headers.x-*-secret-token",
-      "*.authorization",
-      "*.token",
-      "*.secret",
-      "*.apikey",
-      "*.apiKey",
-      "*.password",
-      "*.phone",
-      "*.phone_number",
+      'headers.authorization',
+      'headers.cookie',
+      'headers.x-*-secret-token',
+      '*.authorization',
+      '*.token',
+      '*.secret',
+      '*.apikey',
+      '*.apiKey',
+      '*.password',
+      '*.phone',
+      '*.phone_number',
     ],
-    censor: "[REDACTED]",
+    censor: '[REDACTED]',
   },
   serializers: {
     err: serializeError,
@@ -94,7 +94,7 @@ export const logger = pino({
   },
 });
 
-export function newEventId(prefix = "evt"): string {
+export function newEventId(prefix = 'evt'): string {
   return `${prefix}_${randomUUID()}`;
 }
 

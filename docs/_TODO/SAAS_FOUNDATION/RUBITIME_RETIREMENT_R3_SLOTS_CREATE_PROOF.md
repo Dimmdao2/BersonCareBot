@@ -12,15 +12,15 @@ bodies are recorded in this file.
 
 R3 covers patient/public slot reads and patient/public create only.
 
-| Surface | Runtime source after R3 |
-| --- | --- |
-| `GET /api/booking/slots` | canonical `booking-scheduling` |
-| public/patient create | native `be_appointments` through booking engine |
-| create overlap guard | canonical `assertSlotAvailable` plus DB constraints |
-| reschedule overlap guard | canonical `assertSlotAvailable` with `excludeAppointmentId` |
-| `booking_slots_read_source` | retired; old `rubitime` rows parse to `canonical` |
-| Settings UI | no longer offers Rubitime slots source |
-| Settings API | rejects `booking_slots_read_source=rubitime` |
+| Surface                     | Runtime source after R3                                     |
+| --------------------------- | ----------------------------------------------------------- |
+| `GET /api/booking/slots`    | canonical `booking-scheduling`                              |
+| public/patient create       | native `be_appointments` through booking engine             |
+| create overlap guard        | canonical `assertSlotAvailable` plus DB constraints         |
+| reschedule overlap guard    | canonical `assertSlotAvailable` with `excludeAppointmentId` |
+| `booking_slots_read_source` | retired; old `rubitime` rows parse to `canonical`           |
+| Settings UI                 | no longer offers Rubitime slots source                      |
+| Settings API                | rejects `booking_slots_read_source=rubitime`                |
 
 The old setting row may remain for audit/rollback, but it no longer changes patient/public slots or create behavior.
 
@@ -51,13 +51,12 @@ Implemented R3 runtime changes:
 
 Commands:
 
-| Command | Result |
-| --- | --- |
+| Command                                                                                                                                                                                                                                | Result                    |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- |
 | `pnpm -C apps/webapp exec vitest run src/modules/patient-booking/canonicalCreate.test.ts src/modules/patient-booking/service.test.ts src/app/api/admin/booking-engine/overview/route.test.ts src/app/api/admin/settings/route.test.ts` | PASS, 4 files / 140 tests |
-| `pnpm -C apps/webapp run typecheck` | PASS |
-| `pnpm run check:rubitime-retirement-r0` | PASS |
-| `git diff --check` | PASS |
+| `pnpm -C apps/webapp run typecheck`                                                                                                                                                                                                    | PASS                      |
+| `pnpm run check:rubitime-retirement-r0`                                                                                                                                                                                                | PASS                      |
+| `git diff --check`                                                                                                                                                                                                                     | PASS                      |
 
 Additional runtime smoke with the full local webapp server is still useful before production deployment, but not required
 to prove the R3 code boundary above.
-

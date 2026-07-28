@@ -2,16 +2,18 @@
  * Порядок пунктов «Программа этапа» (состав этапа на прогрессе / страница этапа).
  * Сервер-безопасный модуль — без `"use client"` (используется из RSC и из `patientProgramItemPageResolve`).
  */
-import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
+import type { TreatmentProgramInstanceDetail } from '@/modules/treatment-program/types';
 import {
   isInstanceStageItemShownInPatientCompositionModal,
   sortDoctorInstanceStageGroupsForDisplay,
-} from "@/modules/treatment-program/stage-semantics";
-import type { InstanceStageItem } from "@/app/app/patient/treatment/stageItemSnapshot";
+} from '@/modules/treatment-program/stage-semantics';
+import type { InstanceStageItem } from '@/app/app/patient/treatment/stageItemSnapshot';
 
-type Stage = TreatmentProgramInstanceDetail["stages"][number];
+type Stage = TreatmentProgramInstanceDetail['stages'][number];
 
-export function sortProgramCompositionItemsByOrderThenId<T extends { sortOrder: number; id: string }>(rows: T[]): T[] {
+export function sortProgramCompositionItemsByOrderThenId<
+  T extends { sortOrder: number; id: string },
+>(rows: T[]): T[] {
   return [...rows].sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id));
 }
 
@@ -24,8 +26,8 @@ export function isProgramCompositionItem(item: InstanceStageItem, stage: Stage):
 }
 
 export type ProgramCompositionSegment =
-  | { kind: "item"; item: InstanceStageItem }
-  | { kind: "group"; group: Stage["groups"][number]; items: InstanceStageItem[] };
+  | { kind: 'item'; item: InstanceStageItem }
+  | { kind: 'group'; group: Stage['groups'][number]; items: InstanceStageItem[] };
 
 /**
  * Порядок как в назначении: группы через {@link sortDoctorInstanceStageGroupsForDisplay},
@@ -38,15 +40,19 @@ export function buildProgramCompositionSegments(
   const sortedGroups = sortDoctorInstanceStageGroupsForDisplay(stage.groups).filter((g) =>
     visibleProgramItems.some((it) => it.groupId === g.id),
   );
-  const ungrouped = sortProgramCompositionItemsByOrderThenId(visibleProgramItems.filter((it) => !it.groupId));
+  const ungrouped = sortProgramCompositionItemsByOrderThenId(
+    visibleProgramItems.filter((it) => !it.groupId),
+  );
   const out: ProgramCompositionSegment[] = [];
   for (const g of sortedGroups) {
-    const gItems = sortProgramCompositionItemsByOrderThenId(visibleProgramItems.filter((it) => it.groupId === g.id));
+    const gItems = sortProgramCompositionItemsByOrderThenId(
+      visibleProgramItems.filter((it) => it.groupId === g.id),
+    );
     if (gItems.length === 0) continue;
-    out.push({ kind: "group", group: g, items: gItems });
+    out.push({ kind: 'group', group: g, items: gItems });
   }
   for (const it of ungrouped) {
-    out.push({ kind: "item", item: it });
+    out.push({ kind: 'item', item: it });
   }
   return out;
 }
@@ -59,7 +65,7 @@ export function flatOrderedProgramCompositionItemIds(stage: Stage): string[] {
   const segments = buildProgramCompositionSegments(stage, visibleProgramItems);
   const ids: string[] = [];
   for (const seg of segments) {
-    if (seg.kind === "item") ids.push(seg.item.id);
+    if (seg.kind === 'item') ids.push(seg.item.id);
     else for (const it of seg.items) ids.push(it.id);
   }
   return ids;

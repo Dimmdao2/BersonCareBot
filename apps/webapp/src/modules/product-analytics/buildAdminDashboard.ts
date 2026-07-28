@@ -1,21 +1,21 @@
 import {
   toDisplayZoneDayKey,
   toDisplayZoneHourBucketKey,
-} from "@/shared/datetime/displayTimeZoneFormat";
-import { truncateToUtcHour } from "@/modules/product-analytics/aggregateKeys";
+} from '@/shared/datetime/displayTimeZoneFormat';
+import { truncateToUtcHour } from '@/modules/product-analytics/aggregateKeys';
 import type {
   ProductAnalyticsAdminDashboard,
   ProductAnalyticsEntryChannel,
-} from "@/modules/product-analytics/types";
+} from '@/modules/product-analytics/types';
 import {
   groupProductAnalyticsPageKey,
   labelProductAnalyticsPageKey,
-} from "@/modules/product-analytics/productAnalyticsPageKey";
-import { labelProductAnalyticsTopicCode } from "@/modules/product-analytics/productAnalyticsTopicLabels";
+} from '@/modules/product-analytics/productAnalyticsPageKey';
+import { labelProductAnalyticsTopicCode } from '@/modules/product-analytics/productAnalyticsTopicLabels';
 import {
   PRODUCT_ANALYTICS_DIM_ALL,
   PRODUCT_ANALYTICS_ENTRY_CHANNELS,
-} from "@/modules/product-analytics/types";
+} from '@/modules/product-analytics/types';
 
 export const PRODUCT_ANALYTICS_TOP_PAGES_LIMIT = 40;
 export const PRODUCT_ANALYTICS_PAGE_HOURLY_TOP_PAGES_LIMIT = 8;
@@ -71,11 +71,7 @@ function addPageViewCount(map: Map<string, number>, rawPageKey: string, count: n
   map.set(key, (map.get(key) ?? 0) + count);
 }
 
-function addPageViewUser(
-  map: Map<string, Set<string>>,
-  rawPageKey: string,
-  userId: string,
-): void {
+function addPageViewUser(map: Map<string, Set<string>>, rawPageKey: string, userId: string): void {
   const key = rollupPageKey(rawPageKey);
   const users = map.get(key) ?? new Set<string>();
   users.add(userId);
@@ -157,13 +153,15 @@ export function buildAdminDashboard(input: {
       isRollupTotalDim(r.pushKind) &&
       isRollupTotalDim(r.warmupSloganKey);
 
-    if (r.eventType === "auth_login" && isPlatformTotal) {
+    if (r.eventType === 'auth_login' && isPlatformTotal) {
       totalAuthLogins += r.eventCount;
     }
 
-    if (r.eventType === "app_open" && isPlatformTotal) {
+    if (r.eventType === 'app_open' && isPlatformTotal) {
       totalAppOpens += r.eventCount;
-      if (PRODUCT_ANALYTICS_ENTRY_CHANNELS.includes(r.entryChannel as ProductAnalyticsEntryChannel)) {
+      if (
+        PRODUCT_ANALYTICS_ENTRY_CHANNELS.includes(r.entryChannel as ProductAnalyticsEntryChannel)
+      ) {
         const ch = r.entryChannel as ProductAnalyticsEntryChannel;
         const bucketKey = toDisplayZoneHourBucketKey(r.bucketHour, displayTimezone);
         const bucketRow = channelByBucket.get(bucketKey) ?? emptyChannelCounts();
@@ -173,7 +171,7 @@ export function buildAdminDashboard(input: {
       }
     }
 
-    if (r.eventType === "page_view" && !isRollupTotalDim(r.pageKey)) {
+    if (r.eventType === 'page_view' && !isRollupTotalDim(r.pageKey)) {
       addPageViewCount(pageViews, r.pageKey, r.eventCount);
       totalPageViews += r.eventCount;
       const bucketKey = toDisplayZoneHourBucketKey(r.bucketHour, displayTimezone);
@@ -182,23 +180,26 @@ export function buildAdminDashboard(input: {
       pageViewsByBucket.set(bucketKey, byPage);
     }
 
-    if (r.eventType === "push_sent") {
+    if (r.eventType === 'push_sent') {
       totalPushSent += r.eventCount;
       if (!isRollupTotalDim(r.topicCode)) {
         topicSent.set(r.topicCode, (topicSent.get(r.topicCode) ?? 0) + r.eventCount);
       }
-      if (r.pushKind === "warmup" && !isRollupTotalDim(r.warmupSloganKey)) {
+      if (r.pushKind === 'warmup' && !isRollupTotalDim(r.warmupSloganKey)) {
         sloganSent.set(r.warmupSloganKey, (sloganSent.get(r.warmupSloganKey) ?? 0) + r.eventCount);
       }
     }
 
-    if (r.eventType === "push_open") {
+    if (r.eventType === 'push_open') {
       totalPushOpens += r.eventCount;
       if (!isRollupTotalDim(r.topicCode)) {
         topicOpened.set(r.topicCode, (topicOpened.get(r.topicCode) ?? 0) + r.eventCount);
       }
-      if (r.pushKind === "warmup" && !isRollupTotalDim(r.warmupSloganKey)) {
-        sloganOpened.set(r.warmupSloganKey, (sloganOpened.get(r.warmupSloganKey) ?? 0) + r.eventCount);
+      if (r.pushKind === 'warmup' && !isRollupTotalDim(r.warmupSloganKey)) {
+        sloganOpened.set(
+          r.warmupSloganKey,
+          (sloganOpened.get(r.warmupSloganKey) ?? 0) + r.eventCount,
+        );
       }
     }
   }
@@ -225,7 +226,9 @@ export function buildAdminDashboard(input: {
       pageUniqueUsersByBucket.set(bucketKey, byPage);
     }
 
-    if (!PRODUCT_ANALYTICS_ENTRY_CHANNELS.includes(r.entryChannel as ProductAnalyticsEntryChannel)) {
+    if (
+      !PRODUCT_ANALYTICS_ENTRY_CHANNELS.includes(r.entryChannel as ProductAnalyticsEntryChannel)
+    ) {
       continue;
     }
     const ch = r.entryChannel as ProductAnalyticsEntryChannel;
@@ -234,7 +237,7 @@ export function buildAdminDashboard(input: {
       (() => {
         const created = {
           userId: r.userId,
-          displayName: input.userDisplayNames?.[r.userId] ?? "Пациент",
+          displayName: input.userDisplayNames?.[r.userId] ?? 'Пациент',
           lastSeenAt: null as string | null,
           appOpens: 0,
           pageViews: 0,
@@ -258,7 +261,10 @@ export function buildAdminDashboard(input: {
     client.pageViews += r.pageViews;
     client.pushOpens += r.pushOpens;
     client.activeMinutes += r.activeMinutes;
-    if (!client.lastSeenAt || new Date(r.lastSeenAt ?? r.bucketHour).getTime() > new Date(client.lastSeenAt).getTime()) {
+    if (
+      !client.lastSeenAt ||
+      new Date(r.lastSeenAt ?? r.bucketHour).getTime() > new Date(client.lastSeenAt).getTime()
+    ) {
       client.lastSeenAt = r.lastSeenAt ?? r.bucketHour;
     }
 
@@ -296,9 +302,7 @@ export function buildAdminDashboard(input: {
     .slice(0, PRODUCT_ANALYTICS_TOP_PAGES_LIMIT);
 
   const pageHourlyTopSet = new Set(
-    topPages
-      .slice(0, PRODUCT_ANALYTICS_PAGE_HOURLY_TOP_PAGES_LIMIT)
-      .map((row) => row.pageKey),
+    topPages.slice(0, PRODUCT_ANALYTICS_PAGE_HOURLY_TOP_PAGES_LIMIT).map((row) => row.pageKey),
   );
   const pageViewsHourly = [...pageViewsByBucket.entries()]
     .flatMap(([bucket, byPage]) =>
@@ -311,7 +315,10 @@ export function buildAdminDashboard(input: {
           uniqueUsers: pageUniqueUsersByBucket.get(bucket)?.get(pageKey)?.size ?? 0,
         })),
     )
-    .sort((a, b) => a.bucket.localeCompare(b.bucket) || b.views - a.views || a.pageKey.localeCompare(b.pageKey));
+    .sort(
+      (a, b) =>
+        a.bucket.localeCompare(b.bucket) || b.views - a.views || a.pageKey.localeCompare(b.pageKey),
+    );
 
   const topicCodes = new Set([...topicSent.keys(), ...topicOpened.keys()]);
   const pushByTopic = [...topicCodes]
@@ -361,7 +368,8 @@ export function buildAdminDashboard(input: {
           pushOpens: 0,
           activeMinutes: 0,
         };
-        const totalActivity = stats.appOpens + stats.pageViews + stats.pushOpens + stats.activeMinutes;
+        const totalActivity =
+          stats.appOpens + stats.pageViews + stats.pushOpens + stats.activeMinutes;
         return {
           entryChannel,
           appOpens: stats.appOpens,
@@ -387,7 +395,7 @@ export function buildAdminDashboard(input: {
     .sort(
       (a, b) =>
         b.totalActivity - a.totalActivity ||
-        (b.lastSeenAt ?? "").localeCompare(a.lastSeenAt ?? "") ||
+        (b.lastSeenAt ?? '').localeCompare(a.lastSeenAt ?? '') ||
         a.displayName.localeCompare(b.displayName),
     )
     .slice(0, PRODUCT_ANALYTICS_CLIENT_ACTIVITY_LIMIT);

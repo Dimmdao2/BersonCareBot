@@ -25,7 +25,17 @@ export type AppSettings = {
 
 const DEFAULT_ALLOWED_USER_TO_ADMIN: SupportRelayMessageType[] = ['text', 'photo', 'document'];
 const DEFAULT_ALLOWED_ADMIN_TO_USER: SupportRelayMessageType[] = [
-  'text', 'photo', 'document', 'voice', 'audio', 'video', 'video_note', 'animation', 'sticker', 'contact', 'location',
+  'text',
+  'photo',
+  'document',
+  'voice',
+  'audio',
+  'video',
+  'video_note',
+  'animation',
+  'sticker',
+  'contact',
+  'location',
 ];
 
 // Non-secret runtime settings. Kept out of .env on purpose.

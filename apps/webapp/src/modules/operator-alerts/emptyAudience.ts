@@ -14,15 +14,15 @@
  * (SNS давит отскочивший адрес на 7 суток; в Azure одно SMS `STOP` гасит все action group разом.)
  */
 
-export const EMPTY_AUDIENCE_JOB_FAMILY = "notifications" as const;
-export const EMPTY_AUDIENCE_JOB_KEY = "notification.empty_audience" as const;
+export const EMPTY_AUDIENCE_JOB_FAMILY = 'notifications' as const;
+export const EMPTY_AUDIENCE_JOB_KEY = 'notification.empty_audience' as const;
 
 /**
  * Операционное сообщение (алерт оператору, служебное уведомление персоналу) при пустой
  * аудитории уходит в fallback. Пользовательское (пациенту/врачу лично) в fallback уйти не
  * может — его нельзя переадресовать оператору, — но обязано быть посчитано и видно.
  */
-export type EmptyAudienceSeverity = "operational" | "user_facing";
+export type EmptyAudienceSeverity = 'operational' | 'user_facing';
 
 export type EmptyAudienceEvent = {
   /** Короткий стабильный ключ места (`notify_doctor_program_note`), без PII. */
@@ -58,29 +58,31 @@ export const EMPTY_EMPTY_AUDIENCE_COUNTER: EmptyAudienceCounterMeta = {
 const MAX_TRACKED_TOPICS = 40;
 
 function asNumber(value: unknown): number {
-  const n = typeof value === "number" ? value : Number(value);
+  const n = typeof value === 'number' ? value : Number(value);
   return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0;
 }
 
 export function parseEmptyAudienceCounter(meta: unknown): EmptyAudienceCounterMeta {
-  if (!meta || typeof meta !== "object" || Array.isArray(meta)) return { ...EMPTY_EMPTY_AUDIENCE_COUNTER, byTopic: {} };
+  if (!meta || typeof meta !== 'object' || Array.isArray(meta))
+    return { ...EMPTY_EMPTY_AUDIENCE_COUNTER, byTopic: {} };
   const m = meta as Record<string, unknown>;
   const byTopic: Record<string, number> = {};
   const rawByTopic = m.byTopic;
-  if (rawByTopic && typeof rawByTopic === "object" && !Array.isArray(rawByTopic)) {
+  if (rawByTopic && typeof rawByTopic === 'object' && !Array.isArray(rawByTopic)) {
     for (const [k, v] of Object.entries(rawByTopic as Record<string, unknown>)) {
       const n = asNumber(v);
       if (n > 0) byTopic[k] = n;
     }
   }
-  const lastSeverity = m.lastSeverity === "operational" || m.lastSeverity === "user_facing" ? m.lastSeverity : null;
+  const lastSeverity =
+    m.lastSeverity === 'operational' || m.lastSeverity === 'user_facing' ? m.lastSeverity : null;
   return {
     total: asNumber(m.total),
     operationalTotal: asNumber(m.operationalTotal),
     userFacingTotal: asNumber(m.userFacingTotal),
     byTopic,
-    lastAt: typeof m.lastAt === "string" && m.lastAt.trim() ? m.lastAt : null,
-    lastTopic: typeof m.lastTopic === "string" && m.lastTopic.trim() ? m.lastTopic : null,
+    lastAt: typeof m.lastAt === 'string' && m.lastAt.trim() ? m.lastAt : null,
+    lastTopic: typeof m.lastTopic === 'string' && m.lastTopic.trim() ? m.lastTopic : null,
     lastSeverity,
   };
 }
@@ -98,8 +100,8 @@ export function mergeEmptyAudienceCounter(
     .slice(0, MAX_TRACKED_TOPICS);
   return {
     total: previous.total + 1,
-    operationalTotal: previous.operationalTotal + (event.severity === "operational" ? 1 : 0),
-    userFacingTotal: previous.userFacingTotal + (event.severity === "user_facing" ? 1 : 0),
+    operationalTotal: previous.operationalTotal + (event.severity === 'operational' ? 1 : 0),
+    userFacingTotal: previous.userFacingTotal + (event.severity === 'user_facing' ? 1 : 0),
     byTopic: Object.fromEntries(trimmed),
     lastAt: nowIso,
     lastTopic: event.topic,

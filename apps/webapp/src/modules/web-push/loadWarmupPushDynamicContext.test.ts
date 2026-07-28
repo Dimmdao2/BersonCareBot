@@ -1,15 +1,15 @@
-import { describe, expect, it, vi } from "vitest";
-import type { PatientHomeBlock, PatientHomeBlockItem } from "@/modules/patient-home/ports";
-import { buildDailyWarmupPresentationSyncDeps } from "@/modules/patient-home/buildDailyWarmupPresentationSyncDeps";
-import { createInMemoryPatientDailyWarmupPresentationPort } from "@/infra/repos/inMemoryPatientDailyWarmupPresentation";
-import { getPatientHomeTodayConfig } from "@/modules/patient-home/todayConfig";
-import { loadWarmupPushDynamicContext } from "./loadWarmupPushDynamicContext";
+import { describe, expect, it, vi } from 'vitest';
+import type { PatientHomeBlock, PatientHomeBlockItem } from '@/modules/patient-home/ports';
+import { buildDailyWarmupPresentationSyncDeps } from '@/modules/patient-home/buildDailyWarmupPresentationSyncDeps';
+import { createInMemoryPatientDailyWarmupPresentationPort } from '@/infra/repos/inMemoryPatientDailyWarmupPresentation';
+import { getPatientHomeTodayConfig } from '@/modules/patient-home/todayConfig';
+import { loadWarmupPushDynamicContext } from './loadWarmupPushDynamicContext';
 
-function block(code: PatientHomeBlock["code"], items: PatientHomeBlockItem[]): PatientHomeBlock {
+function block(code: PatientHomeBlock['code'], items: PatientHomeBlockItem[]): PatientHomeBlock {
   return {
     code,
     title: code,
-    description: "",
+    description: '',
     isVisible: true,
     sortOrder: 10,
     iconImageUrl: null,
@@ -19,37 +19,40 @@ function block(code: PatientHomeBlock["code"], items: PatientHomeBlockItem[]): P
 
 const warmSection = {
   getBySlug: vi.fn(async (slug: string) =>
-    slug === "warmups" ?
-      { slug: "warmups", kind: "system" as const, systemParentCode: "warmups" as const }
-    : null,
+    slug === 'warmups'
+      ? { slug: 'warmups', kind: 'system' as const, systemParentCode: 'warmups' as const }
+      : null,
   ),
 };
 
-describe("loadWarmupPushDynamicContext", () => {
-  it("uses the same daily warmup title as home pick", async () => {
-    const getLatest = vi.fn(async () => "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+describe('loadWarmupPushDynamicContext', () => {
+  it('uses the same daily warmup title as home pick', async () => {
+    const getLatest = vi.fn(async () => 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
     const getBySlug = vi.fn(async (slug: string) =>
-      slug === "warm-a" || slug === "warm-b" ?
-        {
-          id: slug === "warm-a" ? "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" : "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
-          slug,
-          title: slug === "warm-a" ? "Warm A" : "Warm B",
-          summary: "",
-          imageUrl: null,
-          section: "warmups",
-        }
-      : null,
+      slug === 'warm-a' || slug === 'warm-b'
+        ? {
+            id:
+              slug === 'warm-a'
+                ? 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+                : 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+            slug,
+            title: slug === 'warm-a' ? 'Warm A' : 'Warm B',
+            summary: '',
+            imageUrl: null,
+            section: 'warmups',
+          }
+        : null,
     );
 
     const homeDeps = {
       patientHomeBlocks: {
         listBlocksWithItems: async () => [
-          block("daily_warmup", [
+          block('daily_warmup', [
             {
-              id: "i1",
-              blockCode: "daily_warmup",
-              targetType: "content_page",
-              targetRef: "warm-a",
+              id: 'i1',
+              blockCode: 'daily_warmup',
+              targetType: 'content_page',
+              targetRef: 'warm-a',
               titleOverride: null,
               subtitleOverride: null,
               imageUrlOverride: null,
@@ -58,10 +61,10 @@ describe("loadWarmupPushDynamicContext", () => {
               sortOrder: 0,
             },
             {
-              id: "i2",
-              blockCode: "daily_warmup",
-              targetType: "content_page",
-              targetRef: "warm-b",
+              id: 'i2',
+              blockCode: 'daily_warmup',
+              targetType: 'content_page',
+              targetRef: 'warm-b',
               titleOverride: null,
               subtitleOverride: null,
               imageUrlOverride: null,
@@ -82,20 +85,20 @@ describe("loadWarmupPushDynamicContext", () => {
       ...homeDeps,
       patientDailyWarmupPresentation: presentationPort,
       patientPractice: { getLatestDailyWarmupCompletedContentPageId: getLatest },
-      patientCalendarTimezone: { getIanaForUser: async () => "Europe/Moscow" },
+      patientCalendarTimezone: { getIanaForUser: async () => 'Europe/Moscow' },
     });
 
     const todayCfg = await getPatientHomeTodayConfig(
       homeDeps,
       {
-        tier: "patient",
-        userId: "user-1",
+        tier: 'patient',
+        userId: 'user-1',
         getLatestCompletedContentPageId: getLatest,
       },
       syncDeps,
     );
 
-    const pushCtx = await loadWarmupPushDynamicContext("user-1", {
+    const pushCtx = await loadWarmupPushDynamicContext('user-1', {
       listRulesByUser: async () => [],
       listPracticeCompletionsInRange: async () => [],
       patientHomeBlocks: homeDeps.patientHomeBlocks,
@@ -106,7 +109,7 @@ describe("loadWarmupPushDynamicContext", () => {
       presentationSyncDeps: syncDeps,
     });
 
-    expect(todayCfg.dailyWarmupItem?.page?.title).toBe("Warm B");
-    expect(pushCtx.dailyWarmupTitle).toBe("Warm A");
+    expect(todayCfg.dailyWarmupItem?.page?.title).toBe('Warm B');
+    expect(pushCtx.dailyWarmupTitle).toBe('Warm A');
   });
 });

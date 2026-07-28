@@ -1,15 +1,35 @@
-import { describe, expect, it } from "vitest";
-import { resolvePatientMessageChannels } from "./resolvePatientMessageChannels";
+import { describe, expect, it } from 'vitest';
+import { resolvePatientMessageChannels } from './resolvePatientMessageChannels';
 
 const allOn = [
-  { channelCode: "telegram" as const, isEnabledForMessages: true, isEnabledForNotifications: true, isPreferredForAuth: false },
-  { channelCode: "max" as const, isEnabledForMessages: true, isEnabledForNotifications: true, isPreferredForAuth: false },
-  { channelCode: "email" as const, isEnabledForMessages: true, isEnabledForNotifications: true, isPreferredForAuth: false },
-  { channelCode: "web_push" as const, isEnabledForMessages: true, isEnabledForNotifications: true, isPreferredForAuth: false },
+  {
+    channelCode: 'telegram' as const,
+    isEnabledForMessages: true,
+    isEnabledForNotifications: true,
+    isPreferredForAuth: false,
+  },
+  {
+    channelCode: 'max' as const,
+    isEnabledForMessages: true,
+    isEnabledForNotifications: true,
+    isPreferredForAuth: false,
+  },
+  {
+    channelCode: 'email' as const,
+    isEnabledForMessages: true,
+    isEnabledForNotifications: true,
+    isPreferredForAuth: false,
+  },
+  {
+    channelCode: 'web_push' as const,
+    isEnabledForMessages: true,
+    isEnabledForNotifications: true,
+    isPreferredForAuth: false,
+  },
 ];
 
-describe("resolvePatientMessageChannels", () => {
-  it("selects all linked channels when messages are enabled", () => {
+describe('resolvePatientMessageChannels', () => {
+  it('selects all linked channels when messages are enabled', () => {
     const r = resolvePatientMessageChannels({
       channelPrefs: allOn,
       availability: {
@@ -22,13 +42,13 @@ describe("resolvePatientMessageChannels", () => {
         smtpConfigured: true,
       },
     });
-    expect(r.selectedChannels).toEqual(["web_push", "telegram", "max", "email"]);
+    expect(r.selectedChannels).toEqual(['web_push', 'telegram', 'max', 'email']);
   });
 
-  it("skips telegram when isEnabledForMessages is false", () => {
+  it('skips telegram when isEnabledForMessages is false', () => {
     const r = resolvePatientMessageChannels({
       channelPrefs: allOn.map((p) =>
-        p.channelCode === "telegram" ? { ...p, isEnabledForMessages: false } : p,
+        p.channelCode === 'telegram' ? { ...p, isEnabledForMessages: false } : p,
       ),
       availability: {
         hasTelegram: true,
@@ -39,6 +59,6 @@ describe("resolvePatientMessageChannels", () => {
         vapidConfigured: false,
       },
     });
-    expect(r.selectedChannels).not.toContain("telegram");
+    expect(r.selectedChannels).not.toContain('telegram');
   });
 });

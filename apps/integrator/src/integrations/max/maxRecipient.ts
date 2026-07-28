@@ -20,8 +20,8 @@ export function maxBindingRecipient(
   legacyChatId?: number,
 ): { userId: number } {
   const userId =
-    parseMaxPlatformUserId(externalId)
-    ?? (legacyChatId !== undefined ? parseMaxPlatformUserId(legacyChatId) : undefined);
+    parseMaxPlatformUserId(externalId) ??
+    (legacyChatId !== undefined ? parseMaxPlatformUserId(legacyChatId) : undefined);
   if (userId === undefined || userId <= 0) {
     throw new Error('MAX_RECIPIENT_INVALID: platform user id required');
   }

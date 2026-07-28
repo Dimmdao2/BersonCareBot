@@ -11,27 +11,27 @@
 
 ## 2. Scope Verification
 
-| Requirement | Source | Status | Evidence |
-|-------------|--------|--------|------------|
-| Две оси query `arch` × `pub` | STAGE_B1 §3, ТЗ §3 B1 | **PASS** | `parseDoctorCatalogPubArchQuery`, `applyDoctorCatalogPubArchToSearchParams` в [`apps/webapp/src/shared/lib/doctorCatalogListStatus.ts`](../../../../apps/webapp/src/shared/lib/doctorCatalogListStatus.ts) |
-| Legacy `status=` / `scope=` | STAGE_B1 §3 | **PASS** (с оговорками) | Тот же файл: `arch` из `status=archived`; `pub` из `status=draft|published` при неархивном списке; `working`/`active` → pub по умолчанию `all`. Старое `status=all` для шаблонов ранее сворачивалось в «active» и в одноосевом парсере — регресс не хуже прежнего. |
-| Shared UI два селекта | STAGE_B1 §3 | **PASS** | [`CatalogStatusFilters.tsx`](../../../../apps/webapp/src/shared/ui/doctor/CatalogStatusFilters.tsx), шапка [`DoctorCatalogListSortHeader.tsx`](../../../../apps/webapp/src/shared/ui/doctor/DoctorCatalogListSortHeader.tsx) с `catalogPubArch` |
-| Три списка: ЛФК | STAGE_B1 | **PASS** | [`lfk-templates/page.tsx`](../../../../apps/webapp/src/app/app/doctor/lfk-templates/page.tsx) + `lfkTemplateFilterFromPubArch` + `pgLfkTemplates` `statusIn` |
-| Три списка: шаблоны программ | STAGE_B1 | **PASS** | [`treatment-program-templates/page.tsx`](../../../../apps/webapp/src/app/app/doctor/treatment-program-templates/page.tsx) + `treatmentProgramTemplateFilterFromPubArch` |
-| Три списка: наборы тестов | STAGE_B1 | **PASS** | [`test-sets/page.tsx`](../../../../apps/webapp/src/app/app/doctor/test-sets/page.tsx) + `testSetListFilterFromPubArch` + `pgTestSets` по `publicationScope` |
-| Публикация в БД для `test_sets` | PRE_IMPLEMENTATION_DECISIONS B1 | **PASS** | Колонка **`publication_status`** (не `status`): [`clinicalTests.ts`](../../../../apps/webapp/db/schema/clinicalTests.ts), миграция [`0033_test_sets_publication_status.sql`](../../../../apps/webapp/db/drizzle-migrations/0033_test_sets_publication_status.sql), CHECK + индекс |
-| Восстановление из архива не меняет публикацию | ТЗ §2.1 | **PASS** (по коду) | `archive`/`unarchive` в `pgTestSets` не трогают `publicationStatus`; форма архива не меняет селект публикации |
+| Requirement                                   | Source                          | Status                  | Evidence                                                                                                                                                                                                                                                                          |
+| --------------------------------------------- | ------------------------------- | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Две оси query `arch` × `pub`                  | STAGE_B1 §3, ТЗ §3 B1           | **PASS**                | `parseDoctorCatalogPubArchQuery`, `applyDoctorCatalogPubArchToSearchParams` в [`apps/webapp/src/shared/lib/doctorCatalogListStatus.ts`](../../../../apps/webapp/src/shared/lib/doctorCatalogListStatus.ts)                                                                        |
+| Legacy `status=` / `scope=`                   | STAGE_B1 §3                     | **PASS** (с оговорками) | Тот же файл: `arch` из `status=archived`; `pub` из `status=draft                                                                                                                                                                                                                  | published`при неархивном списке;`working`/`active`→ pub по умолчанию`all`. Старое `status=all` для шаблонов ранее сворачивалось в «active» и в одноосевом парсере — регресс не хуже прежнего. |
+| Shared UI два селекта                         | STAGE_B1 §3                     | **PASS**                | [`CatalogStatusFilters.tsx`](../../../../apps/webapp/src/shared/ui/doctor/CatalogStatusFilters.tsx), шапка [`DoctorCatalogListSortHeader.tsx`](../../../../apps/webapp/src/shared/ui/doctor/DoctorCatalogListSortHeader.tsx) с `catalogPubArch`                                   |
+| Три списка: ЛФК                               | STAGE_B1                        | **PASS**                | [`lfk-templates/page.tsx`](../../../../apps/webapp/src/app/app/doctor/lfk-templates/page.tsx) + `lfkTemplateFilterFromPubArch` + `pgLfkTemplates` `statusIn`                                                                                                                      |
+| Три списка: шаблоны программ                  | STAGE_B1                        | **PASS**                | [`treatment-program-templates/page.tsx`](../../../../apps/webapp/src/app/app/doctor/treatment-program-templates/page.tsx) + `treatmentProgramTemplateFilterFromPubArch`                                                                                                           |
+| Три списка: наборы тестов                     | STAGE_B1                        | **PASS**                | [`test-sets/page.tsx`](../../../../apps/webapp/src/app/app/doctor/test-sets/page.tsx) + `testSetListFilterFromPubArch` + `pgTestSets` по `publicationScope`                                                                                                                       |
+| Публикация в БД для `test_sets`               | PRE_IMPLEMENTATION_DECISIONS B1 | **PASS**                | Колонка **`publication_status`** (не `status`): [`clinicalTests.ts`](../../../../apps/webapp/db/schema/clinicalTests.ts), миграция [`0033_test_sets_publication_status.sql`](../../../../apps/webapp/db/drizzle-migrations/0033_test_sets_publication_status.sql), CHECK + индекс |
+| Восстановление из архива не меняет публикацию | ТЗ §2.1                         | **PASS** (по коду)      | `archive`/`unarchive` в `pgTestSets` не трогают `publicationStatus`; форма архива не меняет селект публикации                                                                                                                                                                     |
 
 ## 3. Changed Files (ревью-ориентир)
 
-| Область | Файлы | Risk |
-|---------|-------|------|
-| Парсер / билдеры | `doctorCatalogListStatus.ts`, `*.test.ts` | low |
-| UI фильтров | `CatalogStatusFilters.tsx`, `DoctorCatalogListSortHeader.tsx`, `DoctorCatalogFiltersForm.tsx` | low |
-| Страницы каталогов | `lfk-templates/page.tsx`, `treatment-program-templates/page.tsx`, `test-sets/page.tsx`, `*PageClient.tsx` | medium |
-| Схема / миграция | `clinicalTests.ts`, `0033_*.sql`, `_journal.json` | low при применённом migrate |
-| Репозитории | `pgTestSets.ts`, `pgLfkTemplates.ts`, `inMemoryTestSets.ts` | low |
-| Форма набора / actions | `TestSetForm.tsx`, `actionsShared.ts`, `actionsInline.ts` | low |
+| Область                | Файлы                                                                                                     | Risk                        |
+| ---------------------- | --------------------------------------------------------------------------------------------------------- | --------------------------- |
+| Парсер / билдеры       | `doctorCatalogListStatus.ts`, `*.test.ts`                                                                 | low                         |
+| UI фильтров            | `CatalogStatusFilters.tsx`, `DoctorCatalogListSortHeader.tsx`, `DoctorCatalogFiltersForm.tsx`             | low                         |
+| Страницы каталогов     | `lfk-templates/page.tsx`, `treatment-program-templates/page.tsx`, `test-sets/page.tsx`, `*PageClient.tsx` | medium                      |
+| Схема / миграция       | `clinicalTests.ts`, `0033_*.sql`, `_journal.json`                                                         | low при применённом migrate |
+| Репозитории            | `pgTestSets.ts`, `pgLfkTemplates.ts`, `inMemoryTestSets.ts`                                               | low                         |
+| Форма набора / actions | `TestSetForm.tsx`, `actionsShared.ts`, `actionsInline.ts`                                                 | low                         |
 
 ## 4. Architecture Rules Check
 
@@ -52,8 +52,8 @@
 
 ## 7. Data Migration / Backfill
 
-| Migration | Reversible? | Backfill? | Notes |
-|-----------|-------------|-------------|--------|
+| Migration                           | Reversible?            | Backfill?                                      | Notes                                                                                                          |
+| ----------------------------------- | ---------------------- | ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
 | `0033_test_sets_publication_status` | Частично (DROP COLUMN) | Да: `DEFAULT 'draft' NOT NULL` на всех строках | Исторически все наборы становятся черновиками по публикации до ручного «Опубликован» — ожидаемо для новой оси. |
 
 ## 8. Test Evidence (зафиксировано в LOG B1)
@@ -110,12 +110,12 @@ pnpm exec tsc --noEmit   # в каталоге apps/webapp
 
 ## 13. FIX 2026-05-03 (закрытие AUDIT)
 
-| ID | Действие | Файлы |
-|----|----------|--------|
+| ID       | Действие                                 | Файлы                                                                                                                                                                  |
+| -------- | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | critical | Hidden `arch`/`pub` в GET-форме каталога | `DoctorCatalogFiltersForm.tsx`, `DoctorCatalogFiltersForm.test.tsx`, `LfkTemplatesPageClient.tsx`, `TreatmentProgramTemplatesPageClient.tsx`, `TestSetsPageClient.tsx` |
-| major | Picker: только опубликованные наборы | `treatment-program-templates/page.tsx` |
-| major | API list: `arch` + `publicationScope` | `route.ts` (`test-sets`), `doctorCatalogListStatus.ts` (`testSetListFilterFromDoctorApiGetQuery`), `doctorCatalogListStatus.test.ts`, `api.md` |
-| minor | Доки/промпты `publication_status` | `PROMPTS_EXEC_AUDIT_FIX_GLOBAL.md`, `STAGE_B1_PLAN.md` |
+| major    | Picker: только опубликованные наборы     | `treatment-program-templates/page.tsx`                                                                                                                                 |
+| major    | API list: `arch` + `publicationScope`    | `route.ts` (`test-sets`), `doctorCatalogListStatus.ts` (`testSetListFilterFromDoctorApiGetQuery`), `doctorCatalogListStatus.test.ts`, `api.md`                         |
+| minor    | Доки/промпты `publication_status`        | `PROMPTS_EXEC_AUDIT_FIX_GLOBAL.md`, `STAGE_B1_PLAN.md`                                                                                                                 |
 
 ---
 
@@ -141,9 +141,9 @@ pnpm exec tsc --noEmit   # в каталоге apps/webapp
 
 ## 16. FIX defer-closure 2026-05-03 (toast `arch`/`pub`)
 
-| Действие | Файлы |
-|----------|--------|
-| Детекция явно битых `arch`/`pub` | [`doctorCatalogListStatus.ts`](../../../../apps/webapp/src/shared/lib/doctorCatalogListStatus.ts) — `explicitDoctorCatalogPubArchParamsInvalid`; [`doctorCatalogListStatus.test.ts`](../../../../apps/webapp/src/shared/lib/doctorCatalogListStatus.test.ts) |
+| Действие                         | Файлы                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Детекция явно битых `arch`/`pub` | [`doctorCatalogListStatus.ts`](../../../../apps/webapp/src/shared/lib/doctorCatalogListStatus.ts) — `explicitDoctorCatalogPubArchParamsInvalid`; [`doctorCatalogListStatus.test.ts`](../../../../apps/webapp/src/shared/lib/doctorCatalogListStatus.test.ts)                                                                                                                                                                                                                                                                         |
 | Toast на три каталога с B1-осями | [`DoctorCatalogInvalidPubArchToast.tsx`](../../../../apps/webapp/src/shared/ui/doctor/DoctorCatalogInvalidPubArchToast.tsx); подключение в [`LfkTemplatesPageClient.tsx`](../../../../apps/webapp/src/app/app/doctor/lfk-templates/LfkTemplatesPageClient.tsx), [`TestSetsPageClient.tsx`](../../../../apps/webapp/src/app/app/doctor/test-sets/TestSetsPageClient.tsx), [`TreatmentProgramTemplatesPageClient.tsx`](../../../../apps/webapp/src/app/app/doctor/treatment-program-templates/TreatmentProgramTemplatesPageClient.tsx) |
 
 **Примечание:** не затрагивает каталоги без осей `arch`×`pub` (например клинические тесты с одной осью `status`).

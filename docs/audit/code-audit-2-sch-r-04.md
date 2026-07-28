@@ -23,6 +23,7 @@ All 8 verification points pass. No bugs found. TypeScript compiles clean (0 erro
 Backend `upsertBody` requires: `weekday`, `startMinute`, `endMinute` (mandatory); `specialistId`, `branchId`, `roomId`, `replace` (optional).
 
 `handleSaveWeekdayTemplate` (line ~701) sends:
+
 ```json
 {
   "weekday": selectedWeekday,
@@ -45,9 +46,7 @@ Backend also validates `startMinute < endMinute` — the frontend performs `time
 **PASS**
 
 ```typescript
-const toDeactivate = workingHours.filter(
-  (r) => r.weekday === selectedWeekday && r.isActive,
-);
+const toDeactivate = workingHours.filter((r) => r.weekday === selectedWeekday && r.isActive);
 ```
 
 `WorkingHoursRow` type (line 73) includes `id`, `weekday`, `isActive`, `branchId`. The filter correctly matches by weekday and active flag. Each matched row is DELETEd via `DELETE /working-hours?id=<uuid>`, which calls `deactivateWorkingHours` on the backend. This is semantically correct — the backend uses soft-delete (`isActive = false`), not hard-delete, so the rows remain for audit/history.
@@ -61,9 +60,11 @@ No issue: the backend DELETE handler validates that the authenticated org owns t
 **PASS**
 
 Both `handleSaveWeekdayTemplate` and `handleClearWeekdayTemplate` begin with:
+
 ```typescript
 if (selectedWeekday === null) return;
 ```
+
 This guard is present and executes before any state mutation or API call. Additionally, the button that triggers these handlers is only rendered when `selectedCount > 0`, and weekday mode requires `selectedWeekday` to be set (it is set atomically with `selectionMode = "weekday"` in `handleWeekdayHeaderClick`). Null is therefore blocked at two layers.
 
 ---
@@ -73,6 +74,7 @@ This guard is present and executes before any state mutation or API call. Additi
 **PASS**
 
 Line 1042:
+
 ```tsx
 <input
   type="checkbox"
@@ -93,6 +95,7 @@ Controlled component binding is correct. `checked` is bound to `weekdayPermanent
 **PASS**
 
 `run()` (lines 664–676):
+
 ```typescript
 function run(fn: () => Promise<void>, successMsg: string) {
   setActionError(null);
@@ -105,7 +108,7 @@ function run(fn: () => Promise<void>, successMsg: string) {
       loadWorkingHours(); // SCH-R-08: reload template state after every save
       setActionOk(successMsg);
     } catch (e) {
-      setActionError(e instanceof Error ? e.message : "action_failed");
+      setActionError(e instanceof Error ? e.message : 'action_failed');
     }
   });
 }
@@ -120,10 +123,19 @@ All mutations (`handleSaveWeekdayTemplate`, `handleClearWeekdayTemplate`, `handl
 **PASS**
 
 ```typescript
-const WD_LABEL: Record<number, string> = {0:"Вс",1:"Пн",2:"Вт",3:"Ср",4:"Чт",5:"Пт",6:"Сб"};
+const WD_LABEL: Record<number, string> = {
+  0: 'Вс',
+  1: 'Пн',
+  2: 'Вт',
+  3: 'Ср',
+  4: 'Чт',
+  5: 'Пт',
+  6: 'Сб',
+};
 ```
 
 This matches the encoding used throughout the file. Weekday mapping cross-checked: `handleWeekdayHeaderClick` derives weekday as `luxonWd % 7` where Luxon weekday is 1=Mon..7=Sun. So:
+
 - Mon (Luxon 1) → `1 % 7 = 1` → `WD_LABEL[1] = "Пн"` ✓
 - Tue (Luxon 2) → `2 % 7 = 2` → `"Вт"` ✓
 - Sun (Luxon 7) → `7 % 7 = 0` → `WD_LABEL[0] = "Вс"` ✓
@@ -138,10 +150,11 @@ All 7 entries are consistent with the Luxon-based encoding and Russian day-of-we
 **PASS**
 
 `handleSave` (line 735):
+
 ```typescript
 function handleSave() {
   // SCH-R-04: weekday mode + permanent checkbox ON → save template
-  if (selectionMode === "weekday" && weekdayPermanent) {
+  if (selectionMode === 'weekday' && weekdayPermanent) {
     handleSaveWeekdayTemplate();
     return;
   }
@@ -162,12 +175,11 @@ Trace is unambiguous: the condition is `selectionMode === "weekday" && weekdayPe
 **PASS**
 
 `handleClearWeekdayTemplate` (line ~719):
+
 ```typescript
-const toDeactivate = workingHours.filter(
-  (r) => r.weekday === selectedWeekday && r.isActive,
-);
+const toDeactivate = workingHours.filter((r) => r.weekday === selectedWeekday && r.isActive);
 if (toDeactivate.length === 0) {
-  setActionOk(`Шаблон ${WD_LABEL[selectedWeekday] ?? ""} уже не установлен`);
+  setActionOk(`Шаблон ${WD_LABEL[selectedWeekday] ?? ''} уже не установлен`);
   return;
 }
 ```

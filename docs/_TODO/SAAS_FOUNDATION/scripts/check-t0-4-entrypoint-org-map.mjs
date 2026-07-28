@@ -1,34 +1,35 @@
 #!/usr/bin/env node
-import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { join, relative } from 'node:path';
 
 const repoRoot = process.cwd();
 
 const files = {
-  map: "docs/_TODO/SAAS_FOUNDATION/T0_4_ENTRYPOINT_ORG_CONTEXT_MAP.md",
-  checklist: "docs/_TODO/SAAS_FOUNDATION/T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md",
-  routes: "apps/integrator/src/app/routes.ts",
-  telegramWebhook: "apps/integrator/src/integrations/telegram/webhook.ts",
-  telegramLongPolling: "apps/integrator/src/integrations/telegram/longPolling.ts",
-  telegramTest: "apps/integrator/src/integrations/telegram/processTelegramUpdate.test.ts",
-  maxWebhook: "apps/integrator/src/integrations/max/webhook.ts",
-  maxTest: "apps/integrator/src/integrations/max/webhook.test.ts",
-  requestContactRoute: "apps/integrator/src/integrations/bersoncare/requestContactRoute.ts",
-  requestContactTest: "apps/integrator/src/integrations/bersoncare/requestContactRoute.test.ts",
-  reminderRulesRoute: "apps/integrator/src/integrations/bersoncare/reminderRulesRoute.ts",
-  reminderRulesTest: "apps/integrator/src/integrations/bersoncare/reminderRulesRoute.test.ts",
-  rubitimeAudit: "docs/_TODO/SAAS_FOUNDATION/T0_4_RUBITIME_APPOINTMENT_ORG_AUDIT.md",
-  schedulerMain: "apps/integrator/src/infra/runtime/scheduler/main.ts",
-  reminderHandler: "apps/integrator/src/kernel/domain/executor/handlers/reminders.ts",
-  reminderTenantTest: "apps/integrator/src/kernel/domain/executor/handlers/reminders.tenantContext.test.ts",
-  outgoingWorker: "apps/integrator/src/infra/runtime/worker/outgoingDeliveryWorker.ts",
-  outgoingWorkerTest: "apps/integrator/src/infra/runtime/worker/outgoingDeliveryWorker.test.ts",
-  projectionWorker: "apps/integrator/src/infra/runtime/worker/projectionWorker.ts",
-  jobExecutor: "apps/integrator/src/infra/runtime/worker/jobExecutor.ts",
-  publicProductSchema: "apps/integrator/src/infra/db/schema/integratorPublicProduct.ts",
+  map: 'docs/_TODO/SAAS_FOUNDATION/T0_4_ENTRYPOINT_ORG_CONTEXT_MAP.md',
+  checklist: 'docs/_TODO/SAAS_FOUNDATION/T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md',
+  routes: 'apps/integrator/src/app/routes.ts',
+  telegramWebhook: 'apps/integrator/src/integrations/telegram/webhook.ts',
+  telegramLongPolling: 'apps/integrator/src/integrations/telegram/longPolling.ts',
+  telegramTest: 'apps/integrator/src/integrations/telegram/processTelegramUpdate.test.ts',
+  maxWebhook: 'apps/integrator/src/integrations/max/webhook.ts',
+  maxTest: 'apps/integrator/src/integrations/max/webhook.test.ts',
+  requestContactRoute: 'apps/integrator/src/integrations/bersoncare/requestContactRoute.ts',
+  requestContactTest: 'apps/integrator/src/integrations/bersoncare/requestContactRoute.test.ts',
+  reminderRulesRoute: 'apps/integrator/src/integrations/bersoncare/reminderRulesRoute.ts',
+  reminderRulesTest: 'apps/integrator/src/integrations/bersoncare/reminderRulesRoute.test.ts',
+  rubitimeAudit: 'docs/_TODO/SAAS_FOUNDATION/T0_4_RUBITIME_APPOINTMENT_ORG_AUDIT.md',
+  schedulerMain: 'apps/integrator/src/infra/runtime/scheduler/main.ts',
+  reminderHandler: 'apps/integrator/src/kernel/domain/executor/handlers/reminders.ts',
+  reminderTenantTest:
+    'apps/integrator/src/kernel/domain/executor/handlers/reminders.tenantContext.test.ts',
+  outgoingWorker: 'apps/integrator/src/infra/runtime/worker/outgoingDeliveryWorker.ts',
+  outgoingWorkerTest: 'apps/integrator/src/infra/runtime/worker/outgoingDeliveryWorker.test.ts',
+  projectionWorker: 'apps/integrator/src/infra/runtime/worker/projectionWorker.ts',
+  jobExecutor: 'apps/integrator/src/infra/runtime/worker/jobExecutor.ts',
+  publicProductSchema: 'apps/integrator/src/infra/db/schema/integratorPublicProduct.ts',
 };
 
-const sourceRoots = ["apps/integrator/src"];
+const sourceRoots = ['apps/integrator/src'];
 const mailingsWriterPatterns = [
   /insert\s*\(\s*mailings\s*\)/,
   /\.insert\s*\(\s*mailings\s*\)/,
@@ -39,7 +40,7 @@ const mailingsWriterPatterns = [
 ];
 
 function read(path) {
-  return readFileSync(join(repoRoot, path), "utf8");
+  return readFileSync(join(repoRoot, path), 'utf8');
 }
 
 function assertContains(name, text, needle) {
@@ -73,7 +74,7 @@ function listFiles(dir) {
 function assertNoRuntimeMailingsWriter(overrides = {}) {
   const filesToScan = sourceRoots.flatMap((root) => listFiles(root));
   for (const file of filesToScan) {
-    if (file.includes("/migrations/")) continue;
+    if (file.includes('/migrations/')) continue;
     const text = overrides[file] ?? read(file);
     for (const pattern of mailingsWriterPatterns) {
       if (pattern.test(text)) {
@@ -107,151 +108,155 @@ function runChecks(overrides = {}) {
   const publicProductSchema = overrides.publicProductSchema ?? read(files.publicProductSchema);
 
   for (const needle of [
-    "T0.4 integrator entrypoint organization-context map",
-    "Telegram webhook",
-    "Telegram long polling",
-    "MAX webhook",
-    "BersonCare request-contact M2M",
-    "BersonCare reminder-rules M2M",
-    "Rubitime webhook / Rubitime M2M",
-    "Scheduler tick",
-    "Runtime worker: outgoing delivery queue",
-    "Runtime worker: projection outbox",
-    "Runtime worker: generic retry jobs",
-    "`integrator.mailings`",
-    "no live runtime insert/update writer",
+    'T0.4 integrator entrypoint organization-context map',
+    'Telegram webhook',
+    'Telegram long polling',
+    'MAX webhook',
+    'BersonCare request-contact M2M',
+    'BersonCare reminder-rules M2M',
+    'Rubitime webhook / Rubitime M2M',
+    'Scheduler tick',
+    'Runtime worker: outgoing delivery queue',
+    'Runtime worker: projection outbox',
+    'Runtime worker: generic retry jobs',
+    '`integrator.mailings`',
+    'no live runtime insert/update writer',
   ]) {
     assertContains(files.map, map, needle);
   }
 
   for (const needle of [
-    "- [x] Integrator DB trunk: every SCOPED integrator writer derives or receives organization context.",
-    "- [x] Integrator entrypoint-to-org map: Telegram/MAX/Rubitime/M2M/worker/scheduler sources documented and tested.",
-    "- [x] Integrator worker/scheduler: jobs that touch SCOPED rows run with the correct organization principal.",
-    "- [x] Focused tests and source audit cover runtime paths.",
+    '- [x] Integrator DB trunk: every SCOPED integrator writer derives or receives organization context.',
+    '- [x] Integrator entrypoint-to-org map: Telegram/MAX/Rubitime/M2M/worker/scheduler sources documented and tested.',
+    '- [x] Integrator worker/scheduler: jobs that touch SCOPED rows run with the correct organization principal.',
+    '- [x] Focused tests and source audit cover runtime paths.',
   ]) {
     assertContains(files.checklist, checklist, needle);
   }
 
   for (const needle of [
-    "createResolveOrganizationIdForMessengerIdentity",
-    "createResolveOrganizationIdForIntegratorUserId",
-    "resolveActiveOrganizationIdForMessengerIdentity(db, { resource, externalId })",
-    "resolveActiveOrganizationIdForIntegratorUserId(db, integratorUserId)",
-    "resolveOrganizationIdForMessengerIdentity,",
-    "resolveOrganizationIdForIntegratorUserId,",
+    'createResolveOrganizationIdForMessengerIdentity',
+    'createResolveOrganizationIdForIntegratorUserId',
+    'resolveActiveOrganizationIdForMessengerIdentity(db, { resource, externalId })',
+    'resolveActiveOrganizationIdForIntegratorUserId(db, integratorUserId)',
+    'resolveOrganizationIdForMessengerIdentity,',
+    'resolveOrganizationIdForIntegratorUserId,',
   ]) {
     assertContains(files.routes, routes, needle);
   }
 
   for (const needle of [
-    "resolveTelegramOrganizationId",
+    'resolveTelegramOrganizationId',
     "await deps.resolveOrganizationIdForMessengerIdentity(externalId, 'telegram')",
-    "resolveTelegramIntegratorUserId",
-    "runWithIntegratorPrincipal",
-    "runWithOrganizationPrincipal(organizationId, handleEvent)",
-    "export async function processTelegramUpdate",
+    'resolveTelegramIntegratorUserId',
+    'runWithIntegratorPrincipal',
+    'runWithOrganizationPrincipal(organizationId, handleEvent)',
+    'export async function processTelegramUpdate',
   ]) {
     assertContains(files.telegramWebhook, telegramWebhook, needle);
   }
-  assertContains(files.telegramLongPolling, telegramLongPolling, "await processTelegramUpdate(parsed.data, deps");
+  assertContains(
+    files.telegramLongPolling,
+    telegramLongPolling,
+    'await processTelegramUpdate(parsed.data, deps',
+  );
   assertContains(files.telegramTest, telegramTest, "toHaveBeenCalledWith('100', 'telegram')");
 
   for (const needle of [
-    "resolveMaxOrganizationId",
+    'resolveMaxOrganizationId',
     "await deps.resolveOrganizationIdForMessengerIdentity(externalId, 'max')",
-    "resolveMaxIntegratorUserId",
-    "runWithIntegratorPrincipal",
-    "runWithOrganizationPrincipal(organizationId, handleEvent)",
+    'resolveMaxIntegratorUserId',
+    'runWithIntegratorPrincipal',
+    'runWithOrganizationPrincipal(organizationId, handleEvent)',
   ]) {
     assertContains(files.maxWebhook, maxWebhook, needle);
   }
   assertContains(files.maxTest, maxTest, "toHaveBeenCalledWith('100', 'max')");
 
   for (const needle of [
-    "resolveOrganizationIdForMessengerIdentity",
-    "organizationId = await resolveOrganizationIdForMessengerIdentity(recipientId, channel)",
-    "await runWithOrganizationPrincipal(organizationId, dispatchContact)",
+    'resolveOrganizationIdForMessengerIdentity',
+    'organizationId = await resolveOrganizationIdForMessengerIdentity(recipientId, channel)',
+    'await runWithOrganizationPrincipal(organizationId, dispatchContact)',
   ]) {
     assertContains(files.requestContactRoute, requestContactRoute, needle);
   }
   assertContains(
     files.requestContactTest,
     requestContactTest,
-    "runs request-contact dispatch under resolved recipient organization context",
+    'runs request-contact dispatch under resolved recipient organization context',
   );
 
   for (const needle of [
-    "resolveOrganizationIdForIntegratorUserId",
-    "organizationId = await resolveOrganizationIdForIntegratorUserId(payload.integratorUserId)",
-    "await runWithOrganizationPrincipal(organizationId, writeRule)",
+    'resolveOrganizationIdForIntegratorUserId',
+    'organizationId = await resolveOrganizationIdForIntegratorUserId(payload.integratorUserId)',
+    'await runWithOrganizationPrincipal(organizationId, writeRule)',
   ]) {
     assertContains(files.reminderRulesRoute, reminderRulesRoute, needle);
   }
   assertContains(files.reminderRulesTest, reminderRulesTest, "toHaveBeenCalledWith('42')");
 
   for (const needle of [
-    "`integrator.rubitime_records` and `integrator.rubitime_events` are live legacy adapter/projection state",
-    "The remaining work belongs to the T0.4 entrypoint-to-org map",
+    '`integrator.rubitime_records` and `integrator.rubitime_events` are live legacy adapter/projection state',
+    'The remaining work belongs to the T0.4 entrypoint-to-org map',
   ]) {
     assertContains(files.rubitimeAudit, rubitimeAudit, needle);
   }
 
   assertContains(files.schedulerMain, schedulerMain, "source: 'scheduler:acquire-lock'");
   for (const needle of [
-    "async function persistWritesByOrganization",
-    "runWithOptionalOrganizationPrincipal",
-    "recordMessengerChannelSkipsBestEffort",
-    "recordMessengerNotEnqueuedSkipsBestEffort",
+    'async function persistWritesByOrganization',
+    'runWithOptionalOrganizationPrincipal',
+    'recordMessengerChannelSkipsBestEffort',
+    'recordMessengerNotEnqueuedSkipsBestEffort',
   ]) {
     assertContains(files.reminderHandler, reminderHandler, needle);
   }
   for (const needle of [
-    "reminders tenant context for scheduler writers",
-    "runs planDue occurrence writes under the rule organization when present",
-    "runs dispatchDue queued writes and skip attempts under the occurrence organization",
+    'reminders tenant context for scheduler writers',
+    'runs planDue occurrence writes under the rule organization when present',
+    'runs dispatchDue queued writes and skip attempts under the occurrence organization',
   ]) {
     assertContains(files.reminderTenantTest, reminderTenantTest, needle);
   }
 
   for (const needle of [
-    "async function runWithReminderOccurrenceOrganization",
-    "async function runWithBroadcastAuditOrganization",
-    "runWithOrganizationPrincipal(organizationId",
-    "recordMessengerQueueDeliveryAttempt",
-    "organizationId,",
+    'async function runWithReminderOccurrenceOrganization',
+    'async function runWithBroadcastAuditOrganization',
+    'runWithOrganizationPrincipal(organizationId',
+    'recordMessengerQueueDeliveryAttempt',
+    'organizationId,',
   ]) {
     assertContains(files.outgoingWorker, outgoingWorker, needle);
   }
   for (const needle of [
-    "runs reminder scoped writes under occurrence organization and queue status without context",
-    "runs broadcast audit and notification attempts under audit organization and queue status without context",
+    'runs reminder scoped writes under occurrence organization and queue status without context',
+    'runs broadcast audit and notification attempts under audit organization and queue status without context',
   ]) {
     assertContains(files.outgoingWorkerTest, outgoingWorkerTest, needle);
   }
 
-  assertContains(files.projectionWorker, projectionWorker, "runProjectionWorkerTick");
-  assertContains(files.jobExecutor, jobExecutor, "executeJob");
-  assertNotContains(files.projectionWorker, projectionWorker, "runWithOrganizationPrincipal");
-  assertNotContains(files.jobExecutor, jobExecutor, "runWithOrganizationPrincipal");
+  assertContains(files.projectionWorker, projectionWorker, 'runProjectionWorkerTick');
+  assertContains(files.jobExecutor, jobExecutor, 'executeJob');
+  assertNotContains(files.projectionWorker, projectionWorker, 'runWithOrganizationPrincipal');
+  assertNotContains(files.jobExecutor, jobExecutor, 'runWithOrganizationPrincipal');
 
-  assertNotContains(files.publicProductSchema, publicProductSchema, "export const mailings");
-  assertContains(files.publicProductSchema, publicProductSchema, "export const mailingLogs");
+  assertNotContains(files.publicProductSchema, publicProductSchema, 'export const mailings');
+  assertContains(files.publicProductSchema, publicProductSchema, 'export const mailingLogs');
   assertNoRuntimeMailingsWriter(overrides);
 }
 
-if (process.argv.includes("--self-test")) {
+if (process.argv.includes('--self-test')) {
   const telegramWebhook = read(files.telegramWebhook).replace(
-    "runWithOrganizationPrincipal(organizationId, handleEvent)",
-    "handleEvent()",
+    'runWithOrganizationPrincipal(organizationId, handleEvent)',
+    'handleEvent()',
   );
   try {
     runChecks({ telegramWebhook });
   } catch {
-    console.log("check-t0-4-entrypoint-org-map self-test: OK");
+    console.log('check-t0-4-entrypoint-org-map self-test: OK');
     process.exit(0);
   }
-  throw new Error("self-test did not detect missing Telegram organization principal wrapper");
+  throw new Error('self-test did not detect missing Telegram organization principal wrapper');
 }
 
 try {
@@ -259,7 +264,7 @@ try {
     throw new Error(`${files.map} is not a file`);
   }
   runChecks();
-  console.log("check-t0-4-entrypoint-org-map: OK");
+  console.log('check-t0-4-entrypoint-org-map: OK');
 } catch (error) {
   const message = error instanceof Error ? error.message : String(error);
   console.error(`check-t0-4-entrypoint-org-map: ${message}`);

@@ -1,16 +1,16 @@
-"use client";
+'use client';
 
-import type { PatientHomeMoodIconOption } from "@/modules/patient-home/patientHomeMoodIcons";
-import { patientHomeMoodOptionButtonClass } from "./patientHomeCardStyles";
-import { PatientHomeSafeImage } from "./PatientHomeSafeImage";
+import type { PatientHomeMoodIconOption } from '@/modules/patient-home/patientHomeMoodIcons';
+import { patientHomeMoodOptionButtonClass } from './patientHomeCardStyles';
+import { PatientHomeSafeImage } from './PatientHomeSafeImage';
 import {
   PATIENT_HOME_MOOD_SCORE_CONTAINER_ACTIVE,
   PATIENT_HOME_MOOD_SCORE_CONTAINER_HOVER,
   PATIENT_HOME_MOOD_SCORE_ICON_CLASS,
   PATIENT_HOME_MOOD_SCORE_ICONS,
-} from "./patientHomeMoodScaleVisual";
-import { cn } from "@/lib/utils";
-import { Button } from "@/shared/ui/patient/primitives/button";
+} from './patientHomeMoodScaleVisual';
+import { cn } from '@/lib/utils';
+import { Button } from '@/shared/ui/patient/primitives/button';
 
 type Props = {
   moodOptions: readonly PatientHomeMoodIconOption[];
@@ -42,7 +42,7 @@ export function PatientHomeMoodScoreRow({
 
   return (
     <div
-      className={cn("grid min-h-0 grid-cols-5 items-center gap-1.5", gridClassName)}
+      className={cn('grid min-h-0 grid-cols-5 items-center gap-1.5', gridClassName)}
       role="group"
       aria-label="Оценка самочувствия"
     >
@@ -62,7 +62,7 @@ export function PatientHomeMoodScoreRow({
                 active
                   ? PATIENT_HOME_MOOD_SCORE_CONTAINER_ACTIVE[option.score]
                   : PATIENT_HOME_MOOD_SCORE_CONTAINER_HOVER[option.score],
-                buttonDisabled && "cursor-not-allowed opacity-70",
+                buttonDisabled && 'cursor-not-allowed opacity-70',
               )}
               onClick={() => onPickScore(option.score)}
             >
@@ -74,7 +74,10 @@ export function PatientHomeMoodScoreRow({
                 fallback={
                   <MoodIcon
                     aria-hidden
-                    className={cn("size-8 shrink-0 min-[560px]:size-9", PATIENT_HOME_MOOD_SCORE_ICON_CLASS[option.score])}
+                    className={cn(
+                      'size-8 shrink-0 min-[560px]:size-9',
+                      PATIENT_HOME_MOOD_SCORE_ICON_CLASS[option.score],
+                    )}
                     strokeWidth={1.15}
                   />
                 }

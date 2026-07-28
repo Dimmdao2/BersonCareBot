@@ -16,18 +16,18 @@
 
 ## Изменённые файлы
 
-| Файл | Назначение |
-|------|------------|
-| `apps/webapp/migrations/078_reference_items_deleted_at.sql` | Колонка `deleted_at`, индекс |
-| `apps/webapp/src/modules/references/types.ts` | Поле `deletedAt` у `ReferenceItem` |
-| `apps/webapp/src/modules/references/ports.ts` | Метод `softDeleteItem` |
-| `apps/webapp/src/infra/repos/pgReferences.ts` | SQL: фильтр `deleted_at IS NULL`, soft delete, `saveCatalog` только по не удалённым |
-| `apps/webapp/src/infra/repos/inMemoryReferences.ts` | Зеркало логики для тестов |
-| `apps/webapp/src/infra/repos/inMemoryReferences.test.ts` | Тест `softDeleteItem` |
-| `apps/webapp/src/app/app/doctor/references/actions.ts` | `softDeleteReferenceItem` |
-| `apps/webapp/src/app/app/doctor/references/[categoryCode]/page.tsx` | Загрузка всех не удалённых строк без `?mode=` |
-| `apps/webapp/src/app/app/doctor/references/[categoryCode]/ReferenceItemsTableClient.tsx` | Новый UI, фильтры, глаз, удаление |
-| `apps/webapp/src/app/api/**/references/**/route.test.ts` | Моки/ожидания под выборки с `deleted_at` |
+| Файл                                                                                     | Назначение                                                                          |
+| ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `apps/webapp/migrations/078_reference_items_deleted_at.sql`                              | Колонка `deleted_at`, индекс                                                        |
+| `apps/webapp/src/modules/references/types.ts`                                            | Поле `deletedAt` у `ReferenceItem`                                                  |
+| `apps/webapp/src/modules/references/ports.ts`                                            | Метод `softDeleteItem`                                                              |
+| `apps/webapp/src/infra/repos/pgReferences.ts`                                            | SQL: фильтр `deleted_at IS NULL`, soft delete, `saveCatalog` только по не удалённым |
+| `apps/webapp/src/infra/repos/inMemoryReferences.ts`                                      | Зеркало логики для тестов                                                           |
+| `apps/webapp/src/infra/repos/inMemoryReferences.test.ts`                                 | Тест `softDeleteItem`                                                               |
+| `apps/webapp/src/app/app/doctor/references/actions.ts`                                   | `softDeleteReferenceItem`                                                           |
+| `apps/webapp/src/app/app/doctor/references/[categoryCode]/page.tsx`                      | Загрузка всех не удалённых строк без `?mode=`                                       |
+| `apps/webapp/src/app/app/doctor/references/[categoryCode]/ReferenceItemsTableClient.tsx` | Новый UI, фильтры, глаз, удаление                                                   |
+| `apps/webapp/src/app/api/**/references/**/route.test.ts`                                 | Моки/ожидания под выборки с `deleted_at`                                            |
 
 ## Поведение до / после
 

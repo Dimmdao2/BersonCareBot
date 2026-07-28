@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import { Button } from "@/shared/ui/patient/primitives/button";
-import { cn } from "@/lib/utils";
-import { isMessengerMiniAppHost } from "@/shared/lib/messengerMiniApp";
+import { useEffect, useState } from 'react';
+import { Button } from '@/shared/ui/patient/primitives/button';
+import { cn } from '@/lib/utils';
+import { isMessengerMiniAppHost } from '@/shared/lib/messengerMiniApp';
 
 /**
  * Кнопка выхода для обычного браузера. В Mini App (Telegram с initData, MAX) — скрывается на клиенте.
@@ -27,7 +27,7 @@ export function LogoutSection() {
           type="submit"
           variant="outline"
           className={cn(
-            "w-full border-destructive/50 text-destructive hover:bg-destructive/10 hover:text-destructive active:bg-destructive/15",
+            'w-full border-destructive/50 text-destructive hover:bg-destructive/10 hover:text-destructive active:bg-destructive/15',
           )}
         >
           Выйти из профиля

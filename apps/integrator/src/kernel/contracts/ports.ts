@@ -294,12 +294,21 @@ export type NotificationSettingsPatch = {
 
 export type NotificationsPort = {
   getNotificationSettings(channelUserId: number): Promise<NotificationSettings | null>;
-  updateNotificationSettings(channelUserId: number, settings: NotificationSettingsPatch): Promise<void>;
+  updateNotificationSettings(
+    channelUserId: number,
+    settings: NotificationSettingsPatch,
+  ): Promise<void>;
 };
 
 export type ContentCatalogPort = {
-  getSectionLink(input: { section: ContentCatalogSection; userId?: string }): Promise<string | null>;
-  getRandomItem(input: { section: ContentCatalogSection; userId?: string }): Promise<ContentCatalogItem | null>;
+  getSectionLink(input: {
+    section: ContentCatalogSection;
+    userId?: string;
+  }): Promise<string | null>;
+  getRandomItem(input: {
+    section: ContentCatalogSection;
+    userId?: string;
+  }): Promise<ContentCatalogItem | null>;
 };
 
 export type ProtectedAccessPort = {
@@ -416,8 +425,12 @@ export type WebappLfkComplex = {
 /** Port for emitting signed events to webapp and reading diary lists (no local cache). */
 export type WebappEventsPort = {
   emit(event: WebappEventBody): Promise<{ ok: boolean; status: number; error?: string }>;
-  listSymptomTrackings(userId: string): Promise<{ ok: boolean; trackings?: WebappSymptomTracking[]; error?: string }>;
-  listLfkComplexes(userId: string): Promise<{ ok: boolean; complexes?: WebappLfkComplex[]; error?: string }>;
+  listSymptomTrackings(
+    userId: string,
+  ): Promise<{ ok: boolean; trackings?: WebappSymptomTracking[]; error?: string }>;
+  listLfkComplexes(
+    userId: string,
+  ): Promise<{ ok: boolean; complexes?: WebappLfkComplex[]; error?: string }>;
   /** Привязка мессенджера по одноразовому токену из deep-link (POST /api/integrator/channel-link/complete). */
   completeChannelLink?(params: {
     linkToken: string;
@@ -443,10 +456,7 @@ export type WebappEventsPort = {
    * Fan-out напоминания в Web Push + email на webapp (POST /api/integrator/patient-reminders/notify-channels).
    * Тело — уже сериализованный JSON (подпись `timestamp.body`, см. verifyIntegratorSignature в webapp).
    */
-  notifyPatientReminderChannels?(input: {
-    body: string;
-    idempotencyKey: string;
-  }): Promise<{
+  notifyPatientReminderChannels?(input: { body: string; idempotencyKey: string }): Promise<{
     ok: boolean;
     status: number;
     error?: string;
@@ -460,10 +470,7 @@ export type WebappEventsPort = {
     skippedChannels?: Array<{ channel: string; reason: string }>;
   }>;
   /** Web Push для записи на приём / рассылок (POST /api/integrator/patient-notifications/web-push). */
-  notifyPatientWebPush?(input: {
-    body: string;
-    idempotencyKey: string;
-  }): Promise<{
+  notifyPatientWebPush?(input: { body: string; idempotencyKey: string }): Promise<{
     ok: boolean;
     status: number;
     error?: string;
@@ -483,10 +490,7 @@ export type WebappEventsPort = {
     idempotencyKey: string;
   }): Promise<{ ok: boolean; status: number; error?: string }>;
   /** Начало ответа на наблюдение пациента по упражнению (POST /api/integrator/program-note/reply-begin). */
-  beginProgramNoteReply?(input: {
-    stageItemId: string;
-    idempotencyKey: string;
-  }): Promise<{
+  beginProgramNoteReply?(input: { stageItemId: string; idempotencyKey: string }): Promise<{
     ok: boolean;
     status: number;
     error?: string;
@@ -561,10 +565,17 @@ export type CommunicationQuestionListItem = {
 
 /** Port to read communication data (conversations, questions) from webapp. Used for admin product reads. */
 export type CommunicationReadsPort = {
-  listOpenConversations(params: { source?: string; limit?: number }): Promise<CommunicationConversationListItem[]>;
-  getConversationById(integratorConversationId: string): Promise<CommunicationConversationDetail | null>;
+  listOpenConversations(params: {
+    source?: string;
+    limit?: number;
+  }): Promise<CommunicationConversationListItem[]>;
+  getConversationById(
+    integratorConversationId: string,
+  ): Promise<CommunicationConversationDetail | null>;
   listUnansweredQuestions(params: { limit?: number }): Promise<CommunicationQuestionListItem[]>;
-  getQuestionByConversationId(integratorConversationId: string): Promise<{ id: string; answered: boolean } | null>;
+  getQuestionByConversationId(
+    integratorConversationId: string,
+  ): Promise<{ id: string; answered: boolean } | null>;
 };
 
 // --- Stage 7: Reminders product reads (webapp projection) ---
@@ -597,10 +608,7 @@ export type RemindersWebappWritesPort = {
     occurrenceId: string;
     reason: string | null;
   }): Promise<{ ok: true; skippedAt: string } | { ok: false; error: string }>;
-  postOccurrenceDone(input: {
-    integratorUserId: string;
-    occurrenceId: string;
-  }): Promise<
+  postOccurrenceDone(input: { integratorUserId: string; occurrenceId: string }): Promise<
     | {
         ok: true;
         doneAt: string;
@@ -625,7 +633,10 @@ export type RemindersWebappWritesPort = {
   getNotificationSettings(input: {
     integratorUserId: string;
     messengerChannel: 'telegram' | 'max';
-  }): Promise<{ ok: true; topics: Array<{ code: string; title: string; isEnabled: boolean }> } | { ok: false; error: string }>;
+  }): Promise<
+    | { ok: true; topics: Array<{ code: string; title: string; isEnabled: boolean }> }
+    | { ok: false; error: string }
+  >;
   /** Toggle a notification topic on/off for a specific channel. Returns new state. */
   toggleNotificationTopic(input: {
     integratorUserId: string;
@@ -636,9 +647,18 @@ export type RemindersWebappWritesPort = {
 
 /** Port to read reminder product data from webapp (projection). Used with fallback to local DB. */
 export type RemindersReadsPort = {
-  listRulesForUser(integratorUserId: string, organizationId: string): Promise<ReminderRuleListItem[]>;
-  getRuleForUserAndCategory(integratorUserId: string, category: string): Promise<ReminderRuleDetail | null>;
-  listHistoryForUser(integratorUserId: string, limit?: number): Promise<ReminderOccurrenceHistoryItem[]>;
+  listRulesForUser(
+    integratorUserId: string,
+    organizationId: string,
+  ): Promise<ReminderRuleListItem[]>;
+  getRuleForUserAndCategory(
+    integratorUserId: string,
+    category: string,
+  ): Promise<ReminderRuleDetail | null>;
+  listHistoryForUser(
+    integratorUserId: string,
+    limit?: number,
+  ): Promise<ReminderOccurrenceHistoryItem[]>;
 };
 
 // --- Stage 9: Appointments product reads (webapp projection) ---
@@ -729,7 +749,10 @@ export type WebPushAccessPort = {
    * Fetch active web-push subscriptions for a platform user.
    * Returns `null` on network/auth error; empty array when the user has no subscriptions.
    */
-  getSubscriptionsForUser(pushUserId: string, organizationId: string): Promise<WebPushSubscriptionPayload[] | null>;
+  getSubscriptionsForUser(
+    pushUserId: string,
+    organizationId: string,
+  ): Promise<WebPushSubscriptionPayload[] | null>;
 
   /**
    * Fetch the VAPID keypair (publicKey, privateKey) and the centrally-derived subject.
@@ -743,5 +766,9 @@ export type WebPushAccessPort = {
    * Mirrors webapp's `WebPushSubscriptionsPort.deleteByEndpointIfExists`.
    * Returns `true` on successful deletion or if not found; `false` on error.
    */
-  deleteSubscriptionByEndpoint(pushUserId: string, endpoint: string, organizationId: string): Promise<boolean>;
+  deleteSubscriptionByEndpoint(
+    pushUserId: string,
+    endpoint: string,
+    organizationId: string,
+  ): Promise<boolean>;
 };

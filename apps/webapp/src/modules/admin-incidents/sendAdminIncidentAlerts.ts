@@ -1,12 +1,15 @@
-import { createHash } from "node:crypto";
-import { computeChannelLinkOwnershipConflictKey, type UpsertOpenConflictLogResult } from "@/infra/adminAuditLog";
+import { createHash } from 'node:crypto';
+import {
+  computeChannelLinkOwnershipConflictKey,
+  type UpsertOpenConflictLogResult,
+} from '@/infra/adminAuditLog';
 import {
   ADMIN_INCIDENT_TOPIC_LABELS,
   type AdminIncidentTopicKey,
-} from "./adminIncidentAlertConfig";
-import { dispatchOperatorAlert } from "@/modules/operator-alerts/dispatchOperatorAlert";
-import { adminIncidentTopicToAlertBlock } from "@/modules/operator-alerts/operatorHealthAlertConfig";
-import { reportEmptyAudience } from "@/modules/operator-alerts/emptyAudienceRuntime";
+} from './adminIncidentAlertConfig';
+import { dispatchOperatorAlert } from '@/modules/operator-alerts/dispatchOperatorAlert';
+import { adminIncidentTopicToAlertBlock } from '@/modules/operator-alerts/operatorHealthAlertConfig';
+import { reportEmptyAudience } from '@/modules/operator-alerts/emptyAudienceRuntime';
 
 /**
  * Best-effort relay to admin Telegram/Max lists and staff web push per `operator_health_alert_config`.
@@ -23,7 +26,7 @@ export async function sendAdminIncidentRelayAlert(input: {
     // роняла ВЕСЬ админский алерт до того, как будет опрошен хоть один канал.
     await reportEmptyAudience({
       topic: `admin_incident_unmapped:${input.topic}`,
-      severity: "operational",
+      severity: 'operational',
       channels: [],
     });
     return;
@@ -47,11 +50,16 @@ export type ChannelLinkBindingConflictCtx = {
 
 /** Dedup key for binding conflict (stable for same pair + channel + external id). */
 export function channelLinkBindingDedupKey(ctx: ChannelLinkBindingConflictCtx): string {
-  const sorted = [ctx.tokenUserId, ctx.existingUserId].map((x) => x.trim()).filter(Boolean).sort();
-  return `${ctx.channelCode}:${ctx.externalId}:${sorted.join("|")}`;
+  const sorted = [ctx.tokenUserId, ctx.existingUserId]
+    .map((x) => x.trim())
+    .filter(Boolean)
+    .sort();
+  return `${ctx.channelCode}:${ctx.externalId}:${sorted.join('|')}`;
 }
 
-export function notifyChannelLinkBindingConflict(ctx: ChannelLinkBindingConflictCtx): Promise<void> {
+export function notifyChannelLinkBindingConflict(
+  ctx: ChannelLinkBindingConflictCtx,
+): Promise<void> {
   const lines = [
     `channel_link binding conflict`,
     `channel=${ctx.channelCode}`,
@@ -60,7 +68,7 @@ export function notifyChannelLinkBindingConflict(ctx: ChannelLinkBindingConflict
     `existingUserId=${ctx.existingUserId}`,
   ];
   return sendAdminIncidentRelayAlert({
-    topic: "channel_link",
+    topic: 'channel_link',
     dedupKey: channelLinkBindingDedupKey(ctx),
     lines,
   });
@@ -71,7 +79,7 @@ export async function notifyChannelLinkOwnershipConflictRelay(
   upsertResult: UpsertOpenConflictLogResult,
   ctx: ChannelLinkBindingConflictCtx & { classifiedReason: string },
 ): Promise<void> {
-  if (upsertResult.kind !== "conflict" || !upsertResult.insertedFirst) return;
+  if (upsertResult.kind !== 'conflict' || !upsertResult.insertedFirst) return;
   const dk = computeChannelLinkOwnershipConflictKey(
     ctx.channelCode,
     ctx.externalId,
@@ -79,10 +87,10 @@ export async function notifyChannelLinkOwnershipConflictRelay(
     ctx.existingUserId,
   );
   await sendAdminIncidentRelayAlert({
-    topic: "channel_link",
+    topic: 'channel_link',
     dedupKey: dk,
     lines: [
-      "channel_link ownership conflict",
+      'channel_link ownership conflict',
       `channel=${ctx.channelCode}`,
       `externalId=${ctx.externalId}`,
       `tokenUserId=${ctx.tokenUserId}`,
@@ -105,23 +113,23 @@ export async function notifyMessengerPhoneBindBlockedFromWebapp(input: {
 }): Promise<void> {
   const dk =
     input.conflictKey ??
-    createHash("sha256")
+    createHash('sha256')
       .update(
-        `http_bind:${input.channelCode}:${input.externalId}:${input.reason}:${[...new Set(input.candidateIds.map((x) => x.trim()).filter(Boolean))].sort().join("|")}`,
+        `http_bind:${input.channelCode}:${input.externalId}:${input.reason}:${[...new Set(input.candidateIds.map((x) => x.trim()).filter(Boolean))].sort().join('|')}`,
       )
-      .digest("hex");
+      .digest('hex');
   const lines =
     input.relayLines ??
     ([
-      "messenger_phone_bind_blocked (http_bind)",
+      'messenger_phone_bind_blocked (http_bind)',
       `reason=${input.reason}`,
       `channel=${input.channelCode}`,
       `externalId=${input.externalId}`,
       ...(input.phoneSuffix ? [`phoneSuffix=${input.phoneSuffix}`] : []),
-      `candidateIds=${input.candidateIds.join(",")}`,
+      `candidateIds=${input.candidateIds.join(',')}`,
     ] as string[]);
   await sendAdminIncidentRelayAlert({
-    topic: "messenger_phone_bind_blocked",
+    topic: 'messenger_phone_bind_blocked',
     dedupKey: dk.slice(0, 120),
     lines,
   });

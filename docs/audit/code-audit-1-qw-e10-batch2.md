@@ -1,4 +1,5 @@
 # Code Audit 1 — QW-E10/batch2
+
 agentId: audit1-qw-e10-batch2
 Commit: 4e1c24fc8b7502c10ac6dd849079b4f0f98f7616
 Date: 2026-06-19
@@ -25,10 +26,12 @@ Spot-checked 5 complex files (RubitimeSection, BookingEngineSection, GoogleCalen
 BookingEngineCatalogLists, SystemHealthSection) plus full catch-block survey across all 15.
 
 All user-triggered catch blocks surface errors via a state setter:
+
 - `setError`, `setLoadError`, `setActionError`, `setStartError`, `setCredsError`,
   `setConnectMsg`, `setCalError`, `setCalendarSaveError`, `setClearError`, `setErr`, `onError`.
 
 Two intentional silent-catch patterns confirmed as non-issues:
+
 1. `clientValidateIanaTimezone` in RubitimeSection.tsx — pure `Intl.DateTimeFormat` validation
    helper, no network; `catch { return false }` is correct.
 2. `patchSetting` in GoogleCalendarSection.tsx — returns `boolean`; caller immediately checks

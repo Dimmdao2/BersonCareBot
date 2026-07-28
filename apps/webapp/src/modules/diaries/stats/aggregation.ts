@@ -1,16 +1,16 @@
 /**
  * Pure aggregation for symptom and LFK diary stats (no React, no HTTP).
  */
-import type { LfkSession } from "../types";
+import type { LfkSession } from '../types';
 
 /** Состояние отметки ЛФК по дню (для компактных индикаторов / матриц). */
-export type LfkDotState = "done" | "none" | "partial";
+export type LfkDotState = 'done' | 'none' | 'partial';
 
 export type SymptomDayPoint = {
   /** UTC calendar date YYYY-MM-DD */
   date: string;
   value: number;
-  entryType?: "instant" | "daily";
+  entryType?: 'instant' | 'daily';
 };
 
 /** По дню — отдельный максимум для «в моменте» и «за день» (null, если записей этого типа не было). */
@@ -28,12 +28,12 @@ export function aggregateSymptomEntriesByDay(
   entries: Array<{
     recordedAt: string;
     value0_10: number;
-    entryType: "instant" | "daily";
-  }>
+    entryType: 'instant' | 'daily';
+  }>,
 ): SymptomDayPoint[] {
   const best = new Map<
     string,
-    { value: number; entryType: "instant" | "daily"; recordedAt: string }
+    { value: number; entryType: 'instant' | 'daily'; recordedAt: string }
   >();
   for (const e of entries) {
     const day = e.recordedAt.slice(0, 10);
@@ -60,16 +60,15 @@ export function aggregateSymptomEntriesByDaySplit(
   entries: Array<{
     recordedAt: string;
     value0_10: number;
-    entryType: "instant" | "daily";
-  }>
+    entryType: 'instant' | 'daily';
+  }>,
 ): SymptomDayPointSplit[] {
   const byDay = new Map<string, { instant?: number; daily?: number }>();
   for (const e of entries) {
     const day = e.recordedAt.slice(0, 10);
     const cur = byDay.get(day) ?? {};
-    if (e.entryType === "instant") {
-      cur.instant =
-        cur.instant === undefined ? e.value0_10 : Math.max(cur.instant, e.value0_10);
+    if (e.entryType === 'instant') {
+      cur.instant = cur.instant === undefined ? e.value0_10 : Math.max(cur.instant, e.value0_10);
     } else {
       cur.daily = cur.daily === undefined ? e.value0_10 : Math.max(cur.daily, e.value0_10);
     }
@@ -87,7 +86,7 @@ export function aggregateSymptomEntriesByDaySplit(
 /** Last 7 UTC calendar days, oldest → newest; maps session counts to LfkDotState. */
 export function lfkDotsLast7DaysFromSessions(
   sessions: { completedAt: string }[],
-  now: Date = new Date()
+  now: Date = new Date(),
 ): LfkDotState[] {
   const keys: string[] = [];
   for (let i = 6; i >= 0; i--) {
@@ -102,9 +101,9 @@ export function lfkDotsLast7DaysFromSessions(
   }
   return keys.map((day) => {
     const n = byDay.get(day) ?? 0;
-    if (n === 0) return "none";
-    if (n >= 2) return "partial";
-    return "done";
+    if (n === 0) return 'none';
+    if (n >= 2) return 'partial';
+    return 'done';
   });
 }
 
@@ -115,7 +114,7 @@ export function lfkDotsLast7DaysFromSessions(
 export function buildLfkOverviewMatrix(
   dayKeys: string[],
   complexIds: string[],
-  sessions: Pick<LfkSession, "complexId" | "completedAt">[]
+  sessions: Pick<LfkSession, 'complexId' | 'completedAt'>[],
 ): boolean[][] {
   const set = new Set<string>();
   for (const s of sessions) {
@@ -132,7 +131,7 @@ export type LfkDayPoint = { date: string; value: number };
  * Дни без ни одного заданного значения пропускаются.
  */
 export function aggregateLfkSessionsMetricByDay(
-  sessions: Pick<LfkSession, "completedAt" | "pain0_10" | "difficulty0_10">[]
+  sessions: Pick<LfkSession, 'completedAt' | 'pain0_10' | 'difficulty0_10'>[],
 ): LfkDayPoint[] {
   const best = new Map<string, number>();
   for (const s of sessions) {

@@ -4,21 +4,21 @@ Read-only aggregation of patient booking timeline for doctor client card and pat
 
 ## Schema (`0096`)
 
-| Table | Role |
-|-------|------|
-| `be_patient_booking_profiles` | Booking reputation: `is_problematic`, `booking_blocked`, `problematic_note` (separate from messaging `is_blocked` / `is_archived`) |
-| `be_appointment_staff_comments` | Staff comments tied to `appointment_id` + `platform_user_id` |
+| Table                           | Role                                                                                                                               |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `be_patient_booking_profiles`   | Booking reputation: `is_problematic`, `booking_blocked`, `problematic_note` (separate from messaging `is_blocked` / `is_archived`) |
+| `be_appointment_staff_comments` | Staff comments tied to `appointment_id` + `platform_user_id`                                                                       |
 
 ## Module layout
 
-| Path | Role |
-|------|------|
-| `ports.ts` / `service.ts` | Port + thin service (`assertSelfServiceBookingAllowed`, comment validation) |
-| `types.ts` | Timeline, payment, visit, profile DTOs |
-| `labels.ts` | Russian labels for event types, payment method/purpose, appointment status |
-| `clientHistoryUtils.ts` | Dedupe timeline, payment classification, payment row enrichment |
-| `infra/repos/pgClientHistory.ts` | Drizzle read aggregator |
-| `infra/repos/inMemoryClientHistory.ts` | Test / in-memory DI stub |
+| Path                                   | Role                                                                        |
+| -------------------------------------- | --------------------------------------------------------------------------- |
+| `ports.ts` / `service.ts`              | Port + thin service (`assertSelfServiceBookingAllowed`, comment validation) |
+| `types.ts`                             | Timeline, payment, visit, profile DTOs                                      |
+| `labels.ts`                            | Russian labels for event types, payment method/purpose, appointment status  |
+| `clientHistoryUtils.ts`                | Dedupe timeline, payment classification, payment row enrichment             |
+| `infra/repos/pgClientHistory.ts`       | Drizzle read aggregator                                                     |
+| `infra/repos/inMemoryClientHistory.ts` | Test / in-memory DI stub                                                    |
 
 ## Aggregator sources (`pgClientHistory`)
 
@@ -36,23 +36,23 @@ Dedupe: detailed reschedule/cancel vs timeline mirror; product purchase vs produ
 
 ## APIs
 
-| Method | Path | Access |
-|--------|------|--------|
-| GET | `/api/doctor/clients/:userId/history` | Doctor — timeline + payments + visits |
-| GET/PATCH | `/api/doctor/clients/:userId/booking-profile` | Doctor — booking reputation |
-| GET/POST | `/api/doctor/booking-engine/appointments/:id/comments` | Doctor — staff comments |
-| GET | `/api/booking/history` | Patient — own history |
+| Method    | Path                                                   | Access                                |
+| --------- | ------------------------------------------------------ | ------------------------------------- |
+| GET       | `/api/doctor/clients/:userId/history`                  | Doctor — timeline + payments + visits |
+| GET/PATCH | `/api/doctor/clients/:userId/booking-profile`          | Doctor — booking reputation           |
+| GET/POST  | `/api/doctor/booking-engine/appointments/:id/comments` | Doctor — staff comments               |
+| GET       | `/api/booking/history`                                 | Patient — own history                 |
 
 Guard: `booking_blocked` on `POST /api/booking/create` and `POST /api/booking/public/create` (`canonicalCreate.assertSelfServiceBookingAllowed`).
 
 ## UI
 
-| Surface | Component |
-|---------|-----------|
-| Doctor client card | `ClientBookingHistoryPanel` (tabs: events / payments / visits + reputation toggles) |
-| Doctor calendar event | `AppointmentStaffCommentsSection` |
-| Patient profile | `PatientBookingHistorySection` |
-| Patient purchases | `PatientBookingHistorySection` (`mode="payments"`) |
+| Surface               | Component                                                                           |
+| --------------------- | ----------------------------------------------------------------------------------- |
+| Doctor client card    | `ClientBookingHistoryPanel` (tabs: events / payments / visits + reputation toggles) |
+| Doctor calendar event | `AppointmentStaffCommentsSection`                                                   |
+| Patient profile       | `PatientBookingHistorySection`                                                      |
+| Patient purchases     | `PatientBookingHistorySection` (`mode="payments"`)                                  |
 
 Doctor notes remain in `DoctorNotesPanel` (separate from booking staff comments).
 

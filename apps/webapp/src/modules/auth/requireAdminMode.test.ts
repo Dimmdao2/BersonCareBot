@@ -1,25 +1,25 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const getCurrentSessionMock = vi.hoisted(() => vi.fn());
 
-vi.mock("@/modules/auth/service", () => ({
+vi.mock('@/modules/auth/service', () => ({
   getCurrentSession: getCurrentSessionMock,
 }));
 
-import { requireAdminModeSession } from "./requireAdminMode";
+import { requireAdminModeSession } from './requireAdminMode';
 
 const adminSession = {
-  user: { userId: "admin-1", role: "admin", displayName: "Admin", bindings: {} },
+  user: { userId: 'admin-1', role: 'admin', displayName: 'Admin', bindings: {} },
   issuedAt: 0,
   expiresAt: 9_999_999_999,
 };
 
-describe("requireAdminModeSession", () => {
+describe('requireAdminModeSession', () => {
   beforeEach(() => {
     getCurrentSessionMock.mockReset();
   });
 
-  it("returns 401 when unauthenticated", async () => {
+  it('returns 401 when unauthenticated', async () => {
     getCurrentSessionMock.mockResolvedValue(null);
 
     const result = await requireAdminModeSession();
@@ -30,10 +30,10 @@ describe("requireAdminModeSession", () => {
     }
   });
 
-  it("returns 403 for non-admin role", async () => {
+  it('returns 403 for non-admin role', async () => {
     getCurrentSessionMock.mockResolvedValue({
       ...adminSession,
-      user: { ...adminSession.user, role: "doctor" },
+      user: { ...adminSession.user, role: 'doctor' },
       adminMode: true,
     });
 
@@ -45,7 +45,7 @@ describe("requireAdminModeSession", () => {
     }
   });
 
-  it("returns 403 when adminMode is disabled", async () => {
+  it('returns 403 when adminMode is disabled', async () => {
     getCurrentSessionMock.mockResolvedValue({ ...adminSession, adminMode: false });
 
     const result = await requireAdminModeSession();
@@ -54,18 +54,18 @@ describe("requireAdminModeSession", () => {
     if (!result.ok) {
       expect(result.response.status).toBe(403);
       const body = (await result.response.json()) as { error?: string };
-      expect(body.error).toBe("admin_mode_required");
+      expect(body.error).toBe('admin_mode_required');
     }
   });
 
-  it("allows admin with enabled adminMode", async () => {
+  it('allows admin with enabled adminMode', async () => {
     getCurrentSessionMock.mockResolvedValue({ ...adminSession, adminMode: true });
 
     const result = await requireAdminModeSession();
 
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.session.user.role).toBe("admin");
+      expect(result.session.user.role).toBe('admin');
     }
   });
 });

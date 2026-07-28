@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 /**
  * Поиск по вкладке «Комментарии»: клиент-сначала + серверный добор.
@@ -10,8 +10,8 @@
  *
  * Экспортируемая утилита {@link shouldRunDoctorCommentsServerSearch} тестируется отдельно.
  */
-import { useEffect, useMemo, useRef, useState } from "react";
-import type { TodayExerciseCommentAttentionItem } from "../loadDoctorExerciseCommentAttention";
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type { TodayExerciseCommentAttentionItem } from '../loadDoctorExerciseCommentAttention';
 
 const DEBOUNCE_MS = 300;
 
@@ -89,7 +89,7 @@ export function useDoctorExerciseCommentsSearch(
 
       const params = new URLSearchParams({ q: query.trim() });
       fetch(`/api/doctor/exercise-comments?${params.toString()}`, { signal: ctrl.signal })
-        .then((r) => (r.ok ? r.json() : Promise.reject(new Error("fetch_error"))))
+        .then((r) => (r.ok ? r.json() : Promise.reject(new Error('fetch_error'))))
         .then((data: { ok: boolean; items: TodayExerciseCommentAttentionItem[] }) => {
           if (!ctrl.signal.aborted) {
             setServer({ items: data.ok ? data.items : [], loading: false, error: null });
@@ -97,7 +97,7 @@ export function useDoctorExerciseCommentsSearch(
         })
         .catch(() => {
           if (!ctrl.signal.aborted) {
-            setServer({ items: [], loading: false, error: "Ошибка поиска" });
+            setServer({ items: [], loading: false, error: 'Ошибка поиска' });
           }
         });
     }, DEBOUNCE_MS);

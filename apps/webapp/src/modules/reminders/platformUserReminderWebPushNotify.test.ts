@@ -7,12 +7,14 @@
  *
  * G2 guard in sendWebPushToSubscriptions.ts is kept intact and untouched.
  */
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 // Mock relayOutbound — this is now THE call we want to assert.
-const relayOutboundMock = vi.hoisted(() => vi.fn().mockResolvedValue({ ok: true, status: "accepted" }));
+const relayOutboundMock = vi.hoisted(() =>
+  vi.fn().mockResolvedValue({ ok: true, status: 'accepted' }),
+);
 
-vi.mock("@/modules/messaging/relayOutbound", () => ({
+vi.mock('@/modules/messaging/relayOutbound', () => ({
   relayOutbound: relayOutboundMock,
 }));
 
@@ -38,7 +40,7 @@ const createTrackedWebPushPayloadMock = vi.hoisted(() =>
           body: input.body,
           url: input.url,
           tag: input.tag ?? undefined,
-          trackingId: "mock-tracking-id",
+          trackingId: 'mock-tracking-id',
           topicCode: input.topicCode ?? null,
           intentType: input.intentType ?? null,
           pushKind: input.pushKind ?? null,
@@ -47,31 +49,31 @@ const createTrackedWebPushPayloadMock = vi.hoisted(() =>
     ),
 );
 
-vi.mock("@/app-layer/product-analytics/createTrackedWebPushPayload", () => ({
+vi.mock('@/app-layer/product-analytics/createTrackedWebPushPayload', () => ({
   createTrackedWebPushPayload: createTrackedWebPushPayloadMock,
   productAnalyticsMetadataFromPayload: vi.fn(),
 }));
 
-const getWebPushVapidPublicKeyOnlyMock = vi.hoisted(() => vi.fn().mockResolvedValue("pub"));
+const getWebPushVapidPublicKeyOnlyMock = vi.hoisted(() => vi.fn().mockResolvedValue('pub'));
 
 // Mock resolveReminderWebPushPayload
-vi.mock("@/modules/web-push/resolveReminderWebPushPayload", () => ({
+vi.mock('@/modules/web-push/resolveReminderWebPushPayload', () => ({
   resolveReminderWebPushPayload: vi.fn().mockReturnValue({
-    title: "Reminder Title",
-    body: "Reminder body",
-    tag: "reminder:occ-1",
-    pushKind: "custom",
+    title: 'Reminder Title',
+    body: 'Reminder body',
+    tag: 'reminder:occ-1',
+    pushKind: 'custom',
     warmupSloganKey: null,
   }),
 }));
 
 // Mock resolvePatientNotificationChannels to select web_push by default
-vi.mock("@/modules/patient-notifications/resolveNotificationChannels", () => ({
+vi.mock('@/modules/patient-notifications/resolveNotificationChannels', () => ({
   resolvePatientNotificationChannels: vi.fn().mockReturnValue({
-    selectedChannels: ["web_push"],
+    selectedChannels: ['web_push'],
     skippedChannels: [],
-    availableChannels: ["web_push"],
-    enabledChannels: ["web_push"],
+    availableChannels: ['web_push'],
+    enabledChannels: ['web_push'],
   }),
 }));
 
@@ -79,15 +81,15 @@ import {
   runPlatformUserReminderWebPushNotify,
   type PlatformUserReminderWebPushNotifyDeps,
   type PlatformUserReminderWebPushNotifyInput,
-} from "./platformUserReminderWebPushNotify";
-import type { ChannelPreferencesPort } from "@/modules/channel-preferences/ports";
-import type { WebPushSubscriptionsPort } from "@/modules/web-push/ports";
-import type { TopicChannelPrefsPort } from "@/modules/patient-notifications/topicChannelPrefsPort";
-import type { NotificationDeliveryService } from "@/modules/notification-delivery/service";
+} from './platformUserReminderWebPushNotify';
+import type { ChannelPreferencesPort } from '@/modules/channel-preferences/ports';
+import type { WebPushSubscriptionsPort } from '@/modules/web-push/ports';
+import type { TopicChannelPrefsPort } from '@/modules/patient-notifications/topicChannelPrefsPort';
+import type { NotificationDeliveryService } from '@/modules/notification-delivery/service';
 
-const USER_ID = "user-uuid-1";
-const OCCURRENCE_ID = "occ-1";
-const ORGANIZATION_ID = "11111111-1111-4111-8111-111111111111";
+const USER_ID = 'user-uuid-1';
+const OCCURRENCE_ID = 'occ-1';
+const ORGANIZATION_ID = '11111111-1111-4111-8111-111111111111';
 
 function makeInput(
   overrides: Partial<PlatformUserReminderWebPushNotifyInput> = {},
@@ -96,11 +98,11 @@ function makeInput(
     organizationId: ORGANIZATION_ID,
     platformUserId: USER_ID,
     occurrenceId: OCCURRENCE_ID,
-    topicCode: "exercise_reminder",
-    openUrl: "/app/patient/exercises",
+    topicCode: 'exercise_reminder',
+    openUrl: '/app/patient/exercises',
     ruleMeta: {
-      linkedObjectType: "exercise",
-      linkedObjectId: "ex-1",
+      linkedObjectType: 'exercise',
+      linkedObjectId: 'ex-1',
     },
     ...overrides,
   };
@@ -115,8 +117,8 @@ function makeDeps(
     webPushSubscriptions: {
       listActiveByUserId: async () => [
         {
-          endpoint: "https://push.example.com/sub1",
-          keys: { p256dh: "k1", auth: "a1" },
+          endpoint: 'https://push.example.com/sub1',
+          keys: { p256dh: 'k1', auth: 'a1' },
           userId: USER_ID,
         },
       ],
@@ -129,11 +131,11 @@ function makeDeps(
   };
 }
 
-describe("platformUserReminderWebPushNotify — P20 MIGRATION (S14b)", () => {
+describe('platformUserReminderWebPushNotify — P20 MIGRATION (S14b)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    relayOutboundMock.mockResolvedValue({ ok: true, status: "accepted" });
-    getWebPushVapidPublicKeyOnlyMock.mockResolvedValue("pub");
+    relayOutboundMock.mockResolvedValue({ ok: true, status: 'accepted' });
+    getWebPushVapidPublicKeyOnlyMock.mockResolvedValue('pub');
     createTrackedWebPushPayloadMock.mockImplementation(
       (input: {
         title: string;
@@ -150,7 +152,7 @@ describe("platformUserReminderWebPushNotify — P20 MIGRATION (S14b)", () => {
           body: input.body,
           url: input.url,
           tag: input.tag ?? undefined,
-          trackingId: "mock-tracking-id",
+          trackingId: 'mock-tracking-id',
           topicCode: input.topicCode ?? null,
           intentType: input.intentType ?? null,
           pushKind: input.pushKind ?? null,
@@ -161,34 +163,34 @@ describe("platformUserReminderWebPushNotify — P20 MIGRATION (S14b)", () => {
 
   // ─── PRIMARY: emits a web_push intent via relayOutbound ──────────────────────
 
-  it("emits a web_push intent via relayOutbound (not sendWebPushToSubscriptions)", async () => {
+  it('emits a web_push intent via relayOutbound (not sendWebPushToSubscriptions)', async () => {
     const result = await runPlatformUserReminderWebPushNotify(makeInput(), makeDeps());
 
     expect(relayOutboundMock).toHaveBeenCalledTimes(1);
     const [params] = relayOutboundMock.mock.calls[0]!;
-    expect(params.channel).toBe("web_push");
+    expect(params.channel).toBe('web_push');
     expect(params.recipient).toBe(USER_ID);
     expect(result).toEqual({ ok: true, delivered: 1 });
   });
 
-  it("passes all WebPushClientPayload fields through metadata.pushExtras", async () => {
+  it('passes all WebPushClientPayload fields through metadata.pushExtras', async () => {
     await runPlatformUserReminderWebPushNotify(makeInput(), makeDeps());
 
     const [params] = relayOutboundMock.mock.calls[0]!;
     // text = body from trackedPayload
-    expect(params.text).toBe("Reminder body");
+    expect(params.text).toBe('Reminder body');
     // title and url in metadata
-    expect(params.metadata?.title).toBe("Reminder Title");
-    expect(params.metadata?.url).toBe("/app/patient/exercises");
+    expect(params.metadata?.title).toBe('Reminder Title');
+    expect(params.metadata?.url).toBe('/app/patient/exercises');
     // pushExtras fields
     const pushExtras = params.metadata?.pushExtras as Record<string, unknown>;
-    expect(pushExtras?.tag).toBe("reminder:occ-1");
-    expect(pushExtras?.trackingId).toBe("mock-tracking-id");
-    expect(pushExtras?.topicCode).toBe("exercise_reminder");
-    expect(pushExtras?.intentType).toBe("patient_reminder");
+    expect(pushExtras?.tag).toBe('reminder:occ-1');
+    expect(pushExtras?.trackingId).toBe('mock-tracking-id');
+    expect(pushExtras?.topicCode).toBe('exercise_reminder');
+    expect(pushExtras?.intentType).toBe('patient_reminder');
   });
 
-  it("messageId is deterministic from platformUserId + occurrenceId", async () => {
+  it('messageId is deterministic from platformUserId + occurrenceId', async () => {
     await runPlatformUserReminderWebPushNotify(makeInput(), makeDeps());
 
     const [params] = relayOutboundMock.mock.calls[0]!;
@@ -197,42 +199,42 @@ describe("platformUserReminderWebPushNotify — P20 MIGRATION (S14b)", () => {
 
   // ─── EARLY EXITS: channel not selected ───────────────────────────────────────
 
-  it("returns skipped when muted", async () => {
+  it('returns skipped when muted', async () => {
     const result = await runPlatformUserReminderWebPushNotify(
       makeInput(),
       makeDeps({ readReminderNotifyGate: async () => ({ muted: true, topicMasterEnabled: true }) }),
     );
 
-    expect(result).toEqual({ ok: true, delivered: 0, skipped: "muted" });
+    expect(result).toEqual({ ok: true, delivered: 0, skipped: 'muted' });
     expect(relayOutboundMock).not.toHaveBeenCalled();
   });
 
-  it("returns skipped when web_push not selected by resolvePatientNotificationChannels", async () => {
+  it('returns skipped when web_push not selected by resolvePatientNotificationChannels', async () => {
     const { resolvePatientNotificationChannels } =
-      await import("@/modules/patient-notifications/resolveNotificationChannels");
+      await import('@/modules/patient-notifications/resolveNotificationChannels');
     vi.mocked(resolvePatientNotificationChannels).mockReturnValueOnce({
       selectedChannels: [],
-      skippedChannels: [{ channel: "web_push", reason: "disabled_by_user_global" }],
+      skippedChannels: [{ channel: 'web_push', reason: 'disabled_by_user_global' }],
       availableChannels: [],
       enabledChannels: [],
     });
 
     const result = await runPlatformUserReminderWebPushNotify(makeInput(), makeDeps());
 
-    expect(result).toEqual({ ok: true, delivered: 0, skipped: "disabled_by_user_global" });
+    expect(result).toEqual({ ok: true, delivered: 0, skipped: 'disabled_by_user_global' });
     expect(relayOutboundMock).not.toHaveBeenCalled();
   });
 
-  it("returns skipped when vapid not configured", async () => {
+  it('returns skipped when vapid not configured', async () => {
     getWebPushVapidPublicKeyOnlyMock.mockResolvedValueOnce(null);
 
     const result = await runPlatformUserReminderWebPushNotify(makeInput(), makeDeps());
 
-    expect(result).toEqual({ ok: true, delivered: 0, skipped: "vapid_missing" });
+    expect(result).toEqual({ ok: true, delivered: 0, skipped: 'vapid_missing' });
     expect(relayOutboundMock).not.toHaveBeenCalled();
   });
 
-  it("returns skipped when no active subscriptions", async () => {
+  it('returns skipped when no active subscriptions', async () => {
     const result = await runPlatformUserReminderWebPushNotify(
       makeInput(),
       makeDeps({
@@ -244,42 +246,43 @@ describe("platformUserReminderWebPushNotify — P20 MIGRATION (S14b)", () => {
       }),
     );
 
-    expect(result).toEqual({ ok: true, delivered: 0, skipped: "no_active_subscriptions" });
+    expect(result).toEqual({ ok: true, delivered: 0, skipped: 'no_active_subscriptions' });
     expect(relayOutboundMock).not.toHaveBeenCalled();
   });
 
-  it("returns skipped when push copy cannot be resolved", async () => {
-    const { resolveReminderWebPushPayload } = await import("@/modules/web-push/resolveReminderWebPushPayload");
+  it('returns skipped when push copy cannot be resolved', async () => {
+    const { resolveReminderWebPushPayload } =
+      await import('@/modules/web-push/resolveReminderWebPushPayload');
     vi.mocked(resolveReminderWebPushPayload).mockReturnValueOnce(null);
 
     const result = await runPlatformUserReminderWebPushNotify(makeInput(), makeDeps());
 
-    expect(result).toEqual({ ok: true, delivered: 0, skipped: "push_copy_skipped" });
+    expect(result).toEqual({ ok: true, delivered: 0, skipped: 'push_copy_skipped' });
     expect(relayOutboundMock).not.toHaveBeenCalled();
   });
 
   // ─── RELAY ERRORS ────────────────────────────────────────────────────────────
 
-  it("returns failure when relay returns ok: false", async () => {
-    relayOutboundMock.mockResolvedValueOnce({ ok: false, reason: "no_integrator_url" });
+  it('returns failure when relay returns ok: false', async () => {
+    relayOutboundMock.mockResolvedValueOnce({ ok: false, reason: 'no_integrator_url' });
 
     const result = await runPlatformUserReminderWebPushNotify(makeInput(), makeDeps());
 
-    expect(result).toEqual({ ok: false, error: "web_push_relay_failed" });
+    expect(result).toEqual({ ok: false, error: 'web_push_relay_failed' });
     expect(relayOutboundMock).toHaveBeenCalledTimes(1);
   });
 
-  it("relay throw is caught and returns failure", async () => {
-    relayOutboundMock.mockRejectedValueOnce(new Error("network error"));
+  it('relay throw is caught and returns failure', async () => {
+    relayOutboundMock.mockRejectedValueOnce(new Error('network error'));
 
     const result = await runPlatformUserReminderWebPushNotify(makeInput(), makeDeps());
 
-    expect(result).toEqual({ ok: false, error: "web_push_relay_failed" });
+    expect(result).toEqual({ ok: false, error: 'web_push_relay_failed' });
   });
 
   // ─── NOTIFICATION DELIVERY RECORDING ─────────────────────────────────────────
 
-  it("does not project relay acceptance as successful provider delivery", async () => {
+  it('does not project relay acceptance as successful provider delivery', async () => {
     const recordMock = vi.fn().mockResolvedValue(undefined);
     const notificationDelivery: NotificationDeliveryService = {
       recordNotificationDeliveryAttempt: recordMock,
@@ -290,8 +293,8 @@ describe("platformUserReminderWebPushNotify — P20 MIGRATION (S14b)", () => {
     expect(recordMock).not.toHaveBeenCalled();
   });
 
-  it("records a failed delivery attempt when relay returns ok: false", async () => {
-    relayOutboundMock.mockResolvedValueOnce({ ok: false, reason: "no_integrator_url" });
+  it('records a failed delivery attempt when relay returns ok: false', async () => {
+    relayOutboundMock.mockResolvedValueOnce({ ok: false, reason: 'no_integrator_url' });
 
     const recordMock = vi.fn().mockResolvedValue(undefined);
     const notificationDelivery: NotificationDeliveryService = {
@@ -303,14 +306,14 @@ describe("platformUserReminderWebPushNotify — P20 MIGRATION (S14b)", () => {
     expect(recordMock).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: USER_ID,
-        channel: "web_push",
-        status: "failed",
-        reason: "relay_failed",
+        channel: 'web_push',
+        status: 'failed',
+        reason: 'relay_failed',
       }),
     );
   });
 
-  it("records skipped vapid_missing attempt when notificationDelivery provided", async () => {
+  it('records skipped vapid_missing attempt when notificationDelivery provided', async () => {
     getWebPushVapidPublicKeyOnlyMock.mockResolvedValueOnce(null);
 
     const recordMock = vi.fn().mockResolvedValue(undefined);
@@ -322,16 +325,16 @@ describe("platformUserReminderWebPushNotify — P20 MIGRATION (S14b)", () => {
 
     expect(recordMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        channel: "web_push",
-        status: "skipped",
-        reason: "vapid_missing",
+        channel: 'web_push',
+        status: 'skipped',
+        reason: 'vapid_missing',
       }),
     );
   });
 
   // ─── CONFIRM: sendWebPushToSubscriptions is NOT imported/called ──────────────
 
-  it("sendWebPushToSubscriptions is NOT called from this module", async () => {
+  it('sendWebPushToSubscriptions is NOT called from this module', async () => {
     // If sendWebPushToSubscriptions were called, web-push module would need to be
     // imported and the G2 guard would fire (or webpush would be invoked).
     // This test verifies the migration at the module level: only relayOutbound is called.

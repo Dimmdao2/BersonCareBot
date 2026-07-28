@@ -1,13 +1,13 @@
-"use client";
+'use client';
 
-import { useEffect, useState, useTransition } from "react";
-import Link from "next/link";
-import { routePaths } from "@/app-layer/routes/paths";
+import { useEffect, useState, useTransition } from 'react';
+import Link from 'next/link';
+import { routePaths } from '@/app-layer/routes/paths';
 import {
   patientCardClass,
   patientMutedTextClass,
   patientSectionTitleClass,
-} from "@/shared/ui/patient/patientVisual";
+} from '@/shared/ui/patient/patientVisual';
 
 type PackageDetail = {
   package: {
@@ -37,7 +37,12 @@ export function PatientPackageDetailClient({ patientPackageId }: Props) {
     startTransition(() => {
       void (async () => {
         const res = await fetch(`/api/booking/memberships/${encodeURIComponent(patientPackageId)}`);
-        const json = (await res.json()) as { ok?: boolean; package?: PackageDetail["package"]; usages?: PackageDetail["usages"]; history?: PackageDetail["history"] };
+        const json = (await res.json()) as {
+          ok?: boolean;
+          package?: PackageDetail['package'];
+          usages?: PackageDetail['usages'];
+          history?: PackageDetail['history'];
+        };
         if (json.ok && json.package) {
           setDetail({
             package: json.package,
@@ -76,7 +81,7 @@ export function PatientPackageDetailClient({ patientPackageId }: Props) {
         <ul className={patientMutedTextClass}>
           {detail.package.balance.items.map((it) => (
             <li key={it.serviceId}>
-              {(it.serviceTitle?.trim() || "Услуга") + `: ${it.remaining}/${it.quantityInitial}`}
+              {(it.serviceTitle?.trim() || 'Услуга') + `: ${it.remaining}/${it.quantityInitial}`}
             </li>
           ))}
         </ul>
@@ -87,7 +92,7 @@ export function PatientPackageDetailClient({ patientPackageId }: Props) {
           <ul className={patientMutedTextClass}>
             {detail.history.map((h) => (
               <li key={`${h.eventType}-${h.occurredAt}`}>
-                {h.eventType} · {new Date(h.occurredAt).toLocaleString("ru-RU")}
+                {h.eventType} · {new Date(h.occurredAt).toLocaleString('ru-RU')}
               </li>
             ))}
           </ul>

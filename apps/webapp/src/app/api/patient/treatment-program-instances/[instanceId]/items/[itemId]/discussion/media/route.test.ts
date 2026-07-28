@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
   gateMock,
@@ -40,22 +40,22 @@ const {
   };
 });
 
-vi.mock("@/app-layer/guards/requireRole", () => ({
+vi.mock('@/app-layer/guards/requireRole', () => ({
   requirePatientApiBusinessAccess: gateMock,
 }));
-vi.mock("@/app-layer/di/buildAppDeps", () => ({
+vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: buildAppDepsMock,
 }));
-vi.mock("@/app-layer/media/s3MediaStorage", () => ({
+vi.mock('@/app-layer/media/s3MediaStorage', () => ({
   getMediaRowForProgramSubmissionAttach: (...a: unknown[]) => getMediaRowMock(...a),
 }));
 
-import { POST } from "./route";
+import { POST } from './route';
 
-const instanceId = "11111111-1111-4111-8111-111111111111";
-const itemId = "22222222-2222-4222-8222-222222222222";
-const mediaFileId = "33333333-3333-4333-8333-333333333333";
-const patientUserId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const instanceId = '11111111-1111-4111-8111-111111111111';
+const itemId = '22222222-2222-4222-8222-222222222222';
+const mediaFileId = '33333333-3333-4333-8333-333333333333';
+const patientUserId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 
 function okGate() {
   return {
@@ -63,15 +63,15 @@ function okGate() {
     session: {
       user: {
         userId: patientUserId,
-        role: "client" as const,
-        phone: "+79990001122",
+        role: 'client' as const,
+        phone: '+79990001122',
         bindings: {},
       },
     },
   };
 }
 
-describe("POST .../discussion/media", () => {
+describe('POST .../discussion/media', () => {
   beforeEach(() => {
     gateMock.mockReset();
     buildAppDepsMock.mockClear();
@@ -91,52 +91,58 @@ describe("POST .../discussion/media", () => {
     });
     getInstanceForPatientMock.mockResolvedValue({
       id: instanceId,
-      organizationId: "44444444-4444-4444-8444-444444444444",
-      assignmentSource: "doctor",
+      organizationId: '44444444-4444-4444-8444-444444444444',
+      assignmentSource: 'doctor',
       stages: [
         {
-          id: "44444444-4444-4444-8444-444444444444",
-          items: [{ id: itemId, snapshot: { title: "Упражнение" } }],
+          id: '44444444-4444-4444-8444-444444444444',
+          items: [{ id: itemId, snapshot: { title: 'Упражнение' } }],
         },
       ],
     });
-    getMediaRowMock.mockResolvedValue({ id: mediaFileId, status: "ready" });
+    getMediaRowMock.mockResolvedValue({ id: mediaFileId, status: 'ready' });
     appendDiscussionMediaMock.mockResolvedValue(undefined);
     listMessagesForStageItemMock.mockResolvedValue([
       {
-        id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
         instanceStageItemId: itemId,
         patientUserId,
-        senderRole: "patient",
-        origin: "patient_observation",
+        senderRole: 'patient',
+        origin: 'patient_observation',
         body: null,
         mediaFileId,
         supportMessageId: null,
-        createdAt: "2026-05-30T12:00:00.000Z",
+        createdAt: '2026-05-30T12:00:00.000Z',
       },
     ]);
   });
 
-  it("returns 403 when media flow disabled", async () => {
+  it('returns 403 when media flow disabled', async () => {
     getBooleanMock.mockResolvedValue(false);
     const res = await POST(
-      new Request(`http://localhost/api/patient/treatment-program-instances/${instanceId}/items/${itemId}/discussion/media`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ mediaFileId }),
-      }),
+      new Request(
+        `http://localhost/api/patient/treatment-program-instances/${instanceId}/items/${itemId}/discussion/media`,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ mediaFileId }),
+        },
+      ),
       { params: Promise.resolve({ instanceId, itemId }) },
     );
     expect(res.status).toBe(403);
   });
 
-  it("attaches ready media and returns latest message", async () => {
+  it('attaches ready media and returns latest message', async () => {
     const res = await POST(
-      new Request(`http://localhost/api/patient/treatment-program-instances/${instanceId}/items/${itemId}/discussion/media`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ mediaFileId }),
-      }),
+      new Request(
+        `http://localhost/api/patient/treatment-program-instances/${instanceId}/items/${itemId}/discussion/media`,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ mediaFileId }),
+        },
+      ),
       { params: Promise.resolve({ instanceId, itemId }) },
     );
     expect(res.status).toBe(200);
@@ -151,7 +157,7 @@ describe("POST .../discussion/media", () => {
     expect(data.message?.mediaFileId).toBe(mediaFileId);
   });
 
-  it("returns 403 when support policy disables media", async () => {
+  it('returns 403 when support policy disables media', async () => {
     getPatientProgramInteractionPolicyMock.mockResolvedValue({
       onSupport: false,
       commentsAllowed: false,
@@ -159,16 +165,19 @@ describe("POST .../discussion/media", () => {
     });
 
     const res = await POST(
-      new Request(`http://localhost/api/patient/treatment-program-instances/${instanceId}/items/${itemId}/discussion/media`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ mediaFileId }),
-      }),
+      new Request(
+        `http://localhost/api/patient/treatment-program-instances/${instanceId}/items/${itemId}/discussion/media`,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ mediaFileId }),
+        },
+      ),
       { params: Promise.resolve({ instanceId, itemId }) },
     );
     expect(res.status).toBe(403);
     const data = (await res.json()) as { error?: string };
-    expect(data.error).toBe("patient_support_media_disabled");
+    expect(data.error).toBe('patient_support_media_disabled');
     expect(appendDiscussionMediaMock).not.toHaveBeenCalled();
   });
 });

@@ -177,4 +177,3 @@ Do not run root `pnpm run ci`.
 - `PatientGatedHeader` ведёт себя по тем же правилам.
 - Tests for nav/header/shell pass or documented failures are fixed.
 - `LOG.md` updated.
-

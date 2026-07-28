@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import type { MediaListItem } from "@/shared/ui/doctor/media/MediaPickerList";
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { MediaListItem } from '@/shared/ui/doctor/media/MediaPickerList';
 
 const SEARCH_DEBOUNCE_MS = 300;
 
@@ -15,9 +15,9 @@ type ListResponse = {
 };
 
 function pageUrl(listUrlBase: string, query: string, offset: number): string {
-  const u = new URL(listUrlBase, "http://local");
-  u.searchParams.set("q", query.trim());
-  u.searchParams.set("offset", String(offset));
+  const u = new URL(listUrlBase, 'http://local');
+  u.searchParams.set('q', query.trim());
+  u.searchParams.set('offset', String(offset));
   return `${u.pathname}?${u.searchParams.toString()}`;
 }
 
@@ -79,11 +79,11 @@ export function useMediaLibraryPickerServerSearch(options: {
   const fetchPage = useCallback(
     async (offset: number, append: boolean, signal: AbortSignal, requestId: number) => {
       const res = await fetch(pageUrl(listUrlBase, trimmedQuery, offset), {
-        credentials: "same-origin",
+        credentials: 'same-origin',
         signal,
       });
       const data = (await res.json()) as ListResponse;
-      if (!res.ok || !data.ok) throw new Error(data.error ?? "search_failed");
+      if (!res.ok || !data.ok) throw new Error(data.error ?? 'search_failed');
       if (signal.aborted || requestId !== requestIdRef.current) return;
 
       const incoming = data.items ?? [];
@@ -94,7 +94,7 @@ export function useMediaLibraryPickerServerSearch(options: {
       });
       setHasMore(Boolean(data.hasMore));
       setNextOffset(data.nextOffset ?? offset + incoming.length);
-      setTotal(typeof data.total === "number" ? data.total : null);
+      setTotal(typeof data.total === 'number' ? data.total : null);
     },
     [listUrlBase, trimmedQuery],
   );
@@ -129,9 +129,10 @@ export function useMediaLibraryPickerServerSearch(options: {
       void fetchPage(0, false, ac.signal, requestId)
         .catch((e: unknown) => {
           if (ac.signal.aborted || requestId !== requestIdRef.current) return;
-          const name = e && typeof e === "object" && "name" in e ? String((e as { name?: string }).name) : "";
-          if (name === "AbortError") return;
-          setError("Не удалось выполнить поиск по библиотеке");
+          const name =
+            e && typeof e === 'object' && 'name' in e ? String((e as { name?: string }).name) : '';
+          if (name === 'AbortError') return;
+          setError('Не удалось выполнить поиск по библиотеке');
           setItems([]);
         })
         .finally(() => {
@@ -157,9 +158,10 @@ export function useMediaLibraryPickerServerSearch(options: {
     void fetchPage(nextOffset, true, ac.signal, requestId)
       .catch((e: unknown) => {
         if (requestId !== requestIdRef.current) return;
-        const name = e && typeof e === "object" && "name" in e ? String((e as { name?: string }).name) : "";
-        if (name === "AbortError") return;
-        setError("Не удалось загрузить следующую страницу");
+        const name =
+          e && typeof e === 'object' && 'name' in e ? String((e as { name?: string }).name) : '';
+        if (name === 'AbortError') return;
+        setError('Не удалось загрузить следующую страницу');
       })
       .finally(() => {
         if (requestId !== requestIdRef.current) return;

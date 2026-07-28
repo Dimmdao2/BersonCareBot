@@ -1,6 +1,6 @@
 ---
 name: doctor-ui-visual-style-pass
-overview: "Внедрение нового визуального гайда кабинета врача (DOCTOR_APP_UI_STYLE_GUIDE §A–§C): единый визуальный язык, закрытая шкала текста/контролов/плотности и общий стиль компонентов по эталону экрана упражнений. Только фронтенд doctor-зоны, без бизнес-логики/API/БД/маршрутов. Цель — убрать «то слишком мелко, то слишком крупно» и собрать кабинет в цельный production-интерфейс."
+overview: 'Внедрение нового визуального гайда кабинета врача (DOCTOR_APP_UI_STYLE_GUIDE §A–§C): единый визуальный язык, закрытая шкала текста/контролов/плотности и общий стиль компонентов по эталону экрана упражнений. Только фронтенд doctor-зоны, без бизнес-логики/API/БД/маршрутов. Цель — убрать «то слишком мелко, то слишком крупно» и собрать кабинет в цельный production-интерфейс.'
 status: completed
 todos:
   - id: phase-0-preflight-audit
@@ -46,6 +46,7 @@ isProject: false
 ## Scope и границы
 
 **Разрешено менять:**
+
 - `apps/webapp/src/app/app/doctor/**` (фронтенд doctor-зоны);
 - `apps/webapp/src/shared/ui/doctor/**` (foundation + doctor-only примитивы);
 - `apps/webapp/src/app/styles/doctor.css` (зональные токены `#app-shell-doctor`);
@@ -53,6 +54,7 @@ isProject: false
 - документация: `docs/ARCHITECTURE/DOCTOR_APP_UI_STYLE_GUIDE.md`, `docs/README.md` и initiative docs новой папки (см. фаза 0).
 
 **Вне scope (не трогать):**
+
 - patient UI: `apps/webapp/src/app/app/patient/**`, `shared/ui/patient/**`, `patientVisual.ts`, `patient.css`, `#app-shell-patient`;
 - `tailwind-engine.css` базовые токены (`:root`) — менять только если строго требуется и без влияния на patient (по умолчанию **не** менять);
 - бизнес-логика сервисов, API-контракты, route handlers, схемы БД, миграции, интеграционные сценарии;
@@ -92,6 +94,7 @@ rg "h-9|h-10|h-11|h-\[3[0-9]px\]" apps/webapp/src/app/app/doctor apps/webapp/src
 4. Внести найденное в `AUDIT.md`, сгруппировать по фазам 2–4 и по 5 семействам экранов.
 
 Проверки/закрытие фазы 0:
+
 - [x] initiative docs созданы, `LOG.md` содержит стартовую запись;
 - [x] `AUDIT.md` заполнен (каждая строка: путь, текущий класс, целевой, фаза);
 - [x] явно отмечены исключения (header icon 40px, KPI `text-2xl` — это цель, а не нарушение).
@@ -113,6 +116,7 @@ rg "h-9|h-10|h-11|h-\[3[0-9]px\]" apps/webapp/src/app/app/doctor apps/webapp/src
    - `apps/webapp/src/shared/ui/doctor/primitives/button-variants.ts` — зафиксировать, что базовое действие doctor — `size="sm"` (32px); не менять семантику `default`, но в гайде/использовании опираться на `sm`/`doctorCatalogToolbarPrimaryActionClassName`. Если меняем радиус `sm` для совпадения с input — только `rounded-md`, проверить регрессии.
 
 Проверки/закрытие фазы 1:
+
 - [x] `pnpm --dir apps/webapp typecheck` (менялись exports/типы);
 - [x] `pnpm --dir apps/webapp lint`;
 - [x] `rg "doctorMetricValueClass" apps/webapp/src` — константа есть и экспортируется;
@@ -133,6 +137,7 @@ rg "h-9|h-10|h-11|h-\[3[0-9]px\]" apps/webapp/src/app/app/doctor apps/webapp/src
 4. Page-заголовки admin/ops: `text-xl` → `doctorPageTitleClass`; убрать `mb-6`/`space-y-6`/`gap-6` (заменить на `doctorPageStackClass`/`gap-3`). Маршруты: `admin/app-settings`, `admin/integrations`, `admin/auth`, `admin/technical`, `admin/booking/*` (визуальная шапка), `system-health`, `audit-log`, `health-archive`, `booking-merge`, `analytics/notifications`, `treatment-program-promo`, `patient-home`, `material-ratings`.
 
 Проверки/закрытие фазы 2:
+
 - [x] `rg "text-\[13px\]|text-lg|text-xl|text-3xl" apps/webapp/src/app/app/doctor apps/webapp/src/shared/ui/doctor --glob "*.tsx"` → пусто (chrome-размеры; micro-роль `text-[10px]`/`text-[11px]` для бейджей/календаря/осей графиков допустима по §B.1);
 - [x] `pnpm --dir apps/webapp lint`;
 - [x] если менялись компоненты с тестами — точечные тесты не требовались (UI style pass без изменения бизнес-логики);
@@ -152,6 +157,7 @@ rg "h-9|h-10|h-11|h-\[3[0-9]px\]" apps/webapp/src/app/app/doctor apps/webapp/src
 3. Тени: убрать `shadow-sm` с page-level секций (оставить на медиакарточках §11 и card-internal панелях §4).
 
 Проверки/закрытие фазы 3:
+
 - [x] `rg "rounded-2xl" apps/webapp/src/app/app/doctor --glob "*.tsx"` → пусто;
 - [x] `rg "#7ea1d1|bg-zinc-|bg-\[#" apps/webapp/src/shared/ui/doctor/shell` → пусто;
 - [x] `pnpm --dir apps/webapp lint` + `typecheck` (если менялись типы);
@@ -174,6 +180,7 @@ rg "h-9|h-10|h-11|h-\[3[0-9]px\]" apps/webapp/src/app/app/doctor apps/webapp/src
 2. Не-каталожные экраны (dashboard, appointments, online-intake, messages, broadcasts, карточка клиента): сверить поверхности (один border, без лишних теней), контролы 32px, active/hover из §A.4. Карточку клиента не переписывать — только привести значения к §A/§B (chrome из `doctorClientCardChrome.ts` уже канон).
 
 Проверки/закрытие фазы 4:
+
 - [x] `rg "doctorSectionCardClass|CatalogLeftPane|CatalogRightPane|DoctorCatalogFiltersToolbar" apps/webapp/src/app/app/doctor/<каталог>` — каждый каталог на shared-стеке;
 - [x] нет локальных «самописных» карточек/тулбаров в затронутых каталогах (`rg "rounded-.* border .* bg-card" <каталог>` — ревью на дубли);
 - [x] `pnpm --dir apps/webapp lint`; тесты затронутых компонентов;
@@ -187,6 +194,7 @@ rg "h-9|h-10|h-11|h-\[3[0-9]px\]" apps/webapp/src/app/app/doctor apps/webapp/src
 **Цель:** принять результат глазами, а не только по `rg`.
 
 Семейства и эталонные маршруты:
+
 1. Dashboard — `/app/doctor`.
 2. Каталоги — `/app/doctor/exercises`, `/app/doctor/recommendations`, `/app/doctor/treatment-program-templates`.
 3. Карточка клиента — `/app/doctor/clients/[id]` (overview + 1–2 вкладки).
@@ -194,11 +202,13 @@ rg "h-9|h-10|h-11|h-\[3[0-9]px\]" apps/webapp/src/app/app/doctor apps/webapp/src
 5. Admin/ops — `/app/doctor/admin/app-settings`, `/app/doctor/system-health`, `/app/doctor/audit-log`.
 
 Шаги:
+
 1. Выполнить статическую верификацию каждого маршрута (структура/классы/состояния) в среде без UI-стенда.
 2. Проверить чек-лист §21 гайда + §A.4 состояния + §B шкала.
 3. Зафиксировать в `LOG.md` найденное и поправленное; ручную desktop+mobile-проходку вынести в backlog.
 
 Проверки/закрытие фазы 5:
+
 - [x] по каждому семейству — отметка о статической проверке в `LOG.md`; ручная desktop+mobile-проходка вынесена в backlog;
 - [x] нет скачков размера в вёрстке по результатам статической проверки классов;
 - [x] active/hover/focus единообразны по коду (§A.4);
@@ -209,12 +219,14 @@ rg "h-9|h-10|h-11|h-\[3[0-9]px\]" apps/webapp/src/app/app/doctor apps/webapp/src
 ## Фаза 6 — Финализация
 
 Шаги:
+
 1. Синхронизировать `DOCTOR_APP_UI_STYLE_GUIDE.md` (если в ходе работы уточнились величины) и при необходимости `.cursor/rules/doctor-ui-shared-primitives.mdc` (добавить self-check по §B/§A).
 2. Убедиться, что ссылка на гайд есть в `docs/README.md` (уже есть — проверить актуальность).
 3. Финальный полный прогон: `pnpm install --frozen-lockfile && pnpm run ci`.
 4. Закрыть `LOG.md` итоговой записью; обновить frontmatter плана (`status`/`todos` → `completed`).
 
 Проверки/закрытие фазы 6:
+
 - [x] `pnpm run ci` — exit 0;
 - [x] guide/rule/README консистентны с кодом;
 - [x] frontmatter плана закрыт по `.cursor/rules/plan-authoring-execution-standard.mdc`.

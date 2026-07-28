@@ -1,4 +1,4 @@
-import type { ExerciseUsageRef, ExerciseUsageSnapshot } from "@/modules/lfk-exercises/types";
+import type { ExerciseUsageRef, ExerciseUsageSnapshot } from '@/modules/lfk-exercises/types';
 
 /** «В N + одна/несколько/много» для существительного после числа (род. мн. / предл. мн.). */
 export function vNaForm(n: number, one: string, few: string, many: string): string {
@@ -35,12 +35,12 @@ export function exerciseUsageSections(u: ExerciseUsageSnapshot): ExerciseUsageSe
   const sections: ExerciseUsageSection[] = [];
   if (u.publishedLfkComplexTemplateCount > 0) {
     sections.push({
-      key: "published_lfk",
+      key: 'published_lfk',
       summary: vNaForm(
         u.publishedLfkComplexTemplateCount,
-        "опубликованном шаблоне комплексов ЛФК",
-        "опубликованных шаблонах комплексов ЛФК",
-        "опубликованных шаблонах комплексов ЛФК",
+        'опубликованном шаблоне комплексов ЛФК',
+        'опубликованных шаблонах комплексов ЛФК',
+        'опубликованных шаблонах комплексов ЛФК',
       ),
       refs: u.publishedLfkComplexTemplateRefs,
       total: u.publishedLfkComplexTemplateCount,
@@ -48,12 +48,12 @@ export function exerciseUsageSections(u: ExerciseUsageSnapshot): ExerciseUsageSe
   }
   if (u.draftLfkComplexTemplateCount > 0) {
     sections.push({
-      key: "draft_lfk",
+      key: 'draft_lfk',
       summary: vNaForm(
         u.draftLfkComplexTemplateCount,
-        "черновом шаблоне комплексов ЛФК",
-        "черновых шаблонах комплексов ЛФК",
-        "черновых шаблонах комплексов ЛФК",
+        'черновом шаблоне комплексов ЛФК',
+        'черновых шаблонах комплексов ЛФК',
+        'черновых шаблонах комплексов ЛФК',
       ),
       refs: u.draftLfkComplexTemplateRefs,
       total: u.draftLfkComplexTemplateCount,
@@ -61,12 +61,12 @@ export function exerciseUsageSections(u: ExerciseUsageSnapshot): ExerciseUsageSe
   }
   if (u.publishedTreatmentProgramTemplateCount > 0) {
     sections.push({
-      key: "published_tp_tpl",
+      key: 'published_tp_tpl',
       summary: vNaForm(
         u.publishedTreatmentProgramTemplateCount,
-        "опубликованном шаблоне программ лечения",
-        "опубликованных шаблонах программ лечения",
-        "опубликованных шаблонах программ лечения",
+        'опубликованном шаблоне программ лечения',
+        'опубликованных шаблонах программ лечения',
+        'опубликованных шаблонах программ лечения',
       ),
       refs: u.publishedTreatmentProgramTemplateRefs,
       total: u.publishedTreatmentProgramTemplateCount,
@@ -74,12 +74,12 @@ export function exerciseUsageSections(u: ExerciseUsageSnapshot): ExerciseUsageSe
   }
   if (u.draftTreatmentProgramTemplateCount > 0) {
     sections.push({
-      key: "draft_tp_tpl",
+      key: 'draft_tp_tpl',
       summary: vNaForm(
         u.draftTreatmentProgramTemplateCount,
-        "черновом шаблоне программ лечения",
-        "черновых шаблонах программ лечения",
-        "черновых шаблонах программ лечения",
+        'черновом шаблоне программ лечения',
+        'черновых шаблонах программ лечения',
+        'черновых шаблонах программ лечения',
       ),
       refs: u.draftTreatmentProgramTemplateRefs,
       total: u.draftTreatmentProgramTemplateCount,
@@ -87,12 +87,12 @@ export function exerciseUsageSections(u: ExerciseUsageSnapshot): ExerciseUsageSe
   }
   if (u.activeTreatmentProgramInstanceCount > 0) {
     sections.push({
-      key: "active_tp_inst",
+      key: 'active_tp_inst',
       summary: vNaForm(
         u.activeTreatmentProgramInstanceCount,
-        "активной программе у пациентов",
-        "активных программах у пациентов",
-        "активных программах у пациентов",
+        'активной программе у пациентов',
+        'активных программах у пациентов',
+        'активных программах у пациентов',
       ),
       refs: u.activeTreatmentProgramInstanceRefs,
       total: u.activeTreatmentProgramInstanceCount,
@@ -100,12 +100,12 @@ export function exerciseUsageSections(u: ExerciseUsageSnapshot): ExerciseUsageSe
   }
   if (u.activePatientLfkAssignmentCount > 0) {
     sections.push({
-      key: "active_pla",
+      key: 'active_pla',
       summary: vNaForm(
         u.activePatientLfkAssignmentCount,
-        "активном назначении ЛФК у пациентов",
-        "активных назначениях ЛФК у пациентов",
-        "активных назначениях ЛФК у пациентов",
+        'активном назначении ЛФК у пациентов',
+        'активных назначениях ЛФК у пациентов',
+        'активных назначениях ЛФК у пациентов',
       ),
       refs: u.activePatientLfkAssignmentRefs,
       total: u.activePatientLfkAssignmentCount,
@@ -113,12 +113,12 @@ export function exerciseUsageSections(u: ExerciseUsageSnapshot): ExerciseUsageSe
   }
   if (u.completedTreatmentProgramInstanceCount > 0) {
     sections.push({
-      key: "completed_tp_inst",
+      key: 'completed_tp_inst',
       summary: vNaForm(
         u.completedTreatmentProgramInstanceCount,
-        "завершённой программе у пациентов (история)",
-        "завершённых программах у пациентов (история)",
-        "завершённых программах у пациентов (история)",
+        'завершённой программе у пациентов (история)',
+        'завершённых программах у пациентов (история)',
+        'завершённых программах у пациентов (история)',
       ),
       refs: u.completedTreatmentProgramInstanceRefs,
       total: u.completedTreatmentProgramInstanceCount,

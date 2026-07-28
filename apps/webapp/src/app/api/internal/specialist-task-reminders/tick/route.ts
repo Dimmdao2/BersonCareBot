@@ -1,19 +1,19 @@
-import { timingSafeEqual } from "node:crypto";
-import { NextResponse } from "next/server";
-import { enterWithDbInfraPrincipal } from "@bersoncare/db-principal";
-import { env } from "@/config/env";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { logger } from "@/app-layer/logging/logger";
-import { recordOperatorCronJobTickBestEffort } from "@/app-layer/operator-health/recordOperatorCronJobTick";
-import { dispatchDueSpecialistTaskReminders } from "@/modules/specialist-tasks/dispatchDueReminders";
+import { timingSafeEqual } from 'node:crypto';
+import { NextResponse } from 'next/server';
+import { enterWithDbInfraPrincipal } from '@bersoncare/db-principal';
+import { env } from '@/config/env';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { logger } from '@/app-layer/logging/logger';
+import { recordOperatorCronJobTickBestEffort } from '@/app-layer/operator-health/recordOperatorCronJobTick';
+import { dispatchDueSpecialistTaskReminders } from '@/modules/specialist-tasks/dispatchDueReminders';
 import {
   OPERATOR_SPECIALIST_TASKS_JOB_FAMILY,
   OPERATOR_SPECIALIST_TASK_REMINDERS_TICK_JOB_KEY,
-} from "@/modules/operator-health/reconcileJobKeys";
+} from '@/modules/operator-health/reconcileJobKeys';
 
 function bearerMatchesSecret(token: string, secret: string): boolean {
-  const a = Buffer.from(token, "utf8");
-  const b = Buffer.from(secret, "utf8");
+  const a = Buffer.from(token, 'utf8');
+  const b = Buffer.from(secret, 'utf8');
   if (a.length !== b.length) return false;
   return timingSafeEqual(a, b);
 }
@@ -25,19 +25,22 @@ function bearerMatchesSecret(token: string, secret: string): boolean {
 export async function POST(request: Request) {
   const secret = env.INTERNAL_JOB_SECRET;
   if (!secret) {
-    return NextResponse.json({ ok: false, error: "not_configured" }, { status: 503 });
+    return NextResponse.json({ ok: false, error: 'not_configured' }, { status: 503 });
   }
 
-  const auth = request.headers.get("authorization") ?? "";
-  const token = auth.startsWith("Bearer ") ? auth.slice(7).trim() : "";
+  const auth = request.headers.get('authorization') ?? '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
   if (!token || !bearerMatchesSecret(token, secret)) {
-    return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+    return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 });
   }
   // INFRA pending owner confirmation: due specialist-task reminders are swept across specialists/orgs.
-  enterWithDbInfraPrincipal({ source: "api/internal/specialist-task-reminders/tick:POST" });
+  enterWithDbInfraPrincipal({ source: 'api/internal/specialist-task-reminders/tick:POST' });
 
   const url = new URL(request.url);
-  const limit = Math.min(100, Math.max(1, Number.parseInt(url.searchParams.get("limit") ?? "50", 10) || 50));
+  const limit = Math.min(
+    100,
+    Math.max(1, Number.parseInt(url.searchParams.get('limit') ?? '50', 10) || 50),
+  );
 
   const startedAt = Date.now();
   const startedAtIso = new Date(startedAt).toISOString();
@@ -89,7 +92,7 @@ export async function POST(request: Request) {
       success: false,
       error: msg,
     });
-    logger.error({ err: e }, "[internal/specialist-task-reminders/tick] failed");
-    return NextResponse.json({ ok: false, error: "internal_error" }, { status: 500 });
+    logger.error({ err: e }, '[internal/specialist-task-reminders/tick] failed');
+    return NextResponse.json({ ok: false, error: 'internal_error' }, { status: 500 });
   }
 }

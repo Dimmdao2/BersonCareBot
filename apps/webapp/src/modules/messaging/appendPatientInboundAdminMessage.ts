@@ -2,8 +2,8 @@
  * Запись входящего сообщения от клиники в канонический PWA-чат пациента.
  * Используется для рассылок, lifecycle записи и т.п. (без notifyPatientDoctorReply).
  */
-import type { PatientInboundChatPort } from "@/modules/messaging/ports";
-import { logger, serializeError } from "@/infra/logging/logger";
+import type { PatientInboundChatPort } from '@/modules/messaging/ports';
+import { logger, serializeError } from '@/infra/logging/logger';
 
 const MAX_TEXT_LEN = 4000;
 
@@ -29,18 +29,23 @@ export async function appendPatientInboundAdminMessage(
   const text = truncateText(params.text);
   if (!text && !params.mediaUrl) return null;
 
-  await port.mergeLegacySupportConversationsForPlatformUser?.(params.platformUserId).catch((err: unknown) => {
-    logger.error({ err: serializeError(err) }, "[appendPatientInboundAdminMessage] merge legacy error");
-  });
+  await port
+    .mergeLegacySupportConversationsForPlatformUser?.(params.platformUserId)
+    .catch((err: unknown) => {
+      logger.error(
+        { err: serializeError(err) },
+        '[appendPatientInboundAdminMessage] merge legacy error',
+      );
+    });
 
   const { id: conversationId } = await port.ensureWebappConversationForUser(params.platformUserId);
   const now = new Date().toISOString();
   const { id: messageId } = await port.appendWebappMessage({
     conversationId,
     integratorMessageId: params.integratorMessageId,
-    senderRole: "admin",
+    senderRole: 'admin',
     text,
-    source: params.source ?? "webapp",
+    source: params.source ?? 'webapp',
     createdAt: now,
     mediaUrl: params.mediaUrl ?? null,
     mediaType: params.mediaType ?? null,
@@ -57,7 +62,7 @@ export function broadcastChatIntegratorMessageId(auditId: string, platformUserId
 
 /** Стабильный id для lifecycle записи. */
 export function bookingLifecycleChatIntegratorMessageId(
-  variant: "created" | "cancelled" | "rescheduled",
+  variant: 'created' | 'cancelled' | 'rescheduled',
   bookingId: string,
 ): string {
   return `booking-${variant}:${bookingId}`;

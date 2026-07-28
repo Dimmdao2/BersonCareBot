@@ -12,7 +12,6 @@ is the input for an owner go/no-go on a surgical fix; nothing here has been appl
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-
 `deploy/postgres/phase4-force-rls-cutover.sql` (commit `16a910970`) put ~140 tables on TEST under
 `FORCE ROW LEVEL SECURITY`. The relevant tenant policy shape (e.g. `saas_org_dormant_p0_8_3`) is:
 
@@ -52,7 +51,6 @@ materializing.
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-
 Read these first if verifying this doc: `packages/db-principal/src/index.ts`,
 `apps/webapp/src/app-layer/db/drizzle.ts`, `apps/webapp/src/infra/db/withClient.ts`,
 `apps/webapp/src/infra/db/webappPoolProvider.ts`, `apps/webapp/src/infra/db/client.ts`,
@@ -81,9 +79,9 @@ Read these first if verifying this doc: `packages/db-principal/src/index.ts`,
   `withPrincipalAwareTransactions()` had to add its own explicit, synchronous `getCurrentDbPrincipal()`
   snapshot + apply/clear around `.transaction()` in `drizzle.ts`.
 
-**So both paths *can* work.** The gap is not "reads have no chokepoint at all" — it's that the
-pool-level chokepoint applies whatever principal happens to be ambient in `AsyncLocalStorage` *at
-that exact call*, and nothing in the codebase **guarantees** that ambient value is the caller's org
+**So both paths _can_ work.** The gap is not "reads have no chokepoint at all" — it's that the
+pool-level chokepoint applies whatever principal happens to be ambient in `AsyncLocalStorage` _at
+that exact call_, and nothing in the codebase **guarantees** that ambient value is the caller's org
 principal for a plain read the way `withDoctorWorkspacePrincipal(...)` guarantees it for a write.
 Two concrete, directly-observed failure shapes:
 
@@ -96,14 +94,14 @@ Two concrete, directly-observed failure shapes:
    `assertOwnedByDoctor()`'s pre-write authorization read at line 43 is also unwrapped).
 2. **Half-fixed within one function.** `payment-timeline/route.ts` line 104 wraps
    `deps.patientPayments.listPayments(...)` in `withDoctorWorkspacePrincipal(...)`, but the sibling
-   call on line 106, `deps.payments.listPaymentHistoryForUser(...)`, in the *same* `Promise.all([...])`,
+   call on line 106, `deps.payments.listPaymentHistoryForUser(...)`, in the _same_ `Promise.all([...])`,
    is not wrapped. Direct evidence the previous fix strategy (wrap the call site, case by case) is
    error-prone even for the engineer doing it in the same PR — exactly why the owner wants one
    chokepoint instead of N patches.
 3. **Historical ALS-continuity gap.** `ensureDbPrincipalContext()`'s doc comment in
    `packages/db-principal/src/index.ts` records a previously-confirmed live TEST incident: a route's DB
    principal read straight after `getCurrentSession()` showed 'staff', but a later query in the same
-   handler saw 'bootstrap' again. Argument for making the *lowest* layer (the DB checkout) the
+   handler saw 'bootstrap' again. Argument for making the _lowest_ layer (the DB checkout) the
    deterministic point of truth rather than depending on call sites re-wrapping.
 
 Only two routes were previously hand-patched: `doctor/schedule-kpis` (whole handler wrapped) and
@@ -118,7 +116,6 @@ Only two routes were previously hand-patched: `doctor/schedule-kpis` (whole hand
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-
 Heuristic scan for "exported async method containing `.select(` but no `.transaction(`" inside
 `infra/repos` returns **~321 raw hits across 65 files** (over-counts). A second heuristic — `route.ts`
 under `app/api/{doctor,admin,patient}` importing **no** principal-wrapper helper — found **170 of 338**
@@ -127,19 +124,19 @@ any fix is declared done.**
 
 Directly-verified examples per domain (bug is systemic, not booking-only):
 
-| # | Domain | Route / repo fn | Table(s) | Wrapped? | Symptom |
-|---|---|---|---|---|---|
-| 1 | Schedule | `GET admin/.../working-hours:41-48` → `listWorkingHoursAdmin` (`pgBookingScheduling.ts:433`) | `be_working_hours` | **No** | Empty week in editor |
-| 2 | Schedule | `GET doctor/.../working-hours:71-79` + `assertOwnedByDoctor:43` | `be_working_hours` | **No** | Same as #1; also breaks own-row ownership gate for PATCH/DELETE |
-| 3 | Schedule | `listBusyIntervals` (`pgBookingScheduling.ts:197`), slot engine | `be_appointments`,`be_schedule_blocks` | **No** | Slot engine sees no bookings → double-booking |
-| 4 | Appointments | `GET doctor/appointments/list:20-29` → `listAppointmentsForSpecialist` | `be_appointments` | **No** | Past-appointments archive empty |
-| 5 | Appointments | (contrast) `GET doctor/schedule-kpis:46` → `getScheduleKpis` | `be_appointments` | **Yes** | Works today; the "2 patched routes" precedent |
-| 6 | Patients | `GET doctor/clients/search:39-40` → `listClients` | client roster | **No** | Patient search returns nothing |
-| 7 | Patients | (contrast) `GET doctor/patients/[userId]/clinical:37-42` → `getClinicalState` | clinical_* | **Yes** | Works; but `getClinicalState` computes org from ambient principal (see §4 flag) |
-| 8 | Programs | `GET doctor/treatment-program-templates:20-38` → `listTemplates` | `treatment_program_templates` | **No** (route never calls requireDoctorWorkspaceApiContext, no org passed) | Program-template library empty |
-| 9 | Content | `app/app/doctor/content/page.tsx:21-22` (RSC page) → `contentPages.listAll()` | `content_pages` | **No** | CMS hub empty. Proves blast radius spans RSC page-loaders, not just API routes |
-| 10 | Finances | `GET admin/.../prepayment-policies:28-36` → `listPrepaymentPolicies` | `be_prepayment_policies` | **No** | Prepayment-policy screen empty |
-| 11 | Finances | `GET doctor/patients/[userId]/payment-timeline:105-107` → `listPaymentHistoryForUser` | `be_payment_history_events` | **No** (sibling `listPayments:104` IS wrapped) | Timeline drops prepayment/refund rows |
+| #   | Domain       | Route / repo fn                                                                              | Table(s)                               | Wrapped?                                                                   | Symptom                                                                         |
+| --- | ------------ | -------------------------------------------------------------------------------------------- | -------------------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| 1   | Schedule     | `GET admin/.../working-hours:41-48` → `listWorkingHoursAdmin` (`pgBookingScheduling.ts:433`) | `be_working_hours`                     | **No**                                                                     | Empty week in editor                                                            |
+| 2   | Schedule     | `GET doctor/.../working-hours:71-79` + `assertOwnedByDoctor:43`                              | `be_working_hours`                     | **No**                                                                     | Same as #1; also breaks own-row ownership gate for PATCH/DELETE                 |
+| 3   | Schedule     | `listBusyIntervals` (`pgBookingScheduling.ts:197`), slot engine                              | `be_appointments`,`be_schedule_blocks` | **No**                                                                     | Slot engine sees no bookings → double-booking                                   |
+| 4   | Appointments | `GET doctor/appointments/list:20-29` → `listAppointmentsForSpecialist`                       | `be_appointments`                      | **No**                                                                     | Past-appointments archive empty                                                 |
+| 5   | Appointments | (contrast) `GET doctor/schedule-kpis:46` → `getScheduleKpis`                                 | `be_appointments`                      | **Yes**                                                                    | Works today; the "2 patched routes" precedent                                   |
+| 6   | Patients     | `GET doctor/clients/search:39-40` → `listClients`                                            | client roster                          | **No**                                                                     | Patient search returns nothing                                                  |
+| 7   | Patients     | (contrast) `GET doctor/patients/[userId]/clinical:37-42` → `getClinicalState`                | clinical\_\*                           | **Yes**                                                                    | Works; but `getClinicalState` computes org from ambient principal (see §4 flag) |
+| 8   | Programs     | `GET doctor/treatment-program-templates:20-38` → `listTemplates`                             | `treatment_program_templates`          | **No** (route never calls requireDoctorWorkspaceApiContext, no org passed) | Program-template library empty                                                  |
+| 9   | Content      | `app/app/doctor/content/page.tsx:21-22` (RSC page) → `contentPages.listAll()`                | `content_pages`                        | **No**                                                                     | CMS hub empty. Proves blast radius spans RSC page-loaders, not just API routes  |
+| 10  | Finances     | `GET admin/.../prepayment-policies:28-36` → `listPrepaymentPolicies`                         | `be_prepayment_policies`               | **No**                                                                     | Prepayment-policy screen empty                                                  |
+| 11  | Finances     | `GET doctor/patients/[userId]/payment-timeline:105-107` → `listPaymentHistoryForUser`        | `be_payment_history_events`            | **No** (sibling `listPayments:104` IS wrapped)                             | Timeline drops prepayment/refund rows                                           |
 
 High-density repo files for the full pass: `pgTreatmentProgram.ts`, `pgTreatmentProgramInstance.ts`,
 `pgProgramItemDiscussion.ts`, `pgProgramActionLog.ts`, `pgPayments.ts`, `pgMemberships.ts`,
@@ -159,38 +156,43 @@ Estimate only; Phase 0 produces the real number.
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-
 ### Option (a) — make the read layer itself always install the principal on checkout
+
 Extend the mechanism that already makes `db.transaction()` safe (`withPrincipalAwareTransactions()` in
 `app-layer/db/drizzle.ts`) so it also governs every drizzle query entry point outside an explicit
 transaction — route `.select()`/`.query.*`/`.execute()` through the same snapshot→apply→clear sequence
 `.transaction()` already uses (e.g. an implicit short read transaction reusing
 `applyDbPrincipalToTransaction`/`clearDbPrincipalFromTransaction`).
+
 - **Safe:** invents no new way to pick a principal — same `getCurrentDbPrincipal()` at the same
   synchronous pre-checkout point; reuses code already exercised by
   `smoke-r2-real-policy-isolation.mjs`/`rehearse-multitenant-isolation.mjs`. No policy/role/pool-routing
   change.
 - **Surface: one file** (`drizzle.ts`). Fixes every current and future `db.select()`, including the
   RSC-page case (#9) a route-level fix can't reach.
-- **Misses:** a call site whose *ambient* principal is absent for a non-read-vs-write reason (finding
+- **Misses:** a call site whose _ambient_ principal is absent for a non-read-vs-write reason (finding
   #8, route never establishes a session/org). There the read now fails-closed correctly (empty) rather
   than wrong-data — safe direction; needs a small separate follow-up per route, not a security gap.
 - **Already covered:** `withClient()`/`withPoolClient()` callers apply the principal explicitly already;
   only Drizzle's bare query-builder path is the gap.
 
 ### Option (b) — route every read through an explicit principal-aware helper
+
 `withReadPrincipal(fn)` or require explicit `organizationId` on every repo read (mirror
 `withDoctorWorkspacePrincipal` for writes), changing all ~40-70 call sites.
+
 - **Safe/auditable** per call site; lintable.
 - **Cost:** ~40-70 call sites (routes + RSC pages), each a chance to swap args exactly like §7's
   companion bug; higher surface/review cost; the "N patches" pattern the owner wants to avoid.
 
 ### Option (c) — temporarily relax FORCE on TEST while (a) lands
+
 Roll back to `NO FORCE` on TEST during Phase 1-2, then re-cutover (script supports `DOWN` via
 `phase4_force_rls_down`). Lowest immediate app risk but re-opens the pre-cutover trust model meanwhile
 and needs a second rollout runbook.
 
 ### Recommendation
+
 **Ship Option (a)** (one file, proven code, fixes routes + RSC pages, fails closed), paired with a
 **non-blocking companion**: extend the `check-db-chokepoint.mjs` static-guard family to flag (not
 block) repo reads reachable with no session-derived org context (finding #8 shape). Option (b) as
@@ -206,16 +208,16 @@ parallel safety valve if verification runs long.
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-
 **The installed org is never client-supplied.** `stampDbPrincipalFromSession()`
 (`sessionPrincipal.ts:26-68`) is the only place an org id enters a doctor/admin principal, deriving it
 via `organizationMembershipService.resolveOrganizationForUser({ platformUserId: session.user.userId })`
 — `userId` from the cookie-verified session, never request body/query/header. Patient path analogous.
-Option (a) doesn't touch this derivation — only *when/how reliably* the already-derived principal is
+Option (a) doesn't touch this derivation — only _when/how reliably_ the already-derived principal is
 applied for a plain read. It cannot make a request see a different org than its own session resolves to,
 because it introduces no new source of an org id.
 
 **Fail-closed, never fail-open, both modes:**
+
 - `legacy-guc`: missing principal → `applyDbPrincipalToTransaction` returns false, no `set_config` →
   connection's `app.org` was cleared to `''` by the prior checkout's cleanup (always in `finally`) →
   `current_org_id()` NULL → policy false for every org → **empty**, not another org's rows.
@@ -228,7 +230,7 @@ because it introduces no new source of an org id.
   `clearDbPrincipalFromConnection`/`releasePreparedClient` and the `finally` in
   `installPrincipalAwarePoolQuery` prevent, and Option (a) touches none of that.
 - `AsyncLocalStorage` is per-async-context; concurrent requests each get their own cell. The only risk
-  category is a single request's own ALS reading a stale/bootstrap value *for itself* (fails closed),
+  category is a single request's own ALS reading a stale/bootstrap value _for itself_ (fails closed),
   never another tenant's value.
 
 **One non-negotiable implementation constraint:** the new "always apply on checkout" logic must
@@ -250,7 +252,6 @@ explicit organizationId here regardless of the chokepoint fix.
 > **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
-
 
 1. **Mechanism-level (exists, stays green):** `smoke-r2-real-policy-isolation.mjs`,
    `rehearse-multitenant-isolation.mjs` — prove the principal+RLS plumbing (staff/patient wall, plain
@@ -277,21 +278,20 @@ explicit organizationId here regardless of the chokepoint fix.
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-
 - [ ] **Phase 0 — exact inventory.** Real static scan over `infra/repos/*.ts` cross-referenced against
-  the FORCE-RLS table list (`phase4-force-rls-cutover.sql`/`R1_TABLE_TAXONOMY.md`); produce exact count
-  + file:line list of unwrapped org-scoped reads. Checked-in inventory file (like `P0_7_WRITER_CENSUS.md`).
+      the FORCE-RLS table list (`phase4-force-rls-cutover.sql`/`R1_TABLE_TAXONOMY.md`); produce exact count
+  - file:line list of unwrapped org-scoped reads. Checked-in inventory file (like `P0_7_WRITER_CENSUS.md`).
 - [ ] **Phase 1 — chokepoint fix.** Option (a) in `drizzle.ts` only. Unit-test the wrapping (snapshot
-  correctness, cleanup-on-error, no-principal fail-closed) — mirror `drizzle.test.ts`.
+      correctness, cleanup-on-error, no-principal fail-closed) — mirror `drizzle.test.ts`.
 - [ ] **Phase 2 — application proof.** Positive + negative integration tests (§5) against the two-clinic
-  fixture. Every §2 route flips `[]`→correct-own-org, stays `[]`/correct for the other org.
-  `check-saas-db-regression.mjs` green.
+      fixture. Every §2 route flips `[]`→correct-own-org, stays `[]`/correct for the other org.
+      `check-saas-db-regression.mjs` green.
 - [ ] **Phase 3 — companion bug (independent, §7).** Fix `deactivateWorkingHours` arg order at 2 sites;
-  add the real-DELETE regression test.
+      add the real-DELETE regression test.
 - [ ] **Phase 4 — hardening (non-blocking).** Extend `check-db-chokepoint.mjs` to flag reads reachable
-  with no session-derived org (finding #8); pass explicit organizationId into `getClinicalState` (§4).
+      with no session-derived org (finding #8); pass explicit organizationId into `getClinicalState` (§4).
 - [ ] **Phase 5 — sign-off.** Re-run isolation rehearsals unmodified (prove no policy/principal drift),
-  then owner walkthrough per `ST-02_WALKTHROUGH.md` on real TEST UI.
+      then owner walkthrough per `ST-02_WALKTHROUGH.md` on real TEST UI.
 
 ## 7. Companion Bug (independent of RLS): `deactivateWorkingHours` swapped args
 
@@ -302,8 +302,8 @@ explicit organizationId here regardless of the chokepoint fix.
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-
 Plain argument-order defect, type-checker-invisible (both params `string`). Git archaeology:
+
 - `modules/booking-scheduling/ports.ts:306` — service facade declares
   `deactivateWorkingHours(id, organizationId)`.
 - `modules/booking-scheduling/service.ts:285-286` implements it correctly, remapping to the Port's
@@ -323,6 +323,7 @@ Plain argument-order defect, type-checker-invisible (both params `string`). Git 
 ## 8b. OWNER DECISIONS — RESOLVED 2026-07-17
 
 Owner ruled on all four (verbatim intent):
+
 1. **Keep FORCE ON.** No relaxing. Test+dev live on the same server, nobody works live, we are just preparing
    this toward a full working system — no reason to ever remove the walls.
 2. **Approved Option (a) — single chokepoint — emphatically.** Owner's directive: the whole POINT of turning
@@ -341,7 +342,6 @@ Owner ruled on all four (verbatim intent):
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-
 1. **Keep FORCE on TEST during the fix, or temporarily relax to NO FORCE (Option c)?** Recommendation:
    keep FORCE on — Option (a) is small/single-file/low-risk; relaxing re-opens the trust model the
    cutover closed.
@@ -352,6 +352,7 @@ Owner ruled on all four (verbatim intent):
 4. Confirm the companion bug (§7) ships as a separate, independently reviewable diff from the RLS fix.
 
 ---
-*Read-only design output. No migration, policy, code, or test file was modified to produce this.*
-*Authored overnight 2026-07-17 by the autonomous lead ahead of owner review; verified against live TEST
-DB read-only (see taskdb #821, memory force-rls-cutover-breaks-unprincipled-reads).*
+
+_Read-only design output. No migration, policy, code, or test file was modified to produce this._
+_Authored overnight 2026-07-17 by the autonomous lead ahead of owner review; verified against live TEST
+DB read-only (see taskdb #821, memory force-rls-cutover-breaks-unprincipled-reads)._

@@ -12,6 +12,7 @@
 **Command:** `psql "$SPIKE_URL" -f 01_provision.sql`
 
 **Observed results:**
+
 - `tenant_template` created with 3 tables (patient, clinical_diagnosis, reminder): OK
 - `tenant_provision()` called for `tenant_a` and `tenant_b`: both returned void (no error)
 - Mismatch query returned **0 rows** (no column-set differences)
@@ -30,6 +31,7 @@ Same result; structure is identical by construction and verified via `informatio
 **Command:** `psql "$SPIKE_URL" -f 02_migration_loop.sql`
 
 **Observed results:**
+
 - `ALTER TABLE tenant_template.clinical_diagnosis ADD COLUMN icd_code text`: OK
 - Loop iterated over `tenant_a`, `tenant_b` (2 schemas matching `tenant_%`)
 - Per-schema timing: tenant_a 3.19ms, tenant_b 3.53ms
@@ -47,6 +49,7 @@ Same result; structure is identical by construction and verified via `informatio
 **Command:** `psql "$SPIKE_URL" -f 03_isolation.sql`
 
 **Observed results:**
+
 - `SET search_path=tenant_a`: `SELECT count(*), diagnoses` → `1 row`, `"Hypertension (tenant_a)"` only
 - `SET search_path=tenant_b`: `SELECT count(*), diagnoses` → `1 row`, `"Type 2 Diabetes (tenant_b)"` only
 - Cross-leak check (search_path=tenant_a, query for tenant_b rows via unqualified name): **0 rows**
@@ -67,6 +70,7 @@ and documented in the plan (D4 adds RLS for hard enforcement).
 **Command:** `psql "$SPIKE_URL" -f 04_directory.sql`
 
 **Observed results:**
+
 - `directory` schema created with `person` + `person_tenant` tables: OK
 - Person `cccc…0001` (phone `+70000000001`) inserted once into `directory.person`
 - Two rows in `directory.person_tenant`: `(cccc…, tenant_a)` and `(cccc…, tenant_b)`
@@ -88,12 +92,14 @@ and documented in the plan (D4 adds RLS for hard enforcement).
 hex). Fixed to `a1a1a1a1-1111-…` in the script. No architectural wall — purely a typo in test data.
 
 **Observed results (5a — transfer):**
+
 - INSERT…SELECT from `tenant_a.clinical_diagnosis` → `tenant_b.clinical_diagnosis`: **1 row inserted**
 - Post-transfer row count in tenant_b for Carol: **2 rows** (original + transferred)
 - Data intact: `"Migraine — tenant_a chart [transferred from tenant_a]" | G43` visible in tenant_b
 - Original tenant_a row unmodified (confirmed by Proof 4 query staying clean)
 
 **Observed results (5b — headless job):**
+
 - `simulate_reminder_job('cccc…', 'tenant_a')` called:
   - Directory lookup → found `tenant_a` enrollment
   - `SET search_path` → `tenant_a`
@@ -107,13 +113,13 @@ hex). Fixed to `a1a1a1a1-1111-…` in the script. No architectural wall — pure
 
 ## Summary table
 
-| # | Proof                          | Result | Numeric evidence                                        |
-|---|-------------------------------|--------|---------------------------------------------------------|
-| 1 | Provision from template       | PASS   | 0 mismatch rows; col_count=10 in all 3 schemas          |
-| 2 | Migration loop                | PASS   | 2/2 schemas migrated; 3.67ms total                      |
-| 3 | Isolation via search_path     | PASS   | 0 cross-leak rows (unqualified); explicit-schema caveat |
-| 4 | Global directory + enrollment | PASS   | 2-tenant list; 2 distinct charts from same person_id    |
-| 5 | Transfer + headless job       | PASS   | 1 row transferred intact; job updated A only (B=false)  |
+| #   | Proof                         | Result | Numeric evidence                                        |
+| --- | ----------------------------- | ------ | ------------------------------------------------------- |
+| 1   | Provision from template       | PASS   | 0 mismatch rows; col_count=10 in all 3 schemas          |
+| 2   | Migration loop                | PASS   | 2/2 schemas migrated; 3.67ms total                      |
+| 3   | Isolation via search_path     | PASS   | 0 cross-leak rows (unqualified); explicit-schema caveat |
+| 4   | Global directory + enrollment | PASS   | 2-tenant list; 2 distinct charts from same person_id    |
+| 5   | Transfer + headless job       | PASS   | 1 row transferred intact; job updated A only (B=false)  |
 
 ---
 

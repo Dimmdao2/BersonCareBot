@@ -12,17 +12,17 @@
 
 ## 2. Технический стек и структура
 
-| Область | По документам и `package.json` |
-|--------|--------------------------------|
-| Язык | TypeScript (ESM) |
-| Node | ≥ 22 |
-| Пакетный менеджер | pnpm (workspaces) |
-| Интегратор | Fastify, grammY, Drizzle, Vitest |
-| Webapp | Next.js 16, React 19, Drizzle, Vitest, Tailwind 4, shadcn |
-| Медиа | `@bersoncare/media-worker`, FFmpeg, S3 |
-| БД | PostgreSQL; единая БД со схемами `public` (webapp) и `integrator` |
-| CI | Корневой `pnpm run ci`: lint, typecheck, тесты (integrator + webapp + media-worker), сборки, audit |
-| Webapp-тесты в CI | На PR — быстрый набор; полный in-process — на push в `main` (см. корневой `README.md`) |
+| Область           | По документам и `package.json`                                                                     |
+| ----------------- | -------------------------------------------------------------------------------------------------- |
+| Язык              | TypeScript (ESM)                                                                                   |
+| Node              | ≥ 22                                                                                               |
+| Пакетный менеджер | pnpm (workspaces)                                                                                  |
+| Интегратор        | Fastify, grammY, Drizzle, Vitest                                                                   |
+| Webapp            | Next.js 16, React 19, Drizzle, Vitest, Tailwind 4, shadcn                                          |
+| Медиа             | `@bersoncare/media-worker`, FFmpeg, S3                                                             |
+| БД                | PostgreSQL; единая БД со схемами `public` (webapp) и `integrator`                                  |
+| CI                | Корневой `pnpm run ci`: lint, typecheck, тесты (integrator + webapp + media-worker), сборки, audit |
+| Webapp-тесты в CI | На PR — быстрый набор; полный in-process — на push в `main` (см. корневой `README.md`)             |
 
 **Приложения/пакеты с `package.json`:** 8 точек в монорепо (корень + `apps/*` + `packages/*` + `admin`).
 
@@ -32,19 +32,19 @@
 
 Оценки получены через поиск по дереву файлов (glob/grep), не через ручной пересчёт каждой строки кода.
 
-| Метрика | Значение |
-|---------|----------|
-| Markdown-файлов в репо | ~871 |
-| Файлов `*.test.ts` | ~652 |
-| Webapp e2e/in-process тестов (`apps/webapp/e2e/*.test.ts`) | 21 |
-| Webapp API routes (`apps/webapp/src/app/api/**/route.ts`) | 243 |
-| Доменные модули webapp с `service.ts` | 37 |
-| Модули с `ports.ts` | 30 |
-| Оценка доменных границ в `apps/webapp/src/modules/*` | ~45–50 (37 + вспомогательные папки без корневого `service.ts`) |
-| Cursor-планов `.cursor/plans/**/*.plan.md` | 37 |
-| Правил агентов `.cursor/rules/*.mdc` | 19 |
-| SQL-файлов в репо | ~228 |
-| Legacy SQL-миграций webapp (`apps/webapp/migrations/*.sql`) | 89 |
+| Метрика                                                             | Значение                                                       |
+| ------------------------------------------------------------------- | -------------------------------------------------------------- |
+| Markdown-файлов в репо                                              | ~871                                                           |
+| Файлов `*.test.ts`                                                  | ~652                                                           |
+| Webapp e2e/in-process тестов (`apps/webapp/e2e/*.test.ts`)          | 21                                                             |
+| Webapp API routes (`apps/webapp/src/app/api/**/route.ts`)           | 243                                                            |
+| Доменные модули webapp с `service.ts`                               | 37                                                             |
+| Модули с `ports.ts`                                                 | 30                                                             |
+| Оценка доменных границ в `apps/webapp/src/modules/*`                | ~45–50 (37 + вспомогательные папки без корневого `service.ts`) |
+| Cursor-планов `.cursor/plans/**/*.plan.md`                          | 37                                                             |
+| Правил агентов `.cursor/rules/*.mdc`                                | 19                                                             |
+| SQL-файлов в репо                                                   | ~228                                                           |
+| Legacy SQL-миграций webapp (`apps/webapp/migrations/*.sql`)         | 89                                                             |
 | Drizzle-миграции webapp (`apps/webapp/db/drizzle-migrations/*.sql`) | часть из общего SQL-пула (верхний номер в списке — `0068_...`) |
 
 ---
@@ -65,15 +65,15 @@
 
 ### 5.1 Якорные даты в документации
 
-| Дата | Событие / артефакт |
-|------|-------------------|
-| 2026-03-06 и др. | Ранние аудиты в `docs/archive/` |
-| 2026-03-18 | `LOW_LEVEL_ARCHITECTURE_AUDIT_AND_REORG.md` |
-| 2026-03-19 | Audit хоста → `SERVER CONVENTIONS.md` |
-| 2026-04 | Unified PostgreSQL (`public` + `integrator`) |
-| 2026-05-01 | `CURSOR_PLANS_REVIEW_2026-05-01.md`, baseline `APP_RESTRUCTURE_INITIATIVE/STRUCTURE_AUDIT.md` |
-| 2026-05-14–15 | Integrator → Drizzle: журнал `docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md` (волна P1–P4 за короткий календарный интервал) |
-| 2026-05-15–16 | `RAW_SQL_INVENTORY.md` — снимок остатков сырого SQL и Wave 2 |
+| Дата             | Событие / артефакт                                                                                                     |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| 2026-03-06 и др. | Ранние аудиты в `docs/archive/`                                                                                        |
+| 2026-03-18       | `LOW_LEVEL_ARCHITECTURE_AUDIT_AND_REORG.md`                                                                            |
+| 2026-03-19       | Audit хоста → `SERVER CONVENTIONS.md`                                                                                  |
+| 2026-04          | Unified PostgreSQL (`public` + `integrator`)                                                                           |
+| 2026-05-01       | `CURSOR_PLANS_REVIEW_2026-05-01.md`, baseline `APP_RESTRUCTURE_INITIATIVE/STRUCTURE_AUDIT.md`                          |
+| 2026-05-14–15    | Integrator → Drizzle: журнал `docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md` (волна P1–P4 за короткий календарный интервал) |
+| 2026-05-15–16    | `RAW_SQL_INVENTORY.md` — снимок остатков сырого SQL и Wave 2                                                           |
 
 ### 5.2 Локальная Git-метаистория (reflog)
 
@@ -134,7 +134,7 @@
 
 ---
 
-*Файл создан по запросу пользователя для портфолио и внутренней сводки; при изменении репозитория цифры из §3 стоит пересчитать теми же командами поиска.*
+_Файл создан по запросу пользователя для портфолио и внутренней сводки; при изменении репозитория цифры из §3 стоит пересчитать теми же командами поиска._
 
 ---
 
@@ -256,12 +256,12 @@
 
 ### 13.6 Оценка по направлениям
 
-| Навык | Оценка по артефактам |
-|------|----------------------|
-| Fullstack TypeScript | сильный уровень: Next.js + Fastify + интеграции + worker/runtime |
-| Архитектура кода | сильный уровень: modules, ports, DI, clean architecture rules, audits |
-| Production / DevOps awareness | сильный уровень: systemd, nginx, deploy, env, runbooks, health |
-| БД и миграции | сильный уровень: PostgreSQL, Drizzle, raw SQL inventory, migration plans |
-| Testing / CI | сильный уровень: 650+ тестов, e2e/in-process, CI barrier |
-| AI-agent workflow | очень сильное позиционирование: rules, plans, DoD, logs, governance |
-| Лидерство / staff-level impact | нельзя доказать только по репо; нужны кейсы команды, решений и влияния |
+| Навык                          | Оценка по артефактам                                                     |
+| ------------------------------ | ------------------------------------------------------------------------ |
+| Fullstack TypeScript           | сильный уровень: Next.js + Fastify + интеграции + worker/runtime         |
+| Архитектура кода               | сильный уровень: modules, ports, DI, clean architecture rules, audits    |
+| Production / DevOps awareness  | сильный уровень: systemd, nginx, deploy, env, runbooks, health           |
+| БД и миграции                  | сильный уровень: PostgreSQL, Drizzle, raw SQL inventory, migration plans |
+| Testing / CI                   | сильный уровень: 650+ тестов, e2e/in-process, CI barrier                 |
+| AI-agent workflow              | очень сильное позиционирование: rules, plans, DoD, logs, governance      |
+| Лидерство / staff-level impact | нельзя доказать только по репо; нужны кейсы команды, решений и влияния   |

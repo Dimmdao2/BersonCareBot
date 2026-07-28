@@ -1,14 +1,14 @@
 /**
  * Журнал действий по напоминаниям + запись snooze/skip в reminder_occurrence_history.
  */
-import { sql } from "drizzle-orm";
-import { getWebappSqlDb, runWebappSql, runWebappTransaction } from "@/infra/db/runWebappSql";
+import { sql } from 'drizzle-orm';
+import { getWebappSqlDb, runWebappSql, runWebappTransaction } from '@/infra/db/runWebappSql';
 import type {
   ReminderJournalAction,
   ReminderJournalEntry,
   ReminderJournalPort,
   ReminderJournalRuleStats,
-} from "@/modules/reminders/reminderJournalPort";
+} from '@/modules/reminders/reminderJournalPort';
 
 function mapJournalRow(row: {
   id: string;
@@ -46,7 +46,7 @@ export function createPgReminderJournalPort(): ReminderJournalPort {
       );
       if (r.rowCount === 0 || !r.rows[0]) {
         throw new Error(
-          "reminder_journal.logAction: no row inserted (rule not found or not owned by user)",
+          'reminder_journal.logAction: no row inserted (rule not found or not owned by user)',
         );
       }
     },
@@ -87,9 +87,9 @@ export function createPgReminderJournalPort(): ReminderJournalPort {
       const out = { done: 0, skipped: 0, snoozed: 0 };
       for (const row of r.rows) {
         const n = parseInt(row.cnt, 10);
-        if (row.action === "done") out.done = n;
-        else if (row.action === "skipped") out.skipped = n;
-        else if (row.action === "snoozed") out.snoozed = n;
+        if (row.action === 'done') out.done = n;
+        else if (row.action === 'skipped') out.skipped = n;
+        else if (row.action === 'snoozed') out.snoozed = n;
       }
       return out;
     },
@@ -110,9 +110,9 @@ export function createPgReminderJournalPort(): ReminderJournalPort {
         const rid = row.rule_id;
         if (!out[rid]) out[rid] = { done: 0, skipped: 0, snoozed: 0 };
         const n = parseInt(row.cnt, 10);
-        if (row.action === "done") out[rid].done = n;
-        else if (row.action === "skipped") out[rid].skipped = n;
-        else if (row.action === "snoozed") out[rid].snoozed = n;
+        if (row.action === 'done') out[rid].done = n;
+        else if (row.action === 'skipped') out[rid].skipped = n;
+        else if (row.action === 'snoozed') out[rid].snoozed = n;
       }
       return out;
     },
@@ -152,10 +152,13 @@ export function createPgReminderJournalPort(): ReminderJournalPort {
           );
           if (own.rows.length === 0) {
             tx.rollback();
-            return { ok: false, error: "not_found" } as const;
+            return { ok: false, error: 'not_found' } as const;
           }
-          const { rule_pk: rulePk, integrator_user_id: integratorUserId, occurred_at: occurredAt } =
-            own.rows[0]!;
+          const {
+            rule_pk: rulePk,
+            integrator_user_id: integratorUserId,
+            occurred_at: occurredAt,
+          } = own.rows[0]!;
           const ins = await runWebappSql<{ created_at: string }>(
             tx,
             sql`INSERT INTO reminder_journal (rule_id, occurrence_id, action)
@@ -178,13 +181,13 @@ export function createPgReminderJournalPort(): ReminderJournalPort {
             doneAt = existing.rows[0]?.created_at;
             if (!doneAt) {
               tx.rollback();
-              return { ok: false, error: "conflict" } as const;
+              return { ok: false, error: 'conflict' } as const;
             }
           } else {
             doneAt = ins.rows[0]?.created_at;
             if (!doneAt) {
               tx.rollback();
-              return { ok: false, error: "not_found" } as const;
+              return { ok: false, error: 'not_found' } as const;
             }
           }
 
@@ -233,8 +236,8 @@ export function createPgReminderJournalPort(): ReminderJournalPort {
           };
         });
       } catch (err) {
-        console.warn("[pgReminderJournal.recordDone]", err);
-        return { ok: false, error: "not_found" };
+        console.warn('[pgReminderJournal.recordDone]', err);
+        return { ok: false, error: 'not_found' };
       }
     },
 
@@ -255,12 +258,12 @@ export function createPgReminderJournalPort(): ReminderJournalPort {
           );
           if (own.rows.length === 0) {
             tx.rollback();
-            return { ok: false, error: "not_found" } as const;
+            return { ok: false, error: 'not_found' } as const;
           }
           const rulePk = own.rows[0]!.rule_pk;
           if (own.rows[0]!.skipped_at) {
             tx.rollback();
-            return { ok: false, error: "not_found" } as const;
+            return { ok: false, error: 'not_found' } as const;
           }
           const snoozeAction = await runWebappSql<{ snoozed_until: string }>(
             tx,
@@ -274,7 +277,7 @@ export function createPgReminderJournalPort(): ReminderJournalPort {
           const snoozedUntil = snoozeAction.rows[0]?.snoozed_until;
           if (!snoozedUntil) {
             tx.rollback();
-            return { ok: false, error: "not_found" } as const;
+            return { ok: false, error: 'not_found' } as const;
           }
 
           await runWebappSql(
@@ -290,8 +293,8 @@ export function createPgReminderJournalPort(): ReminderJournalPort {
           return { ok: true, occurrenceId: integratorOccurrenceId, snoozedUntil };
         });
       } catch (err) {
-        console.warn("[pgReminderJournal.recordSnooze]", err);
-        return { ok: false, error: "not_found" };
+        console.warn('[pgReminderJournal.recordSnooze]', err);
+        return { ok: false, error: 'not_found' };
       }
     },
 
@@ -308,7 +311,7 @@ export function createPgReminderJournalPort(): ReminderJournalPort {
           );
           if (own.rows.length === 0) {
             tx.rollback();
-            return { ok: false, error: "not_found" } as const;
+            return { ok: false, error: 'not_found' } as const;
           }
           const rulePk = own.rows[0]!.rule_pk;
           const skipAction = await runWebappSql<{ skipped_at: string }>(
@@ -323,7 +326,7 @@ export function createPgReminderJournalPort(): ReminderJournalPort {
           const skippedAt = skipAction.rows[0]?.skipped_at;
           if (!skippedAt) {
             tx.rollback();
-            return { ok: false, error: "not_found" } as const;
+            return { ok: false, error: 'not_found' } as const;
           }
 
           await runWebappSql(
@@ -339,8 +342,8 @@ export function createPgReminderJournalPort(): ReminderJournalPort {
           return { ok: true, occurrenceId: integratorOccurrenceId, skippedAt };
         });
       } catch (err) {
-        console.warn("[pgReminderJournal.recordSkip]", err);
-        return { ok: false, error: "not_found" };
+        console.warn('[pgReminderJournal.recordSkip]', err);
+        return { ok: false, error: 'not_found' };
       }
     },
   };

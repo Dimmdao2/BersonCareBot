@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 /**
  * PatientTabComms — «Коммуникации» tab for the patient card.
@@ -12,16 +12,13 @@
  *     «Открыть обсуждение». Shows «Нет активной программы» when none exists.
  */
 
-import { useEffect, useState } from "react";
-import { DoctorClientEmbeddedChat } from "@/app/app/doctor/clients/DoctorClientEmbeddedChat";
-import { DoctorProgramInstanceDiscussionDialog } from "@/app/app/doctor/clients/[userId]/treatment-programs/[instanceId]/DoctorProgramInstanceDiscussionDialog";
-import type { TreatmentProgramInstanceSummary } from "@/modules/treatment-program/types";
-import {
-  doctorSectionCardClass,
-  doctorSectionTitleClass,
-} from "@/shared/ui/doctor/doctorVisual";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { cn } from "@/lib/utils";
+import { useEffect, useState } from 'react';
+import { DoctorClientEmbeddedChat } from '@/app/app/doctor/clients/DoctorClientEmbeddedChat';
+import { DoctorProgramInstanceDiscussionDialog } from '@/app/app/doctor/clients/[userId]/treatment-programs/[instanceId]/DoctorProgramInstanceDiscussionDialog';
+import type { TreatmentProgramInstanceSummary } from '@/modules/treatment-program/types';
+import { doctorSectionCardClass, doctorSectionTitleClass } from '@/shared/ui/doctor/doctorVisual';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { cn } from '@/lib/utils';
 
 type Props = {
   userId: string;
@@ -34,12 +31,13 @@ type Props = {
  * expands to content size — every message just stacks in an unbounded flat list
  * with no visible scroll or chat-panel feel.
  */
-const CHAT_CARD_HEIGHT = "h-[min(65vh,580px)]";
+const CHAT_CARD_HEIGHT = 'h-[min(65vh,580px)]';
 
 export function PatientTabComms({ userId, initialProgramInstances }: Props) {
-  const ssrActive = initialProgramInstances != null
-    ? (initialProgramInstances.find((i) => i.status !== "completed") ?? null)
-    : undefined;
+  const ssrActive =
+    initialProgramInstances != null
+      ? (initialProgramInstances.find((i) => i.status !== 'completed') ?? null)
+      : undefined;
   const [activeInstance, setActiveInstance] = useState<TreatmentProgramInstanceSummary | null>(
     ssrActive !== undefined ? ssrActive : null,
   );
@@ -52,13 +50,13 @@ export function PatientTabComms({ userId, initialProgramInstances }: Props) {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- loading indicator set synchronously before async fetch
     setInstanceLoading(true);
     fetch(`/api/doctor/clients/${encodeURIComponent(userId)}/treatment-program-instances`, {
-      credentials: "include",
+      credentials: 'include',
     })
       .then((r) => r.json())
       .then((data: { ok?: boolean; items?: TreatmentProgramInstanceSummary[] }) => {
         if (cancelled) return;
         if (data.ok && Array.isArray(data.items)) {
-          const active = data.items.find((i) => i.status !== "completed") ?? null;
+          const active = data.items.find((i) => i.status !== 'completed') ?? null;
           setActiveInstance(active);
         }
       })
@@ -80,8 +78,8 @@ export function PatientTabComms({ userId, initialProgramInstances }: Props) {
       ================================================================ */}
       <div
         className={cn(
-          "rounded-xl border border-border bg-card",
-          "flex flex-col overflow-hidden",
+          'rounded-xl border border-border bg-card',
+          'flex flex-col overflow-hidden',
           CHAT_CARD_HEIGHT,
         )}
       >
@@ -108,9 +106,9 @@ export function PatientTabComms({ userId, initialProgramInstances }: Props) {
         ) : activeInstance ? (
           <>
             <p className="text-sm text-muted-foreground">
-              Активная программа:{" "}
+              Активная программа:{' '}
               <span className="font-medium text-foreground">
-                {activeInstance.title || "без названия"}
+                {activeInstance.title || 'без названия'}
               </span>
             </p>
             <Button

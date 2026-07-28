@@ -13,28 +13,28 @@
 
 ### `apps/webapp/src/components/ui/` — exact files (20)
 
-| File | Notes |
-|------|--------|
-| `accordion.tsx` | `@base-ui/react/accordion` (Phase 1) |
-| `badge.tsx` | `@base-ui/react` merge-props + use-render |
-| `button-variants.ts` | CVA variants (shared with `Button`) |
-| `button.tsx` | `@base-ui/react/button` + `buttonVariants` |
-| `card.tsx` | Styled `div` composition (no Base UI root) |
-| `collapsible.tsx` | `@base-ui/react/collapsible` (Phase 1) |
-| `dialog.tsx` | `@base-ui/react/dialog` |
-| `dropdown-menu.tsx` | `@base-ui/react/menu` |
-| `input.tsx` | `@base-ui/react/input` |
-| `label.tsx` | Styled native `<label>` |
-| `popover.tsx` | `@base-ui/react/popover` |
-| `radio-group.tsx` | `@base-ui/react/radio-group` + `radio` (Phase 6) |
-| `scroll-area.tsx` | `@base-ui/react/scroll-area` |
-| `select.tsx` | `@base-ui/react/select` |
-| `separator.tsx` | `@base-ui/react/separator` |
-| `sheet.tsx` | `@base-ui/react/dialog` |
-| `switch.tsx` | `@base-ui/react/switch` |
-| `tabs.tsx` | `@base-ui/react/tabs` |
-| `textarea.tsx` | Styled native `<textarea>` |
-| `tooltip.tsx` | `@base-ui/react/tooltip` |
+| File                 | Notes                                            |
+| -------------------- | ------------------------------------------------ |
+| `accordion.tsx`      | `@base-ui/react/accordion` (Phase 1)             |
+| `badge.tsx`          | `@base-ui/react` merge-props + use-render        |
+| `button-variants.ts` | CVA variants (shared with `Button`)              |
+| `button.tsx`         | `@base-ui/react/button` + `buttonVariants`       |
+| `card.tsx`           | Styled `div` composition (no Base UI root)       |
+| `collapsible.tsx`    | `@base-ui/react/collapsible` (Phase 1)           |
+| `dialog.tsx`         | `@base-ui/react/dialog`                          |
+| `dropdown-menu.tsx`  | `@base-ui/react/menu`                            |
+| `input.tsx`          | `@base-ui/react/input`                           |
+| `label.tsx`          | Styled native `<label>`                          |
+| `popover.tsx`        | `@base-ui/react/popover`                         |
+| `radio-group.tsx`    | `@base-ui/react/radio-group` + `radio` (Phase 6) |
+| `scroll-area.tsx`    | `@base-ui/react/scroll-area`                     |
+| `select.tsx`         | `@base-ui/react/select`                          |
+| `separator.tsx`      | `@base-ui/react/separator`                       |
+| `sheet.tsx`          | `@base-ui/react/dialog`                          |
+| `switch.tsx`         | `@base-ui/react/switch`                          |
+| `tabs.tsx`           | `@base-ui/react/tabs`                            |
+| `textarea.tsx`       | Styled native `<textarea>`                       |
+| `tooltip.tsx`        | `@base-ui/react/tooltip`                         |
 
 ### Phase 2 — Cabinet alignment (completed 2026-05-04)
 
@@ -107,29 +107,29 @@ Paths relative to `apps/webapp/src/app/app/patient/`:
 
 ### Raw controls — migration candidates (by phase)
 
-| Area | File(s) | Control | Initiative phase |
-|------|---------|---------|------------------|
-| Cabinet | `cabinet/CabinetPastBookings.tsx` | ~~`<button>`~~ → `Collapsible` (Phase 2 ✅) |
-| Profile | `profile/ProfileAccordionSection.tsx` | ~~`<button>`~~ → `Collapsible` (Phase 4 ✅) |
-| Notifications | `notifications/ChannelNotificationToggles.tsx` | ~~`<input type="checkbox">`~~ → `Switch` (Phase 5 ✅) |
-| Support | `support/PatientSupportForm.tsx` | ~~`<textarea>`~~ → `Textarea` (Phase 6 ✅) |
-| Diary | `diary/symptoms/journal/SymptomsJournalClient.tsx`, `SymptomTrackingRow.tsx` | ~~`<select>`~~ → `Select` (Phase 6 ✅) |
-| Diary | `diary/lfk/journal/LfkJournalClient.tsx`, `LfkSessionForm.tsx`, `QuickAddPopup.tsx` | ~~`<select>`~~ / ~~`<textarea>`~~ → `Select` / `Textarea`; hidden сохранены (Phase 6 ✅) |
-| Profile | `profile/AuthOtpChannelPreference.tsx`, `DiaryDataPurgeSection.tsx` | ~~radio~~ / ~~checkbox~~ → `RadioGroup` / `Switch` (Phase 6 ✅) |
-| Intake | `intake/lfk/LfkIntakeClient.tsx`, `intake/nutrition/NutritionIntakeClient.tsx` | ~~`<textarea>`~~ / ~~`<input>`~~ → `Textarea` / `Input` (Phase 6 ✅) |
-| Home | `home/PatientHomeMoodCheckin.tsx` | `<button>` | Out of scope per `MASTER_PLAN` (new home) unless explicitly approved |
-| Courses | `courses/PatientCoursesCatalogClient.tsx` | `<button>` | Not in Phase 2–6 matrix; treat as deferred unless added |
-| Bind / logout | `bind-phone/PatientBrowserMessengerBindPanel.tsx`, `profile/LogoutSection.tsx` | `<button>` | Low priority; often intentional native pattern |
+| Area          | File(s)                                                                             | Control                                                                                  | Initiative phase                                                     |
+| ------------- | ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| Cabinet       | `cabinet/CabinetPastBookings.tsx`                                                   | ~~`<button>`~~ → `Collapsible` (Phase 2 ✅)                                              |
+| Profile       | `profile/ProfileAccordionSection.tsx`                                               | ~~`<button>`~~ → `Collapsible` (Phase 4 ✅)                                              |
+| Notifications | `notifications/ChannelNotificationToggles.tsx`                                      | ~~`<input type="checkbox">`~~ → `Switch` (Phase 5 ✅)                                    |
+| Support       | `support/PatientSupportForm.tsx`                                                    | ~~`<textarea>`~~ → `Textarea` (Phase 6 ✅)                                               |
+| Diary         | `diary/symptoms/journal/SymptomsJournalClient.tsx`, `SymptomTrackingRow.tsx`        | ~~`<select>`~~ → `Select` (Phase 6 ✅)                                                   |
+| Diary         | `diary/lfk/journal/LfkJournalClient.tsx`, `LfkSessionForm.tsx`, `QuickAddPopup.tsx` | ~~`<select>`~~ / ~~`<textarea>`~~ → `Select` / `Textarea`; hidden сохранены (Phase 6 ✅) |
+| Profile       | `profile/AuthOtpChannelPreference.tsx`, `DiaryDataPurgeSection.tsx`                 | ~~radio~~ / ~~checkbox~~ → `RadioGroup` / `Switch` (Phase 6 ✅)                          |
+| Intake        | `intake/lfk/LfkIntakeClient.tsx`, `intake/nutrition/NutritionIntakeClient.tsx`      | ~~`<textarea>`~~ / ~~`<input>`~~ → `Textarea` / `Input` (Phase 6 ✅)                     |
+| Home          | `home/PatientHomeMoodCheckin.tsx`                                                   | `<button>`                                                                               | Out of scope per `MASTER_PLAN` (new home) unless explicitly approved |
+| Courses       | `courses/PatientCoursesCatalogClient.tsx`                                           | `<button>`                                                                               | Not in Phase 2–6 matrix; treat as deferred unless added              |
+| Bind / logout | `bind-phone/PatientBrowserMessengerBindPanel.tsx`, `profile/LogoutSection.tsx`      | `<button>`                                                                               | Low priority; often intentional native pattern                       |
 
 Hidden inputs and form `name` attributes in diary flows: **do not migrate casually** (Phase 6 rules).
 
 ### Frozen scope for next phases
 
-- **Phase 1 (infra only):** new `apps/webapp/src/components/ui/accordion.tsx` and/or `collapsible.tsx` wrapping `@base-ui/react/accordion` / `@base-ui/react/collapsible`; no patient route edits in the same commit if the primitive work is non-trivial (`MASTER_PLAN` §Phase 1). *(✅ выполнено 2026-05-04.)*
-- **Phase 2 (cabinet):** `cabinet/CabinetPastBookings.tsx`, `cabinet/AppointmentStatusBadge.tsx`; optional small follow-up: `cabinet/CabinetInfoLinks.tsx` only if needed. *(✅ выполнено 2026-05-04.)*
-- **Phase 3–4:** `FeatureCard` (sections), `ProfileAccordionSection` (profile) — см. чеклисты Phase 3–4 выше и `LOG.md`. *(✅ выполнено 2026-05-04.)*
-- **Phase 5:** `notifications/ChannelNotificationToggles.tsx` — см. чеклист Phase 5 выше. *(✅ выполнено 2026-05-04.)*
-- **Phase 6 (form controls):** support, diary (вкл. `QuickAddPopup` + `diary/page`), профиль OTP/purge, intake — см. чеклист Phase 6 выше. *(✅ выполнено 2026-05-04.)*
+- **Phase 1 (infra only):** new `apps/webapp/src/components/ui/accordion.tsx` and/or `collapsible.tsx` wrapping `@base-ui/react/accordion` / `@base-ui/react/collapsible`; no patient route edits in the same commit if the primitive work is non-trivial (`MASTER_PLAN` §Phase 1). _(✅ выполнено 2026-05-04.)_
+- **Phase 2 (cabinet):** `cabinet/CabinetPastBookings.tsx`, `cabinet/AppointmentStatusBadge.tsx`; optional small follow-up: `cabinet/CabinetInfoLinks.tsx` only if needed. _(✅ выполнено 2026-05-04.)_
+- **Phase 3–4:** `FeatureCard` (sections), `ProfileAccordionSection` (profile) — см. чеклисты Phase 3–4 выше и `LOG.md`. _(✅ выполнено 2026-05-04.)_
+- **Phase 5:** `notifications/ChannelNotificationToggles.tsx` — см. чеклист Phase 5 выше. _(✅ выполнено 2026-05-04.)_
+- **Phase 6 (form controls):** support, diary (вкл. `QuickAddPopup` + `diary/page`), профиль OTP/purge, intake — см. чеклист Phase 6 выше. _(✅ выполнено 2026-05-04.)_
 - **~~Следующий frozen scope~~ (2026-05-05):** единый Phase 7 **отменён**; deferred-маршруты и расширенный coverage — **в мини-инициативах по экрану**, см. [`MASTER_PLAN.md`](MASTER_PLAN.md) §Phase 7 и [`ROADMAP_2.md`](../../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md) §1.
 
 ### Phase 0 — GO / NO-GO for Phase 1
@@ -217,4 +217,3 @@ Current new home pipeline:
 Rule:
 
 - do not touch in this shadcn alignment initiative without explicit product/design instruction.
-

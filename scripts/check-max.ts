@@ -10,7 +10,9 @@ import { maxConfig } from '../src/integrations/max/config.js';
 
 async function main() {
   if (!maxConfig.enabled) {
-    console.log('MAX_ENABLED is not true. Set MAX_ENABLED=true and MAX_API_KEY in .env to check MAX bot.');
+    console.log(
+      'MAX_ENABLED is not true. Set MAX_ENABLED=true and MAX_API_KEY in .env to check MAX bot.',
+    );
     process.exit(0);
   }
   if (!maxConfig.apiKey) {
@@ -24,7 +26,9 @@ async function main() {
   });
 
   if (!info) {
-    console.error('MAX API /me failed: invalid API key or network error. Check MAX_API_KEY and MAX docs (https://dev.max.ru/docs-api).');
+    console.error(
+      'MAX API /me failed: invalid API key or network error. Check MAX_API_KEY and MAX docs (https://dev.max.ru/docs-api).',
+    );
     process.exit(1);
   }
 

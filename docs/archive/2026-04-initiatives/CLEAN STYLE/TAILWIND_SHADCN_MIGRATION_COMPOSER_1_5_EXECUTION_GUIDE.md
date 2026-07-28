@@ -48,12 +48,12 @@ rg "from ['\"]@/shared/ui/PageHeader['\"]" apps/webapp/src
 
 **Ожидаемый результат на здоровом `main`:**
 
-| Команда | Ожидание |
-|---------|----------|
-| Legacy `className` | 0 совпадений |
-| `style={{` | только `apps/webapp/src/app/global-error.tsx` |
-| `<button` | только `apps/webapp/src/app/global-error.tsx` |
-| `PageHeader` import | 0 совпадений |
+| Команда             | Ожидание                                      |
+| ------------------- | --------------------------------------------- |
+| Legacy `className`  | 0 совпадений                                  |
+| `style={{`          | только `apps/webapp/src/app/global-error.tsx` |
+| `<button`           | только `apps/webapp/src/app/global-error.tsx` |
+| `PageHeader` import | 0 совпадений                                  |
 
 ### 1.3 Если baseline зелёный
 
@@ -141,13 +141,13 @@ pnpm run ci
 
 Использовать **только** когда baseline §1.2 не зелёный. Подробности и пути файлов — в основном плане §8.
 
-| Шаг | Суть |
-|-----|------|
-| A | Убрать дубли: `LabeledSwitch` в settings; `SegmentControl` / `NumericChipGroup` в дневнике |
-| B | Raw `<button>` → `Button` где применимо (исключения: `global-error`, DnD, hidden submit) |
-| C | Убрать `style={{` кроме `global-error` |
-| D | Замена legacy `className` батчами (`stack`, `panel`, `auth-input`, …) |
-| E | Чистка `globals.css` до токенов + markdown + range + `safe-*` |
-| F | Финальная выверка заголовков (`SectionHeading`) и форм |
+| Шаг | Суть                                                                                       |
+| --- | ------------------------------------------------------------------------------------------ |
+| A   | Убрать дубли: `LabeledSwitch` в settings; `SegmentControl` / `NumericChipGroup` в дневнике |
+| B   | Raw `<button>` → `Button` где применимо (исключения: `global-error`, DnD, hidden submit)   |
+| C   | Убрать `style={{` кроме `global-error`                                                     |
+| D   | Замена legacy `className` батчами (`stack`, `panel`, `auth-input`, …)                      |
+| E   | Чистка `globals.css` до токенов + markdown + range + `safe-*`                              |
+| F   | Финальная выверка заголовков (`SectionHeading`) и форм                                     |
 
 После восстановления DoD снова переключайся на **режим A** (регресс по умолчанию).

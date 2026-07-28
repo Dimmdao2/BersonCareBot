@@ -8,32 +8,32 @@
  * case also proves application-shaped rollback of the inserted message with no activity change.
  * Never opens dev/test/prod.
  */
-import { spawnSync } from "node:child_process";
-import { randomBytes } from "node:crypto";
-import { readFileSync } from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { spawnSync } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const repoRoot = path.resolve(here, "..", "..", "..", "..");
-const contextPath = path.join(repoRoot, "deploy/postgres/p2-b-protected-principal-context.sql");
+const repoRoot = path.resolve(here, '..', '..', '..', '..');
+const contextPath = path.join(repoRoot, 'deploy/postgres/p2-b-protected-principal-context.sql');
 const migrationPath = path.join(
   repoRoot,
-  "apps/webapp/db/drizzle-migrations/0234_current_patient_support_activity.sql",
+  'apps/webapp/db/drizzle-migrations/0234_current_patient_support_activity.sql',
 );
-const stamp = `${process.pid}_${Date.now()}`.replaceAll(/[^a-zA-Z0-9_]/g, "_");
+const stamp = `${process.pid}_${Date.now()}`.replaceAll(/[^a-zA-Z0-9_]/g, '_');
 const dbName = `bcb_saas_support_activity_scratch_${stamp}`;
 const ownerRole = `bcb_support_activity_owner_${stamp}`;
 const staffRole = `bcb_support_activity_staff_${stamp}`;
 const patientRole = `bcb_support_activity_patient_${stamp}`;
-const secret = randomBytes(32).toString("hex");
+const secret = randomBytes(32).toString('hex');
 const futureEpoch = Math.floor(Date.now() / 1000) + 180;
 
-if (!dbName.startsWith("bcb_saas_") || !dbName.includes("scratch")) {
+if (!dbName.startsWith('bcb_saas_') || !dbName.includes('scratch')) {
   throw new Error(`refusing unsafe scratch DB name: ${dbName}`);
 }
 if (/bcb_webapp_(dev|prod|test)|bersoncarebot_test/.test(dbName)) {
-  throw new Error("refusing dev/prod/test-shaped scratch DB name");
+  throw new Error('refusing dev/prod/test-shaped scratch DB name');
 }
 
 function quoteIdent(value) {
@@ -47,66 +47,51 @@ function quoteLiteral(value) {
 function run(command, args, input) {
   const result = spawnSync(command, args, {
     cwd: repoRoot,
-    encoding: "utf8",
+    encoding: 'utf8',
     input,
-    stdio: input === undefined ? "inherit" : ["pipe", "pipe", "pipe"],
+    stdio: input === undefined ? 'inherit' : ['pipe', 'pipe', 'pipe'],
   });
   if (result.status !== 0) {
     if (result.stdout) process.stdout.write(result.stdout);
     if (result.stderr) process.stderr.write(result.stderr);
-    throw new Error(`${command} failed with status ${result.status ?? "unknown"}`);
+    throw new Error(`${command} failed with status ${result.status ?? 'unknown'}`);
   }
   if (result.stdout) process.stdout.write(result.stdout);
 }
 
 function psql(sql) {
-  run(
-    "sudo",
-    ["-n", "-u", "postgres", "psql", "-X", "-v", "ON_ERROR_STOP=1", "-d", dbName],
-    sql,
-  );
+  run('sudo', ['-n', '-u', 'postgres', 'psql', '-X', '-v', 'ON_ERROR_STOP=1', '-d', dbName], sql);
 }
 
 function psqlFile(filePath, variables = {}) {
   const variableArgs = Object.entries(variables).flatMap(([key, value]) => [
-    "-v",
+    '-v',
     `${key}=${value}`,
   ]);
   run(
-    "sudo",
-    [
-      "-n",
-      "-u",
-      "postgres",
-      "psql",
-      "-X",
-      "-v",
-      "ON_ERROR_STOP=1",
-      "-d",
-      dbName,
-      ...variableArgs,
-    ],
-    readFileSync(filePath, "utf8"),
+    'sudo',
+    ['-n', '-u', 'postgres', 'psql', '-X', '-v', 'ON_ERROR_STOP=1', '-d', dbName, ...variableArgs],
+    readFileSync(filePath, 'utf8'),
   );
 }
 
 const ownerIdent = quoteIdent(ownerRole);
 const staffIdent = quoteIdent(staffRole);
 const patientIdent = quoteIdent(patientRole);
-const orgA = "81410000-0000-4000-8000-00000000000a";
-const orgB = "81410000-0000-4000-8000-00000000000b";
-const patientA = "81410000-0000-4000-8000-000000000001";
-const patientB = "81410000-0000-4000-8000-000000000002";
-const conversationOwn = "81410000-0000-4000-8000-00000000001a";
-const conversationOtherPatient = "81410000-0000-4000-8000-00000000001b";
-const conversationOtherOrg = "81410000-0000-4000-8000-00000000001c";
-const conversationClosed = "81410000-0000-4000-8000-00000000001d";
-const messageOwn = "81410000-0000-4000-8000-00000000002a";
-const messageOtherPatient = "81410000-0000-4000-8000-00000000002b";
-const messageOtherOrg = "81410000-0000-4000-8000-00000000002c";
-const messageForgedRole = "81410000-0000-4000-8000-00000000002d";
-const messageStale = "81410000-0000-4000-8000-00000000002e";
-const messageClosed = "81410000-0000-4000-8000-00000000002f";
+const orgA = '81410000-0000-4000-8000-00000000000a';
+const orgB = '81410000-0000-4000-8000-00000000000b';
+const patientA = '81410000-0000-4000-8000-000000000001';
+const patientB = '81410000-0000-4000-8000-000000000002';
+const conversationOwn = '81410000-0000-4000-8000-00000000001a';
+const conversationOtherPatient = '81410000-0000-4000-8000-00000000001b';
+const conversationOtherOrg = '81410000-0000-4000-8000-00000000001c';
+const conversationClosed = '81410000-0000-4000-8000-00000000001d';
+const messageOwn = '81410000-0000-4000-8000-00000000002a';
+const messageOtherPatient = '81410000-0000-4000-8000-00000000002b';
+const messageOtherOrg = '81410000-0000-4000-8000-00000000002c';
+const messageForgedRole = '81410000-0000-4000-8000-00000000002d';
+const messageStale = '81410000-0000-4000-8000-00000000002e';
+const messageClosed = '81410000-0000-4000-8000-00000000002f';
 const nonce = `support_activity_${stamp}`;
 
 const schemaSql = String.raw`
@@ -365,12 +350,14 @@ SELECT 'PASS: locked patient support activity capability' AS result;
 `;
 
 try {
-  run("sudo", ["-n", "-u", "postgres", "createdb", dbName]);
-  psql([
-    `CREATE ROLE ${ownerIdent} NOLOGIN BYPASSRLS;`,
-    `CREATE ROLE ${staffIdent} NOLOGIN NOBYPASSRLS;`,
-    `CREATE ROLE ${patientIdent} NOLOGIN NOBYPASSRLS;`,
-  ].join("\n"));
+  run('sudo', ['-n', '-u', 'postgres', 'createdb', dbName]);
+  psql(
+    [
+      `CREATE ROLE ${ownerIdent} NOLOGIN BYPASSRLS;`,
+      `CREATE ROLE ${staffIdent} NOLOGIN NOBYPASSRLS;`,
+      `CREATE ROLE ${patientIdent} NOLOGIN NOBYPASSRLS;`,
+    ].join('\n'),
+  );
   psqlFile(contextPath, {
     p2_b_owner_role: ownerRole,
     p2_b_staff_role: staffRole,
@@ -381,14 +368,14 @@ try {
   psqlFile(migrationPath);
   psql(proofSql);
 } finally {
-  run("sudo", ["-n", "-u", "postgres", "dropdb", "--if-exists", dbName]);
+  run('sudo', ['-n', '-u', 'postgres', 'dropdb', '--if-exists', dbName]);
   run(
-    "sudo",
-    ["-n", "-u", "postgres", "psql", "-X", "-v", "ON_ERROR_STOP=1", "-d", "postgres"],
+    'sudo',
+    ['-n', '-u', 'postgres', 'psql', '-X', '-v', 'ON_ERROR_STOP=1', '-d', 'postgres'],
     [
       `DROP ROLE IF EXISTS ${patientIdent};`,
       `DROP ROLE IF EXISTS ${staffIdent};`,
       `DROP ROLE IF EXISTS ${ownerIdent};`,
-    ].join("\n"),
+    ].join('\n'),
   );
 }

@@ -1,36 +1,39 @@
 /** @vitest-environment jsdom */
 
-import { describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
-import type { TreatmentProgramInstanceDetail, TreatmentProgramInstanceSummary } from "@/modules/treatment-program/types";
+import { describe, expect, it } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import type {
+  TreatmentProgramInstanceDetail,
+  TreatmentProgramInstanceSummary,
+} from '@/modules/treatment-program/types';
 import {
   PatientTreatmentProgramsListClient,
   patientProgramsListCurrentStageTitle,
-} from "./PatientTreatmentProgramsListClient";
+} from './PatientTreatmentProgramsListClient';
 
-const now = "2026-01-01T00:00:00.000Z";
+const now = '2026-01-01T00:00:00.000Z';
 
 function makeDetailWithPipelineStage(
-  stageStatus: "available" | "in_progress",
+  stageStatus: 'available' | 'in_progress',
   sortOrder: number,
   title: string,
 ): TreatmentProgramInstanceDetail {
-  const stageId = "22222222-2222-4222-8222-222222222222";
+  const stageId = '22222222-2222-4222-8222-222222222222';
   return {
-    id: "11111111-1111-4111-8111-111111111111",
-    patientUserId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    id: '11111111-1111-4111-8111-111111111111',
+    patientUserId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
     templateId: null,
     assignedBy: null,
-    assignmentSource: "doctor",
-    title: "Программа",
-    status: "active",
+    assignmentSource: 'doctor',
+    title: 'Программа',
+    status: 'active',
     createdAt: now,
     updatedAt: now,
     patientPlanLastOpenedAt: null,
     stages: [
       {
         id: stageId,
-        instanceId: "11111111-1111-4111-8111-111111111111",
+        instanceId: '11111111-1111-4111-8111-111111111111',
         sourceStageId: null,
         title,
         description: null,
@@ -46,10 +49,10 @@ function makeDetailWithPipelineStage(
         groups: [],
         items: [
           {
-            id: "33333333-3333-4333-8333-333333333333",
+            id: '33333333-3333-4333-8333-333333333333',
             stageId,
-            itemType: "recommendation",
-            itemRefId: "44444444-4444-4444-8444-444444444444",
+            itemType: 'recommendation',
+            itemRefId: '44444444-4444-4444-8444-444444444444',
             sortOrder: 0,
             comment: null,
             localComment: null,
@@ -57,7 +60,7 @@ function makeDetailWithPipelineStage(
             snapshot: {},
             completedAt: null,
             isActionable: true,
-            status: "active",
+            status: 'active',
             groupId: null,
             createdAt: now,
             lastViewedAt: null,
@@ -69,26 +72,26 @@ function makeDetailWithPipelineStage(
   };
 }
 
-describe("patientProgramsListCurrentStageTitle", () => {
-  it("returns title of current working pipeline stage", () => {
-    const d = makeDetailWithPipelineStage("in_progress", 1, "Этап работы");
-    expect(patientProgramsListCurrentStageTitle(d)).toBe("Этап работы");
+describe('patientProgramsListCurrentStageTitle', () => {
+  it('returns title of current working pipeline stage', () => {
+    const d = makeDetailWithPipelineStage('in_progress', 1, 'Этап работы');
+    expect(patientProgramsListCurrentStageTitle(d)).toBe('Этап работы');
   });
 
-  it("does not use stage zero as current stage", () => {
+  it('does not use stage zero as current stage', () => {
     const d: TreatmentProgramInstanceDetail = {
-      ...makeDetailWithPipelineStage("available", 1, "Первый этап"),
+      ...makeDetailWithPipelineStage('available', 1, 'Первый этап'),
       stages: [
         {
-          id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-          instanceId: "11111111-1111-4111-8111-111111111111",
+          id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          instanceId: '11111111-1111-4111-8111-111111111111',
           sourceStageId: null,
-          title: "Общие",
+          title: 'Общие',
           description: null,
           sortOrder: 0,
           localComment: null,
           skipReason: null,
-          status: "available",
+          status: 'available',
           startedAt: null,
           goals: null,
           objectives: null,
@@ -97,10 +100,10 @@ describe("patientProgramsListCurrentStageTitle", () => {
           groups: [],
           items: [
             {
-              id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
-              stageId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-              itemType: "recommendation",
-              itemRefId: "44444444-4444-4444-8444-444444444444",
+              id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+              stageId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+              itemType: 'recommendation',
+              itemRefId: '44444444-4444-4444-8444-444444444444',
               sortOrder: 0,
               comment: null,
               localComment: null,
@@ -108,7 +111,7 @@ describe("patientProgramsListCurrentStageTitle", () => {
               snapshot: {},
               completedAt: null,
               isActionable: true,
-              status: "active",
+              status: 'active',
               groupId: null,
               createdAt: now,
               lastViewedAt: null,
@@ -117,15 +120,15 @@ describe("patientProgramsListCurrentStageTitle", () => {
           ],
         },
         {
-          id: "22222222-2222-4222-8222-222222222222",
-          instanceId: "11111111-1111-4111-8111-111111111111",
+          id: '22222222-2222-4222-8222-222222222222',
+          instanceId: '11111111-1111-4111-8111-111111111111',
           sourceStageId: null,
-          title: "Рабочий",
+          title: 'Рабочий',
           description: null,
           sortOrder: 1,
           localComment: null,
           skipReason: null,
-          status: "available",
+          status: 'available',
           startedAt: null,
           goals: null,
           objectives: null,
@@ -134,10 +137,10 @@ describe("patientProgramsListCurrentStageTitle", () => {
           groups: [],
           items: [
             {
-              id: "33333333-3333-4333-8333-333333333333",
-              stageId: "22222222-2222-4222-8222-222222222222",
-              itemType: "recommendation",
-              itemRefId: "44444444-4444-4444-8444-444444444444",
+              id: '33333333-3333-4333-8333-333333333333',
+              stageId: '22222222-2222-4222-8222-222222222222',
+              itemType: 'recommendation',
+              itemRefId: '44444444-4444-4444-8444-444444444444',
               sortOrder: 0,
               comment: null,
               localComment: null,
@@ -145,7 +148,7 @@ describe("patientProgramsListCurrentStageTitle", () => {
               snapshot: {},
               completedAt: null,
               isActionable: true,
-              status: "active",
+              status: 'active',
               groupId: null,
               createdAt: now,
               lastViewedAt: null,
@@ -155,67 +158,75 @@ describe("patientProgramsListCurrentStageTitle", () => {
         },
       ],
     };
-    expect(patientProgramsListCurrentStageTitle(d)).toBe("Рабочий");
+    expect(patientProgramsListCurrentStageTitle(d)).toBe('Рабочий');
   });
 });
 
-describe("PatientTreatmentProgramsListClient", () => {
-  it("renders personal program CTA when no active program", () => {
+describe('PatientTreatmentProgramsListClient', () => {
+  it('renders personal program CTA when no active program', () => {
     render(
-      <PatientTreatmentProgramsListClient hero={null} archived={[]} messagesHref="/app/patient/messages" />,
+      <PatientTreatmentProgramsListClient
+        hero={null}
+        archived={[]}
+        messagesHref="/app/patient/messages"
+      />,
     );
 
     expect(
-      screen.getByRole("heading", { name: "Хочу персональную программу!" }),
+      screen.getByRole('heading', { name: 'Хочу персональную программу!' }),
     ).toBeInTheDocument();
 
-    const link = screen.getByRole("link", { name: /Консультация/i });
-    expect(link).toHaveAttribute("href", "/app/patient/intake/lfk");
+    const link = screen.getByRole('link', { name: /Консультация/i });
+    expect(link).toHaveAttribute('href', '/app/patient/intake/lfk');
   });
 
-  it("renders hero with current stage, plan nudge, and CTA", () => {
+  it('renders hero with current stage, plan nudge, and CTA', () => {
     render(
       <PatientTreatmentProgramsListClient
         hero={{
-          instanceId: "11111111-1111-4111-8111-111111111111",
-          title: "Моя программа",
-          currentStageTitle: "Этап 2",
-          planUpdatedLabel: "План обновлён 1 янв.",
+          instanceId: '11111111-1111-4111-8111-111111111111',
+          title: 'Моя программа',
+          currentStageTitle: 'Этап 2',
+          planUpdatedLabel: 'План обновлён 1 янв.',
         }}
         archived={[]}
         messagesHref="/app/patient/messages"
       />,
     );
-    expect(screen.getByRole("heading", { name: "Моя программа" })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Моя программа' })).toBeInTheDocument();
     expect(screen.getByText(/Текущий этап:/)).toBeInTheDocument();
-    expect(screen.getByText("Этап 2")).toBeInTheDocument();
-    expect(screen.getByText("План обновлён 1 янв.")).toBeInTheDocument();
-    const cta = screen.getByRole("link", { name: /Открыть программу/i });
-    expect(cta.getAttribute("href")).toContain("11111111-1111-4111-8111-111111111111");
+    expect(screen.getByText('Этап 2')).toBeInTheDocument();
+    expect(screen.getByText('План обновлён 1 янв.')).toBeInTheDocument();
+    const cta = screen.getByRole('link', { name: /Открыть программу/i });
+    expect(cta.getAttribute('href')).toContain('11111111-1111-4111-8111-111111111111');
   });
 
-  it("renders completed programs inside closed details", () => {
+  it('renders completed programs inside closed details', () => {
     const archived: TreatmentProgramInstanceSummary[] = [
       {
-        id: "99999999-9999-4999-8999-999999999999",
-        patientUserId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        id: '99999999-9999-4999-8999-999999999999',
+        patientUserId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
         templateId: null,
         assignedBy: null,
-        assignmentSource: "doctor",
-        title: "Старая",
-        status: "completed",
+        assignmentSource: 'doctor',
+        title: 'Старая',
+        status: 'completed',
         createdAt: now,
         updatedAt: now,
         patientPlanLastOpenedAt: null,
       },
     ];
     const { container } = render(
-      <PatientTreatmentProgramsListClient hero={null} archived={archived} messagesHref="/app/patient/messages" />,
+      <PatientTreatmentProgramsListClient
+        hero={null}
+        archived={archived}
+        messagesHref="/app/patient/messages"
+      />,
     );
-    const details = container.querySelector("details");
+    const details = container.querySelector('details');
     expect(details).toBeTruthy();
     expect(details!.open).toBe(false);
-    expect(screen.getByText("Завершённые программы")).toBeInTheDocument();
-    expect(screen.getByText("Старая")).toBeInTheDocument();
+    expect(screen.getByText('Завершённые программы')).toBeInTheDocument();
+    expect(screen.getByText('Старая')).toBeInTheDocument();
   });
 });

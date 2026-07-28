@@ -1,10 +1,10 @@
-"use server";
+'use server';
 
-import { revalidatePath } from "next/cache";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
-import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
-import { requireEntitlementForMutationAction } from "@/app-layer/guards/requireEntitlement";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { revalidatePath } from 'next/cache';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
+import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
+import { requireEntitlementForMutationAction } from '@/app-layer/guards/requireEntitlement';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import {
   CMS_UNASSIGNED_SECTION_SLUG,
   isHelpSectionSlug,
@@ -13,10 +13,10 @@ import {
   isSystemParentCode,
   isValidSectionTaxonomy,
   taxonomyFromPlacement,
-} from "@/modules/content-sections/types";
-import type { SystemParentCode } from "@/modules/content-sections/types";
-import { validateContentSectionSlug } from "@/shared/lib/contentSectionSlug";
-import { API_MEDIA_URL_RE, isLegacyAbsoluteUrl } from "@/shared/lib/mediaUrlPolicy";
+} from '@/modules/content-sections/types';
+import type { SystemParentCode } from '@/modules/content-sections/types';
+import { validateContentSectionSlug } from '@/shared/lib/contentSectionSlug';
+import { API_MEDIA_URL_RE, isLegacyAbsoluteUrl } from '@/shared/lib/mediaUrlPolicy';
 
 export type SaveContentSectionState = { ok: boolean; error?: string };
 
@@ -27,41 +27,45 @@ export async function saveContentSection(
   const workspace = await requireDoctorWorkspaceContext();
   const deps = buildAppDeps();
 
-  const slug = (formData.get("slug") as string)?.trim() || "";
-  const title = (formData.get("title") as string)?.trim() || "";
-  const description = (formData.get("description") as string)?.trim() || "";
-  const sortOrder = parseInt(formData.get("sort_order") as string, 10) || 0;
-  const isVisible = formData.get("is_visible") === "on";
-  const requiresAuth = formData.get("requires_auth") === "on";
-  const coverImageUrlRaw = (formData.get("cover_image_url") as string)?.trim() || "";
-  const iconImageUrlRaw = (formData.get("icon_image_url") as string)?.trim() || "";
+  const slug = (formData.get('slug') as string)?.trim() || '';
+  const title = (formData.get('title') as string)?.trim() || '';
+  const description = (formData.get('description') as string)?.trim() || '';
+  const sortOrder = parseInt(formData.get('sort_order') as string, 10) || 0;
+  const isVisible = formData.get('is_visible') === 'on';
+  const requiresAuth = formData.get('requires_auth') === 'on';
+  const coverImageUrlRaw = (formData.get('cover_image_url') as string)?.trim() || '';
+  const iconImageUrlRaw = (formData.get('icon_image_url') as string)?.trim() || '';
   const coverImageUrl = coverImageUrlRaw.length > 0 ? coverImageUrlRaw : null;
   const iconImageUrl = iconImageUrlRaw.length > 0 ? iconImageUrlRaw : null;
-  const placementRaw = (formData.get("placement") as string | null) ?? "";
+  const placementRaw = (formData.get('placement') as string | null) ?? '';
   const trimmedPlacement = placementRaw.trim();
   const parsedPlacement =
-    trimmedPlacement === ""
-      ? ({ kind: "article" as const, systemParentCode: null })
+    trimmedPlacement === ''
+      ? { kind: 'article' as const, systemParentCode: null }
       : taxonomyFromPlacement(trimmedPlacement);
   if (!parsedPlacement) {
-    return { ok: false, error: "Выберите корректное расположение раздела" };
+    return { ok: false, error: 'Выберите корректное расположение раздела' };
   }
 
   if (!slug || !title) {
-    return { ok: false, error: "Заполните slug и заголовок" };
+    return { ok: false, error: 'Заполните slug и заголовок' };
   }
   const slugFormatOk =
     slug === CMS_UNASSIGNED_SECTION_SLUG || (/^[a-z0-9-]+$/.test(slug) && !/^-+$/.test(slug));
   if (!slugFormatOk) {
-    return { ok: false, error: "Slug: только латиница, цифры и дефис" };
+    return { ok: false, error: 'Slug: только латиница, цифры и дефис' };
   }
-  if (title.length > 500) return { ok: false, error: "Заголовок слишком длинный" };
-  if (description.length > 2000) return { ok: false, error: "Описание слишком длинное" };
-  if (coverImageUrl && !API_MEDIA_URL_RE.test(coverImageUrl) && !isLegacyAbsoluteUrl(coverImageUrl)) {
-    return { ok: false, error: "Обложка должна быть выбрана из библиотеки файлов" };
+  if (title.length > 500) return { ok: false, error: 'Заголовок слишком длинный' };
+  if (description.length > 2000) return { ok: false, error: 'Описание слишком длинное' };
+  if (
+    coverImageUrl &&
+    !API_MEDIA_URL_RE.test(coverImageUrl) &&
+    !isLegacyAbsoluteUrl(coverImageUrl)
+  ) {
+    return { ok: false, error: 'Обложка должна быть выбрана из библиотеки файлов' };
   }
   if (iconImageUrl && !API_MEDIA_URL_RE.test(iconImageUrl) && !isLegacyAbsoluteUrl(iconImageUrl)) {
-    return { ok: false, error: "Иконка должна быть выбрана из библиотеки файлов" };
+    return { ok: false, error: 'Иконка должна быть выбрана из библиотеки файлов' };
   }
 
   let existing: Awaited<ReturnType<typeof deps.contentSections.getBySlug>> = null;
@@ -72,27 +76,30 @@ export async function saveContentSection(
   }
 
   if (!existing && slug === CMS_UNASSIGNED_SECTION_SLUG) {
-    return { ok: false, error: "Этот slug зарезервирован для служебного раздела CMS" };
+    return { ok: false, error: 'Этот slug зарезервирован для служебного раздела CMS' };
   }
 
   if (!existing && (isImmutableSystemSectionSlug(slug) || isHelpSectionSlug(slug))) {
-    return { ok: false, error: "Этот slug зарезервирован для встроенного раздела приложения" };
+    return { ok: false, error: 'Этот slug зарезервирован для встроенного раздела приложения' };
   }
 
   let kind = parsedPlacement.kind;
   let systemParentCode = parsedPlacement.systemParentCode;
-  if (!existing && trimmedPlacement === "system_root") {
-    return { ok: false, error: "Новый раздел нельзя сохранить как встроенный корневой системный тип" };
+  if (!existing && trimmedPlacement === 'system_root') {
+    return {
+      ok: false,
+      error: 'Новый раздел нельзя сохранить как встроенный корневой системный тип',
+    };
   }
   if (existing && (isImmutableSystemSectionSlug(slug) || isHelpSectionSlug(slug))) {
     kind = existing.kind;
     systemParentCode = existing.systemParentCode;
   }
   if (!kind || !isValidSectionTaxonomy(kind, systemParentCode)) {
-    return { ok: false, error: "Некорректное сочетание типа раздела и папки CMS" };
+    return { ok: false, error: 'Некорректное сочетание типа раздела и папки CMS' };
   }
 
-  const entitlement = await requireEntitlementForMutationAction(workspace, "cms_pages");
+  const entitlement = await requireEntitlementForMutationAction(workspace, 'cms_pages');
   if (!entitlement.ok) return { ok: false, error: entitlement.reason };
 
   try {
@@ -111,14 +118,14 @@ export async function saveContentSection(
       }),
     );
   } catch (err) {
-    console.error("saveContentSection failed:", err);
-    return { ok: false, error: "Не удалось сохранить раздел. Попробуйте ещё раз." };
+    console.error('saveContentSection failed:', err);
+    return { ok: false, error: 'Не удалось сохранить раздел. Попробуйте ещё раз.' };
   }
 
-  revalidatePath("/app/doctor/content/sections");
-  revalidatePath("/app/doctor/content");
-  revalidatePath("/app/patient");
-  revalidatePath("/app/patient/sections", "layout");
+  revalidatePath('/app/doctor/content/sections');
+  revalidatePath('/app/doctor/content');
+  revalidatePath('/app/patient');
+  revalidatePath('/app/patient/sections', 'layout');
   return { ok: true };
 }
 
@@ -133,41 +140,41 @@ export async function attachArticleSectionToSystemFolder(
   formData: FormData,
 ): Promise<AttachArticleSectionToFolderState> {
   const workspace = await requireDoctorWorkspaceContext();
-  const entitlement = await requireEntitlementForMutationAction(workspace, "cms_pages");
-  if (!entitlement.ok) return { ok: false, error: "entitlement_required" };
+  const entitlement = await requireEntitlementForMutationAction(workspace, 'cms_pages');
+  if (!entitlement.ok) return { ok: false, error: 'entitlement_required' };
   const deps = buildAppDeps();
 
-  const slug = ((formData.get("section_slug") as string) ?? "").trim();
-  const folderRaw = ((formData.get("system_parent_code") as string) ?? "").trim().toLowerCase();
+  const slug = ((formData.get('section_slug') as string) ?? '').trim();
+  const folderRaw = ((formData.get('system_parent_code') as string) ?? '').trim().toLowerCase();
 
   if (!slug) {
-    return { ok: false, error: "Выберите раздел" };
+    return { ok: false, error: 'Выберите раздел' };
   }
   if (!isSystemParentCode(folderRaw)) {
-    return { ok: false, error: "Некорректная системная папка" };
+    return { ok: false, error: 'Некорректная системная папка' };
   }
   const systemParentCode: SystemParentCode = folderRaw;
 
   if (isImmutableSystemSectionSlug(slug)) {
-    return { ok: false, error: "Встроенный раздел нельзя переносить в папку таким образом" };
+    return { ok: false, error: 'Встроенный раздел нельзя переносить в папку таким образом' };
   }
 
   let existing: Awaited<ReturnType<typeof deps.contentSections.getBySlug>>;
   try {
     existing = await deps.contentSections.getBySlug(slug);
   } catch {
-    return { ok: false, error: "Не удалось загрузить раздел" };
+    return { ok: false, error: 'Не удалось загрузить раздел' };
   }
   if (!existing) {
-    return { ok: false, error: "Раздел не найден" };
+    return { ok: false, error: 'Раздел не найден' };
   }
-  if (existing.kind !== "article") {
-    return { ok: false, error: "В папку можно добавить только раздел из каталога статей" };
+  if (existing.kind !== 'article') {
+    return { ok: false, error: 'В папку можно добавить только раздел из каталога статей' };
   }
 
-  const kind = "system" as const;
+  const kind = 'system' as const;
   if (!isValidSectionTaxonomy(kind, systemParentCode)) {
-    return { ok: false, error: "Некорректное сочетание типа раздела и папки CMS" };
+    return { ok: false, error: 'Некорректное сочетание типа раздела и папки CMS' };
   }
 
   try {
@@ -178,14 +185,14 @@ export async function attachArticleSectionToSystemFolder(
       }),
     );
   } catch (err) {
-    console.error("attachArticleSectionToSystemFolder failed:", err);
-    return { ok: false, error: "Не удалось перенести раздел. Попробуйте ещё раз." };
+    console.error('attachArticleSectionToSystemFolder failed:', err);
+    return { ok: false, error: 'Не удалось перенести раздел. Попробуйте ещё раз.' };
   }
 
-  revalidatePath("/app/doctor/content/sections");
-  revalidatePath("/app/doctor/content");
-  revalidatePath("/app/patient");
-  revalidatePath("/app/patient/sections", "layout");
+  revalidatePath('/app/doctor/content/sections');
+  revalidatePath('/app/doctor/content');
+  revalidatePath('/app/patient');
+  revalidatePath('/app/patient/sections', 'layout');
   return { ok: true };
 }
 
@@ -199,26 +206,26 @@ export async function renameContentSectionSlug(
   formData: FormData,
 ): Promise<RenameContentSectionSlugState> {
   const workspace = await requireDoctorWorkspaceContext();
-  const entitlement = await requireEntitlementForMutationAction(workspace, "cms_pages");
-  if (!entitlement.ok) return { ok: false, error: "entitlement_required" };
+  const entitlement = await requireEntitlementForMutationAction(workspace, 'cms_pages');
+  if (!entitlement.ok) return { ok: false, error: 'entitlement_required' };
   const deps = buildAppDeps();
 
-  if (formData.get("confirm_rename") !== "on") {
-    return { ok: false, error: "Подтвердите переименование slug" };
+  if (formData.get('confirm_rename') !== 'on') {
+    return { ok: false, error: 'Подтвердите переименование slug' };
   }
 
-  const oldParsed = validateContentSectionSlug((formData.get("old_slug") as string | null) ?? "");
+  const oldParsed = validateContentSectionSlug((formData.get('old_slug') as string | null) ?? '');
   if (!oldParsed.ok) return { ok: false, error: oldParsed.error };
-  const newParsed = validateContentSectionSlug((formData.get("new_slug") as string | null) ?? "");
+  const newParsed = validateContentSectionSlug((formData.get('new_slug') as string | null) ?? '');
   if (!newParsed.ok) return { ok: false, error: newParsed.error };
   if (oldParsed.slug === newParsed.slug) {
-    return { ok: false, error: "Новый slug совпадает с текущим" };
+    return { ok: false, error: 'Новый slug совпадает с текущим' };
   }
   if (isSectionSlugProtectedFromDelete(oldParsed.slug)) {
-    return { ok: false, error: "Этот раздел нельзя переименовать" };
+    return { ok: false, error: 'Этот раздел нельзя переименовать' };
   }
   if (isSectionSlugProtectedFromDelete(newParsed.slug)) {
-    return { ok: false, error: "Зарезервированный slug недопустим" };
+    return { ok: false, error: 'Зарезервированный slug недопустим' };
   }
 
   const result = await withDoctorWorkspacePrincipal(workspace, () =>
@@ -228,13 +235,13 @@ export async function renameContentSectionSlug(
   );
   if (!result.ok) return result;
 
-  revalidatePath("/app/doctor/content/sections");
+  revalidatePath('/app/doctor/content/sections');
   revalidatePath(`/app/doctor/content/sections/edit/${encodeURIComponent(result.newSlug)}`);
-  revalidatePath("/app/doctor/content");
-  revalidatePath("/app/patient");
+  revalidatePath('/app/doctor/content');
+  revalidatePath('/app/patient');
   revalidatePath(`/app/patient/sections/${encodeURIComponent(oldParsed.slug)}`);
   revalidatePath(`/app/patient/sections/${encodeURIComponent(result.newSlug)}`);
-  revalidatePath("/app/patient/sections", "layout");
+  revalidatePath('/app/patient/sections', 'layout');
   return { ok: true, newSlug: result.newSlug };
 }
 
@@ -245,17 +252,17 @@ export async function deleteContentSection(
   formData: FormData,
 ): Promise<DeleteContentSectionState> {
   const workspace = await requireDoctorWorkspaceContext();
-  const entitlement = await requireEntitlementForMutationAction(workspace, "cms_pages");
-  if (!entitlement.ok) return { ok: false, error: "entitlement_required" };
+  const entitlement = await requireEntitlementForMutationAction(workspace, 'cms_pages');
+  if (!entitlement.ok) return { ok: false, error: 'entitlement_required' };
   const deps = buildAppDeps();
 
-  if (formData.get("confirm_delete") !== "on") {
-    return { ok: false, error: "Подтвердите удаление раздела" };
+  if (formData.get('confirm_delete') !== 'on') {
+    return { ok: false, error: 'Подтвердите удаление раздела' };
   }
 
-  const slug = ((formData.get("section_slug") as string) ?? "").trim();
+  const slug = ((formData.get('section_slug') as string) ?? '').trim();
   if (!slug) {
-    return { ok: false, error: "Не указан раздел" };
+    return { ok: false, error: 'Не указан раздел' };
   }
 
   const result = await withDoctorWorkspacePrincipal(workspace, () =>
@@ -265,10 +272,10 @@ export async function deleteContentSection(
     return { ok: false, error: result.error };
   }
 
-  revalidatePath("/app/doctor/content/sections");
-  revalidatePath("/app/doctor/content");
-  revalidatePath("/app/patient");
-  revalidatePath("/app/patient/sections", "layout");
-  revalidatePath("/app/settings/patient-home");
+  revalidatePath('/app/doctor/content/sections');
+  revalidatePath('/app/doctor/content');
+  revalidatePath('/app/patient');
+  revalidatePath('/app/patient/sections', 'layout');
+  revalidatePath('/app/settings/patient-home');
   return { ok: true, movedPageCount: result.movedPageCount };
 }

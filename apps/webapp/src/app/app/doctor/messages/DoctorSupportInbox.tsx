@@ -1,14 +1,14 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import Link from "next/link";
-import { AlertTriangle, ClipboardList, X } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/ui/doctor/primitives/tooltip";
-import { DoctorChatPanel } from "@/modules/messaging/components/DoctorChatPanel";
-import { DoctorEmptyState } from "@/shared/ui/doctor/DoctorEmptyState";
+import { useCallback, useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
+import { AlertTriangle, ClipboardList, X } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/shared/ui/doctor/primitives/tooltip';
+import { DoctorChatPanel } from '@/modules/messaging/components/DoctorChatPanel';
+import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
 import {
   DoctorDnaFlatListSelectionStrip,
   doctorDnaFlatListClass,
@@ -18,14 +18,12 @@ import {
   doctorDnaFlatListPrimaryClass,
   doctorDnaFlatListRowClass,
   doctorDnaFlatListSelectedPrimaryClass,
-} from "@/shared/ui/doctor/DoctorDnaFlatListRow";
-import { CatalogSplitLayout } from "@/shared/ui/doctor/catalog/CatalogSplitLayout";
-import { doctorInlineLinkClass } from "@/shared/ui/doctor/doctorVisual";
-import {
-  DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE,
-} from "@/shared/ui/doctor/doctorWorkspaceLayout";
-import { patientCardHref } from "../patients/patientCardHref";
-import { ChatClientOverviewPanel } from "./ChatClientOverviewPanel";
+} from '@/shared/ui/doctor/DoctorDnaFlatListRow';
+import { CatalogSplitLayout } from '@/shared/ui/doctor/catalog/CatalogSplitLayout';
+import { doctorInlineLinkClass } from '@/shared/ui/doctor/doctorVisual';
+import { DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE } from '@/shared/ui/doctor/doctorWorkspaceLayout';
+import { patientCardHref } from '../patients/patientCardHref';
+import { ChatClientOverviewPanel } from './ChatClientOverviewPanel';
 
 const POLL_INTERVAL_MS = 1_000;
 
@@ -60,23 +58,23 @@ type ConversationApiRow = {
   patientUserId?: string | null;
 };
 
-function formatConversationTime(value: string, tz = "Europe/Moscow"): string {
+function formatConversationTime(value: string, tz = 'Europe/Moscow'): string {
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
+  if (Number.isNaN(date.getTime())) return '';
   const now = new Date();
   const isToday =
     date.getDate() === now.getDate() &&
     date.getMonth() === now.getMonth() &&
     date.getFullYear() === now.getFullYear();
-  const time = date.toLocaleString("ru-RU", { timeZone: tz, hour: "2-digit", minute: "2-digit" });
+  const time = date.toLocaleString('ru-RU', { timeZone: tz, hour: '2-digit', minute: '2-digit' });
   if (isToday) return time;
-  const dayMonth = date.toLocaleString("ru-RU", { timeZone: tz, day: "2-digit", month: "2-digit" });
+  const dayMonth = date.toLocaleString('ru-RU', { timeZone: tz, day: '2-digit', month: '2-digit' });
   return `${dayMonth} · ${time}`;
 }
 
 function getSenderPrefix(conv: ConvRow): string {
-  if (conv.lastSenderRole === "admin") return "Вы";
-  return conv.firstName || (conv.displayName.split(" ")[0] ?? "").trim() || "Пациент";
+  if (conv.lastSenderRole === 'admin') return 'Вы';
+  return conv.firstName || (conv.displayName.split(' ')[0] ?? '').trim() || 'Пациент';
 }
 
 function mapConvRows(conversations: ConversationApiRow[]): ConvRow[] {
@@ -108,9 +106,9 @@ function convSignature(rows: ConvRow[]): string {
   return rows
     .map(
       (r) =>
-        `${r.conversationId}:${r.lastMessageAt}:${r.unreadFromUserCount}:${r.onSupport ? "1" : "0"}`,
+        `${r.conversationId}:${r.lastMessageAt}:${r.unreadFromUserCount}:${r.onSupport ? '1' : '0'}`,
     )
-    .join("|");
+    .join('|');
 }
 
 export type DoctorSupportInboxProps = {
@@ -122,24 +120,24 @@ export type DoctorSupportInboxProps = {
   onSelectedConversationChange?: (id: string | null) => void;
 };
 
-type FilterMode = "all" | "unread" | "onSupport";
+type FilterMode = 'all' | 'unread' | 'onSupport';
 
 export function DoctorSupportInbox({
   active = true,
-  displayIana = "Europe/Moscow",
+  displayIana = 'Europe/Moscow',
   initialSelectedConversationId = null,
   onSelectedConversationChange,
 }: DoctorSupportInboxProps) {
   const [allList, setAllList] = useState<ConvRow[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [filter, setFilter] = useState<FilterMode>("all");
-  const [query, setQuery] = useState("");
-  const [searchMode, setSearchMode] = useState<"name" | "text">("name");
+  const [filter, setFilter] = useState<FilterMode>('all');
+  const [query, setQuery] = useState('');
+  const [searchMode, setSearchMode] = useState<'name' | 'text'>('name');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [overviewOpen, setOverviewOpen] = useState(false);
   const [signalsByPatient, setSignalsByPatient] = useState<Map<string, PatientSignal[]>>(new Map());
-  const sigRef = useRef<string>("");
+  const sigRef = useRef<string>('');
   const selectedIdRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -152,7 +150,7 @@ export function DoctorSupportInbox({
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch("/api/doctor/proactive-insights/by-patient");
+        const res = await fetch('/api/doctor/proactive-insights/by-patient');
         if (!res.ok) return;
         const data = (await res.json()) as {
           ok?: boolean;
@@ -199,7 +197,7 @@ export function DoctorSupportInbox({
 
   const fetchList = useCallback(async (): Promise<ConvRow[] | null> => {
     try {
-      const url = new URL("/api/doctor/messages/conversations", window.location.origin);
+      const url = new URL('/api/doctor/messages/conversations', window.location.origin);
       const res = await fetch(url.toString());
       const data = (await res.json()) as {
         ok?: boolean;
@@ -216,9 +214,9 @@ export function DoctorSupportInbox({
     setError(null);
     const rows = await fetchList();
     if (rows === null) {
-      setError("Не удалось загрузить диалоги");
+      setError('Не удалось загрузить диалоги');
       setAllList([]);
-      sigRef.current = "";
+      sigRef.current = '';
     } else {
       sigRef.current = convSignature(rows);
       setAllList(rows);
@@ -267,7 +265,7 @@ export function DoctorSupportInbox({
     };
 
     const handleVisibility = () => {
-      if (document.visibilityState === "visible") {
+      if (document.visibilityState === 'visible') {
         void pollOnce();
         startInterval();
       } else {
@@ -275,12 +273,12 @@ export function DoctorSupportInbox({
       }
     };
 
-    if (document.visibilityState === "visible") startInterval();
-    document.addEventListener("visibilitychange", handleVisibility);
+    if (document.visibilityState === 'visible') startInterval();
+    document.addEventListener('visibilitychange', handleVisibility);
 
     return () => {
       stopInterval();
-      document.removeEventListener("visibilitychange", handleVisibility);
+      document.removeEventListener('visibilitychange', handleVisibility);
     };
   }, [active, fetchList]);
 
@@ -288,20 +286,23 @@ export function DoctorSupportInbox({
   const onSupportCount = allList.filter((c) => c.onSupport).length;
 
   const filteredByChip =
-    filter === "unread"
+    filter === 'unread'
       ? allList.filter((c) => c.unreadFromUserCount > 0)
-      : filter === "onSupport"
+      : filter === 'onSupport'
         ? allList.filter((c) => c.onSupport)
         : allList;
 
   const filteredList = query.trim()
     ? filteredByChip.filter((c) => {
         const q = query.toLowerCase();
-        if (searchMode === "name") {
-          const searchable = [c.lastName, c.firstName, c.displayName, c.phoneNormalized].filter(Boolean).join(" ").toLowerCase();
+        if (searchMode === 'name') {
+          const searchable = [c.lastName, c.firstName, c.displayName, c.phoneNormalized]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase();
           return searchable.includes(q);
         }
-        return (c.lastMessageText ?? "").toLowerCase().includes(q);
+        return (c.lastMessageText ?? '').toLowerCase().includes(q);
       })
     : filteredByChip;
 
@@ -313,64 +314,86 @@ export function DoctorSupportInbox({
     );
   }
 
-  const selectedConv = selectedId ? (allList.find((c) => c.conversationId === selectedId) ?? null) : null;
+  const selectedConv = selectedId
+    ? (allList.find((c) => c.conversationId === selectedId) ?? null)
+    : null;
   const selectedConvDisplayName = selectedConv
-    ? ((selectedConv.lastName ?? selectedConv.firstName)
-        ? [selectedConv.lastName, selectedConv.firstName].filter(Boolean).join(" ")
-        : selectedConv.displayName)
-    : "";
+    ? (selectedConv.lastName ?? selectedConv.firstName)
+      ? [selectedConv.lastName, selectedConv.firstName].filter(Boolean).join(' ')
+      : selectedConv.displayName
+    : '';
 
   const leftPane = (
-    <div data-doctor-flat-list-surface className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card">
+    <div
+      data-doctor-flat-list-surface
+      className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card"
+    >
       {/* Header: search bar, then filter chips below */}
       <div className="flex shrink-0 flex-col gap-1.5 border-b border-border bg-muted/20 px-3 py-2">
         <div className="flex gap-1.5">
           <Input
             type="search"
-            placeholder={searchMode === "name" ? "Поиск по имени / телефону" : "Поиск по тексту последнего сообщения"}
+            placeholder={
+              searchMode === 'name'
+                ? 'Поиск по имени / телефону'
+                : 'Поиск по тексту последнего сообщения'
+            }
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             className="h-8 min-w-0 flex-1"
-            aria-label={searchMode === "name" ? "Поиск по имени пациента" : "Поиск по тексту последнего сообщения"}
+            aria-label={
+              searchMode === 'name'
+                ? 'Поиск по имени пациента'
+                : 'Поиск по тексту последнего сообщения'
+            }
           />
           <Button
             type="button"
             variant="outline"
             size="sm"
-            title={searchMode === "name" ? "Переключить на поиск по тексту сообщений" : "Переключить на поиск по имени"}
-            onClick={() => { setSearchMode(m => m === "name" ? "text" : "name"); setQuery(""); }}
+            title={
+              searchMode === 'name'
+                ? 'Переключить на поиск по тексту сообщений'
+                : 'Переключить на поиск по имени'
+            }
+            onClick={() => {
+              setSearchMode((m) => (m === 'name' ? 'text' : 'name'));
+              setQuery('');
+            }}
             className={cn(
-              "shrink-0 text-xs",
-              searchMode === "text" && "border-primary/40 bg-primary/10 text-primary",
+              'shrink-0 text-xs',
+              searchMode === 'text' && 'border-primary/40 bg-primary/10 text-primary',
             )}
           >
-            {searchMode === "name" ? "Аб" : "✉"}
+            {searchMode === 'name' ? 'Аб' : '✉'}
           </Button>
         </div>
         <div className="flex flex-wrap gap-1.5">
           <Button
             type="button"
-            variant={filter === "unread" ? "ghost" : "outline"}
+            variant={filter === 'unread' ? 'ghost' : 'outline'}
             size="sm"
-            onClick={() => setFilter(filter === "unread" ? "all" : "unread")}
+            onClick={() => setFilter(filter === 'unread' ? 'all' : 'unread')}
             className={cn(
-              "shrink-0 text-xs",
-              filter === "unread" && "bg-primary/15 text-primary hover:bg-primary/20 hover:text-primary",
+              'shrink-0 text-xs',
+              filter === 'unread' &&
+                'bg-primary/15 text-primary hover:bg-primary/20 hover:text-primary',
             )}
-            aria-pressed={filter === "unread"}
+            aria-pressed={filter === 'unread'}
           >
             Непрочитанные · {unreadCount}
           </Button>
           <Button
             type="button"
-            variant={filter === "onSupport" ? "ghost" : "outline"}
+            variant={filter === 'onSupport' ? 'ghost' : 'outline'}
             size="sm"
-            onClick={() => setFilter(filter === "onSupport" ? "all" : "onSupport")}
+            onClick={() => setFilter(filter === 'onSupport' ? 'all' : 'onSupport')}
             className={cn(
-              "shrink-0 text-xs",
-              filter === "onSupport" && "bg-primary/15 text-primary hover:bg-primary/20 hover:text-primary",
+              'shrink-0 text-xs',
+              filter === 'onSupport' &&
+                'bg-primary/15 text-primary hover:bg-primary/20 hover:text-primary',
             )}
-            aria-pressed={filter === "onSupport"}
+            aria-pressed={filter === 'onSupport'}
           >
             ★ На сопровождении · {onSupportCount}
           </Button>
@@ -386,24 +409,20 @@ export function DoctorSupportInbox({
         {filteredList.length === 0 ? (
           <div className="flex flex-1 items-center justify-center py-8 text-sm text-muted-foreground">
             {query.trim()
-              ? "Ничего не найдено"
-              : filter === "unread"
-                ? "Нет непрочитанных диалогов"
-                : filter === "onSupport"
-                  ? "Нет диалогов на сопровождении"
-                  : "Нет открытых диалогов"}
+              ? 'Ничего не найдено'
+              : filter === 'unread'
+                ? 'Нет непрочитанных диалогов'
+                : filter === 'onSupport'
+                  ? 'Нет диалогов на сопровождении'
+                  : 'Нет открытых диалогов'}
           </div>
         ) : (
-          <ul
-            className={cn(
-              doctorDnaFlatListClass,
-              doctorDnaFlatListInsetClass,
-              "flex flex-col",
-            )}
-          >
+          <ul className={cn(doctorDnaFlatListClass, doctorDnaFlatListInsetClass, 'flex flex-col')}>
             {filteredList.map((c, index) => {
               const isSelected = selectedId === c.conversationId;
-              const patientSignals = c.patientUserId ? (signalsByPatient.get(c.patientUserId) ?? null) : null;
+              const patientSignals = c.patientUserId
+                ? (signalsByPatient.get(c.patientUserId) ?? null)
+                : null;
               return (
                 <li key={c.conversationId}>
                   <Button
@@ -413,8 +432,8 @@ export function DoctorSupportInbox({
                     className={cn(
                       doctorDnaFlatListRowClass,
                       doctorDnaFlatListClickableClass,
-                      "h-auto w-full rounded-none bg-transparent text-left shadow-none",
-                      index === 0 && "border-t-0",
+                      'h-auto w-full rounded-none bg-transparent text-left shadow-none',
+                      index === 0 && 'border-t-0',
                     )}
                   >
                     {isSelected ? <DoctorDnaFlatListSelectionStrip /> : null}
@@ -422,16 +441,14 @@ export function DoctorSupportInbox({
                       <div className="flex items-baseline justify-between gap-2">
                         <span
                           className={cn(
-                            "min-w-0 truncate",
+                            'min-w-0 truncate',
                             doctorDnaFlatListPrimaryClass,
                             isSelected && doctorDnaFlatListSelectedPrimaryClass,
                           )}
                         >
-                          {(c.lastName ?? c.firstName) ? (
-                            [c.lastName, c.firstName].filter(Boolean).join(" ")
-                          ) : (
-                            c.displayName || "Без имени"
-                          )}
+                          {(c.lastName ?? c.firstName)
+                            ? [c.lastName, c.firstName].filter(Boolean).join(' ')
+                            : c.displayName || 'Без имени'}
                           {c.onSupport && (
                             <span className="ml-1.5 text-[10px] font-semibold text-primary">★</span>
                           )}
@@ -441,26 +458,32 @@ export function DoctorSupportInbox({
                                 render={
                                   <span
                                     className="ml-1.5 inline-flex translate-y-[-1px] items-center text-destructive"
-                                    aria-label={`Внимание: ${patientSignals.map((s) => s.summary).join("; ")}`}
+                                    aria-label={`Внимание: ${patientSignals.map((s) => s.summary).join('; ')}`}
                                   >
                                     <AlertTriangle className="size-3" aria-hidden />
                                   </span>
                                 }
                               />
-                              <TooltipContent>{patientSignals.map((s) => s.summary).join("; ")}</TooltipContent>
+                              <TooltipContent>
+                                {patientSignals.map((s) => s.summary).join('; ')}
+                              </TooltipContent>
                             </Tooltip>
                           ) : null}
                         </span>
-                        <span className={cn("shrink-0", doctorDnaFlatListMetaClass)}>
+                        <span className={cn('shrink-0', doctorDnaFlatListMetaClass)}>
                           {formatConversationTime(c.lastMessageAt, displayIana)}
                         </span>
                       </div>
                       {(c.lastName ?? c.firstName) && (
-                        <p className={cn("truncate", doctorDnaFlatListMetaClass)}>{c.displayName}</p>
+                        <p className={cn('truncate', doctorDnaFlatListMetaClass)}>
+                          {c.displayName}
+                        </p>
                       )}
                       {c.lastMessageText && (
-                        <p className={cn("mt-0.5 truncate", doctorDnaFlatListMetaClass)}>
-                          <span className="font-medium text-foreground/80">{getSenderPrefix(c)}:</span>{" "}
+                        <p className={cn('mt-0.5 truncate', doctorDnaFlatListMetaClass)}>
+                          <span className="font-medium text-foreground/80">
+                            {getSenderPrefix(c)}:
+                          </span>{' '}
                           {c.lastMessageText}
                         </p>
                       )}
@@ -490,10 +513,7 @@ export function DoctorSupportInbox({
   const rightPane = (
     <div className="flex min-h-[300px] flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card">
       {!selectedId ? (
-        <DoctorEmptyState
-          size="sm"
-          className="flex-1 items-center justify-center px-6 text-center"
-        >
+        <DoctorEmptyState size="sm" className="flex-1 items-center justify-center px-6 text-center">
           <span className="font-semibold text-foreground">Выберите чат слева</span>
           <span>Когда диалог выбран — здесь появляется тред переписки с полем ответа</span>
         </DoctorEmptyState>
@@ -504,13 +524,13 @@ export function DoctorSupportInbox({
             {selectedConv?.patientUserId ? (
               <Link
                 href={patientCardHref(selectedConv.patientUserId)}
-                className={cn(doctorInlineLinkClass, "min-w-0 flex-1 truncate text-sm font-medium")}
+                className={cn(doctorInlineLinkClass, 'min-w-0 flex-1 truncate text-sm font-medium')}
               >
-                {selectedConvDisplayName || "—"}
+                {selectedConvDisplayName || '—'}
               </Link>
             ) : (
               <span className="min-w-0 flex-1 truncate text-sm font-medium">
-                {selectedConvDisplayName || "—"}
+                {selectedConvDisplayName || '—'}
               </span>
             )}
             <Button
@@ -551,7 +571,7 @@ export function DoctorSupportInbox({
     <CatalogSplitLayout
       left={leftPane}
       right={rightPane}
-      mobileView={overviewOpen ? "list" : selectedId ? "detail" : "list"}
+      mobileView={overviewOpen ? 'list' : selectedId ? 'detail' : 'list'}
       mobileBackSlot={
         <Button
           variant="ghost"

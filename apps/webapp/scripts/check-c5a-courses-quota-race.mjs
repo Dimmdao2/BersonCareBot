@@ -4,19 +4,19 @@
  * extracts the authoritative trigger function from the C5A migration, and runs two independent
  * connections against it. It never reads application environment files or a configured database.
  */
-import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync } from "node:fs";
-import { userInfo } from "node:os";
-import net from "node:net";
-import path from "node:path";
-import pg from "pg";
+import { spawnSync } from 'node:child_process';
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { userInfo } from 'node:os';
+import net from 'node:net';
+import path from 'node:path';
+import pg from 'pg';
 
-const root = path.resolve(import.meta.dirname, "..", "..", "..");
-const pgBin = "/usr/lib/postgresql/16/bin";
+const root = path.resolve(import.meta.dirname, '..', '..', '..');
+const pgBin = '/usr/lib/postgresql/16/bin';
 const osUser = userInfo().username;
 const migrationPath = path.join(
   root,
-  "apps/webapp/db/drizzle-migrations/0225_saas_tariff_quotas_trial.sql",
+  'apps/webapp/db/drizzle-migrations/0225_saas_tariff_quotas_trial.sql',
 );
 
 function fail(message) {
@@ -24,50 +24,60 @@ function fail(message) {
 }
 
 export function extractQuotaFunction(migration) {
-  const start = migration.indexOf("CREATE OR REPLACE FUNCTION app.enforce_courses_snapshot_quota()");
-  const end = migration.indexOf("ALTER FUNCTION app.enforce_courses_snapshot_quota()", start);
-  if (start < 0 || end < 0) fail("could not extract app.enforce_courses_snapshot_quota from the C5A migration");
+  const start = migration.indexOf(
+    'CREATE OR REPLACE FUNCTION app.enforce_courses_snapshot_quota()',
+  );
+  const end = migration.indexOf('ALTER FUNCTION app.enforce_courses_snapshot_quota()', start);
+  if (start < 0 || end < 0)
+    fail('could not extract app.enforce_courses_snapshot_quota from the C5A migration');
   return migration.slice(start, end);
 }
 
 function selfTest() {
-  const migration = readFileSync(migrationPath, "utf8");
+  const migration = readFileSync(migrationPath, 'utf8');
   const functionSql = extractQuotaFunction(migration);
-  for (const fragment of ["pg_advisory_xact_lock", "FROM public.courses", "saas_quota_reached:courses", "v_count * 5 >= v_limit * 4"]) {
+  for (const fragment of [
+    'pg_advisory_xact_lock',
+    'FROM public.courses',
+    'saas_quota_reached:courses',
+    'v_count * 5 >= v_limit * 4',
+  ]) {
     if (!functionSql.includes(fragment)) fail(`migration function is missing ${fragment}`);
   }
-  console.log("C5A courses quota race proof self-test: OK (no PostgreSQL required)");
+  console.log('C5A courses quota race proof self-test: OK (no PostgreSQL required)');
 }
 
-if (process.argv.includes("--self-test")) {
+if (process.argv.includes('--self-test')) {
   selfTest();
   process.exit(0);
 }
 
 const stamp = `${process.pid}_${Date.now()}`;
 const dir = mkdtempSync(`/tmp/bcb_c5a_courses_quota_race_${stamp}_`);
-const data = path.join(dir, "data");
-const socket = path.join(dir, "socket");
-const log = path.join(dir, "postgres.log");
+const data = path.join(dir, 'data');
+const socket = path.join(dir, 'socket');
+const log = path.join(dir, 'postgres.log');
 const db = `bcb_c5a_quota_race_${stamp}`;
-const safeEnv = { LANG: "C", LC_ALL: "C", PATH: `${pgBin}:/usr/bin:/bin` };
+const safeEnv = { LANG: 'C', LC_ALL: 'C', PATH: `${pgBin}:/usr/bin:/bin` };
 let serverStarted = false;
 let port;
 
 function run(command, args, label) {
-  const result = spawnSync(command, args, { cwd: root, encoding: "utf8", env: safeEnv });
+  const result = spawnSync(command, args, { cwd: root, encoding: 'utf8', env: safeEnv });
   if (result.error || result.status !== 0) fail(`${label}: ${result.stderr ?? result.error}`);
 }
 
 async function reservePort() {
   const server = net.createServer();
   await new Promise((resolve, reject) => {
-    server.once("error", reject);
-    server.listen(0, "127.0.0.1", resolve);
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
   });
   const address = server.address();
-  if (!address || typeof address === "string") fail("private port reservation failed");
-  await new Promise((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+  if (!address || typeof address === 'string') fail('private port reservation failed');
+  await new Promise((resolve, reject) =>
+    server.close((error) => (error ? reject(error) : resolve())),
+  );
   return address.port;
 }
 
@@ -86,7 +96,7 @@ async function withClient(fn) {
 }
 
 async function installSchema() {
-  const migration = readFileSync(migrationPath, "utf8");
+  const migration = readFileSync(migrationPath, 'utf8');
   const quotaFunction = extractQuotaFunction(migration);
   await withClient(async (connection) => {
     await connection.query(`
@@ -120,45 +130,61 @@ async function proveLastSlotRace() {
   const second = client();
   await Promise.all([first.connect(), second.connect()]);
   try {
-    await first.query("BEGIN");
-    await second.query("BEGIN");
-    await first.query("INSERT INTO public.courses (organization_id, title) VALUES ($1, $2)", [
-      "20000000-0000-4000-8000-000000000001", "first",
+    await first.query('BEGIN');
+    await second.query('BEGIN');
+    await first.query('INSERT INTO public.courses (organization_id, title) VALUES ($1, $2)', [
+      '20000000-0000-4000-8000-000000000001',
+      'first',
     ]);
-    const secondInsert = second.query("INSERT INTO public.courses (organization_id, title) VALUES ($1, $2)", [
-      "20000000-0000-4000-8000-000000000001", "second",
-    ]);
-    await first.query("COMMIT");
+    const secondInsert = second.query(
+      'INSERT INTO public.courses (organization_id, title) VALUES ($1, $2)',
+      ['20000000-0000-4000-8000-000000000001', 'second'],
+    );
+    await first.query('COMMIT');
     await secondInsert.then(
-      () => fail("second concurrent last-slot insert unexpectedly succeeded"),
+      () => fail('second concurrent last-slot insert unexpectedly succeeded'),
       (error) => {
-        if (!String(error.message).includes("saas_quota_reached:courses")) throw error;
+        if (!String(error.message).includes('saas_quota_reached:courses')) throw error;
       },
     );
-    await second.query("ROLLBACK");
+    await second.query('ROLLBACK');
     const count = await withClient(async (connection) => {
-      const result = await connection.query("SELECT count(*)::int AS count FROM public.courses");
+      const result = await connection.query('SELECT count(*)::int AS count FROM public.courses');
       return result.rows[0]?.count;
     });
     if (count !== 1) fail(`expected exactly one committed course, found ${count}`);
   } finally {
-    await Promise.allSettled([first.query("ROLLBACK"), second.query("ROLLBACK")]);
+    await Promise.allSettled([first.query('ROLLBACK'), second.query('ROLLBACK')]);
     await Promise.all([first.end(), second.end()]);
   }
 }
 
 try {
-  if (!existsSync(path.join(pgBin, "initdb"))) fail("PostgreSQL 16 binaries are unavailable");
+  if (!existsSync(path.join(pgBin, 'initdb'))) fail('PostgreSQL 16 binaries are unavailable');
   port = await reservePort();
   mkdirSync(socket, { recursive: true });
-  run(path.join(pgBin, "initdb"), ["-D", data, "-A", "trust", "--no-locale"], "private initdb");
-  run(path.join(pgBin, "pg_ctl"), ["-D", data, "-l", log, "-o", `-k ${socket} -p ${port} -c listen_addresses=''`, "-w", "start"], "private PostgreSQL startup");
+  run(path.join(pgBin, 'initdb'), ['-D', data, '-A', 'trust', '--no-locale'], 'private initdb');
+  run(
+    path.join(pgBin, 'pg_ctl'),
+    ['-D', data, '-l', log, '-o', `-k ${socket} -p ${port} -c listen_addresses=''`, '-w', 'start'],
+    'private PostgreSQL startup',
+  );
   serverStarted = true;
-  run(path.join(pgBin, "createdb"), ["-h", socket, "-p", String(port), db], "private database creation");
+  run(
+    path.join(pgBin, 'createdb'),
+    ['-h', socket, '-p', String(port), db],
+    'private database creation',
+  );
   await installSchema();
   await proveLastSlotRace();
-  console.log("C5A courses quota race proof: OK — two private PostgreSQL connections preserve the final slot");
+  console.log(
+    'C5A courses quota race proof: OK — two private PostgreSQL connections preserve the final slot',
+  );
 } finally {
-  if (serverStarted) spawnSync(path.join(pgBin, "pg_ctl"), ["-D", data, "-m", "fast", "-w", "stop"], { encoding: "utf8", env: safeEnv });
+  if (serverStarted)
+    spawnSync(path.join(pgBin, 'pg_ctl'), ['-D', data, '-m', 'fast', '-w', 'stop'], {
+      encoding: 'utf8',
+      env: safeEnv,
+    });
   rmSync(dir, { recursive: true, force: true });
 }

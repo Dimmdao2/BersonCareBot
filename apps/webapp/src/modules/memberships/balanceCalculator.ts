@@ -1,4 +1,4 @@
-import type { PackageItemBalance, PackageUsageRecord, PatientPackageItemRecord } from "./types";
+import type { PackageItemBalance, PackageUsageRecord, PatientPackageItemRecord } from './types';
 
 export function computeItemBalances(
   items: PatientPackageItemRecord[],
@@ -14,22 +14,22 @@ export function computeItemBalances(
     for (const u of forItem) {
       const q = u.quantity;
       switch (u.usageKind) {
-        case "reserve":
+        case 'reserve':
           reserved += q;
           break;
-        case "consume":
+        case 'consume':
           consumed += q;
           break;
-        case "release":
+        case 'release':
           released += q;
           break;
-        case "penalty":
+        case 'penalty':
           penalty += q;
           break;
-        case "manual_adjust":
+        case 'manual_adjust':
           consumed += q;
           break;
-        case "refund":
+        case 'refund':
           refunded += q;
           break;
         default:

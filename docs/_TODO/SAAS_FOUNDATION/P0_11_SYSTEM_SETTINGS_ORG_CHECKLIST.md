@@ -1,4 +1,4 @@
-> RE-VERIFIED 2026-07-23 (all [x] audited vs code): see docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/PRODUCTION_READINESS_LEDGER_2026-07-23.md
+> RE-VERIFIED 2026-07-23 (all [x] audited vs code): see docs/\_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/PRODUCTION_READINESS_LEDGER_2026-07-23.md
 
 # P0.11 Org-Aware system_settings Checklist
 
@@ -60,10 +60,11 @@ Checklist:
 - [x] Existing global admin settings still round-trip.
 - [x] Audit rows preserve actor/org context where available.
 
-P0.11.3 execution note (2026-07-13): the 2026-07-08 note above described the *mechanism* only —
+P0.11.3 execution note (2026-07-13): the 2026-07-08 note above described the _mechanism_ only —
 `updateSetting`/`persistAdminModesBatch` accepted an optional `organizationId`, but no caller ever
 passed one, so all 96 rows on TEST stayed global and a clinic-2 edit silently overwrote clinic-1's
 value (the leak the owner found live). Closed today:
+
 - `apps/webapp/src/modules/system-settings/orgScopedKeys.ts` — exhaustive per-key classification
   (`Record<SystemSettingKey, "per_org"|"global">`, TS-enforced against `ALLOWED_KEYS`).
 - `service.ts` gained a single write chokepoint (`resolveWriteOrganizationId`): GLOBAL keys are

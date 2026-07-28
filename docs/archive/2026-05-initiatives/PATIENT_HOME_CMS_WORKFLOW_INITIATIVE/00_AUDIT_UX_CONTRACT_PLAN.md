@@ -69,4 +69,3 @@ No CI/test commands required.
 
 - Contract doc is complete and self-consistent.
 - Ready to start Phase 1 without ambiguity.
-

@@ -1,10 +1,10 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
-import { PLATFORM_COOKIE_NAME } from "@/shared/lib/platform";
+import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { PLATFORM_COOKIE_NAME } from '@/shared/lib/platform';
 
 const exchangeTelegramInitDataMock = vi.fn();
 const isAuthChannelEnabledMock = vi.hoisted(() => vi.fn());
 
-vi.mock("@/app-layer/logging/logger", () => ({
+vi.mock('@/app-layer/logging/logger', () => ({
   logger: {
     info: vi.fn(),
     warn: vi.fn(),
@@ -12,7 +12,7 @@ vi.mock("@/app-layer/logging/logger", () => ({
   },
 }));
 
-vi.mock("@/app-layer/di/buildAppDeps", () => ({
+vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: () => ({
     auth: {
       exchangeTelegramInitData: exchangeTelegramInitDataMock,
@@ -23,104 +23,104 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
   }),
 }));
 
-vi.mock("@/modules/auth/authChannelPolicy", () => ({
+vi.mock('@/modules/auth/authChannelPolicy', () => ({
   isAuthChannelEnabled: (...args: unknown[]) => isAuthChannelEnabledMock(...args),
 }));
 
-import { logger } from "@/app-layer/logging/logger";
-import { POST } from "./route";
+import { logger } from '@/app-layer/logging/logger';
+import { POST } from './route';
 
-describe("POST /api/auth/telegram-init", () => {
+describe('POST /api/auth/telegram-init', () => {
   beforeEach(() => {
     isAuthChannelEnabledMock.mockReset();
     isAuthChannelEnabledMock.mockResolvedValue(true);
   });
 
-  it("rejects a disabled telegram channel before initData is exchanged", async () => {
+  it('rejects a disabled telegram channel before initData is exchanged', async () => {
     isAuthChannelEnabledMock.mockResolvedValue(false);
     const res = await POST(
-      new Request("http://localhost/api/auth/telegram-init", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ initData: "ok-init-data" }),
-      })
+      new Request('http://localhost/api/auth/telegram-init', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ initData: 'ok-init-data' }),
+      }),
     );
     expect(res.status).toBe(403);
-    await expect(res.json()).resolves.toEqual({ ok: false, error: "auth_channel_disabled" });
+    await expect(res.json()).resolves.toEqual({ ok: false, error: 'auth_channel_disabled' });
     expect(exchangeTelegramInitDataMock).not.toHaveBeenCalled();
-    expect(isAuthChannelEnabledMock).toHaveBeenCalledWith("telegram");
+    expect(isAuthChannelEnabledMock).toHaveBeenCalledWith('telegram');
   });
 
-  it("returns 400 for invalid payload", async () => {
+  it('returns 400 for invalid payload', async () => {
     const res = await POST(
-      new Request("http://localhost/api/auth/telegram-init", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
+      new Request('http://localhost/api/auth/telegram-init', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({}),
-      })
+      }),
     );
     expect(res.status).toBe(400);
   });
 
-  it("logs miniappAuthOutcome invalid_body on 400", async () => {
+  it('logs miniappAuthOutcome invalid_body on 400', async () => {
     await POST(
-      new Request("http://localhost/api/auth/telegram-init", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
+      new Request('http://localhost/api/auth/telegram-init', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({}),
-      })
+      }),
     );
     expect(vi.mocked(logger.warn)).toHaveBeenCalledWith(
       expect.objectContaining({
-        route: "auth/telegram-init",
-        miniappAuthOutcome: "invalid_body",
+        route: 'auth/telegram-init',
+        miniappAuthOutcome: 'invalid_body',
       }),
-      expect.stringContaining("Telegram Mini App"),
+      expect.stringContaining('Telegram Mini App'),
     );
   });
 
-  it("returns 403 when initData is denied", async () => {
+  it('returns 403 when initData is denied', async () => {
     exchangeTelegramInitDataMock.mockResolvedValueOnce(null);
     const res = await POST(
-      new Request("http://localhost/api/auth/telegram-init", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ initData: "bad-init-data" }),
-      })
+      new Request('http://localhost/api/auth/telegram-init', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ initData: 'bad-init-data' }),
+      }),
     );
     expect(res.status).toBe(403);
   });
 
-  it("returns 200 with role and redirect", async () => {
+  it('returns 200 with role and redirect', async () => {
     exchangeTelegramInitDataMock.mockResolvedValueOnce({
       session: {
         user: {
-          userId: "u1",
-          role: "client",
-          displayName: "Client",
-          bindings: { telegramId: "123" },
+          userId: 'u1',
+          role: 'client',
+          displayName: 'Client',
+          bindings: { telegramId: '123' },
         },
         issuedAt: 1,
         expiresAt: 2,
       },
-      redirectTo: "/app/patient",
+      redirectTo: '/app/patient',
     });
     const res = await POST(
-      new Request("http://localhost/api/auth/telegram-init", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ initData: "ok-init-data" }),
-      })
+      new Request('http://localhost/api/auth/telegram-init', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ initData: 'ok-init-data' }),
+      }),
     );
     expect(res.status).toBe(200);
     const data = (await res.json()) as { ok: boolean; role: string; redirectTo: string };
     expect(data).toEqual({
       ok: true,
-      role: "client",
-      redirectTo: "/app/patient",
+      role: 'client',
+      redirectTo: '/app/patient',
     });
-    const setCookie = res.headers.get("set-cookie") ?? "";
+    const setCookie = res.headers.get('set-cookie') ?? '';
     expect(setCookie).toContain(`${PLATFORM_COOKIE_NAME}=bot`);
-    expect(setCookie.toLowerCase()).not.toContain("httponly");
+    expect(setCookie.toLowerCase()).not.toContain('httponly');
   });
 });

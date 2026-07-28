@@ -1,10 +1,10 @@
-import { randomUUID } from "node:crypto";
+import { randomUUID } from 'node:crypto';
 import type {
   CreatePendingPatientBookingInput,
   PatientBookingsPort,
-} from "@/modules/patient-booking/ports";
-import type { PatientBookingRecord } from "@/modules/patient-booking/types";
-import { intervalsOverlap } from "@/modules/patient-booking/slotOverlap";
+} from '@/modules/patient-booking/ports';
+import type { PatientBookingRecord } from '@/modules/patient-booking/types';
+import { intervalsOverlap } from '@/modules/patient-booking/slotOverlap';
 
 const byId = new Map<string, PatientBookingRecord>();
 
@@ -14,16 +14,16 @@ export function resetInMemoryPatientBookingsStore(): void {
 }
 
 const BLOCKING_STATUSES = [
-  "creating",
-  "awaiting_payment",
-  "confirmed",
-  "rescheduled",
-  "cancelling",
-  "cancel_failed",
+  'creating',
+  'awaiting_payment',
+  'confirmed',
+  'rescheduled',
+  'cancelling',
+  'cancel_failed',
 ] as const;
 
 function isAbandonedCreating(row: PatientBookingRecord): boolean {
-  return row.status === "creating" && row.canonicalAppointmentId == null;
+  return row.status === 'creating' && row.canonicalAppointmentId == null;
 }
 
 function reconcileAbandonedCreating(input: {
@@ -39,7 +39,7 @@ function reconcileAbandonedCreating(input: {
       intervalsOverlap(input.slotStart, input.slotEnd, row.slotStart, row.slotEnd);
     const stale = Date.parse(row.createdAt) < cutoff;
     if (sameUserRetry || stale) {
-      byId.set(id, { ...row, status: "failed_sync", updatedAt: new Date().toISOString() });
+      byId.set(id, { ...row, status: 'failed_sync', updatedAt: new Date().toISOString() });
     }
   }
 }
@@ -70,7 +70,7 @@ export const inMemoryPatientBookingsPort: PatientBookingsPort = {
         userId: input.userId,
       })
     ) {
-      throw new Error("slot_overlap");
+      throw new Error('slot_overlap');
     }
     const now = new Date().toISOString();
     const row: PatientBookingRecord = {
@@ -81,7 +81,7 @@ export const inMemoryPatientBookingsPort: PatientBookingsPort = {
       category: input.category,
       slotStart: input.slotStart,
       slotEnd: input.slotEnd,
-      status: "creating",
+      status: 'creating',
       cancelledAt: null,
       cancelReason: null,
       gcalEventId: null,
@@ -113,7 +113,7 @@ export const inMemoryPatientBookingsPort: PatientBookingsPort = {
     if (!row) return null;
     const next = {
       ...row,
-      status: "awaiting_payment" as const,
+      status: 'awaiting_payment' as const,
       canonicalAppointmentId,
       updatedAt: new Date().toISOString(),
     };
@@ -123,7 +123,10 @@ export const inMemoryPatientBookingsPort: PatientBookingsPort = {
 
   async markConfirmedByCanonicalAppointment(canonicalAppointmentId) {
     for (const [id, row] of byId) {
-      if (row.canonicalAppointmentId === canonicalAppointmentId && row.status === "awaiting_payment") {
+      if (
+        row.canonicalAppointmentId === canonicalAppointmentId &&
+        row.status === 'awaiting_payment'
+      ) {
         return this.markConfirmed(id, { canonicalAppointmentId });
       }
     }
@@ -141,13 +144,12 @@ export const inMemoryPatientBookingsPort: PatientBookingsPort = {
         excludeBookingId: bookingId,
       })
     ) {
-      throw new Error("slot_overlap");
+      throw new Error('slot_overlap');
     }
     const next = {
       ...row,
-      status: "confirmed" as const,
-      canonicalAppointmentId:
-        options?.canonicalAppointmentId?.trim() || row.canonicalAppointmentId,
+      status: 'confirmed' as const,
+      canonicalAppointmentId: options?.canonicalAppointmentId?.trim() || row.canonicalAppointmentId,
       updatedAt: new Date().toISOString(),
     };
     byId.set(bookingId, next);
@@ -157,13 +159,13 @@ export const inMemoryPatientBookingsPort: PatientBookingsPort = {
   async markFailedSync(bookingId) {
     const row = byId.get(bookingId);
     if (!row) return;
-    byId.set(bookingId, { ...row, status: "failed_sync", updatedAt: new Date().toISOString() });
+    byId.set(bookingId, { ...row, status: 'failed_sync', updatedAt: new Date().toISOString() });
   },
 
   async markCancelling(bookingId) {
     const row = byId.get(bookingId);
     if (!row) return null;
-    const next = { ...row, status: "cancelling" as const, updatedAt: new Date().toISOString() };
+    const next = { ...row, status: 'cancelling' as const, updatedAt: new Date().toISOString() };
     byId.set(bookingId, next);
     return next;
   },
@@ -173,7 +175,7 @@ export const inMemoryPatientBookingsPort: PatientBookingsPort = {
     if (!row) return null;
     const next = {
       ...row,
-      status: input.status ?? "cancelled",
+      status: input.status ?? 'cancelled',
       cancelReason: input.reason ?? row.cancelReason,
       cancelledAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -217,9 +219,14 @@ export const inMemoryPatientBookingsPort: PatientBookingsPort = {
     return [...byId.values()]
       .filter((row) => row.userId === userId)
       .filter((row) =>
-        ["creating", "awaiting_payment", "confirmed", "rescheduled", "cancelling", "cancel_failed"].includes(
-          row.status,
-        ),
+        [
+          'creating',
+          'awaiting_payment',
+          'confirmed',
+          'rescheduled',
+          'cancelling',
+          'cancel_failed',
+        ].includes(row.status),
       )
       .filter((row) => !isAbandonedCreating(row))
       .filter((row) => new Date(row.slotStart).getTime() >= nowMs)
@@ -233,7 +240,7 @@ export const inMemoryPatientBookingsPort: PatientBookingsPort = {
       .filter(
         (row) =>
           new Date(row.slotStart).getTime() < nowMs ||
-          ["cancelled", "completed", "no_show", "failed_sync"].includes(row.status),
+          ['cancelled', 'completed', 'no_show', 'failed_sync'].includes(row.status),
       )
       .sort((a, b) => b.slotStart.localeCompare(a.slotStart));
   },

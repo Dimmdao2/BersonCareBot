@@ -2,49 +2,57 @@ import {
   matchesCancellationPolicy,
   matchesReschedulePolicy,
   pickHighestPriorityPolicy,
-} from "./policyResolver";
-import type { BookingPoliciesPort } from "./ports";
+} from './policyResolver';
+import type { BookingPoliciesPort } from './ports';
 import {
   DEFAULT_CANCELLATION_POLICY,
   DEFAULT_RESCHEDULE_POLICY,
   type CancellationPolicy,
   type PolicyAppointmentContext,
   type ReschedulePolicy,
-} from "./types";
+} from './types';
 
 export function createBookingPoliciesService(port: BookingPoliciesPort) {
   return {
-    listCancellationPolicies: (organizationId: string) => port.listCancellationPolicies(organizationId),
+    listCancellationPolicies: (organizationId: string) =>
+      port.listCancellationPolicies(organizationId),
     listReschedulePolicies: (organizationId: string) => port.listReschedulePolicies(organizationId),
     upsertCancellationPolicy: port.upsertCancellationPolicy.bind(port),
     upsertReschedulePolicy: port.upsertReschedulePolicy.bind(port),
-    resolveCancellationPolicy: (ctx: PolicyAppointmentContext) => port.resolveCancellationPolicy(ctx),
+    resolveCancellationPolicy: (ctx: PolicyAppointmentContext) =>
+      port.resolveCancellationPolicy(ctx),
     resolveReschedulePolicy: (ctx: PolicyAppointmentContext) => port.resolveReschedulePolicy(ctx),
   };
 }
 
 export type BookingPoliciesService = ReturnType<typeof createBookingPoliciesService>;
 
-export function withDefaultCancellationPolicy(policy: CancellationPolicy | null, organizationId: string): CancellationPolicy {
+export function withDefaultCancellationPolicy(
+  policy: CancellationPolicy | null,
+  organizationId: string,
+): CancellationPolicy {
   if (policy) return policy;
   return {
-    id: "default",
+    id: 'default',
     organizationId,
-    scopeLevel: "organization",
+    scopeLevel: 'organization',
     scopeEntityId: organizationId,
-    title: "По умолчанию",
+    title: 'По умолчанию',
     ...DEFAULT_CANCELLATION_POLICY,
   };
 }
 
-export function withDefaultReschedulePolicy(policy: ReschedulePolicy | null, organizationId: string): ReschedulePolicy {
+export function withDefaultReschedulePolicy(
+  policy: ReschedulePolicy | null,
+  organizationId: string,
+): ReschedulePolicy {
   if (policy) return policy;
   return {
-    id: "default",
+    id: 'default',
     organizationId,
-    scopeLevel: "organization",
+    scopeLevel: 'organization',
     scopeEntityId: organizationId,
-    title: "По умолчанию",
+    title: 'По умолчанию',
     ...DEFAULT_RESCHEDULE_POLICY,
   };
 }

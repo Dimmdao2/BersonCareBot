@@ -1,12 +1,12 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useState, useTransition } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { Label } from "@/shared/ui/doctor/primitives/label";
-import { Switch } from "@/shared/ui/doctor/primitives/switch";
-import { DoctorColorPicker } from "@/shared/ui/doctor/DoctorColorPicker";
+import { useCallback, useEffect, useState, useTransition } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { Label } from '@/shared/ui/doctor/primitives/label';
+import { Switch } from '@/shared/ui/doctor/primitives/switch';
+import { DoctorColorPicker } from '@/shared/ui/doctor/DoctorColorPicker';
 import {
   SOLO_BOOKING_UNAVAILABLE_MESSAGE,
   apiJson,
@@ -15,33 +15,33 @@ import {
   setOnlineLocationEnabled,
   slugCityCode,
   type SoloOverview,
-} from "@/app/app/settings/bookingSoloAdminApi";
-import { isBuiltInOnlineLocation } from "@/modules/booking-engine/onlineLocation";
-import { DEFAULT_BOOKING_LOCATION_PALETTE } from "@/modules/booking-engine/locationPalette";
+} from '@/app/app/settings/bookingSoloAdminApi';
+import { isBuiltInOnlineLocation } from '@/modules/booking-engine/onlineLocation';
+import { DEFAULT_BOOKING_LOCATION_PALETTE } from '@/modules/booking-engine/locationPalette';
 
-const BASE = "/api/admin/booking-engine";
-const DEFAULT_BRANCH_COLOR = "#2563eb";
+const BASE = '/api/admin/booking-engine';
+const DEFAULT_BRANCH_COLOR = '#2563eb';
 
-type BranchRow = SoloOverview["branches"][0];
+type BranchRow = SoloOverview['branches'][0];
 
 export function BookingSoloLocationsSection() {
   const [branches, setBranches] = useState<BranchRow[]>([]);
-  const [orgTitle, setOrgTitle] = useState("");
+  const [orgTitle, setOrgTitle] = useState('');
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [unavailable, setUnavailable] = useState(false);
   const [pending, startTransition] = useTransition();
-  const [title, setTitle] = useState("");
-  const [shortTitle, setShortTitle] = useState("");
-  const [address, setAddress] = useState("");
-  const [timezone, setTimezone] = useState("Europe/Moscow");
+  const [title, setTitle] = useState('');
+  const [shortTitle, setShortTitle] = useState('');
+  const [address, setAddress] = useState('');
+  const [timezone, setTimezone] = useState('Europe/Moscow');
   const [editId, setEditId] = useState<string | null>(null);
-  const [editTitle, setEditTitle] = useState("");
-  const [editShortTitle, setEditShortTitle] = useState("");
-  const [editAddress, setEditAddress] = useState("");
+  const [editTitle, setEditTitle] = useState('');
+  const [editShortTitle, setEditShortTitle] = useState('');
+  const [editAddress, setEditAddress] = useState('');
   const [editColor, setEditColor] = useState(DEFAULT_BRANCH_COLOR);
-  const [editTimezone, setEditTimezone] = useState("Europe/Moscow");
-  const [editSortOrder, setEditSortOrder] = useState("0");
+  const [editTimezone, setEditTimezone] = useState('Europe/Moscow');
+  const [editSortOrder, setEditSortOrder] = useState('0');
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   const load = useCallback(async () => {
@@ -54,9 +54,9 @@ export function BookingSoloLocationsSection() {
         return;
       }
       setBranches(data.branches);
-      setOrgTitle(data.organization?.title ?? "");
+      setOrgTitle(data.organization?.title ?? '');
     } catch (e) {
-      setLoadError(e instanceof Error ? e.message : "load_failed");
+      setLoadError(e instanceof Error ? e.message : 'load_failed');
     }
   }, []);
 
@@ -73,15 +73,13 @@ export function BookingSoloLocationsSection() {
         await fn();
         await load();
       } catch (e) {
-        setActionError(e instanceof Error ? e.message : "action_failed");
+        setActionError(e instanceof Error ? e.message : 'action_failed');
       }
     });
   }
 
   if (unavailable) {
-    return (
-      <p className="text-sm text-muted-foreground">{SOLO_BOOKING_UNAVAILABLE_MESSAGE}</p>
-    );
+    return <p className="text-sm text-muted-foreground">{SOLO_BOOKING_UNAVAILABLE_MESSAGE}</p>;
   }
 
   const onlineLocation = branches.find(isBuiltInOnlineLocation) ?? null;
@@ -103,10 +101,9 @@ export function BookingSoloLocationsSection() {
               label="Цвет онлайн-локации"
               value={onlineLocation?.color ?? DEFAULT_BOOKING_LOCATION_PALETTE.online}
               disabled={pending}
-              onChange={(next) => run(() => setOnlineLocationEnabled(
-                onlineLocation?.isActive ?? false,
-                next,
-              ))}
+              onChange={(next) =>
+                run(() => setOnlineLocationEnabled(onlineLocation?.isActive ?? false, next))
+              }
             />
             <Switch
               id="booking-online-location"
@@ -149,8 +146,8 @@ export function BookingSoloLocationsSection() {
                   await ensureDefaultSpecialist(orgTitle);
                   const maxOrder = branches.reduce((m, b) => Math.max(m, b.sortOrder), 0);
                   await apiJson(`${BASE}/branches`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                       title: title.trim(),
                       shortTitle: shortTitle.trim() || null,
@@ -160,9 +157,9 @@ export function BookingSoloLocationsSection() {
                       sortOrder: maxOrder + 10,
                     }),
                   });
-                  setTitle("");
-                  setShortTitle("");
-                  setAddress("");
+                  setTitle('');
+                  setShortTitle('');
+                  setAddress('');
                 })
               }
             >
@@ -176,7 +173,7 @@ export function BookingSoloLocationsSection() {
             className="h-auto p-0 text-xs text-muted-foreground underline-offset-2 hover:underline"
             onClick={() => setShowAdvanced((v) => !v)}
           >
-            {showAdvanced ? "Скрыть дополнительно" : "Дополнительно"}
+            {showAdvanced ? 'Скрыть дополнительно' : 'Дополнительно'}
           </Button>
           {showAdvanced ? (
             <div className="flex flex-wrap items-center gap-2 pt-1">
@@ -205,145 +202,155 @@ export function BookingSoloLocationsSection() {
             </thead>
             <tbody>
               {[...physicalBranches]
-                .sort((a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title, "ru"))
+                .sort((a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title, 'ru'))
                 .map((b) => (
-                <tr key={b.id} className="border-b border-border/60 last:border-0">
-                  <td className="px-3 py-2">
-                    {editId === b.id ? (
-                      <Input className="h-8" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} />
-                    ) : (
-                      <span className={!b.isActive ? "text-muted-foreground line-through" : undefined}>
-                        {b.title}
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-3 py-2">
-                    {editId === b.id ? (
-                      <Input
-                        className="h-8 w-28"
-                        placeholder="СПб, Мск"
-                        maxLength={12}
-                        value={editShortTitle}
-                        onChange={(e) => setEditShortTitle(e.target.value.slice(0, 12))}
-                      />
-                    ) : (
-                      (b.shortTitle ?? "—")
-                    )}
-                  </td>
-                  <td className="px-3 py-2">
-                    {editId === b.id ? (
-                      <DoctorColorPicker
-                        label={`Цвет ${b.title}`}
-                        value={editColor}
-                        onChange={(next) => setEditColor(next)}
-                      />
-                    ) : (
-                      <span className="inline-flex items-center gap-2">
-                        <span
-                          className="h-4 w-4 rounded-md border border-border"
-                          style={{ backgroundColor: b.color ?? DEFAULT_BRANCH_COLOR }}
-                          aria-hidden="true"
+                  <tr key={b.id} className="border-b border-border/60 last:border-0">
+                    <td className="px-3 py-2">
+                      {editId === b.id ? (
+                        <Input
+                          className="h-8"
+                          value={editTitle}
+                          onChange={(e) => setEditTitle(e.target.value)}
                         />
-                        <span className="text-xs text-muted-foreground">{b.color ?? "—"}</span>
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-3 py-2">
-                    {editId === b.id ? (
-                      <Input className="h-8" value={editAddress} onChange={(e) => setEditAddress(e.target.value)} />
-                    ) : (
-                      (b.address ?? "—")
-                    )}
-                  </td>
-                  <td className="px-3 py-2">
-                    {editId === b.id ? (
-                      <Input
-                        className="h-8 w-16"
-                        type="number"
-                        value={editSortOrder}
-                        onChange={(e) => setEditSortOrder(e.target.value)}
-                      />
-                    ) : (
-                      b.sortOrder
-                    )}
-                  </td>
-                  <td className="px-3 py-2">
-                    <Switch
-                      checked={b.isActive}
-                      disabled={pending || editId === b.id}
-                      onCheckedChange={(checked) =>
-                        run(async () => {
-                          await apiJson(`${BASE}/branches/${b.id}`, {
-                            method: "PATCH",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ isActive: checked }),
-                          });
-                        })
-                      }
-                    />
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    {editId === b.id ? (
-                      <>
-                        <Button
-                          type="button"
-                          size="sm"
-                          className="h-7 px-2"
-                          disabled={pending}
-                          onClick={() =>
-                            run(async () => {
-                              await apiJson(`${BASE}/branches/${b.id}`, {
-                                method: "PATCH",
-                                headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify({
-                                  title: editTitle,
-                                  shortTitle: editShortTitle.trim() || null,
-                                  color: editColor,
-                                  address: editAddress.trim() || null,
-                                  timezone: editTimezone,
-                                  sortOrder: Number(editSortOrder),
-                                }),
-                              });
-                              setEditId(null);
-                            })
-                          }
+                      ) : (
+                        <span
+                          className={!b.isActive ? 'text-muted-foreground line-through' : undefined}
                         >
-                          OK
-                        </Button>
+                          {b.title}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2">
+                      {editId === b.id ? (
+                        <Input
+                          className="h-8 w-28"
+                          placeholder="СПб, Мск"
+                          maxLength={12}
+                          value={editShortTitle}
+                          onChange={(e) => setEditShortTitle(e.target.value.slice(0, 12))}
+                        />
+                      ) : (
+                        (b.shortTitle ?? '—')
+                      )}
+                    </td>
+                    <td className="px-3 py-2">
+                      {editId === b.id ? (
+                        <DoctorColorPicker
+                          label={`Цвет ${b.title}`}
+                          value={editColor}
+                          onChange={(next) => setEditColor(next)}
+                        />
+                      ) : (
+                        <span className="inline-flex items-center gap-2">
+                          <span
+                            className="h-4 w-4 rounded-md border border-border"
+                            style={{ backgroundColor: b.color ?? DEFAULT_BRANCH_COLOR }}
+                            aria-hidden="true"
+                          />
+                          <span className="text-xs text-muted-foreground">{b.color ?? '—'}</span>
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2">
+                      {editId === b.id ? (
+                        <Input
+                          className="h-8"
+                          value={editAddress}
+                          onChange={(e) => setEditAddress(e.target.value)}
+                        />
+                      ) : (
+                        (b.address ?? '—')
+                      )}
+                    </td>
+                    <td className="px-3 py-2">
+                      {editId === b.id ? (
+                        <Input
+                          className="h-8 w-16"
+                          type="number"
+                          value={editSortOrder}
+                          onChange={(e) => setEditSortOrder(e.target.value)}
+                        />
+                      ) : (
+                        b.sortOrder
+                      )}
+                    </td>
+                    <td className="px-3 py-2">
+                      <Switch
+                        checked={b.isActive}
+                        disabled={pending || editId === b.id}
+                        onCheckedChange={(checked) =>
+                          run(async () => {
+                            await apiJson(`${BASE}/branches/${b.id}`, {
+                              method: 'PATCH',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ isActive: checked }),
+                            });
+                          })
+                        }
+                      />
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      {editId === b.id ? (
+                        <>
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="h-7 px-2"
+                            disabled={pending}
+                            onClick={() =>
+                              run(async () => {
+                                await apiJson(`${BASE}/branches/${b.id}`, {
+                                  method: 'PATCH',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({
+                                    title: editTitle,
+                                    shortTitle: editShortTitle.trim() || null,
+                                    color: editColor,
+                                    address: editAddress.trim() || null,
+                                    timezone: editTimezone,
+                                    sortOrder: Number(editSortOrder),
+                                  }),
+                                });
+                                setEditId(null);
+                              })
+                            }
+                          >
+                            OK
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 px-2"
+                            disabled={pending}
+                            onClick={() => setEditId(null)}
+                          >
+                            ×
+                          </Button>
+                        </>
+                      ) : (
                         <Button
                           type="button"
                           size="sm"
                           variant="ghost"
                           className="h-7 px-2"
                           disabled={pending}
-                          onClick={() => setEditId(null)}
+                          onClick={() => {
+                            setEditId(b.id);
+                            setEditTitle(b.title);
+                            setEditShortTitle(b.shortTitle ?? '');
+                            setEditAddress(b.address ?? '');
+                            setEditColor(b.color ?? DEFAULT_BRANCH_COLOR);
+                            setEditTimezone(b.timezone);
+                            setEditSortOrder(String(b.sortOrder));
+                          }}
                         >
-                          ×
+                          Изм.
                         </Button>
-                      </>
-                    ) : (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 px-2"
-                        disabled={pending}
-                        onClick={() => {
-                          setEditId(b.id);
-                          setEditTitle(b.title);
-                          setEditShortTitle(b.shortTitle ?? "");
-                          setEditAddress(b.address ?? "");
-                          setEditColor(b.color ?? DEFAULT_BRANCH_COLOR);
-                          setEditTimezone(b.timezone);
-                          setEditSortOrder(String(b.sortOrder));
-                        }}
-                      >
-                        Изм.
-                      </Button>
-                    )}
-                  </td>
-                </tr>
-              ))}
+                      )}
+                    </td>
+                  </tr>
+                ))}
             </tbody>
           </table>
           {physicalBranches.length === 0 ? (

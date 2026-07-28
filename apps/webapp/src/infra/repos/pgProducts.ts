@@ -1,25 +1,25 @@
-import { and, asc, eq, inArray, isNull } from "drizzle-orm";
-import { getDrizzleOrMutationTx as getDrizzle } from "@/infra/db/drizzleMutationTx";
+import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
+import { getDrizzleOrMutationTx as getDrizzle } from '@/infra/db/drizzleMutationTx';
 import {
   beProductHistoryEvents,
   beProductPayLinks,
   beProductPurchases,
   beProducts,
-} from "../../../db/schema/bookingProducts";
-import type { ProductsPort } from "@/modules/products/ports";
+} from '../../../db/schema/bookingProducts';
+import type { ProductsPort } from '@/modules/products/ports';
 import type {
   ProductAccessRules,
   ProductComposition,
   ProductPayLinkRecord,
   ProductPurchaseRecord,
   ProductRecord,
-} from "@/modules/products/types";
+} from '@/modules/products/types';
 
 function mapProduct(row: typeof beProducts.$inferSelect): ProductRecord {
   return {
     id: row.id,
     organizationId: row.organizationId,
-    productType: row.productType as ProductRecord["productType"],
+    productType: row.productType as ProductRecord['productType'],
     title: row.title,
     description: row.description,
     priceMinor: row.priceMinor,
@@ -41,11 +41,11 @@ function mapPurchase(row: typeof beProductPurchases.$inferSelect): ProductPurcha
     id: row.id,
     organizationId: row.organizationId,
     productId: row.productId,
-    productType: row.productType as ProductPurchaseRecord["productType"],
+    productType: row.productType as ProductPurchaseRecord['productType'],
     platformUserId: row.platformUserId,
     buyerPhoneNormalized: row.buyerPhoneNormalized,
     giftRecipientPhoneNormalized: row.giftRecipientPhoneNormalized,
-    status: row.status as ProductPurchaseRecord["status"],
+    status: row.status as ProductPurchaseRecord['status'],
     title: row.title,
     priceMinor: row.priceMinor,
     currency: row.currency,
@@ -117,7 +117,7 @@ export function createPgProductsPort(): ProductsPort {
           title: input.title,
           description: input.description ?? null,
           priceMinor: input.priceMinor,
-          currency: input.currency ?? "RUB",
+          currency: input.currency ?? 'RUB',
           compositionJson: input.compositionJson ?? {},
           accessRulesJson: input.accessRulesJson ?? {},
           paymentRulesJson: input.paymentRulesJson ?? {},
@@ -133,9 +133,11 @@ export function createPgProductsPort(): ProductsPort {
           const [row] = await tx
             .update(beProducts)
             .set(values)
-            .where(and(eq(beProducts.id, input.id), eq(beProducts.organizationId, input.organizationId)))
+            .where(
+              and(eq(beProducts.id, input.id), eq(beProducts.organizationId, input.organizationId)),
+            )
             .returning();
-          if (!row) throw new Error("product_not_found");
+          if (!row) throw new Error('product_not_found');
           return mapProduct(row);
         }
         const [row] = await tx.insert(beProducts).values(values).returning();
@@ -209,7 +211,7 @@ export function createPgProductsPort(): ProductsPort {
           payLinkId: input.payLinkId ?? null,
           assignedByPlatformUserId: input.assignedByPlatformUserId ?? null,
           fulfillmentJson: input.fulfillmentJson ?? {},
-          status: "offered",
+          status: 'offered',
         })
         .returning();
       return mapPurchase(row);
@@ -220,7 +222,9 @@ export function createPgProductsPort(): ProductsPort {
       const [row] = await db
         .select()
         .from(beProductPurchases)
-        .where(and(eq(beProductPurchases.id, id), eq(beProductPurchases.organizationId, organizationId)))
+        .where(
+          and(eq(beProductPurchases.id, id), eq(beProductPurchases.organizationId, organizationId)),
+        )
         .limit(1);
       return row ? mapPurchase(row) : null;
     },
@@ -309,7 +313,12 @@ export function createPgProductsPort(): ProductsPort {
         tx
           .update(beProductPurchases)
           .set(set)
-          .where(and(eq(beProductPurchases.id, id), eq(beProductPurchases.organizationId, organizationId)))
+          .where(
+            and(
+              eq(beProductPurchases.id, id),
+              eq(beProductPurchases.organizationId, organizationId),
+            ),
+          )
           .returning(),
       );
       return row ? mapPurchase(row) : null;

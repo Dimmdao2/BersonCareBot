@@ -9,7 +9,12 @@ import type {
 } from '../../kernel/contracts/index.js';
 import { createDbPort } from './client.js';
 import { getAdminStats } from './repos/adminStats.js';
-import { getChannelIdsByUserId, getIdentityIdByResourceAndExternalId, getLinkDataByIdentity, getNotificationSettings } from './repos/channelUsers.js';
+import {
+  getChannelIdsByUserId,
+  getIdentityIdByResourceAndExternalId,
+  getLinkDataByIdentity,
+  getNotificationSettings,
+} from './repos/channelUsers.js';
 import {
   getDueReminderOccurrences,
   getEnabledReminderRules,
@@ -50,13 +55,15 @@ async function handleUserLookup<T = unknown>(db: DbPort, query: DbReadQuery): Pr
   return (await lookupUser(db, resource, by, value)) as T;
 }
 
-export function createDbReadPort(input: {
-  db?: DbPort;
-  communicationReadsPort?: CommunicationReadsPort;
-  remindersReadsPort?: RemindersReadsPort;
-  appointmentsReadsPort?: AppointmentsReadsPort;
-  subscriptionMailingReadsPort?: SubscriptionMailingReadsPort;
-} = {}): DbReadPort {
+export function createDbReadPort(
+  input: {
+    db?: DbPort;
+    communicationReadsPort?: CommunicationReadsPort;
+    remindersReadsPort?: RemindersReadsPort;
+    appointmentsReadsPort?: AppointmentsReadsPort;
+    subscriptionMailingReadsPort?: SubscriptionMailingReadsPort;
+  } = {},
+): DbReadPort {
   const db = input.db ?? createDbPort();
   const communicationReadsPort = input.communicationReadsPort;
   const remindersReadsPort = input.remindersReadsPort;
@@ -93,21 +100,33 @@ export function createDbReadPort(input: {
           const externalId = asNonEmptyString(query.params.externalId);
           const source = asNonEmptyString(query.params.source);
           if (!resource || !externalId) return null as T;
-          return (await getActiveDraftByIdentity(db, { resource, externalId, ...(source ? { source } : {}) })) as T;
+          return (await getActiveDraftByIdentity(db, {
+            resource,
+            externalId,
+            ...(source ? { source } : {}),
+          })) as T;
         }
         case 'platformUser.idByChannelBinding': {
           const channelCode = asNonEmptyString(query.params.channelCode ?? query.params.resource);
           const externalId = asNonEmptyString(query.params.externalId);
           if (!channelCode || !externalId) return null as T;
-          const { resolveCanonicalPlatformUserIdByChannel } = await import('./repos/platformUserByChannel.js');
-          return (await resolveCanonicalPlatformUserIdByChannel(db, { channelCode, externalId })) as T;
+          const { resolveCanonicalPlatformUserIdByChannel } =
+            await import('./repos/platformUserByChannel.js');
+          return (await resolveCanonicalPlatformUserIdByChannel(db, {
+            channelCode,
+            externalId,
+          })) as T;
         }
         case 'conversation.openByIdentity': {
           const resource = asNonEmptyString(query.params.resource);
           const externalId = asNonEmptyString(query.params.externalId);
           const source = asNonEmptyString(query.params.source);
           if (!resource || !externalId) return null as T;
-          return (await getOpenConversationByIdentity(db, { resource, externalId, ...(source ? { source } : {}) })) as T;
+          return (await getOpenConversationByIdentity(db, {
+            resource,
+            externalId,
+            ...(source ? { source } : {}),
+          })) as T;
         }
         case 'conversation.byId': {
           const id = asNonEmptyString(query.params.id ?? query.params.conversationId);
@@ -126,7 +145,10 @@ export function createDbReadPort(input: {
               ...(limit !== null ? { limit } : {}),
             })) as T;
           }
-          return (await listOpenConversations(db, { ...(source ? { source } : {}), ...(limit !== null ? { limit } : {}) })) as T;
+          return (await listOpenConversations(db, {
+            ...(source ? { source } : {}),
+            ...(limit !== null ? { limit } : {}),
+          })) as T;
         }
         case 'questions.unanswered': {
           const limit = asFiniteNumber(query.params.limit);
@@ -154,7 +176,9 @@ export function createDbReadPort(input: {
         case 'notifications.settings': {
           const resource = asNonEmptyString(query.params.resource) ?? 'telegram';
           if (resource !== 'telegram') return null as T;
-          const channelUserId = asFiniteNumber(query.params.channelUserId ?? query.params.channelId);
+          const channelUserId = asFiniteNumber(
+            query.params.channelUserId ?? query.params.channelId,
+          );
           if (channelUserId === null) return null as T;
           return (await getNotificationSettings(db, channelUserId)) as T;
         }
@@ -234,7 +258,9 @@ export function createDbReadPort(input: {
           return (await subscriptionMailingReadsPort.listTopics()) as T;
         }
         case 'subscriptions.byUser': {
-          const userIdParam = asNonEmptyString(query.params.integratorUserId ?? query.params.userId);
+          const userIdParam = asNonEmptyString(
+            query.params.integratorUserId ?? query.params.userId,
+          );
           if (!userIdParam) return [] as T;
           if (!subscriptionMailingReadsPort) return [] as T;
           return (await subscriptionMailingReadsPort.getSubscriptionsByUserId(userIdParam)) as T;

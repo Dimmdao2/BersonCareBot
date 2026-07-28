@@ -6,4 +6,4 @@ export {
   MessengerPhoneLinkError,
   type MessengerPhoneBindDb,
   type MessengerPhoneLinkFailureCode,
-} from "@bersoncare/platform-merge";
+} from '@bersoncare/platform-merge';

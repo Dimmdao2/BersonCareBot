@@ -216,7 +216,11 @@ export async function appendSupportQuestionMessageDirect(
         input.createdAt,
       ],
     );
-    return { id: res.rows[0]?.id ?? '', questionId: question.id, organizationId: question.organization_id };
+    return {
+      id: res.rows[0]?.id ?? '',
+      questionId: question.id,
+      organizationId: question.organization_id,
+    };
   });
 }
 

@@ -1,18 +1,18 @@
-"use client";
+'use client';
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { fetchStaffWebPushStatus } from "@/shared/lib/webPush/staffWebPushApi";
-import { restoreStaffWebPushSubscription } from "@/shared/lib/webPush/subscribeStaffWebPush";
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { fetchStaffWebPushStatus } from '@/shared/lib/webPush/staffWebPushApi';
+import { restoreStaffWebPushSubscription } from '@/shared/lib/webPush/subscribeStaffWebPush';
 
-const SW_MESSAGE_TYPE = "WEB_PUSH_SUBSCRIPTION_CHANGE";
+const SW_MESSAGE_TYPE = 'WEB_PUSH_SUBSCRIPTION_CHANGE';
 
 /** Auto-restore staff push subscription after pushsubscriptionchange (same SW as patient). */
 export function StaffWebPushBootstrap() {
   const router = useRouter();
 
   useEffect(() => {
-    if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return;
+    if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
 
     const onMessage = (event: MessageEvent) => {
       const data = event.data as { type?: string } | null;
@@ -25,8 +25,8 @@ export function StaffWebPushBootstrap() {
       })();
     };
 
-    navigator.serviceWorker.addEventListener("message", onMessage);
-    return () => navigator.serviceWorker.removeEventListener("message", onMessage);
+    navigator.serviceWorker.addEventListener('message', onMessage);
+    return () => navigator.serviceWorker.removeEventListener('message', onMessage);
   }, [router]);
 
   return null;

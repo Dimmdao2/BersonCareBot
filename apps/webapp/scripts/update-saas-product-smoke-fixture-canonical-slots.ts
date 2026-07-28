@@ -98,7 +98,8 @@ export function parseFixtureForCanonicalSlots(text: string): Readonly<{
   if (!SLUG_PATTERN.test(organizationSlug)) fail('organization_slug_invalid');
 
   const legacyValue = parsed.refs.publicBookingServiceId;
-  const legacyRef = typeof legacyValue === 'string' && legacyValue.trim() ? legacyValue.trim() : null;
+  const legacyRef =
+    typeof legacyValue === 'string' && legacyValue.trim() ? legacyValue.trim() : null;
   if (legacyRef !== null && !UUID_PATTERN.test(legacyRef)) fail('legacy_ref_invalid');
   return { document: parsed, refs: parsed.refs, organizationSlug, legacyRef };
 }
@@ -113,7 +114,11 @@ export function resolveOneCanonicalSlotPair(
   if (probe.candidates.length === 0) fail('canonical_slot_pair_not_found');
   if (probe.candidates.length !== 1) fail('canonical_slot_pair_ambiguous');
   const candidate = probe.candidates[0];
-  if (!candidate || !UUID_PATTERN.test(candidate.branchId) || !UUID_PATTERN.test(candidate.clinicServiceId)) {
+  if (
+    !candidate ||
+    !UUID_PATTERN.test(candidate.branchId) ||
+    !UUID_PATTERN.test(candidate.clinicServiceId)
+  ) {
     fail('canonical_slot_pair_invalid');
   }
   return candidate;
@@ -184,14 +189,12 @@ function readProtectedFile(path: string, ownerId: number, groupId: number): stri
   }
 }
 
-function atomicWrite(
-  targetPath: string,
-  contents: string,
-  ownerId: number,
-  groupId: number,
-): void {
+function atomicWrite(targetPath: string, contents: string, ownerId: number, groupId: number): void {
   const parent = dirname(targetPath);
-  const temporaryPath = join(parent, `.${targetPath.split('/').at(-1)}.next.${process.pid}.${randomUUID()}`);
+  const temporaryPath = join(
+    parent,
+    `.${targetPath.split('/').at(-1)}.next.${process.pid}.${randomUUID()}`,
+  );
   try {
     writeSecureFile(temporaryPath, contents, ownerId, groupId);
     renameSync(temporaryPath, targetPath);
@@ -231,7 +234,10 @@ export function updateCanonicalSlotRefs(
   };
   const updatedContents = `${JSON.stringify(updatedDocument, null, 2)}\n`;
   const parent = dirname(fixturePath);
-  const candidatePath = join(parent, `.saas-smoke.fixture.candidate.${process.pid}.${randomUUID()}`);
+  const candidatePath = join(
+    parent,
+    `.saas-smoke.fixture.candidate.${process.pid}.${randomUUID()}`,
+  );
 
   try {
     writeSecureFile(
@@ -265,7 +271,9 @@ export function updateCanonicalSlotRefs(
       dependencies.validateProtectedFile(fixturePath);
       fail('post_replace_check_failed_rolled_back');
     }
-    dependencies.log('canonical public-booking fixture refs updated; protected previous copy retained');
+    dependencies.log(
+      'canonical public-booking fixture refs updated; protected previous copy retained',
+    );
   } finally {
     try {
       unlinkSync(candidatePath);
@@ -347,8 +355,23 @@ ROLLBACK;
 function runReadOnlyProbe(organizationSlug: string, legacyRef: string | null): CanonicalSlotProbe {
   const result = spawnSync(
     'sudo',
-    ['-u', 'postgres', 'psql', '-d', EXACT_TEST_DATABASE, '-X', '-A', '-t', '-v', 'ON_ERROR_STOP=1'],
-    { encoding: 'utf8', input: buildReadOnlyProbeSql(organizationSlug, legacyRef), maxBuffer: 1024 * 1024 },
+    [
+      '-u',
+      'postgres',
+      'psql',
+      '-d',
+      EXACT_TEST_DATABASE,
+      '-X',
+      '-A',
+      '-t',
+      '-v',
+      'ON_ERROR_STOP=1',
+    ],
+    {
+      encoding: 'utf8',
+      input: buildReadOnlyProbeSql(organizationSlug, legacyRef),
+      maxBuffer: 1024 * 1024,
+    },
   );
   if (result.status !== 0) fail('database_probe_failed');
   const line = result.stdout.split(/\r?\n/).find((candidate) => candidate.trim().startsWith('{'));
@@ -396,7 +419,8 @@ function assertExactRuntime(projectRoot: string): void {
 function resolveDeployGroupId(): number {
   const result = spawnSync('getent', ['group', 'deploy'], { encoding: 'utf8' });
   const groupId = Number(result.stdout.split(':')[2]);
-  if (result.status !== 0 || !Number.isSafeInteger(groupId) || groupId < 0) fail('deploy_group_not_found');
+  if (result.status !== 0 || !Number.isSafeInteger(groupId) || groupId < 0)
+    fail('deploy_group_not_found');
   return groupId;
 }
 

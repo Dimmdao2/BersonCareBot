@@ -1,9 +1,9 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const cooldownRows = vi.hoisted(() => [] as { lastSentAt: Date }[]);
 const recordSentMock = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 
-vi.mock("@/app-layer/db/drizzle", () => ({
+vi.mock('@/app-layer/db/drizzle', () => ({
   getDrizzle: () => ({
     select: () => ({
       from: () => ({
@@ -23,29 +23,29 @@ vi.mock("@/app-layer/db/drizzle", () => ({
 import {
   REMINDER_TRANSACTIONAL_EMAIL_COOLDOWN_EMAIL_KEY,
   createPgReminderTransactionalEmailCooldownPort,
-} from "./pgReminderTransactionalEmailCooldown";
+} from './pgReminderTransactionalEmailCooldown';
 
-describe("createPgReminderTransactionalEmailCooldownPort", () => {
+describe('createPgReminderTransactionalEmailCooldownPort', () => {
   beforeEach(() => {
     cooldownRows.length = 0;
     recordSentMock.mockClear();
   });
 
-  it("shouldSkipDueToCooldown returns false when no row (miss)", async () => {
+  it('shouldSkipDueToCooldown returns false when no row (miss)', async () => {
     const port = createPgReminderTransactionalEmailCooldownPort(45);
-    await expect(port.shouldSkipDueToCooldown("user-1")).resolves.toBe(false);
+    await expect(port.shouldSkipDueToCooldown('user-1')).resolves.toBe(false);
   });
 
-  it("shouldSkipDueToCooldown returns true when last send within interval (hit)", async () => {
+  it('shouldSkipDueToCooldown returns true when last send within interval (hit)', async () => {
     cooldownRows.push({ lastSentAt: new Date() });
     const port = createPgReminderTransactionalEmailCooldownPort(45);
-    await expect(port.shouldSkipDueToCooldown("user-1")).resolves.toBe(true);
+    await expect(port.shouldSkipDueToCooldown('user-1')).resolves.toBe(true);
   });
 
-  it("recordSent upserts cooldown row via drizzle insert", async () => {
+  it('recordSent upserts cooldown row via drizzle insert', async () => {
     const port = createPgReminderTransactionalEmailCooldownPort();
-    await port.recordSent("user-2");
+    await port.recordSent('user-2');
     expect(recordSentMock).toHaveBeenCalledTimes(1);
-    expect(REMINDER_TRANSACTIONAL_EMAIL_COOLDOWN_EMAIL_KEY).toBe("!reminder_txn_v1");
+    expect(REMINDER_TRANSACTIONAL_EMAIL_COOLDOWN_EMAIL_KEY).toBe('!reminder_txn_v1');
   });
 });

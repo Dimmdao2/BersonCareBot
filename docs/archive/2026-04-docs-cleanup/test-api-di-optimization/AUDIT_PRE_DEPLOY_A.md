@@ -10,13 +10,13 @@
 
 ### `git status --short` / `git diff --name-only HEAD` (сводка)
 
-| Путь | Тип |
-|------|-----|
-| `apps/webapp/e2e/api-integrator-subscriptions-inprocess.test.ts` | Удалён (трек A) |
-| `docs/TEST_AND_API_DI_OPTIMIZATION/**` (в т.ч. `test-optimization/*`, `EXECUTION_RULES`, `MASTER_PLAN`, `README`) | Доки инициативы |
-| `apps/webapp/src/shared/ui/AuthBootstrap.tsx` | Прод-код webapp (**вне** формулировки «только тесты» трека A) |
-| `apps/webapp/src/shared/ui/AuthBootstrap.test.tsx` | Тест webapp (**вне** инициативной папки docs) |
-| `docs/archive/2026-04-docs-cleanup/test-api-di-optimization/AUDIT_INIT.md`, `AUDIT_TRACK_A.md` | Новые/обновлённые отчёты |
+| Путь                                                                                                              | Тип                                                           |
+| ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| `apps/webapp/e2e/api-integrator-subscriptions-inprocess.test.ts`                                                  | Удалён (трек A)                                               |
+| `docs/TEST_AND_API_DI_OPTIMIZATION/**` (в т.ч. `test-optimization/*`, `EXECUTION_RULES`, `MASTER_PLAN`, `README`) | Доки инициативы                                               |
+| `apps/webapp/src/shared/ui/AuthBootstrap.tsx`                                                                     | Прод-код webapp (**вне** формулировки «только тесты» трека A) |
+| `apps/webapp/src/shared/ui/AuthBootstrap.test.tsx`                                                                | Тест webapp (**вне** инициативной папки docs)                 |
+| `docs/archive/2026-04-docs-cleanup/test-api-di-optimization/AUDIT_INIT.md`, `AUDIT_TRACK_A.md`                    | Новые/обновлённые отчёты                                      |
 
 ### Трек B (`apps/webapp/src/app/api/**/route.ts`, DI-boundary)
 
@@ -57,12 +57,12 @@
 
 ## 5) Gate: `pnpm install --frozen-lockfile && pnpm run ci`
 
-| Шаг | Результат |
-|-----|-----------|
-| `pnpm install --frozen-lockfile` | **OK** (lockfile up to date) |
-| Первый `pnpm run ci` | **FAIL** на `apps/webapp` typecheck: ошибки в сгенерированном `apps/webapp/.next/dev/types/routes.d.ts` (артефакт dev-сборки, не из диффа трека A) |
-| Действие для честного gate | Удалён каталог `apps/webapp/.next`, повторно запущен **`pnpm run ci`** (без повторного install — зависимости уже зафиксированы) |
-| Повторный `pnpm run ci` | **OK**, exit code **0** |
+| Шаг                              | Результат                                                                                                                                          |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm install --frozen-lockfile` | **OK** (lockfile up to date)                                                                                                                       |
+| Первый `pnpm run ci`             | **FAIL** на `apps/webapp` typecheck: ошибки в сгенерированном `apps/webapp/.next/dev/types/routes.d.ts` (артефакт dev-сборки, не из диффа трека A) |
+| Действие для честного gate       | Удалён каталог `apps/webapp/.next`, повторно запущен **`pnpm run ci`** (без повторного install — зависимости уже зафиксированы)                    |
+| Повторный `pnpm run ci`          | **OK**, exit code **0**                                                                                                                            |
 
 **Состав успешного прогона (кратко):** `lint` → `typecheck` (workspace) → `pnpm test` (integrator: 109 files passed, …) → `pnpm test:webapp` (349 files passed, …) → `build` / `build:webapp` → `registry-prod-audit` (no known vulnerabilities).
 
@@ -72,16 +72,16 @@
 
 ## CHECKLIST (`test-optimization/CHECKLIST.md`)
 
-| Пункт | Статус |
-|-------|--------|
-| INVENTORY / overlap | Заполнено (18 e2e после reduction) |
-| BASELINE «after» | Не обязателен для этого pre-deploy (не замер производительности) |
-| Justification + mapping | Есть в `LOG.md` |
-| Контракты проверены | Да (логика диффа + зелёный `pnpm run ci`) |
-| step / phase ранее | Зафиксированы в `LOG.md` |
-| `pnpm run ci` перед push | **Выполнен** (успешно после очистки `.next`) |
-| workflow не меняли | **N/A** — не трогали |
-| INDEX / цифры after | Опционально для финала трека; не блокер pre-deploy |
+| Пункт                    | Статус                                                           |
+| ------------------------ | ---------------------------------------------------------------- |
+| INVENTORY / overlap      | Заполнено (18 e2e после reduction)                               |
+| BASELINE «after»         | Не обязателен для этого pre-deploy (не замер производительности) |
+| Justification + mapping  | Есть в `LOG.md`                                                  |
+| Контракты проверены      | Да (логика диффа + зелёный `pnpm run ci`)                        |
+| step / phase ранее       | Зафиксированы в `LOG.md`                                         |
+| `pnpm run ci` перед push | **Выполнен** (успешно после очистки `.next`)                     |
+| workflow не меняли       | **N/A** — не трогали                                             |
+| INDEX / цифры after      | Опционально для финала трека; не блокер pre-deploy               |
 
 ---
 
@@ -108,20 +108,20 @@ GitHub Actions обычно использует чистый checkout → би�
 
 ## MANDATORY FIX INSTRUCTIONS — closure
 
-| ID | Уровень | Тема | Статус | Как закрыто |
-|----|---------|------|--------|-------------|
-| TA-PD-0 | Minor | Ошибки typecheck из `apps/webapp/.next/**` | **CLOSED** | Зафиксирован pre-flight `rm -rf apps/webapp/.next` + успешный `pnpm run ci` в `LOG.md`; раздел «Локальный pre-flight» выше |
-| TA-PD-1 | Major | Смешение трека A и **трека B** (`route.ts`) в одном PR | **CLOSED** | В диффе **нет** `app/api/**/route.ts`; AuthBootstrap ≠ трек B |
-| TA-PD-2 | Critical | Удаление теста без mapping | **CLOSED** | `LOG.md` § удаление e2e с таблицей old → replacement |
-| TA-PD-3 | Critical | Пуш без зелёного `pnpm run ci` | **CLOSED** | Успешный gate зафиксирован в `LOG.md` (pre-deploy); повтор перед push при новых изменениях — по `pre-push-ci.mdc` |
+| ID      | Уровень  | Тема                                                   | Статус     | Как закрыто                                                                                                                |
+| ------- | -------- | ------------------------------------------------------ | ---------- | -------------------------------------------------------------------------------------------------------------------------- |
+| TA-PD-0 | Minor    | Ошибки typecheck из `apps/webapp/.next/**`             | **CLOSED** | Зафиксирован pre-flight `rm -rf apps/webapp/.next` + успешный `pnpm run ci` в `LOG.md`; раздел «Локальный pre-flight» выше |
+| TA-PD-1 | Major    | Смешение трека A и **трека B** (`route.ts`) в одном PR | **CLOSED** | В диффе **нет** `app/api/**/route.ts`; AuthBootstrap ≠ трек B                                                              |
+| TA-PD-2 | Critical | Удаление теста без mapping                             | **CLOSED** | `LOG.md` § удаление e2e с таблицей old → replacement                                                                       |
+| TA-PD-3 | Critical | Пуш без зелёного `pnpm run ci`                         | **CLOSED** | Успешный gate зафиксирован в `LOG.md` (pre-deploy); повтор перед push при новых изменениях — по `pre-push-ci.mdc`          |
 
 ---
 
 ## MANDATORY FIX INSTRUCTIONS — ремедиация при дрейфе
 
-| ID | Severity | Условие | Действие |
-|----|----------|---------|----------|
-| TA-PD-0r | **Minor** | Снова падение `tsc` на файлах под `apps/webapp/.next/**` локально | `rm -rf apps/webapp/.next`, повторить `pnpm run ci`; workflow не менять. |
-| TA-PD-1r | **Major** | В PR с треком A появились правки `app/api/**/route.ts` (трек B) | Разделить PR по `MASTER_PLAN.md` / `INVENTORY.md` п. 3. |
-| TA-PD-2r | **Critical** | Удалён/отключён тест без записи в `LOG.md` | Mapping или откат; **не пушить**. |
-| TA-PD-3r | **Critical** | Пуш без успешного `pnpm run ci` на актуальном дереве | `pnpm install --frozen-lockfile && pnpm run ci` (`pre-push-ci.mdc`). |
+| ID       | Severity     | Условие                                                           | Действие                                                                 |
+| -------- | ------------ | ----------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| TA-PD-0r | **Minor**    | Снова падение `tsc` на файлах под `apps/webapp/.next/**` локально | `rm -rf apps/webapp/.next`, повторить `pnpm run ci`; workflow не менять. |
+| TA-PD-1r | **Major**    | В PR с треком A появились правки `app/api/**/route.ts` (трек B)   | Разделить PR по `MASTER_PLAN.md` / `INVENTORY.md` п. 3.                  |
+| TA-PD-2r | **Critical** | Удалён/отключён тест без записи в `LOG.md`                        | Mapping или откат; **не пушить**.                                        |
+| TA-PD-3r | **Critical** | Пуш без успешного `pnpm run ci` на актуальном дереве              | `pnpm install --frozen-lockfile && pnpm run ci` (`pre-push-ci.mdc`).     |

@@ -1,16 +1,15 @@
-"use client";
+'use client';
 
-import Link from "next/link";
+import Link from 'next/link';
 import {
   isMergeAuditAction,
   isMessengerPhoneBindAuditAction,
   parseMergeAuditDetails,
   parseMessengerPhoneBindAuditInitiator,
   parseMessengerPhoneBindAuditTargets,
-} from "@/infra/adminAuditLogPresentation";
+} from '@/infra/adminAuditLogPresentation';
 
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function isUuid(s: string | null): boolean {
   return s != null && s.length > 0 && UUID_RE.test(s);
@@ -34,7 +33,10 @@ export function AuditLogMergeTarget({ row }: { row: Row }) {
       const bottom = m.duplicateDisplayName ?? m.duplicateId;
       return (
         <div className="flex flex-col gap-0.5 font-sans text-xs break-words">
-          <Link href={`/app/doctor/clients/${encodeURIComponent(m.targetId)}`} className="text-primary underline-offset-2 hover:underline">
+          <Link
+            href={`/app/doctor/clients/${encodeURIComponent(m.targetId)}`}
+            className="text-primary underline-offset-2 hover:underline"
+          >
             {top}
           </Link>
           <Link
@@ -60,8 +62,8 @@ export function AuditLogMergeTarget({ row }: { row: Row }) {
               href={`/app/doctor/clients/${encodeURIComponent(rowItem.platformUserId)}`}
               className={
                 idx === 0
-                  ? "text-primary underline-offset-2 hover:underline"
-                  : "text-muted-foreground underline-offset-2 hover:underline"
+                  ? 'text-primary underline-offset-2 hover:underline'
+                  : 'text-muted-foreground underline-offset-2 hover:underline'
               }
             >
               {rowItem.label}
@@ -70,7 +72,7 @@ export function AuditLogMergeTarget({ row }: { row: Row }) {
           {ini ? (
             <span className="text-muted-foreground">
               {ini.channelLabel}
-              {" · "}
+              {' · '}
               {ini.messengerDisplayHint ?? ini.externalId}
             </span>
           ) : null}

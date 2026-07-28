@@ -1,32 +1,32 @@
-import { DateTime } from "luxon";
-import type { ProgramActionLogPort, TreatmentProgramInstancePort } from "./ports";
-import { assertUuid } from "./service";
+import { DateTime } from 'luxon';
+import type { ProgramActionLogPort, TreatmentProgramInstancePort } from './ports';
+import { assertUuid } from './service';
 import type {
   TreatmentProgramInstanceDetail,
   TreatmentProgramInstanceStageItemView,
-} from "./types";
-import type { ProgramItemDiscussionService } from "@/modules/program-item-discussion/service";
-import type { ProgramItemDiscussionMessage } from "@/modules/program-item-discussion/types";
-import { resolveCalendarDayIanaForPatient } from "@/modules/system-settings/calendarIana";
+} from './types';
+import type { ProgramItemDiscussionService } from '@/modules/program-item-discussion/service';
+import type { ProgramItemDiscussionMessage } from '@/modules/program-item-discussion/types';
+import { resolveCalendarDayIanaForPatient } from '@/modules/system-settings/calendarIana';
 import {
   isInstanceStageItemActiveForPatient,
   isPersistentRecommendation,
   isStageZero,
-} from "./stage-semantics";
+} from './stage-semantics';
 import {
   aggregatePassageStatsFromSnapshots,
   earliestLocalDateWithActivityFromSnapshots,
   hasPriorDiaryActivityBeforeInstance,
-} from "@/modules/patient-diary/aggregatePassageStatsFromSnapshots";
-import type { PatientDiarySnapshotsPort } from "@/modules/patient-diary/ports";
+} from '@/modules/patient-diary/aggregatePassageStatsFromSnapshots';
+import type { PatientDiarySnapshotsPort } from '@/modules/patient-diary/ports';
 import {
   calendarDayIndexSinceInstanceCreated,
   resolvePatientPlanPassageWindowUtc,
   type PatientPlanPassageStats,
-} from "./patient-plan-passage-stats";
-import { logger, serializeError } from "@/infra/logging/logger";
+} from './patient-plan-passage-stats';
+import { logger, serializeError } from '@/infra/logging/logger';
 
-export type { PatientPlanPassageStats } from "./patient-plan-passage-stats";
+export type { PatientPlanPassageStats } from './patient-plan-passage-stats';
 
 export function utcDayWindowIso(now = new Date()): { start: string; end: string } {
   const y = now.getUTCFullYear();
@@ -39,33 +39,31 @@ export function utcDayWindowIso(now = new Date()): { start: string; end: string 
 
 /** Сутки в зоне IANA (Luxon, DST-safe); границы в ISO UTC для сравнения с `program_action_log`. */
 export function localDayWindowIso(now: Date, iana: string): { start: string; end: string } {
-  const dt = DateTime.fromJSDate(now, { zone: "utc" }).setZone(iana);
+  const dt = DateTime.fromJSDate(now, { zone: 'utc' }).setZone(iana);
   if (!dt.isValid) {
     return utcDayWindowIso(now);
   }
-  const start = dt.startOf("day");
+  const start = dt.startOf('day');
   const end = start.plus({ days: 1 });
   return { start: start.toUTC().toISO()!, end: end.toUTC().toISO()! };
 }
 
 export function isProgramChecklistItem(
-  item: Pick<TreatmentProgramInstanceStageItemView, "itemType" | "isActionable" | "status">,
+  item: Pick<TreatmentProgramInstanceStageItemView, 'itemType' | 'isActionable' | 'status'>,
 ): boolean {
   if (!isInstanceStageItemActiveForPatient(item)) return false;
   if (isPersistentRecommendation(item)) return false;
-  if (item.itemType === "clinical_test") return false;
-  if (item.itemType === "recommendation" && item.isActionable === false) return false;
+  if (item.itemType === 'clinical_test') return false;
+  if (item.itemType === 'recommendation' && item.isActionable === false) return false;
   return (
-    item.itemType === "exercise" ||
-    item.itemType === "lesson" ||
-    item.itemType === "recommendation"
+    item.itemType === 'exercise' || item.itemType === 'lesson' || item.itemType === 'recommendation'
   );
 }
 
 export function pickStagesForPatientChecklist(detail: TreatmentProgramInstanceDetail) {
   return detail.stages.filter((s) => {
-    if (isStageZero(s)) return s.status !== "skipped";
-    return s.status === "available" || s.status === "in_progress";
+    if (isStageZero(s)) return s.status !== 'skipped';
+    return s.status === 'available' || s.status === 'in_progress';
   });
 }
 
@@ -78,15 +76,19 @@ export type PatientProgramChecklistRow = {
   item: TreatmentProgramInstanceStageItemView;
 };
 
-export function buildPatientProgramChecklistRows(detail: TreatmentProgramInstanceDetail): PatientProgramChecklistRow[] {
-  if (detail.status !== "active") return [];
+export function buildPatientProgramChecklistRows(
+  detail: TreatmentProgramInstanceDetail,
+): PatientProgramChecklistRow[] {
+  if (detail.status !== 'active') return [];
   const out: PatientProgramChecklistRow[] = [];
   for (const st of pickStagesForPatientChecklist(detail)) {
     const groupsSorted = [...(st.groups ?? [])].sort(
       (a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id),
     );
     const groupTitleById = new Map(groupsSorted.map((g) => [g.id, g.title] as const));
-    const itemsSorted = [...st.items].sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id));
+    const itemsSorted = [...st.items].sort(
+      (a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id),
+    );
     for (const item of itemsSorted) {
       if (!isProgramChecklistItem(item)) continue;
       out.push({
@@ -131,7 +133,7 @@ export function createTreatmentProgramPatientActionService(deps: {
     exerciseTitle: string;
     noteText: string;
   }) => Promise<void>;
-  discussion?: Pick<ProgramItemDiscussionService, "appendMessage">;
+  discussion?: Pick<ProgramItemDiscussionService, 'appendMessage'>;
 }) {
   const nowFn = deps.now ?? (() => new Date());
   const getPersonalTz = deps.getPatientCalendarTimezoneIana ?? (async () => null);
@@ -149,15 +151,15 @@ export function createTreatmentProgramPatientActionService(deps: {
     stageItemId: string,
   ): Promise<{ item: TreatmentProgramInstanceStageItemView }> {
     const detail = await deps.instances.getInstanceForPatient(patientUserId, instanceId);
-    if (!detail) throw new Error("Программа не найдена");
+    if (!detail) throw new Error('Программа не найдена');
     const item = detail.stages.flatMap((s) => s.items).find((i) => i.id === stageItemId);
-    if (!item) throw new Error("Элемент не найден");
+    if (!item) throw new Error('Элемент не найден');
     const stage = detail.stages.find((s) => s.id === item.stageId);
-    if (!stage) throw new Error("Этап не найден");
-    if (!isStageZero(stage) && (stage.status === "locked" || stage.status === "skipped")) {
-      throw new Error("Этап недоступен");
+    if (!stage) throw new Error('Этап не найден');
+    if (!isStageZero(stage) && (stage.status === 'locked' || stage.status === 'skipped')) {
+      throw new Error('Этап недоступен');
     }
-    if (!isProgramChecklistItem(item)) throw new Error("Элемент недоступен для чек-листа");
+    if (!isProgramChecklistItem(item)) throw new Error('Элемент недоступен для чек-листа');
     return { item };
   }
 
@@ -166,31 +168,37 @@ export function createTreatmentProgramPatientActionService(deps: {
     localDayWindowIso,
 
     /** ISO-времена всех `done` за сегодня по календарю пациента (для подсчёта занятий на главной). */
-    async listProgramDoneTimestampsToday(patientUserId: string, instanceId: string): Promise<string[]> {
+    async listProgramDoneTimestampsToday(
+      patientUserId: string,
+      instanceId: string,
+    ): Promise<string[]> {
       assertUuid(patientUserId);
       assertUuid(instanceId);
       const win = await checklistDayWindow(patientUserId);
       const rows = await deps.actionLog.listForInstance({ instanceId, limit: 500 });
       const out: string[] = [];
       for (const row of rows) {
-        if (row.actionType !== "done") continue;
+        if (row.actionType !== 'done') continue;
         if (row.createdAt < win.start || row.createdAt >= win.end) continue;
         const src =
-          row.payload && typeof row.payload === "object" && "source" in row.payload
-            ? String((row.payload as { source?: unknown }).source ?? "")
-            : "";
-        if (src === "test_submitted" || src === "lfk_exercise_done") continue;
+          row.payload && typeof row.payload === 'object' && 'source' in row.payload
+            ? String((row.payload as { source?: unknown }).source ?? '')
+            : '';
+        if (src === 'test_submitted' || src === 'lfk_exercise_done') continue;
         out.push(row.createdAt);
       }
       return out;
     },
 
-    async listChecklistDoneToday(patientUserId: string, instanceId: string): Promise<ChecklistTodaySnapshot> {
+    async listChecklistDoneToday(
+      patientUserId: string,
+      instanceId: string,
+    ): Promise<ChecklistTodaySnapshot> {
       assertUuid(patientUserId);
       assertUuid(instanceId);
       const detail = await deps.instances.getInstanceForPatient(patientUserId, instanceId);
-      if (!detail) throw new Error("Программа не найдена");
-      if (detail.status !== "active") {
+      if (!detail) throw new Error('Программа не найдена');
+      if (detail.status !== 'active') {
         return {
           doneItemIds: [],
           doneTodayCountByItemId: {},
@@ -232,31 +240,34 @@ export function createTreatmentProgramPatientActionService(deps: {
       };
     },
 
-    async getPatientPlanPassageStats(patientUserId: string, instanceId: string): Promise<PatientPlanPassageStats> {
+    async getPatientPlanPassageStats(
+      patientUserId: string,
+      instanceId: string,
+    ): Promise<PatientPlanPassageStats> {
       assertUuid(patientUserId);
       assertUuid(instanceId);
       const detail = await deps.instances.getInstanceForPatient(patientUserId, instanceId);
-      if (!detail) throw new Error("Программа не найдена");
+      if (!detail) throw new Error('Программа не найдена');
 
       const appDefault = await deps.getAppDefaultTimezoneIana();
       const personal = await getPersonalTz(patientUserId);
       const iana = resolveCalendarDayIanaForPatient(personal, appDefault);
       const zoneProbe = DateTime.fromJSDate(nowFn()).setZone(iana);
-      if (!zoneProbe.isValid) throw new Error("Некорректная временная зона");
+      if (!zoneProbe.isValid) throw new Error('Некорректная временная зона');
 
-      const endAnchorIso = detail.status === "completed" ? detail.updatedAt : nowFn().toISOString();
+      const endAnchorIso = detail.status === 'completed' ? detail.updatedAt : nowFn().toISOString();
       const instanceWindow = resolvePatientPlanPassageWindowUtc({
         createdAtIso: detail.createdAt,
         endAnchorIso,
         displayIana: iana,
       });
 
-      let windowStartLocalYmd = DateTime.fromISO(instanceWindow.windowStartUtcIso, { zone: "utc" })
+      let windowStartLocalYmd = DateTime.fromISO(instanceWindow.windowStartUtcIso, { zone: 'utc' })
         .setZone(iana)
         .toISODate()!;
 
       const windowEndYmd =
-        DateTime.fromISO(endAnchorIso, { zone: "utc" }).setZone(iana).startOf("day").toISODate() ??
+        DateTime.fromISO(endAnchorIso, { zone: 'utc' }).setZone(iana).startOf('day').toISODate() ??
         windowStartLocalYmd;
 
       const minStoredYmd = await deps.patientDiarySnapshots.minLocalDateForUser(patientUserId);
@@ -328,7 +339,11 @@ export function createTreatmentProgramPatientActionService(deps: {
         if ((totalByItem[row.item.id] ?? 0) === 0) neverCompletedChecklistItemCount++;
       }
 
-      const dayIndex = calendarDayIndexSinceInstanceCreated(detail.createdAt, nowFn().getTime(), iana);
+      const dayIndex = calendarDayIndexSinceInstanceCreated(
+        detail.createdAt,
+        nowFn().getTime(),
+        iana,
+      );
       const priorDiary = hasPriorDiaryActivityBeforeInstance(snapshots, detail.createdAt, iana);
       const showCollectingCopy = dayIndex <= 2 && !priorDiary;
 
@@ -353,11 +368,11 @@ export function createTreatmentProgramPatientActionService(deps: {
       const iana = resolveCalendarDayIanaForPatient(personal, appDefault);
       const nowLocal = DateTime.fromJSDate(nowFn()).setZone(iana);
       if (!nowLocal.isValid) {
-        throw new Error("Некорректная временная зона");
+        throw new Error('Некорректная временная зона');
       }
       const daysClamped = Math.min(Math.max(Math.trunc(days), 1), 400);
-      const startLocal = nowLocal.startOf("day").minus({ days: daysClamped - 1 });
-      const endLocalExclusive = nowLocal.startOf("day").plus({ days: 1 });
+      const startLocal = nowLocal.startOf('day').minus({ days: daysClamped - 1 });
+      const endLocalExclusive = nowLocal.startOf('day').plus({ days: 1 });
       const dateKeys = await deps.actionLog.listDistinctLocalDoneDateKeysInWindowForPatient({
         patientUserId,
         windowStartUtcIso: startLocal.toUTC().toISO()!,
@@ -376,16 +391,20 @@ export function createTreatmentProgramPatientActionService(deps: {
       assertUuid(input.patientUserId);
       assertUuid(input.instanceId);
       assertUuid(input.stageItemId);
-      const { item } = await assertItemAccessible(input.patientUserId, input.instanceId, input.stageItemId);
+      const { item } = await assertItemAccessible(
+        input.patientUserId,
+        input.instanceId,
+        input.stageItemId,
+      );
       const win = await checklistDayWindow(input.patientUserId);
       if (input.checked) {
         await deps.actionLog.insertAction({
           instanceId: input.instanceId,
           instanceStageItemId: input.stageItemId,
           patientUserId: input.patientUserId,
-          actionType: "done",
+          actionType: 'done',
           sessionId: null,
-          payload: { source: "checklist_toggle" },
+          payload: { source: 'checklist_toggle' },
           note: null,
         });
       } else {
@@ -416,51 +435,61 @@ export function createTreatmentProgramPatientActionService(deps: {
       assertUuid(input.instanceId);
       assertUuid(input.stageItemId);
       const noteTrim = input.note.trim();
-      if (!noteTrim) throw new Error("Введите текст наблюдения");
-      const detail = await deps.instances.getInstanceForPatient(input.patientUserId, input.instanceId);
-      if (!detail) throw new Error("Программа не найдена");
+      if (!noteTrim) throw new Error('Введите текст наблюдения');
+      const detail = await deps.instances.getInstanceForPatient(
+        input.patientUserId,
+        input.instanceId,
+      );
+      if (!detail) throw new Error('Программа не найдена');
       const item = detail.stages.flatMap((s) => s.items).find((i) => i.id === input.stageItemId);
-      if (!item) throw new Error("Элемент не найден");
+      if (!item) throw new Error('Элемент не найден');
       const stage = detail.stages.find((s) => s.id === item.stageId);
-      if (!stage) throw new Error("Этап не найден");
-      if (!isStageZero(stage) && (stage.status === "locked" || stage.status === "skipped")) {
-        throw new Error("Этап недоступен");
+      if (!stage) throw new Error('Этап не найден');
+      if (!isStageZero(stage) && (stage.status === 'locked' || stage.status === 'skipped')) {
+        throw new Error('Этап недоступен');
       }
       if (!isInstanceStageItemActiveForPatient(item)) {
-        throw new Error("Элемент отключён");
+        throw new Error('Элемент отключён');
       }
-      if (detail.assignmentSource === "promo") {
-        throw new Error("Комментарии недоступны для промо-программы");
+      if (detail.assignmentSource === 'promo') {
+        throw new Error('Комментарии недоступны для промо-программы');
       }
-      if (detail.assignmentSource === "course") {
-        throw new Error("Комментарии недоступны для программы курса");
+      if (detail.assignmentSource === 'course') {
+        throw new Error('Комментарии недоступны для программы курса');
       }
-      if (item.itemType === "clinical_test") {
-        throw new Error("Для клинического теста используйте запись результатов");
+      if (item.itemType === 'clinical_test') {
+        throw new Error('Для клинического теста используйте запись результатов');
       }
       await deps.actionLog.insertAction({
         instanceId: input.instanceId,
         instanceStageItemId: input.stageItemId,
         patientUserId: input.patientUserId,
-        actionType: "note",
+        actionType: 'note',
         sessionId: null,
-        payload: { source: "patient_observation" },
+        payload: { source: 'patient_observation' },
         note: noteTrim.slice(0, 4000),
       });
       let savedMessage: ProgramItemDiscussionMessage | null = null;
-      if (detail.assignmentSource === "doctor" && deps.discussion) {
+      if (detail.assignmentSource === 'doctor' && deps.discussion) {
         savedMessage = await deps.discussion.appendMessage({
           instanceStageItemId: input.stageItemId,
           patientUserId: input.patientUserId,
-          senderRole: "patient",
-          origin: "patient_observation",
+          senderRole: 'patient',
+          origin: 'patient_observation',
           body: noteTrim,
         });
       }
-      if (detail.assignmentSource === "doctor" && detail.organizationId && deps.notifyDoctorOfProgramNote && deps.resolvePatientLabel) {
+      if (
+        detail.assignmentSource === 'doctor' &&
+        detail.organizationId &&
+        deps.notifyDoctorOfProgramNote &&
+        deps.resolvePatientLabel
+      ) {
         const snap = item.snapshot as Record<string, unknown>;
         const title =
-          typeof snap.title === "string" && snap.title.trim() ? snap.title.trim() : "Пункт программы";
+          typeof snap.title === 'string' && snap.title.trim()
+            ? snap.title.trim()
+            : 'Пункт программы';
         const notifyInput = {
           organizationId: detail.organizationId,
           patientUserId: input.patientUserId,
@@ -476,7 +505,7 @@ export function createTreatmentProgramPatientActionService(deps: {
             patientLabel,
           });
         })().catch((err: unknown) => {
-          logger.error({ err: serializeError(err) }, "[patient-program-note] notify failed");
+          logger.error({ err: serializeError(err) }, '[patient-program-note] notify failed');
         });
       }
       return savedMessage;
@@ -493,56 +522,66 @@ export function createTreatmentProgramPatientActionService(deps: {
       assertUuid(input.instanceId);
       assertUuid(input.stageItemId);
       assertUuid(input.mediaFileId);
-      const detail = await deps.instances.getInstanceForPatient(input.patientUserId, input.instanceId);
-      if (!detail) throw new Error("Программа не найдена");
+      const detail = await deps.instances.getInstanceForPatient(
+        input.patientUserId,
+        input.instanceId,
+      );
+      if (!detail) throw new Error('Программа не найдена');
       const item = detail.stages.flatMap((s) => s.items).find((i) => i.id === input.stageItemId);
-      if (!item) throw new Error("Элемент не найден");
+      if (!item) throw new Error('Элемент не найден');
       const stage = detail.stages.find((s) => s.id === item.stageId);
-      if (!stage) throw new Error("Этап не найден");
-      if (!isStageZero(stage) && (stage.status === "locked" || stage.status === "skipped")) {
-        throw new Error("Этап недоступен");
+      if (!stage) throw new Error('Этап не найден');
+      if (!isStageZero(stage) && (stage.status === 'locked' || stage.status === 'skipped')) {
+        throw new Error('Этап недоступен');
       }
       if (!isInstanceStageItemActiveForPatient(item)) {
-        throw new Error("Элемент отключён");
+        throw new Error('Элемент отключён');
       }
-      if (detail.assignmentSource === "promo") {
-        throw new Error("Комментарии недоступны для промо-программы");
+      if (detail.assignmentSource === 'promo') {
+        throw new Error('Комментарии недоступны для промо-программы');
       }
-      if (detail.assignmentSource === "course") {
-        throw new Error("Комментарии недоступны для программы курса");
+      if (detail.assignmentSource === 'course') {
+        throw new Error('Комментарии недоступны для программы курса');
       }
-      if (item.itemType === "clinical_test") {
-        throw new Error("Для клинического теста используйте запись результатов");
+      if (item.itemType === 'clinical_test') {
+        throw new Error('Для клинического теста используйте запись результатов');
       }
       await deps.actionLog.insertAction({
         instanceId: input.instanceId,
         instanceStageItemId: input.stageItemId,
         patientUserId: input.patientUserId,
-        actionType: "note",
+        actionType: 'note',
         sessionId: null,
-        payload: { source: "patient_media", mediaFileId: input.mediaFileId },
+        payload: { source: 'patient_media', mediaFileId: input.mediaFileId },
         note: null,
       });
-      if (detail.assignmentSource === "doctor" && deps.discussion) {
+      if (detail.assignmentSource === 'doctor' && deps.discussion) {
         await deps.discussion.appendMessage({
           instanceStageItemId: input.stageItemId,
           patientUserId: input.patientUserId,
-          senderRole: "patient",
-          origin: "patient_observation",
+          senderRole: 'patient',
+          origin: 'patient_observation',
           mediaFileId: input.mediaFileId,
         });
       }
-      if (detail.assignmentSource === "doctor" && detail.organizationId && deps.notifyDoctorOfProgramNote && deps.resolvePatientLabel) {
+      if (
+        detail.assignmentSource === 'doctor' &&
+        detail.organizationId &&
+        deps.notifyDoctorOfProgramNote &&
+        deps.resolvePatientLabel
+      ) {
         const snap = item.snapshot as Record<string, unknown>;
         const title =
-          typeof snap.title === "string" && snap.title.trim() ? snap.title.trim() : "Пункт программы";
+          typeof snap.title === 'string' && snap.title.trim()
+            ? snap.title.trim()
+            : 'Пункт программы';
         const notifyInput = {
           organizationId: detail.organizationId,
           patientUserId: input.patientUserId,
           instanceId: input.instanceId,
           stageItemId: input.stageItemId,
           exerciseTitle: title,
-          noteText: "Медиафайл",
+          noteText: 'Медиафайл',
         };
         void (async () => {
           const patientLabel = await deps.resolvePatientLabel!(input.patientUserId);
@@ -551,11 +590,13 @@ export function createTreatmentProgramPatientActionService(deps: {
             patientLabel,
           });
         })().catch((err: unknown) => {
-          logger.error({ err: serializeError(err) }, "[patient-program-note] notify failed");
+          logger.error({ err: serializeError(err) }, '[patient-program-note] notify failed');
         });
       }
     },
   };
 }
 
-export type TreatmentProgramPatientActionService = ReturnType<typeof createTreatmentProgramPatientActionService>;
+export type TreatmentProgramPatientActionService = ReturnType<
+  typeof createTreatmentProgramPatientActionService
+>;

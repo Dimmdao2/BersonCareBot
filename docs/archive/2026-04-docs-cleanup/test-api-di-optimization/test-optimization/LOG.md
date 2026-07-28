@@ -19,7 +19,7 @@
 
 ## 2026-04-17 — трек A: closure AUDIT_PRE_DEPLOY (critical/major)
 
-**Сделано:** обновлён `AUDIT_PRE_DEPLOY_A.md` — таблица **MANDATORY FIX closure** (TA-PD-0…3 **CLOSED**): уточнён TA-PD-1 (только A+B / `route.ts`; AuthBootstrap не трек B); добавлен § «Локальный pre-flight» (`rm -rf apps/webapp/.next`); блок ремедиации TA-PD-*r; **readiness к push** и напоминание повторить `pnpm install --frozen-lockfile && pnpm run ci` при новых изменениях после последнего зелёного gate.
+**Сделано:** обновлён `AUDIT_PRE_DEPLOY_A.md` — таблица **MANDATORY FIX closure** (TA-PD-0…3 **CLOSED**): уточнён TA-PD-1 (только A+B / `route.ts`; AuthBootstrap не трек B); добавлен § «Локальный pre-flight» (`rm -rf apps/webapp/.next`); блок ремедиации TA-PD-\*r; **readiness к push** и напоминание повторить `pnpm install --frozen-lockfile && pnpm run ci` при новых изменениях после последнего зелёного gate.
 
 **Повторные проверки:** `git diff --name-only HEAD | rg '^\.github/'` → нет совпадений (workflow не трогали). Код / lockfile / конфиг CI **не** менялись после последнего успешного `pnpm run ci` из записи pre-deploy → **полный CI повторно не запускался** (reuse + `test-execution-policy`).
 
@@ -53,8 +53,8 @@
 
 **Mapping (old → replacement):**
 
-| Old | Replacement |
-|-----|-------------|
+| Old                                                              | Replacement                                                                                                                                         |
+| ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `apps/webapp/e2e/api-integrator-subscriptions-inprocess.test.ts` | `apps/webapp/src/app/api/integrator/subscriptions/topics/route.test.ts` + `apps/webapp/src/app/api/integrator/subscriptions/for-user/route.test.ts` |
 
 **Обоснование:** тот же контракт GET (подпись integrator, 200, JSON topics/subscriptions) уже проверяется в colocated тестах, включая негативные ветки; e2e не добавлял уникальных сценариев вне happy-path. Регрессия «product read через webapp» для stage 13 сохраняется в `e2e/stage13-legacy-cleanup.test.ts`.

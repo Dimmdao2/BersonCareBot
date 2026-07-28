@@ -1,13 +1,13 @@
-import { notFound } from "next/navigation";
-import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
-import { ClinicalTestForm } from "../ClinicalTestForm";
-import { CLINICAL_TESTS_PATH } from "../paths";
+import { notFound } from 'next/navigation';
+import { requireDoctorAccess } from '@/app-layer/guards/requireRole';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
+import { ClinicalTestForm } from '../ClinicalTestForm';
+import { CLINICAL_TESTS_PATH } from '../paths';
 import {
   CLINICAL_ASSESSMENT_KIND_CATEGORY_CODE,
   buildClinicalAssessmentKindSelectOptions,
-} from "@/modules/tests/clinicalTestAssessmentKind";
+} from '@/modules/tests/clinicalTestAssessmentKind';
 
 type PageProps = { params: Promise<{ id: string }> };
 
@@ -28,7 +28,11 @@ export default async function EditClinicalTestPage({ params }: PageProps) {
 
   return (
     <DoctorAppShell title="Редактирование теста" user={session.user} backHref={CLINICAL_TESTS_PATH}>
-      <ClinicalTestForm test={test} externalUsageSnapshot={usage} assessmentKindSelectOptions={assessmentKindSelectOptions} />
+      <ClinicalTestForm
+        test={test}
+        externalUsageSnapshot={usage}
+        assessmentKindSelectOptions={assessmentKindSelectOptions}
+      />
     </DoctorAppShell>
   );
 }

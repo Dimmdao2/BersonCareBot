@@ -1,6 +1,6 @@
-import { z } from "zod";
-import type { ReferenceItem } from "@/modules/references/types";
-import { isDoctorCatalogMissingFilterToken } from "@/shared/lib/doctorCatalogEmptyFieldFilter";
+import { z } from 'zod';
+import type { ReferenceItem } from '@/modules/references/types';
+import { isDoctorCatalogMissingFilterToken } from '@/shared/lib/doctorCatalogEmptyFieldFilter';
 
 const uuidSchema = z.string().uuid();
 
@@ -14,7 +14,7 @@ const BODY_REGION_CODE_TOKEN = /^[a-z0-9_]+$/;
 export function parseDoctorCatalogRegionQueryParam(raw: string | undefined): {
   regionCode: string | undefined;
 } {
-  const t = typeof raw === "string" ? raw.trim() : "";
+  const t = typeof raw === 'string' ? raw.trim() : '';
   if (!t) return { regionCode: undefined };
   if (isDoctorCatalogMissingFilterToken(t)) return { regionCode: t };
   if (uuidSchema.safeParse(t).success) return { regionCode: undefined };

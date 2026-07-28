@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { useCallback, useEffect, useId, useMemo, useState, useTransition } from "react";
-import { cn } from "@/lib/utils";
+import Link from 'next/link';
+import { useCallback, useEffect, useId, useMemo, useState, useTransition } from 'react';
+import { cn } from '@/lib/utils';
 import {
   DndContext,
   KeyboardSensor,
@@ -11,32 +11,32 @@ import {
   useSensor,
   useSensors,
   type DragEndEvent,
-} from "@dnd-kit/core";
+} from '@dnd-kit/core';
 import {
   SortableContext,
   arrayMove,
   sortableKeyboardCoordinates,
   useSortable,
   verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
-import { Shield, ShieldOff } from "lucide-react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { CMS_UNASSIGNED_SECTION_SLUG } from "@/modules/content-sections/types";
-import { doctorSectionTitleClass } from "@/shared/ui/doctor/doctorVisual";
-import { DoctorCatalogMasterListHeader } from "@/shared/ui/doctor/DoctorCatalogMasterListHeader";
-import { VirtualizedItemGrid } from "@/shared/ui/doctor/catalog/VirtualizedItemGrid";
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { Shield, ShieldOff } from 'lucide-react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { CMS_UNASSIGNED_SECTION_SLUG } from '@/modules/content-sections/types';
+import { doctorSectionTitleClass } from '@/shared/ui/doctor/doctorVisual';
+import { DoctorCatalogMasterListHeader } from '@/shared/ui/doctor/DoctorCatalogMasterListHeader';
+import { VirtualizedItemGrid } from '@/shared/ui/doctor/catalog/VirtualizedItemGrid';
 import {
   readDoctorCatalogViewPreference,
   writeDoctorCatalogViewPreference,
-} from "@/shared/lib/doctorCatalogViewPreference";
-import type { DoctorCatalogViewMode } from "@/shared/lib/doctorCatalogViewPreference";
-import { ContentLifecycleDropdown } from "./ContentLifecycleDropdown";
-import { ContentPageTileCard } from "./ContentPageTileCard";
-import { ContentRatingChip, type ContentRatingSummary } from "./ContentRatingChip";
-import { setContentPageRequiresAuth } from "./contentPageAuthActions";
-import { reorderContentPagesInSection } from "./reorderContentPages";
-import { SectionDeleteDialog } from "./sections/SectionDeleteDialog";
+} from '@/shared/lib/doctorCatalogViewPreference';
+import type { DoctorCatalogViewMode } from '@/shared/lib/doctorCatalogViewPreference';
+import { ContentLifecycleDropdown } from './ContentLifecycleDropdown';
+import { ContentPageTileCard } from './ContentPageTileCard';
+import { ContentRatingChip, type ContentRatingSummary } from './ContentRatingChip';
+import { setContentPageRequiresAuth } from './contentPageAuthActions';
+import { reorderContentPagesInSection } from './reorderContentPages';
+import { SectionDeleteDialog } from './sections/SectionDeleteDialog';
 
 export type ContentPageListRow = {
   id: string;
@@ -52,7 +52,13 @@ export type ContentPageListRow = {
   imageUrl?: string | null;
 };
 
-function DragHandle({ listeners, attributes }: { listeners: Record<string, unknown>; attributes: Record<string, unknown> }) {
+function DragHandle({
+  listeners,
+  attributes,
+}: {
+  listeners: Record<string, unknown>;
+  attributes: Record<string, unknown>;
+}) {
   return (
     <Button
       type="button"
@@ -88,7 +94,9 @@ function SortablePageRow({
   onSelectPage?: (id: string) => void;
   isSelected?: boolean;
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: page.id });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: page.id,
+  });
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -100,8 +108,9 @@ function SortablePageRow({
       ref={setNodeRef}
       style={style}
       className={cn(
-        "flex items-center gap-2 rounded-xl border border-border/80 bg-card px-2 py-2",
-        isSelected && "border-primary/40 bg-primary/5 ring-1 ring-primary/30 ring-offset-1 ring-offset-background",
+        'flex items-center gap-2 rounded-xl border border-border/80 bg-card px-2 py-2',
+        isSelected &&
+          'border-primary/40 bg-primary/5 ring-1 ring-primary/30 ring-offset-1 ring-offset-background',
       )}
     >
       <DragHandle listeners={listeners as never} attributes={attributes as never} />
@@ -132,8 +141,8 @@ function SortablePageRow({
         size="icon"
         className="size-9 shrink-0 rounded-full border border-border/80"
         disabled={authPending}
-        title={page.requiresAuth ? "Только для залогиненных" : "Публичная страница"}
-        aria-label={page.requiresAuth ? "Только для залогиненных" : "Публичная страница"}
+        title={page.requiresAuth ? 'Только для залогиненных' : 'Публичная страница'}
+        aria-label={page.requiresAuth ? 'Только для залогиненных' : 'Публичная страница'}
         onClick={() => onToggleRequiresAuth(page.id, !page.requiresAuth)}
       >
         {page.requiresAuth ? (
@@ -147,7 +156,7 @@ function SortablePageRow({
   );
 }
 
-const CONTENT_PAGES_VIEW_STORAGE_KEY = "bersoncare.doctorCatalogView.contentPages";
+const CONTENT_PAGES_VIEW_STORAGE_KEY = 'bersoncare.doctorCatalogView.contentPages';
 
 export function ContentPagesSectionList({
   sectionSlug,
@@ -200,7 +209,7 @@ export function ContentPagesSectionList({
   // Init to an SSR-safe default ("list") and apply the stored preference AFTER mount
   // in an effect — reading localStorage in the initializer would diverge from SSR and
   // cause a hydration mismatch (same pattern as ExercisesPageClient).
-  const [localViewMode, setLocalViewMode] = useState<DoctorCatalogViewMode>(viewModeProp ?? "list");
+  const [localViewMode, setLocalViewMode] = useState<DoctorCatalogViewMode>(viewModeProp ?? 'list');
 
   useEffect(() => {
     if (viewModeProp) return;
@@ -211,7 +220,7 @@ export function ContentPagesSectionList({
   const viewMode: DoctorCatalogViewMode = viewModeProp ?? localViewMode;
 
   const toggleViewMode = useCallback(() => {
-    const next: DoctorCatalogViewMode = viewMode === "list" ? "tiles" : "list";
+    const next: DoctorCatalogViewMode = viewMode === 'list' ? 'tiles' : 'list';
     if (onViewModeChange) {
       onViewModeChange(next);
     } else {
@@ -372,12 +381,14 @@ export function ContentPagesSectionList({
         viewMode={viewMode}
         onToggleView={toggleViewMode}
         titleSort={null}
-        onTitleSortChange={() => {/* sort not implemented for content pages */}}
+        onTitleSortChange={() => {
+          /* sort not implemented for content pages */
+        }}
         listBusy={pending}
       />
 
       {/* ── Tiles mode: VirtualizedItemGrid (DnD disabled) ── */}
-      {viewMode === "tiles" ? (
+      {viewMode === 'tiles' ? (
         <VirtualizedItemGrid
           items={items}
           columns={3}
@@ -395,7 +406,12 @@ export function ContentPagesSectionList({
         />
       ) : (
         /* ── List mode: DnD sortable rows ── */
-        <DndContext id={dndContextId} sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+        <DndContext
+          id={dndContextId}
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={onDragEnd}
+        >
           <SortableContext items={sortIds} strategy={verticalListSortingStrategy}>
             <ul className="flex flex-col gap-2" aria-busy={pending}>
               {items.map((p) => (

@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 
-import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { spawnSync } from "node:child_process";
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { spawnSync } from 'node:child_process';
 
 const scratchUrl = process.env.SCRATCH_DATABASE_URL;
-const psqlAsPostgres = process.env.P0_9_1_PSQL_AS_POSTGRES === "1";
+const psqlAsPostgres = process.env.P0_9_1_PSQL_AS_POSTGRES === '1';
 
 function fail(message) {
   console.error(message);
@@ -15,7 +15,7 @@ function fail(message) {
 
 function assertSafeScratchUrl(url) {
   if (!url) {
-    fail("SCRATCH_DATABASE_URL is required for P0.9.1 scratch smoke.");
+    fail('SCRATCH_DATABASE_URL is required for P0.9.1 scratch smoke.');
   }
 
   let parsed;
@@ -25,23 +25,23 @@ function assertSafeScratchUrl(url) {
     fail(`Invalid SCRATCH_DATABASE_URL: ${error.message}`);
   }
 
-  if (!["postgres:", "postgresql:"].includes(parsed.protocol)) {
-    fail("SCRATCH_DATABASE_URL must use postgres/postgresql protocol.");
+  if (!['postgres:', 'postgresql:'].includes(parsed.protocol)) {
+    fail('SCRATCH_DATABASE_URL must use postgres/postgresql protocol.');
   }
 
-  const dbName = parsed.pathname.replace(/^\//, "");
+  const dbName = parsed.pathname.replace(/^\//, '');
 
-  if (!dbName || (!dbName.startsWith("bcb_saas_") && !dbName.includes("scratch"))) {
-    fail("Scratch database name must start with bcb_saas_ or contain scratch.");
+  if (!dbName || (!dbName.startsWith('bcb_saas_') && !dbName.includes('scratch'))) {
+    fail('Scratch database name must start with bcb_saas_ or contain scratch.');
   }
 
   if (/bcb_webapp_(dev|prod|test)/.test(dbName)) {
-    fail("P0.9.1 scratch smoke refuses dev/prod/test application databases.");
+    fail('P0.9.1 scratch smoke refuses dev/prod/test application databases.');
   }
 }
 
-const orgA = "00000000-0000-4000-8000-000000000001";
-const orgB = "00000000-0000-4000-8000-000000000002";
+const orgA = '00000000-0000-4000-8000-000000000001';
+const orgB = '00000000-0000-4000-8000-000000000002';
 
 const sql = String.raw`
 \set ON_ERROR_STOP on
@@ -274,21 +274,21 @@ SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a r
 
 assertSafeScratchUrl(scratchUrl);
 
-const tempDir = mkdtempSync(join(tmpdir(), "p0-9-1-smoke-"));
-const sqlFile = join(tempDir, "smoke.sql");
+const tempDir = mkdtempSync(join(tmpdir(), 'p0-9-1-smoke-'));
+const sqlFile = join(tempDir, 'smoke.sql');
 
 try {
   chmodSync(tempDir, 0o755);
   writeFileSync(sqlFile, sql);
   chmodSync(sqlFile, 0o644);
 
-  const command = psqlAsPostgres ? "sudo" : "psql";
+  const command = psqlAsPostgres ? 'sudo' : 'psql';
   const args = psqlAsPostgres
-    ? ["-n", "-u", "postgres", "psql", "-f", sqlFile, scratchUrl]
-    : ["-f", sqlFile, scratchUrl];
+    ? ['-n', '-u', 'postgres', 'psql', '-f', sqlFile, scratchUrl]
+    : ['-f', sqlFile, scratchUrl];
 
   const result = spawnSync(command, args, {
-    stdio: "inherit",
+    stdio: 'inherit',
   });
 
   if (result.error) {

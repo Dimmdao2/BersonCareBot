@@ -1,13 +1,13 @@
-const SESSION_ID_KEY = "bersoncare_analytics_client_session_id";
-const SESSION_LAST_KEY = "bersoncare_analytics_client_session_last";
-const APP_OPEN_SENT_KEY = "bersoncare_analytics_app_open_sent";
+const SESSION_ID_KEY = 'bersoncare_analytics_client_session_id';
+const SESSION_LAST_KEY = 'bersoncare_analytics_client_session_last';
+const APP_OPEN_SENT_KEY = 'bersoncare_analytics_app_open_sent';
 
 export const CLIENT_SESSION_IDLE_MS = 30 * 60 * 1000;
 export const PAGE_VIEW_DEBOUNCE_MS = 30 * 1000;
 export const HEARTBEAT_INTERVAL_MS = 60 * 1000;
 
 function newSessionId(): string {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID();
   }
   return `sess-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -15,7 +15,7 @@ function newSessionId(): string {
 
 /** UUID сессии клиента; ротация после 30 мин без активности. */
 export function getOrRotateClientSessionId(now = Date.now()): string {
-  if (typeof sessionStorage === "undefined") return newSessionId();
+  if (typeof sessionStorage === 'undefined') return newSessionId();
 
   const lastRaw = sessionStorage.getItem(SESSION_LAST_KEY);
   const last = lastRaw ? Number.parseInt(lastRaw, 10) : 0;
@@ -32,24 +32,24 @@ export function getOrRotateClientSessionId(now = Date.now()): string {
 }
 
 export function touchClientSessionActivity(now = Date.now()): void {
-  if (typeof sessionStorage === "undefined") return;
+  if (typeof sessionStorage === 'undefined') return;
   sessionStorage.setItem(SESSION_LAST_KEY, String(now));
 }
 
 export function markAppOpenSent(): void {
-  if (typeof sessionStorage === "undefined") return;
-  sessionStorage.setItem(APP_OPEN_SENT_KEY, "1");
+  if (typeof sessionStorage === 'undefined') return;
+  sessionStorage.setItem(APP_OPEN_SENT_KEY, '1');
 }
 
 export function wasAppOpenSent(): boolean {
-  if (typeof sessionStorage === "undefined") return false;
-  return sessionStorage.getItem(APP_OPEN_SENT_KEY) === "1";
+  if (typeof sessionStorage === 'undefined') return false;
+  return sessionStorage.getItem(APP_OPEN_SENT_KEY) === '1';
 }
 
 const pageViewKey = (pageKey: string) => `bersoncare_analytics_pv_${pageKey}`;
 
 export function shouldSendPageView(pageKey: string, now = Date.now()): boolean {
-  if (typeof sessionStorage === "undefined") return true;
+  if (typeof sessionStorage === 'undefined') return true;
   const raw = sessionStorage.getItem(pageViewKey(pageKey));
   const last = raw ? Number.parseInt(raw, 10) : 0;
   if (Number.isFinite(last) && now - last < PAGE_VIEW_DEBOUNCE_MS) return false;

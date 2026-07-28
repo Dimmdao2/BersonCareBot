@@ -2,7 +2,7 @@ export type EmailSetupContactCheckResult =
   | { ok: true; email: string }
   | {
       ok: false;
-      reason: "user_not_found" | "email_mismatch" | "already_has_login";
+      reason: 'user_not_found' | 'email_mismatch' | 'already_has_login';
     };
 
 export type EmailSetupFlowPort = {
@@ -18,5 +18,8 @@ export type EmailSetupFlowPort = {
     emailNormalized: string;
     passwordHash: string;
     setupTokenId: string;
-  }): Promise<{ ok: true } | { ok: false; reason: "user_not_found" | "email_mismatch" | "token_consume_failed" }>;
+  }): Promise<
+    | { ok: true }
+    | { ok: false; reason: 'user_not_found' | 'email_mismatch' | 'token_consume_failed' }
+  >;
 };

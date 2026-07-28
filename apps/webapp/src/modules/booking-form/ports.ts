@@ -15,7 +15,10 @@ export type BookingFormFieldRecord = {
 export type FormAnswerInput = { fieldKey: string; value: string };
 
 export type BookingFormPort = {
-  listActiveFields(organizationId: string, audience: "patient" | "staff"): Promise<BookingFormFieldRecord[]>;
+  listActiveFields(
+    organizationId: string,
+    audience: 'patient' | 'staff',
+  ): Promise<BookingFormFieldRecord[]>;
   listAllFieldsAdmin(organizationId: string): Promise<BookingFormFieldRecord[]>;
   upsertFieldAdmin(
     organizationId: string,
@@ -42,7 +45,7 @@ export type BookingFormPort = {
 export type BookingFormService = {
   validateAnswers(
     organizationId: string,
-    audience: "patient" | "staff",
+    audience: 'patient' | 'staff',
     answers: FormAnswerInput[],
     profilePrefill?: Record<string, string>,
   ): Promise<{ ok: true } | { ok: false; error: string; fieldKey?: string }>;
@@ -55,6 +58,6 @@ export type BookingFormService = {
   listAdminFields(organizationId: string): Promise<BookingFormFieldRecord[]>;
   upsertAdminField(
     organizationId: string,
-    input: Parameters<BookingFormPort["upsertFieldAdmin"]>[1],
+    input: Parameters<BookingFormPort['upsertFieldAdmin']>[1],
   ): Promise<BookingFormFieldRecord>;
 };

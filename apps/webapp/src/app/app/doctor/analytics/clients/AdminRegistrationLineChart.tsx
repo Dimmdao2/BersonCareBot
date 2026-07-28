@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import {
   CartesianGrid,
@@ -8,21 +8,24 @@ import {
   ResponsiveContainer,
   XAxis,
   YAxis,
-} from "recharts";
+} from 'recharts';
 
-import type { StatsPeriod } from "@/modules/diaries/stats/periodWindow";
-import { diaryChartFormatTickLabel, diaryChartShowTick } from "@/modules/diaries/stats/formatDiaryChartTick";
+import type { StatsPeriod } from '@/modules/diaries/stats/periodWindow';
+import {
+  diaryChartFormatTickLabel,
+  diaryChartShowTick,
+} from '@/modules/diaries/stats/formatDiaryChartTick';
 
-import type { AdminRegistrationDayPoint } from "@/modules/admin-platform-stats/types";
-import { DoctorRechartsTooltip } from "@/shared/ui/doctor/DoctorRechartsTooltip";
+import type { AdminRegistrationDayPoint } from '@/modules/admin-platform-stats/types';
+import { DoctorRechartsTooltip } from '@/shared/ui/doctor/DoctorRechartsTooltip';
 
-const STROKE_NEW = "hsl(215 65% 38%)";
-const STROKE_MERGE = "hsl(28 78% 42%)";
+const STROKE_NEW = 'hsl(215 65% 38%)';
+const STROKE_MERGE = 'hsl(28 78% 42%)';
 
 function chartPeriodForPointCount(n: number): StatsPeriod {
-  if (n <= 7) return "week";
-  if (n <= 31) return "month";
-  return "all";
+  if (n <= 7) return 'week';
+  if (n <= 31) return 'month';
+  return 'all';
 }
 
 export function AdminRegistrationLineChart({ series }: { series: AdminRegistrationDayPoint[] }) {
@@ -45,12 +48,12 @@ export function AdminRegistrationLineChart({ series }: { series: AdminRegistrati
           <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" />
           <XAxis
             dataKey="full"
-            tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+            tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
             tickLine={false}
             interval={0}
             tickFormatter={(full: string, index: number) => {
-              const prev = index > 0 ? data[index - 1]?.full ?? null : null;
-              if (!diaryChartShowTick(period, index, data.length, full, prev)) return "";
+              const prev = index > 0 ? (data[index - 1]?.full ?? null) : null;
+              if (!diaryChartShowTick(period, index, data.length, full, prev)) return '';
               return diaryChartFormatTickLabel(full, period);
             }}
           />
@@ -58,24 +61,24 @@ export function AdminRegistrationLineChart({ series }: { series: AdminRegistrati
             domain={[0, yMax]}
             width={36}
             allowDecimals={false}
-            tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+            tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
             tickLine={false}
           />
           <DoctorRechartsTooltip
             formatter={(value, name) => {
-              const v = typeof value === "number" ? value : Number(value);
-              const label = name === "registrations" ? "Регистрации" : "Слияния";
-              return [`${Number.isFinite(v) ? v : "—"}`, label];
+              const v = typeof value === 'number' ? value : Number(value);
+              const label = name === 'registrations' ? 'Регистрации' : 'Слияния';
+              return [`${Number.isFinite(v) ? v : '—'}`, label];
             }}
             labelFormatter={(_, payload) => {
               const p = payload?.[0]?.payload as { full?: string } | undefined;
-              return p?.full ?? "";
+              return p?.full ?? '';
             }}
           />
           <Legend
             verticalAlign="bottom"
             wrapperStyle={{ paddingTop: 8 }}
-            formatter={(value) => (value === "registrations" ? "Регистрации" : "Слияния")}
+            formatter={(value) => (value === 'registrations' ? 'Регистрации' : 'Слияния')}
           />
           <Line
             type="monotone"

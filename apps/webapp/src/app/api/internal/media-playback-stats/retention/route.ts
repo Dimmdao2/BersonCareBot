@@ -1,21 +1,21 @@
-import { timingSafeEqual } from "node:crypto";
-import { NextResponse } from "next/server";
-import { enterWithDbInfraPrincipal } from "@bersoncare/db-principal";
-import { env } from "@/config/env";
-import { logger } from "@/app-layer/logging/logger";
+import { timingSafeEqual } from 'node:crypto';
+import { NextResponse } from 'next/server';
+import { enterWithDbInfraPrincipal } from '@bersoncare/db-principal';
+import { env } from '@/config/env';
+import { logger } from '@/app-layer/logging/logger';
 import {
   PLAYBACK_HOURLY_STATS_RETENTION_DAYS,
   purgeStalePlaybackHourlyStats,
-} from "@/app-layer/media/playbackHourlyRetention";
-import { recordOperatorCronJobTickBestEffort } from "@/app-layer/operator-health/recordOperatorCronJobTick";
+} from '@/app-layer/media/playbackHourlyRetention';
+import { recordOperatorCronJobTickBestEffort } from '@/app-layer/operator-health/recordOperatorCronJobTick';
 import {
   OPERATOR_MEDIA_JOB_FAMILY,
   OPERATOR_MEDIA_PLAYBACK_STATS_RETENTION_JOB_KEY,
-} from "@/modules/operator-health/reconcileJobKeys";
+} from '@/modules/operator-health/reconcileJobKeys';
 
 function bearerMatchesSecret(token: string, secret: string): boolean {
-  const a = Buffer.from(token, "utf8");
-  const b = Buffer.from(secret, "utf8");
+  const a = Buffer.from(token, 'utf8');
+  const b = Buffer.from(secret, 'utf8');
   if (a.length !== b.length) return false;
   return timingSafeEqual(a, b);
 }
@@ -30,29 +30,29 @@ function bearerMatchesSecret(token: string, secret: string): boolean {
 export async function POST(request: Request) {
   const secret = env.INTERNAL_JOB_SECRET;
   if (!secret) {
-    return NextResponse.json({ ok: false, error: "not_configured" }, { status: 503 });
+    return NextResponse.json({ ok: false, error: 'not_configured' }, { status: 503 });
   }
 
-  const auth = request.headers.get("authorization") ?? "";
-  const token = auth.startsWith("Bearer ") ? auth.slice(7).trim() : "";
+  const auth = request.headers.get('authorization') ?? '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
   if (!token || !bearerMatchesSecret(token, secret)) {
-    return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+    return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 });
   }
-  enterWithDbInfraPrincipal({ source: "api/internal/media-playback-stats/retention:POST" });
+  enterWithDbInfraPrincipal({ source: 'api/internal/media-playback-stats/retention:POST' });
 
   let dryRun = false;
   let retentionDays = PLAYBACK_HOURLY_STATS_RETENTION_DAYS;
   try {
     const url = new URL(request.url);
     dryRun =
-      url.searchParams.get("dryRun") === "1" ||
-      url.searchParams.get("dry_run") === "1" ||
-      url.searchParams.get("dry_run") === "true";
-    const daysRaw = url.searchParams.get("days");
-    if (daysRaw != null && daysRaw.trim() !== "") {
+      url.searchParams.get('dryRun') === '1' ||
+      url.searchParams.get('dry_run') === '1' ||
+      url.searchParams.get('dry_run') === 'true';
+    const daysRaw = url.searchParams.get('days');
+    if (daysRaw != null && daysRaw.trim() !== '') {
       const parsed = Number.parseInt(daysRaw, 10);
       if (!Number.isFinite(parsed) || parsed < 1) {
-        return NextResponse.json({ ok: false, error: "invalid_days" }, { status: 400 });
+        return NextResponse.json({ ok: false, error: 'invalid_days' }, { status: 400 });
       }
       retentionDays = parsed;
     }
@@ -71,7 +71,7 @@ export async function POST(request: Request) {
 
     logger.info(
       { dryRun: result.dryRun, deleted: result.deleted, retentionDays: result.retentionDays },
-      "media_playback_stats_retention_job",
+      'media_playback_stats_retention_job',
     );
 
     await recordOperatorCronJobTickBestEffort({
@@ -103,7 +103,7 @@ export async function POST(request: Request) {
       success: false,
       error: msg,
     });
-    logger.error({ err: e }, "[internal/media-playback-stats/retention] failed");
-    return NextResponse.json({ ok: false, error: "retention_failed" }, { status: 500 });
+    logger.error({ err: e }, '[internal/media-playback-stats/retention] failed');
+    return NextResponse.json({ ok: false, error: 'retention_failed' }, { status: 500 });
   }
 }

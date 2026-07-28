@@ -1,6 +1,6 @@
-import { revalidatePath } from "next/cache";
-import { routePaths } from "@/app-layer/routes/paths";
-import { isHelpSectionSlug } from "@/modules/content-sections/types";
+import { revalidatePath } from 'next/cache';
+import { routePaths } from '@/app-layer/routes/paths';
+import { isHelpSectionSlug } from '@/modules/content-sections/types';
 
 /** Инвалидация patient-facing кэша после изменений `content_pages`. */
 export function revalidatePatientContentPaths(args: {
@@ -37,6 +37,6 @@ export function revalidatePatientContentPaths(args: {
   }
 
   if (args.revalidateSectionsLayout !== false) {
-    revalidatePath("/app/patient/sections", "layout");
+    revalidatePath('/app/patient/sections', 'layout');
   }
 }

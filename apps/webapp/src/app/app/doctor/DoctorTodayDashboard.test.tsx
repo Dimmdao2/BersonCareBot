@@ -1,23 +1,23 @@
 /** @vitest-environment jsdom */
 
-import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { DoctorTodayDashboard } from "./DoctorTodayDashboard";
-import { DoctorTodayRightKpiRow } from "./DoctorTodayRightKpiRow";
-import type { TodayAppointmentItem, TodayDashboardData } from "./loadDoctorTodayDashboard";
-import type { DoctorStatsState } from "@/modules/doctor-stats/service";
-import type { SpecialistTaskRow } from "@/modules/specialist-tasks/types";
+import { describe, expect, it, vi } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { DoctorTodayDashboard } from './DoctorTodayDashboard';
+import { DoctorTodayRightKpiRow } from './DoctorTodayRightKpiRow';
+import type { TodayAppointmentItem, TodayDashboardData } from './loadDoctorTodayDashboard';
+import type { DoctorStatsState } from '@/modules/doctor-stats/service';
+import type { SpecialistTaskRow } from '@/modules/specialist-tasks/types';
 
 // Мини-календарь «Сегодня» теперь на FullCalendar (R35) — мокаем его, чтобы
 // дашборд-тесты не тащили реальный FC и next/navigation.
-vi.mock("@fullcalendar/react", () => ({ default: () => <div data-testid="fullcalendar" /> }));
-vi.mock("@fullcalendar/timegrid", () => ({ default: {} }));
-vi.mock("@fullcalendar/interaction", () => ({ default: {} }));
-vi.mock("@fullcalendar/core/locales/ru", () => ({ default: {} }));
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
+vi.mock('@fullcalendar/react', () => ({ default: () => <div data-testid="fullcalendar" /> }));
+vi.mock('@fullcalendar/timegrid', () => ({ default: {} }));
+vi.mock('@fullcalendar/interaction', () => ({ default: {} }));
+vi.mock('@fullcalendar/core/locales/ru', () => ({ default: {} }));
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
 
-vi.mock("next/link", () => ({
+vi.mock('next/link', () => ({
   default: ({
     children,
     href,
@@ -35,10 +35,10 @@ vi.mock("next/link", () => ({
   ),
 }));
 
-const DEFAULT_DISPLAY_IANA = "Europe/Moscow";
+const DEFAULT_DISPLAY_IANA = 'Europe/Moscow';
 
 function currentMonthName(displayIana: string): string {
-  return new Intl.DateTimeFormat("ru-RU", { month: "long", timeZone: displayIana }).format(
+  return new Intl.DateTimeFormat('ru-RU', { month: 'long', timeZone: displayIana }).format(
     new Date(),
   );
 }
@@ -52,7 +52,7 @@ function emptyData(): TodayDashboardData {
     unreadConversations: [],
     unreadTotal: 0,
     upcomingAppointments: [],
-    peopleListMode: "on_support",
+    peopleListMode: 'on_support',
     peopleCount: 0,
     people: [],
     peopleListTruncated: false,
@@ -64,7 +64,7 @@ function emptyData(): TodayDashboardData {
     proactiveInsights: [],
     proactiveInsightsTotal: 0,
     proactiveInsightsTruncated: false,
-    visibleProactiveInsightKinds: ["wellbeing_low_streak", "program_inactivity"],
+    visibleProactiveInsightKinds: ['wellbeing_low_streak', 'program_inactivity'],
     exerciseCommentAttentionItems: [],
     exerciseCommentAttentionTotal: 0,
     exerciseCommentAttentionTruncated: false,
@@ -117,17 +117,17 @@ function defaultProps() {
 
 function appointmentItem(overrides: Partial<TodayAppointmentItem> = {}): TodayAppointmentItem {
   return {
-    id: overrides.id ?? "appt-1",
-    time: overrides.time ?? "10:00 01.01",
-    recordAtIso: overrides.recordAtIso ?? "2999-01-01T10:00:00.000Z",
-    clientLabel: overrides.clientLabel ?? "Пациент",
+    id: overrides.id ?? 'appt-1',
+    time: overrides.time ?? '10:00 01.01',
+    recordAtIso: overrides.recordAtIso ?? '2999-01-01T10:00:00.000Z',
+    clientLabel: overrides.clientLabel ?? 'Пациент',
     clientUserId: overrides.clientUserId ?? null,
-    type: overrides.type ?? "Приём",
-    status: overrides.status ?? "confirmed",
+    type: overrides.type ?? 'Приём',
+    status: overrides.status ?? 'confirmed',
     branchName: overrides.branchName ?? null,
     scheduleProvenancePrefix: overrides.scheduleProvenancePrefix ?? null,
-    href: overrides.href ?? "/app/doctor/schedule",
-    ctaLabel: overrides.ctaLabel ?? "Открыть",
+    href: overrides.href ?? '/app/doctor/schedule',
+    ctaLabel: overrides.ctaLabel ?? 'Открыть',
   };
 }
 
@@ -137,55 +137,55 @@ function taskFixture(overrides: Partial<SpecialistTaskRow> = {}): SpecialistTask
   taskFixtureSeq += 1;
   return {
     id: overrides.id ?? `task-${taskFixtureSeq}`,
-    ownerUserId: overrides.ownerUserId ?? "u1",
+    ownerUserId: overrides.ownerUserId ?? 'u1',
     patientUserId: overrides.patientUserId ?? null,
-    title: overrides.title ?? "Задача",
+    title: overrides.title ?? 'Задача',
     description: overrides.description ?? null,
-    dueAt: overrides.dueAt !== undefined ? overrides.dueAt : "2099-01-01T09:00:00.000Z",
+    dueAt: overrides.dueAt !== undefined ? overrides.dueAt : '2099-01-01T09:00:00.000Z',
     remindAt: overrides.remindAt ?? null,
     isImportant: overrides.isImportant ?? false,
     completedAt: overrides.completedAt ?? null,
     reminderSentAt: overrides.reminderSentAt ?? null,
-    createdAt: overrides.createdAt ?? "2026-06-01T00:00:00.000Z",
-    updatedAt: overrides.updatedAt ?? "2026-06-01T00:00:00.000Z",
+    createdAt: overrides.createdAt ?? '2026-06-01T00:00:00.000Z',
+    updatedAt: overrides.updatedAt ?? '2026-06-01T00:00:00.000Z',
   };
 }
 
 async function openLeftKpiDialog(label: RegExp) {
   const user = userEvent.setup();
-  await user.click(screen.getByRole("button", { name: label }));
+  await user.click(screen.getByRole('button', { name: label }));
 }
 
-describe("DoctorTodayDashboard", () => {
-  it("renders page title and section headings for new layout (no analytics link in header — R3)", () => {
-    render(
-      <DoctorTodayDashboard
-        {...defaultProps()}
-      />,
-    );
-    expect(screen.getByRole("heading", { level: 1, name: "Сегодня" })).toBeInTheDocument();
+describe('DoctorTodayDashboard', () => {
+  it('renders page title and section headings for new layout (no analytics link in header — R3)', () => {
+    render(<DoctorTodayDashboard {...defaultProps()} />);
+    expect(screen.getByRole('heading', { level: 1, name: 'Сегодня' })).toBeInTheDocument();
     // R3: ссылка «Аналитика по клиентам» убрана из шапки «Сегодня» по просьбе владельца.
-    expect(screen.queryByRole("link", { name: "Аналитика по клиентам" })).not.toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "На сопровождении" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Задачи" })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Аналитика по клиентам' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'На сопровождении' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Задачи' })).toBeInTheDocument();
     // Owner punch-list (2026-07-25) item 2: «Сигналы пациентов» card removed from «Сегодня» —
     // the mechanism moved to an attention mark on the support/messages row (DoctorSupportInbox).
-    expect(screen.queryByRole("heading", { name: "Сигналы пациентов" })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Сигналы пациентов' })).not.toBeInTheDocument();
     // R19: блок «Следующая запись» убран со страницы «Сегодня».
-    expect(screen.queryByRole("heading", { name: "Следующая запись" })).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Открыть расписание" })).toHaveAttribute(
-      "href",
-      "/app/doctor/schedule?tab=calendar",
+    expect(screen.queryByRole('heading', { name: 'Следующая запись' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Открыть расписание' })).toHaveAttribute(
+      'href',
+      '/app/doctor/schedule?tab=calendar',
     );
-    expect(screen.queryByRole("heading", { name: "Расписание на сегодня" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('heading', { name: 'Расписание на сегодня' }),
+    ).not.toBeInTheDocument();
     // Старые секции должны отсутствовать
-    expect(screen.queryByRole("heading", { name: "Требует внимания" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Рабочие задачи на сегодня" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Записи сегодня" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Ближайшие записи" })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Требует внимания' })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('heading', { name: 'Рабочие задачи на сегодня' }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Записи сегодня' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Ближайшие записи' })).not.toBeInTheDocument();
   });
 
-  it("renders left KPI row with 4 compact counters as modal-opening buttons", () => {
+  it('renders left KPI row with 4 compact counters as modal-opening buttons', () => {
     render(
       <DoctorTodayDashboard
         {...defaultProps()}
@@ -198,35 +198,41 @@ describe("DoctorTodayDashboard", () => {
       />,
     );
     // SEG-02: non-zero KPI cards open KpiPreviewModal (buttons, not links)
-    expect(screen.getByRole("button", { name: /Сообщения/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Комментарии/i })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Заявки/i })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Тесты/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Сообщения/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Комментарии/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Заявки/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Тесты/i })).toBeInTheDocument();
   });
 
-  it("keeps appointment KPI cards hidden and puts the calendar first in the right pane", () => {
-    render(<DoctorTodayDashboard {...defaultProps()} appointmentsTodayCount={3} monthAppointmentCount={45} />);
+  it('keeps appointment KPI cards hidden and puts the calendar first in the right pane', () => {
+    render(
+      <DoctorTodayDashboard
+        {...defaultProps()}
+        appointmentsTodayCount={3}
+        monthAppointmentCount={45}
+      />,
+    );
 
-    expect(document.getElementById("doctor-today-right-kpi-today")).not.toBeInTheDocument();
-    expect(document.getElementById("doctor-today-right-kpi-week")).not.toBeInTheDocument();
-    expect(document.getElementById("doctor-today-right-kpi-month")).not.toBeInTheDocument();
+    expect(document.getElementById('doctor-today-right-kpi-today')).not.toBeInTheDocument();
+    expect(document.getElementById('doctor-today-right-kpi-week')).not.toBeInTheDocument();
+    expect(document.getElementById('doctor-today-right-kpi-month')).not.toBeInTheDocument();
 
-    const rightPane = document.getElementById("doctor-today-right-pane");
+    const rightPane = document.getElementById('doctor-today-right-pane');
     expect(rightPane?.firstElementChild).toContainElement(
-      screen.getByRole("link", { name: "Открыть расписание" }),
+      screen.getByRole('link', { name: 'Открыть расписание' }),
     );
   });
 
-  it("keeps the desktop Today panes at an exact 50/50 split", () => {
+  it('keeps the desktop Today panes at an exact 50/50 split', () => {
     render(<DoctorTodayDashboard {...defaultProps()} />);
 
-    expect(document.getElementById("doctor-today-two-panes")).toHaveClass("md:grid-cols-2");
-    expect(document.getElementById("doctor-today-two-panes")).not.toHaveClass(
-      "md:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]",
+    expect(document.getElementById('doctor-today-two-panes')).toHaveClass('md:grid-cols-2');
+    expect(document.getElementById('doctor-today-two-panes')).not.toHaveClass(
+      'md:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]',
     );
   });
 
-  it("does not open empty KPI modals and removes search from today KPI modals", async () => {
+  it('does not open empty KPI modals and removes search from today KPI modals', async () => {
     const user = userEvent.setup();
 
     render(
@@ -237,58 +243,58 @@ describe("DoctorTodayDashboard", () => {
           unreadTotal: 1,
           unreadConversations: [
             {
-              conversationId: "c1",
-              displayName: "Иванов Иван",
+              conversationId: 'c1',
+              displayName: 'Иванов Иван',
               phoneNormalized: null,
-              lastMessageText: "Текст",
-              lastMessagePreview: "Текст",
-              lastMessageAtLabel: "10:00",
+              lastMessageText: 'Текст',
+              lastMessagePreview: 'Текст',
+              lastMessageAtLabel: '10:00',
               unreadFromUserCount: 1,
-              href: "/app/doctor/messages",
+              href: '/app/doctor/messages',
             },
           ],
         }}
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: /Сообщения/i }));
-    expect(screen.getByRole("dialog", { name: /Сообщения/i })).toBeInTheDocument();
-    expect(screen.queryByRole("searchbox", { name: "Поиск" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /Сообщения/i }));
+    expect(screen.getByRole('dialog', { name: /Сообщения/i })).toBeInTheDocument();
+    expect(screen.queryByRole('searchbox', { name: 'Поиск' })).not.toBeInTheDocument();
   });
 
-  it("shows empty states for on-support and mini-calendar when no data", () => {
+  it('shows empty states for on-support and mini-calendar when no data', () => {
     render(<DoctorTodayDashboard {...defaultProps()} />);
-    expect(screen.getByText("Клиентов на сопровождении нет")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Список клиентов" })).toHaveAttribute(
-      "href",
-      "/app/doctor/patients?segment=on_support",
+    expect(screen.getByText('Клиентов на сопровождении нет')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Список клиентов' })).toHaveAttribute(
+      'href',
+      '/app/doctor/patients?segment=on_support',
     );
     // Мини-календарь: нет записей (R1: подсказка над таймлайном)
     expect(screen.getByText(/Записей на сегодня нет/)).toBeInTheDocument();
     // R19: блок «Следующая запись» убран — его пустого состояния больше нет.
   });
 
-  it("renders on-support clients as whole-row native links and truncated footer", async () => {
+  it('renders on-support clients as whole-row native links and truncated footer', async () => {
     const data: TodayDashboardData = {
       ...emptyData(),
       peopleCount: 2,
       people: [
         {
-          userId: "u-a",
-          displayName: "Старая строка",
-          lastName: "Иванова",
-          firstName: "Анна",
-          patronymic: "Петровна",
-          href: "/app/doctor/clients/u-a?scope=appointments#doctor-client-section-treatment-programs",
+          userId: 'u-a',
+          displayName: 'Старая строка',
+          lastName: 'Иванова',
+          firstName: 'Анна',
+          patronymic: 'Петровна',
+          href: '/app/doctor/clients/u-a?scope=appointments#doctor-client-section-treatment-programs',
           unreadMessagesCount: 2,
           exerciseDoneTodayCount: 1,
           newExerciseCommentsCount: 1,
           lastAppointmentAt: null,
         },
         {
-          userId: "u-b",
-          displayName: "Борис",
-          href: "/app/doctor/clients/u-b?scope=appointments#doctor-client-section-treatment-programs",
+          userId: 'u-b',
+          displayName: 'Борис',
+          href: '/app/doctor/clients/u-b?scope=appointments#doctor-client-section-treatment-programs',
           unreadMessagesCount: 0,
           exerciseDoneTodayCount: 0,
           newExerciseCommentsCount: 0,
@@ -300,44 +306,48 @@ describe("DoctorTodayDashboard", () => {
     const user = userEvent.setup();
     render(<DoctorTodayDashboard {...defaultProps()} data={data} />);
     expect(screen.getByText(/Клиентов: 2/)).toBeInTheDocument();
-    const firstRowLink = screen.getByRole("link", { name: "Иванова Анна Петровна" });
+    const firstRowLink = screen.getByRole('link', { name: 'Иванова Анна Петровна' });
     expect(firstRowLink).toHaveAttribute(
-      "href",
-      "/app/doctor/clients/u-a?scope=appointments#doctor-client-section-treatment-programs",
+      'href',
+      '/app/doctor/clients/u-a?scope=appointments#doctor-client-section-treatment-programs',
     );
-    expect(firstRowLink).toHaveClass("flex", "cursor-pointer", "hover:bg-muted");
-    expect(firstRowLink).toContainElement(screen.getByLabelText("Новые сообщения: 2"));
-    expect(firstRowLink).toContainElement(screen.getByLabelText("Отметки упражнений за сегодня: 1"));
-    expect(firstRowLink).toContainElement(screen.getByLabelText("Новые комментарии по упражнениям: 1"));
-    expect(firstRowLink.querySelector("button")).toBeNull();
+    expect(firstRowLink).toHaveClass('flex', 'cursor-pointer', 'hover:bg-muted');
+    expect(firstRowLink).toContainElement(screen.getByLabelText('Новые сообщения: 2'));
+    expect(firstRowLink).toContainElement(
+      screen.getByLabelText('Отметки упражнений за сегодня: 1'),
+    );
+    expect(firstRowLink).toContainElement(
+      screen.getByLabelText('Новые комментарии по упражнениям: 1'),
+    );
+    expect(firstRowLink.querySelector('button')).toBeNull();
     // No card chrome around the whole list (no rounding); the hairline divider between
     // rows now lives on the wrapper as `[&>li+li]:border-t` instead of on each row's
     // `first:border-t-0`, which broke for this exact shape — the row class sits on the
     // <a>, and the <a> is always its own <li>'s first child, so `first:` always matched
     // and silently deleted every divider. See DoctorDnaFlatListRow.tsx.
-    const list = firstRowLink.closest("ul");
+    const list = firstRowLink.closest('ul');
     expect(list?.className).not.toMatch(/\brounded-/);
-    expect(list?.className).toContain("[&>li+li]:border-t");
+    expect(list?.className).toContain('[&>li+li]:border-t');
 
     const keyboardClick = vi.fn((event: MouseEvent) => event.preventDefault());
-    firstRowLink.addEventListener("click", keyboardClick);
+    firstRowLink.addEventListener('click', keyboardClick);
     firstRowLink.focus();
-    await user.keyboard("{Enter}");
+    await user.keyboard('{Enter}');
     expect(keyboardClick).toHaveBeenCalledOnce();
     expect(firstRowLink).toHaveFocus();
 
-    expect(screen.queryByText("Старая строка")).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Борис" })).toHaveAttribute(
-      "href",
-      "/app/doctor/clients/u-b?scope=appointments#doctor-client-section-treatment-programs",
+    expect(screen.queryByText('Старая строка')).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Борис' })).toHaveAttribute(
+      'href',
+      '/app/doctor/clients/u-b?scope=appointments#doctor-client-section-treatment-programs',
     );
-    expect(screen.getByRole("link", { name: "Все на сопровождении" })).toHaveAttribute(
-      "href",
-      "/app/doctor/patients?segment=on_support",
+    expect(screen.getByRole('link', { name: 'Все на сопровождении' })).toHaveAttribute(
+      'href',
+      '/app/doctor/patients?segment=on_support',
     );
   });
 
-  it("renders an invited on-support client when the exact fetched count is nonzero", () => {
+  it('renders an invited on-support client when the exact fetched count is nonzero', () => {
     render(
       <DoctorTodayDashboard
         {...defaultProps()}
@@ -346,9 +356,9 @@ describe("DoctorTodayDashboard", () => {
           peopleCount: 1,
           people: [
             {
-              userId: "invited-on-support",
-              displayName: "Приглашённый",
-              href: "/app/doctor/patients/invited-on-support",
+              userId: 'invited-on-support',
+              displayName: 'Приглашённый',
+              href: '/app/doctor/patients/invited-on-support',
               unreadMessagesCount: 0,
               exerciseDoneTodayCount: 0,
               newExerciseCommentsCount: 0,
@@ -359,255 +369,264 @@ describe("DoctorTodayDashboard", () => {
       />,
     );
 
-    expect(screen.getByText("Клиентов: 1")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Приглашённый" })).toHaveAttribute(
-      "href",
-      "/app/doctor/patients/invited-on-support",
+    expect(screen.getByText('Клиентов: 1')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Приглашённый' })).toHaveAttribute(
+      'href',
+      '/app/doctor/patients/invited-on-support',
     );
   });
 
-  it("renders the proven recent-visits people-list mode without on-support-only copy", () => {
+  it('renders the proven recent-visits people-list mode without on-support-only copy', () => {
     render(
       <DoctorTodayDashboard
         {...defaultProps()}
         data={{
           ...emptyData(),
-          peopleListMode: "recent_visits",
+          peopleListMode: 'recent_visits',
           peopleCount: 1,
           people: [
             {
-              userId: "recent-1",
-              displayName: "Недавний клиент",
-              href: "/app/doctor/patients/recent-1",
+              userId: 'recent-1',
+              displayName: 'Недавний клиент',
+              href: '/app/doctor/patients/recent-1',
               unreadMessagesCount: 0,
               exerciseDoneTodayCount: 0,
               newExerciseCommentsCount: 0,
-              lastAppointmentAt: "2026-07-20T10:00:00.000Z",
+              lastAppointmentAt: '2026-07-20T10:00:00.000Z',
             },
           ],
         }}
       />,
     );
 
-    expect(screen.getByRole("heading", { name: "Недавние с визитами" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Недавний клиент" })).toHaveAttribute(
-      "href",
-      "/app/doctor/patients/recent-1",
+    expect(screen.getByRole('heading', { name: 'Недавние с визитами' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Недавний клиент' })).toHaveAttribute(
+      'href',
+      '/app/doctor/patients/recent-1',
     );
-    expect(screen.queryByText("Программа без сопровождения")).not.toBeInTheDocument();
+    expect(screen.queryByText('Программа без сопровождения')).not.toBeInTheDocument();
   });
 
   // Owner punch-list (2026-07-25) item 2: the section is gone unconditionally now — regardless
   // of visibleProactiveInsightKinds / proactiveInsights data (mechanism kept server-side, UI removed).
-  it("never renders the removed proactive signals section, even with active insights present", () => {
+  it('never renders the removed proactive signals section, even with active insights present', () => {
     const data: TodayDashboardData = {
       ...emptyData(),
       proactiveInsightsTotal: 2,
       proactiveInsights: [
         {
-          kind: "wellbeing_low_streak",
-          patientUserId: "u1",
-          patientDisplayName: "Петров",
-          summary: "Низкое самочувствие 3 дн. подряд",
-          sortAt: "2026-06-02T00:00:00.000Z",
-          href: "/app/doctor/clients/u1",
+          kind: 'wellbeing_low_streak',
+          patientUserId: 'u1',
+          patientDisplayName: 'Петров',
+          summary: 'Низкое самочувствие 3 дн. подряд',
+          sortAt: '2026-06-02T00:00:00.000Z',
+          href: '/app/doctor/clients/u1',
         },
       ],
     };
     render(<DoctorTodayDashboard {...defaultProps()} data={data} />);
 
-    expect(screen.queryByRole("heading", { name: "Сигналы пациентов" })).not.toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "На сопровождении" })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Сигналы пациентов' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'На сопровождении' })).toBeInTheDocument();
   });
 
-  it("opens intake details in attention dialog via left KPI card", async () => {
+  it('opens intake details in attention dialog via left KPI card', async () => {
     const data: TodayDashboardData = {
       ...emptyData(),
       newIntakeRequests: [
         {
-          id: "int1",
-          patientName: "Анна",
-          patientPhone: "+7000",
-          typeLabel: "ЛФК",
-          summary: "Текст",
-          summaryPreview: "Текст",
-          createdAtLabel: "02.05.2026",
-          href: "/app/doctor/online-intake/int1",
+          id: 'int1',
+          patientName: 'Анна',
+          patientPhone: '+7000',
+          typeLabel: 'ЛФК',
+          summary: 'Текст',
+          summaryPreview: 'Текст',
+          createdAtLabel: '02.05.2026',
+          href: '/app/doctor/online-intake/int1',
         },
       ],
     };
     render(<DoctorTodayDashboard {...defaultProps()} data={data} />);
     await openLeftKpiDialog(/Заявки/);
-    expect(screen.getByRole("dialog")).toBeInTheDocument();
-    expect(screen.getByText("Анна")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Открыть заявку" })).toHaveAttribute(
-      "href",
-      "/app/doctor/online-intake/int1",
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByText('Анна')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Открыть заявку' })).toHaveAttribute(
+      'href',
+      '/app/doctor/online-intake/int1',
     );
   });
 
-  it("opens pending program tests KpiPreviewModal via left KPI card", async () => {
+  it('opens pending program tests KpiPreviewModal via left KPI card', async () => {
     const data: TodayDashboardData = {
       ...emptyData(),
       pendingProgramTestsTotal: 12,
       pendingProgramTestsTruncated: true,
       pendingProgramTests: [
         {
-          attemptId: "00000000-0000-4000-8000-000000000011",
-          patientUserId: "00000000-0000-4000-8000-000000000001",
-          patientDisplayName: "Иванова",
-          instanceId: "00000000-0000-4000-8000-000000000021",
-          instanceTitle: "Программа А",
-          stageTitle: "Этап 1",
+          attemptId: '00000000-0000-4000-8000-000000000011',
+          patientUserId: '00000000-0000-4000-8000-000000000001',
+          patientDisplayName: 'Иванова',
+          instanceId: '00000000-0000-4000-8000-000000000021',
+          instanceTitle: 'Программа А',
+          stageTitle: 'Этап 1',
           pendingCount: 2,
-          submittedAtLabel: "02.06.2026, 10:00",
-          href: "/app/doctor/clients/u1?scope=appointments#doctor-client-section-pending-program-tests",
+          submittedAtLabel: '02.06.2026, 10:00',
+          href: '/app/doctor/clients/u1?scope=appointments#doctor-client-section-pending-program-tests',
         },
       ],
     };
     render(<DoctorTodayDashboard {...defaultProps()} data={data} />);
     await openLeftKpiDialog(/Тесты/);
     // SEG-02: KpiPreviewModal shown for tests
-    expect(screen.getByRole("dialog")).toBeInTheDocument();
-    expect(screen.getByText("Иванова")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Проверить тест" })).toHaveAttribute(
-      "href",
-      "/app/doctor/clients/u1?scope=appointments#doctor-client-section-pending-program-tests",
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByText('Иванова')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Проверить тест' })).toHaveAttribute(
+      'href',
+      '/app/doctor/clients/u1?scope=appointments#doctor-client-section-pending-program-tests',
     );
   });
 
-  it("opens unread messages KpiPreviewModal via left KPI card", async () => {
+  it('opens unread messages KpiPreviewModal via left KPI card', async () => {
     const data: TodayDashboardData = {
       ...emptyData(),
       unreadTotal: 5,
       unreadConversations: [
         {
-          conversationId: "c1",
-          displayName: "Пациент",
-          phoneNormalized: "+7999",
-          lastMessageAtLabel: "02.05",
-          lastMessageText: "Привет",
-          lastMessagePreview: "Привет",
+          conversationId: 'c1',
+          displayName: 'Пациент',
+          phoneNormalized: '+7999',
+          lastMessageAtLabel: '02.05',
+          lastMessageText: 'Привет',
+          lastMessagePreview: 'Привет',
           unreadFromUserCount: 2,
-          href: "/app/doctor/messages",
+          href: '/app/doctor/messages',
         },
       ],
     };
     render(<DoctorTodayDashboard {...defaultProps()} data={data} />);
     // SEG-02: «Сообщения» is now a button that opens KpiPreviewModal
-    const msgBtn = screen.getByRole("button", { name: /Сообщения/i });
+    const msgBtn = screen.getByRole('button', { name: /Сообщения/i });
     await userEvent.setup().click(msgBtn);
-    expect(screen.getByRole("dialog")).toBeInTheDocument();
-    expect(screen.getByText("Пациент")).toBeInTheDocument();
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByText('Пациент')).toBeInTheDocument();
   });
 
-  it("opens exercise comments attention dialog via left KPI card", async () => {
+  it('opens exercise comments attention dialog via left KPI card', async () => {
     const data: TodayDashboardData = {
       ...emptyData(),
       exerciseCommentAttentionTotal: 1,
       exerciseCommentAttentionTruncated: false,
       exerciseCommentAttentionItems: [
         {
-          patientUserId: "u1",
-          patientDisplayName: "Иванов Иван",
-          instanceId: "inst-1",
-          stageItemId: "item-1",
-          stageItemTitle: "Приседания",
+          patientUserId: 'u1',
+          patientDisplayName: 'Иванов Иван',
+          instanceId: 'inst-1',
+          stageItemId: 'item-1',
+          stageItemTitle: 'Приседания',
           thumb: {
-            url: "/api/media/exercise-thumb",
-            mediaType: "video",
-            previewSmUrl: "/api/media/exercise-thumb/preview/sm",
+            url: '/api/media/exercise-thumb',
+            mediaType: 'video',
+            previewSmUrl: '/api/media/exercise-thumb/preview/sm',
             previewMdUrl: null,
-            previewStatus: "ready",
+            previewStatus: 'ready',
             sortOrder: 0,
           },
           latestMessage: {
-            id: "m1",
-            instanceStageItemId: "item-1",
-            patientUserId: "u1",
-            senderRole: "patient",
-            origin: "patient_observation",
-            body: "Болит колено",
+            id: 'm1',
+            instanceStageItemId: 'item-1',
+            patientUserId: 'u1',
+            senderRole: 'patient',
+            origin: 'patient_observation',
+            body: 'Болит колено',
             mediaFileId: null,
             supportMessageId: null,
-            createdAt: "2026-06-06T00:00:00.000Z",
+            createdAt: '2026-06-06T00:00:00.000Z',
           },
-          latestMessageAtLabel: "06.06.2026, 03:00",
-          href: "/app/doctor/clients/u1/treatment-programs/inst-1?scope=appointments&discussionItem=item-1",
+          latestMessageAtLabel: '06.06.2026, 03:00',
+          href: '/app/doctor/clients/u1/treatment-programs/inst-1?scope=appointments&discussionItem=item-1',
         },
       ],
     };
     render(<DoctorTodayDashboard {...defaultProps()} data={data} />);
     await openLeftKpiDialog(/Комментарии/);
     // SEG-02: KpiPreviewModal shown for exercise comments
-    expect(screen.getByRole("dialog")).toBeInTheDocument();
-    expect(screen.getByText("Иванов Иван")).toBeInTheDocument();
-    expect(screen.getByText("Болит колено")).toBeInTheDocument();
-    expect(screen.getByText("Приседания")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Иванов Иван/ })).toHaveAttribute(
-      "href",
-      "/app/doctor/clients/u1/treatment-programs/inst-1?scope=appointments&discussionItem=item-1",
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByText('Иванов Иван')).toBeInTheDocument();
+    expect(screen.getByText('Болит колено')).toBeInTheDocument();
+    expect(screen.getByText('Приседания')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Иванов Иван/ })).toHaveAttribute(
+      'href',
+      '/app/doctor/clients/u1/treatment-programs/inst-1?scope=appointments&discussionItem=item-1',
     );
   });
 
-  it("renders today appointments in mini-calendar section", () => {
+  it('renders today appointments in mini-calendar section', () => {
     const data: TodayDashboardData = {
       ...emptyData(),
       todayAppointments: [
         {
-          id: "ap1",
-          time: "09:00",
+          id: 'ap1',
+          time: '09:00',
           recordAtIso: null,
-          clientLabel: "Клиент Тест",
-          clientUserId: "user-1",
-          type: "Осмотр",
-          status: "created",
+          clientLabel: 'Клиент Тест',
+          clientUserId: 'user-1',
+          type: 'Осмотр',
+          status: 'created',
           branchName: null,
           scheduleProvenancePrefix: null,
-          href: "/app/doctor/clients/user-1?scope=appointments",
-          ctaLabel: "Открыть карточку",
+          href: '/app/doctor/clients/user-1?scope=appointments',
+          ctaLabel: 'Открыть карточку',
         },
       ],
     };
     render(<DoctorTodayDashboard {...defaultProps()} data={data} />);
     // Мини-календарь должен показать запись
-    expect(screen.getByRole("link", { name: "Открыть расписание" })).toBeInTheDocument();
-    expect(screen.getByText("Клиент Тест")).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Открыть расписание' })).toBeInTheDocument();
+    expect(screen.getByText('Клиент Тест')).toBeInTheDocument();
   });
 
-  it("shows admin banners when provided", () => {
+  it('shows admin banners when provided', () => {
     render(
       <DoctorTodayDashboard
         {...defaultProps()}
-        adminHealthBanner={{ show: true, title: "Внимание: сбой", href: "/app/doctor/system-health" }}
-        adminRegistrationFailureBanner={{ show: true, title: "Сбой регистрации", href: "/app/doctor/health-archive", count: 1 }}
+        adminHealthBanner={{
+          show: true,
+          title: 'Внимание: сбой',
+          href: '/app/doctor/system-health',
+        }}
+        adminRegistrationFailureBanner={{
+          show: true,
+          title: 'Сбой регистрации',
+          href: '/app/doctor/health-archive',
+          count: 1,
+        }}
       />,
     );
-    expect(screen.getByRole("link", { name: "Внимание: сбой" })).toHaveAttribute(
-      "href",
-      "/app/doctor/system-health",
+    expect(screen.getByRole('link', { name: 'Внимание: сбой' })).toHaveAttribute(
+      'href',
+      '/app/doctor/system-health',
     );
-    expect(screen.getByRole("link", { name: "Сбой регистрации" })).toHaveAttribute(
-      "href",
-      "/app/doctor/health-archive",
+    expect(screen.getByRole('link', { name: 'Сбой регистрации' })).toHaveAttribute(
+      'href',
+      '/app/doctor/health-archive',
     );
   });
 
   // §1.1 / R19 — мини-календарь присутствует; блок «Следующая запись» убран.
-  it("R19: mini-calendar present, appointment card removed", () => {
+  it('R19: mini-calendar present, appointment card removed', () => {
     render(<DoctorTodayDashboard {...defaultProps()} />);
-    expect(screen.getByRole("link", { name: "Открыть расписание" })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Открыть расписание' })).toBeInTheDocument();
     expect(
-      screen.queryByRole("heading", { name: /Следующая запись|Сейчас на приёме/ }),
+      screen.queryByRole('heading', { name: /Следующая запись|Сейчас на приёме/ }),
     ).not.toBeInTheDocument();
   });
 
   // §1.3 — Задачи над «На сопровождении»
-  it("§1.3 tasks section renders before on-support section in DOM order", () => {
+  it('§1.3 tasks section renders before on-support section in DOM order', () => {
     render(<DoctorTodayDashboard {...defaultProps()} />);
-    const headings = screen.getAllByRole("heading");
-    const tasksIdx = headings.findIndex((h) => h.textContent === "Задачи");
-    const supportIdx = headings.findIndex((h) => h.textContent === "На сопровождении");
+    const headings = screen.getAllByRole('heading');
+    const tasksIdx = headings.findIndex((h) => h.textContent === 'Задачи');
+    const supportIdx = headings.findIndex((h) => h.textContent === 'На сопровождении');
     expect(tasksIdx).toBeGreaterThanOrEqual(0);
     expect(supportIdx).toBeGreaterThanOrEqual(0);
     expect(tasksIdx).toBeLessThan(supportIdx);
@@ -615,27 +634,31 @@ describe("DoctorTodayDashboard", () => {
 
   // Owner punch-list (2026-07-25) item 1: top «всего» metric removed — it duplicated the
   // bottom «Все задачи» entry point onto the same modal.
-  it("§1.3 / owner punch-list item 1: no longer shows the duplicate top task metric", () => {
+  it('§1.3 / owner punch-list item 1: no longer shows the duplicate top task metric', () => {
     const data: TodayDashboardData = {
       ...emptyData(),
       globalOpenTasks: [taskFixture()],
       globalOpenTasksTotal: 1,
     };
     render(<DoctorTodayDashboard {...defaultProps()} data={data} />);
-    expect(document.getElementById("doctor-today-tasks-metric")).not.toBeInTheDocument();
+    expect(document.getElementById('doctor-today-tasks-metric')).not.toBeInTheDocument();
   });
 
   // Owner punch-list item 1: bottom «Все задачи» now opens the full-list modal (single
   // chokepoint) instead of expanding an inline unbounded list.
-  it("§1.3 / owner punch-list item 1: «Все задачи» button opens the full-list modal when more tasks exist than fit the preview", async () => {
+  it('§1.3 / owner punch-list item 1: «Все задачи» button opens the full-list modal when more tasks exist than fit the preview', async () => {
     const user = userEvent.setup();
     const nearest = [1, 2, 3].map((n) =>
-      taskFixture({ id: `near${n}`, title: `Ближайшая ${n}`, dueAt: `2099-02-0${n}T09:00:00.000Z` }),
+      taskFixture({
+        id: `near${n}`,
+        title: `Ближайшая ${n}`,
+        dueAt: `2099-02-0${n}T09:00:00.000Z`,
+      }),
     );
     const overflow = taskFixture({
-      id: "overflow1",
-      title: "Задача за пределами превью",
-      dueAt: "2099-03-01T09:00:00.000Z",
+      id: 'overflow1',
+      title: 'Задача за пределами превью',
+      dueAt: '2099-03-01T09:00:00.000Z',
     });
     const data: TodayDashboardData = {
       ...emptyData(),
@@ -644,19 +667,27 @@ describe("DoctorTodayDashboard", () => {
     };
     render(<DoctorTodayDashboard {...defaultProps()} data={data} />);
     // 4th task doesn't fit the 3-nearest-upcoming compact preview — not in the DOM yet.
-    expect(screen.queryByText("Задача за пределами превью")).not.toBeInTheDocument();
-    const showAllBtn = document.getElementById("doctor-today-tasks-show-all");
+    expect(screen.queryByText('Задача за пределами превью')).not.toBeInTheDocument();
+    const showAllBtn = document.getElementById('doctor-today-tasks-show-all');
     expect(showAllBtn).toBeInTheDocument();
     await user.click(showAllBtn!);
-    expect(screen.getByRole("dialog")).toBeInTheDocument();
-    expect(screen.getByText("Задача за пределами превью")).toBeInTheDocument();
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByText('Задача за пределами превью')).toBeInTheDocument();
   });
 
   // Owner punch-list item 1: overdue tasks pinned at the very top, highlighted red via
   // SpecialistTaskRow's own real-time isSpecialistTaskOverdue check (DNA danger token).
-  it("§1.3 / owner punch-list item 1: pins overdue tasks first and marks them «Просрочено»", () => {
-    const upcoming = taskFixture({ id: "upcoming1", title: "Будущая задача", dueAt: "2099-01-01T09:00:00.000Z" });
-    const overdue = taskFixture({ id: "overdue1", title: "Просроченная задача", dueAt: "2020-01-01T09:00:00.000Z" });
+  it('§1.3 / owner punch-list item 1: pins overdue tasks first and marks them «Просрочено»', () => {
+    const upcoming = taskFixture({
+      id: 'upcoming1',
+      title: 'Будущая задача',
+      dueAt: '2099-01-01T09:00:00.000Z',
+    });
+    const overdue = taskFixture({
+      id: 'overdue1',
+      title: 'Просроченная задача',
+      dueAt: '2020-01-01T09:00:00.000Z',
+    });
     const data: TodayDashboardData = {
       ...emptyData(),
       // Input order deliberately NOT overdue-first — proves the component itself sorts.
@@ -665,12 +696,12 @@ describe("DoctorTodayDashboard", () => {
     };
     render(<DoctorTodayDashboard {...defaultProps()} data={data} />);
     const titles = screen.getAllByText(/Просроченная задача|Будущая задача/);
-    expect(titles[0]).toHaveTextContent("Просроченная задача");
-    expect(screen.getByText("Просрочено")).toBeInTheDocument();
+    expect(titles[0]).toHaveTextContent('Просроченная задача');
+    expect(screen.getByText('Просрочено')).toBeInTheDocument();
   });
 
   // Owner punch-list item 1: shows only the nearest 3 upcoming tasks in the compact preview.
-  it("§1.3 / owner punch-list item 1: shows only the nearest 3 upcoming tasks, rest behind «Все задачи»", () => {
+  it('§1.3 / owner punch-list item 1: shows only the nearest 3 upcoming tasks, rest behind «Все задачи»', () => {
     const tasks = [1, 2, 3, 4].map((n) =>
       taskFixture({ id: `t${n}`, title: `Задача ${n}`, dueAt: `2099-01-0${n}T09:00:00.000Z` }),
     );
@@ -680,42 +711,46 @@ describe("DoctorTodayDashboard", () => {
       globalOpenTasksTotal: tasks.length,
     };
     render(<DoctorTodayDashboard {...defaultProps()} data={data} />);
-    expect(screen.getByText("Задача 1")).toBeInTheDocument();
-    expect(screen.getByText("Задача 2")).toBeInTheDocument();
-    expect(screen.getByText("Задача 3")).toBeInTheDocument();
-    expect(screen.queryByText("Задача 4")).not.toBeInTheDocument();
-    expect(document.getElementById("doctor-today-tasks-show-all")).toBeInTheDocument();
+    expect(screen.getByText('Задача 1')).toBeInTheDocument();
+    expect(screen.getByText('Задача 2')).toBeInTheDocument();
+    expect(screen.getByText('Задача 3')).toBeInTheDocument();
+    expect(screen.queryByText('Задача 4')).not.toBeInTheDocument();
+    expect(document.getElementById('doctor-today-tasks-show-all')).toBeInTheDocument();
   });
 
   // Bugfix regression (owner punch-list item 1): a task linked to a patient used to vanish
   // entirely (GET /api/doctor/tasks + SSR both hard-filtered patientUserId: null).
-  it("§1.3 bugfix: a task linked to a patient is shown in the list", () => {
-    const linked = taskFixture({ id: "linked1", title: "Позвонить пациенту", patientUserId: "patient-1" });
+  it('§1.3 bugfix: a task linked to a patient is shown in the list', () => {
+    const linked = taskFixture({
+      id: 'linked1',
+      title: 'Позвонить пациенту',
+      patientUserId: 'patient-1',
+    });
     const data: TodayDashboardData = {
       ...emptyData(),
       globalOpenTasks: [linked],
       globalOpenTasksTotal: 1,
     };
     render(<DoctorTodayDashboard {...defaultProps()} data={data} />);
-    expect(screen.getByText("Позвонить пациенту")).toBeInTheDocument();
+    expect(screen.getByText('Позвонить пациенту')).toBeInTheDocument();
   });
 
   // Bugfix regression (owner punch-list item 1): a task without a due date used to only ever
   // appear inside the "все задачи (N)" expansion, never in the default view.
-  it("§1.3 bugfix: a task without a due date is shown in the compact preview, not only behind «Все задачи»", () => {
-    const noDate = taskFixture({ id: "nodate1", title: "Задача без срока", dueAt: null });
+  it('§1.3 bugfix: a task without a due date is shown in the compact preview, not only behind «Все задачи»', () => {
+    const noDate = taskFixture({ id: 'nodate1', title: 'Задача без срока', dueAt: null });
     const data: TodayDashboardData = {
       ...emptyData(),
       globalOpenTasks: [noDate],
       globalOpenTasksTotal: 1,
     };
     render(<DoctorTodayDashboard {...defaultProps()} data={data} />);
-    expect(screen.getByText("Задача без срока")).toBeInTheDocument();
-    expect(document.getElementById("doctor-today-tasks-show-all")).not.toBeInTheDocument();
+    expect(screen.getByText('Задача без срока')).toBeInTheDocument();
+    expect(document.getElementById('doctor-today-tasks-show-all')).not.toBeInTheDocument();
   });
 
   // §1.2 — workingBounds передаётся в mini-calendar
-  it("§1.2 accepts todayWorkingBounds prop without error", () => {
+  it('§1.2 accepts todayWorkingBounds prop without error', () => {
     expect(() =>
       render(
         <DoctorTodayDashboard
@@ -727,21 +762,29 @@ describe("DoctorTodayDashboard", () => {
   });
 });
 
-describe("DoctorTodayRightKpiRow deferred mechanism", () => {
+describe('DoctorTodayRightKpiRow deferred mechanism', () => {
   const weekAppointments = [
-    appointmentItem({ id: "week-future", clientLabel: "Будущая неделя", recordAtIso: "2999-01-01T10:00:00.000Z" }),
-    appointmentItem({ id: "week-past", clientLabel: "Прошлая неделя", recordAtIso: "2000-01-01T10:00:00.000Z" }),
     appointmentItem({
-      id: "week-cancelled",
-      clientLabel: "Отмена неделя",
-      recordAtIso: "2999-01-02T10:00:00.000Z",
-      status: "cancelled_by_patient",
+      id: 'week-future',
+      clientLabel: 'Будущая неделя',
+      recordAtIso: '2999-01-01T10:00:00.000Z',
+    }),
+    appointmentItem({
+      id: 'week-past',
+      clientLabel: 'Прошлая неделя',
+      recordAtIso: '2000-01-01T10:00:00.000Z',
+    }),
+    appointmentItem({
+      id: 'week-cancelled',
+      clientLabel: 'Отмена неделя',
+      recordAtIso: '2999-01-02T10:00:00.000Z',
+      status: 'cancelled_by_patient',
     }),
   ];
   const monthAppointments = [
-    appointmentItem({ id: "month-future-1", recordAtIso: "2999-02-01T10:00:00.000Z" }),
-    appointmentItem({ id: "month-future-2", recordAtIso: "2999-02-02T10:00:00.000Z" }),
-    appointmentItem({ id: "month-past", recordAtIso: "2000-02-01T10:00:00.000Z" }),
+    appointmentItem({ id: 'month-future-1', recordAtIso: '2999-02-01T10:00:00.000Z' }),
+    appointmentItem({ id: 'month-future-2', recordAtIso: '2999-02-02T10:00:00.000Z' }),
+    appointmentItem({ id: 'month-past', recordAtIso: '2000-02-01T10:00:00.000Z' }),
   ];
 
   function renderDeferredRow() {
@@ -751,48 +794,54 @@ describe("DoctorTodayRightKpiRow deferred mechanism", () => {
         weekAppointmentsCount={3}
         monthAppointmentCount={3}
         displayIana={DEFAULT_DISPLAY_IANA}
-        todayAppointments={[appointmentItem({ clientLabel: "Сегодняшняя запись" })]}
+        todayAppointments={[appointmentItem({ clientLabel: 'Сегодняшняя запись' })]}
         weekAppointments={weekAppointments}
         monthAppointments={monthAppointments}
       />,
     );
   }
 
-  it("preserves total/future counters and the equal-height card contract while hidden from Today", () => {
+  it('preserves total/future counters and the equal-height card contract while hidden from Today', () => {
     const monthName = currentMonthName(DEFAULT_DISPLAY_IANA);
     renderDeferredRow();
 
     for (const id of [
-      "doctor-today-right-kpi-today",
-      "doctor-today-right-kpi-week",
-      "doctor-today-right-kpi-month",
+      'doctor-today-right-kpi-today',
+      'doctor-today-right-kpi-week',
+      'doctor-today-right-kpi-month',
     ]) {
-      expect(document.getElementById(id)).toHaveClass("flex", "h-[5.5rem]", "flex-col");
+      expect(document.getElementById(id)).toHaveClass('flex', 'h-[5.5rem]', 'flex-col');
     }
-    expect(screen.getByRole("button", { name: /Записи неделя: всего 3/i })).toHaveTextContent("Всего");
-    expect(screen.getByRole("button", { name: /Записи неделя: будущие 1/i })).toHaveTextContent("Будущие");
-    expect(screen.getByRole("button", { name: new RegExp(`Записи ${monthName}: будущие 2`, "i") })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Записи неделя: всего 3/i })).toHaveTextContent(
+      'Всего',
+    );
+    expect(screen.getByRole('button', { name: /Записи неделя: будущие 1/i })).toHaveTextContent(
+      'Будущие',
+    );
+    expect(
+      screen.getByRole('button', { name: new RegExp(`Записи ${monthName}: будущие 2`, 'i') }),
+    ).toBeInTheDocument();
   });
 
-  it("preserves total and future preview modal contents", async () => {
+  it('preserves total and future preview modal contents', async () => {
     const user = userEvent.setup();
     renderDeferredRow();
 
-    await user.click(screen.getByRole("button", { name: /Записи неделя: всего 3/i }));
-    expect(screen.getByRole("dialog", { name: /Все записи на неделе/i })).toBeInTheDocument();
-    expect(screen.getByText("Будущая неделя")).toBeInTheDocument();
-    expect(screen.getByText("Прошлая неделя")).toBeInTheDocument();
-    expect(screen.getByText("Отмена неделя")).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /Записи неделя: всего 3/i }));
+    expect(screen.getByRole('dialog', { name: /Все записи на неделе/i })).toBeInTheDocument();
+    expect(screen.getByText('Будущая неделя')).toBeInTheDocument();
+    expect(screen.getByText('Прошлая неделя')).toBeInTheDocument();
+    expect(screen.getByText('Отмена неделя')).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: /Close/i }));
-    await user.click(screen.getByRole("button", { name: /Записи неделя: будущие 1/i }));
-    expect(screen.getByRole("dialog", { name: /Будущие записи на неделе/i })).toBeInTheDocument();
-    expect(screen.getByText("Будущая неделя")).toBeInTheDocument();
-    expect(screen.queryByText("Прошлая неделя")).not.toBeInTheDocument();
-    expect(screen.queryByText("Отмена неделя")).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /Close/i }));
+    await user.click(screen.getByRole('button', { name: /Записи неделя: будущие 1/i }));
+    expect(screen.getByRole('dialog', { name: /Будущие записи на неделе/i })).toBeInTheDocument();
+    expect(screen.getByText('Будущая неделя')).toBeInTheDocument();
+    expect(screen.queryByText('Прошлая неделя')).not.toBeInTheDocument();
+    expect(screen.queryByText('Отмена неделя')).not.toBeInTheDocument();
   });
 
-  it("keeps zero-value controls non-interactive", () => {
+  it('keeps zero-value controls non-interactive', () => {
     render(
       <DoctorTodayRightKpiRow
         appointmentsTodayCount={0}
@@ -802,8 +851,8 @@ describe("DoctorTodayRightKpiRow deferred mechanism", () => {
       />,
     );
 
-    expect(screen.queryByRole("button", { name: /Записи сегодня/i })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Записи неделя: всего 0/i })).toBeDisabled();
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Записи сегодня/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Записи неделя: всего 0/i })).toBeDisabled();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 });

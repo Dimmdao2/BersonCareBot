@@ -1,19 +1,28 @@
-import { DateTime } from "luxon";
-import { resolveCalendarDayIanaForPatient } from "@/modules/system-settings/calendarIana";
-import type { ReferencesPort } from "@/modules/references/ports";
-import type { SymptomEntry } from "@/modules/diaries/types";
-import { buildWarmupWeekImpactSummary, type WarmupWeekImpactSummary } from "./buildWarmupWeekImpactSummary";
-import { buildWellbeingWeekChartData, type WellbeingWeekChartModel } from "./buildWellbeingWeekChartData";
-import { formatPatientDiaryWeekRangeRu } from "./patientDiaryWeekRangeRu";
-import { clampDiaryWeekStartNotAfterCurrent, mondayFromPatientDiaryWeekQuery } from "./parsePatientDiaryWeekQuery";
-import { routePaths } from "@/app-layer/routes/paths";
+import { DateTime } from 'luxon';
+import { resolveCalendarDayIanaForPatient } from '@/modules/system-settings/calendarIana';
+import type { ReferencesPort } from '@/modules/references/ports';
+import type { SymptomEntry } from '@/modules/diaries/types';
+import {
+  buildWarmupWeekImpactSummary,
+  type WarmupWeekImpactSummary,
+} from './buildWarmupWeekImpactSummary';
+import {
+  buildWellbeingWeekChartData,
+  type WellbeingWeekChartModel,
+} from './buildWellbeingWeekChartData';
+import { formatPatientDiaryWeekRangeRu } from './patientDiaryWeekRangeRu';
+import {
+  clampDiaryWeekStartNotAfterCurrent,
+  mondayFromPatientDiaryWeekQuery,
+} from './parsePatientDiaryWeekQuery';
+import { routePaths } from '@/app-layer/routes/paths';
 
 /** Совпадает с {@link GENERAL_WELLBEING_SYMPTOM_KEY} в patient-mood (без импорта — избегаем цикла diaries ↔ patient-mood). */
-const GENERAL_WELLBEING_SYMPTOM_KEY = "general_wellbeing";
-const GENERAL_WELLBEING_TITLE = "Общее самочувствие";
+const GENERAL_WELLBEING_SYMPTOM_KEY = 'general_wellbeing';
+const GENERAL_WELLBEING_TITLE = 'Общее самочувствие';
 
-const WARMUP_FEELING_CODE = "warmup_feeling";
-const WARMUP_FEELING_TITLE_FALLBACK = "Самочувствие после разминки";
+const WARMUP_FEELING_CODE = 'warmup_feeling';
+const WARMUP_FEELING_TITLE_FALLBACK = 'Самочувствие после разминки';
 
 export type PatientDiaryWeekWellbeingDeps = {
   diaries: {
@@ -38,7 +47,9 @@ export type PatientDiaryWeekWellbeingDeps = {
       trackingId: string;
     }) => Promise<string | null>;
   };
-  patientDiarySnapshots: { minLocalDateForUser: (platformUserId: string) => Promise<string | null> };
+  patientDiarySnapshots: {
+    minLocalDateForUser: (platformUserId: string) => Promise<string | null>;
+  };
   references: ReferencesPort;
   patientCalendarTimezone: { getIanaForUser: (platformUserId: string) => Promise<string | null> };
   getAppDisplayTimeZone: () => Promise<string>;
@@ -62,20 +73,23 @@ export type PatientDiaryWeekWellbeingLoadResult = {
 
 function weekStartMsFromRecordedAtUtc(iso: string | null, iana: string): number | null {
   if (!iso) return null;
-  const t = DateTime.fromISO(iso, { zone: "utc" }).setZone(iana);
+  const t = DateTime.fromISO(iso, { zone: 'utc' }).setZone(iana);
   if (!t.isValid) return null;
-  return t.startOf("week").toMillis();
+  return t.startOf('week').toMillis();
 }
 
 function weekStartMsFromLocalYmd(ymd: string | null, iana: string): number | null {
   if (!ymd) return null;
   const t = DateTime.fromISO(ymd, { zone: iana });
   if (!t.isValid) return null;
-  return t.startOf("week").toMillis();
+  return t.startOf('week').toMillis();
 }
 
-async function symptomTypeRefId(references: ReferencesPort, code: string): Promise<{ id: string; title: string }> {
-  const items = await references.listActiveItemsByCategoryCode("symptom_type");
+async function symptomTypeRefId(
+  references: ReferencesPort,
+  code: string,
+): Promise<{ id: string; title: string }> {
+  const items = await references.listActiveItemsByCategoryCode('symptom_type');
   const item = items.find((i) => i.code === code);
   if (!item) throw new Error(`symptom_type_reference_missing:${code}`);
   return { id: item.id, title: item.title ?? code };
@@ -112,13 +126,10 @@ export async function loadPatientDiaryWeekWellbeing(
   ]);
 
   const nowZ = DateTime.now().setZone(iana);
-  const currentWeekStart = nowZ.startOf("week");
+  const currentWeekStart = nowZ.startOf('week');
 
   const parsedMonday = mondayFromPatientDiaryWeekQuery(params.week, iana);
-  const weekStart = clampDiaryWeekStartNotAfterCurrent(
-    parsedMonday ?? currentWeekStart,
-    nowZ,
-  );
+  const weekStart = clampDiaryWeekStartNotAfterCurrent(parsedMonday ?? currentWeekStart, nowZ);
   const weekEnd = weekStart.plus({ weeks: 1 });
   const fromRecordedAt = weekStart.toUTC().toISO()!;
   const toRecordedAtExclusive = weekEnd.toUTC().toISO()!;
@@ -136,8 +147,14 @@ export async function loadPatientDiaryWeekWellbeing(
       fromRecordedAt,
       toRecordedAtExclusive,
     }),
-    deps.diaries.minRecordedAtForSymptomTracking({ userId: params.userId, trackingId: gwTracking.id }),
-    deps.diaries.minRecordedAtForSymptomTracking({ userId: params.userId, trackingId: wuTracking.id }),
+    deps.diaries.minRecordedAtForSymptomTracking({
+      userId: params.userId,
+      trackingId: gwTracking.id,
+    }),
+    deps.diaries.minRecordedAtForSymptomTracking({
+      userId: params.userId,
+      trackingId: wuTracking.id,
+    }),
     deps.patientDiarySnapshots.minLocalDateForUser(params.userId),
   ]);
 
@@ -146,7 +163,11 @@ export async function loadPatientDiaryWeekWellbeing(
     weekEndMs: weekEnd.toMillis(),
   });
   const hasAnyInstant = chart.instantSeries.length > 0;
-  const warmupImpactSummary = buildWarmupWeekImpactSummary(chart.instantSeries, chart.warmupScatter, iana);
+  const warmupImpactSummary = buildWarmupWeekImpactSummary(
+    chart.instantSeries,
+    chart.warmupScatter,
+    iana,
+  );
 
   const currentWeekStartMs = currentWeekStart.toMillis();
   const selectedWeekStartMs = weekStart.toMillis();
@@ -158,7 +179,9 @@ export async function loadPatientDiaryWeekWellbeing(
   ].filter((x): x is number => x != null && Number.isFinite(x));
 
   const earliestWeekStartMs =
-    boundCandidates.length > 0 ? Math.min(...boundCandidates, currentWeekStartMs) : currentWeekStartMs;
+    boundCandidates.length > 0
+      ? Math.min(...boundCandidates, currentWeekStartMs)
+      : currentWeekStartMs;
 
   const canGoPrev = selectedWeekStartMs > earliestWeekStartMs;
   const canGoNext = selectedWeekStartMs < currentWeekStartMs;
@@ -166,15 +189,16 @@ export async function loadPatientDiaryWeekWellbeing(
   const prevMonday = weekStart.minus({ weeks: 1 });
   const nextMonday = weekStart.plus({ weeks: 1 });
 
-  const prevHref =
-    canGoPrev ? `${routePaths.diary}?week=${encodeURIComponent(prevMonday.toISODate()!)}` : null;
+  const prevHref = canGoPrev
+    ? `${routePaths.diary}?week=${encodeURIComponent(prevMonday.toISODate()!)}`
+    : null;
 
   let nextHref: string | null = null;
   if (canGoNext) {
     nextHref =
-      nextMonday.toMillis() === currentWeekStartMs ?
-        routePaths.diary
-      : `${routePaths.diary}?week=${encodeURIComponent(nextMonday.toISODate()!)}`;
+      nextMonday.toMillis() === currentWeekStartMs
+        ? routePaths.diary
+        : `${routePaths.diary}?week=${encodeURIComponent(nextMonday.toISODate()!)}`;
   }
 
   const weekNav: PatientDiaryWeekNavModel = {

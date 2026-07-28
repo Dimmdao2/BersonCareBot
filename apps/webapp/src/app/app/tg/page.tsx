@@ -1,4 +1,4 @@
-import { AppEntryRsc, type AppEntrySearchParams } from "../AppEntryRsc";
+import { AppEntryRsc, type AppEntrySearchParams } from '../AppEntryRsc';
 
 export default async function TelegramAppEntryPage({
   searchParams,

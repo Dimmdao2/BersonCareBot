@@ -1,6 +1,6 @@
 # Acceptance ST-02 — rich TEST fixture pack
 
-> RE-VERIFIED 2026-07-23 (all [x] audited vs code): see docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/PRODUCTION_READINESS_LEDGER_2026-07-23.md
+> RE-VERIFIED 2026-07-23 (all [x] audited vs code): see docs/\_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/PRODUCTION_READINESS_LEDGER_2026-07-23.md
 
 ## Данные и инварианты
 
@@ -10,7 +10,6 @@
 > **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
-
 
 - [x] Code/static — manifest version и reserved IDs детерминированы; double-run contract pins counts/ledger effects.
 - [x] Code/static — Clinic A staff=3, patients=5; Clinic B staff=1, patients=3; ownership/FKs согласованы.

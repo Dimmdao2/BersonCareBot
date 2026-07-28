@@ -13,6 +13,7 @@
 **Аудит закрытия:** [`DOCTOR_CLIENT_PROFILE_REPACK_EXECUTION_AUDIT.md`](DOCTOR_CLIENT_PROFILE_REPACK_EXECUTION_AUDIT.md) — чек-листы §5, синхронизация документов, остаточные хвосты.
 
 **Связанные документы:**
+
 - [RECOMMENDATIONS_AND_ROADMAP.md](../RECOMMENDATIONS_AND_ROADMAP.md) §II.3 (карточка пациента — продуктовая боль и **целевая** модель табов; целевая модель **в этом ТЗ не делается**).
 - [TARGET_STRUCTURE_DOCTOR.md](../TARGET_STRUCTURE_DOCTOR.md) §5 (целевая структура карточки — ориентир, не цель этого прохода).
 - [`DOCTOR_UI_DENSITY_PLAN.md`](DOCTOR_UI_DENSITY_PLAN.md) — общий стандарт плотности doctor UI; этот ТЗ ему не противоречит.

@@ -4,11 +4,11 @@
 
 ## Команды
 
-| Метрика | Команда |
-|---------|---------|
-| Integrator tests | `pnpm test` (из root) → `pnpm --dir apps/integrator test` → `vitest --run` |
-| Webapp tests | `pnpm test:webapp` → `pnpm --dir apps/webapp test` → `ensure-booking-sync-built.sh` + `vitest --run` |
-| Полный gate (после изменений) | `pnpm install --frozen-lockfile && pnpm run ci` |
+| Метрика                       | Команда                                                                                              |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Integrator tests              | `pnpm test` (из root) → `pnpm --dir apps/integrator test` → `vitest --run`                           |
+| Webapp tests                  | `pnpm test:webapp` → `pnpm --dir apps/webapp test` → `ensure-booking-sync-built.sh` + `vitest --run` |
+| Полный gate (после изменений) | `pnpm install --frozen-lockfile && pnpm run ci`                                                      |
 
 ## Результаты замеров (single run, **шумно**)
 

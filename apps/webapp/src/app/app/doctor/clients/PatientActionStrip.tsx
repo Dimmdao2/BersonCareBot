@@ -1,17 +1,17 @@
-"use client";
+'use client';
 
-import { Badge } from "@/shared/ui/doctor/primitives/badge";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import type { DoctorClientProgramCardAggregates } from "@/modules/doctor-client-card/types";
-import type { DoctorClientTabId } from "@/modules/doctor-client-card/types";
+import { Badge } from '@/shared/ui/doctor/primitives/badge';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import type { DoctorClientProgramCardAggregates } from '@/modules/doctor-client-card/types';
+import type { DoctorClientTabId } from '@/modules/doctor-client-card/types';
 import {
   doctorClientActionChipClass,
   doctorClientActionStripChipsClass,
   doctorClientActionStripClass,
   doctorClientTabBadgeClass,
-} from "./doctorClientCardChrome";
+} from './doctorClientCardChrome';
 
-type ChipVariant = "default" | "destructive" | "outline" | "secondary";
+type ChipVariant = 'default' | 'destructive' | 'outline' | 'secondary';
 
 type PatientActionStripProps = {
   pendingTestsCount: number;
@@ -34,64 +34,64 @@ export function PatientActionStrip({
 
   if (pendingTestsCount > 0) {
     chips.push({
-      key: "tests",
+      key: 'tests',
       label: `К проверке · ${pendingTestsCount}`,
-      variant: "default",
+      variant: 'default',
       onClick: () => {
-        onNavigateTab("program");
-        onNavigateAnchor("doctor-client-section-pending-program-tests");
+        onNavigateTab('program');
+        onNavigateAnchor('doctor-client-section-pending-program-tests');
       },
     });
   }
   if (aggregates.newCommentsCount > 0) {
     chips.push({
-      key: "comments",
+      key: 'comments',
       label: `Новые комментарии · ${aggregates.newCommentsCount}`,
-      variant: "default",
+      variant: 'default',
       onClick: () => {
-        onNavigateTab("program");
-        onNavigateAnchor("doctor-client-section-program-inbox");
+        onNavigateTab('program');
+        onNavigateAnchor('doctor-client-section-program-inbox');
       },
     });
   }
   if (aggregates.patientMediaCount > 0) {
     chips.push({
-      key: "media",
+      key: 'media',
       label: `Медиа от пациента · ${aggregates.patientMediaCount}`,
-      variant: "default",
+      variant: 'default',
       onClick: () => {
-        onNavigateTab("program");
-        onNavigateAnchor("doctor-client-section-program-inbox");
+        onNavigateTab('program');
+        onNavigateAnchor('doctor-client-section-program-inbox');
       },
     });
   }
   if (chatUnreadCount > 0) {
     chips.push({
-      key: "chat",
+      key: 'chat',
       label: `Сообщение в чате · ${chatUnreadCount}`,
-      variant: "destructive",
+      variant: 'destructive',
       onClick: () => {
-        onNavigateTab("communications");
-        onNavigateAnchor("doctor-client-section-communications");
+        onNavigateTab('communications');
+        onNavigateAnchor('doctor-client-section-communications');
       },
     });
   }
   if (aggregates.planNotOpened) {
     chips.push({
-      key: "plan",
-      label: "План не открыт",
-      variant: "outline",
-      onClick: () => onNavigateTab("overview"),
+      key: 'plan',
+      label: 'План не открыт',
+      variant: 'outline',
+      onClick: () => onNavigateTab('overview'),
     });
   }
   if (openTasksCount > 0) {
     chips.push({
-      key: "tasks",
+      key: 'tasks',
       label: `Задачи · ${openTasksCount}`,
-      variant: "secondary",
+      variant: 'secondary',
       onClick: () => {
-        onNavigateTab("overview");
-        onNavigateAnchor("doctor-client-section-tasks");
+        onNavigateTab('overview');
+        onNavigateAnchor('doctor-client-section-tasks');
       },
     });
   }

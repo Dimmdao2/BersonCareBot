@@ -1,19 +1,19 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { NextResponse } from "next/server";
-import type { ReminderRule } from "@/modules/reminders/types";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { NextResponse } from 'next/server';
+import type { ReminderRule } from '@/modules/reminders/types';
 
 const mockRequirePatientApiBusinessAccess = vi.hoisted(() => vi.fn());
-vi.mock("@/app-layer/guards/requireRole", () => ({
+vi.mock('@/app-layer/guards/requireRole', () => ({
   requirePatientApiBusinessAccess: mockRequirePatientApiBusinessAccess,
 }));
 
-vi.mock("next/cache", () => ({
+vi.mock('next/cache', () => ({
   revalidatePath: vi.fn(),
 }));
 
 const mockUpdateRule = vi.hoisted(() => vi.fn());
 const mockDeleteReminder = vi.hoisted(() => vi.fn());
-vi.mock("@/app-layer/di/buildAppDeps", () => ({
+vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: () => ({
     reminders: {
       updateRule: mockUpdateRule,
@@ -22,127 +22,138 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
   }),
 }));
 
-import { DELETE, PATCH } from "./route";
+import { DELETE, PATCH } from './route';
 
-const SESSION = { user: { userId: "platform-user-1", role: "client" as const, phone: "+79990001122" } };
+const SESSION = {
+  user: { userId: 'platform-user-1', role: 'client' as const, phone: '+79990001122' },
+};
 
 const sampleRule = (): ReminderRule => ({
-  id: "wp-1",
-  integratorUserId: "platform-user-1",
-  category: "lfk",
+  id: 'wp-1',
+  integratorUserId: 'platform-user-1',
+  category: 'lfk',
   enabled: true,
-  timezone: "Europe/Moscow",
+  timezone: 'Europe/Moscow',
   intervalMinutes: 60,
   windowStartMinute: 480,
   windowEndMinute: 1200,
-  daysMask: "1111111",
+  daysMask: '1111111',
   fallbackEnabled: true,
   linkedObjectType: null,
   linkedObjectId: null,
   customTitle: null,
   customText: null,
-  scheduleType: "interval_window",
+  scheduleType: 'interval_window',
   scheduleData: null,
-  reminderIntent: "generic",
+  reminderIntent: 'generic',
   displayTitle: null,
   displayDescription: null,
   quietHoursStartMinute: null,
   quietHoursEndMinute: null,
-  notificationTopicCode: "exercise_reminders",
-  updatedAt: "2026-04-02T12:00:00.000Z",
+  notificationTopicCode: 'exercise_reminders',
+  updatedAt: '2026-04-02T12:00:00.000Z',
 });
 
 async function params(id: string) {
   return { params: Promise.resolve({ id }) };
 }
 
-describe("PATCH /api/patient/reminders/[id]", () => {
+describe('PATCH /api/patient/reminders/[id]', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockRequirePatientApiBusinessAccess.mockResolvedValue({ ok: true, session: SESSION });
     mockUpdateRule.mockResolvedValue({ ok: true, data: sampleRule() });
   });
 
-  it("returns 401 when not authenticated", async () => {
+  it('returns 401 when not authenticated', async () => {
     mockRequirePatientApiBusinessAccess.mockResolvedValue({
       ok: false,
-      response: NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }),
+      response: NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 }),
     });
     const res = await PATCH(
-      new Request("http://localhost/api/patient/reminders/wp-1", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+      new Request('http://localhost/api/patient/reminders/wp-1', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ enabled: false }),
       }),
-      await params("wp-1"),
+      await params('wp-1'),
     );
     expect(res.status).toBe(401);
   });
 
-  it("returns 400 for empty patch body", async () => {
+  it('returns 400 for empty patch body', async () => {
     const res = await PATCH(
-      new Request("http://localhost/api/patient/reminders/wp-1", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+      new Request('http://localhost/api/patient/reminders/wp-1', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
       }),
-      await params("wp-1"),
+      await params('wp-1'),
     );
     expect(res.status).toBe(400);
   });
 
-  it("returns 404 when rule belongs to another user", async () => {
-    mockUpdateRule.mockResolvedValue({ ok: false, error: "not_found" });
+  it('returns 404 when rule belongs to another user', async () => {
+    mockUpdateRule.mockResolvedValue({ ok: false, error: 'not_found' });
     const res = await PATCH(
-      new Request("http://localhost/api/patient/reminders/wp-x", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+      new Request('http://localhost/api/patient/reminders/wp-x', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ enabled: false }),
       }),
-      await params("wp-x"),
+      await params('wp-x'),
     );
     expect(res.status).toBe(404);
   });
 
-  it("updates rule when owned", async () => {
+  it('updates rule when owned', async () => {
     const res = await PATCH(
-      new Request("http://localhost/api/patient/reminders/wp-1", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+      new Request('http://localhost/api/patient/reminders/wp-1', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ enabled: false }),
       }),
-      await params("wp-1"),
+      await params('wp-1'),
     );
     expect(res.status).toBe(200);
-    expect(mockUpdateRule).toHaveBeenCalledWith("platform-user-1", "wp-1", { enabled: false });
+    expect(mockUpdateRule).toHaveBeenCalledWith('platform-user-1', 'wp-1', { enabled: false });
   });
 });
 
-describe("DELETE /api/patient/reminders/[id]", () => {
+describe('DELETE /api/patient/reminders/[id]', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockRequirePatientApiBusinessAccess.mockResolvedValue({ ok: true, session: SESSION });
-    mockDeleteReminder.mockResolvedValue({ ok: true, data: { deletedId: "wp-1" } });
+    mockDeleteReminder.mockResolvedValue({ ok: true, data: { deletedId: 'wp-1' } });
   });
 
-  it("returns 401 when not authenticated", async () => {
+  it('returns 401 when not authenticated', async () => {
     mockRequirePatientApiBusinessAccess.mockResolvedValue({
       ok: false,
-      response: NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }),
+      response: NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 }),
     });
-    const res = await DELETE(new Request("http://localhost/api/patient/reminders/wp-1"), await params("wp-1"));
+    const res = await DELETE(
+      new Request('http://localhost/api/patient/reminders/wp-1'),
+      await params('wp-1'),
+    );
     expect(res.status).toBe(401);
   });
 
-  it("returns 404 for ownership / missing rule", async () => {
-    mockDeleteReminder.mockResolvedValue({ ok: false, error: "not_found" });
-    const res = await DELETE(new Request("http://localhost/api/patient/reminders/wp-other"), await params("wp-other"));
+  it('returns 404 for ownership / missing rule', async () => {
+    mockDeleteReminder.mockResolvedValue({ ok: false, error: 'not_found' });
+    const res = await DELETE(
+      new Request('http://localhost/api/patient/reminders/wp-other'),
+      await params('wp-other'),
+    );
     expect(res.status).toBe(404);
   });
 
-  it("deletes owned rule", async () => {
-    const res = await DELETE(new Request("http://localhost/api/patient/reminders/wp-1"), await params("wp-1"));
+  it('deletes owned rule', async () => {
+    const res = await DELETE(
+      new Request('http://localhost/api/patient/reminders/wp-1'),
+      await params('wp-1'),
+    );
     expect(res.status).toBe(200);
-    expect(mockDeleteReminder).toHaveBeenCalledWith("platform-user-1", "wp-1");
+    expect(mockDeleteReminder).toHaveBeenCalledWith('platform-user-1', 'wp-1');
   });
 });

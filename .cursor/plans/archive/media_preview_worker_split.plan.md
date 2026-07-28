@@ -4,7 +4,7 @@ overview: Сначала убрать top-level импорт тяжёлого в
 status: completed
 todos:
   - id: phase-a-lazy-import
-    content: "Route media-preview/process: убрать top-level import, `await import` внутри POST + проверки vitest + build:webapp"
+    content: 'Route media-preview/process: убрать top-level import, `await import` внутри POST + проверки vitest + build:webapp'
     status: completed
   - id: phase-b-tick-script
     content: Добавить apps/webapp/scripts/media-preview-process-tick.ts + script в package.json; smoke команды
@@ -74,7 +74,7 @@ flowchart LR
 3. **Совместимость:** HTTP route из Phase A **оставить** (curl/systemd health, откат на хосте без смены только бинарника webapp). Опционально в комментарии route указать, что для prod cron предпочтителен tick-скрипт.
 
 4. **Документация и операционка** (обязательная синхронизация):
-   - [`deploy/HOST_DEPLOY_README.md`](deploy/HOST_DEPLOY_README.md): пример cron заменить/дополнить вызовом `pnpm --dir <deploy_webapp_dir> run media-preview:tick` (или `pnpm exec tsx ...`) после `source webapp.prod` — тот же набор env (`DATABASE_URL`, S3-*, `FFMPEG_PATH`, при необходимости `MAGICK_PATH`), **без** `INTERNAL_JOB_SECRET` для скрипта, если скрипт не делает HTTP (секрет остаётся только для маршрутов, которые реально его проверяют).
+   - [`deploy/HOST_DEPLOY_README.md`](deploy/HOST_DEPLOY_README.md): пример cron заменить/дополнить вызовом `pnpm --dir <deploy_webapp_dir> run media-preview:tick` (или `pnpm exec tsx ...`) после `source webapp.prod` — тот же набор env (`DATABASE_URL`, S3-\*, `FFMPEG_PATH`, при необходимости `MAGICK_PATH`), **без** `INTERNAL_JOB_SECRET` для скрипта, если скрипт не делает HTTP (секрет остаётся только для маршрутов, которые реально его проверяют).
    - [`docs/MEDIA_PREVIEW_PIPELINE.md`](docs/MEDIA_PREVIEW_PIPELINE.md): раздел «HTTP» дополнить подсекцией «Host tick (рекомендуется)».
    - [`apps/webapp/src/app/api/api.md`](apps/webapp/src/app/api/api.md): кратко отметить, что internal POST остаётся, но для prod предпочтителен tick-скрипт.
    - [`docs/ARCHITECTURE/SERVER_CONVENTIONS.md`](docs/ARCHITECTURE/SERVER_CONVENTIONS.md): уточнить `INTERNAL_JOB_SECRET` и блок S3 / внутренние джобы (tick vs HTTP).

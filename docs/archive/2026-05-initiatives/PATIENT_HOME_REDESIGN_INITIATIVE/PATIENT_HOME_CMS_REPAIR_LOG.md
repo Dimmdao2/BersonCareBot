@@ -9,16 +9,16 @@
 
 ## Изменённые области (кратко)
 
-| Область | Файлы |
-|--------|--------|
-| Канон warmups | `apps/webapp/src/modules/patient-home/warmupsSection.ts`, `app-layer/routes/paths.ts`, `patient/sections/[slug]/page.tsx`, `SectionWarmupsReminderBar.tsx`, `patient/reminders/page.tsx` |
-| Порт patient_home | `modules/patient-home/ports.ts` — `PatientHomeBlockItemPatch` + `getItemById` |
-| Инфра | `infra/repos/pgPatientHomeBlocks.ts`, `inMemoryPatientHomeBlocks.ts` |
-| Сервис | `modules/patient-home/service.ts` — валидация retarget + `getBySlug` / `getCourseForDoctor` |
-| Actions | `settings/patient-home/actions.ts` — `retargetPatientHomeItem` |
-| UI | `PatientHomeBlockSettingsCard.tsx`, `PatientHomeBlockPreview.tsx`, `PatientHomeRepairTargetsDialog.tsx` |
-| Утилита | `modules/patient-home/patientHomeUnresolvedRefs.ts` |
-| CMS разделы | `sections/SectionForm.tsx`, `sections/new/page.tsx` |
+| Область           | Файлы                                                                                                                                                                                    |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Канон warmups     | `apps/webapp/src/modules/patient-home/warmupsSection.ts`, `app-layer/routes/paths.ts`, `patient/sections/[slug]/page.tsx`, `SectionWarmupsReminderBar.tsx`, `patient/reminders/page.tsx` |
+| Порт patient_home | `modules/patient-home/ports.ts` — `PatientHomeBlockItemPatch` + `getItemById`                                                                                                            |
+| Инфра             | `infra/repos/pgPatientHomeBlocks.ts`, `inMemoryPatientHomeBlocks.ts`                                                                                                                     |
+| Сервис            | `modules/patient-home/service.ts` — валидация retarget + `getBySlug` / `getCourseForDoctor`                                                                                              |
+| Actions           | `settings/patient-home/actions.ts` — `retargetPatientHomeItem`                                                                                                                           |
+| UI                | `PatientHomeBlockSettingsCard.tsx`, `PatientHomeBlockPreview.tsx`, `PatientHomeRepairTargetsDialog.tsx`                                                                                  |
+| Утилита           | `modules/patient-home/patientHomeUnresolvedRefs.ts`                                                                                                                                      |
+| CMS разделы       | `sections/SectionForm.tsx`, `sections/new/page.tsx`                                                                                                                                      |
 
 ## Проверки (локально, без полного `pnpm run ci`)
 
@@ -62,13 +62,13 @@ cd apps/webapp && pnpm exec tsc --noEmit
 
 Сверка с замечаниями из аудита плана:
 
-| Изменение | Файлы |
-|-----------|--------|
-| `addItem` в сервисе: та же проверка существования CMS-цели, что и при retarget (`content_page` / `content_section` / опубликованный `course`); для `course` — формат UUID до вызова `getCourseForDoctor` (`invalid_course_id`) | `modules/patient-home/service.ts` |
-| `retargetPatientHomeItem`: `itemId` должен быть UUID (`invalid_item_id`) | `settings/patient-home/actions.ts`, `actions.test.ts` |
-| `updateItem` в портах: при несуществующем `id` — `throw new Error("unknown_item")` (PG через `.returning()` + длина; in-memory — явная проверка) | `infra/repos/pgPatientHomeBlocks.ts`, `inMemoryPatientHomeBlocks.ts` |
-| Модалка починки: загрузка кандидатов без `useTransition` (отдельный `candidatesLoading`); после успешного «Применить» диалог **не закрывается**, если неразрешённых строк было больше одной | `PatientHomeRepairTargetsDialog.tsx` |
-| Тесты: `addItem` / retarget course UUID; retarget через `port.addItem` для сида «битой» секции | `service.test.ts` |
+| Изменение                                                                                                                                                                                                                      | Файлы                                                                |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------- |
+| `addItem` в сервисе: та же проверка существования CMS-цели, что и при retarget (`content_page` / `content_section` / опубликованный `course`); для `course` — формат UUID до вызова `getCourseForDoctor` (`invalid_course_id`) | `modules/patient-home/service.ts`                                    |
+| `retargetPatientHomeItem`: `itemId` должен быть UUID (`invalid_item_id`)                                                                                                                                                       | `settings/patient-home/actions.ts`, `actions.test.ts`                |
+| `updateItem` в портах: при несуществующем `id` — `throw new Error("unknown_item")` (PG через `.returning()` + длина; in-memory — явная проверка)                                                                               | `infra/repos/pgPatientHomeBlocks.ts`, `inMemoryPatientHomeBlocks.ts` |
+| Модалка починки: загрузка кандидатов без `useTransition` (отдельный `candidatesLoading`); после успешного «Применить» диалог **не закрывается**, если неразрешённых строк было больше одной                                    | `PatientHomeRepairTargetsDialog.tsx`                                 |
+| Тесты: `addItem` / retarget course UUID; retarget через `port.addItem` для сида «битой» секции                                                                                                                                 | `service.test.ts`                                                    |
 
 Повторная точечная проверка:
 

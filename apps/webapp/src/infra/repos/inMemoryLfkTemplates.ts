@@ -1,4 +1,4 @@
-import type { LfkTemplatesPort } from "@/modules/lfk-templates/ports";
+import type { LfkTemplatesPort } from '@/modules/lfk-templates/ports';
 import type {
   CreateTemplateInput,
   LfkTemplateUsageSnapshot,
@@ -9,13 +9,16 @@ import type {
   TemplateFilter,
   TemplateStatus,
   UpdateTemplateInput,
-} from "@/modules/lfk-templates/types";
-import { EMPTY_LFK_TEMPLATE_USAGE_SNAPSHOT } from "@/modules/lfk-templates/types";
+} from '@/modules/lfk-templates/types';
+import { EMPTY_LFK_TEMPLATE_USAGE_SNAPSHOT } from '@/modules/lfk-templates/types';
 
 const templates = new Map<string, Template>();
 const usageByTemplateId = new Map<string, LfkTemplateUsageSnapshot>();
 
-export function seedInMemoryLfkTemplateUsageSnapshot(id: string, snapshot: LfkTemplateUsageSnapshot): void {
+export function seedInMemoryLfkTemplateUsageSnapshot(
+  id: string,
+  snapshot: LfkTemplateUsageSnapshot,
+): void {
   usageByTemplateId.set(id, snapshot);
 }
 
@@ -25,7 +28,7 @@ export function resetInMemoryLfkTemplatesStore(): void {
 }
 
 function matchesFilter(t: Template, f: TemplateFilter): boolean {
-  if (t.ownerKind === "platform" && f.includePlatformBase !== true) return false;
+  if (t.ownerKind === 'platform' && f.includePlatformBase !== true) return false;
   if (f.status && t.status !== f.status) return false;
   if (f.search?.trim()) {
     if (!t.title.toLowerCase().includes(f.search.trim().toLowerCase())) return false;
@@ -64,8 +67,10 @@ export const inMemoryLfkTemplatesPort: LfkTemplatesPort = {
 
   async getById(id: string, options: TemplateAccessOptions = {}): Promise<Template | null> {
     const t = templates.get(id);
-    if (t?.ownerKind === "platform" && options.includePlatformBase !== true) return null;
-    return t ? { ...t, exercises: [...t.exercises].sort((a, b) => a.sortOrder - b.sortOrder) } : null;
+    if (t?.ownerKind === 'platform' && options.includePlatformBase !== true) return null;
+    return t
+      ? { ...t, exercises: [...t.exercises].sort((a, b) => a.sortOrder - b.sortOrder) }
+      : null;
   },
 
   async create(input: CreateTemplateInput, createdBy: string | null): Promise<Template> {
@@ -73,10 +78,10 @@ export const inMemoryLfkTemplatesPort: LfkTemplatesPort = {
     const now = new Date().toISOString();
     const t: Template = {
       id,
-      ownerKind: "organization",
+      ownerKind: 'organization',
       title: input.title,
       description: input.description ?? null,
-      status: "draft",
+      status: 'draft',
       createdBy,
       createdAt: now,
       updatedAt: now,
@@ -88,7 +93,7 @@ export const inMemoryLfkTemplatesPort: LfkTemplatesPort = {
 
   async update(id: string, input: UpdateTemplateInput): Promise<Template | null> {
     const cur = templates.get(id);
-    if (!cur || cur.ownerKind !== "organization") return null;
+    if (!cur || cur.ownerKind !== 'organization') return null;
     const now = new Date().toISOString();
     const next: Template = {
       ...cur,
@@ -102,7 +107,7 @@ export const inMemoryLfkTemplatesPort: LfkTemplatesPort = {
 
   async updateExercises(templateId: string, exercises: TemplateExerciseInput[]): Promise<void> {
     const cur = templates.get(templateId);
-    if (!cur || cur.ownerKind !== "organization") return;
+    if (!cur || cur.ownerKind !== 'organization') return;
     const now = new Date().toISOString();
     const rows: TemplateExercise[] = exercises.map((e, idx) => ({
       id: crypto.randomUUID(),
@@ -120,7 +125,7 @@ export const inMemoryLfkTemplatesPort: LfkTemplatesPort = {
 
   async setStatus(id: string, status: TemplateStatus): Promise<Template | null> {
     const cur = templates.get(id);
-    if (!cur || cur.ownerKind !== "organization") return null;
+    if (!cur || cur.ownerKind !== 'organization') return null;
     const now = new Date().toISOString();
     templates.set(id, { ...cur, status, updatedAt: now });
     return this.getById(id);

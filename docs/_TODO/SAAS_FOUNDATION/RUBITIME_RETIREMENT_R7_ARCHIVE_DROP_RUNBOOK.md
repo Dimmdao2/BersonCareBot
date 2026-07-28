@@ -133,8 +133,8 @@ What it does, in this fixed order:
 
 1. **GATE.** Refuses without `--execute` (default = refuse). Refuses unless `current_database()` equals
    the operator-supplied `--expected-database` **exactly**. Always refuses a non-loopback /
-   non-local-socket DB host — the prod flag never relaxes that, so PROD is only ever reachable *from the
-   prod host itself*. Refuses a `prod`/`production`/`live`-named database unless BOTH
+   non-local-socket DB host — the prod flag never relaxes that, so PROD is only ever reachable _from the
+   prod host itself_. Refuses a `prod`/`production`/`live`-named database unless BOTH
    `--allow-authorized-prod-target` and a verbatim-matching `--authorized-prod-database` are given.
    Refuses an archive directory inside the repository.
 2. **ARCHIVE.** `pg_dump --data-only` per target table into
@@ -167,7 +167,7 @@ drop migration's table set ever diverge.
   `apps/integrator/src/integrations/rubitime/db/migrations/20260724_0002_drop_r7_raw_tables.sql`.
   **No drop migration exists — or may be authored — for `public.appointment_records`** while it still
   has runtime readers/writers (see the rule below and `RUBITIME_RETIREMENT_R7_TABLE_DISPOSITION.md`
-  "Track C — `public.appointment_records` disposition"). Its *archive* is scripted; its *drop* is not.
+  "Track C — `public.appointment_records` disposition"). Its _archive_ is scripted; its _drop_ is not.
 - Drop only owner-approved candidates.
 - Keep rollback backup/archive available through the approved horizon.
 - Do not drop `booking_calendar_map` unless GCal replacement is implemented and tested.

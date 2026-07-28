@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import { useRef, useState } from "react";
-import type { PatientOrganizationSummary } from "@/modules/patient-organization/service";
-import { routePaths } from "@/app-layer/routes/paths";
-import { Button } from "@/shared/ui/patient/primitives/button";
+import { useRef, useState } from 'react';
+import type { PatientOrganizationSummary } from '@/modules/patient-organization/service';
+import { routePaths } from '@/app-layer/routes/paths';
+import { Button } from '@/shared/ui/patient/primitives/button';
 
 type Navigate = (href: string) => void;
 
@@ -34,12 +34,12 @@ export function PatientOrganizationRelationships({
     pendingRef.current = true;
     setPending(organizationId);
     try {
-      const response = await fetch("/api/patient/organization-context", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const response = await fetch('/api/patient/organization-context', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ organizationId }),
       });
-      if (!response.ok) throw new Error("organization_switch_failed");
+      if (!response.ok) throw new Error('organization_switch_failed');
       navigate(routePaths.patient);
     } catch {
       navigate(`${routePaths.patientOrganizations}?unavailable=1`);
@@ -51,8 +51,8 @@ export function PatientOrganizationRelationships({
       {invalidRememberedOrganization || destinationUnavailable || reminderTargetMissing ? (
         <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
           {reminderTargetMissing
-            ? "Не удалось определить организацию из этой ссылки. Выберите её вручную."
-            : "Ранее выбранная организация больше недоступна. Выберите доступную."}
+            ? 'Не удалось определить организацию из этой ссылки. Выберите её вручную.'
+            : 'Ранее выбранная организация больше недоступна. Выберите доступную.'}
         </p>
       ) : null}
 
@@ -66,9 +66,11 @@ export function PatientOrganizationRelationships({
                 className="flex min-w-0 items-center justify-between gap-3 rounded-xl border border-[var(--patient-border)] bg-white px-4 py-3"
               >
                 <div className="min-w-0">
-                  <p className="truncate font-medium text-[var(--patient-text-primary)]">{organization.title}</p>
+                  <p className="truncate font-medium text-[var(--patient-text-primary)]">
+                    {organization.title}
+                  </p>
                   <p className="text-sm text-[var(--patient-text-secondary)]">
-                    {current ? "Открыта сейчас" : "Активная связь"}
+                    {current ? 'Открыта сейчас' : 'Активная связь'}
                   </p>
                 </div>
                 {current ? (
@@ -83,7 +85,7 @@ export function PatientOrganizationRelationships({
                     onClick={() => void select(organization.organizationId)}
                     className="shrink-0"
                   >
-                    {pending === organization.organizationId ? "Открываем…" : "Открыть"}
+                    {pending === organization.organizationId ? 'Открываем…' : 'Открыть'}
                   </Button>
                 )}
               </div>
@@ -100,8 +102,8 @@ export function PatientOrganizationRelationships({
       )}
 
       <p className="text-sm text-[var(--patient-text-secondary)]">
-        Недоступные и завершённые связи не открывают медицинские данные. Если нужной организации нет в списке,
-        обратитесь к ней напрямую.
+        Недоступные и завершённые связи не открывают медицинские данные. Если нужной организации нет
+        в списке, обратитесь к ней напрямую.
       </p>
     </div>
   );

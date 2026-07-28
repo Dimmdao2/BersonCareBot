@@ -63,7 +63,10 @@ function verifySignature(
   return left.length === right.length && timingSafeEqual(left, right);
 }
 
-export function createSignedRequestGuard(sharedSecret: string, routeLabel: string): SignedRequestGuard {
+export function createSignedRequestGuard(
+  sharedSecret: string,
+  routeLabel: string,
+): SignedRequestGuard {
   return (request) => {
     const req = request as ReqWithRawBody;
     const rawBody = req.rawBody ?? JSON.stringify(request.body ?? {});
@@ -104,7 +107,10 @@ function lifecycleDedupStorageKey(input: {
 }): string {
   const appointmentOrBookingId =
     asNonEmptyString(input.payload.canonicalAppointmentId) ?? input.payload.bookingId;
-  return `booking-lifecycle:${input.eventType}:${appointmentOrBookingId}:${input.eventId}`.slice(0, 240);
+  return `booking-lifecycle:${input.eventType}:${appointmentOrBookingId}:${input.eventId}`.slice(
+    0,
+    240,
+  );
 }
 
 async function acquireBookingLifecycleKey(
@@ -210,7 +216,12 @@ async function sendLinkedChannelMessage(input: {
     // D-b: пустая аудитория не бывает тихим успехом. Счётчик живёт в webapp и отсюда
     // недостижим, поэтому здесь оставлен структурированный след с тем же именем события.
     logger.warn(
-      { scope: 'notification_delivery', event: 'notification_audience_empty', topic: 'booking_linked_channel_message', severity: 'user_facing' },
+      {
+        scope: 'notification_delivery',
+        event: 'notification_audience_empty',
+        topic: 'booking_linked_channel_message',
+        severity: 'user_facing',
+      },
       'booking confirmation had no delivery target',
     );
     return;
@@ -313,7 +324,13 @@ async function scheduleBookingReminders(input: {
   const bindings = fetched?.channelBindings;
   if (!bindings) {
     logger.warn(
-      { scope: 'notification_delivery', event: 'notification_audience_empty', topic: 'booking_reminder_scheduling', severity: 'user_facing', reason: 'no_bindings' },
+      {
+        scope: 'notification_delivery',
+        event: 'notification_audience_empty',
+        topic: 'booking_reminder_scheduling',
+        severity: 'user_facing',
+        reason: 'no_bindings',
+      },
       'appointment reminders not scheduled: no delivery target',
     );
     return;
@@ -328,7 +345,13 @@ async function scheduleBookingReminders(input: {
   }
   if (targets.length === 0) {
     logger.warn(
-      { scope: 'notification_delivery', event: 'notification_audience_empty', topic: 'booking_reminder_scheduling', severity: 'user_facing', reason: 'no_messenger_binding' },
+      {
+        scope: 'notification_delivery',
+        event: 'notification_audience_empty',
+        topic: 'booking_reminder_scheduling',
+        severity: 'user_facing',
+        reason: 'no_messenger_binding',
+      },
       'appointment reminders not scheduled: resolvable phone but no messenger binding',
     );
     return;
@@ -401,7 +424,12 @@ async function sendBookingWebPush(input: {
   variant?: 'created' | 'cancelled' | 'rescheduled';
   nowIso?: string;
 }): Promise<void> {
-  if (!input.webappEventsPort?.notifyPatientWebPush || !input.phoneNormalized || !input.organizationId) return;
+  if (
+    !input.webappEventsPort?.notifyPatientWebPush ||
+    !input.phoneNormalized ||
+    !input.organizationId
+  )
+    return;
   const dbPort = createDbPort();
   const base = (await getAppBaseUrl(dbPort)).replace(/\/$/, '');
   const openUrl =

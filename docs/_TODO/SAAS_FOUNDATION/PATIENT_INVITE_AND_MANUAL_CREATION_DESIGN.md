@@ -20,7 +20,7 @@ to `feat/doctor-ui-rebuild` at commit `12cdef5d6`) → `docs/_TODO/SAAS_FOUNDATI
 **This document is not a from-scratch redesign.** The UX-04/06/09 package already covers #801/#806 at the
 journey/screen/stage-contract level (§0 below maps exactly which sections). What that package does **not**
 do, and explicitly defers: table names, columns, token shape, transaction boundaries, and route-level
-wiring against the *current* codebase — `IMPLEMENTATION_ROADMAP.md:199` states this directly ("Any gap
+wiring against the _current_ codebase — `IMPLEMENTATION_ROADMAP.md:199` states this directly ("Any gap
 that assumes a new persistence shape first gets a reviewed data/API contract. A future table or field name
 is not part of this roadmap") and U3B's own `Workstreams` row names exactly this as owed:
 "data — lifecycle/enrollment/booking transaction contracts" (`IMPLEMENTATION_ROADMAP.md:473`). This
@@ -78,21 +78,21 @@ Card texts (taskdb, verbatim from owner ruling 2026-07-16):
   exactly-once, no persona overwrite are architecture invariants, not open questions (§5.1, :144-152).
   This doc's §4/§8 are written to satisfy these, not to re-derive them.
 - **The audited package independently found the same code gap this doc's §1 documents from scratch.**
-  `IMPLEMENTATION_ROADMAP.md` §6.2 (:186) states, for "Manual patient + portal linking": *"Manual card +
+  `IMPLEMENTATION_ROADMAP.md` §6.2 (:186) states, for "Manual patient + portal linking": _"Manual card +
   scheduled/walk-in visit and identity-to-existing-card linking are incomplete; invite/proof remains
-  separate."* `SCREEN_INVENTORY_SPECIALIST.md` §8 (:134) adds: *"Clinic invite UI creates/copies invite
-  links, but this audit found no end-to-end email delivery/first-login/recovery surface."* §1 below reaches
+  separate."_ `SCREEN_INVENTORY_SPECIALIST.md` §8 (:134) adds: _"Clinic invite UI creates/copies invite
+  links, but this audit found no end-to-end email delivery/first-login/recovery surface."_ §1 below reaches
   the same conclusion independently, with file:line evidence, and should be read as confirming (not
   discovering) the audited gap.
 - **The "detailed matching/conflict policy" this doc supplies is itself named and deferred by the roadmap.**
   `IMPLEMENTATION_ROADMAP.md` §5's decision-gate table, row `UX08-11` (:133): "Implementation policy /
   non-blocking backlog: **Detailed matching/conflict policy**" — i.e. the roadmap already anticipates that
   duplicate/conflict handling (this doc's §3/§4.1) is a separate artifact, not a re-opened owner decision.
-- **Existing merge/name-match UI is explicitly *not* reusable as-is.** `ROUTE_MIGRATION_MAP.md:65` (row
-  S26, `doctor/booking-merge` + `doctor/clients/name-match-hints`): *"retire / reclassify before any
+- **Existing merge/name-match UI is explicitly _not_ reusable as-is.** `ROUTE_MIGRATION_MAP.md:65` (row
+  S26, `doctor/booking-merge` + `doctor/clients/name-match-hints`): _"retire / reclassify before any
   reuse... Existing global patient merge/name-match UI is not migrated. Any future correction must use a
   separately reviewed, authorized patient/specialist identity-resolution workflow; no merge mutation or
-  schema is specified here."* §3 below reuses the `patient_merge_candidates` **table** (data layer, already
+  schema is specified here."_ §3 below reuses the `patient_merge_candidates` **table** (data layer, already
   org-scoped) but explicitly does **not** propose reusing those two UI pages — a staff-facing review surface
   for the queue this doc creates is separately scoped (flagged in the checklist, §10).
 
@@ -100,8 +100,8 @@ Card texts (taskdb, verbatim from owner ruling 2026-07-16):
 
 - Exact `patient_invites`-equivalent schema, token crypto, TTL default, and SQL/RLS function shapes — by
   design (`IMPLEMENTATION_ROADMAP.md:199`, U0's own `Forbidden` line :265-266: "schema/SQL... assumptions
-  from table names alone" are out of scope *for U0*, and U3B's `Migration/compat` line :475-476 states "no
-  schema invention" at the *stage-outcome* level while its `Workstreams` line still owes a "data" contract
+  from table names alone" are out of scope _for U0_, and U3B's `Migration/compat` line :475-476 states "no
+  schema invention" at the _stage-outcome_ level while its `Workstreams` line still owes a "data" contract
   — the two are reconciled by treating schema definition as this reviewed pre-stage artifact, consumed by
   U3B, not as ad hoc invention during U3B itself).
 - Which existing route/service is the actual current caller of `POST /api/doctor/clients` (§1.2) — not
@@ -112,7 +112,7 @@ Card texts (taskdb, verbatim from owner ruling 2026-07-16):
   именами").
 - Reconciliation of the existing three token primitives found in code (§1.6/§5) — the UX package does not
   know about `user_email_setup_tokens`/`email_challenges`/`organization_member_invites` at the code level; it
-  states the *contract* they must jointly satisfy, not which of them to extend versus replace.
+  states the _contract_ they must jointly satisfy, not which of them to extend versus replace.
 - The messenger channel-binding precedence risk (§1.5/§9 item 7) is a code-level interaction the UX package
   does not model at this granularity, since `identityResolutionPort.ts` is below its abstraction level.
 
@@ -125,7 +125,7 @@ requires before U3B's data workstream can start; §6 is the explicit #805/#806 n
 onto both the **current** route tree (what exists today, pre-migration) and the **canonical** `CLIN-02/
 CLIN-03/ORG-PUB-03` target IDs (per `ROUTE_MIGRATION_MAP.md` row S03, :42, which already assigns the current
 `doctor/patients/**` files to those same canonical IDs); §8 checks this design against U3B's `Forbidden`/
-`Boundaries` lines explicitly; §9 lists contradictions found against *both* the current code and,
+`Boundaries` lines explicitly; §9 lists contradictions found against _both_ the current code and,
 separately, gaps the UX package itself flags as still-open; §10 is a checklist scoped to U3B's own
 `Completion` criteria (:483-485) plus the code-level items §1 found that the roadmap's abstraction level
 doesn't reach.
@@ -156,10 +156,10 @@ prerequisites are met.
   constraint) but does **not** require `platformUserId`.
 - `apps/webapp/src/infra/repos/pgBookingEngine.ts:716-773` (`createAppointment`) — inserts
   `beAppointments` with `platformUserId: input.platformUserId ?? null` and `phoneNormalized:
-  input.phoneNormalized ?? null` **verbatim, with no resolve-or-create of a `platform_users` row**. If
+input.phoneNormalized ?? null` **verbatim, with no resolve-or-create of a `platform_users` row**. If
   staff types a phone for a brand-new patient with no matching `platformUserId`, the appointment is
   created with a bare phone string and `platformUserId = NULL` — no canonical patient identity, no card.
-- **Finding:** the calendar path today can attach an *existing* patient to a new appointment, or record a
+- **Finding:** the calendar path today can attach an _existing_ patient to a new appointment, or record a
   phone with no patient at all. It cannot create a new patient card as part of appointment creation. #801's
   "create a new patient + scheduled appointment" is not one transaction anywhere in the codebase today.
 
@@ -174,7 +174,7 @@ prerequisites are met.
   `fireAndForgetContactEmailSetup` with `source: "doctor_profile"`.
 - `apps/webapp/src/infra/repos/pgDoctorClientCreate.ts:37-105` — dedup is **phone-first, global**:
   `findCanonicalUserIdByPhone` looks up by phone across the whole `platform_users` table (not
-  organization-scoped) and silently reuses that row if found. If a *different* existing user already owns
+  organization-scoped) and silently reuses that row if found. If a _different_ existing user already owns
   the supplied email, the whole creation **hard-fails** with `email_conflict` (409) — no soft/staff-review
   path, unlike the mechanism in §1.4.
 - **Finding:** patient-card creation exists as an isolated endpoint. It has no walk-in/visit bundling, no
@@ -183,12 +183,12 @@ prerequisites are met.
   duplicate suspicion (`patient_merge_candidates`, soft/reviewable — §1.4). #801/#806 need one consistent
   policy, not three.
 
-### 1.3 Walk-in — exists, but only for an *already-known* patient, not a brand-new one
+### 1.3 Walk-in — exists, but only for an _already-known_ patient, not a brand-new one
 
 - `apps/webapp/src/app/app/doctor/patients/[userId]/tabs/PatientTabKarta.tsx:1216-1217,1316,1334,1637` —
   there is already a `"from_booking" | "walk_in"` mode toggle, with a comment at :1637 ("the appointment
   this visit is being created from; `null` = walk-in without booking"). This lives **inside an existing
-  patient's card** (route is `/app/doctor/patients/[userId]/tabs/karta`) — it creates a walk-in *visit* for
+  patient's card** (route is `/app/doctor/patients/[userId]/tabs/karta`) — it creates a walk-in _visit_ for
   a patient who is already resolved by `userId`. (The child `NewVisitPanel.tsx` is only ~1474 lines and does
   not hold this toggle; the mode state lives in this parent tab file.)
 - **Finding:** #801's walk-in requirement ("create patient card and actual visit without prior booking",
@@ -220,7 +220,7 @@ prerequisites are met.
   `findOrCreateByChannelBinding` auto-resolves/creates a canonical `platform_users` row from a Telegram/MAX/
   VK channel binding, and matches `phoneNormalized` "only when the canon already has integrator/trusted
   projection activation" (comment at :17-18, i.e. gated by `patient_phone_trust_at` — see §1.6). If a
-  patient opens a #806 invite link *inside* a MAX/Telegram Mini App (a channel #806 explicitly names as a
+  patient opens a #806 invite link _inside_ a MAX/Telegram Mini App (a channel #806 explicitly names as a
   delivery transport), the ambient messenger-entry bootstrap could resolve/create an identity via this
   channel-binding path **before** the invite-redeem chooser ever runs. §9 (item 7) flags this as a required
   reconciliation point, not a design already covered by existing code.
@@ -230,17 +230,17 @@ prerequisites are met.
 - `docs/_TODO/SAAS_FOUNDATION/00_DECISIONS_AND_SCHEMA.md:8` (D2) — "Enrollment = explicit
   `(organization_id, platform_user_id)` table (NOT derived)".
 - `apps/webapp/db/schema/bookingEngine.ts:208-233` — `org_enrollments` table: `(organization_id,
-  platform_user_id)` unique pair, **`status` check constraint already allows
+platform_user_id)` unique pair, **`status` check constraint already allows
   `active | invited | discharged | archived`** — i.e. the schema already has the exact pre-activation state
   #801/#806 need, unused.
 - `apps/webapp/src/infra/repos/pgPatientOrganization.ts:20-37` — the **only** code that touches
   `org_enrollments` at all, and it is **read-only** (`listActiveEnrollmentsByPlatformUser`, `status =
-  'active'` only). A repo-wide grep for `orgEnrollments`/`org_enrollments` outside migrations/docs found
+'active'` only). A repo-wide grep for `orgEnrollments`/`org_enrollments` outside migrations/docs found
   no INSERT anywhere in `apps/webapp/src`.
 - `apps/webapp/db/drizzle-migrations/0145_seed_client_org_enrollments.sql` — the only rows that exist were
   a one-time backfill seed, not an ongoing write path.
 - **Finding — the central contradiction this design must close:** the target schema for "card exists before
-  portal activation, later a verified identity links exactly-once" is *already sitting in the database*
+  portal activation, later a verified identity links exactly-once" is _already sitting in the database_
   (`org_enrollments.status IN ('invited','active', ...)`) but **no code path ever writes it**. Neither
   `createDoctorClient` (§1.2) nor `createAppointment` (§1.1) ever ensures an `org_enrollments` row. This is
   consistent with ENTRY_AND_INVITE_JOURNEYS.md §9's own finding for public booking ("SaaS S6.4 plan still
@@ -256,19 +256,16 @@ prerequisites are met.
   one transaction, `EXECUTE` granted only to `app_patient`/pre-session roles with **no direct table grants**
   to the invite table for non-staff. §3/§4 model the new patient-invite mechanism directly on this file.
 - `apps/webapp/src/modules/organization-invites/service.ts:1-21` — token crypto for that flow: `sha256(token
-  + pepper)`, `randomBytes(32).toString("base64url")`, 7-day TTL. Same shape (not identical function) as
-  `apps/webapp/src/modules/auth/emailSetupTokens/tokenCrypto.ts:1-19` (`est_` prefix, same sha256+pepper
-  scheme) and `apps/webapp/db/schema/userEmailSetupTokens.ts:1-45` (`token_hash` unique, `used_at`,
-  `revoked_at`, `source` check enum already including `"registration_claim"` — declared in
-  `apps/webapp/src/modules/auth/emailSetupAccess/ports.ts:6` but, per
-  `apps/webapp/src/infra/repos/pgEmailSetupAccessPort.ts:9,17` ("setup теперь кодовый" — comment: "setup is
-  now code-based"), **never actually issued at runtime**: `doctor_profile` source is wired to
-  `startEmailChallenge` (an OTP-code challenge on `email_challenges`), not to `userEmailSetupTokens` at all.
-- **Finding:** the repo has *three* independent bearer/code token primitives (`organization_member_invites`
+  - pepper)`, `randomBytes(32).toString("base64url")`, 7-day TTL. Same shape (not identical function) as
+`apps/webapp/src/modules/auth/emailSetupTokens/tokenCrypto.ts:1-19` (`est\_`prefix, same sha256+pepper
+scheme) and`apps/webapp/db/schema/userEmailSetupTokens.ts:1-45` (`token_hash`unique,`used_at`,
+`revoked_at`, `source`check enum already including`"registration_claim"`— declared in`apps/webapp/src/modules/auth/emailSetupAccess/ports.ts:6`but, per`apps/webapp/src/infra/repos/pgEmailSetupAccessPort.ts:9,17`("setup теперь кодовый" — comment: "setup is
+now code-based"), **never actually issued at runtime**:`doctor_profile`source is wired to`startEmailChallenge`(an OTP-code challenge on`email_challenges`), not to `userEmailSetupTokens` at all.
+- **Finding:** the repo has _three_ independent bearer/code token primitives (`organization_member_invites`
   token_hash, `user_email_setup_tokens` token_hash, `email_challenges` OTP code), each solid on its own, but
   none of them fits #806 as-is: `organization_member_invites` is staff/membership-shaped;
   `user_email_setup_tokens` requires a known `userId` **and** a known `emailNormalized` at issue time (#806
-  explicitly requires the invite to work with *no* phone/email on file, channel chosen at redeem time);
+  explicitly requires the invite to work with _no_ phone/email on file, channel chosen at redeem time);
   `email_challenges` is a short OTP code tied to one already-known email, not a copyable link. §3 proposes a
   fourth, narrow table modeled on `organization_member_invites`'s proven RLS/SECURITY DEFINER shape rather
   than reusing any of the three as-is (see §5 for the explicit "why not reuse X" for each).
@@ -281,7 +278,7 @@ prerequisites are met.
 - `apps/webapp/src/infra/repos/pgDoctorClientCreate.ts:75-82` — the INSERT that creates a new patient row
   from staff input sets `patient_phone_trust_at = now()` **immediately at card-creation time**, before any
   patient has proved control of that phone.
-- **Finding, non-trivial:** this means the phone-known half of #801 already has an *implicit* linking path —
+- **Finding, non-trivial:** this means the phone-known half of #801 already has an _implicit_ linking path —
   when the real patient later does a genuine phone-OTP login with that exact number, canonical-phone
   resolution finds the same `platform_users` row created by staff and the patient lands on their existing
   card, no separate "redeem" step needed. That is functionally consistent with "verified phone identity
@@ -290,7 +287,7 @@ prerequisites are met.
   `patient_phone_trust_at` is granted on staff's say-so, not on proof, which is a narrower but real version
   of the same principle #806 states explicitly ("invite delivery is not proof of identity") — a staff-typed
   phone number is not proof either; it should not by itself imply anything beyond "this appointment's
-  contact channel" until the *patient* proves it via OTP. The current code already accepts this trust grant
+  contact channel" until the _patient_ proves it via OTP. The current code already accepts this trust grant
   at creation time; §3 does not propose removing it (that is a different, larger authn-tier change out of
   scope for this design) but does require adding the missing `org_enrollments` transition + audit event so
   the linking is no longer silent.
@@ -310,7 +307,7 @@ prerequisites are met.
 - `docs/_TODO/SAAS_FOUNDATION/OWNER_RULINGS_2026-07-17.md` §1 — `/book/{publicSlug}` confirmed as the
   public-booking canon; "персональные инвайт-токены — отдельный flow (#806), не смешивать."
 - `docs/_TODO/SAAS_PRODUCT_UX_INITIATIVE/ENTRY_AND_INVITE_JOURNEYS.md` §9 (J5) — public booking resolves
-  organization from a *published* branch/service/slot record and trusts phone as the identity source;
+  organization from a _published_ branch/service/slot record and trusts phone as the identity source;
   that path is anonymous-initiated and catalog-shaped. #806 is staff-initiated, bound to one already-created
   patient/enrollment, and exposes zero catalog/clinical data pre-auth. See §6 for the explicit non-overlap
   contract.
@@ -324,14 +321,14 @@ already models it (§1.6). This design's job is to **wire** it, not replace it.
 
 ### 2.1 Reused as-is
 
-| Table | Role in this design |
-|---|---|
-| `platform_users` | Canonical global person. Created by staff with phone (+ optional name/email) at card-creation time, same as today's `createDoctorClient` (§1.2), just transactionally combined with the appointment/enrollment insert (§2.3). |
-| `org_enrollments` | **The activation-state column.** `status = 'invited'` set at card-creation time (whether or not an invite link is ever actually sent — "card exists before portal activation" per #801 applies even with no invite at all). `status = 'active'` set exactly once, only by a successful redeem (phone OTP match, email OTP claim, or #806 token redeem — §3). `discharged`/`archived` unchanged, out of scope here. |
-| `be_appointments` | Scheduled appointment only, with `platformUserId` set to the same canonical id created/resolved above. A walk-in is not a booking. |
-| `clinical_visit` | Standalone walk-in visit with exact `organization_id`, `patient_user_id`, trusted creator and `canonical_appointment_id = NULL`. |
-| `patient_merge_candidates` | The **single** duplicate-suspicion queue (§3 folds the email-collision case from `createDoctorClient` into this table instead of a hard 409). |
-| `platform_user_contacts` | Records the delivery-channel value (phone/telegram/max/…) staff used to send the invite, with `source: 'doctor'` (already a valid enum value at `apps/webapp/db/schema/platformUserContacts.ts:49-55`) — audit trail of *how* it was sent, distinct from whether it was *proven*. |
+| Table                      | Role in this design                                                                                                                                                                                                                                                                                                                                                                                                |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `platform_users`           | Canonical global person. Created by staff with phone (+ optional name/email) at card-creation time, same as today's `createDoctorClient` (§1.2), just transactionally combined with the appointment/enrollment insert (§2.3).                                                                                                                                                                                      |
+| `org_enrollments`          | **The activation-state column.** `status = 'invited'` set at card-creation time (whether or not an invite link is ever actually sent — "card exists before portal activation" per #801 applies even with no invite at all). `status = 'active'` set exactly once, only by a successful redeem (phone OTP match, email OTP claim, or #806 token redeem — §3). `discharged`/`archived` unchanged, out of scope here. |
+| `be_appointments`          | Scheduled appointment only, with `platformUserId` set to the same canonical id created/resolved above. A walk-in is not a booking.                                                                                                                                                                                                                                                                                 |
+| `clinical_visit`           | Standalone walk-in visit with exact `organization_id`, `patient_user_id`, trusted creator and `canonical_appointment_id = NULL`.                                                                                                                                                                                                                                                                                   |
+| `patient_merge_candidates` | The **single** duplicate-suspicion queue (§3 folds the email-collision case from `createDoctorClient` into this table instead of a hard 409).                                                                                                                                                                                                                                                                      |
+| `platform_user_contacts`   | Records the delivery-channel value (phone/telegram/max/…) staff used to send the invite, with `source: 'doctor'` (already a valid enum value at `apps/webapp/db/schema/platformUserContacts.ts:49-55`) — audit trail of _how_ it was sent, distinct from whether it was _proven_.                                                                                                                                  |
 
 ### 2.2 New — `patient_invites` (modeled on `organization_member_invites`, §1.6)
 
@@ -368,7 +365,7 @@ states patient portal-invite acceptance "continues through ORG-PUB-03/PUB-04" ex
 (`apps/webapp/src/app/api/clinic/invites/accept/{lookup,confirm}/route.ts`, §1.6), and no `/join/**` route
 exists in the repo today (checked; absent). This is an additional gap beyond §1.6/§9: the redeem route this
 design specifies should be built as (or under) `/join/[exchange]`, with `exchange` resolving server-side to
-invite *kind* (staff org-invite vs. this patient invite vs., later, a public-booking continuation object)
+invite _kind_ (staff org-invite vs. this patient invite vs., later, a public-booking continuation object)
 before dispatching to the matching lookup/redeem pair — one shared entry shell, not a parallel
 `/patient-invite/accept` tree, consistent with the repo's single-chokepoint convention and with
 `IMPLEMENTATION_ROADMAP.md` §4's "no duplicate solo/clinic route trees" spirit applied to invite routes.
@@ -376,7 +373,7 @@ before dispatching to the matching lookup/redeem pair — one shared entry shell
 **RLS/grants, directly mirroring `deploy/postgres/organization-member-invites-rls.sql`:**
 
 - Staff-side direct table policy: `FOR ALL USING (app.is_staff() AND organization_id =
-  app.current_org_id())` — identical shape to the existing invite table's policy (§1.6 citation), so a
+app.current_org_id())` — identical shape to the existing invite table's policy (§1.6 citation), so a
   specialist can only ever see/create/revoke invites for their own org.
 - Pre-session (patient, unauthenticated) access is **only** through two narrow `SECURITY DEFINER` functions,
   owned by the same NOLOGIN/BYPASSRLS `app_owner` boundary already used for
@@ -428,14 +425,14 @@ PostgreSQL race proof remains an explicit U3B milestone check, not an unproved c
 
 Single policy, replacing the two inconsistent ones found in the audit:
 
-| Signal at card-creation time | Today (§1.2/§1.4) | Target (this design) |
-|---|---|---|
-| Phone matches an existing canonical `platform_users` row | Silent reuse, no flag, no review | **Unchanged** — silent reuse remains correct: phone is the strongest signal the codebase already trusts for this (§1.7), and forcing a review queue on every returning-patient phone match would make the common case slower for no safety gain. |
-| Email matches a *different* existing canonical row than the one resolved by phone | Hard 409 `email_conflict`, creation blocked entirely | Card is still created/enrolled normally on the phone-resolved (or newly created) identity. The email collision is written to `patient_merge_candidates` (`reason: 'staff_create_email_collision'`, `anchorUserId`/`candidateUserId` = the two rows in conflict, `triggerAppointmentId` if a visit was created in the same call) as `status: 'pending'` for staff review — same table, same review UI surface already implied by `listPendingByOrganization` (§1.4). The card is **not** silently merged; the two identities stay distinct until a human resolves the candidate. |
-| No phone/email at all (#806 no-contact-info path) | N/A (not currently possible — `phone` is a required field on `POST /api/doctor/clients`, §1.2) | New: card creation allows phone to be replaced by an org-scoped placeholder identity (see §3.1) specifically for the #806 flow. |
+| Signal at card-creation time                                                      | Today (§1.2/§1.4)                                                                              | Target (this design)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Phone matches an existing canonical `platform_users` row                          | Silent reuse, no flag, no review                                                               | **Unchanged** — silent reuse remains correct: phone is the strongest signal the codebase already trusts for this (§1.7), and forcing a review queue on every returning-patient phone match would make the common case slower for no safety gain.                                                                                                                                                                                                                                                                                                                                |
+| Email matches a _different_ existing canonical row than the one resolved by phone | Hard 409 `email_conflict`, creation blocked entirely                                           | Card is still created/enrolled normally on the phone-resolved (or newly created) identity. The email collision is written to `patient_merge_candidates` (`reason: 'staff_create_email_collision'`, `anchorUserId`/`candidateUserId` = the two rows in conflict, `triggerAppointmentId` if a visit was created in the same call) as `status: 'pending'` for staff review — same table, same review UI surface already implied by `listPendingByOrganization` (§1.4). The card is **not** silently merged; the two identities stay distinct until a human resolves the candidate. |
+| No phone/email at all (#806 no-contact-info path)                                 | N/A (not currently possible — `phone` is a required field on `POST /api/doctor/clients`, §1.2) | New: card creation allows phone to be replaced by an org-scoped placeholder identity (see §3.1) specifically for the #806 flow.                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 
-Rationale for softening the email path: #801/#806 both explicitly frame this domain around *recoverable,
-audit-visible* states ("fail closed" for security-relevant redeem states, not for ordinary data-entry
+Rationale for softening the email path: #801/#806 both explicitly frame this domain around _recoverable,
+audit-visible_ states ("fail closed" for security-relevant redeem states, not for ordinary data-entry
 friction). A hard 409 on a common front-desk mistake (typo'd email that happens to belong to another
 record) blocks the whole card-creation instead of just flagging it — inconsistent with how the same product
 already treats phone collisions. This does not touch #806's redeem-time fail-closed list in §4 at all,
@@ -461,7 +458,7 @@ When neither phone nor email is supplied:
 - **No** `patient_phone_trust_at` is set (§1.7 does not apply — there is no phone to trust).
 - Because there is no phone/email to dedupe against, this card cannot be silently matched to any existing
   person at creation time. If the same person later gets a #806 invite redeemed with a phone/email that
-  *does* match another existing canonical user, that collision surfaces at redeem time (§4, "conflicting
+  _does_ match another existing canonical user, that collision surfaces at redeem time (§4, "conflicting
   identity" — fails closed, routed to `patient_merge_candidates` for staff, exactly like the routes in the
   table above but gated behind actual proof instead of typed input).
 
@@ -469,31 +466,31 @@ When neither phone nor email is supplied:
 
 ## 4. Invite token lifecycle + threat model (#806 requirements → design, verbatim mapping)
 
-| #806 requirement (verbatim) | Design answer | Evidence/pattern reused |
-|---|---|---|
-| "Opaque high-entropy bearer token bound to exact organization + existing patient/enrollment" | `patient_invites.token_hash`, `organization_id`, `patient_user_id`, `enrollment_id` all immutable FKs set at issue time; token itself is `randomBytes(32).toString("base64url")` (256 bits) | `apps/webapp/src/modules/organization-invites/service.ts:16-21` (same generator), `apps/webapp/src/modules/auth/emailSetupTokens/tokenCrypto.ts:13-15` |
-| "Before authentication: NO clinical data exposed" | `app.lookup_pending_patient_invite` (§2.2) returns only `organization_title`, `organization_logo_url`, masked recipient hint (if any contact on file) — no `patient_user_id`, no card/program/visit fields, at the SQL layer, not just filtered in the route | `app.lookup_pending_org_invite`, `organization-member-invites-rls.sql:116-153` |
-| "User picks phone/email/OAuth; after successful auth, redeem atomically and exactly once" | `app.redeem_patient_invite` (§2.2) takes the *already-authenticated* canonical user id (proved via phone OTP / email OTP / OAuth **before** this call — the route calls the appropriate existing auth module first, then calls redeem) and row-locks + re-validates + flips state in one transaction | `app.accept_org_invite`, :158-293 (row lock, re-check, one transaction) |
-| "Short-lived" | TTL constant, new module (e.g. `patientInvites/constants.ts`), proposed default 7 days matching `organization-invites`' `INVITE_TTL_MS` (owner has not set a different number; flag as engineering-policy default per ENTRY_AND_INVITE_JOURNEYS.md §13's own precedent of not escalating TTL numbers to the owner) | `organization-invites/service.ts:11` |
-| "Revocable, single-use" | `status` transitions `pending → accepted / expired / revoked / superseded`; `revoked_at`/`accepted_at` columns; redeem only succeeds from `pending` | Same shape as `organization_member_invites.status` |
-| "Hashed at rest" | `token_hash` only column; plaintext token never persisted, only returned once to the issuing staff session (same as `organization-invites createInvite` returning `{ ...result, token }` once, :49-51) | `organization-invites/service.ts:44-51` |
-| "Never logged/analytics/referrer" | Route-level requirement: redeem endpoint must set `Referrer-Policy: no-referrer` and never pass the raw token to `console.log`/product-analytics event payloads — same rule ENTRY_AND_INVITE_JOURNEYS.md §11 already states for the staff-invite/booking-continuation flows; no existing violation found in the staff-invite accept routes read for this design (§1.6), so this is a "keep doing what's already done right," not a fix |  |
-| "Removed from URL via server exchange+redirect" | Client-side entry page reads `?token=` once, immediately calls `lookup_pending_patient_invite` via `POST` body (not query string) and replaces the URL (`history.replaceState`/redirect) before rendering anything — same shape as `apps/webapp/src/app/api/clinic/invites/accept/lookup/route.ts:6-8` already taking the token in a POST body, not a GET query string | `clinic/invites/accept/lookup/route.ts` |
-| "Audit issue/redeem/revoke/conflict" | Every `patient_invites` status transition is itself the audit record (append-only via `superseded_by_invite_id` chain on resend, matching ENTRY_AND_INVITE_JOURNEYS.md §3.1's "resend supersedes, does not overwrite"); `patient_merge_candidates` entries created for any redeem-time identity conflict (§3.1) are the audit trail for conflicts specifically |  |
-| "Already-linked/expired/replayed/wrong-org/conflicting-identity all fail closed" | See table below — one row per case, each mapped to an explicit `redeem_patient_invite` return code, no ambiguous 200 |  |
+| #806 requirement (verbatim)                                                                  | Design answer                                                                                                                                                                                                                                                                                                                                                                                                                          | Evidence/pattern reused                                                                                                                                |
+| -------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| "Opaque high-entropy bearer token bound to exact organization + existing patient/enrollment" | `patient_invites.token_hash`, `organization_id`, `patient_user_id`, `enrollment_id` all immutable FKs set at issue time; token itself is `randomBytes(32).toString("base64url")` (256 bits)                                                                                                                                                                                                                                            | `apps/webapp/src/modules/organization-invites/service.ts:16-21` (same generator), `apps/webapp/src/modules/auth/emailSetupTokens/tokenCrypto.ts:13-15` |
+| "Before authentication: NO clinical data exposed"                                            | `app.lookup_pending_patient_invite` (§2.2) returns only `organization_title`, `organization_logo_url`, masked recipient hint (if any contact on file) — no `patient_user_id`, no card/program/visit fields, at the SQL layer, not just filtered in the route                                                                                                                                                                           | `app.lookup_pending_org_invite`, `organization-member-invites-rls.sql:116-153`                                                                         |
+| "User picks phone/email/OAuth; after successful auth, redeem atomically and exactly once"    | `app.redeem_patient_invite` (§2.2) takes the _already-authenticated_ canonical user id (proved via phone OTP / email OTP / OAuth **before** this call — the route calls the appropriate existing auth module first, then calls redeem) and row-locks + re-validates + flips state in one transaction                                                                                                                                   | `app.accept_org_invite`, :158-293 (row lock, re-check, one transaction)                                                                                |
+| "Short-lived"                                                                                | TTL constant, new module (e.g. `patientInvites/constants.ts`), proposed default 7 days matching `organization-invites`' `INVITE_TTL_MS` (owner has not set a different number; flag as engineering-policy default per ENTRY_AND_INVITE_JOURNEYS.md §13's own precedent of not escalating TTL numbers to the owner)                                                                                                                     | `organization-invites/service.ts:11`                                                                                                                   |
+| "Revocable, single-use"                                                                      | `status` transitions `pending → accepted / expired / revoked / superseded`; `revoked_at`/`accepted_at` columns; redeem only succeeds from `pending`                                                                                                                                                                                                                                                                                    | Same shape as `organization_member_invites.status`                                                                                                     |
+| "Hashed at rest"                                                                             | `token_hash` only column; plaintext token never persisted, only returned once to the issuing staff session (same as `organization-invites createInvite` returning `{ ...result, token }` once, :49-51)                                                                                                                                                                                                                                 | `organization-invites/service.ts:44-51`                                                                                                                |
+| "Never logged/analytics/referrer"                                                            | Route-level requirement: redeem endpoint must set `Referrer-Policy: no-referrer` and never pass the raw token to `console.log`/product-analytics event payloads — same rule ENTRY_AND_INVITE_JOURNEYS.md §11 already states for the staff-invite/booking-continuation flows; no existing violation found in the staff-invite accept routes read for this design (§1.6), so this is a "keep doing what's already done right," not a fix |                                                                                                                                                        |
+| "Removed from URL via server exchange+redirect"                                              | Client-side entry page reads `?token=` once, immediately calls `lookup_pending_patient_invite` via `POST` body (not query string) and replaces the URL (`history.replaceState`/redirect) before rendering anything — same shape as `apps/webapp/src/app/api/clinic/invites/accept/lookup/route.ts:6-8` already taking the token in a POST body, not a GET query string                                                                 | `clinic/invites/accept/lookup/route.ts`                                                                                                                |
+| "Audit issue/redeem/revoke/conflict"                                                         | Every `patient_invites` status transition is itself the audit record (append-only via `superseded_by_invite_id` chain on resend, matching ENTRY_AND_INVITE_JOURNEYS.md §3.1's "resend supersedes, does not overwrite"); `patient_merge_candidates` entries created for any redeem-time identity conflict (§3.1) are the audit trail for conflicts specifically                                                                         |                                                                                                                                                        |
+| "Already-linked/expired/replayed/wrong-org/conflicting-identity all fail closed"             | See table below — one row per case, each mapped to an explicit `redeem_patient_invite` return code, no ambiguous 200                                                                                                                                                                                                                                                                                                                   |                                                                                                                                                        |
 
 ### 4.1 Fail-closed matrix (redeem time)
 
-| Case | `redeem_patient_invite` outcome |
-|---|---|
-| Token not found / malformed | `invalid_token`, no mutation |
-| `status <> 'pending'` (already accepted) | `already_linked` if `accepted_by_platform_user_id` matches the authenticating user (idempotent reopen of the same relationship, no second mutation — same idempotency contract as `accept_org_invite`); otherwise `accepted_by_other` |
-| `expires_at <= now()` | `expired_token`, marks row `expired` if still `pending` |
-| `status = 'revoked'` | `revoked_token` |
-| `status = 'superseded'` | `superseded_token`, response includes no hint about the newer token (staff must resend through the authenticated management UI, not the recipient) |
-| Authenticated user's proven phone/email already belongs to a **different** existing `platform_users` row than `patient_invites.patient_user_id` | `conflicting_identity` — no mutation, write a `patient_merge_candidates` row (anchor = invite's `patient_user_id`, candidate = authenticated user's canonical id, `reason: 'invite_redeem_identity_conflict'`), route the user to the same neutral recovery copy ENTRY_AND_INVITE_JOURNEYS.md §11/J7 already specifies |
-| Authenticating staff session's org does not match `organization_id` (should be structurally impossible since the function takes no org input from the caller, but re-checked for defense-in-depth) | `wrong_org` |
-| Two concurrent redeem attempts | `FOR UPDATE` row lock — second waits, then re-reads `status`, returns `already_linked` (same convergence property proven for `accept_org_invite`, §1.6) |
+| Case                                                                                                                                                                                               | `redeem_patient_invite` outcome                                                                                                                                                                                                                                                                                        |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Token not found / malformed                                                                                                                                                                        | `invalid_token`, no mutation                                                                                                                                                                                                                                                                                           |
+| `status <> 'pending'` (already accepted)                                                                                                                                                           | `already_linked` if `accepted_by_platform_user_id` matches the authenticating user (idempotent reopen of the same relationship, no second mutation — same idempotency contract as `accept_org_invite`); otherwise `accepted_by_other`                                                                                  |
+| `expires_at <= now()`                                                                                                                                                                              | `expired_token`, marks row `expired` if still `pending`                                                                                                                                                                                                                                                                |
+| `status = 'revoked'`                                                                                                                                                                               | `revoked_token`                                                                                                                                                                                                                                                                                                        |
+| `status = 'superseded'`                                                                                                                                                                            | `superseded_token`, response includes no hint about the newer token (staff must resend through the authenticated management UI, not the recipient)                                                                                                                                                                     |
+| Authenticated user's proven phone/email already belongs to a **different** existing `platform_users` row than `patient_invites.patient_user_id`                                                    | `conflicting_identity` — no mutation, write a `patient_merge_candidates` row (anchor = invite's `patient_user_id`, candidate = authenticated user's canonical id, `reason: 'invite_redeem_identity_conflict'`), route the user to the same neutral recovery copy ENTRY_AND_INVITE_JOURNEYS.md §11/J7 already specifies |
+| Authenticating staff session's org does not match `organization_id` (should be structurally impossible since the function takes no org input from the caller, but re-checked for defense-in-depth) | `wrong_org`                                                                                                                                                                                                                                                                                                            |
+| Two concurrent redeem attempts                                                                                                                                                                     | `FOR UPDATE` row lock — second waits, then re-reads `status`, returns `already_linked` (same convergence property proven for `accept_org_invite`, §1.6)                                                                                                                                                                |
 
 ---
 
@@ -503,14 +500,14 @@ When neither phone nor email is supplied:
   almost verbatim), but its rows are staff/membership-typed (`invited_role IN admin|doctor`,
   `be_organization_members` target). Repurposing it for patients would either weaken its staff-only RLS
   policy or require a polymorphic target — both worse than one small parallel table.
-- **`user_email_setup_tokens`** — closest in *mechanism* (sha256+pepper, TTL, single-use, revocable), but
+- **`user_email_setup_tokens`** — closest in _mechanism_ (sha256+pepper, TTL, single-use, revocable), but
   its schema requires `email_normalized` **at issue time** (`apps/webapp/db/schema/userEmailSetupTokens.ts:10-11`)
   and is bound to a `userId` that already has that email as a claim target. #806's entire point is that
-  *neither* phone nor email is known at issue time — channel is chosen by the patient at redeem time. Using
+  _neither_ phone nor email is known at issue time — channel is chosen by the patient at redeem time. Using
   this table would mean inventing a placeholder email, which is exactly the kind of "invent schema to fit"
   the mission brief says to avoid; a token bound to `(organization_id, patient_user_id)` instead of
   `(userId, email)` is the smaller, more honest change.
-- **`email_challenges`** — an OTP *code* tied to one specific email for a proof-of-control step, not a
+- **`email_challenges`** — an OTP _code_ tied to one specific email for a proof-of-control step, not a
   copyable bearer link at all; wrong shape for "copy this link, send it any way you like."
 
 ---
@@ -519,13 +516,13 @@ When neither phone nor email is supplied:
 
 Per the owner ruling (§1.9) and ENTRY_AND_INVITE_JOURNEYS.md J5 vs J3:
 
-| | `/book/{publicSlug}` (#805) | Patient invite (#806) |
-|---|---|---|
-| Trigger | Anonymous visitor discovers a published org page | Staff-issued, for one specific already-existing patient |
-| What's known before auth | Organization's published catalog (services/slots) | Nothing except org name/logo (§4 row 2) |
-| Identity source of truth | Phone entered in the booking form (trusted per `PublicBookingByPhone`, §1.7 enum) | Whatever the user proves at redeem time (phone OTP/email OTP/OAuth), independent of any phone/email staff may or may not have on file |
-| Organization resolution | Server-side slug → organization resolver (owner-ruling §1, this doc's §1.9) | `patient_invites.organization_id`, fixed at issue time, never derived from Host/slug/query |
-| Enrollment effect | Target: booking transaction ensures `org_enrollments` (still an open implementation gap per ENTRY_AND_INVITE_JOURNEYS.md §9 — **shared** gap with this design, §1.6) | This design's `redeem_patient_invite` flips an *existing* `invited` enrollment to `active` |
+|                          | `/book/{publicSlug}` (#805)                                                                                                                                          | Patient invite (#806)                                                                                                                 |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Trigger                  | Anonymous visitor discovers a published org page                                                                                                                     | Staff-issued, for one specific already-existing patient                                                                               |
+| What's known before auth | Organization's published catalog (services/slots)                                                                                                                    | Nothing except org name/logo (§4 row 2)                                                                                               |
+| Identity source of truth | Phone entered in the booking form (trusted per `PublicBookingByPhone`, §1.7 enum)                                                                                    | Whatever the user proves at redeem time (phone OTP/email OTP/OAuth), independent of any phone/email staff may or may not have on file |
+| Organization resolution  | Server-side slug → organization resolver (owner-ruling §1, this doc's §1.9)                                                                                          | `patient_invites.organization_id`, fixed at issue time, never derived from Host/slug/query                                            |
+| Enrollment effect        | Target: booking transaction ensures `org_enrollments` (still an open implementation gap per ENTRY_AND_INVITE_JOURNEYS.md §9 — **shared** gap with this design, §1.6) | This design's `redeem_patient_invite` flips an _existing_ `invited` enrollment to `active`                                            |
 
 **Shared chokepoint, not duplicated logic:** both flows ultimately need "ensure this canonical patient has
 an active `org_enrollments` row for this organization." Per the repo's single-chokepoint convention
@@ -545,11 +542,11 @@ vice versa.
 ## 7. Calendar/walk-in UX insertion points (reuse existing primitives, per doctor-ui-shared-primitives.mdc)
 
 **Canonical-ID mapping first** (per §0.a/§0.c): `ROUTE_MIGRATION_MAP.md:42` (row S03) already assigns the
-*current* `apps/webapp/src/app/app/doctor/patients/**` files to canonical `CLIN-02`/`CLIN-03`/`CLIN-04`/
+_current_ `apps/webapp/src/app/app/doctor/patients/**` files to canonical `CLIN-02`/`CLIN-03`/`CLIN-04`/
 `CLIN-08` — i.e. today's routes are the pre-migration instances of the same canonical screens, not a
 separate thing this design invents. `TARGET_IA.md:218` (`CLIN-02`) and `SCREEN_COMPOSITION.md:90` already
 say the target `/app/work/patients` screen itself carries "manual create card+scheduled/walk-in visit,
-optional portal invite" — so the insertion points below attach to the *current* route tree now, and the
+optional portal invite" — so the insertion points below attach to the _current_ route tree now, and the
 same components carry over under `CLIN-02`/`CLIN-03` once route migration (U10, a separate initiative) runs;
 this design does not perform that route rename.
 
@@ -588,7 +585,7 @@ this design does not perform that route rename.
   only, **zero** table grants — matches §1.8/§1.6 exactly.
 - `org_enrollments` write path (§2.3, §4): both the manual-creation transaction and the redeem function run
   under a **staff** or **owner-boundary** principal respectively, never under a raw `app_patient` table
-  write — consistent with "the only DB wall a patient session has is *own-row-only*"; a patient session
+  write — consistent with "the only DB wall a patient session has is _own-row-only_"; a patient session
   never gets a direct `UPDATE org_enrollments` grant, it only ever reaches that row through the narrow
   function.
 - No new cross-organization read surface is introduced anywhere in this design. `lookup_pending_patient_invite`
@@ -597,16 +594,16 @@ this design does not perform that route rename.
 
 ### 8.1 Explicit check against U3B's `Forbidden`/`Boundaries` lines (`IMPLEMENTATION_ROADMAP.md:465-468`)
 
-| U3B forbids/bounds | This design |
-|---|---|
-| "SMS elevation, SMS-created identity/invite" | Not touched — §2/§4 have no SMS path; SMS fallback is explicitly out of scope here (only #801/#806, not J4) |
-| "full recipient pre-auth" | `lookup_pending_patient_invite` returns branding + masked hint only (§4 row 2) |
-| "internal `userId` authority" | Redeem takes the *authenticated* canonical id from the auth module's session result, never a client-supplied id (§2.2/§4) |
-| "auto-push prompt before value" | Not touched — out of scope |
-| "duplicate identity" | §3/§4.1 route every duplicate signal to `patient_merge_candidates`, never a silent merge |
-| "silent org switch" | `patient_invites.organization_id` is immutable at issue time and re-checked at redeem (`wrong_org`, §4.1); nothing here changes a patient's active organization outside the one being redeemed |
-| "real sends outside approved send-safe setup" | Delivery of the invite link itself (§7's copy-link affordance) is staff-copy-paste, not a platform send; §10 does not add a new automated send channel |
-| Boundary: "invite/booking/object is trusted org source; canonical patient is global; enrollment and every care object remain org-scoped" | §2.2/§8 match exactly — `organization_id`/`patient_user_id` fixed at issue time, `org_enrollments` stays the org-scoped join |
+| U3B forbids/bounds                                                                                                                       | This design                                                                                                                                                                                    |
+| ---------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| "SMS elevation, SMS-created identity/invite"                                                                                             | Not touched — §2/§4 have no SMS path; SMS fallback is explicitly out of scope here (only #801/#806, not J4)                                                                                    |
+| "full recipient pre-auth"                                                                                                                | `lookup_pending_patient_invite` returns branding + masked hint only (§4 row 2)                                                                                                                 |
+| "internal `userId` authority"                                                                                                            | Redeem takes the _authenticated_ canonical id from the auth module's session result, never a client-supplied id (§2.2/§4)                                                                      |
+| "auto-push prompt before value"                                                                                                          | Not touched — out of scope                                                                                                                                                                     |
+| "duplicate identity"                                                                                                                     | §3/§4.1 route every duplicate signal to `patient_merge_candidates`, never a silent merge                                                                                                       |
+| "silent org switch"                                                                                                                      | `patient_invites.organization_id` is immutable at issue time and re-checked at redeem (`wrong_org`, §4.1); nothing here changes a patient's active organization outside the one being redeemed |
+| "real sends outside approved send-safe setup"                                                                                            | Delivery of the invite link itself (§7's copy-link affordance) is staff-copy-paste, not a platform send; §10 does not add a new automated send channel                                         |
+| Boundary: "invite/booking/object is trusted org source; canonical patient is global; enrollment and every care object remain org-scoped" | §2.2/§8 match exactly — `organization_id`/`patient_user_id` fixed at issue time, `org_enrollments` stays the org-scoped join                                                                   |
 
 ---
 
@@ -661,7 +658,7 @@ this design does not perform that route rename.
       unchanged.
 - [ ] Make `phone` optional on `POST /api/doctor/clients` body schema (route.ts:13) and on
       `createDoctorClient`'s input type, gated to the explicit #806 "no contact info" path (§3.1); keep the
-      RU-phone-format validation for the case where a phone *is* supplied (format flexibility beyond
+      RU-phone-format validation for the case where a phone _is_ supplied (format flexibility beyond
       `+7\d{10}` is a separate, out-of-scope i18n item — flag, do not silently expand here).
 - [ ] Extend `DoctorCalendarEventPanel.tsx`'s create form (§7) with name/surname/email fields, wired to
       `createManualPatientVisit` when no existing patient was resolved by phone search.
@@ -676,7 +673,7 @@ this design does not perform that route rename.
 - [ ] Build/extend the shared `/join/[exchange]` route (`ORG-PUB-03`, §2.2/§9 item 10) to dispatch by invite
       kind server-side; wire the patient-invite lookup/redeem pair into it rather than a parallel route tree.
       Raw token in POST body only, immediate URL scrub/redirect (`Referrer-Policy: no-referrer`), calls the
-      appropriate existing auth module (phone OTP / email OTP / OAuth) to *prove* identity first, then calls
+      appropriate existing auth module (phone OTP / email OTP / OAuth) to _prove_ identity first, then calls
       `redeem_patient_invite` with the authenticated canonical id (never trusting a client-supplied id).
 - [ ] Add "portal status" badge (`not activated / invited / linked`, §7) to the existing patient-card chrome
       reading `org_enrollments.status`.

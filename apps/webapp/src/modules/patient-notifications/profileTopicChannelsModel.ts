@@ -1,16 +1,13 @@
-import type { NotificationTopicMasterRow } from "./patientNotificationTopicsPort";
-import type { TopicChannelPrefRow } from "./topicChannelPrefsPort";
-import {
-  allowedChannelsForTopic,
-  type PatientTopicChannelCode,
-} from "./topicChannelRules";
-import { patientNotificationTopicDisplayTitle } from "./topicDisplayTitles";
+import type { NotificationTopicMasterRow } from './patientNotificationTopicsPort';
+import type { TopicChannelPrefRow } from './topicChannelPrefsPort';
+import { allowedChannelsForTopic, type PatientTopicChannelCode } from './topicChannelRules';
+import { patientNotificationTopicDisplayTitle } from './topicDisplayTitles';
 
 const CHANNEL_LABEL: Record<PatientTopicChannelCode, string> = {
-  telegram: "Telegram",
-  max: "MAX",
-  email: "Email",
-  web_push: "Push",
+  telegram: 'Telegram',
+  max: 'MAX',
+  email: 'Email',
+  web_push: 'Push',
 };
 
 export type ProfileNotificationChannelModel = {
@@ -67,10 +64,10 @@ export function buildProfileNotificationTopicModels(
     const allowed = allowedChannelsForTopic(t.id);
     const channels: ProfileNotificationChannelModel[] = [];
     for (const code of allowed) {
-      if (code === "telegram" && !availability.hasTelegram) continue;
-      if (code === "max" && !availability.hasMax) continue;
-      if (code === "email" && !availability.emailVerified) continue;
-      if (code === "web_push" && !webPushColumnVisible(availability)) continue;
+      if (code === 'telegram' && !availability.hasTelegram) continue;
+      if (code === 'max' && !availability.hasMax) continue;
+      if (code === 'email' && !availability.emailVerified) continue;
+      if (code === 'web_push' && !webPushColumnVisible(availability)) continue;
       channels.push({
         code,
         label: CHANNEL_LABEL[code],
@@ -95,15 +92,15 @@ export function applyWebPushColumnAvailability(
   pushEffective: boolean,
 ): ProfileNotificationTopicModel[] {
   return topics.map((t) => {
-    if (!allowedChannelsForTopic(t.topicId).includes("web_push")) return t;
-    const existing = t.channels.find((c) => c.code === "web_push");
+    if (!allowedChannelsForTopic(t.topicId).includes('web_push')) return t;
+    const existing = t.channels.find((c) => c.code === 'web_push');
     if (pushEffective) {
       if (existing) return t;
       return {
         ...t,
         channels: [
           ...t.channels,
-          { code: "web_push", label: CHANNEL_LABEL.web_push, isEnabled: true, isEditable: true },
+          { code: 'web_push', label: CHANNEL_LABEL.web_push, isEnabled: true, isEditable: true },
         ],
       };
     }
@@ -111,7 +108,7 @@ export function applyWebPushColumnAvailability(
       return {
         ...t,
         channels: t.channels.map((c) =>
-          c.code === "web_push" ? { ...c, isEnabled: false, isEditable: false } : c,
+          c.code === 'web_push' ? { ...c, isEnabled: false, isEditable: false } : c,
         ),
       };
     }
@@ -119,7 +116,7 @@ export function applyWebPushColumnAvailability(
       ...t,
       channels: [
         ...t.channels,
-        { code: "web_push", label: CHANNEL_LABEL.web_push, isEnabled: false, isEditable: false },
+        { code: 'web_push', label: CHANNEL_LABEL.web_push, isEnabled: false, isEditable: false },
       ],
     };
   });
@@ -133,13 +130,13 @@ export function ensureWebPushInNotificationTopics(
 ): ProfileNotificationTopicModel[] {
   if (!hasWebPushSubscription || !globalWebPushEnabled) return topics;
   return topics.map((t) => {
-    if (!allowedChannelsForTopic(t.topicId).includes("web_push")) return t;
-    if (t.channels.some((c) => c.code === "web_push")) return t;
+    if (!allowedChannelsForTopic(t.topicId).includes('web_push')) return t;
+    if (t.channels.some((c) => c.code === 'web_push')) return t;
     return {
       ...t,
       channels: [
         ...t.channels,
-        { code: "web_push", label: CHANNEL_LABEL.web_push, isEnabled: true },
+        { code: 'web_push', label: CHANNEL_LABEL.web_push, isEnabled: true },
       ],
     };
   });

@@ -1,19 +1,19 @@
-import type { BeAppointment } from "@/modules/booking-engine/types";
-import type { BookingEnginePort } from "@/modules/booking-engine/ports";
-import { getPaymentProviderAdapter } from "@/infra/payments/paymentProviderRegistry";
-import { parseBookingPaymentSettingsValue } from "./bookingPaymentSettings";
-import { quotePrepayment } from "./prepaymentCalculator";
+import type { BeAppointment } from '@/modules/booking-engine/types';
+import type { BookingEnginePort } from '@/modules/booking-engine/ports';
+import { getPaymentProviderAdapter } from '@/infra/payments/paymentProviderRegistry';
+import { parseBookingPaymentSettingsValue } from './bookingPaymentSettings';
+import { quotePrepayment } from './prepaymentCalculator';
 import type {
   PaymentCaptureUnitOfWork,
   PaymentsConfigReader,
   PaymentsPort,
   StoredPaymentProviderEvent,
-} from "./ports";
-import type { AppointmentPaymentSummary, BookingPaymentSettings, PrepaymentQuote } from "./types";
-import type { ResolvePrepaymentParams } from "./ports";
-import type { PrepaymentResolveContext } from "./prepaymentContextFromBooking";
-import { parsePatientPackageProductRef } from "@/modules/memberships/patientPackageProductRef";
-import { parseProductPurchaseProductRef } from "@/modules/products/productPurchaseProductRef";
+} from './ports';
+import type { AppointmentPaymentSummary, BookingPaymentSettings, PrepaymentQuote } from './types';
+import type { ResolvePrepaymentParams } from './ports';
+import type { PrepaymentResolveContext } from './prepaymentContextFromBooking';
+import { parsePatientPackageProductRef } from '@/modules/memberships/patientPackageProductRef';
+import { parseProductPurchaseProductRef } from '@/modules/products/productPurchaseProductRef';
 
 function persistedProviderIntentRef(event: StoredPaymentProviderEvent): string | null {
   const explicit = event.intentRef?.trim();
@@ -22,22 +22,22 @@ function persistedProviderIntentRef(event: StoredPaymentProviderEvent): string |
   const payload = event.payloadJson;
   const direct = (key: string) => {
     const value = payload[key];
-    if (typeof value === "string" && value.trim()) return value.trim();
-    if (typeof value === "number" && Number.isFinite(value)) return String(value);
+    if (typeof value === 'string' && value.trim()) return value.trim();
+    if (typeof value === 'number' && Number.isFinite(value)) return String(value);
     return null;
   };
-  if (event.providerId === "cloudpayments") return direct("TransactionId");
-  if (event.providerId === "tinkoff") return direct("PaymentId");
-  if (event.providerId === "alfabank") return direct("mdOrder") ?? direct("orderId");
-  if (event.providerId === "yookassa") {
+  if (event.providerId === 'cloudpayments') return direct('TransactionId');
+  if (event.providerId === 'tinkoff') return direct('PaymentId');
+  if (event.providerId === 'alfabank') return direct('mdOrder') ?? direct('orderId');
+  if (event.providerId === 'yookassa') {
     const object = payload.object;
-    if (object && typeof object === "object" && !Array.isArray(object)) {
+    if (object && typeof object === 'object' && !Array.isArray(object)) {
       const id = (object as Record<string, unknown>).id;
-      if (typeof id === "string" && id.trim()) return id.trim();
-      if (typeof id === "number" && Number.isFinite(id)) return String(id);
+      if (typeof id === 'string' && id.trim()) return id.trim();
+      if (typeof id === 'number' && Number.isFinite(id)) return String(id);
     }
   }
-  return direct("intentRef") ?? direct("intentId");
+  return direct('intentRef') ?? direct('intentId');
 }
 
 export function createPaymentsService(deps: {
@@ -46,7 +46,7 @@ export function createPaymentsService(deps: {
   captureUnitOfWork: PaymentCaptureUnitOfWork;
   bookingEngine: Pick<
     BookingEnginePort,
-    "getAppointment" | "listAppointmentsByChainId" | "transitionAppointmentStatus"
+    'getAppointment' | 'listAppointmentsByChainId' | 'transitionAppointmentStatus'
   > | null;
   onAppointmentPaymentConfirmed?: (input: {
     appointmentId: string;
@@ -74,24 +74,25 @@ export function createPaymentsService(deps: {
   function resolveActiveProvider(settings: BookingPaymentSettings, providerId?: string) {
     const id = providerId?.trim() || settings.defaultProviderId;
     const provider = settings.providers.find((p) => p.id === id && p.enabled);
-    if (!provider) throw new Error("payment_provider_unavailable");
+    if (!provider) throw new Error('payment_provider_unavailable');
     return provider;
   }
 
   async function captureIntentSuccessInUnitOfWork(intentId: string, organizationId: string) {
     const intent = await deps.port.lockIntentForCapture(intentId, organizationId);
-    if (!intent) throw new Error("intent_not_found");
+    if (!intent) throw new Error('intent_not_found');
 
-    const wasSucceeded = intent.status === "succeeded";
+    const wasSucceeded = intent.status === 'succeeded';
     const succeededIntent = wasSucceeded
       ? intent
-      : ((await deps.port.updateIntentStatus(intent.id, "succeeded", organizationId)) ?? {
+      : ((await deps.port.updateIntentStatus(intent.id, 'succeeded', organizationId)) ?? {
           ...intent,
-          status: "succeeded",
+          status: 'succeeded',
         });
     const existingPayment = await deps.port.findPaymentByIntent(intent.id);
     const payment =
-      existingPayment ?? (await deps.port.createPaymentFromIntent({ ...succeededIntent, status: "succeeded" }));
+      existingPayment ??
+      (await deps.port.createPaymentFromIntent({ ...succeededIntent, status: 'succeeded' }));
 
     if (!(await deps.port.hasCapturedHistoryEvent(payment.id, organizationId))) {
       await deps.port.appendHistoryEvent({
@@ -99,7 +100,7 @@ export function createPaymentsService(deps: {
         appointmentId: intent.appointmentId,
         platformUserId: intent.platformUserId,
         paymentId: payment.id,
-        eventType: "payment_captured",
+        eventType: 'payment_captured',
         amountMinor: payment.amountMinor,
         currency: payment.currency,
         providerId: payment.providerId,
@@ -129,19 +130,19 @@ export function createPaymentsService(deps: {
       for (const appointment of appointments) {
         await deps.port.setAppointmentPaymentRef(appointment.id, payment.id, organizationId);
         let status = appointment.status;
-        if (status === "awaiting_payment") {
+        if (status === 'awaiting_payment') {
           await deps.bookingEngine.transitionAppointmentStatus({
             appointmentId: appointment.id,
-            toStatus: "paid",
-            payload: { source: "payment_capture", paymentId: payment.id },
+            toStatus: 'paid',
+            payload: { source: 'payment_capture', paymentId: payment.id },
           });
-          status = "paid";
+          status = 'paid';
         }
-        if (status === "paid") {
+        if (status === 'paid') {
           await deps.bookingEngine.transitionAppointmentStatus({
             appointmentId: appointment.id,
-            toStatus: "confirmed",
-            payload: { source: "payment_confirmed", paymentId: payment.id },
+            toStatus: 'confirmed',
+            payload: { source: 'payment_confirmed', paymentId: payment.id },
           });
         }
         confirmedAppointments.push({
@@ -198,7 +199,7 @@ export function createPaymentsService(deps: {
 
   async function resolveStoredProviderEventIntent(event: StoredPaymentProviderEvent) {
     const payloadIntentId = event.payloadJson.intentId;
-    if (typeof payloadIntentId === "string" && payloadIntentId.trim()) {
+    if (typeof payloadIntentId === 'string' && payloadIntentId.trim()) {
       const intent = await deps.port.findIntentById(payloadIntentId.trim());
       if (intent?.organizationId === event.organizationId) return intent;
     }
@@ -226,7 +227,7 @@ export function createPaymentsService(deps: {
       return quotePrepayment({
         policy,
         servicePriceMinor: params.servicePriceMinor,
-        currency: params.currency ?? policy?.currency ?? "RUB",
+        currency: params.currency ?? policy?.currency ?? 'RUB',
         paymentsGloballyEnabled: settings.enabled,
       });
     },
@@ -235,14 +236,12 @@ export function createPaymentsService(deps: {
       return deps.port.listPrepaymentPolicies(organizationId);
     },
 
-    async upsertPrepaymentPolicy(
-      input: Parameters<PaymentsPort["upsertPrepaymentPolicy"]>[0],
-    ) {
+    async upsertPrepaymentPolicy(input: Parameters<PaymentsPort['upsertPrepaymentPolicy']>[0]) {
       const row = await deps.port.upsertPrepaymentPolicy(input);
       if (input.serviceId && deps.syncServicePrepaymentApplicable) {
         await deps.syncServicePrepaymentApplicable(
           input.serviceId,
-          input.mode !== "disabled" && (input.isActive ?? true),
+          input.mode !== 'disabled' && (input.isActive ?? true),
         );
       }
       return row;
@@ -261,7 +260,7 @@ export function createPaymentsService(deps: {
         appointmentId: input.appointmentId,
         platformUserId: input.platformUserId ?? null,
         paymentId: payment.id,
-        eventType: "prepayment_carried_on_reschedule",
+        eventType: 'prepayment_carried_on_reschedule',
         amountMinor: payment.amountMinor,
         currency: payment.currency,
         providerId: payment.providerId,
@@ -288,11 +287,7 @@ export function createPaymentsService(deps: {
       const idempotencyKey = input.idempotencyKey.trim();
       const eventType = input.eventType.trim();
       if (!providerId || !idempotencyKey || !eventType) return null;
-      return deps.port.resolveProviderWebhookOrganization(
-        providerId,
-        idempotencyKey,
-        eventType,
-      );
+      return deps.port.resolveProviderWebhookOrganization(providerId, idempotencyKey, eventType);
     },
 
     async createAppointmentPaymentIntent(input: {
@@ -305,7 +300,7 @@ export function createPaymentsService(deps: {
       providerId?: string;
     }) {
       const settings = await loadSettings(input.organizationId);
-      if (!settings.enabled) throw new Error("payments_disabled");
+      if (!settings.enabled) throw new Error('payments_disabled');
       const provider = resolveActiveProvider(settings, input.providerId);
       const adapter = getPaymentProviderAdapter(provider.id);
       const existing = await deps.port.findIntentByIdempotency(
@@ -337,7 +332,7 @@ export function createPaymentsService(deps: {
         organizationId: input.organizationId,
         appointmentId: input.appointmentId,
         platformUserId: input.platformUserId,
-        eventType: "intent_created",
+        eventType: 'intent_created',
         amountMinor: input.amountMinor,
         currency: input.currency,
         providerId: provider.id,
@@ -358,7 +353,7 @@ export function createPaymentsService(deps: {
       providerId?: string;
     }) {
       const settings = await loadSettings(input.organizationId);
-      if (!settings.enabled) throw new Error("payments_disabled");
+      if (!settings.enabled) throw new Error('payments_disabled');
       const provider = resolveActiveProvider(settings, input.providerId);
       const adapter = getPaymentProviderAdapter(provider.id);
       const existing = await deps.port.findIntentByIdempotency(
@@ -384,7 +379,7 @@ export function createPaymentsService(deps: {
         productRef,
         amountMinor: input.amountMinor,
         currency: input.currency,
-        purpose: "package_purchase",
+        purpose: 'package_purchase',
         providerIntentRef: created.providerIntentRef,
         metadataJson: { patientPackageId: input.patientPackageId },
       });
@@ -392,7 +387,7 @@ export function createPaymentsService(deps: {
       await deps.port.appendHistoryEvent({
         organizationId: input.organizationId,
         platformUserId: input.platformUserId,
-        eventType: "package_intent_created",
+        eventType: 'package_intent_created',
         amountMinor: input.amountMinor,
         currency: input.currency,
         providerId: provider.id,
@@ -414,7 +409,7 @@ export function createPaymentsService(deps: {
       providerId?: string;
     }) {
       const settings = await loadSettings(input.organizationId);
-      if (!settings.enabled) throw new Error("payments_disabled");
+      if (!settings.enabled) throw new Error('payments_disabled');
       const provider = resolveActiveProvider(settings, input.providerId);
       const adapter = getPaymentProviderAdapter(provider.id);
       const existing = await deps.port.findIntentByIdempotency(
@@ -440,7 +435,7 @@ export function createPaymentsService(deps: {
         productRef,
         amountMinor: input.amountMinor,
         currency: input.currency,
-        purpose: "product_purchase",
+        purpose: 'product_purchase',
         providerIntentRef: created.providerIntentRef,
         metadataJson: { productPurchaseId: input.productPurchaseId },
       });
@@ -448,7 +443,7 @@ export function createPaymentsService(deps: {
       await deps.port.appendHistoryEvent({
         organizationId: input.organizationId,
         platformUserId: input.platformUserId,
-        eventType: "product_intent_created",
+        eventType: 'product_intent_created',
         amountMinor: input.amountMinor,
         currency: input.currency,
         providerId: provider.id,
@@ -460,10 +455,14 @@ export function createPaymentsService(deps: {
       return intent;
     },
 
-    async captureIntentForPatient(intentId: string, organizationId: string, platformUserId: string) {
+    async captureIntentForPatient(
+      intentId: string,
+      organizationId: string,
+      platformUserId: string,
+    ) {
       const intent = await deps.port.findIntentById(intentId);
-      if (!intent || intent.organizationId !== organizationId) throw new Error("intent_not_found");
-      if (intent.platformUserId !== platformUserId) throw new Error("forbidden");
+      if (!intent || intent.organizationId !== organizationId) throw new Error('intent_not_found');
+      if (intent.platformUserId !== platformUserId) throw new Error('forbidden');
       return captureIntentSuccess(intentId, organizationId);
     },
 
@@ -476,13 +475,18 @@ export function createPaymentsService(deps: {
       bookingContactPhone: string;
     }) {
       const intent = await deps.port.findIntentById(input.intentId);
-      if (!intent || intent.organizationId !== input.organizationId) throw new Error("intent_not_found");
-      if (intent.platformUserId && input.bookingUserId && intent.platformUserId !== input.bookingUserId) {
-        throw new Error("forbidden");
+      if (!intent || intent.organizationId !== input.organizationId)
+        throw new Error('intent_not_found');
+      if (
+        intent.platformUserId &&
+        input.bookingUserId &&
+        intent.platformUserId !== input.bookingUserId
+      ) {
+        throw new Error('forbidden');
       }
-      const normalized = input.verifyPhone.replace(/\D/g, "");
-      const bookingPhone = input.bookingContactPhone.replace(/\D/g, "");
-      if (!normalized || normalized !== bookingPhone) throw new Error("forbidden");
+      const normalized = input.verifyPhone.replace(/\D/g, '');
+      const bookingPhone = input.bookingContactPhone.replace(/\D/g, '');
+      if (!normalized || normalized !== bookingPhone) throw new Error('forbidden');
       return captureIntentSuccess(input.intentId, input.organizationId);
     },
 
@@ -498,9 +502,9 @@ export function createPaymentsService(deps: {
     }) {
       const settings = await loadSettings(input.organizationId);
       const provider = settings.providers.find((p) => p.id === input.providerId);
-      if (!provider?.enabled) throw new Error("payment_provider_unavailable");
+      if (!provider?.enabled) throw new Error('payment_provider_unavailable');
       const secret = provider.webhookSecret?.trim();
-      if (!secret) throw new Error("webhook_secret_missing");
+      if (!secret) throw new Error('webhook_secret_missing');
 
       const adapter = getPaymentProviderAdapter(input.providerId);
       const verified = adapter.verifyWebhook({
@@ -521,7 +525,7 @@ export function createPaymentsService(deps: {
       if (!stored.inserted && stored.processedAt) {
         return { ok: true as const, duplicate: true as const };
       }
-      if (!stored.id) throw new Error("provider_event_persist_failed");
+      if (!stored.id) throw new Error('provider_event_persist_failed');
 
       const storedIntent = await resolveStoredProviderEventIntent(stored);
       const captureKey = storedIntent ? `intent:${storedIntent.id}` : `event:${stored.id}`;
@@ -531,12 +535,12 @@ export function createPaymentsService(deps: {
         captureKey,
         async () => {
           const current = await deps.port.getProviderEventById(stored.id, input.organizationId);
-          if (!current) throw new Error("provider_event_not_found");
+          if (!current) throw new Error('provider_event_not_found');
           if (current.processedAt) {
             return { ok: true as const, duplicate: true as const };
           }
 
-          if (current.eventType === "payment.succeeded") {
+          if (current.eventType === 'payment.succeeded') {
             const intent = await resolveStoredProviderEventIntent(current);
             if (intent) await captureIntentSuccess(intent.id, input.organizationId);
           }
@@ -562,13 +566,13 @@ export function createPaymentsService(deps: {
           organizationId: input.organizationId,
           appointmentId: input.appointmentId,
           paymentId: payment.id,
-          eventType: "prepayment_retained",
+          eventType: 'prepayment_retained',
           amountMinor: payment.amountMinor,
           currency: payment.currency,
           providerId: payment.providerId,
           comment: input.reason ?? null,
         });
-        return { ok: true as const, skipped: false as const, action: "retained" as const };
+        return { ok: true as const, skipped: false as const, action: 'retained' as const };
       }
 
       if (input.prepaymentRefunded) {
@@ -590,24 +594,24 @@ export function createPaymentsService(deps: {
           appointmentId: input.appointmentId,
           amountMinor: payment.amountMinor,
           currency: payment.currency,
-          status: "succeeded",
+          status: 'succeeded',
           reason: input.reason,
           providerRefundRef: refundResult.providerRefundRef,
         });
-        await deps.port.updatePaymentStatus(payment.id, "refunded", input.organizationId);
+        await deps.port.updatePaymentStatus(payment.id, 'refunded', input.organizationId);
         await deps.port.appendHistoryEvent({
           organizationId: input.organizationId,
           appointmentId: input.appointmentId,
           paymentId: payment.id,
           refundId: refund.id,
-          eventType: "refund_succeeded",
+          eventType: 'refund_succeeded',
           amountMinor: payment.amountMinor,
           currency: payment.currency,
           providerId: payment.providerId,
-          status: "succeeded",
+          status: 'succeeded',
           comment: input.reason ?? null,
         });
-        return { ok: true as const, skipped: false as const, action: "refunded" as const };
+        return { ok: true as const, skipped: false as const, action: 'refunded' as const };
       }
 
       return { ok: true as const, skipped: true as const };
@@ -620,7 +624,8 @@ export function createPaymentsService(deps: {
       prepaymentContext?: PrepaymentResolveContext,
     ): Promise<AppointmentPaymentSummary | null> {
       const appointment =
-        appt ?? (deps.bookingEngine ? await deps.bookingEngine.getAppointment(appointmentId) : null);
+        appt ??
+        (deps.bookingEngine ? await deps.bookingEngine.getAppointment(appointmentId) : null);
       if (!appointment || appointment.organizationId !== organizationId) return null;
 
       const servicePriceMinor = prepaymentContext?.servicePriceMinor ?? null;
@@ -632,7 +637,7 @@ export function createPaymentsService(deps: {
               serviceId: appointment.serviceId,
               onlineCategory: prepaymentContext?.onlineCategory ?? null,
               servicePriceMinor,
-              currency: "RUB",
+              currency: 'RUB',
             })
           : null;
 
@@ -658,18 +663,18 @@ export type PaymentsService = ReturnType<typeof createPaymentsService>;
 
 export function createPaymentsConfigReader(
   getSetting: (
-    key: "booking_payment_enabled" | "booking_payment_providers",
+    key: 'booking_payment_enabled' | 'booking_payment_providers',
     organizationId?: string,
   ) => Promise<{ valueJson: unknown } | null>,
 ): PaymentsConfigReader {
   return {
     async getBookingPaymentSettings(organizationId) {
-      const enabledRow = await getSetting("booking_payment_enabled", organizationId);
-      const providersRow = await getSetting("booking_payment_providers", organizationId);
+      const enabledRow = await getSetting('booking_payment_enabled', organizationId);
+      const providersRow = await getSetting('booking_payment_providers', organizationId);
       const enabled =
         enabledRow != null &&
         enabledRow.valueJson !== null &&
-        typeof enabledRow.valueJson === "object" &&
+        typeof enabledRow.valueJson === 'object' &&
         (enabledRow.valueJson as Record<string, unknown>).value === true;
       const parsed = parseBookingPaymentSettingsValue(providersRow?.valueJson ?? null);
       return { ...parsed, enabled };

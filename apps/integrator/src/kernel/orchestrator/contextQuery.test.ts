@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { BaseContext, ContentPort, ContextQueryPort, IncomingEvent } from '../contracts/index.js';
+import type {
+  BaseContext,
+  ContentPort,
+  ContextQueryPort,
+  IncomingEvent,
+} from '../contracts/index.js';
 import { buildPlan } from './resolver.js';
 
 describe('orchestrator context queries', () => {
@@ -50,7 +55,10 @@ describe('orchestrator context queries', () => {
       request: vi.fn().mockResolvedValue({ type: 'subscriptions.forUser', items: [] }),
     };
 
-    const plan = await buildPlan({ event, context: baseContext }, { contentPort, contextQueryPort });
+    const plan = await buildPlan(
+      { event, context: baseContext },
+      { contentPort, contextQueryPort },
+    );
 
     expect(contextQueryPort.request).toHaveBeenCalledTimes(1);
     expect(plan.length).toBeGreaterThan(0);
@@ -124,7 +132,10 @@ describe('orchestrator context queries', () => {
       }),
     };
 
-    const plan = await buildPlan({ event, context: baseContext }, { contentPort, contextQueryPort });
+    const plan = await buildPlan(
+      { event, context: baseContext },
+      { contentPort, contextQueryPort },
+    );
 
     expect(contextQueryPort.request).toHaveBeenCalledWith({
       type: 'channel.lookupByPhone',

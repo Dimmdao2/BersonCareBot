@@ -1,9 +1,9 @@
 /** @vitest-environment node */
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const SESSION = "00000000-0000-4000-8000-0000000000aa";
-const MEDIA = "00000000-0000-4000-8000-0000000000bb";
+const SESSION = '00000000-0000-4000-8000-0000000000aa';
+const MEDIA = '00000000-0000-4000-8000-0000000000bb';
 
 const claimTxMock = vi.fn();
 const getCompletingTxMock = vi.fn();
@@ -18,29 +18,29 @@ const headMock = vi.fn();
 const requireDoctorWorkspaceApiContextMock = vi.fn();
 const withDoctorWorkspacePrincipalMock = vi.fn();
 
-vi.mock("@/config/env", () => ({
+vi.mock('@/config/env', () => ({
   env: {
-    S3_ENDPOINT: "https://fs.test",
-    S3_ACCESS_KEY: "access",
-    S3_SECRET_KEY: "secret",
-    S3_PRIVATE_BUCKET: "private-bucket",
-    S3_REGION: "us-east-1",
+    S3_ENDPOINT: 'https://fs.test',
+    S3_ACCESS_KEY: 'access',
+    S3_SECRET_KEY: 'secret',
+    S3_PRIVATE_BUCKET: 'private-bucket',
+    S3_REGION: 'us-east-1',
     S3_FORCE_PATH_STYLE: true,
   },
   isS3MediaEnabled: () => true,
 }));
 
-vi.mock("@/app-layer/db/client", () => ({
+vi.mock('@/app-layer/db/client', () => ({
   getPool: () => ({}),
 }));
 
-vi.mock("@/app-layer/locks/multipartSessionLock", () => ({
-  withMultipartSessionLock: vi.fn(async (_p: unknown, _sid: string, fn: (c: unknown) => Promise<unknown>) =>
-    fn({}),
+vi.mock('@/app-layer/locks/multipartSessionLock', () => ({
+  withMultipartSessionLock: vi.fn(
+    async (_p: unknown, _sid: string, fn: (c: unknown) => Promise<unknown>) => fn({}),
   ),
 }));
 
-vi.mock("@/app-layer/media/mediaUploadSessionsRepo", () => ({
+vi.mock('@/app-layer/media/mediaUploadSessionsRepo', () => ({
   claimUploadSessionForCompletingTx: (...a: unknown[]) => claimTxMock(...a),
   getCompletingSessionTx: (...a: unknown[]) => getCompletingTxMock(...a),
   classifyMultipartCompleteRejection: (...a: unknown[]) => classifyRejectMock(...a),
@@ -48,11 +48,11 @@ vi.mock("@/app-layer/media/mediaUploadSessionsRepo", () => ({
   tryFinalizeMultipartIdempotentTx: (...a: unknown[]) => tryFinalizeTxMock(...a),
 }));
 
-vi.mock("@/app-layer/media/s3MediaStorage", () => ({
+vi.mock('@/app-layer/media/s3MediaStorage', () => ({
   deletePendingMediaFileById: (...a: unknown[]) => deletePendingMock(...a),
 }));
 
-vi.mock("@/app-layer/media/s3Client", () => ({
+vi.mock('@/app-layer/media/s3Client', () => ({
   s3CompleteMultipartUpload: (...a: unknown[]) => completeS3Mock(...a),
   s3AbortMultipartUpload: (...a: unknown[]) => abortS3Mock(...a),
   s3DeleteObject: (...a: unknown[]) => deleteObjMock(...a),
@@ -60,42 +60,43 @@ vi.mock("@/app-layer/media/s3Client", () => ({
 }));
 
 const autoEnqueueMock = vi.fn();
-vi.mock("@/app-layer/media/mediaTranscodeAutoEnqueue", () => ({
+vi.mock('@/app-layer/media/mediaTranscodeAutoEnqueue', () => ({
   maybeAutoEnqueueVideoTranscodeAfterUpload: (...a: unknown[]) => autoEnqueueMock(...a),
 }));
 
 const sessionMock = vi.fn();
-vi.mock("@/app-layer/guards/requireRole", () => ({
-  requireDoctorWorkspaceApiContext: (...args: unknown[]) => requireDoctorWorkspaceApiContextMock(...args),
+vi.mock('@/app-layer/guards/requireRole', () => ({
+  requireDoctorWorkspaceApiContext: (...args: unknown[]) =>
+    requireDoctorWorkspaceApiContextMock(...args),
 }));
 
-vi.mock("@/app-layer/guards/doctorWorkspacePrincipal", () => ({
+vi.mock('@/app-layer/guards/doctorWorkspacePrincipal', () => ({
   withDoctorWorkspacePrincipal: (...args: unknown[]) => withDoctorWorkspacePrincipalMock(...args),
 }));
 
-import { POST } from "./route";
+import { POST } from './route';
 
 function baseRow() {
   return {
     id: SESSION,
     media_id: MEDIA,
-    s3_key: "media/k/f.png",
-    upload_id: "up-1",
-    owner_user_id: "doc-1",
-    status: "completing",
-    expected_size_bytes: "100",
-    mime_type: "image/png",
+    s3_key: 'media/k/f.png',
+    upload_id: 'up-1',
+    owner_user_id: 'doc-1',
+    status: 'completing',
+    expected_size_bytes: '100',
+    mime_type: 'image/png',
     part_size_bytes: 100,
     expires_at: new Date(Date.now() + 3600_000),
   };
 }
 
-describe("POST /api/media/multipart/complete", () => {
+describe('POST /api/media/multipart/complete', () => {
   beforeEach(() => {
     claimTxMock.mockReset();
     getCompletingTxMock.mockReset();
     classifyRejectMock.mockReset();
-    classifyRejectMock.mockResolvedValue("session_state_conflict");
+    classifyRejectMock.mockResolvedValue('session_state_conflict');
     markFailedTxMock.mockReset();
     tryFinalizeTxMock.mockReset();
     deletePendingMock.mockReset();
@@ -107,11 +108,11 @@ describe("POST /api/media/multipart/complete", () => {
     requireDoctorWorkspaceApiContextMock.mockReset();
     withDoctorWorkspacePrincipalMock.mockReset();
     autoEnqueueMock.mockReset();
-    sessionMock.mockResolvedValue({ user: { userId: "doc-1", role: "doctor" } });
+    sessionMock.mockResolvedValue({ user: { userId: 'doc-1', role: 'doctor' } });
     requireDoctorWorkspaceApiContextMock.mockImplementation(async () => {
       const session = await sessionMock();
       return session
-        ? { ok: true, ctx: { session, organizationId: "org-a" } }
+        ? { ok: true, ctx: { session, organizationId: 'org-a' } }
         : { ok: false, response: new Response(null, { status: 403 }) };
     });
     withDoctorWorkspacePrincipalMock.mockImplementation(
@@ -123,25 +124,25 @@ describe("POST /api/media/multipart/complete", () => {
     deletePendingMock.mockResolvedValue(true);
     headMock.mockResolvedValue({
       contentLength: 100,
-      contentType: "image/png",
+      contentType: 'image/png',
       metadata: {
-        "media-id": MEDIA,
-        "owner-user-id": "doc-1",
-        "expected-size": "100",
+        'media-id': MEDIA,
+        'owner-user-id': 'doc-1',
+        'expected-size': '100',
       },
     });
     tryFinalizeTxMock.mockResolvedValue({
-      kind: "finalized",
+      kind: 'finalized',
       result: { sessionRows: 1, mediaRows: 1 },
     });
   });
 
-  it("returns 403 without doctor session", async () => {
+  it('returns 403 without doctor session', async () => {
     sessionMock.mockResolvedValue(null);
     const res = await POST(
-      new Request("http://localhost/api/media/multipart/complete", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
+      new Request('http://localhost/api/media/multipart/complete', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ sessionId: SESSION, parts: [{ PartNumber: 1, ETag: '"a"' }] }),
       }),
     );
@@ -149,64 +150,64 @@ describe("POST /api/media/multipart/complete", () => {
     expect(autoEnqueueMock).not.toHaveBeenCalled();
   });
 
-  it("returns 404 when session missing after claim miss", async () => {
+  it('returns 404 when session missing after claim miss', async () => {
     claimTxMock.mockResolvedValue(null);
     getCompletingTxMock.mockResolvedValue(null);
-    classifyRejectMock.mockResolvedValue("session_not_found");
+    classifyRejectMock.mockResolvedValue('session_not_found');
     const res = await POST(
-      new Request("http://localhost/api/media/multipart/complete", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
+      new Request('http://localhost/api/media/multipart/complete', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ sessionId: SESSION, parts: [{ PartNumber: 1, ETag: '"a"' }] }),
       }),
     );
     expect(res.status).toBe(404);
     const j = (await res.json()) as { error?: string };
-    expect(j.error).toBe("session_not_found");
-    expect(claimTxMock).toHaveBeenCalledWith(expect.anything(), SESSION, "doc-1", "org-a");
-    expect(getCompletingTxMock).toHaveBeenCalledWith(expect.anything(), SESSION, "doc-1", "org-a");
-    expect(classifyRejectMock).toHaveBeenCalledWith(expect.anything(), SESSION, "doc-1", "org-a");
+    expect(j.error).toBe('session_not_found');
+    expect(claimTxMock).toHaveBeenCalledWith(expect.anything(), SESSION, 'doc-1', 'org-a');
+    expect(getCompletingTxMock).toHaveBeenCalledWith(expect.anything(), SESSION, 'doc-1', 'org-a');
+    expect(classifyRejectMock).toHaveBeenCalledWith(expect.anything(), SESSION, 'doc-1', 'org-a');
   });
 
-  it("returns 409 session_expired when classify says expired", async () => {
+  it('returns 409 session_expired when classify says expired', async () => {
     claimTxMock.mockResolvedValue(null);
     getCompletingTxMock.mockResolvedValue(null);
-    classifyRejectMock.mockResolvedValue("session_expired");
+    classifyRejectMock.mockResolvedValue('session_expired');
     const res = await POST(
-      new Request("http://localhost/api/media/multipart/complete", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
+      new Request('http://localhost/api/media/multipart/complete', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ sessionId: SESSION, parts: [{ PartNumber: 1, ETag: '"a"' }] }),
       }),
     );
     expect(res.status).toBe(409);
     const j = (await res.json()) as { error?: string };
-    expect(j.error).toBe("session_expired");
+    expect(j.error).toBe('session_expired');
   });
 
-  it("returns 409 session_state_conflict when classify says conflict", async () => {
+  it('returns 409 session_state_conflict when classify says conflict', async () => {
     claimTxMock.mockResolvedValue(null);
     getCompletingTxMock.mockResolvedValue(null);
-    classifyRejectMock.mockResolvedValue("session_state_conflict");
+    classifyRejectMock.mockResolvedValue('session_state_conflict');
     const res = await POST(
-      new Request("http://localhost/api/media/multipart/complete", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
+      new Request('http://localhost/api/media/multipart/complete', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ sessionId: SESSION, parts: [{ PartNumber: 1, ETag: '"a"' }] }),
       }),
     );
     expect(res.status).toBe(409);
     const j = (await res.json()) as { error?: string };
-    expect(j.error).toBe("session_state_conflict");
+    expect(j.error).toBe('session_state_conflict');
   });
 
-  it("returns 200 happy path with S3 complete + finalize", async () => {
+  it('returns 200 happy path with S3 complete + finalize', async () => {
     claimTxMock.mockResolvedValue(baseRow());
     getCompletingTxMock.mockResolvedValue(null);
     const res = await POST(
-      new Request("http://localhost/api/media/multipart/complete", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
+      new Request('http://localhost/api/media/multipart/complete', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ sessionId: SESSION, parts: [{ PartNumber: 1, ETag: '"a"' }] }),
       }),
     );
@@ -215,17 +216,23 @@ describe("POST /api/media/multipart/complete", () => {
     expect(j.ok).toBe(true);
     expect(j.url).toBe(`/api/media/${MEDIA}`);
     expect(completeS3Mock).toHaveBeenCalled();
-    expect(tryFinalizeTxMock).toHaveBeenCalledWith(expect.anything(), SESSION, MEDIA, "doc-1", "org-a");
+    expect(tryFinalizeTxMock).toHaveBeenCalledWith(
+      expect.anything(),
+      SESSION,
+      MEDIA,
+      'doc-1',
+      'org-a',
+    );
     expect(autoEnqueueMock).toHaveBeenCalledWith(MEDIA);
   });
 
-  it("skips S3 complete when retrying stuck completing session", async () => {
+  it('skips S3 complete when retrying stuck completing session', async () => {
     claimTxMock.mockResolvedValue(null);
     getCompletingTxMock.mockResolvedValue(baseRow());
     const res = await POST(
-      new Request("http://localhost/api/media/multipart/complete", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
+      new Request('http://localhost/api/media/multipart/complete', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ sessionId: SESSION, parts: [{ PartNumber: 1, ETag: '"a"' }] }),
       }),
     );
@@ -235,12 +242,12 @@ describe("POST /api/media/multipart/complete", () => {
     expect(autoEnqueueMock).toHaveBeenCalledWith(MEDIA);
   });
 
-  it("returns 400 invalid_parts and marks session failed", async () => {
+  it('returns 400 invalid_parts and marks session failed', async () => {
     claimTxMock.mockResolvedValue(baseRow());
     const res = await POST(
-      new Request("http://localhost/api/media/multipart/complete", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
+      new Request('http://localhost/api/media/multipart/complete', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           sessionId: SESSION,
           parts: [
@@ -255,35 +262,35 @@ describe("POST /api/media/multipart/complete", () => {
     expect(completeS3Mock).not.toHaveBeenCalled();
   });
 
-  it("returns 409 finalize_inconsistent_state when finalize partial", async () => {
+  it('returns 409 finalize_inconsistent_state when finalize partial', async () => {
     claimTxMock.mockResolvedValue(baseRow());
     tryFinalizeTxMock.mockResolvedValue({
-      kind: "partial",
+      kind: 'partial',
       result: { sessionRows: 0, mediaRows: 0 },
     });
     const res = await POST(
-      new Request("http://localhost/api/media/multipart/complete", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
+      new Request('http://localhost/api/media/multipart/complete', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ sessionId: SESSION, parts: [{ PartNumber: 1, ETag: '"a"' }] }),
       }),
     );
     expect(res.status).toBe(409);
     const j = (await res.json()) as { error?: string };
-    expect(j.error).toBe("finalize_inconsistent_state");
+    expect(j.error).toBe('finalize_inconsistent_state');
     expect(autoEnqueueMock).not.toHaveBeenCalled();
   });
 
-  it("returns 200 when finalize idempotent already_done", async () => {
+  it('returns 200 when finalize idempotent already_done', async () => {
     claimTxMock.mockResolvedValue(baseRow());
     tryFinalizeTxMock.mockResolvedValue({
-      kind: "already_done",
+      kind: 'already_done',
       result: { sessionRows: 0, mediaRows: 0 },
     });
     const res = await POST(
-      new Request("http://localhost/api/media/multipart/complete", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
+      new Request('http://localhost/api/media/multipart/complete', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ sessionId: SESSION, parts: [{ PartNumber: 1, ETag: '"a"' }] }),
       }),
     );

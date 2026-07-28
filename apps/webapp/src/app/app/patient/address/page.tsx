@@ -1,11 +1,11 @@
 /**
  * Адрес кабинета: iframe сайта специалиста (EXEC I.9).
  */
-import { getOptionalPatientSession } from "@/app-layer/guards/requireRole";
-import { routePaths } from "@/app-layer/routes/paths";
-import { PatientAppShell } from "@/shared/ui/patient/PatientAppShell";
+import { getOptionalPatientSession } from '@/app-layer/guards/requireRole';
+import { routePaths } from '@/app-layer/routes/paths';
+import { PatientAppShell } from '@/shared/ui/patient/PatientAppShell';
 
-const ADDRESS_IFRAME_SRC = "https://dmitryberson.ru/adress";
+const ADDRESS_IFRAME_SRC = 'https://dmitryberson.ru/adress';
 
 export default async function PatientAddressPage() {
   const session = await getOptionalPatientSession();
@@ -16,7 +16,6 @@ export default async function PatientAddressPage() {
       user={session?.user ?? null}
       backHref={routePaths.patient}
       backLabel="Меню"
-     
     >
       <div className="flex min-h-0 flex-1 flex-col">
         <iframe

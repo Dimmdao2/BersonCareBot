@@ -51,13 +51,13 @@ import type {
   UpdateTreatmentProgramStageItemInput,
   UpdateTreatmentProgramTemplateStageGroupInput,
   UpdateTreatmentProgramTemplateInput,
-} from "./types";
+} from './types';
 
 /** Контекст этапа шаблона для валидации элементов (`addStageItem` / `updateStageItem`). */
 export type TreatmentProgramTemplateStageValidationContext = {
   templateId: string;
   sortOrder: number;
-  groups: Array<Pick<TreatmentProgramTemplateStageGroup, "id" | "systemKind">>;
+  groups: Array<Pick<TreatmentProgramTemplateStageGroup, 'id' | 'systemKind'>>;
 };
 
 export type TreatmentProgramPort = {
@@ -76,13 +76,24 @@ export type TreatmentProgramPort = {
   listTemplates(filter: TreatmentProgramTemplateFilter): Promise<TreatmentProgramTemplate[]>;
   /** Перевод шаблона в `status = archived` (не физическое удаление строки). */
   deleteTemplate(id: string): Promise<boolean>;
-  getTreatmentProgramTemplateUsageSummary(id: string): Promise<TreatmentProgramTemplateUsageSnapshot>;
+  getTreatmentProgramTemplateUsageSummary(
+    id: string,
+  ): Promise<TreatmentProgramTemplateUsageSnapshot>;
 
-  createStage(templateId: string, input: CreateTreatmentProgramStageInput): Promise<TreatmentProgramStage>;
-  updateStage(stageId: string, input: UpdateTreatmentProgramStageInput): Promise<TreatmentProgramStage | null>;
+  createStage(
+    templateId: string,
+    input: CreateTreatmentProgramStageInput,
+  ): Promise<TreatmentProgramStage>;
+  updateStage(
+    stageId: string,
+    input: UpdateTreatmentProgramStageInput,
+  ): Promise<TreatmentProgramStage | null>;
   deleteStage(stageId: string): Promise<boolean>;
 
-  addStageItem(stageId: string, input: CreateTreatmentProgramStageItemInput): Promise<TreatmentProgramStageItem>;
+  addStageItem(
+    stageId: string,
+    input: CreateTreatmentProgramStageItemInput,
+  ): Promise<TreatmentProgramStageItem>;
   getStageItemById(itemId: string): Promise<TreatmentProgramStageItem | null>;
   updateStageItem(
     itemId: string,
@@ -117,17 +128,29 @@ export type TreatmentProgramPort = {
 
 /** Проверка полиморфной ссылки без FK на уровне БД — только в сервисе. */
 export type TreatmentProgramItemRefValidationPort = {
-  assertItemRefExists(type: TreatmentProgramLibraryPickType, itemRefId: string, organizationId?: string): Promise<void>;
+  assertItemRefExists(
+    type: TreatmentProgramLibraryPickType,
+    itemRefId: string,
+    organizationId?: string,
+  ): Promise<void>;
 };
 
 /** Снимок блока библиотеки на момент назначения (§4 SYSTEM_LOGIC_SCHEMA). */
 export type TreatmentProgramItemSnapshotPort = {
-  buildSnapshot(type: TreatmentProgramItemType, itemRefId: string): Promise<Record<string, unknown>>;
+  buildSnapshot(
+    type: TreatmentProgramItemType,
+    itemRefId: string,
+  ): Promise<Record<string, unknown>>;
 };
 
 export type TreatmentProgramInstancePort = {
-  createInstanceTree(input: CreateTreatmentProgramInstanceTreeInput): Promise<TreatmentProgramInstanceDetail>;
-  getInstanceById(id: string, organizationId?: string): Promise<TreatmentProgramInstanceDetail | null>;
+  createInstanceTree(
+    input: CreateTreatmentProgramInstanceTreeInput,
+  ): Promise<TreatmentProgramInstanceDetail>;
+  getInstanceById(
+    id: string,
+    organizationId?: string,
+  ): Promise<TreatmentProgramInstanceDetail | null>;
   getInstanceForPatient(
     patientUserId: string,
     instanceId: string,
@@ -136,7 +159,9 @@ export type TreatmentProgramInstancePort = {
   listInstancesForPatient(patientUserId: string): Promise<TreatmentProgramInstanceSummary[]>;
 
   /** Кабинет врача: все инстансы пациента кроме `assignment_source = promo`. */
-  listInstancesForPatientClinicalView(patientUserId: string): Promise<TreatmentProgramInstanceSummary[]>;
+  listInstancesForPatientClinicalView(
+    patientUserId: string,
+  ): Promise<TreatmentProgramInstanceSummary[]>;
 
   countInstancesWhere(filter: {
     assignmentSource: TreatmentProgramAssignmentSource;
@@ -156,7 +181,7 @@ export type TreatmentProgramInstancePort = {
   ): Promise<TreatmentProgramInstanceStageItemRow | null>;
   updateInstanceMeta(
     instanceId: string,
-    patch: { title?: string; status?: "active" | "completed" },
+    patch: { title?: string; status?: 'active' | 'completed' },
     organizationId?: string,
   ): Promise<TreatmentProgramInstanceSummary | null>;
 
@@ -358,7 +383,11 @@ export type TreatmentProgramTestAttemptsPort = {
   /**
    * Врач принимает отправленную попытку: `accepted_at` / `accepted_by` и `completed_at` пункта этапа.
    */
-  acceptAttempt(input: { attemptId: string; instanceId: string; doctorUserId: string }): Promise<void>;
+  acceptAttempt(input: {
+    attemptId: string;
+    instanceId: string;
+    doctorUserId: string;
+  }): Promise<void>;
   /**
    * Атомарно: после отправленной попытки начать новый круг — сброс `completed_at` пункта и вставка open attempt.
    * Требует отсутствия open attempt и наличия хотя бы одной submitted попытки.
@@ -378,7 +407,9 @@ export type TreatmentProgramTestAttemptsPort = {
   /**
    * A4: результаты с `decided_by IS NULL` по **активным** экземплярам программ пациента (inbox врача).
    */
-  listPendingEvaluationResultsForPatient(patientUserId: string): Promise<PendingProgramTestEvaluationRow[]>;
+  listPendingEvaluationResultsForPatient(
+    patientUserId: string,
+  ): Promise<PendingProgramTestEvaluationRow[]>;
   /** Cross-patient inbox «К проверке» на «Сегодня» (active, не promo, submitted). */
   countPendingEvaluationAttemptsGlobal(organizationId: string): Promise<number>;
   /** Все pending result-строки организации для top `maxAttempts` попыток (по дате последнего result). */
@@ -499,7 +530,10 @@ export type ProgramActionLogPort = {
     organizationId?: string;
   }): Promise<Array<{ localDate: string; itemId: string; instanceId: string }>>;
   /** Журнал действий пациента по экземпляру (новые сверху), для UI врача (UX-02). */
-  listForInstance(params: { instanceId: string; limit?: number }): Promise<ProgramActionLogListRow[]>;
+  listForInstance(params: {
+    instanceId: string;
+    limit?: number;
+  }): Promise<ProgramActionLogListRow[]>;
   /**
    * Записи `done` по конкретному элементу экземпляра за UTC-окно.
    * Используется для микро-графика динамики выполнения упражнения (Этап B.3).

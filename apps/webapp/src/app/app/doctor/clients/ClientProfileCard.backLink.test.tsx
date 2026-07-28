@@ -1,39 +1,41 @@
 /** @vitest-environment jsdom */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import type { MessageLogEntry } from "@/modules/doctor-messaging/ports";
-import type { ClientProfile } from "@/modules/doctor-clients/service";
-import { ClientProfileCard } from "./ClientProfileCard";
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import type { MessageLogEntry } from '@/modules/doctor-messaging/ports';
+import type { ClientProfile } from '@/modules/doctor-clients/service';
+import { ClientProfileCard } from './ClientProfileCard';
 
 const sampleMessageHistoryEntry: MessageLogEntry = {
-  id: "mh1",
-  userId: "u1",
-  senderId: "doc1",
-  text: "Тестовое сообщение журнала",
-  category: "reminder",
+  id: 'mh1',
+  userId: 'u1',
+  senderId: 'doc1',
+  text: 'Тестовое сообщение журнала',
+  category: 'reminder',
   channelBindingsUsed: {},
-  sentAt: "2025-01-01T12:00:00.000Z",
-  outcome: "sent",
+  sentAt: '2025-01-01T12:00:00.000Z',
+  outcome: 'sent',
 };
 
-vi.mock("@/modules/messaging/components/DoctorChatPanel", () => ({ DoctorChatPanel: () => null }));
-vi.mock("./DoctorLfkComplexExerciseOverridesPanel", () => ({ DoctorLfkComplexExerciseOverridesPanel: () => null }));
-vi.mock("./PatientTreatmentProgramsPanel", () => ({ PatientTreatmentProgramsPanel: () => null }));
-vi.mock("./AdminDangerActions", () => ({ AdminDangerActions: () => null }));
-vi.mock("./DoctorClientLifecycleActions", () => ({ DoctorClientLifecycleActions: () => null }));
-vi.mock("./DoctorNotesPanel", () => ({ DoctorNotesPanel: () => null }));
-vi.mock("./ClientBookingHistoryPanel", () => ({ ClientBookingHistoryPanel: () => null }));
-vi.mock("./SubscriberBlockPanel", () => ({ SubscriberBlockPanel: () => null }));
-vi.mock("./DoctorClientSupportCareBar", () => ({
+vi.mock('@/modules/messaging/components/DoctorChatPanel', () => ({ DoctorChatPanel: () => null }));
+vi.mock('./DoctorLfkComplexExerciseOverridesPanel', () => ({
+  DoctorLfkComplexExerciseOverridesPanel: () => null,
+}));
+vi.mock('./PatientTreatmentProgramsPanel', () => ({ PatientTreatmentProgramsPanel: () => null }));
+vi.mock('./AdminDangerActions', () => ({ AdminDangerActions: () => null }));
+vi.mock('./DoctorClientLifecycleActions', () => ({ DoctorClientLifecycleActions: () => null }));
+vi.mock('./DoctorNotesPanel', () => ({ DoctorNotesPanel: () => null }));
+vi.mock('./ClientBookingHistoryPanel', () => ({ ClientBookingHistoryPanel: () => null }));
+vi.mock('./SubscriberBlockPanel', () => ({ SubscriberBlockPanel: () => null }));
+vi.mock('./DoctorClientSupportCareBar', () => ({
   DoctorClientSupportCareBar: () => <div id="doctor-client-section-support" />,
 }));
 
 const minimalProfile: ClientProfile = {
   identity: {
-    userId: "u1",
-    displayName: "Test",
+    userId: 'u1',
+    displayName: 'Test',
     phone: null,
     bindings: {},
     createdAt: null,
@@ -58,10 +60,10 @@ const minimalProfile: ClientProfile = {
   recentLfkSessions: [],
 };
 
-describe("ClientProfileCard back link (scope)", () => {
+describe('ClientProfileCard back link (scope)', () => {
   beforeEach(() => {
     vi.stubGlobal(
-      "fetch",
+      'fetch',
       vi.fn(async () => new Response(JSON.stringify({ ok: true, unreadCount: 0 }))),
     );
   });
@@ -70,7 +72,7 @@ describe("ClientProfileCard back link (scope)", () => {
     vi.unstubAllGlobals();
   });
 
-  it("shows client display name in sticky header", () => {
+  it('shows client display name in sticky header', () => {
     render(
       <ClientProfileCard
         profile={minimalProfile}
@@ -79,15 +81,15 @@ describe("ClientProfileCard back link (scope)", () => {
         listBasePath="/app/doctor/clients?scope=all"
       />,
     );
-    const nameEl = document.getElementById("doctor-client-display-name");
+    const nameEl = document.getElementById('doctor-client-display-name');
     expect(nameEl).not.toBeNull();
-    expect(nameEl).toHaveTextContent("Test");
+    expect(nameEl).toHaveTextContent('Test');
   });
 
-  it("shows placeholder when display name is empty", () => {
+  it('shows placeholder when display name is empty', () => {
     const profileEmptyName: ClientProfile = {
       ...minimalProfile,
-      identity: { ...minimalProfile.identity, displayName: "   " },
+      identity: { ...minimalProfile.identity, displayName: '   ' },
     };
     render(
       <ClientProfileCard
@@ -97,11 +99,11 @@ describe("ClientProfileCard back link (scope)", () => {
         listBasePath="/app/doctor/clients?scope=all"
       />,
     );
-    const nameEl = document.getElementById("doctor-client-display-name");
-    expect(nameEl).toHaveTextContent("Имя не указано");
+    const nameEl = document.getElementById('doctor-client-display-name');
+    expect(nameEl).toHaveTextContent('Имя не указано');
   });
 
-  it("wraps content in doctor-client-profile-page-{userId} including display name", () => {
+  it('wraps content in doctor-client-profile-page-{userId} including display name', () => {
     const { container } = render(
       <ClientProfileCard
         profile={minimalProfile}
@@ -110,12 +112,12 @@ describe("ClientProfileCard back link (scope)", () => {
         listBasePath="/app/doctor/clients?scope=all"
       />,
     );
-    const root = container.querySelector("#doctor-client-profile-page-u1");
+    const root = container.querySelector('#doctor-client-profile-page-u1');
     expect(root).not.toBeNull();
-    expect(root).toContainElement(document.getElementById("doctor-client-display-name"));
+    expect(root).toContainElement(document.getElementById('doctor-client-display-name'));
   });
 
-  it("does not render legacy accordion trigger ids", () => {
+  it('does not render legacy accordion trigger ids', () => {
     const { container } = render(
       <ClientProfileCard
         profile={minimalProfile}
@@ -127,8 +129,8 @@ describe("ClientProfileCard back link (scope)", () => {
     expect(container.querySelectorAll('[id^="doctor-client-acc-trigger-"]')).toHaveLength(0);
   });
 
-  it("uses listBasePath with scope=all for href and подписчиков label", () => {
-    const href = "/app/doctor/clients?scope=all";
+  it('uses listBasePath with scope=all for href and подписчиков label', () => {
+    const href = '/app/doctor/clients?scope=all';
     render(
       <ClientProfileCard
         profile={minimalProfile}
@@ -137,12 +139,12 @@ describe("ClientProfileCard back link (scope)", () => {
         listBasePath={href}
       />,
     );
-    const link = screen.getByRole("link", { name: /к списку подписчиков/i });
-    expect(link).toHaveAttribute("href", href);
+    const link = screen.getByRole('link', { name: /к списку подписчиков/i });
+    expect(link).toHaveAttribute('href', href);
   });
 
-  it("uses listBasePath with scope=appointments for href and клиентов label", () => {
-    const href = "/app/doctor/clients?scope=appointments";
+  it('uses listBasePath with scope=appointments for href and клиентов label', () => {
+    const href = '/app/doctor/clients?scope=appointments';
     render(
       <ClientProfileCard
         profile={minimalProfile}
@@ -151,11 +153,11 @@ describe("ClientProfileCard back link (scope)", () => {
         listBasePath={href}
       />,
     );
-    const link = screen.getByRole("link", { name: /к списку клиентов/i });
-    expect(link).toHaveAttribute("href", href);
+    const link = screen.getByRole('link', { name: /к списку клиентов/i });
+    expect(link).toHaveAttribute('href', href);
   });
 
-  it("renders support chat CTA instead of legacy send form", async () => {
+  it('renders support chat CTA instead of legacy send form', async () => {
     const user = userEvent.setup();
     render(
       <ClientProfileCard
@@ -166,17 +168,17 @@ describe("ClientProfileCard back link (scope)", () => {
       />,
     );
 
-    const openChat = document.getElementById("doctor-client-open-support-chat-button");
+    const openChat = document.getElementById('doctor-client-open-support-chat-button');
     expect(openChat).not.toBeNull();
-    expect(openChat).toHaveTextContent("Чат");
-    await user.click(screen.getByRole("tab", { name: /коммуникации/i }));
-    expect(screen.getByText("Чат поддержки")).toBeInTheDocument();
+    expect(openChat).toHaveTextContent('Чат');
+    await user.click(screen.getByRole('tab', { name: /коммуникации/i }));
+    expect(screen.getByText('Чат поддержки')).toBeInTheDocument();
     expect(screen.getByText(/старый журнал отправок/i)).toBeInTheDocument();
   });
 
-  it("shows support chat unread badge on CTA", async () => {
+  it('shows support chat unread badge on CTA', async () => {
     vi.stubGlobal(
-      "fetch",
+      'fetch',
       vi.fn(async () => new Response(JSON.stringify({ ok: true, unreadCount: 2 }))),
     );
 
@@ -189,19 +191,21 @@ describe("ClientProfileCard back link (scope)", () => {
       />,
     );
 
-    expect(await screen.findByRole("button", { name: /чат 2/i })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /чат 2/i })).toBeInTheDocument();
   });
 
-  it("shows a clear error when patient is missing during chat ensure", async () => {
+  it('shows a clear error when patient is missing during chat ensure', async () => {
     vi.stubGlobal(
-      "fetch",
+      'fetch',
       vi.fn(async (input: RequestInfo | URL) => {
         const url = String(input);
-        if (url.includes("/api/doctor/messages/conversations/unread-by-patient")) {
+        if (url.includes('/api/doctor/messages/conversations/unread-by-patient')) {
           return new Response(JSON.stringify({ ok: true, unreadCount: 0 }));
         }
-        if (url.includes("/api/doctor/messages/conversations/ensure")) {
-          return new Response(JSON.stringify({ ok: false, error: "patient_not_found" }), { status: 404 });
+        if (url.includes('/api/doctor/messages/conversations/ensure')) {
+          return new Response(JSON.stringify({ ok: false, error: 'patient_not_found' }), {
+            status: 404,
+          });
         }
         return new Response(JSON.stringify({ ok: true }));
       }),
@@ -216,9 +220,9 @@ describe("ClientProfileCard back link (scope)", () => {
       />,
     );
 
-    const openChat = document.getElementById("doctor-client-open-support-chat-button");
+    const openChat = document.getElementById('doctor-client-open-support-chat-button');
     expect(openChat).not.toBeNull();
     await userEvent.click(openChat!);
-    expect(await screen.findByText("Пациент не найден, чат открыть нельзя.")).toBeInTheDocument();
+    expect(await screen.findByText('Пациент не найден, чат открыть нельзя.')).toBeInTheDocument();
   });
 });

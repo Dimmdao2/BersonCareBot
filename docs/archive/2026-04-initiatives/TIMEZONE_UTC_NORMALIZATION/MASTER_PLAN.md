@@ -24,16 +24,17 @@ naive datetime  ──→  normalizeToUtcInstant(raw, tz)  ──→  UTC instan
 ```
 
 **Три инварианта:**
+
 1. Внутри системы (БД, события, JSON между сервисами) — **только** ISO-8601 с `Z` или явным offset.
 2. Интерпретация входящих наивных дат — **всегда** через IANA-зону источника (филиала).
 3. Форматирование для UI — **всегда** через единую display-timezone из `system_settings`.
 
-**Инвариант качества данных (выбранный режим обработки):**
-4. Если у входного события есть бизнес-обязательное время, а нормализация не удалась:
-   - запись не теряется (вариант A): сохраняем факт события, но время в доменной записи = `null`;
-   - обязательно создаём инцидент качества данных в отдельном хранилище;
-   - обязательно отправляем критичное уведомление администратору в Telegram;
-   - правило должно быть общим для всех интеграций, а не только для Rubitime.
+**Инвариант качества данных (выбранный режим обработки):** 4. Если у входного события есть бизнес-обязательное время, а нормализация не удалась:
+
+- запись не теряется (вариант A): сохраняем факт события, но время в доменной записи = `null`;
+- обязательно создаём инцидент качества данных в отдельном хранилище;
+- обязательно отправляем критичное уведомление администратору в Telegram;
+- правило должно быть общим для всех интеграций, а не только для Rubitime.
 
 ---
 
@@ -56,11 +57,11 @@ naive datetime  ──→  normalizeToUtcInstant(raw, tz)  ──→  UTC instan
 
 ### Таблицы, хранящие время записей
 
-| Таблица (БД) | Колонка | Тип | Кто пишет | Примечание |
-|---|---|---|---|---|
-| `rubitime_records` (integrator) | `record_at` | `timestamptz` | `writePort` → `upsertRecord` | Ожидается UTC instant после нормализации на входе |
-| `appointment_records` (webapp) | `record_at` | `timestamptz` | проекция webapp | Payload из integrator — ISO-Z |
-| `patient_bookings` (webapp) | `slot_start`, `slot_end` | `timestamptz` | `pgPatientBookings` и др. | Native из слотов; compat-ветка для projection задокументирована в коде |
+| Таблица (БД)                    | Колонка                  | Тип           | Кто пишет                    | Примечание                                                             |
+| ------------------------------- | ------------------------ | ------------- | ---------------------------- | ---------------------------------------------------------------------- |
+| `rubitime_records` (integrator) | `record_at`              | `timestamptz` | `writePort` → `upsertRecord` | Ожидается UTC instant после нормализации на входе                      |
+| `appointment_records` (webapp)  | `record_at`              | `timestamptz` | проекция webapp              | Payload из integrator — ISO-Z                                          |
+| `patient_bookings` (webapp)     | `slot_start`, `slot_end` | `timestamptz` | `pgPatientBookings` и др.    | Native из слотов; compat-ветка для projection задокументирована в коде |
 
 ---
 
@@ -81,19 +82,19 @@ naive datetime  ──→  normalizeToUtcInstant(raw, tz)  ──→  UTC instan
 
 **Маппинг Rubitime offset → IANA:**
 
-| Rubitime «Местное время» | UTC offset | IANA |
-|:---:|:---:|---|
-| -1 | +2 | `Europe/Kaliningrad` |
-| 0 | +3 | `Europe/Moscow` |
-| +1 | +4 | `Europe/Samara` |
-| +2 | +5 | `Asia/Yekaterinburg` |
-| +3 | +6 | `Asia/Omsk` |
-| +4 | +7 | `Asia/Krasnoyarsk` |
-| +5 | +8 | `Asia/Irkutsk` |
-| +6 | +9 | `Asia/Yakutsk` |
-| +7 | +10 | `Asia/Vladivostok` |
-| +8 | +11 | `Asia/Magadan` |
-| +9 | +12 | `Asia/Kamchatka` |
+| Rubitime «Местное время» | UTC offset | IANA                 |
+| :----------------------: | :--------: | -------------------- |
+|            -1            |     +2     | `Europe/Kaliningrad` |
+|            0             |     +3     | `Europe/Moscow`      |
+|            +1            |     +4     | `Europe/Samara`      |
+|            +2            |     +5     | `Asia/Yekaterinburg` |
+|            +3            |     +6     | `Asia/Omsk`          |
+|            +4            |     +7     | `Asia/Krasnoyarsk`   |
+|            +5            |     +8     | `Asia/Irkutsk`       |
+|            +6            |     +9     | `Asia/Yakutsk`       |
+|            +7            |    +10     | `Asia/Vladivostok`   |
+|            +8            |    +11     | `Asia/Magadan`       |
+|            +9            |    +12     | `Asia/Kamchatka`     |
 
 **Gate:** `branches.timezone` заполнена для всех филиалов; `getBranchTimezone` возвращает `Europe/Moscow` по умолчанию; fallback-кейсы наблюдаемы через инцидент-хранилище и Telegram-алерты.
 
@@ -116,19 +117,18 @@ naive datetime  ──→  normalizeToUtcInstant(raw, tz)  ──→  UTC instan
  *   из IANA-зоны для этого момента → .toISOString()
  * - Невалидная строка → null
  */
-export function normalizeToUtcInstant(
-  raw: string,
-  sourceTimezone: string,
-): string | null;
+export function normalizeToUtcInstant(raw: string, sourceTimezone: string): string | null;
 
 /** Причины неуспеха: invalid_datetime | invalid_timezone | unsupported_format */
 export function tryNormalizeToUtcInstant(
   raw: unknown,
   sourceTimezone: unknown,
-): { ok: true; utcIso: string } | {
-  ok: false;
-  reason: "invalid_datetime" | "invalid_timezone" | "unsupported_format";
-};
+):
+  | { ok: true; utcIso: string }
+  | {
+      ok: false;
+      reason: 'invalid_datetime' | 'invalid_timezone' | 'unsupported_format';
+    };
 ```
 
 - **S2.T02** — Тесты `normalizeToUtcInstant.test.ts`:
@@ -276,21 +276,21 @@ Stages 1–3 — **минимум для закрытия текущего ба�
 
 ## Файлы (ожидаемые изменения)
 
-| Файл | Stage | Действие |
-|---|---|---|
-| `apps/webapp/migrations/056_branches_timezone.sql` | 1 | Новый |
-| `apps/integrator/src/shared/normalizeToUtcInstant.ts` | 2 | Новый |
-| `apps/integrator/src/shared/normalizeToUtcInstant.test.ts` | 2 | Новый |
-| `apps/integrator/src/integrations/rubitime/connector.ts` | 3 | Изменение (нормализация recordAt) |
-| `apps/integrator/src/infra/db/repos/bookingRecords.ts` | 3 | Изменение (::timestamptz) |
-| `apps/integrator/src/config/appTimezone.ts` | 4 | Изменение (БД вместо env) |
-| `apps/integrator/src/config/env.ts` | 4 | Изменение (удаление TZ vars) |
-| `apps/integrator/src/integrations/rubitime/scheduleNormalizer.ts` | 5 | Изменение (параметр tz) |
-| `apps/integrator/src/integrations/rubitime/recordM2mRoute.ts` | 5 | Изменение (tz из каталога) |
-| `apps/webapp/src/modules/integrator/bookingM2mApi.ts` | 5 | Изменение (tz из branches) |
-| `apps/integrator/src/infra/scripts/resync-rubitime-records.ts` | 7 | Изменение (normalizeToUtcInstant) |
-| `apps/integrator/src/integrations/google-calendar/sync.ts` | 7 | Изменение (normalizeToUtcInstant) |
-| `docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md` | 7 | Изменение (обновление) |
+| Файл                                                              | Stage | Действие                          |
+| ----------------------------------------------------------------- | ----- | --------------------------------- |
+| `apps/webapp/migrations/056_branches_timezone.sql`                | 1     | Новый                             |
+| `apps/integrator/src/shared/normalizeToUtcInstant.ts`             | 2     | Новый                             |
+| `apps/integrator/src/shared/normalizeToUtcInstant.test.ts`        | 2     | Новый                             |
+| `apps/integrator/src/integrations/rubitime/connector.ts`          | 3     | Изменение (нормализация recordAt) |
+| `apps/integrator/src/infra/db/repos/bookingRecords.ts`            | 3     | Изменение (::timestamptz)         |
+| `apps/integrator/src/config/appTimezone.ts`                       | 4     | Изменение (БД вместо env)         |
+| `apps/integrator/src/config/env.ts`                               | 4     | Изменение (удаление TZ vars)      |
+| `apps/integrator/src/integrations/rubitime/scheduleNormalizer.ts` | 5     | Изменение (параметр tz)           |
+| `apps/integrator/src/integrations/rubitime/recordM2mRoute.ts`     | 5     | Изменение (tz из каталога)        |
+| `apps/webapp/src/modules/integrator/bookingM2mApi.ts`             | 5     | Изменение (tz из branches)        |
+| `apps/integrator/src/infra/scripts/resync-rubitime-records.ts`    | 7     | Изменение (normalizeToUtcInstant) |
+| `apps/integrator/src/integrations/google-calendar/sync.ts`        | 7     | Изменение (normalizeToUtcInstant) |
+| `docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md`              | 7     | Изменение (обновление)            |
 
 ## Критерии готовности (definition of done)
 

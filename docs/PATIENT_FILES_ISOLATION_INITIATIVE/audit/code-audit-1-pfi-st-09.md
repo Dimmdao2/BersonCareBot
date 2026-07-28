@@ -49,15 +49,18 @@ ST-09 is therefore test-only: commit `3319e259` adds exactly 52 lines to `route.
 All tests pass: **42/42** (full `src/app/api/admin/media` suite including the 2 new ST-09 cases).
 
 Test breakdown for `route.test.ts`:
+
 - `GET /api/admin/media/[id]` — 4 tests
 - `DELETE /api/admin/media/[id]` — 9 tests (includes pre-existing displayName PATCH tests)
 - `PATCH ... ST-07 move-out gate` — 3 tests
 - `PATCH ... ST-09 displayName rename in patient folder` — **2 new tests** (both PASS)
 
 Verified by temporarily applying the ST-09 test file to the main worktree and running:
+
 ```
 pnpm -C apps/webapp exec vitest run "src/app/api/admin/media"
 ```
+
 Output: `Test Files 5 passed (5), Tests 42 passed (42)`
 
 Pre-existing failures in the broader codebase (22 unrelated test files in the `auto/pfi-st-06` base) are not related to this commit.

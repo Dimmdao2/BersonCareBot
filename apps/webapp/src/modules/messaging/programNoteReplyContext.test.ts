@@ -1,40 +1,38 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from 'vitest';
 import {
   buildProgramNoteReplyState,
   formatPatientExerciseCommentReplyText,
   parseExerciseTitleFromProgramNoteReplyMessage,
-} from "./programNoteReplyContext";
+} from './programNoteReplyContext';
 
-describe("programNoteReplyContext", () => {
-  it("buildProgramNoteReplyState encodes stage item in admin_reply state", () => {
-    const state = buildProgramNoteReplyState("webapp:platform:abc", "item-1");
-    expect(state).toBe("admin_reply:webapp:platform:abc#pn:item-1");
+describe('programNoteReplyContext', () => {
+  it('buildProgramNoteReplyState encodes stage item in admin_reply state', () => {
+    const state = buildProgramNoteReplyState('webapp:platform:abc', 'item-1');
+    expect(state).toBe('admin_reply:webapp:platform:abc#pn:item-1');
   });
 
-  it("formatPatientExerciseCommentReplyText prefixes doctor reply", () => {
+  it('formatPatientExerciseCommentReplyText prefixes doctor reply', () => {
     const text = formatPatientExerciseCommentReplyText({
-      exerciseTitle: "Присед",
-      doctorText: "Делайте медленнее",
+      exerciseTitle: 'Присед',
+      doctorText: 'Делайте медленнее',
     });
-    expect(text).toBe(
-      "Ответ на ваш комментарий к упражнению «Присед»:\n\nДелайте медленнее",
-    );
+    expect(text).toBe('Ответ на ваш комментарий к упражнению «Присед»:\n\nДелайте медленнее');
   });
 
-  it("formatPatientExerciseCommentReplyText uses default title when empty", () => {
+  it('formatPatientExerciseCommentReplyText uses default title when empty', () => {
     const text = formatPatientExerciseCommentReplyText({
-      exerciseTitle: "  ",
-      doctorText: "Ок",
+      exerciseTitle: '  ',
+      doctorText: 'Ок',
     });
-    expect(text).toContain("«Пункт программы»");
+    expect(text).toContain('«Пункт программы»');
   });
 
-  it("parseExerciseTitleFromProgramNoteReplyMessage extracts title from prefixed message", () => {
+  it('parseExerciseTitleFromProgramNoteReplyMessage extracts title from prefixed message', () => {
     const text = formatPatientExerciseCommentReplyText({
-      exerciseTitle: "Присед",
-      doctorText: "Ок",
+      exerciseTitle: 'Присед',
+      doctorText: 'Ок',
     });
-    expect(parseExerciseTitleFromProgramNoteReplyMessage(text)).toBe("Присед");
-    expect(parseExerciseTitleFromProgramNoteReplyMessage("обычное сообщение")).toBeNull();
+    expect(parseExerciseTitleFromProgramNoteReplyMessage(text)).toBe('Присед');
+    expect(parseExerciseTitleFromProgramNoteReplyMessage('обычное сообщение')).toBeNull();
   });
 });

@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 /**
  * PatientTabKarta — clinical core («Карта»). Faithful to the wireframe
@@ -37,19 +37,19 @@
  *   - Анамнез: GET .../anamnesis (real). POST .../anamnesis to append entries.
  *   - Сопутствующие заболевания: MOCK (deferred).
  */
-import { useCallback, useEffect, useRef, useState } from "react";
-import type { PatientCardHeader, PatientAppointmentItem } from "@/modules/doctor-clients/ports";
-import { DoctorDatePicker } from "@/shared/ui/doctor/DoctorDatePicker";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { PatientCardHeader, PatientAppointmentItem } from '@/modules/doctor-clients/ports';
+import { DoctorDatePicker } from '@/shared/ui/doctor/DoctorDatePicker';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/ui/doctor/primitives/select";
+} from '@/shared/ui/doctor/primitives/select';
 import type {
   ActiveComplaint,
   ActiveDiagnosis,
@@ -61,23 +61,23 @@ import type {
   DiagnosisClinicalStatus,
   DiagnosisStatusHistoryEntry,
   Visit,
-} from "@/modules/patient-clinical/ports";
-import { cn } from "@/lib/utils";
+} from '@/modules/patient-clinical/ports';
+import { cn } from '@/lib/utils';
 import {
   doctorSectionCardClass,
   doctorSectionTitleClass,
   doctorSectionSubtitleClass,
-} from "@/shared/ui/doctor/doctorVisual";
-import { NewVisitPanel } from "./karta/NewVisitPanel";
+} from '@/shared/ui/doctor/doctorVisual';
+import { NewVisitPanel } from './karta/NewVisitPanel';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from "@/shared/ui/doctor/primitives/dialog";
-import { Badge } from "@/shared/ui/doctor/primitives/badge";
-import { VisitCatalogTextarea } from "./karta/VisitCatalogTextarea";
-import { formatPatientPackageShortLabel } from "@/modules/memberships/display";
+} from '@/shared/ui/doctor/primitives/dialog';
+import { Badge } from '@/shared/ui/doctor/primitives/badge';
+import { VisitCatalogTextarea } from './karta/VisitCatalogTextarea';
+import { formatPatientPackageShortLabel } from '@/modules/memberships/display';
 
 type Props = {
   userId: string;
@@ -109,14 +109,14 @@ type Props = {
 // ---------------------------------------------------------------------------
 
 const severityBadgeClass =
-  "flex-none self-center rounded-md bg-primary/15 px-1.5 py-px text-xs font-bold text-primary";
+  'flex-none self-center rounded-md bg-primary/15 px-1.5 py-px text-xs font-bold text-primary';
 const editIconClass =
-  "flex-none cursor-pointer self-center text-sm text-muted-foreground hover:text-foreground";
-const dateMetaClass = "flex-none self-center text-xs text-muted-foreground";
-const sectionLabelClass = "text-xs font-semibold text-foreground";
+  'flex-none cursor-pointer self-center text-sm text-muted-foreground hover:text-foreground';
+const dateMetaClass = 'flex-none self-center text-xs text-muted-foreground';
+const sectionLabelClass = 'text-xs font-semibold text-foreground';
 const plusBtnClass =
-  "grid h-[18px] w-[18px] place-items-center rounded-md border border-primary/40 text-xs text-primary hover:bg-primary/10";
-const miniTabRowClass = "flex gap-1";
+  'grid h-[18px] w-[18px] place-items-center rounded-md border border-primary/40 text-xs text-primary hover:bg-primary/10';
+const miniTabRowClass = 'flex gap-1';
 
 // ---------------------------------------------------------------------------
 // Small UI atoms (unchanged from original)
@@ -126,8 +126,10 @@ function MiniTab({ active, children }: { active?: boolean; children: React.React
   return (
     <span
       className={cn(
-        "cursor-pointer rounded-md px-1.5 py-0.5 text-xs",
-        active ? "bg-primary/15 font-medium text-primary" : "text-muted-foreground hover:text-foreground",
+        'cursor-pointer rounded-md px-1.5 py-0.5 text-xs',
+        active
+          ? 'bg-primary/15 font-medium text-primary'
+          : 'text-muted-foreground hover:text-foreground',
       )}
     >
       {children}
@@ -146,11 +148,17 @@ function Sparkline({ points }: { points: number[] }) {
     const y = 3 + (1 - p / max) * (h - 6);
     return { x, y };
   });
-  const poly = coords.map((c) => `${c.x.toFixed(1)},${c.y.toFixed(1)}`).join(" ");
+  const poly = coords.map((c) => `${c.x.toFixed(1)},${c.y.toFixed(1)}`).join(' ');
   const last = coords[coords.length - 1];
   return (
     <svg width={w} height={h} className="flex-none self-center" aria-hidden="true">
-      <polyline points={poly} fill="none" stroke="currentColor" strokeWidth={1.5} className="text-primary" />
+      <polyline
+        points={poly}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={1.5}
+        className="text-primary"
+      />
       <circle cx={last.x} cy={last.y} r={2} className="fill-primary" />
     </svg>
   );
@@ -201,9 +209,9 @@ function ComplaintRow({
     setError(false);
     try {
       const res = await fetch(`/api/doctor/patients/${userId}/complaints/${c.id}`, {
-        method: "PATCH",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: trimmed, priority }),
       });
       if (!res.ok) throw new Error(`status ${res.status}`);
@@ -245,14 +253,19 @@ function ComplaintRow({
         <span className="flex-1">{c.text}</span>
         <span className={severityBadgeClass}>{c.currentSeverity}/10</span>
         <Sparkline points={c.trend} />
-        <Button type="button" variant="ghost" size="icon-xs" className={editIconClass} title="Редактировать" onClick={open}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-xs"
+          className={editIconClass}
+          title="Редактировать"
+          onClick={open}
+        >
           ✎
         </Button>
         <span className={dateMetaClass}>{c.since}</span>
       </div>
-      {c.description && (
-        <p className="pl-4 text-xs text-muted-foreground">{c.description}</p>
-      )}
+      {c.description && <p className="pl-4 text-xs text-muted-foreground">{c.description}</p>}
     </div>
   );
 }
@@ -291,13 +304,13 @@ function InlineFieldEditor({
       <div className="flex items-center gap-1.5">
         <Button
           type="button"
-          title={priority ? "Снять приоритет" : "Сделать приоритетным"}
+          title={priority ? 'Снять приоритет' : 'Сделать приоритетным'}
           onClick={onTogglePriority}
           variant="ghost"
           size="icon-xs"
           className={cn(
-            "flex-none self-center text-base",
-            priority ? "text-primary" : "text-muted-foreground/50 hover:text-muted-foreground",
+            'flex-none self-center text-base',
+            priority ? 'text-primary' : 'text-muted-foreground/50 hover:text-muted-foreground',
           )}
         >
           ⚑
@@ -307,10 +320,10 @@ function InlineFieldEditor({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter") {
+            if (e.key === 'Enter') {
               e.preventDefault();
               onSave();
-            } else if (e.key === "Escape") {
+            } else if (e.key === 'Escape') {
               e.preventDefault();
               onCancel();
             }
@@ -318,14 +331,8 @@ function InlineFieldEditor({
           placeholder={placeholder}
           className="flex-1"
         />
-        <Button
-          type="button"
-          onClick={onSave}
-          disabled={saving}
-          size="xs"
-          className="flex-none"
-        >
-          {saving ? "…" : "Сохранить"}
+        <Button type="button" onClick={onSave} disabled={saving} size="xs" className="flex-none">
+          {saving ? '…' : 'Сохранить'}
         </Button>
         <Button
           type="button"
@@ -340,58 +347,55 @@ function InlineFieldEditor({
       </div>
       {onCommentChange !== undefined && (
         <Input
-          value={comment ?? ""}
+          value={comment ?? ''}
           onChange={(e) => onCommentChange(e.target.value)}
           placeholder="Комментарий (напр. слева, L5-S1)"
           className="flex-1"
         />
       )}
-      {error && <span className="text-xs text-destructive">Не удалось сохранить. Текст обязателен.</span>}
+      {error && (
+        <span className="text-xs text-destructive">Не удалось сохранить. Текст обязателен.</span>
+      )}
     </div>
   );
 }
 
 // -- Клинический статус диагноза: badge + actions ----------------------------
 
-const CLINICAL_STATUS_BADGE: Record<
-  DiagnosisClinicalStatus,
-  { label: string; className: string }
-> = {
-  предварительный: {
-    label: "предв.",
-    className:
-      "rounded px-1.5 py-px text-[10px] font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400",
-  },
-  подтверждённый: {
-    label: "подтв.",
-    className:
-      "rounded px-1.5 py-px text-[10px] font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400",
-  },
-  закрытый: {
-    label: "закрыт",
-    className:
-      "rounded px-1.5 py-px text-[10px] font-semibold bg-muted text-muted-foreground",
-  },
-};
+const CLINICAL_STATUS_BADGE: Record<DiagnosisClinicalStatus, { label: string; className: string }> =
+  {
+    предварительный: {
+      label: 'предв.',
+      className:
+        'rounded px-1.5 py-px text-[10px] font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400',
+    },
+    подтверждённый: {
+      label: 'подтв.',
+      className:
+        'rounded px-1.5 py-px text-[10px] font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400',
+    },
+    закрытый: {
+      label: 'закрыт',
+      className: 'rounded px-1.5 py-px text-[10px] font-semibold bg-muted text-muted-foreground',
+    },
+  };
 
 function DiagnosisStatusHistoryList({ entries }: { entries: DiagnosisStatusHistoryEntry[] }) {
   if (entries.length === 0)
-    return (
-      <p className="py-1 text-[11px] text-muted-foreground">История изменений пуста.</p>
-    );
+    return <p className="py-1 text-[11px] text-muted-foreground">История изменений пуста.</p>;
   return (
     <ul className="flex flex-col gap-0.5">
       {entries.map((e) => (
         <li key={e.id} className="text-[11px] text-muted-foreground">
           <span className="font-medium text-foreground">{e.newStatus}</span>
-          {e.oldStatus ? ` (из: ${e.oldStatus})` : " (начальный)"}
-          {" · "}
-          {new Date(e.changedAt).toLocaleDateString("ru-RU", {
-            day: "2-digit",
-            month: "2-digit",
-            year: "numeric",
+          {e.oldStatus ? ` (из: ${e.oldStatus})` : ' (начальный)'}
+          {' · '}
+          {new Date(e.changedAt).toLocaleDateString('ru-RU', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
           })}
-          {e.note ? ` — ${e.note}` : ""}
+          {e.note ? ` — ${e.note}` : ''}
         </li>
       ))}
     </ul>
@@ -417,18 +421,16 @@ function DiagnosisRow({
   onSaved: () => void;
 }) {
   // "refined" status gets the muted/calm visual style; "active" gets the highlighted style
-  const isCalm = d.status === "refined";
+  const isCalm = d.status === 'refined';
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(d.text);
   const [priority, setPriority] = useState(d.priority);
-  const [comment, setComment] = useState(d.comment ?? "");
+  const [comment, setComment] = useState(d.comment ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(false);
 
   // Clinical status state
-  const [clinicalStatus, setClinicalStatus] = useState<DiagnosisClinicalStatus>(
-    d.clinicalStatus,
-  );
+  const [clinicalStatus, setClinicalStatus] = useState<DiagnosisClinicalStatus>(d.clinicalStatus);
   const [statusSaving, setStatusSaving] = useState(false);
   const [statusError, setStatusError] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
@@ -438,7 +440,7 @@ function DiagnosisRow({
   const open = () => {
     setText(d.text);
     setPriority(d.priority);
-    setComment(d.comment ?? "");
+    setComment(d.comment ?? '');
     setError(false);
     setEditing(true);
   };
@@ -453,9 +455,9 @@ function DiagnosisRow({
     setError(false);
     try {
       const res = await fetch(`/api/doctor/patients/${userId}/diagnoses/${d.id}`, {
-        method: "PATCH",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: trimmed, priority, comment: comment.trim() || null }),
       });
       if (!res.ok) throw new Error(`status ${res.status}`);
@@ -473,15 +475,12 @@ function DiagnosisRow({
     setStatusSaving(true);
     setStatusError(false);
     try {
-      const res = await fetch(
-        `/api/doctor/patients/${userId}/diagnoses/${d.id}/status`,
-        {
-          method: "PATCH",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: newStatus }),
-        },
-      );
+      const res = await fetch(`/api/doctor/patients/${userId}/diagnoses/${d.id}/status`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      });
       if (!res.ok) throw new Error(`status ${res.status}`);
       setClinicalStatus(newStatus);
       // Refresh history if it's open
@@ -499,10 +498,9 @@ function DiagnosisRow({
   const loadHistory = async () => {
     setHistoryLoading(true);
     try {
-      const res = await fetch(
-        `/api/doctor/patients/${userId}/diagnoses/${d.id}/status`,
-        { credentials: "include" },
-      );
+      const res = await fetch(`/api/doctor/patients/${userId}/diagnoses/${d.id}/status`, {
+        credentials: 'include',
+      });
       if (!res.ok) throw new Error();
       const data = (await res.json()) as { history?: DiagnosisStatusHistoryEntry[] };
       setHistory(data.history ?? []);
@@ -543,8 +541,8 @@ function DiagnosisRow({
   return (
     <div
       className={cn(
-        "flex flex-col gap-1 rounded-lg border px-2.5 py-2 text-sm",
-        isCalm ? "border-border bg-muted/15" : "border-border/70 bg-background/40",
+        'flex flex-col gap-1 rounded-lg border px-2.5 py-2 text-sm',
+        isCalm ? 'border-border bg-muted/15' : 'border-border/70 bg-background/40',
       )}
     >
       {/* Main row */}
@@ -558,26 +556,34 @@ function DiagnosisRow({
         )}
         <span className="flex-1">{d.text}</span>
         {/* Clinical status badge */}
-        <span className={cn("flex-none", badge.className)} title={`Клинический статус: ${clinicalStatus}`}>
+        <span
+          className={cn('flex-none', badge.className)}
+          title={`Клинический статус: ${clinicalStatus}`}
+        >
           {badge.label}
         </span>
-        <Button type="button" variant="ghost" size="icon-xs" className={editIconClass} title="Редактировать" onClick={open}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-xs"
+          className={editIconClass}
+          title="Редактировать"
+          onClick={open}
+        >
           ✎
         </Button>
         <span className={dateMetaClass}>{d.meta}</span>
       </div>
 
-      {d.comment && (
-        <p className="pl-4 text-xs text-muted-foreground italic">{d.comment}</p>
-      )}
+      {d.comment && <p className="pl-4 text-xs text-muted-foreground italic">{d.comment}</p>}
 
       {/* Status action buttons */}
       <div className="flex items-center gap-1.5 pl-4">
-        {clinicalStatus !== "подтверждённый" && (
+        {clinicalStatus !== 'подтверждённый' && (
           <Button
             type="button"
             disabled={statusSaving}
-            onClick={() => changeStatus("подтверждённый")}
+            onClick={() => changeStatus('подтверждённый')}
             variant="ghost"
             size="xs"
             className="rounded border border-emerald-400/60 text-[10px] text-emerald-700 hover:bg-emerald-50 dark:border-emerald-700/50 dark:text-emerald-400 dark:hover:bg-emerald-950/30"
@@ -585,11 +591,11 @@ function DiagnosisRow({
             Подтвердить
           </Button>
         )}
-        {clinicalStatus !== "закрытый" && (
+        {clinicalStatus !== 'закрытый' && (
           <Button
             type="button"
             disabled={statusSaving}
-            onClick={() => changeStatus("закрытый")}
+            onClick={() => changeStatus('закрытый')}
             variant="ghost"
             size="xs"
             className="rounded border border-border text-[10px] text-muted-foreground hover:bg-muted/30"
@@ -597,11 +603,11 @@ function DiagnosisRow({
             Закрыть
           </Button>
         )}
-        {clinicalStatus === "закрытый" && (
+        {clinicalStatus === 'закрытый' && (
           <Button
             type="button"
             disabled={statusSaving}
-            onClick={() => changeStatus("предварительный")}
+            onClick={() => changeStatus('предварительный')}
             variant="ghost"
             size="xs"
             className="rounded border border-amber-400/60 text-[10px] text-amber-700 hover:bg-amber-50 dark:border-amber-700/50 dark:text-amber-400"
@@ -616,11 +622,9 @@ function DiagnosisRow({
           size="xs"
           className="ml-auto text-[10px] text-muted-foreground hover:text-foreground"
         >
-          {showHistory ? "скрыть историю ▴" : "история ▾"}
+          {showHistory ? 'скрыть историю ▴' : 'история ▾'}
         </Button>
-        {statusSaving && (
-          <span className="text-[10px] text-muted-foreground">сохранение…</span>
-        )}
+        {statusSaving && <span className="text-[10px] text-muted-foreground">сохранение…</span>}
         {statusError && (
           <span className="text-[10px] text-destructive">Ошибка — попробуйте снова</span>
         )}
@@ -632,9 +636,7 @@ function DiagnosisRow({
           {historyLoading && (
             <p className="animate-pulse text-[11px] text-muted-foreground">Загрузка…</p>
           )}
-          {!historyLoading && history !== null && (
-            <DiagnosisStatusHistoryList entries={history} />
-          )}
+          {!historyLoading && history !== null && <DiagnosisStatusHistoryList entries={history} />}
         </div>
       )}
     </div>
@@ -649,7 +651,7 @@ type Comorbidity = {
   id: string;
   text: string;
   since: string | null;
-  status: "active" | "removed";
+  status: 'active' | 'removed';
   createdAt: string;
 };
 
@@ -661,22 +663,22 @@ function Comorbidities({
   /** SSR-provided active comorbidities. When present, skips the initial "active" tab fetch. */
   initialItems?: Comorbidity[];
 }) {
-  const [tab, setTab] = useState<"active" | "removed">("active");
+  const [tab, setTab] = useState<'active' | 'removed'>('active');
   const [items, setItems] = useState<Comorbidity[] | null>(() => initialItems ?? null);
   const [error, setError] = useState(false);
   const [adding, setAdding] = useState(false);
-  const [text, setText] = useState("");
-  const [since, setSince] = useState("");
+  const [text, setText] = useState('');
+  const [since, setSince] = useState('');
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editText, setEditText] = useState("");
-  const [editSince, setEditSince] = useState("");
+  const [editText, setEditText] = useState('');
+  const [editSince, setEditSince] = useState('');
 
   const base = `/api/doctor/patients/${userId}/comorbidities`;
 
   const load = useCallback(() => {
     setItems(null);
-    fetch(`${base}?status=${tab}`, { credentials: "include" })
+    fetch(`${base}?status=${tab}`, { credentials: 'include' })
       .then((r) => (r.ok ? (r.json() as Promise<{ comorbidities: Comorbidity[] }>) : null))
       .then((d) => {
         if (!d) {
@@ -696,9 +698,9 @@ function Comorbidities({
   useEffect(() => {
     // Skip the initial "active" fetch when SSR data provided.
     // On tab switch to "removed", always fetch (SSR only covers active).
-    if (tab === "active" && initialItems != null && items !== null) return;
+    if (tab === 'active' && initialItems != null && items !== null) return;
     load();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [load]);
 
   const add = async () => {
@@ -707,16 +709,16 @@ function Comorbidities({
     setSaving(true);
     try {
       const res = await fetch(base, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: t, since: since.trim() || null }),
       });
       if (res.ok) {
-        setText("");
-        setSince("");
+        setText('');
+        setSince('');
         setAdding(false);
-        if (tab === "active") load();
+        if (tab === 'active') load();
       }
     } finally {
       setSaving(false);
@@ -729,9 +731,9 @@ function Comorbidities({
     setSaving(true);
     try {
       const res = await fetch(`${base}/${id}`, {
-        method: "PATCH",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: t, since: editSince.trim() || null }),
       });
       if (res.ok) {
@@ -745,16 +747,16 @@ function Comorbidities({
 
   const markRemoved = async (id: string) => {
     setItems((list) => (list ? list.filter((c) => c.id !== id) : list));
-    await fetch(`${base}/${id}`, { method: "DELETE", credentials: "include" }).catch(() => {});
+    await fetch(`${base}/${id}`, { method: 'DELETE', credentials: 'include' }).catch(() => {});
   };
 
   const restore = async (id: string) => {
     setItems((list) => (list ? list.filter((c) => c.id !== id) : list));
     await fetch(`${base}/${id}`, {
-      method: "PATCH",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "restore" }),
+      method: 'PATCH',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'restore' }),
     }).catch(() => {});
   };
 
@@ -763,7 +765,7 @@ function Comorbidities({
       <div className="flex items-center justify-between">
         <span className="flex items-center gap-1.5">
           <h3 className={doctorSectionTitleClass}>Сопутствующие заболевания</h3>
-          {tab === "active" && !adding && (
+          {tab === 'active' && !adding && (
             <Button
               type="button"
               variant="ghost"
@@ -777,27 +779,27 @@ function Comorbidities({
           )}
         </span>
         <span className={miniTabRowClass}>
-          <Button type="button" variant="ghost" size="xs" onClick={() => setTab("active")}>
-            <MiniTab active={tab === "active"}>Текущие</MiniTab>
+          <Button type="button" variant="ghost" size="xs" onClick={() => setTab('active')}>
+            <MiniTab active={tab === 'active'}>Текущие</MiniTab>
           </Button>
-          <Button type="button" variant="ghost" size="xs" onClick={() => setTab("removed")}>
-            <MiniTab active={tab === "removed"}>Снятые</MiniTab>
+          <Button type="button" variant="ghost" size="xs" onClick={() => setTab('removed')}>
+            <MiniTab active={tab === 'removed'}>Снятые</MiniTab>
           </Button>
         </span>
       </div>
 
       <div className="flex flex-col gap-1.5">
-        {adding && tab === "active" && (
+        {adding && tab === 'active' && (
           <div className="flex flex-col gap-1 rounded-lg border border-primary/40 bg-background px-2.5 py-2">
             <Input
               autoFocus
               value={text}
               onChange={(e) => setText(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter") {
+                if (e.key === 'Enter') {
                   e.preventDefault();
                   add();
-                } else if (e.key === "Escape") setAdding(false);
+                } else if (e.key === 'Escape') setAdding(false);
               }}
               placeholder="Заболевание"
             />
@@ -815,7 +817,7 @@ function Comorbidities({
                 size="xs"
                 className="text-[11px]"
               >
-                {saving ? "…" : "Добавить"}
+                {saving ? '…' : 'Добавить'}
               </Button>
               <Button
                 type="button"
@@ -839,7 +841,7 @@ function Comorbidities({
         )}
         {items !== null && !error && items.length === 0 && !adding && (
           <p className="py-2 text-xs text-muted-foreground">
-            {tab === "active" ? "Сопутствующих заболеваний нет." : "Снятых записей нет."}
+            {tab === 'active' ? 'Сопутствующих заболеваний нет.' : 'Снятых записей нет.'}
           </p>
         )}
 
@@ -854,10 +856,10 @@ function Comorbidities({
                 value={editText}
                 onChange={(e) => setEditText(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") {
+                  if (e.key === 'Enter') {
                     e.preventDefault();
                     saveEdit(co.id);
-                  } else if (e.key === "Escape") setEditingId(null);
+                  } else if (e.key === 'Escape') setEditingId(null);
                 }}
               />
               <div className="flex items-center gap-1.5">
@@ -874,7 +876,7 @@ function Comorbidities({
                   size="xs"
                   className="text-[11px]"
                 >
-                  {saving ? "…" : "Сохранить"}
+                  {saving ? '…' : 'Сохранить'}
                 </Button>
                 <Button
                   type="button"
@@ -892,22 +894,22 @@ function Comorbidities({
             <div
               key={co.id}
               className={cn(
-                "flex items-center gap-1.5 rounded-lg border px-2.5 py-2 text-sm",
-                tab === "active"
-                  ? "border-amber-300/60 bg-amber-50/40 dark:border-amber-700/40 dark:bg-amber-950/20"
-                  : "border-border bg-muted/15 text-muted-foreground",
+                'flex items-center gap-1.5 rounded-lg border px-2.5 py-2 text-sm',
+                tab === 'active'
+                  ? 'border-amber-300/60 bg-amber-50/40 dark:border-amber-700/40 dark:bg-amber-950/20'
+                  : 'border-border bg-muted/15 text-muted-foreground',
               )}
             >
               <span
                 className={cn(
-                  "flex-none self-center",
-                  tab === "active" ? "text-amber-600 dark:text-amber-500" : "text-muted-foreground",
+                  'flex-none self-center',
+                  tab === 'active' ? 'text-amber-600 dark:text-amber-500' : 'text-muted-foreground',
                 )}
               >
                 ●
               </span>
               <span className="flex-1">{co.text}</span>
-              {tab === "active" && (
+              {tab === 'active' && (
                 <>
                   <Button
                     type="button"
@@ -918,7 +920,7 @@ function Comorbidities({
                     onClick={() => {
                       setEditingId(co.id);
                       setEditText(co.text);
-                      setEditSince(co.since ?? "");
+                      setEditSince(co.since ?? '');
                     }}
                   >
                     ✎
@@ -935,7 +937,7 @@ function Comorbidities({
                   </Button>
                 </>
               )}
-              {tab === "removed" && (
+              {tab === 'removed' && (
                 <Button
                   type="button"
                   variant="link"
@@ -961,14 +963,14 @@ function Comorbidities({
  * `title` совпадает с заголовком секции из проекции listVisits (для маппинга обратно).
  */
 const VISIT_SECTION_FIELDS = [
-  { key: "anamnesisText", title: "Анамнез / история жалобы" },
-  { key: "exam", title: "Осмотр" },
-  { key: "manipulations", title: "Проведённые манипуляции" },
-  { key: "trialResults", title: "Результаты проб" },
-  { key: "recommendations", title: "Рекомендации / Назначения" },
+  { key: 'anamnesisText', title: 'Анамнез / история жалобы' },
+  { key: 'exam', title: 'Осмотр' },
+  { key: 'manipulations', title: 'Проведённые манипуляции' },
+  { key: 'trialResults', title: 'Результаты проб' },
+  { key: 'recommendations', title: 'Рекомендации / Назначения' },
 ] as const;
 
-type VisitSectionFieldKey = (typeof VISIT_SECTION_FIELDS)[number]["key"];
+type VisitSectionFieldKey = (typeof VISIT_SECTION_FIELDS)[number]['key'];
 
 function VisitCard({
   visit,
@@ -990,25 +992,27 @@ function VisitCard({
   const initialFields = useCallback((): Record<VisitSectionFieldKey, string> => {
     const byTitle = new Map((visit.sections ?? []).map((s) => [s.title, s.body]));
     return {
-      exam: byTitle.get("Осмотр") ?? "",
-      anamnesisText: byTitle.get("Анамнез / история жалобы") ?? "",
-      manipulations: byTitle.get("Проведённые манипуляции") ?? "",
-      trialResults: byTitle.get("Результаты проб") ?? "",
-      recommendations: byTitle.get("Рекомендации / Назначения") ?? "",
+      exam: byTitle.get('Осмотр') ?? '',
+      anamnesisText: byTitle.get('Анамнез / история жалобы') ?? '',
+      manipulations: byTitle.get('Проведённые манипуляции') ?? '',
+      trialResults: byTitle.get('Результаты проб') ?? '',
+      recommendations: byTitle.get('Рекомендации / Назначения') ?? '',
     };
   }, [visit.sections]);
 
   const [fields, setFields] = useState<Record<VisitSectionFieldKey, string>>(initialFields);
-  const [location, setLocation] = useState(visit.location ?? "");
-  const [duration, setDuration] = useState(visit.duration ?? "");
+  const [location, setLocation] = useState(visit.location ?? '');
+  const [duration, setDuration] = useState(visit.duration ?? '');
   const durationLabel = visit.duration
-    ? /\D/.test(visit.duration) ? visit.duration : `${visit.duration} мин`
-    : "";
+    ? /\D/.test(visit.duration)
+      ? visit.duration
+      : `${visit.duration} мин`
+    : '';
 
   const openEdit = () => {
     setFields(initialFields());
-    setLocation(visit.location ?? "");
-    setDuration(visit.duration ?? "");
+    setLocation(visit.location ?? '');
+    setDuration(visit.duration ?? '');
     setError(false);
     setEditing(true);
   };
@@ -1018,9 +1022,9 @@ function VisitCard({
     setError(false);
     try {
       const res = await fetch(`/api/doctor/patients/${userId}/visits/${visit.id}`, {
-        method: "PATCH",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...fields, location, duration }),
       });
       if (!res.ok) throw new Error(`status ${res.status}`);
@@ -1045,13 +1049,13 @@ function VisitCard({
         <span className="text-xs font-medium text-muted-foreground">{visit.time}</span>
         <span
           className={cn(
-            "rounded-md px-1.5 py-px text-xs font-medium",
-            visit.type === "first"
-              ? "bg-primary/15 text-primary"
-              : "bg-muted text-muted-foreground",
+            'rounded-md px-1.5 py-px text-xs font-medium',
+            visit.type === 'first'
+              ? 'bg-primary/15 text-primary'
+              : 'bg-muted text-muted-foreground',
           )}
         >
-          {visit.type === "first" ? "Первичный" : "Повторный"}
+          {visit.type === 'first' ? 'Первичный' : 'Повторный'}
         </span>
         {visit.package ? (
           <Badge
@@ -1064,11 +1068,11 @@ function VisitCard({
         ) : null}
         <span className={doctorSectionSubtitleClass}>
           {visit.location}
-          {durationLabel ? ` · ${durationLabel}` : ""}
-          {visit.filesCount ? ` · 📎 ${visit.filesCount}` : ""}
+          {durationLabel ? ` · ${durationLabel}` : ''}
+          {visit.filesCount ? ` · 📎 ${visit.filesCount}` : ''}
         </span>
         <span className="ml-auto text-xs text-muted-foreground">
-          {expanded ? "свернуть ▴" : "развернуть ▾"}
+          {expanded ? 'свернуть ▴' : 'развернуть ▾'}
         </span>
       </Button>
       {expanded ? (
@@ -1078,7 +1082,10 @@ function VisitCard({
               <div className="text-xs font-semibold text-foreground">Динамика симптомов</div>
               <div className="flex flex-col gap-1.5">
                 {visit.dynamics.map((dyn) => (
-                  <div key={dyn.id} className="rounded-md border border-border/70 bg-muted/15 px-2.5 py-1.5">
+                  <div
+                    key={dyn.id}
+                    className="rounded-md border border-border/70 bg-muted/15 px-2.5 py-1.5"
+                  >
                     <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                       {dyn.priority ? <span className="text-primary">⚑</span> : null}
                       {dyn.label}
@@ -1112,7 +1119,7 @@ function VisitCard({
                 />
               </label>
               {VISIT_SECTION_FIELDS.map((f) => {
-                if (f.key === "manipulations" || f.key === "recommendations") {
+                if (f.key === 'manipulations' || f.key === 'recommendations') {
                   return (
                     <VisitCatalogTextarea
                       key={f.key}
@@ -1138,13 +1145,8 @@ function VisitCard({
               })}
               {error && <span className="text-xs text-destructive">Не удалось сохранить.</span>}
               <div className="flex items-center gap-1.5">
-                <Button
-                  type="button"
-                  onClick={save}
-                  disabled={saving}
-                  size="xs"
-                >
-                  {saving ? "Сохранение…" : "Сохранить"}
+                <Button type="button" onClick={save} disabled={saving} size="xs">
+                  {saving ? 'Сохранение…' : 'Сохранить'}
                 </Button>
                 <Button
                   type="button"
@@ -1162,7 +1164,9 @@ function VisitCard({
               {visit.sections?.map((s) => (
                 <div key={s.title} className="flex flex-col gap-0.5">
                   <div className="text-xs font-semibold text-foreground">{s.title}</div>
-                  <div className="whitespace-pre-wrap break-words text-sm text-foreground">{s.body}</div>
+                  <div className="whitespace-pre-wrap break-words text-sm text-foreground">
+                    {s.body}
+                  </div>
                 </div>
               ))}
               {visit.files && visit.files.length > 0 ? (
@@ -1176,7 +1180,9 @@ function VisitCard({
                       <span>{f.name}</span>
                     </span>
                   ))}
-                  <span className={doctorSectionSubtitleClass}>— файлы, прикреплённые к визиту</span>
+                  <span className={doctorSectionSubtitleClass}>
+                    — файлы, прикреплённые к визиту
+                  </span>
                 </div>
               ) : null}
               <Button
@@ -1215,7 +1221,7 @@ function CreateVisitModeModal({
   open: boolean;
   onClose: () => void;
   /** onSelectMode(mode, appointment?) where appointment is the selected booking if mode='from_booking'. */
-  onSelectMode: (mode: "from_booking" | "walk_in", appointment?: PatientAppointmentItem) => void;
+  onSelectMode: (mode: 'from_booking' | 'walk_in', appointment?: PatientAppointmentItem) => void;
 }) {
   const [loading, setLoading] = useState(false);
   const [appointments, setAppointments] = useState<PatientAppointmentItem[] | null>(null);
@@ -1229,7 +1235,11 @@ function CreateVisitModeModal({
     setAppointments(null);
     setSelected(null);
     fetch(`/api/doctor/patients/${userId}/appointments/unlinked`)
-      .then((r) => (r.ok ? r.json() as Promise<{ ok: boolean; appointments: PatientAppointmentItem[] }> : null))
+      .then((r) =>
+        r.ok
+          ? (r.json() as Promise<{ ok: boolean; appointments: PatientAppointmentItem[] }>)
+          : null,
+      )
       .then((data) => {
         const appts = data?.appointments ?? [];
         setAppointments(appts);
@@ -1246,12 +1256,12 @@ function CreateVisitModeModal({
 
   const formatDateTime = (iso: string) => {
     try {
-      return new Date(iso).toLocaleString("ru-RU", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
+      return new Date(iso).toLocaleString('ru-RU', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
       });
     } catch {
       return iso;
@@ -1259,7 +1269,12 @@ function CreateVisitModeModal({
   };
 
   return (
-    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        if (!v) onClose();
+      }}
+    >
       <DialogContent showCloseButton={false} className="max-w-md">
         <DialogHeader>
           <DialogTitle>Создать визит</DialogTitle>
@@ -1269,8 +1284,8 @@ function CreateVisitModeModal({
           {/* Option 1: From booking */}
           <div
             className={cn(
-              "flex flex-col gap-2 rounded-lg border p-3 cursor-pointer",
-              "border-primary/30 bg-primary/5 hover:bg-primary/10",
+              'flex flex-col gap-2 rounded-lg border p-3 cursor-pointer',
+              'border-primary/30 bg-primary/5 hover:bg-primary/10',
             )}
           >
             <p className="text-sm font-semibold text-foreground">Из записи на приём</p>
@@ -1294,17 +1309,17 @@ function CreateVisitModeModal({
                     onClick={() => setSelected(a.id)}
                     variant="ghost"
                     className={cn(
-                      "flex flex-col gap-0.5 rounded-md border px-2.5 py-2 text-left text-xs h-auto",
+                      'flex flex-col gap-0.5 rounded-md border px-2.5 py-2 text-left text-xs h-auto',
                       selected === a.id
-                        ? "border-primary bg-primary/10 font-medium"
-                        : "border-border hover:border-primary/40 hover:bg-muted/30",
+                        ? 'border-primary bg-primary/10 font-medium'
+                        : 'border-border hover:border-primary/40 hover:bg-muted/30',
                     )}
                   >
                     <span className="font-medium text-foreground">
                       {formatDateTime(a.dateTime)}
                     </span>
                     <span className="text-muted-foreground">
-                      {[a.location, a.serviceName].filter(Boolean).join(" · ") || "—"}
+                      {[a.location, a.serviceName].filter(Boolean).join(' · ') || '—'}
                     </span>
                   </Button>
                 ))}
@@ -1314,7 +1329,7 @@ function CreateVisitModeModal({
               <Button
                 type="button"
                 disabled={!selectedAppt}
-                onClick={() => selectedAppt && onSelectMode("from_booking", selectedAppt)}
+                onClick={() => selectedAppt && onSelectMode('from_booking', selectedAppt)}
                 size="sm"
                 className="self-start text-xs"
               >
@@ -1327,12 +1342,12 @@ function CreateVisitModeModal({
           <div className="flex flex-col gap-2 rounded-lg border border-border p-3">
             <p className="text-sm font-semibold text-foreground">Новый визит без записи</p>
             <p className="text-xs text-muted-foreground">
-              Пациент пришёл без предварительной записи — дата=сегодня, время=сейчас,
-              филиал из последней записи (если была)
+              Пациент пришёл без предварительной записи — дата=сегодня, время=сейчас, филиал из
+              последней записи (если была)
             </p>
             <Button
               type="button"
-              onClick={() => onSelectMode("walk_in")}
+              onClick={() => onSelectMode('walk_in')}
               variant="outline"
               size="sm"
               className="self-start text-xs"
@@ -1343,13 +1358,7 @@ function CreateVisitModeModal({
         </div>
 
         <div className="flex justify-end pt-1">
-          <Button
-            type="button"
-            onClick={onClose}
-            variant="outline"
-            size="sm"
-            className="text-xs"
-          >
+          <Button type="button" onClick={onClose} variant="outline" size="sm" className="text-xs">
             Отмена
           </Button>
         </div>
@@ -1359,23 +1368,17 @@ function CreateVisitModeModal({
 }
 
 /** Toggle button for history expand/collapse — always sits LEFT of the heading */
-function HistoryToggleBtn({
-  visible,
-  onToggle,
-}: {
-  visible: boolean;
-  onToggle: () => void;
-}) {
+function HistoryToggleBtn({ visible, onToggle }: { visible: boolean; onToggle: () => void }) {
   return (
     <Button
       type="button"
       onClick={onToggle}
-      title={visible ? "Скрыть историю — увидеть карту" : "Показать историю визитов"}
+      title={visible ? 'Скрыть историю — увидеть карту' : 'Показать историю визитов'}
       variant="outline"
       size="xs"
       className="text-xs text-muted-foreground"
     >
-      {visible ? "◀" : "▶"}
+      {visible ? '◀' : '▶'}
     </Button>
   );
 }
@@ -1411,54 +1414,83 @@ function AddTraumaForm({
   onAdded: (entry: AnamnesisTraumaEntry) => void;
   onCancel: () => void;
 }) {
-  const [year, setYear] = useState("");
-  const [what, setWhat] = useState("");
-  const [type, setType] = useState("Травма");
-  const [immob, setImmob] = useState("—");
+  const [year, setYear] = useState('');
+  const [what, setWhat] = useState('');
+  const [type, setType] = useState('Травма');
+  const [immob, setImmob] = useState('—');
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const yearRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => { yearRef.current?.focus(); }, []);
+  useEffect(() => {
+    yearRef.current?.focus();
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!year.trim() || !what.trim()) { setErr("Заполните Год и Что"); return; }
+    if (!year.trim() || !what.trim()) {
+      setErr('Заполните Год и Что');
+      return;
+    }
     setSaving(true);
     setErr(null);
     try {
       const res = await fetch(`/api/doctor/patients/${userId}/anamnesis`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ section: "trauma", year: year.trim(), what: what.trim(), type: type.trim() || "Травма", immobilization: immob.trim() || "—" }),
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          section: 'trauma',
+          year: year.trim(),
+          what: what.trim(),
+          type: type.trim() || 'Травма',
+          immobilization: immob.trim() || '—',
+        }),
       });
       const data = (await res.json()) as { ok?: boolean; entry?: AnamnesisTraumaEntry };
-      if (!res.ok || !data.ok || !data.entry) throw new Error("save_failed");
+      if (!res.ok || !data.ok || !data.entry) throw new Error('save_failed');
       onAdded(data.entry);
     } catch {
-      setErr("Ошибка сохранения");
+      setErr('Ошибка сохранения');
     } finally {
       setSaving(false);
     }
   }
 
-  const TRAUMA_TYPES = ["Травма", "Операция", "Перелом", "Растяжение", "Разрыв", "Вывих", "Контузия"] as const;
+  const TRAUMA_TYPES = [
+    'Травма',
+    'Операция',
+    'Перелом',
+    'Растяжение',
+    'Разрыв',
+    'Вывих',
+    'Контузия',
+  ] as const;
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-2 rounded-lg border border-primary/30 bg-primary/5 p-2.5">
+    <form
+      onSubmit={handleSubmit}
+      className="flex flex-col gap-2 rounded-lg border border-primary/30 bg-primary/5 p-2.5"
+    >
       <div className="grid grid-cols-2 gap-1.5">
         <div className="flex flex-col gap-0.5">
           <label className="text-xs text-muted-foreground">Год</label>
-          <Input ref={yearRef} value={year} onChange={e => setYear(e.target.value)} placeholder="Год" />
+          <Input
+            ref={yearRef}
+            value={year}
+            onChange={(e) => setYear(e.target.value)}
+            placeholder="Год"
+          />
         </div>
         <div className="flex flex-col gap-0.5">
           <label className="text-xs text-muted-foreground">Тип</label>
-          <Select value={type} onValueChange={(v) => setType(v ?? "Травма")}>
+          <Select value={type} onValueChange={(v) => setType(v ?? 'Травма')}>
             <SelectTrigger className="w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               {TRAUMA_TYPES.map((t) => (
-                <SelectItem key={t} value={t}>{t}</SelectItem>
+                <SelectItem key={t} value={t}>
+                  {t}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -1466,16 +1498,24 @@ function AddTraumaForm({
       </div>
       <div className="flex flex-col gap-0.5">
         <label className="text-xs text-muted-foreground">Что произошло</label>
-        <Input value={what} onChange={e => setWhat(e.target.value)} placeholder="Опишите травму или операцию…" />
+        <Input
+          value={what}
+          onChange={(e) => setWhat(e.target.value)}
+          placeholder="Опишите травму или операцию…"
+        />
       </div>
       <div className="flex flex-col gap-0.5">
         <label className="text-xs text-muted-foreground">Иммобилизация / восстановление</label>
-        <Input value={immob} onChange={e => setImmob(e.target.value)} placeholder="Длительность, режим восстановления…" />
+        <Input
+          value={immob}
+          onChange={(e) => setImmob(e.target.value)}
+          placeholder="Длительность, режим восстановления…"
+        />
       </div>
       {err && <p className="text-xs text-destructive">{err}</p>}
       <div className="flex gap-1.5">
         <Button type="submit" disabled={saving} size="xs">
-          {saving ? "Сохранение…" : "Добавить"}
+          {saving ? 'Сохранение…' : 'Добавить'}
         </Button>
         <Button type="button" onClick={onCancel} variant="outline" size="xs">
           Отмена
@@ -1494,56 +1534,82 @@ function AddIllnessForm({
   onAdded: (entry: AnamnesisIllnessEntry) => void;
   onCancel: () => void;
 }) {
-  const [period, setPeriod] = useState("");
-  const [what, setWhat] = useState("");
-  const [comment, setComment] = useState("");
+  const [period, setPeriod] = useState('');
+  const [what, setWhat] = useState('');
+  const [comment, setComment] = useState('');
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const periodRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => { periodRef.current?.focus(); }, []);
+  useEffect(() => {
+    periodRef.current?.focus();
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!period.trim() || !what.trim()) { setErr("Заполните Период и Что"); return; }
+    if (!period.trim() || !what.trim()) {
+      setErr('Заполните Период и Что');
+      return;
+    }
     setSaving(true);
     setErr(null);
     try {
       const res = await fetch(`/api/doctor/patients/${userId}/anamnesis`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ section: "illness", period: period.trim(), what: what.trim(), comment: comment.trim() }),
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          section: 'illness',
+          period: period.trim(),
+          what: what.trim(),
+          comment: comment.trim(),
+        }),
       });
       const data = (await res.json()) as { ok?: boolean; entry?: AnamnesisIllnessEntry };
-      if (!res.ok || !data.ok || !data.entry) throw new Error("save_failed");
+      if (!res.ok || !data.ok || !data.entry) throw new Error('save_failed');
       onAdded(data.entry);
     } catch {
-      setErr("Ошибка сохранения");
+      setErr('Ошибка сохранения');
     } finally {
       setSaving(false);
     }
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-2 rounded-lg border border-primary/30 bg-primary/5 p-2.5">
+    <form
+      onSubmit={handleSubmit}
+      className="flex flex-col gap-2 rounded-lg border border-primary/30 bg-primary/5 p-2.5"
+    >
       <div className="grid grid-cols-2 gap-1.5">
         <div className="flex flex-col gap-0.5">
           <label className="text-xs text-muted-foreground">Период</label>
-          <Input ref={periodRef} value={period} onChange={e => setPeriod(e.target.value)} placeholder="Год или период" />
+          <Input
+            ref={periodRef}
+            value={period}
+            onChange={(e) => setPeriod(e.target.value)}
+            placeholder="Год или период"
+          />
         </div>
         <div className="flex flex-col gap-0.5">
           <label className="text-xs text-muted-foreground">Что</label>
-          <Input value={what} onChange={e => setWhat(e.target.value)} placeholder="Что произошло, длительность…" />
+          <Input
+            value={what}
+            onChange={(e) => setWhat(e.target.value)}
+            placeholder="Что произошло, длительность…"
+          />
         </div>
       </div>
       <div className="flex flex-col gap-0.5">
         <label className="text-xs text-muted-foreground">Комментарий</label>
-        <Input value={comment} onChange={e => setComment(e.target.value)} placeholder="Описание, последствия, примечание…" />
+        <Input
+          value={comment}
+          onChange={(e) => setComment(e.target.value)}
+          placeholder="Описание, последствия, примечание…"
+        />
       </div>
       {err && <p className="text-xs text-destructive">{err}</p>}
       <div className="flex gap-1.5">
         <Button type="submit" disabled={saving} size="xs">
-          {saving ? "Сохранение…" : "Добавить"}
+          {saving ? 'Сохранение…' : 'Добавить'}
         </Button>
         <Button type="button" onClick={onCancel} variant="outline" size="xs">
           Отмена
@@ -1565,37 +1631,48 @@ function AddLifestyleForm({
   // Default date = today in YYYY-MM-DD
   const todayIso = new Date().toISOString().slice(0, 10);
   const [recordDate, setRecordDate] = useState(todayIso);
-  const [text, setText] = useState("");
+  const [text, setText] = useState('');
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const textRef = useRef<HTMLTextAreaElement>(null);
 
-  useEffect(() => { textRef.current?.focus(); }, []);
+  useEffect(() => {
+    textRef.current?.focus();
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!text.trim()) { setErr("Введите текст записи"); return; }
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(recordDate)) { setErr("Неверный формат даты"); return; }
+    if (!text.trim()) {
+      setErr('Введите текст записи');
+      return;
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(recordDate)) {
+      setErr('Неверный формат даты');
+      return;
+    }
     setSaving(true);
     setErr(null);
     try {
       const res = await fetch(`/api/doctor/patients/${userId}/anamnesis`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ section: "lifestyle", recordDate, text: text.trim() }),
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ section: 'lifestyle', recordDate, text: text.trim() }),
       });
       const data = (await res.json()) as { ok?: boolean; entry?: AnamnesisLifestyleEntry };
-      if (!res.ok || !data.ok || !data.entry) throw new Error("save_failed");
+      if (!res.ok || !data.ok || !data.entry) throw new Error('save_failed');
       onAdded(data.entry);
     } catch {
-      setErr("Ошибка сохранения");
+      setErr('Ошибка сохранения');
     } finally {
       setSaving(false);
     }
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-2 rounded-lg border border-primary/30 bg-primary/5 p-2.5">
+    <form
+      onSubmit={handleSubmit}
+      className="flex flex-col gap-2 rounded-lg border border-primary/30 bg-primary/5 p-2.5"
+    >
       <div className="flex flex-col gap-0.5">
         <label className="text-xs text-muted-foreground">Дата записи</label>
         <DoctorDatePicker value={recordDate} onChange={setRecordDate} />
@@ -1605,7 +1682,7 @@ function AddLifestyleForm({
         <Textarea
           ref={textRef}
           value={text}
-          onChange={e => setText(e.target.value)}
+          onChange={(e) => setText(e.target.value)}
           placeholder="Работа сидячая, 8–10 часов. В выходные прогулки…"
           className="min-h-[60px]"
         />
@@ -1613,7 +1690,7 @@ function AddLifestyleForm({
       {err && <p className="text-xs text-destructive">{err}</p>}
       <div className="flex gap-1.5">
         <Button type="submit" disabled={saving} size="xs">
-          {saving ? "Сохранение…" : "Добавить"}
+          {saving ? 'Сохранение…' : 'Добавить'}
         </Button>
         <Button type="button" onClick={onCancel} variant="outline" size="xs">
           Отмена
@@ -1629,7 +1706,19 @@ function AddLifestyleForm({
 
 const EMPTY_ANAMNESIS: AnamnesisState = { trauma: [], illness: [], lifestyle: [] };
 
-export function PatientTabKarta({ userId, header: _header, pendingAppointmentId, pendingVisitDate, pendingPrefillLocation, pendingPrefillService, onPendingConsumed, initialClinicalState, initialVisits, initialAnamnesis, initialComorbidities }: Props) {
+export function PatientTabKarta({
+  userId,
+  header: _header,
+  pendingAppointmentId,
+  pendingVisitDate,
+  pendingPrefillLocation,
+  pendingPrefillService,
+  onPendingConsumed,
+  initialClinicalState,
+  initialVisits,
+  initialAnamnesis,
+  initialComorbidities,
+}: Props) {
   const hasSsrClinical = initialClinicalState != null && initialVisits != null;
   const [panelOpen, setPanelOpen] = useState(false);
   const [historyVisible, setHistoryVisible] = useState(true);
@@ -1641,20 +1730,32 @@ export function PatientTabKarta({ userId, header: _header, pendingAppointmentId,
   const [sourceAppointment, setSourceAppointment] = useState<PatientAppointmentItem | null>(null);
 
   // Clinical data — loaded from /api/doctor/patients/[userId]/clinical
-  const [complaints, setComplaints] = useState<ActiveComplaint[]>(() => hasSsrClinical ? initialClinicalState!.complaints : []);
-  const [diagnoses, setDiagnoses] = useState<ActiveDiagnosis[]>(() => hasSsrClinical ? initialClinicalState!.diagnoses : []);
-  const [visits, setVisits] = useState<Visit[]>(() => hasSsrClinical ? initialVisits! : []);
+  const [complaints, setComplaints] = useState<ActiveComplaint[]>(() =>
+    hasSsrClinical ? initialClinicalState!.complaints : [],
+  );
+  const [diagnoses, setDiagnoses] = useState<ActiveDiagnosis[]>(() =>
+    hasSsrClinical ? initialClinicalState!.diagnoses : [],
+  );
+  const [visits, setVisits] = useState<Visit[]>(() => (hasSsrClinical ? initialVisits! : []));
   const [isLoading, setIsLoading] = useState(!hasSsrClinical);
   const [fetchError, setFetchError] = useState(false);
-  const [loadedUserId, setLoadedUserId] = useState<string | null>(() => hasSsrClinical ? userId : null);
+  const [loadedUserId, setLoadedUserId] = useState<string | null>(() =>
+    hasSsrClinical ? userId : null,
+  );
 
   // Anamnesis data — loaded from /api/doctor/patients/[userId]/anamnesis
   const hasSsrAnamnesis = initialAnamnesis != null;
-  const [anamnesis, setAnamnesis] = useState<AnamnesisState>(() => initialAnamnesis ?? EMPTY_ANAMNESIS);
-  const [anamnesisLoadedUserId, setAnamnesisLoadedUserId] = useState<string | null>(() => hasSsrAnamnesis ? userId : null);
+  const [anamnesis, setAnamnesis] = useState<AnamnesisState>(
+    () => initialAnamnesis ?? EMPTY_ANAMNESIS,
+  );
+  const [anamnesisLoadedUserId, setAnamnesisLoadedUserId] = useState<string | null>(() =>
+    hasSsrAnamnesis ? userId : null,
+  );
   const [anamnesisError, setAnamnesisError] = useState(false);
   // Which add-form is open: null | "trauma" | "illness" | "lifestyle"
-  const [anamnesisAddOpen, setAnamnesisAddOpen] = useState<"trauma" | "illness" | "lifestyle" | null>(null);
+  const [anamnesisAddOpen, setAnamnesisAddOpen] = useState<
+    'trauma' | 'illness' | 'lifestyle' | null
+  >(null);
 
   // fetchClinical is stable per userId — used on mount + after save
   const fetchClinical = useCallback(() => {
@@ -1705,7 +1806,7 @@ export function PatientTabKarta({ userId, header: _header, pendingAppointmentId,
     }
     fetchClinical();
     if (!hasSsrAnamnesis) fetchAnamnesis();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchClinical, fetchAnamnesis]);
 
   // Auto-open new visit panel when navigated via URL param or in-page tab switch from Визиты.
@@ -1731,10 +1832,10 @@ export function PatientTabKarta({ userId, header: _header, pendingAppointmentId,
    *   ADD + history VISIBLE: 0.75fr / 1.25fr — right dominant, card blurred
    */
   const gridCols = !panelOpen
-    ? "lg:grid-cols-[1.1fr_1fr]"
+    ? 'lg:grid-cols-[1.1fr_1fr]'
     : historyVisible
-      ? "lg:grid-cols-[0.75fr_1.25fr]"
-      : "lg:grid-cols-[1fr_1.3fr]";
+      ? 'lg:grid-cols-[0.75fr_1.25fr]'
+      : 'lg:grid-cols-[1fr_1.3fr]';
 
   /**
    * Blur the LEFT clinical card ONLY when panel is open, history is visible, AND there are
@@ -1752,343 +1853,380 @@ export function PatientTabKarta({ userId, header: _header, pendingAppointmentId,
 
   return (
     <>
-    <div className={cn("grid items-start gap-2.5", gridCols)}>
-      {/* ── LEFT: clinical state (Карта) ─────────────────────────────────── */}
-      <div
-        className={cn(
-          "flex flex-col gap-2.5 transition-all duration-200",
-          leftBlur && "opacity-50 blur-[1.5px]",
-        )}
-      >
-        {/* Жалобы */}
-        <section className={doctorSectionCardClass}>
-          <div className="flex items-center justify-between">
-            <span className="flex items-center gap-1.5">
-              <h3 className={doctorSectionTitleClass}>Симптомы</h3>
-            </span>
-            <span className={miniTabRowClass}>
-              <MiniTab active>Актуальные</MiniTab>
-              <MiniTab>История</MiniTab>
-            </span>
-          </div>
-          <div className="flex flex-col gap-1.5">
-            {loading && (
-              <p className="animate-pulse py-2 text-xs text-muted-foreground">Загрузка…</p>
-            )}
-            {!loading && fetchError && (
-              <p className="py-1 text-xs text-destructive">Не удалось загрузить симптомы.</p>
-            )}
-            {!loading && !fetchError && complaints.length === 0 && (
-              <p className="py-2 text-xs text-muted-foreground">Симптомов пока нет.</p>
-            )}
-            {!loading && complaints.map((c) => (
-              <ComplaintRow key={c.id} c={c} userId={userId} onSaved={fetchClinical} />
-            ))}
-          </div>
-          <p className={doctorSectionSubtitleClass}>
-            ⚑ — приоритет · N/10 — выраженность (обновляется каждым визитом, по значениям строится
-            график динамики) · ✎ — правка: снять / в историю
-          </p>
-        </section>
-
-        {/* Актуальный диагноз — read-only; diagnoses are added via visits (KARTA-02) */}
-        <section className={doctorSectionCardClass}>
-          <div className="flex items-center justify-between">
-            <h3 className={doctorSectionTitleClass}>Актуальный диагноз</h3>
-            <span className={miniTabRowClass}>
-              <MiniTab active>Текущий</MiniTab>
-              <MiniTab>История</MiniTab>
-            </span>
-          </div>
-          <div className="flex flex-col gap-1.5">
-            {loading && (
-              <p className="animate-pulse py-2 text-xs text-muted-foreground">Загрузка…</p>
-            )}
-            {!loading && fetchError && (
-              <p className="py-1 text-xs text-destructive">Не удалось загрузить диагнозы.</p>
-            )}
-            {!loading && !fetchError && diagnoses.filter((d) => d.clinicalStatus === "подтверждённый").length === 0 && (
-              <p className="py-2 text-xs text-muted-foreground">
-                Подтверждённых диагнозов нет.
-              </p>
-            )}
-            {!loading && diagnoses.filter((d) => d.clinicalStatus === "подтверждённый").map((d) => (
-              <DiagnosisRow key={d.id} d={d} userId={userId} onSaved={fetchClinical} />
-            ))}
-          </div>
-          {/* Предварительные диагнозы — не становятся актуальными автоматически (VIZ-15) */}
-          {!loading && !fetchError && diagnoses.filter((d) => d.clinicalStatus === "предварительный").length > 0 && (
-            <div className="mt-2 border-t border-border pt-2">
-              <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                Предварительные
-              </p>
-              <div className="flex flex-col gap-1.5">
-                {diagnoses.filter((d) => d.clinicalStatus === "предварительный").map((d) => (
-                  <DiagnosisRow key={d.id} d={d} userId={userId} onSaved={fetchClinical} />
-                ))}
-              </div>
+      <div className={cn('grid items-start gap-2.5', gridCols)}>
+        {/* ── LEFT: clinical state (Карта) ─────────────────────────────────── */}
+        <div
+          className={cn(
+            'flex flex-col gap-2.5 transition-all duration-200',
+            leftBlur && 'opacity-50 blur-[1.5px]',
+          )}
+        >
+          {/* Жалобы */}
+          <section className={doctorSectionCardClass}>
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <h3 className={doctorSectionTitleClass}>Симптомы</h3>
+              </span>
+              <span className={miniTabRowClass}>
+                <MiniTab active>Актуальные</MiniTab>
+                <MiniTab>История</MiniTab>
+              </span>
             </div>
-          )}
-          <p className={doctorSectionSubtitleClass}>
-            по клику на диагноз: подтвердить · уточнить · снять (уходит в историю с датой)
-          </p>
-        </section>
-
-        {/* Сопутствующие заболевания — реальные данные /api/doctor/patients/[id]/comorbidities */}
-        <Comorbidities userId={userId} initialItems={initialComorbidities ?? undefined} />
-
-        {/* Анамнез — real data from /api/doctor/patients/[userId]/anamnesis */}
-        <section className={doctorSectionCardClass}>
-          <div className="flex items-center justify-between">
-            <h3 className={doctorSectionTitleClass}>Анамнез</h3>
-            {anamnesisLoading && (
-              <span className="animate-pulse text-xs text-muted-foreground">Загрузка…</span>
-            )}
-            {!anamnesisLoading && anamnesisError && (
-              <span className="text-xs text-destructive">Ошибка загрузки</span>
-            )}
-          </div>
-
-          {/* Травмы и операции */}
-          <div className="flex items-center gap-1.5">
-            <span className={sectionLabelClass}>Травмы и операции</span>
-            {anamnesisAddOpen !== "trauma" && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-xs"
-                className={plusBtnClass}
-                title="Добавить запись"
-                onClick={() => setAnamnesisAddOpen("trauma")}
-              >
-                +
-              </Button>
-            )}
-          </div>
-          {anamnesisAddOpen === "trauma" && (
-            <AddTraumaForm
-              userId={userId}
-              onAdded={(entry) => {
-                setAnamnesis((prev) => ({ ...prev, trauma: [...prev.trauma, entry] }));
-                setAnamnesisAddOpen(null);
-              }}
-              onCancel={() => setAnamnesisAddOpen(null)}
-            />
-          )}
-          {!anamnesisLoading && anamnesis.trauma.length > 0 && (
-            <table className="w-full border-collapse text-sm">
-              <tbody>
-                <tr className="text-left text-xs text-muted-foreground">
-                  <th className="border-b border-border py-1 pr-2 font-medium">Год</th>
-                  <th className="border-b border-border py-1 pr-2 font-medium">Что</th>
-                  <th className="border-b border-border py-1 pr-2 font-medium">Тип</th>
-                  <th className="border-b border-border py-1 font-medium">Иммоб.</th>
-                </tr>
-                {anamnesis.trauma.map((r) => (
-                  <tr key={r.id} className="align-top">
-                    <td className="border-b border-border/50 py-1 pr-2">{r.year}</td>
-                    <td className="border-b border-border/50 py-1 pr-2">{r.what}</td>
-                    <td className="border-b border-border/50 py-1 pr-2">{r.type}</td>
-                    <td className="border-b border-border/50 py-1">{r.immobilization}</td>
-                  </tr>
+            <div className="flex flex-col gap-1.5">
+              {loading && (
+                <p className="animate-pulse py-2 text-xs text-muted-foreground">Загрузка…</p>
+              )}
+              {!loading && fetchError && (
+                <p className="py-1 text-xs text-destructive">Не удалось загрузить симптомы.</p>
+              )}
+              {!loading && !fetchError && complaints.length === 0 && (
+                <p className="py-2 text-xs text-muted-foreground">Симптомов пока нет.</p>
+              )}
+              {!loading &&
+                complaints.map((c) => (
+                  <ComplaintRow key={c.id} c={c} userId={userId} onSaved={fetchClinical} />
                 ))}
-              </tbody>
-            </table>
-          )}
-          {!anamnesisLoading && !anamnesisError && anamnesis.trauma.length === 0 && anamnesisAddOpen !== "trauma" && (
-            <p className="text-xs text-muted-foreground">Травм и операций не внесено.</p>
-          )}
+            </div>
+            <p className={doctorSectionSubtitleClass}>
+              ⚑ — приоритет · N/10 — выраженность (обновляется каждым визитом, по значениям строится
+              график динамики) · ✎ — правка: снять / в историю
+            </p>
+          </section>
 
-          {/* Болезни, стрессы */}
-          <div className="flex items-center gap-1.5">
-            <span className={sectionLabelClass}>Болезни, стрессы</span>
-            {anamnesisAddOpen !== "illness" && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-xs"
-                className={plusBtnClass}
-                title="Добавить запись"
-                onClick={() => setAnamnesisAddOpen("illness")}
-              >
-                +
-              </Button>
+          {/* Актуальный диагноз — read-only; diagnoses are added via visits (KARTA-02) */}
+          <section className={doctorSectionCardClass}>
+            <div className="flex items-center justify-between">
+              <h3 className={doctorSectionTitleClass}>Актуальный диагноз</h3>
+              <span className={miniTabRowClass}>
+                <MiniTab active>Текущий</MiniTab>
+                <MiniTab>История</MiniTab>
+              </span>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              {loading && (
+                <p className="animate-pulse py-2 text-xs text-muted-foreground">Загрузка…</p>
+              )}
+              {!loading && fetchError && (
+                <p className="py-1 text-xs text-destructive">Не удалось загрузить диагнозы.</p>
+              )}
+              {!loading &&
+                !fetchError &&
+                diagnoses.filter((d) => d.clinicalStatus === 'подтверждённый').length === 0 && (
+                  <p className="py-2 text-xs text-muted-foreground">
+                    Подтверждённых диагнозов нет.
+                  </p>
+                )}
+              {!loading &&
+                diagnoses
+                  .filter((d) => d.clinicalStatus === 'подтверждённый')
+                  .map((d) => (
+                    <DiagnosisRow key={d.id} d={d} userId={userId} onSaved={fetchClinical} />
+                  ))}
+            </div>
+            {/* Предварительные диагнозы — не становятся актуальными автоматически (VIZ-15) */}
+            {!loading &&
+              !fetchError &&
+              diagnoses.filter((d) => d.clinicalStatus === 'предварительный').length > 0 && (
+                <div className="mt-2 border-t border-border pt-2">
+                  <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                    Предварительные
+                  </p>
+                  <div className="flex flex-col gap-1.5">
+                    {diagnoses
+                      .filter((d) => d.clinicalStatus === 'предварительный')
+                      .map((d) => (
+                        <DiagnosisRow key={d.id} d={d} userId={userId} onSaved={fetchClinical} />
+                      ))}
+                  </div>
+                </div>
+              )}
+            <p className={doctorSectionSubtitleClass}>
+              по клику на диагноз: подтвердить · уточнить · снять (уходит в историю с датой)
+            </p>
+          </section>
+
+          {/* Сопутствующие заболевания — реальные данные /api/doctor/patients/[id]/comorbidities */}
+          <Comorbidities userId={userId} initialItems={initialComorbidities ?? undefined} />
+
+          {/* Анамнез — real data from /api/doctor/patients/[userId]/anamnesis */}
+          <section className={doctorSectionCardClass}>
+            <div className="flex items-center justify-between">
+              <h3 className={doctorSectionTitleClass}>Анамнез</h3>
+              {anamnesisLoading && (
+                <span className="animate-pulse text-xs text-muted-foreground">Загрузка…</span>
+              )}
+              {!anamnesisLoading && anamnesisError && (
+                <span className="text-xs text-destructive">Ошибка загрузки</span>
+              )}
+            </div>
+
+            {/* Травмы и операции */}
+            <div className="flex items-center gap-1.5">
+              <span className={sectionLabelClass}>Травмы и операции</span>
+              {anamnesisAddOpen !== 'trauma' && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-xs"
+                  className={plusBtnClass}
+                  title="Добавить запись"
+                  onClick={() => setAnamnesisAddOpen('trauma')}
+                >
+                  +
+                </Button>
+              )}
+            </div>
+            {anamnesisAddOpen === 'trauma' && (
+              <AddTraumaForm
+                userId={userId}
+                onAdded={(entry) => {
+                  setAnamnesis((prev) => ({ ...prev, trauma: [...prev.trauma, entry] }));
+                  setAnamnesisAddOpen(null);
+                }}
+                onCancel={() => setAnamnesisAddOpen(null)}
+              />
             )}
-          </div>
-          {anamnesisAddOpen === "illness" && (
-            <AddIllnessForm
-              userId={userId}
-              onAdded={(entry) => {
-                setAnamnesis((prev) => ({ ...prev, illness: [...prev.illness, entry] }));
-                setAnamnesisAddOpen(null);
-              }}
-              onCancel={() => setAnamnesisAddOpen(null)}
-            />
-          )}
-          {!anamnesisLoading && anamnesis.illness.length > 0 && (
-            <table className="w-full border-collapse text-sm">
-              <tbody>
-                <tr className="text-left text-xs text-muted-foreground">
-                  <th className="border-b border-border py-1 pr-2 font-medium">Период</th>
-                  <th className="border-b border-border py-1 pr-2 font-medium">Что</th>
-                  <th className="border-b border-border py-1 font-medium">Комментарий</th>
-                </tr>
-                {anamnesis.illness.map((r) => (
-                  <tr key={r.id} className="align-top">
-                    <td className="border-b border-border/50 py-1 pr-2">{r.period}</td>
-                    <td className="border-b border-border/50 py-1 pr-2">{r.what}</td>
-                    <td className="border-b border-border/50 py-1">{r.comment}</td>
+            {!anamnesisLoading && anamnesis.trauma.length > 0 && (
+              <table className="w-full border-collapse text-sm">
+                <tbody>
+                  <tr className="text-left text-xs text-muted-foreground">
+                    <th className="border-b border-border py-1 pr-2 font-medium">Год</th>
+                    <th className="border-b border-border py-1 pr-2 font-medium">Что</th>
+                    <th className="border-b border-border py-1 pr-2 font-medium">Тип</th>
+                    <th className="border-b border-border py-1 font-medium">Иммоб.</th>
                   </tr>
+                  {anamnesis.trauma.map((r) => (
+                    <tr key={r.id} className="align-top">
+                      <td className="border-b border-border/50 py-1 pr-2">{r.year}</td>
+                      <td className="border-b border-border/50 py-1 pr-2">{r.what}</td>
+                      <td className="border-b border-border/50 py-1 pr-2">{r.type}</td>
+                      <td className="border-b border-border/50 py-1">{r.immobilization}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            {!anamnesisLoading &&
+              !anamnesisError &&
+              anamnesis.trauma.length === 0 &&
+              anamnesisAddOpen !== 'trauma' && (
+                <p className="text-xs text-muted-foreground">Травм и операций не внесено.</p>
+              )}
+
+            {/* Болезни, стрессы */}
+            <div className="flex items-center gap-1.5">
+              <span className={sectionLabelClass}>Болезни, стрессы</span>
+              {anamnesisAddOpen !== 'illness' && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-xs"
+                  className={plusBtnClass}
+                  title="Добавить запись"
+                  onClick={() => setAnamnesisAddOpen('illness')}
+                >
+                  +
+                </Button>
+              )}
+            </div>
+            {anamnesisAddOpen === 'illness' && (
+              <AddIllnessForm
+                userId={userId}
+                onAdded={(entry) => {
+                  setAnamnesis((prev) => ({ ...prev, illness: [...prev.illness, entry] }));
+                  setAnamnesisAddOpen(null);
+                }}
+                onCancel={() => setAnamnesisAddOpen(null)}
+              />
+            )}
+            {!anamnesisLoading && anamnesis.illness.length > 0 && (
+              <table className="w-full border-collapse text-sm">
+                <tbody>
+                  <tr className="text-left text-xs text-muted-foreground">
+                    <th className="border-b border-border py-1 pr-2 font-medium">Период</th>
+                    <th className="border-b border-border py-1 pr-2 font-medium">Что</th>
+                    <th className="border-b border-border py-1 font-medium">Комментарий</th>
+                  </tr>
+                  {anamnesis.illness.map((r) => (
+                    <tr key={r.id} className="align-top">
+                      <td className="border-b border-border/50 py-1 pr-2">{r.period}</td>
+                      <td className="border-b border-border/50 py-1 pr-2">{r.what}</td>
+                      <td className="border-b border-border/50 py-1">{r.comment}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            {!anamnesisLoading &&
+              !anamnesisError &&
+              anamnesis.illness.length === 0 &&
+              anamnesisAddOpen !== 'illness' && (
+                <p className="text-xs text-muted-foreground">Болезней и стрессов не внесено.</p>
+              )}
+
+            {/* Образ жизни */}
+            <div className="flex items-center gap-1.5">
+              <span className={sectionLabelClass}>Образ жизни</span>
+              {anamnesisAddOpen !== 'lifestyle' && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-xs"
+                  className={plusBtnClass}
+                  title="Добавить запись"
+                  onClick={() => setAnamnesisAddOpen('lifestyle')}
+                >
+                  +
+                </Button>
+              )}
+            </div>
+            {anamnesisAddOpen === 'lifestyle' && (
+              <AddLifestyleForm
+                userId={userId}
+                onAdded={(entry) => {
+                  setAnamnesis((prev) => ({ ...prev, lifestyle: [...prev.lifestyle, entry] }));
+                  setAnamnesisAddOpen(null);
+                }}
+                onCancel={() => setAnamnesisAddOpen(null)}
+              />
+            )}
+            <div className="flex flex-col gap-1.5">
+              {!anamnesisLoading &&
+                anamnesis.lifestyle.map((e) => (
+                  <div
+                    key={e.id}
+                    className="rounded-lg border border-border/70 bg-background/40 px-2.5 py-2 text-sm"
+                  >
+                    <div className={cn(doctorSectionSubtitleClass, 'mb-0.5')}>
+                      Запись от {e.date}
+                    </div>
+                    {e.text}
+                  </div>
                 ))}
-              </tbody>
-            </table>
-          )}
-          {!anamnesisLoading && !anamnesisError && anamnesis.illness.length === 0 && anamnesisAddOpen !== "illness" && (
-            <p className="text-xs text-muted-foreground">Болезней и стрессов не внесено.</p>
-          )}
+              {!anamnesisLoading &&
+                !anamnesisError &&
+                anamnesis.lifestyle.length === 0 &&
+                anamnesisAddOpen !== 'lifestyle' && (
+                  <p className="text-xs text-muted-foreground">Записей об образе жизни нет.</p>
+                )}
+            </div>
+          </section>
+        </div>
 
-          {/* Образ жизни */}
-          <div className="flex items-center gap-1.5">
-            <span className={sectionLabelClass}>Образ жизни</span>
-            {anamnesisAddOpen !== "lifestyle" && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-xs"
-                className={plusBtnClass}
-                title="Добавить запись"
-                onClick={() => setAnamnesisAddOpen("lifestyle")}
-              >
-                +
-              </Button>
-            )}
-          </div>
-          {anamnesisAddOpen === "lifestyle" && (
-            <AddLifestyleForm
-              userId={userId}
-              onAdded={(entry) => {
-                setAnamnesis((prev) => ({ ...prev, lifestyle: [...prev.lifestyle, entry] }));
-                setAnamnesisAddOpen(null);
-              }}
-              onCancel={() => setAnamnesisAddOpen(null)}
-            />
-          )}
-          <div className="flex flex-col gap-1.5">
-            {!anamnesisLoading && anamnesis.lifestyle.map((e) => (
-              <div
-                key={e.id}
-                className="rounded-lg border border-border/70 bg-background/40 px-2.5 py-2 text-sm"
-              >
-                <div className={cn(doctorSectionSubtitleClass, "mb-0.5")}>Запись от {e.date}</div>
-                {e.text}
-              </div>
-            ))}
-            {!anamnesisLoading && !anamnesisError && anamnesis.lifestyle.length === 0 && anamnesisAddOpen !== "lifestyle" && (
-              <p className="text-xs text-muted-foreground">Записей об образе жизни нет.</p>
-            )}
-          </div>
-        </section>
-      </div>
-
-      {/* ── RIGHT: visits feed / new-visit panel ─────────────────────────── */}
-      <div className="flex flex-col gap-2.5">
-
-        {/* ── History header row — ALWAYS at the top of the right column.
+        {/* ── RIGHT: visits feed / new-visit panel ─────────────────────────── */}
+        <div className="flex flex-col gap-2.5">
+          {/* ── History header row — ALWAYS at the top of the right column.
              This ensures the toggle arrow (◀/▶) never jumps when panelOpen
              or visitType changes. The «+ Новый визит» button is hidden while
              the form is open to avoid double-open. ────────────────────────── */}
-        <div className="flex items-center gap-2">
-          {!loading && visits.length > 0 ? (
-            <HistoryToggleBtn
-              visible={historyVisible}
-              onToggle={() => setHistoryVisible((v) => !v)}
-            />
-          ) : null}
-          <h2 className={doctorSectionTitleClass}>История визитов</h2>
-          {!loading && (
-            <span className={doctorSectionSubtitleClass}>{visits.length} визитов</span>
+          <div className="flex items-center gap-2">
+            {!loading && visits.length > 0 ? (
+              <HistoryToggleBtn
+                visible={historyVisible}
+                onToggle={() => setHistoryVisible((v) => !v)}
+              />
+            ) : null}
+            <h2 className={doctorSectionTitleClass}>История визитов</h2>
+            {!loading && (
+              <span className={doctorSectionSubtitleClass}>{visits.length} визитов</span>
+            )}
+            {!panelOpen && (
+              <Button
+                type="button"
+                onClick={() => setModePickerOpen(true)}
+                size="xs"
+                className="ml-auto"
+              >
+                + Новый визит
+              </Button>
+            )}
+          </div>
+
+          {/* ── New visit form (shown when panelOpen) ────────────────────────── */}
+          {panelOpen && (
+            <div className={cn('relative z-10', historyVisible ? 'max-h-[78vh]' : 'max-h-[85vh]')}>
+              <NewVisitPanel
+                userId={userId}
+                activeComplaints={complaints}
+                activeDiagnoses={diagnoses}
+                pendingVisitDate={pendingVisitDate}
+                pendingLocation={pendingPrefillLocation ?? sourceAppointment?.location ?? null}
+                pendingService={pendingPrefillService ?? sourceAppointment?.serviceName ?? null}
+                sourceAppointment={sourceAppointment}
+                onPendingConsumed={onPendingConsumed}
+                onClose={() => {
+                  setPanelOpen(false);
+                  setSourceAppointment(null);
+                }}
+                onSaved={handleVisitSaved}
+              />
+            </div>
           )}
-          {!panelOpen && (
-            <Button
-              type="button"
-              onClick={() => setModePickerOpen(true)}
-              size="xs"
-              className="ml-auto"
+
+          {/* ── History feed (shown when historyVisible) ─────────────────────── */}
+          {historyVisible ? (
+            <div
+              className={cn(
+                'flex flex-col gap-2.5',
+                panelOpen && 'max-h-[60vh] overflow-y-auto opacity-80',
+              )}
             >
-              + Новый визит
-            </Button>
+              {loading && (
+                <p className="animate-pulse py-2 text-xs text-muted-foreground">
+                  Загрузка истории визитов…
+                </p>
+              )}
+              {!loading && fetchError && (
+                <p className="py-1 text-xs text-destructive">
+                  Не удалось загрузить историю визитов.
+                </p>
+              )}
+              {!loading && !fetchError && visits.length === 0 && (
+                <p className="py-2 text-xs text-muted-foreground">Визитов пока нет.</p>
+              )}
+              {!loading &&
+                visits.map((v, i) => (
+                  <VisitCard
+                    key={v.id}
+                    visit={v}
+                    defaultExpanded={i === 0}
+                    userId={userId}
+                    onSaved={fetchClinical}
+                  />
+                ))}
+              {!panelOpen && (
+                <p className={doctorSectionSubtitleClass}>
+                  История визитов — справа. «+ Новый визит» переключает экран в режим добавления.
+                  Стрелка ◀ скрывает историю — карта снова видна чётко рядом с формой.
+                </p>
+              )}
+            </div>
+          ) : (
+            !panelOpen && (
+              <p className={doctorSectionSubtitleClass}>
+                История скрыта — карта видна слева без блюра. Нажмите ▶, чтобы вернуть историю
+                визитов.
+              </p>
+            )
           )}
         </div>
-
-        {/* ── New visit form (shown when panelOpen) ────────────────────────── */}
-        {panelOpen && (
-          <div className={cn("relative z-10", historyVisible ? "max-h-[78vh]" : "max-h-[85vh]")}>
-            <NewVisitPanel
-              userId={userId}
-              activeComplaints={complaints}
-              activeDiagnoses={diagnoses}
-              pendingVisitDate={pendingVisitDate}
-              pendingLocation={pendingPrefillLocation ?? (sourceAppointment?.location ?? null)}
-              pendingService={pendingPrefillService ?? (sourceAppointment?.serviceName ?? null)}
-              sourceAppointment={sourceAppointment}
-              onPendingConsumed={onPendingConsumed}
-              onClose={() => { setPanelOpen(false); setSourceAppointment(null); }}
-              onSaved={handleVisitSaved}
-            />
-          </div>
-        )}
-
-        {/* ── History feed (shown when historyVisible) ─────────────────────── */}
-        {historyVisible ? (
-          <div className={cn(
-            "flex flex-col gap-2.5",
-            panelOpen && "max-h-[60vh] overflow-y-auto opacity-80",
-          )}>
-            {loading && (
-              <p className="animate-pulse py-2 text-xs text-muted-foreground">Загрузка истории визитов…</p>
-            )}
-            {!loading && fetchError && (
-              <p className="py-1 text-xs text-destructive">Не удалось загрузить историю визитов.</p>
-            )}
-            {!loading && !fetchError && visits.length === 0 && (
-              <p className="py-2 text-xs text-muted-foreground">Визитов пока нет.</p>
-            )}
-            {!loading && visits.map((v, i) => (
-              <VisitCard key={v.id} visit={v} defaultExpanded={i === 0} userId={userId} onSaved={fetchClinical} />
-            ))}
-            {!panelOpen && (
-              <p className={doctorSectionSubtitleClass}>
-                История визитов — справа. «+ Новый визит» переключает экран в режим добавления.
-                Стрелка ◀ скрывает историю — карта снова видна чётко рядом с формой.
-              </p>
-            )}
-          </div>
-        ) : (
-          !panelOpen && (
-            <p className={doctorSectionSubtitleClass}>
-              История скрыта — карта видна слева без блюра. Нажмите ▶, чтобы вернуть историю
-              визитов.
-            </p>
-          )
-        )}
       </div>
-    </div>
 
-    {/* Mode picker modal — opens when doctor clicks «+ Новый визит» */}
-    <CreateVisitModeModal
-      userId={userId}
-      open={modePickerOpen}
-      onClose={() => setModePickerOpen(false)}
-      onSelectMode={(mode, appointment) => {
-        setModePickerOpen(false);
-        if (mode === "from_booking" && appointment) {
-          setSourceAppointment(appointment);
-        } else {
-          setSourceAppointment(null);
-        }
-        setPanelOpen(true);
-      }}
-    />
+      {/* Mode picker modal — opens when doctor clicks «+ Новый визит» */}
+      <CreateVisitModeModal
+        userId={userId}
+        open={modePickerOpen}
+        onClose={() => setModePickerOpen(false)}
+        onSelectMode={(mode, appointment) => {
+          setModePickerOpen(false);
+          if (mode === 'from_booking' && appointment) {
+            setSourceAppointment(appointment);
+          } else {
+            setSourceAppointment(null);
+          }
+          setPanelOpen(true);
+        }}
+      />
     </>
   );
 }

@@ -5,4 +5,4 @@ export {
   type HeaderGetter,
   patientPathRequiresBoundPhone,
   resolvePatientLayoutPathname,
-} from "@/modules/platform-access/patientRouteApiPolicy";
+} from '@/modules/platform-access/patientRouteApiPolicy';

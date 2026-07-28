@@ -1,23 +1,23 @@
 /** @vitest-environment jsdom */
 
-import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
-import type { ReactNode } from "react";
-import type { PatientHomeBlock } from "@/modules/patient-home/ports";
+import { describe, expect, it, vi } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import type { ReactNode } from 'react';
+import type { PatientHomeBlock } from '@/modules/patient-home/ports';
 import {
   buildPatientHomeResolverSyncContext,
   computePatientHomeBlockRuntimeStatus,
-} from "@/modules/patient-home/patientHomeRuntimeStatus";
-import { emptyPatientHomeRefDisplayTitles } from "@/modules/patient-home/patientHomeBlockItemDisplayTitle";
-import { PatientHomeBlocksSettingsPageClient } from "./PatientHomeBlocksSettingsPageClient";
+} from '@/modules/patient-home/patientHomeRuntimeStatus';
+import { emptyPatientHomeRefDisplayTitles } from '@/modules/patient-home/patientHomeBlockItemDisplayTitle';
+import { PatientHomeBlocksSettingsPageClient } from './PatientHomeBlocksSettingsPageClient';
 
-vi.mock("next/navigation", () => ({
+vi.mock('next/navigation', () => ({
   useRouter: () => ({
     refresh: vi.fn(),
   }),
 }));
 
-vi.mock("@/shared/ui/doctor/primitives/dropdown-menu", () => ({
+vi.mock('@/shared/ui/doctor/primitives/dropdown-menu', () => ({
   DropdownMenu: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   DropdownMenuTrigger: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   DropdownMenuContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
@@ -27,7 +27,7 @@ vi.mock("@/shared/ui/doctor/primitives/dropdown-menu", () => ({
   DropdownMenuSeparator: () => <div />,
 }));
 
-vi.mock("./actions", () => ({
+vi.mock('./actions', () => ({
   togglePatientHomeBlockVisibility: vi.fn().mockResolvedValue({ ok: true }),
   listPatientHomeCandidates: vi.fn().mockResolvedValue({ ok: true, items: [] }),
   retargetPatientHomeItem: vi.fn().mockResolvedValue({ ok: true }),
@@ -38,9 +38,17 @@ vi.mock("./actions", () => ({
   reorderPatientHomeBlocks: vi.fn().mockResolvedValue({ ok: true }),
 }));
 
-describe("PatientHomeBlocksSettingsPageClient", () => {
-  const knownRefs = { contentPages: [] as string[], contentSections: [] as string[], courses: [] as string[] };
-  const resolverSync = buildPatientHomeResolverSyncContext({ sections: [], pages: [], courses: [] });
+describe('PatientHomeBlocksSettingsPageClient', () => {
+  const knownRefs = {
+    contentPages: [] as string[],
+    contentSections: [] as string[],
+    courses: [] as string[],
+  };
+  const resolverSync = buildPatientHomeResolverSyncContext({
+    sections: [],
+    pages: [],
+    courses: [],
+  });
 
   function statusesForBlocks(blocks: PatientHomeBlock[]) {
     return blocks.reduce(
@@ -48,25 +56,28 @@ describe("PatientHomeBlocksSettingsPageClient", () => {
         acc[b.code] = computePatientHomeBlockRuntimeStatus(b, { knownRefs, resolverSync });
         return acc;
       },
-      {} as Record<PatientHomeBlock["code"], ReturnType<typeof computePatientHomeBlockRuntimeStatus>>,
+      {} as Record<
+        PatientHomeBlock['code'],
+        ReturnType<typeof computePatientHomeBlockRuntimeStatus>
+      >,
     );
   }
 
-  it("renders blocks and menu actions by block type", async () => {
+  it('renders blocks and menu actions by block type', async () => {
     const initialBlocks: PatientHomeBlock[] = [
       {
-        code: "daily_warmup",
-        title: "Разминка дня",
-        description: "",
+        code: 'daily_warmup',
+        title: 'Разминка дня',
+        description: '',
         isVisible: true,
         sortOrder: 1,
         iconImageUrl: null,
         items: [],
       },
       {
-        code: "booking",
-        title: "Запись на приём",
-        description: "",
+        code: 'booking',
+        title: 'Запись на приём',
+        description: '',
         isVisible: true,
         sortOrder: 2,
         iconImageUrl: null,
@@ -82,12 +93,12 @@ describe("PatientHomeBlocksSettingsPageClient", () => {
       />,
     );
 
-    expect(screen.getByText("Разминка дня")).toBeInTheDocument();
-    expect(screen.getByText("Запись на приём")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Поменять порядок блоков" })).toBeInTheDocument();
+    expect(screen.getByText('Разминка дня')).toBeInTheDocument();
+    expect(screen.getByText('Запись на приём')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Поменять порядок блоков' })).toBeInTheDocument();
 
     expect(screen.getAllByText(/Скрыть|Показать/).length).toBeGreaterThan(0);
-    expect(screen.getByText("Выбрать страницу разминки")).toBeInTheDocument();
-    expect(screen.getAllByText("Порядок, видимость и удаление").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText('Выбрать страницу разминки')).toBeInTheDocument();
+    expect(screen.getAllByText('Порядок, видимость и удаление').length).toBeGreaterThanOrEqual(1);
   });
 });

@@ -12,19 +12,19 @@
 
 ## Код (webapp)
 
-| Область | Путь |
-|--------|------|
-| Страница | `apps/webapp/src/app/app/doctor/broadcasts/page.tsx` |
-| Server actions | `.../broadcasts/actions.ts` (`previewBroadcastAction`, `executeBroadcastAction`, `listBroadcastAuditAction`) |
-| Доменный сервис | `apps/webapp/src/modules/doctor-broadcasts/service.ts` |
-| Построение заданий очереди и правила каналов | `.../doctor-broadcasts/deliveryJobs.ts`, `broadcastEligible.ts` |
-| Типы и константы | `.../doctor-broadcasts/ports.ts`, `deliveryQueueKind.ts` (`BROADCAST_RECIPIENT_PREVIEW_NAME_CAP` = 20) |
-| Оценка аудитории / dev_mode | `.../doctor-broadcasts/broadcastAudienceMetrics.ts` |
-| DI | `apps/webapp/src/app-layer/di/buildAppDeps.ts` (`doctorBroadcasts`, `doctorBroadcastDeliveryCommitPort`) |
-| Аудит в БД | `apps/webapp/src/infra/repos/pgBroadcastAudit.ts` → **`broadcast_audit`** |
-| Транзакция аудит + очередь + recipients | `apps/webapp/src/infra/repos/pgDoctorBroadcastDelivery.ts` |
-| Inbound в notification inbox пациента | `apps/webapp/src/modules/messaging/appendPatientInboundAdminMessage.ts` (после `execute`, `source='doctor_broadcast'`) |
-| Legacy read API / redirect | `apps/webapp/src/modules/patient-broadcasts/`, `apps/webapp/src/app/app/patient/broadcasts/[auditId]/page.tsx` → редирект в чат |
+| Область                                      | Путь                                                                                                                            |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Страница                                     | `apps/webapp/src/app/app/doctor/broadcasts/page.tsx`                                                                            |
+| Server actions                               | `.../broadcasts/actions.ts` (`previewBroadcastAction`, `executeBroadcastAction`, `listBroadcastAuditAction`)                    |
+| Доменный сервис                              | `apps/webapp/src/modules/doctor-broadcasts/service.ts`                                                                          |
+| Построение заданий очереди и правила каналов | `.../doctor-broadcasts/deliveryJobs.ts`, `broadcastEligible.ts`                                                                 |
+| Типы и константы                             | `.../doctor-broadcasts/ports.ts`, `deliveryQueueKind.ts` (`BROADCAST_RECIPIENT_PREVIEW_NAME_CAP` = 20)                          |
+| Оценка аудитории / dev_mode                  | `.../doctor-broadcasts/broadcastAudienceMetrics.ts`                                                                             |
+| DI                                           | `apps/webapp/src/app-layer/di/buildAppDeps.ts` (`doctorBroadcasts`, `doctorBroadcastDeliveryCommitPort`)                        |
+| Аудит в БД                                   | `apps/webapp/src/infra/repos/pgBroadcastAudit.ts` → **`broadcast_audit`**                                                       |
+| Транзакция аудит + очередь + recipients      | `apps/webapp/src/infra/repos/pgDoctorBroadcastDelivery.ts`                                                                      |
+| Inbound в notification inbox пациента        | `apps/webapp/src/modules/messaging/appendPatientInboundAdminMessage.ts` (после `execute`, `source='doctor_broadcast'`)          |
+| Legacy read API / redirect                   | `apps/webapp/src/modules/patient-broadcasts/`, `apps/webapp/src/app/app/patient/broadcasts/[auditId]/page.tsx` → редирект в чат |
 
 ## Преференсы каналов и изолированные аудитории
 
@@ -59,7 +59,7 @@
 
 ## `dev_mode` и `test_account_identifiers`
 
-При **`dev_mode` = true** (admin `system_settings`) расчёт доставки в мессенджер для канала «сообщение в боте» **пересекает** сегмент с **`test_account_identifiers.telegramIds` / `maxIds`** — ту же семантику, что guard исходящего relay: `systemSettingsService.shouldDispatchRelayToRecipient` (см. **`apps/webapp/INTEGRATOR_CONTRACT.md`**, раздел *dev_mode guard*).
+При **`dev_mode` = true** (admin `system_settings`) расчёт доставки в мессенджер для канала «сообщение в боте» **пересекает** сегмент с **`test_account_identifiers.telegramIds` / `maxIds`** — ту же семантику, что guard исходящего relay: `systemSettingsService.shouldDispatchRelayToRecipient` (см. **`apps/webapp/INTEGRATOR_CONTRACT.md`**, раздел _dev_mode guard_).
 
 - **KNOWN GAP / SUPERSEDED AS TARGET — 2026-07-27:** DEV filter must cover SMS (and email) under §23; see the **«Уведомления»** authority-map row.
 - Только **SMS** при включённом `dev_mode`: relay-guard для SMS в текущем контракте не покрывает телефон как `recipient` → в превью **доставка 0** для этого сценария; **в очередь SMS-задачи не ставятся** (согласовано с превью тем же резолвером аудитории).
@@ -100,13 +100,13 @@
 
 ### Семантика счётчиков в `broadcast_audit`
 
-| Колонка | Смысл |
-|--------|--------|
-| `audience_size` | Число клиентов, которым уйдёт хотя бы одна строка очереди (eligible: dev_mode → prefs/isolate-сегмент). |
-| `delivery_jobs_total` | Число строк очереди для этой рассылки; **0** — запись до внедрения очереди (legacy). |
+| Колонка                      | Смысл                                                                                                                                                             |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `audience_size`              | Число клиентов, которым уйдёт хотя бы одна строка очереди (eligible: dev_mode → prefs/isolate-сегмент).                                                           |
+| `delivery_jobs_total`        | Число строк очереди для этой рассылки; **0** — запись до внедрения очереди (legacy).                                                                              |
 | `sent_count` / `error_count` | Инкременты воркера по **завершённым** заданиям очереди (успех / operator-`dead`). **`error_count`** — только реальные ошибки доставки, **не** «бот заблокирован». |
-| `blocked_recipient_count` | Получатель заблокировал бота (TG/MAX); info-счётчик, не деградация health и не `error_count`. |
-| `attach_menu_after_send` | Запрошено ли прикрепление главного меню к исходящим в мессенджер для этой рассылки. |
+| `blocked_recipient_count`    | Получатель заблокировал бота (TG/MAX); info-счётчик, не деградация health и не `error_count`.                                                                     |
+| `attach_menu_after_send`     | Запрошено ли прикрепление главного меню к исходящим в мессенджер для этой рассылки.                                                                               |
 
 ### Post-deploy: backfill «бот заблокирован» (prod, одноразово)
 
@@ -157,11 +157,11 @@ SQL
 
 ### Active vs binding (метрики и рассылки)
 
-| Контекст | Семантика канала TG/MAX |
-|----------|-------------------------|
-| Рассылки / `listClients({ hasTelegram, hasMax })` | **Binding exists** — blocked клиент **остаётся** в audience |
-| Analytics pie, KPI, tri-state фильтр каталога | **Active binding** — `bot_blocked_at IS NULL` |
-| Маркер blocked | `user_channel_bindings.bot_blocked_at`; снимается при успешной доставке worker |
+| Контекст                                          | Семантика канала TG/MAX                                                        |
+| ------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Рассылки / `listClients({ hasTelegram, hasMax })` | **Binding exists** — blocked клиент **остаётся** в audience                    |
+| Analytics pie, KPI, tri-state фильтр каталога     | **Active binding** — `bot_blocked_at IS NULL`                                  |
+| Маркер blocked                                    | `user_channel_bindings.bot_blocked_at`; снимается при успешной доставке worker |
 
 Shared SQL: `apps/webapp/src/modules/doctor-clients/activeMessengerBindingSql.ts`.
 

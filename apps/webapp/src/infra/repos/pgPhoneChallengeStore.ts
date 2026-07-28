@@ -1,65 +1,76 @@
 /** Wave 3 phase 15B — domain SQL via `runWebappPgText`. */
-import { runWebappPgText } from "@/infra/db/runWebappSql";
-import type { ChannelContext } from "@/modules/auth/channelContext";
-import type { PhoneChallengePayload, PhoneChallengeStore } from "@/modules/auth/phoneChallengeStore";
+import { runWebappPgText } from '@/infra/db/runWebappSql';
+import type { ChannelContext } from '@/modules/auth/channelContext';
+import type {
+  PhoneChallengePayload,
+  PhoneChallengeStore,
+} from '@/modules/auth/phoneChallengeStore';
 import {
   parsePublicBookingIntent,
   type PublicBookingIntent,
-} from "@/modules/public-booking/publicBookingIntent";
+} from '@/modules/public-booking/publicBookingIntent';
 
-const OTP_DELIVERY_KEYS = new Set(["sms", "telegram", "max", "email"]);
+const OTP_DELIVERY_KEYS = new Set(['sms', 'telegram', 'max', 'email']);
 
 function channelContextFromRow(row: { channel_context: unknown }): ChannelContext | undefined {
   const raw = row.channel_context;
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
   const o = raw as Record<string, unknown>;
   const channel = o.channel;
   const chatId = o.chatId;
-  if (typeof channel !== "string" || typeof chatId !== "string") return undefined;
-  if (channel !== "telegram" && channel !== "vk" && channel !== "max" && channel !== "web") return undefined;
+  if (typeof channel !== 'string' || typeof chatId !== 'string') return undefined;
+  if (channel !== 'telegram' && channel !== 'vk' && channel !== 'max' && channel !== 'web')
+    return undefined;
   return {
-    channel: channel as ChannelContext["channel"],
+    channel: channel as ChannelContext['channel'],
     chatId,
-    displayName: typeof o.displayName === "string" ? o.displayName : undefined,
+    displayName: typeof o.displayName === 'string' ? o.displayName : undefined,
   };
 }
 
-function otpDeliveryFromRow(row: { channel_context: unknown }): PhoneChallengePayload["deliveryChannel"] {
+function otpDeliveryFromRow(row: {
+  channel_context: unknown;
+}): PhoneChallengePayload['deliveryChannel'] {
   const raw = row.channel_context;
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
   const v = (raw as Record<string, unknown>).otpDelivery;
-  if (typeof v !== "string" || !OTP_DELIVERY_KEYS.has(v)) return undefined;
-  return v as PhoneChallengePayload["deliveryChannel"];
+  if (typeof v !== 'string' || !OTP_DELIVERY_KEYS.has(v)) return undefined;
+  return v as PhoneChallengePayload['deliveryChannel'];
 }
 
 function profileBindUserIdFromRow(row: { channel_context: unknown }): string | undefined {
   const raw = row.channel_context;
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
   const value = (raw as Record<string, unknown>).profileBindUserId;
-  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
 }
 
 function profileBindOrganizationIdFromRow(row: { channel_context: unknown }): string | undefined {
   const raw = row.channel_context;
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
   const value = (raw as Record<string, unknown>).profileBindOrganizationId;
-  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
 }
 
-function publicBookingIntentFromRow(row: { channel_context: unknown }): PublicBookingIntent | undefined {
+function publicBookingIntentFromRow(row: {
+  channel_context: unknown;
+}): PublicBookingIntent | undefined {
   const raw = row.channel_context;
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
-  return parsePublicBookingIntent((raw as Record<string, unknown>).publicBookingIntent) ?? undefined;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+  return (
+    parsePublicBookingIntent((raw as Record<string, unknown>).publicBookingIntent) ?? undefined
+  );
 }
 
 function mergeChannelContextJson(payload: PhoneChallengePayload): string | null {
   if (
-    !payload.channelContext
-    && !payload.deliveryChannel
-    && !payload.profileBindUserId
-    && !payload.profileBindOrganizationId
-    && !payload.publicBookingIntent
-  ) return null;
+    !payload.channelContext &&
+    !payload.deliveryChannel &&
+    !payload.profileBindUserId &&
+    !payload.profileBindOrganizationId &&
+    !payload.publicBookingIntent
+  )
+    return null;
   const o: Record<string, unknown> = {};
   if (payload.channelContext) {
     Object.assign(o, payload.channelContext as Record<string, unknown>);
@@ -96,7 +107,7 @@ export function createPgPhoneChallengeStore(): PhoneChallengeStore {
         ],
       );
       if (result.rows[0]?.ok !== true) {
-        throw new Error("Phone challenge could not be stored");
+        throw new Error('Phone challenge could not be stored');
       }
     },
     async get(challengeId: string): Promise<PhoneChallengePayload | null> {
@@ -132,10 +143,10 @@ export function createPgPhoneChallengeStore(): PhoneChallengeStore {
       };
     },
     async delete(challengeId: string): Promise<void> {
-      await runWebappPgText("SELECT app.phone_challenge_store_delete($1::text)", [challengeId]);
+      await runWebappPgText('SELECT app.phone_challenge_store_delete($1::text)', [challengeId]);
     },
     async deleteByPhone(phone: string): Promise<void> {
-      await runWebappPgText("SELECT app.phone_challenge_store_delete_by_phone($1::text)", [phone]);
+      await runWebappPgText('SELECT app.phone_challenge_store_delete_by_phone($1::text)', [phone]);
     },
     async incrementVerifyAttempts(challengeId: string): Promise<number | null> {
       // Atomic: a single `UPDATE ... SET verify_attempts = verify_attempts + 1 ... RETURNING`

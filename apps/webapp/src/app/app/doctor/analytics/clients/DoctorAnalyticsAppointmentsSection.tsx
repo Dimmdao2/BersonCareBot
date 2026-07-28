@@ -1,15 +1,19 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from 'react';
 
-import type { AppointmentBranchPoint, AppointmentDayPoint, AppointmentStats } from "@/modules/doctor-appointments/ports";
-import type { DoctorAnalyticsMetricKey } from "@/modules/doctor-analytics-metric-accounts/ports";
-import { DoctorMetricList } from "@/shared/ui/doctor/DoctorMetricList";
-import { DoctorSection, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
+import type {
+  AppointmentBranchPoint,
+  AppointmentDayPoint,
+  AppointmentStats,
+} from '@/modules/doctor-appointments/ports';
+import type { DoctorAnalyticsMetricKey } from '@/modules/doctor-analytics-metric-accounts/ports';
+import { DoctorMetricList } from '@/shared/ui/doctor/DoctorMetricList';
+import { DoctorSection, DoctorSectionTitle } from '@/shared/ui/doctor/DoctorSection';
 
-import { buildAdminStatsQuery, type AnalyticsPeriodValue } from "./analyticsPeriodUi";
-import { AppointmentsDynamicsChart } from "./AppointmentsDynamicsChart";
-import { DoctorStatCard } from "./DoctorStatCard";
+import { buildAdminStatsQuery, type AnalyticsPeriodValue } from './analyticsPeriodUi';
+import { AppointmentsDynamicsChart } from './AppointmentsDynamicsChart';
+import { DoctorStatCard } from './DoctorStatCard';
 
 type Props = {
   period: AnalyticsPeriodValue;
@@ -26,7 +30,12 @@ type ApiResponse = {
   branchSeries?: AppointmentBranchPoint[];
 };
 
-export function DoctorAnalyticsAppointmentsSection({ period, ready, onMetricClick, patientGenPlural = "клиентов" }: Props) {
+export function DoctorAnalyticsAppointmentsSection({
+  period,
+  ready,
+  onMetricClick,
+  patientGenPlural = 'клиентов',
+}: Props) {
   const [stats, setStats] = useState<AppointmentStats | null>(null);
   const [daySeries, setDaySeries] = useState<AppointmentDayPoint[]>([]);
   const [branchSeries, setBranchSeries] = useState<AppointmentBranchPoint[]>([]);
@@ -38,7 +47,9 @@ export function DoctorAnalyticsAppointmentsSection({ period, ready, onMetricClic
     setError(null);
     try {
       const q = buildAdminStatsQuery(period);
-      const res = await fetch(`/api/admin/doctor-analytics-appointments?${q}`, { cache: "no-store" });
+      const res = await fetch(`/api/admin/doctor-analytics-appointments?${q}`, {
+        cache: 'no-store',
+      });
       const json = (await res.json()) as ApiResponse;
       if (!res.ok || !json.ok || !json.appointments) {
         setStats(null);
@@ -54,7 +65,7 @@ export function DoctorAnalyticsAppointmentsSection({ period, ready, onMetricClic
       setStats(null);
       setDaySeries([]);
       setBranchSeries([]);
-      setError("network");
+      setError('network');
     } finally {
       setLoading(false);
     }
@@ -69,8 +80,8 @@ export function DoctorAnalyticsAppointmentsSection({ period, ready, onMetricClic
     <DoctorSection id="doctor-stats-appointments-section">
       <DoctorSectionTitle>Приём</DoctorSectionTitle>
       <p className="text-muted-foreground text-sm">
-        Визиты — прошедшие слоты без отмены; «записались» — по дате создания записи; отмены и переносы — по факту
-        действия в выбранном периоде.
+        Визиты — прошедшие слоты без отмены; «записались» — по дате создания записи; отмены и
+        переносы — по факту действия в выбранном периоде.
       </p>
 
       {error ? (
@@ -93,7 +104,13 @@ export function DoctorAnalyticsAppointmentsSection({ period, ready, onMetricClic
               title={`Визиты ${patientGenPlural}`}
               value={stats.pastVisitsInPeriod}
               onClick={
-                onMetricClick ? () => onMetricClick("appointments_past_visits", `Визиты ${patientGenPlural} за период`) : undefined
+                onMetricClick
+                  ? () =>
+                      onMetricClick(
+                        'appointments_past_visits',
+                        `Визиты ${patientGenPlural} за период`,
+                      )
+                  : undefined
               }
             />
             <DoctorStatCard
@@ -103,7 +120,8 @@ export function DoctorAnalyticsAppointmentsSection({ period, ready, onMetricClic
               tone="warning"
               onClick={
                 onMetricClick
-                  ? () => onMetricClick("appointments_cancelled_visits", "Отменённые визиты за период")
+                  ? () =>
+                      onMetricClick('appointments_cancelled_visits', 'Отменённые визиты за период')
                   : undefined
               }
             />
@@ -113,7 +131,8 @@ export function DoctorAnalyticsAppointmentsSection({ period, ready, onMetricClic
               value={stats.bookingsCreatedInPeriod}
               onClick={
                 onMetricClick
-                  ? () => onMetricClick("appointments_bookings_created", "Записи, созданные за период")
+                  ? () =>
+                      onMetricClick('appointments_bookings_created', 'Записи, созданные за период')
                   : undefined
               }
             />
@@ -124,7 +143,8 @@ export function DoctorAnalyticsAppointmentsSection({ period, ready, onMetricClic
               tone="warning"
               onClick={
                 onMetricClick
-                  ? () => onMetricClick("appointments_cancellation_actions", "Отмены записей за период")
+                  ? () =>
+                      onMetricClick('appointments_cancellation_actions', 'Отмены записей за период')
                   : undefined
               }
             />
@@ -134,7 +154,8 @@ export function DoctorAnalyticsAppointmentsSection({ period, ready, onMetricClic
               value={stats.rescheduleActionsInPeriod}
               onClick={
                 onMetricClick
-                  ? () => onMetricClick("appointments_reschedule_actions", "Переносы записей за период")
+                  ? () =>
+                      onMetricClick('appointments_reschedule_actions', 'Переносы записей за период')
                   : undefined
               }
             />
@@ -143,7 +164,9 @@ export function DoctorAnalyticsAppointmentsSection({ period, ready, onMetricClic
               title="Первичных визитов"
               value={stats.firstVisitInPeriod}
               onClick={
-                onMetricClick ? () => onMetricClick("appointments_past_visits", "Первичные визиты за период") : undefined
+                onMetricClick
+                  ? () => onMetricClick('appointments_past_visits', 'Первичные визиты за период')
+                  : undefined
               }
             />
             <DoctorStatCard
@@ -151,7 +174,9 @@ export function DoctorAnalyticsAppointmentsSection({ period, ready, onMetricClic
               title="Повторных визитов"
               value={stats.repeatVisitInPeriod}
               onClick={
-                onMetricClick ? () => onMetricClick("appointments_past_visits", "Повторные визиты за период") : undefined
+                onMetricClick
+                  ? () => onMetricClick('appointments_past_visits', 'Повторные визиты за период')
+                  : undefined
               }
             />
           </DoctorMetricList>

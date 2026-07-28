@@ -4,22 +4,22 @@ overview: Поднять на production отдельный systemd-процес
 status: completed
 todos:
   - id: unit-scheduler
-    content: "Добавить deploy/systemd/bersoncarebot-scheduler-prod.service: WorkingDirectory+api.prod+ExecStart scheduler main.js; согласовать Restart с поведением lock (см. раздел «systemd и lock»)"
+    content: 'Добавить deploy/systemd/bersoncarebot-scheduler-prod.service: WorkingDirectory+api.prod+ExecStart scheduler main.js; согласовать Restart с поведением lock (см. раздел «systemd и lock»)'
     status: completed
   - id: bootstrap-deploy
-    content: "bootstrap-systemd-prod.sh + deploy-prod.sh: install unit, require_unit_file, enable/restart после pnpm build+migrate, is-active+journal; не забыть stop/restart списки в HOST_DEPLOY_README где перечислены сервисы"
+    content: 'bootstrap-systemd-prod.sh + deploy-prod.sh: install unit, require_unit_file, enable/restart после pnpm build+migrate, is-active+journal; не забыть stop/restart списки в HOST_DEPLOY_README где перечислены сервисы'
     status: completed
   - id: sudoers-docs
-    content: "sudoers-deploy.example + SERVER CONVENTIONS + HOST_DEPLOY_README + ARCHITECTURE (убрать отклонение 3); deploy/env/README.md при перечислении prod units; INTEGRATOR_CONTRACT/api.md — канон пути напоминаний vs заглушка dispatch"
+    content: 'sudoers-deploy.example + SERVER CONVENTIONS + HOST_DEPLOY_README + ARCHITECTURE (убрать отклонение 3); deploy/env/README.md при перечислении prod units; INTEGRATOR_CONTRACT/api.md — канон пути напоминаний vs заглушка dispatch'
     status: completed
   - id: lock-restart-hardening
-    content: "Оценить и при необходимости исправить apps/integrator scheduler: при неполучении lock сейчас process.exit(0) + Restart=always даёт spin на втором хосте; варианты — exit(1)+Restart=on-failure или документированный single-leader"
+    content: 'Оценить и при необходимости исправить apps/integrator scheduler: при неполучении lock сейчас process.exit(0) + Restart=always даёт spin на втором хосте; варианты — exit(1)+Restart=on-failure или документированный single-leader'
     status: completed
   - id: pkg-scripts
-    content: "apps/integrator + корень package.json: scheduler:dev / scheduler:start (+ host alias), зеркально worker:*"
+    content: 'apps/integrator + корень package.json: scheduler:dev / scheduler:start (+ host alias), зеркально worker:*'
     status: completed
   - id: phase-b-backlog
-    content: "Второй PR: getDueReminderOccurrences без обязательного telegram JOIN; логи БД без полного connectionString; продукт/доки по пустому channelBindings; судьба POST /api/integrator/reminders/dispatch"
+    content: 'Второй PR: getDueReminderOccurrences без обязательного telegram JOIN; логи БД без полного connectionString; продукт/доки по пустому channelBindings; судьба POST /api/integrator/reminders/dispatch'
     status: completed
 isProject: false
 ---
@@ -34,7 +34,7 @@ isProject: false
 
 - Пациентские напоминания из `integrator.user_reminder_*` исполняются по [`apps/integrator/src/content/scheduler/scripts.json`](apps/integrator/src/content/scheduler/scripts.json) на **`schedule.tick`**: **`reminders.planDue`** → **`reminders.dispatchDue`** (далее intents `message.send`, в логах доставки — `intentEventId` с **`:reminder:`**).
 - Точка входа: [`apps/integrator/src/infra/runtime/scheduler/main.ts`](apps/integrator/src/infra/runtime/scheduler/main.ts) → артефакт **`dist/infra/runtime/scheduler/main.js`** (собирается общим `tsc` integrator, [`tsconfig.build.json`](apps/integrator/tsconfig.build.json) включает весь `src/`).
-- Лидерство: [`tryAcquireSchedulerLock`](apps/integrator/src/infra/db/repos/schedulerLocks.ts) с ключом `42001001`; при отказе — лог *«Scheduler lock not acquired…»* и **`process.exit(0)`** (важно для systemd — см. ниже).
+- Лидерство: [`tryAcquireSchedulerLock`](apps/integrator/src/infra/db/repos/schedulerLocks.ts) с ключом `42001001`; при отказе — лог _«Scheduler lock not acquired…»_ и **`process.exit(0)`** (важно для systemd — см. ниже).
 - **Worker** ([`worker/main.ts`](apps/integrator/src/infra/runtime/worker/main.ts)) — очередь jobs + projection; логи **`booking-reminder:*`** относятся к **Rubitime**, не к пациентским `:reminder:`.
 - На проде не было юнита scheduler — совпадает с [`ARCHITECTURE.md`](ARCHITECTURE.md) §«Отклонение 3».
 
@@ -118,12 +118,12 @@ flowchart LR
 
 ### A5. Документация
 
-| Файл | Что добавить |
-|------|----------------|
-| [`docs/ARCHITECTURE/SERVER CONVENTIONS.md`](docs/ARCHITECTURE/SERVER%20CONVENTIONS.md) | Строка в таблице units; подпункт **Scheduler**: нет публичного порта, `api.prod`, имя unit, связь с `schedule.tick` и напоминаниями + **короткий операторский journalctl** (отдельный `-u` только scheduler). |
-| [`deploy/HOST_DEPLOY_README.md`](deploy/HOST_DEPLOY_README.md) | Scheduler в списке units, restart/stop где перечислены сервисы, явное **различие** scheduler vs worker vs media-worker. |
-| [`ARCHITECTURE.md`](ARCHITECTURE.md) | Убрать/переписать **«Отклонение 3»**; зафиксировать тройку процессов: API / worker / scheduler. |
-| [`deploy/env/README.md`](deploy/env/README.md) | Если там перечислены prod services — добавить scheduler. |
+| Файл                                                                                                                                                              | Что добавить                                                                                                                                                                                                                                                                                             |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`docs/ARCHITECTURE/SERVER CONVENTIONS.md`](docs/ARCHITECTURE/SERVER%20CONVENTIONS.md)                                                                            | Строка в таблице units; подпункт **Scheduler**: нет публичного порта, `api.prod`, имя unit, связь с `schedule.tick` и напоминаниями + **короткий операторский journalctl** (отдельный `-u` только scheduler).                                                                                            |
+| [`deploy/HOST_DEPLOY_README.md`](deploy/HOST_DEPLOY_README.md)                                                                                                    | Scheduler в списке units, restart/stop где перечислены сервисы, явное **различие** scheduler vs worker vs media-worker.                                                                                                                                                                                  |
+| [`ARCHITECTURE.md`](ARCHITECTURE.md)                                                                                                                              | Убрать/переписать **«Отклонение 3»**; зафиксировать тройку процессов: API / worker / scheduler.                                                                                                                                                                                                          |
+| [`deploy/env/README.md`](deploy/env/README.md)                                                                                                                    | Если там перечислены prod services — добавить scheduler.                                                                                                                                                                                                                                                 |
 | [`apps/webapp/INTEGRATOR_CONTRACT.md`](apps/webapp/INTEGRATOR_CONTRACT.md) и при необходимости [`apps/webapp/src/app/api/api.md`](apps/webapp/src/app/api/api.md) | Однозначно: **пациентские напоминания по правилам** в проде идут через **integrator scheduler + dispatchDue**, а не через обязательный вызов **`POST /api/integrator/reminders/dispatch`** ([заглушка](apps/webapp/src/modules/integrator/reminderDispatch.ts)), чтобы контракт не вводил в заблуждение. |
 
 ### A6. Скрипты `package.json` (рекомендуется, не «опционально мимо CI»)

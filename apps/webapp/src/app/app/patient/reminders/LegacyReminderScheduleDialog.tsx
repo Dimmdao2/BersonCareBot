@@ -1,71 +1,74 @@
-"use client";
+'use client';
 
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { reminderRuleToPatientJson } from "@/app/api/patient/reminders/reminderPatientJson";
-import type { PatientReminderRuleJson } from "@/app/api/patient/reminders/reminderPatientJson";
-import { Button } from "@/shared/ui/patient/primitives/button";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { reminderRuleToPatientJson } from '@/app/api/patient/reminders/reminderPatientJson';
+import type { PatientReminderRuleJson } from '@/app/api/patient/reminders/reminderPatientJson';
+import { Button } from '@/shared/ui/patient/primitives/button';
 import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/shared/ui/patient/primitives/dialog";
+} from '@/shared/ui/patient/primitives/dialog';
 import {
   Sheet,
   SheetContent,
   SheetFooter,
   SheetHeader,
   SheetTitle,
-} from "@/shared/ui/patient/primitives/sheet";
-import type { UpdateRuleData } from "@/modules/reminders/service";
-import type { ReminderRule } from "@/modules/reminders/types";
-import { scheduleInvalidFromError } from "@/modules/reminders/reminderFormAria";
-import type { ReminderDayFilter, SlotsV1ScheduleData } from "@/modules/reminders/scheduleSlots";
-import { DEFAULT_REHAB_DAILY_SLOTS, normalizeSlotsV1ScheduleData } from "@/modules/reminders/scheduleSlots";
+} from '@/shared/ui/patient/primitives/sheet';
+import type { UpdateRuleData } from '@/modules/reminders/service';
+import type { ReminderRule } from '@/modules/reminders/types';
+import { scheduleInvalidFromError } from '@/modules/reminders/reminderFormAria';
+import type { ReminderDayFilter, SlotsV1ScheduleData } from '@/modules/reminders/scheduleSlots';
+import {
+  DEFAULT_REHAB_DAILY_SLOTS,
+  normalizeSlotsV1ScheduleData,
+} from '@/modules/reminders/scheduleSlots';
 import {
   DEFAULT_REMINDER_FORM_DAYS_MASK,
   DEFAULT_REMINDER_FORM_FIRST_SLOT_TIME,
   DEFAULT_REMINDER_FORM_INTERVAL_MINUTES,
   DEFAULT_REMINDER_FORM_WINDOW_END_MINUTE,
   DEFAULT_REMINDER_FORM_WINDOW_START_MINUTE,
-} from "@/modules/reminders/reminderFormDefaults";
-import { validateQuietHoursPair } from "@/modules/reminders/quietHours";
+} from '@/modules/reminders/reminderFormDefaults';
+import { validateQuietHoursPair } from '@/modules/reminders/quietHours';
 import {
   REMINDER_INTERVAL_WINDOW_MAX_MINUTES,
   REMINDER_INTERVAL_WINDOW_MIN_MINUTES,
   clampIntervalMinutes,
-} from "@/modules/reminders/reminderIntervalBounds";
+} from '@/modules/reminders/reminderIntervalBounds';
 import {
   minutesToTimeInput,
   timeInputToMinutes,
   parseQuietStartMinute,
   parseQuietEndMinute,
-} from "@/modules/reminders/reminderTimeInputs";
-import { ReminderScheduleForm } from "@/modules/reminders/components/ReminderScheduleForm";
-import { patchPatientReminderScheduleBundle } from "@/app/app/patient/reminders/actions";
-import { cn } from "@/lib/utils";
-import { patientPortalModalSurfaceClass } from "@/shared/ui/patient/patientVisual";
+} from '@/modules/reminders/reminderTimeInputs';
+import { ReminderScheduleForm } from '@/modules/reminders/components/ReminderScheduleForm';
+import { patchPatientReminderScheduleBundle } from '@/app/app/patient/reminders/actions';
+import { cn } from '@/lib/utils';
+import { patientPortalModalSurfaceClass } from '@/shared/ui/patient/patientVisual';
 
 function subscribeMobileViewport(onStoreChange: () => void) {
-  if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
     return () => {};
   }
-  const mq = window.matchMedia("(max-width: 767px), (pointer: coarse)");
-  mq.addEventListener("change", onStoreChange);
-  return () => mq.removeEventListener("change", onStoreChange);
+  const mq = window.matchMedia('(max-width: 767px), (pointer: coarse)');
+  mq.addEventListener('change', onStoreChange);
+  return () => mq.removeEventListener('change', onStoreChange);
 }
 
 function getMobileViewportSnapshot(): boolean {
-  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
-  return window.matchMedia("(max-width: 767px), (pointer: coarse)").matches;
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
+  return window.matchMedia('(max-width: 767px), (pointer: coarse)').matches;
 }
 
-const WEEKDAY_LABELS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"] as const;
+const WEEKDAY_LABELS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'] as const;
 
 function dedupeSortTimes(times: string[]): string[] {
   const set = new Set(times.map((t) => t.trim()).filter(Boolean));
-  return [...set].sort((a, b) => a.localeCompare(b, "en"));
+  return [...set].sort((a, b) => a.localeCompare(b, 'en'));
 }
 
 export function LegacyReminderScheduleDialog({
@@ -81,17 +84,29 @@ export function LegacyReminderScheduleDialog({
   onOpenChange: (open: boolean) => void;
   onSaved: () => void;
 }) {
-  const isMobileViewport = useSyncExternalStore(subscribeMobileViewport, getMobileViewportSnapshot, () => false);
+  const isMobileViewport = useSyncExternalStore(
+    subscribeMobileViewport,
+    getMobileViewportSnapshot,
+    () => false,
+  );
 
   const [intervalMinutes, setIntervalMinutes] = useState(DEFAULT_REMINDER_FORM_INTERVAL_MINUTES);
-  const [startTime, setStartTime] = useState(minutesToTimeInput(DEFAULT_REMINDER_FORM_WINDOW_START_MINUTE));
-  const [endTime, setEndTime] = useState(minutesToTimeInput(DEFAULT_REMINDER_FORM_WINDOW_END_MINUTE));
+  const [startTime, setStartTime] = useState(
+    minutesToTimeInput(DEFAULT_REMINDER_FORM_WINDOW_START_MINUTE),
+  );
+  const [endTime, setEndTime] = useState(
+    minutesToTimeInput(DEFAULT_REMINDER_FORM_WINDOW_END_MINUTE),
+  );
   const [daysMask, setDaysMask] = useState(DEFAULT_REMINDER_FORM_DAYS_MASK);
-  const [scheduleMode, setScheduleMode] = useState<"interval_window" | "slots_v1">("interval_window");
-  const [slotTimeRows, setSlotTimeRows] = useState<string[]>(() => [...DEFAULT_REHAB_DAILY_SLOTS.timesLocal]);
-  const [slotsDayFilter, setSlotsDayFilter] = useState<ReminderDayFilter>("weekdays");
-  const [quietStart, setQuietStart] = useState("");
-  const [quietEnd, setQuietEnd] = useState("");
+  const [scheduleMode, setScheduleMode] = useState<'interval_window' | 'slots_v1'>(
+    'interval_window',
+  );
+  const [slotTimeRows, setSlotTimeRows] = useState<string[]>(() => [
+    ...DEFAULT_REHAB_DAILY_SLOTS.timesLocal,
+  ]);
+  const [slotsDayFilter, setSlotsDayFilter] = useState<ReminderDayFilter>('weekdays');
+  const [quietStart, setQuietStart] = useState('');
+  const [quietEnd, setQuietEnd] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [syncWarning, setSyncWarning] = useState<string | null>(null);
@@ -103,61 +118,75 @@ export function LegacyReminderScheduleDialog({
     setError(null);
     setSyncWarning(null);
     const json: PatientReminderRuleJson = reminderRuleToPatientJson(rule);
-    const isSlots = json.scheduleType === "slots_v1";
-    setScheduleMode(isSlots ? "slots_v1" : "interval_window");
-    setIntervalMinutes(clampIntervalMinutes(json.intervalMinutes ?? DEFAULT_REMINDER_FORM_INTERVAL_MINUTES));
+    const isSlots = json.scheduleType === 'slots_v1';
+    setScheduleMode(isSlots ? 'slots_v1' : 'interval_window');
+    setIntervalMinutes(
+      clampIntervalMinutes(json.intervalMinutes ?? DEFAULT_REMINDER_FORM_INTERVAL_MINUTES),
+    );
     setStartTime(minutesToTimeInput(json.windowStartMinute));
     setEndTime(minutesToTimeInput(json.windowEndMinute));
     setDaysMask(/^[01]{7}$/.test(json.daysMask) ? json.daysMask : DEFAULT_REMINDER_FORM_DAYS_MASK);
     if (isSlots && json.scheduleData?.timesLocal?.length) {
       setSlotTimeRows(dedupeSortTimes([...json.scheduleData.timesLocal]));
-      const df = json.scheduleData.dayFilter ?? "weekdays";
+      const df = json.scheduleData.dayFilter ?? 'weekdays';
       setSlotsDayFilter(df);
-      if (df === "weekly_mask" && /^[01]{7}$/.test(json.scheduleData.daysMask ?? "")) {
-        setDaysMask(json.scheduleData.daysMask!.padEnd(7, "0").slice(0, 7));
+      if (df === 'weekly_mask' && /^[01]{7}$/.test(json.scheduleData.daysMask ?? '')) {
+        setDaysMask(json.scheduleData.daysMask!.padEnd(7, '0').slice(0, 7));
       }
     } else if (isSlots) {
       setSlotTimeRows([...DEFAULT_REHAB_DAILY_SLOTS.timesLocal]);
-      setSlotsDayFilter("weekly_mask");
-      setDaysMask(DEFAULT_REHAB_DAILY_SLOTS.daysMask ?? "1111111");
+      setSlotsDayFilter('weekly_mask');
+      setDaysMask(DEFAULT_REHAB_DAILY_SLOTS.daysMask ?? '1111111');
     } else {
       setSlotTimeRows([DEFAULT_REMINDER_FORM_FIRST_SLOT_TIME]);
-      setSlotsDayFilter("weekdays");
+      setSlotsDayFilter('weekdays');
     }
     if (json.quietHoursStartMinute != null && json.quietHoursEndMinute != null) {
       setQuietStart(minutesToTimeInput(json.quietHoursStartMinute));
       setQuietEnd(minutesToTimeInput(json.quietHoursEndMinute));
     } else {
-      setQuietStart("");
-      setQuietEnd("");
+      setQuietStart('');
+      setQuietEnd('');
     }
   }, [open, rule]);
 
   const previewText = useMemo(() => {
     const daysOn = daysMask
-      .split("")
-      .map((c, i) => (c === "1" ? WEEKDAY_LABELS[i] : null))
+      .split('')
+      .map((c, i) => (c === '1' ? WEEKDAY_LABELS[i] : null))
       .filter(Boolean)
-      .join(", ");
+      .join(', ');
     const quietBit =
-      quietStart.trim() && quietEnd.trim() ? ` Тихие часы: ${quietStart}–${quietEnd}.` : "";
-    if (scheduleMode === "slots_v1") {
+      quietStart.trim() && quietEnd.trim() ? ` Тихие часы: ${quietStart}–${quietEnd}.` : '';
+    if (scheduleMode === 'slots_v1') {
       const lines = dedupeSortTimes(slotTimeRows.map((s) => s.trim()).filter(Boolean));
-      if (slotsDayFilter === "weekdays") {
-        return `Напоминания: ${lines.join(", ") || "—"}. Дни: Пн–Пт.${quietBit}`;
+      if (slotsDayFilter === 'weekdays') {
+        return `Напоминания: ${lines.join(', ') || '—'}. Дни: Пн–Пт.${quietBit}`;
       }
-      return `Напоминания: ${lines.join(", ") || "—"}. Дни: ${daysOn || "не выбраны"}.${quietBit}`;
+      return `Напоминания: ${lines.join(', ') || '—'}. Дни: ${daysOn || 'не выбраны'}.${quietBit}`;
     }
     const ws = timeInputToMinutes(startTime);
     const we = timeInputToMinutes(endTime);
-    if (ws == null || we == null) return "Проверьте время.";
-    return `${startTime}–${endTime}, каждые ${intervalMinutes} мин. Дни: ${daysOn || "не выбраны"}.${quietBit}`;
-  }, [scheduleMode, slotTimeRows, slotsDayFilter, startTime, endTime, intervalMinutes, daysMask, quietStart, quietEnd]);
+    if (ws == null || we == null) return 'Проверьте время.';
+    return `${startTime}–${endTime}, каждые ${intervalMinutes} мин. Дни: ${daysOn || 'не выбраны'}.${quietBit}`;
+  }, [
+    scheduleMode,
+    slotTimeRows,
+    slotsDayFilter,
+    startTime,
+    endTime,
+    intervalMinutes,
+    daysMask,
+    quietStart,
+    quietEnd,
+  ]);
 
   const scheduleFieldInvalid = useMemo(() => scheduleInvalidFromError(error), [error]);
 
   const scrollToError = () => {
-    requestAnimationFrame(() => errorAnchorRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }));
+    requestAnimationFrame(() =>
+      errorAnchorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }),
+    );
   };
 
   const handleSubmit = async () => {
@@ -165,12 +194,12 @@ export function LegacyReminderScheduleDialog({
     setSyncWarning(null);
 
     if (!/^[01]{7}$/.test(daysMask)) {
-      setError("Неверная маска дней.");
+      setError('Неверная маска дней.');
       scrollToError();
       return;
     }
-    if (!daysMask.includes("1")) {
-      setError("Выберите хотя бы один день недели.");
+    if (!daysMask.includes('1')) {
+      setError('Выберите хотя бы один день недели.');
       scrollToError();
       return;
     }
@@ -182,13 +211,17 @@ export function LegacyReminderScheduleDialog({
       const qs = parseQuietStartMinute(quietStart);
       const qe = parseQuietEndMinute(quietEnd);
       if (qs === null || qe === null) {
-        setError("Тихие часы: укажите начало и конец (ЧЧ:ММ) или очистите оба поля.");
+        setError('Тихие часы: укажите начало и конец (ЧЧ:ММ) или очистите оба поля.');
         scrollToError();
         return;
       }
       const qv = validateQuietHoursPair(qs, qe);
       if (qv) {
-        setError(qv === "validation_error: quiet hours both or none" ? "Задайте оба времени тихих часов." : qv);
+        setError(
+          qv === 'validation_error: quiet hours both or none'
+            ? 'Задайте оба времени тихих часов.'
+            : qv,
+        );
         scrollToError();
         return;
       }
@@ -198,16 +231,16 @@ export function LegacyReminderScheduleDialog({
 
     let schedule: Record<string, unknown>;
 
-    if (scheduleMode === "interval_window") {
+    if (scheduleMode === 'interval_window') {
       const ws = timeInputToMinutes(startTime);
       const we = timeInputToMinutes(endTime);
       if (ws == null || we == null) {
-        setError("Укажите время в формате ЧЧ:ММ.");
+        setError('Укажите время в формате ЧЧ:ММ.');
         scrollToError();
         return;
       }
       if (ws >= we) {
-        setError("Начало периода должно быть раньше конца.");
+        setError('Начало периода должно быть раньше конца.');
         scrollToError();
         return;
       }
@@ -223,7 +256,7 @@ export function LegacyReminderScheduleDialog({
         return;
       }
       schedule = {
-        scheduleType: "interval_window",
+        scheduleType: 'interval_window',
         intervalMinutes,
         windowStartMinute: ws,
         windowEndMinute: we,
@@ -236,16 +269,20 @@ export function LegacyReminderScheduleDialog({
       const scheduleDataRaw = {
         timesLocal: rawTimes,
         dayFilter: slotsDayFilter,
-        ...(slotsDayFilter === "weekly_mask" ? { daysMask } : {}),
+        ...(slotsDayFilter === 'weekly_mask' ? { daysMask } : {}),
       };
       const norm = normalizeSlotsV1ScheduleData(scheduleDataRaw as SlotsV1ScheduleData);
       if (!norm.ok) {
-        setError(norm.error.startsWith("validation_error:") ? "Проверьте время напоминаний (ЧЧ:ММ)." : norm.error);
+        setError(
+          norm.error.startsWith('validation_error:')
+            ? 'Проверьте время напоминаний (ЧЧ:ММ).'
+            : norm.error,
+        );
         scrollToError();
         return;
       }
       schedule = {
-        scheduleType: "slots_v1",
+        scheduleType: 'slots_v1',
         intervalMinutes: 60,
         windowStartMinute: 0,
         windowEndMinute: 1440,
@@ -260,7 +297,7 @@ export function LegacyReminderScheduleDialog({
     try {
       const res = await patchPatientReminderScheduleBundle({
         ruleId: rule.id,
-        schedule: schedule as NonNullable<UpdateRuleData["schedule"]>,
+        schedule: schedule as NonNullable<UpdateRuleData['schedule']>,
       });
       if (!res.ok) {
         setError(res.error);
@@ -312,11 +349,16 @@ export function LegacyReminderScheduleDialog({
 
   const footer = (
     <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-      <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
+      <Button
+        type="button"
+        variant="outline"
+        onClick={() => onOpenChange(false)}
+        disabled={submitting}
+      >
         Отмена
       </Button>
       <Button type="button" onClick={() => void handleSubmit()} disabled={submitting}>
-        {submitting ? "Сохранение…" : "Сохранить"}
+        {submitting ? 'Сохранение…' : 'Сохранить'}
       </Button>
     </div>
   );
@@ -330,7 +372,7 @@ export function LegacyReminderScheduleDialog({
           side="bottom"
           className={cn(
             patientPortalModalSurfaceClass,
-            "max-h-[92vh] overflow-y-auto rounded-t-2xl border-t border-[var(--patient-border)] px-4 pb-6",
+            'max-h-[92vh] overflow-y-auto rounded-t-2xl border-t border-[var(--patient-border)] px-4 pb-6',
           )}
         >
           <SheetHeader className="px-0 text-left">
@@ -348,7 +390,7 @@ export function LegacyReminderScheduleDialog({
       <DialogContent
         className={cn(
           patientPortalModalSurfaceClass,
-          "max-h-[90vh] max-w-lg overflow-y-auto border-[var(--patient-border)] sm:max-w-lg",
+          'max-h-[90vh] max-w-lg overflow-y-auto border-[var(--patient-border)] sm:max-w-lg',
         )}
       >
         <DialogHeader>

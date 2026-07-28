@@ -1,4 +1,5 @@
 # Code Audit 2 — QW-E10/batch2 (re-audit)
+
 agentId: audit2-qw-e10-batch2
 Commit: 34415dff
 Date: 2026-06-19
@@ -24,7 +25,7 @@ src/app/app/settings/bookingSoloAdminApi.ts(50,26): error TS2559:
 **Fix needed:** Cast the return type or use `apiJson` without a type parameter and assert the type separately, e.g.:
 
 ```ts
-return await apiJson(`${BASE}/overview`) as unknown as SoloOverview;
+return (await apiJson(`${BASE}/overview`)) as unknown as SoloOverview;
 ```
 
 Or relax the `apiJson` constraint if architecturally appropriate.
@@ -63,11 +64,15 @@ Root cause: `apiJson<T>` generic constraint requires `T` to have at least one of
 **Blocking defect:** D1/A3 — `apiJson<SoloOverview>` violates the generic constraint causing a TS compilation error. D2 is fully correct.
 
 **Required fix:** Change line 50 of `bookingSoloAdminApi.ts` from:
+
 ```ts
 return await apiJson<SoloOverview>(`${BASE}/overview`);
 ```
+
 to either:
+
 ```ts
-return await apiJson(`${BASE}/overview`) as unknown as SoloOverview;
+return (await apiJson(`${BASE}/overview`)) as unknown as SoloOverview;
 ```
+
 or add `{ ok?: boolean }` (or similar) to `SoloOverview` if the API actually returns it (note: the existing check `body.ok === false` in apiJson means the overview endpoint must NOT return `ok: false` on success — adding an optional `ok?: true` to the type would be safe and self-documenting).

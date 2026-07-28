@@ -1,7 +1,7 @@
-import type { MediaAvailableQuality } from "@/modules/media/types";
+import type { MediaAvailableQuality } from '@/modules/media/types';
 
 /** Select value for automatic HLS level selection (hls.js ABR). */
-export const DOCTOR_HLS_QUALITY_AUTO_VALUE = "__auto__";
+export const DOCTOR_HLS_QUALITY_AUTO_VALUE = '__auto__';
 
 /** Minimal variant fields from hls.js `Level` for matching without importing hls.js types in tests. */
 export type HlsVariantProbe = Readonly<{
@@ -12,27 +12,29 @@ export type HlsVariantProbe = Readonly<{
 
 function isUsableQuality(q: MediaAvailableQuality): boolean {
   return (
-    (typeof q.height === "number" && Number.isFinite(q.height)) ||
-    (typeof q.path === "string" && q.path.length > 0) ||
-    (typeof q.bandwidth === "number" && Number.isFinite(q.bandwidth))
+    (typeof q.height === 'number' && Number.isFinite(q.height)) ||
+    (typeof q.path === 'string' && q.path.length > 0) ||
+    (typeof q.bandwidth === 'number' && Number.isFinite(q.bandwidth))
   );
 }
 
 /** Stable `Select` value derived from playback JSON quality row. */
 export function stableQualitySelectValue(q: MediaAvailableQuality): string {
-  if (typeof q.height === "number" && Number.isFinite(q.height)) {
+  if (typeof q.height === 'number' && Number.isFinite(q.height)) {
     return `h:${q.height}`;
   }
-  if (typeof q.path === "string" && q.path.length > 0) {
+  if (typeof q.path === 'string' && q.path.length > 0) {
     return `p:${q.path}`;
   }
-  if (typeof q.bandwidth === "number" && Number.isFinite(q.bandwidth)) {
+  if (typeof q.bandwidth === 'number' && Number.isFinite(q.bandwidth)) {
     return `b:${q.bandwidth}`;
   }
-  return `l:${q.label ?? ""}`;
+  return `l:${q.label ?? ''}`;
 }
 
-export function sortedQualitiesDesc(qualities: readonly MediaAvailableQuality[]): MediaAvailableQuality[] {
+export function sortedQualitiesDesc(
+  qualities: readonly MediaAvailableQuality[],
+): MediaAvailableQuality[] {
   return [...qualities].filter(isUsableQuality).sort((a, b) => {
     const ha = a.height ?? 0;
     const hb = b.height ?? 0;
@@ -56,7 +58,7 @@ export function findQualityBySelectValue(
 }
 
 function normalizePathForMatch(path: string): string {
-  return path.replace(/^\/+/, "").trim();
+  return path.replace(/^\/+/, '').trim();
 }
 
 /**
@@ -68,26 +70,26 @@ export function matchQualityToLevelIndex(
 ): number | null {
   if (!levels.length) return null;
 
-  if (typeof q.height === "number" && Number.isFinite(q.height)) {
+  if (typeof q.height === 'number' && Number.isFinite(q.height)) {
     const exact = levels.findIndex((l) => l.height === q.height);
     if (exact >= 0) return exact;
   }
 
-  const pathNorm = typeof q.path === "string" ? normalizePathForMatch(q.path) : "";
+  const pathNorm = typeof q.path === 'string' ? normalizePathForMatch(q.path) : '';
   if (pathNorm.length > 0) {
     const byPath = levels.findIndex((l) => {
-      const u = l.url ?? "";
+      const u = l.url ?? '';
       return u.includes(pathNorm) || u.endsWith(pathNorm);
     });
     if (byPath >= 0) return byPath;
   }
 
-  if (typeof q.bandwidth === "number" && Number.isFinite(q.bandwidth)) {
+  if (typeof q.bandwidth === 'number' && Number.isFinite(q.bandwidth)) {
     let bestIdx = -1;
     let bestDist = Number.POSITIVE_INFINITY;
     for (let i = 0; i < levels.length; i++) {
       const br = levels[i].bitrate;
-      if (typeof br !== "number" || !Number.isFinite(br)) continue;
+      if (typeof br !== 'number' || !Number.isFinite(br)) continue;
       const d = Math.abs(br - q.bandwidth);
       if (d < bestDist) {
         bestDist = d;
@@ -99,12 +101,12 @@ export function matchQualityToLevelIndex(
     }
   }
 
-  if (typeof q.height === "number" && Number.isFinite(q.height)) {
+  if (typeof q.height === 'number' && Number.isFinite(q.height)) {
     let bestIdx = -1;
     let bestDist = Number.POSITIVE_INFINITY;
     for (let i = 0; i < levels.length; i++) {
       const h = levels[i].height;
-      if (typeof h !== "number" || !Number.isFinite(h)) continue;
+      if (typeof h !== 'number' || !Number.isFinite(h)) continue;
       const d = Math.abs(h - q.height);
       if (d < bestDist) {
         bestDist = d;
@@ -124,28 +126,28 @@ export function displayLabelForSwitchedLevel(
   qualities: readonly MediaAvailableQuality[],
 ): string {
   const level = levels[levelIndex];
-  if (!level) return "—";
+  if (!level) return '—';
 
-  if (typeof level.height === "number" && Number.isFinite(level.height)) {
+  if (typeof level.height === 'number' && Number.isFinite(level.height)) {
     const q = qualities.find((x) => x.height === level.height);
     if (q?.label && q.label.trim()) return q.label.trim();
     return `${level.height}p`;
   }
 
-  const url = level.url ?? "";
+  const url = level.url ?? '';
   if (url.length > 0) {
     for (const q of qualities) {
-      const p = q.path ? normalizePathForMatch(q.path) : "";
+      const p = q.path ? normalizePathForMatch(q.path) : '';
       if (p && url.includes(p) && q.label?.trim()) return q.label.trim();
     }
   }
 
-  if (typeof level.bitrate === "number" && Number.isFinite(level.bitrate)) {
+  if (typeof level.bitrate === 'number' && Number.isFinite(level.bitrate)) {
     let best: MediaAvailableQuality | null = null;
     let bestDist = Number.POSITIVE_INFINITY;
     for (const q of qualities) {
       const bw = q.bandwidth;
-      if (typeof bw !== "number" || !Number.isFinite(bw)) continue;
+      if (typeof bw !== 'number' || !Number.isFinite(bw)) continue;
       const d = Math.abs(bw - level.bitrate);
       if (d < bestDist) {
         bestDist = d;
@@ -157,5 +159,5 @@ export function displayLabelForSwitchedLevel(
     }
   }
 
-  return "Авто";
+  return 'Авто';
 }

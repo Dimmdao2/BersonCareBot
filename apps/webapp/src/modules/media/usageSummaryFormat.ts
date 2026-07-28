@@ -1,4 +1,4 @@
-import type { MediaUsageSummary } from "./types";
+import type { MediaUsageSummary } from './types';
 
 export function formatMediaUsageSummaryLines(summary: MediaUsageSummary): string[] {
   const lines: string[] = [];

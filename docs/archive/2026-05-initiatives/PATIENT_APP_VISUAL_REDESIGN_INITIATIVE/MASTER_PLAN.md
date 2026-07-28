@@ -292,4 +292,3 @@ Escalate only when explicitly justified:
 - Phase 5 final audit — GPT 5.5 only if previous Composer 2 audits gave contradictory findings or user explicitly asks for independent review.
 - Opus 4.7 — only by explicit user request for unresolved high-risk contradictions.
 - Sonnet 4.6 — not in default route.
-

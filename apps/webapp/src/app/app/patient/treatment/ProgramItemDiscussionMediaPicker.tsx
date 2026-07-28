@@ -1,14 +1,14 @@
-"use client";
+'use client';
 
-import { forwardRef, useImperativeHandle, useRef } from "react";
-import { Camera } from "lucide-react";
-import { Button } from "@/shared/ui/patient/primitives/button";
+import { forwardRef, useImperativeHandle, useRef } from 'react';
+import { Camera } from 'lucide-react';
+import { Button } from '@/shared/ui/patient/primitives/button';
 import {
   ProgramItemSubmissionSourceDialog,
   type ProgramItemSubmissionSourceDialogHandle,
-} from "@/app/app/patient/treatment/ProgramItemSubmissionSourceDialog";
-import { cn } from "@/lib/utils";
-import { patientPrimaryActionClass } from "@/shared/ui/patient/patientVisual";
+} from '@/app/app/patient/treatment/ProgramItemSubmissionSourceDialog';
+import { cn } from '@/lib/utils';
+import { patientPrimaryActionClass } from '@/shared/ui/patient/patientVisual';
 
 export type ProgramItemDiscussionMediaPickerHandle = {
   openPicker: () => void;
@@ -23,10 +23,10 @@ export const ProgramItemDiscussionMediaPicker = forwardRef<
     onUploaded?: () => void | Promise<void>;
     onError?: (message: string) => void;
     className?: string;
-    variant?: "icon" | "button" | "hidden";
+    variant?: 'icon' | 'button' | 'hidden';
   }
 >(function ProgramItemDiscussionMediaPicker(props, ref) {
-  const { instanceId, itemId, disabled, onUploaded, onError, className, variant = "icon" } = props;
+  const { instanceId, itemId, disabled, onUploaded, onError, className, variant = 'icon' } = props;
   const sourceDialogRef = useRef<ProgramItemSubmissionSourceDialogHandle>(null);
 
   useImperativeHandle(
@@ -47,9 +47,7 @@ export const ProgramItemDiscussionMediaPicker = forwardRef<
         onUploaded={onUploaded}
         onError={onError}
       />
-      {variant === "hidden" ?
-        null
-      : variant === "icon" ?
+      {variant === 'hidden' ? null : variant === 'icon' ? (
         <Button
           type="button"
           variant="outline"
@@ -61,7 +59,8 @@ export const ProgramItemDiscussionMediaPicker = forwardRef<
         >
           <Camera className="size-4" aria-hidden />
         </Button>
-      : <Button
+      ) : (
+        <Button
           type="button"
           variant="outline"
           className={cn(patientPrimaryActionClass, className)}
@@ -70,7 +69,7 @@ export const ProgramItemDiscussionMediaPicker = forwardRef<
         >
           Фото или видео
         </Button>
-      }
+      )}
     </>
   );
 });

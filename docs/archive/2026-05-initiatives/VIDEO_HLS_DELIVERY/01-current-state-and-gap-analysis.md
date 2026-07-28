@@ -36,15 +36,15 @@
 
 ## 2. Сущности и модели (что уже есть)
 
-| Область | Есть | Нет |
-|---------|------|-----|
-| Медиа-запись в БД | `media_files` с S3 key, статусами жизненного цикла загрузки/удаления | Поля HLS (master playlist key, renditions, `processing_status` transcoding) |
-| Видео как контент | `content_pages.video_*` | Связь «страница → delivery mode» (сейчас неявно всегда через URL) |
-| Плеер в UI | `NoContextMenuVideo`, нативный MP4 | hls.js, выбор по `application/vnd.apple.mpegurl` |
-| API плейбэка | Фактически **один** маршрут `GET /api/media/[id]` | Отдельный «playback info» JSON endpoint |
-| Очередь задач (webapp) | Internal HTTP jobs (purge, multipart cleanup) | Очередь транскодинга |
-| Worker CPU-heavy (webapp) | Нет | Нет |
-| Integrator worker | `projection_outbox`, ретраи | Не подходит для смешивания с FFmpeg pipeline |
+| Область                   | Есть                                                                 | Нет                                                                         |
+| ------------------------- | -------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| Медиа-запись в БД         | `media_files` с S3 key, статусами жизненного цикла загрузки/удаления | Поля HLS (master playlist key, renditions, `processing_status` transcoding) |
+| Видео как контент         | `content_pages.video_*`                                              | Связь «страница → delivery mode» (сейчас неявно всегда через URL)           |
+| Плеер в UI                | `NoContextMenuVideo`, нативный MP4                                   | hls.js, выбор по `application/vnd.apple.mpegurl`                            |
+| API плейбэка              | Фактически **один** маршрут `GET /api/media/[id]`                    | Отдельный «playback info» JSON endpoint                                     |
+| Очередь задач (webapp)    | Internal HTTP jobs (purge, multipart cleanup)                        | Очередь транскодинга                                                        |
+| Worker CPU-heavy (webapp) | Нет                                                                  | Нет                                                                         |
+| Integrator worker         | `projection_outbox`, ретраи                                          | Не подходит для смешивания с FFmpeg pipeline                                |
 
 ---
 
@@ -79,16 +79,16 @@
 
 ## 7. Где встраивать новую логику (рекомендуемые точки)
 
-| Слой | Путь / модуль | Зачем |
-|------|----------------|-------|
-| БД | `apps/webapp/migrations/*.sql` | Новые колонки `media_files`, опционально таблица `media_transcode_jobs` |
-| Домен медиа | `apps/webapp/src/modules/media/*` | Типы, сервис enqueue после upload, чтение статуса |
-| S3 | `apps/webapp/src/infra/s3/client.ts`, префиксы в phase-03 | Загрузка сегментов, presign |
-| API | `apps/webapp/src/app/api/...` | Playback JSON, опционально `GET /api/media/[id]` расширить только если нужно (предпочтительно **новый** route) |
-| Каталог контента | `content-catalog/service.ts` + patient page | Потребляет playback contract вместо сырого `/api/media/id` (постепенно) |
-| UI | patient `content/[slug]`, doctor preview, lightbox | Dual-mode player |
-| Новый пакет | `apps/media-worker` | FFmpeg, poll queue, update DB |
-| Флаги | `system_settings`, `ALLOWED_KEYS` | `video_delivery_strategy`, `video_hls_new_uploads_enabled`, и т.д. (точные имена — при реализации) |
+| Слой             | Путь / модуль                                             | Зачем                                                                                                          |
+| ---------------- | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| БД               | `apps/webapp/migrations/*.sql`                            | Новые колонки `media_files`, опционально таблица `media_transcode_jobs`                                        |
+| Домен медиа      | `apps/webapp/src/modules/media/*`                         | Типы, сервис enqueue после upload, чтение статуса                                                              |
+| S3               | `apps/webapp/src/infra/s3/client.ts`, префиксы в phase-03 | Загрузка сегментов, presign                                                                                    |
+| API              | `apps/webapp/src/app/api/...`                             | Playback JSON, опционально `GET /api/media/[id]` расширить только если нужно (предпочтительно **новый** route) |
+| Каталог контента | `content-catalog/service.ts` + patient page               | Потребляет playback contract вместо сырого `/api/media/id` (постепенно)                                        |
+| UI               | patient `content/[slug]`, doctor preview, lightbox        | Dual-mode player                                                                                               |
+| Новый пакет      | `apps/media-worker`                                       | FFmpeg, poll queue, update DB                                                                                  |
+| Флаги            | `system_settings`, `ALLOWED_KEYS`                         | `video_delivery_strategy`, `video_hls_new_uploads_enabled`, и т.д. (точные имена — при реализации)             |
 
 ---
 
@@ -115,13 +115,13 @@
 
 ## 10. Соответствие ожиданиям заказчика (чек)
 
-| Ожидание | Статус в репозитории |
-|----------|---------------------|
-| FFmpeg + S3 + API + player | Соответствует плану; FFmpeg и worker — новые |
-| Не отдельный video microservice | Соответствует — `apps/media-worker` в монорепо |
-| Не проксировать видео через backend | Уже так для MP4; HLS — сохранить |
-| `apps/api` (Fastify) | **Нет** отдельного приложения; эквивалент — **webapp API routes** |
-| Существующая очередь для медиа | **Нет** — gap, предлагается PG-queue |
+| Ожидание                            | Статус в репозитории                                              |
+| ----------------------------------- | ----------------------------------------------------------------- |
+| FFmpeg + S3 + API + player          | Соответствует плану; FFmpeg и worker — новые                      |
+| Не отдельный video microservice     | Соответствует — `apps/media-worker` в монорепо                    |
+| Не проксировать видео через backend | Уже так для MP4; HLS — сохранить                                  |
+| `apps/api` (Fastify)                | **Нет** отдельного приложения; эквивалент — **webapp API routes** |
+| Существующая очередь для медиа      | **Нет** — gap, предлагается PG-queue                              |
 
 ---
 

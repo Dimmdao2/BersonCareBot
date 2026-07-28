@@ -1,22 +1,25 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { NextResponse } from "next/server";
-import type { ReminderRule } from "@/modules/reminders/types";
-import { DEFAULT_REHAB_DAILY_SLOTS, SLOTS_V1_DB_PLACEHOLDER } from "@/modules/reminders/scheduleSlots";
-import { PATIENT_REHAB_PROGRAM_LINKED_PLACEHOLDER } from "@/modules/reminders/rehabProgramLinkedObject";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { NextResponse } from 'next/server';
+import type { ReminderRule } from '@/modules/reminders/types';
+import {
+  DEFAULT_REHAB_DAILY_SLOTS,
+  SLOTS_V1_DB_PLACEHOLDER,
+} from '@/modules/reminders/scheduleSlots';
+import { PATIENT_REHAB_PROGRAM_LINKED_PLACEHOLDER } from '@/modules/reminders/rehabProgramLinkedObject';
 
 const mockRequirePatientApiBusinessAccess = vi.hoisted(() => vi.fn());
-vi.mock("@/app-layer/guards/requireRole", () => ({
+vi.mock('@/app-layer/guards/requireRole', () => ({
   requirePatientApiBusinessAccess: mockRequirePatientApiBusinessAccess,
 }));
 
-vi.mock("next/cache", () => ({
+vi.mock('next/cache', () => ({
   revalidatePath: vi.fn(),
 }));
 
 const mockCreateObject = vi.hoisted(() => vi.fn());
 const mockListForPatient = vi.hoisted(() => vi.fn());
 const mockEnsurePromo = vi.hoisted(() => vi.fn());
-vi.mock("@/app-layer/di/buildAppDeps", () => ({
+vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: () => ({
     reminders: {
       createObjectReminder: mockCreateObject,
@@ -28,255 +31,263 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
   }),
 }));
 
-import { POST } from "./route";
+import { POST } from './route';
 
-const SESSION = { user: { userId: "platform-user-1", role: "client" as const, phone: "+79990001122" } };
+const SESSION = {
+  user: { userId: 'platform-user-1', role: 'client' as const, phone: '+79990001122' },
+};
 
 const schedule = {
   intervalMinutes: 60,
   windowStartMinute: 480,
   windowEndMinute: 1200,
-  daysMask: "1111111",
+  daysMask: '1111111',
 };
 
 const sampleObjectRule = (): ReminderRule => ({
-  id: "wp-obj-1",
-  integratorUserId: "platform-user-1",
-  category: "lfk",
+  id: 'wp-obj-1',
+  integratorUserId: 'platform-user-1',
+  category: 'lfk',
   enabled: true,
-  timezone: "Europe/Moscow",
+  timezone: 'Europe/Moscow',
   intervalMinutes: 60,
   windowStartMinute: 480,
   windowEndMinute: 1200,
-  daysMask: "1111111",
+  daysMask: '1111111',
   fallbackEnabled: true,
-  linkedObjectType: "lfk_complex",
-  linkedObjectId: "550e8400-e29b-41d4-a716-446655440000",
+  linkedObjectType: 'lfk_complex',
+  linkedObjectId: '550e8400-e29b-41d4-a716-446655440000',
   customTitle: null,
   customText: null,
-  scheduleType: "interval_window",
+  scheduleType: 'interval_window',
   scheduleData: null,
-  reminderIntent: "generic",
+  reminderIntent: 'generic',
   displayTitle: null,
   displayDescription: null,
   quietHoursStartMinute: null,
   quietHoursEndMinute: null,
-  notificationTopicCode: "exercise_reminders",
-  updatedAt: "2026-04-02T12:00:00.000Z",
+  notificationTopicCode: 'exercise_reminders',
+  updatedAt: '2026-04-02T12:00:00.000Z',
 });
 
 const sampleRehabSlotsRule = (): ReminderRule => ({
   ...sampleObjectRule(),
-  id: "wp-rehab-1",
-  linkedObjectType: "rehab_program",
-  scheduleType: "slots_v1",
+  id: 'wp-rehab-1',
+  linkedObjectType: 'rehab_program',
+  scheduleType: 'slots_v1',
   scheduleData: DEFAULT_REHAB_DAILY_SLOTS,
-  reminderIntent: "exercises",
+  reminderIntent: 'exercises',
   intervalMinutes: 60,
   windowStartMinute: 0,
   windowEndMinute: 1440,
 });
 
 function req(body: unknown) {
-  return new Request("http://localhost/api/patient/reminders/create", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
+  return new Request('http://localhost/api/patient/reminders/create', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
 }
 
-describe("POST /api/patient/reminders/create", () => {
+describe('POST /api/patient/reminders/create', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockRequirePatientApiBusinessAccess.mockResolvedValue({ ok: true, session: SESSION });
     mockCreateObject.mockResolvedValue({ ok: true, data: sampleObjectRule() });
     mockListForPatient.mockResolvedValue([]);
-    mockEnsurePromo.mockResolvedValue({ id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" });
+    mockEnsurePromo.mockResolvedValue({ id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' });
   });
 
-  it("returns 401 when not authenticated", async () => {
+  it('returns 401 when not authenticated', async () => {
     mockRequirePatientApiBusinessAccess.mockResolvedValue({
       ok: false,
-      response: NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }),
+      response: NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 }),
     });
-    const res = await POST(req({ linkedObjectType: "lfk_complex", linkedObjectId: "x", schedule }));
+    const res = await POST(req({ linkedObjectType: 'lfk_complex', linkedObjectId: 'x', schedule }));
     expect(res.status).toBe(401);
   });
 
-  it("returns 400 for invalid JSON", async () => {
+  it('returns 400 for invalid JSON', async () => {
     const res = await POST(
-      new Request("http://localhost/api/patient/reminders/create", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: "not-json",
+      new Request('http://localhost/api/patient/reminders/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: 'not-json',
       }),
     );
     expect(res.status).toBe(400);
     const json = (await res.json()) as { error: string };
-    expect(json.error).toBe("validation_error");
+    expect(json.error).toBe('validation_error');
   });
 
-  it("returns 400 for unknown linkedObjectType", async () => {
-    const res = await POST(req({ linkedObjectType: "unknown", linkedObjectId: "x", schedule }));
+  it('returns 400 for unknown linkedObjectType', async () => {
+    const res = await POST(req({ linkedObjectType: 'unknown', linkedObjectId: 'x', schedule }));
     expect(res.status).toBe(400);
   });
 
-  it("returns 400 when schedule missing", async () => {
-    const res = await POST(req({ linkedObjectType: "lfk_complex", linkedObjectId: "x" }));
+  it('returns 400 when schedule missing', async () => {
+    const res = await POST(req({ linkedObjectType: 'lfk_complex', linkedObjectId: 'x' }));
     expect(res.status).toBe(400);
   });
 
-  it("returns 400 for legacy custom linkedObjectType (create path removed from product UI)", async () => {
+  it('returns 400 for legacy custom linkedObjectType (create path removed from product UI)', async () => {
     const res = await POST(
       req({
-        linkedObjectType: "custom",
-        customTitle: "Пить воду",
+        linkedObjectType: 'custom',
+        customTitle: 'Пить воду',
         schedule,
       }),
     );
     expect(res.status).toBe(400);
   });
 
-  it("returns 201 for object reminder", async () => {
+  it('returns 201 for object reminder', async () => {
     const res = await POST(
       req({
-        linkedObjectType: "lfk_complex",
-        linkedObjectId: "550e8400-e29b-41d4-a716-446655440000",
+        linkedObjectType: 'lfk_complex',
+        linkedObjectId: '550e8400-e29b-41d4-a716-446655440000',
         schedule,
       }),
     );
     expect(res.status).toBe(201);
     const json = (await res.json()) as { ok: boolean; reminder: { id: string } };
     expect(json.ok).toBe(true);
-    expect(json.reminder.id).toBe("wp-obj-1");
-    expect(mockCreateObject).toHaveBeenCalledWith("platform-user-1", {
-      linkedObjectType: "lfk_complex",
-      linkedObjectId: "550e8400-e29b-41d4-a716-446655440000",
+    expect(json.reminder.id).toBe('wp-obj-1');
+    expect(mockCreateObject).toHaveBeenCalledWith('platform-user-1', {
+      linkedObjectType: 'lfk_complex',
+      linkedObjectId: '550e8400-e29b-41d4-a716-446655440000',
       schedule,
       enabled: true,
-      scheduleType: "interval_window",
+      scheduleType: 'interval_window',
       scheduleData: null,
       quietHoursStartMinute: null,
       quietHoursEndMinute: null,
     });
   });
 
-  it("returns 201 for slots_v1 schedule", async () => {
+  it('returns 201 for slots_v1 schedule', async () => {
     const res = await POST(
       req({
-        linkedObjectType: "lfk_complex",
-        linkedObjectId: "550e8400-e29b-41d4-a716-446655440000",
+        linkedObjectType: 'lfk_complex',
+        linkedObjectId: '550e8400-e29b-41d4-a716-446655440000',
         schedule: {
-          scheduleType: "slots_v1",
-          daysMask: "1111111",
-          scheduleData: { timesLocal: ["09:00"], dayFilter: "weekdays" },
+          scheduleType: 'slots_v1',
+          daysMask: '1111111',
+          scheduleData: { timesLocal: ['09:00'], dayFilter: 'weekdays' },
         },
       }),
     );
     expect(res.status).toBe(201);
     expect(mockCreateObject).toHaveBeenCalledWith(
-      "platform-user-1",
+      'platform-user-1',
       expect.objectContaining({
-        scheduleType: "slots_v1",
+        scheduleType: 'slots_v1',
         scheduleData: expect.objectContaining({
-          timesLocal: ["09:00"],
-          dayFilter: "weekdays",
+          timesLocal: ['09:00'],
+          dayFilter: 'weekdays',
         }),
       }),
     );
   });
 
-  it("rehab_program placeholder resolves to ensured promo instance when no active program", async () => {
+  it('rehab_program placeholder resolves to ensured promo instance when no active program', async () => {
     mockListForPatient.mockResolvedValueOnce([]);
-    const ensuredId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+    const ensuredId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
     mockEnsurePromo.mockResolvedValueOnce({ id: ensuredId });
-    mockCreateObject.mockResolvedValueOnce({ ok: true, data: { ...sampleRehabSlotsRule(), linkedObjectId: ensuredId } });
+    mockCreateObject.mockResolvedValueOnce({
+      ok: true,
+      data: { ...sampleRehabSlotsRule(), linkedObjectId: ensuredId },
+    });
     const res = await POST(
       req({
-        linkedObjectType: "rehab_program",
+        linkedObjectType: 'rehab_program',
         linkedObjectId: PATIENT_REHAB_PROGRAM_LINKED_PLACEHOLDER,
         schedule: {
-          scheduleType: "slots_v1",
-          daysMask: "1111111",
+          scheduleType: 'slots_v1',
+          daysMask: '1111111',
         },
       }),
     );
     expect(res.status).toBe(201);
-    expect(mockEnsurePromo).toHaveBeenCalledWith({ patientUserId: "platform-user-1" });
+    expect(mockEnsurePromo).toHaveBeenCalledWith({ patientUserId: 'platform-user-1' });
     expect(mockCreateObject).toHaveBeenCalledWith(
-      "platform-user-1",
+      'platform-user-1',
       expect.objectContaining({
-        linkedObjectType: "rehab_program",
+        linkedObjectType: 'rehab_program',
         linkedObjectId: ensuredId,
       }),
     );
   });
 
-  it("rehab_program placeholder uses existing active instance id without ensure", async () => {
-    const activeId = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+  it('rehab_program placeholder uses existing active instance id without ensure', async () => {
+    const activeId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
     mockListForPatient.mockResolvedValueOnce([
       {
         id: activeId,
-        patientUserId: "platform-user-1",
-        templateId: "11111111-1111-4111-8111-111111111111",
+        patientUserId: 'platform-user-1',
+        templateId: '11111111-1111-4111-8111-111111111111',
         assignedBy: null,
-        assignmentSource: "doctor",
-        title: "Программа",
-        status: "active",
-        createdAt: "2026-01-01T00:00:00.000Z",
-        updatedAt: "2026-01-02T00:00:00.000Z",
+        assignmentSource: 'doctor',
+        title: 'Программа',
+        status: 'active',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-02T00:00:00.000Z',
         patientPlanLastOpenedAt: null,
       },
     ]);
-    mockCreateObject.mockResolvedValueOnce({ ok: true, data: { ...sampleRehabSlotsRule(), linkedObjectId: activeId } });
+    mockCreateObject.mockResolvedValueOnce({
+      ok: true,
+      data: { ...sampleRehabSlotsRule(), linkedObjectId: activeId },
+    });
     const res = await POST(
       req({
-        linkedObjectType: "rehab_program",
+        linkedObjectType: 'rehab_program',
         linkedObjectId: PATIENT_REHAB_PROGRAM_LINKED_PLACEHOLDER,
         schedule: {
-          scheduleType: "slots_v1",
-          daysMask: "1111111",
+          scheduleType: 'slots_v1',
+          daysMask: '1111111',
         },
       }),
     );
     expect(res.status).toBe(201);
     expect(mockEnsurePromo).not.toHaveBeenCalled();
     expect(mockCreateObject).toHaveBeenCalledWith(
-      "platform-user-1",
+      'platform-user-1',
       expect.objectContaining({
         linkedObjectId: activeId,
       }),
     );
   });
 
-  it("returns 201 for rehab_program slots_v1 without scheduleData (service applies rehab defaults)", async () => {
+  it('returns 201 for rehab_program slots_v1 without scheduleData (service applies rehab defaults)', async () => {
     mockCreateObject.mockResolvedValueOnce({ ok: true, data: sampleRehabSlotsRule() });
     const res = await POST(
       req({
-        linkedObjectType: "rehab_program",
-        linkedObjectId: "550e8400-e29b-41d4-a716-446655440000",
+        linkedObjectType: 'rehab_program',
+        linkedObjectId: '550e8400-e29b-41d4-a716-446655440000',
         schedule: {
-          scheduleType: "slots_v1",
-          daysMask: "1111111",
+          scheduleType: 'slots_v1',
+          daysMask: '1111111',
         },
       }),
     );
     expect(res.status).toBe(201);
     const json = (await res.json()) as { ok: boolean; reminder: { id: string } };
     expect(json.ok).toBe(true);
-    expect(json.reminder.id).toBe("wp-rehab-1");
+    expect(json.reminder.id).toBe('wp-rehab-1');
     expect(mockCreateObject).toHaveBeenCalledWith(
-      "platform-user-1",
+      'platform-user-1',
       expect.objectContaining({
-        linkedObjectType: "rehab_program",
-        linkedObjectId: "550e8400-e29b-41d4-a716-446655440000",
-        scheduleType: "slots_v1",
+        linkedObjectType: 'rehab_program',
+        linkedObjectId: '550e8400-e29b-41d4-a716-446655440000',
+        scheduleType: 'slots_v1',
         scheduleData: null,
         schedule: {
           intervalMinutes: SLOTS_V1_DB_PLACEHOLDER.intervalMinutes,
           windowStartMinute: SLOTS_V1_DB_PLACEHOLDER.windowStartMinute,
           windowEndMinute: SLOTS_V1_DB_PLACEHOLDER.windowEndMinute,
-          daysMask: "1111111",
+          daysMask: '1111111',
         },
         enabled: true,
         quietHoursStartMinute: null,

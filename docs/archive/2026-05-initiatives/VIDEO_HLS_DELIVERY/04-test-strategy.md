@@ -17,22 +17,22 @@
 
 ### 2.1 Unit (webapp)
 
-| Область | Что тестировать |
-|---------|-----------------|
-| Delivery resolver | `mp4` / `hls` / `auto` при комбинациях `hls_ready`, флагов, mime |
-| Presign wrapper | не вызывать при unauthorized; TTL из настроек (фаза 09) |
-| Job enqueue | после `confirm` создаётся ровно одна строка job при идемпотентности |
-| Mapping S3 keys | префиксы, master vs segments |
+| Область           | Что тестировать                                                     |
+| ----------------- | ------------------------------------------------------------------- |
+| Delivery resolver | `mp4` / `hls` / `auto` при комбинациях `hls_ready`, флагов, mime    |
+| Presign wrapper   | не вызывать при unauthorized; TTL из настроек (фаза 09)             |
+| Job enqueue       | после `confirm` создаётся ровно одна строка job при идемпотентности |
+| Mapping S3 keys   | префиксы, master vs segments                                        |
 
 Моки: S3 client, `system_settings` reader.
 
 ### 2.2 Unit (media-worker)
 
-| Область | Что тестировать |
-|---------|-----------------|
-| Job state machine | pending → processing → done/failed |
+| Область           | Что тестировать                                                        |
+| ----------------- | ---------------------------------------------------------------------- |
+| Job state machine | pending → processing → done/failed                                     |
 | FFmpeg invocation | аргументы собираются корректно (snapshot тест строки или массива args) |
-| Retry policy | backoff, max attempts |
+| Retry policy      | backoff, max attempts                                                  |
 
 **FFmpeg в CI:** опционально `ffmpeg -version` в job matrix; иначе полностью мок `spawn`.
 

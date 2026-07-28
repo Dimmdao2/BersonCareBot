@@ -2,15 +2,15 @@ import type {
   OrganizationProvisioningPort,
   SpecialistOwnerProvisioningResult,
   SpecialistSignupIntentInput,
-} from "./ports";
+} from './ports';
 import {
   ensureOwnBookableSpecialist as ensureOwnBookableSpecialistCore,
   type EnsureOwnBookableSpecialistContext,
-} from "./ensureOwnBookableSpecialist";
-import { validateOrganizationSlugCandidate } from "@/modules/clinic-directory/organizationSlug";
+} from './ensureOwnBookableSpecialist';
+import { validateOrganizationSlugCandidate } from '@/modules/clinic-directory/organizationSlug';
 
 function normalizeTitle(value: string): string {
-  return value.trim().replace(/\s+/g, " ");
+  return value.trim().replace(/\s+/g, ' ');
 }
 
 export function createOrganizationProvisioningService(deps: {
@@ -22,10 +22,10 @@ export function createOrganizationProvisioningService(deps: {
       const specialistFullName = normalizeTitle(input.specialistFullName);
       const organizationSlug = validateOrganizationSlugCandidate(input.organizationSlug);
       if (!organizationTitle) {
-        throw new Error("organization_title_required");
+        throw new Error('organization_title_required');
       }
       if (!specialistFullName) {
-        throw new Error("specialist_full_name_required");
+        throw new Error('specialist_full_name_required');
       }
       if (!organizationSlug.ok) {
         throw new Error(organizationSlug.code);
@@ -46,7 +46,10 @@ export function createOrganizationProvisioningService(deps: {
       return deps.provisioningPort.getLatestSpecialistSignupIntentForUser();
     },
 
-    async replacePendingSpecialistSignupChallenge(input: { challengeId: string; organizationSlug: string }) {
+    async replacePendingSpecialistSignupChallenge(input: {
+      challengeId: string;
+      organizationSlug: string;
+    }) {
       const organizationSlug = validateOrganizationSlugCandidate(input.organizationSlug);
       if (!organizationSlug.ok) {
         throw new Error(organizationSlug.code);
@@ -57,7 +60,9 @@ export function createOrganizationProvisioningService(deps: {
       });
     },
 
-    async provisionSpecialistOwner(input: { challengeId: string }): Promise<SpecialistOwnerProvisioningResult> {
+    async provisionSpecialistOwner(input: {
+      challengeId: string;
+    }): Promise<SpecialistOwnerProvisioningResult> {
       return deps.provisioningPort.provisionSpecialistOwner(input);
     },
 
@@ -69,4 +74,6 @@ export function createOrganizationProvisioningService(deps: {
   };
 }
 
-export type OrganizationProvisioningService = ReturnType<typeof createOrganizationProvisioningService>;
+export type OrganizationProvisioningService = ReturnType<
+  typeof createOrganizationProvisioningService
+>;

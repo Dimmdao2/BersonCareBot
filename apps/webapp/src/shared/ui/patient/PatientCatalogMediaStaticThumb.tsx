@@ -1,10 +1,10 @@
-"use client";
+'use client';
 
-import { ImageIcon } from "lucide-react";
-import { cn } from "@/lib/utils";
-import type { RecommendationMediaItem } from "@/modules/recommendations/types";
-import { MediaThumb } from "@/shared/ui/patient/media/MediaThumb";
-import { recommendationMediaItemToPreviewUi } from "@/shared/ui/patient/media/mediaPreviewUiModel";
+import { ImageIcon } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import type { RecommendationMediaItem } from '@/modules/recommendations/types';
+import { MediaThumb } from '@/shared/ui/patient/media/MediaThumb';
+import { recommendationMediaItemToPreviewUi } from '@/shared/ui/patient/media/mediaPreviewUiModel';
 
 export type PatientCatalogMediaStaticThumbProps = {
   media: RecommendationMediaItem | null;
@@ -23,12 +23,12 @@ export type PatientCatalogMediaStaticThumbProps = {
  * Воспроизведение — только на целевой странице/в блоке с настоящим плеером.
  */
 export function PatientCatalogMediaStaticThumb(props: PatientCatalogMediaStaticThumbProps) {
-  const { media, frameClassName, sizes, iconClassName = "size-5" } = props;
-  const shell = cn(frameClassName, "shrink-0 overflow-hidden");
+  const { media, frameClassName, sizes, iconClassName = 'size-5' } = props;
+  const shell = cn(frameClassName, 'shrink-0 overflow-hidden');
   if (!media) {
     return (
-      <div className={cn(shell, "flex items-center justify-center bg-muted/25")} aria-hidden>
-        <ImageIcon className={cn(iconClassName, "text-muted-foreground")} />
+      <div className={cn(shell, 'flex items-center justify-center bg-muted/25')} aria-hidden>
+        <ImageIcon className={cn(iconClassName, 'text-muted-foreground')} />
       </div>
     );
   }

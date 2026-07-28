@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import type { CSSProperties } from 'react';
 
 /** Заливка дорожки слайдера: от почти прозрачного светло-синего к почти чёрному тёмно-синему (1→10). */
 export function doctorDifficulty1to10TrackFill(level: number): string {
@@ -19,9 +19,9 @@ export function doctorDifficulty1to10RangeStyle(difficulty: number): CSSProperti
   const level = doctorDifficulty1to10ClampedInt(difficulty);
   const p = ((level - 1) / 9) * 100;
   const fill = doctorDifficulty1to10TrackFill(level);
-  const unfilled = "color-mix(in srgb, var(--muted) 88%, var(--border))";
+  const unfilled = 'color-mix(in srgb, var(--muted) 88%, var(--border))';
   return {
-    "--doctor-diff-1to10-fill": fill,
+    '--doctor-diff-1to10-fill': fill,
     background: `linear-gradient(to right, ${fill} 0%, ${fill} 100%) 0 0 / ${p}% 100% no-repeat, ${unfilled}`,
   } as CSSProperties;
 }

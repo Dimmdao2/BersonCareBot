@@ -13,13 +13,19 @@ describe('jsonStableStringify', () => {
       eventType: 'user.upserted',
       occurredAt: '2026-01-01T00:00:00.000Z',
       idempotencyKey: 'user.upserted:42:abc',
-      payload: { integratorUserId: '42', channelCode: 'telegram', externalId: 'x' } as Record<string, unknown>,
+      payload: { integratorUserId: '42', channelCode: 'telegram', externalId: 'x' } as Record<
+        string,
+        unknown
+      >,
     };
     const event2 = {
       eventType: 'user.upserted',
       occurredAt: '2026-01-01T00:00:00.000Z',
       idempotencyKey: 'user.upserted:42:abc',
-      payload: { externalId: 'x', channelCode: 'telegram', integratorUserId: '42' } as Record<string, unknown>,
+      payload: { externalId: 'x', channelCode: 'telegram', integratorUserId: '42' } as Record<
+        string,
+        unknown
+      >,
     };
     expect(buildIntegratorEventsHttpBody(event1)).toBe(buildIntegratorEventsHttpBody(event2));
   });

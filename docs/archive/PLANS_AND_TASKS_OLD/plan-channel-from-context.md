@@ -10,13 +10,13 @@
 
 ### 1. Где сейчас жёстко задан канал
 
-| Место | Что сделать |
-|-------|-------------|
-| **Executor** (`executeAction.ts`) | Убрать `channels: ['telegram']` во всех местах, где сами собираем payload интента. Оставлять только `maxAttempts: 1` или не задавать `channels`. |
-| **DispatchPort** (`dispatchPort.ts`) | Добавить правило: для `message.send`, если `payload.delivery.channels` нет или пустой — брать канал из `intent.meta.source`. |
-| **Сценарии** (`content/**/scripts.json`) | Не менять: оставить `"delivery": { "channels": ["telegram"], "maxAttempts": 1 }` там, где уже есть. |
-| **deliveryDefaultsPort** (infra) | Не трогать в этой фазе. Позже можно вернуть defaultChannels из source. |
-| **resolveTelegramRecipient** (fallback на smsc) | Не трогать: это выбор fallback-канала в слое доставки. |
+| Место                                           | Что сделать                                                                                                                                      |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Executor** (`executeAction.ts`)               | Убрать `channels: ['telegram']` во всех местах, где сами собираем payload интента. Оставлять только `maxAttempts: 1` или не задавать `channels`. |
+| **DispatchPort** (`dispatchPort.ts`)            | Добавить правило: для `message.send`, если `payload.delivery.channels` нет или пустой — брать канал из `intent.meta.source`.                     |
+| **Сценарии** (`content/**/scripts.json`)        | Не менять: оставить `"delivery": { "channels": ["telegram"], "maxAttempts": 1 }` там, где уже есть.                                              |
+| **deliveryDefaultsPort** (infra)                | Не трогать в этой фазе. Позже можно вернуть defaultChannels из source.                                                                           |
+| **resolveTelegramRecipient** (fallback на smsc) | Не трогать: это выбор fallback-канала в слое доставки.                                                                                           |
 
 ### 2. Конкретные правки в executor (убрать `channels: ['telegram']`)
 
@@ -29,7 +29,9 @@ delivery: { channels: ['telegram'], maxAttempts: 1 }
 на:
 
 ```ts
-delivery: { maxAttempts: 1 }
+delivery: {
+  maxAttempts: 1;
+}
 ```
 
 Список мест (номера строк ориентировочные, искать по `delivery: { channels:`):

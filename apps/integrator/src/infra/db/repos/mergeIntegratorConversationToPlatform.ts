@@ -43,7 +43,9 @@ export async function mergeIntegratorConversationToPlatformThread(
       });
     }
 
-    await runIntegratorSql(txDb, sql`
+    await runIntegratorSql(
+      txDb,
+      sql`
       UPDATE conversation_messages AS child
       SET
         conversation_id = target.id,
@@ -51,9 +53,12 @@ export async function mergeIntegratorConversationToPlatformThread(
       FROM conversations AS target
       WHERE child.conversation_id = ${input.legacyConversationId}
         AND target.id = ${input.platformConversationId}
-    `);
+    `,
+    );
 
-    await runIntegratorSql(txDb, sql`
+    await runIntegratorSql(
+      txDb,
+      sql`
       UPDATE user_questions AS child
       SET
         conversation_id = target.id,
@@ -61,7 +66,8 @@ export async function mergeIntegratorConversationToPlatformThread(
       FROM conversations AS target
       WHERE child.conversation_id = ${input.legacyConversationId}
         AND target.id = ${input.platformConversationId}
-    `);
+    `,
+    );
 
     await setConversationState(txDb, {
       id: input.platformConversationId,

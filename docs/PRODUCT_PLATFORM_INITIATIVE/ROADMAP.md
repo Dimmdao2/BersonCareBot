@@ -6,15 +6,15 @@
 
 ## Статус этапов
 
-| Этап | Название | Статус |
-|------|----------|--------|
-| 0 | Каноны и названия | **done** (только docs) |
-| 1 | Channel shell | **cancelled** (deferred) |
-| 2 | Guest/Mass Mode | **cancelled** — guest снят с roadmap |
-| 3 | Product-status + resolver | **cancelled** (deferred) |
-| 4 | Mode-aware nav + home | **cancelled** (deferred) |
-| 5 | Booking hub | **cancelled** здесь — см. [`BOOKING_REWORK`](../BOOKING_REWORK_INITIATIVE/README.md) (`done`) |
-| 6–10 | Уведомления, SOS, access, money, deep links | **cancelled** (deferred) |
+| Этап | Название                                    | Статус                                                                                        |
+| ---- | ------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| 0    | Каноны и названия                           | **done** (только docs)                                                                        |
+| 1    | Channel shell                               | **cancelled** (deferred)                                                                      |
+| 2    | Guest/Mass Mode                             | **cancelled** — guest снят с roadmap                                                          |
+| 3    | Product-status + resolver                   | **cancelled** (deferred)                                                                      |
+| 4    | Mode-aware nav + home                       | **cancelled** (deferred)                                                                      |
+| 5    | Booking hub                                 | **cancelled** здесь — см. [`BOOKING_REWORK`](../BOOKING_REWORK_INITIATIVE/README.md) (`done`) |
+| 6–10 | Уведомления, SOS, access, money, deep links | **cancelled** (deferred)                                                                      |
 
 ## Что остаётся актуальным без Product Platform
 

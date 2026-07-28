@@ -1,66 +1,66 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { DateTime } from "luxon";
-import { Calendar, List, Search } from "lucide-react";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { Button } from "@/shared/ui/doctor/primitives/button";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
+import { DateTime } from 'luxon';
+import { Calendar, List, Search } from 'lucide-react';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { Button } from '@/shared/ui/doctor/primitives/button';
 import {
   DOCTOR_CATALOG_STICKY_BAR_CLASS,
   DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS,
-} from "@/shared/ui/doctor/doctorWorkspaceLayout";
+} from '@/shared/ui/doctor/doctorWorkspaceLayout';
 import {
   doctorMetricValueClass,
   doctorMetricLabelClass,
   doctorStatCardShellClass,
   doctorStatCardInteractiveClass,
-} from "@/shared/ui/doctor/doctorVisual";
-import { cn } from "@/lib/utils";
-import { DoctorCalendarEventPanel } from "../../calendar/DoctorCalendarEventPanel";
+} from '@/shared/ui/doctor/doctorVisual';
+import { cn } from '@/lib/utils';
+import { DoctorCalendarEventPanel } from '../../calendar/DoctorCalendarEventPanel';
 import {
   DoctorCalendarRescheduleDialog,
   type PendingReschedule,
-} from "../../calendar/DoctorCalendarRescheduleDialog";
-import { DoctorCalendarToolbarFilter } from "../../calendar/DoctorCalendarToolbarFilter";
-import { resolveCalendarCreateFieldValue } from "@/modules/booking-calendar/calendarCreateFieldMode";
+} from '../../calendar/DoctorCalendarRescheduleDialog';
+import { DoctorCalendarToolbarFilter } from '../../calendar/DoctorCalendarToolbarFilter';
+import { resolveCalendarCreateFieldValue } from '@/modules/booking-calendar/calendarCreateFieldMode';
 import {
   appointmentStatusLabel,
   isCancelledAppointmentStatus,
-} from "@/modules/booking-calendar/appointmentStatusLabels";
-import FullCalendar from "@fullcalendar/react";
+} from '@/modules/booking-calendar/appointmentStatusLabels';
+import FullCalendar from '@fullcalendar/react';
 type FullCalendarInstance = InstanceType<typeof FullCalendar>;
-import dayGridPlugin from "@fullcalendar/daygrid";
-import timeGridPlugin from "@fullcalendar/timegrid";
-import interactionPlugin from "@fullcalendar/interaction";
-import luxonPlugin from "@fullcalendar/luxon3";
-import ruLocale from "@fullcalendar/core/locales/ru";
-import type { CalendarOptions as FullCalendarOptions } from "@fullcalendar/core";
+import dayGridPlugin from '@fullcalendar/daygrid';
+import timeGridPlugin from '@fullcalendar/timegrid';
+import interactionPlugin from '@fullcalendar/interaction';
+import luxonPlugin from '@fullcalendar/luxon3';
+import ruLocale from '@fullcalendar/core/locales/ru';
+import type { CalendarOptions as FullCalendarOptions } from '@fullcalendar/core';
 import type {
   CalendarAppointmentEvent,
   CalendarEvent,
   CalendarFilterMeta,
-} from "@/modules/booking-calendar/types";
-import type { WorkingBounds } from "@/modules/booking-calendar/types";
-import type { ScheduleKpis } from "@/modules/doctor-appointments/ports";
-import type { ScheduleTabProps } from "../scheduleTabRegistry";
-import { KpiPreviewModal } from "@/shared/ui/doctor/KpiPreviewModal";
-import { AppointmentKpiItem } from "@/shared/ui/doctor/AppointmentKpiItem";
-import { routePaths } from "@/app-layer/routes/paths";
-import { DOCTOR_SCHEDULE_CALENDAR_REFRESH_EVENT } from "../scheduleCalendarEvents";
-import { formatPatientPackageShortLabel } from "@/modules/memberships/display";
+} from '@/modules/booking-calendar/types';
+import type { WorkingBounds } from '@/modules/booking-calendar/types';
+import type { ScheduleKpis } from '@/modules/doctor-appointments/ports';
+import type { ScheduleTabProps } from '../scheduleTabRegistry';
+import { KpiPreviewModal } from '@/shared/ui/doctor/KpiPreviewModal';
+import { AppointmentKpiItem } from '@/shared/ui/doctor/AppointmentKpiItem';
+import { routePaths } from '@/app-layer/routes/paths';
+import { DOCTOR_SCHEDULE_CALENDAR_REFRESH_EVENT } from '../scheduleCalendarEvents';
+import { formatPatientPackageShortLabel } from '@/modules/memberships/display';
 import {
   DEFAULT_CALENDAR_WINDOW_MAX,
   DEFAULT_CALENDAR_WINDOW_MIN,
   deriveCalendarVisibleTimeWindow,
-} from "@/modules/booking-calendar/visibleTimeWindow";
+} from '@/modules/booking-calendar/visibleTimeWindow';
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
-const API_BASE = "/api/doctor/booking-engine";
-const KPIS_API = "/api/doctor/schedule-kpis";
-const NEAREST_WINDOW_API = "/api/doctor/schedule/nearest-free-window";
+const API_BASE = '/api/doctor/booking-engine';
+const KPIS_API = '/api/doctor/schedule-kpis';
+const NEAREST_WINDOW_API = '/api/doctor/schedule/nearest-free-window';
 
 // #231/#237: окно сетки по умолчанию 9:00–19:00. Хранится в system_settings (scope=doctor,
 // key=booking_calendar_default_window). Настраивается в «Настройки → Календарь».
@@ -70,20 +70,20 @@ const DEFAULT_WINDOW_MAX = DEFAULT_CALENDAR_WINDOW_MAX; // 1140 мин = 19:00
 
 // R34: понятные подписи ошибок переноса для диалога подтверждения.
 function rescheduleErrorLabel(error: string | undefined): string {
-  if (!error) return "Не удалось перенести запись.";
-  if (error === "external_slot_taken") return "Время уже занято.";
-  if (error === "slot_overlap") return "Слот уже занят другой записью этого специалиста.";
-  if (error === "not_found") return "Запись не найдена.";
-  if (error.startsWith("load_failed")) return "Не удалось сохранить перенос. Попробуйте ещё раз.";
+  if (!error) return 'Не удалось перенести запись.';
+  if (error === 'external_slot_taken') return 'Время уже занято.';
+  if (error === 'slot_overlap') return 'Слот уже занят другой записью этого специалиста.';
+  if (error === 'not_found') return 'Запись не найдена.';
+  if (error.startsWith('load_failed')) return 'Не удалось сохранить перенос. Попробуйте ещё раз.';
   return error;
 }
 
 // View types for the v26 calendar tab switcher (3days / weekgrid / month / day(drill-down))
 // "feed" removed in batch-1
-type CalV26View = "3days" | "weekgrid" | "month" | "day";
+type CalV26View = '3days' | 'weekgrid' | 'month' | 'day';
 
 // Render mode: calendar (FullCalendar) or list (grouped by day)
-type RenderMode = "calendar" | "list";
+type RenderMode = 'calendar' | 'list';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -96,7 +96,7 @@ type CalendarResponse = {
   timeZone: string;
   events: CalendarEvent[];
   filters: CalendarFilterMeta;
-  readSource?: "canonical";
+  readSource?: 'canonical';
   showWorkingHours: boolean;
   workingBounds?: WorkingBounds | null;
   error?: string;
@@ -170,30 +170,30 @@ export function visibleRange(
 ): { from: string; to: string } {
   const dt = DateTime.fromISO(anchor, { zone: tz });
 
-  if (view === "3days") {
+  if (view === '3days') {
     // Сегодня + 2 дня вперёд
-    const from = dt.startOf("day");
-    const to = dt.startOf("day").plus({ days: 3 });
+    const from = dt.startOf('day');
+    const to = dt.startOf('day').plus({ days: 3 });
     return {
       from: from.toISO() ?? anchor,
       to: to.toISO() ?? anchor,
     };
   }
 
-  if (view === "weekgrid") {
+  if (view === 'weekgrid') {
     // Пн–вс
-    const from = dt.startOf("week"); // Luxon: пн=1
-    const to = dt.endOf("week").startOf("day").plus({ days: 1 });
+    const from = dt.startOf('week'); // Luxon: пн=1
+    const to = dt.endOf('week').startOf('day').plus({ days: 1 });
     return {
       from: from.toISO() ?? anchor,
       to: to.toISO() ?? anchor,
     };
   }
 
-  if (view === "month") {
+  if (view === 'month') {
     // 1-е..последнее (календарный месяц; overflow-дни не входят)
-    const from = dt.startOf("month");
-    const to = dt.endOf("month").startOf("day").plus({ days: 1 });
+    const from = dt.startOf('month');
+    const to = dt.endOf('month').startOf('day').plus({ days: 1 });
     return {
       from: from.toISO() ?? anchor,
       to: to.toISO() ?? anchor,
@@ -201,8 +201,8 @@ export function visibleRange(
   }
 
   // day
-  const from = dt.startOf("day");
-  const to = dt.startOf("day").plus({ days: 1 });
+  const from = dt.startOf('day');
+  const to = dt.startOf('day').plus({ days: 1 });
   return {
     from: from.toISO() ?? anchor,
     to: to.toISO() ?? anchor,
@@ -216,29 +216,29 @@ export function visibleRange(
 function periodLabel(view: CalV26View, anchorDate: string, zone: string): string {
   const anchor = DateTime.fromISO(anchorDate, { zone });
 
-  if (view === "day") {
-    return anchor.setLocale("ru").toFormat("cccc, d LLLL yyyy");
+  if (view === 'day') {
+    return anchor.setLocale('ru').toFormat('cccc, d LLLL yyyy');
   }
-  if (view === "month") {
-    return anchor.setLocale("ru").toFormat("LLLL yyyy");
+  if (view === 'month') {
+    return anchor.setLocale('ru').toFormat('LLLL yyyy');
   }
-  if (view === "3days") {
-    const start = anchor.startOf("day");
-    const end = anchor.startOf("day").plus({ days: 2 });
+  if (view === '3days') {
+    const start = anchor.startOf('day');
+    const end = anchor.startOf('day').plus({ days: 2 });
     if (start.month === end.month) {
-      return `${start.setLocale("ru").toFormat("d")}–${end.setLocale("ru").toFormat("d LLLL yyyy")}`;
+      return `${start.setLocale('ru').toFormat('d')}–${end.setLocale('ru').toFormat('d LLLL yyyy')}`;
     }
-    return `${start.setLocale("ru").toFormat("d LLLL")} – ${end.setLocale("ru").toFormat("d LLLL yyyy")}`;
+    return `${start.setLocale('ru').toFormat('d LLLL')} – ${end.setLocale('ru').toFormat('d LLLL yyyy')}`;
   }
-  if (view === "weekgrid") {
-    const start = anchor.startOf("week");
-    const end = anchor.endOf("week");
+  if (view === 'weekgrid') {
+    const start = anchor.startOf('week');
+    const end = anchor.endOf('week');
     if (start.month === end.month) {
-      return `${start.setLocale("ru").toFormat("d")}–${end.setLocale("ru").toFormat("d LLLL yyyy")}`;
+      return `${start.setLocale('ru').toFormat('d')}–${end.setLocale('ru').toFormat('d LLLL yyyy')}`;
     }
-    return `${start.setLocale("ru").toFormat("d LLLL")} – ${end.setLocale("ru").toFormat("d LLLL yyyy")}`;
+    return `${start.setLocale('ru').toFormat('d LLLL')} – ${end.setLocale('ru').toFormat('d LLLL yyyy')}`;
   }
-  return "";
+  return '';
 }
 
 // ---------------------------------------------------------------------------
@@ -246,32 +246,26 @@ function periodLabel(view: CalV26View, anchorDate: string, zone: string): string
 // ---------------------------------------------------------------------------
 
 function resolveView(raw: string | undefined): CalV26View {
-  if (
-    raw === "3days" ||
-    raw === "weekgrid" ||
-    raw === "month" ||
-    raw === "day"
-  )
-    return raw;
+  if (raw === '3days' || raw === 'weekgrid' || raw === 'month' || raw === 'day') return raw;
   // Owner ruling 2026-07-18 (OWNER_REVIEW §3): clean desktop entry/reload defaults to
   // week, not 3 days, when no explicit view is chosen via deep-link.
-  return "weekgrid";
+  return 'weekgrid';
 }
 
 function resolveRenderMode(raw: string | undefined): RenderMode {
-  if (raw === "list") return "list";
-  return "calendar";
+  if (raw === 'list') return 'list';
+  return 'calendar';
 }
 
 function resolveAnchorDate(raw: string | undefined, timeZone: string): string {
   if (raw && /^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
-  return DateTime.now().setZone(timeZone).toISODate() ?? "2026-01-01";
+  return DateTime.now().setZone(timeZone).toISODate() ?? '2026-01-01';
 }
 
 function buildQuery(params: Record<string, string | null | undefined>): string {
   const sp = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) {
-    if (v != null && v !== "") sp.set(k, v);
+    if (v != null && v !== '') sp.set(k, v);
   }
   return sp.toString();
 }
@@ -282,19 +276,21 @@ function buildQuery(params: Record<string, string | null | undefined>): string {
 
 function getSettingValue(rows: Array<{ key: string; valueJson: unknown }>, key: string): unknown {
   const valueJson = rows.find((row) => row.key === key)?.valueJson;
-  if (valueJson && typeof valueJson === "object" && "value" in valueJson) {
+  if (valueJson && typeof valueJson === 'object' && 'value' in valueJson) {
     return (valueJson as { value?: unknown }).value;
   }
   return null;
 }
 
-function parseCalendarDoctorSettings(rows: Array<{ key: string; valueJson: unknown }>): CalendarDoctorSettings {
-  const windowValue = getSettingValue(rows, "booking_calendar_default_window");
+function parseCalendarDoctorSettings(
+  rows: Array<{ key: string; valueJson: unknown }>,
+): CalendarDoctorSettings {
+  const windowValue = getSettingValue(rows, 'booking_calendar_default_window');
   let defaultWindowStartMinute = DEFAULT_WINDOW_MIN;
   let defaultWindowEndMinute = DEFAULT_WINDOW_MAX;
-  if (windowValue && typeof windowValue === "object") {
+  if (windowValue && typeof windowValue === 'object') {
     const obj = windowValue as { startMinute?: unknown; endMinute?: unknown };
-    if (typeof obj.startMinute === "number" && typeof obj.endMinute === "number") {
+    if (typeof obj.startMinute === 'number' && typeof obj.endMinute === 'number') {
       defaultWindowStartMinute = Math.max(0, Math.min(1439, Math.round(obj.startMinute)));
       defaultWindowEndMinute = Math.max(
         defaultWindowStartMinute + 30,
@@ -302,13 +298,15 @@ function parseCalendarDoctorSettings(rows: Array<{ key: string; valueJson: unkno
       );
     }
   }
-  const defaultBranchRaw = getSettingValue(rows, "booking_calendar_default_branch_id");
-  const defaultServiceRaw = getSettingValue(rows, "booking_calendar_default_service_id");
+  const defaultBranchRaw = getSettingValue(rows, 'booking_calendar_default_branch_id');
+  const defaultServiceRaw = getSettingValue(rows, 'booking_calendar_default_service_id');
   return {
     defaultWindowStartMinute,
     defaultWindowEndMinute,
-    defaultBranchId: typeof defaultBranchRaw === "string" && defaultBranchRaw.trim() ? defaultBranchRaw : null,
-    defaultServiceId: typeof defaultServiceRaw === "string" && defaultServiceRaw.trim() ? defaultServiceRaw : null,
+    defaultBranchId:
+      typeof defaultBranchRaw === 'string' && defaultBranchRaw.trim() ? defaultBranchRaw : null,
+    defaultServiceId:
+      typeof defaultServiceRaw === 'string' && defaultServiceRaw.trim() ? defaultServiceRaw : null,
   };
 }
 
@@ -434,24 +432,23 @@ function eventClassName(event: CalendarEvent): string {
   // инлайн-стилем (синий по умолчанию), который перебивает обычные Tailwind-утилиты;
   // important-утилита выигрывает по каскаду (important author > inline). В month тоже
   // безопасно. Текст/пунктир/line-through оставляем обычными.
-  if (event.kind === "freeSlot")
-    return "!bg-emerald-500/10 text-emerald-900 !border-emerald-500/30 border-dashed";
-  if (event.kind === "block") return "!bg-muted text-muted-foreground !border-border";
+  if (event.kind === 'freeSlot')
+    return '!bg-emerald-500/10 text-emerald-900 !border-emerald-500/30 border-dashed';
+  if (event.kind === 'block') return '!bg-muted text-muted-foreground !border-border';
   // working: не рендерим (п.3), фон остаётся белым
-  if (event.kind === "working") return "";
-  if (event.kind === "break") return "!bg-slate-500/10 !border-transparent";
+  if (event.kind === 'working') return '';
+  if (event.kind === 'break') return '!bg-slate-500/10 !border-transparent';
   // appointment
   if (isCancelledAppointmentStatus(event.status))
-    return "!bg-destructive/15 text-destructive/80 !border-destructive/20 line-through";
-  if (event.status === "awaiting_payment" || event.prepaymentPending)
-    return "!bg-amber-500/15 text-amber-900 !border-amber-500/40";
+    return '!bg-destructive/15 text-destructive/80 !border-destructive/20 line-through';
+  if (event.status === 'awaiting_payment' || event.prepaymentPending)
+    return '!bg-amber-500/15 text-amber-900 !border-amber-500/40';
   if (event.packageUsageRef || event.packageTitle)
-    return "!bg-violet-500/15 text-violet-900 !border-violet-500/40";
-  if (event.branchColor)
-    return "text-foreground";
+    return '!bg-violet-500/15 text-violet-900 !border-violet-500/40';
+  if (event.branchColor) return 'text-foreground';
   // дефолтная запись чуть насыщеннее (R10 «чуть темнее для всего»); прошлые
   // дополнительно приглушаются через .fc-event-past opacity в <style>.
-  return "!bg-primary/15 text-foreground !border-primary/35";
+  return '!bg-primary/15 text-foreground !border-primary/35';
 }
 
 function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
@@ -476,7 +473,7 @@ function appointmentBranchColors(event: CalendarAppointmentEvent): {
   if (
     !event.branchColor ||
     isCancelledAppointmentStatus(event.status) ||
-    event.status === "awaiting_payment" ||
+    event.status === 'awaiting_payment' ||
     event.prepaymentPending ||
     event.packageUsageRef ||
     event.packageTitle
@@ -490,27 +487,27 @@ function appointmentBranchColors(event: CalendarAppointmentEvent): {
 }
 
 function eventTitle(event: CalendarEvent): string {
-  if (event.kind === "freeSlot") return "Свободно";
-  if (event.kind === "working") return "Рабочее время";
-  if (event.kind === "break") return "Перерыв";
-  if (event.kind === "block") return event.title ?? "Блокировка";
+  if (event.kind === 'freeSlot') return 'Свободно';
+  if (event.kind === 'working') return 'Рабочее время';
+  if (event.kind === 'break') return 'Перерыв';
+  if (event.kind === 'block') return event.title ?? 'Блокировка';
   const packagePrefix =
     event.packageUsageRef || event.packageTitle
       ? `${formatPatientPackageShortLabel(event.packageDisplayNumber)} `
-      : "";
-  const parts = [event.patientName ?? "Запись", event.serviceTitle].filter(Boolean);
-  return `${packagePrefix}${parts.join(" · ")}`;
+      : '';
+  const parts = [event.patientName ?? 'Запись', event.serviceTitle].filter(Boolean);
+  return `${packagePrefix}${parts.join(' · ')}`;
 }
 
 /** Для месячного вида: только фамилия (первое слово) */
 function eventLastName(event: CalendarEvent): string {
-  if (event.kind !== "appointment") return eventTitle(event);
+  if (event.kind !== 'appointment') return eventTitle(event);
   const packagePrefix =
     event.packageUsageRef || event.packageTitle
       ? `${formatPatientPackageShortLabel(event.packageDisplayNumber)} `
-      : "";
-  const name = event.patientName ?? "Запись";
-  return `${packagePrefix}${name.split(" ")[0] ?? name}`;
+      : '';
+  const name = event.patientName ?? 'Запись';
+  return `${packagePrefix}${name.split(' ')[0] ?? name}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -518,15 +515,15 @@ function eventLastName(event: CalendarEvent): string {
 // ---------------------------------------------------------------------------
 
 const KPI_ITEMS: Array<{ key: keyof ScheduleKpis; label: string }> = [
-  { key: "recordsInPeriod", label: "Записей" },
-  { key: "pastInPeriod", label: "Прошло" },
-  { key: "futureInPeriod", label: "Впереди" },
-  { key: "bySubscriptionInPeriod", label: "По абонементу" },
-  { key: "firstVisitInPeriod", label: "Первичных" },
-  { key: "repeatVisitInPeriod", label: "Повторных" },
-  { key: "uniquePatientsInPeriod", label: "Уникальных" },
-  { key: "cancellationsInPeriod", label: "Отмены" },
-  { key: "reschedulesInPeriod", label: "Переносы" },
+  { key: 'recordsInPeriod', label: 'Записей' },
+  { key: 'pastInPeriod', label: 'Прошло' },
+  { key: 'futureInPeriod', label: 'Впереди' },
+  { key: 'bySubscriptionInPeriod', label: 'По абонементу' },
+  { key: 'firstVisitInPeriod', label: 'Первичных' },
+  { key: 'repeatVisitInPeriod', label: 'Повторных' },
+  { key: 'uniquePatientsInPeriod', label: 'Уникальных' },
+  { key: 'cancellationsInPeriod', label: 'Отмены' },
+  { key: 'reschedulesInPeriod', label: 'Переносы' },
 ];
 
 type KpiRowTabProps = {
@@ -549,7 +546,9 @@ function KpiRowTab({ kpis, kpisLoading, onKpiClick }: KpiRowTabProps) {
           role="button"
           tabIndex={0}
           onClick={() => onKpiClick?.(key)}
-          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onKpiClick?.(key); }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') onKpiClick?.(key);
+          }}
         >
           <p className={doctorMetricLabelClass}>{label}</p>
           <p className={doctorMetricValueClass}>
@@ -582,18 +581,25 @@ type ListDayCardProps = {
 // прошедшие приглушаются, отменённые — destructive + line-through.
 function listRowClass(appt: CalendarAppointmentEvent, timeZone: string): string {
   if (isCancelledAppointmentStatus(appt.status))
-    return "border-destructive/25 bg-destructive/10 text-destructive/80 hover:bg-destructive/15";
+    return 'border-destructive/25 bg-destructive/10 text-destructive/80 hover:bg-destructive/15';
   const isPast = parseFeedInstant(appt.startAt, timeZone) < DateTime.now();
   const base =
-    appt.status === "awaiting_payment" || appt.prepaymentPending
-      ? "border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/15"
+    appt.status === 'awaiting_payment' || appt.prepaymentPending
+      ? 'border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/15'
       : appt.packageUsageRef || appt.packageTitle
-        ? "border-violet-500/40 bg-violet-500/10 hover:bg-violet-500/15"
-        : "border-primary/30 bg-primary/10 hover:bg-primary/15";
-  return cn(base, isPast && "opacity-60");
+        ? 'border-violet-500/40 bg-violet-500/10 hover:bg-violet-500/15'
+        : 'border-primary/30 bg-primary/10 hover:bg-primary/15';
+  return cn(base, isPast && 'opacity-60');
 }
 
-function ListDayCard({ dateKey, label, appointments, timeZone, onSelect, nextApptId }: ListDayCardProps) {
+function ListDayCard({
+  dateKey,
+  label,
+  appointments,
+  timeZone,
+  onSelect,
+  nextApptId,
+}: ListDayCardProps) {
   return (
     <div
       className="rounded-xl border border-border bg-card p-3 flex flex-col gap-2"
@@ -602,8 +608,8 @@ function ListDayCard({ dateKey, label, appointments, timeZone, onSelect, nextApp
       <p className="text-sm font-semibold text-foreground capitalize">{label}</p>
       <div className="flex flex-col gap-1">
         {appointments.map((appt) => {
-          const start = parseFeedInstant(appt.startAt, timeZone).toFormat("HH:mm");
-          const end = parseFeedInstant(appt.endAt, timeZone).toFormat("HH:mm");
+          const start = parseFeedInstant(appt.startAt, timeZone).toFormat('HH:mm');
+          const end = parseFeedInstant(appt.endAt, timeZone).toFormat('HH:mm');
           const cancelled = isCancelledAppointmentStatus(appt.status);
           const isNext = appt.id === nextApptId;
           return (
@@ -613,8 +619,8 @@ function ListDayCard({ dateKey, label, appointments, timeZone, onSelect, nextApp
               variant="ghost"
               onClick={() => onSelect(appt)}
               className={cn(
-                "flex w-full items-start gap-3 rounded-md border px-3 py-2 text-left text-sm",
-                isNext ? "ring-2 ring-primary/70 ring-offset-1" : "",
+                'flex w-full items-start gap-3 rounded-md border px-3 py-2 text-left text-sm',
+                isNext ? 'ring-2 ring-primary/70 ring-offset-1' : '',
                 listRowClass(appt, timeZone),
               )}
               data-testid={`list-appt-${appt.id}`}
@@ -622,8 +628,8 @@ function ListDayCard({ dateKey, label, appointments, timeZone, onSelect, nextApp
               <span className="shrink-0 font-semibold tabular-nums">
                 {start}–{end}
               </span>
-              <span className={cn("min-w-0 truncate", cancelled && "line-through")}>
-                {appt.patientName ?? "Запись"}
+              <span className={cn('min-w-0 truncate', cancelled && 'line-through')}>
+                {appt.patientName ?? 'Запись'}
               </span>
               {appt.packageUsageRef || appt.packageTitle ? (
                 <span
@@ -667,27 +673,25 @@ type ListViewProps = {
   onSelect: (appt: CalendarAppointmentEvent) => void;
 };
 
-function ListView({
-  events,
-  timeZone,
-  rangeFrom,
-  rangeTo,
-  onSelect,
-}: ListViewProps) {
+function ListView({ events, timeZone, rangeFrom, rangeTo, onSelect }: ListViewProps) {
   const from = DateTime.fromISO(rangeFrom, { zone: timeZone });
   const to = DateTime.fromISO(rangeTo, { zone: timeZone });
 
   // Build list of all days in range that have appointments
-  const totalDays = Math.ceil(to.diff(from, "days").days);
-  const dayGroups: Array<{ dateKey: string; label: string; appointments: CalendarAppointmentEvent[] }> = [];
+  const totalDays = Math.ceil(to.diff(from, 'days').days);
+  const dayGroups: Array<{
+    dateKey: string;
+    label: string;
+    appointments: CalendarAppointmentEvent[];
+  }> = [];
 
   for (let i = 0; i < totalDays; i++) {
     const day = from.plus({ days: i });
-    const dayKey = day.toISODate() ?? "";
+    const dayKey = day.toISODate() ?? '';
     const appointments = events
       .filter(
         (e): e is CalendarAppointmentEvent =>
-          e.kind === "appointment" &&
+          e.kind === 'appointment' &&
           // R29: показываем и отменённые (визуально отдельно + «Отмена»); раньше (R15) их прятали.
           parseFeedInstant(e.startAt, timeZone).toISODate() === dayKey,
       )
@@ -701,7 +705,7 @@ function ListView({
     if (appointments.length > 0) {
       dayGroups.push({
         dateKey: dayKey,
-        label: day.setLocale("ru").toFormat("cccc, d LLLL"),
+        label: day.setLocale('ru').toFormat('cccc, d LLLL'),
         appointments,
       });
     }
@@ -712,7 +716,10 @@ function ListView({
   let nextApptId: string | undefined;
   outer: for (const { appointments } of dayGroups) {
     for (const appt of appointments) {
-      if (!isCancelledAppointmentStatus(appt.status) && parseFeedInstant(appt.startAt, timeZone) > now) {
+      if (
+        !isCancelledAppointmentStatus(appt.status) &&
+        parseFeedInstant(appt.startAt, timeZone) > now
+      ) {
         nextApptId = appt.id;
         break outer;
       }
@@ -720,9 +727,15 @@ function ListView({
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto pr-1 pb-4" data-testid="list-view">
+    <div
+      className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto pr-1 pb-4"
+      data-testid="list-view"
+    >
       {dayGroups.length === 0 ? (
-        <div className="rounded-xl border border-border bg-card p-6 text-center text-sm text-muted-foreground" data-testid="list-empty">
+        <div
+          className="rounded-xl border border-border bg-card p-6 text-center text-sm text-muted-foreground"
+          data-testid="list-empty"
+        >
           Записей в этом периоде нет
         </div>
       ) : (
@@ -787,7 +800,12 @@ function NearestWindowLine({ apiBase: _apiBase, branchId }: NearestWindowStubPro
 
 type RightPanelEmptyStubProps = {
   filterMeta: CalendarFilterMeta;
-  activeFilters: { specialistId: string | null; branchId: string | null; roomId: string | null; serviceId: string | null };
+  activeFilters: {
+    specialistId: string | null;
+    branchId: string | null;
+    roomId: string | null;
+    serviceId: string | null;
+  };
   branchId: string | null;
   onCreateClick: () => void;
 };
@@ -820,7 +838,7 @@ export function ScheduleCalendarTab({
   initialTimeZone,
 }: ScheduleTabProps) {
   // ─── State ─────────────────────────────────────────────────────────────────
-  const [timeZone] = useState(initialTimeZone ?? "Europe/Moscow");
+  const [timeZone] = useState(initialTimeZone ?? 'Europe/Moscow');
   const [view, setViewState] = useState<CalV26View>(() => resolveView(deepLinkParams.view));
   const [anchorDate, setAnchorDateState] = useState<string>(() =>
     resolveAnchorDate(deepLinkParams.date, timeZone),
@@ -844,7 +862,7 @@ export function ScheduleCalendarTab({
   const [showCreatePanel, setShowCreatePanel] = useState(false);
   // #227: ref к FullCalendar для вызова unselect() при отмене создания
   const calendarRef = useRef<FullCalendarInstance>(null);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState('');
   const [kpiModalFilter, setKpiModalFilter] = useState<keyof ScheduleKpis | null>(null);
   // R32: время старта/конца, подставляемое в форму создания при выделении области.
   const [createInitialStart, setCreateInitialStart] = useState<string | null>(null);
@@ -855,9 +873,8 @@ export function ScheduleCalendarTab({
   const [draftSlot, setDraftSlot] = useState<CalendarDraftSlot | null>(null);
   const [createFormDirty, setCreateFormDirty] = useState(false);
   const lastSelectAtRef = useRef(0);
-  const [calendarSettings, setCalendarSettings] = useState<CalendarDoctorSettings>(
-    DEFAULT_CALENDAR_SETTINGS,
-  );
+  const [calendarSettings, setCalendarSettings] =
+    useState<CalendarDoctorSettings>(DEFAULT_CALENDAR_SETTINGS);
   const [pending, startTransition] = useTransition();
 
   // R34: подтверждение переноса (drag/resize) перед применением.
@@ -868,7 +885,7 @@ export function ScheduleCalendarTab({
     newStartAt: string;
     newEndAt: string;
   } | null>(null);
-  const [rescheduleComment, setRescheduleComment] = useState("");
+  const [rescheduleComment, setRescheduleComment] = useState('');
   const [rescheduleError, setRescheduleError] = useState<string | null>(null);
   const [rescheduleBusy, setRescheduleBusy] = useState(false);
 
@@ -877,7 +894,7 @@ export function ScheduleCalendarTab({
   const setView = useCallback(
     (v: CalV26View) => {
       setViewState(v);
-      onDeepLinkChange("view", v);
+      onDeepLinkChange('view', v);
     },
     [onDeepLinkChange],
   );
@@ -885,7 +902,7 @@ export function ScheduleCalendarTab({
   const setAnchorDate = useCallback(
     (d: string) => {
       setAnchorDateState(d);
-      onDeepLinkChange("date", d);
+      onDeepLinkChange('date', d);
     },
     [onDeepLinkChange],
   );
@@ -893,7 +910,7 @@ export function ScheduleCalendarTab({
   const setBranchId = useCallback(
     (v: string | null) => {
       setBranchIdState(v);
-      onDeepLinkChange("location", v);
+      onDeepLinkChange('location', v);
     },
     [onDeepLinkChange],
   );
@@ -901,7 +918,7 @@ export function ScheduleCalendarTab({
   const setServiceId = useCallback(
     (v: string | null) => {
       setServiceIdState(v);
-      onDeepLinkChange("service", v);
+      onDeepLinkChange('service', v);
     },
     [onDeepLinkChange],
   );
@@ -909,7 +926,7 @@ export function ScheduleCalendarTab({
   const setRenderMode = useCallback(
     (mode: RenderMode) => {
       setRenderModeState(mode);
-      onDeepLinkChange("render", mode);
+      onDeepLinkChange('render', mode);
     },
     [onDeepLinkChange],
   );
@@ -919,19 +936,19 @@ export function ScheduleCalendarTab({
   const drillDownDay = useCallback(
     (dateKey: string) => {
       // Remember current view for Назад
-      const backView = view === "day" ? drillBackView ?? "3days" : view;
+      const backView = view === 'day' ? (drillBackView ?? '3days') : view;
       setDrillBackView(backView);
-      onDeepLinkChange("from", backView);
-      setView("day");
+      onDeepLinkChange('from', backView);
+      setView('day');
       setAnchorDate(dateKey);
     },
     [view, drillBackView, onDeepLinkChange, setView, setAnchorDate],
   );
 
   const drillBack = useCallback(() => {
-    const back = drillBackView ?? "3days";
+    const back = drillBackView ?? '3days';
     setDrillBackView(null);
-    onDeepLinkChange("from", null);
+    onDeepLinkChange('from', null);
     setView(back);
   }, [drillBackView, onDeepLinkChange, setView]);
 
@@ -950,13 +967,7 @@ export function ScheduleCalendarTab({
 
           // Map v26 view to API view param
           const apiView =
-            v === "3days"
-              ? "3days"
-              : v === "weekgrid"
-                ? "week"
-                : v === "month"
-                  ? "month"
-                  : "day";
+            v === '3days' ? '3days' : v === 'weekgrid' ? 'week' : v === 'month' ? 'month' : 'day';
 
           const qs = buildQuery({
             view: apiView,
@@ -968,18 +979,18 @@ export function ScheduleCalendarTab({
           const res = await fetch(`${API_BASE}/calendar?${qs}`);
           const raw = await res.text();
           if (!raw.trim()) {
-            setError(res.ok ? "load_failed" : `load_failed_${res.status}`);
+            setError(res.ok ? 'load_failed' : `load_failed_${res.status}`);
             return;
           }
           let json: CalendarResponse;
           try {
             json = JSON.parse(raw) as CalendarResponse;
           } catch {
-            setError("load_failed");
+            setError('load_failed');
             return;
           }
           if (!res.ok || !json.ok) {
-            setError(json.error ?? "load_failed");
+            setError(json.error ?? 'load_failed');
             return;
           }
           setData(json);
@@ -991,7 +1002,7 @@ export function ScheduleCalendarTab({
             resolveCalendarCreateFieldValue(json.filters.services, null, prev),
           );
         } catch {
-          setError("network_error");
+          setError('network_error');
         }
       });
     },
@@ -1001,14 +1012,12 @@ export function ScheduleCalendarTab({
   const loadKpis = useCallback(
     (v: CalV26View, anchor: string) => {
       // KPI скрыт в day
-      if (v === "day") return;
+      if (v === 'day') return;
 
       const { from, to } = visibleRange(v, anchor, timeZone);
       setKpisLoading(true);
 
-      void fetch(
-        `${KPIS_API}?${buildQuery({ from, to, branchId, serviceId })}`,
-      )
+      void fetch(`${KPIS_API}?${buildQuery({ from, to, branchId, serviceId })}`)
         .then((res) => res.json())
         .then((json: { ok: boolean; kpis: ScheduleKpis }) => {
           if (json.ok && json.kpis) setKpis(json.kpis);
@@ -1031,12 +1040,14 @@ export function ScheduleCalendarTab({
 
   useEffect(() => {
     let cancelled = false;
-    void fetch("/api/doctor/settings")
+    void fetch('/api/doctor/settings')
       .then((res) => (res.ok ? res.json() : null))
-      .then((json: { ok?: boolean; settings?: Array<{ key: string; valueJson: unknown }> } | null) => {
-        if (cancelled || !json?.ok || !json.settings) return;
-        setCalendarSettings(parseCalendarDoctorSettings(json.settings));
-      })
+      .then(
+        (json: { ok?: boolean; settings?: Array<{ key: string; valueJson: unknown }> } | null) => {
+          if (cancelled || !json?.ok || !json.settings) return;
+          setCalendarSettings(parseCalendarDoctorSettings(json.settings));
+        },
+      )
       .catch(() => {
         // Non-critical: keep built-in defaults.
       });
@@ -1053,15 +1064,15 @@ export function ScheduleCalendarTab({
   useEffect(() => {
     if (!isActive) return;
     const id = window.setInterval(() => {
-      if (document.visibilityState === "visible") load();
+      if (document.visibilityState === 'visible') load();
     }, 30_000);
     const onVisibility = () => {
-      if (document.visibilityState === "visible") load();
+      if (document.visibilityState === 'visible') load();
     };
-    document.addEventListener("visibilitychange", onVisibility);
+    document.addEventListener('visibilitychange', onVisibility);
     return () => {
       window.clearInterval(id);
-      document.removeEventListener("visibilitychange", onVisibility);
+      document.removeEventListener('visibilitychange', onVisibility);
     };
   }, [load, isActive]);
 
@@ -1078,11 +1089,11 @@ export function ScheduleCalendarTab({
   function shiftAnchor(delta: number) {
     const dt = DateTime.fromISO(anchorDate, { zone: timeZone });
     let next: string | null;
-    if (view === "month") {
+    if (view === 'month') {
       next = dt.plus({ months: delta > 0 ? 1 : -1 }).toISODate();
-    } else if (view === "weekgrid") {
+    } else if (view === 'weekgrid') {
       next = dt.plus({ days: delta * 7 }).toISODate();
-    } else if (view === "3days") {
+    } else if (view === '3days') {
       next = dt.plus({ days: delta * 3 }).toISODate();
     } else {
       // day
@@ -1123,12 +1134,12 @@ export function ScheduleCalendarTab({
       if (!start.isValid) return null;
       const startMs = start.toMillis();
       const event = (data?.events ?? []).find((e) => {
-        if (e.kind !== "working" || !e.branchId) return false;
+        if (e.kind !== 'working' || !e.branchId) return false;
         const from = parseFeedInstant(e.startAt, currentTimeZone).toMillis();
         const to = parseFeedInstant(e.endAt, currentTimeZone).toMillis();
         return from <= startMs && startMs < to;
       });
-      return event?.kind === "working" ? event.branchId : null;
+      return event?.kind === 'working' ? event.branchId : null;
     },
     [data?.events, currentTimeZone],
   );
@@ -1136,11 +1147,15 @@ export function ScheduleCalendarTab({
   const chooseServiceForDuration = useCallback(
     (durationMinutes: number | null): string | null => {
       if (durationMinutes != null) {
-        const exact = filters.services.find((service) => service.durationMinutes === durationMinutes);
+        const exact = filters.services.find(
+          (service) => service.durationMinutes === durationMinutes,
+        );
         if (exact) return exact.id;
       }
       if (calendarSettings.defaultServiceId) {
-        const configured = filters.services.find((service) => service.id === calendarSettings.defaultServiceId);
+        const configured = filters.services.find(
+          (service) => service.id === calendarSettings.defaultServiceId,
+        );
         if (configured) return configured.id;
       }
       return resolveCalendarCreateFieldValue(filters.services, serviceId, null);
@@ -1157,7 +1172,7 @@ export function ScheduleCalendarTab({
     setCreateInitialServiceId(null);
     setDraftSlot(null);
     setCreateFormDirty(false);
-    onDeepLinkChange("appt", null);
+    onDeepLinkChange('appt', null);
     calendarRef.current?.getApi().unselect();
   }, [onDeepLinkChange]);
 
@@ -1172,17 +1187,20 @@ export function ScheduleCalendarTab({
       const serviceForDraft = chooseServiceForDuration(durationFromDrag);
       const serviceDuration =
         serviceForDraft != null
-          ? (filters.services.find((service) => service.id === serviceForDraft)?.durationMinutes ?? null)
+          ? (filters.services.find((service) => service.id === serviceForDraft)?.durationMinutes ??
+            null)
           : null;
       const durationMinutes = durationFromDrag ?? serviceDuration ?? 60;
       const endDate = end ?? new Date(start.getTime() + durationMinutes * 60_000);
       const endLocal =
-        DateTime.fromJSDate(endDate).setZone(currentTimeZone).toFormat("yyyy-MM-dd'T'HH:mm") || null;
+        DateTime.fromJSDate(endDate).setZone(currentTimeZone).toFormat("yyyy-MM-dd'T'HH:mm") ||
+        null;
       if (!endLocal) return;
       const workingBranchId = findWorkingBranchIdForStart(startLocal);
       const branchForDraft =
         workingBranchId ??
-        (calendarSettings.defaultBranchId && filters.branches.some((b) => b.id === calendarSettings.defaultBranchId)
+        (calendarSettings.defaultBranchId &&
+        filters.branches.some((b) => b.id === calendarSettings.defaultBranchId)
           ? calendarSettings.defaultBranchId
           : resolveCalendarCreateFieldValue(filters.branches, branchId, null));
       setSelected(null);
@@ -1196,7 +1214,7 @@ export function ScheduleCalendarTab({
       });
       setCreateFormDirty(false);
       setShowCreatePanel(true);
-      onDeepLinkChange("appt", null);
+      onDeepLinkChange('appt', null);
     },
     [
       currentTimeZone,
@@ -1212,7 +1230,7 @@ export function ScheduleCalendarTab({
 
   const calendarEvents = useMemo(() => {
     if (!data) return [];
-    const isTimeGrid = view !== "month";
+    const isTimeGrid = view !== 'month';
     // §3.14: paint the whole non-working span (pre-shift + post-shift + breaks)
     // gray; working time stays white. Only in hour-grid views (3 дня / Неделя /
     // День) — a month grid has no time axis to fill. Replaces the old per-break
@@ -1223,7 +1241,7 @@ export function ScheduleCalendarTab({
       const range = visibleRange(view, anchorDate, currentTimeZone);
       const from = DateTime.fromISO(range.from, { zone: currentTimeZone });
       const to = DateTime.fromISO(range.to, { zone: currentTimeZone });
-      const totalDays = Math.max(1, Math.ceil(to.diff(from, "days").days));
+      const totalDays = Math.max(1, Math.ceil(to.diff(from, 'days').days));
       const keys: string[] = [];
       for (let i = 0; i < totalDays; i++) {
         const k = from.plus({ days: i }).toISODate();
@@ -1235,100 +1253,100 @@ export function ScheduleCalendarTab({
     // #229: всегда генерируем серый фон для timeGrid, даже если workingBounds=null
     // (нет рабочих часов совсем) — тогда все видимые дни закрашиваются как нерабочие.
     // Используем loMinute/hiMinute из deriveSlotTimes (дефолт 09:00–19:00, #231).
-    const grayFill =
-      isTimeGrid
-        ? buildNonWorkingFillEvents(
-            data.events.filter((e) => e.kind === "working"),
-            currentTimeZone,
-            loMinute,
-            hiMinute,
-            visibleDayKeysForFill,
-          ).map((f) => ({
-            id: f.id,
-            start: f.start,
-            end: f.end,
-            display: "background" as const,
-            classNames: ["!bg-[#eeeeee]", "!opacity-60"],
+    const grayFill = isTimeGrid
+      ? buildNonWorkingFillEvents(
+          data.events.filter((e) => e.kind === 'working'),
+          currentTimeZone,
+          loMinute,
+          hiMinute,
+          visibleDayKeysForFill,
+        ).map((f) => ({
+          id: f.id,
+          start: f.start,
+          end: f.end,
+          display: 'background' as const,
+          classNames: ['!bg-[#eeeeee]', '!opacity-60'],
+          editable: false,
+          extendedProps: { kind: 'nonworking' as const },
+        }))
+      : [];
+    const mapped = data.events
+      .map((event) => {
+        // Рабочее время — не рендерим (фон белый).
+        if (event.kind === 'working') return null;
+
+        // SCH-10 / owner-feedback: перерыв («обед») рисуем тем же ЛЁГКИМ прозрачным
+        // фоном, что и нерабочее время (#eee/0.6), а не плотной тёмной плашкой —
+        // владельцу нужен «обед как лёгкий фон». Отличает его подпись «Перерыв» и то,
+        // что он лежит внутри рабочей (белой) полосы, а не по краям смены.
+        if (event.kind === 'break' && isTimeGrid) {
+          return {
+            id: `break:${event.id}`,
+            start: toFcDate(event.startAt, currentTimeZone),
+            end: toFcDate(event.endAt, currentTimeZone),
+            title: 'Перерыв',
+            display: 'background' as const,
+            classNames: ['!bg-[#eeeeee]', '!opacity-60'],
             editable: false,
-            extendedProps: { kind: "nonworking" as const },
-          }))
-        : [];
-    const mapped = data.events.map((event) => {
-      // Рабочее время — не рендерим (фон белый).
-      if (event.kind === "working") return null;
+            extendedProps: { kind: 'break' as const },
+          };
+        }
+        if (event.kind === 'break') return null;
 
-      // SCH-10 / owner-feedback: перерыв («обед») рисуем тем же ЛЁГКИМ прозрачным
-      // фоном, что и нерабочее время (#eee/0.6), а не плотной тёмной плашкой —
-      // владельцу нужен «обед как лёгкий фон». Отличает его подпись «Перерыв» и то,
-      // что он лежит внутри рабочей (белой) полосы, а не по краям смены.
-      if (event.kind === "break" && isTimeGrid) {
+        if (event.kind === 'block') {
+          return {
+            id: `block:${event.id}`,
+            start: toFcDate(event.startAt, currentTimeZone),
+            end: toFcDate(event.endAt, currentTimeZone),
+            title: eventTitle(event),
+            editable: false,
+            classNames: [eventClassName(event)],
+            extendedProps: { kind: event.kind, block: event },
+          };
+        }
+        if (event.kind === 'freeSlot') {
+          return {
+            id: `free:${event.id}`,
+            start: toFcDate(event.startAt, currentTimeZone),
+            end: toFcDate(event.endAt, currentTimeZone),
+            title: eventTitle(event),
+            editable: false,
+            classNames: [eventClassName(event)],
+            extendedProps: { kind: event.kind },
+          };
+        }
         return {
-          id: `break:${event.id}`,
+          id: event.id,
           start: toFcDate(event.startAt, currentTimeZone),
           end: toFcDate(event.endAt, currentTimeZone),
-          title: "Перерыв",
-          display: "background" as const,
-          classNames: ["!bg-[#eeeeee]", "!opacity-60"],
-          editable: false,
-          extendedProps: { kind: "break" as const },
-        };
-      }
-      if (event.kind === "break") return null;
-
-      if (event.kind === "block") {
-        return {
-          id: `block:${event.id}`,
-          start: toFcDate(event.startAt, currentTimeZone),
-          end: toFcDate(event.endAt, currentTimeZone),
-          title: eventTitle(event),
-          editable: false,
+          // Для month-вида: только фамилия (D4)
+          title: view === 'month' ? eventLastName(event) : eventTitle(event),
+          editable: !isCancelledAppointmentStatus(event.status),
+          durationEditable: !isCancelledAppointmentStatus(event.status),
+          startEditable: !isCancelledAppointmentStatus(event.status),
           classNames: [eventClassName(event)],
-          extendedProps: { kind: event.kind, block: event },
+          ...appointmentBranchColors(event),
+          extendedProps: {
+            kind: event.kind,
+            appointment: event,
+          },
         };
-      }
-      if (event.kind === "freeSlot") {
-        return {
-          id: `free:${event.id}`,
-          start: toFcDate(event.startAt, currentTimeZone),
-          end: toFcDate(event.endAt, currentTimeZone),
-          title: eventTitle(event),
-          editable: false,
-          classNames: [eventClassName(event)],
-          extendedProps: { kind: event.kind },
-        };
-      }
-      return {
-        id: event.id,
-        start: toFcDate(event.startAt, currentTimeZone),
-        end: toFcDate(event.endAt, currentTimeZone),
-        // Для month-вида: только фамилия (D4)
-        title: view === "month" ? eventLastName(event) : eventTitle(event),
-        editable: !isCancelledAppointmentStatus(event.status),
-        durationEditable: !isCancelledAppointmentStatus(event.status),
-        startEditable: !isCancelledAppointmentStatus(event.status),
-        classNames: [eventClassName(event)],
-        ...appointmentBranchColors(event),
-        extendedProps: {
-          kind: event.kind,
-          appointment: event,
-        },
-      };
-    }).filter((x): x is NonNullable<typeof x> => x !== null);
+      })
+      .filter((x): x is NonNullable<typeof x> => x !== null);
     const draft = draftSlot
       ? [
           {
-            id: "draft:create",
+            id: 'draft:create',
             start: draftSlot.start,
             end: draftSlot.end,
-            title: "Новая запись",
+            title: 'Новая запись',
             editable: false,
-            classNames: ["!bg-sky-500/20 text-sky-950 !border-sky-500/50 border-dashed"],
-            extendedProps: { kind: "draft" as const },
+            classNames: ['!bg-sky-500/20 text-sky-950 !border-sky-500/50 border-dashed'],
+            extendedProps: { kind: 'draft' as const },
           },
         ]
       : [];
-    return [...grayFill, ...mapped, ...draft] as FullCalendarOptions["events"];
-     
+    return [...grayFill, ...mapped, ...draft] as FullCalendarOptions['events'];
   }, [data, view, anchorDate, currentTimeZone, loMinute, hiMinute, draftSlot]);
 
   // ─── Reschedule (drag/resize) ──────────────────────────────────────────────
@@ -1347,8 +1365,8 @@ export function ScheduleCalendarTab({
       const res = await fetch(
         `${API_BASE}/appointments/${encodeURIComponent(appointment.id)}/manual-reschedule`,
         {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             newStartAt: startAt,
             newEndAt: endAt,
@@ -1378,7 +1396,7 @@ export function ScheduleCalendarTab({
     const nextEnd = arg.event.end?.toISOString();
     if (!nextStart || !nextEnd) return arg.revert();
     pendingRescheduleRef.current = { appointment, arg, newStartAt: nextStart, newEndAt: nextEnd };
-    setRescheduleComment("");
+    setRescheduleComment('');
     setRescheduleError(null);
     setRescheduleBusy(false);
     setPendingReschedule({
@@ -1439,7 +1457,7 @@ export function ScheduleCalendarTab({
 
   const closeDraftOrSelectionFromGrid = useCallback((): boolean => {
     if (createFormDirty && showCreatePanel) {
-      const ok = window.confirm("Событие не сохранено, вы уверены что хотите сбросить изменения?");
+      const ok = window.confirm('Событие не сохранено, вы уверены что хотите сбросить изменения?');
       if (!ok) return false;
     }
     clearDraftAndPanel();
@@ -1449,31 +1467,31 @@ export function ScheduleCalendarTab({
   // ─── FullCalendar view mapping ─────────────────────────────────────────────
 
   const fcView =
-    view === "day"
-      ? "timeGridDay"
-      : view === "weekgrid"
-        ? "timeGridWeek"
-        : view === "month"
-          ? "dayGridMonth"
-          : "timeGridDay"; // 3days handled as custom range — use timeGridDay with visibleRange
+    view === 'day'
+      ? 'timeGridDay'
+      : view === 'weekgrid'
+        ? 'timeGridWeek'
+        : view === 'month'
+          ? 'dayGridMonth'
+          : 'timeGridDay'; // 3days handled as custom range — use timeGridDay with visibleRange
 
   // For 3days, use timeGrid with 3 days duration
   const fcInitialView = useMemo(() => {
-    if (view === "3days") return "timeGrid3days";
+    if (view === '3days') return 'timeGrid3days';
     return fcView;
   }, [view, fcView]);
 
-  const fcViews = useMemo((): NonNullable<FullCalendarOptions["views"]> => {
-    if (view === "3days") {
+  const fcViews = useMemo((): NonNullable<FullCalendarOptions['views']> => {
+    if (view === '3days') {
       return {
         timeGrid3days: {
-          type: "timeGrid",
+          type: 'timeGrid',
           duration: { days: 3 },
-          buttonText: "3 дня",
+          buttonText: '3 дня',
         },
       };
     }
-    if (view === "month") {
+    if (view === 'month') {
       return {
         dayGridMonth: {
           dayCellClassNames: () => [],
@@ -1485,17 +1503,20 @@ export function ScheduleCalendarTab({
 
   // ─── Render ────────────────────────────────────────────────────────────────
 
-  const showKpi = view !== "day";
+  const showKpi = view !== 'day';
 
   // visibleRange for list mode
-  const listRange = useMemo(() => visibleRange(view, anchorDate, currentTimeZone), [view, anchorDate, currentTimeZone]);
+  const listRange = useMemo(
+    () => visibleRange(view, anchorDate, currentTimeZone),
+    [view, anchorDate, currentTimeZone],
+  );
 
   // Search: filter appointments by patientName
   const visibleEvents = useMemo<CalendarEvent[]>(() => {
     if (!searchQuery.trim()) return data?.events ?? [];
     const q = searchQuery.toLowerCase();
     return (data?.events ?? []).filter(
-      (e) => e.kind === "appointment" && (e.patientName ?? "").toLowerCase().includes(q),
+      (e) => e.kind === 'appointment' && (e.patientName ?? '').toLowerCase().includes(q),
     );
   }, [data?.events, searchQuery]);
 
@@ -1509,10 +1530,13 @@ export function ScheduleCalendarTab({
 
     const firstVisitIdSet = new Set<string>(kpis?.firstVisitIds ?? []);
 
-    const KPI_PREDICATES: Partial<Record<keyof ScheduleKpis, (e: CalendarAppointmentEvent) => boolean>> = {
+    const KPI_PREDICATES: Partial<
+      Record<keyof ScheduleKpis, (e: CalendarAppointmentEvent) => boolean>
+    > = {
       cancellationsInPeriod: (e) => isCancelledAppointmentStatus(e.status),
       firstVisitInPeriod: (e) => firstVisitIdSet.has(e.id),
-      repeatVisitInPeriod: (e) => !isCancelledAppointmentStatus(e.status) && !firstVisitIdSet.has(e.id),
+      repeatVisitInPeriod: (e) =>
+        !isCancelledAppointmentStatus(e.status) && !firstVisitIdSet.has(e.id),
       bySubscriptionInPeriod: (e) => Boolean(e.packageUsageRef || e.packageTitle),
       pastInPeriod: (e) => parseFeedInstant(e.startAt, currentTimeZone) < DateTime.now(),
       futureInPeriod: (e) => parseFeedInstant(e.startAt, currentTimeZone) >= DateTime.now(),
@@ -1524,14 +1548,13 @@ export function ScheduleCalendarTab({
     const pred = KPI_PREDICATES[kpiModalFilter];
     if (!pred) return [];
     return (data?.events ?? []).filter(
-      (e): e is CalendarAppointmentEvent => e.kind === "appointment" && pred(e),
+      (e): e is CalendarAppointmentEvent => e.kind === 'appointment' && pred(e),
     );
-     
   }, [kpiModalFilter, data?.events, currentTimeZone, kpis?.firstVisitIds]);
 
   const kpiModalTitle = kpiModalFilter
-    ? (KPI_ITEMS.find((k) => k.key === kpiModalFilter)?.label ?? "")
-    : "";
+    ? (KPI_ITEMS.find((k) => k.key === kpiModalFilter)?.label ?? '')
+    : '';
 
   return (
     <div className="flex flex-col gap-4 pb-8">
@@ -1540,7 +1563,7 @@ export function ScheduleCalendarTab({
         <KpiRowTab
           kpis={kpis}
           kpisLoading={kpisLoading}
-          onKpiClick={(key) => setKpiModalFilter((prev) => prev === key ? null : key)}
+          onKpiClick={(key) => setKpiModalFilter((prev) => (prev === key ? null : key))}
         />
       ) : null}
 
@@ -1550,7 +1573,7 @@ export function ScheduleCalendarTab({
         className={cn(
           DOCTOR_CATALOG_STICKY_BAR_CLASS,
           DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS,
-          "flex flex-wrap items-center gap-2",
+          'flex flex-wrap items-center gap-2',
         )}
         data-testid="cal-toolbar"
       >
@@ -1558,21 +1581,21 @@ export function ScheduleCalendarTab({
         <div className="flex gap-1" role="group" aria-label="Режим отображения">
           {(
             [
-              { v: "3days" as const, label: "3 дня" },
-              { v: "weekgrid" as const, label: "Неделя" },
-              { v: "month" as const, label: "Месяц" },
+              { v: '3days' as const, label: '3 дня' },
+              { v: 'weekgrid' as const, label: 'Неделя' },
+              { v: 'month' as const, label: 'Месяц' },
             ] as const
           ).map(({ v, label }) => (
             <Button
               key={v}
               type="button"
               size="sm"
-              variant={view === v ? "default" : "outline"}
+              variant={view === v ? 'default' : 'outline'}
               onClick={() => {
                 // При переключении из day (drill-down) — выходим из drill-down
-                if (view === "day") {
+                if (view === 'day') {
                   setDrillBackView(null);
-                  onDeepLinkChange("from", null);
+                  onDeepLinkChange('from', null);
                 }
                 setView(v);
               }}
@@ -1584,7 +1607,7 @@ export function ScheduleCalendarTab({
         </div>
 
         {/* Drill-down «День»: показываем если сейчас day */}
-        {view === "day" ? (
+        {view === 'day' ? (
           <Button
             type="button"
             size="sm"
@@ -1601,11 +1624,11 @@ export function ScheduleCalendarTab({
           <Button
             type="button"
             size="icon"
-            variant={renderMode === "calendar" ? "default" : "outline"}
+            variant={renderMode === 'calendar' ? 'default' : 'outline'}
             className="size-[32px] shrink-0"
             aria-label="Календарь"
             title="Календарь"
-            onClick={() => setRenderMode("calendar")}
+            onClick={() => setRenderMode('calendar')}
             data-testid="render-btn-calendar"
           >
             <Calendar className="size-4" aria-hidden />
@@ -1613,11 +1636,11 @@ export function ScheduleCalendarTab({
           <Button
             type="button"
             size="icon"
-            variant={renderMode === "list" ? "default" : "outline"}
+            variant={renderMode === 'list' ? 'default' : 'outline'}
             className="size-[32px] shrink-0"
             aria-label="Список"
             title="Список"
-            onClick={() => setRenderMode("list")}
+            onClick={() => setRenderMode('list')}
             data-testid="render-btn-list"
           >
             <List className="size-4" aria-hidden />
@@ -1625,9 +1648,12 @@ export function ScheduleCalendarTab({
         </div>
 
         {/* Search bar (list mode) */}
-        {renderMode === "list" ? (
+        {renderMode === 'list' ? (
           <div className="relative flex-1 min-w-[8rem] max-w-xs">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" aria-hidden />
+            <Search
+              className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground"
+              aria-hidden
+            />
             <Input
               type="search"
               placeholder="Поиск записей…"
@@ -1640,9 +1666,9 @@ export function ScheduleCalendarTab({
         ) : null}
 
         {/* найдено N counter when searching */}
-        {renderMode === "list" && searchQuery.trim() ? (
+        {renderMode === 'list' && searchQuery.trim() ? (
           <span className="text-xs text-muted-foreground" data-testid="search-count">
-            найдено {visibleEvents.filter((e) => e.kind === "appointment").length}
+            найдено {visibleEvents.filter((e) => e.kind === 'appointment').length}
           </span>
         ) : null}
 
@@ -1708,7 +1734,9 @@ export function ScheduleCalendarTab({
           className="ml-auto"
           onClick={() => {
             if (showCreatePanel && createFormDirty) {
-              const ok = window.confirm("Событие не сохранено, вы уверены что хотите сбросить изменения?");
+              const ok = window.confirm(
+                'Событие не сохранено, вы уверены что хотите сбросить изменения?',
+              );
               if (!ok) return;
             }
             const defaultBranchId =
@@ -1746,13 +1774,13 @@ export function ScheduleCalendarTab({
       {/* Main content row: calendar/list + aside panel */}
       <div
         className={cn(
-          "flex flex-col gap-4 lg:flex-row lg:items-start",
-          renderMode === "list" ? "min-h-0 lg:h-[calc(100dvh-15rem)]" : "pb-4",
+          'flex flex-col gap-4 lg:flex-row lg:items-start',
+          renderMode === 'list' ? 'min-h-0 lg:h-[calc(100dvh-15rem)]' : 'pb-4',
         )}
       >
         {/* Content area */}
-        <div className={cn("min-w-0 flex-1", renderMode === "list" && "h-full min-h-0")}>
-          {renderMode === "list" ? (
+        <div className={cn('min-w-0 flex-1', renderMode === 'list' && 'h-full min-h-0')}>
+          {renderMode === 'list' ? (
             // List view — period-bound, grouped by day
             <ListView
               events={visibleEvents}
@@ -1763,7 +1791,7 @@ export function ScheduleCalendarTab({
               onSelect={(appt) => {
                 setSelected(appt);
                 setShowCreatePanel(false);
-                onDeepLinkChange("appt", appt.id);
+                onDeepLinkChange('appt', appt.id);
               }}
             />
           ) : (
@@ -1895,19 +1923,19 @@ export function ScheduleCalendarTab({
                 ref={calendarRef}
                 plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, luxonPlugin]}
                 locale={ruLocale}
-                key={`${view}:${anchorDate}:${branchId ?? "all"}:${serviceId ?? "all"}:${slotMinTime}:${slotMaxTime}`}
+                key={`${view}:${anchorDate}:${branchId ?? 'all'}:${serviceId ?? 'all'}:${slotMinTime}:${slotMaxTime}`}
                 initialView={fcInitialView}
                 views={fcViews}
                 initialDate={anchorDate}
                 timeZone={currentTimeZone}
                 events={calendarEvents}
                 headerToolbar={false}
-                editable={view !== "month"}
-                eventDurationEditable={view !== "month"}
-                eventStartEditable={view !== "month"}
+                editable={view !== 'month'}
+                eventDurationEditable={view !== 'month'}
+                eventStartEditable={view !== 'month'}
                 // R32: выделение области создаёт запись; клик (без движения) не выделяет,
                 // чтобы остаться сбросом выбора (R24). selectMinDistance разводит клик и drag.
-                selectable={view !== "month"}
+                selectable={view !== 'month'}
                 selectMirror
                 selectMinDistance={5}
                 // #225: keep FC visual slot selection while the create panel is open.
@@ -1928,15 +1956,14 @@ export function ScheduleCalendarTab({
                 navLinks
                 navLinkDayClick={(date) => {
                   const dateKey =
-                    DateTime.fromJSDate(date).setZone(currentTimeZone).toISODate() ??
-                    anchorDate;
+                    DateTime.fromJSDate(date).setZone(currentTimeZone).toISODate() ?? anchorDate;
                   drillDownDay(dateKey);
                 }}
                 // CR-1 / Клик по числу в month → drill-down.
                 // Pass dayCellContent only in month view to avoid FullCalendar calling it
                 // (and getting a React element) for timeGrid column headers, which logged a
                 // "1 Issue" console error in the Next.js dev overlay.
-                {...(view === "month"
+                {...(view === 'month'
                   ? {
                       dayCellContent: (arg: { date: Date }) => {
                         const isToday =
@@ -1947,8 +1974,8 @@ export function ScheduleCalendarTab({
                             type="button"
                             variant="ghost"
                             className={cn(
-                              "fc-daygrid-day-number hover:underline cursor-pointer",
-                              isToday && "fc-today-circle",
+                              'fc-daygrid-day-number hover:underline cursor-pointer',
+                              isToday && 'fc-today-circle',
                             )}
                             onClick={() => {
                               const dateKey =
@@ -1966,23 +1993,22 @@ export function ScheduleCalendarTab({
                   : {
                       dayHeaderContent: (arg: { date: Date }) => {
                         const dt = DateTime.fromJSDate(arg.date).setZone(currentTimeZone);
-                        const isToday = dt.toISODate() === DateTime.now().setZone(currentTimeZone).toISODate();
+                        const isToday =
+                          dt.toISODate() === DateTime.now().setZone(currentTimeZone).toISODate();
                         return (
                           <Button
                             type="button"
                             variant="ghost"
-                            className={cn("fc-timegrid-header-link", isToday && "fc-today-circle")}
+                            className={cn('fc-timegrid-header-link', isToday && 'fc-today-circle')}
                             onClick={() => {
                               const dateKey = dt.toISODate() ?? anchorDate;
                               drillDownDay(dateKey);
                             }}
                           >
                             <span className="fc-timegrid-header-weekday">
-                              {dt.setLocale("ru").toFormat("ccc")}
+                              {dt.setLocale('ru').toFormat('ccc')}
                             </span>
-                            <span className="fc-timegrid-header-day">
-                              {dt.day}
-                            </span>
+                            <span className="fc-timegrid-header-day">{dt.day}</span>
                           </Button>
                         );
                       },
@@ -1993,7 +2019,9 @@ export function ScheduleCalendarTab({
                     | undefined;
                   if (!appointment) return;
                   if (showCreatePanel && createFormDirty) {
-                    const ok = window.confirm("Событие не сохранено, вы уверены что хотите сбросить изменения?");
+                    const ok = window.confirm(
+                      'Событие не сохранено, вы уверены что хотите сбросить изменения?',
+                    );
                     if (!ok) return;
                   }
                   setSelected(appointment);
@@ -2004,7 +2032,7 @@ export function ScheduleCalendarTab({
                   setCreateInitialServiceId(null);
                   setDraftSlot(null);
                   setCreateFormDirty(false);
-                  onDeepLinkChange("appt", appointment.id);
+                  onDeepLinkChange('appt', appointment.id);
                 }}
                 dateClick={(arg) => {
                   if (Date.now() - lastSelectAtRef.current < 150) return;
@@ -2021,7 +2049,7 @@ export function ScheduleCalendarTab({
                     | CalendarAppointmentEvent
                     | undefined;
                   if (appointment) {
-                    if (view === "month") {
+                    if (view === 'month') {
                       // Плашка = строка, только фамилия
                       return (
                         <div className="truncate px-1 text-[11px] leading-tight">
@@ -2038,9 +2066,7 @@ export function ScheduleCalendarTab({
                       </div>
                     );
                   }
-                  return (
-                    <div className="truncate px-1 py-0.5 text-[11px]">{info.event.title}</div>
-                  );
+                  return <div className="truncate px-1 py-0.5 text-[11px]">{info.event.title}</div>;
                 }}
               />
             </div>
@@ -2084,13 +2110,17 @@ export function ScheduleCalendarTab({
                 setCreateInitialEnd(null);
                 setCreateInitialBranchId(
                   calendarSettings.defaultBranchId &&
-                    filters.branches.some((branch) => branch.id === calendarSettings.defaultBranchId)
+                    filters.branches.some(
+                      (branch) => branch.id === calendarSettings.defaultBranchId,
+                    )
                     ? calendarSettings.defaultBranchId
                     : null,
                 );
                 setCreateInitialServiceId(
                   calendarSettings.defaultServiceId &&
-                    filters.services.some((service) => service.id === calendarSettings.defaultServiceId)
+                    filters.services.some(
+                      (service) => service.id === calendarSettings.defaultServiceId,
+                    )
                     ? calendarSettings.defaultServiceId
                     : null,
                 );
@@ -2123,11 +2153,11 @@ export function ScheduleCalendarTab({
         renderItem={(item) => {
           const dt = parseFeedInstant(item.startAt, currentTimeZone);
           // Match the «Сегодня» etalon row format: «HH:mm DD.MM».
-          const timeLabel = dt.toFormat("HH:mm dd.MM");
+          const timeLabel = dt.toFormat('HH:mm dd.MM');
           return (
             <AppointmentKpiItem
               item={{
-                clientLabel: item.patientName ?? "Запись",
+                clientLabel: item.patientName ?? 'Запись',
                 time: timeLabel,
                 typeLabel: item.serviceTitle ?? null,
                 statusLabel: appointmentStatusLabel(item.status),
@@ -2137,7 +2167,7 @@ export function ScheduleCalendarTab({
                 href: item.platformUserId
                   ? routePaths.doctorPatientCard(item.platformUserId)
                   : null,
-                ctaLabel: item.platformUserId ? "Открыть карточку" : null,
+                ctaLabel: item.platformUserId ? 'Открыть карточку' : null,
               }}
             />
           );

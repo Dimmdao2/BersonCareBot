@@ -1,9 +1,9 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   assertDbPrincipalRequestPoolCheckoutAllowedForPrincipal,
   getCurrentDbPrincipal,
   runWithDbPrincipalSnapshot,
-} from "@bersoncare/db-principal";
+} from '@bersoncare/db-principal';
 
 const {
   isAuthConfirmRateLimitedByKeyMock,
@@ -19,59 +19,57 @@ const {
   loggerErrorMock: vi.fn(),
 }));
 
-vi.mock("@/modules/auth/authRateLimits", () => ({
-  isAuthConfirmRateLimitedByKey: (...args: unknown[]) =>
-    isAuthConfirmRateLimitedByKeyMock(...args),
+vi.mock('@/modules/auth/authRateLimits', () => ({
+  isAuthConfirmRateLimitedByKey: (...args: unknown[]) => isAuthConfirmRateLimitedByKeyMock(...args),
 }));
-vi.mock("@/app-layer/di/bindAuthModulePorts", () => ({
+vi.mock('@/app-layer/di/bindAuthModulePorts', () => ({
   ensureAuthModulePortsBound: vi.fn(),
 }));
-vi.mock("@/app-layer/guards/requireRole", () => ({
+vi.mock('@/app-layer/guards/requireRole', () => ({
   requireStaffSecurityApiSession: () => requireStaffSecurityApiSessionMock(),
 }));
-vi.mock("@/app-layer/di/buildAppDeps", () => ({
+vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: () => ({
     passwordChange: { changePassword: changePasswordMock },
   }),
 }));
-vi.mock("@/modules/auth/service", () => ({
+vi.mock('@/modules/auth/service', () => ({
   setSessionFromUser: (...args: unknown[]) => setSessionFromUserMock(...args),
 }));
-vi.mock("@/app-layer/logging/logger", () => ({
+vi.mock('@/app-layer/logging/logger', () => ({
   logger: { error: (...args: unknown[]) => loggerErrorMock(...args) },
 }));
 
-import { POST } from "./route";
+import { POST } from './route';
 
-const USER_ID = "11111111-1111-4111-8111-111111111111";
+const USER_ID = '11111111-1111-4111-8111-111111111111';
 const staffSecurity = {
-  assurance: "factor_verified" as const,
+  assurance: 'factor_verified' as const,
   verifiedAt: 1_700_000_000,
 };
 const sessionUser = {
   userId: USER_ID,
-  role: "doctor" as const,
-  displayName: "Врач",
+  role: 'doctor' as const,
+  displayName: 'Врач',
   bindings: {},
   sessionEpoch: 4,
 };
 const freshUser = { ...sessionUser, sessionEpoch: 5 };
 
-function request(body: unknown = {
-  currentPassword: "current-password",
-  newPassword: "new-password",
-}) {
-  return new Request(
-    "http://localhost/api/account/security/password/change",
-    {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
-    },
-  );
+function request(
+  body: unknown = {
+    currentPassword: 'current-password',
+    newPassword: 'new-password',
+  },
+) {
+  return new Request('http://localhost/api/account/security/password/change', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
 }
 
-describe("POST /api/account/security/password/change", () => {
+describe('POST /api/account/security/password/change', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     isAuthConfirmRateLimitedByKeyMock.mockResolvedValue(false);
@@ -81,10 +79,10 @@ describe("POST /api/account/security/password/change", () => {
     });
   });
 
-  it("does not let an anonymous caller consume the shared confirm budget", async () => {
+  it('does not let an anonymous caller consume the shared confirm budget', async () => {
     requireStaffSecurityApiSessionMock.mockResolvedValueOnce({
       ok: false,
-      response: Response.json({ ok: false, error: "unauthorized" }, { status: 401 }),
+      response: Response.json({ ok: false, error: 'unauthorized' }, { status: 401 }),
     });
 
     const response = await POST(request());
@@ -94,76 +92,75 @@ describe("POST /api/account/security/password/change", () => {
     expect(changePasswordMock).not.toHaveBeenCalled();
   });
 
-  it("returns an actionable 429 after authentication when the shared per-IP limiter engages", async () => {
+  it('returns an actionable 429 after authentication when the shared per-IP limiter engages', async () => {
     isAuthConfirmRateLimitedByKeyMock.mockResolvedValueOnce(true);
 
     const response = await POST(request());
 
     expect(response.status).toBe(429);
-    expect(response.headers.get("Retry-After")).toBe("600");
+    expect(response.headers.get('Retry-After')).toBe('600');
     await expect(response.json()).resolves.toEqual({
       ok: false,
-      error: "rate_limited",
+      error: 'rate_limited',
       retryAfterSeconds: 600,
     });
     expect(requireStaffSecurityApiSessionMock).toHaveBeenCalledOnce();
     expect(changePasswordMock).not.toHaveBeenCalled();
   });
 
-  it("stamps a locked-mode DB principal before the real confirm limiter reaches persistence", async () => {
+  it('stamps a locked-mode DB principal before the real confirm limiter reaches persistence', async () => {
     // The mocked guard does not perform its real in-place patient-principal mutation, so this does
     // not cover the principal that reaches the limiter in production.
     isAuthConfirmRateLimitedByKeyMock.mockImplementationOnce(async () => {
       assertDbPrincipalRequestPoolCheckoutAllowedForPrincipal(getCurrentDbPrincipal(), {
-        mode: "locked",
-        signer: { secret: "test-db-principal-signing-secret" },
+        mode: 'locked',
+        signer: { secret: 'test-db-principal-signing-secret' },
       });
       return false;
     });
     changePasswordMock.mockResolvedValue({ ok: true, user: freshUser });
 
-    const response = await runWithDbPrincipalSnapshot(
-      undefined,
-      () => POST(request()),
-    );
+    const response = await runWithDbPrincipalSnapshot(undefined, () => POST(request()));
 
     expect(response.status).toBe(200);
   });
 
-  it("uses the reset-flow password policy and rejects a weak new password before mutation", async () => {
-    const response = await POST(request({
-      currentPassword: "current-password",
-      newPassword: "short",
-    }));
+  it('uses the reset-flow password policy and rejects a weak new password before mutation', async () => {
+    const response = await POST(
+      request({
+        currentPassword: 'current-password',
+        newPassword: 'short',
+      }),
+    );
 
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({
       ok: false,
-      error: "weak_new_password",
+      error: 'weak_new_password',
     });
     expect(changePasswordMock).not.toHaveBeenCalled();
   });
 
-  it("returns an actionable temporary-lock response after the tenth wrong password", async () => {
+  it('returns an actionable temporary-lock response after the tenth wrong password', async () => {
     changePasswordMock.mockResolvedValue({
       ok: false,
-      error: "password_temporarily_locked",
+      error: 'password_temporarily_locked',
       retryAfterSeconds: 900,
     });
 
     const response = await POST(request());
 
     expect(response.status).toBe(429);
-    expect(response.headers.get("Retry-After")).toBe("900");
+    expect(response.headers.get('Retry-After')).toBe('900');
     await expect(response.json()).resolves.toEqual({
       ok: false,
-      error: "password_temporarily_locked",
-      message: "Слишком много неверных попыток. Подождите 15 минут или восстановите пароль.",
+      error: 'password_temporarily_locked',
+      message: 'Слишком много неверных попыток. Подождите 15 минут или восстановите пароль.',
       retryAfterSeconds: 900,
     });
   });
 
-  it("mints the replacement current session from the post-revocation user epoch", async () => {
+  it('mints the replacement current session from the post-revocation user epoch', async () => {
     changePasswordMock.mockResolvedValue({ ok: true, user: freshUser });
 
     const response = await POST(request());
@@ -171,8 +168,8 @@ describe("POST /api/account/security/password/change", () => {
     expect(response.status).toBe(200);
     expect(changePasswordMock).toHaveBeenCalledWith({
       userId: USER_ID,
-      currentPassword: "current-password",
-      newPassword: "new-password",
+      currentPassword: 'current-password',
+      newPassword: 'new-password',
     });
     expect(setSessionFromUserMock).toHaveBeenCalledWith(freshUser, {
       staffSecurity,
@@ -180,10 +177,10 @@ describe("POST /api/account/security/password/change", () => {
     await expect(response.json()).resolves.toEqual({ ok: true });
   });
 
-  it("logs the database error message and code when the password write fails", async () => {
+  it('logs the database error message and code when the password write fails', async () => {
     const passwordWriteError = Object.assign(
-      new Error("permission denied for table user_password_credentials"),
-      { code: "42501" },
+      new Error('permission denied for table user_password_credentials'),
+      { code: '42501' },
     );
     changePasswordMock.mockRejectedValueOnce(passwordWriteError);
 
@@ -192,20 +189,20 @@ describe("POST /api/account/security/password/change", () => {
     expect(response.status).toBe(500);
     await expect(response.json()).resolves.toEqual({
       ok: false,
-      error: "password_change_failed",
+      error: 'password_change_failed',
     });
     expect(loggerErrorMock).toHaveBeenCalledWith(
       {
         err: passwordWriteError,
-        errorMessage: "permission denied for table user_password_credentials",
-        errorCode: "42501",
+        errorMessage: 'permission denied for table user_password_credentials',
+        errorCode: '42501',
       },
-      "[account/security/password/change] password change failed",
+      '[account/security/password/change] password change failed',
     );
   });
 
-  it("reports a truthful distinct outcome when session reissue fails after the password changed", async () => {
-    const sessionError = new Error("cookie write failed");
+  it('reports a truthful distinct outcome when session reissue fails after the password changed', async () => {
+    const sessionError = new Error('cookie write failed');
     changePasswordMock.mockResolvedValue({ ok: true, user: freshUser });
     setSessionFromUserMock.mockRejectedValueOnce(sessionError);
 
@@ -214,12 +211,12 @@ describe("POST /api/account/security/password/change", () => {
     expect(response.status).toBe(500);
     await expect(response.json()).resolves.toEqual({
       ok: false,
-      error: "password_changed_session_reissue_failed",
+      error: 'password_changed_session_reissue_failed',
       passwordChanged: true,
     });
     expect(loggerErrorMock).toHaveBeenCalledWith(
       { err: sessionError },
-      "[account/security/password/change] session reissue failed after password change",
+      '[account/security/password/change] session reissue failed after password change',
     );
   });
 });

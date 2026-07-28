@@ -1,10 +1,10 @@
-"use client";
+'use client';
 
-import { useRouter } from "next/navigation";
-import { routePaths } from "@/app-layer/routes/paths";
-import { PhoneMessengerAuthFlow } from "@/shared/ui/patient/auth/PhoneMessengerAuthFlow";
-import { patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
-import type { AuthChannelUiPolicy } from "@/modules/auth/otpChannelUi";
+import { useRouter } from 'next/navigation';
+import { routePaths } from '@/app-layer/routes/paths';
+import { PhoneMessengerAuthFlow } from '@/shared/ui/patient/auth/PhoneMessengerAuthFlow';
+import { patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
+import type { AuthChannelUiPolicy } from '@/modules/auth/otpChannelUi';
 
 type Props = {
   supportContactHref: string;
@@ -13,7 +13,12 @@ type Props = {
   channelPolicy: AuthChannelUiPolicy;
 };
 
-export function PatientBindPhoneBrowser({ supportContactHref, nextPath, hint, channelPolicy }: Props) {
+export function PatientBindPhoneBrowser({
+  supportContactHref,
+  nextPath,
+  hint,
+  channelPolicy,
+}: Props) {
   const router = useRouter();
 
   return (
@@ -28,7 +33,9 @@ export function PatientBindPhoneBrowser({ supportContactHref, nextPath, hint, ch
         onBack={() => router.push(routePaths.patient)}
         onProfileComplete={() => {
           const target =
-            nextPath?.trim() && nextPath.startsWith("/app/patient") ? nextPath.trim() : routePaths.patient;
+            nextPath?.trim() && nextPath.startsWith('/app/patient')
+              ? nextPath.trim()
+              : routePaths.patient;
           router.push(target);
           router.refresh();
         }}

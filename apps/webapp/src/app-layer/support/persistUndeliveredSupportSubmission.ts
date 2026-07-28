@@ -1,11 +1,11 @@
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { logger } from "@/app-layer/logging/logger";
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { logger } from '@/app-layer/logging/logger';
 import {
   SUPPORT_UNDELIVERED_JOB_FAMILY,
   SUPPORT_UNDELIVERED_JOB_KEY,
   mergeUndeliveredSupportSubmissions,
   type UndeliveredSupportSubmission,
-} from "@/modules/support/undeliveredSupportSubmissions";
+} from '@/modules/support/undeliveredSupportSubmissions';
 
 /**
  * Edge seam (buildAppDeps at the edge, per this repo's clean-architecture convention — see
@@ -36,8 +36,8 @@ export async function persistUndeliveredSupportSubmission(
     return true;
   } catch (err) {
     logger.error(
-      { err, kind: submission.kind, scope: "support", event: "support_submission_persist_failed" },
-      "[support] failed to persist undelivered submission — content may be lost",
+      { err, kind: submission.kind, scope: 'support', event: 'support_submission_persist_failed' },
+      '[support] failed to persist undelivered submission — content may be lost',
     );
     return false;
   }

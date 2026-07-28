@@ -1,23 +1,23 @@
-"use server";
+'use server';
 
-import { revalidatePath } from "next/cache";
-import { z } from "zod";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
+import { revalidatePath } from 'next/cache';
+import { z } from 'zod';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import {
   PATIENT_REPEAT_COOLDOWN_MINUTES_MAX,
   PATIENT_REPEAT_COOLDOWN_MINUTES_MIN,
-} from "@/modules/patient-home/patientHomeRepeatCooldownSettings";
+} from '@/modules/patient-home/patientHomeRepeatCooldownSettings';
 import {
   isValidPatientHomeDailyWarmupRotationTimesPayload,
   normalizeDailyWarmupRotationTime,
-} from "@/modules/patient-home/patientHomeDailyWarmupRotationSettings";
+} from '@/modules/patient-home/patientHomeDailyWarmupRotationSettings';
 
 function revalidatePatientHomePages(): void {
-  revalidatePath("/app/doctor/patient-home");
-  revalidatePath("/app/settings/patient-home");
-  revalidatePath("/app/patient");
+  revalidatePath('/app/doctor/patient-home');
+  revalidatePath('/app/settings/patient-home');
+  revalidatePath('/app/patient');
 }
 
 /**
@@ -26,15 +26,21 @@ function revalidatePatientHomePages(): void {
  * caller's own clinic `organizationId` must be resolved here (server actions have no route-level
  * workspace gate). No active membership → `forbidden`, matching this file's existing throw-on-denial style.
  */
-async function requireDoctorWorkspaceOrThrow(): Promise<{ userId: string; organizationId: string }> {
+async function requireDoctorWorkspaceOrThrow(): Promise<{
+  userId: string;
+  organizationId: string;
+}> {
   const workspace = await requireDoctorWorkspaceContext();
   return { userId: workspace.session.user.userId, organizationId: workspace.organizationId };
 }
 
-async function requirePatientHomeOwnerOrThrow(): Promise<{ userId: string; organizationId: string }> {
+async function requirePatientHomeOwnerOrThrow(): Promise<{
+  userId: string;
+  organizationId: string;
+}> {
   const workspace = await requireDoctorWorkspaceContext();
-  if (workspace.membershipRole !== "owner") {
-    throw new Error("forbidden");
+  if (workspace.membershipRole !== 'owner') {
+    throw new Error('forbidden');
   }
   return { userId: workspace.session.user.userId, organizationId: workspace.organizationId };
 }
@@ -42,20 +48,28 @@ async function requirePatientHomeOwnerOrThrow(): Promise<{ userId: string; organ
 const moodRowSchema = z.object({
   score: z.number().int().min(1).max(5),
   label: z.string().min(1).max(200),
-  imageUrl: z.union([z.null(), z.string().min(1).regex(/^\/api\/media\//)]),
+  imageUrl: z.union([
+    z.null(),
+    z
+      .string()
+      .min(1)
+      .regex(/^\/api\/media\//),
+  ]),
 });
 
-export async function savePatientHomePracticeTargetAction(target: number): Promise<{ ok: true } | { ok: false; error: string }> {
+export async function savePatientHomePracticeTargetAction(
+  target: number,
+): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
     const { userId, organizationId } = await requirePatientHomeOwnerOrThrow();
     if (!Number.isFinite(target) || target < 1 || target > 10) {
-      return { ok: false, error: "invalid_range" };
+      return { ok: false, error: 'invalid_range' };
     }
     const deps = buildAppDeps();
     await withDoctorWorkspacePrincipal({ organizationId }, () =>
       deps.systemSettings.updateSetting(
-        "patient_home_daily_practice_target",
-        "admin",
+        'patient_home_daily_practice_target',
+        'admin',
         { value: target },
         userId,
         { organizationId },
@@ -64,7 +78,7 @@ export async function savePatientHomePracticeTargetAction(target: number): Promi
     revalidatePatientHomePages();
     return { ok: true };
   } catch {
-    return { ok: false, error: "forbidden" };
+    return { ok: false, error: 'forbidden' };
   }
 }
 
@@ -89,22 +103,22 @@ export async function savePatientHomeRepeatCooldownsAction(
     const { userId, organizationId } = await requireDoctorWorkspaceOrThrow();
     const parsed = patientHomeRepeatCooldownsSaveSchema.safeParse(input);
     if (!parsed.success) {
-      return { ok: false, error: "invalid_body" };
+      return { ok: false, error: 'invalid_body' };
     }
     const { warmupRepeatMinutes, planItemRepeatMinutes } = parsed.data;
     const deps = buildAppDeps();
     await withDoctorWorkspacePrincipal({ organizationId }, () =>
       Promise.all([
         deps.systemSettings.updateSetting(
-          "patient_home_daily_warmup_repeat_cooldown_minutes",
-          "admin",
+          'patient_home_daily_warmup_repeat_cooldown_minutes',
+          'admin',
           { value: warmupRepeatMinutes },
           userId,
           { organizationId },
         ),
         deps.systemSettings.updateSetting(
-          "patient_treatment_plan_item_done_repeat_cooldown_minutes",
-          "admin",
+          'patient_treatment_plan_item_done_repeat_cooldown_minutes',
+          'admin',
           { value: planItemRepeatMinutes },
           userId,
           { organizationId },
@@ -114,7 +128,7 @@ export async function savePatientHomeRepeatCooldownsAction(
     revalidatePatientHomePages();
     return { ok: true };
   } catch {
-    return { ok: false, error: "forbidden" };
+    return { ok: false, error: 'forbidden' };
   }
 }
 
@@ -124,8 +138,11 @@ export async function savePatientHomeWarmupRotationAction(input: {
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
     const { userId, organizationId } = await requirePatientHomeOwnerOrThrow();
-    if (typeof input.enabled !== "boolean" || !isValidPatientHomeDailyWarmupRotationTimesPayload(input.times)) {
-      return { ok: false, error: "invalid_body" };
+    if (
+      typeof input.enabled !== 'boolean' ||
+      !isValidPatientHomeDailyWarmupRotationTimesPayload(input.times)
+    ) {
+      return { ok: false, error: 'invalid_body' };
     }
     const times = input.times
       .map(normalizeDailyWarmupRotationTime)
@@ -135,15 +152,15 @@ export async function savePatientHomeWarmupRotationAction(input: {
     await withDoctorWorkspacePrincipal({ organizationId }, () =>
       Promise.all([
         deps.systemSettings.updateSetting(
-          "patient_home_daily_warmup_rotation_enabled",
-          "admin",
+          'patient_home_daily_warmup_rotation_enabled',
+          'admin',
           { value: input.enabled },
           userId,
           { organizationId },
         ),
         deps.systemSettings.updateSetting(
-          "patient_home_daily_warmup_rotation_times",
-          "admin",
+          'patient_home_daily_warmup_rotation_times',
+          'admin',
           { value: times },
           userId,
           { organizationId },
@@ -153,7 +170,7 @@ export async function savePatientHomeWarmupRotationAction(input: {
     revalidatePatientHomePages();
     return { ok: true };
   } catch {
-    return { ok: false, error: "forbidden" };
+    return { ok: false, error: 'forbidden' };
   }
 }
 
@@ -164,22 +181,28 @@ export async function savePatientHomeMoodIconsAction(
     const { userId, organizationId } = await requireDoctorWorkspaceOrThrow();
     const parsed = z.array(moodRowSchema).length(5).safeParse(rows);
     if (!parsed.success) {
-      return { ok: false, error: "invalid_body" };
+      return { ok: false, error: 'invalid_body' };
     }
     const scores = new Set(parsed.data.map((r) => r.score));
     if (scores.size !== 5) {
-      return { ok: false, error: "invalid_scores" };
+      return { ok: false, error: 'invalid_scores' };
     }
     const sorted = [...parsed.data].sort((a, b) => a.score - b.score);
     const deps = buildAppDeps();
     await withDoctorWorkspacePrincipal({ organizationId }, () =>
-      deps.systemSettings.updateSetting("patient_home_mood_icons", "admin", { value: sorted }, userId, {
-        organizationId,
-      }),
+      deps.systemSettings.updateSetting(
+        'patient_home_mood_icons',
+        'admin',
+        { value: sorted },
+        userId,
+        {
+          organizationId,
+        },
+      ),
     );
     revalidatePatientHomePages();
     return { ok: true };
   } catch {
-    return { ok: false, error: "forbidden" };
+    return { ok: false, error: 'forbidden' };
   }
 }

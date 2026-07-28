@@ -70,7 +70,9 @@ async function main(): Promise<void> {
   console.log(`SMSC balance check ok. Balance: ${String(balance.balance ?? 'unknown')}`);
 
   if (!phone) {
-    console.log('Dry-run cost check skipped: pass --phone=+79990001122 to validate send.php without sending.');
+    console.log(
+      'Dry-run cost check skipped: pass --phone=+79990001122 to validate send.php without sending.',
+    );
     return;
   }
 

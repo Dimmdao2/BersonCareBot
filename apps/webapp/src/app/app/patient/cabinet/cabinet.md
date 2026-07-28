@@ -7,6 +7,7 @@
 **Маршрут `/cabinet`:** redirect на [`/app/patient/booking`](../booking/page.tsx) («Запись»).
 
 На «Запись» (см. [`booking.md`](../booking/booking.md)):
+
 - предстоящие записи (`BookingUpcomingSection`);
 - блок полезных ссылок — [`CabinetInfoLinks.tsx`](CabinetInfoLinks.tsx) + [`CabinetInfoLinksCard.tsx`](CabinetInfoLinksCard.tsx), `surface="booking"`; плитка «Адрес» city-aware (`bookingCityCode` из query или предстоящей записи, см. `help-content/patientHelpAddressLink.ts`); плитка «О специалисте» → `/help/about` (CMS); статическая [`/app/patient/about`](../about/about.md) — с `/help/booking` (slug `booking`);
 - wizard записи и история прошедших приёмов.

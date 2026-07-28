@@ -1,19 +1,19 @@
-import { mergeLogger as logger } from "./mergeLogger.js";
-import type { ManualMergeResolution } from "./manualMergeResolution.js";
-import type { PlatformMergeDbClient } from "./pgPlatformUserMerge.js";
+import { mergeLogger as logger } from './mergeLogger.js';
+import type { ManualMergeResolution } from './manualMergeResolution.js';
+import type { PlatformMergeDbClient } from './pgPlatformUserMerge.js';
 import {
   normalizeSupplementaryContactEmail,
   normalizeSupplementaryContactPhone,
-} from "./supplementaryContactNormalize.js";
+} from './supplementaryContactNormalize.js';
 
 export type MergeContactFallbackCandidate = {
-  contactType: "phone" | "email";
+  contactType: 'phone' | 'email';
   value: string;
   valueNormalized: string;
 };
 
 export type MergeContactsSaved = {
-  contactType: "phone" | "email";
+  contactType: 'phone' | 'email';
   valueNormalized: string;
 };
 
@@ -36,7 +36,7 @@ function pickIdentityPhoneRaw(
   manualResolution?: ManualMergeResolution | null,
 ): string | null {
   if (manualResolution) {
-    return manualResolution.fields.phone_normalized === "target"
+    return manualResolution.fields.phone_normalized === 'target'
       ? target.phone_normalized
       : duplicate.phone_normalized;
   }
@@ -49,7 +49,7 @@ function pickIdentityEmailRaw(
   manualResolution?: ManualMergeResolution | null,
 ): string | null {
   if (manualResolution) {
-    return manualResolution.fields.email === "target" ? target.email : duplicate.email;
+    return manualResolution.fields.email === 'target' ? target.email : duplicate.email;
   }
   return target.email != null ? target.email : duplicate.email;
 }
@@ -91,7 +91,7 @@ export function collectMergeLosingContacts(
   for (const row of [target, duplicate]) {
     const phone = normalizePhoneForContacts(row.phone_normalized);
     if (phone && phone !== identityPhone) {
-      pushCandidate({ contactType: "phone", value: phone, valueNormalized: phone });
+      pushCandidate({ contactType: 'phone', value: phone, valueNormalized: phone });
     }
   }
 
@@ -99,7 +99,7 @@ export function collectMergeLosingContacts(
     const normalized = normalizeEmailForContacts(row.email);
     if (normalized && normalized !== identityEmail) {
       pushCandidate({
-        contactType: "email",
+        contactType: 'email',
         value: row.email!.trim(),
         valueNormalized: normalized,
       });
@@ -128,11 +128,19 @@ export async function repointPlatformUserContactsForMerge(
          updated_at = GREATEST(platform_user_contacts.updated_at, EXCLUDED.updated_at)`,
       [targetId, duplicateId],
     );
-    await client.query(`DELETE FROM platform_user_contacts WHERE platform_user_id = $1::uuid`, [duplicateId]);
+    await client.query(`DELETE FROM platform_user_contacts WHERE platform_user_id = $1::uuid`, [
+      duplicateId,
+    ]);
   } catch (err) {
     logger.info(
-      { err, targetId, duplicateId, scope: "platform_merge", event: "platform_user_contacts_repoint_failed" },
-      "[merge] platform_user_contacts repoint failed (best-effort)",
+      {
+        err,
+        targetId,
+        duplicateId,
+        scope: 'platform_merge',
+        event: 'platform_user_contacts_repoint_failed',
+      },
+      '[merge] platform_user_contacts repoint failed (best-effort)',
     );
   }
 }
@@ -165,10 +173,10 @@ export async function persistMergeLosingContacts(
           err,
           targetId,
           candidate,
-          scope: "platform_merge",
-          event: "platform_user_contacts_merge_fallback_failed",
+          scope: 'platform_merge',
+          event: 'platform_user_contacts_merge_fallback_failed',
         },
-        "[merge] platform_user_contacts merge fallback upsert failed (best-effort)",
+        '[merge] platform_user_contacts merge fallback upsert failed (best-effort)',
       );
     }
   }
@@ -202,8 +210,8 @@ export async function pruneIdentityPlatformUserContactsAfterMerge(
     );
   } catch (err) {
     logger.info(
-      { err, targetId, scope: "platform_merge", event: "platform_user_contacts_prune_failed" },
-      "[merge] platform_user_contacts identity prune failed (best-effort)",
+      { err, targetId, scope: 'platform_merge', event: 'platform_user_contacts_prune_failed' },
+      '[merge] platform_user_contacts identity prune failed (best-effort)',
     );
   }
 }

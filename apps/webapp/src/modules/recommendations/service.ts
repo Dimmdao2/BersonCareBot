@@ -1,23 +1,23 @@
-import type { ReferencesPort } from "@/modules/references/ports";
-import type { RecommendationsPort } from "./ports";
+import type { ReferencesPort } from '@/modules/references/ports';
+import type { RecommendationsPort } from './ports';
 import {
   RecommendationArchiveAlreadyArchivedError,
   RecommendationArchiveNotFoundError,
   RecommendationInvalidDomainError,
   RecommendationUnarchiveNotArchivedError,
   RecommendationUsageConfirmationRequiredError,
-} from "./errors";
+} from './errors';
 import {
   RECOMMENDATION_TYPE_CATEGORY_CODE,
   recommendationDomainWriteAllowSet,
-} from "./recommendationDomain";
+} from './recommendationDomain';
 import type {
   ArchiveRecommendationOptions,
   CreateRecommendationInput,
   RecommendationFilter,
   UpdateRecommendationInput,
-} from "./types";
-import { recommendationArchiveRequiresAcknowledgement } from "./types";
+} from './types';
+import { recommendationArchiveRequiresAcknowledgement } from './types';
 
 export type RecommendationWriteOptions = {
   runRecommendationWrite?: <T>(fn: () => Promise<T>) => Promise<T>;
@@ -37,8 +37,8 @@ function normalizeOptionalCatalogText(raw: string | null | undefined): string | 
 }
 
 type RecommendationDomainWriteContext =
-  | { kind: "create" }
-  | { kind: "update"; existingDomain: string | null };
+  | { kind: 'create' }
+  | { kind: 'update'; existingDomain: string | null };
 
 async function assertRecommendationDomainWritePayload(
   references: ReferencesPort,
@@ -47,18 +47,23 @@ async function assertRecommendationDomainWritePayload(
 ): Promise<void> {
   if (input.domain === undefined) return;
   const normalized = input.domain === null ? null : input.domain.trim() || null;
-  const t = normalized === null ? "" : normalized;
+  const t = normalized === null ? '' : normalized;
   if (!t) return;
-  const unchangedFromRow = ctx.kind === "update" && (ctx.existingDomain ?? "").trim() === t;
+  const unchangedFromRow = ctx.kind === 'update' && (ctx.existingDomain ?? '').trim() === t;
   if (unchangedFromRow) return;
-  const refItems = await references.listActiveItemsByCategoryCode(RECOMMENDATION_TYPE_CATEGORY_CODE);
+  const refItems = await references.listActiveItemsByCategoryCode(
+    RECOMMENDATION_TYPE_CATEGORY_CODE,
+  );
   const allow = recommendationDomainWriteAllowSet(refItems);
   if (!allow.has(t)) {
     throw new RecommendationInvalidDomainError();
   }
 }
 
-export function createRecommendationsService(port: RecommendationsPort, references: ReferencesPort) {
+export function createRecommendationsService(
+  port: RecommendationsPort,
+  references: ReferencesPort,
+) {
   return {
     async listRecommendations(filter: RecommendationFilter = {}) {
       return port.list(filter);
@@ -73,15 +78,19 @@ export function createRecommendationsService(port: RecommendationsPort, referenc
       createdBy: string | null,
       options?: RecommendationWriteOptions,
     ) {
-      const title = input.title?.trim() ?? "";
-      if (!title) throw new Error("Название рекомендации обязательно");
-      const bodyMd = input.bodyMd?.trim() ?? "";
+      const title = input.title?.trim() ?? '';
+      if (!title) throw new Error('Название рекомендации обязательно');
+      const bodyMd = input.bodyMd?.trim() ?? '';
       const domainForCreate =
-        input.domain === undefined ? undefined : input.domain === null ? null : input.domain.trim() || null;
+        input.domain === undefined
+          ? undefined
+          : input.domain === null
+            ? null
+            : input.domain.trim() || null;
       await assertRecommendationDomainWritePayload(
         references,
         { ...input, domain: domainForCreate },
-        { kind: "create" },
+        { kind: 'create' },
       );
       const basePayload = {
         ...input,
@@ -102,16 +111,20 @@ export function createRecommendationsService(port: RecommendationsPort, referenc
       );
     },
 
-    async updateRecommendation(id: string, input: UpdateRecommendationInput, options?: RecommendationWriteOptions) {
+    async updateRecommendation(
+      id: string,
+      input: UpdateRecommendationInput,
+      options?: RecommendationWriteOptions,
+    ) {
       const existing = await port.getById(id);
-      if (!existing) throw new Error("Рекомендация не найдена");
+      if (!existing) throw new Error('Рекомендация не найдена');
       if (existing.isArchived) {
-        throw new Error("Рекомендация в архиве. Верните из архива, чтобы редактировать.");
+        throw new Error('Рекомендация в архиве. Верните из архива, чтобы редактировать.');
       }
       const patch: UpdateRecommendationInput = { ...input };
       if (input.title !== undefined) {
         const t = input.title.trim();
-        if (!t) throw new Error("Название рекомендации обязательно");
+        if (!t) throw new Error('Название рекомендации обязательно');
         patch.title = t;
       }
       if (input.bodyMd !== undefined) {
@@ -136,11 +149,11 @@ export function createRecommendationsService(port: RecommendationsPort, referenc
         patch.domain = input.domain === null ? null : input.domain.trim() || null;
       }
       await assertRecommendationDomainWritePayload(references, patch, {
-        kind: "update",
+        kind: 'update',
         existingDomain: existing.domain,
       });
       const row = await runRecommendationWrite(options, () => port.update(id, patch));
-      if (!row) throw new Error("Рекомендация не найдена");
+      if (!row) throw new Error('Рекомендация не найдена');
       return row;
     },
 
@@ -158,7 +171,10 @@ export function createRecommendationsService(port: RecommendationsPort, referenc
       if (existing.isArchived) throw new RecommendationArchiveAlreadyArchivedError();
 
       const usage = await port.getRecommendationUsageSummary(id);
-      if (recommendationArchiveRequiresAcknowledgement(usage) && !options?.acknowledgeUsageWarning) {
+      if (
+        recommendationArchiveRequiresAcknowledgement(usage) &&
+        !options?.acknowledgeUsageWarning
+      ) {
         throw new RecommendationUsageConfirmationRequiredError(usage);
       }
 

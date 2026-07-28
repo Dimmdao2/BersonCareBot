@@ -121,4 +121,3 @@ The inventory result must include:
 - No full CI run.
 - `LOG.md` updated.
 - Composer 2 can proceed to Phase 1 without re-discovering the whole codebase.
-

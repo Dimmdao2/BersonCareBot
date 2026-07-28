@@ -1,9 +1,9 @@
-import { resolveOrCreateTrustedPatientUserByPhone } from "@/infra/repos/pgPublicBookingUserResolve";
-import { normalizeRuPhoneE164 } from "@/shared/phone/normalizeRuPhoneE164";
+import { resolveOrCreateTrustedPatientUserByPhone } from '@/infra/repos/pgPublicBookingUserResolve';
+import { normalizeRuPhoneE164 } from '@/shared/phone/normalizeRuPhoneE164';
 import {
   TrustedPatientPhoneSource,
   trustedPatientPhoneWriteAnchor,
-} from "@/modules/platform-access/trustedPhonePolicy";
+} from '@/modules/platform-access/trustedPhonePolicy';
 
 /**
  * @param phoneProven the caller has proved control of this phone on THIS request path. Required,
@@ -16,7 +16,7 @@ export async function resolveOrCreateUserByPhone(
   phoneProven: boolean,
 ): Promise<{ ok: true; userId: string } | { ok: false; error: string }> {
   const phoneNorm = normalizeRuPhoneE164(contactPhone);
-  if (!phoneNorm) return { ok: false, error: "invalid_phone" };
+  if (!phoneNorm) return { ok: false, error: 'invalid_phone' };
 
   const display = contactName.trim().slice(0, 500) || phoneNorm;
   const resolved = await resolveOrCreateTrustedPatientUserByPhone(phoneNorm, display, phoneProven);
@@ -24,6 +24,6 @@ export async function resolveOrCreateUserByPhone(
     trustedPatientPhoneWriteAnchor(TrustedPatientPhoneSource.PublicBookingByPhone);
   }
 
-  if (!resolved.userId) return { ok: false, error: "user_resolve_failed" };
+  if (!resolved.userId) return { ok: false, error: 'user_resolve_failed' };
   return { ok: true, userId: resolved.userId };
 }

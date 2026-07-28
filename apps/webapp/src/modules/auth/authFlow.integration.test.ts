@@ -1,26 +1,26 @@
 /**
  * EXEC H.1.6: цепочка модулей auth без UI — эквивалент phone → check → (неверный PIN) → OTP → confirm.
  */
-import { describe, expect, it } from "vitest";
-import { createStubSmsAdapter } from "@/infra/integrations/sms/stubSmsAdapter";
-import { inMemoryPhoneChallengeStore } from "@/infra/repos/inMemoryPhoneChallengeStore";
-import { inMemoryOAuthBindingsPort } from "@/infra/repos/inMemoryOAuthBindings";
-import { inMemoryUserByPhonePort } from "@/infra/repos/inMemoryUserByPhone";
-import { inMemoryUserPinsPort } from "@/infra/repos/inMemoryUserPins";
-import { resolveAuthMethodsForPhone } from "./checkPhoneMethods";
-import { hashPin } from "./pinHash";
-import { verifyPinForLogin } from "./pinAuth";
-import { confirmPhoneAuth, startPhoneAuth } from "./phoneAuth";
+import { describe, expect, it } from 'vitest';
+import { createStubSmsAdapter } from '@/infra/integrations/sms/stubSmsAdapter';
+import { inMemoryPhoneChallengeStore } from '@/infra/repos/inMemoryPhoneChallengeStore';
+import { inMemoryOAuthBindingsPort } from '@/infra/repos/inMemoryOAuthBindings';
+import { inMemoryUserByPhonePort } from '@/infra/repos/inMemoryUserByPhone';
+import { inMemoryUserPinsPort } from '@/infra/repos/inMemoryUserPins';
+import { resolveAuthMethodsForPhone } from './checkPhoneMethods';
+import { hashPin } from './pinHash';
+import { verifyPinForLogin } from './pinAuth';
+import { confirmPhoneAuth, startPhoneAuth } from './phoneAuth';
 
-const webCtx = { channel: "web" as const, chatId: "auth-flow-int-web" };
+const webCtx = { channel: 'web' as const, chatId: 'auth-flow-int-web' };
 
-describe("auth flow integration (H.1.6)", () => {
-  it("phone → check → неверный PIN → startPhoneAuth (канал SMS) → confirmPhoneAuth", async () => {
+describe('auth flow integration (H.1.6)', () => {
+  it('phone → check → неверный PIN → startPhoneAuth (канал SMS) → confirmPhoneAuth', async () => {
     const phone = `+7999${Date.now().toString().slice(-7)}`;
     await inMemoryUserByPhonePort.createOrBind(phone, webCtx);
     const u = await inMemoryUserByPhonePort.findByPhone(phone);
     expect(u).not.toBeNull();
-    const h = await hashPin("4242");
+    const h = await hashPin('4242');
     await inMemoryUserPinsPort.upsertPinHash(u!.userId, h);
 
     const check = await resolveAuthMethodsForPhone(phone, {
@@ -31,7 +31,7 @@ describe("auth flow integration (H.1.6)", () => {
     expect(check.exists).toBe(true);
     expect(check.methods.pin).toBe(true);
 
-    const badPin = await verifyPinForLogin(u!.userId, "0000", inMemoryUserPinsPort);
+    const badPin = await verifyPinForLogin(u!.userId, '0000', inMemoryUserPinsPort);
     expect(badPin.ok).toBe(false);
 
     const deps = {
@@ -51,7 +51,7 @@ describe("auth flow integration (H.1.6)", () => {
     expect(confirm.ok).toBe(true);
     if (confirm.ok) {
       expect(confirm.user.phone).toBe(phone);
-      expect(confirm.redirectTo).toBe("/app/patient");
+      expect(confirm.redirectTo).toBe('/app/patient');
     }
   });
 });

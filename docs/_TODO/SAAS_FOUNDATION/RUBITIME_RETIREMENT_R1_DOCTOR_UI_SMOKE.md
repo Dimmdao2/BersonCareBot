@@ -18,18 +18,18 @@ buckets were still closed.
 
 ## Pre-smoke aggregate state
 
-| Check | Result |
-| --- | ---: |
-| `rubitime-r1-clean-dump-preflight.mjs` | PASS |
-| CSV parsed Rubitime ids | 392 |
-| CSV date span | 2026-01-16...2026-08-29 |
-| Stale vs owner CSV | 0 |
-| Unmapped real active | 0 |
-| Duplicate clusters | 0 |
-| Raw-only records | 0 |
-| Legacy-only records | 312 |
-| Status mismatches | 4 |
-| `record_at` mismatches over 5 minutes | 2 |
+| Check                                  |                  Result |
+| -------------------------------------- | ----------------------: |
+| `rubitime-r1-clean-dump-preflight.mjs` |                    PASS |
+| CSV parsed Rubitime ids                |                     392 |
+| CSV date span                          | 2026-01-16...2026-08-29 |
+| Stale vs owner CSV                     |                       0 |
+| Unmapped real active                   |                       0 |
+| Duplicate clusters                     |                       0 |
+| Raw-only records                       |                       0 |
+| Legacy-only records                    |                     312 |
+| Status mismatches                      |                       4 |
+| `record_at` mismatches over 5 minutes  |                       2 |
 
 Interpretation: `legacy-only` and raw mismatch counts are not R1 cleanup blockers under the owner source-of-truth
 decision. Fresh Rubitime CSV is canon; `integrator.rubitime_records` is audit-only when it disagrees.
@@ -53,30 +53,30 @@ Fixes:
 
 Authenticated via documented dev-bypass (`dev:admin`) on `http://127.0.0.1:5200`.
 
-| Surface | Endpoint / route | Result |
-| --- | --- | --- |
-| Session | `/api/me` | 200 |
-| Booking overview | `/api/doctor/booking-engine/overview` | 200 |
-| Doctor calendar | `/api/doctor/booking-engine/calendar` over CSV span | 200, `readSource=canonical`, 301 events |
-| Doctor KPI | `/api/doctor/schedule-kpis` over CSV span | 200 |
-| Doctor appointments list API | `/api/doctor/appointments/list?view=past&limit=50` | 200, 47 rows returned |
-| Doctor Today page | `/app/doctor` | 200 |
-| Doctor schedule page | `/app/doctor/schedule?tab=cal` | 200 |
-| Legacy appointments URL | `/app/doctor/appointments` | 200 after redirect to `/app/doctor/schedule?tab=cal` |
+| Surface                      | Endpoint / route                                    | Result                                               |
+| ---------------------------- | --------------------------------------------------- | ---------------------------------------------------- |
+| Session                      | `/api/me`                                           | 200                                                  |
+| Booking overview             | `/api/doctor/booking-engine/overview`               | 200                                                  |
+| Doctor calendar              | `/api/doctor/booking-engine/calendar` over CSV span | 200, `readSource=canonical`, 301 events              |
+| Doctor KPI                   | `/api/doctor/schedule-kpis` over CSV span           | 200                                                  |
+| Doctor appointments list API | `/api/doctor/appointments/list?view=past&limit=50`  | 200, 47 rows returned                                |
+| Doctor Today page            | `/app/doctor`                                       | 200                                                  |
+| Doctor schedule page         | `/app/doctor/schedule?tab=cal`                      | 200                                                  |
+| Legacy appointments URL      | `/app/doctor/appointments`                          | 200 after redirect to `/app/doctor/schedule?tab=cal` |
 
 KPI aggregate returned:
 
-| KPI | Count |
-| --- | ---: |
-| recordsInPeriod | 286 |
-| pastInPeriod | 274 |
-| futureInPeriod | 12 |
-| bySubscriptionInPeriod | 3 |
-| firstVisitInPeriod | 88 |
-| repeatVisitInPeriod | 198 |
-| uniquePatientsInPeriod | 88 |
-| cancellationsInPeriod | 0 |
-| reschedulesInPeriod | 6 |
+| KPI                    | Count |
+| ---------------------- | ----: |
+| recordsInPeriod        |   286 |
+| pastInPeriod           |   274 |
+| futureInPeriod         |    12 |
+| bySubscriptionInPeriod |     3 |
+| firstVisitInPeriod     |    88 |
+| repeatVisitInPeriod    |   198 |
+| uniquePatientsInPeriod |    88 |
+| cancellationsInPeriod  |     0 |
+| reschedulesInPeriod    |     6 |
 
 The old `/app/doctor/appointments` URL is intentionally redirected by `middleware/doctorRouteRedirects.ts` to the new
 schedule aggregate page (`/app/doctor/schedule?tab=cal`). The list API remains available for past appointment lazy
@@ -97,4 +97,3 @@ error boundary or 500 page was visible on the inspected screenshots.
 
 - `pnpm -C apps/webapp exec vitest run src/modules/analytics/analyticsAudience.test.ts src/infra/repos/pgDoctorCanonicalAppointments.test.ts`
 - `pnpm -C apps/webapp run typecheck`
-

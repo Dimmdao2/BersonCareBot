@@ -1,16 +1,16 @@
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import {
   buildCabinetInfoLinkTiles,
   type BuildCabinetInfoLinkTilesOptions,
-} from "@/modules/help-content/cabinetInfoLinkTiles";
-import { listHelpArticlesForPatient } from "@/modules/help-content/listHelpArticles";
-import { CabinetInfoLinksCard } from "./CabinetInfoLinksCard";
+} from '@/modules/help-content/cabinetInfoLinkTiles';
+import { listHelpArticlesForPatient } from '@/modules/help-content/listHelpArticles';
+import { CabinetInfoLinksCard } from './CabinetInfoLinksCard';
 
-export type CabinetInfoLinksSurface = "cabinet" | "booking";
+export type CabinetInfoLinksSurface = 'cabinet' | 'booking';
 
 /** Полезные ссылки: deep link на статьи справки только если опубликованы в CMS. */
 export async function CabinetInfoLinks({
-  surface = "cabinet",
+  surface = 'cabinet',
   bookingCityCode = null,
 }: {
   surface?: CabinetInfoLinksSurface;
@@ -20,7 +20,7 @@ export async function CabinetInfoLinks({
   const deps = buildAppDeps();
   const articles = await listHelpArticlesForPatient(deps.contentPages);
   const options: BuildCabinetInfoLinkTilesOptions =
-    surface === "booking" ? { omitBookingCta: true, bookingCityCode } : {};
+    surface === 'booking' ? { omitBookingCta: true, bookingCityCode } : {};
   const tiles = buildCabinetInfoLinkTiles(new Set(articles.map((a) => a.slug)), options);
 
   return <CabinetInfoLinksCard tiles={tiles} />;

@@ -11,12 +11,12 @@
 
 **Baseline-проверки** (последняя верификация: 2026-03-26, `main`, чистое дерево; при сомнениях перезапустите команды из §9):
 
-| Проверка | Результат |
-|----------|-----------|
-| Legacy `className` (паттерн из §9) | 0 совпадений |
-| `rg "style=\{\{"` в `apps/webapp/src/**/*.tsx` | только `app/global-error.tsx` (допустимо) |
-| `rg "<button\b"` в `apps/webapp/src/**/*.tsx` | только `app/global-error.tsx` (допустимо) |
-| Импорт `PageHeader` | 0; файл `shared/ui/PageHeader.tsx` **удалён** (замена: `SectionHeading` + разметка в `AppShell`) |
+| Проверка                                       | Результат                                                                                        |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Legacy `className` (паттерн из §9)             | 0 совпадений                                                                                     |
+| `rg "style=\{\{"` в `apps/webapp/src/**/*.tsx` | только `app/global-error.tsx` (допустимо)                                                        |
+| `rg "<button\b"` в `apps/webapp/src/**/*.tsx`  | только `app/global-error.tsx` (допустимо)                                                        |
+| Импорт `PageHeader`                            | 0; файл `shared/ui/PageHeader.tsx` **удалён** (замена: `SectionHeading` + разметка в `AppShell`) |
 
 **Safe-area:** в коде используются `safe-padding-patient`, `safe-bleed-x`, `safe-fab-br` (см. `globals.css`).
 
@@ -37,18 +37,18 @@
 
 ### Количественные факты по `apps/webapp/src`
 
-| Проблема | Файлов |
-|----------|--------|
-| Legacy-классы из `globals.css` | 55 |
-| Класс `stack` (самый массовый legacy) | 61 |
-| Класс `auth-input` | 21 |
-| Класс `eyebrow` | ~40 |
-| Класс `list` / `list-item` | 17 |
-| Класс `panel` | ~35 |
-| Inline-стили `style={{...}}` | 23 |
-| Raw `<button>` (не `Button`) | 14 |
-| Raw заголовки `<h1..h6>` без унификации | 34 |
-| Класс `empty-state` | 17 |
+| Проблема                                | Файлов |
+| --------------------------------------- | ------ |
+| Legacy-классы из `globals.css`          | 55     |
+| Класс `stack` (самый массовый legacy)   | 61     |
+| Класс `auth-input`                      | 21     |
+| Класс `eyebrow`                         | ~40    |
+| Класс `list` / `list-item`              | 17     |
+| Класс `panel`                           | ~35    |
+| Inline-стили `style={{...}}`            | 23     |
+| Raw `<button>` (не `Button`)            | 14     |
+| Raw заголовки `<h1..h6>` без унификации | 34     |
+| Класс `empty-state`                     | 17     |
 
 Дополнительно (до миграции):
 
@@ -89,7 +89,7 @@
 5. `globals.css` содержит только то, что перечислено в секции 3 ниже.
 
 **Особый случай: `global-error.tsx`.**
-По контракту Next.js App Router это fallback, который заменяет *весь* root layout — включая `<html>/<body>`. В нем **нет** providers, контекста, CSS-импортов. Поэтому inline styles — единственный надежный способ стилизации. Не трогать.
+По контракту Next.js App Router это fallback, который заменяет _весь_ root layout — включая `<html>/<body>`. В нем **нет** providers, контекста, CSS-импортов. Поэтому inline styles — единственный надежный способ стилизации. Не трогать.
 
 ---
 
@@ -101,9 +101,9 @@
 
 ```css
 /* 1. Фреймворк-импорты — обязательные, без них ничего не работает */
-@import "tailwindcss";
-@import "tw-animate-css";
-@import "shadcn/tailwind.css";
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
 
 /* 2. Конфигурация dark mode для Tailwind v4 */
 @custom-variant dark (&:is(.dark *));
@@ -125,9 +125,16 @@
 
 /* 6. Base layer — глобальные базовые стили */
 @layer base {
-  * { @apply border-border outline-ring/50; }
-  body { @apply text-base text-foreground; background: ...; }
-  html { @apply font-sans; }
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply text-base text-foreground;
+    background: ...;
+  }
+  html {
+    @apply font-sans;
+  }
 }
 ```
 
@@ -189,37 +196,37 @@ a { color: inherit; text-decoration: none; }
 
 Полный список удаляемых блоков:
 
-| Блок | Строки | Причина удаления |
-|------|--------|-----------------|
-| `* { box-sizing }` | 65-67 | Tailwind preflight уже включает |
-| `html, body { margin; min-height }` | 69-73 | Tailwind preflight + `min-h-screen` |
-| `.app-shell` / `--patient` / `--doctor` / `--title-small` | 83-139 | → Tailwind utilities + компоненты |
-| `.patient-edge-bleed` | 105-110 | → `.safe-bleed-x` (см. 3.3) |
-| `.patient-fab-quick-add` | 113-118 | → `.safe-fab-br` (см. 3.3) |
-| `.kpi-grid` / `.kpi-card` / `.kpi-card__*` | 144-162 | → Tailwind grid + Card |
-| `.overview-columns` | 163-172 | → `grid md:grid-cols-2 gap-4` |
-| `.master-detail` / `__detail` | 175-190 | → `block md:grid md:grid-cols-[1fr_2fr] gap-4` |
-| `.clients-filters__btn--active` | 192-196 | → `SegmentControl` или `Button` active state |
-| `.client-row` / `__badges` | 199-210 | → `flex items-start justify-between gap-3` |
-| `.badge` / `--channel` / `--warning` | 211-225 | → shadcn `Badge` |
-| `.top-bar` / `__*` / `.button--back` | 228-260 | → уже есть `DoctorHeader`/`PatientHeader`; удалить legacy |
-| `.eyebrow` | 263-268 | → `SectionHeading` / inline Tailwind `text-xs ...` |
-| `.top-bar__actions` | 271-275 | → Tailwind flex |
-| `.user-pill` / `__role` | 277-298 | → inline Tailwind |
-| `.button` / `--ghost` / `--danger-outline` | 300-330 | → shadcn `Button` |
-| `.auth-input` / `::placeholder` / `:focus` / `[aria-invalid]` | 332-352 | → shadcn `Input` |
-| `.content-area` / `.stack` | 355-359 | → `flex flex-col gap-4` или `grid gap-4` |
-| `.hero-card` / `.panel` / `.feature-card` | 362-370 | → `PageSection` / `Card` |
-| `.feature-grid` / `--compact` | 373-389 | → Tailwind grid |
-| Все `.app-shell--patient .feature-*` | 391-446 | → Tailwind на компоненте |
-| `.feature-card__*` | 437-450 | → Tailwind на компоненте |
-| `.status-pill` / `--available` / `--coming-soon` / `--locked` | 453-473 | → `StatusPill` или `Badge` |
-| `.list` / `.list-item` | 476-489 | → `space-y-3 list-none p-0` / `rounded-lg border p-3` |
-| `.empty-state` | 492-494 | → `text-muted-foreground` |
-| `.auth-plaque` / `__text` | 497-510 | → `Card` / inline Tailwind |
-| `.code-block` | 513-520 | → `rounded-2xl bg-[#101521] text-[#eef4ff] p-4 overflow-auto text-sm` |
-| `.top-bar` media query (max-width 720px) | 523-534 | → удалить вместе с top-bar |
-| `.ask-question-*` (весь блок) | 537-679 | → FAB больше не использует панель; кнопка → `Button` |
+| Блок                                                          | Строки  | Причина удаления                                                      |
+| ------------------------------------------------------------- | ------- | --------------------------------------------------------------------- |
+| `* { box-sizing }`                                            | 65-67   | Tailwind preflight уже включает                                       |
+| `html, body { margin; min-height }`                           | 69-73   | Tailwind preflight + `min-h-screen`                                   |
+| `.app-shell` / `--patient` / `--doctor` / `--title-small`     | 83-139  | → Tailwind utilities + компоненты                                     |
+| `.patient-edge-bleed`                                         | 105-110 | → `.safe-bleed-x` (см. 3.3)                                           |
+| `.patient-fab-quick-add`                                      | 113-118 | → `.safe-fab-br` (см. 3.3)                                            |
+| `.kpi-grid` / `.kpi-card` / `.kpi-card__*`                    | 144-162 | → Tailwind grid + Card                                                |
+| `.overview-columns`                                           | 163-172 | → `grid md:grid-cols-2 gap-4`                                         |
+| `.master-detail` / `__detail`                                 | 175-190 | → `block md:grid md:grid-cols-[1fr_2fr] gap-4`                        |
+| `.clients-filters__btn--active`                               | 192-196 | → `SegmentControl` или `Button` active state                          |
+| `.client-row` / `__badges`                                    | 199-210 | → `flex items-start justify-between gap-3`                            |
+| `.badge` / `--channel` / `--warning`                          | 211-225 | → shadcn `Badge`                                                      |
+| `.top-bar` / `__*` / `.button--back`                          | 228-260 | → уже есть `DoctorHeader`/`PatientHeader`; удалить legacy             |
+| `.eyebrow`                                                    | 263-268 | → `SectionHeading` / inline Tailwind `text-xs ...`                    |
+| `.top-bar__actions`                                           | 271-275 | → Tailwind flex                                                       |
+| `.user-pill` / `__role`                                       | 277-298 | → inline Tailwind                                                     |
+| `.button` / `--ghost` / `--danger-outline`                    | 300-330 | → shadcn `Button`                                                     |
+| `.auth-input` / `::placeholder` / `:focus` / `[aria-invalid]` | 332-352 | → shadcn `Input`                                                      |
+| `.content-area` / `.stack`                                    | 355-359 | → `flex flex-col gap-4` или `grid gap-4`                              |
+| `.hero-card` / `.panel` / `.feature-card`                     | 362-370 | → `PageSection` / `Card`                                              |
+| `.feature-grid` / `--compact`                                 | 373-389 | → Tailwind grid                                                       |
+| Все `.app-shell--patient .feature-*`                          | 391-446 | → Tailwind на компоненте                                              |
+| `.feature-card__*`                                            | 437-450 | → Tailwind на компоненте                                              |
+| `.status-pill` / `--available` / `--coming-soon` / `--locked` | 453-473 | → `StatusPill` или `Badge`                                            |
+| `.list` / `.list-item`                                        | 476-489 | → `space-y-3 list-none p-0` / `rounded-lg border p-3`                 |
+| `.empty-state`                                                | 492-494 | → `text-muted-foreground`                                             |
+| `.auth-plaque` / `__text`                                     | 497-510 | → `Card` / inline Tailwind                                            |
+| `.code-block`                                                 | 513-520 | → `rounded-2xl bg-[#101521] text-[#eef4ff] p-4 overflow-auto text-sm` |
+| `.top-bar` media query (max-width 720px)                      | 523-534 | → удалить вместе с top-bar                                            |
+| `.ask-question-*` (весь блок)                                 | 537-679 | → FAB больше не использует панель; кнопка → `Button`                  |
 
 **Итого:** из ~863 строк `globals.css` остаётся **минимальный слой** (tokens + base + markdown + range + safe-area utilities). Фактический размер файла на `main` **~270 строк** (в т.ч. расширенный `:root` с patient-токенами и комментарии) — ориентир «~180» был оценкой до фиксации токенов.
 
@@ -231,15 +238,15 @@ a { color: inherit; text-decoration: none; }
 
 В проекте `--radius: 0.5rem` (8px). Через `@theme inline` Tailwind считает радиусы относительно:
 
-| Tailwind class | Формула | Результат |
-|---------------|---------|-----------|
-| `rounded-sm` | `--radius * 0.6` | 4.8px |
-| `rounded-md` | `--radius * 0.8` | 6.4px |
-| `rounded-lg` | `--radius` | 8px |
-| `rounded-xl` | `--radius * 1.4` | 11.2px |
-| `rounded-2xl` | `--radius * 1.8` | 14.4px |
-| `rounded-3xl` | `--radius * 2.2` | 17.6px |
-| `rounded-4xl` | `--radius * 2.6` | 20.8px |
+| Tailwind class | Формула          | Результат |
+| -------------- | ---------------- | --------- |
+| `rounded-sm`   | `--radius * 0.6` | 4.8px     |
+| `rounded-md`   | `--radius * 0.8` | 6.4px     |
+| `rounded-lg`   | `--radius`       | 8px       |
+| `rounded-xl`   | `--radius * 1.4` | 11.2px    |
+| `rounded-2xl`  | `--radius * 1.8` | 14.4px    |
+| `rounded-3xl`  | `--radius * 2.2` | 17.6px    |
+| `rounded-4xl`  | `--radius * 2.6` | 20.8px    |
 
 Legacy CSS использует `border-radius: 20px` для `panel`/`hero-card`/`feature-card`. Ближайший Tailwind: `rounded-4xl` (20.8px). Для migration:
 
@@ -250,31 +257,32 @@ Legacy CSS использует `border-radius: 20px` для `panel`/`hero-card`
 
 ### 4.2 Отступы (spacing)
 
-| Контекст | Значение | Tailwind |
-|----------|----------|----------|
-| label → control | 4px | `gap-1` |
-| между полями формы | 16px | `gap-4` |
-| внутри секции (padding) | 16px | `p-4` |
-| между секциями на странице | 16-24px | `gap-4` / `gap-6` |
-| compact padding | 12px | `p-3` |
-| hero padding | 24px | `p-6` |
+| Контекст                   | Значение | Tailwind          |
+| -------------------------- | -------- | ----------------- |
+| label → control            | 4px      | `gap-1`           |
+| между полями формы         | 16px     | `gap-4`           |
+| внутри секции (padding)    | 16px     | `p-4`             |
+| между секциями на странице | 16-24px  | `gap-4` / `gap-6` |
+| compact padding            | 12px     | `p-3`             |
+| hero padding               | 24px     | `p-6`             |
 
 ### 4.3 Кнопки (только `Button` из `components/ui/button.tsx`)
 
 Фактические размеры из `button-variants.ts`:
 
-| size | Класс | Высота |
-|------|-------|--------|
-| `xs` | `h-7` | 28px |
-| `sm` | `h-8` | 32px |
-| `default` | `h-9` | 36px |
-| `lg` | `h-10` | 40px |
-| `icon` | `size-9` | 36×36 |
-| `icon-xs` | `size-7` | 28×28 |
-| `icon-sm` | `size-8` | 32×32 |
-| `icon-lg` | `size-10` | 40×40 |
+| size      | Класс     | Высота |
+| --------- | --------- | ------ |
+| `xs`      | `h-7`     | 28px   |
+| `sm`      | `h-8`     | 32px   |
+| `default` | `h-9`     | 36px   |
+| `lg`      | `h-10`    | 40px   |
+| `icon`    | `size-9`  | 36×36  |
+| `icon-xs` | `size-7`  | 28×28  |
+| `icon-sm` | `size-8`  | 32×32  |
+| `icon-lg` | `size-10` | 40×40  |
 
 Variants:
+
 - `default` / `primary` — основное действие
 - `outline` — вторичное действие
 - `secondary` — мягкое вторичное
@@ -284,21 +292,21 @@ Variants:
 
 ### 4.4 Заголовки (нормализация)
 
-| Уровень | Тег | Tailwind classes |
-|---------|-----|-----------------|
-| page | `h1` | `text-xl font-semibold tracking-tight` |
-| section | `h2` | `text-lg font-semibold` |
-| subsection | `h3` | `text-base font-medium` |
+| Уровень              | Тег        | Tailwind classes                                                    |
+| -------------------- | ---------- | ------------------------------------------------------------------- |
+| page                 | `h1`       | `text-xl font-semibold tracking-tight`                              |
+| section              | `h2`       | `text-lg font-semibold`                                             |
+| subsection           | `h3`       | `text-base font-medium`                                             |
 | eyebrow (meta label) | `span`/`p` | `text-xs font-medium uppercase tracking-wide text-muted-foreground` |
 
 ### 4.5 Контейнеры секций
 
-| Вариант | Tailwind classes |
-|---------|-----------------|
-| default | `rounded-2xl border border-border bg-card p-4 shadow-sm` |
-| compact | `rounded-xl border border-border bg-card p-3` |
-| hero | `rounded-2xl border border-border bg-card p-6 shadow-sm` |
-| list-item | `rounded-lg border border-border bg-card p-3` |
+| Вариант   | Tailwind classes                                         |
+| --------- | -------------------------------------------------------- |
+| default   | `rounded-2xl border border-border bg-card p-4 shadow-sm` |
+| compact   | `rounded-xl border border-border bg-card p-3`            |
+| hero      | `rounded-2xl border border-border bg-card p-6 shadow-sm` |
+| list-item | `rounded-lg border border-border bg-card p-3`            |
 
 ---
 
@@ -306,75 +314,75 @@ Variants:
 
 ### 5.1 Legacy class → Target
 
-| Legacy | Target |
-|--------|--------|
-| `stack` | `flex flex-col gap-4` (или `grid gap-4` для простых вертикальных списков) |
-| `content-area` | `flex flex-col gap-4` |
-| `panel` | `PageSection` (`rounded-2xl border border-border bg-card p-4 shadow-sm`) |
-| `panel stack` | `PageSection` + children layout `flex flex-col gap-4` |
-| `hero-card` | `PageSection variant="hero"` |
-| `feature-card` | `Card` + `Link` wrapper |
-| `feature-grid` | `grid gap-4 md:grid-cols-2` |
-| `list` | `space-y-3 list-none p-0 m-0` |
-| `list-item` | `rounded-lg border border-border bg-card p-3` |
-| `empty-state` | `text-muted-foreground` |
-| `eyebrow` | `text-xs font-medium uppercase tracking-wide text-muted-foreground` |
-| `auth-input` (на input) | `Input` |
-| `auth-input` (на textarea) | `Textarea` |
-| `auth-input` (на select) | shadcn `Select` или `className="..."` native с tailwind |
-| `button`, `button--ghost`, `button--back` | shadcn `Button` с нужным variant/size |
-| `button--danger-outline` | `Button variant="destructive"` |
-| `badge`, `badge--channel`, `badge--warning` | shadcn `Badge` с variant |
-| `status-pill`, `status-pill--*` | `Badge` с variant или отдельный `StatusPill` |
-| `user-pill`, `user-pill__role` | inline Tailwind: `inline-flex items-center gap-2 rounded-full bg-muted px-3 py-2 text-sm` |
-| `top-bar`, `top-bar__*` | удалить — уже есть `DoctorHeader`/`PatientHeader` |
-| `app-shell` (default variant) | удалить — уже дублируется Tailwind-классами в `AppShell.tsx` |
-| `app-shell--patient` | → `safe-padding-patient` (safe-area utility, см. 3.3) + Tailwind |
-| `patient-edge-bleed` | → `safe-bleed-x` |
-| `patient-fab-quick-add` | → `safe-fab-br` |
-| `kpi-grid` | `grid grid-cols-[repeat(auto-fit,minmax(140px,1fr))] gap-3` |
-| `kpi-card`, `kpi-card__value`, `kpi-card__label` | Tailwind на элементах |
-| `overview-columns` | `grid md:grid-cols-2 gap-4` |
-| `master-detail`, `master-detail__detail` | `block md:grid md:grid-cols-[1fr_2fr] gap-4` + `hidden md:block` |
-| `client-row`, `client-row__badges` | `flex items-start justify-between gap-3` + `flex flex-wrap gap-1.5 shrink-0` |
-| `clients-filters__btn--active` | `SegmentControl` или inline Tailwind active state |
-| `auth-plaque`, `auth-plaque__text` | `Card` или inline `rounded-2xl bg-muted p-4 border` |
-| `code-block` | `rounded-2xl bg-[#101521] text-[#eef4ff] p-4 overflow-auto text-sm` |
-| `ask-question-fab` | `Button` + Tailwind positioning |
-| `ask-question-panel*` (весь блок) | был мёртвым CSS; **на main:** удалён при чистке `globals.css` |
+| Legacy                                           | Target                                                                                    |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------------- |
+| `stack`                                          | `flex flex-col gap-4` (или `grid gap-4` для простых вертикальных списков)                 |
+| `content-area`                                   | `flex flex-col gap-4`                                                                     |
+| `panel`                                          | `PageSection` (`rounded-2xl border border-border bg-card p-4 shadow-sm`)                  |
+| `panel stack`                                    | `PageSection` + children layout `flex flex-col gap-4`                                     |
+| `hero-card`                                      | `PageSection variant="hero"`                                                              |
+| `feature-card`                                   | `Card` + `Link` wrapper                                                                   |
+| `feature-grid`                                   | `grid gap-4 md:grid-cols-2`                                                               |
+| `list`                                           | `space-y-3 list-none p-0 m-0`                                                             |
+| `list-item`                                      | `rounded-lg border border-border bg-card p-3`                                             |
+| `empty-state`                                    | `text-muted-foreground`                                                                   |
+| `eyebrow`                                        | `text-xs font-medium uppercase tracking-wide text-muted-foreground`                       |
+| `auth-input` (на input)                          | `Input`                                                                                   |
+| `auth-input` (на textarea)                       | `Textarea`                                                                                |
+| `auth-input` (на select)                         | shadcn `Select` или `className="..."` native с tailwind                                   |
+| `button`, `button--ghost`, `button--back`        | shadcn `Button` с нужным variant/size                                                     |
+| `button--danger-outline`                         | `Button variant="destructive"`                                                            |
+| `badge`, `badge--channel`, `badge--warning`      | shadcn `Badge` с variant                                                                  |
+| `status-pill`, `status-pill--*`                  | `Badge` с variant или отдельный `StatusPill`                                              |
+| `user-pill`, `user-pill__role`                   | inline Tailwind: `inline-flex items-center gap-2 rounded-full bg-muted px-3 py-2 text-sm` |
+| `top-bar`, `top-bar__*`                          | удалить — уже есть `DoctorHeader`/`PatientHeader`                                         |
+| `app-shell` (default variant)                    | удалить — уже дублируется Tailwind-классами в `AppShell.tsx`                              |
+| `app-shell--patient`                             | → `safe-padding-patient` (safe-area utility, см. 3.3) + Tailwind                          |
+| `patient-edge-bleed`                             | → `safe-bleed-x`                                                                          |
+| `patient-fab-quick-add`                          | → `safe-fab-br`                                                                           |
+| `kpi-grid`                                       | `grid grid-cols-[repeat(auto-fit,minmax(140px,1fr))] gap-3`                               |
+| `kpi-card`, `kpi-card__value`, `kpi-card__label` | Tailwind на элементах                                                                     |
+| `overview-columns`                               | `grid md:grid-cols-2 gap-4`                                                               |
+| `master-detail`, `master-detail__detail`         | `block md:grid md:grid-cols-[1fr_2fr] gap-4` + `hidden md:block`                          |
+| `client-row`, `client-row__badges`               | `flex items-start justify-between gap-3` + `flex flex-wrap gap-1.5 shrink-0`              |
+| `clients-filters__btn--active`                   | `SegmentControl` или inline Tailwind active state                                         |
+| `auth-plaque`, `auth-plaque__text`               | `Card` или inline `rounded-2xl bg-muted p-4 border`                                       |
+| `code-block`                                     | `rounded-2xl bg-[#101521] text-[#eef4ff] p-4 overflow-auto text-sm`                       |
+| `ask-question-fab`                               | `Button` + Tailwind positioning                                                           |
+| `ask-question-panel*` (весь блок)                | был мёртвым CSS; **на main:** удалён при чистке `globals.css`                             |
 
 ### 5.2 Inline style → Tailwind (шпаргалка)
 
-| Inline | Tailwind |
-|--------|----------|
-| `style={{ gap: "0.25rem" }}` | `gap-1` |
-| `style={{ gap: "0.5rem" }}` | `gap-2` |
-| `style={{ gap: "0.75rem" }}` | `gap-3` |
-| `style={{ gap: 8 }}` / `"0.5rem"` | `gap-2` |
-| `style={{ gap: 12 }}` / `"0.75rem"` | `gap-3` |
-| `style={{ gap: 16 }}` / `"1rem"` | `gap-4` |
-| `style={{ gap: "1.5rem" }}` | `gap-6` |
-| `style={{ gap: "2rem" }}` | `gap-8` |
-| `style={{ marginTop: "0.5rem" }}` | `mt-2` |
-| `style={{ marginTop: "1rem" }}` | `mt-4` |
-| `style={{ marginTop: 16 }}` | `mt-4` |
-| `style={{ marginBottom: 4 }}` | `mb-1` |
-| `style={{ maxWidth: 320 }}` | `max-w-xs` (320px) |
-| `style={{ color: "#9c4242" }}` | `text-destructive` |
-| `style={{ color: "#b91c1c" }}` | `text-destructive` |
-| `style={{ color: "#15803d" }}` | `text-green-700` |
-| `style={{ color: "#16a34a" }}` | `text-green-600` |
-| `style={{ color: "#64748b" }}` | `text-muted-foreground` |
-| `style={{ color: "#5f6f86" }}` | `text-muted-foreground` |
-| `style={{ fontSize: "0.9rem" }}` | `text-sm` |
-| `style={{ fontSize: 14 }}` | `text-sm` |
-| `style={{ fontSize: 12 }}` | `text-xs` |
-| `style={{ listStyle: "none", padding: 0 }}` | `list-none p-0` |
-| `style={{ display: "flex", gap: 8 }}` | `flex gap-2` |
-| `style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}` | `flex flex-wrap gap-2` |
-| `style={{ display: "block", marginBottom: 4 }}` | `block mb-1` |
-| `style={{ textAlign: "left", padding: "0.5rem" }}` | `text-left p-2` |
-| `style={{ width: "100%", borderCollapse: "collapse" }}` | `w-full border-collapse` |
+| Inline                                                         | Tailwind                 |
+| -------------------------------------------------------------- | ------------------------ |
+| `style={{ gap: "0.25rem" }}`                                   | `gap-1`                  |
+| `style={{ gap: "0.5rem" }}`                                    | `gap-2`                  |
+| `style={{ gap: "0.75rem" }}`                                   | `gap-3`                  |
+| `style={{ gap: 8 }}` / `"0.5rem"`                              | `gap-2`                  |
+| `style={{ gap: 12 }}` / `"0.75rem"`                            | `gap-3`                  |
+| `style={{ gap: 16 }}` / `"1rem"`                               | `gap-4`                  |
+| `style={{ gap: "1.5rem" }}`                                    | `gap-6`                  |
+| `style={{ gap: "2rem" }}`                                      | `gap-8`                  |
+| `style={{ marginTop: "0.5rem" }}`                              | `mt-2`                   |
+| `style={{ marginTop: "1rem" }}`                                | `mt-4`                   |
+| `style={{ marginTop: 16 }}`                                    | `mt-4`                   |
+| `style={{ marginBottom: 4 }}`                                  | `mb-1`                   |
+| `style={{ maxWidth: 320 }}`                                    | `max-w-xs` (320px)       |
+| `style={{ color: "#9c4242" }}`                                 | `text-destructive`       |
+| `style={{ color: "#b91c1c" }}`                                 | `text-destructive`       |
+| `style={{ color: "#15803d" }}`                                 | `text-green-700`         |
+| `style={{ color: "#16a34a" }}`                                 | `text-green-600`         |
+| `style={{ color: "#64748b" }}`                                 | `text-muted-foreground`  |
+| `style={{ color: "#5f6f86" }}`                                 | `text-muted-foreground`  |
+| `style={{ fontSize: "0.9rem" }}`                               | `text-sm`                |
+| `style={{ fontSize: 14 }}`                                     | `text-sm`                |
+| `style={{ fontSize: 12 }}`                                     | `text-xs`                |
+| `style={{ listStyle: "none", padding: 0 }}`                    | `list-none p-0`          |
+| `style={{ display: "flex", gap: 8 }}`                          | `flex gap-2`             |
+| `style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}` | `flex flex-wrap gap-2`   |
+| `style={{ display: "block", marginBottom: 4 }}`                | `block mb-1`             |
+| `style={{ textAlign: "left", padding: "0.5rem" }}`             | `text-left p-2`          |
+| `style={{ width: "100%", borderCollapse: "collapse" }}`        | `w-full border-collapse` |
 
 ---
 
@@ -391,6 +399,7 @@ Variants:
 ### 6.2 Сегментированные кнопки и choice chips
 
 **Было до миграции:** разные raw `<button>` группы с почти одинаковой логикой:
+
 - period bar (week/month/all) в `DiaryStatsPeriodBar.tsx`
 - side picker (left/right/both) в `CreateTrackingForm.tsx`
 - intensity chips (0..10) в `AddEntryForm.tsx` и `QuickAddPopup.tsx`
@@ -433,13 +442,13 @@ Variants:
 
 ## 7) Рекомендуемые `components/common/*`
 
-| Компонент | Заменяет | Путь |
-|-----------|---------|------|
-| `PageSection` | `panel`, `hero-card` | `components/common/layout/PageSection.tsx` |
-| `SectionHeading` | `eyebrow`, разнобой `h2/h3` | `components/common/typography/SectionHeading.tsx` |
-| `LabeledSwitch` | локальные Toggle | `components/common/form/LabeledSwitch.tsx` |
-| `SegmentControl` | period tabs, side picker | `components/common/controls/SegmentControl.tsx` |
-| `NumericChipGroup` | шкалы 0..10 | `components/common/controls/NumericChipGroup.tsx` |
+| Компонент                  | Заменяет                     | Путь                                                                                                                                                                 |
+| -------------------------- | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PageSection`              | `panel`, `hero-card`         | `components/common/layout/PageSection.tsx`                                                                                                                           |
+| `SectionHeading`           | `eyebrow`, разнобой `h2/h3`  | `components/common/typography/SectionHeading.tsx`                                                                                                                    |
+| `LabeledSwitch`            | локальные Toggle             | `components/common/form/LabeledSwitch.tsx`                                                                                                                           |
+| `SegmentControl`           | period tabs, side picker     | `components/common/controls/SegmentControl.tsx`                                                                                                                      |
+| `NumericChipGroup`         | шкалы 0..10                  | `components/common/controls/NumericChipGroup.tsx`                                                                                                                    |
 | `StatusPill` (опционально) | `status-pill--*`, `badge--*` | В плане изначально — отдельный компонент; **на `main` отдельного `StatusPill.tsx` нет** — используйте shadcn `Badge` (как в миграциях списков клиентов / сообщений). |
 
 **На `main`:** `PageHeader` удалён; для страниц используются `SectionHeading` и при необходимости обёртки в `AppShell` / `PageSection`.
@@ -467,6 +476,7 @@ Variants:
 Props: `level: "page" | "section" | "subsection" | "eyebrow"`, `className?`, `children`, `as?: ElementType`.
 
 Классы по уровням:
+
 - `page` → тег `h1`, `text-xl font-semibold tracking-tight`
 - `section` → тег `h2`, `text-lg font-semibold`
 - `subsection` → тег `h3`, `text-base font-medium`
@@ -479,6 +489,7 @@ Props: `level: "page" | "section" | "subsection" | "eyebrow"`, `className?`, `ch
 Props: `variant?: "default" | "compact" | "hero"`, `className?`, `children`, `as?: "section" | "div" | "article"`, `id?`.
 
 Классы:
+
 - `default`: `rounded-2xl border border-border bg-card p-4 shadow-sm`
 - `compact`: `rounded-xl border border-border bg-card p-3`
 - `hero`: `rounded-2xl border border-border bg-card p-6 shadow-sm`
@@ -495,6 +506,7 @@ Hint: `text-xs text-muted-foreground`.
 Control: shadcn `Switch`.
 
 Файлы для замены:
+
 - `app/app/settings/SettingsForm.tsx` — удалить локальный Toggle, использовать LabeledSwitch
 - `app/app/settings/AdminSettingsSection.tsx` — то же
 
@@ -509,6 +521,7 @@ Item active: `rounded-sm bg-primary text-primary-foreground shadow-sm px-3 py-1.
 Item inactive: `rounded-sm bg-transparent text-muted-foreground hover:bg-muted/80 hover:text-foreground px-3 py-1.5 text-xs font-medium`.
 
 Файлы для замены:
+
 - `DiaryStatsPeriodBar.tsx` — period tabs
 - `CreateTrackingForm.tsx` — side picker (left/right/both)
 
@@ -523,6 +536,7 @@ Props: `min: number`, `max: number`, `value: number | null`, `onChange: (v: numb
 `aria-pressed` на каждом chip.
 
 Файлы для замены:
+
 - `AddEntryForm.tsx`
 - `QuickAddPopup.tsx`
 
@@ -530,19 +544,20 @@ Props: `min: number`, `max: number`, `value: number | null`, `onChange: (v: numb
 
 #### Task 2.1 Raw buttons → Button
 
-| Файл | Что | На что |
-|------|-----|--------|
-| `AskQuestionFAB.tsx` | raw `<button className="ask-question-fab">` | `Button variant="default" className="..."` + Tailwind positioning |
-| `DoctorAppointmentActions.tsx` | два raw `<button>` без стилей | `Button variant="outline" size="sm"` |
-| `DoctorSupportInbox.tsx` | кнопки выбора диалога | `Button variant="ghost" className="w-full text-left ..."` |
-| `TemplateEditor.tsx` | кнопки выбора упражнения в picker | `Button variant="ghost" className="w-full justify-start"` |
-| `TemplateEditor.tsx` | drag-handle кнопка | оставить raw — нужны dnd `{...attributes} {...listeners}` |
-| `ProfileForm.tsx` | кнопка «Отмена» | `Button variant="link"` |
-| `SymptomTrackingRow.tsx` | hidden submit buttons | оставить raw — hidden utility forms |
+| Файл                           | Что                                         | На что                                                            |
+| ------------------------------ | ------------------------------------------- | ----------------------------------------------------------------- |
+| `AskQuestionFAB.tsx`           | raw `<button className="ask-question-fab">` | `Button variant="default" className="..."` + Tailwind positioning |
+| `DoctorAppointmentActions.tsx` | два raw `<button>` без стилей               | `Button variant="outline" size="sm"`                              |
+| `DoctorSupportInbox.tsx`       | кнопки выбора диалога                       | `Button variant="ghost" className="w-full text-left ..."`         |
+| `TemplateEditor.tsx`           | кнопки выбора упражнения в picker           | `Button variant="ghost" className="w-full justify-start"`         |
+| `TemplateEditor.tsx`           | drag-handle кнопка                          | оставить raw — нужны dnd `{...attributes} {...listeners}`         |
+| `ProfileForm.tsx`              | кнопка «Отмена»                             | `Button variant="link"`                                           |
+| `SymptomTrackingRow.tsx`       | hidden submit buttons                       | оставить raw — hidden utility forms                               |
 
 #### Task 2.2 Inline styles (приоритетные файлы)
 
 Порядок:
+
 1. `app/app/doctor/content/page.tsx` (15 inline styles)
 2. `app/app/doctor/content/news/NewsForms.tsx` (20 inline styles)
 3. `app/app/doctor/messages/NewMessageForm.tsx` (13 inline styles)
@@ -608,9 +623,11 @@ Props: `min: number`, `max: number`, `value: number | null`, `onChange: (v: numb
 4. Оставить только то, что описано в секции 3 выше.
 
 Проверка:
+
 ```bash
 rg "className=\"[^\"]*(panel|hero-card|feature-card|feature-grid|list-item|eyebrow|button--|badge--|auth-input|top-bar|app-shell|stack|empty-state|auth-plaque|user-pill|kpi-|overview-columns|master-detail|client-row|ask-question|code-block)" apps/webapp/src --glob "*.tsx"
 ```
+
 Результат должен быть 0 строк.
 
 ### Фаза 5. Финальная стандартизация
@@ -680,26 +697,26 @@ pnpm run ci
 
 Формат: дата (UTC), действие, результат проверки (если было).
 
-| Дата | Действие | Проверка |
-|------|----------|----------|
-| 2026-03-26 | Фаза 0: проверены `button-variants.ts` (variants/sizes достаточно), `Switch` из `components/ui/switch.tsx` | — |
-| 2026-03-26 | Фаза 0: удалён неиспользуемый `shared/ui/PageHeader.tsx` (0 импортов; замена — `SectionHeading` + разметка в `AppShell`) | — |
-| 2026-03-26 | Фаза 1: добавлены `SectionHeading`, `PageSection`, `LabeledSwitch`, `SegmentControl`, `NumericChipGroup` | `pnpm --dir apps/webapp typecheck` |
-| 2026-03-26 | Фаза 2: raw `<button>` заменены на `Button` где требуется планом (`AskQuestionFAB`, `DoctorAppointmentActions`, `DoctorSupportInbox`, picker в `TemplateEditor`, «Отмена» в `ProfileForm`); drag-handle в `TemplateEditor` оставлен raw | — |
-| 2026-03-26 | Фаза 2: убраны inline `style={{...}}` из `apps/webapp/src` кроме `global-error.tsx` (по плану) | `rg "style=\\{\\{" apps/webapp/src --glob "*.tsx"` → только `global-error.tsx` |
-| 2026-03-26 | Фаза 3: массовая замена legacy-классов (`stack`, `panel`, `hero-card`, `eyebrow`, `auth-input`, `empty-state`, `list`/`list-item`, бейджи и т.д.) на Tailwind/shadcn; обновлён `FeatureCard.tsx`; `DoctorClientsPanel`/`messages` — `Badge` | — |
-| 2026-03-26 | Фаза 4: `globals.css` сокращён до токенов + `@theme` + `@layer base` + сброс ссылок + `.markdown-preview` + `.lfk-diary-range` + `@layer utilities` с `.safe-padding-patient`, `.safe-bleed-x`, `.safe-fab-br`; удалён legacy component-level CSS | — |
-| 2026-03-26 | Фаза 4: переименование safe-area: `AppShell` (patient), `PatientHeader`, `DiaryTabsClient`, `QuickAddPopup` переведены на классы `safe-*` | — |
-| 2026-03-26 | Фаза 5: `AppShell` default-вариант на Tailwind + `SectionHeading`; полный CI | `pnpm run ci` (успешно) |
-| 2026-03-26 | Исправление: скрипт замены `list` случайно повредил идентификаторы `list` в TS — восстановлены в `DoctorClientsPanel`, `content/page`, `exercises/page`, `lfk-templates/page`; в `SectionHeading` восстановлен ключ `eyebrow` | `pnpm --dir apps/webapp typecheck` |
-| 2026-03-26 | Доводка DoD §2.1 + §9: убраны оставшиеся inline-стили в `NumericChipGroup`; raw `<button>` заменены на `Button` / `<input type="submit">` где применимо | `pnpm run ci` (успешно, попытка 1) |
+| Дата       | Действие                                                                                                                                                                                                                                          | Проверка                                                                       |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| 2026-03-26 | Фаза 0: проверены `button-variants.ts` (variants/sizes достаточно), `Switch` из `components/ui/switch.tsx`                                                                                                                                        | —                                                                              |
+| 2026-03-26 | Фаза 0: удалён неиспользуемый `shared/ui/PageHeader.tsx` (0 импортов; замена — `SectionHeading` + разметка в `AppShell`)                                                                                                                          | —                                                                              |
+| 2026-03-26 | Фаза 1: добавлены `SectionHeading`, `PageSection`, `LabeledSwitch`, `SegmentControl`, `NumericChipGroup`                                                                                                                                          | `pnpm --dir apps/webapp typecheck`                                             |
+| 2026-03-26 | Фаза 2: raw `<button>` заменены на `Button` где требуется планом (`AskQuestionFAB`, `DoctorAppointmentActions`, `DoctorSupportInbox`, picker в `TemplateEditor`, «Отмена» в `ProfileForm`); drag-handle в `TemplateEditor` оставлен raw           | —                                                                              |
+| 2026-03-26 | Фаза 2: убраны inline `style={{...}}` из `apps/webapp/src` кроме `global-error.tsx` (по плану)                                                                                                                                                    | `rg "style=\\{\\{" apps/webapp/src --glob "*.tsx"` → только `global-error.tsx` |
+| 2026-03-26 | Фаза 3: массовая замена legacy-классов (`stack`, `panel`, `hero-card`, `eyebrow`, `auth-input`, `empty-state`, `list`/`list-item`, бейджи и т.д.) на Tailwind/shadcn; обновлён `FeatureCard.tsx`; `DoctorClientsPanel`/`messages` — `Badge`       | —                                                                              |
+| 2026-03-26 | Фаза 4: `globals.css` сокращён до токенов + `@theme` + `@layer base` + сброс ссылок + `.markdown-preview` + `.lfk-diary-range` + `@layer utilities` с `.safe-padding-patient`, `.safe-bleed-x`, `.safe-fab-br`; удалён legacy component-level CSS | —                                                                              |
+| 2026-03-26 | Фаза 4: переименование safe-area: `AppShell` (patient), `PatientHeader`, `DiaryTabsClient`, `QuickAddPopup` переведены на классы `safe-*`                                                                                                         | —                                                                              |
+| 2026-03-26 | Фаза 5: `AppShell` default-вариант на Tailwind + `SectionHeading`; полный CI                                                                                                                                                                      | `pnpm run ci` (успешно)                                                        |
+| 2026-03-26 | Исправление: скрипт замены `list` случайно повредил идентификаторы `list` в TS — восстановлены в `DoctorClientsPanel`, `content/page`, `exercises/page`, `lfk-templates/page`; в `SectionHeading` восстановлен ключ `eyebrow`                     | `pnpm --dir apps/webapp typecheck`                                             |
+| 2026-03-26 | Доводка DoD §2.1 + §9: убраны оставшиеся inline-стили в `NumericChipGroup`; raw `<button>` заменены на `Button` / `<input type="submit">` где применимо                                                                                           | `pnpm run ci` (успешно, попытка 1)                                             |
 
 ### 12.1 Проверка по чек-листу §9 (после доработки)
 
-| Пункт | Команда / критерий | Результат |
-|-------|-------------------|-----------|
-| Legacy-классы | `rg "className=\"[^\"]*(panel\|…)" apps/webapp/src --glob "*.tsx"` | 0 совпадений |
-| Inline styles | `style={{` только вне `global-error.tsx` | исправлено: `NumericChipGroup` больше не использует `style` (дискретные классы Tailwind 0–10) |
-| Raw `<button>` | кроме `global-error.tsx` | исправлено: `SegmentControl` и `NumericChipGroup` → `Button`; `ReferenceSelect` → `Button`; DnD-handle в `TemplateEditor` → `Button`; скрытые submit в `SymptomTrackingRow` → `<input type="submit">`; остался только `global-error.tsx` |
-| PageHeader | файл удалён на `main`, импортов нет | `rg` → 0 |
-| Полный CI | `pnpm run ci` | зелёный (1-я попытка) |
+| Пункт          | Команда / критерий                                                 | Результат                                                                                                                                                                                                                                |
+| -------------- | ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Legacy-классы  | `rg "className=\"[^\"]*(panel\|…)" apps/webapp/src --glob "*.tsx"` | 0 совпадений                                                                                                                                                                                                                             |
+| Inline styles  | `style={{` только вне `global-error.tsx`                           | исправлено: `NumericChipGroup` больше не использует `style` (дискретные классы Tailwind 0–10)                                                                                                                                            |
+| Raw `<button>` | кроме `global-error.tsx`                                           | исправлено: `SegmentControl` и `NumericChipGroup` → `Button`; `ReferenceSelect` → `Button`; DnD-handle в `TemplateEditor` → `Button`; скрытые submit в `SymptomTrackingRow` → `<input type="submit">`; остался только `global-error.tsx` |
+| PageHeader     | файл удалён на `main`, импортов нет                                | `rg` → 0                                                                                                                                                                                                                                 |
+| Полный CI      | `pnpm run ci`                                                      | зелёный (1-я попытка)                                                                                                                                                                                                                    |

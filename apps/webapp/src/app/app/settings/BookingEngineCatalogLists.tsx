@@ -1,17 +1,17 @@
-"use client";
+'use client';
 
-import { useState, type ReactNode } from "react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Input } from "@/shared/ui/doctor/primitives/input";
+import { useState, type ReactNode } from 'react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Input } from '@/shared/ui/doctor/primitives/input';
 
 import {
   minorToRublesInput,
   parseRublesInput,
   rublesToMinor,
-} from "@/app/app/settings/bookingSoloAdminApi";
-import { apiJson } from "@/shared/lib/apiJson";
+} from '@/app/app/settings/bookingSoloAdminApi';
+import { apiJson } from '@/shared/lib/apiJson';
 
-const BASE = "/api/admin/booking-engine";
+const BASE = '/api/admin/booking-engine';
 
 type RowActionsProps = {
   isPending: boolean;
@@ -38,7 +38,14 @@ function RowActions({
         <Button type="button" size="sm" className="h-7 px-2" disabled={isPending} onClick={onSave}>
           OK
         </Button>
-        <Button type="button" size="sm" variant="ghost" className="h-7 px-2" disabled={isPending} onClick={onCancel}>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className="h-7 px-2"
+          disabled={isPending}
+          onClick={onCancel}
+        >
           ×
         </Button>
       </>
@@ -46,7 +53,14 @@ function RowActions({
   }
   return (
     <>
-      <Button type="button" size="sm" variant="ghost" className="h-7 px-2" disabled={isPending} onClick={onEdit}>
+      <Button
+        type="button"
+        size="sm"
+        variant="ghost"
+        className="h-7 px-2"
+        disabled={isPending}
+        onClick={onEdit}
+      >
         Изм.
       </Button>
       <Button
@@ -57,7 +71,7 @@ function RowActions({
         disabled={isPending}
         onClick={onToggleActive}
       >
-        {isActive ? "Выкл." : "Вкл."}
+        {isActive ? 'Выкл.' : 'Вкл.'}
       </Button>
     </>
   );
@@ -67,7 +81,7 @@ type CatalogListProps = {
   isPending: boolean;
   onChanged: () => Promise<void>;
   onError: (message: string) => void;
-  layout?: "list" | "table";
+  layout?: 'list' | 'table';
 };
 
 function CatalogTableShell({ children }: { children: ReactNode }) {
@@ -84,7 +98,7 @@ function useCatalogAction(onChanged: () => Promise<void>, onError: (message: str
       await fn();
       await onChanged();
     } catch (e) {
-      onError(e instanceof Error ? e.message : "action_failed");
+      onError(e instanceof Error ? e.message : 'action_failed');
     }
   };
 }
@@ -96,14 +110,14 @@ export function BookingEngineBranchList({
   isPending,
   onChanged,
   onError,
-  layout = "list",
+  layout = 'list',
 }: CatalogListProps & { branches: BranchRow[] }) {
   const wrap = useCatalogAction(onChanged, onError);
   const [editId, setEditId] = useState<string | null>(null);
-  const [editTitle, setEditTitle] = useState("");
-  const [editCity, setEditCity] = useState("");
+  const [editTitle, setEditTitle] = useState('');
+  const [editCity, setEditCity] = useState('');
 
-  if (layout === "table") {
+  if (layout === 'table') {
     return (
       <CatalogTableShell>
         <thead>
@@ -124,14 +138,18 @@ export function BookingEngineBranchList({
                     onChange={(e) => setEditTitle(e.target.value)}
                   />
                 ) : (
-                  <span className={!b.isActive ? "text-muted-foreground line-through" : undefined}>
+                  <span className={!b.isActive ? 'text-muted-foreground line-through' : undefined}>
                     {b.title}
                   </span>
                 )}
               </td>
               <td className="px-3 py-2">
                 {editId === b.id ? (
-                  <Input className="h-8 w-24" value={editCity} onChange={(e) => setEditCity(e.target.value)} />
+                  <Input
+                    className="h-8 w-24"
+                    value={editCity}
+                    onChange={(e) => setEditCity(e.target.value)}
+                  />
                 ) : (
                   b.cityCode
                 )}
@@ -150,24 +168,26 @@ export function BookingEngineBranchList({
                   onSave={() =>
                     void wrap(async () => {
                       const res = await apiJson<{ ok: boolean }>(`${BASE}/branches/${b.id}`, {
-                        method: "PATCH",
-                        headers: { "Content-Type": "application/json" },
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ title: editTitle, cityCode: editCity }),
                       });
-                      if (!res.ok) throw new Error("branch_patch_failed");
+                      if (!res.ok) throw new Error('branch_patch_failed');
                       setEditId(null);
                     })
                   }
                   onToggleActive={() =>
                     void wrap(async () => {
                       const res = b.isActive
-                        ? await apiJson<{ ok: boolean }>(`${BASE}/branches/${b.id}`, { method: "DELETE" })
+                        ? await apiJson<{ ok: boolean }>(`${BASE}/branches/${b.id}`, {
+                            method: 'DELETE',
+                          })
                         : await apiJson<{ ok: boolean }>(`${BASE}/branches/${b.id}`, {
-                            method: "PATCH",
-                            headers: { "Content-Type": "application/json" },
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ isActive: true }),
                           });
-                      if (!res.ok) throw new Error("branch_toggle_failed");
+                      if (!res.ok) throw new Error('branch_toggle_failed');
                     })
                   }
                 />
@@ -190,11 +210,15 @@ export function BookingEngineBranchList({
                 value={editTitle}
                 onChange={(e) => setEditTitle(e.target.value)}
               />
-              <Input className="h-8 w-24" value={editCity} onChange={(e) => setEditCity(e.target.value)} />
+              <Input
+                className="h-8 w-24"
+                value={editCity}
+                onChange={(e) => setEditCity(e.target.value)}
+              />
             </>
           ) : (
-            <span className={!b.isActive ? "text-muted-foreground line-through" : undefined}>
-              {b.title} ({b.cityCode}){!b.isActive ? " — выкл." : ""}
+            <span className={!b.isActive ? 'text-muted-foreground line-through' : undefined}>
+              {b.title} ({b.cityCode}){!b.isActive ? ' — выкл.' : ''}
             </span>
           )}
           <RowActions
@@ -210,24 +234,24 @@ export function BookingEngineBranchList({
             onSave={() =>
               void wrap(async () => {
                 const res = await apiJson<{ ok: boolean }>(`${BASE}/branches/${b.id}`, {
-                  method: "PATCH",
-                  headers: { "Content-Type": "application/json" },
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ title: editTitle, cityCode: editCity }),
                 });
-                if (!res.ok) throw new Error("branch_patch_failed");
+                if (!res.ok) throw new Error('branch_patch_failed');
                 setEditId(null);
               })
             }
             onToggleActive={() =>
               void wrap(async () => {
                 const res = b.isActive
-                  ? await apiJson<{ ok: boolean }>(`${BASE}/branches/${b.id}`, { method: "DELETE" })
+                  ? await apiJson<{ ok: boolean }>(`${BASE}/branches/${b.id}`, { method: 'DELETE' })
                   : await apiJson<{ ok: boolean }>(`${BASE}/branches/${b.id}`, {
-                      method: "PATCH",
-                      headers: { "Content-Type": "application/json" },
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ isActive: true }),
                     });
-                if (!res.ok) throw new Error("branch_toggle_failed");
+                if (!res.ok) throw new Error('branch_toggle_failed');
               })
             }
           />
@@ -244,13 +268,13 @@ export function BookingEngineRoomList({
   isPending,
   onChanged,
   onError,
-  layout = "list",
+  layout = 'list',
 }: CatalogListProps & { rooms: RoomRow[] }) {
   const wrap = useCatalogAction(onChanged, onError);
   const [editId, setEditId] = useState<string | null>(null);
-  const [editTitle, setEditTitle] = useState("");
+  const [editTitle, setEditTitle] = useState('');
 
-  if (layout === "table") {
+  if (layout === 'table') {
     return (
       <CatalogTableShell>
         <thead>
@@ -264,9 +288,13 @@ export function BookingEngineRoomList({
             <tr key={r.id} className="border-b border-border/60 last:border-0">
               <td className="px-3 py-2">
                 {editId === r.id ? (
-                  <Input className="h-8" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} />
+                  <Input
+                    className="h-8"
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                  />
                 ) : (
-                  <span className={!r.isActive ? "text-muted-foreground line-through" : undefined}>
+                  <span className={!r.isActive ? 'text-muted-foreground line-through' : undefined}>
                     {r.title}
                   </span>
                 )}
@@ -284,24 +312,26 @@ export function BookingEngineRoomList({
                   onSave={() =>
                     void wrap(async () => {
                       const res = await apiJson<{ ok: boolean }>(`${BASE}/rooms/${r.id}`, {
-                        method: "PATCH",
-                        headers: { "Content-Type": "application/json" },
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ title: editTitle }),
                       });
-                      if (!res.ok) throw new Error("room_patch_failed");
+                      if (!res.ok) throw new Error('room_patch_failed');
                       setEditId(null);
                     })
                   }
                   onToggleActive={() =>
                     void wrap(async () => {
                       const res = r.isActive
-                        ? await apiJson<{ ok: boolean }>(`${BASE}/rooms/${r.id}`, { method: "DELETE" })
+                        ? await apiJson<{ ok: boolean }>(`${BASE}/rooms/${r.id}`, {
+                            method: 'DELETE',
+                          })
                         : await apiJson<{ ok: boolean }>(`${BASE}/rooms/${r.id}`, {
-                            method: "PATCH",
-                            headers: { "Content-Type": "application/json" },
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ isActive: true }),
                           });
-                      if (!res.ok) throw new Error("room_toggle_failed");
+                      if (!res.ok) throw new Error('room_toggle_failed');
                     })
                   }
                 />
@@ -324,9 +354,9 @@ export function BookingEngineRoomList({
               onChange={(e) => setEditTitle(e.target.value)}
             />
           ) : (
-            <span className={!r.isActive ? "text-muted-foreground line-through" : undefined}>
+            <span className={!r.isActive ? 'text-muted-foreground line-through' : undefined}>
               {r.title}
-              {!r.isActive ? " — выкл." : ""}
+              {!r.isActive ? ' — выкл.' : ''}
             </span>
           )}
           <RowActions
@@ -341,24 +371,24 @@ export function BookingEngineRoomList({
             onSave={() =>
               void wrap(async () => {
                 const res = await apiJson<{ ok: boolean }>(`${BASE}/rooms/${r.id}`, {
-                  method: "PATCH",
-                  headers: { "Content-Type": "application/json" },
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ title: editTitle }),
                 });
-                if (!res.ok) throw new Error("room_patch_failed");
+                if (!res.ok) throw new Error('room_patch_failed');
                 setEditId(null);
               })
             }
             onToggleActive={() =>
               void wrap(async () => {
                 const res = r.isActive
-                  ? await apiJson<{ ok: boolean }>(`${BASE}/rooms/${r.id}`, { method: "DELETE" })
+                  ? await apiJson<{ ok: boolean }>(`${BASE}/rooms/${r.id}`, { method: 'DELETE' })
                   : await apiJson<{ ok: boolean }>(`${BASE}/rooms/${r.id}`, {
-                      method: "PATCH",
-                      headers: { "Content-Type": "application/json" },
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ isActive: true }),
                     });
-                if (!res.ok) throw new Error("room_toggle_failed");
+                if (!res.ok) throw new Error('room_toggle_failed');
               })
             }
           />
@@ -375,13 +405,13 @@ export function BookingEngineSpecialistList({
   isPending,
   onChanged,
   onError,
-  layout = "list",
+  layout = 'list',
 }: CatalogListProps & { specialists: SpecialistRow[] }) {
   const wrap = useCatalogAction(onChanged, onError);
   const [editId, setEditId] = useState<string | null>(null);
-  const [editName, setEditName] = useState("");
+  const [editName, setEditName] = useState('');
 
-  if (layout === "table") {
+  if (layout === 'table') {
     return (
       <CatalogTableShell>
         <thead>
@@ -395,9 +425,13 @@ export function BookingEngineSpecialistList({
             <tr key={s.id} className="border-b border-border/60 last:border-0">
               <td className="px-3 py-2">
                 {editId === s.id ? (
-                  <Input className="h-8" value={editName} onChange={(e) => setEditName(e.target.value)} />
+                  <Input
+                    className="h-8"
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                  />
                 ) : (
-                  <span className={!s.isActive ? "text-muted-foreground line-through" : undefined}>
+                  <span className={!s.isActive ? 'text-muted-foreground line-through' : undefined}>
                     {s.fullName}
                   </span>
                 )}
@@ -415,24 +449,26 @@ export function BookingEngineSpecialistList({
                   onSave={() =>
                     void wrap(async () => {
                       const res = await apiJson<{ ok: boolean }>(`${BASE}/specialists/${s.id}`, {
-                        method: "PATCH",
-                        headers: { "Content-Type": "application/json" },
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ fullName: editName }),
                       });
-                      if (!res.ok) throw new Error("specialist_patch_failed");
+                      if (!res.ok) throw new Error('specialist_patch_failed');
                       setEditId(null);
                     })
                   }
                   onToggleActive={() =>
                     void wrap(async () => {
                       const res = s.isActive
-                        ? await apiJson<{ ok: boolean }>(`${BASE}/specialists/${s.id}`, { method: "DELETE" })
+                        ? await apiJson<{ ok: boolean }>(`${BASE}/specialists/${s.id}`, {
+                            method: 'DELETE',
+                          })
                         : await apiJson<{ ok: boolean }>(`${BASE}/specialists/${s.id}`, {
-                            method: "PATCH",
-                            headers: { "Content-Type": "application/json" },
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ isActive: true }),
                           });
-                      if (!res.ok) throw new Error("specialist_toggle_failed");
+                      if (!res.ok) throw new Error('specialist_toggle_failed');
                     })
                   }
                 />
@@ -455,9 +491,9 @@ export function BookingEngineSpecialistList({
               onChange={(e) => setEditName(e.target.value)}
             />
           ) : (
-            <span className={!s.isActive ? "text-muted-foreground line-through" : undefined}>
+            <span className={!s.isActive ? 'text-muted-foreground line-through' : undefined}>
               {s.fullName}
-              {!s.isActive ? " — выкл." : ""}
+              {!s.isActive ? ' — выкл.' : ''}
             </span>
           )}
           <RowActions
@@ -472,24 +508,26 @@ export function BookingEngineSpecialistList({
             onSave={() =>
               void wrap(async () => {
                 const res = await apiJson<{ ok: boolean }>(`${BASE}/specialists/${s.id}`, {
-                  method: "PATCH",
-                  headers: { "Content-Type": "application/json" },
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ fullName: editName }),
                 });
-                if (!res.ok) throw new Error("specialist_patch_failed");
+                if (!res.ok) throw new Error('specialist_patch_failed');
                 setEditId(null);
               })
             }
             onToggleActive={() =>
               void wrap(async () => {
                 const res = s.isActive
-                  ? await apiJson<{ ok: boolean }>(`${BASE}/specialists/${s.id}`, { method: "DELETE" })
+                  ? await apiJson<{ ok: boolean }>(`${BASE}/specialists/${s.id}`, {
+                      method: 'DELETE',
+                    })
                   : await apiJson<{ ok: boolean }>(`${BASE}/specialists/${s.id}`, {
-                      method: "PATCH",
-                      headers: { "Content-Type": "application/json" },
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ isActive: true }),
                     });
-                if (!res.ok) throw new Error("specialist_toggle_failed");
+                if (!res.ok) throw new Error('specialist_toggle_failed');
               })
             }
           />
@@ -514,15 +552,15 @@ export function BookingEngineServiceList({
   isPending,
   onChanged,
   onError,
-  layout = "list",
+  layout = 'list',
 }: CatalogListProps & { services: ServiceRow[] }) {
   const wrap = useCatalogAction(onChanged, onError);
   const [editId, setEditId] = useState<string | null>(null);
-  const [editTitle, setEditTitle] = useState("");
-  const [editDuration, setEditDuration] = useState("");
-  const [editPrice, setEditPrice] = useState("");
+  const [editTitle, setEditTitle] = useState('');
+  const [editDuration, setEditDuration] = useState('');
+  const [editPrice, setEditPrice] = useState('');
 
-  if (layout === "table") {
+  if (layout === 'table') {
     return (
       <CatalogTableShell>
         <thead>
@@ -538,12 +576,16 @@ export function BookingEngineServiceList({
             <tr key={s.id} className="border-b border-border/60 last:border-0">
               <td className="px-3 py-2">
                 {editId === s.id ? (
-                  <Input className="h-8" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} />
+                  <Input
+                    className="h-8"
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                  />
                 ) : (
-                  <span className={!s.isActive ? "text-muted-foreground line-through" : undefined}>
+                  <span className={!s.isActive ? 'text-muted-foreground line-through' : undefined}>
                     {s.title}
-                    {!s.publicWidgetVisible ? " · скрыта" : ""}
-                    {s.adminManualOnly ? " · вручную" : ""}
+                    {!s.publicWidgetVisible ? ' · скрыта' : ''}
+                    {s.adminManualOnly ? ' · вручную' : ''}
                   </span>
                 )}
               </td>
@@ -568,7 +610,7 @@ export function BookingEngineServiceList({
                     onChange={(e) => setEditPrice(e.target.value)}
                   />
                 ) : (
-                  `${(s.priceMinor / 100).toLocaleString("ru-RU")} ₽`
+                  `${(s.priceMinor / 100).toLocaleString('ru-RU')} ₽`
                 )}
               </td>
               <td className="px-3 py-2 text-right">
@@ -582,15 +624,15 @@ export function BookingEngineServiceList({
                     onClick={() =>
                       void wrap(async () => {
                         const res = await apiJson<{ ok: boolean }>(`${BASE}/services/${s.id}`, {
-                          method: "PATCH",
-                          headers: { "Content-Type": "application/json" },
+                          method: 'PATCH',
+                          headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({ adminManualOnly: !s.adminManualOnly }),
                         });
-                        if (!res.ok) throw new Error("service_patch_failed");
+                        if (!res.ok) throw new Error('service_patch_failed');
                       })
                     }
                   >
-                    {s.adminManualOnly ? "В виджет" : "Только вручную"}
+                    {s.adminManualOnly ? 'В виджет' : 'Только вручную'}
                   </Button>
                 ) : null}
                 <RowActions
@@ -607,28 +649,30 @@ export function BookingEngineServiceList({
                   onSave={() =>
                     void wrap(async () => {
                       const res = await apiJson<{ ok: boolean }>(`${BASE}/services/${s.id}`, {
-                        method: "PATCH",
-                        headers: { "Content-Type": "application/json" },
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                           title: editTitle,
                           durationMinutes: Number(editDuration),
                           priceMinor: rublesToMinor(parseRublesInput(editPrice)),
                         }),
                       });
-                      if (!res.ok) throw new Error("service_patch_failed");
+                      if (!res.ok) throw new Error('service_patch_failed');
                       setEditId(null);
                     })
                   }
                   onToggleActive={() =>
                     void wrap(async () => {
                       const res = s.isActive
-                        ? await apiJson<{ ok: boolean }>(`${BASE}/services/${s.id}`, { method: "DELETE" })
+                        ? await apiJson<{ ok: boolean }>(`${BASE}/services/${s.id}`, {
+                            method: 'DELETE',
+                          })
                         : await apiJson<{ ok: boolean }>(`${BASE}/services/${s.id}`, {
-                            method: "PATCH",
-                            headers: { "Content-Type": "application/json" },
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ isActive: true }),
                           });
-                      if (!res.ok) throw new Error("service_toggle_failed");
+                      if (!res.ok) throw new Error('service_toggle_failed');
                     })
                   }
                 />
@@ -665,11 +709,11 @@ export function BookingEngineServiceList({
               />
             </>
           ) : (
-            <span className={!s.isActive ? "text-muted-foreground line-through" : undefined}>
-              {s.title}, {s.durationMinutes} мин, {(s.priceMinor / 100).toLocaleString("ru-RU")} ₽
-              {!s.publicWidgetVisible ? " · скрыта" : ""}
-              {s.adminManualOnly ? " · вручную" : ""}
-              {!s.isActive ? " · выкл." : ""}
+            <span className={!s.isActive ? 'text-muted-foreground line-through' : undefined}>
+              {s.title}, {s.durationMinutes} мин, {(s.priceMinor / 100).toLocaleString('ru-RU')} ₽
+              {!s.publicWidgetVisible ? ' · скрыта' : ''}
+              {s.adminManualOnly ? ' · вручную' : ''}
+              {!s.isActive ? ' · выкл.' : ''}
             </span>
           )}
           {editId !== s.id ? (
@@ -682,15 +726,15 @@ export function BookingEngineServiceList({
               onClick={() =>
                 void wrap(async () => {
                   const res = await apiJson<{ ok: boolean }>(`${BASE}/services/${s.id}`, {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ adminManualOnly: !s.adminManualOnly }),
                   });
-                  if (!res.ok) throw new Error("service_patch_failed");
+                  if (!res.ok) throw new Error('service_patch_failed');
                 })
               }
             >
-              {s.adminManualOnly ? "В виджет" : "Только вручную"}
+              {s.adminManualOnly ? 'В виджет' : 'Только вручную'}
             </Button>
           ) : null}
           <RowActions
@@ -707,28 +751,28 @@ export function BookingEngineServiceList({
             onSave={() =>
               void wrap(async () => {
                 const res = await apiJson<{ ok: boolean }>(`${BASE}/services/${s.id}`, {
-                  method: "PATCH",
-                  headers: { "Content-Type": "application/json" },
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
                     title: editTitle,
                     durationMinutes: Number(editDuration),
                     priceMinor: rublesToMinor(parseRublesInput(editPrice)),
                   }),
                 });
-                if (!res.ok) throw new Error("service_patch_failed");
+                if (!res.ok) throw new Error('service_patch_failed');
                 setEditId(null);
               })
             }
             onToggleActive={() =>
               void wrap(async () => {
                 const res = s.isActive
-                  ? await apiJson<{ ok: boolean }>(`${BASE}/services/${s.id}`, { method: "DELETE" })
+                  ? await apiJson<{ ok: boolean }>(`${BASE}/services/${s.id}`, { method: 'DELETE' })
                   : await apiJson<{ ok: boolean }>(`${BASE}/services/${s.id}`, {
-                      method: "PATCH",
-                      headers: { "Content-Type": "application/json" },
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ isActive: true }),
                     });
-                if (!res.ok) throw new Error("service_toggle_failed");
+                if (!res.ok) throw new Error('service_toggle_failed');
               })
             }
           />

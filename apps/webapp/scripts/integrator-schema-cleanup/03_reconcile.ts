@@ -1,8 +1,8 @@
 #!/usr/bin/env tsx
 // HISTORICAL ONE-SHOT TOOL — Rubitime выведено 2026-07-27.
 // Kept for reproducible integrator-schema migration audits; it is not a live runtime workflow.
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative, resolve } from "node:path";
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { join, relative, resolve } from 'node:path';
 
 const HELP = `Usage:
   pnpm --dir apps/webapp exec tsx scripts/integrator-schema-cleanup/03_reconcile.ts --repo-root ../..
@@ -11,56 +11,61 @@ This is a source-level drop-safety checker. It does not access the database.`;
 
 type Candidate = {
   table: string;
-  decision: "blocked" | "candidate";
+  decision: 'blocked' | 'candidate';
   patterns: string[];
   owner: string;
 };
 
 const CANDIDATES: Candidate[] = [
   {
-    table: "integrator.system_settings",
-    decision: "blocked",
-    owner: "system-settings mirror",
-    patterns: ["integrator.system_settings", "system_settings_sync", "settings/sync"],
+    table: 'integrator.system_settings',
+    decision: 'blocked',
+    owner: 'system-settings mirror',
+    patterns: ['integrator.system_settings', 'system_settings_sync', 'settings/sync'],
   },
   {
-    table: "integrator.user_reminder_rules",
-    decision: "blocked",
-    owner: "reminder bot dispatch",
-    patterns: ["user_reminder_rules", "userReminderRules"],
+    table: 'integrator.user_reminder_rules',
+    decision: 'blocked',
+    owner: 'reminder bot dispatch',
+    patterns: ['user_reminder_rules', 'userReminderRules'],
   },
   {
-    table: "integrator.rubitime_records",
-    decision: "blocked",
-    owner: "Rubitime live adapter",
-    patterns: ["rubitime_records", "rubitimeRecords"],
+    table: 'integrator.rubitime_records',
+    decision: 'blocked',
+    owner: 'Rubitime live adapter',
+    patterns: ['rubitime_records', 'rubitimeRecords'],
   },
   {
-    table: "integrator.contacts",
-    decision: "blocked",
-    owner: "linked-phone fallback",
-    patterns: ["integrator.contacts", "FROM contacts", "contacts c", "linked_phone_legacy_fallback"],
+    table: 'integrator.contacts',
+    decision: 'blocked',
+    owner: 'linked-phone fallback',
+    patterns: [
+      'integrator.contacts',
+      'FROM contacts',
+      'contacts c',
+      'linked_phone_legacy_fallback',
+    ],
   },
   {
-    table: "integrator.conversations",
-    decision: "blocked",
-    owner: "integrator support transport",
-    patterns: ["conversations", "conversation_messages", "message_drafts"],
+    table: 'integrator.conversations',
+    decision: 'blocked',
+    owner: 'integrator support transport',
+    patterns: ['conversations', 'conversation_messages', 'message_drafts'],
   },
   {
-    table: "integrator.projection_outbox",
-    decision: "blocked",
-    owner: "projection retry queue",
-    patterns: ["projection_outbox", "projectionOutbox"],
+    table: 'integrator.projection_outbox',
+    decision: 'blocked',
+    owner: 'projection retry queue',
+    patterns: ['projection_outbox', 'projectionOutbox'],
   },
 ];
 
 const SCAN_ROOTS = [
-  "apps/webapp/src",
-  "apps/webapp/scripts",
-  "apps/integrator/src",
-  "apps/media-worker/src",
-  "packages",
+  'apps/webapp/src',
+  'apps/webapp/scripts',
+  'apps/integrator/src',
+  'apps/media-worker/src',
+  'packages',
 ];
 
 function argValue(name: string): string | null {
@@ -79,7 +84,7 @@ function listFiles(dir: string): string[] {
     const path = join(dir, name);
     const stat = statSync(path);
     if (stat.isDirectory()) {
-      if (name === "node_modules" || name === ".next" || name === "dist") continue;
+      if (name === 'node_modules' || name === '.next' || name === 'dist') continue;
       out.push(...listFiles(path));
       continue;
     }
@@ -89,23 +94,23 @@ function listFiles(dir: string): string[] {
 }
 
 function countPattern(src: string, pattern: string): number {
-  if (pattern.trim() === "") return 0;
+  if (pattern.trim() === '') return 0;
   return src.split(pattern).length - 1;
 }
 
 async function main(): Promise<void> {
-  if (process.argv.includes("--help")) {
+  if (process.argv.includes('--help')) {
     console.log(HELP);
     return;
   }
-  const repoRoot = resolve(process.cwd(), argValue("repo-root") ?? ".");
+  const repoRoot = resolve(process.cwd(), argValue('repo-root') ?? '.');
   const files = SCAN_ROOTS.flatMap((root) => listFiles(join(repoRoot, root)));
   const results = CANDIDATES.map((candidate) => {
     const refs: Array<{ file: string; hits: number }> = [];
     for (const abs of files) {
-      const rel = relative(repoRoot, abs).replace(/\\/g, "/");
-      if (rel.includes("scripts/integrator-schema-cleanup/")) continue;
-      const src = readFileSync(abs, "utf8");
+      const rel = relative(repoRoot, abs).replace(/\\/g, '/');
+      if (rel.includes('scripts/integrator-schema-cleanup/')) continue;
+      const src = readFileSync(abs, 'utf8');
       const hits = candidate.patterns.reduce((sum, pattern) => sum + countPattern(src, pattern), 0);
       if (hits > 0) refs.push({ file: rel, hits });
     }
@@ -118,8 +123,10 @@ async function main(): Promise<void> {
     };
   });
 
-  const blockedWithRefs = results.filter((r) => r.decision === "blocked" && r.referenceFileCount > 0);
-  console.log(JSON.stringify({ mode: "source-reconcile", repoRoot, results }, null, 2));
+  const blockedWithRefs = results.filter(
+    (r) => r.decision === 'blocked' && r.referenceFileCount > 0,
+  );
+  console.log(JSON.stringify({ mode: 'source-reconcile', repoRoot, results }, null, 2));
   if (blockedWithRefs.length > 0) {
     process.exitCode = 0;
   }

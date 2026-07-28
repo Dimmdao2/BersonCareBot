@@ -1,12 +1,12 @@
 /** @vitest-environment node */
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { drizzleSqlFragmentToApproximateSql } from "@/infra/db/drizzleSqlDebugText";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { drizzleSqlFragmentToApproximateSql } from '@/infra/db/drizzleSqlDebugText';
 
 const runWebappSqlMock = vi.hoisted(() => vi.fn());
 const runWebappTransactionMock = vi.hoisted(() => vi.fn());
 
-vi.mock("@/infra/db/runWebappSql", () => ({
+vi.mock('@/infra/db/runWebappSql', () => ({
   getWebappSqlDb: vi.fn(() => ({})),
   runWebappSql: runWebappSqlMock,
   runWebappTransaction: runWebappTransactionMock,
@@ -15,95 +15,95 @@ vi.mock("@/infra/db/runWebappSql", () => ({
 import {
   enqueueMediaTranscodeJob,
   enqueueProgramSubmissionTranscodeJob,
-} from "./pgMediaTranscodeJobs";
+} from './pgMediaTranscodeJobs';
 
 function approxSqlAt(callIndex: number): string {
   const fragment = runWebappSqlMock.mock.calls[callIndex]?.[1];
   return drizzleSqlFragmentToApproximateSql(fragment);
 }
 
-describe("enqueueMediaTranscodeJob", () => {
+describe('enqueueMediaTranscodeJob', () => {
   beforeEach(() => {
     runWebappSqlMock.mockReset();
     runWebappTransactionMock.mockReset();
     runWebappSqlMock.mockResolvedValue({ rows: [], rowCount: 0 });
   });
 
-  it("returns already_ready when HLS is ready", async () => {
+  it('returns already_ready when HLS is ready', async () => {
     runWebappSqlMock.mockResolvedValueOnce({
       rows: [
         {
-          id: "00000000-0000-4000-8000-0000000000aa",
-          organization_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-          mime_type: "video/mp4",
-          s3_key: "media/x/f.mp4",
-          hls_master_playlist_s3_key: "media/x/hls/master.m3u8",
-          video_processing_status: "ready",
+          id: '00000000-0000-4000-8000-0000000000aa',
+          organization_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          mime_type: 'video/mp4',
+          s3_key: 'media/x/f.mp4',
+          hls_master_playlist_s3_key: 'media/x/hls/master.m3u8',
+          video_processing_status: 'ready',
           usage_purpose: null,
         },
       ],
     });
-    const out = await enqueueMediaTranscodeJob("00000000-0000-4000-8000-0000000000aa");
-    expect(out).toEqual({ ok: true, kind: "already_ready" });
+    const out = await enqueueMediaTranscodeJob('00000000-0000-4000-8000-0000000000aa');
+    expect(out).toEqual({ ok: true, kind: 'already_ready' });
     expect(runWebappTransactionMock).not.toHaveBeenCalled();
   });
 
-  it("returns not_video for image mime", async () => {
+  it('returns not_video for image mime', async () => {
     runWebappSqlMock.mockResolvedValueOnce({
       rows: [
         {
-          id: "00000000-0000-4000-8000-0000000000bb",
-          organization_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-          mime_type: "image/jpeg",
-          s3_key: "media/x/a.jpg",
+          id: '00000000-0000-4000-8000-0000000000bb',
+          organization_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          mime_type: 'image/jpeg',
+          s3_key: 'media/x/a.jpg',
           hls_master_playlist_s3_key: null,
           video_processing_status: null,
           usage_purpose: null,
         },
       ],
     });
-    const out = await enqueueMediaTranscodeJob("00000000-0000-4000-8000-0000000000bb");
-    expect(out).toEqual({ ok: false, error: "not_video" });
+    const out = await enqueueMediaTranscodeJob('00000000-0000-4000-8000-0000000000bb');
+    expect(out).toEqual({ ok: false, error: 'not_video' });
   });
 
-  it("returns queued with alreadyQueued when active job exists", async () => {
+  it('returns queued with alreadyQueued when active job exists', async () => {
     runWebappSqlMock
       .mockResolvedValueOnce({
         rows: [
           {
-            id: "00000000-0000-4000-8000-0000000000cc",
-            organization_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-            mime_type: "video/mp4",
-            s3_key: "media/x/v.mp4",
+            id: '00000000-0000-4000-8000-0000000000cc',
+            organization_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+            mime_type: 'video/mp4',
+            s3_key: 'media/x/v.mp4',
             hls_master_playlist_s3_key: null,
-            video_processing_status: "pending",
+            video_processing_status: 'pending',
             usage_purpose: null,
           },
         ],
       })
-      .mockResolvedValueOnce({ rows: [{ id: "job-existing" }] });
-    const out = await enqueueMediaTranscodeJob("00000000-0000-4000-8000-0000000000cc");
+      .mockResolvedValueOnce({ rows: [{ id: 'job-existing' }] });
+    const out = await enqueueMediaTranscodeJob('00000000-0000-4000-8000-0000000000cc');
     expect(out).toEqual({
       ok: true,
-      kind: "queued",
-      jobId: "job-existing",
+      kind: 'queued',
+      jobId: 'job-existing',
       alreadyQueued: true,
     });
     expect(runWebappTransactionMock).not.toHaveBeenCalled();
   });
 
-  it("inserts job in transaction with media organization context", async () => {
+  it('inserts job in transaction with media organization context', async () => {
     const values = vi.fn().mockReturnValue({
-      returning: async () => [{ id: "job-new" }],
+      returning: async () => [{ id: 'job-new' }],
     });
     runWebappSqlMock
       .mockResolvedValueOnce({
         rows: [
           {
-            id: "00000000-0000-4000-8000-0000000000dd",
-            organization_id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
-            mime_type: "video/mp4",
-            s3_key: "media/x/v.mp4",
+            id: '00000000-0000-4000-8000-0000000000dd',
+            organization_id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+            mime_type: 'video/mp4',
+            s3_key: 'media/x/v.mp4',
             hls_master_playlist_s3_key: null,
             video_processing_status: null,
             usage_purpose: null,
@@ -125,30 +125,32 @@ describe("enqueueMediaTranscodeJob", () => {
       }),
     );
 
-    const out = await enqueueMediaTranscodeJob("00000000-0000-4000-8000-0000000000dd");
+    const out = await enqueueMediaTranscodeJob('00000000-0000-4000-8000-0000000000dd');
     expect(out).toEqual({
       ok: true,
-      kind: "queued",
-      jobId: "job-new",
+      kind: 'queued',
+      jobId: 'job-new',
       alreadyQueued: false,
     });
     expect(runWebappTransactionMock).toHaveBeenCalledTimes(1);
-    expect(values).toHaveBeenCalledWith(expect.objectContaining({
-      mediaId: "00000000-0000-4000-8000-0000000000dd",
-      organizationId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
-      status: "pending",
-    }));
+    expect(values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mediaId: '00000000-0000-4000-8000-0000000000dd',
+        organizationId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+        status: 'pending',
+      }),
+    );
   });
 
-  it("on unique violation (23505), returns alreadyQueued when concurrent insert won the race", async () => {
+  it('on unique violation (23505), returns alreadyQueued when concurrent insert won the race', async () => {
     runWebappSqlMock
       .mockResolvedValueOnce({
         rows: [
           {
-            id: "00000000-0000-4000-8000-0000000000ee",
-            organization_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-            mime_type: "video/mp4",
-            s3_key: "media/x/v.mp4",
+            id: '00000000-0000-4000-8000-0000000000ee',
+            organization_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+            mime_type: 'video/mp4',
+            s3_key: 'media/x/v.mp4',
             hls_master_playlist_s3_key: null,
             video_processing_status: null,
             usage_purpose: null,
@@ -156,81 +158,83 @@ describe("enqueueMediaTranscodeJob", () => {
         ],
       })
       .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [{ id: "job-concurrent" }] });
+      .mockResolvedValueOnce({ rows: [{ id: 'job-concurrent' }] });
 
-    runWebappTransactionMock.mockRejectedValueOnce(Object.assign(new Error("duplicate key"), { code: "23505" }));
+    runWebappTransactionMock.mockRejectedValueOnce(
+      Object.assign(new Error('duplicate key'), { code: '23505' }),
+    );
 
-    const out = await enqueueMediaTranscodeJob("00000000-0000-4000-8000-0000000000ee");
+    const out = await enqueueMediaTranscodeJob('00000000-0000-4000-8000-0000000000ee');
     expect(out).toEqual({
       ok: true,
-      kind: "queued",
-      jobId: "job-concurrent",
+      kind: 'queued',
+      jobId: 'job-concurrent',
       alreadyQueued: true,
     });
-    expect(approxSqlAt(2)).toContain("media_transcode_jobs");
+    expect(approxSqlAt(2)).toContain('media_transcode_jobs');
   });
 });
 
-describe("enqueueProgramSubmissionTranscodeJob", () => {
+describe('enqueueProgramSubmissionTranscodeJob', () => {
   beforeEach(() => {
     runWebappSqlMock.mockReset();
     runWebappTransactionMock.mockReset();
     runWebappSqlMock.mockResolvedValue({ rows: [], rowCount: 0 });
   });
 
-  it("returns not_found when usage_purpose is not program_item_submission", async () => {
+  it('returns not_found when usage_purpose is not program_item_submission', async () => {
     runWebappSqlMock.mockResolvedValueOnce({
       rows: [
         {
-          id: "00000000-0000-4000-8000-0000000000ff",
-          organization_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-          mime_type: "video/mp4",
-          s3_key: "media/x/v.mp4",
+          id: '00000000-0000-4000-8000-0000000000ff',
+          organization_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          mime_type: 'video/mp4',
+          s3_key: 'media/x/v.mp4',
           hls_master_playlist_s3_key: null,
           video_processing_status: null,
           usage_purpose: null,
         },
       ],
     });
-    const out = await enqueueProgramSubmissionTranscodeJob("00000000-0000-4000-8000-0000000000ff");
-    expect(out).toEqual({ ok: false, error: "not_found" });
+    const out = await enqueueProgramSubmissionTranscodeJob('00000000-0000-4000-8000-0000000000ff');
+    expect(out).toEqual({ ok: false, error: 'not_found' });
     expect(runWebappTransactionMock).not.toHaveBeenCalled();
   });
 
-  it("returns already_ready when progressive transcode is ready", async () => {
+  it('returns already_ready when progressive transcode is ready', async () => {
     runWebappSqlMock.mockResolvedValueOnce({
       rows: [
         {
-          id: "00000000-0000-4000-8000-000000000011",
-          organization_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-          mime_type: "video/mp4",
-          s3_key: "media/x/v.mp4",
+          id: '00000000-0000-4000-8000-000000000011',
+          organization_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          mime_type: 'video/mp4',
+          s3_key: 'media/x/v.mp4',
           hls_master_playlist_s3_key: null,
-          video_processing_status: "ready",
-          usage_purpose: "program_item_submission",
+          video_processing_status: 'ready',
+          usage_purpose: 'program_item_submission',
         },
       ],
     });
-    const out = await enqueueProgramSubmissionTranscodeJob("00000000-0000-4000-8000-000000000011");
-    expect(out).toEqual({ ok: true, kind: "already_ready" });
+    const out = await enqueueProgramSubmissionTranscodeJob('00000000-0000-4000-8000-000000000011');
+    expect(out).toEqual({ ok: true, kind: 'already_ready' });
     expect(runWebappTransactionMock).not.toHaveBeenCalled();
   });
 
-  it("enqueues job for program submission video with media organization context", async () => {
+  it('enqueues job for program submission video with media organization context', async () => {
     const values = vi.fn().mockReturnValue({
-      returning: async () => [{ id: "job-program" }],
+      returning: async () => [{ id: 'job-program' }],
     });
     runWebappSqlMock
       .mockResolvedValueOnce({
         rows: [
           {
-            id: "00000000-0000-4000-8000-000000000022",
-            organization_id: "22222222-2222-4222-8222-222222222222",
-            mime_type: "video/mp4",
-            s3_key: "media/x/v.mp4",
+            id: '00000000-0000-4000-8000-000000000022',
+            organization_id: '22222222-2222-4222-8222-222222222222',
+            mime_type: 'video/mp4',
+            s3_key: 'media/x/v.mp4',
             hls_master_playlist_s3_key: null,
-            video_processing_status: "pending",
-            usage_purpose: "program_item_submission",
+            video_processing_status: 'pending',
+            usage_purpose: 'program_item_submission',
           },
         ],
       })
@@ -249,18 +253,20 @@ describe("enqueueProgramSubmissionTranscodeJob", () => {
       }),
     );
 
-    const out = await enqueueProgramSubmissionTranscodeJob("00000000-0000-4000-8000-000000000022");
+    const out = await enqueueProgramSubmissionTranscodeJob('00000000-0000-4000-8000-000000000022');
     expect(out).toEqual({
       ok: true,
-      kind: "queued",
-      jobId: "job-program",
+      kind: 'queued',
+      jobId: 'job-program',
       alreadyQueued: false,
     });
     expect(runWebappTransactionMock).toHaveBeenCalledTimes(1);
-    expect(values).toHaveBeenCalledWith(expect.objectContaining({
-      mediaId: "00000000-0000-4000-8000-000000000022",
-      organizationId: "22222222-2222-4222-8222-222222222222",
-      status: "pending",
-    }));
+    expect(values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mediaId: '00000000-0000-4000-8000-000000000022',
+        organizationId: '22222222-2222-4222-8222-222222222222',
+        status: 'pending',
+      }),
+    );
   });
 });

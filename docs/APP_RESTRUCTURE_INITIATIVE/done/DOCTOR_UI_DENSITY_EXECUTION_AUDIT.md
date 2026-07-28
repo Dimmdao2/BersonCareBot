@@ -9,16 +9,16 @@
 
 ## 1. Резюме
 
-| Критерий | Оценка (после пост-аудита 2026-05-02) |
-|----------|----------------------------------------|
-| Соблюдение границ ТЗ (doctor-only UI, без patient/globals/shadcn-global, без логики/API/БД/маршрутов) | **Соблюдено** |
-| Shared-примитивы (`AppShell` doctor, `CatalogLeftPane`, toolbar фильтров) | **Реализованы** в первом проходе; sticky-константы не менялись при отсутствии сдвига высоты тулбара |
-| Точечные страницы whitelist | **Дополнен вторым sweep:** `TemplateEditor`, наборы тестов, курсы/ЛФК оболочки (`rounded-lg`), остаточные оболочки content/exercises (`rounded-lg`) и оставшиеся content spacing (`md:gap-4`, `p-4`), см. [LOG.md](../LOG.md) «пост-аудит этапа 8» |
-| Автоматические проверки | **Корневой `pnpm run ci`** (2026-05-02) — успешно; ранее — `lint`/`typecheck` webapp |
-| Manual smoke по списку ТЗ | **Пройден**; чек-лист маршрутов и таблица зафиксированы в [LOG.md](../LOG.md) |
-| Запись в `LOG.md` | **Две записи:** реализация + пост-аудит с таблицей маршрутов |
-| Пометка в `PLAN_DOCTOR_CABINET.md` | **Этап 8 закрыт**; строка в сводной таблице этапов обновлена |
-| `DoctorMenuAccordion` | **Вне scope density**; правка для ESLint сохранена |
+| Критерий                                                                                              | Оценка (после пост-аудита 2026-05-02)                                                                                                                                                                                                              |
+| ----------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Соблюдение границ ТЗ (doctor-only UI, без patient/globals/shadcn-global, без логики/API/БД/маршрутов) | **Соблюдено**                                                                                                                                                                                                                                      |
+| Shared-примитивы (`AppShell` doctor, `CatalogLeftPane`, toolbar фильтров)                             | **Реализованы** в первом проходе; sticky-константы не менялись при отсутствии сдвига высоты тулбара                                                                                                                                                |
+| Точечные страницы whitelist                                                                           | **Дополнен вторым sweep:** `TemplateEditor`, наборы тестов, курсы/ЛФК оболочки (`rounded-lg`), остаточные оболочки content/exercises (`rounded-lg`) и оставшиеся content spacing (`md:gap-4`, `p-4`), см. [LOG.md](../LOG.md) «пост-аудит этапа 8» |
+| Автоматические проверки                                                                               | **Корневой `pnpm run ci`** (2026-05-02) — успешно; ранее — `lint`/`typecheck` webapp                                                                                                                                                               |
+| Manual smoke по списку ТЗ                                                                             | **Пройден**; чек-лист маршрутов и таблица зафиксированы в [LOG.md](../LOG.md)                                                                                                                                                                      |
+| Запись в `LOG.md`                                                                                     | **Две записи:** реализация + пост-аудит с таблицей маршрутов                                                                                                                                                                                       |
+| Пометка в `PLAN_DOCTOR_CABINET.md`                                                                    | **Этап 8 закрыт**; строка в сводной таблице этапов обновлена                                                                                                                                                                                       |
+| `DoctorMenuAccordion`                                                                                 | **Вне scope density**; правка для ESLint сохранена                                                                                                                                                                                                 |
 
 **Вывод:** этап 8 по коду, журналу, планам и visual smoke **признан закрытым**.
 
@@ -68,15 +68,15 @@
 
 По [LOG.md](../LOG.md) зафиксированы изменения в:
 
-| Файл | Характер изменений | Соответствие ТЗ |
-|------|-------------------|-----------------|
-| `doctor/content/page.tsx` | `gap-6` → `gap-4`, `md:gap-8` → `md:gap-6` | Да, только spacing |
-| `doctor/content/motivation/page.tsx` | плотнее `PageSection` | Да |
-| `doctor/exercises/ExerciseForm.tsx` | `gap-6` → `gap-4` | Да |
-| `doctor/recommendations/RecommendationForm.tsx` | внешний контейнер `gap-6` → `gap-4` | Да |
-| `doctor/clinical-tests/ClinicalTestForm.tsx` | аналогично | Да |
-| `treatment-program-templates/[id]/TreatmentProgramConstructorClient.tsx` | `gap-6`/`grid gap-6` → `gap-4` | Да |
-| `doctor/page.tsx` | плитки: `rounded-lg`, `p-3`, числа `text-xl` | Да, только chrome типографики карточек |
+| Файл                                                                     | Характер изменений                           | Соответствие ТЗ                        |
+| ------------------------------------------------------------------------ | -------------------------------------------- | -------------------------------------- |
+| `doctor/content/page.tsx`                                                | `gap-6` → `gap-4`, `md:gap-8` → `md:gap-6`   | Да, только spacing                     |
+| `doctor/content/motivation/page.tsx`                                     | плотнее `PageSection`                        | Да                                     |
+| `doctor/exercises/ExerciseForm.tsx`                                      | `gap-6` → `gap-4`                            | Да                                     |
+| `doctor/recommendations/RecommendationForm.tsx`                          | внешний контейнер `gap-6` → `gap-4`          | Да                                     |
+| `doctor/clinical-tests/ClinicalTestForm.tsx`                             | аналогично                                   | Да                                     |
+| `treatment-program-templates/[id]/TreatmentProgramConstructorClient.tsx` | `gap-6`/`grid gap-6` → `gap-4`               | Да                                     |
+| `doctor/page.tsx`                                                        | плитки: `rounded-lg`, `p-3`, числа `text-xl` | Да, только chrome типографики карточек |
 
 **Дополнение (пост-аудит):** второй проход добавил уплотнение в [`TemplateEditor.tsx`](../../apps/webapp/src/app/app/doctor/lfk-templates/TemplateEditor.tsx), [`TestSetForm.tsx`](../../apps/webapp/src/app/app/doctor/test-sets/TestSetForm.tsx), [`TestSetsPageClient.tsx`](../../apps/webapp/src/app/app/doctor/test-sets/TestSetsPageClient.tsx), оболочки `rounded-lg` для курсов/ЛФК и остаточных content/exercises wrappers, а также последние `gap-6` / `p-6` внутри `content/**` (см. [LOG.md](../LOG.md)).
 
@@ -133,12 +133,12 @@
 
 Изменения ограничены **Tailwind `className`** и одной **eslint-директивой** в `DoctorMenuAccordion` без смены пропсов, контрактов API или условий рендера.
 
-| Область | Логика / данные | Замечание |
-|---------|-----------------|-----------|
-| `AppShell` doctor | Не затронута | Только `gap` у контейнера |
-| `CatalogLeftPane` | Не затронута | Разметка та же |
-| Формы / конструкторы | Сохранены | Второй sweep — только `gap`/`rounded`/`pt` |
-| `DoctorMenuAccordion` | `localStorage` + кластеры | Поведение то же |
+| Область               | Логика / данные           | Замечание                                  |
+| --------------------- | ------------------------- | ------------------------------------------ |
+| `AppShell` doctor     | Не затронута              | Только `gap` у контейнера                  |
+| `CatalogLeftPane`     | Не затронута              | Разметка та же                             |
+| Формы / конструкторы  | Сохранены                 | Второй sweep — только `gap`/`rounded`/`pt` |
+| `DoctorMenuAccordion` | `localStorage` + кластеры | Поведение то же                            |
 
 **Тесты:** на пост-аудите выполнен полный **`pnpm run ci`** (integrator + webapp unit/integration, сборки).
 
@@ -146,23 +146,23 @@
 
 ## 7. Рекомендации — статус после пост-аудита
 
-| # | Рекомендация | Статус |
-|---|----------------|--------|
-| 1 | Manual smoke: таблица маршрутов в `LOG.md` | **Сделано** (визуально OK; инструментально OK) |
-| 2 | `PLAN_DOCTOR_CABINET.md`: статус этапа 8 | **Сделано** |
-| 3 | Второй sweep `gap-6` / оболочки в whitelist | **Сделано** (см. `LOG` «пост-аудит») |
-| 4 | `pnpm run ci` перед merge | **Сделано** (2026-05-02, успешно) |
-| 5 | Визуальный проход в браузере | **Сделано** |
+| #   | Рекомендация                                | Статус                                         |
+| --- | ------------------------------------------- | ---------------------------------------------- |
+| 1   | Manual smoke: таблица маршрутов в `LOG.md`  | **Сделано** (визуально OK; инструментально OK) |
+| 2   | `PLAN_DOCTOR_CABINET.md`: статус этапа 8    | **Сделано**                                    |
+| 3   | Второй sweep `gap-6` / оболочки в whitelist | **Сделано** (см. `LOG` «пост-аудит»)           |
+| 4   | `pnpm run ci` перед merge                   | **Сделано** (2026-05-02, успешно)              |
+| 5   | Визуальный проход в браузере                | **Сделано**                                    |
 
 ---
 
 ## 8. Связанные файлы
 
-| Документ / код | Роль |
-|----------------|------|
-| [`DOCTOR_UI_DENSITY_PLAN.md`](DOCTOR_UI_DENSITY_PLAN.md) | Исходное ТЗ |
-| [LOG.md](../LOG.md) | Журнал выполнения |
-| [PLAN_DOCTOR_CABINET.md](../PLAN_DOCTOR_CABINET.md) | Мастер-план этапов |
-| [`apps/webapp/src/shared/ui/AppShell.tsx`](../../apps/webapp/src/shared/ui/AppShell.tsx) | Doctor shell |
-| [`apps/webapp/src/shared/ui/CatalogLeftPane.tsx`](../../apps/webapp/src/shared/ui/CatalogLeftPane.tsx) | Master-detail левая колонка |
-| [`apps/webapp/src/shared/ui/doctor/DoctorCatalogFiltersToolbar.tsx`](../../apps/webapp/src/shared/ui/doctor/DoctorCatalogFiltersToolbar.tsx) | Toolbar фильтров |
+| Документ / код                                                                                                                               | Роль                        |
+| -------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
+| [`DOCTOR_UI_DENSITY_PLAN.md`](DOCTOR_UI_DENSITY_PLAN.md)                                                                                     | Исходное ТЗ                 |
+| [LOG.md](../LOG.md)                                                                                                                          | Журнал выполнения           |
+| [PLAN_DOCTOR_CABINET.md](../PLAN_DOCTOR_CABINET.md)                                                                                          | Мастер-план этапов          |
+| [`apps/webapp/src/shared/ui/AppShell.tsx`](../../apps/webapp/src/shared/ui/AppShell.tsx)                                                     | Doctor shell                |
+| [`apps/webapp/src/shared/ui/CatalogLeftPane.tsx`](../../apps/webapp/src/shared/ui/CatalogLeftPane.tsx)                                       | Master-detail левая колонка |
+| [`apps/webapp/src/shared/ui/doctor/DoctorCatalogFiltersToolbar.tsx`](../../apps/webapp/src/shared/ui/doctor/DoctorCatalogFiltersToolbar.tsx) | Toolbar фильтров            |

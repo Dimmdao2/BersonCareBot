@@ -1,4 +1,4 @@
-import type { DoctorProactiveInsightsPort } from "@/modules/doctor-proactive-insights/ports";
+import type { DoctorProactiveInsightsPort } from '@/modules/doctor-proactive-insights/ports';
 
 /** In-memory stub: проактивная лента не эмулируется в dev in-memory режиме. */
 export function createInMemoryDoctorProactiveInsightsPort(): DoctorProactiveInsightsPort {

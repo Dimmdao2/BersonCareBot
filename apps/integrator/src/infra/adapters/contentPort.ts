@@ -55,7 +55,10 @@ function listScripts(bundle: { scripts: RegistryScript[] }): ContentScript[] {
   return bundle.scripts.map((script) => normalizeScript(script));
 }
 
-function findTemplate(bundle: { templates: Record<string, unknown> }, templateId: string): ContentTemplate | null {
+function findTemplate(
+  bundle: { templates: Record<string, unknown> },
+  templateId: string,
+): ContentTemplate | null {
   const raw = bundle.templates[templateId];
   if (typeof raw === 'string') return { id: templateId, text: raw };
   return null;
@@ -84,7 +87,10 @@ export function createContentPort(input?: { rootDir?: string }): ContentPort {
         ...(bundle.mainReplyKeyboard ? { mainReplyKeyboard: bundle.mainReplyKeyboard } : {}),
       };
     },
-    async getTemplate(scope: ContentSelectionScope, templateId: string): Promise<ContentTemplate | null> {
+    async getTemplate(
+      scope: ContentSelectionScope,
+      templateId: string,
+    ): Promise<ContentTemplate | null> {
       const data = await registry.load();
       const key = getEffectiveBundleKey(data, scope.source, scope.audience);
       const bundle = getContentBundle(data, key);

@@ -1,12 +1,12 @@
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import {
   membershipErrorResponse,
   resolveAssignedByPlatformUserId,
-} from "@/app/api/booking-engine/patientPackagesRouteShared";
-import { requireAdminBookingEngine } from "../_requireAdminBookingEngine";
+} from '@/app/api/booking-engine/patientPackagesRouteShared';
+import { requireAdminBookingEngine } from '../_requireAdminBookingEngine';
 
 const itemSchema = z.object({
   serviceId: z.string().uuid(),
@@ -15,13 +15,13 @@ const itemSchema = z.object({
 });
 
 const manualSchema = z.object({
-  kind: z.literal("manual"),
+  kind: z.literal('manual'),
   platformUserId: z.string().uuid(),
   title: z.string().trim().max(200).optional(),
   priceMinor: z.number().int().min(0),
   currency: z.string().length(3).optional(),
   validityDays: z.number().int().min(1).nullable().optional(),
-  deductionMode: z.enum(["auto_on_visit_confirmed", "manual"]).optional(),
+  deductionMode: z.enum(['auto_on_visit_confirmed', 'manual']).optional(),
   items: z.array(itemSchema).min(1),
   notes: z.string().trim().max(2000).optional(),
   sendForPayment: z.boolean().optional(),
@@ -32,7 +32,7 @@ const manualSchema = z.object({
 });
 
 const offerSchema = z.object({
-  kind: z.literal("catalog"),
+  kind: z.literal('catalog'),
   platformUserId: z.string().uuid(),
   subscriptionPackageId: z.string().uuid(),
   notes: z.string().trim().max(2000).optional(),
@@ -42,18 +42,18 @@ const offerSchema = z.object({
   activateImmediately: z.boolean().optional(),
 });
 
-const postSchema = z.discriminatedUnion("kind", [manualSchema, offerSchema]);
+const postSchema = z.discriminatedUnion('kind', [manualSchema, offerSchema]);
 
 export async function GET(request: Request) {
   const gate = await requireAdminBookingEngine();
   if (!gate.ok) return gate.response;
-  const platformUserId = new URL(request.url).searchParams.get("platformUserId")?.trim();
+  const platformUserId = new URL(request.url).searchParams.get('platformUserId')?.trim();
   if (!platformUserId) {
-    return NextResponse.json({ ok: false, error: "platform_user_id_required" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'platform_user_id_required' }, { status: 400 });
   }
   const deps = buildAppDeps();
   if (!deps.memberships) {
-    return NextResponse.json({ ok: false, error: "memberships_unavailable" }, { status: 503 });
+    return NextResponse.json({ ok: false, error: 'memberships_unavailable' }, { status: 503 });
   }
   try {
     const packages = await deps.memberships.listPatientPackagesForUser(
@@ -71,52 +71,66 @@ export async function POST(request: Request) {
   if (!gate.ok) return gate.response;
   const parsed = postSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
   const deps = buildAppDeps();
   if (!deps.memberships) {
-    return NextResponse.json({ ok: false, error: "memberships_unavailable" }, { status: 503 });
+    return NextResponse.json({ ok: false, error: 'memberships_unavailable' }, { status: 503 });
   }
   const assignedByPlatformUserId = resolveAssignedByPlatformUserId(gate.ctx.session.user.userId);
   const body = parsed.data;
   try {
-    if (body.kind === "manual") {
-      const pkg = await deps.memberships.createManualPatientPackage({
+    if (body.kind === 'manual') {
+      const pkg = await deps.memberships.createManualPatientPackage(
+        {
+          organizationId: gate.ctx.organizationId,
+          platformUserId: body.platformUserId,
+          title: body.title?.trim(),
+          priceMinor: body.priceMinor,
+          currency: body.currency,
+          validityDays: body.validityDays ?? null,
+          deductionMode: body.deductionMode,
+          items: body.items,
+          assignedByPlatformUserId,
+          notes: body.notes ?? null,
+          sendForPayment: body.sendForPayment,
+          soldAt: body.soldAt ?? null,
+          paidAmountMinor: body.paidAmountMinor ?? null,
+          paidCurrency: body.paidCurrency,
+          activateImmediately: body.activateImmediately,
+        },
+        {
+          runMembershipWrite: (fn) =>
+            withDoctorWorkspacePrincipal(
+              gate.ctx,
+              'admin.booking-engine.patient-packages.manual-create',
+              fn,
+            ),
+        },
+      );
+      return NextResponse.json({ ok: true, package: pkg });
+    }
+    const pkg = await deps.memberships.offerCatalogPackageToPatient(
+      {
         organizationId: gate.ctx.organizationId,
         platformUserId: body.platformUserId,
-        title: body.title?.trim(),
-        priceMinor: body.priceMinor,
-        currency: body.currency,
-        validityDays: body.validityDays ?? null,
-        deductionMode: body.deductionMode,
-        items: body.items,
-        assignedByPlatformUserId,
+        subscriptionPackageId: body.subscriptionPackageId,
         notes: body.notes ?? null,
-        sendForPayment: body.sendForPayment,
+        assignedByPlatformUserId,
         soldAt: body.soldAt ?? null,
         paidAmountMinor: body.paidAmountMinor ?? null,
         paidCurrency: body.paidCurrency,
         activateImmediately: body.activateImmediately,
-      }, {
+      },
+      {
         runMembershipWrite: (fn) =>
-          withDoctorWorkspacePrincipal(gate.ctx, "admin.booking-engine.patient-packages.manual-create", fn),
-      });
-      return NextResponse.json({ ok: true, package: pkg });
-    }
-    const pkg = await deps.memberships.offerCatalogPackageToPatient({
-      organizationId: gate.ctx.organizationId,
-      platformUserId: body.platformUserId,
-      subscriptionPackageId: body.subscriptionPackageId,
-      notes: body.notes ?? null,
-      assignedByPlatformUserId,
-      soldAt: body.soldAt ?? null,
-      paidAmountMinor: body.paidAmountMinor ?? null,
-      paidCurrency: body.paidCurrency,
-      activateImmediately: body.activateImmediately,
-    }, {
-      runMembershipWrite: (fn) =>
-        withDoctorWorkspacePrincipal(gate.ctx, "admin.booking-engine.patient-packages.catalog-offer", fn),
-    });
+          withDoctorWorkspacePrincipal(
+            gate.ctx,
+            'admin.booking-engine.patient-packages.catalog-offer',
+            fn,
+          ),
+      },
+    );
     return NextResponse.json({ ok: true, package: pkg });
   } catch (err) {
     return membershipErrorResponse(err);

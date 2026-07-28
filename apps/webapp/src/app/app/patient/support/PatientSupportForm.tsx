@@ -1,15 +1,15 @@
-"use client";
+'use client';
 
-import { usePathname } from "next/navigation";
-import { useCallback, useState } from "react";
-import toast from "react-hot-toast";
-import { Button } from "@/shared/ui/patient/primitives/button";
-import { Input } from "@/shared/ui/patient/primitives/input";
-import { Textarea } from "@/shared/ui/patient/primitives/textarea";
-import { isMessengerMiniAppHost } from "@/shared/lib/messengerMiniApp";
-import { routePaths } from "@/app-layer/routes/paths";
-import { cn } from "@/lib/utils";
-import { patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
+import { usePathname } from 'next/navigation';
+import { useCallback, useState } from 'react';
+import toast from 'react-hot-toast';
+import { Button } from '@/shared/ui/patient/primitives/button';
+import { Input } from '@/shared/ui/patient/primitives/input';
+import { Textarea } from '@/shared/ui/patient/primitives/textarea';
+import { isMessengerMiniAppHost } from '@/shared/lib/messengerMiniApp';
+import { routePaths } from '@/app-layer/routes/paths';
+import { cn } from '@/lib/utils';
+import { patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
 
 const MAX_LEN = 4000;
 
@@ -19,21 +19,24 @@ type Props = {
   supportSubmitPath?: string;
 };
 
-export function PatientSupportForm({ defaultEmail, supportSubmitPath = "/api/patient/support" }: Props) {
+export function PatientSupportForm({
+  defaultEmail,
+  supportSubmitPath = '/api/patient/support',
+}: Props) {
   const pathname = usePathname();
   const [email, setEmail] = useState(defaultEmail.trim());
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
 
   const submit = useCallback(async () => {
     const em = email.trim();
     const msg = message.trim();
     if (!em) {
-      toast.error("Укажите email");
+      toast.error('Укажите email');
       return;
     }
     if (!msg) {
-      toast.error("Введите текст сообщения");
+      toast.error('Введите текст сообщения');
       return;
     }
     if (msg.length > MAX_LEN) {
@@ -43,13 +46,13 @@ export function PatientSupportForm({ defaultEmail, supportSubmitPath = "/api/pat
     setLoading(true);
     try {
       const res = await fetch(supportSubmitPath, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           email: em,
           message: msg,
-          surface: isMessengerMiniAppHost() ? "mini_app" : "browser",
-          from: pathname?.startsWith("/app") ? pathname : routePaths.patientSupport,
+          surface: isMessengerMiniAppHost() ? 'mini_app' : 'browser',
+          from: pathname?.startsWith('/app') ? pathname : routePaths.patientSupport,
         }),
       });
       const data = (await res.json().catch(() => ({}))) as {
@@ -57,18 +60,18 @@ export function PatientSupportForm({ defaultEmail, supportSubmitPath = "/api/pat
         error?: string;
         message?: string;
       };
-      if (res.status === 429 || data.error === "rate_limited") {
-        toast.error("Подождите минуту перед повторной отправкой.");
+      if (res.status === 429 || data.error === 'rate_limited') {
+        toast.error('Подождите минуту перед повторной отправкой.');
         return;
       }
       if (!res.ok || !data.ok) {
-        toast.error(data.message ?? data.error ?? "Не удалось отправить");
+        toast.error(data.message ?? data.error ?? 'Не удалось отправить');
         return;
       }
-      toast.success(data.message ?? "Сообщение отправлено");
-      setMessage("");
+      toast.success(data.message ?? 'Сообщение отправлено');
+      setMessage('');
     } catch {
-      toast.error("Нет соединения с сервером. Проверьте сеть.");
+      toast.error('Нет соединения с сервером. Проверьте сеть.');
     } finally {
       setLoading(false);
     }
@@ -77,7 +80,10 @@ export function PatientSupportForm({ defaultEmail, supportSubmitPath = "/api/pat
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-2">
-        <label htmlFor="support-email" className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>
+        <label
+          htmlFor="support-email"
+          className={cn(patientMutedTextClass, 'text-xs font-medium uppercase tracking-wide')}
+        >
           Email для ответа
         </label>
         <Input
@@ -91,7 +97,10 @@ export function PatientSupportForm({ defaultEmail, supportSubmitPath = "/api/pat
         />
       </div>
       <div className="flex flex-col gap-2">
-        <label htmlFor="support-message" className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>
+        <label
+          htmlFor="support-message"
+          className={cn(patientMutedTextClass, 'text-xs font-medium uppercase tracking-wide')}
+        >
           Сообщение
         </label>
         <Textarea
@@ -103,10 +112,12 @@ export function PatientSupportForm({ defaultEmail, supportSubmitPath = "/api/pat
           maxLength={MAX_LEN}
           disabled={loading}
         />
-        <p className={cn(patientMutedTextClass, "text-xs")}>{message.length} / {MAX_LEN}</p>
+        <p className={cn(patientMutedTextClass, 'text-xs')}>
+          {message.length} / {MAX_LEN}
+        </p>
       </div>
       <Button type="button" onClick={() => void submit()} disabled={loading}>
-        {loading ? "Отправка…" : "Отправить"}
+        {loading ? 'Отправка…' : 'Отправить'}
       </Button>
     </div>
   );

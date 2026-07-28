@@ -434,16 +434,16 @@ compatibility mirror. Disabled/missing/read failure
 
 **Body (JSON):** обязательный `organizationId` (UUID подписанного tenant-контекста) и один из идентификаторов пользователя — `integratorUserId` (digits) или `phoneNormalized`; для internal fan-out из webapp допустим `platformUserId` (UUID, не используется integrator HTTP-клиентом). После HMAC webapp устанавливает organization principal до idempotency/read-path и отклоняет разрешившегося пользователя без активного enrollment в этой организации.
 
-| Поле | Описание |
-|------|----------|
-| `intentType` | `appointment_lifecycle` \| `appointment_reminder` \| `news` |
-| `topicCode` | id темы из `notifications_topics` (например `appointment_reminders`, `news`) |
-| `variant` | для lifecycle: `created` \| `cancelled` \| `rescheduled` |
-| `slotStartIso` | ISO слота (lifecycle / reminder) |
-| `broadcastTitle` | для `news` — заголовок рассылки (тело push = «Новости» + preview) |
-| `openUrl` | same-origin путь (`/app/...`) |
-| `stableKey` | idempotency tag push (≤240 символов) |
-| `nowIso` | опционально для расчёта «осталось N часов/дней» |
+| Поле             | Описание                                                                     |
+| ---------------- | ---------------------------------------------------------------------------- |
+| `intentType`     | `appointment_lifecycle` \| `appointment_reminder` \| `news`                  |
+| `topicCode`      | id темы из `notifications_topics` (например `appointment_reminders`, `news`) |
+| `variant`        | для lifecycle: `created` \| `cancelled` \| `rescheduled`                     |
+| `slotStartIso`   | ISO слота (lifecycle / reminder)                                             |
+| `broadcastTitle` | для `news` — заголовок рассылки (тело push = «Новости» + preview)            |
+| `openUrl`        | same-origin путь (`/app/...`)                                                |
+| `stableKey`      | idempotency tag push (≤240 символов)                                         |
+| `nowIso`         | опционально для расчёта «осталось N часов/дней»                              |
 
 **Ответ 200:** `{ ok: true, webPushDelivered?, webPushErrors?, skipped? }`.
 

@@ -1,11 +1,11 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import type {
   BroadcastAuditEntry,
   BroadcastCommand,
   BroadcastPreviewResult,
-} from "@/modules/doctor-broadcasts/ports";
-import type { DoctorBroadcastExecutionOptions } from "@/modules/doctor-broadcasts/service";
+} from '@/modules/doctor-broadcasts/ports';
+import type { DoctorBroadcastExecutionOptions } from '@/modules/doctor-broadcasts/service';
 
 const {
   previewMock,
@@ -31,24 +31,24 @@ const {
   requireEntitlementForMutationActionMock: vi.fn(),
 }));
 
-const ORGANIZATION_ID = "22222222-2222-4222-8222-222222222222";
-const DOCTOR_USER_ID = "11111111-1111-4111-8111-111111111111";
+const ORGANIZATION_ID = '22222222-2222-4222-8222-222222222222';
+const DOCTOR_USER_ID = '11111111-1111-4111-8111-111111111111';
 
-vi.mock("next/cache", () => ({
+vi.mock('next/cache', () => ({
   revalidatePath: (...args: unknown[]) => revalidatePathMock(...args),
 }));
 
-vi.mock("@/app-layer/guards/requireRole", () => ({
+vi.mock('@/app-layer/guards/requireRole', () => ({
   requireDoctorAccess: (...args: unknown[]) => requireDoctorAccessMock(...args),
-  requireDoctorWorkspaceContext: (...args: unknown[]) =>
-    requireDoctorWorkspaceContextMock(...args),
+  requireDoctorWorkspaceContext: (...args: unknown[]) => requireDoctorWorkspaceContextMock(...args),
 }));
 
-vi.mock("@/app-layer/guards/requireEntitlement", () => ({
-  requireEntitlementForMutationAction: (...args: unknown[]) => requireEntitlementForMutationActionMock(...args),
+vi.mock('@/app-layer/guards/requireEntitlement', () => ({
+  requireEntitlementForMutationAction: (...args: unknown[]) =>
+    requireEntitlementForMutationActionMock(...args),
 }));
 
-vi.mock("@/app-layer/di/buildAppDeps", () => ({
+vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: () => ({
     doctorBroadcasts: {
       preview: previewMock,
@@ -70,26 +70,26 @@ import {
   loadDraftAction,
   saveDraftAction,
   getChannelCountsAction,
-} from "./actions";
-import type { BroadcastDraft } from "@/modules/doctor-broadcasts/draftPort";
-import { deriveBroadcastDeliveryPolicy } from "@/modules/doctor-broadcasts/broadcastEligible";
+} from './actions';
+import type { BroadcastDraft } from '@/modules/doctor-broadcasts/draftPort';
+import { deriveBroadcastDeliveryPolicy } from '@/modules/doctor-broadcasts/broadcastEligible';
 
 function workspaceContext() {
   return {
     session: { user: { userId: DOCTOR_USER_ID } },
     organizationId: ORGANIZATION_ID,
-    membershipId: "33333333-3333-4333-8333-333333333333",
-    membershipRole: "doctor",
-    specialistId: "44444444-4444-4444-8444-444444444444",
+    membershipId: '33333333-3333-4333-8333-333333333333',
+    membershipRole: 'doctor',
+    specialistId: '44444444-4444-4444-8444-444444444444',
     canManageOrganization: false,
     canManageAllSpecialists: false,
   };
 }
 
 const baseCommand = {
-  category: "reminder" as const,
-  audienceFilter: "with_telegram" as const,
-  message: { title: "Test", body: "Body text" },
+  category: 'reminder' as const,
+  audienceFilter: 'with_telegram' as const,
+  message: { title: 'Test', body: 'Body text' },
 };
 
 beforeEach(() => {
@@ -112,16 +112,19 @@ beforeEach(() => {
   });
 });
 
-describe("previewBroadcastAction", () => {
+describe('previewBroadcastAction', () => {
   beforeEach(() => previewMock.mockClear());
 
-  it("calls preview with actorId injected from session", async () => {
-    const policy = deriveBroadcastDeliveryPolicy(baseCommand.audienceFilter, ["bot_message", "sms"]);
+  it('calls preview with actorId injected from session', async () => {
+    const policy = deriveBroadcastDeliveryPolicy(baseCommand.audienceFilter, [
+      'bot_message',
+      'sms',
+    ]);
     const expected: BroadcastPreviewResult = {
       audienceSize: 30,
-      category: "reminder",
-      audienceFilter: "with_telegram",
-      channels: ["bot_message", "sms"],
+      category: 'reminder',
+      audienceFilter: 'with_telegram',
+      channels: ['bot_message', 'sms'],
       deliveryPolicyKind: policy.kind,
       deliveryPolicyDescriptionRu: policy.descriptionRu,
     };
@@ -136,22 +139,22 @@ describe("previewBroadcastAction", () => {
   });
 });
 
-describe("executeBroadcastAction", () => {
+describe('executeBroadcastAction', () => {
   beforeEach(() => {
     executeMock.mockClear();
     revalidatePathMock.mockClear();
   });
 
-  it("passes a principal wrapper only for the delivery commit, injects actorId, and returns auditEntry", async () => {
+  it('passes a principal wrapper only for the delivery commit, injects actorId, and returns auditEntry', async () => {
     const auditEntry: BroadcastAuditEntry = {
-      id: "audit-1",
+      id: 'audit-1',
       actorId: DOCTOR_USER_ID,
-      category: "reminder",
-      audienceFilter: "with_telegram",
-      messageTitle: "Test",
-      messageBody: "",
+      category: 'reminder',
+      audienceFilter: 'with_telegram',
+      messageTitle: 'Test',
+      messageBody: '',
       deliveryJobsTotal: 0,
-      channels: ["bot_message", "sms"],
+      channels: ['bot_message', 'sms'],
       executedAt: new Date().toISOString(),
       previewOnly: false,
       audienceSize: 30,
@@ -161,20 +164,19 @@ describe("executeBroadcastAction", () => {
       attachMenuAfterSend: false,
     };
     const observedCommitPrincipals: Array<string | undefined> = [];
-    executeMock.mockImplementation(async (
-      _command: BroadcastCommand,
-      options: DoctorBroadcastExecutionOptions,
-    ) => {
-      expect(getCurrentDbPrincipalOrganizationId()).toBeUndefined();
-      expect(options.reserveAudienceGrowth).toBeDefined();
-      await options.reserveAudienceGrowth!(30);
-      expect(options.runDeliveryCommit).toBeDefined();
-      await options.runDeliveryCommit!(async () => {
-        observedCommitPrincipals.push(getCurrentDbPrincipalOrganizationId());
-      });
-      expect(getCurrentDbPrincipalOrganizationId()).toBeUndefined();
-      return { auditEntry };
-    });
+    executeMock.mockImplementation(
+      async (_command: BroadcastCommand, options: DoctorBroadcastExecutionOptions) => {
+        expect(getCurrentDbPrincipalOrganizationId()).toBeUndefined();
+        expect(options.reserveAudienceGrowth).toBeDefined();
+        await options.reserveAudienceGrowth!(30);
+        expect(options.runDeliveryCommit).toBeDefined();
+        await options.runDeliveryCommit!(async () => {
+          observedCommitPrincipals.push(getCurrentDbPrincipalOrganizationId());
+        });
+        expect(getCurrentDbPrincipalOrganizationId()).toBeUndefined();
+        return { auditEntry };
+      },
+    );
 
     const result = await executeBroadcastAction(baseCommand);
 
@@ -188,26 +190,27 @@ describe("executeBroadcastAction", () => {
     );
     expect(observedCommitPrincipals).toEqual([ORGANIZATION_ID]);
     expect(result.auditEntry).toEqual(auditEntry);
-    expect(revalidatePathMock).toHaveBeenCalledWith("/app/doctor/broadcasts");
+    expect(revalidatePathMock).toHaveBeenCalledWith('/app/doctor/broadcasts');
     expect(requireDoctorWorkspaceContextMock).toHaveBeenCalledTimes(1);
     expect(requireDoctorAccessMock).not.toHaveBeenCalled();
     expect(getCurrentDbPrincipalOrganizationId()).toBeUndefined();
   });
 
-  it("checks entitlement after workspace auth and does not execute a disabled mailing", async () => {
+  it('checks entitlement after workspace auth and does not execute a disabled mailing', async () => {
     requireEntitlementForMutationActionMock.mockResolvedValueOnce({
       ok: false,
-      mechanic: "mailings",
-      reason: "entitlement_required",
+      mechanic: 'mailings',
+      reason: 'entitlement_required',
     });
-    executeMock.mockImplementationOnce(async (
-      _command: BroadcastCommand,
-      options: DoctorBroadcastExecutionOptions,
-    ) => {
-      await options.reserveAudienceGrowth!(1);
-    });
+    executeMock.mockImplementationOnce(
+      async (_command: BroadcastCommand, options: DoctorBroadcastExecutionOptions) => {
+        await options.reserveAudienceGrowth!(1);
+      },
+    );
 
-    await expect(executeBroadcastAction(baseCommand)).rejects.toThrow("entitlement_required:mailings");
+    await expect(executeBroadcastAction(baseCommand)).rejects.toThrow(
+      'entitlement_required:mailings',
+    );
 
     expect(executeMock).toHaveBeenCalledOnce();
     expect(requireDoctorWorkspaceContextMock.mock.invocationCallOrder[0]).toBeLessThan(
@@ -216,10 +219,10 @@ describe("executeBroadcastAction", () => {
   });
 });
 
-describe("listBroadcastAuditAction", () => {
+describe('listBroadcastAuditAction', () => {
   beforeEach(() => listAuditMock.mockClear());
 
-  it("calls listAudit with provided limit", async () => {
+  it('calls listAudit with provided limit', async () => {
     const entries: BroadcastAuditEntry[] = [];
     listAuditMock.mockResolvedValue(entries);
 
@@ -231,7 +234,7 @@ describe("listBroadcastAuditAction", () => {
     expect(result).toBe(entries);
   });
 
-  it("calls listAudit without limit when not provided", async () => {
+  it('calls listAudit without limit when not provided', async () => {
     listAuditMock.mockResolvedValue([]);
 
     await listBroadcastAuditAction();
@@ -242,16 +245,16 @@ describe("listBroadcastAuditAction", () => {
   });
 });
 
-describe("loadDraftAction", () => {
+describe('loadDraftAction', () => {
   beforeEach(() => loadDraftMock.mockClear());
 
-  it("loads the draft for the session doctor", async () => {
+  it('loads the draft for the session doctor', async () => {
     const draft: BroadcastDraft = {
-      category: "reminder",
-      audience: "with_telegram",
-      channels: ["bot_message"],
-      title: "T",
-      body: "B",
+      category: 'reminder',
+      audience: 'with_telegram',
+      channels: ['bot_message'],
+      title: 'T',
+      body: 'B',
     };
     loadDraftMock.mockResolvedValue(draft);
 
@@ -264,16 +267,16 @@ describe("loadDraftAction", () => {
   });
 });
 
-describe("saveDraftAction", () => {
+describe('saveDraftAction', () => {
   beforeEach(() => saveDraftMock.mockClear());
 
-  it("saves the draft under workspace organization principal for the workspace doctor", async () => {
+  it('saves the draft under workspace organization principal for the workspace doctor', async () => {
     const draft: BroadcastDraft = {
       category: null,
       audience: null,
-      channels: ["sms"],
-      title: "T",
-      body: "B",
+      channels: ['sms'],
+      title: 'T',
+      body: 'B',
     };
     const observedPrincipals: Array<string | undefined> = [];
     saveDraftMock.mockImplementation(async () => {
@@ -286,7 +289,7 @@ describe("saveDraftAction", () => {
     expect(observedPrincipals).toEqual([ORGANIZATION_ID]);
     expect(requireEntitlementForMutationActionMock).toHaveBeenCalledWith(
       workspaceContext(),
-      "mailings",
+      'mailings',
     );
     expect(requireDoctorWorkspaceContextMock).toHaveBeenCalledTimes(1);
     expect(requireDoctorAccessMock).not.toHaveBeenCalled();
@@ -294,21 +297,21 @@ describe("saveDraftAction", () => {
   });
 
   it.each([
-    ["read_only", "commercial_read_only"],
-    ["blocked", "commercial_blocked"],
+    ['read_only', 'commercial_read_only'],
+    ['blocked', 'commercial_blocked'],
   ] as const)(
-    "denies draft persistence when the organization lifecycle is %s",
+    'denies draft persistence when the organization lifecycle is %s',
     async (_lifecycle, reason) => {
       const draft: BroadcastDraft = {
-        category: "reminder",
-        audience: "with_telegram",
-        channels: ["bot_message"],
-        title: "Заголовок",
-        body: "Текст",
+        category: 'reminder',
+        audience: 'with_telegram',
+        channels: ['bot_message'],
+        title: 'Заголовок',
+        body: 'Текст',
       };
       requireEntitlementForMutationActionMock.mockResolvedValueOnce({
         ok: false,
-        mechanic: "mailings",
+        mechanic: 'mailings',
         reason,
       });
 
@@ -322,13 +325,13 @@ describe("saveDraftAction", () => {
     },
   );
 
-  it("сохраняет черновик с валидными non-null полями", async () => {
+  it('сохраняет черновик с валидными non-null полями', async () => {
     const draft: BroadcastDraft = {
-      category: "reminder",
-      audience: "with_telegram",
-      channels: ["bot_message", "sms"],
-      title: "Заголовок",
-      body: "Текст рассылки",
+      category: 'reminder',
+      audience: 'with_telegram',
+      channels: ['bot_message', 'sms'],
+      title: 'Заголовок',
+      body: 'Текст рассылки',
     };
     saveDraftMock.mockResolvedValue(undefined);
 
@@ -338,67 +341,67 @@ describe("saveDraftAction", () => {
     expect(getCurrentDbPrincipalOrganizationId()).toBeUndefined();
   });
 
-  it("бросает draft_validation_error при невалидной категории", async () => {
+  it('бросает draft_validation_error при невалидной категории', async () => {
     const bad = {
-      category: "INVALID_CATEGORY",
+      category: 'INVALID_CATEGORY',
       audience: null,
-      channels: ["sms"],
-      title: "T",
-      body: "B",
+      channels: ['sms'],
+      title: 'T',
+      body: 'B',
     };
 
-    await expect(saveDraftAction(bad as BroadcastDraft)).rejects.toThrow("draft_validation_error");
+    await expect(saveDraftAction(bad as BroadcastDraft)).rejects.toThrow('draft_validation_error');
     expect(saveDraftMock).not.toHaveBeenCalled();
     expect(getCurrentDbPrincipalOrganizationId()).toBeUndefined();
   });
 
-  it("бросает draft_validation_error при слишком длинном body (>4000)", async () => {
+  it('бросает draft_validation_error при слишком длинном body (>4000)', async () => {
     const bad: BroadcastDraft = {
       category: null,
       audience: null,
-      channels: ["sms"],
-      title: "T",
-      body: "x".repeat(4001),
+      channels: ['sms'],
+      title: 'T',
+      body: 'x'.repeat(4001),
     };
 
-    await expect(saveDraftAction(bad)).rejects.toThrow("draft_validation_error");
+    await expect(saveDraftAction(bad)).rejects.toThrow('draft_validation_error');
     expect(saveDraftMock).not.toHaveBeenCalled();
     expect(getCurrentDbPrincipalOrganizationId()).toBeUndefined();
   });
 
-  it("бросает draft_validation_error при слишком длинном title (>200)", async () => {
+  it('бросает draft_validation_error при слишком длинном title (>200)', async () => {
     const bad: BroadcastDraft = {
       category: null,
       audience: null,
-      channels: ["sms"],
-      title: "a".repeat(201),
-      body: "B",
+      channels: ['sms'],
+      title: 'a'.repeat(201),
+      body: 'B',
     };
 
-    await expect(saveDraftAction(bad)).rejects.toThrow("draft_validation_error");
+    await expect(saveDraftAction(bad)).rejects.toThrow('draft_validation_error');
     expect(saveDraftMock).not.toHaveBeenCalled();
     expect(getCurrentDbPrincipalOrganizationId()).toBeUndefined();
   });
 
-  it("бросает draft_validation_error при невалидном канале", async () => {
+  it('бросает draft_validation_error при невалидном канале', async () => {
     const bad = {
       category: null,
       audience: null,
-      channels: ["unknown_channel"],
-      title: "T",
-      body: "B",
+      channels: ['unknown_channel'],
+      title: 'T',
+      body: 'B',
     };
 
-    await expect(saveDraftAction(bad as BroadcastDraft)).rejects.toThrow("draft_validation_error");
+    await expect(saveDraftAction(bad as BroadcastDraft)).rejects.toThrow('draft_validation_error');
     expect(saveDraftMock).not.toHaveBeenCalled();
     expect(getCurrentDbPrincipalOrganizationId()).toBeUndefined();
   });
 });
 
-describe("getChannelCountsAction", () => {
+describe('getChannelCountsAction', () => {
   beforeEach(() => getChannelCountsMock.mockClear());
 
-  it("returns channel counts from the composer", async () => {
+  it('returns channel counts from the composer', async () => {
     const counts = { bot_message: 10, sms: 5, push: 0 };
     getChannelCountsMock.mockResolvedValue(counts);
 

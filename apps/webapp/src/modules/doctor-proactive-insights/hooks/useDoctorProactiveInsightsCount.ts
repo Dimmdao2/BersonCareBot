@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
+import { useEffect, useState } from 'react';
 
-const PROACTIVE_INSIGHTS_SUMMARY_URL = "/api/doctor/proactive-insights/summary";
+const PROACTIVE_INSIGHTS_SUMMARY_URL = '/api/doctor/proactive-insights/summary';
 
 /** Число проактивных сигналов для бейджа пункта «Сегодня» в меню врача. */
 export function useDoctorProactiveInsightsCount(enabled = true) {
@@ -11,12 +11,12 @@ export function useDoctorProactiveInsightsCount(enabled = true) {
     if (!enabled) return;
     let cancelled = false;
     const run = async () => {
-      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
       try {
         const res = await fetch(PROACTIVE_INSIGHTS_SUMMARY_URL);
         if (!res.ok) return;
         const j = (await res.json()) as { count?: unknown };
-        if (!cancelled && typeof j.count === "number" && Number.isFinite(j.count) && j.count >= 0) {
+        if (!cancelled && typeof j.count === 'number' && Number.isFinite(j.count) && j.count >= 0) {
           setCount(j.count);
         }
       } catch {
@@ -26,13 +26,13 @@ export function useDoctorProactiveInsightsCount(enabled = true) {
     void run();
     const t = setInterval(run, 20000);
     const onVis = () => {
-      if (document.visibilityState === "visible") void run();
+      if (document.visibilityState === 'visible') void run();
     };
-    document.addEventListener("visibilitychange", onVis);
+    document.addEventListener('visibilitychange', onVis);
     return () => {
       cancelled = true;
       clearInterval(t);
-      document.removeEventListener("visibilitychange", onVis);
+      document.removeEventListener('visibilitychange', onVis);
     };
   }, [enabled]);
   return enabled ? count : 0;

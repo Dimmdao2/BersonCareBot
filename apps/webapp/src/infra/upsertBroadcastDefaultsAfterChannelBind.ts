@@ -2,11 +2,11 @@
  * После успешной привязки мессенджера/SMS: явно включаем сообщения и уведомления для этого канала
  * (см. план каналов рассылок врача). Использовать тем же клиентом пула/транзакции, что и INSERT binding.
  */
-import type { PoolClient } from "pg";
+import type { PoolClient } from 'pg';
 
-const LINK_CHANNELS = new Set(["telegram", "max", "sms"]);
+const LINK_CHANNELS = new Set(['telegram', 'max', 'sms']);
 
-type Queryable = Pick<PoolClient, "query">;
+type Queryable = Pick<PoolClient, 'query'>;
 
 export async function upsertBroadcastDefaultsAfterChannelBind(
   executor: Queryable,

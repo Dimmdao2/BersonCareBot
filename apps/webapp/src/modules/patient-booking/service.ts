@@ -3,42 +3,49 @@ import type {
   PatientBookingsPort,
   BookingSyncPort,
   BookingSlotsQuery,
-} from "./ports";
-import type { BookingSlotsByDate, CreatePatientBookingInput } from "./types";
-import type { createBookingEngineService } from "@/modules/booking-engine/service";
-import type { createBookingSchedulingService } from "@/modules/booking-scheduling/service";
-import type { createBookingFormService } from "@/modules/booking-form/service";
-import type { createBookingAppointmentLifecycleService } from "@/modules/booking-appointment-lifecycle/service";
-import type { PaymentsService } from "@/modules/payments/service";
-import type { MembershipsService } from "@/modules/memberships/service";
-import type { ProductsService } from "@/modules/products/service";
-import type { ClientHistoryService } from "@/modules/client-history/service";
-import type { PlatformUserContactsService } from "@/modules/platform-user-contacts/service";
-import type { IdentityContactFields } from "@/modules/platform-user-contacts/identityContactMatch";
+} from './ports';
+import type { BookingSlotsByDate, CreatePatientBookingInput } from './types';
+import type { createBookingEngineService } from '@/modules/booking-engine/service';
+import type { createBookingSchedulingService } from '@/modules/booking-scheduling/service';
+import type { createBookingFormService } from '@/modules/booking-form/service';
+import type { createBookingAppointmentLifecycleService } from '@/modules/booking-appointment-lifecycle/service';
+import type { PaymentsService } from '@/modules/payments/service';
+import type { MembershipsService } from '@/modules/memberships/service';
+import type { ProductsService } from '@/modules/products/service';
+import type { ClientHistoryService } from '@/modules/client-history/service';
+import type { PlatformUserContactsService } from '@/modules/platform-user-contacts/service';
+import type { IdentityContactFields } from '@/modules/platform-user-contacts/identityContactMatch';
 
 type BookingEngineService = ReturnType<typeof createBookingEngineService>;
 type BookingSchedulingService = ReturnType<typeof createBookingSchedulingService>;
 type BookingFormService = ReturnType<typeof createBookingFormService>;
-type BookingAppointmentLifecycleService = ReturnType<typeof createBookingAppointmentLifecycleService>;
-import type { AppointmentProjectionPort } from "./ports";
-import { validateCreatePatientBookingInput } from "./createInputValidation";
-import { createBookingOnCanonicalEngine, type CanonicalBookingDeps } from "./canonicalCreate";
+type BookingAppointmentLifecycleService = ReturnType<
+  typeof createBookingAppointmentLifecycleService
+>;
+import type { AppointmentProjectionPort } from './ports';
+import { validateCreatePatientBookingInput } from './createInputValidation';
+import { createBookingOnCanonicalEngine, type CanonicalBookingDeps } from './canonicalCreate';
 import {
   buildBookingNotificationsSent,
   resolveBookingNotifyTargets,
   type BookingLifecycleNotificationsSettings,
-} from "./bookingLifecycleNotifications";
+} from './bookingLifecycleNotifications';
 import {
   projectCanonicalAppointmentCancelled,
   projectCanonicalAppointmentRescheduled,
-} from "./projectCanonicalAppointment";
-import { normalizeRuPhoneE164 } from "@/shared/phone/normalizeRuPhoneE164";
-import type { PatientBookingRecord } from "./types";
-import { prepaymentContextFromBooking } from "@/modules/payments/prepaymentContextFromBooking";
-import type { BeAppointment } from "@/modules/booking-engine/types";
+} from './projectCanonicalAppointment';
+import { normalizeRuPhoneE164 } from '@/shared/phone/normalizeRuPhoneE164';
+import type { PatientBookingRecord } from './types';
+import { prepaymentContextFromBooking } from '@/modules/payments/prepaymentContextFromBooking';
+import type { BeAppointment } from '@/modules/booking-engine/types';
 
 function isPostgresExclusionViolation(err: unknown): boolean {
-  return typeof err === "object" && err !== null && "code" in err && (err as { code: string }).code === "23P01";
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    'code' in err &&
+    (err as { code: string }).code === '23P01'
+  );
 }
 
 async function resolveCanonicalAppointmentOrganizationId(
@@ -52,9 +59,9 @@ async function loadCanonicalAppointment(
   bookingEngine: BookingEngineService | null | undefined,
   appointmentId: string,
 ): Promise<BeAppointment> {
-  if (!bookingEngine) throw new Error("canonical_booking_unavailable");
+  if (!bookingEngine) throw new Error('canonical_booking_unavailable');
   const appointment = await bookingEngine.getAppointment(appointmentId);
-  if (!appointment) throw new Error("canonical_appointment_not_found");
+  if (!appointment) throw new Error('canonical_appointment_not_found');
   return appointment;
 }
 
@@ -66,11 +73,13 @@ async function loadBookingPaymentStatus(
   },
 ) {
   if (!row?.canonicalAppointmentId || !input.bookingEngine || !input.payments) {
-    return { ok: false as const, error: "not_found" as const };
+    return { ok: false as const, error: 'not_found' as const };
   }
-  const orgId = await resolveCanonicalAppointmentOrganizationId(input.bookingEngine, row.canonicalAppointmentId)
-    .catch(() => null);
-  if (!orgId) return { ok: false as const, error: "not_found" as const };
+  const orgId = await resolveCanonicalAppointmentOrganizationId(
+    input.bookingEngine,
+    row.canonicalAppointmentId,
+  ).catch(() => null);
+  if (!orgId) return { ok: false as const, error: 'not_found' as const };
   const summary = await input.payments.getAppointmentPaymentSummary(
     row.canonicalAppointmentId,
     orgId,
@@ -99,11 +108,11 @@ function buildProjectionInput(row: PatientBookingRecord) {
 }
 
 function cacheKey(query: BookingSlotsQuery): string {
-  if (query.type === "online") {
+  if (query.type === 'online') {
     return JSON.stringify({
       type: query.type,
       category: query.category,
-      date: query.date ?? "",
+      date: query.date ?? '',
       slotCount: query.slotCount ?? 1,
     });
   }
@@ -111,7 +120,7 @@ function cacheKey(query: BookingSlotsQuery): string {
     type: query.type,
     branchId: query.branchId,
     serviceId: query.serviceId,
-    date: query.date ?? "",
+    date: query.date ?? '',
     slotCount: query.slotCount ?? 1,
   });
 }
@@ -176,12 +185,12 @@ export function createPatientBookingService(input: {
       }
 
       if (!input.bookingScheduling || !input.bookingEngine) {
-        throw new Error("canonical_booking_unavailable");
+        throw new Error('canonical_booking_unavailable');
       }
       let value: BookingSlotsByDate[];
-      if (query.type === "online") {
+      if (query.type === 'online') {
         const orgId = query.organizationId?.trim();
-        if (!orgId) throw new Error("ambiguous_booking_tenant");
+        if (!orgId) throw new Error('ambiguous_booking_tenant');
         value = await input.bookingScheduling.getOnlineSlots({
           organizationId: orgId,
           category: query.category,
@@ -207,20 +216,24 @@ export function createPatientBookingService(input: {
       const formAnswers = rawInput.formAnswers ?? [];
 
       if (!canonicalDeps) {
-        throw new Error("canonical_booking_unavailable");
+        throw new Error('canonical_booking_unavailable');
       }
 
       const slotLockKey =
-        createInput.type === "in_person"
+        createInput.type === 'in_person'
           ? `${createInput.branchId}:${createInput.serviceId}|${createInput.slotStart}|${createInput.slotEnd}`
           : `online:${createInput.category}|${createInput.slotStart}|${createInput.slotEnd}`;
       if (inFlightCreateBySlot.has(slotLockKey)) {
-        throw new Error("slot_overlap");
+        throw new Error('slot_overlap');
       }
       inFlightCreateBySlot.add(slotLockKey);
 
       try {
-        const result = await createBookingOnCanonicalEngine(canonicalDeps, createInput, formAnswers);
+        const result = await createBookingOnCanonicalEngine(
+          canonicalDeps,
+          createInput,
+          formAnswers,
+        );
         invalidateSlotsCache();
         return result;
       } finally {
@@ -231,8 +244,10 @@ export function createPatientBookingService(input: {
     async resolveBookingOrganizationId(bookingId: string) {
       const row = await input.bookingsPort.getById(bookingId);
       if (!row?.canonicalAppointmentId) return null;
-      return resolveCanonicalAppointmentOrganizationId(input.bookingEngine, row.canonicalAppointmentId)
-        .catch(() => null);
+      return resolveCanonicalAppointmentOrganizationId(
+        input.bookingEngine,
+        row.canonicalAppointmentId,
+      ).catch(() => null);
     },
 
     async getBookingPaymentStatus(bookingId: string, userId: string) {
@@ -245,10 +260,10 @@ export function createPatientBookingService(input: {
 
     async getBookingPaymentStatusForContact(bookingId: string, contactPhone: string) {
       const row = await input.bookingsPort.getById(bookingId);
-      if (!row) return { ok: false as const, error: "not_found" as const };
+      if (!row) return { ok: false as const, error: 'not_found' as const };
       const normalized = normalizeRuPhoneE164(contactPhone) ?? contactPhone.trim();
       const rowPhone = normalizeRuPhoneE164(row.contactPhone) ?? row.contactPhone.trim();
-      if (normalized !== rowPhone) return { ok: false as const, error: "forbidden" as const };
+      if (normalized !== rowPhone) return { ok: false as const, error: 'forbidden' as const };
       return loadBookingPaymentStatus(row, {
         bookingEngine: input.bookingEngine ?? null,
         payments: input.payments ?? null,
@@ -263,26 +278,36 @@ export function createPatientBookingService(input: {
       canonicalAppointmentId: string;
       reason?: string;
     }): Promise<void> {
-      const row = await input.bookingsPort.getByCanonicalAppointmentId(syncInput.canonicalAppointmentId);
+      const row = await input.bookingsPort.getByCanonicalAppointmentId(
+        syncInput.canonicalAppointmentId,
+      );
       if (!row) return;
-      if (row.status === "cancelled" || row.status === "failed_sync") return;
+      if (row.status === 'cancelled' || row.status === 'failed_sync') return;
       await input.bookingsPort.markCancelled({
         bookingId: row.id,
-        status: "cancelled",
+        status: 'cancelled',
         reason: syncInput.reason,
       });
     },
 
     async previewCancel(previewInput) {
-      const row = await input.bookingsPort.getByIdForUser(previewInput.bookingId, previewInput.userId);
+      const row = await input.bookingsPort.getByIdForUser(
+        previewInput.bookingId,
+        previewInput.userId,
+      );
       if (!row?.canonicalAppointmentId || !input.bookingEngine || !input.appointmentLifecycle) {
-        return { ok: false, error: "no_canonical" };
+        return { ok: false, error: 'no_canonical' };
       }
-      const orgId = await resolveCanonicalAppointmentOrganizationId(input.bookingEngine, row.canonicalAppointmentId)
-        .catch(() => null);
-      if (!orgId) return { ok: false, error: "not_found" };
-      const preview = await input.appointmentLifecycle.previewPatientCancel(row.canonicalAppointmentId, orgId);
-      if (!preview.ok) return { ok: false, error: "not_found" };
+      const orgId = await resolveCanonicalAppointmentOrganizationId(
+        input.bookingEngine,
+        row.canonicalAppointmentId,
+      ).catch(() => null);
+      if (!orgId) return { ok: false, error: 'not_found' };
+      const preview = await input.appointmentLifecycle.previewPatientCancel(
+        row.canonicalAppointmentId,
+        orgId,
+      );
+      if (!preview.ok) return { ok: false, error: 'not_found' };
       return {
         ok: true,
         allowed: preview.allowed,
@@ -292,25 +317,27 @@ export function createPatientBookingService(input: {
     },
 
     async previewReschedule(previewInput) {
-      const row = await input.bookingsPort.getByIdForUser(previewInput.bookingId, previewInput.userId);
+      const row = await input.bookingsPort.getByIdForUser(
+        previewInput.bookingId,
+        previewInput.userId,
+      );
       if (!row?.canonicalAppointmentId || !input.bookingEngine || !input.appointmentLifecycle) {
-        return { ok: false, error: "no_canonical" };
+        return { ok: false, error: 'no_canonical' };
       }
-      const appointment = await loadCanonicalAppointment(input.bookingEngine, row.canonicalAppointmentId)
-        .catch(() => null);
-      if (!appointment) return { ok: false, error: "no_canonical" };
+      const appointment = await loadCanonicalAppointment(
+        input.bookingEngine,
+        row.canonicalAppointmentId,
+      ).catch(() => null);
+      if (!appointment) return { ok: false, error: 'no_canonical' };
       const orgId = appointment.organizationId;
-      if (
-        row.bookingType === "in_person" &&
-        (!appointment.branchId || !appointment.serviceId)
-      ) {
-        return { ok: false, error: "canonical_appointment_incomplete" };
+      if (row.bookingType === 'in_person' && (!appointment.branchId || !appointment.serviceId)) {
+        return { ok: false, error: 'canonical_appointment_incomplete' };
       }
       const preview = await input.appointmentLifecycle.previewPatientReschedule(
         row.canonicalAppointmentId,
         orgId,
       );
-      if (!preview.ok) return { ok: false, error: "not_found" };
+      if (!preview.ok) return { ok: false, error: 'not_found' };
       return {
         ok: true,
         allowed: preview.allowed,
@@ -320,28 +347,37 @@ export function createPatientBookingService(input: {
     },
 
     async rescheduleBooking(rescheduleInput) {
-      const row = await input.bookingsPort.getByIdForUser(rescheduleInput.bookingId, rescheduleInput.userId);
-      if (!row?.canonicalAppointmentId || !input.bookingEngine || !input.bookingScheduling || !input.appointmentLifecycle) {
-        return { ok: false, error: "no_canonical" };
-      }
-      if (row.status === "cancelled" || row.status === "cancelling") {
-        return { ok: false, error: "not_found" };
-      }
-      const appointment = await loadCanonicalAppointment(input.bookingEngine, row.canonicalAppointmentId)
-        .catch(() => null);
-      if (!appointment) return { ok: false, error: "no_canonical" };
-      const orgId = appointment.organizationId;
+      const row = await input.bookingsPort.getByIdForUser(
+        rescheduleInput.bookingId,
+        rescheduleInput.userId,
+      );
       if (
-        row.bookingType === "in_person" &&
-        (!appointment.branchId || !appointment.serviceId)
+        !row?.canonicalAppointmentId ||
+        !input.bookingEngine ||
+        !input.bookingScheduling ||
+        !input.appointmentLifecycle
       ) {
-        return { ok: false, error: "canonical_appointment_incomplete" };
+        return { ok: false, error: 'no_canonical' };
+      }
+      if (row.status === 'cancelled' || row.status === 'cancelling') {
+        return { ok: false, error: 'not_found' };
+      }
+      const appointment = await loadCanonicalAppointment(
+        input.bookingEngine,
+        row.canonicalAppointmentId,
+      ).catch(() => null);
+      if (!appointment) return { ok: false, error: 'no_canonical' };
+      const orgId = appointment.organizationId;
+      if (row.bookingType === 'in_person' && (!appointment.branchId || !appointment.serviceId)) {
+        return { ok: false, error: 'canonical_appointment_incomplete' };
       }
 
       const durationMinutes = Math.max(
         1,
         Math.round(
-          (new Date(rescheduleInput.slotEnd).getTime() - new Date(rescheduleInput.slotStart).getTime()) / 60_000,
+          (new Date(rescheduleInput.slotEnd).getTime() -
+            new Date(rescheduleInput.slotStart).getTime()) /
+            60_000,
         ),
       );
 
@@ -356,8 +392,11 @@ export function createPatientBookingService(input: {
           excludeAppointmentId: row.canonicalAppointmentId,
         });
       } catch (err) {
-        if (isPostgresExclusionViolation(err) || (err instanceof Error && err.message === "slot_overlap")) {
-          return { ok: false, error: "slot_overlap" };
+        if (
+          isPostgresExclusionViolation(err) ||
+          (err instanceof Error && err.message === 'slot_overlap')
+        ) {
+          return { ok: false, error: 'slot_overlap' };
         }
         throw err;
       }
@@ -373,10 +412,10 @@ export function createPatientBookingService(input: {
       });
       if (!result.ok) {
         const err = result.error;
-        if (err === "staff_confirmation_required") {
+        if (err === 'staff_confirmation_required') {
           try {
             await input.syncPort.emitBookingEvent({
-              eventType: "booking.reschedule_requested",
+              eventType: 'booking.reschedule_requested',
               idempotencyKey: `booking.reschedule_requested:${row.id}:${rescheduleInput.slotStart}`,
               payload: {
                 organizationId: orgId,
@@ -401,21 +440,21 @@ export function createPatientBookingService(input: {
           return { ok: false, error: err };
         }
         if (
-          err === "not_found" ||
-          err === "too_late" ||
-          err === "limit_exceeded" ||
-          err === "change_not_allowed"
+          err === 'not_found' ||
+          err === 'too_late' ||
+          err === 'limit_exceeded' ||
+          err === 'change_not_allowed'
         ) {
           return { ok: false, error: err };
         }
-        return { ok: false, error: "not_found" };
+        return { ok: false, error: 'not_found' };
       }
 
       const updatedRow = await input.bookingsPort.updateSlotsAfterReschedule({
         bookingId: row.id,
         slotStart: rescheduleInput.slotStart,
         slotEnd: rescheduleInput.slotEnd,
-        status: row.status === "awaiting_payment" ? "awaiting_payment" : "confirmed",
+        status: row.status === 'awaiting_payment' ? 'awaiting_payment' : 'confirmed',
       });
       invalidateSlotsCache();
 
@@ -430,11 +469,14 @@ export function createPatientBookingService(input: {
           });
         } catch (err) {
           paymentOutcomeFailed = true;
-          console.error("[patient-booking] payment carry-over failed (reschedule already committed)", {
-            bookingId: row.id,
-            canonicalAppointmentId: row.canonicalAppointmentId,
-            err,
-          });
+          console.error(
+            '[patient-booking] payment carry-over failed (reschedule already committed)',
+            {
+              bookingId: row.id,
+              canonicalAppointmentId: row.canonicalAppointmentId,
+              err,
+            },
+          );
         }
       }
 
@@ -450,19 +492,22 @@ export function createPatientBookingService(input: {
             }),
           );
         } catch (err) {
-          console.error("[patient-booking] doctor projection reschedule failed (reschedule already committed)", {
-            bookingId: row.id,
-            canonicalAppointmentId: row.canonicalAppointmentId,
-            err,
-          });
+          console.error(
+            '[patient-booking] doctor projection reschedule failed (reschedule already committed)',
+            {
+              bookingId: row.id,
+              canonicalAppointmentId: row.canonicalAppointmentId,
+              err,
+            },
+          );
         }
       }
 
       const idempotencyKey = `booking.rescheduled:${row.id}:${rescheduleInput.slotStart}`;
-      let integratorStatus: "sent" | "failed" = "failed";
+      let integratorStatus: 'sent' | 'failed' = 'failed';
       try {
         await input.syncPort.emitBookingEvent({
-          eventType: "booking.rescheduled",
+          eventType: 'booking.rescheduled',
           idempotencyKey,
           payload: {
             organizationId: orgId,
@@ -481,13 +526,13 @@ export function createPatientBookingService(input: {
             canonicalAppointmentId: row.canonicalAppointmentId ?? undefined,
           },
         });
-        integratorStatus = "sent";
+        integratorStatus = 'sent';
       } catch {
         // Best-effort notifications.
       }
 
       const rescheduleNotify = resolveBookingNotifyTargets(
-        "booking.rescheduled",
+        'booking.rescheduled',
         result.reschedulePolicy,
         (await input.getBookingLifecycleNotificationSettings?.()) ?? null,
       );
@@ -497,7 +542,7 @@ export function createPatientBookingService(input: {
           row.canonicalAppointmentId,
           orgId,
           buildBookingNotificationsSent({
-            eventType: "booking.rescheduled",
+            eventType: 'booking.rescheduled',
             idempotencyKey,
             notifyPatient: rescheduleNotify.notifyPatient,
             notifyStaff: rescheduleNotify.notifyStaff,
@@ -506,11 +551,14 @@ export function createPatientBookingService(input: {
         );
       } catch (err) {
         notificationOutcomeFailed = true;
-        console.error("[patient-booking] reschedule notification patch failed (reschedule already committed)", {
-          bookingId: row.id,
-          canonicalAppointmentId: row.canonicalAppointmentId,
-          err,
-        });
+        console.error(
+          '[patient-booking] reschedule notification patch failed (reschedule already committed)',
+          {
+            bookingId: row.id,
+            canonicalAppointmentId: row.canonicalAppointmentId,
+            err,
+          },
+        );
       }
 
       return {
@@ -522,21 +570,29 @@ export function createPatientBookingService(input: {
     },
 
     async cancelBooking(cancelInput) {
-      const row = await input.bookingsPort.getByIdForUser(cancelInput.bookingId, cancelInput.userId);
-      if (!row) return { ok: false, error: "not_found" };
-      if (row.status === "cancelled" || row.status === "cancelling") {
-        return { ok: false, error: "already_cancelled" };
+      const row = await input.bookingsPort.getByIdForUser(
+        cancelInput.bookingId,
+        cancelInput.userId,
+      );
+      if (!row) return { ok: false, error: 'not_found' };
+      if (row.status === 'cancelled' || row.status === 'cancelling') {
+        return { ok: false, error: 'already_cancelled' };
       }
 
       if (row.canonicalAppointmentId && input.bookingEngine && input.appointmentLifecycle) {
-        const orgId = await resolveCanonicalAppointmentOrganizationId(input.bookingEngine, row.canonicalAppointmentId)
-          .catch(() => null);
-        if (!orgId) return { ok: false, error: "not_found" };
-        const preview = await input.appointmentLifecycle.previewPatientCancel(row.canonicalAppointmentId, orgId);
-        if (!preview.ok) return { ok: false, error: "not_found" };
-        if (!preview.allowed) return { ok: false, error: "not_allowed" };
+        const orgId = await resolveCanonicalAppointmentOrganizationId(
+          input.bookingEngine,
+          row.canonicalAppointmentId,
+        ).catch(() => null);
+        if (!orgId) return { ok: false, error: 'not_found' };
+        const preview = await input.appointmentLifecycle.previewPatientCancel(
+          row.canonicalAppointmentId,
+          orgId,
+        );
+        if (!preview.ok) return { ok: false, error: 'not_found' };
+        if (!preview.allowed) return { ok: false, error: 'not_allowed' };
         if (preview.requiresStaffConfirmation) {
-          return { ok: false, error: "staff_confirmation_required" };
+          return { ok: false, error: 'staff_confirmation_required' };
         }
 
         await input.bookingsPort.markCancelling(row.id);
@@ -550,15 +606,15 @@ export function createPatientBookingService(input: {
         if (!lifecycleResult.ok) {
           await input.bookingsPort.markCancelled({
             bookingId: row.id,
-            reason: "cancel_lifecycle_failed",
-            status: "cancel_failed",
+            reason: 'cancel_lifecycle_failed',
+            status: 'cancel_failed',
           });
           invalidateSlotsCache();
-          if (lifecycleResult.error === "not_allowed") return { ok: false, error: "not_allowed" };
-          if (lifecycleResult.error === "staff_confirmation_required") {
-            return { ok: false, error: "staff_confirmation_required" };
+          if (lifecycleResult.error === 'not_allowed') return { ok: false, error: 'not_allowed' };
+          if (lifecycleResult.error === 'staff_confirmation_required') {
+            return { ok: false, error: 'staff_confirmation_required' };
           }
-          return { ok: false, error: "lifecycle_failed" };
+          return { ok: false, error: 'lifecycle_failed' };
         }
 
         let paymentOutcomeFailed = false;
@@ -573,27 +629,30 @@ export function createPatientBookingService(input: {
               organizationId: orgId,
               prepaymentRetained: lifecycleResult.eligibility
                 ? !lifecycleResult.eligibility.isFree &&
-                  lifecycleResult.cancelPolicy.lateCancellationBehavior === "retain_prepayment"
+                  lifecycleResult.cancelPolicy.lateCancellationBehavior === 'retain_prepayment'
                 : false,
               prepaymentRefunded: lifecycleResult.eligibility
                 ? !lifecycleResult.eligibility.isFree &&
-                  lifecycleResult.cancelPolicy.lateCancellationBehavior === "refund_prepayment"
+                  lifecycleResult.cancelPolicy.lateCancellationBehavior === 'refund_prepayment'
                 : false,
               reason: cancelInput.reason,
             });
           } catch (err) {
             paymentOutcomeFailed = true;
-            console.error("[patient-booking] cancel payment outcome failed (canonical already cancelled)", {
-              bookingId: row.id,
-              err,
-            });
+            console.error(
+              '[patient-booking] cancel payment outcome failed (canonical already cancelled)',
+              {
+                bookingId: row.id,
+                err,
+              },
+            );
           }
         }
 
         if (input.memberships && lifecycleResult.eligibility) {
           const { eligibility } = lifecycleResult;
           const packageLessonDeducted =
-            !eligibility.isFree && eligibility.decisionType === "package_charged";
+            !eligibility.isFree && eligibility.decisionType === 'package_charged';
           try {
             await input.memberships.applyCancelPackageOutcome({
               organizationId: orgId,
@@ -602,10 +661,13 @@ export function createPatientBookingService(input: {
             });
           } catch (err) {
             membershipOutcomeFailed = true;
-            console.error("[patient-booking] cancel package outcome failed (canonical already cancelled)", {
-              bookingId: row.id,
-              err,
-            });
+            console.error(
+              '[patient-booking] cancel package outcome failed (canonical already cancelled)',
+              {
+                bookingId: row.id,
+                err,
+              },
+            );
           }
         }
 
@@ -613,11 +675,11 @@ export function createPatientBookingService(input: {
           const appt = await input.bookingEngine.getAppointment(row.canonicalAppointmentId);
           const rawProductId = appt?.attributionJson?.productPurchaseId;
           const productPurchaseId =
-            typeof rawProductId === "string" && rawProductId.trim() ? rawProductId.trim() : null;
+            typeof rawProductId === 'string' && rawProductId.trim() ? rawProductId.trim() : null;
           if (productPurchaseId && lifecycleResult.eligibility) {
             const visitDeducted =
               !lifecycleResult.eligibility.isFree &&
-              lifecycleResult.eligibility.decisionType === "package_charged";
+              lifecycleResult.eligibility.decisionType === 'package_charged';
             try {
               await input.products.applyCancelVisitOutcome({
                 organizationId: orgId,
@@ -627,10 +689,13 @@ export function createPatientBookingService(input: {
               });
             } catch (err) {
               productOutcomeFailed = true;
-              console.error("[patient-booking] cancel product outcome failed (canonical already cancelled)", {
-                bookingId: row.id,
-                err,
-              });
+              console.error(
+                '[patient-booking] cancel product outcome failed (canonical already cancelled)',
+                {
+                  bookingId: row.id,
+                  err,
+                },
+              );
             }
           }
         }
@@ -638,7 +703,7 @@ export function createPatientBookingService(input: {
         await input.bookingsPort.markCancelled({
           bookingId: row.id,
           reason: cancelInput.reason,
-          status: "cancelled",
+          status: 'cancelled',
         });
         invalidateSlotsCache();
 
@@ -650,19 +715,22 @@ export function createPatientBookingService(input: {
               buildProjectionInput(row),
             );
           } catch (err) {
-            console.error("[patient-booking] doctor projection cancel failed (cancel already committed)", {
-              bookingId: row.id,
-              canonicalAppointmentId: row.canonicalAppointmentId,
-              err,
-            });
+            console.error(
+              '[patient-booking] doctor projection cancel failed (cancel already committed)',
+              {
+                bookingId: row.id,
+                canonicalAppointmentId: row.canonicalAppointmentId,
+                err,
+              },
+            );
           }
         }
 
         const idempotencyKey = `booking.cancelled:${row.id}`;
-        let integratorStatus: "sent" | "failed" = "failed";
+        let integratorStatus: 'sent' | 'failed' = 'failed';
         try {
           await input.syncPort.emitBookingEvent({
-            eventType: "booking.cancelled",
+            eventType: 'booking.cancelled',
             idempotencyKey,
             payload: {
               organizationId: orgId,
@@ -682,13 +750,13 @@ export function createPatientBookingService(input: {
               canonicalAppointmentId: row.canonicalAppointmentId ?? undefined,
             },
           });
-          integratorStatus = "sent";
+          integratorStatus = 'sent';
         } catch {
           // Best-effort.
         }
 
         const cancelNotify = resolveBookingNotifyTargets(
-          "booking.cancelled",
+          'booking.cancelled',
           lifecycleResult.cancelPolicy,
           (await input.getBookingLifecycleNotificationSettings?.()) ?? null,
         );
@@ -697,7 +765,7 @@ export function createPatientBookingService(input: {
             row.canonicalAppointmentId,
             orgId,
             buildBookingNotificationsSent({
-              eventType: "booking.cancelled",
+              eventType: 'booking.cancelled',
               idempotencyKey,
               notifyPatient: cancelNotify.notifyPatient,
               notifyStaff: cancelNotify.notifyStaff,
@@ -706,18 +774,21 @@ export function createPatientBookingService(input: {
           );
         } catch (err) {
           notificationOutcomeFailed = true;
-          console.error("[patient-booking] cancel notification patch failed (cancel already committed)", {
-            bookingId: row.id,
-            canonicalAppointmentId: row.canonicalAppointmentId,
-            err,
-          });
+          console.error(
+            '[patient-booking] cancel notification patch failed (cancel already committed)',
+            {
+              bookingId: row.id,
+              canonicalAppointmentId: row.canonicalAppointmentId,
+              err,
+            },
+          );
         }
 
         return {
           ok: true,
           lateCancellation:
-            lifecycleResult.eligibility.reasonCode === "late" ||
-            lifecycleResult.eligibility.reasonCode === "forfeited_by_reschedule",
+            lifecycleResult.eligibility.reasonCode === 'late' ||
+            lifecycleResult.eligibility.reasonCode === 'forfeited_by_reschedule',
           ...(notificationOutcomeFailed ? { notificationOutcomeFailed: true as const } : {}),
           ...(paymentOutcomeFailed ? { paymentOutcomeFailed: true as const } : {}),
           ...(membershipOutcomeFailed ? { membershipOutcomeFailed: true as const } : {}),
@@ -725,7 +796,7 @@ export function createPatientBookingService(input: {
         };
       }
 
-      return { ok: false, error: "not_found" };
+      return { ok: false, error: 'not_found' };
     },
 
     async listMyBookings(userId) {
@@ -736,6 +807,5 @@ export function createPatientBookingService(input: {
       ]);
       return { upcoming, history };
     },
-
   };
 }

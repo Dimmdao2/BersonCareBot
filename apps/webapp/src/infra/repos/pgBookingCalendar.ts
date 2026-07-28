@@ -1,5 +1,5 @@
-import { and, asc, desc, eq, gte, inArray, isNull, lte, sql } from "drizzle-orm";
-import { getDrizzle } from "@/app-layer/db/drizzle";
+import { and, asc, desc, eq, gte, inArray, isNull, lte, sql } from 'drizzle-orm';
+import { getDrizzle } from '@/app-layer/db/drizzle';
 import {
   beAppointments,
   beBranches,
@@ -7,17 +7,21 @@ import {
   beRooms,
   beSpecialists,
   beSpecialistServiceAvailability,
-} from "../../../db/schema/bookingEngine";
-import { beBookingFormFields, beBookingFormSubmissions } from "../../../db/schema/bookingScheduling";
-import { bePaymentIntents } from "../../../db/schema/bookingPayments";
+} from '../../../db/schema/bookingEngine';
 import {
-  bePackageUsages,
-  bePatientPackages,
-} from "../../../db/schema/bookingMemberships";
-import { patientBookings, platformUsers } from "../../../db/schema/schema";
-import type { BookingCalendarPort } from "@/modules/booking-calendar/ports";
-import type { CalendarAppointmentEvent, CalendarFilterMeta, CalendarFilters } from "@/modules/booking-calendar/types";
-import { filterCanonicalRowsNotPurged } from "@/infra/repos/doctorAppointmentPurgeFilter";
+  beBookingFormFields,
+  beBookingFormSubmissions,
+} from '../../../db/schema/bookingScheduling';
+import { bePaymentIntents } from '../../../db/schema/bookingPayments';
+import { bePackageUsages, bePatientPackages } from '../../../db/schema/bookingMemberships';
+import { patientBookings, platformUsers } from '../../../db/schema/schema';
+import type { BookingCalendarPort } from '@/modules/booking-calendar/ports';
+import type {
+  CalendarAppointmentEvent,
+  CalendarFilterMeta,
+  CalendarFilters,
+} from '@/modules/booking-calendar/types';
+import { filterCanonicalRowsNotPurged } from '@/infra/repos/doctorAppointmentPurgeFilter';
 
 const UUID_RE = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
@@ -26,18 +30,20 @@ function patientDisplayName(row: {
   firstName: string | null;
   lastName: string | null;
 }): string {
-  const fromParts = [row.firstName, row.lastName].filter(Boolean).join(" ").trim();
+  const fromParts = [row.firstName, row.lastName].filter(Boolean).join(' ').trim();
   if (fromParts) return fromParts;
   const dn = row.displayName.trim();
-  return dn || "Пациент";
+  return dn || 'Пациент';
 }
 
-function contactNameFromAttribution(attr: Record<string, unknown> | null | undefined): string | null {
+function contactNameFromAttribution(
+  attr: Record<string, unknown> | null | undefined,
+): string | null {
   if (!attr) return null;
   const v =
-    typeof attr.contact_name === "string"
+    typeof attr.contact_name === 'string'
       ? attr.contact_name
-      : typeof attr.contactName === "string"
+      : typeof attr.contactName === 'string'
         ? attr.contactName
         : null;
   return v?.trim() || null;
@@ -47,9 +53,9 @@ export function isPrepaymentPending(
   appointmentStatus: string,
   paymentStatus: string | null | undefined,
 ): boolean {
-  if (appointmentStatus === "awaiting_payment") return true;
+  if (appointmentStatus === 'awaiting_payment') return true;
   if (!paymentStatus) return false;
-  return paymentStatus === "pending" || paymentStatus === "requires_action";
+  return paymentStatus === 'pending' || paymentStatus === 'requires_action';
 }
 
 export function createPgBookingCalendarPort(): BookingCalendarPort {
@@ -60,10 +66,17 @@ export function createPgBookingCalendarPort(): BookingCalendarPort {
         db
           .select({ id: beSpecialists.id, label: beSpecialists.fullName })
           .from(beSpecialists)
-          .where(and(eq(beSpecialists.organizationId, organizationId), eq(beSpecialists.isActive, true)))
+          .where(
+            and(eq(beSpecialists.organizationId, organizationId), eq(beSpecialists.isActive, true)),
+          )
           .orderBy(asc(beSpecialists.sortOrder), asc(beSpecialists.fullName)),
         db
-          .select({ id: beBranches.id, label: beBranches.title, shortTitle: beBranches.shortTitle, color: beBranches.color })
+          .select({
+            id: beBranches.id,
+            label: beBranches.title,
+            shortTitle: beBranches.shortTitle,
+            color: beBranches.color,
+          })
           .from(beBranches)
           .where(and(eq(beBranches.organizationId, organizationId), eq(beBranches.isActive, true)))
           .orderBy(asc(beBranches.sortOrder), asc(beBranches.title)),
@@ -79,7 +92,12 @@ export function createPgBookingCalendarPort(): BookingCalendarPort {
             durationMinutes: beClinicServices.durationMinutes,
           })
           .from(beClinicServices)
-          .where(and(eq(beClinicServices.organizationId, organizationId), eq(beClinicServices.isActive, true)))
+          .where(
+            and(
+              eq(beClinicServices.organizationId, organizationId),
+              eq(beClinicServices.isActive, true),
+            ),
+          )
           .orderBy(asc(beClinicServices.sortOrder), asc(beClinicServices.title)),
         db
           .select({
@@ -277,7 +295,10 @@ export function createPgBookingCalendarPort(): BookingCalendarPort {
               displayNumber: bePatientPackages.displayNumber,
             })
             .from(bePackageUsages)
-            .innerJoin(bePatientPackages, eq(bePatientPackages.id, bePackageUsages.patientPackageId))
+            .innerJoin(
+              bePatientPackages,
+              eq(bePatientPackages.id, bePackageUsages.patientPackageId),
+            )
             .where(
               packageUsageRefs.length > 0
                 ? inArray(bePackageUsages.id, packageUsageRefs)
@@ -290,7 +311,10 @@ export function createPgBookingCalendarPort(): BookingCalendarPort {
               valueText: beBookingFormSubmissions.valueText,
             })
             .from(beBookingFormSubmissions)
-            .innerJoin(beBookingFormFields, eq(beBookingFormFields.id, beBookingFormSubmissions.fieldId))
+            .innerJoin(
+              beBookingFormFields,
+              eq(beBookingFormFields.id, beBookingFormSubmissions.fieldId),
+            )
             .where(
               and(
                 eq(beBookingFormSubmissions.organizationId, filters.organizationId),
@@ -341,10 +365,12 @@ export function createPgBookingCalendarPort(): BookingCalendarPort {
               })
             : null;
         const paymentStatus = paymentByAppt.get(row.id) ?? null;
-        const status = row.status as CalendarAppointmentEvent["status"];
-        const packageData = row.packageUsageRef ? (packageByUsageRef.get(row.packageUsageRef) ?? null) : null;
+        const status = row.status as CalendarAppointmentEvent['status'];
+        const packageData = row.packageUsageRef
+          ? (packageByUsageRef.get(row.packageUsageRef) ?? null)
+          : null;
         return {
-          kind: "appointment" as const,
+          kind: 'appointment' as const,
           id: row.id,
           startAt: row.startAt,
           endAt: row.endAt,

@@ -1,7 +1,7 @@
 /**
  * Форматирование дат/времени записей в явной IANA-таймзоне (без зависимости от TZ процесса Node / браузера).
  */
-import { DateTime } from "luxon";
+import { DateTime } from 'luxon';
 
 const NAIVE_WALL_CLOCK_REGEX = /^\d{4}-\d{2}-\d{2}(?:T| )\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?$/;
 
@@ -10,7 +10,7 @@ const NAIVE_WALL_CLOCK_REGEX = /^\d{4}-\d{2}-\d{2}(?:T| )\d{2}:\d{2}:\d{2}(?:\.\
  * перед «г.» — ломает гидратацию Client Components. Приводим к обычному пробелу.
  */
 function normalizeRuIntlSpacing(s: string): string {
-  return s.replace(/\u202f/g, " ").replace(/\u00a0/g, " ");
+  return s.replace(/\u202f/g, ' ').replace(/\u00a0/g, ' ');
 }
 
 /** One-time warn: naive wall-clock strings should be rare after ingest normalization (Stage 3). */
@@ -33,10 +33,10 @@ export function parseBusinessInstant(iso: string, displayTimeZone: string): Date
     if (!warnedNaiveBusinessInstantParse) {
       warnedNaiveBusinessInstantParse = true;
       console.warn(
-        "[formatBusinessDateTime] Naive wall-clock ISO parsed as safety-net; ingest should supply explicit-zoned instants (Stage 3+).",
+        '[formatBusinessDateTime] Naive wall-clock ISO parsed as safety-net; ingest should supply explicit-zoned instants (Stage 3+).',
       );
     }
-    const normalized = t.includes("T") ? t : t.replace(" ", "T");
+    const normalized = t.includes('T') ? t : t.replace(' ', 'T');
     const dt = DateTime.fromISO(normalized, { zone: displayTimeZone.trim() });
     if (dt.isValid) return new Date(dt.toUTC().toJSDate().toISOString());
   }
@@ -47,7 +47,7 @@ export function formatBookingDateTimeMediumRu(iso: string, timeZone: string): st
   const d = parseBusinessInstant(iso, timeZone);
   if (Number.isNaN(d.getTime())) return iso;
   return normalizeRuIntlSpacing(
-    d.toLocaleString("ru-RU", { dateStyle: "medium", timeStyle: "short", timeZone }),
+    d.toLocaleString('ru-RU', { dateStyle: 'medium', timeStyle: 'short', timeZone }),
   );
 }
 
@@ -56,7 +56,7 @@ export function formatBookingDateTimeShortStyleRu(iso: string, timeZone: string)
   const d = parseBusinessInstant(iso, timeZone);
   if (Number.isNaN(d.getTime())) return iso;
   return normalizeRuIntlSpacing(
-    d.toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short", timeZone }),
+    d.toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short', timeZone }),
   );
 }
 
@@ -64,7 +64,7 @@ export function formatBookingTimeShortRu(iso: string, timeZone: string): string 
   const d = parseBusinessInstant(iso, timeZone);
   if (Number.isNaN(d.getTime())) return iso;
   return normalizeRuIntlSpacing(
-    d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit", timeZone }),
+    d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone }),
   );
 }
 
@@ -73,7 +73,7 @@ export function formatBookingDateLongRu(iso: string, timeZone: string): string {
   const d = parseBusinessInstant(iso, timeZone);
   if (Number.isNaN(d.getTime())) return iso;
   return normalizeRuIntlSpacing(
-    d.toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric", timeZone }),
+    d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric', timeZone }),
   );
 }
 
@@ -85,14 +85,14 @@ export function formatAppointmentDateNumericRu(
   iso: string | Date | null | undefined,
   timeZone: string,
 ): string {
-  if (iso == null) return "—";
-  const d = typeof iso === "string" ? parseBusinessInstant(iso, timeZone) : iso;
-  if (Number.isNaN(d.getTime())) return "—";
+  if (iso == null) return '—';
+  const d = typeof iso === 'string' ? parseBusinessInstant(iso, timeZone) : iso;
+  if (Number.isNaN(d.getTime())) return '—';
   return normalizeRuIntlSpacing(
-    d.toLocaleDateString("ru-RU", {
-      day: "numeric",
-      month: "numeric",
-      year: "numeric",
+    d.toLocaleDateString('ru-RU', {
+      day: 'numeric',
+      month: 'numeric',
+      year: 'numeric',
       timeZone,
     }),
   );
@@ -103,29 +103,32 @@ export function formatAppointmentTimeShortRu(
   iso: string | Date | null | undefined,
   timeZone: string,
 ): string {
-  if (iso == null) return "—";
-  const s = typeof iso === "string" ? iso : iso.toISOString();
+  if (iso == null) return '—';
+  const s = typeof iso === 'string' ? iso : iso.toISOString();
   const d = parseBusinessInstant(s, timeZone);
-  if (Number.isNaN(d.getTime())) return "—";
+  if (Number.isNaN(d.getTime())) return '—';
   return formatBookingTimeShortRu(s, timeZone);
 }
 
 /**
  * Как в списке врача: `HH:mm DD.MM` в бизнес-таймзоне (раньше ошибочно брался UTC).
  */
-export function formatDoctorAppointmentRecordAt(iso: string | null | undefined, timeZone: string): string {
-  if (!iso) return "";
+export function formatDoctorAppointmentRecordAt(
+  iso: string | null | undefined,
+  timeZone: string,
+): string {
+  if (!iso) return '';
   const d = parseBusinessInstant(iso, timeZone);
-  if (Number.isNaN(d.getTime())) return "";
-  const fmt = new Intl.DateTimeFormat("en-GB", {
+  if (Number.isNaN(d.getTime())) return '';
+  const fmt = new Intl.DateTimeFormat('en-GB', {
     timeZone,
-    hour: "2-digit",
-    minute: "2-digit",
-    day: "2-digit",
-    month: "2-digit",
+    hour: '2-digit',
+    minute: '2-digit',
+    day: '2-digit',
+    month: '2-digit',
     hour12: false,
   });
   const parts = fmt.formatToParts(d);
-  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
-  return `${get("hour")}:${get("minute")} ${get("day")}.${get("month")}`;
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '';
+  return `${get('hour')}:${get('minute')} ${get('day')}.${get('month')}`;
 }

@@ -1,17 +1,17 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const requireDoctorWorkspaceApiContextMock = vi.hoisted(() => vi.fn());
 const loadDoctorAnalyticsAudienceMock = vi.hoisted(() => vi.fn());
 const listMetricAccountsMock = vi.hoisted(() => vi.fn());
 const listAppointmentsForSpecialistMock = vi.hoisted(() => vi.fn());
 
-vi.mock("@/app-layer/guards/requireRole", () => ({
+vi.mock('@/app-layer/guards/requireRole', () => ({
   requireDoctorWorkspaceApiContext: requireDoctorWorkspaceApiContextMock,
 }));
-vi.mock("@/app-layer/analytics/loadAnalyticsAudience", () => ({
+vi.mock('@/app-layer/analytics/loadAnalyticsAudience', () => ({
   loadDoctorAnalyticsAudience: loadDoctorAnalyticsAudienceMock,
 }));
-vi.mock("@/app-layer/di/buildAppDeps", () => ({
+vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: () => ({
     doctorAppointments: {
       listAppointmentsForSpecialist: listAppointmentsForSpecialistMock,
@@ -21,25 +21,25 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
     },
   }),
 }));
-vi.mock("@/modules/system-settings/appDisplayTimezone", () => ({
-  getAppDisplayTimeZone: vi.fn(async () => "Europe/Moscow"),
+vi.mock('@/modules/system-settings/appDisplayTimezone', () => ({
+  getAppDisplayTimeZone: vi.fn(async () => 'Europe/Moscow'),
 }));
 
-import { GET } from "./route";
+import { GET } from './route';
 
-describe("GET /api/doctor/analytics-metric-accounts", () => {
+describe('GET /api/doctor/analytics-metric-accounts', () => {
   beforeEach(() => {
     requireDoctorWorkspaceApiContextMock.mockReset();
     requireDoctorWorkspaceApiContextMock.mockResolvedValue({
       ok: true,
-      ctx: { organizationId: "10000000-0000-4000-8000-000000000001" },
+      ctx: { organizationId: '10000000-0000-4000-8000-000000000001' },
     });
     loadDoctorAnalyticsAudienceMock.mockReset();
     listMetricAccountsMock.mockReset();
     listAppointmentsForSpecialistMock.mockReset();
     loadDoctorAnalyticsAudienceMock.mockResolvedValue({
       includeTestAccounts: false,
-      excludedUserIds: ["aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"],
+      excludedUserIds: ['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'],
     });
     listMetricAccountsMock.mockResolvedValue({
       items: [],
@@ -49,51 +49,57 @@ describe("GET /api/doctor/analytics-metric-accounts", () => {
     listAppointmentsForSpecialistMock.mockResolvedValue([]);
   });
 
-  it("returns 401 without session", async () => {
+  it('returns 401 without session', async () => {
     requireDoctorWorkspaceApiContextMock.mockResolvedValue({
       ok: false,
       response: Response.json({}, { status: 401 }),
     });
     const res = await GET(
-      new Request("http://localhost/api/doctor/analytics-metric-accounts?metric=today_appointments_today"),
+      new Request(
+        'http://localhost/api/doctor/analytics-metric-accounts?metric=today_appointments_today',
+      ),
     );
     expect(res.status).toBe(401);
     expect(listMetricAccountsMock).not.toHaveBeenCalled();
   });
 
-  it("rejects notification metrics on doctor route", async () => {
+  it('rejects notification metrics on doctor route', async () => {
     const res = await GET(
-      new Request("http://localhost/api/doctor/analytics-metric-accounts?metric=notif_push_opened"),
+      new Request('http://localhost/api/doctor/analytics-metric-accounts?metric=notif_push_opened'),
     );
     expect(res.status).toBe(400);
     expect(listMetricAccountsMock).not.toHaveBeenCalled();
   });
 
-  it("routes today appointment metric to doctorAppointments with audience", async () => {
+  it('routes today appointment metric to doctorAppointments with audience', async () => {
     const res = await GET(
-      new Request("http://localhost/api/doctor/analytics-metric-accounts?metric=today_appointments_today&limit=20&offset=0"),
+      new Request(
+        'http://localhost/api/doctor/analytics-metric-accounts?metric=today_appointments_today&limit=20&offset=0',
+      ),
     );
     expect(res.status).toBe(200);
     expect(listAppointmentsForSpecialistMock).toHaveBeenCalledWith(
-      { kind: "range", range: "today" },
+      { kind: 'range', range: 'today' },
       {
-        excludedUserIds: ["aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"],
-        organizationId: "10000000-0000-4000-8000-000000000001",
+        excludedUserIds: ['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'],
+        organizationId: '10000000-0000-4000-8000-000000000001',
       },
     );
     expect(listMetricAccountsMock).not.toHaveBeenCalled();
   });
 
-  it("routes cancellations 30d to doctorAppointments", async () => {
+  it('routes cancellations 30d to doctorAppointments', async () => {
     const res = await GET(
-      new Request("http://localhost/api/doctor/analytics-metric-accounts?metric=today_cancellations_30d"),
+      new Request(
+        'http://localhost/api/doctor/analytics-metric-accounts?metric=today_cancellations_30d',
+      ),
     );
     expect(res.status).toBe(200);
     expect(listAppointmentsForSpecialistMock).toHaveBeenCalledWith(
-      { kind: "cancellations30d" },
+      { kind: 'cancellations30d' },
       expect.objectContaining({
-        excludedUserIds: ["aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"],
-        organizationId: "10000000-0000-4000-8000-000000000001",
+        excludedUserIds: ['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'],
+        organizationId: '10000000-0000-4000-8000-000000000001',
       }),
     );
     expect(listMetricAccountsMock).not.toHaveBeenCalled();

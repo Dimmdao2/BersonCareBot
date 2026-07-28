@@ -1,7 +1,7 @@
-import { cache } from "react";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireEntitlementForReadAction } from "@/app-layer/guards/requireEntitlement";
-import { requireOrganizationManagementContext } from "@/app-layer/guards/requireRole";
+import { cache } from 'react';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { requireEntitlementForReadAction } from '@/app-layer/guards/requireEntitlement';
+import { requireOrganizationManagementContext } from '@/app-layer/guards/requireRole';
 
 export const loadManagementWorkspace = cache(async () => {
   const workspace = await requireOrganizationManagementContext();
@@ -10,11 +10,11 @@ export const loadManagementWorkspace = cache(async () => {
     bookingEngine
       ? bookingEngine.organization.getOrganization(workspace.organizationId)
       : Promise.resolve(null),
-    requireEntitlementForReadAction(workspace, "clinic_team").then((result) => result.ok),
+    requireEntitlementForReadAction(workspace, 'clinic_team').then((result) => result.ok),
   ]);
   return {
     workspace,
-    organizationName: organization?.title?.trim() || "Кабинет",
+    organizationName: organization?.title?.trim() || 'Кабинет',
     clinicTeamEnabled,
   };
 });

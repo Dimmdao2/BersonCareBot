@@ -9,9 +9,9 @@
  * Requires: DATABASE_URL (webapp), INTEGRATOR_DATABASE_URL (integrator).
  * Exit: 0 when within threshold; 1 when thresholds violated or DB error.
  */
-import "dotenv/config";
-import pg from "pg";
-import { loadCutoverEnv } from "../../../scripts/load-cutover-env.mjs";
+import 'dotenv/config';
+import pg from 'pg';
+import { loadCutoverEnv } from '../../../scripts/load-cutover-env.mjs';
 
 const { Client } = pg;
 
@@ -21,10 +21,16 @@ function parseArgs(argv) {
   let maxMismatchPercent = 0;
   let sampleSize = 10;
   for (const arg of argv) {
-    if (arg.startsWith("--max-mismatch-percent="))
-      maxMismatchPercent = Math.max(0, parseInt(arg.slice("--max-mismatch-percent=".length), 10) || 0);
-    if (arg.startsWith("--sample-size="))
-      sampleSize = Math.max(1, Math.min(500, parseInt(arg.slice("--sample-size=".length), 10) || 10));
+    if (arg.startsWith('--max-mismatch-percent='))
+      maxMismatchPercent = Math.max(
+        0,
+        parseInt(arg.slice('--max-mismatch-percent='.length), 10) || 0,
+      );
+    if (arg.startsWith('--sample-size='))
+      sampleSize = Math.max(
+        1,
+        Math.min(500, parseInt(arg.slice('--sample-size='.length), 10) || 10),
+      );
   }
   return { maxMismatchPercent, sampleSize };
 }
@@ -34,11 +40,11 @@ async function main() {
   const webappUrl = process.env.DATABASE_URL;
   const integratorUrl = process.env.INTEGRATOR_DATABASE_URL;
   if (!webappUrl?.trim()) {
-    console.error("DATABASE_URL is not set");
+    console.error('DATABASE_URL is not set');
     process.exit(1);
   }
   if (!integratorUrl?.trim()) {
-    console.error("INTEGRATOR_DATABASE_URL is not set");
+    console.error('INTEGRATOR_DATABASE_URL is not set');
     process.exit(1);
   }
 
@@ -48,7 +54,7 @@ async function main() {
     await webappClient.connect();
     await integratorClient.connect();
   } catch (err) {
-    console.error("DB connect error:", err.message);
+    console.error('DB connect error:', err.message);
     process.exit(1);
   }
 
@@ -62,9 +68,9 @@ async function main() {
 
   try {
     // Conversations: integrator id = webapp integrator_conversation_id
-    const convSrc = await integratorClient.query("SELECT id FROM conversations");
+    const convSrc = await integratorClient.query('SELECT id FROM conversations');
     const convTgt = await webappClient.query(
-      "SELECT integrator_conversation_id FROM support_conversations"
+      'SELECT integrator_conversation_id FROM support_conversations',
     );
     const srcConvIds = new Set(convSrc.rows.map((r) => r.id));
     const tgtConvIds = new Set(convTgt.rows.map((r) => r.integrator_conversation_id));
@@ -77,11 +83,9 @@ async function main() {
     };
 
     // Conversation messages
-    const msgSrc = await integratorClient.query(
-      "SELECT id FROM conversation_messages"
-    );
+    const msgSrc = await integratorClient.query('SELECT id FROM conversation_messages');
     const msgTgt = await webappClient.query(
-      "SELECT integrator_message_id FROM support_conversation_messages"
+      'SELECT integrator_message_id FROM support_conversation_messages',
     );
     const srcMsgIds = new Set(msgSrc.rows.map((r) => r.id));
     const tgtMsgIds = new Set(msgTgt.rows.map((r) => r.integrator_message_id));
@@ -94,10 +98,8 @@ async function main() {
     };
 
     // User questions
-    const qSrc = await integratorClient.query("SELECT id FROM user_questions");
-    const qTgt = await webappClient.query(
-      "SELECT integrator_question_id FROM support_questions"
-    );
+    const qSrc = await integratorClient.query('SELECT id FROM user_questions');
+    const qTgt = await webappClient.query('SELECT integrator_question_id FROM support_questions');
     const srcQIds = new Set(qSrc.rows.map((r) => r.id));
     const tgtQIds = new Set(qTgt.rows.map((r) => r.integrator_question_id));
     const missingQ = [...srcQIds].filter((id) => !tgtQIds.has(id));
@@ -109,11 +111,9 @@ async function main() {
     };
 
     // Question messages
-    const qmSrc = await integratorClient.query(
-      "SELECT id FROM question_messages"
-    );
+    const qmSrc = await integratorClient.query('SELECT id FROM question_messages');
     const qmTgt = await webappClient.query(
-      "SELECT integrator_question_message_id FROM support_question_messages"
+      'SELECT integrator_question_message_id FROM support_question_messages',
     );
     const srcQmIds = new Set(qmSrc.rows.map((r) => r.id));
     const tgtQmIds = new Set(qmTgt.rows.map((r) => r.integrator_question_message_id));
@@ -127,10 +127,10 @@ async function main() {
 
     // Delivery logs: ID matching by intent_event_id (stored as integrator_intent_event_id in webapp)
     const delSrc = await integratorClient.query(
-      "SELECT intent_event_id FROM delivery_attempt_logs WHERE intent_event_id IS NOT NULL"
+      'SELECT intent_event_id FROM delivery_attempt_logs WHERE intent_event_id IS NOT NULL',
     );
     const delTgt = await webappClient.query(
-      "SELECT integrator_intent_event_id FROM support_delivery_events WHERE integrator_intent_event_id IS NOT NULL"
+      'SELECT integrator_intent_event_id FROM support_delivery_events WHERE integrator_intent_event_id IS NOT NULL',
     );
     const srcDelIds = new Set(delSrc.rows.map((r) => r.intent_event_id));
     const tgtDelIds = new Set(delTgt.rows.map((r) => r.integrator_intent_event_id));
@@ -150,11 +150,11 @@ async function main() {
 
   // Exit 0 only if mismatch percent is within threshold for *all* tables (plan: "for all tables").
   const tables = [
-    { name: "conversations", ...report.conversations },
-    { name: "conversation_messages", ...report.conversation_messages },
-    { name: "questions", ...report.questions },
-    { name: "question_messages", ...report.question_messages },
-    { name: "delivery_events", ...report.delivery_events },
+    { name: 'conversations', ...report.conversations },
+    { name: 'conversation_messages', ...report.conversation_messages },
+    { name: 'questions', ...report.questions },
+    { name: 'question_messages', ...report.question_messages },
+    { name: 'delivery_events', ...report.delivery_events },
   ];
   for (const t of tables) {
     const sourceCount = t.sourceCount ?? 0;
@@ -162,7 +162,7 @@ async function main() {
     const pct = sourceCount > 0 ? (100 * missing) / sourceCount : 0;
     if (pct > maxMismatchPercent) {
       console.error(
-        `[reconcile-communication-domain] ${t.name}: mismatch ${pct.toFixed(2)}% > ${maxMismatchPercent}%`
+        `[reconcile-communication-domain] ${t.name}: mismatch ${pct.toFixed(2)}% > ${maxMismatchPercent}%`,
       );
       process.exit(1);
     }

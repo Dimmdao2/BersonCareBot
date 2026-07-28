@@ -4,11 +4,13 @@ export type ProgramSubmissionUploadResult =
   | { ok: true; mediaId: string; url: string; isVideo: boolean }
   | { ok: false; error: string };
 
-export async function uploadProgramSubmissionMedia(file: File): Promise<ProgramSubmissionUploadResult> {
-  const mime = (file.type || "application/octet-stream").toLowerCase();
-  const presignRes = await fetch("/api/patient/media/program-submission/presign", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
+export async function uploadProgramSubmissionMedia(
+  file: File,
+): Promise<ProgramSubmissionUploadResult> {
+  const mime = (file.type || 'application/octet-stream').toLowerCase();
+  const presignRes = await fetch('/api/patient/media/program-submission/presign', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       filename: file.name,
       mimeType: mime,
@@ -22,21 +24,21 @@ export async function uploadProgramSubmissionMedia(file: File): Promise<ProgramS
     uploadUrl?: string;
   } | null;
   if (!presignRes.ok || !presignData?.ok || !presignData.mediaId || !presignData.uploadUrl) {
-    return { ok: false, error: presignData?.error ?? "presign_failed" };
+    return { ok: false, error: presignData?.error ?? 'presign_failed' };
   }
 
   const putRes = await fetch(presignData.uploadUrl, {
-    method: "PUT",
-    headers: { "Content-Type": mime },
+    method: 'PUT',
+    headers: { 'Content-Type': mime },
     body: file,
   });
   if (!putRes.ok) {
-    return { ok: false, error: "upload_failed" };
+    return { ok: false, error: 'upload_failed' };
   }
 
-  const confirmRes = await fetch("/api/patient/media/program-submission/confirm", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
+  const confirmRes = await fetch('/api/patient/media/program-submission/confirm', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ mediaId: presignData.mediaId }),
   });
   const confirmData = (await confirmRes.json().catch(() => null)) as {
@@ -46,14 +48,14 @@ export async function uploadProgramSubmissionMedia(file: File): Promise<ProgramS
     url?: string;
   } | null;
   if (!confirmRes.ok || !confirmData?.ok || !confirmData.mediaId || !confirmData.url) {
-    return { ok: false, error: confirmData?.error ?? "confirm_failed" };
+    return { ok: false, error: confirmData?.error ?? 'confirm_failed' };
   }
 
   return {
     ok: true,
     mediaId: confirmData.mediaId,
     url: confirmData.url,
-    isVideo: mime.startsWith("video/"),
+    isVideo: mime.startsWith('video/'),
   };
 }
 
@@ -65,14 +67,16 @@ export async function waitForProgramSubmissionMediaReady(
   const intervalMs = opts?.intervalMs ?? 2_500;
   const started = Date.now();
   while (Date.now() - started < timeoutMs) {
-    const res = await fetch(`/api/patient/media/program-submission/${encodeURIComponent(mediaId)}/status`);
+    const res = await fetch(
+      `/api/patient/media/program-submission/${encodeURIComponent(mediaId)}/status`,
+    );
     const data = (await res.json().catch(() => null)) as {
       ok?: boolean;
       ready?: boolean;
       state?: string;
     } | null;
     if (res.ok && data?.ok && data.ready) return true;
-    if (res.ok && data?.ok && data.state === "failed") return false;
+    if (res.ok && data?.ok && data.state === 'failed') return false;
     await new Promise((r) => setTimeout(r, intervalMs));
   }
   return false;

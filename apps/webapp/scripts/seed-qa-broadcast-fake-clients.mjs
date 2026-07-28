@@ -15,23 +15,23 @@
  * (loads DATABASE_URL from .env or env)
  */
 
-import pg from "pg";
-import { readFileSync } from "node:fs";
-import { resolve, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
+import pg from 'pg';
+import { readFileSync } from 'node:fs';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // Load .env.dev or .env from webapp root
 function loadEnv() {
-  for (const name of [".env.dev", ".env"]) {
+  for (const name of ['.env.dev', '.env']) {
     try {
-      const path = resolve(__dirname, "..", name);
-      const content = readFileSync(path, "utf8");
-      for (const line of content.split("\n")) {
+      const path = resolve(__dirname, '..', name);
+      const content = readFileSync(path, 'utf8');
+      for (const line of content.split('\n')) {
         const m = line.match(/^([A-Z_][A-Z0-9_]*)=(.*)$/);
         if (m && !process.env[m[1]]) {
-          process.env[m[1]] = m[2].replace(/^["']|["']$/g, "");
+          process.env[m[1]] = m[2].replace(/^["']|["']$/g, '');
         }
       }
     } catch {
@@ -44,17 +44,17 @@ loadEnv();
 
 const DATABASE_URL = process.env.DATABASE_URL;
 if (!DATABASE_URL) {
-  console.error("❌  DATABASE_URL not set");
+  console.error('❌  DATABASE_URL not set');
   process.exit(1);
 }
 
 // Hard production guard
 if (
-  DATABASE_URL.includes("prod") ||
-  DATABASE_URL.includes("production") ||
-  process.env.NODE_ENV === "production"
+  DATABASE_URL.includes('prod') ||
+  DATABASE_URL.includes('production') ||
+  process.env.NODE_ENV === 'production'
 ) {
-  console.error("❌  Refusing to run seed in production environment");
+  console.error('❌  Refusing to run seed in production environment');
   process.exit(1);
 }
 
@@ -63,18 +63,18 @@ if (
 const FAKE_CLIENTS = [
   {
     // UUID namespace: sha1('qa-fake-broadcast-client:+79000000000') — offline-stable
-    id: "fa9e0000-0000-4000-8000-790000000000",
-    phone_normalized: "+79000000000",
-    display_name: "[QA] Тест Один",
-    first_name: "Тест",
-    last_name: "Один",
+    id: 'fa9e0000-0000-4000-8000-790000000000',
+    phone_normalized: '+79000000000',
+    display_name: '[QA] Тест Один',
+    first_name: 'Тест',
+    last_name: 'Один',
   },
   {
-    id: "fa9e9999-9999-4999-8999-799999999999",
-    phone_normalized: "+79999999999",
-    display_name: "[QA] Тест Два",
-    first_name: "Тест",
-    last_name: "Два",
+    id: 'fa9e9999-9999-4999-8999-799999999999',
+    phone_normalized: '+79999999999',
+    display_name: '[QA] Тест Два',
+    first_name: 'Тест',
+    last_name: 'Два',
   },
 ];
 
@@ -83,7 +83,7 @@ const pool = new pg.Pool({ connectionString: DATABASE_URL });
 async function seed() {
   const client = await pool.connect();
   try {
-    await client.query("BEGIN");
+    await client.query('BEGIN');
 
     for (const u of FAKE_CLIENTS) {
       // phone_normalized unique constraint is DEFERRABLE so ON CONFLICT DO UPDATE is
@@ -111,11 +111,11 @@ async function seed() {
       }
     }
 
-    await client.query("COMMIT");
-    console.log("Seed complete — 2 Q-A fake broadcast clients upserted.");
+    await client.query('COMMIT');
+    console.log('Seed complete — 2 Q-A fake broadcast clients upserted.');
   } catch (err) {
-    await client.query("ROLLBACK");
-    console.error("❌  Seed failed, rolled back:", err);
+    await client.query('ROLLBACK');
+    console.error('❌  Seed failed, rolled back:', err);
     process.exit(1);
   } finally {
     client.release();

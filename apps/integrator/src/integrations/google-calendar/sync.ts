@@ -1,5 +1,9 @@
 import { createDbPort } from '../../infra/db/client.js';
-import { createGoogleCalendarClient, type GoogleCalendarClient, type GoogleCalendarEventInput } from './client.js';
+import {
+  createGoogleCalendarClient,
+  type GoogleCalendarClient,
+  type GoogleCalendarEventInput,
+} from './client.js';
 import { isGoogleCalendarConfigured, type GoogleCalendarConfig } from './config.js';
 import { getGoogleCalendarConfig } from './runtimeConfig.js';
 import type { DbPort, DispatchPort } from '../../kernel/contracts/index.js';
@@ -10,10 +14,7 @@ import {
 } from '../../infra/db/repos/bookingCalendarMap.js';
 import { buildGoogleCalendarDescriptionForSync } from './calendarDescription.js';
 import { resolvePackageCalendarContext } from './resolvePackageCalendarContext.js';
-import {
-  buildGoogleCalendarSummary,
-  type GoogleCalendarTitleMarker,
-} from './summaryMarkers.js';
+import { buildGoogleCalendarSummary, type GoogleCalendarTitleMarker } from './summaryMarkers.js';
 
 export type { GoogleCalendarTitleMarker } from './summaryMarkers.js';
 
@@ -81,7 +82,7 @@ export async function syncCanonicalAppointmentToCalendar(
   input: CanonicalCalendarSyncEvent,
   deps: SyncDeps = {},
 ): Promise<string | null> {
-  const config = deps.config ?? await getGoogleCalendarConfig(input.organizationId);
+  const config = deps.config ?? (await getGoogleCalendarConfig(input.organizationId));
   if (!isGoogleCalendarConfigured(config)) return null;
 
   const db = deps.db ?? createDbPort();

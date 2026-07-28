@@ -1,6 +1,6 @@
-import { sql } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/node-postgres";
-import type { PoolClient } from "pg";
+import { sql } from 'drizzle-orm';
+import { drizzle } from 'drizzle-orm/node-postgres';
+import type { PoolClient } from 'pg';
 
 /** Drizzle on a dedicated connection (transaction + session advisory locks). */
 export function drizzleOnPgClient(client: PoolClient) {
@@ -9,7 +9,9 @@ export function drizzleOnPgClient(client: PoolClient) {
 
 /** Transaction-scoped exclusive lock (`hashtext(lockKey::text)`). */
 export async function pgAdvisoryXactLock(client: PoolClient, lockKey: string): Promise<void> {
-  await drizzleOnPgClient(client).execute(sql`SELECT pg_advisory_xact_lock(hashtext(${lockKey}::text))`);
+  await drizzleOnPgClient(client).execute(
+    sql`SELECT pg_advisory_xact_lock(hashtext(${lockKey}::text))`,
+  );
 }
 
 /** Transaction-scoped shared lock (`hashtext(lockKey::text)`). */

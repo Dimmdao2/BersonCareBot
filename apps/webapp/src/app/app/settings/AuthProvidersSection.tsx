@@ -1,12 +1,12 @@
-"use client";
+'use client';
 
-import { useState, useTransition } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
-import { isSafeExternalHref } from "@/lib/url/isSafeExternalHref";
-import { patchAdminSetting } from "./patchAdminSetting";
+import { useState, useTransition } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
+import { isSafeExternalHref } from '@/lib/url/isSafeExternalHref';
+import { patchAdminSetting } from './patchAdminSetting';
 
 export type AuthProvidersSectionProps = {
   telegramLoginBotUsername: string;
@@ -38,7 +38,7 @@ function validateHttpUrl(label: string, raw: string): string | null {
   if (t.length === 0) return null;
   try {
     const u = new URL(t);
-    if (u.protocol !== "https:" && u.protocol !== "http:") {
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') {
       return `${label}: только http(s)://`;
     }
   } catch {
@@ -51,7 +51,7 @@ export function AuthProvidersSection({
   telegramLoginBotUsername,
   maxLoginBotNickname,
   maxBotApiKey,
-  vkWebLoginUrl = "",
+  vkWebLoginUrl = '',
   vkIdApplicationId,
   vkIdHasStoredClientSecret,
   vkIdRedirectUri,
@@ -73,7 +73,7 @@ export function AuthProvidersSection({
   const [maxApiKey, setMaxApiKey] = useState(maxBotApiKey);
   const [vkLoginUrl, setVkLoginUrl] = useState(vkWebLoginUrl);
   const [vkIdApplication, setVkIdApplication] = useState(vkIdApplicationId);
-  const [vkIdClientSecret, setVkIdClientSecret] = useState("");
+  const [vkIdClientSecret, setVkIdClientSecret] = useState('');
   const [vkIdRedirect, setVkIdRedirect] = useState(vkIdRedirectUri);
   const [yandexId, setYandexId] = useState(yandexOauthClientId);
   const [yandexSecret, setYandexSecret] = useState(yandexOauthClientSecret);
@@ -96,75 +96,75 @@ export function AuthProvidersSection({
     setError(null);
     startTransition(async () => {
       try {
-        const yErr = validateHttpUrl("Yandex redirect URI", yandexRedirect);
+        const yErr = validateHttpUrl('Yandex redirect URI', yandexRedirect);
         if (yErr) {
           setError(yErr);
           return;
         }
-        const gLoginErr = validateHttpUrl("Google redirect (вход)", gLoginRedirect);
+        const gLoginErr = validateHttpUrl('Google redirect (вход)', gLoginRedirect);
         if (gLoginErr) {
           setError(gLoginErr);
           return;
         }
-        const gCalendarErr = validateHttpUrl("Google redirect (Calendar)", gCalendarRedirect);
+        const gCalendarErr = validateHttpUrl('Google redirect (Calendar)', gCalendarRedirect);
         if (gCalendarErr) {
           setError(gCalendarErr);
           return;
         }
-        const vkIdRedirectErr = validateHttpUrl("VK ID redirect URI", vkIdRedirect);
+        const vkIdRedirectErr = validateHttpUrl('VK ID redirect URI', vkIdRedirect);
         if (vkIdRedirectErr) {
           setError(vkIdRedirectErr);
           return;
         }
-        const aRedirErr = validateHttpUrl("Apple redirect URI", aRedirect);
+        const aRedirErr = validateHttpUrl('Apple redirect URI', aRedirect);
         if (aRedirErr) {
           setError(aRedirErr);
           return;
         }
         const vkTrim = vkLoginUrl.trim();
         if (vkTrim.length > 0) {
-          const vkErr = validateHttpUrl("Ссылка VK ID", vkTrim);
+          const vkErr = validateHttpUrl('Ссылка VK ID', vkTrim);
           if (vkErr) {
             setError(vkErr);
             return;
           }
           if (!isSafeExternalHref(vkTrim)) {
-            setError("Ссылка VK ID: только http(s)://");
+            setError('Ссылка VK ID: только http(s)://');
             return;
           }
         }
         const patches = [
-          patchAdminSetting("telegram_login_bot_username", telegramBot.trim()),
-          patchAdminSetting("max_login_bot_nickname", maxBotNick.trim()),
-          patchAdminSetting("max_bot_api_key", maxApiKey.trim()),
-          patchAdminSetting("vk_web_login_url", vkTrim),
-          patchAdminSetting("vk_id_application_id", vkIdApplication.trim()),
-          patchAdminSetting("vk_id_redirect_uri", vkIdRedirect.trim()),
-          patchAdminSetting("yandex_oauth_client_id", yandexId.trim()),
-          patchAdminSetting("yandex_oauth_client_secret", yandexSecret.trim()),
-          patchAdminSetting("yandex_oauth_redirect_uri", yandexRedirect.trim()),
-          patchAdminSetting("google_client_id", gId.trim()),
-          patchAdminSetting("google_client_secret", gSecret.trim()),
-          patchAdminSetting("google_oauth_login_redirect_uri", gLoginRedirect.trim()),
-          patchAdminSetting("google_redirect_uri", gCalendarRedirect.trim()),
-          patchAdminSetting("apple_oauth_client_id", aClientId.trim()),
-          patchAdminSetting("apple_oauth_team_id", aTeam.trim()),
-          patchAdminSetting("apple_oauth_key_id", aKeyId.trim()),
-          patchAdminSetting("apple_oauth_private_key", aPem.trim()),
-          patchAdminSetting("apple_oauth_redirect_uri", aRedirect.trim()),
+          patchAdminSetting('telegram_login_bot_username', telegramBot.trim()),
+          patchAdminSetting('max_login_bot_nickname', maxBotNick.trim()),
+          patchAdminSetting('max_bot_api_key', maxApiKey.trim()),
+          patchAdminSetting('vk_web_login_url', vkTrim),
+          patchAdminSetting('vk_id_application_id', vkIdApplication.trim()),
+          patchAdminSetting('vk_id_redirect_uri', vkIdRedirect.trim()),
+          patchAdminSetting('yandex_oauth_client_id', yandexId.trim()),
+          patchAdminSetting('yandex_oauth_client_secret', yandexSecret.trim()),
+          patchAdminSetting('yandex_oauth_redirect_uri', yandexRedirect.trim()),
+          patchAdminSetting('google_client_id', gId.trim()),
+          patchAdminSetting('google_client_secret', gSecret.trim()),
+          patchAdminSetting('google_oauth_login_redirect_uri', gLoginRedirect.trim()),
+          patchAdminSetting('google_redirect_uri', gCalendarRedirect.trim()),
+          patchAdminSetting('apple_oauth_client_id', aClientId.trim()),
+          patchAdminSetting('apple_oauth_team_id', aTeam.trim()),
+          patchAdminSetting('apple_oauth_key_id', aKeyId.trim()),
+          patchAdminSetting('apple_oauth_private_key', aPem.trim()),
+          patchAdminSetting('apple_oauth_redirect_uri', aRedirect.trim()),
         ];
         if (vkIdClientSecret.trim().length > 0) {
-          patches.push(patchAdminSetting("vk_id_client_secret", vkIdClientSecret.trim()));
+          patches.push(patchAdminSetting('vk_id_client_secret', vkIdClientSecret.trim()));
         }
         const results = await Promise.all(patches);
         if (results.some((r) => !r)) {
-          setError("Не удалось сохранить часть настроек");
+          setError('Не удалось сохранить часть настроек');
           return;
         }
-        setVkIdClientSecret("");
+        setVkIdClientSecret('');
         setSaved(true);
       } catch {
-        setError("Ошибка при сохранении");
+        setError('Ошибка при сохранении');
       }
     });
   }
@@ -175,9 +175,10 @@ export function AuthProvidersSection({
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Авторизация</CardTitle>
           <p className="text-xs text-muted-foreground">
-            Провайдеры входа и OAuth. Значения в{" "}
-            <code className="rounded bg-muted px-1">system_settings</code> (admin). Redirect для календаря Google — во
-            этой платформенной форме; клиника подключает только свой аккаунт и календарь.
+            Провайдеры входа и OAuth. Значения в{' '}
+            <code className="rounded bg-muted px-1">system_settings</code> (admin). Redirect для
+            календаря Google — во этой платформенной форме; клиника подключает только свой аккаунт и
+            календарь.
           </p>
         </CardHeader>
         <CardContent className="flex flex-col gap-5">
@@ -194,9 +195,11 @@ export function AuthProvidersSection({
                 autoComplete="off"
               />
               <span className="text-xs text-muted-foreground">
-                Публичный username бота без @ (как в t.me/…), не числовой id бота. Пустое — fallback из env{" "}
-                <code className="rounded bg-muted px-0.5">TELEGRAM_BOT_USERNAME</code> (тоже username, не id; env whitelist{" "}
-                <code className="rounded bg-muted px-0.5">ALLOWED_TELEGRAM_IDS</code> — это user id людей).
+                Публичный username бота без @ (как в t.me/…), не числовой id бота. Пустое — fallback
+                из env <code className="rounded bg-muted px-0.5">TELEGRAM_BOT_USERNAME</code> (тоже
+                username, не id; env whitelist{' '}
+                <code className="rounded bg-muted px-0.5">ALLOWED_TELEGRAM_IDS</code> — это user id
+                людей).
               </span>
             </label>
           </section>
@@ -215,11 +218,13 @@ export function AuthProvidersSection({
                 className="font-mono text-xs"
               />
               <span className="text-xs text-muted-foreground">
-                Для автоматического открытия бота с токеном привязки: ник из публичной ссылки (как в{" "}
+                Для автоматического открытия бота с токеном привязки: ник из публичной ссылки (как в{' '}
                 <code className="rounded bg-muted px-0.5">max.ru/ник</code>
-                ). Можно вставить полный URL. Пустое — только команда{" "}
-                <code className="rounded bg-muted px-0.5">/start link_…</code> без перехода. Fallback: env{" "}
-                <code className="rounded bg-muted px-0.5">MAX_LOGIN_BOT_NICKNAME</code>. Документация:{" "}
+                ). Можно вставить полный URL. Пустое — только команда{' '}
+                <code className="rounded bg-muted px-0.5">/start link_…</code> без перехода.
+                Fallback: env{' '}
+                <code className="rounded bg-muted px-0.5">MAX_LOGIN_BOT_NICKNAME</code>.
+                Документация:{' '}
                 <a
                   className="text-primary underline"
                   href="https://dev.max.ru/docs/chatbots/bots-coding/prepare#%D0%A0%D0%B0%D0%B1%D0%BE%D1%82%D0%B0%D0%B5%D0%BC%20%D1%81%20%D0%B4%D0%B8%D0%BF%D0%BB%D0%B8%D0%BD%D0%BA%D0%B0%D0%BC%D0%B8"
@@ -243,9 +248,15 @@ export function AuthProvidersSection({
                 className="font-mono text-xs"
               />
               <span className="text-xs text-muted-foreground">
-                Нужен для входа в веб-приложение из MAX Mini App без <code className="rounded bg-muted px-0.5">?t=</code> в
-                URL. Подпись стартовых параметров —{" "}
-                <a className="text-primary underline" href="https://dev.max.ru/docs/webapps/validation" target="_blank" rel="noreferrer">
+                Нужен для входа в веб-приложение из MAX Mini App без{' '}
+                <code className="rounded bg-muted px-0.5">?t=</code> в URL. Подпись стартовых
+                параметров —{' '}
+                <a
+                  className="text-primary underline"
+                  href="https://dev.max.ru/docs/webapps/validation"
+                  target="_blank"
+                  rel="noreferrer"
+                >
                   dev.max.ru — валидация WebApp
                 </a>
                 .
@@ -256,8 +267,8 @@ export function AuthProvidersSection({
           <section className="flex flex-col gap-2">
             <p className="text-sm font-semibold">VK ID</p>
             <p className="text-xs text-muted-foreground">
-              Для серверного OAuth 2.1 нужны ID приложения, защищённый ключ и точный redirect URI. Сервисный ключ
-              доступа VK API для входа через VK ID не требуется и здесь не хранится.
+              Для серверного OAuth 2.1 нужны ID приложения, защищённый ключ и точный redirect URI.
+              Сервисный ключ доступа VK API для входа через VK ID не требуется и здесь не хранится.
             </p>
             <label className="flex flex-col gap-1">
               <span className="text-xs font-medium">ID приложения (client_id / APP_ID)</span>
@@ -274,7 +285,11 @@ export function AuthProvidersSection({
               <span className="text-xs font-medium">Защищённый ключ (client_secret)</span>
               <Input
                 type="password"
-                placeholder={vkIdHasStoredClientSecret ? "Сохранён; оставьте пустым, чтобы не менять" : "Вставьте защищённый ключ"}
+                placeholder={
+                  vkIdHasStoredClientSecret
+                    ? 'Сохранён; оставьте пустым, чтобы не менять'
+                    : 'Вставьте защищённый ключ'
+                }
                 value={vkIdClientSecret}
                 onChange={(e) => setVkIdClientSecret(e.target.value)}
                 disabled={isPending}
@@ -282,7 +297,8 @@ export function AuthProvidersSection({
                 className="font-mono text-xs"
               />
               <span className="text-xs text-muted-foreground">
-                Значение не возвращается в браузер. Пустое поле не перезаписывает уже сохранённый ключ.
+                Значение не возвращается в браузер. Пустое поле не перезаписывает уже сохранённый
+                ключ.
               </span>
             </label>
             <label className="flex flex-col gap-1">
@@ -309,7 +325,8 @@ export function AuthProvidersSection({
                 className="font-mono text-xs"
               />
               <span className="text-xs text-muted-foreground">
-                Сохраняется для совместимости с будущей кнопкой-ссылкой; OAuth callback должен использовать поле выше.
+                Сохраняется для совместимости с будущей кнопкой-ссылкой; OAuth callback должен
+                использовать поле выше.
               </span>
             </label>
           </section>
@@ -317,8 +334,9 @@ export function AuthProvidersSection({
           <section className="flex flex-col gap-2">
             <p className="text-sm font-semibold">Yandex OAuth</p>
             <p className="text-xs text-muted-foreground">
-              Старт: <code className="rounded bg-muted px-1">POST /api/auth/oauth/start</code> с{" "}
-              <code className="rounded bg-muted px-1">{`{ "provider": "yandex" }`}</code> и кнопка на экране входа.
+              Старт: <code className="rounded bg-muted px-1">POST /api/auth/oauth/start</code> с{' '}
+              <code className="rounded bg-muted px-1">{`{ "provider": "yandex" }`}</code> и кнопка
+              на экране входа.
             </p>
             <label className="flex flex-col gap-1">
               <span className="text-xs font-medium">Client ID</span>
@@ -351,10 +369,10 @@ export function AuthProvidersSection({
                 autoComplete="off"
               />
               <span className="text-xs text-muted-foreground">
-                В кабинете Яндекса укажите{" "}
-                <code className="rounded bg-muted px-1">…/api/auth/oauth/callback/yandex</code>. Старый путь{" "}
-                <code className="rounded bg-muted px-1">…/api/auth/oauth/callback</code> без суффикса по-прежнему
-                обрабатывается, но не рекомендуется для новых настроек.
+                В кабинете Яндекса укажите{' '}
+                <code className="rounded bg-muted px-1">…/api/auth/oauth/callback/yandex</code>.
+                Старый путь <code className="rounded bg-muted px-1">…/api/auth/oauth/callback</code>{' '}
+                без суффикса по-прежнему обрабатывается, но не рекомендуется для новых настроек.
               </span>
             </label>
           </section>
@@ -362,7 +380,8 @@ export function AuthProvidersSection({
           <section className="flex flex-col gap-2">
             <p className="text-sm font-semibold">Google OAuth (вход + общий клиент для Calendar)</p>
             <p className="text-xs text-muted-foreground">
-              В Google Cloud Console добавьте два Authorized redirect URI: этот (вход) и Calendar callback ниже.
+              В Google Cloud Console добавьте два Authorized redirect URI: этот (вход) и Calendar
+              callback ниже.
             </p>
             <label className="flex flex-col gap-1">
               <span className="text-xs font-medium">Client ID</span>
@@ -387,8 +406,8 @@ export function AuthProvidersSection({
                 className="font-mono text-xs"
               />
               <span className="text-xs text-muted-foreground">
-                Это OAuth callback нашего приложения, общий для всех клиник. Учётную запись и календарь выбирает
-                каждая клиника в своих настройках.
+                Это OAuth callback нашего приложения, общий для всех клиник. Учётную запись и
+                календарь выбирает каждая клиника в своих настройках.
               </span>
             </label>
             <label className="flex flex-col gap-1">
@@ -419,9 +438,10 @@ export function AuthProvidersSection({
           <section className="flex flex-col gap-2">
             <p className="text-sm font-semibold">Sign in with Apple</p>
             <p className="text-xs text-muted-foreground">
-              Services ID, ключ .p8 (PKCS#8 PEM), Team ID и Key ID из Apple Developer. Return URL = redirect ниже
-              (обычно <code className="rounded bg-muted px-1">https://…/api/auth/oauth/callback/apple</code>, только
-              POST). В проде — HTTPS.
+              Services ID, ключ .p8 (PKCS#8 PEM), Team ID и Key ID из Apple Developer. Return URL =
+              redirect ниже (обычно{' '}
+              <code className="rounded bg-muted px-1">https://…/api/auth/oauth/callback/apple</code>
+              , только POST). В проде — HTTPS.
             </p>
             <label className="flex flex-col gap-1">
               <span className="text-xs font-medium">Services ID (Client ID)</span>
@@ -483,7 +503,7 @@ export function AuthProvidersSection({
 
           <div className="flex items-center gap-3">
             <Button variant="outline" onClick={handleSave} disabled={isPending}>
-              {isPending ? "Сохранение…" : "Сохранить"}
+              {isPending ? 'Сохранение…' : 'Сохранить'}
             </Button>
             {saved && <span className="text-sm text-green-600">Сохранено</span>}
             {error && <span className="text-sm text-destructive">{error}</span>}

@@ -1,11 +1,11 @@
-"use client";
+'use client';
 
-import { useRouter } from "next/navigation";
-import { useCallback, useState } from "react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { Label } from "@/shared/ui/doctor/primitives/label";
-import { doctorClientSectionTitleClass } from "./doctorClientCardChrome";
+import { useRouter } from 'next/navigation';
+import { useCallback, useState } from 'react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { Label } from '@/shared/ui/doctor/primitives/label';
+import { doctorClientSectionTitleClass } from './doctorClientCardChrome';
 
 type Props = {
   userId: string;
@@ -34,10 +34,10 @@ export function AdminClientProfileEditPanel({
   onSaved,
 }: Props) {
   const router = useRouter();
-  const [firstName, setFirstName] = useState(initialFirst ?? "");
-  const [lastName, setLastName] = useState(initialLast ?? "");
-  const [email, setEmail] = useState(initialEmail ?? "");
-  const [phone, setPhone] = useState(initialPhone ?? "");
+  const [firstName, setFirstName] = useState(initialFirst ?? '');
+  const [lastName, setLastName] = useState(initialLast ?? '');
+  const [email, setEmail] = useState(initialEmail ?? '');
+  const [phone, setPhone] = useState(initialPhone ?? '');
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
@@ -48,39 +48,41 @@ export function AdminClientProfileEditPanel({
       setPending(true);
       try {
         const body: Record<string, unknown> = {};
-        if (firstName !== (initialFirst ?? "")) body.firstName = firstName.trim() === "" ? null : firstName.trim();
-        if (lastName !== (initialLast ?? "")) body.lastName = lastName.trim() === "" ? null : lastName.trim();
+        if (firstName !== (initialFirst ?? ''))
+          body.firstName = firstName.trim() === '' ? null : firstName.trim();
+        if (lastName !== (initialLast ?? ''))
+          body.lastName = lastName.trim() === '' ? null : lastName.trim();
         const emailNorm = email.trim();
-        const initialEmailNorm = (initialEmail ?? "").trim();
+        const initialEmailNorm = (initialEmail ?? '').trim();
         if (emailNorm !== initialEmailNorm) {
-          body.email = emailNorm === "" ? null : emailNorm;
+          body.email = emailNorm === '' ? null : emailNorm;
         }
         const phoneNorm = phone.trim();
-        const initialPhoneNorm = (initialPhone ?? "").trim();
+        const initialPhoneNorm = (initialPhone ?? '').trim();
         if (phoneNorm !== initialPhoneNorm) {
-          body.phone = phoneNorm === "" ? null : phoneNorm;
+          body.phone = phoneNorm === '' ? null : phoneNorm;
         }
         if (Object.keys(body).length === 0) {
-          setError("Нет изменений.");
+          setError('Нет изменений.');
           setPending(false);
           return;
         }
         const res = await fetch(`/api/admin/users/${encodeURIComponent(userId)}/profile`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
           body: JSON.stringify(body),
         });
         const json = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
         if (!res.ok || json.ok !== true) {
-          if (res.status === 409 && json.error === "email_conflict") {
-            setError("Такой email уже занят другим пользователем.");
-          } else if (res.status === 409 && json.error === "phone_conflict") {
-            setError("Этот телефон уже привязан к другому пользователю.");
-          } else if (json.error === "invalid_phone") {
-            setError("Некорректный номер. Ожидается российский формат (например +79991234567).");
-          } else if (json.error === "forbidden") {
-            setError("Нужны роль admin и режим администратора.");
+          if (res.status === 409 && json.error === 'email_conflict') {
+            setError('Такой email уже занят другим пользователем.');
+          } else if (res.status === 409 && json.error === 'phone_conflict') {
+            setError('Этот телефон уже привязан к другому пользователю.');
+          } else if (json.error === 'invalid_phone') {
+            setError('Некорректный номер. Ожидается российский формат (например +79991234567).');
+          } else if (json.error === 'forbidden') {
+            setError('Нужны роль admin и режим администратора.');
           } else {
             setError(json.error ?? `Ошибка сохранения (${res.status})`);
           }
@@ -90,7 +92,7 @@ export function AdminClientProfileEditPanel({
         router.refresh();
         onSaved?.();
       } catch {
-        setError("Сеть недоступна.");
+        setError('Сеть недоступна.');
       } finally {
         setPending(false);
       }
@@ -110,12 +112,14 @@ export function AdminClientProfileEditPanel({
     ],
   );
 
-  const formId = embedded ? "admin-client-profile-edit-form-embedded" : "admin-client-profile-edit-form";
+  const formId = embedded
+    ? 'admin-client-profile-edit-form-embedded'
+    : 'admin-client-profile-edit-form';
 
   return (
     <div
       className="flex flex-col gap-4"
-      aria-labelledby={embedded ? undefined : "admin-client-profile-edit-heading"}
+      aria-labelledby={embedded ? undefined : 'admin-client-profile-edit-heading'}
     >
       {embedded ? null : (
         <h2 id="admin-client-profile-edit-heading" className={doctorClientSectionTitleClass}>
@@ -166,7 +170,9 @@ export function AdminClientProfileEditPanel({
             maxLength={320}
           />
           {emailVerifiedAt ? (
-            <p className="text-xs text-muted-foreground">Был подтверждён; при смене адреса подтверждение сбрасывается.</p>
+            <p className="text-xs text-muted-foreground">
+              Был подтверждён; при смене адреса подтверждение сбрасывается.
+            </p>
           ) : initialEmail?.trim() ? (
             <p className="text-xs text-muted-foreground">Не подтверждён.</p>
           ) : null}
@@ -178,7 +184,7 @@ export function AdminClientProfileEditPanel({
         ) : null}
         <div className="flex flex-wrap items-center gap-2">
           <Button type="submit" disabled={pending} className="w-fit">
-            {pending ? "Сохранение…" : "Сохранить"}
+            {pending ? 'Сохранение…' : 'Сохранить'}
           </Button>
           {embedded && onCancel ? (
             <Button type="button" variant="outline" disabled={pending} onClick={onCancel}>

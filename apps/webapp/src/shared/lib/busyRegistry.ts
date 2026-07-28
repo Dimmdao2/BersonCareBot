@@ -5,7 +5,7 @@ declare global {
 }
 
 function getRegistry(): Set<string> {
-  if (typeof window === "undefined") {
+  if (typeof window === 'undefined') {
     return new Set<string>();
   }
   if (!window.__bcbBusy) {
@@ -15,16 +15,16 @@ function getRegistry(): Set<string> {
 }
 
 export function beginBusy(id: string): void {
-  if (!id || typeof window === "undefined") return;
+  if (!id || typeof window === 'undefined') return;
   getRegistry().add(id);
 }
 
 export function endBusy(id: string): void {
-  if (!id || typeof window === "undefined") return;
+  if (!id || typeof window === 'undefined') return;
   getRegistry().delete(id);
 }
 
 export function hasBusyOperations(): boolean {
-  if (typeof window === "undefined") return false;
+  if (typeof window === 'undefined') return false;
   return getRegistry().size > 0;
 }

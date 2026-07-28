@@ -1,10 +1,10 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { DoctorModal } from "@/shared/ui/doctor/DoctorModal";
-import type { ProductAnalyticsClientActivityRow } from "@/modules/product-analytics/types";
-import { formatDisplayZoneInstantRu } from "@/shared/datetime/displayTimeZoneFormat";
-import { patientCardHref } from "@/app/app/doctor/patients/patientCardHref";
+import Link from 'next/link';
+import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
+import type { ProductAnalyticsClientActivityRow } from '@/modules/product-analytics/types';
+import { formatDisplayZoneInstantRu } from '@/shared/datetime/displayTimeZoneFormat';
+import { patientCardHref } from '@/app/app/doctor/patients/patientCardHref';
 
 type Props = {
   open: boolean;
@@ -14,7 +14,13 @@ type Props = {
   displayTimezone: string;
 };
 
-export function UsageMetricAccountsDialog({ open, onOpenChange, title, rows, displayTimezone }: Props) {
+export function UsageMetricAccountsDialog({
+  open,
+  onOpenChange,
+  title,
+  rows,
+  displayTimezone,
+}: Props) {
   return (
     <DoctorModal open={open} onClose={() => onOpenChange(false)} title={title} size="lg">
       <div className="max-h-[65vh] overflow-y-auto pr-1">
@@ -34,7 +40,7 @@ export function UsageMetricAccountsDialog({ open, onOpenChange, title, rows, dis
                   Заходы: {row.appOpens} · Страницы: {row.pageViews} · Push open: {row.pushOpens}
                   {row.lastSeenAt
                     ? ` · ${formatDisplayZoneInstantRu(row.lastSeenAt, displayTimezone)}`
-                    : ""}
+                    : ''}
                 </p>
               </li>
             ))}

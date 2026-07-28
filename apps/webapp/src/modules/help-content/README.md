@@ -4,11 +4,11 @@
 
 ## Маршруты пациента
 
-| URL | Назначение |
-|-----|------------|
-| `/app/patient/help` | Каталог опубликованных статей (`listHelpArticlesForPatient`) |
-| `/app/patient/help/[slug]` | Статья (рендер через `PatientContentSlugArticle`) |
-| `/app/patient/content/[slug]` | Для `section=help` — **301 redirect** на `/help/[slug]` |
+| URL                           | Назначение                                                   |
+| ----------------------------- | ------------------------------------------------------------ |
+| `/app/patient/help`           | Каталог опубликованных статей (`listHelpArticlesForPatient`) |
+| `/app/patient/help/[slug]`    | Статья (рендер через `PatientContentSlugArticle`)            |
+| `/app/patient/content/[slug]` | Для `section=help` — **301 redirect** на `/help/[slug]`      |
 
 ## CMS (врач)
 
@@ -24,16 +24,16 @@
 
 ## IA канонических статей
 
-| Slug | Смысл |
-|------|--------|
-| `preparation` | Подготовка к приёму |
-| `after-visit` | После приёма |
-| `services-pricing` | Услуги и стоимость |
-| `app-guide` | Справка по приложению |
-| `address-spb` | Адрес, СПб |
-| `address-msk` | Адрес, Москва |
-| `about` | О специалисте (+ ссылка на сайт в тексте) |
-| `booking` | Запись в приложении → ссылка на `/app/patient/about` |
+| Slug               | Смысл                                                |
+| ------------------ | ---------------------------------------------------- |
+| `preparation`      | Подготовка к приёму                                  |
+| `after-visit`      | После приёма                                         |
+| `services-pricing` | Услуги и стоимость                                   |
+| `app-guide`        | Справка по приложению                                |
+| `address-spb`      | Адрес, СПб                                           |
+| `address-msk`      | Адрес, Москва                                        |
+| `about`            | О специалисте (+ ссылка на сайт в тексте)            |
+| `booking`          | Запись в приложении → ссылка на `/app/patient/about` |
 
 Подробнее: [`apps/webapp/src/app/app/patient/help/help.md`](../../app/app/patient/help/help.md).
 

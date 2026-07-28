@@ -1,18 +1,15 @@
-import { CheckCircle2 } from "lucide-react";
-import { InstallStepVisual } from "@/components/landing/InstallStepVisual";
-import type { InstallStep } from "@/components/landing/installSteps";
-import type { LandingInstallPlatform } from "@/components/landing/detectLandingInstallPlatform";
-import { WrongBrowserBanner } from "@/components/landing/WrongBrowserBanner";
-import {
-  landingInstallCard,
-  landingStepTitle,
-} from "@/components/landing/landingTypography";
+import { CheckCircle2 } from 'lucide-react';
+import { InstallStepVisual } from '@/components/landing/InstallStepVisual';
+import type { InstallStep } from '@/components/landing/installSteps';
+import type { LandingInstallPlatform } from '@/components/landing/detectLandingInstallPlatform';
+import { WrongBrowserBanner } from '@/components/landing/WrongBrowserBanner';
+import { landingInstallCard, landingStepTitle } from '@/components/landing/landingTypography';
 
 export function PlatformInstallCard({
   steps,
   successNote,
   wrongBrowser = false,
-  platform = "ios",
+  platform = 'ios',
   appBaseUrl,
 }: {
   intro?: string;
@@ -26,7 +23,7 @@ export function PlatformInstallCard({
     <article className={landingInstallCard}>
       {wrongBrowser && <WrongBrowserBanner platform={platform} appBaseUrl={appBaseUrl} />}
 
-      <ol className={`space-y-4 sm:space-y-5 ${wrongBrowser ? "mt-5 sm:mt-6" : ""}`}>
+      <ol className={`space-y-4 sm:space-y-5 ${wrongBrowser ? 'mt-5 sm:mt-6' : ''}`}>
         {steps.map((step, index) => (
           <li
             key={step.title}

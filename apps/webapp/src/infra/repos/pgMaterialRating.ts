@@ -1,17 +1,20 @@
 /** Wave 3 phase 15C — doctor detail TZ aggregates via `runWebappPgText`. */
-import { and, avg, count, desc, eq, inArray, sql } from "drizzle-orm";
-import { runWebappPgText } from "@/infra/db/runWebappSql";
-import { resolveMaterialRatingTargetVideoMediaIds } from "@/infra/repos/materialRatingTargetVideoMediaIds";
-import { getDrizzle } from "@/app-layer/db/drizzle";
-import { appendSqlExcludeUserIds, drizzleExcludeUserIdColumn } from "@/modules/analytics/analyticsAudience";
-import { materialRatings } from "../../../db/schema/materialRatings";
-import type { MaterialRatingPort } from "@/modules/material-rating/ports";
+import { and, avg, count, desc, eq, inArray, sql } from 'drizzle-orm';
+import { runWebappPgText } from '@/infra/db/runWebappSql';
+import { resolveMaterialRatingTargetVideoMediaIds } from '@/infra/repos/materialRatingTargetVideoMediaIds';
+import { getDrizzle } from '@/app-layer/db/drizzle';
+import {
+  appendSqlExcludeUserIds,
+  drizzleExcludeUserIdColumn,
+} from '@/modules/analytics/analyticsAudience';
+import { materialRatings } from '../../../db/schema/materialRatings';
+import type { MaterialRatingPort } from '@/modules/material-rating/ports';
 import type {
   MaterialRatingAggregate,
   MaterialRatingDoctorDetailDay,
   MaterialRatingDoctorDetailRater,
   MaterialRatingDoctorSummaryRow,
-} from "@/modules/material-rating/types";
+} from '@/modules/material-rating/types';
 
 function emptyDistribution(): Record<number, number> {
   return { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
@@ -51,7 +54,7 @@ export function createPgMaterialRatingPort(): MaterialRatingPort {
           where: eq(materialRatings.organizationId, input.organizationId),
         })
         .returning({ id: materialRatings.id });
-      if (!row) throw new Error("material_rating organization mismatch");
+      if (!row) throw new Error('material_rating organization mismatch');
     },
 
     async getMyRating(input) {
@@ -73,7 +76,10 @@ export function createPgMaterialRatingPort(): MaterialRatingPort {
 
     async getAggregate(input) {
       const db = getDrizzle();
-      const userExclude = drizzleExcludeUserIdColumn(materialRatings.userId, input.excludedUserIds ?? []);
+      const userExclude = drizzleExcludeUserIdColumn(
+        materialRatings.userId,
+        input.excludedUserIds ?? [],
+      );
       const [row] = await db
         .select({
           cnt: count(),
@@ -108,7 +114,10 @@ export function createPgMaterialRatingPort(): MaterialRatingPort {
       const result = new Map<string, MaterialRatingAggregate>();
       if (input.targetIds.length === 0) return result;
       const db = getDrizzle();
-      const userExclude = drizzleExcludeUserIdColumn(materialRatings.userId, input.excludedUserIds ?? []);
+      const userExclude = drizzleExcludeUserIdColumn(
+        materialRatings.userId,
+        input.excludedUserIds ?? [],
+      );
       const rows = await db
         .select({
           targetId: materialRatings.targetId,
@@ -145,7 +154,10 @@ export function createPgMaterialRatingPort(): MaterialRatingPort {
 
     async listDoctorSummary(input) {
       const db = getDrizzle();
-      const userExclude = drizzleExcludeUserIdColumn(materialRatings.userId, input.excludedUserIds ?? []);
+      const userExclude = drizzleExcludeUserIdColumn(
+        materialRatings.userId,
+        input.excludedUserIds ?? [],
+      );
       const cntExpr = count(materialRatings.id);
       const rows = await db
         .select({
@@ -173,7 +185,7 @@ export function createPgMaterialRatingPort(): MaterialRatingPort {
         .offset(input.offset);
 
       return rows.map((r) => ({
-        targetKind: r.targetKind as MaterialRatingDoctorSummaryRow["targetKind"],
+        targetKind: r.targetKind as MaterialRatingDoctorSummaryRow['targetKind'],
         targetId: r.targetId,
         count: Number(r.cnt),
         avg: Number(r.cnt) === 0 ? null : r.avgStars != null ? Number(r.avgStars) : null,
@@ -186,7 +198,10 @@ export function createPgMaterialRatingPort(): MaterialRatingPort {
       raters: MaterialRatingDoctorDetailRater[];
     }> {
       const excludedUserIds = input.excludedUserIds ?? [];
-      const mediaIds = await resolveMaterialRatingTargetVideoMediaIds(input.targetKind, input.targetId);
+      const mediaIds = await resolveMaterialRatingTargetVideoMediaIds(
+        input.targetKind,
+        input.targetId,
+      );
 
       const viewByDay = new Map<string, number>();
       if (mediaIds.length > 0) {
@@ -197,7 +212,7 @@ export function createPgMaterialRatingPort(): MaterialRatingPort {
              AND media_id = ANY($3::uuid[])
              AND first_resolved_at >= $4::timestamptz
              AND first_resolved_at < $5::timestamptz`;
-        const viewQ = appendSqlExcludeUserIds(viewBase, "user_id", excludedUserIds, [
+        const viewQ = appendSqlExcludeUserIds(viewBase, 'user_id', excludedUserIds, [
           input.iana,
           input.organizationId,
           mediaIds,
@@ -222,7 +237,7 @@ export function createPgMaterialRatingPort(): MaterialRatingPort {
            AND target_kind = $3 AND target_id = $4::uuid
            AND updated_at >= $5::timestamptz
            AND updated_at < $6::timestamptz`;
-      const ratingQ = appendSqlExcludeUserIds(ratingBase, "user_id", excludedUserIds, [
+      const ratingQ = appendSqlExcludeUserIds(ratingBase, 'user_id', excludedUserIds, [
         input.iana,
         input.organizationId,
         input.targetKind,
@@ -237,9 +252,7 @@ export function createPgMaterialRatingPort(): MaterialRatingPort {
       for (const row of rr.rows) {
         if (!row.d) continue;
         const avgVal =
-          row.avg_stars != null && row.avg_stars !== ""
-            ? Number.parseFloat(row.avg_stars)
-            : null;
+          row.avg_stars != null && row.avg_stars !== '' ? Number.parseFloat(row.avg_stars) : null;
         ratingByDay.set(row.d, {
           cnt: row.cnt,
           avg: avgVal != null && Number.isFinite(avgVal) ? avgVal : null,
@@ -260,7 +273,7 @@ export function createPgMaterialRatingPort(): MaterialRatingPort {
            AND mr.target_kind = $2 AND mr.target_id = $3::uuid
            AND mr.updated_at >= $4::timestamptz
            AND mr.updated_at < $5::timestamptz`;
-      const ratersQ = appendSqlExcludeUserIds(ratersBase, "mr.user_id", excludedUserIds, [
+      const ratersQ = appendSqlExcludeUserIds(ratersBase, 'mr.user_id', excludedUserIds, [
         input.organizationId,
         input.targetKind,
         input.targetId,
@@ -272,10 +285,7 @@ export function createPgMaterialRatingPort(): MaterialRatingPort {
         stars: number;
         updated_at: string;
         display_label: string;
-      }>(
-        `${ratersQ.sql} ORDER BY mr.updated_at DESC LIMIT 2000`,
-        ratersQ.params,
-      );
+      }>(`${ratersQ.sql} ORDER BY mr.updated_at DESC LIMIT 2000`, ratersQ.params);
 
       const days: MaterialRatingDoctorDetailDay[] = input.dayKeys.map((day) => {
         const v = viewByDay.get(day) ?? 0;

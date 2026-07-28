@@ -11,7 +11,8 @@ import {
 import { logger } from './logger.js';
 import type { Pool } from 'pg';
 
-let telemetryPool: ReturnType<typeof createIntegratorSaasIsolationTelemetryPoolProvider> | null = null;
+let telemetryPool: ReturnType<typeof createIntegratorSaasIsolationTelemetryPoolProvider> | null =
+  null;
 function getTelemetryPool(): ReturnType<typeof createIntegratorSaasIsolationTelemetryPoolProvider> {
   const connectionString = (process.env.DATABASE_URL ?? '').trim();
   if (!connectionString) throw new Error('DATABASE_URL is required');
@@ -33,7 +34,10 @@ export async function probeSaasIsolationTelemetryWriter(
         await client.query('BEGIN');
         await client.query('SELECT app.report_saas_isolation_event($1, $2, $3, $4)', [
           // eslint-disable-next-line no-secrets/no-secrets -- closed telemetry enum, not credential material
-          'unclassified_background_operation', source.service, source.operation, 'explained',
+          'unclassified_background_operation',
+          source.service,
+          source.operation,
+          'explained',
         ]);
         await client.query('ROLLBACK');
       } catch (error) {
@@ -72,22 +76,28 @@ function createReporter(source: SaasIsolationBackgroundSource): SaasIsolationBac
 }
 
 export const reportIntegratorIsolationFailure = createReporter({
-  service: 'integrator', operation: 'integrator_http_request',
+  service: 'integrator',
+  operation: 'integrator_http_request',
 });
 export const reportWorkerQueueIsolationFailure = createReporter({
-  service: 'worker', operation: 'worker_queue_drain',
+  service: 'worker',
+  operation: 'worker_queue_drain',
 });
 export const reportWorkerProjectionIsolationFailure = createReporter({
-  service: 'worker', operation: 'worker_projection_delivery',
+  service: 'worker',
+  operation: 'worker_projection_delivery',
 });
 export const reportWorkerOutgoingIsolationFailure = createReporter({
-  service: 'worker', operation: 'worker_outgoing_delivery',
+  service: 'worker',
+  operation: 'worker_outgoing_delivery',
 });
 export const reportSchedulerLockIsolationFailure = createReporter({
-  service: 'scheduler', operation: 'scheduler_lock',
+  service: 'scheduler',
+  operation: 'scheduler_lock',
 });
 export const reportSchedulerDispatchIsolationFailure = createReporter({
-  service: 'scheduler', operation: 'scheduler_dispatch_tick',
+  service: 'scheduler',
+  operation: 'scheduler_dispatch_tick',
 });
 
 async function assertWriterReadyInLockedMode(

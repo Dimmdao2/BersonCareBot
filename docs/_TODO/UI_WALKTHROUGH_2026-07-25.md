@@ -12,14 +12,14 @@ clean session: HTTP 200, session intact. Anything below has been re-checked on a
 
 ## Works, verified on screen
 
-| Screen | State |
-|---|---|
-| Сегодня (`/app/doctor`) | Healthy. Tasks with overdue flags, counters (сообщения 1, комментарии 17), «На сопровождении» with 6 clients, day timeline. |
-| Клиенты (`/app/doctor/patients`) | Healthy. 234 clients, all KPI tiles populated (с записями 97, с программой 30, без приёмов 137, с визитами 96, приём в этом мес. 16). |
-| Расписание, Коммуникации, Контент, Курсы | Render, HTTP 200, no console errors. |
-| Файлы и медиа (`/app/doctor/content/library`) | Healthy — folder tree, upload zone, 24 of 175 files listed, **and thumbnails DO render here**. |
-| Каталог ЛФК (`/app/doctor/exercises`) | Lists all 135 exercises again after today's fix. Thumbnails do NOT render here — see below. |
-| Настройки → Команда (`?tab=team`) | Fully working: member list, «Занято мест: 2 из 1000», invite form with role picker, pending invites. |
+| Screen                                        | State                                                                                                                                 |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Сегодня (`/app/doctor`)                       | Healthy. Tasks with overdue flags, counters (сообщения 1, комментарии 17), «На сопровождении» with 6 clients, day timeline.           |
+| Клиенты (`/app/doctor/patients`)              | Healthy. 234 clients, all KPI tiles populated (с записями 97, с программой 30, без приёмов 137, с визитами 96, приём в этом мес. 16). |
+| Расписание, Коммуникации, Контент, Курсы      | Render, HTTP 200, no console errors.                                                                                                  |
+| Файлы и медиа (`/app/doctor/content/library`) | Healthy — folder tree, upload zone, 24 of 175 files listed, **and thumbnails DO render here**.                                        |
+| Каталог ЛФК (`/app/doctor/exercises`)         | Lists all 135 exercises again after today's fix. Thumbnails do NOT render here — see below.                                           |
+| Настройки → Команда (`?tab=team`)             | Fully working: member list, «Занято мест: 2 из 1000», invite form with role picker, pending invites.                                  |
 
 ## Defects found
 

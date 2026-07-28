@@ -12,10 +12,12 @@ const TEST_SECRET = 'test-secret-request-contact';
 /** `user.upsert` / `user.state.set` в writePort идут через `db.tx` и Drizzle `execute`; `query` остаётся для оставшихся raw SQL путей. */
 function dbWithTx(query: DbPort['query']): DbPort {
   const integratorDrizzle = stubIntegratorDrizzleForTests();
-  (integratorDrizzle as { execute: ReturnType<typeof vi.fn> }).execute = vi.fn(async (frag: unknown) =>
-    query(drizzleSqlFragmentToApproximateSql(frag), []),
+  (integratorDrizzle as { execute: ReturnType<typeof vi.fn> }).execute = vi.fn(
+    async (frag: unknown) => query(drizzleSqlFragmentToApproximateSql(frag), []),
   );
-  const tx = vi.fn(async <T>(fn: (d: DbPort) => Promise<T>) => fn({ query, tx, integratorDrizzle } as DbPort));
+  const tx = vi.fn(async <T>(fn: (d: DbPort) => Promise<T>) =>
+    fn({ query, tx, integratorDrizzle } as DbPort),
+  );
   return { query, tx, integratorDrizzle } as DbPort;
 }
 
@@ -274,7 +276,9 @@ describe('POST /api/bersoncare/request-contact', () => {
     const intent = firstCall![0] as {
       type: string;
       payload: {
-        replyMarkup: { inline_keyboard?: Array<Array<{ request_contact?: boolean; text?: string }>> };
+        replyMarkup: {
+          inline_keyboard?: Array<Array<{ request_contact?: boolean; text?: string }>>;
+        };
         delivery: { channels: string[] };
       };
     };
@@ -305,8 +309,18 @@ describe('POST /api/bersoncare/request-contact', () => {
       'x-bersoncare-timestamp': ts,
       'x-bersoncare-signature': sign(ts, rawBody, TEST_SECRET),
     };
-    const r1 = await app.inject({ method: 'POST', url: '/api/bersoncare/request-contact', headers, body: rawBody });
-    const r2 = await app.inject({ method: 'POST', url: '/api/bersoncare/request-contact', headers, body: rawBody });
+    const r1 = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/request-contact',
+      headers,
+      body: rawBody,
+    });
+    const r2 = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/request-contact',
+      headers,
+      body: rawBody,
+    });
     expect(r1.statusCode).toBe(200);
     expect(r2.statusCode).toBe(200);
     const j2 = JSON.parse(r2.body) as { status?: string };

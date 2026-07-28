@@ -75,6 +75,7 @@ patient 30 d idle; the absolute ceiling numbers are still an open owner question
 PROD deliberately, and PROD is not touched by any agent.
 
 What has to be reproduced on the production host, in this order:
+
 1. **A runtime service account with no sudo and no `docker` group** for all five units
    (`bersoncarebot-{webapp,api,worker,scheduler,media-worker}-prod`, whose unit files today all carry
    `User=deploy`). On the dev box `deploy` reaches root by four independent paths — three sudo entries plus

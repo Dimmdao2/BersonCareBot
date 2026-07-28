@@ -1,13 +1,13 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { Label } from "@/shared/ui/doctor/primitives/label";
-import { isDoctorClientSearchQueryAllowed } from "@/modules/doctor-clients/clientSearchMatch";
-import { cn } from "@/lib/utils";
-import { doctorInteractiveSurfaceButtonClass } from "@/shared/ui/doctor/doctorVisual";
-import { formatDoctorFio } from "@/shared/lib/fio";
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { Label } from '@/shared/ui/doctor/primitives/label';
+import { isDoctorClientSearchQueryAllowed } from '@/modules/doctor-clients/clientSearchMatch';
+import { cn } from '@/lib/utils';
+import { doctorInteractiveSurfaceButtonClass } from '@/shared/ui/doctor/doctorVisual';
+import { formatDoctorFio } from '@/shared/lib/fio';
 
 export type CalendarPatientOption = {
   id: string | null;
@@ -30,15 +30,19 @@ type Props = {
 
 function formatPatientLabel(option: CalendarPatientOption): string {
   const name = formatDoctorFio(
-    { lastName: option.lastName ?? null, firstName: option.firstName ?? null, patronymic: option.patronymic ?? null },
+    {
+      lastName: option.lastName ?? null,
+      firstName: option.firstName ?? null,
+      patronymic: option.patronymic ?? null,
+    },
     option.displayName,
   );
   return option.phone ? `${name} · ${option.phone}` : name;
 }
 
 function queryLooksLikePhone(query: string): boolean {
-  const digits = query.replace(/\D/g, "");
-  return digits.length >= 3 && digits.length >= query.replace(/\s/g, "").length * 0.5;
+  const digits = query.replace(/\D/g, '');
+  return digits.length >= 3 && digits.length >= query.replace(/\s/g, '').length * 0.5;
 }
 
 export function DoctorCalendarPatientSearch({
@@ -51,16 +55,16 @@ export function DoctorCalendarPatientSearch({
   const listboxId = `${inputId}-listbox`;
   const rootRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState('');
   const [results, setResults] = useState<CalendarPatientOption[]>([]);
   const [loading, setLoading] = useState(false);
   const [activeIdx, setActiveIdx] = useState(0);
   const [createOpen, setCreateOpen] = useState(false);
-  const [newLastName, setNewLastName] = useState("");
-  const [newFirstName, setNewFirstName] = useState("");
-  const [newPatronymic, setNewPatronymic] = useState("");
-  const [newPhone, setNewPhone] = useState("");
-  const [newEmail, setNewEmail] = useState("");
+  const [newLastName, setNewLastName] = useState('');
+  const [newFirstName, setNewFirstName] = useState('');
+  const [newPatronymic, setNewPatronymic] = useState('');
+  const [newPhone, setNewPhone] = useState('');
+  const [newEmail, setNewEmail] = useState('');
   const [createError, setCreateError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const createRequestIdRef = useRef(crypto.randomUUID());
@@ -76,7 +80,9 @@ export function DoctorCalendarPatientSearch({
     }
     setLoading(true);
     try {
-      const res = await fetch(`/api/doctor/clients/search?q=${encodeURIComponent(trimmed)}&limit=20`);
+      const res = await fetch(
+        `/api/doctor/clients/search?q=${encodeURIComponent(trimmed)}&limit=20`,
+      );
       const data = (await res.json()) as { ok?: boolean; clients?: CalendarPatientOption[] };
       setResults(data.ok ? (data.clients ?? []) : []);
     } catch {
@@ -104,15 +110,15 @@ export function DoctorCalendarPatientSearch({
       const el = rootRef.current;
       if (!el || el.contains(ev.target as Node)) return;
       setOpen(false);
-      setQuery("");
+      setQuery('');
     };
-    document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
   }, [open]);
 
   const pick = (option: CalendarPatientOption) => {
     onChange(option);
-    setQuery("");
+    setQuery('');
     setOpen(false);
     setResults([]);
     setCreateOpen(false);
@@ -121,7 +127,7 @@ export function DoctorCalendarPatientSearch({
 
   const clear = () => {
     onChange(null);
-    setQuery("");
+    setQuery('');
     setResults([]);
   };
 
@@ -131,14 +137,14 @@ export function DoctorCalendarPatientSearch({
     const trimmed = query.trim();
     if (queryLooksLikePhone(trimmed)) {
       setNewPhone(trimmed);
-      setNewLastName("");
+      setNewLastName('');
     } else {
       setNewLastName(trimmed);
-      setNewPhone("");
+      setNewPhone('');
     }
-    setNewFirstName("");
-    setNewPatronymic("");
-    setNewEmail("");
+    setNewFirstName('');
+    setNewPatronymic('');
+    setNewEmail('');
     setCreateError(null);
     setCreateOpen(true);
     setOpen(false);
@@ -150,11 +156,11 @@ export function DoctorCalendarPatientSearch({
     const firstName = newFirstName.trim();
     const phone = newPhone.trim();
     if (!lastName || !firstName) {
-      setCreateError("Укажите фамилию и имя");
+      setCreateError('Укажите фамилию и имя');
       return;
     }
     if (!phone && newEmail.trim()) {
-      setCreateError("Для email укажите телефон или оставьте оба контакта пустыми");
+      setCreateError('Для email укажите телефон или оставьте оба контакта пустыми');
       return;
     }
     setCreateError(null);
@@ -170,20 +176,20 @@ export function DoctorCalendarPatientSearch({
         email: newEmail.trim() || null,
         isNew: true,
       });
-      setNewLastName("");
-      setNewFirstName("");
-      setNewPatronymic("");
-      setNewPhone("");
-      setNewEmail("");
+      setNewLastName('');
+      setNewFirstName('');
+      setNewPatronymic('');
+      setNewPhone('');
+      setNewEmail('');
       return;
     }
 
     createInFlightRef.current = true;
     setCreating(true);
     try {
-      const response = await fetch("/api/doctor/clients", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const response = await fetch('/api/doctor/clients', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           requestId: createRequestIdRef.current,
           lastName,
@@ -200,23 +206,27 @@ export function DoctorCalendarPatientSearch({
       };
       if (!response.ok || !data.ok || !data.client) {
         setCreateError(
-          data.error === "invalid_fio" ? "Укажите фамилию и имя"
-          : data.error === "invalid_phone" ? "Неверный телефон"
-          : data.error === "invalid_email" ? "Неверный email"
-          : data.error === "email_conflict" ? "Email уже занят"
-          : "Не удалось создать",
+          data.error === 'invalid_fio'
+            ? 'Укажите фамилию и имя'
+            : data.error === 'invalid_phone'
+              ? 'Неверный телефон'
+              : data.error === 'invalid_email'
+                ? 'Неверный email'
+                : data.error === 'email_conflict'
+                  ? 'Email уже занят'
+                  : 'Не удалось создать',
         );
         return;
       }
       pick(data.client);
       createRequestIdRef.current = crypto.randomUUID();
-      setNewLastName("");
-      setNewFirstName("");
-      setNewPatronymic("");
-      setNewPhone("");
-      setNewEmail("");
+      setNewLastName('');
+      setNewFirstName('');
+      setNewPatronymic('');
+      setNewPhone('');
+      setNewEmail('');
     } catch {
-      setCreateError("Ошибка сети");
+      setCreateError('Ошибка сети');
     } finally {
       createInFlightRef.current = false;
       setCreating(false);
@@ -224,9 +234,11 @@ export function DoctorCalendarPatientSearch({
   };
 
   const minQueryHint =
-    query.trim().replace(/\D/g, "").length >= 3 ? "Минимум 2 символа"
-    : query.trim().length >= 2 ? null
-    : "Минимум 2 символа или 3 цифры телефона";
+    query.trim().replace(/\D/g, '').length >= 3
+      ? 'Минимум 2 символа'
+      : query.trim().length >= 2
+        ? null
+        : 'Минимум 2 символа или 3 цифры телефона';
 
   return (
     <div ref={rootRef} className="relative min-w-0 space-y-2">
@@ -251,29 +263,29 @@ export function DoctorCalendarPatientSearch({
         onFocus={() => {
           setOpen(true);
           if (value) {
-            setQuery("");
+            setQuery('');
             onChange(null);
           }
         }}
         onKeyDown={(e) => {
-          if (e.key === "Escape") {
+          if (e.key === 'Escape') {
             setOpen(false);
-            setQuery("");
+            setQuery('');
             return;
           }
-          if (e.key === "ArrowDown" && results.length > 0) {
+          if (e.key === 'ArrowDown' && results.length > 0) {
             e.preventDefault();
             setActiveIdx((i) => Math.min(i + 1, results.length - 1));
           }
-          if (e.key === "ArrowUp" && results.length > 0) {
+          if (e.key === 'ArrowUp' && results.length > 0) {
             e.preventDefault();
             setActiveIdx((i) => Math.max(i - 1, 0));
           }
-          if (e.key === "Enter" && open && results[activeIdx]) {
+          if (e.key === 'Enter' && open && results[activeIdx]) {
             e.preventDefault();
             pick(results[activeIdx]!);
           }
-          if (e.key === "Backspace" && !query && value) {
+          if (e.key === 'Backspace' && !query && value) {
             clear();
           }
         }}
@@ -290,7 +302,10 @@ export function DoctorCalendarPatientSearch({
             <Button
               type="button"
               variant="ghost"
-              className={cn(doctorInteractiveSurfaceButtonClass, "w-full justify-start px-3 py-2 text-left hover:bg-muted")}
+              className={cn(
+                doctorInteractiveSurfaceButtonClass,
+                'w-full justify-start px-3 py-2 text-left hover:bg-muted',
+              )}
               onMouseDown={(ev) => ev.preventDefault()}
               onClick={openCreate}
             >
@@ -302,14 +317,14 @@ export function DoctorCalendarPatientSearch({
           ) : null}
           {results.map((item, idx) => (
             <Button
-              key={item.id ?? `${item.displayName}:${item.phone ?? ""}`}
+              key={item.id ?? `${item.displayName}:${item.phone ?? ''}`}
               type="button"
               variant="ghost"
               role="option"
               aria-selected={idx === activeIdx}
               className={cn(
-                "h-auto w-full justify-start px-3 py-2 text-left",
-                idx === activeIdx && "bg-muted",
+                'h-auto w-full justify-start px-3 py-2 text-left',
+                idx === activeIdx && 'bg-muted',
               )}
               onMouseEnter={() => setActiveIdx(idx)}
               onMouseDown={(ev) => ev.preventDefault()}
@@ -383,10 +398,10 @@ export function DoctorCalendarPatientSearch({
               onClick={() => void submitNewPatient()}
             >
               {creating
-                ? "Создание…"
+                ? 'Создание…'
                 : deferNewPatientCreation
-                  ? "Выбрать нового"
-                  : "Создать и выбрать"}
+                  ? 'Выбрать нового'
+                  : 'Создать и выбрать'}
             </Button>
             <Button
               type="button"

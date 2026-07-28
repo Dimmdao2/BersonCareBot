@@ -11,69 +11,69 @@
 
 ### Легенда колонок
 
-| Колонка | Смысл |
-|---------|--------|
-| `service` | `integrator` или `webapp` |
-| `current_owner` | Кто фактически владеет записью/миграциями сейчас |
-| `current_source_of_truth` | Где считается канон для продукта сегодня (может быть split) |
-| `target_owner` | Целевой владелец после миграции по [DB_ZONES_RESTRUCTURE.md](./DB_ZONES_RESTRUCTURE.md) |
-| `zone` | `platform_person` \| `patient_diary` \| `auth_infra` \| `communication_history` \| `reminders_access` \| `provider_raw_runtime` \| `analytics_audit` |
-| `migration_path` | `stay` \| `backfill_then_projection` \| `read_switch_then_freeze` \| `archive_then_remove` (ориентир) |
+| Колонка                   | Смысл                                                                                                                                                |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `service`                 | `integrator` или `webapp`                                                                                                                            |
+| `current_owner`           | Кто фактически владеет записью/миграциями сейчас                                                                                                     |
+| `current_source_of_truth` | Где считается канон для продукта сегодня (может быть split)                                                                                          |
+| `target_owner`            | Целевой владелец после миграции по [DB_ZONES_RESTRUCTURE.md](./DB_ZONES_RESTRUCTURE.md)                                                              |
+| `zone`                    | `platform_person` \| `patient_diary` \| `auth_infra` \| `communication_history` \| `reminders_access` \| `provider_raw_runtime` \| `analytics_audit` |
+| `migration_path`          | `stay` \| `backfill_then_projection` \| `read_switch_then_freeze` \| `archive_then_remove` (ориентир)                                                |
 
 ### Integrator — core migrations
 
-| table_name | current_owner | current_source_of_truth | target_owner | zone | migration_path | notes |
-|------------|---------------|-------------------------|--------------|------|----------------|-------|
-| `users` | integrator | integrator (split with webapp platform_users) | webapp master; integrator shadow optional | platform_person | backfill_then_projection | Canonical cross-channel user row today in integrator |
-| `identities` | integrator | integrator | webapp bindings + integrator technical mapping | platform_person | backfill_then_projection | `(resource, external_id)` |
-| `contacts` | integrator | integrator | webapp contacts layer | platform_person | backfill_then_projection | Phone/email normalized |
-| `message_drafts` | integrator | integrator | webapp or stay technical | communication_history | TBD | Support/draft UX |
-| `conversations` | integrator | integrator | webapp | communication_history | backfill_then_projection | Support threads |
-| `conversation_messages` | integrator | integrator | webapp | communication_history | backfill_then_projection | |
-| `user_questions` | integrator | integrator | webapp | communication_history | backfill_then_projection | |
-| `question_messages` | integrator | integrator | webapp | communication_history | backfill_then_projection | |
-| `user_reminder_rules` | integrator | integrator | webapp (product) | reminders_access | backfill_then_projection | Patient-facing rules |
-| `user_reminder_occurrences` | integrator | integrator | webapp or hybrid | reminders_access | TBD | Runtime + product |
-| `user_reminder_delivery_logs` | integrator | integrator | webapp analytics + integrator technical | reminders_access / analytics_audit | TBD | |
-| `content_access_grants` | integrator | integrator | webapp | reminders_access | backfill_then_projection | Protected content access |
-| `delivery_attempt_logs` | integrator | integrator | integrator (technical) + projection to webapp for product audit | provider_raw_runtime / analytics_audit | stay + optional projection | |
-| `idempotency_keys` | integrator | integrator | integrator | provider_raw_runtime | stay | Ingress dedup |
-| `schema_migrations` | integrator | integrator | integrator | provider_raw_runtime | stay | Создаётся в [migrate.ts](../../apps/integrator/src/infra/db/migrate.ts) |
+| table_name                    | current_owner | current_source_of_truth                       | target_owner                                                    | zone                                   | migration_path             | notes                                                                   |
+| ----------------------------- | ------------- | --------------------------------------------- | --------------------------------------------------------------- | -------------------------------------- | -------------------------- | ----------------------------------------------------------------------- |
+| `users`                       | integrator    | integrator (split with webapp platform_users) | webapp master; integrator shadow optional                       | platform_person                        | backfill_then_projection   | Canonical cross-channel user row today in integrator                    |
+| `identities`                  | integrator    | integrator                                    | webapp bindings + integrator technical mapping                  | platform_person                        | backfill_then_projection   | `(resource, external_id)`                                               |
+| `contacts`                    | integrator    | integrator                                    | webapp contacts layer                                           | platform_person                        | backfill_then_projection   | Phone/email normalized                                                  |
+| `message_drafts`              | integrator    | integrator                                    | webapp or stay technical                                        | communication_history                  | TBD                        | Support/draft UX                                                        |
+| `conversations`               | integrator    | integrator                                    | webapp                                                          | communication_history                  | backfill_then_projection   | Support threads                                                         |
+| `conversation_messages`       | integrator    | integrator                                    | webapp                                                          | communication_history                  | backfill_then_projection   |                                                                         |
+| `user_questions`              | integrator    | integrator                                    | webapp                                                          | communication_history                  | backfill_then_projection   |                                                                         |
+| `question_messages`           | integrator    | integrator                                    | webapp                                                          | communication_history                  | backfill_then_projection   |                                                                         |
+| `user_reminder_rules`         | integrator    | integrator                                    | webapp (product)                                                | reminders_access                       | backfill_then_projection   | Patient-facing rules                                                    |
+| `user_reminder_occurrences`   | integrator    | integrator                                    | webapp or hybrid                                                | reminders_access                       | TBD                        | Runtime + product                                                       |
+| `user_reminder_delivery_logs` | integrator    | integrator                                    | webapp analytics + integrator technical                         | reminders_access / analytics_audit     | TBD                        |                                                                         |
+| `content_access_grants`       | integrator    | integrator                                    | webapp                                                          | reminders_access                       | backfill_then_projection   | Protected content access                                                |
+| `delivery_attempt_logs`       | integrator    | integrator                                    | integrator (technical) + projection to webapp for product audit | provider_raw_runtime / analytics_audit | stay + optional projection |                                                                         |
+| `idempotency_keys`            | integrator    | integrator                                    | integrator                                                      | provider_raw_runtime                   | stay                       | Ingress dedup                                                           |
+| `schema_migrations`           | integrator    | integrator                                    | integrator                                                      | provider_raw_runtime                   | stay                       | Создаётся в [migrate.ts](../../apps/integrator/src/infra/db/migrate.ts) |
 
 ### Integrator — Telegram integration
 
-| table_name | current_owner | current_source_of_truth | target_owner | zone | migration_path | notes |
-|------------|---------------|-------------------------|--------------|------|----------------|-------|
-| `telegram_users` | integrator | legacy | integrator legacy / read-only | provider_raw_runtime | read_switch_then_freeze | Не канонический identity; см. schema.md |
-| `telegram_state` | integrator | integrator | integrator | provider_raw_runtime | stay | Runtime state, notify flags |
-| `mailing_topics` | integrator | integrator | webapp (product categories) | platform_person / provider_raw_runtime | backfill_then_projection | Переименование из `subscriptions` ([0007](apps/integrator/src/integrations/telegram/db/migrations/20260306_0007_align_mailing_topics.sql)) |
-| `user_subscriptions` | integrator | integrator | webapp (product preferences) | platform_person | backfill_then_projection | FK на users.id |
-| `mailings` | integrator | integrator | integrator | provider_raw_runtime | stay | Queue |
-| `mailing_logs` | integrator | integrator | webapp audit optional | analytics_audit | projection optional | |
+| table_name           | current_owner | current_source_of_truth | target_owner                  | zone                                   | migration_path           | notes                                                                                                                                      |
+| -------------------- | ------------- | ----------------------- | ----------------------------- | -------------------------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `telegram_users`     | integrator    | legacy                  | integrator legacy / read-only | provider_raw_runtime                   | read_switch_then_freeze  | Не канонический identity; см. schema.md                                                                                                    |
+| `telegram_state`     | integrator    | integrator              | integrator                    | provider_raw_runtime                   | stay                     | Runtime state, notify flags                                                                                                                |
+| `mailing_topics`     | integrator    | integrator              | webapp (product categories)   | platform_person / provider_raw_runtime | backfill_then_projection | Переименование из `subscriptions` ([0007](apps/integrator/src/integrations/telegram/db/migrations/20260306_0007_align_mailing_topics.sql)) |
+| `user_subscriptions` | integrator    | integrator              | webapp (product preferences)  | platform_person                        | backfill_then_projection | FK на users.id                                                                                                                             |
+| `mailings`           | integrator    | integrator              | integrator                    | provider_raw_runtime                   | stay                     | Queue                                                                                                                                      |
+| `mailing_logs`       | integrator    | integrator              | webapp audit optional         | analytics_audit                        | projection optional      |                                                                                                                                            |
 
 ### Integrator — RubiTime integration
 
-| table_name | current_owner | current_source_of_truth | target_owner | zone | migration_path | notes |
-|------------|---------------|-------------------------|--------------|------|----------------|-------|
-| `rubitime_records` | integrator | integrator | integrator (raw) | provider_raw_runtime | stay | Provider payload |
-| `rubitime_events` | integrator | integrator | integrator | provider_raw_runtime | stay | Event journal |
-| `rubitime_create_retry_jobs` | integrator | integrator | integrator | provider_raw_runtime | stay | Generic delivery/retry queue (расширена за пределы RubiTime: [20260310_0002](apps/integrator/src/integrations/rubitime/db/migrations/20260310_0002_expand_retry_jobs_for_generic_delivery.sql)) |
+| table_name                   | current_owner | current_source_of_truth | target_owner     | zone                 | migration_path | notes                                                                                                                                                                                           |
+| ---------------------------- | ------------- | ----------------------- | ---------------- | -------------------- | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `rubitime_records`           | integrator    | integrator              | integrator (raw) | provider_raw_runtime | stay           | Provider payload                                                                                                                                                                                |
+| `rubitime_events`            | integrator    | integrator              | integrator       | provider_raw_runtime | stay           | Event journal                                                                                                                                                                                   |
+| `rubitime_create_retry_jobs` | integrator    | integrator              | integrator       | provider_raw_runtime | stay           | Generic delivery/retry queue (расширена за пределы RubiTime: [20260310_0002](apps/integrator/src/integrations/rubitime/db/migrations/20260310_0002_expand_retry_jobs_for_generic_delivery.sql)) |
 
 ### Webapp migrations
 
-| table_name | current_owner | current_source_of_truth | target_owner | zone | migration_path | notes |
-|------------|---------------|-------------------------|--------------|------|----------------|-------|
-| `platform_users` | webapp | webapp | webapp | platform_person | stay | Master platform user |
-| `user_channel_bindings` | webapp | webapp | webapp | platform_person | stay | telegram/max/vk |
-| `user_channel_preferences` | webapp | webapp | webapp | platform_person | stay | Per-channel prefs |
-| `symptom_trackings` | webapp | webapp | webapp | patient_diary | stay | Diary |
-| `symptom_entries` | webapp | webapp | webapp | patient_diary | stay | Replaces 001_diaries |
-| `lfk_complexes` | webapp | webapp | webapp | patient_diary | stay | |
-| `lfk_sessions` | webapp | webapp | webapp | patient_diary | stay | |
-| `phone_challenges` | webapp | webapp | webapp | auth_infra | stay | Auth |
-| `message_log` | webapp | webapp | webapp | analytics_audit | stay | Doctor messaging audit |
-| `broadcast_audit` | webapp | webapp | webapp | analytics_audit | stay | |
-| `idempotency_keys` | webapp | webapp | webapp | provider_raw_runtime | stay | Webhook idempotency |
+| table_name                 | current_owner | current_source_of_truth | target_owner | zone                 | migration_path | notes                  |
+| -------------------------- | ------------- | ----------------------- | ------------ | -------------------- | -------------- | ---------------------- |
+| `platform_users`           | webapp        | webapp                  | webapp       | platform_person      | stay           | Master platform user   |
+| `user_channel_bindings`    | webapp        | webapp                  | webapp       | platform_person      | stay           | telegram/max/vk        |
+| `user_channel_preferences` | webapp        | webapp                  | webapp       | platform_person      | stay           | Per-channel prefs      |
+| `symptom_trackings`        | webapp        | webapp                  | webapp       | patient_diary        | stay           | Diary                  |
+| `symptom_entries`          | webapp        | webapp                  | webapp       | patient_diary        | stay           | Replaces 001_diaries   |
+| `lfk_complexes`            | webapp        | webapp                  | webapp       | patient_diary        | stay           |                        |
+| `lfk_sessions`             | webapp        | webapp                  | webapp       | patient_diary        | stay           |                        |
+| `phone_challenges`         | webapp        | webapp                  | webapp       | auth_infra           | stay           | Auth                   |
+| `message_log`              | webapp        | webapp                  | webapp       | analytics_audit      | stay           | Doctor messaging audit |
+| `broadcast_audit`          | webapp        | webapp                  | webapp       | analytics_audit      | stay           |                        |
+| `idempotency_keys`         | webapp        | webapp                  | webapp       | provider_raw_runtime | stay           | Webhook idempotency    |
 
 **Примечание:** [001_diaries.sql](apps/webapp/migrations/001_diaries.sql) создаёт старые `symptom_entries` / `lfk_sessions`; [004](apps/webapp/migrations/004_symptom_trackings_and_entries.sql) и [005](apps/webapp/migrations/005_lfk_complexes_and_sessions.sql) делают `DROP` и пересоздание. Учитывать при оценке повторного прогона миграций.
 
@@ -116,11 +116,11 @@
 
 ### Rollback boundaries (политика)
 
-| Сценарий | Рекомендуемое действие |
-|----------|-------------------------|
-| Падение до `db:migrate:prod` integrator | Откат кода + восстановление из pre-migrations backup при необходимости |
+| Сценарий                                            | Рекомендуемое действие                                                                                         |
+| --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Падение до `db:migrate:prod` integrator             | Откат кода + восстановление из pre-migrations backup при необходимости                                         |
 | Падение после integrator migrate, до webapp migrate | Не продолжать webapp migrate до анализа; integrator уже изменён схему — откат только из backup или forward-fix |
-| Падение после webapp migrate | Аналогично; возможна рассинхронизация схем между сервисами |
+| Падение после webapp migrate                        | Аналогично; возможна рассинхронизация схем между сервисами                                                     |
 
 **Артефакт:** до первого data move зафиксировать в runbook хоста фактическое поведение `postgres-backup.sh` и список включаемых database names.
 
@@ -160,14 +160,14 @@
 
 ### Группы projection (целевые)
 
-| Group | Назначение | Примеры событий (черновик) |
-|-------|------------|----------------------------|
-| `identity_contact` | Синхронизация person / contact / binding | `user.upserted`, `contact.linked` |
-| `preferences_state` | Настройки уведомлений по каналам | `preferences.updated` |
-| `message_history` | Сообщения и треды для product history | `message.recorded`, `conversation.updated` |
-| `booking_provider` | Снимок записи для product appointment layer | `appointment.projected` (из rubitime payload) |
-| `delivery_status` | Доставлено/не доставлено SMS и др. | `delivery.status` |
-| `reminders` | Sync reminder rules и content access | `reminder.rule.upserted`, `content_access.granted` |
+| Group               | Назначение                                  | Примеры событий (черновик)                         |
+| ------------------- | ------------------------------------------- | -------------------------------------------------- |
+| `identity_contact`  | Синхронизация person / contact / binding    | `user.upserted`, `contact.linked`                  |
+| `preferences_state` | Настройки уведомлений по каналам            | `preferences.updated`                              |
+| `message_history`   | Сообщения и треды для product history       | `message.recorded`, `conversation.updated`         |
+| `booking_provider`  | Снимок записи для product appointment layer | `appointment.projected` (из rubitime payload)      |
+| `delivery_status`   | Доставлено/не доставлено SMS и др.          | `delivery.status`                                  |
+| `reminders`         | Sync reminder rules и content access        | `reminder.rule.upserted`, `content_access.granted` |
 
 ### Обязательные поля envelope (черновик)
 

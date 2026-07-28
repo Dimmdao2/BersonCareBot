@@ -6,13 +6,13 @@ Phase 5 соответствует ТЗ инициативы ([README § Phase 5
 
 ### 1.1. `patient_practice_completions` и Drizzle schema
 
-| Требование README §5.1 | Реализация |
-|------------------------|------------|
+| Требование README §5.1                                                                       | Реализация                                                                                                                                                                                                                      |
+| -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `id`, `user_id`, `content_page_id`, `completed_at` timestamptz, `source`, `feeling`, `notes` | [`apps/webapp/db/schema/patientPractice.ts`](../../apps/webapp/db/schema/patientPractice.ts), миграция [`0010_patient_practice_completions.sql`](../../apps/webapp/db/drizzle-migrations/0010_patient_practice_completions.sql) |
-| Индексы `(user_id, completed_at desc)` и `(user_id, content_page_id)` | `idx_ppc_user_completed_desc`, `idx_ppc_user_page` |
-| FK на `content_pages(id)` ON DELETE CASCADE | Drizzle `.references(() => contentPages.id, { onDelete: "cascade" })` + SQL `ALTER TABLE … FOREIGN KEY (content_page_id)` |
-| Без FK на `users` для `user_id` | В миграции только `user_id uuid NOT NULL`, FK на `users` **нет** |
-| CHECK по `source` и `feeling` | `ppc_source_check` (`home` \| `reminder` \| `section_page` \| `daily_warmup`), `ppc_feeling_check` (NULL или 1–5) |
+| Индексы `(user_id, completed_at desc)` и `(user_id, content_page_id)`                        | `idx_ppc_user_completed_desc`, `idx_ppc_user_page`                                                                                                                                                                              |
+| FK на `content_pages(id)` ON DELETE CASCADE                                                  | Drizzle `.references(() => contentPages.id, { onDelete: "cascade" })` + SQL `ALTER TABLE … FOREIGN KEY (content_page_id)`                                                                                                       |
+| Без FK на `users` для `user_id`                                                              | В миграции только `user_id uuid NOT NULL`, FK на `users` **нет**                                                                                                                                                                |
+| CHECK по `source` и `feeling`                                                                | `ppc_source_check` (`home` \| `reminder` \| `section_page` \| `daily_warmup`), `ppc_feeling_check` (NULL или 1–5)                                                                                                               |
 
 ### 1.2. `pgPatientPracticeCompletions` — только Drizzle
 
@@ -97,20 +97,20 @@ Result:
 
 ## 5. Confirmation checklist (audit prompt)
 
-| Пункт | Статус |
-|-------|--------|
-| `patient_practice_completions` соответствует ТЗ | PASS (§1.1) |
+| Пункт                                                   | Статус      |
+| ------------------------------------------------------- | ----------- |
+| `patient_practice_completions` соответствует ТЗ         | PASS (§1.1) |
 | `pgPatientPracticeCompletions` — Drizzle, не pool/query | PASS (§1.2) |
-| Нет FK на `users` | PASS (§1.1) |
-| CHECK для `source` и `feeling` | PASS (§1.1) |
-| Module isolation | PASS (§1.3) |
-| API routes тонкие | PASS (§1.4) |
-| Стрик учитывает timezone | PASS (§1.5) |
-| Кнопка выполнения + feeling/skip | PASS (§1.6) |
-| ProgressBlock — реальные данные | PASS (§1.6) |
-| Дневники не изменены | PASS (§1.7) |
-| Нет slug hardcode из CONTENT_PLAN | PASS (§1.8) |
-| Тесты Phase 5 есть и проходят | PASS (§4) |
+| Нет FK на `users`                                       | PASS (§1.1) |
+| CHECK для `source` и `feeling`                          | PASS (§1.1) |
+| Module isolation                                        | PASS (§1.3) |
+| API routes тонкие                                       | PASS (§1.4) |
+| Стрик учитывает timezone                                | PASS (§1.5) |
+| Кнопка выполнения + feeling/skip                        | PASS (§1.6) |
+| ProgressBlock — реальные данные                         | PASS (§1.6) |
+| Дневники не изменены                                    | PASS (§1.7) |
+| Нет slug hardcode из CONTENT_PLAN                       | PASS (§1.8) |
+| Тесты Phase 5 есть и проходят                           | PASS (§4)   |
 
 ---
 

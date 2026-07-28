@@ -1,11 +1,11 @@
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { env, isS3MediaEnabled } from "@/config/env";
-import { confirmMediaFileReady, getMediaRowForConfirm } from "@/app-layer/media/s3MediaStorage";
-import { maybeAutoEnqueueVideoTranscodeAfterUpload } from "@/app-layer/media/mediaTranscodeAutoEnqueue";
-import { s3HeadObject } from "@/app-layer/media/s3Client";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
-import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { env, isS3MediaEnabled } from '@/config/env';
+import { confirmMediaFileReady, getMediaRowForConfirm } from '@/app-layer/media/s3MediaStorage';
+import { maybeAutoEnqueueVideoTranscodeAfterUpload } from '@/app-layer/media/mediaTranscodeAutoEnqueue';
+import { s3HeadObject } from '@/app-layer/media/s3Client';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
+import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 
 const bodySchema = z.object({
   mediaId: z.string().uuid(),
@@ -13,7 +13,7 @@ const bodySchema = z.object({
 
 export async function POST(request: Request) {
   if (!isS3MediaEnabled(env)) {
-    return NextResponse.json({ ok: false, error: "s3_not_configured" }, { status: 501 });
+    return NextResponse.json({ ok: false, error: 's3_not_configured' }, { status: 501 });
   }
 
   const gate = await requireDoctorWorkspaceApiContext();
@@ -24,27 +24,27 @@ export async function POST(request: Request) {
   try {
     json = await request.json();
   } catch {
-    return NextResponse.json({ ok: false, error: "invalid_json" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_json' }, { status: 400 });
   }
 
   const parsed = bodySchema.safeParse(json);
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
 
   const row = await withDoctorWorkspacePrincipal(gate.ctx, () =>
     getMediaRowForConfirm(parsed.data.mediaId, session.user.userId),
   );
   if (!row) {
-    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+    return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
   if (!row.s3_key) {
-    return NextResponse.json({ ok: false, error: "missing_s3_key" }, { status: 500 });
+    return NextResponse.json({ ok: false, error: 'missing_s3_key' }, { status: 500 });
   }
 
   const appUrl = `/api/media/${parsed.data.mediaId}`;
 
-  if (row.status === "ready") {
+  if (row.status === 'ready') {
     return NextResponse.json({
       ok: true as const,
       url: appUrl,
@@ -52,13 +52,13 @@ export async function POST(request: Request) {
     });
   }
 
-  if (row.status !== "pending") {
-    return NextResponse.json({ ok: false, error: "invalid_status" }, { status: 409 });
+  if (row.status !== 'pending') {
+    return NextResponse.json({ ok: false, error: 'invalid_status' }, { status: 409 });
   }
 
   const exists = await s3HeadObject(row.s3_key);
   if (!exists) {
-    return NextResponse.json({ ok: false, error: "file_not_found_in_s3" }, { status: 404 });
+    return NextResponse.json({ ok: false, error: 'file_not_found_in_s3' }, { status: 404 });
   }
 
   const updated = await withDoctorWorkspacePrincipal(gate.ctx, () =>
@@ -68,14 +68,14 @@ export async function POST(request: Request) {
     const again = await withDoctorWorkspacePrincipal(gate.ctx, () =>
       getMediaRowForConfirm(parsed.data.mediaId, session.user.userId),
     );
-    if (again?.status === "ready" && again.s3_key) {
+    if (again?.status === 'ready' && again.s3_key) {
       return NextResponse.json({
         ok: true as const,
         url: appUrl,
         mediaId: parsed.data.mediaId,
       });
     }
-    return NextResponse.json({ ok: false, error: "confirm_race" }, { status: 409 });
+    return NextResponse.json({ ok: false, error: 'confirm_race' }, { status: 409 });
   }
 
   await maybeAutoEnqueueVideoTranscodeAfterUpload(parsed.data.mediaId);

@@ -22,23 +22,33 @@ const DIRECT_PROVIDER_ALLOWLIST = new Set([
   'integrations/telegram/setupMenuButton.ts',
 ]);
 
-const providerAdapterImport = /from\s+['"][^'"]*(?:integrations\/)?(?:telegram|max|email|smsc)\/deliveryAdapter(?:\.js)?['"]/;
-const providerClientImport = /from\s+['"][^'"]*(?:integrations\/)?(?:telegram|max|email|smsc)\/(?:client|mailer)(?:\.js)?['"]/;
+const providerAdapterImport =
+  /from\s+['"][^'"]*(?:integrations\/)?(?:telegram|max|email|smsc)\/deliveryAdapter(?:\.js)?['"]/;
+const providerClientImport =
+  /from\s+['"][^'"]*(?:integrations\/)?(?:telegram|max|email|smsc)\/(?:client|mailer)(?:\.js)?['"]/;
 const providerSend = /(?:\.|\b)(?:sendMail|sendSms|sendMessage)\s*\(/;
 
 async function sourceFiles(directory: URL, prefix = ''): Promise<string[]> {
   const entries = await readdir(directory, { withFileTypes: true });
-  const nested = await Promise.all(entries.map(async (entry) => {
-    const relative = `${prefix}${entry.name}`;
-    if (entry.isDirectory()) return sourceFiles(new URL(`${entry.name}/`, directory), `${relative}/`);
-    return entry.isFile() && entry.name.endsWith('.ts') && !entry.name.endsWith('.test.ts') ? [relative] : [];
-  }));
+  const nested = await Promise.all(
+    entries.map(async (entry) => {
+      const relative = `${prefix}${entry.name}`;
+      if (entry.isDirectory())
+        return sourceFiles(new URL(`${entry.name}/`, directory), `${relative}/`);
+      return entry.isFile() && entry.name.endsWith('.ts') && !entry.name.endsWith('.test.ts')
+        ? [relative]
+        : [];
+    }),
+  );
   return nested.flat();
 }
 
 export function assertNoDirectProviderBypass(relativePath: string, source: string): void {
   if (DIRECT_PROVIDER_ALLOWLIST.has(relativePath)) return;
-  if (providerAdapterImport.test(source) || (providerClientImport.test(source) && providerSend.test(source))) {
+  if (
+    providerAdapterImport.test(source) ||
+    (providerClientImport.test(source) && providerSend.test(source))
+  ) {
     throw new Error(`DIRECT_PROVIDER_BYPASS:${relativePath}`);
   }
 }
@@ -46,18 +56,25 @@ export function assertNoDirectProviderBypass(relativePath: string, source: strin
 describe('outbound egress source boundary', () => {
   it('scans every integrator source file outside the narrow provider/dispatch allowlist', async () => {
     const files = await sourceFiles(SRC_ROOT);
-    await Promise.all(files.map(async (relativePath) => {
-      const source = await readFile(new URL(relativePath, SRC_ROOT), 'utf8');
-      expect(() => assertNoDirectProviderBypass(relativePath, source), relativePath).not.toThrow();
-    }));
+    await Promise.all(
+      files.map(async (relativePath) => {
+        const source = await readFile(new URL(relativePath, SRC_ROOT), 'utf8');
+        expect(
+          () => assertNoDirectProviderBypass(relativePath, source),
+          relativePath,
+        ).not.toThrow();
+      }),
+    );
   });
 
   it('would reject a newly added product source that bypasses DispatchPort', () => {
-    expect(() => assertNoDirectProviderBypass(
-      'integrations/bersoncare/new-product-send.ts',
-      "import { sendMail } from '../email/mailer.js';\nsendMail({});",
-    // eslint-disable-next-line no-secrets/no-secrets -- closed static-checker error token, not a credential
-    )).toThrow('DIRECT_PROVIDER_BYPASS:integrations/bersoncare/new-product-send.ts');
+    expect(() =>
+      assertNoDirectProviderBypass(
+        'integrations/bersoncare/new-product-send.ts',
+        "import { sendMail } from '../email/mailer.js';\nsendMail({});",
+        // eslint-disable-next-line no-secrets/no-secrets -- closed static-checker error token, not a credential
+      ),
+    ).toThrow('DIRECT_PROVIDER_BYPASS:integrations/bersoncare/new-product-send.ts');
   });
 
   it('places the central policy before redirect, adapter lookup, and payload-bearing attempt logs', async () => {

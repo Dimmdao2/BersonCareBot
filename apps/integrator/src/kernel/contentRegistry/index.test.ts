@@ -2,7 +2,12 @@ import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { ensureNoDuplicateScriptIds, getContentBundle, getEffectiveBundleKey, loadContentRegistry } from './index.js';
+import {
+  ensureNoDuplicateScriptIds,
+  getContentBundle,
+  getEffectiveBundleKey,
+  loadContentRegistry,
+} from './index.js';
 
 describe('contentRegistry', () => {
   it('loads telegram/user and telegram/admin bundles from workspace content root', async () => {
@@ -26,7 +31,9 @@ describe('contentRegistry', () => {
     await writeFile(path.join(admin, 'templates.json'), JSON.stringify({}), 'utf8');
     await writeFile(path.join(source, 'scripts.json'), JSON.stringify([]), 'utf8');
 
-    await expect(loadContentRegistry({ rootDir: root })).rejects.toThrow(/forbidden to prevent shadow runtime content/);
+    await expect(loadContentRegistry({ rootDir: root })).rejects.toThrow(
+      /forbidden to prevent shadow runtime content/,
+    );
   });
 
   it('keeps telegram.more.menu as webapp entry (message.received)', async () => {
@@ -45,7 +52,9 @@ describe('contentRegistry', () => {
     const root = path.resolve(process.cwd(), 'src/content');
     const registry = await loadContentRegistry({ rootDir: root });
     const telegramUser = getContentBundle(registry, 'telegram/user');
-    const script = telegramUser?.scripts.find((item) => item.id === 'telegram.booking.open.fallback');
+    const script = telegramUser?.scripts.find(
+      (item) => item.id === 'telegram.booking.open.fallback',
+    );
 
     expect(script?.match).toMatchObject({
       input: { action: 'booking.open' },
@@ -64,7 +73,9 @@ describe('contentRegistry', () => {
     const root = path.resolve(process.cwd(), 'src/content');
     const registry = await loadContentRegistry({ rootDir: root });
     const telegramUser = getContentBundle(registry, 'telegram/user');
-    const script = telegramUser?.scripts.find((item) => item.id === 'telegram.contact.link.request.bookings.fallback');
+    const script = telegramUser?.scripts.find(
+      (item) => item.id === 'telegram.contact.link.request.bookings.fallback',
+    );
 
     expect(script?.match).toMatchObject({
       input: { action: 'bookings.show' },
@@ -86,7 +97,11 @@ describe('contentRegistry', () => {
     const callbackActions = menuRows.flatMap((row) => {
       if (!Array.isArray(row)) return [];
       return row
-        .map((button) => (typeof button === 'object' && button !== null ? (button as Record<string, unknown>).callbackData : undefined))
+        .map((button) =>
+          typeof button === 'object' && button !== null
+            ? (button as Record<string, unknown>).callbackData
+            : undefined,
+        )
         .filter((value): value is string => typeof value === 'string' && value.length > 0);
     });
     const scripts = telegramUser?.scripts ?? [];
@@ -96,8 +111,7 @@ describe('contentRegistry', () => {
         const input = match?.input as Record<string, unknown> | undefined;
         const ev = script.event;
         return (
-          (ev === 'callback.received' || ev === 'message.received')
-          && input?.action === action
+          (ev === 'callback.received' || ev === 'message.received') && input?.action === action
         );
       });
       expect(hasScript).toBe(true);
@@ -258,7 +272,9 @@ describe('contentRegistry', () => {
       ],
       templates: {},
     };
-    expect(() => ensureNoDuplicateScriptIds(bundle, 'test/scope')).toThrow(/duplicate script id "dup"/);
+    expect(() => ensureNoDuplicateScriptIds(bundle, 'test/scope')).toThrow(
+      /duplicate script id "dup"/,
+    );
   });
 
   it('getEffectiveBundleKey returns scope key when present, else source', () => {

@@ -76,12 +76,13 @@ const categories = [
   },
   {
     key: 'rubitimeBookingUpsertRuntime',
-    description: 'Rubitime-specific booking.upsert branch or booking-rubitime-sync package runtime.',
+    description:
+      'Rubitime-specific booking.upsert branch or booking-rubitime-sync package runtime.',
     phase: 'R6/D9',
     postR6MustBeZero: true,
     fileFilter: (rel) =>
-      rel === 'apps/integrator/src/infra/db/writePort.ts'
-      || rel.startsWith('packages/booking-rubitime-sync/src/'),
+      rel === 'apps/integrator/src/infra/db/writePort.ts' ||
+      rel.startsWith('packages/booking-rubitime-sync/src/'),
     fileContracts: [
       {
         path: /^apps\/integrator\/src\/infra\/db\/writePort\.ts$/,
@@ -110,9 +111,7 @@ const categories = [
     phase: 'R6/D9',
     postR6MustBeZero: true,
     fileFilter: (rel) => rel.startsWith('apps/integrator/src/infra/db/'),
-    patterns: [
-      /buildAppointmentRecordUpsertedFanout/g,
-    ],
+    patterns: [/buildAppointmentRecordUpsertedFanout/g],
   },
   {
     key: 'appointmentRecordUpsertedProducer',
@@ -120,8 +119,8 @@ const categories = [
     phase: 'R6/D9',
     postR6MustBeZero: true,
     fileFilter: (rel) =>
-      rel === 'apps/integrator/src/kernel/contracts/projectionEventTypes.ts'
-      || rel === 'apps/integrator/src/infra/db/buildAppointmentRecordUpsertedFanout.ts',
+      rel === 'apps/integrator/src/kernel/contracts/projectionEventTypes.ts' ||
+      rel === 'apps/integrator/src/infra/db/buildAppointmentRecordUpsertedFanout.ts',
     patterns: [
       /export\s+const\s+APPOINTMENT_RECORD_UPSERTED\s*=\s*["']appointment\.record\.upserted["']/g,
       /eventType\s*:\s*APPOINTMENT_RECORD_UPSERTED/g,
@@ -144,10 +143,7 @@ const categories = [
     phase: 'D10',
     postR6MustBeZero: true,
     fileFilter: (rel) => rel === 'apps/webapp/src/app/api/integrator/events/route.ts',
-    patterns: [
-      /export\s+(?:async\s+)?function\s+POST\s*\(/g,
-      /export\s+const\s+POST\s*=/g,
-    ],
+    patterns: [/export\s+(?:async\s+)?function\s+POST\s*\(/g, /export\s+const\s+POST\s*=/g],
   },
   {
     key: 'projectionEmitOrEnqueueRuntime',
@@ -155,9 +151,7 @@ const categories = [
     phase: 'D10',
     postR6MustBeZero: true,
     fileFilter: (rel) => rel.startsWith('apps/integrator/src/'),
-    patterns: [
-      /tryEmitWebappProjectionThenEnqueue/g,
-    ],
+    patterns: [/tryEmitWebappProjectionThenEnqueue/g],
   },
   {
     key: 'projectionOutboxRuntime',
@@ -178,24 +172,19 @@ const categories = [
     phase: 'D10',
     postR6MustBeZero: true,
     fileFilter: (rel) => rel.startsWith('apps/integrator/src/infra/runtime/worker/'),
-    patterns: [
-      /runProjectionWorkerTick/g,
-      /projectionOutboxLoop/g,
-    ],
+    patterns: [/runProjectionWorkerTick/g, /projectionOutboxLoop/g],
   },
   {
     key: 'legacyAppointmentRecordRuntimeRefs',
     description: 'Runtime references to public.appointment_records / appointmentRecords.',
     phase: 'R6/R7',
     postR6MustBeZero: false,
-    patterns: [
-      /appointment_records/g,
-      /appointmentRecords/g,
-    ],
+    patterns: [/appointment_records/g, /appointmentRecords/g],
   },
   {
     key: 'rubitimeRawTableRuntimeRefs',
-    description: 'Runtime references to raw Rubitime tables scheduled for archive/drop; ops tooling is reported separately.',
+    description:
+      'Runtime references to raw Rubitime tables scheduled for archive/drop; ops tooling is reported separately.',
     phase: 'R7',
     postR6MustBeZero: false,
     fileFilter: (rel) => !isOpsToolingFile(rel),
@@ -232,15 +221,12 @@ const categories = [
   },
   {
     key: 'rubitimeOpsToolingRefs',
-    description: 'Ops/audit scripts with Rubitime references; reported but not a post-R6 runtime blocker.',
+    description:
+      'Ops/audit scripts with Rubitime references; reported but not a post-R6 runtime blocker.',
     phase: 'R6/R7 ops',
     postR6MustBeZero: false,
     fileFilter: (rel) => isOpsToolingFile(rel),
-    patterns: [
-      /rubitime/gi,
-      /appointment_records/g,
-      /appointmentRecords/g,
-    ],
+    patterns: [/rubitime/gi, /appointment_records/g, /appointmentRecords/g],
   },
 ];
 
@@ -295,31 +281,27 @@ function isHistoricalMigrationFile(rel) {
 function looksLikeTestHelperFile(rel) {
   const basename = rel.slice(rel.lastIndexOf('/') + 1);
   return (
-    rel.includes('/test-helpers/')
-    || rel.includes('/test-utils/')
-    || rel.includes('/testing/')
-    || rel.includes('/fixtures/')
-    || rel.includes('/mocks/')
-    || /(?:ForTests?|TestHelper|TestUtils|TestingHelper)\.(?:ts|tsx|js|mjs)$/.test(basename)
-    || /(?:^|[._-])(?:stub|fixture|mock|harness)(?:[._-]|[A-Z]|$)/.test(basename)
+    rel.includes('/test-helpers/') ||
+    rel.includes('/test-utils/') ||
+    rel.includes('/testing/') ||
+    rel.includes('/fixtures/') ||
+    rel.includes('/mocks/') ||
+    /(?:ForTests?|TestHelper|TestUtils|TestingHelper)\.(?:ts|tsx|js|mjs)$/.test(basename) ||
+    /(?:^|[._-])(?:stub|fixture|mock|harness)(?:[._-]|[A-Z]|$)/.test(basename)
   );
 }
 
 function isTestOnlyHelperFile(rel, importUsage) {
   if (!looksLikeTestHelperFile(rel)) return false;
   const usage = importUsage.get(rel);
-  return Boolean(
-    usage
-    && usage.testConsumers.size > 0
-    && usage.runtimeConsumers.size === 0,
-  );
+  return Boolean(usage && usage.testConsumers.size > 0 && usage.runtimeConsumers.size === 0);
 }
 
 function isExecutableRuntimeFile(rel, importUsage) {
   return (
-    !isOpsToolingFile(rel)
-    && !isHistoricalMigrationFile(rel)
-    && !isTestOnlyHelperFile(rel, importUsage)
+    !isOpsToolingFile(rel) &&
+    !isHistoricalMigrationFile(rel) &&
+    !isTestOnlyHelperFile(rel, importUsage)
   );
 }
 
@@ -358,7 +340,7 @@ function maskJsComments(source) {
     return char === '\n' || char === '\r' ? char : ' ';
   }
 
-  for (let index = 0; index < source.length;) {
+  for (let index = 0; index < source.length; ) {
     const char = source[index];
     const next = source[index + 1];
 
@@ -572,9 +554,9 @@ function collectImportUsage(files) {
   const usage = new Map();
   for (const importer of files) {
     const isRuntimeConsumer =
-      isRuntimeFile(importer.rel)
-      && !isOpsToolingFile(importer.rel)
-      && !isHistoricalMigrationFile(importer.rel);
+      isRuntimeFile(importer.rel) &&
+      !isOpsToolingFile(importer.rel) &&
+      !isHistoricalMigrationFile(importer.rel);
     for (const specifier of extractRelativeImports(importer.executableSrc)) {
       const target = resolveRelativeImport(importer.rel, specifier, knownPaths);
       if (!target) continue;
@@ -601,13 +583,15 @@ function collect(root = repoRoot) {
       rel: relative(root, abs).replace(/\\/g, '/'),
     }));
 
-  const allSourceFiles = files.map((file) => ({
-    ...file,
-    src: readFileSync(file.abs, 'utf8'),
-  })).map((file) => ({
-    ...file,
-    executableSrc: maskJsComments(file.src),
-  }));
+  const allSourceFiles = files
+    .map((file) => ({
+      ...file,
+      src: readFileSync(file.abs, 'utf8'),
+    }))
+    .map((file) => ({
+      ...file,
+      executableSrc: maskJsComments(file.src),
+    }));
   const importUsage = collectImportUsage(allSourceFiles);
   const sourceFiles = allSourceFiles.filter((file) => isRuntimeFile(file.rel));
 
@@ -615,18 +599,16 @@ function collect(root = repoRoot) {
     const filesWithHits = [];
     let totalHits = 0;
     const filesForCategory = sourceFiles.filter((file) => {
-      if (
-        category.postR6MustBeZero
-        && !isExecutableRuntimeFile(file.rel, importUsage)
-      ) return false;
+      if (category.postR6MustBeZero && !isExecutableRuntimeFile(file.rel, importUsage))
+        return false;
       if (category.fileFilter && !category.fileFilter(file.rel)) return false;
       return true;
     });
     for (const file of filesForCategory) {
       const source = category.postR6MustBeZero ? file.executableSrc : file.src;
       const hits =
-        countMatches(source, category.patterns)
-        + countFileContractMatches(file, category.fileContracts);
+        countMatches(source, category.patterns) +
+        countFileContractMatches(file, category.fileContracts);
       if (hits === 0) continue;
       totalHits += hits;
       filesWithHits.push({ path: file.rel, hits });
@@ -675,9 +657,7 @@ function writeSelfTestFixture(root, rel, source) {
 function assertNoPostR6Blockers(root, label) {
   const blockers = postR6Blockers(collect(root));
   if (blockers.length > 0) {
-    throw new Error(
-      `${label} unexpectedly failed: ${blockers.map((item) => item.key).join(', ')}`,
-    );
+    throw new Error(`${label} unexpectedly failed: ${blockers.map((item) => item.key).join(', ')}`);
   }
 }
 
@@ -940,15 +920,11 @@ function runSelfTest() {
         "import './stubProjection.js';\n",
       );
       const blockers = postR6Blockers(collect(root));
-      const target = blockers.find(
-        (category) => category.key === 'projectionOutboxRuntime',
-      );
+      const target = blockers.find((category) => category.key === 'projectionOutboxRuntime');
       if (!target || target.totalHits !== 1) {
         throw new Error('mixed test/runtime helper consumer was hidden from runtime census');
       }
-      const unexpected = blockers.filter(
-        (category) => category.key !== 'projectionOutboxRuntime',
-      );
+      const unexpected = blockers.filter((category) => category.key !== 'projectionOutboxRuntime');
       if (unexpected.length > 0) {
         throw new Error(
           `mixed helper consumer also triggered: ${unexpected
@@ -985,8 +961,7 @@ function runSelfTest() {
   for (const lexicalCase of lexicalCases) {
     const root = mkdtempSync(join(tmpdir(), 'bcb-rubitime-d0-lexical-'));
     try {
-      const fixturePath =
-        'apps/integrator/src/infra/db/buildAppointmentRecordUpsertedFanout.ts';
+      const fixturePath = 'apps/integrator/src/infra/db/buildAppointmentRecordUpsertedFanout.ts';
       writeSelfTestFixture(
         root,
         fixturePath,

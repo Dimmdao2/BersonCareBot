@@ -1,20 +1,20 @@
 #!/usr/bin/env node
 /** Disposable PostgreSQL proof for the U9A platform-settings role and mirror fallback. */
-import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync } from "node:fs";
-import net from "node:net";
-import path from "node:path";
+import { spawnSync } from 'node:child_process';
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
+import net from 'node:net';
+import path from 'node:path';
 
-const root = path.resolve(import.meta.dirname, "..", "..", "..", "..");
-const pgBin = "/usr/lib/postgresql/16/bin";
+const root = path.resolve(import.meta.dirname, '..', '..', '..', '..');
+const pgBin = '/usr/lib/postgresql/16/bin';
 const stamp = `${process.pid}_${Date.now()}`;
 const dir = mkdtempSync(`/tmp/bcb_u9a_platform_settings_scratch_${stamp}_`);
-const data = path.join(dir, "data");
-const socket = path.join(dir, "socket");
-const log = path.join(dir, "postgres.log");
+const data = path.join(dir, 'data');
+const socket = path.join(dir, 'socket');
+const log = path.join(dir, 'postgres.log');
 const db = `bcb_u9a_platform_settings_scratch_${stamp}`;
-const orgId = "10000000-0000-4000-8000-000000000001";
-const safeEnv = { LANG: "C", LC_ALL: "C", PATH: `${pgBin}:/usr/bin:/bin` };
+const orgId = '10000000-0000-4000-8000-000000000001';
+const safeEnv = { LANG: 'C', LC_ALL: 'C', PATH: `${pgBin}:/usr/bin:/bin` };
 let serverStarted = false;
 let port;
 
@@ -23,7 +23,7 @@ function fail(label) {
 }
 
 function run(command, args, input, label, { expectFailure = false } = {}) {
-  const result = spawnSync(command, args, { cwd: root, encoding: "utf8", env: safeEnv, input });
+  const result = spawnSync(command, args, { cwd: root, encoding: 'utf8', env: safeEnv, input });
   if (result.error) fail(`${label} did not start`);
   if (expectFailure ? result.status === 0 : result.status !== 0) {
     if (!expectFailure && result.stderr) process.stderr.write(result.stderr);
@@ -32,10 +32,10 @@ function run(command, args, input, label, { expectFailure = false } = {}) {
   return result.stdout;
 }
 
-function psql(text, label, { expectFailure = false, user = "postgres" } = {}) {
+function psql(text, label, { expectFailure = false, user = 'postgres' } = {}) {
   return run(
-    path.join(pgBin, "psql"),
-    ["-X", "-qAt", "-h", socket, "-p", port, "-U", user, "-v", "ON_ERROR_STOP=1", "-d", db],
+    path.join(pgBin, 'psql'),
+    ['-X', '-qAt', '-h', socket, '-p', port, '-U', user, '-v', 'ON_ERROR_STOP=1', '-d', db],
     text,
     label,
     { expectFailure },
@@ -44,23 +44,26 @@ function psql(text, label, { expectFailure = false, user = "postgres" } = {}) {
 
 function assertTrue(sql, label) {
   const result = psql(sql, label).trim();
-  if (result !== "1" && result !== "t") fail(label);
+  if (result !== '1' && result !== 't') fail(label);
 }
 
 async function reservePort() {
   const server = net.createServer();
   await new Promise((resolve, reject) => {
-    server.once("error", reject);
-    server.listen(0, "127.0.0.1", resolve);
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
   });
   const address = server.address();
-  if (!address || typeof address === "string") fail("private port reservation");
-  await new Promise((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+  if (!address || typeof address === 'string') fail('private port reservation');
+  await new Promise((resolve, reject) =>
+    server.close((error) => (error ? reject(error) : resolve())),
+  );
   return String(address.port);
 }
 
 function installFixture() {
-  psql(`
+  psql(
+    `
     CREATE ROLE app_owner NOLOGIN NOINHERIT BYPASSRLS;
     CREATE ROLE app_staff NOLOGIN NOINHERIT NOBYPASSRLS;
     CREATE ROLE u9a_staff_login LOGIN NOINHERIT NOBYPASSRLS;
@@ -111,11 +114,17 @@ function installFixture() {
       ('specialist_signup_enabled','admin','${orgId}','public','{"value":false}');
     INSERT INTO public.patient_files VALUES ('20000000-0000-4000-8000-000000000001','${orgId}');
     INSERT INTO integrator.system_settings VALUES ('secret','{}');
-  `, "fixture schema and roles");
+  `,
+    'fixture schema and roles',
+  );
 
-  const artifact = readFileSync(path.join(root, "deploy/postgres/u9a-platform-settings-role.sql"), "utf8");
-  psql(artifact, "U9A role artifact first apply");
-  psql(`
+  const artifact = readFileSync(
+    path.join(root, 'deploy/postgres/u9a-platform-settings-role.sql'),
+    'utf8',
+  );
+  psql(artifact, 'U9A role artifact first apply');
+  psql(
+    `
     ALTER ROLE app_platform_settings LOGIN INHERIT BYPASSRLS;
     REVOKE app_platform_settings FROM app_staff;
     REVOKE SELECT, INSERT, UPDATE ON TABLE public.system_settings FROM app_platform_settings;
@@ -124,12 +133,15 @@ function installFixture() {
     DROP POLICY u9a_platform_settings_audit_global_only ON public.system_settings_audit;
     DROP POLICY u9a_platform_runtime_global_only ON public.app_runtime_settings;
     DROP POLICY u9a_platform_runtime_audit_global_only ON public.app_runtime_settings_audit;
-  `, "simulate post-restore role and database-local ACL drift");
-  psql(artifact, "U9A role artifact post-restore reapply");
+  `,
+    'simulate post-restore role and database-local ACL drift',
+  );
+  psql(artifact, 'U9A role artifact post-restore reapply');
 }
 
 function assertRehydratedRoleAndDatabaseClosure() {
-  assertTrue(`
+  assertTrue(
+    `
     SELECT (
       NOT role.rolcanlogin
       AND NOT role.rolsuper
@@ -160,11 +172,14 @@ function assertRehydratedRoleAndDatabaseClosure() {
     )::int
     FROM pg_roles AS role
     WHERE role.rolname = 'app_platform_settings';
-  `, "post-restore role attributes, membership, grants and policies rehydrated");
+  `,
+    'post-restore role attributes, membership, grants and policies rehydrated',
+  );
 }
 
 function assertAllowedPaths() {
-  assertTrue(`
+  assertTrue(
+    `
     SET SESSION AUTHORIZATION u9a_staff_login;
     SET ROLE app_platform_settings;
     SELECT (
@@ -173,9 +188,12 @@ function assertAllowedPaths() {
     )::int;
     RESET ROLE;
     RESET SESSION AUTHORIZATION;
-  `, "global-only settings read");
+  `,
+    'global-only settings read',
+  );
 
-  psql(`
+  psql(
+    `
     SET SESSION AUTHORIZATION u9a_staff_login;
     SET ROLE app_platform_settings;
     UPDATE public.system_settings
@@ -191,9 +209,12 @@ function assertAllowedPaths() {
     SELECT app.enqueue_platform_system_settings_sync('notif_template:created:patient');
     RESET ROLE;
     RESET SESSION AUTHORIZATION;
-  `, "whitelisted global write, audit and mirror enqueue");
+  `,
+    'whitelisted global write, audit and mirror enqueue',
+  );
 
-  assertTrue(`SELECT (
+  assertTrue(
+    `SELECT (
     SELECT kind='system_settings_sync'
       AND idempotency_key='settings:global:admin:specialist_signup_enabled'
       AND payload->>'key'='specialist_signup_enabled'
@@ -202,73 +223,108 @@ function assertAllowedPaths() {
       AND payload->'valueJson'='{"value":true}'::jsonb
     FROM public.integrator_push_outbox
     WHERE idempotency_key='settings:global:admin:specialist_signup_enabled'
-  )::int`, "outbox payload derives from canonical global row");
+  )::int`,
+    'outbox payload derives from canonical global row',
+  );
 
-  assertTrue(`SELECT (
+  assertTrue(
+    `SELECT (
     SELECT kind='system_settings_sync'
       AND payload->>'key'='notif_template:created:patient'
       AND payload->'organizationId'='null'::jsonb
       AND payload->'valueJson'->>'value'='Legacy preserved'
     FROM public.integrator_push_outbox
     WHERE idempotency_key='settings:global:admin:notif_template:created:patient'
-  )::int`, "notification-template platform fallback mirror enqueue");
+  )::int`,
+    'notification-template platform fallback mirror enqueue',
+  );
 }
 
 function assertDeniedPaths() {
-  psql(`
+  psql(
+    `
     SET SESSION AUTHORIZATION u9a_staff_login;
     SET ROLE app_platform_settings;
     INSERT INTO public.system_settings(key,scope,organization_id,value_json)
       VALUES ('specialist_signup_enabled','admin','${orgId}','{}');
-  `, "organization-scoped settings write denied", { expectFailure: true });
-  psql(`
+  `,
+    'organization-scoped settings write denied',
+    { expectFailure: true },
+  );
+  psql(
+    `
     SET SESSION AUTHORIZATION u9a_staff_login;
     SET ROLE app_platform_settings;
     INSERT INTO public.system_settings_audit(id,key,scope,organization_id,new_value_json)
       VALUES ('30000000-0000-4000-8000-000000000002','specialist_signup_enabled','admin','${orgId}','{}');
-  `, "organization-scoped audit denied", { expectFailure: true });
-  psql("SET ROLE app_platform_settings; SELECT * FROM public.patient_files;", "clinical table denied", {
-    expectFailure: true,
-    user: "u9a_staff_login",
-  });
-  psql("SET ROLE app_platform_settings; SELECT * FROM integrator.system_settings;", "integrator schema denied", {
-    expectFailure: true,
-    user: "u9a_staff_login",
-  });
-  psql(`
+  `,
+    'organization-scoped audit denied',
+    { expectFailure: true },
+  );
+  psql(
+    'SET ROLE app_platform_settings; SELECT * FROM public.patient_files;',
+    'clinical table denied',
+    {
+      expectFailure: true,
+      user: 'u9a_staff_login',
+    },
+  );
+  psql(
+    'SET ROLE app_platform_settings; SELECT * FROM integrator.system_settings;',
+    'integrator schema denied',
+    {
+      expectFailure: true,
+      user: 'u9a_staff_login',
+    },
+  );
+  psql(
+    `
     SET ROLE app_platform_settings;
     INSERT INTO public.integrator_push_outbox(kind,idempotency_key,payload,status)
       VALUES ('reminder_rule_upsert','reminder:forbidden','{}','pending');
-  `, "direct reminder outbox enqueue denied", { expectFailure: true, user: "u9a_staff_login" });
+  `,
+    'direct reminder outbox enqueue denied',
+    { expectFailure: true, user: 'u9a_staff_login' },
+  );
   psql(
     "SET ROLE app_platform_settings; SELECT app.enqueue_platform_system_settings_sync('outside_u9a_whitelist');",
-    "non-whitelisted mirror enqueue denied",
-    { expectFailure: true, user: "u9a_staff_login" },
+    'non-whitelisted mirror enqueue denied',
+    { expectFailure: true, user: 'u9a_staff_login' },
   );
 }
 
 try {
-  if (!existsSync(path.join(pgBin, "initdb"))) fail("PostgreSQL 16 tooling is unavailable");
+  if (!existsSync(path.join(pgBin, 'initdb'))) fail('PostgreSQL 16 tooling is unavailable');
   port = await reservePort();
   mkdirSync(socket, { recursive: true });
-  run(path.join(pgBin, "initdb"), ["-D", data, "-U", "postgres", "-A", "trust", "--no-locale"], undefined, "private initdb");
   run(
-    path.join(pgBin, "pg_ctl"),
-    ["-D", data, "-l", log, "-o", `-k ${socket} -p ${port} -c listen_addresses=''`, "-w", "start"],
+    path.join(pgBin, 'initdb'),
+    ['-D', data, '-U', 'postgres', '-A', 'trust', '--no-locale'],
     undefined,
-    "private PostgreSQL startup",
+    'private initdb',
+  );
+  run(
+    path.join(pgBin, 'pg_ctl'),
+    ['-D', data, '-l', log, '-o', `-k ${socket} -p ${port} -c listen_addresses=''`, '-w', 'start'],
+    undefined,
+    'private PostgreSQL startup',
   );
   serverStarted = true;
-  run(path.join(pgBin, "createdb"), ["-h", socket, "-p", port, "-U", "postgres", db], undefined, "scratch DB");
+  run(
+    path.join(pgBin, 'createdb'),
+    ['-h', socket, '-p', port, '-U', 'postgres', db],
+    undefined,
+    'scratch DB',
+  );
   installFixture();
   assertRehydratedRoleAndDatabaseClosure();
   assertAllowedPaths();
   assertDeniedPaths();
-  console.log("U9A private PostgreSQL real-role matrix: OK (PII-free)");
+  console.log('U9A private PostgreSQL real-role matrix: OK (PII-free)');
 } finally {
   if (serverStarted) {
-    spawnSync(path.join(pgBin, "pg_ctl"), ["-D", data, "-m", "fast", "-w", "stop"], {
-      encoding: "utf8",
+    spawnSync(path.join(pgBin, 'pg_ctl'), ['-D', data, '-m', 'fast', '-w', 'stop'], {
+      encoding: 'utf8',
       env: safeEnv,
     });
   }

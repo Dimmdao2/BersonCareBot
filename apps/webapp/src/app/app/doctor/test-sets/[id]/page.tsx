@@ -1,13 +1,13 @@
-import { notFound } from "next/navigation";
-import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
-import { TestSetForm } from "../TestSetForm";
-import { TEST_SETS_PATH } from "../paths";
-import Link from "next/link";
-import { buttonVariants } from "@/shared/ui/doctor/primitives/button-variants";
-import { cn } from "@/lib/utils";
-import { clinicalTestLibraryRows } from "../clinicalTestLibraryRows";
+import { notFound } from 'next/navigation';
+import { requireDoctorAccess } from '@/app-layer/guards/requireRole';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
+import { TestSetForm } from '../TestSetForm';
+import { TEST_SETS_PATH } from '../paths';
+import Link from 'next/link';
+import { buttonVariants } from '@/shared/ui/doctor/primitives/button-variants';
+import { cn } from '@/lib/utils';
+import { clinicalTestLibraryRows } from '../clinicalTestLibraryRows';
 
 type PageProps = { params: Promise<{ id: string }> };
 
@@ -18,7 +18,9 @@ export default async function EditTestSetPage({ params }: PageProps) {
   const testSet = await deps.testSets.getTestSet(id);
   if (!testSet) notFound();
   const usage = await deps.testSets.getTestSetUsage(testSet.id);
-  const clinicalTestsForPicker = await deps.clinicalTests.listClinicalTests({ archiveScope: "active" });
+  const clinicalTestsForPicker = await deps.clinicalTests.listClinicalTests({
+    archiveScope: 'active',
+  });
   const clinicalTestsLibrary = clinicalTestLibraryRows(clinicalTestsForPicker);
 
   return (
@@ -27,13 +29,17 @@ export default async function EditTestSetPage({ params }: PageProps) {
         <p className="text-sm text-muted-foreground">
           <Link
             href="/app/doctor/clinical-tests"
-            className={cn(buttonVariants({ variant: "link" }), "h-auto p-0")}
+            className={cn(buttonVariants({ variant: 'link' }), 'h-auto p-0')}
           >
             Библиотека тестов
           </Link>
-          {" — добавляйте тесты через кнопку «Добавить из библиотеки» в составе набора."}
+          {' — добавляйте тесты через кнопку «Добавить из библиотеки» в составе набора.'}
         </p>
-        <TestSetForm testSet={testSet} externalUsageSnapshot={usage} clinicalTestsLibrary={clinicalTestsLibrary} />
+        <TestSetForm
+          testSet={testSet}
+          externalUsageSnapshot={usage}
+          clinicalTestsLibrary={clinicalTestsLibrary}
+        />
       </div>
     </DoctorAppShell>
   );

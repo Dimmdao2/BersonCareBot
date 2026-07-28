@@ -1,7 +1,7 @@
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
-import { requireAdminBookingEngine } from "../_requireAdminBookingEngine";
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
+import { requireAdminBookingEngine } from '../_requireAdminBookingEngine';
 
 const PostSchema = z.object({
   specialistId: z.string().uuid(),
@@ -14,8 +14,9 @@ export async function POST(request: Request) {
   if (!gate.ok) return gate.response;
   const body = await request.json().catch(() => null);
   const parsed = PostSchema.safeParse(body);
-  if (!parsed.success) return NextResponse.json({ ok: false, error: "invalid_input" }, { status: 400 });
-  await withDoctorWorkspacePrincipal(gate.ctx, "admin.booking-engine.specialist-rooms.set", () =>
+  if (!parsed.success)
+    return NextResponse.json({ ok: false, error: 'invalid_input' }, { status: 400 });
+  await withDoctorWorkspacePrincipal(gate.ctx, 'admin.booking-engine.specialist-rooms.set', () =>
     gate.ctx.service.catalog.setSpecialistRoom({
       organizationId: gate.ctx.organizationId,
       specialistId: parsed.data.specialistId,

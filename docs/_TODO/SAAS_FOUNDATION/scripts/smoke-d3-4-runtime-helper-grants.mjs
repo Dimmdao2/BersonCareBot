@@ -1,16 +1,16 @@
 #!/usr/bin/env node
 
-import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import {
   getP09EnforceDescriptorByTable,
   renderP09EnforcePolicyStatements,
-} from "./p0-9-enforce-descriptors.mjs";
+} from './p0-9-enforce-descriptors.mjs';
 
 const repoRoot = process.cwd();
-const artifactPath = "deploy/postgres/d3-4-bootstrap-base-login-read-grants.sql";
-const appWorkerArtifactPath = "deploy/postgres/phase4-app-worker-narrow-rls.sql";
-const suffix = `${process.pid}_${Date.now()}`.replaceAll(/[^a-zA-Z0-9_]/g, "_");
+const artifactPath = 'deploy/postgres/d3-4-bootstrap-base-login-read-grants.sql';
+const appWorkerArtifactPath = 'deploy/postgres/phase4-app-worker-narrow-rls.sql';
+const suffix = `${process.pid}_${Date.now()}`.replaceAll(/[^a-zA-Z0-9_]/g, '_');
 const dbName = `bcb_saas_d3_4_helper_scratch_${suffix}`;
 const bootstrapRole = `bcb_d3_4_bootstrap_${suffix}`;
 const intermediaryRole = `bcb_d3_4_intermediary_${suffix}`;
@@ -28,8 +28,8 @@ const workerRole = `bcb_d3_4_worker_${suffix}`;
 const staffRole = `bcb_d3_4_staff_${suffix}`;
 const patientRole = `bcb_d3_4_patient_${suffix}`;
 
-if (!dbName.startsWith("bcb_saas_") || !dbName.includes("scratch")) {
-  throw new Error("unsafe_scratch_database_name");
+if (!dbName.startsWith('bcb_saas_') || !dbName.includes('scratch')) {
+  throw new Error('unsafe_scratch_database_name');
 }
 
 function quoteIdent(value) {
@@ -43,41 +43,43 @@ function quoteLiteral(value) {
 function run(command, args, input) {
   const result = spawnSync(command, args, {
     cwd: repoRoot,
-    encoding: "utf8",
+    encoding: 'utf8',
     input,
-    stdio: input === undefined ? "inherit" : ["pipe", "pipe", "pipe"],
+    stdio: input === undefined ? 'inherit' : ['pipe', 'pipe', 'pipe'],
   });
   if (result.error) throw result.error;
   if (result.status !== 0) {
     if (result.stdout) process.stdout.write(result.stdout);
     if (result.stderr) process.stderr.write(result.stderr);
-    throw new Error(`${command} failed with status ${result.status ?? "unknown"}`);
+    throw new Error(`${command} failed with status ${result.status ?? 'unknown'}`);
   }
   if (result.stdout) process.stdout.write(result.stdout);
   if (result.stderr) process.stderr.write(result.stderr);
 }
 
 function psql(database, sql) {
-  run("sudo", ["-n", "-u", "postgres", "psql", "-X", "-v", "ON_ERROR_STOP=1", "-d", database], sql);
+  run('sudo', ['-n', '-u', 'postgres', 'psql', '-X', '-v', 'ON_ERROR_STOP=1', '-d', database], sql);
 }
 
 function psqlExpectFailure(database, sql) {
   const result = spawnSync(
-    "sudo",
-    ["-n", "-u", "postgres", "psql", "-X", "-v", "ON_ERROR_STOP=1", "-d", database],
-    { cwd: repoRoot, encoding: "utf8", input: sql, stdio: ["pipe", "pipe", "pipe"] },
+    'sudo',
+    ['-n', '-u', 'postgres', 'psql', '-X', '-v', 'ON_ERROR_STOP=1', '-d', database],
+    { cwd: repoRoot, encoding: 'utf8', input: sql, stdio: ['pipe', 'pipe', 'pipe'] },
   );
   if (result.error) throw result.error;
-  const output = `${result.stdout ?? ""}\n${result.stderr ?? ""}`;
-  if (result.status === 0 || !output.includes("division by zero")) {
+  const output = `${result.stdout ?? ''}\n${result.stderr ?? ''}`;
+  if (result.status === 0 || !output.includes('division by zero')) {
     if (result.stdout) process.stdout.write(result.stdout);
     if (result.stderr) process.stderr.write(result.stderr);
-    throw new Error("D3.4 malformed membership shape did not fail at its SQL invariant");
+    throw new Error('D3.4 malformed membership shape did not fail at its SQL invariant');
   }
 }
 
 function psqlProveGrantDenied(database, roleIdent) {
-  psql(database, `
+  psql(
+    database,
+    `
     SET SESSION AUTHORIZATION ${roleIdent};
     GRANT EXECUTE ON FUNCTION app.read_public_runtime_setting(text, text) TO PUBLIC;
     GRANT EXECUTE ON FUNCTION app.resolve_public_booking_organization(uuid, uuid, uuid) TO PUBLIC;
@@ -101,7 +103,8 @@ function psqlProveGrantDenied(database, roleIdent) {
         AND privilege.grantee = 0
         AND privilege.privilege_type = 'EXECUTE'
     ))::int;
-  `);
+  `,
+  );
 }
 
 const bootstrapIdent = quoteIdent(bootstrapRole);
@@ -119,46 +122,55 @@ const siblingOperationalIdent = quoteIdent(siblingOperationalRole);
 const workerIdent = quoteIdent(workerRole);
 const staffIdent = quoteIdent(staffRole);
 const patientIdent = quoteIdent(patientRole);
-const sourceArtifact = readFileSync(artifactPath, "utf8");
+const sourceArtifact = readFileSync(artifactPath, 'utf8');
 const artifact = sourceArtifact
-  .replaceAll("app_operational_media_worker", operationalMediaRole)
-  .replaceAll("app_staff", staffRole)
-  .replaceAll("app_patient", patientRole)
-  .replaceAll("app_worker", workerRole);
-const appWorkerArtifact = readFileSync(appWorkerArtifactPath, "utf8")
-  .replaceAll("app_worker", workerRole);
+  .replaceAll('app_operational_media_worker', operationalMediaRole)
+  .replaceAll('app_staff', staffRole)
+  .replaceAll('app_patient', patientRole)
+  .replaceAll('app_worker', workerRole);
+const appWorkerArtifact = readFileSync(appWorkerArtifactPath, 'utf8').replaceAll(
+  'app_worker',
+  workerRole,
+);
 const runtimeAudiencePolicy = renderP09EnforcePolicyStatements(
-  getP09EnforceDescriptorByTable("public.app_runtime_settings"),
-).join("\n").replaceAll("app_worker", workerRole);
+  getP09EnforceDescriptorByTable('public.app_runtime_settings'),
+)
+  .join('\n')
+  .replaceAll('app_worker', workerRole);
 
 function createFunctionSql(signature) {
-  if (signature === "app.is_staff()") {
+  if (signature === 'app.is_staff()') {
     return `CREATE FUNCTION ${signature} RETURNS boolean LANGUAGE sql STABLE AS $$ SELECT false $$;`;
   }
-  if (signature === "app.current_org_id()" || signature === "app.current_patient_user_id()") {
+  if (signature === 'app.current_org_id()' || signature === 'app.current_patient_user_id()') {
     return `CREATE FUNCTION ${signature} RETURNS uuid LANGUAGE sql STABLE AS $$ SELECT NULL::uuid $$;`;
   }
   return `CREATE FUNCTION ${signature} RETURNS void LANGUAGE plpgsql AS $$ BEGIN NULL; END $$;`;
 }
 
-const functionSignatures = [...artifact.matchAll(/ON FUNCTION\s+(app\.[^(\s]+\([^;]*?\))\s+(?:TO|FROM)/g)]
+const functionSignatures = [
+  ...artifact.matchAll(/ON FUNCTION\s+(app\.[^(\s]+\([^;]*?\))\s+(?:TO|FROM)/g),
+]
   .map((match) => match[1])
   .concat([
-    "app.install_signed_context(text, integer, bigint, uuid, uuid, bigint, text)",
-    "app.reset_principal_context()",
+    'app.install_signed_context(text, integer, bigint, uuid, uuid, bigint, text)',
+    'app.reset_principal_context()',
   ])
-  .filter((signature) => ![
-    "app.read_public_runtime_setting(text, text)",
-    "app.read_webapp_server_runtime_setting(text, text)",
-    "app.resolve_public_booking_organization(uuid, uuid, uuid)",
-    "app.resolve_public_organization_slug(text)",
-    "app.resolve_public_organization_by_slug(text)",
-    "app.resolve_payment_webhook_organization(text, text, text)",
-  ].includes(signature))
+  .filter(
+    (signature) =>
+      ![
+        'app.read_public_runtime_setting(text, text)',
+        'app.read_webapp_server_runtime_setting(text, text)',
+        'app.resolve_public_booking_organization(uuid, uuid, uuid)',
+        'app.resolve_public_organization_slug(text)',
+        'app.resolve_public_organization_by_slug(text)',
+        'app.resolve_payment_webhook_organization(text, text, text)',
+      ].includes(signature),
+  )
   .filter((signature, index, all) => all.indexOf(signature) === index);
 const tableNames = [...artifact.matchAll(/ON TABLE\s+(public\.[a-zA-Z0-9_]+)/g)]
   .map((match) => match[1])
-  .concat(["public.be_payment_intents"])
+  .concat(['public.be_payment_intents'])
   .filter((table, index, all) => all.indexOf(table) === index);
 
 const setupSql = [
@@ -191,7 +203,7 @@ const setupSql = [
   `GRANT ${operationalMediaIdent} TO ${mixedIdent} WITH INHERIT FALSE, SET TRUE;`,
   `GRANT ${operationalMediaIdent} TO ${siblingOperationalIdent} WITH INHERIT FALSE, SET TRUE;`,
   `GRANT ${siblingCapabilityIdent} TO ${siblingOperationalIdent} WITH INHERIT FALSE, SET TRUE;`,
-  "CREATE SCHEMA app;",
+  'CREATE SCHEMA app;',
   `CREATE FUNCTION app.read_public_runtime_setting(text, text)
     RETURNS TABLE (value_json jsonb)
     LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog
@@ -243,15 +255,15 @@ const setupSql = [
         ELSE NULL::uuid
       END
     $$;`,
-  "REVOKE ALL ON FUNCTION app.read_public_runtime_setting(text, text) FROM PUBLIC;",
-  "REVOKE ALL ON FUNCTION app.read_webapp_server_runtime_setting(text, text) FROM PUBLIC;",
+  'REVOKE ALL ON FUNCTION app.read_public_runtime_setting(text, text) FROM PUBLIC;',
+  'REVOKE ALL ON FUNCTION app.read_webapp_server_runtime_setting(text, text) FROM PUBLIC;',
   `GRANT EXECUTE ON FUNCTION app.read_public_runtime_setting(text, text) TO ${staffIdent}, ${patientIdent}, ${arbitraryCapabilityIdent};`,
   `GRANT EXECUTE ON FUNCTION app.read_webapp_server_runtime_setting(text, text) TO ${staffIdent}, ${patientIdent}, ${arbitraryCapabilityIdent};`,
   `GRANT EXECUTE ON FUNCTION app.read_public_runtime_setting(text, text) TO ${bootstrapIdent} WITH GRANT OPTION;`,
   `GRANT EXECUTE ON FUNCTION app.read_webapp_server_runtime_setting(text, text) TO ${bootstrapIdent} WITH GRANT OPTION;`,
   `GRANT USAGE ON SCHEMA app TO ${bootstrapIdent}, ${staffIdent}, ${patientIdent};`,
   ...functionSignatures.map(createFunctionSql),
-  "REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA app FROM PUBLIC;",
+  'REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA app FROM PUBLIC;',
   `GRANT EXECUTE ON FUNCTION app.resolve_public_booking_organization(uuid, uuid, uuid) TO ${patientIdent}, ${arbitraryCapabilityIdent};`,
   `GRANT EXECUTE ON FUNCTION app.resolve_public_booking_organization(uuid, uuid, uuid) TO ${bootstrapIdent} WITH GRANT OPTION;`,
   `GRANT EXECUTE ON FUNCTION app.resolve_public_organization_slug(text) TO ${patientIdent}, ${arbitraryCapabilityIdent};`,
@@ -261,17 +273,17 @@ const setupSql = [
   `GRANT EXECUTE ON FUNCTION app.resolve_payment_webhook_organization(text, text, text) TO ${patientIdent}, ${arbitraryCapabilityIdent};`,
   `GRANT EXECUTE ON FUNCTION app.resolve_payment_webhook_organization(text, text, text) TO ${bootstrapIdent} WITH GRANT OPTION;`,
   `SET SESSION AUTHORIZATION ${bootstrapIdent};`,
-  "GRANT EXECUTE ON FUNCTION app.read_public_runtime_setting(text, text) TO PUBLIC;",
-  "GRANT EXECUTE ON FUNCTION app.resolve_public_booking_organization(uuid, uuid, uuid) TO PUBLIC;",
-  "GRANT EXECUTE ON FUNCTION app.resolve_public_organization_slug(text) TO PUBLIC;",
-  "GRANT EXECUTE ON FUNCTION app.resolve_public_organization_by_slug(text) TO PUBLIC;",
-  "GRANT EXECUTE ON FUNCTION app.resolve_payment_webhook_organization(text, text, text) TO PUBLIC;",
-  "RESET SESSION AUTHORIZATION;",
+  'GRANT EXECUTE ON FUNCTION app.read_public_runtime_setting(text, text) TO PUBLIC;',
+  'GRANT EXECUTE ON FUNCTION app.resolve_public_booking_organization(uuid, uuid, uuid) TO PUBLIC;',
+  'GRANT EXECUTE ON FUNCTION app.resolve_public_organization_slug(text) TO PUBLIC;',
+  'GRANT EXECUTE ON FUNCTION app.resolve_public_organization_by_slug(text) TO PUBLIC;',
+  'GRANT EXECUTE ON FUNCTION app.resolve_payment_webhook_organization(text, text, text) TO PUBLIC;',
+  'RESET SESSION AUTHORIZATION;',
   `GRANT EXECUTE ON FUNCTION app.release_principal_context() TO ${staffIdent}, ${patientIdent};`,
   `GRANT EXECUTE ON FUNCTION app.current_org_id() TO ${patientIdent};`,
   `GRANT EXECUTE ON FUNCTION app.current_patient_user_id() TO ${patientIdent};`,
   ...tableNames
-    .filter((table) => table !== "public.app_runtime_settings")
+    .filter((table) => table !== 'public.app_runtime_settings')
     .map((table) => `CREATE TABLE ${table} (id integer);`),
   `CREATE TABLE public.app_runtime_settings (
     key text NOT NULL,
@@ -285,8 +297,8 @@ const setupSql = [
     ('client_authenticated_global', 'admin', NULL, 'authenticated_client', '{"value":true}'),
     ('worker_server_global', 'admin', NULL, 'server', '{"value":true}'),
     ('worker_server_org', 'admin', '00000000-0000-4000-8000-000000000020', 'server', '{"value":true}');`,
-  "ALTER TABLE public.app_runtime_settings ENABLE ROW LEVEL SECURITY;",
-  "ALTER TABLE public.app_runtime_settings FORCE ROW LEVEL SECURITY;",
+  'ALTER TABLE public.app_runtime_settings ENABLE ROW LEVEL SECURITY;',
+  'ALTER TABLE public.app_runtime_settings FORCE ROW LEVEL SECURITY;',
   `GRANT SELECT ON TABLE public.app_runtime_settings TO ${patientIdent};`,
   `CREATE POLICY app_runtime_settings_safe_read ON public.app_runtime_settings
     FOR SELECT USING (
@@ -303,7 +315,7 @@ const setupSql = [
         AND app.current_patient_user_id() IS NULL
       )
     );`,
-  "CREATE TABLE public.system_settings (id integer);",
+  'CREATE TABLE public.system_settings (id integer);',
   `GRANT SELECT ON TABLE public.system_settings TO ${intermediaryIdent};`,
   `CREATE TABLE public.media_files (
     id uuid PRIMARY KEY,
@@ -338,11 +350,11 @@ const setupSql = [
     ('00000000-0000-4000-8000-000000000040', '00000000-0000-4000-8000-000000000010',
      '00000000-0000-4000-8000-000000000020', 'processing', now());`,
   `GRANT SELECT, UPDATE ON TABLE public.media_files, public.media_transcode_jobs TO ${workerIdent};`,
-  "ALTER TABLE public.media_files ENABLE ROW LEVEL SECURITY;",
-  "ALTER TABLE public.media_files FORCE ROW LEVEL SECURITY;",
-  "ALTER TABLE public.media_transcode_jobs ENABLE ROW LEVEL SECURITY;",
-  "ALTER TABLE public.media_transcode_jobs FORCE ROW LEVEL SECURITY;",
-].join("\n");
+  'ALTER TABLE public.media_files ENABLE ROW LEVEL SECURITY;',
+  'ALTER TABLE public.media_files FORCE ROW LEVEL SECURITY;',
+  'ALTER TABLE public.media_transcode_jobs ENABLE ROW LEVEL SECURITY;',
+  'ALTER TABLE public.media_transcode_jobs FORCE ROW LEVEL SECURITY;',
+].join('\n');
 
 const applySql = [
   `\\set d3_4_bootstrap_base_role ${bootstrapRole}`,
@@ -350,7 +362,7 @@ const applySql = [
   artifact,
   appWorkerArtifact,
   runtimeAudiencePolicy,
-].join("\n");
+].join('\n');
 
 const adversarialPrestateSql = `
 SELECT 1 / (
@@ -370,14 +382,14 @@ const applyC4ShapeSql = [
   `\\set d3_4_bootstrap_base_role ${bootstrapRole}`,
   `\\set d3_4_media_worker_runtime_role ${c4MediaRole}`,
   artifact,
-].join("\n");
+].join('\n');
 
 function malformedShapeSql(roleName) {
   return [
     `\\set d3_4_bootstrap_base_role ${bootstrapRole}`,
     `\\set d3_4_media_worker_runtime_role ${roleName}`,
     artifact,
-  ].join("\n");
+  ].join('\n');
 }
 
 const proofSql = `
@@ -548,7 +560,7 @@ RESET SESSION AUTHORIZATION;
 `;
 
 try {
-  run("sudo", ["-n", "-u", "postgres", "createdb", dbName]);
+  run('sudo', ['-n', '-u', 'postgres', 'createdb', dbName]);
   psql(dbName, setupSql);
   psql(dbName, adversarialPrestateSql);
   psql(dbName, applySql);
@@ -561,24 +573,27 @@ try {
   psqlExpectFailure(dbName, malformedShapeSql(siblingOperationalRole));
   psqlProveGrantDenied(dbName, bootstrapIdent);
   psql(dbName, proofSql);
-  process.stdout.write("smoke-d3-4-runtime-helper-grants: OK\n");
+  process.stdout.write('smoke-d3-4-runtime-helper-grants: OK\n');
 } finally {
-  run("sudo", ["-n", "-u", "postgres", "dropdb", "--if-exists", dbName]);
-  psql("postgres", [
-    `DROP ROLE IF EXISTS ${bootstrapIdent};`,
-    `DROP ROLE IF EXISTS ${intermediaryIdent};`,
-    `DROP ROLE IF EXISTS ${mediaIdent};`,
-    `DROP ROLE IF EXISTS ${c4MediaIdent};`,
-    `DROP ROLE IF EXISTS ${legacyStaffIdent};`,
-    `DROP ROLE IF EXISTS ${legacyArbitraryIdent};`,
-    `DROP ROLE IF EXISTS ${c4UnrelatedIdent};`,
-    `DROP ROLE IF EXISTS ${mixedIdent};`,
-    `DROP ROLE IF EXISTS ${siblingOperationalIdent};`,
-    `DROP ROLE IF EXISTS ${operationalMediaIdent};`,
-    `DROP ROLE IF EXISTS ${arbitraryCapabilityIdent};`,
-    `DROP ROLE IF EXISTS ${siblingCapabilityIdent};`,
-    `DROP ROLE IF EXISTS ${workerIdent};`,
-    `DROP ROLE IF EXISTS ${staffIdent};`,
-    `DROP ROLE IF EXISTS ${patientIdent};`,
-  ].join("\n"));
+  run('sudo', ['-n', '-u', 'postgres', 'dropdb', '--if-exists', dbName]);
+  psql(
+    'postgres',
+    [
+      `DROP ROLE IF EXISTS ${bootstrapIdent};`,
+      `DROP ROLE IF EXISTS ${intermediaryIdent};`,
+      `DROP ROLE IF EXISTS ${mediaIdent};`,
+      `DROP ROLE IF EXISTS ${c4MediaIdent};`,
+      `DROP ROLE IF EXISTS ${legacyStaffIdent};`,
+      `DROP ROLE IF EXISTS ${legacyArbitraryIdent};`,
+      `DROP ROLE IF EXISTS ${c4UnrelatedIdent};`,
+      `DROP ROLE IF EXISTS ${mixedIdent};`,
+      `DROP ROLE IF EXISTS ${siblingOperationalIdent};`,
+      `DROP ROLE IF EXISTS ${operationalMediaIdent};`,
+      `DROP ROLE IF EXISTS ${arbitraryCapabilityIdent};`,
+      `DROP ROLE IF EXISTS ${siblingCapabilityIdent};`,
+      `DROP ROLE IF EXISTS ${workerIdent};`,
+      `DROP ROLE IF EXISTS ${staffIdent};`,
+      `DROP ROLE IF EXISTS ${patientIdent};`,
+    ].join('\n'),
+  );
 }

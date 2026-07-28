@@ -22,9 +22,16 @@ function createDefaultDispatchPort(...args: Parameters<typeof createDefaultDispa
     dispatchOutgoing(intent: OutgoingIntent) {
       if (intent.type !== 'message.send') return port.dispatchOutgoing(intent);
       const channel = readChannel(intent);
-      const policy = channel === 'web_push'
-        ? { outboundMessageClass: 'routine_product' as const, outboundCapability: 'app_push' as const }
-        : { outboundMessageClass: 'auth_code' as const, outboundCapability: 'auth_code' as const };
+      const policy =
+        channel === 'web_push'
+          ? {
+              outboundMessageClass: 'routine_product' as const,
+              outboundCapability: 'app_push' as const,
+            }
+          : {
+              outboundMessageClass: 'auth_code' as const,
+              outboundCapability: 'auth_code' as const,
+            };
       return port.dispatchOutgoing({ ...intent, meta: { ...intent.meta, ...policy } });
     },
   };
@@ -33,11 +40,13 @@ function createDefaultDispatchPort(...args: Parameters<typeof createDefaultDispa
 function buildAdapters(): DeliveryAdapter[] {
   return [
     {
-      canHandle: (intent) => intent.type === 'message.send' && readChannel(intent) === channelPrimary,
+      canHandle: (intent) =>
+        intent.type === 'message.send' && readChannel(intent) === channelPrimary,
       send: sendPrimaryMock,
     },
     {
-      canHandle: (intent) => intent.type === 'message.send' && readChannel(intent) === channelSecondary,
+      canHandle: (intent) =>
+        intent.type === 'message.send' && readChannel(intent) === channelSecondary,
       send: sendSecondaryMock,
     },
   ];
@@ -72,7 +81,10 @@ describe('createDefaultDispatchPort', () => {
 
   it('dispatches primary adapter when first channel matches', async () => {
     const writeDb = vi.fn().mockResolvedValue(undefined);
-    const dispatchPort = createDefaultDispatchPort({ adapters: buildAdapters(), writePort: { writeDb } });
+    const dispatchPort = createDefaultDispatchPort({
+      adapters: buildAdapters(),
+      writePort: { writeDb },
+    });
     const intent: OutgoingIntent = {
       type: 'message.send',
       meta: { eventId: 'evt-1', occurredAt: '2026-03-03T00:00:00.000Z', source: 'adapter' },
@@ -132,7 +144,10 @@ describe('createDefaultDispatchPort', () => {
 
   it('propagates the current organization principal into the delivery attempt log', async () => {
     const writeDb = vi.fn().mockResolvedValue(undefined);
-    const dispatchPort = createDefaultDispatchPort({ adapters: buildAdapters(), writePort: { writeDb } });
+    const dispatchPort = createDefaultDispatchPort({
+      adapters: buildAdapters(),
+      writePort: { writeDb },
+    });
     const organizationId = '11111111-1111-4111-8111-111111111111';
     const intent: OutgoingIntent = {
       type: 'message.send',
@@ -144,12 +159,16 @@ describe('createDefaultDispatchPort', () => {
       },
     };
 
-    await runWithDbOrganizationPrincipal(organizationId, () => dispatchPort.dispatchOutgoing(intent));
+    await runWithDbOrganizationPrincipal(organizationId, () =>
+      dispatchPort.dispatchOutgoing(intent),
+    );
 
-    expect(writeDb).toHaveBeenCalledWith(expect.objectContaining({
-      type: 'delivery.attempt.log',
-      params: expect.objectContaining({ organizationId }),
-    }));
+    expect(writeDb).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'delivery.attempt.log',
+        params: expect.objectContaining({ organizationId }),
+      }),
+    );
   });
 
   it('classifies a global delivery attempt as the allowlisted delivery-handler infrastructure principal', async () => {
@@ -157,10 +176,17 @@ describe('createDefaultDispatchPort', () => {
     const writeDb = vi.fn(async () => {
       seenPrincipals.push(getCurrentDbPrincipal());
     });
-    const dispatchPort = createDefaultDispatchPort({ adapters: buildAdapters(), writePort: { writeDb } });
+    const dispatchPort = createDefaultDispatchPort({
+      adapters: buildAdapters(),
+      writePort: { writeDb },
+    });
     const intent: OutgoingIntent = {
       type: 'message.send',
-      meta: { eventId: 'otp:email:global', occurredAt: '2026-03-03T00:00:00.000Z', source: 'email' },
+      meta: {
+        eventId: 'otp:email:global',
+        occurredAt: '2026-03-03T00:00:00.000Z',
+        source: 'email',
+      },
       payload: {
         recipient: { email: 'redacted@example.com' },
         message: { text: 'redacted auth code' },
@@ -178,10 +204,17 @@ describe('createDefaultDispatchPort', () => {
     const loggerError = vi.spyOn(logger, 'error').mockImplementation(() => undefined);
     sendPrimaryMock.mockResolvedValueOnce({ providerMessageId: 'sent-1' });
     const writeDb = vi.fn().mockRejectedValueOnce(new Error('audit unavailable'));
-    const dispatchPort = createDefaultDispatchPort({ adapters: buildAdapters(), writePort: { writeDb } });
+    const dispatchPort = createDefaultDispatchPort({
+      adapters: buildAdapters(),
+      writePort: { writeDb },
+    });
     const intent: OutgoingIntent = {
       type: 'message.send',
-      meta: { eventId: 'evt-audit-fail', occurredAt: '2026-03-03T00:00:00.000Z', source: 'adapter' },
+      meta: {
+        eventId: 'evt-audit-fail',
+        occurredAt: '2026-03-03T00:00:00.000Z',
+        source: 'adapter',
+      },
       payload: {
         recipient: { chatId: 1 },
         message: { text: 'hi' },
@@ -189,7 +222,9 @@ describe('createDefaultDispatchPort', () => {
       },
     };
 
-    await expect(dispatchPort.dispatchOutgoing(intent)).resolves.toEqual({ providerMessageId: 'sent-1' });
+    await expect(dispatchPort.dispatchOutgoing(intent)).resolves.toEqual({
+      providerMessageId: 'sent-1',
+    });
     expect(sendPrimaryMock).toHaveBeenCalledTimes(1);
     expect(loggerError).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -209,10 +244,17 @@ describe('createDefaultDispatchPort', () => {
     });
     sendPrimaryMock.mockResolvedValueOnce({ providerMessageId: 'sent-logger-down' });
     const writeDb = vi.fn().mockRejectedValueOnce(new Error('audit unavailable'));
-    const dispatchPort = createDefaultDispatchPort({ adapters: buildAdapters(), writePort: { writeDb } });
+    const dispatchPort = createDefaultDispatchPort({
+      adapters: buildAdapters(),
+      writePort: { writeDb },
+    });
     const intent: OutgoingIntent = {
       type: 'message.send',
-      meta: { eventId: 'evt-audit-and-log-fail', occurredAt: '2026-03-03T00:00:00.000Z', source: 'adapter' },
+      meta: {
+        eventId: 'evt-audit-and-log-fail',
+        occurredAt: '2026-03-03T00:00:00.000Z',
+        source: 'adapter',
+      },
       payload: {
         recipient: { chatId: 1 },
         message: { text: 'hi' },
@@ -236,7 +278,10 @@ describe('createDefaultDispatchPort', () => {
     const providerError = new Error('adapter down with recipient +79990001122');
     sendPrimaryMock.mockRejectedValueOnce(providerError);
     const writeDb = vi.fn().mockResolvedValue(undefined);
-    const dispatchPort = createDefaultDispatchPort({ adapters: buildAdapters(), writePort: { writeDb } });
+    const dispatchPort = createDefaultDispatchPort({
+      adapters: buildAdapters(),
+      writePort: { writeDb },
+    });
     const intent: OutgoingIntent = {
       type: 'message.send',
       meta: { eventId: 'evt-2', occurredAt: '2026-03-03T00:00:00.000Z', source: 'adapter' },
@@ -250,10 +295,12 @@ describe('createDefaultDispatchPort', () => {
     await expect(dispatchPort.dispatchOutgoing(intent)).rejects.toBe(providerError);
     expect(sendPrimaryMock).toHaveBeenCalledTimes(1);
     expect(sendSecondaryMock).toHaveBeenCalledTimes(0);
-    expect(writeDb).toHaveBeenCalledWith(expect.objectContaining({
-      type: 'delivery.attempt.log',
-      params: expect.objectContaining({ status: 'failed', reason: 'provider_rejected' }),
-    }));
+    expect(writeDb).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'delivery.attempt.log',
+        params: expect.objectContaining({ status: 'failed', reason: 'provider_rejected' }),
+      }),
+    );
     expect(JSON.stringify(writeDb.mock.calls)).not.toContain('adapter down');
   });
 
@@ -261,10 +308,17 @@ describe('createDefaultDispatchPort', () => {
     const providerError = new Error('provider rejection');
     sendPrimaryMock.mockRejectedValueOnce(providerError);
     const writeDb = vi.fn().mockRejectedValue(new Error('audit unavailable'));
-    const dispatchPort = createDefaultDispatchPort({ adapters: buildAdapters(), writePort: { writeDb } });
+    const dispatchPort = createDefaultDispatchPort({
+      adapters: buildAdapters(),
+      writePort: { writeDb },
+    });
     const intent: OutgoingIntent = {
       type: 'message.send',
-      meta: { eventId: 'evt-failed-audit', occurredAt: '2026-03-03T00:00:00.000Z', source: 'adapter' },
+      meta: {
+        eventId: 'evt-failed-audit',
+        occurredAt: '2026-03-03T00:00:00.000Z',
+        source: 'adapter',
+      },
       payload: {
         recipient: { chatId: 17 },
         message: { text: 'sensitive body' },
@@ -319,27 +373,40 @@ describe('createDefaultDispatchPort', () => {
   it('keeps non-message intent routing unchanged before N4', async () => {
     const send = vi.fn().mockResolvedValue(undefined);
     const dispatchPort = createDefaultDispatchPort({
-      adapters: [{
-        canHandle: (intent) => intent.type === 'callback.answer' && intent.meta.source === 'telegram',
-        send,
-      }],
+      adapters: [
+        {
+          canHandle: (intent) =>
+            intent.type === 'callback.answer' && intent.meta.source === 'telegram',
+          send,
+        },
+      ],
     });
 
-    await expect(dispatchPort.dispatchOutgoing({
-      type: 'callback.answer',
-      meta: { eventId: 'evt-4', occurredAt: '2026-03-03T00:00:00.000Z', source: 'telegram' },
-      payload: { callbackQueryId: 'cb-1' },
-    })).resolves.toEqual({});
+    await expect(
+      dispatchPort.dispatchOutgoing({
+        type: 'callback.answer',
+        meta: { eventId: 'evt-4', occurredAt: '2026-03-03T00:00:00.000Z', source: 'telegram' },
+        payload: { callbackQueryId: 'cb-1' },
+      }),
+    ).resolves.toEqual({});
 
     expect(send).toHaveBeenCalledTimes(1);
   });
 
   it('redacts OTP payload in delivery logs', async () => {
     const writeDb = vi.fn().mockResolvedValue(undefined);
-    const dispatchPort = createDefaultDispatchPort({ adapters: buildAdapters(), writePort: { writeDb } });
+    const dispatchPort = createDefaultDispatchPort({
+      adapters: buildAdapters(),
+      writePort: { writeDb },
+    });
     const intent: OutgoingIntent = {
       type: 'message.send',
-      meta: { eventId: 'otp:telegram:test', occurredAt: '2026-03-03T00:00:00.000Z', source: 'telegram', correlationId: 'otp:123:654321' },
+      meta: {
+        eventId: 'otp:telegram:test',
+        occurredAt: '2026-03-03T00:00:00.000Z',
+        source: 'telegram',
+        correlationId: 'otp:123:654321',
+      },
       payload: {
         recipient: { chatId: '123' },
         message: { text: 'Код для входа в BersonCare: 654321' },
@@ -382,7 +449,10 @@ function buildTelegramCaptureAdapter(): { adapter: DeliveryAdapter; captured: Ou
   const captured: OutgoingIntent[] = [];
   const adapter: DeliveryAdapter = {
     canHandle: (intent) => intent.meta.source === 'telegram',
-    send: async (intent) => { captured.push(intent); return {}; },
+    send: async (intent) => {
+      captured.push(intent);
+      return {};
+    },
   };
   return { adapter, captured };
 }
@@ -397,14 +467,22 @@ function buildChannelCaptureAdapter(channel: string): {
     canHandle: (intent) =>
       intent.type === 'message.send' &&
       Array.isArray((intent.payload as { delivery?: { channels?: unknown } }).delivery?.channels) &&
-      ((intent.payload as { delivery?: { channels?: string[] } }).delivery?.channels ?? []).includes(channel),
-    send: async (intent) => { captured.push(intent); return {}; },
+      (
+        (intent.payload as { delivery?: { channels?: string[] } }).delivery?.channels ?? []
+      ).includes(channel),
+    send: async (intent) => {
+      captured.push(intent);
+      return {};
+    },
   };
   return { adapter, captured };
 }
 
 /** A throwing adapter: if it is ever reached, the test must fail loudly. */
-function buildForbiddenAdapter(channel: string): { adapter: DeliveryAdapter; send: ReturnType<typeof vi.fn> } {
+function buildForbiddenAdapter(channel: string): {
+  adapter: DeliveryAdapter;
+  send: ReturnType<typeof vi.fn>;
+} {
   const send = vi.fn(async () => {
     throw new Error(`${channel} adapter must NOT be reached when redirect is active`);
   });
@@ -412,7 +490,9 @@ function buildForbiddenAdapter(channel: string): { adapter: DeliveryAdapter; sen
     canHandle: (intent) =>
       intent.type === 'message.send' &&
       Array.isArray((intent.payload as { delivery?: { channels?: unknown } }).delivery?.channels) &&
-      ((intent.payload as { delivery?: { channels?: string[] } }).delivery?.channels ?? []).includes(channel),
+      (
+        (intent.payload as { delivery?: { channels?: string[] } }).delivery?.channels ?? []
+      ).includes(channel),
     send,
   };
   return { adapter, send };
@@ -468,7 +548,10 @@ describe('createDefaultDispatchPort — PRE-FORK DEV REDIRECT active: PER-CHANNE
     });
 
     expect(captured).toHaveLength(1);
-    const p = captured[0]!.payload as { recipient: { chatId: number }; delivery: { channels: string[] } };
+    const p = captured[0]!.payload as {
+      recipient: { chatId: number };
+      delivery: { channels: string[] };
+    };
     expect(p.recipient.chatId).toBe(TG_TARGET);
     expect(p.delivery.channels).toEqual(['telegram']);
   });
@@ -538,7 +621,8 @@ describe('createDefaultDispatchPort — PRE-FORK DEV REDIRECT active: PER-CHANNE
 
     expect(tgCaptured).toHaveLength(0);
     expect(emailCaptured).toHaveLength(1);
-    const recipient = (emailCaptured[0]!.payload as { recipient: Record<string, unknown> }).recipient;
+    const recipient = (emailCaptured[0]!.payload as { recipient: Record<string, unknown> })
+      .recipient;
     expect(recipient.email).toBe(EMAIL_TARGET);
     expect(recipient).not.toHaveProperty('chatId');
   });
@@ -562,7 +646,8 @@ describe('createDefaultDispatchPort — PRE-FORK DEV REDIRECT active: PER-CHANNE
 
     expect(tgCaptured).toHaveLength(0);
     expect(pushCaptured).toHaveLength(1);
-    const recipient = (pushCaptured[0]!.payload as { recipient: Record<string, unknown> }).recipient;
+    const recipient = (pushCaptured[0]!.payload as { recipient: Record<string, unknown> })
+      .recipient;
     expect(recipient.pushUserId).toBe(PUSH_TARGET);
     expect(recipient.pushUserId).not.toBe('real-webapp-user-99');
   });
@@ -589,7 +674,11 @@ describe('createDefaultDispatchPort — PRE-FORK DEV REDIRECT active: PER-CHANNE
       writePort: { writeDb },
     });
 
-    const suppressedChannels: Array<{ channel: string; source: string; recipient: Record<string, unknown> }> = [
+    const suppressedChannels: Array<{
+      channel: string;
+      source: string;
+      recipient: Record<string, unknown>;
+    }> = [
       { channel: 'email', source: 'email', recipient: { email: 'real@example.com' } },
       { channel: 'smsc', source: 'smsc', recipient: { phoneNormalized: '+79991234567' } },
       { channel: 'web_push', source: 'web_push', recipient: { pushUserId: 'real-user' } },
@@ -601,7 +690,11 @@ describe('createDefaultDispatchPort — PRE-FORK DEV REDIRECT active: PER-CHANNE
       await expect(
         port.dispatchOutgoing({
           type: 'message.send',
-          meta: { eventId: `e-suppress-${c.channel}`, occurredAt: '2026-01-01T00:00:00.000Z', source: c.source },
+          meta: {
+            eventId: `e-suppress-${c.channel}`,
+            occurredAt: '2026-01-01T00:00:00.000Z',
+            source: c.source,
+          },
           payload: {
             recipient: c.recipient,
             message: { text: 'should be suppressed' },
@@ -636,7 +729,9 @@ describe('createDefaultDispatchPort — PRE-FORK DEV REDIRECT active: PER-CHANNE
       },
     });
     expect(tgCaptured).toHaveLength(1);
-    expect((tgCaptured[0]!.payload as { recipient: { chatId: number } }).recipient.chatId).toBe(TG_TARGET);
+    expect((tgCaptured[0]!.payload as { recipient: { chatId: number } }).recipient.chatId).toBe(
+      TG_TARGET,
+    );
   });
 
   // ── prefix + config + forced-active ─────────────────────────────────────────
@@ -742,7 +837,11 @@ describe('createDefaultDispatchPort — PRE-FORK DEV REDIRECT inactive (producti
 
       await port.dispatchOutgoing({
         type: 'message.send',
-        meta: { eventId: `e-prod-${originalId}`, occurredAt: '2026-01-01T00:00:00.000Z', source: 'telegram' },
+        meta: {
+          eventId: `e-prod-${originalId}`,
+          occurredAt: '2026-01-01T00:00:00.000Z',
+          source: 'telegram',
+        },
         payload: {
           recipient: { chatId: originalId },
           message: { text: 'prod msg' },
@@ -750,7 +849,8 @@ describe('createDefaultDispatchPort — PRE-FORK DEV REDIRECT inactive (producti
         },
       });
 
-      const receivedRecipient = (captured[0]!.payload as { recipient: { chatId: number } }).recipient;
+      const receivedRecipient = (captured[0]!.payload as { recipient: { chatId: number } })
+        .recipient;
       expect(receivedRecipient.chatId).toBe(originalId);
     },
   );
@@ -779,7 +879,10 @@ describe('createDefaultDispatchPort — PRE-FORK DEV REDIRECT inactive (producti
     const maxCaptured: OutgoingIntent[] = [];
     const maxAdapter: DeliveryAdapter = {
       canHandle: (intent) => intent.meta.source === 'max',
-      send: async (intent) => { maxCaptured.push(intent); return {}; },
+      send: async (intent) => {
+        maxCaptured.push(intent);
+        return {};
+      },
     };
 
     const port = createDefaultDispatchPort({ adapters: [tgAdapter, maxAdapter] });
@@ -796,7 +899,8 @@ describe('createDefaultDispatchPort — PRE-FORK DEV REDIRECT inactive (producti
 
     expect(tgCaptured).toHaveLength(0);
     expect(maxCaptured).toHaveLength(1);
-    const receivedRecipient = (maxCaptured[0]!.payload as { recipient: { chatId: number } }).recipient;
+    const receivedRecipient = (maxCaptured[0]!.payload as { recipient: { chatId: number } })
+      .recipient;
     expect(receivedRecipient.chatId).toBe(888222);
   });
 });

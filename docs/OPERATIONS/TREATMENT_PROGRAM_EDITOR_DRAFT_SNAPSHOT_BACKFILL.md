@@ -21,11 +21,11 @@
 
 `apps/webapp/src/modules/treatment-program/editorDraftSnapshotDetect.ts`:
 
-| Тип | Признак |
-|-----|---------|
-| `exercise` | в `snapshot.media[]` есть `mediaUrl` или `mediaType` без `type`, либо URL с `/preview/sm` / `/preview/md` |
-| `recommendation` | в `snapshot.media[]` у `mediaUrl` / `url` только preview path |
-| `clinical_test` | то же в `snapshot.tests[].media[]` |
+| Тип              | Признак                                                                                                   |
+| ---------------- | --------------------------------------------------------------------------------------------------------- |
+| `exercise`       | в `snapshot.media[]` есть `mediaUrl` или `mediaType` без `type`, либо URL с `/preview/sm` / `/preview/md` |
+| `recommendation` | в `snapshot.media[]` у `mediaUrl` / `url` только preview path                                             |
+| `clinical_test`  | то же в `snapshot.tests[].media[]`                                                                        |
 
 Тесты: `editorDraftSnapshotDetect.test.ts`.
 
@@ -33,22 +33,22 @@ SQL-префильтр для backfill: `EDITOR_DRAFT_SNAPSHOT_SQL_PREDICATE` (P
 
 ## Скрипт backfill
 
-| | |
-|--|--|
-| Файл | `apps/webapp/scripts/backfill-treatment-program-editor-draft-snapshots.ts` |
-| npm | `pnpm --dir apps/webapp run backfill-treatment-program-editor-draft-snapshots` |
-| Логика | SELECT только кандидатов (SQL + JS) → `buildSnapshot(itemType, itemRefId)` → `UPDATE snapshot` |
-| По умолчанию | **dry-run** (без `UPDATE`) |
+|              |                                                                                                |
+| ------------ | ---------------------------------------------------------------------------------------------- |
+| Файл         | `apps/webapp/scripts/backfill-treatment-program-editor-draft-snapshots.ts`                     |
+| npm          | `pnpm --dir apps/webapp run backfill-treatment-program-editor-draft-snapshots`                 |
+| Логика       | SELECT только кандидатов (SQL + JS) → `buildSnapshot(itemType, itemRefId)` → `UPDATE snapshot` |
+| По умолчанию | **dry-run** (без `UPDATE`)                                                                     |
 
 ### Флаги
 
-| Флаг | Назначение |
-|------|------------|
-| `--commit` | записать исправленные снимки в БД |
-| `--since-days=N` | только инстансы с `treatment_program_instances.updated_at` за последние N суток |
-| `--instance-id=UUID` | одна программа |
-| `--limit=N` | максимум **кандидатов** за один батч (по умолчанию 5000); `LIMIT` после SQL-фильтра битых снимков |
-| `--all` | обработать **все** кандидаты батчами по `--limit` (keyset по `ti.id`, без пропусков из-за LIMIT) |
+| Флаг                 | Назначение                                                                                        |
+| -------------------- | ------------------------------------------------------------------------------------------------- |
+| `--commit`           | записать исправленные снимки в БД                                                                 |
+| `--since-days=N`     | только инстансы с `treatment_program_instances.updated_at` за последние N суток                   |
+| `--instance-id=UUID` | одна программа                                                                                    |
+| `--limit=N`          | максимум **кандидатов** за один батч (по умолчанию 5000); `LIMIT` после SQL-фильтра битых снимков |
+| `--all`              | обработать **все** кандидаты батчами по `--limit` (keyset по `ti.id`, без пропусков из-за LIMIT)  |
 
 ### Production (copy-paste)
 
@@ -100,12 +100,12 @@ LIMIT 20;
 
 Отдельно от snapshot backfill — исправления нестабильного **`POST …/editor-batch`** при редактировании **ещё не сохранённых** строк:
 
-| Проблема | Решение |
-|----------|---------|
+| Проблема                                                                                                        | Решение                                                                                       |
+| --------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
 | Патчи `localComment` / нагрузки / structural на `draft:` попадали в `itemPatches` → **404 «Элемент не найден»** | Клиент: fold в `itemCreates`; сервер: skip `draft:` в `itemPatches` / `itemStructuralPatches` |
-| Устаревший baseline (второй таб / долгая сессия) | `saveDraft` → refresh baseline перед POST; при stale not-found — повторный sync + toast |
-| Невалидная нагрузка (reps=0 и т.п.) | `instanceEditorLoadSettings.ts` — проверка до POST и в форме |
-| DnD группы на строках разворота комплекса до save | per-line `groupId` / `status` в `itemCreates` expand lines |
+| Устаревший baseline (второй таб / долгая сессия)                                                                | `saveDraft` → refresh baseline перед POST; при stale not-found — повторный sync + toast       |
+| Невалидная нагрузка (reps=0 и т.п.)                                                                             | `instanceEditorLoadSettings.ts` — проверка до POST и в форме                                  |
+| DnD группы на строках разворота комплекса до save                                                               | per-line `groupId` / `status` в `itemCreates` expand lines                                    |
 
 Код: `treatment-program-shared/instanceEditorDraft.ts`, `InstanceEditorDraftContext.tsx`, `instanceEditorLoadSettings.ts`, `instanceEditorBatchApply.ts`. Тесты: `instanceEditorBatch.test.ts`, `InstanceEditorDraftContext.test.tsx`.
 

@@ -28,11 +28,27 @@ export type ReconciliationReport = {
   extraInWebappCount: number;
   extraInWebappIds: string[];
   fieldDriftCount: number;
-  fieldDriftSample: { integratorUserId: string; phoneMatch: boolean; displayNameMatch: boolean; bindingsMatch: boolean; topicsMatch: boolean }[];
+  fieldDriftSample: {
+    integratorUserId: string;
+    phoneMatch: boolean;
+    displayNameMatch: boolean;
+    bindingsMatch: boolean;
+    topicsMatch: boolean;
+  }[];
   sampledComparison: {
     integratorUserId: string;
-    legacy: { phone: string | null; displayName: string; bindingsCount: number; topics: Record<string, boolean> };
-    webapp: { phone: string | null; displayName: string; bindingsCount: number; topics: Record<string, boolean> };
+    legacy: {
+      phone: string | null;
+      displayName: string;
+      bindingsCount: number;
+      topics: Record<string, boolean>;
+    };
+    webapp: {
+      phone: string | null;
+      displayName: string;
+      bindingsCount: number;
+      topics: Record<string, boolean>;
+    };
   }[];
 };
 
@@ -48,7 +64,10 @@ function compareBindings(
   return true;
 }
 
-function compareTopics(a: Record<string, boolean> | undefined, b: Record<string, boolean> | undefined): boolean {
+function compareTopics(
+  a: Record<string, boolean> | undefined,
+  b: Record<string, boolean> | undefined,
+): boolean {
   const keys = new Set([...Object.keys(a ?? {}), ...Object.keys(b ?? {})]);
   for (const k of keys) {
     if (!!(a ?? {})[k] !== !!(b ?? {})[k]) return false;
@@ -66,12 +85,12 @@ export function buildReport(
   const missingInWebapp = [...legacyIds].filter((id) => !targetIds.has(id));
   const extraInWebapp = [...targetIds].filter((id) => !legacyIds.has(id));
   const commonIds = [...legacyIds].filter((id) => targetIds.has(id));
-  const fieldDrift: ReconciliationReport["fieldDriftSample"] = [];
+  const fieldDrift: ReconciliationReport['fieldDriftSample'] = [];
   for (const id of commonIds) {
     const L = legacyMap.get(id)!;
     const T = targetMap.get(id)!;
-    const phoneOk = (L.phone || "") === (T.phone || "");
-    const displayOk = (L.displayName || "") === (T.displayName || "");
+    const phoneOk = (L.phone || '') === (T.phone || '');
+    const displayOk = (L.displayName || '') === (T.displayName || '');
     const bindingsOk = compareBindings(L.bindings ?? [], T.bindings ?? []);
     const topicsOk = compareTopics(L.topics, T.topics);
     if (!phoneOk || !displayOk || !bindingsOk || !topicsOk) {
@@ -117,7 +136,10 @@ export function buildReport(
 }
 
 /** Returns true when report is within threshold (go); false when violated (no-go). */
-export function isWithinThreshold(report: ReconciliationReport, maxMismatchPercent: number): boolean {
+export function isWithinThreshold(
+  report: ReconciliationReport,
+  maxMismatchPercent: number,
+): boolean {
   const totalLegacy = report.totalLegacyUsers || 0;
   const missing = report.missingInWebappCount || 0;
   if (missing > 0 && maxMismatchPercent === 0) return false;

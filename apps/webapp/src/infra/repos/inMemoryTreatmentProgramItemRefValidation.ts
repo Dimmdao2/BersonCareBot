@@ -1,4 +1,4 @@
-import type { TreatmentProgramItemRefValidationPort } from "@/modules/treatment-program/ports";
+import type { TreatmentProgramItemRefValidationPort } from '@/modules/treatment-program/ports';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -9,7 +9,7 @@ export function createInMemoryTreatmentProgramItemRefValidationPort(): Treatment
   return {
     async assertItemRefExists(_type, itemRefId): Promise<void> {
       const id = itemRefId.trim();
-      if (!UUID_RE.test(id)) throw new Error("Некорректный UUID");
+      if (!UUID_RE.test(id)) throw new Error('Некорректный UUID');
     },
   };
 }

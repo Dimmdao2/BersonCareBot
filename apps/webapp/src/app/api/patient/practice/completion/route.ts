@@ -1,15 +1,15 @@
-import { revalidatePath } from "next/cache";
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { routePaths } from "@/app-layer/routes/paths";
-import { advanceDailyWarmupPresentationManually } from "@/modules/patient-home/advanceDailyWarmupPresentationManually";
-import { buildDailyWarmupPresentationSyncDeps } from "@/modules/patient-home/buildDailyWarmupPresentationSyncDeps";
+import { revalidatePath } from 'next/cache';
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { requirePatientApiBusinessAccess } from '@/app-layer/guards/requireRole';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { routePaths } from '@/app-layer/routes/paths';
+import { advanceDailyWarmupPresentationManually } from '@/modules/patient-home/advanceDailyWarmupPresentationManually';
+import { buildDailyWarmupPresentationSyncDeps } from '@/modules/patient-home/buildDailyWarmupPresentationSyncDeps';
 
 const bodySchema = z.object({
   contentPageId: z.string().uuid(),
-  source: z.enum(["home", "reminder", "section_page", "daily_warmup"]),
+  source: z.enum(['home', 'reminder', 'section_page', 'daily_warmup']),
   feeling: z.number().int().min(1).max(5).optional().nullable(),
 });
 
@@ -21,12 +21,12 @@ export async function POST(req: Request) {
   try {
     json = await req.json();
   } catch {
-    return NextResponse.json({ ok: false, error: "invalid_json" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_json' }, { status: 400 });
   }
 
   const parsed = bodySchema.safeParse(json);
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "validation_error" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'validation_error' }, { status: 400 });
   }
 
   const deps = buildAppDeps();
@@ -41,7 +41,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: result.error }, { status: 400 });
   }
 
-  if (parsed.data.source === "daily_warmup") {
+  if (parsed.data.source === 'daily_warmup') {
     await advanceDailyWarmupPresentationManually(
       gate.session.user.userId,
       parsed.data.contentPageId,

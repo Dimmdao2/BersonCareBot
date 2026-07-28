@@ -1,29 +1,29 @@
 ---
 name: Exercise UI + References
-overview: "Форма упражнения: медиа сразу под заголовком (названием), до описания. Кабинет врача: раздел «Справочники» и управление reference_categories / reference_items. Исходный текст плана ошибочно указывал «под описанием» — фактический продуктовый порядок зафиксирован ниже."
+overview: 'Форма упражнения: медиа сразу под заголовком (названием), до описания. Кабинет врача: раздел «Справочники» и управление reference_categories / reference_items. Исходный текст плана ошибочно указывал «под описанием» — фактический продуктовый порядок зафиксирован ниже.'
 status: completed
 todos:
   - id: exercise-form-media-order
-    content: "Порядок полей в ExerciseForm — название → медиа → описание (и далее по форме)"
+    content: 'Порядок полей в ExerciseForm — название → медиа → описание (и далее по форме)'
     status: completed
   - id: doctor-nav-references
-    content: "Пункт «Справочники» в doctorNavLinks + заголовки в doctorScreenTitles"
+    content: 'Пункт «Справочники» в doctorNavLinks + заголовки в doctorScreenTitles'
     status: completed
   - id: references-port-extend
-    content: "Расширение ReferencesPort и реализаций (pg + in-memory)"
+    content: 'Расширение ReferencesPort и реализаций (pg + in-memory)'
     status: completed
   - id: doctor-references-actions
-    content: "Server actions для справочников (requireDoctorAccess, revalidatePath)"
+    content: 'Server actions для справочников (requireDoctorAccess, revalidatePath)'
     status: completed
   - id: doctor-references-pages
-    content: "Страницы /app/doctor/references и редактирование категории"
+    content: 'Страницы /app/doctor/references и редактирование категории'
     status: completed
   - id: cache-and-tests
-    content: "Сброс кэша справочников на клиенте + unit-тесты порта"
+    content: 'Сброс кэша справочников на клиенте + unit-тесты порта'
     status: completed
 isProject: false
 planStatus: completed
-completedAt: "2026-04-17"
+completedAt: '2026-04-17'
 ---
 
 # План: форма упражнения и справочники врача (выполнено)

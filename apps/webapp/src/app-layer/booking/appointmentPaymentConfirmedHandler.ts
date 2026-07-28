@@ -1,9 +1,9 @@
-import type { BookingEnginePort } from "@/modules/booking-engine/ports";
+import type { BookingEnginePort } from '@/modules/booking-engine/ports';
 import {
   resolveBookingNotifyTargets,
   type BookingLifecycleNotificationsSettings,
-} from "@/modules/booking-notifications/settings";
-import type { BookingSyncPort, PatientBookingsPort } from "@/modules/patient-booking/ports";
+} from '@/modules/booking-notifications/settings';
+import type { BookingSyncPort, PatientBookingsPort } from '@/modules/patient-booking/ports';
 
 type AppointmentPaymentConfirmedInput = {
   appointmentId: string;
@@ -14,32 +14,33 @@ type AppointmentPaymentConfirmedInput = {
 export function createAppointmentPaymentConfirmedHandler(deps: {
   patientBookings: Pick<
     PatientBookingsPort,
-    "markConfirmedByCanonicalAppointment" | "getByCanonicalAppointmentId"
+    'markConfirmedByCanonicalAppointment' | 'getByCanonicalAppointmentId'
   >;
-  bookingEngine: Pick<BookingEnginePort, "getAppointment">;
+  bookingEngine: Pick<BookingEnginePort, 'getAppointment'>;
   loadNotificationSettings: () => Promise<BookingLifecycleNotificationsSettings>;
-  bookingSync: Pick<BookingSyncPort, "emitBookingEvent">;
+  bookingSync: Pick<BookingSyncPort, 'emitBookingEvent'>;
 }) {
   return async (input: AppointmentPaymentConfirmedInput): Promise<void> => {
-    const updated = await deps.patientBookings.markConfirmedByCanonicalAppointment(input.appointmentId);
+    const updated = await deps.patientBookings.markConfirmedByCanonicalAppointment(
+      input.appointmentId,
+    );
     const row =
-      updated ??
-      (await deps.patientBookings.getByCanonicalAppointmentId(input.appointmentId));
-    if (!row || row.status !== "confirmed") return;
+      updated ?? (await deps.patientBookings.getByCanonicalAppointmentId(input.appointmentId));
+    if (!row || row.status !== 'confirmed') return;
 
     const appointment = await deps.bookingEngine.getAppointment(input.appointmentId);
-    if (!appointment) throw new Error("booking_payment_appointment_organization_required");
+    if (!appointment) throw new Error('booking_payment_appointment_organization_required');
 
     const notificationSettings = await deps.loadNotificationSettings();
     const paymentNotify = resolveBookingNotifyTargets(
-      "booking.payment_captured",
+      'booking.payment_captured',
       { notifyPatient: true, notifyStaff: true },
       notificationSettings,
     );
     if (!paymentNotify.notifyPatient && !paymentNotify.notifyStaff) return;
 
     await deps.bookingSync.emitBookingEvent({
-      eventType: "booking.payment_captured",
+      eventType: 'booking.payment_captured',
       idempotencyKey: `booking.payment_captured:${input.paymentId}:${input.appointmentId}`,
       payload: {
         organizationId: appointment.organizationId,

@@ -1,13 +1,13 @@
-import { cookies } from "next/headers";
-import { enterWithDbPatientPrincipal } from "@bersoncare/db-principal";
+import { cookies } from 'next/headers';
+import { enterWithDbPatientPrincipal } from '@bersoncare/db-principal';
 import type {
   PatientOrganizationResolution,
   PatientOrganizationService,
-} from "@/modules/patient-organization/service";
+} from '@/modules/patient-organization/service';
 import {
   normalizePatientOrganizationPreference,
   PATIENT_ORGANIZATION_PREFERENCE_COOKIE,
-} from "@/modules/patient-organization/preference";
+} from '@/modules/patient-organization/preference';
 
 export async function getRememberedPatientOrganizationId(): Promise<string | null> {
   const cookieStore = await cookies();
@@ -23,8 +23,10 @@ export async function resolvePatientOrganizationRequestContext(
     rememberedOrganizationId?: string | null;
     verifiedTargetOrganizationId?: string | null;
   } = {},
-): Promise<PatientOrganizationResolution | { ok: false; reason: "patient_organization_unavailable" }> {
-  if (!patientOrganization) return { ok: false, reason: "patient_organization_unavailable" };
+): Promise<
+  PatientOrganizationResolution | { ok: false; reason: 'patient_organization_unavailable' }
+> {
+  if (!patientOrganization) return { ok: false, reason: 'patient_organization_unavailable' };
   const rememberedOrganizationId =
     options.rememberedOrganizationId === undefined
       ? await getRememberedPatientOrganizationId()

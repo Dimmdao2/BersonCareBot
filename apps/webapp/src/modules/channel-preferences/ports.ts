@@ -1,5 +1,5 @@
-import type { BroadcastNotificationPrefsFlags } from "@/modules/doctor-broadcasts/ports";
-import type { ChannelCode, ChannelPreference } from "./types";
+import type { BroadcastNotificationPrefsFlags } from '@/modules/doctor-broadcasts/ports';
+import type { ChannelCode, ChannelPreference } from './types';
 
 export type ChannelPreferencesPort = {
   getPreferences(userId: string): Promise<ChannelPreference[]>;
@@ -10,7 +10,9 @@ export type ChannelPreferencesPort = {
     isEnabledForNotifications: boolean;
   }): Promise<ChannelPreference>;
   /** Batch для рассылок врача: нет строки в БД по каналу ⇒ true в флаге. */
-  getBroadcastNotificationFlagsBatch(platformUserIds: string[]): Promise<Map<string, BroadcastNotificationPrefsFlags>>;
+  getBroadcastNotificationFlagsBatch(
+    platformUserIds: string[],
+  ): Promise<Map<string, BroadcastNotificationPrefsFlags>>;
   /** Код канала с флагом is_preferred_for_auth или null. */
   getPreferredAuthChannelCode(userId: string): Promise<ChannelCode | null>;
   /** Сбросить все флаги; если channelCode задан — пометить один канал (только telegram|max|email|sms). */

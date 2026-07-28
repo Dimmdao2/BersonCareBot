@@ -1,22 +1,22 @@
 /** @vitest-environment jsdom */
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { SystemHealthSection } from "./SystemHealthSection";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { SystemHealthSection } from './SystemHealthSection';
 
 const mediaPreviewShell = {
-  status: "ok" as const,
+  status: 'ok' as const,
   stalePendingCount: 0,
   byMimeAndStatus: {
-    "video/quicktime": { pending: 0, ready: 0, failed: 0, skipped: 0 },
-    "image/heic": { pending: 0, ready: 0, failed: 0, skipped: 0 },
-    "image/heif": { pending: 0, ready: 0, failed: 0, skipped: 0 },
+    'video/quicktime': { pending: 0, ready: 0, failed: 0, skipped: 0 },
+    'image/heic': { pending: 0, ready: 0, failed: 0, skipped: 0 },
+    'image/heif': { pending: 0, ready: 0, failed: 0, skipped: 0 },
   },
 };
 
 const videoPlaybackShell = {
-  status: "ok" as const,
+  status: 'ok' as const,
   windowHours: 24,
   windowHoursShort: 1,
   playbackApiEnabled: false,
@@ -30,7 +30,7 @@ const videoPlaybackShell = {
 };
 
 const videoTranscodeShell = {
-  status: "ok" as const,
+  status: 'ok' as const,
   pipelineEnabled: false,
   reconcileEnabled: false,
   pendingCount: 0,
@@ -49,31 +49,31 @@ const videoTranscodeShell = {
 };
 
 const probeShell = {
-  webappDb: { status: "ok", durationMs: 1 },
-  integratorApi: { status: "ok", durationMs: 1 },
-  projection: { status: "ok", durationMs: 1 },
-  mediaPreview: { status: "ok", durationMs: 1 },
-  videoPlayback: { status: "ok", durationMs: 1 },
-  videoTranscode: { status: "ok", durationMs: 1 },
-  operatorIncidents: { status: "ok", durationMs: 1 },
-  operatorBackupJobs: { status: "ok", durationMs: 1 },
-  outgoingDelivery: { status: "ok", durationMs: 1 },
-  integratorPushOutbox: { status: "ok", durationMs: 1 },
+  webappDb: { status: 'ok', durationMs: 1 },
+  integratorApi: { status: 'ok', durationMs: 1 },
+  projection: { status: 'ok', durationMs: 1 },
+  mediaPreview: { status: 'ok', durationMs: 1 },
+  videoPlayback: { status: 'ok', durationMs: 1 },
+  videoTranscode: { status: 'ok', durationMs: 1 },
+  operatorIncidents: { status: 'ok', durationMs: 1 },
+  operatorBackupJobs: { status: 'ok', durationMs: 1 },
+  outgoingDelivery: { status: 'ok', durationMs: 1 },
+  integratorPushOutbox: { status: 'ok', durationMs: 1 },
 };
 
 function healthJson(overrides: Record<string, unknown> = {}) {
   return {
-    webappDb: "up",
-    integratorApi: { status: "ok", db: "up" },
+    webappDb: 'up',
+    integratorApi: { status: 'ok', db: 'up' },
     projection: {
-      status: "ok",
+      status: 'ok',
       snapshot: {
         pendingCount: 0,
         processingCount: 0,
-        lastSuccessAt: "2026-04-16T10:00:00.000Z",
+        lastSuccessAt: '2026-04-16T10:00:00.000Z',
       },
     },
-    mediaCronWorkers: { status: "configured" },
+    mediaCronWorkers: { status: 'configured' },
     mediaPreview: mediaPreviewShell,
     videoPlayback: videoPlaybackShell,
     videoTranscode: videoTranscodeShell,
@@ -101,37 +101,39 @@ function healthJson(overrides: Record<string, unknown> = {}) {
       lastQueueActivityAt: null,
     },
     meta: { probes: probeShell },
-    fetchedAt: "2026-04-16T10:00:00.000Z",
+    fetchedAt: '2026-04-16T10:00:00.000Z',
     ...overrides,
   };
 }
 
-describe("SystemHealthSection operator incidents", () => {
+describe('SystemHealthSection operator incidents', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
   });
 
-  it("shows operator incident title with count when API returns open incidents", async () => {
+  it('shows operator incident title with count when API returns open incidents', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       text: () =>
-        Promise.resolve(JSON.stringify(
-          healthJson({
-            operatorIncidents: {
-              openCount: 1,
-              occurrenceCount: 2,
-              lastSeenAt: "2026-04-16T09:30:00.000Z",
-            },
-            meta: {
-              probes: {
-                ...probeShell,
-                operatorIncidents: { status: "degraded", durationMs: 2 },
+        Promise.resolve(
+          JSON.stringify(
+            healthJson({
+              operatorIncidents: {
+                openCount: 1,
+                occurrenceCount: 2,
+                lastSeenAt: '2026-04-16T09:30:00.000Z',
               },
-            },
-          }),
-        )),
+              meta: {
+                probes: {
+                  ...probeShell,
+                  operatorIncidents: { status: 'degraded', durationMs: 2 },
+                },
+              },
+            }),
+          ),
+        ),
     });
-    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal('fetch', fetchMock);
 
     render(<SystemHealthSection />);
 
@@ -140,28 +142,30 @@ describe("SystemHealthSection operator incidents", () => {
     });
   });
 
-  it("shows resolve-all button when open incidents exist", async () => {
+  it('shows resolve-all button when open incidents exist', async () => {
     const user = userEvent.setup();
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       text: () =>
-        Promise.resolve(JSON.stringify(
-          healthJson({
-            operatorIncidents: {
-              openCount: 1,
-              occurrenceCount: 1,
-              lastSeenAt: "2026-04-16T09:30:00.000Z",
-            },
-            meta: {
-              probes: {
-                ...probeShell,
-                operatorIncidents: { status: "degraded", durationMs: 2 },
+        Promise.resolve(
+          JSON.stringify(
+            healthJson({
+              operatorIncidents: {
+                openCount: 1,
+                occurrenceCount: 1,
+                lastSeenAt: '2026-04-16T09:30:00.000Z',
               },
-            },
-          }),
-        )),
+              meta: {
+                probes: {
+                  ...probeShell,
+                  operatorIncidents: { status: 'degraded', durationMs: 2 },
+                },
+              },
+            }),
+          ),
+        ),
     });
-    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal('fetch', fetchMock);
 
     render(<SystemHealthSection />);
 
@@ -169,66 +173,88 @@ describe("SystemHealthSection operator incidents", () => {
       expect(screen.getByText(/Открытые инциденты \(1\)/)).toBeInTheDocument();
     });
 
-    await user.click(screen.getByRole("button", { name: /Открытые инциденты \(1\)/i }));
+    await user.click(screen.getByRole('button', { name: /Открытые инциденты \(1\)/i }));
 
-    expect(await screen.findByRole("button", { name: /Закрыть все открытые/i })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('button', { name: /Закрыть все открытые/i }),
+    ).toBeInTheDocument();
   });
 
-  it("renders an open provider incident as a distinct red stop with acknowledge action", async () => {
+  it('renders an open provider incident as a distinct red stop with acknowledge action', async () => {
     const user = userEvent.setup();
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
-      ok: true,
-      text: () => Promise.resolve(JSON.stringify(healthJson({
-        operatorIncidents: {
-          openCount: 1,
-          occurrenceCount: 3,
-          lastSeenAt: "2026-04-16T09:30:00.000Z",
-          outboundProviderOpenCount: 1,
-          outboundProviderAcknowledgedCount: 0,
-        },
-        meta: { probes: { ...probeShell, operatorIncidents: { status: "error", durationMs: 2 } } },
-      }))),
-    }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        text: () =>
+          Promise.resolve(
+            JSON.stringify(
+              healthJson({
+                operatorIncidents: {
+                  openCount: 1,
+                  occurrenceCount: 3,
+                  lastSeenAt: '2026-04-16T09:30:00.000Z',
+                  outboundProviderOpenCount: 1,
+                  outboundProviderAcknowledgedCount: 0,
+                },
+                meta: {
+                  probes: { ...probeShell, operatorIncidents: { status: 'error', durationMs: 2 } },
+                },
+              }),
+            ),
+          ),
+      }),
+    );
 
     render(<SystemHealthSection />);
-    const stop = await screen.findByRole("button", { name: /Исходящая доставка остановлена \(1\)/i });
+    const stop = await screen.findByRole('button', {
+      name: /Исходящая доставка остановлена \(1\)/i,
+    });
     expect(within(stop).getByText(/ошибка/i)).toBeInTheDocument();
     await user.click(stop);
-    expect(await screen.findByRole("button", { name: /Подтвердить получение/i })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('button', { name: /Подтвердить получение/i }),
+    ).toBeInTheDocument();
     expect(screen.getByText(/Прочие открытые инциденты \(0\)/)).toBeInTheDocument();
   });
 
-  it("confirm dialog calls resolve-all and reloads system-health", async () => {
+  it('confirm dialog calls resolve-all and reloads system-health', async () => {
     const user = userEvent.setup();
     const openIncident = {
       openCount: 1,
       occurrenceCount: 1,
-      lastSeenAt: "2026-04-16T09:30:00.000Z",
+      lastSeenAt: '2026-04-16T09:30:00.000Z',
     };
     let healthLoads = 0;
     const fetchMock = vi.fn().mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
-      if (url.includes("/api/admin/system-health")) {
+      if (url.includes('/api/admin/system-health')) {
         healthLoads += 1;
         return Promise.resolve({
           ok: true,
           text: () =>
-            Promise.resolve(JSON.stringify(
-              healthJson({
-                operatorIncidents: healthLoads === 1
-                  ? openIncident
-                  : { openCount: 0, occurrenceCount: 0, lastSeenAt: null },
-                meta: {
-                  probes: {
-                    ...probeShell,
-                    operatorIncidents: { status: healthLoads === 1 ? "degraded" : "ok", durationMs: 2 },
+            Promise.resolve(
+              JSON.stringify(
+                healthJson({
+                  operatorIncidents:
+                    healthLoads === 1
+                      ? openIncident
+                      : { openCount: 0, occurrenceCount: 0, lastSeenAt: null },
+                  meta: {
+                    probes: {
+                      ...probeShell,
+                      operatorIncidents: {
+                        status: healthLoads === 1 ? 'degraded' : 'ok',
+                        durationMs: 2,
+                      },
+                    },
                   },
-                },
-              }),
-            )),
+                }),
+              ),
+            ),
         });
       }
-      if (url.includes("/api/admin/operator-incidents/resolve-all") && init?.method === "POST") {
+      if (url.includes('/api/admin/operator-incidents/resolve-all') && init?.method === 'POST') {
         return Promise.resolve({
           ok: true,
           text: () => Promise.resolve(JSON.stringify({ ok: true, resolved: 1 })),
@@ -236,7 +262,7 @@ describe("SystemHealthSection operator incidents", () => {
       }
       return Promise.reject(new Error(`unexpected fetch: ${url}`));
     });
-    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal('fetch', fetchMock);
 
     render(<SystemHealthSection />);
 
@@ -244,14 +270,14 @@ describe("SystemHealthSection operator incidents", () => {
       expect(screen.getByText(/Открытые инциденты \(1\)/)).toBeInTheDocument();
     });
 
-    await user.click(screen.getByRole("button", { name: /Открытые инциденты \(1\)/i }));
-    await user.click(await screen.findByRole("button", { name: /Закрыть все открытые/i }));
-    await user.click(await screen.findByRole("button", { name: /^Подтвердить$/i }));
+    await user.click(screen.getByRole('button', { name: /Открытые инциденты \(1\)/i }));
+    await user.click(await screen.findByRole('button', { name: /Закрыть все открытые/i }));
+    await user.click(await screen.findByRole('button', { name: /^Подтвердить$/i }));
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
-        "/api/admin/operator-incidents/resolve-all",
-        expect.objectContaining({ method: "POST" }),
+        '/api/admin/operator-incidents/resolve-all',
+        expect.objectContaining({ method: 'POST' }),
       );
     });
     await waitFor(() => {

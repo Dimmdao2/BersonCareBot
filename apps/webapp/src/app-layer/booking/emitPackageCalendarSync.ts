@@ -1,25 +1,26 @@
-import type { BeAppointment } from "@/modules/booking-engine/types";
-import type { BookingSyncPort } from "@/modules/patient-booking/ports";
-import type { PatientBookingRecord } from "@/modules/patient-booking/types";
+import type { BeAppointment } from '@/modules/booking-engine/types';
+import type { BookingSyncPort } from '@/modules/patient-booking/ports';
+import type { PatientBookingRecord } from '@/modules/patient-booking/types';
 import {
   emitStaffCanonicalBookingEvent,
   staffBookingContactNameFromAppointment,
   staffBookingServiceTitleFromAppointment,
-} from "./staffBookingIntegratorEvent";
+} from './staffBookingIntegratorEvent';
 
 export async function emitPackageCalendarSync(opts: {
   syncPort: BookingSyncPort | null | undefined;
   appointment: BeAppointment;
   bookingRow?: PatientBookingRecord | null;
-  eventType: "booking.package_linked" | "booking.package_unlinked";
-}): Promise<"sent" | "skipped"> {
-  if (!opts.syncPort) return "skipped";
+  eventType: 'booking.package_linked' | 'booking.package_unlinked';
+}): Promise<'sent' | 'skipped'> {
+  if (!opts.syncPort) return 'skipped';
   const bookingRow = opts.bookingRow ?? null;
   const bookingId = bookingRow?.id ?? opts.appointment.id;
   const userId = bookingRow?.userId ?? opts.appointment.platformUserId ?? opts.appointment.id;
   const contactName =
     bookingRow?.contactName ?? staffBookingContactNameFromAppointment(opts.appointment);
-  const contactPhone = bookingRow?.contactPhone ?? opts.appointment.phoneNormalized ?? "+70000000000";
+  const contactPhone =
+    bookingRow?.contactPhone ?? opts.appointment.phoneNormalized ?? '+70000000000';
   try {
     await opts.syncPort.emitBookingEvent({
       eventType: opts.eventType,
@@ -28,9 +29,9 @@ export async function emitPackageCalendarSync(opts: {
         organizationId: opts.appointment.organizationId,
         bookingId,
         userId,
-        bookingType: bookingRow?.bookingType ?? "in_person",
+        bookingType: bookingRow?.bookingType ?? 'in_person',
         city: bookingRow?.city ?? undefined,
-        category: bookingRow?.category ?? "general",
+        category: bookingRow?.category ?? 'general',
         slotStart: opts.appointment.startAt,
         slotEnd: opts.appointment.endAt,
         contactName,
@@ -41,9 +42,9 @@ export async function emitPackageCalendarSync(opts: {
         canonicalAppointmentId: opts.appointment.id,
       },
     });
-    return "sent";
+    return 'sent';
   } catch {
-    return "skipped";
+    return 'skipped';
   }
 }
 
@@ -51,12 +52,12 @@ export async function emitPackageLinkedCalendarSync(
   syncPort: BookingSyncPort | null | undefined,
   appointment: BeAppointment,
   bookingRow?: PatientBookingRecord | null,
-): Promise<"sent" | "skipped"> {
+): Promise<'sent' | 'skipped'> {
   return emitPackageCalendarSync({
     syncPort,
     appointment,
     bookingRow,
-    eventType: "booking.package_linked",
+    eventType: 'booking.package_linked',
   });
 }
 
@@ -69,7 +70,7 @@ export async function syncPackageCalendarAfterUsageChange(opts: {
 }): Promise<void> {
   const appt = await opts.bookingEngine.getAppointment(opts.appointmentId);
   if (!appt) return;
-  const { createBookingSyncPort } = await import("@/modules/integrator/bookingM2mApi");
+  const { createBookingSyncPort } = await import('@/modules/integrator/bookingM2mApi');
   const syncPort = opts.syncPort ?? createBookingSyncPort();
   const bookingRow = opts.resolveBookingRow
     ? await opts.resolveBookingRow(opts.appointmentId).catch(() => null)

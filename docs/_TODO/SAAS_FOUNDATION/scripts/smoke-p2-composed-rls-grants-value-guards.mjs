@@ -13,28 +13,28 @@
  * production schema replay and does not replace the later disposable prod-copy rehearsal.
  */
 
-import { spawnSync } from "node:child_process";
-import { randomBytes } from "node:crypto";
-import { readFileSync } from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { spawnSync } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const repoRoot = path.resolve(__dirname, "..", "..", "..", "..");
+const repoRoot = path.resolve(__dirname, '..', '..', '..', '..');
 
-const p2bSqlPath = path.join(repoRoot, "deploy/postgres/p2-b-protected-principal-context.sql");
-const p2c1SqlPath = path.join(repoRoot, "deploy/postgres/p2-c1-patient-value-guards.sql");
-const p2c2SqlPath = path.join(repoRoot, "deploy/postgres/p2-c2-patient-value-guards.sql");
-const p2c3SqlPath = path.join(repoRoot, "deploy/postgres/p2-c3-patient-booking-lfk-guards.sql");
+const p2bSqlPath = path.join(repoRoot, 'deploy/postgres/p2-b-protected-principal-context.sql');
+const p2c1SqlPath = path.join(repoRoot, 'deploy/postgres/p2-c1-patient-value-guards.sql');
+const p2c2SqlPath = path.join(repoRoot, 'deploy/postgres/p2-c2-patient-value-guards.sql');
+const p2c3SqlPath = path.join(repoRoot, 'deploy/postgres/p2-c3-patient-booking-lfk-guards.sql');
 
 const { getAppStaffGrantTables, getAppPatientGrantTables, appPatientColumnGrants } = await import(
-  path.join(__dirname, "p0-5b-grants-sql.mjs")
+  path.join(__dirname, 'p0-5b-grants-sql.mjs')
 );
 const { getP09EnforceDescriptorByTable, renderP09EnforcePolicyStatements } = await import(
-  path.join(__dirname, "p0-9-enforce-descriptors.mjs")
+  path.join(__dirname, 'p0-9-enforce-descriptors.mjs')
 );
 
-const scratchSuffix = `${process.pid}_${Date.now()}`.replace(/[^a-zA-Z0-9_]/g, "_");
+const scratchSuffix = `${process.pid}_${Date.now()}`.replace(/[^a-zA-Z0-9_]/g, '_');
 const dbName = `bcb_saas_p2_composed_scratch_${scratchSuffix}`;
 const ownerRole = `bcb_saas_p2_composed_owner_scratch_${scratchSuffix}`;
 const staffRole = `bcb_saas_p2_composed_staff_scratch_${scratchSuffix}`;
@@ -42,14 +42,17 @@ const patientRole = `bcb_saas_p2_composed_patient_scratch_${scratchSuffix}`;
 
 const forbiddenDbPattern = /(^|[_-])(prod|production|test|testing|dev|development)([_-]|$)/i;
 
-if (!dbName.startsWith("bcb_saas_") || !dbName.includes("scratch")) {
+if (!dbName.startsWith('bcb_saas_') || !dbName.includes('scratch')) {
   throw new Error(`refusing unsafe scratch DB name: ${dbName}`);
 }
-if (forbiddenDbPattern.test(dbName) || /bcb_webapp_(dev|prod|test)|bersoncarebot_(dev|prod|test)/i.test(dbName)) {
-  throw new Error("refusing dev/prod/test-shaped scratch DB name");
+if (
+  forbiddenDbPattern.test(dbName) ||
+  /bcb_webapp_(dev|prod|test)|bersoncarebot_(dev|prod|test)/i.test(dbName)
+) {
+  throw new Error('refusing dev/prod/test-shaped scratch DB name');
 }
 for (const roleName of [ownerRole, staffRole, patientRole]) {
-  if (!roleName.startsWith("bcb_saas_") || !roleName.includes("scratch")) {
+  if (!roleName.startsWith('bcb_saas_') || !roleName.includes('scratch')) {
     throw new Error(`refusing unsafe scratch role name: ${roleName}`);
   }
 }
@@ -57,7 +60,7 @@ for (const roleName of [ownerRole, staffRole, patientRole]) {
 function databaseNameFromUrl(value) {
   try {
     const parsed = new URL(value);
-    const pathname = parsed.pathname.replace(/^\/+/, "");
+    const pathname = parsed.pathname.replace(/^\/+/, '');
     return pathname ? decodeURIComponent(pathname) : null;
   } catch {
     return null;
@@ -65,20 +68,20 @@ function databaseNameFromUrl(value) {
 }
 
 function unsafeParentDbReason(name) {
-  if (!name) return "empty or unparsable DB name";
+  if (!name) return 'empty or unparsable DB name';
   const normalized = name.toLowerCase();
   if (
     new Set([
-      "bcb_webapp_prod",
-      "bcb_webapp_test",
-      "bcb_webapp_dev",
-      "bersoncarebot_prod",
-      "bersoncarebot_test",
-      "bersoncarebot_dev",
-      "production",
-      "prod",
-      "test",
-      "dev",
+      'bcb_webapp_prod',
+      'bcb_webapp_test',
+      'bcb_webapp_dev',
+      'bersoncarebot_prod',
+      'bersoncarebot_test',
+      'bersoncarebot_dev',
+      'production',
+      'prod',
+      'test',
+      'dev',
     ]).has(normalized)
   ) {
     return `forbidden DB name ${name}`;
@@ -90,10 +93,13 @@ function unsafeParentDbReason(name) {
 function assertNoUnsafeParentDbHints() {
   const candidates = [];
   if (process.env.DATABASE_URL) {
-    candidates.push({ source: "DATABASE_URL", name: databaseNameFromUrl(process.env.DATABASE_URL) });
+    candidates.push({
+      source: 'DATABASE_URL',
+      name: databaseNameFromUrl(process.env.DATABASE_URL),
+    });
   }
   if (process.env.PGDATABASE) {
-    candidates.push({ source: "PGDATABASE", name: process.env.PGDATABASE });
+    candidates.push({ source: 'PGDATABASE', name: process.env.PGDATABASE });
   }
 
   for (const candidate of candidates) {
@@ -105,15 +111,15 @@ function assertNoUnsafeParentDbHints() {
 function sanitizedChildEnv() {
   const env = { ...process.env };
   for (const key of [
-    "DATABASE_URL",
-    "PGDATABASE",
-    "PGHOST",
-    "PGPASSWORD",
-    "PGPASSFILE",
-    "PGPORT",
-    "PGSERVICE",
-    "PGSERVICEFILE",
-    "PGUSER",
+    'DATABASE_URL',
+    'PGDATABASE',
+    'PGHOST',
+    'PGPASSWORD',
+    'PGPASSFILE',
+    'PGPORT',
+    'PGSERVICE',
+    'PGSERVICEFILE',
+    'PGUSER',
   ]) {
     delete env[key];
   }
@@ -131,20 +137,24 @@ function quoteLiteral(value) {
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
     cwd: repoRoot,
-    encoding: "utf8",
+    encoding: 'utf8',
     env: sanitizedChildEnv(),
     input: options.input,
-    stdio: options.input != null ? ["pipe", "pipe", "pipe"] : "inherit",
+    stdio: options.input != null ? ['pipe', 'pipe', 'pipe'] : 'inherit',
   });
 
   if (result.error) {
-    throw new Error(`${options.label ?? `${command} ${args.join(" ")}`} failed to start: ${result.error.message}`);
+    throw new Error(
+      `${options.label ?? `${command} ${args.join(' ')}`} failed to start: ${result.error.message}`,
+    );
   }
 
   if (result.status !== 0) {
     if (result.stdout) process.stdout.write(result.stdout);
     if (result.stderr) process.stderr.write(result.stderr);
-    throw new Error(`${options.label ?? `${command} ${args.join(" ")}`} failed with ${result.status ?? "unknown status"}`);
+    throw new Error(
+      `${options.label ?? `${command} ${args.join(' ')}`} failed with ${result.status ?? 'unknown status'}`,
+    );
   }
 
   if (result.stdout) process.stdout.write(result.stdout);
@@ -153,12 +163,14 @@ function run(command, args, options = {}) {
 }
 
 function psql(sql, { database = dbName } = {}) {
-  run("sudo", ["-n", "-u", "postgres", "psql", "-v", "ON_ERROR_STOP=1", "-d", database], { input: sql });
+  run('sudo', ['-n', '-u', 'postgres', 'psql', '-v', 'ON_ERROR_STOP=1', '-d', database], {
+    input: sql,
+  });
 }
 
 function psqlFile(filePath, variables, { database = dbName } = {}) {
-  const sql = readFileSync(filePath, "utf8");
-  run("sudo", ["-n", "-u", "postgres", "psql", "-v", "ON_ERROR_STOP=1", "-d", database], {
+  const sql = readFileSync(filePath, 'utf8');
+  run('sudo', ['-n', '-u', 'postgres', 'psql', '-v', 'ON_ERROR_STOP=1', '-d', database], {
     input: `${buildPsqlVariablePrelude(variables)}\n${sql}`,
     label: `sudo -n -u postgres psql -v ON_ERROR_STOP=1 -d ${database} < ${path.relative(repoRoot, filePath)} (psql variables redacted)`,
   });
@@ -172,17 +184,17 @@ function buildPsqlVariablePrelude(variables) {
     return `  ${quoteLiteral(value)} AS ${key}`;
   });
 
-  return `SELECT\n${assignments.join(",\n")}\n\\gset`;
+  return `SELECT\n${assignments.join(',\n')}\n\\gset`;
 }
 
 function fatal(assertionVar, message) {
   return [
     `\\if :${assertionVar}`,
-    "\\else",
+    '\\else',
     `\\echo 'FATAL: ${message}'`,
-    "SELECT 1/0; -- forces a real error under ON_ERROR_STOP",
-    "\\endif",
-  ].join("\n");
+    'SELECT 1/0; -- forces a real error under ON_ERROR_STOP',
+    '\\endif',
+  ].join('\n');
 }
 
 function findOrThrow(items, qualifiedName) {
@@ -200,26 +212,26 @@ function columnGrantOrThrow(qualifiedName, privilege) {
 }
 
 function grantColumns(qualifiedName, privilege) {
-  return columnGrantOrThrow(qualifiedName, privilege).columns.join(", ");
+  return columnGrantOrThrow(qualifiedName, privilege).columns.join(', ');
 }
 
 function generatedRlsSqlFor(tables) {
   return tables
     .flatMap((table) => renderP09EnforcePolicyStatements(getP09EnforceDescriptorByTable(table)))
-    .join("\n");
+    .join('\n');
 }
 
 const staffGrantTables = getAppStaffGrantTables();
 const patientGrantTables = getAppPatientGrantTables();
 
 const grantExpectations = [
-  ["public.treatment_program_events", "SELECT"],
-  ["public.user_channel_preferences", "SELECT"],
-  ["public.be_appointment_cancellations", "SELECT, INSERT"],
-  ["public.be_appointment_reschedules", "SELECT, INSERT"],
-  ["public.be_appointments", "SELECT"],
-  ["public.lfk_complexes", "SELECT"],
-  ["public.online_intake_status_history", "SELECT"],
+  ['public.treatment_program_events', 'SELECT'],
+  ['public.user_channel_preferences', 'SELECT'],
+  ['public.be_appointment_cancellations', 'SELECT, INSERT'],
+  ['public.be_appointment_reschedules', 'SELECT, INSERT'],
+  ['public.be_appointments', 'SELECT'],
+  ['public.lfk_complexes', 'SELECT'],
+  ['public.online_intake_status_history', 'SELECT'],
 ];
 for (const [qualifiedName, expectedPrivileges] of grantExpectations) {
   const actual = findOrThrow(patientGrantTables, qualifiedName).privileges;
@@ -228,21 +240,21 @@ for (const [qualifiedName, expectedPrivileges] of grantExpectations) {
   }
 }
 for (const qualifiedName of [
-  "public.program_item_discussion_messages",
-  "public.support_conversation_messages",
-  "public.reminder_rules",
-  "public.lfk_sessions",
-  "public.online_intake_requests",
+  'public.program_item_discussion_messages',
+  'public.support_conversation_messages',
+  'public.reminder_rules',
+  'public.lfk_sessions',
+  'public.online_intake_requests',
 ]) {
   findOrThrow(patientGrantTables, qualifiedName);
 }
 for (const qualifiedName of [
-  "public.treatment_program_events",
-  "public.user_channel_preferences",
-  "public.be_appointment_cancellations",
-  "public.be_appointment_reschedules",
-  "public.be_appointments",
-  "public.lfk_complexes",
+  'public.treatment_program_events',
+  'public.user_channel_preferences',
+  'public.be_appointment_cancellations',
+  'public.be_appointment_reschedules',
+  'public.be_appointments',
+  'public.lfk_complexes',
 ]) {
   findOrThrow(staffGrantTables, qualifiedName);
 }
@@ -250,58 +262,58 @@ for (const qualifiedName of [
 const ownerIdent = quoteIdent(ownerRole);
 const staffIdent = quoteIdent(staffRole);
 const patientIdent = quoteIdent(patientRole);
-const secret = randomBytes(32).toString("hex");
+const secret = randomBytes(32).toString('hex');
 
-const orgA = "92000000-0000-4000-8000-0000000000a1";
-const orgB = "92000000-0000-4000-8000-0000000000b1";
-const patientA = "92000000-0000-4000-8000-00000000a101";
-const patientA2 = "92000000-0000-4000-8000-00000000a102";
-const patientB = "92000000-0000-4000-8000-00000000b101";
-const staffUser = "92000000-0000-4000-8000-00000000f101";
-const instanceA = "92000000-0000-4000-8000-00000000aa01";
-const instanceB = "92000000-0000-4000-8000-00000000bb01";
-const stageA = "92000000-0000-4000-8000-00000000aa02";
-const stageB = "92000000-0000-4000-8000-00000000bb02";
-const itemA = "92000000-0000-4000-8000-00000000aa03";
-const itemB = "92000000-0000-4000-8000-00000000bb03";
-const conversationA = "92000000-0000-4000-8000-00000000ac01";
-const conversationA2 = "92000000-0000-4000-8000-00000000ac02";
-const conversationB = "92000000-0000-4000-8000-00000000bc01";
-const requestA = "92000000-0000-4000-8000-00000000ad01";
-const requestB = "92000000-0000-4000-8000-00000000bd01";
-const appointmentCancel = "92000000-0000-4000-8000-00000000ae02";
-const appointmentReschedule = "92000000-0000-4000-8000-00000000ae03";
-const appointmentA2 = "92000000-0000-4000-8000-00000000ae04";
-const appointmentB = "92000000-0000-4000-8000-00000000be01";
-const cancellationRow = "92000000-0000-4000-8000-00000000af01";
-const rescheduleRow = "92000000-0000-4000-8000-00000000af02";
-const complexA = "92000000-0000-4000-8000-00000000ca01";
-const complexB = "92000000-0000-4000-8000-00000000cb01";
-const sessionA = "92000000-0000-4000-8000-00000000da01";
+const orgA = '92000000-0000-4000-8000-0000000000a1';
+const orgB = '92000000-0000-4000-8000-0000000000b1';
+const patientA = '92000000-0000-4000-8000-00000000a101';
+const patientA2 = '92000000-0000-4000-8000-00000000a102';
+const patientB = '92000000-0000-4000-8000-00000000b101';
+const staffUser = '92000000-0000-4000-8000-00000000f101';
+const instanceA = '92000000-0000-4000-8000-00000000aa01';
+const instanceB = '92000000-0000-4000-8000-00000000bb01';
+const stageA = '92000000-0000-4000-8000-00000000aa02';
+const stageB = '92000000-0000-4000-8000-00000000bb02';
+const itemA = '92000000-0000-4000-8000-00000000aa03';
+const itemB = '92000000-0000-4000-8000-00000000bb03';
+const conversationA = '92000000-0000-4000-8000-00000000ac01';
+const conversationA2 = '92000000-0000-4000-8000-00000000ac02';
+const conversationB = '92000000-0000-4000-8000-00000000bc01';
+const requestA = '92000000-0000-4000-8000-00000000ad01';
+const requestB = '92000000-0000-4000-8000-00000000bd01';
+const appointmentCancel = '92000000-0000-4000-8000-00000000ae02';
+const appointmentReschedule = '92000000-0000-4000-8000-00000000ae03';
+const appointmentA2 = '92000000-0000-4000-8000-00000000ae04';
+const appointmentB = '92000000-0000-4000-8000-00000000be01';
+const cancellationRow = '92000000-0000-4000-8000-00000000af01';
+const rescheduleRow = '92000000-0000-4000-8000-00000000af02';
+const complexA = '92000000-0000-4000-8000-00000000ca01';
+const complexB = '92000000-0000-4000-8000-00000000cb01';
+const sessionA = '92000000-0000-4000-8000-00000000da01';
 const futureEpoch = Math.floor(Date.now() / 1000) + 120;
 const patientNonce = `patient_${scratchSuffix}`;
 const staffNonce = `staff_${scratchSuffix}`;
 
 const generatedRlsTables = [
-  "public.treatment_program_instances",
-  "public.treatment_program_instance_stages",
-  "public.treatment_program_instance_stage_items",
-  "public.program_item_discussion_messages",
-  "public.support_conversations",
-  "public.support_conversation_messages",
-  "public.treatment_program_events",
-  "public.online_intake_requests",
-  "public.online_intake_status_history",
-  "public.reminder_rules",
-  "public.be_appointments",
-  "public.be_appointment_cancellations",
-  "public.be_appointment_reschedules",
-  "public.be_appointment_events",
-  "public.be_appointment_history_events",
-  "public.lfk_complexes",
-  "public.lfk_sessions",
-  "public.platform_users",
-  "public.user_channel_preferences",
+  'public.treatment_program_instances',
+  'public.treatment_program_instance_stages',
+  'public.treatment_program_instance_stage_items',
+  'public.program_item_discussion_messages',
+  'public.support_conversations',
+  'public.support_conversation_messages',
+  'public.treatment_program_events',
+  'public.online_intake_requests',
+  'public.online_intake_status_history',
+  'public.reminder_rules',
+  'public.be_appointments',
+  'public.be_appointment_cancellations',
+  'public.be_appointment_reschedules',
+  'public.be_appointment_events',
+  'public.be_appointment_history_events',
+  'public.lfk_complexes',
+  'public.lfk_sessions',
+  'public.platform_users',
+  'public.user_channel_preferences',
 ];
 
 const schemaSql = String.raw`
@@ -614,30 +626,30 @@ GRANT SELECT, INSERT ON TABLE public.program_item_discussion_messages TO ${patie
 GRANT SELECT, INSERT ON TABLE public.support_conversation_messages TO ${patientIdent};
 GRANT SELECT, INSERT ON TABLE public.be_appointment_events TO ${patientIdent};
 GRANT SELECT, INSERT ON TABLE public.be_appointment_history_events TO ${patientIdent};
-GRANT ${findOrThrow(patientGrantTables, "public.reminder_rules").privileges} ON TABLE public.reminder_rules TO ${patientIdent};
-GRANT ${findOrThrow(patientGrantTables, "public.lfk_sessions").privileges} ON TABLE public.lfk_sessions TO ${patientIdent};
+GRANT ${findOrThrow(patientGrantTables, 'public.reminder_rules').privileges} ON TABLE public.reminder_rules TO ${patientIdent};
+GRANT ${findOrThrow(patientGrantTables, 'public.lfk_sessions').privileges} ON TABLE public.lfk_sessions TO ${patientIdent};
 
-GRANT ${findOrThrow(patientGrantTables, "public.be_appointments").privileges} ON TABLE public.be_appointments TO ${patientIdent};
-GRANT INSERT (${grantColumns("public.be_appointments", "INSERT")}) ON TABLE public.be_appointments TO ${patientIdent};
-GRANT UPDATE (${grantColumns("public.be_appointments", "UPDATE")}) ON TABLE public.be_appointments TO ${patientIdent};
+GRANT ${findOrThrow(patientGrantTables, 'public.be_appointments').privileges} ON TABLE public.be_appointments TO ${patientIdent};
+GRANT INSERT (${grantColumns('public.be_appointments', 'INSERT')}) ON TABLE public.be_appointments TO ${patientIdent};
+GRANT UPDATE (${grantColumns('public.be_appointments', 'UPDATE')}) ON TABLE public.be_appointments TO ${patientIdent};
 
-GRANT ${findOrThrow(patientGrantTables, "public.be_appointment_cancellations").privileges} ON TABLE public.be_appointment_cancellations TO ${patientIdent};
-GRANT UPDATE (${grantColumns("public.be_appointment_cancellations", "UPDATE")}) ON TABLE public.be_appointment_cancellations TO ${patientIdent};
-GRANT ${findOrThrow(patientGrantTables, "public.be_appointment_reschedules").privileges} ON TABLE public.be_appointment_reschedules TO ${patientIdent};
-GRANT UPDATE (${grantColumns("public.be_appointment_reschedules", "UPDATE")}) ON TABLE public.be_appointment_reschedules TO ${patientIdent};
+GRANT ${findOrThrow(patientGrantTables, 'public.be_appointment_cancellations').privileges} ON TABLE public.be_appointment_cancellations TO ${patientIdent};
+GRANT UPDATE (${grantColumns('public.be_appointment_cancellations', 'UPDATE')}) ON TABLE public.be_appointment_cancellations TO ${patientIdent};
+GRANT ${findOrThrow(patientGrantTables, 'public.be_appointment_reschedules').privileges} ON TABLE public.be_appointment_reschedules TO ${patientIdent};
+GRANT UPDATE (${grantColumns('public.be_appointment_reschedules', 'UPDATE')}) ON TABLE public.be_appointment_reschedules TO ${patientIdent};
 
-GRANT ${findOrThrow(patientGrantTables, "public.treatment_program_events").privileges} ON TABLE public.treatment_program_events TO ${patientIdent};
-GRANT INSERT (${grantColumns("public.treatment_program_events", "INSERT")}) ON TABLE public.treatment_program_events TO ${patientIdent};
+GRANT ${findOrThrow(patientGrantTables, 'public.treatment_program_events').privileges} ON TABLE public.treatment_program_events TO ${patientIdent};
+GRANT INSERT (${grantColumns('public.treatment_program_events', 'INSERT')}) ON TABLE public.treatment_program_events TO ${patientIdent};
 
-GRANT ${findOrThrow(patientGrantTables, "public.online_intake_status_history").privileges} ON TABLE public.online_intake_status_history TO ${patientIdent};
-GRANT INSERT (${grantColumns("public.online_intake_status_history", "INSERT")}) ON TABLE public.online_intake_status_history TO ${patientIdent};
+GRANT ${findOrThrow(patientGrantTables, 'public.online_intake_status_history').privileges} ON TABLE public.online_intake_status_history TO ${patientIdent};
+GRANT INSERT (${grantColumns('public.online_intake_status_history', 'INSERT')}) ON TABLE public.online_intake_status_history TO ${patientIdent};
 
-GRANT ${findOrThrow(patientGrantTables, "public.user_channel_preferences").privileges} ON TABLE public.user_channel_preferences TO ${patientIdent};
-GRANT INSERT (${grantColumns("public.user_channel_preferences", "INSERT")}) ON TABLE public.user_channel_preferences TO ${patientIdent};
-GRANT UPDATE (${grantColumns("public.user_channel_preferences", "UPDATE")}) ON TABLE public.user_channel_preferences TO ${patientIdent};
+GRANT ${findOrThrow(patientGrantTables, 'public.user_channel_preferences').privileges} ON TABLE public.user_channel_preferences TO ${patientIdent};
+GRANT INSERT (${grantColumns('public.user_channel_preferences', 'INSERT')}) ON TABLE public.user_channel_preferences TO ${patientIdent};
+GRANT UPDATE (${grantColumns('public.user_channel_preferences', 'UPDATE')}) ON TABLE public.user_channel_preferences TO ${patientIdent};
 
-GRANT ${findOrThrow(patientGrantTables, "public.lfk_complexes").privileges} ON TABLE public.lfk_complexes TO ${patientIdent};
-GRANT INSERT (${grantColumns("public.lfk_complexes", "INSERT")}) ON TABLE public.lfk_complexes TO ${patientIdent};
+GRANT ${findOrThrow(patientGrantTables, 'public.lfk_complexes').privileges} ON TABLE public.lfk_complexes TO ${patientIdent};
+GRANT INSERT (${grantColumns('public.lfk_complexes', 'INSERT')}) ON TABLE public.lfk_complexes TO ${patientIdent};
 `;
 
 const rlsSql = generatedRlsSqlFor(generatedRlsTables);
@@ -676,12 +688,12 @@ ${patientSignatureSql}
 SELECT (count(*) = 1)::int AS composed_patient_reads_own_appt
 FROM public.be_appointments
 WHERE id = ${quoteLiteral(appointmentCancel)}::uuid \gset
-${fatal("composed_patient_reads_own_appt", "patient must read own appointment through RLS")}
+${fatal('composed_patient_reads_own_appt', 'patient must read own appointment through RLS')}
 
 SELECT (count(*) = 0)::int AS composed_patient_cannot_read_other_appt
 FROM public.be_appointments
 WHERE id = ${quoteLiteral(appointmentB)}::uuid \gset
-${fatal("composed_patient_cannot_read_other_appt", "patient must not read other org/patient appointment through RLS")}
+${fatal('composed_patient_cannot_read_other_appt', 'patient must not read other org/patient appointment through RLS')}
 
 INSERT INTO public.program_item_discussion_messages (
   organization_id, instance_stage_item_id, patient_user_id, sender_role, origin, body
@@ -751,7 +763,7 @@ INSERT INTO public.treatment_program_events (
 SELECT (actor_id = ${quoteLiteral(patientA)}::uuid)::int AS composed_event_actor_filled
 FROM public.treatment_program_events
 WHERE instance_id = ${quoteLiteral(instanceA)}::uuid \gset
-${fatal("composed_event_actor_filled", "P2-C1 must fill treatment_program_events.actor_id under column grant exclusion")}
+${fatal('composed_event_actor_filled', 'P2-C1 must fill treatment_program_events.actor_id under column grant exclusion')}
 
 \set ON_ERROR_STOP off
 INSERT INTO public.treatment_program_events (
@@ -857,7 +869,7 @@ INSERT INTO public.reminder_rules (
 SELECT (notification_topic_code = 'training_reminders')::int AS composed_reminder_topic_normalized
 FROM public.reminder_rules
 WHERE integrator_rule_id = 'rr-own' \gset
-${fatal("composed_reminder_topic_normalized", "P2-C2 must normalize patient reminder notification topic")}
+${fatal('composed_reminder_topic_normalized', 'P2-C2 must normalize patient reminder notification topic')}
 
 \set ON_ERROR_STOP off
 INSERT INTO public.reminder_rules (
@@ -989,7 +1001,7 @@ INSERT INTO public.lfk_sessions (
 SELECT (organization_id = ${quoteLiteral(orgA)}::uuid)::int AS composed_lfk_org_stamped
 FROM public.lfk_sessions
 WHERE id = ${quoteLiteral(sessionA)}::uuid \gset
-${fatal("composed_lfk_org_stamped", "P2-C3 must stamp lfk_sessions.organization_id")}
+${fatal('composed_lfk_org_stamped', 'P2-C3 must stamp lfk_sessions.organization_id')}
 
 \set ON_ERROR_STOP off
 INSERT INTO public.lfk_sessions (
@@ -1026,7 +1038,7 @@ SELECT encode(app_ext.hmac(
 
 SET SESSION AUTHORIZATION ${staffIdent};
 SELECT (app.is_staff() = true)::int AS composed_staff_role_derived \gset
-${fatal("composed_staff_role_derived", "staff bypass must be role-derived")}
+${fatal('composed_staff_role_derived', 'staff bypass must be role-derived')}
 
 SELECT app.install_signed_context(
   ${quoteLiteral(staffNonce)},
@@ -1041,7 +1053,7 @@ SELECT app.install_signed_context(
 SELECT (count(*) = 1)::int AS composed_staff_reads_same_org_other_patient_row
 FROM public.be_appointments
 WHERE id = ${quoteLiteral(appointmentA2)}::uuid \gset
-${fatal("composed_staff_reads_same_org_other_patient_row", "staff role must bypass patient wall through app.is_staff()")}
+${fatal('composed_staff_reads_same_org_other_patient_row', 'staff role must bypass patient wall through app.is_staff()')}
 
 INSERT INTO public.support_conversation_messages (
   organization_id, integrator_message_id, conversation_id, sender_role, text, source
@@ -1070,7 +1082,7 @@ function cleanup() {
 
   if (dbCreated) {
     try {
-      run("sudo", ["-n", "-u", "postgres", "dropdb", "--if-exists", dbName]);
+      run('sudo', ['-n', '-u', 'postgres', 'dropdb', '--if-exists', dbName]);
     } catch (error) {
       console.error(`smoke-p2-composed: cleanup dropdb failed: ${error.message}`);
     }
@@ -1078,13 +1090,13 @@ function cleanup() {
 
   if (rolesCreated) {
     try {
-      run("sudo", ["-n", "-u", "postgres", "psql", "-v", "ON_ERROR_STOP=1", "-d", "postgres"], {
+      run('sudo', ['-n', '-u', 'postgres', 'psql', '-v', 'ON_ERROR_STOP=1', '-d', 'postgres'], {
         input: [
           `DROP ROLE IF EXISTS ${patientIdent};`,
           `DROP ROLE IF EXISTS ${staffIdent};`,
           `DROP ROLE IF EXISTS ${ownerIdent};`,
-          "",
-        ].join("\n"),
+          '',
+        ].join('\n'),
       });
     } catch (error) {
       console.error(`smoke-p2-composed: cleanup role drop failed: ${error.message}`);
@@ -1093,8 +1105,8 @@ function cleanup() {
 }
 
 for (const [signal, exitCode] of [
-  ["SIGINT", 130],
-  ["SIGTERM", 143],
+  ['SIGINT', 130],
+  ['SIGTERM', 143],
 ]) {
   process.once(signal, () => {
     cleanup();
@@ -1105,19 +1117,19 @@ for (const [signal, exitCode] of [
 try {
   assertNoUnsafeParentDbHints();
 
-  run("sudo", ["-n", "-u", "postgres", "createdb", dbName]);
+  run('sudo', ['-n', '-u', 'postgres', 'createdb', dbName]);
   dbCreated = true;
   psql(
     [
       `CREATE ROLE ${ownerIdent} NOLOGIN NOBYPASSRLS;`,
       `CREATE ROLE ${staffIdent} NOLOGIN NOBYPASSRLS;`,
       `CREATE ROLE ${patientIdent} NOLOGIN NOBYPASSRLS;`,
-      "",
-    ].join("\n"),
+      '',
+    ].join('\n'),
   );
   rolesCreated = true;
 
-  console.log("--- p2-composed: applying protected context artifact ---");
+  console.log('--- p2-composed: applying protected context artifact ---');
   psqlFile(p2bSqlPath, {
     p2_b_owner_role: ownerRole,
     p2_b_staff_role: staffRole,
@@ -1125,10 +1137,10 @@ try {
     p2_b_signing_secret: secret,
   });
 
-  console.log("--- p2-composed: creating representative synthetic schema ---");
+  console.log('--- p2-composed: creating representative synthetic schema ---');
   psql(schemaSql);
 
-  console.log("--- p2-composed: applying P2-C value guard artifacts ---");
+  console.log('--- p2-composed: applying P2-C value guard artifacts ---');
   psqlFile(p2c1SqlPath, {
     p2_c1_staff_role: staffRole,
     p2_c1_patient_role: patientRole,
@@ -1142,13 +1154,15 @@ try {
     p2_c3_patient_role: patientRole,
   });
 
-  console.log("--- p2-composed: applying representative P0.5b grants from generator metadata ---");
+  console.log('--- p2-composed: applying representative P0.5b grants from generator metadata ---');
   psql(grantSql);
 
-  console.log("--- p2-composed: applying generated P0.9 enforce RLS policies for representative targets ---");
+  console.log(
+    '--- p2-composed: applying generated P0.9 enforce RLS policies for representative targets ---',
+  );
   psql(rlsSql);
 
-  console.log("--- p2-composed: proving composed RLS, grants, and value guards ---");
+  console.log('--- p2-composed: proving composed RLS, grants, and value guards ---');
   psql(proofSql);
 
   console.log(`smoke-p2-composed-rls-grants-value-guards: OK (${dbName})`);

@@ -1,46 +1,46 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import type { TestSet, TestSetUsageSnapshot } from "@/modules/tests/types";
-import { cn } from "@/lib/utils";
-import { isDoctorCatalogMissingFilter } from "@/shared/lib/doctorCatalogEmptyFieldFilter";
-import { useDoctorCatalogDisplayList } from "@/shared/hooks/useDoctorCatalogDisplayList";
-import { useDoctorCatalogClientFilterMerge } from "@/shared/hooks/useDoctorCatalogClientFilterMerge";
-import { doctorCatalogListEmptyClass } from "@/shared/ui/doctor/doctorVisual";
-import { useDoctorCatalogMasterSelectionSync } from "@/shared/hooks/useDoctorCatalogMasterSelectionSync";
-import type { CatalogMasterTitleSort } from "@/shared/ui/doctor/DoctorCatalogMasterListHeader";
-import { DoctorCatalogListSortHeader } from "@/shared/ui/doctor/DoctorCatalogListSortHeader";
-import { CatalogLeftPane } from "@/shared/ui/doctor/catalog/CatalogLeftPane";
-import { CatalogRightPane } from "@/shared/ui/doctor/catalog/CatalogRightPane";
-import { CatalogSplitLayout } from "@/shared/ui/doctor/catalog/CatalogSplitLayout";
-import { DoctorCatalogPageLayout } from "@/shared/ui/doctor/catalog/DoctorCatalogPageLayout";
+import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import type { TestSet, TestSetUsageSnapshot } from '@/modules/tests/types';
+import { cn } from '@/lib/utils';
+import { isDoctorCatalogMissingFilter } from '@/shared/lib/doctorCatalogEmptyFieldFilter';
+import { useDoctorCatalogDisplayList } from '@/shared/hooks/useDoctorCatalogDisplayList';
+import { useDoctorCatalogClientFilterMerge } from '@/shared/hooks/useDoctorCatalogClientFilterMerge';
+import { doctorCatalogListEmptyClass } from '@/shared/ui/doctor/doctorVisual';
+import { useDoctorCatalogMasterSelectionSync } from '@/shared/hooks/useDoctorCatalogMasterSelectionSync';
+import type { CatalogMasterTitleSort } from '@/shared/ui/doctor/DoctorCatalogMasterListHeader';
+import { DoctorCatalogListSortHeader } from '@/shared/ui/doctor/DoctorCatalogListSortHeader';
+import { CatalogLeftPane } from '@/shared/ui/doctor/catalog/CatalogLeftPane';
+import { CatalogRightPane } from '@/shared/ui/doctor/catalog/CatalogRightPane';
+import { CatalogSplitLayout } from '@/shared/ui/doctor/catalog/CatalogSplitLayout';
+import { DoctorCatalogPageLayout } from '@/shared/ui/doctor/catalog/DoctorCatalogPageLayout';
 import {
   doctorCatalogToolbarPrimaryActionClassName,
   DoctorCatalogFiltersToolbar,
   DoctorCatalogToolbarFiltersSlot,
-} from "@/shared/ui/doctor/DoctorCatalogFiltersToolbar";
+} from '@/shared/ui/doctor/DoctorCatalogFiltersToolbar';
 import {
   DoctorCatalogFiltersForm,
   type DoctorCatalogToolbarLayout,
-} from "@/shared/ui/doctor/DoctorCatalogFiltersForm";
+} from '@/shared/ui/doctor/DoctorCatalogFiltersForm';
 import {
   archiveDoctorTestSetInline,
   saveDoctorTestSetInline,
   unarchiveDoctorTestSetInline,
-} from "./actionsInline";
-import type { DoctorCatalogPubArchQuery } from "@/shared/lib/doctorCatalogListStatus";
-import { DoctorCatalogInvalidPubArchToast } from "@/shared/ui/doctor/DoctorCatalogInvalidPubArchToast";
+} from './actionsInline';
+import type { DoctorCatalogPubArchQuery } from '@/shared/lib/doctorCatalogListStatus';
+import { DoctorCatalogInvalidPubArchToast } from '@/shared/ui/doctor/DoctorCatalogInvalidPubArchToast';
 import {
   DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_EXPANDED,
   DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE,
-} from "@/shared/ui/doctor/doctorWorkspaceLayout";
-import { DoctorCatalogMasterListRow } from "@/shared/ui/doctor/DoctorCatalogMasterListRow";
-import { MediaThumb } from "@/shared/ui/doctor/media/MediaThumb";
-import { clinicalTestMediaItemToPreviewUi } from "@/shared/ui/doctor/media/mediaPreviewUiModel";
-import type { ClinicalTestLibraryPickRow } from "./clinicalTestLibraryRows";
-import { TestSetForm } from "./TestSetForm";
-import { TestSetMasterListStatusBadge } from "./TestSetMasterListStatusBadge";
+} from '@/shared/ui/doctor/doctorWorkspaceLayout';
+import { DoctorCatalogMasterListRow } from '@/shared/ui/doctor/DoctorCatalogMasterListRow';
+import { MediaThumb } from '@/shared/ui/doctor/media/MediaThumb';
+import { clinicalTestMediaItemToPreviewUi } from '@/shared/ui/doctor/media/mediaPreviewUiModel';
+import type { ClinicalTestLibraryPickRow } from './clinicalTestLibraryRows';
+import { TestSetForm } from './TestSetForm';
+import { TestSetMasterListStatusBadge } from './TestSetMasterListStatusBadge';
 
 type Props = {
   initialSets: TestSet[];
@@ -68,7 +68,8 @@ export function TestSetsPageClient({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [mobileSheet, setMobileSheet] = useState<TestSet | null>(null);
-  const [filterToolbarLayout, setFilterToolbarLayout] = useState<DoctorCatalogToolbarLayout>("compact");
+  const [filterToolbarLayout, setFilterToolbarLayout] =
+    useState<DoctorCatalogToolbarLayout>('compact');
   const onFilterToolbarLayoutChange = useCallback((layout: DoctorCatalogToolbarLayout) => {
     setFilterToolbarLayout(layout);
   }, []);
@@ -90,26 +91,24 @@ export function TestSetsPageClient({
   const qSorted = useDoctorCatalogDisplayList(
     initialSets,
     mergedFilters.q,
-    mergedFilters.titleSort === null ? "default" : mergedFilters.titleSort,
+    mergedFilters.titleSort === null ? 'default' : mergedFilters.titleSort,
   );
 
   const displayList = useMemo(() => {
     const rc = mergedFilters.regionCode?.trim();
     if (!rc) return qSorted;
     if (isDoctorCatalogMissingFilter(rc)) {
-      return qSorted.filter((s) =>
-        s.items.some((it) => !it.test.bodyRegionIds.length),
-      );
+      return qSorted.filter((s) => s.items.some((it) => !it.test.bodyRegionIds.length));
     }
     return qSorted.filter((s) =>
-      s.items.some((it) =>
-        it.test.bodyRegionIds.some((bid) => bodyRegionIdToCode[bid] === rc),
-      ),
+      s.items.some((it) => it.test.bodyRegionIds.some((bid) => bodyRegionIdToCode[bid] === rc)),
     );
   }, [qSorted, mergedFilters.regionCode, bodyRegionIdToCode]);
 
   const titleSortForHeader: CatalogMasterTitleSort | null =
-    mergedFilters.titleSort === "asc" || mergedFilters.titleSort === "desc" ? mergedFilters.titleSort : null;
+    mergedFilters.titleSort === 'asc' || mergedFilters.titleSort === 'desc'
+      ? mergedFilters.titleSort
+      : null;
 
   const changeTitleSort = (next: CatalogMasterTitleSort | null) => {
     startListTransition(() => {
@@ -147,8 +146,8 @@ export function TestSetsPageClient({
             previewItems.length === 0 ? (
               <span
                 className={cn(
-                  "self-center text-[11px] leading-none",
-                  active ? "text-primary/75" : "text-muted-foreground",
+                  'self-center text-[11px] leading-none',
+                  active ? 'text-primary/75' : 'text-muted-foreground',
                 )}
               >
                 Нет превью
@@ -201,7 +200,7 @@ export function TestSetsPageClient({
     <div className="flex h-full min-h-0 w-full min-w-0 flex-col">
       {/* Черновик набора держим смонтированным, чтобы не терять state при выборе строки в списке. */}
       <div
-        className={cn("flex min-h-0 max-w-2xl flex-1 flex-col", selected && "hidden")}
+        className={cn('flex min-h-0 max-w-2xl flex-1 flex-col', selected && 'hidden')}
         aria-hidden={Boolean(selected)}
       >
         <TestSetForm
@@ -247,7 +246,7 @@ export function TestSetsPageClient({
             regionCode={mergedFilters.regionCode}
             showLoadFilter={false}
             titleSort={mergedFilters.titleSort}
-            selectedId={creating ? null : selected?.id ?? mobileSheet?.id ?? null}
+            selectedId={creating ? null : (selected?.id ?? mobileSheet?.id ?? null)}
             catalogPubArch={mergedFilters.listPubArch}
             onFilterToolbarLayoutChange={onFilterToolbarLayoutChange}
           />
@@ -274,65 +273,68 @@ export function TestSetsPageClient({
     <>
       <DoctorCatalogInvalidPubArchToast />
       <DoctorCatalogPageLayout toolbar={toolbar}>
-      <CatalogSplitLayout
-        className={cn(
-          filterToolbarLayout === "expanded"
-            ? DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_EXPANDED
-            : DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE,
-        )}
-        left={
-          <CatalogLeftPane
-            stickySplit={false}
-            stickyToolbarRows={1}
-            className="h-full"
-            headerSlot={
-              <DoctorCatalogListSortHeader
-                summaryLine={
-                  displayList.length === 0 ? "Нет наборов" : `Наборов: ${displayList.length}`
-                }
-                titleSort={titleSortForHeader}
-                onTitleSortChange={changeTitleSort}
-                catalogPubArch={mergedFilters.listPubArch}
-                archiveScopeExtraParams={{
-                  titleSort: mergedFilters.titleSort,
+        <CatalogSplitLayout
+          className={cn(
+            filterToolbarLayout === 'expanded'
+              ? DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_EXPANDED
+              : DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE,
+          )}
+          left={
+            <CatalogLeftPane
+              stickySplit={false}
+              stickyToolbarRows={1}
+              className="h-full"
+              headerSlot={
+                <DoctorCatalogListSortHeader
+                  summaryLine={
+                    displayList.length === 0 ? 'Нет наборов' : `Наборов: ${displayList.length}`
+                  }
+                  titleSort={titleSortForHeader}
+                  onTitleSortChange={changeTitleSort}
+                  catalogPubArch={mergedFilters.listPubArch}
+                  archiveScopeExtraParams={{
+                    titleSort: mergedFilters.titleSort,
+                  }}
+                />
+              }
+            >
+              <div
+                className={cn(
+                  'min-h-0 flex-1 overflow-hidden transition-opacity',
+                  isListPending && 'opacity-80',
+                )}
+                aria-busy={isListPending}
+              >
+                {renderRows(
+                  (s) => {
+                    setCreating(false);
+                    setSelectedId(s.id);
+                    setMobileSheet(s);
+                  },
+                  creating ? null : (selected?.id ?? mobileSheet?.id ?? null),
+                )}
+              </div>
+            </CatalogLeftPane>
+          }
+          right={desktopRight}
+          mobileView={mobileDetailOpen ? 'detail' : 'list'}
+          mobileBackSlot={
+            mobileDetailOpen ? (
+              <Button
+                variant="ghost"
+                type="button"
+                className="mb-2 h-9 px-2"
+                onClick={() => {
+                  setMobileSheet(null);
+                  setCreating(false);
                 }}
-              />
-            }
-          >
-            <div
-              className={cn(
-                "min-h-0 flex-1 overflow-hidden transition-opacity",
-                isListPending && "opacity-80",
-              )}
-              aria-busy={isListPending}
-            >
-              {renderRows((s) => {
-                setCreating(false);
-                setSelectedId(s.id);
-                setMobileSheet(s);
-              }, creating ? null : selected?.id ?? mobileSheet?.id ?? null)}
-            </div>
-          </CatalogLeftPane>
-        }
-        right={desktopRight}
-        mobileView={mobileDetailOpen ? "detail" : "list"}
-        mobileBackSlot={
-          mobileDetailOpen ? (
-            <Button
-              variant="ghost"
-              type="button"
-              className="mb-2 h-9 px-2"
-              onClick={() => {
-                setMobileSheet(null);
-                setCreating(false);
-              }}
-            >
-              ← Назад
-            </Button>
-          ) : null
-        }
-      />
-    </DoctorCatalogPageLayout>
+              >
+                ← Назад
+              </Button>
+            ) : null
+          }
+        />
+      </DoctorCatalogPageLayout>
     </>
   );
 }

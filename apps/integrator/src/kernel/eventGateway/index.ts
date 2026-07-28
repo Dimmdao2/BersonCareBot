@@ -71,7 +71,10 @@ export function createEventGateway(deps: EventGatewayDeps = {}): EventGateway {
             try {
               await release(dedupKey);
             } catch (releaseErr) {
-              logger.error({ err: serializeError(releaseErr) }, 'eventGateway dedup release failed');
+              logger.error(
+                { err: serializeError(releaseErr) },
+                'eventGateway dedup release failed',
+              );
             }
           }
           logger.error({ err: serializeError(error) }, 'eventGateway pipeline failed');

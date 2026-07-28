@@ -3,12 +3,12 @@
 **Дата:** 2026-05-03  
 **Область:** `video_default_delivery` в `system_settings`, резолв playback (`resolveVideoPlaybackDelivery`, `resolveMediaPlaybackPayload`), миграции **`0022`**, документ [GATE_READINESS_PHASE_08.md](./GATE_READINESS_PHASE_08.md).
 
-| # | Проверка | Вердикт |
-|---|----------|---------|
-| 1 | Gate: coverage / ошибки / Safari / runbook | **PASS (repo, global fix 2026-05-03)** — SQL-шаблон, логи, Safari-чеклист в [GATE_READINESS_PHASE_08.md](./GATE_READINESS_PHASE_08.md) § Repo acceptance; выполнение замеров/sign-off на окружении — **ops**. |
-| 2 | Default switch не ломает старый контент | **PASS** — `auto` → MP4 без HLS; `mp4.url` в playback; `GET /api/media/[id]` вне default delivery. |
-| 3 | Rollback к `mp4` быстрый и предсказуемый | **PASS** (оговорка) — admin + `invalidateConfigKey`; чистый SQL + до **60 с** кэш `getConfigValue`. |
-| 4 | Наблюдаемость delivery ratio | **PARTIAL** — `playback_resolved` / `playback_presign_failed` достаточны для внешнего дашборда; готового UI в репо нет. |
+| #   | Проверка                                   | Вердикт                                                                                                                                                                                                       |
+| --- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Gate: coverage / ошибки / Safari / runbook | **PASS (repo, global fix 2026-05-03)** — SQL-шаблон, логи, Safari-чеклист в [GATE_READINESS_PHASE_08.md](./GATE_READINESS_PHASE_08.md) § Repo acceptance; выполнение замеров/sign-off на окружении — **ops**. |
+| 2   | Default switch не ломает старый контент    | **PASS** — `auto` → MP4 без HLS; `mp4.url` в playback; `GET /api/media/[id]` вне default delivery.                                                                                                            |
+| 3   | Rollback к `mp4` быстрый и предсказуемый   | **PASS** (оговорка) — admin + `invalidateConfigKey`; чистый SQL + до **60 с** кэш `getConfigValue`.                                                                                                           |
+| 4   | Наблюдаемость delivery ratio               | **PARTIAL** — `playback_resolved` / `playback_presign_failed` достаточны для внешнего дашборда; готового UI в репо нет.                                                                                       |
 
 ---
 
@@ -16,12 +16,12 @@
 
 **Вердикт: PASS (репозиторий)** после [global fix](./AUDIT_GLOBAL.md) — шаблоны в [GATE_READINESS_PHASE_08.md](./GATE_READINESS_PHASE_08.md) § Repo acceptance (SQL, события логов, Safari-чеклист). Исполнение замеров и QA Pass/Fail на конкретной среде — **ops** (не дефект кода).
 
-| Пункт phase-08 gate | Статус аудита |
-|----------------------|----------------|
-| ≥ X% целевых видео в `hls_ready` | **Repo: CLOSED** — SQL в [GATE_READINESS_PHASE_08.md](./GATE_READINESS_PHASE_08.md); замер на окружении — ops. |
-| Ошибки воспроизведения HLS за неделю &lt; порога | **Repo: CLOSED** — события `playback_resolved` / `playback_presign_failed`; порог — ops. |
-| Runbook отката проверен на staging | **Сценарий задокументирован**; репетиция на staging — ops. |
-| Safari QA | **Repo: CLOSED** — чеклист `BROWSER_SMOKE_PHASE05_CHECKLIST.md`; Pass/Fail — QA. |
+| Пункт phase-08 gate                              | Статус аудита                                                                                                  |
+| ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| ≥ X% целевых видео в `hls_ready`                 | **Repo: CLOSED** — SQL в [GATE_READINESS_PHASE_08.md](./GATE_READINESS_PHASE_08.md); замер на окружении — ops. |
+| Ошибки воспроизведения HLS за неделю &lt; порога | **Repo: CLOSED** — события `playback_resolved` / `playback_presign_failed`; порог — ops.                       |
+| Runbook отката проверен на staging               | **Сценарий задокументирован**; репетиция на staging — ops.                                                     |
+| Safari QA                                        | **Repo: CLOSED** — чеклист `BROWSER_SMOKE_PHASE05_CHECKLIST.md`; Pass/Fail — QA.                               |
 
 **Вывод:** репозиторные артефакты для gate **закрыты**; продуктовый sign-off по данным окружения остаётся за ops/QA и не блокирует merge.
 
@@ -93,11 +93,11 @@
 
 ## Сводка findings
 
-| ID | Серьёзность | Статус | Описание |
-|----|-------------|--------|----------|
+| ID         | Серьёзность  | Статус                                   | Описание                                                                                                                                                                                                                                 |
+| ---------- | ------------ | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | FIND-P08-1 | Major (gate) | **CLOSED (repo, global fix 2026-05-03)** | Ранее: отсутствовали шаблоны в репозитории. **Исправление:** [GATE_READINESS_PHASE_08.md](./GATE_READINESS_PHASE_08.md) § Repo acceptance (SQL, логи, Safari). Подпись на staging/prod — не дефект кода; см. таблицу статуса в gate doc. |
-| FIND-P08-2 | Minor | **INFO** | SQL-rollback без admin: до **60 с** возможна задержка из-за кэша `getConfigValue`. |
-| FIND-P08-3 | Minor | **INFO** | Нет встроенного UI-dashboard ratio — только структурированные логи. |
+| FIND-P08-2 | Minor        | **INFO**                                 | SQL-rollback без admin: до **60 с** возможна задержка из-за кэша `getConfigValue`.                                                                                                                                                       |
+| FIND-P08-3 | Minor        | **INFO**                                 | Нет встроенного UI-dashboard ratio — только структурированные логи.                                                                                                                                                                      |
 
 ---
 

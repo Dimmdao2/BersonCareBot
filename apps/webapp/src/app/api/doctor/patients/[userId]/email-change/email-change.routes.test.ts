@@ -12,8 +12,8 @@
  *  - Unauthenticated patient gets 401
  */
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { randomUUID } from "node:crypto";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { randomUUID } from 'node:crypto';
 
 // ---------------------------------------------------------------------------
 // Hoist mocks so vi.mock() factory runs before imports
@@ -36,11 +36,13 @@ const {
   getCurrentSessionMock: vi.fn(),
   requireDoctorWorkspaceApiContextMock: vi.fn(),
   requirePatientApiSessionMock: vi.fn(),
-  withDoctorWorkspacePrincipalMock: vi.fn((_: unknown, sourceOrFn: string | (() => unknown), maybeFn?: () => unknown) => {
-  const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
-  if (!fn) throw new Error("principal_callback_required");
-  return fn();
-}),
+  withDoctorWorkspacePrincipalMock: vi.fn(
+    (_: unknown, sourceOrFn: string | (() => unknown), maybeFn?: () => unknown) => {
+      const fn = typeof sourceOrFn === 'function' ? sourceOrFn : maybeFn;
+      if (!fn) throw new Error('principal_callback_required');
+      return fn();
+    },
+  ),
   getClientIdentityForOrganizationMock: vi.fn(),
   buildAppDepsMock: vi.fn(),
   startEmailChallengeMock: vi.fn(),
@@ -51,83 +53,83 @@ const {
   getCurrentDbPrincipalOrganizationIdMock: vi.fn(),
 }));
 
-vi.mock("@/modules/auth/service", () => ({
+vi.mock('@/modules/auth/service', () => ({
   getCurrentSession: (...args: unknown[]) => getCurrentSessionMock(...args),
 }));
 
-vi.mock("@/app-layer/guards/requireRole", () => ({
+vi.mock('@/app-layer/guards/requireRole', () => ({
   requireDoctorWorkspaceApiContext: () => requireDoctorWorkspaceApiContextMock(),
   // patient/email-change/confirm moved off raw session access onto an approved guard (route guard
   // census remediation, 2026-07-28); the double must expose it or the route fails on the mock.
   requirePatientApiSession: () => requirePatientApiSessionMock(),
 }));
 
-vi.mock("@/app-layer/guards/doctorWorkspacePrincipal", () => ({
+vi.mock('@/app-layer/guards/doctorWorkspacePrincipal', () => ({
   withDoctorWorkspacePrincipal: (
     ctx: unknown,
     sourceOrFn: string | (() => unknown),
     maybeFn?: () => unknown,
   ) => {
-    const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
-    if (!fn) throw new Error("principal_callback_required");
+    const fn = typeof sourceOrFn === 'function' ? sourceOrFn : maybeFn;
+    if (!fn) throw new Error('principal_callback_required');
     return withDoctorWorkspacePrincipalMock(ctx, fn);
   },
 }));
 
-vi.mock("@/app-layer/di/buildAppDeps", () => ({
+vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: buildAppDepsMock,
 }));
 
-vi.mock("@/modules/auth/emailAuth", () => ({
+vi.mock('@/modules/auth/emailAuth', () => ({
   startEmailChallenge: (...args: unknown[]) => startEmailChallengeMock(...args),
-  normalizeEmail: (...args: unknown[]) => normalizeEmailMock(...args as [string]),
+  normalizeEmail: (...args: unknown[]) => normalizeEmailMock(...(args as [string])),
   getPendingEmailChallenge: (...args: unknown[]) => getPendingEmailChallengeMock(...args),
   confirmLatestEmailChallengeCodeForUser: (...args: unknown[]) =>
     confirmLatestEmailChallengeCodeForUserMock(...args),
 }));
 
-vi.mock("@/app-layer/di/bindAuthModulePorts", () => ({
+vi.mock('@/app-layer/di/bindAuthModulePorts', () => ({
   ensureAuthModulePortsBound: () => ensureAuthModulePortsBoundMock(),
 }));
 
-vi.mock("@bersoncare/db-principal", () => ({
+vi.mock('@bersoncare/db-principal', () => ({
   getCurrentObservabilityContext: vi.fn(() => ({})),
   getCurrentDbPrincipalOrganizationId: () => getCurrentDbPrincipalOrganizationIdMock(),
 }));
 
-import { POST as adminPost, GET as adminGet } from "./route";
-import { POST as patientConfirmPost } from "@/app/api/patient/email-change/confirm/route";
-import * as authChannelPolicy from "@/modules/auth/authChannelPolicy";
+import { POST as adminPost, GET as adminGet } from './route';
+import { POST as patientConfirmPost } from '@/app/api/patient/email-change/confirm/route';
+import * as authChannelPolicy from '@/modules/auth/authChannelPolicy';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-const ADMIN_SESSION = { user: { userId: randomUUID(), role: "admin" as const } };
-const DOCTOR_SESSION = { user: { userId: randomUUID(), role: "doctor" as const } };
-const PATIENT_SESSION = { user: { userId: randomUUID(), role: "client" as const } };
+const ADMIN_SESSION = { user: { userId: randomUUID(), role: 'admin' as const } };
+const DOCTOR_SESSION = { user: { userId: randomUUID(), role: 'doctor' as const } };
+const PATIENT_SESSION = { user: { userId: randomUUID(), role: 'client' as const } };
 const VALID_UUID = randomUUID();
 const ORG_ID = randomUUID();
 const CANONICAL_UUID = randomUUID();
 
 function makeAdminRequest(body: unknown) {
   return new Request(`http://localhost/api/doctor/patients/${VALID_UUID}/email-change`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
   });
 }
 
 function makeGetRequest() {
   return new Request(`http://localhost/api/doctor/patients/${VALID_UUID}/email-change`, {
-    method: "GET",
+    method: 'GET',
   });
 }
 
 function makePatientConfirmRequest(body: unknown) {
-  return new Request("http://localhost/api/patient/email-change/confirm", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
+  return new Request('http://localhost/api/patient/email-change/confirm', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
   });
 }
@@ -138,7 +140,7 @@ const FAKE_PARAMS = { params: Promise.resolve({ userId: VALID_UUID }) };
 // Tests: Admin POST (initiate email change)
 // ---------------------------------------------------------------------------
 
-describe("POST /api/doctor/patients/[userId]/email-change", () => {
+describe('POST /api/doctor/patients/[userId]/email-change', () => {
   beforeEach(() => {
     // The confirm route now goes through an approved guard instead of reading the session itself.
     // Keep the tests' existing lever (getCurrentSessionMock) authoritative: the guard simply reflects
@@ -150,9 +152,9 @@ describe("POST /api/doctor/patients/[userId]/email-change", () => {
         ? { ok: true as const, session }
         : {
             ok: false as const,
-            response: new Response(JSON.stringify({ ok: false, error: "unauthorized" }), {
+            response: new Response(JSON.stringify({ ok: false, error: 'unauthorized' }), {
               status: 401,
-              headers: { "content-type": "application/json" },
+              headers: { 'content-type': 'application/json' },
             }),
           };
     });
@@ -175,8 +177,8 @@ describe("POST /api/doctor/patients/[userId]/email-change", () => {
     });
     withDoctorWorkspacePrincipalMock.mockImplementation(
       (_: unknown, sourceOrFn: string | (() => unknown), maybeFn?: () => unknown) => {
-        const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
-        if (!fn) throw new Error("principal_callback_required");
+        const fn = typeof sourceOrFn === 'function' ? sourceOrFn : maybeFn;
+        if (!fn) throw new Error('principal_callback_required');
         return fn();
       },
     );
@@ -186,36 +188,36 @@ describe("POST /api/doctor/patients/[userId]/email-change", () => {
     });
   });
 
-  it("returns 401 when not authenticated", async () => {
+  it('returns 401 when not authenticated', async () => {
     requireDoctorWorkspaceApiContextMock.mockResolvedValueOnce({
       ok: false,
-      response: new Response(JSON.stringify({ ok: false, error: "unauthorized" }), { status: 401 }),
+      response: new Response(JSON.stringify({ ok: false, error: 'unauthorized' }), { status: 401 }),
     });
 
-    const res = await adminPost(makeAdminRequest({ email: "new@example.com" }), FAKE_PARAMS);
+    const res = await adminPost(makeAdminRequest({ email: 'new@example.com' }), FAKE_PARAMS);
     expect(res.status).toBe(401);
   });
 
-  it("returns 403 when role is doctor (not admin)", async () => {
+  it('returns 403 when role is doctor (not admin)', async () => {
     requireDoctorWorkspaceApiContextMock.mockResolvedValueOnce({
       ok: true,
       ctx: { organizationId: ORG_ID, session: DOCTOR_SESSION },
     });
 
-    const res = await adminPost(makeAdminRequest({ email: "new@example.com" }), FAKE_PARAMS);
+    const res = await adminPost(makeAdminRequest({ email: 'new@example.com' }), FAKE_PARAMS);
     expect(res.status).toBe(403);
     const body = (await res.json()) as { ok: boolean; error: string };
     expect(body.ok).toBe(false);
-    expect(body.error).toBe("forbidden");
+    expect(body.error).toBe('forbidden');
   });
 
-  it("rejects a disabled email channel after authorization but before patient lookup or send", async () => {
-    const policy = vi.spyOn(authChannelPolicy, "isAuthChannelEnabled").mockResolvedValue(false);
+  it('rejects a disabled email channel after authorization but before patient lookup or send', async () => {
+    const policy = vi.spyOn(authChannelPolicy, 'isAuthChannelEnabled').mockResolvedValue(false);
     try {
-      const res = await adminPost(makeAdminRequest({ email: "new@example.com" }), FAKE_PARAMS);
+      const res = await adminPost(makeAdminRequest({ email: 'new@example.com' }), FAKE_PARAMS);
 
       expect(res.status).toBe(503);
-      await expect(res.json()).resolves.toEqual({ ok: false, error: "auth_channel_disabled" });
+      await expect(res.json()).resolves.toEqual({ ok: false, error: 'auth_channel_disabled' });
       expect(requireDoctorWorkspaceApiContextMock).toHaveBeenCalledOnce();
       expect(buildAppDepsMock).not.toHaveBeenCalled();
       expect(getClientIdentityForOrganizationMock).not.toHaveBeenCalled();
@@ -225,18 +227,21 @@ describe("POST /api/doctor/patients/[userId]/email-change", () => {
     }
   });
 
-  it("returns 400 for invalid email", async () => {
-    const res = await adminPost(makeAdminRequest({ email: "not-an-email" }), FAKE_PARAMS);
+  it('returns 400 for invalid email', async () => {
+    const res = await adminPost(makeAdminRequest({ email: 'not-an-email' }), FAKE_PARAMS);
     expect(res.status).toBe(400);
     const body = (await res.json()) as { ok: boolean; error: string };
     expect(body.ok).toBe(false);
-    expect(body.error).toBe("validation_error");
+    expect(body.error).toBe('validation_error');
   });
 
-  it("returns 404 and does not start challenge outside selected workspace", async () => {
+  it('returns 404 and does not start challenge outside selected workspace', async () => {
     getClientIdentityForOrganizationMock.mockResolvedValueOnce(null);
 
-    const res = await adminPost(makeAdminRequest({ email: "patient-new@example.com" }), FAKE_PARAMS);
+    const res = await adminPost(
+      makeAdminRequest({ email: 'patient-new@example.com' }),
+      FAKE_PARAMS,
+    );
 
     expect(res.status).toBe(404);
     expect(getClientIdentityForOrganizationMock).toHaveBeenCalledWith(VALID_UUID, ORG_ID);
@@ -244,43 +249,53 @@ describe("POST /api/doctor/patients/[userId]/email-change", () => {
     expect(withDoctorWorkspacePrincipalMock).not.toHaveBeenCalled();
   });
 
-  it("admin can initiate email change — returns pending email and expiresAt", async () => {
+  it('admin can initiate email change — returns pending email and expiresAt', async () => {
     startEmailChallengeMock.mockResolvedValueOnce({
       ok: true,
       challengeId: randomUUID(),
       retryAfterSeconds: 60,
     });
 
-    const res = await adminPost(makeAdminRequest({ email: "patient-new@example.com" }), FAKE_PARAMS);
+    const res = await adminPost(
+      makeAdminRequest({ email: 'patient-new@example.com' }),
+      FAKE_PARAMS,
+    );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { ok: boolean; pending: { email: string; expiresAt: string } };
+    const body = (await res.json()) as {
+      ok: boolean;
+      pending: { email: string; expiresAt: string };
+    };
     expect(body.ok).toBe(true);
-    expect(body.pending.email).toBe("patient-new@example.com");
-    expect(typeof body.pending.expiresAt).toBe("string");
+    expect(body.pending.email).toBe('patient-new@example.com');
+    expect(typeof body.pending.expiresAt).toBe('string');
     expect(getClientIdentityForOrganizationMock).toHaveBeenCalledWith(VALID_UUID, ORG_ID);
-    expect(startEmailChallengeMock).toHaveBeenCalledWith(CANONICAL_UUID, "patient-new@example.com", "patient_email_change");
+    expect(startEmailChallengeMock).toHaveBeenCalledWith(
+      CANONICAL_UUID,
+      'patient-new@example.com',
+      'patient_email_change',
+    );
     expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
       expect.objectContaining({ organizationId: ORG_ID }),
       expect.any(Function),
     );
   });
 
-  it("returns 429 on rate_limited", async () => {
+  it('returns 429 on rate_limited', async () => {
     startEmailChallengeMock.mockResolvedValueOnce({
       ok: false,
-      code: "rate_limited",
+      code: 'rate_limited',
       retryAfterSeconds: 30,
     });
 
-    const res = await adminPost(makeAdminRequest({ email: "p@example.com" }), FAKE_PARAMS);
+    const res = await adminPost(makeAdminRequest({ email: 'p@example.com' }), FAKE_PARAMS);
     expect(res.status).toBe(429);
-    expect(res.headers.get("Retry-After")).toBe("30");
+    expect(res.headers.get('Retry-After')).toBe('30');
   });
 
-  it("returns 503 on email_send_failed", async () => {
-    startEmailChallengeMock.mockResolvedValueOnce({ ok: false, code: "email_send_failed" });
+  it('returns 503 on email_send_failed', async () => {
+    startEmailChallengeMock.mockResolvedValueOnce({ ok: false, code: 'email_send_failed' });
 
-    const res = await adminPost(makeAdminRequest({ email: "p@example.com" }), FAKE_PARAMS);
+    const res = await adminPost(makeAdminRequest({ email: 'p@example.com' }), FAKE_PARAMS);
     expect(res.status).toBe(503);
   });
 });
@@ -289,7 +304,7 @@ describe("POST /api/doctor/patients/[userId]/email-change", () => {
 // Tests: Admin GET (check pending)
 // ---------------------------------------------------------------------------
 
-describe("GET /api/doctor/patients/[userId]/email-change", () => {
+describe('GET /api/doctor/patients/[userId]/email-change', () => {
   beforeEach(() => {
     requireDoctorWorkspaceApiContextMock.mockReset();
     withDoctorWorkspacePrincipalMock.mockReset();
@@ -306,8 +321,8 @@ describe("GET /api/doctor/patients/[userId]/email-change", () => {
     });
     withDoctorWorkspacePrincipalMock.mockImplementation(
       (_: unknown, sourceOrFn: string | (() => unknown), maybeFn?: () => unknown) => {
-        const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
-        if (!fn) throw new Error("principal_callback_required");
+        const fn = typeof sourceOrFn === 'function' ? sourceOrFn : maybeFn;
+        if (!fn) throw new Error('principal_callback_required');
         return fn();
       },
     );
@@ -317,7 +332,7 @@ describe("GET /api/doctor/patients/[userId]/email-change", () => {
     });
   });
 
-  it("returns 403 when role is doctor (not admin)", async () => {
+  it('returns 403 when role is doctor (not admin)', async () => {
     requireDoctorWorkspaceApiContextMock.mockResolvedValueOnce({
       ok: true,
       ctx: { organizationId: ORG_ID, session: DOCTOR_SESSION },
@@ -327,7 +342,7 @@ describe("GET /api/doctor/patients/[userId]/email-change", () => {
     expect(res.status).toBe(403);
   });
 
-  it("returns 404 and does not read pending challenge outside selected workspace", async () => {
+  it('returns 404 and does not read pending challenge outside selected workspace', async () => {
     getClientIdentityForOrganizationMock.mockResolvedValueOnce(null);
 
     const res = await adminGet(makeGetRequest(), FAKE_PARAMS);
@@ -338,17 +353,23 @@ describe("GET /api/doctor/patients/[userId]/email-change", () => {
     expect(withDoctorWorkspacePrincipalMock).not.toHaveBeenCalled();
   });
 
-  it("returns pending challenge when one exists", async () => {
+  it('returns pending challenge when one exists', async () => {
     getPendingEmailChallengeMock.mockResolvedValueOnce({
-      email: "pending@example.com",
-      expiresAt: "2026-06-15T12:00:00.000Z",
+      email: 'pending@example.com',
+      expiresAt: '2026-06-15T12:00:00.000Z',
     });
 
     const res = await adminGet(makeGetRequest(), FAKE_PARAMS);
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { ok: boolean; pending: { email: string; expiresAt: string } | null };
+    const body = (await res.json()) as {
+      ok: boolean;
+      pending: { email: string; expiresAt: string } | null;
+    };
     expect(body.ok).toBe(true);
-    expect(body.pending).toEqual({ email: "pending@example.com", expiresAt: "2026-06-15T12:00:00.000Z" });
+    expect(body.pending).toEqual({
+      email: 'pending@example.com',
+      expiresAt: '2026-06-15T12:00:00.000Z',
+    });
     expect(getPendingEmailChallengeMock).toHaveBeenCalledWith(CANONICAL_UUID);
     expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
       expect.objectContaining({ organizationId: ORG_ID }),
@@ -356,7 +377,7 @@ describe("GET /api/doctor/patients/[userId]/email-change", () => {
     );
   });
 
-  it("returns null when no pending challenge", async () => {
+  it('returns null when no pending challenge', async () => {
     getPendingEmailChallengeMock.mockResolvedValueOnce(null);
 
     const res = await adminGet(makeGetRequest(), FAKE_PARAMS);
@@ -371,7 +392,7 @@ describe("GET /api/doctor/patients/[userId]/email-change", () => {
 // Tests: Patient confirm
 // ---------------------------------------------------------------------------
 
-describe("POST /api/patient/email-change/confirm", () => {
+describe('POST /api/patient/email-change/confirm', () => {
   beforeEach(() => {
     getCurrentSessionMock.mockReset();
     confirmLatestEmailChallengeCodeForUserMock.mockReset();
@@ -380,20 +401,20 @@ describe("POST /api/patient/email-change/confirm", () => {
     getCurrentDbPrincipalOrganizationIdMock.mockReturnValue(ORG_ID);
   });
 
-  it("returns 401 when not authenticated", async () => {
+  it('returns 401 when not authenticated', async () => {
     getCurrentSessionMock.mockResolvedValueOnce(null);
-    const res = await patientConfirmPost(makePatientConfirmRequest({ code: "123456" }));
+    const res = await patientConfirmPost(makePatientConfirmRequest({ code: '123456' }));
     expect(res.status).toBe(401);
   });
 
-  it("rejects a disabled email channel before pending-code consumption or mutation", async () => {
-    const policy = vi.spyOn(authChannelPolicy, "isAuthChannelEnabled").mockResolvedValue(false);
+  it('rejects a disabled email channel before pending-code consumption or mutation', async () => {
+    const policy = vi.spyOn(authChannelPolicy, 'isAuthChannelEnabled').mockResolvedValue(false);
     getCurrentSessionMock.mockResolvedValueOnce(PATIENT_SESSION);
     try {
-      const res = await patientConfirmPost(makePatientConfirmRequest({ code: "123456" }));
+      const res = await patientConfirmPost(makePatientConfirmRequest({ code: '123456' }));
 
       expect(res.status).toBe(503);
-      await expect(res.json()).resolves.toEqual({ ok: false, error: "auth_channel_disabled" });
+      await expect(res.json()).resolves.toEqual({ ok: false, error: 'auth_channel_disabled' });
       expect(confirmLatestEmailChallengeCodeForUserMock).not.toHaveBeenCalled();
       expect(getCurrentDbPrincipalOrganizationIdMock).not.toHaveBeenCalled();
     } finally {
@@ -401,62 +422,71 @@ describe("POST /api/patient/email-change/confirm", () => {
     }
   });
 
-  it("returns 400 when no pending challenge (expired_code)", async () => {
+  it('returns 400 when no pending challenge (expired_code)', async () => {
     getCurrentSessionMock.mockResolvedValueOnce(PATIENT_SESSION);
-    confirmLatestEmailChallengeCodeForUserMock.mockResolvedValueOnce({ ok: false, code: "expired_code" });
+    confirmLatestEmailChallengeCodeForUserMock.mockResolvedValueOnce({
+      ok: false,
+      code: 'expired_code',
+    });
 
-    const res = await patientConfirmPost(makePatientConfirmRequest({ code: "123456" }));
+    const res = await patientConfirmPost(makePatientConfirmRequest({ code: '123456' }));
     expect(res.status).toBe(400);
     const body = (await res.json()) as { ok: boolean; error: string; message: string };
     expect(body.ok).toBe(false);
-    expect(body.error).toBe("expired_code");
+    expect(body.error).toBe('expired_code');
   });
 
-  it("returns 400 for incorrect code", async () => {
+  it('returns 400 for incorrect code', async () => {
     getCurrentSessionMock.mockResolvedValueOnce(PATIENT_SESSION);
-    confirmLatestEmailChallengeCodeForUserMock.mockResolvedValueOnce({ ok: false, code: "invalid_code" });
+    confirmLatestEmailChallengeCodeForUserMock.mockResolvedValueOnce({
+      ok: false,
+      code: 'invalid_code',
+    });
 
-    const res = await patientConfirmPost(makePatientConfirmRequest({ code: "000000" }));
+    const res = await patientConfirmPost(makePatientConfirmRequest({ code: '000000' }));
     expect(res.status).toBe(400);
     const body = (await res.json()) as { ok: boolean; error: string };
     expect(body.ok).toBe(false);
-    expect(body.error).toBe("invalid_code");
+    expect(body.error).toBe('invalid_code');
   });
 
-  it("returns 200 on correct code — email switched", async () => {
+  it('returns 200 on correct code — email switched', async () => {
     getCurrentSessionMock.mockResolvedValueOnce(PATIENT_SESSION);
     confirmLatestEmailChallengeCodeForUserMock.mockResolvedValueOnce({ ok: true });
 
-    const res = await patientConfirmPost(makePatientConfirmRequest({ code: "654321" }));
+    const res = await patientConfirmPost(makePatientConfirmRequest({ code: '654321' }));
     expect(res.status).toBe(200);
     const body = (await res.json()) as { ok: boolean };
     expect(body.ok).toBe(true);
     expect(confirmLatestEmailChallengeCodeForUserMock).toHaveBeenCalledWith(
       PATIENT_SESSION.user.userId,
-      "654321",
-      "patient_email_change",
+      '654321',
+      'patient_email_change',
       { profileBindOrganizationId: ORG_ID },
     );
   });
 
-  it("returns 429 on too_many_attempts", async () => {
+  it('returns 429 on too_many_attempts', async () => {
     getCurrentSessionMock.mockResolvedValueOnce(PATIENT_SESSION);
     confirmLatestEmailChallengeCodeForUserMock.mockResolvedValueOnce({
       ok: false,
-      code: "too_many_attempts",
+      code: 'too_many_attempts',
       retryAfterSeconds: 300,
     });
 
-    const res = await patientConfirmPost(makePatientConfirmRequest({ code: "999999" }));
+    const res = await patientConfirmPost(makePatientConfirmRequest({ code: '999999' }));
     expect(res.status).toBe(429);
-    expect(res.headers.get("Retry-After")).toBe("300");
+    expect(res.headers.get('Retry-After')).toBe('300');
   });
 
-  it("returns 409 on email_conflict", async () => {
+  it('returns 409 on email_conflict', async () => {
     getCurrentSessionMock.mockResolvedValueOnce(PATIENT_SESSION);
-    confirmLatestEmailChallengeCodeForUserMock.mockResolvedValueOnce({ ok: false, code: "email_conflict" });
+    confirmLatestEmailChallengeCodeForUserMock.mockResolvedValueOnce({
+      ok: false,
+      code: 'email_conflict',
+    });
 
-    const res = await patientConfirmPost(makePatientConfirmRequest({ code: "123456" }));
+    const res = await patientConfirmPost(makePatientConfirmRequest({ code: '123456' }));
     expect(res.status).toBe(409);
   });
 });

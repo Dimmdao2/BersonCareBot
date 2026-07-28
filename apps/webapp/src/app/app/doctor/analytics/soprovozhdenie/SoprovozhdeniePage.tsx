@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 /**
  * Вкладка «Сопровождение» агрегированной аналитики.
@@ -12,16 +12,16 @@
  *  - Использование программ: назначено / выполнено / среднее за период
  */
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
 
 type Props = {
   /** Родительный падеж мн.ч. из настройки patient_label: «пациентов» или «клиентов». */
   patientGenPlural?: string;
 };
 
-export function SoprovozhdeniePage({ patientGenPlural = "пациентов" }: Props) {
+export function SoprovozhdeniePage({ patientGenPlural = 'пациентов' }: Props) {
   // Творительный падеж: «пациентами» / «клиентами».
-  const patientInstr = patientGenPlural === "клиентов" ? "клиентами" : "пациентами";
+  const patientInstr = patientGenPlural === 'клиентов' ? 'клиентами' : 'пациентами';
   return (
     <div className="flex flex-col gap-4">
       <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">

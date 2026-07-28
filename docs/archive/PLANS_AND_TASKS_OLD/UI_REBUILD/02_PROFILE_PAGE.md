@@ -15,19 +15,19 @@
 Содержимое:
 
 ```tsx
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requirePatientAccess } from "@/app-layer/guards/requireRole";
-import { routePaths } from "@/app-layer/routes/paths";
-import { AppShell } from "@/shared/ui/AppShell";
-import { ProfileForm } from "./ProfileForm";
-import { ChannelLinksBlock } from "./ChannelLinksBlock";
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { requirePatientAccess } from '@/app-layer/guards/requireRole';
+import { routePaths } from '@/app-layer/routes/paths';
+import { AppShell } from '@/shared/ui/AppShell';
+import { ProfileForm } from './ProfileForm';
+import { ChannelLinksBlock } from './ChannelLinksBlock';
 
 export default async function PatientProfilePage() {
   const session = await requirePatientAccess(routePaths.profile);
   const deps = buildAppDeps();
   const channelCards = await deps.channelPreferences.getChannelCards(
     session.user.userId,
-    session.user.bindings
+    session.user.bindings,
   );
 
   return (
@@ -67,11 +67,11 @@ export default async function PatientProfilePage() {
 **Создать файл:** `apps/webapp/src/app/app/patient/profile/ProfileForm.tsx`
 
 ```tsx
-"use client";
+'use client';
 
-import { useState, useTransition } from "react";
-import Link from "next/link";
-import { updateDisplayName } from "./actions";
+import { useState, useTransition } from 'react';
+import Link from 'next/link';
+import { updateDisplayName } from './actions';
 
 type Props = {
   displayName: string;
@@ -97,16 +97,23 @@ export function ProfileForm({ displayName, phone, userId }: Props) {
     <div className="stack" style={{ gap: 12 }}>
       {/* ФИО */}
       <div>
-        <label className="eyebrow" htmlFor="profile-name" style={{ display: "block", marginBottom: 4 }}>
+        <label
+          className="eyebrow"
+          htmlFor="profile-name"
+          style={{ display: 'block', marginBottom: 4 }}
+        >
           Имя
         </label>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <input
             id="profile-name"
             type="text"
             className="auth-input"
             value={name}
-            onChange={(e) => { setName(e.target.value); setSaved(false); }}
+            onChange={(e) => {
+              setName(e.target.value);
+              setSaved(false);
+            }}
             disabled={pending}
           />
           <button
@@ -115,19 +122,27 @@ export function ProfileForm({ displayName, phone, userId }: Props) {
             onClick={handleSaveName}
             disabled={pending || !name.trim() || name.trim() === displayName}
           >
-            {pending ? "..." : "Сохранить"}
+            {pending ? '...' : 'Сохранить'}
           </button>
         </div>
-        {saved && <p style={{ color: "#16a34a", fontSize: "0.875rem", margin: "4px 0 0" }}>Сохранено</p>}
+        {saved && (
+          <p style={{ color: '#16a34a', fontSize: '0.875rem', margin: '4px 0 0' }}>Сохранено</p>
+        )}
       </div>
 
       {/* Телефон */}
       <div>
-        <span className="eyebrow" style={{ display: "block", marginBottom: 4 }}>Телефон</span>
+        <span className="eyebrow" style={{ display: 'block', marginBottom: 4 }}>
+          Телефон
+        </span>
         {phone ? (
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <span>{phone}</span>
-            <Link href={`/app/patient/bind-phone?next=/app/patient/profile`} className="button button--ghost" style={{ fontSize: "0.875rem" }}>
+            <Link
+              href={`/app/patient/bind-phone?next=/app/patient/profile`}
+              className="button button--ghost"
+              style={{ fontSize: '0.875rem' }}
+            >
               Изменить
             </Link>
           </div>
@@ -140,14 +155,11 @@ export function ProfileForm({ displayName, phone, userId }: Props) {
 
       {/* Email (заглушка) */}
       <div>
-        <span className="eyebrow" style={{ display: "block", marginBottom: 4 }}>Email</span>
-        <input
-          type="email"
-          className="auth-input"
-          placeholder="email@example.com"
-          disabled
-        />
-        <p className="empty-state" style={{ fontSize: "0.8rem", margin: "4px 0 0" }}>
+        <span className="eyebrow" style={{ display: 'block', marginBottom: 4 }}>
+          Email
+        </span>
+        <input type="email" className="auth-input" placeholder="email@example.com" disabled />
+        <p className="empty-state" style={{ fontSize: '0.8rem', margin: '4px 0 0' }}>
           Привязка email будет доступна в следующем обновлении.
         </p>
       </div>
@@ -161,30 +173,29 @@ export function ProfileForm({ displayName, phone, userId }: Props) {
 **Создать файл:** `apps/webapp/src/app/app/patient/profile/actions.ts`
 
 ```tsx
-"use server";
+'use server';
 
-import { revalidatePath } from "next/cache";
-import { requirePatientAccess } from "@/app-layer/guards/requireRole";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { revalidatePath } from 'next/cache';
+import { requirePatientAccess } from '@/app-layer/guards/requireRole';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 
 export async function updateDisplayName(newName: string) {
   const session = await requirePatientAccess();
   if (!newName.trim()) return;
   // Обновить display_name в platform_users
-  await buildAppDeps().userProjection.updateDisplayName(
-    session.user.userId,
-    newName.trim()
-  );
-  revalidatePath("/app/patient/profile");
+  await buildAppDeps().userProjection.updateDisplayName(session.user.userId, newName.trim());
+  revalidatePath('/app/patient/profile');
 }
 ```
 
 **Требуется бэкенд:** Добавить метод `updateDisplayName(userId, name)` в `userProjectionPort`. Это SQL:
+
 ```sql
 UPDATE platform_users SET display_name = $2 WHERE id = $1
 ```
 
 Если метод ещё не существует:
+
 1. Добавить в порт `pgUserProjectionPort` метод `updateDisplayName`.
 2. Добавить in-memory вариант в `inMemoryUserProjectionPort`.
 3. Пробросить через `buildAppDeps().userProjection`.
@@ -194,28 +205,32 @@ UPDATE platform_users SET display_name = $2 WHERE id = $1
 **Создать файл:** `apps/webapp/src/app/app/patient/profile/ChannelLinksBlock.tsx`
 
 ```tsx
-"use client";
+'use client';
 
-import type { ChannelCard } from "@/modules/channel-preferences/types";
+import type { ChannelCard } from '@/modules/channel-preferences/types';
 
 type Props = { channelCards: ChannelCard[] };
 
 const CHANNEL_ICONS: Record<string, string> = {
-  telegram: "✈",
-  max: "M",
-  vk: "VK",
+  telegram: '✈',
+  max: 'M',
+  vk: 'VK',
 };
 
 export function ChannelLinksBlock({ channelCards }: Props) {
   const cards = channelCards.filter((c) => c.isImplemented);
 
   return (
-    <ul className="list" style={{ listStyle: "none", padding: 0, margin: 0 }}>
+    <ul className="list" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
       {cards.map((card) => (
-        <li key={card.code} className="list-item" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{ fontSize: "1.25rem", width: 28, textAlign: "center" }}>
-              {CHANNEL_ICONS[card.code] ?? "?"}
+        <li
+          key={card.code}
+          className="list-item"
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: '1.25rem', width: 28, textAlign: 'center' }}>
+              {CHANNEL_ICONS[card.code] ?? '?'}
             </span>
             <span style={{ fontWeight: 500 }}>{card.title}</span>
           </div>
@@ -227,7 +242,7 @@ export function ChannelLinksBlock({ channelCards }: Props) {
               target="_blank"
               rel="noopener noreferrer"
               className="button"
-              style={{ fontSize: "0.875rem", padding: "8px 12px" }}
+              style={{ fontSize: '0.875rem', padding: '8px 12px' }}
             >
               Подключить
             </a>

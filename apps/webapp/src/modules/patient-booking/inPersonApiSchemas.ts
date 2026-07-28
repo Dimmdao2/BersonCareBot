@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from 'zod';
 
 export const inPersonKeysFields = {
   branchId: z.string().uuid().optional(),
@@ -6,23 +6,25 @@ export const inPersonKeysFields = {
   cityCode: z.string().trim().min(1).optional(),
 };
 
-export const inPersonKeysRefine = <T extends { branchId?: string; serviceId?: string }>(
-  v: T,
-) => Boolean(v.branchId) && Boolean(v.serviceId);
+export const inPersonKeysRefine = <T extends { branchId?: string; serviceId?: string }>(v: T) =>
+  Boolean(v.branchId) && Boolean(v.serviceId);
 
 export const inPersonSlotsQuerySchema = z
   .object({
-    type: z.literal("in_person"),
+    type: z.literal('in_person'),
     orgSlug: z.string().trim().min(1).max(120).optional(),
     ...inPersonKeysFields,
-    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    date: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .optional(),
     slotCount: z.coerce.number().int().min(1).max(8).optional(),
   })
-  .refine(inPersonKeysRefine, { message: "invalid_in_person_keys" });
+  .refine(inPersonKeysRefine, { message: 'invalid_in_person_keys' });
 
 export const inPersonCreateBodySchema = z
   .object({
-    type: z.literal("in_person"),
+    type: z.literal('in_person'),
     ...inPersonKeysFields,
     slotStart: z.string().min(1),
     slotEnd: z.string().min(1),
@@ -37,10 +39,8 @@ export const inPersonCreateBodySchema = z
       .optional(),
     contactPhone: z.string().min(1),
     contactEmail: z.string().email().optional(),
-    formAnswers: z
-      .array(z.object({ fieldKey: z.string().min(1), value: z.string() }))
-      .optional(),
+    formAnswers: z.array(z.object({ fieldKey: z.string().min(1), value: z.string() })).optional(),
     patientPackageId: z.string().uuid().optional(),
     productPurchaseId: z.string().uuid().optional(),
   })
-  .refine(inPersonKeysRefine, { message: "invalid_in_person_keys" });
+  .refine(inPersonKeysRefine, { message: 'invalid_in_person_keys' });

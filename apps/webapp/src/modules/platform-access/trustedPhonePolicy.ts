@@ -13,30 +13,30 @@
  */
 export enum TrustedPatientPhoneSource {
   /** Успешный `createOrBind` после OTP (`pgUserByPhone`, confirm flow). */
-  OtpCreateOrBind = "otp_create_or_bind",
+  OtpCreateOrBind = 'otp_create_or_bind',
   /** `upsertFromProjection` / merge projection в `pgUserProjection`. */
-  IntegratorUpsertFromProjection = "integrator_upsert_from_projection",
+  IntegratorUpsertFromProjection = 'integrator_upsert_from_projection',
   /** `UserProjectionPort.updatePhone` (интегратор). */
-  IntegratorUpdatePhone = "integrator_update_phone",
+  IntegratorUpdatePhone = 'integrator_update_phone',
   /** Новый пользователь с телефоном из Yandex OAuth (`oauthYandexResolve`). */
-  OAuthYandexVerifiedPhone = "oauth_yandex_verified_phone",
+  OAuthYandexVerifiedPhone = 'oauth_yandex_verified_phone',
   /** Новый пользователь с телефоном из Google / Apple web OAuth (`oauthWebLoginResolve`). */
-  OAuthWebLoginVerifiedPhone = "oauth_web_login_verified_phone",
+  OAuthWebLoginVerifiedPhone = 'oauth_web_login_verified_phone',
   /**
    * Слияние двух клиентов: доверие переносится с выбранной стороны телефона / max(timestamp).
    * Не создаёт нового доверия «из воздуха».
    */
-  PlatformUserMerge = "platform_user_merge",
+  PlatformUserMerge = 'platform_user_merge',
   /** Ручное изменение телефона админом (`PATCH /api/admin/users/.../profile`). */
-  AdminManualProfilePatch = "admin_manual_profile_patch",
+  AdminManualProfilePatch = 'admin_manual_profile_patch',
   /** Публичная запись по телефону (этап 2 OWN_BOOKING_ENGINE). */
-  PublicBookingByPhone = "public_booking_by_phone",
+  PublicBookingByPhone = 'public_booking_by_phone',
   /** Создание клиента врачом/админом из кабинета (календарь и т.п.). */
-  DoctorStaffClientCreate = "doctor_staff_client_create",
+  DoctorStaffClientCreate = 'doctor_staff_client_create',
 }
 
 /** Имя колонки в БД; единственный признак trusted-активации на чтении tier. */
-export const PATIENT_PHONE_TRUST_COLUMN = "patient_phone_trust_at" as const;
+export const PATIENT_PHONE_TRUST_COLUMN = 'patient_phone_trust_at' as const;
 
 /** Строка канона из БД (или эквивалент), достаточная для read-side проверки §5. */
 export type PatientPhoneCanonRow = {
@@ -50,7 +50,7 @@ export type PatientPhoneCanonRow = {
  */
 export function isTrustedPatientPhoneActivation(row: PatientPhoneCanonRow): boolean {
   const p = row.phone_normalized;
-  const hasPhone = typeof p === "string" && p.trim() !== "";
+  const hasPhone = typeof p === 'string' && p.trim() !== '';
   if (!hasPhone) return false;
   return row.patient_phone_trust_at != null;
 }

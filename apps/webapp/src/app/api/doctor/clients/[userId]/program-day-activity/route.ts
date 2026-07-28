@@ -10,44 +10,41 @@
  *   windowDays  — 7 | 30 (default 7)
  *   startDate   — YYYY-MM-DD (default: windowDays дней назад по UTC)
  */
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 
 const querySchema = z.object({
   instanceId: z.string().uuid(),
   windowDays: z
-    .enum(["7", "30"])
+    .enum(['7', '30'])
     .optional()
-    .transform((v) => (v === "30" ? 30 : 7)),
+    .transform((v) => (v === '30' ? 30 : 7)),
   startDate: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .optional(),
 });
 
-export async function GET(
-  request: Request,
-  context: { params: Promise<{ userId: string }> },
-) {
+export async function GET(request: Request, context: { params: Promise<{ userId: string }> }) {
   const gate = await requireDoctorWorkspaceApiContext();
   if (!gate.ok) return gate.response;
 
   const { userId } = await context.params;
   if (!z.string().uuid().safeParse(userId).success) {
-    return NextResponse.json({ ok: false, error: "invalid_user" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_user' }, { status: 400 });
   }
 
   const { searchParams } = new URL(request.url);
   const parsed = querySchema.safeParse({
-    instanceId: searchParams.get("instanceId"),
-    windowDays: searchParams.get("windowDays") ?? undefined,
-    startDate: searchParams.get("startDate") ?? undefined,
+    instanceId: searchParams.get('instanceId'),
+    windowDays: searchParams.get('windowDays') ?? undefined,
+    startDate: searchParams.get('startDate') ?? undefined,
   });
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_query" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_query' }, { status: 400 });
   }
 
   const { instanceId, windowDays } = parsed.data;
@@ -71,13 +68,13 @@ export async function GET(
       gate.ctx.organizationId,
     );
     if (!identity) {
-      return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+      return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
     }
     const instance = await withDoctorWorkspacePrincipal(gate.ctx, () =>
       deps.treatmentProgramInstance.getInstanceForPatient(identity.userId, instanceId),
     );
     if (!instance) {
-      return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+      return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
     }
 
     // Read diary snapshots for the user in the date range
@@ -102,8 +99,8 @@ export async function GET(
 
     // Fill every date in range (days with no snapshot get 0/0)
     const days: Array<{ localDate: string; assignedCount: number; doneCount: number }> = [];
-    const cursor = new Date(fromDate + "T00:00:00Z");
-    const end = new Date(toLocalDate + "T00:00:00Z");
+    const cursor = new Date(fromDate + 'T00:00:00Z');
+    const end = new Date(toLocalDate + 'T00:00:00Z');
 
     while (cursor <= end) {
       const localDate = cursor.toISOString().slice(0, 10);
@@ -118,9 +115,9 @@ export async function GET(
 
     return NextResponse.json({ ok: true, days });
   } catch (e) {
-    if (e instanceof Error && e.message === "Программа не найдена") {
-      return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+    if (e instanceof Error && e.message === 'Программа не найдена') {
+      return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
     }
-    return NextResponse.json({ ok: false, error: "server_error" }, { status: 500 });
+    return NextResponse.json({ ok: false, error: 'server_error' }, { status: 500 });
   }
 }

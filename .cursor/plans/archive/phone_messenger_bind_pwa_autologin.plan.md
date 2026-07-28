@@ -35,10 +35,10 @@ isProject: false
 
 Два допустимых режима — зафиксировать в PR, какой выбран:
 
-| Режим | Последовательность | Когда |
-|-------|-------------------|--------|
-| **Оптимальный UX** | B: `execute-action-writes-first` + `login-main-menu-keyboard` → **A целиком** → хвост B (cancel, catch-all, шаблоны) | Один релиз / два PR подряд без паузы |
-| **Быстрый webapp** | **A целиком** → B | PWA автовход раньше; бот может ещё показывать «успех» + залипший контакт до B |
+| Режим              | Последовательность                                                                                                   | Когда                                                                         |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| **Оптимальный UX** | B: `execute-action-writes-first` + `login-main-menu-keyboard` → **A целиком** → хвост B (cancel, catch-all, шаблоны) | Один релиз / два PR подряд без паузы                                          |
+| **Быстрый webapp** | **A целиком** → B                                                                                                    | PWA автовход раньше; бот может ещё показывать «успех» + залипший контакт до B |
 
 **Полный приёмочный smoke** (PWA + меню в боте + отмена без Дмитрия) — чеклист в [LOG.md](docs/LOGIN_REGISTER_NEW_LOGIC/LOG.md) §«Приёмка A+B» (ручной, вне CI).
 
@@ -85,13 +85,13 @@ sequenceDiagram
 
 ### Разрешено
 
-| Область | Файлы |
-|---------|--------|
-| Bind | [phoneMessengerBind.ts](apps/webapp/src/modules/auth/phoneMessengerBind.ts), [phoneMessengerBind.test.ts](apps/webapp/src/modules/auth/phoneMessengerBind.test.ts) |
-| API | [messenger-bind/finish/route.ts](apps/webapp/src/app/api/auth/phone/messenger-bind/finish/route.ts) (+ test) |
-| DI | [buildAppDeps.ts](apps/webapp/src/app-layer/di/buildAppDeps.ts) |
-| UI | [PhoneMessengerAuthFlow.tsx](apps/webapp/src/shared/ui/auth/PhoneMessengerAuthFlow.tsx), [.test.tsx](apps/webapp/src/shared/ui/auth/PhoneMessengerAuthFlow.test.tsx) |
-| Docs | [PHONE_MESSENGER_AUTH_RUNBOOK.md](docs/OPERATIONS/PHONE_MESSENGER_AUTH_RUNBOOK.md), [auth.md](apps/webapp/src/modules/auth/auth.md), [INTEGRATOR_CONTRACT.md](apps/webapp/INTEGRATOR_CONTRACT.md), [LOG.md](docs/LOGIN_REGISTER_NEW_LOGIC/LOG.md) |
+| Область | Файлы                                                                                                                                                                                                                                             |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Bind    | [phoneMessengerBind.ts](apps/webapp/src/modules/auth/phoneMessengerBind.ts), [phoneMessengerBind.test.ts](apps/webapp/src/modules/auth/phoneMessengerBind.test.ts)                                                                                |
+| API     | [messenger-bind/finish/route.ts](apps/webapp/src/app/api/auth/phone/messenger-bind/finish/route.ts) (+ test)                                                                                                                                      |
+| DI      | [buildAppDeps.ts](apps/webapp/src/app-layer/di/buildAppDeps.ts)                                                                                                                                                                                   |
+| UI      | [PhoneMessengerAuthFlow.tsx](apps/webapp/src/shared/ui/auth/PhoneMessengerAuthFlow.tsx), [.test.tsx](apps/webapp/src/shared/ui/auth/PhoneMessengerAuthFlow.test.tsx)                                                                              |
+| Docs    | [PHONE_MESSENGER_AUTH_RUNBOOK.md](docs/OPERATIONS/PHONE_MESSENGER_AUTH_RUNBOOK.md), [auth.md](apps/webapp/src/modules/auth/auth.md), [INTEGRATOR_CONTRACT.md](apps/webapp/INTEGRATOR_CONTRACT.md), [LOG.md](docs/LOGIN_REGISTER_NEW_LOGIC/LOG.md) |
 
 ### Вне scope
 
@@ -175,13 +175,13 @@ pnpm --dir apps/webapp exec vitest run src/app/api/auth/phone/messenger-bind/fin
 
 ## Риски
 
-| Риск | Митигация |
-|------|-----------|
-| Украденный `setupToken` | TTL 15 мин, consume, HTTPS |
-| Двойной poll | `finishingRef` + server idempotent |
-| PWA в фоне | poll до finish |
-| A без B: вход в PWA, бот «кривой» | релиз-нота; B следом |
-| Replay контакта до finish | webapp replay `otp_ready`; finish идемпотентен |
+| Риск                              | Митигация                                      |
+| --------------------------------- | ---------------------------------------------- |
+| Украденный `setupToken`           | TTL 15 мин, consume, HTTPS                     |
+| Двойной poll                      | `finishingRef` + server idempotent             |
+| PWA в фоне                        | poll до finish                                 |
+| A без B: вход в PWA, бот «кривой» | релиз-нота; B следом                           |
+| Replay контакта до finish         | webapp replay `otp_ready`; finish идемпотентен |
 
 ## Связанные доработки (2026-05-30)
 

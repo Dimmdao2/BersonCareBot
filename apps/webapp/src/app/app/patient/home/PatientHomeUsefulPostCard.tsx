@@ -1,8 +1,11 @@
-import Link from "next/link";
-import type { ResolvedUsefulPostCard } from "@/modules/patient-home/patientHomeResolvers";
-import { cn } from "@/lib/utils";
-import { patientHomeUsefulPostCardShellClass, patientHomeUsefulPostCoverBadgeClass } from "./patientHomeCardStyles";
-import { PatientHomeSafeImage } from "./PatientHomeSafeImage";
+import Link from 'next/link';
+import type { ResolvedUsefulPostCard } from '@/modules/patient-home/patientHomeResolvers';
+import { cn } from '@/lib/utils';
+import {
+  patientHomeUsefulPostCardShellClass,
+  patientHomeUsefulPostCoverBadgeClass,
+} from './patientHomeCardStyles';
+import { PatientHomeSafeImage } from './PatientHomeSafeImage';
 
 type Props = {
   post: ResolvedUsefulPostCard;
@@ -20,7 +23,7 @@ export function PatientHomeUsefulPostCard({ post }: Props) {
         aria-label={post.showTitle ? undefined : post.title}
         className={cn(
           patientHomeUsefulPostCardShellClass,
-          "group relative isolate flex h-full min-h-[172px] min-w-0 max-w-full flex-1 overflow-hidden p-0 md:min-h-[300px]",
+          'group relative isolate flex h-full min-h-[172px] min-w-0 max-w-full flex-1 overflow-hidden p-0 md:min-h-[300px]',
         )}
       >
         <PatientHomeSafeImage
@@ -33,23 +36,23 @@ export function PatientHomeUsefulPostCard({ post }: Props) {
           }
         />
         <div className="absolute inset-0 z-[1] bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
-        {post.badgeLabel ?
+        {post.badgeLabel ? (
           <span
             className={cn(
               patientHomeUsefulPostCoverBadgeClass,
-              "pointer-events-none absolute right-10 top-4 z-[3] max-w-[calc(100%_-_5rem)] max-[360px]:right-8 max-[360px]:top-3 max-[360px]:max-w-[7.5rem] md:right-5 md:top-5 md:max-w-[calc(100%_-_2.5rem)]",
+              'pointer-events-none absolute right-10 top-4 z-[3] max-w-[calc(100%_-_5rem)] max-[360px]:right-8 max-[360px]:top-3 max-[360px]:max-w-[7.5rem] md:right-5 md:top-5 md:max-w-[calc(100%_-_2.5rem)]',
             )}
           >
             {post.badgeLabel}
           </span>
-        : null}
+        ) : null}
         <div className="relative z-[2] flex min-h-[172px] flex-col justify-end p-4 md:h-full md:p-5">
           <h2
             id="patient-home-useful-post-heading"
             className={cn(
               post.showTitle
-                ? "line-clamp-3 text-xl font-semibold leading-6 tracking-[-0.015em] text-white md:text-2xl md:leading-7"
-                : "sr-only",
+                ? 'line-clamp-3 text-xl font-semibold leading-6 tracking-[-0.015em] text-white md:text-2xl md:leading-7'
+                : 'sr-only',
             )}
           >
             {post.title}

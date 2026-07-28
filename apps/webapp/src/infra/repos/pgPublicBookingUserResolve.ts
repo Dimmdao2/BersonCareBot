@@ -1,6 +1,6 @@
-import { and, eq, isNull } from "drizzle-orm";
-import { getDrizzleOrMutationTx } from "@/infra/db/drizzleMutationTx";
-import { platformUsers } from "../../../db/schema/schema";
+import { and, eq, isNull } from 'drizzle-orm';
+import { getDrizzleOrMutationTx } from '@/infra/db/drizzleMutationTx';
+import { platformUsers } from '../../../db/schema/schema';
 
 /**
  * Resolve-or-create a client by normalised phone.
@@ -25,10 +25,7 @@ export async function resolveOrCreateTrustedPatientUserByPhone(
     .select({ id: platformUsers.id })
     .from(platformUsers)
     .where(
-      and(
-        eq(platformUsers.phoneNormalized, phoneNormalized),
-        isNull(platformUsers.mergedIntoId),
-      ),
+      and(eq(platformUsers.phoneNormalized, phoneNormalized), isNull(platformUsers.mergedIntoId)),
     )
     .limit(2);
   if (existing.length > 1) return { userId: null, created: false };
@@ -39,7 +36,7 @@ export async function resolveOrCreateTrustedPatientUserByPhone(
     .values({
       phoneNormalized,
       displayName,
-      role: "client",
+      role: 'client',
       patientPhoneTrustAt: phoneProven ? new Date().toISOString() : null,
     })
     .returning({ id: platformUsers.id });

@@ -12,6 +12,6 @@ export type BookingAttribution = {
   utmTerm?: string;
   utmContent?: string;
   presetCityCode?: string;
-  embedMode?: "iframe" | "popup" | "link" | "page";
+  embedMode?: 'iframe' | 'popup' | 'link' | 'page';
   referrer?: string;
 };

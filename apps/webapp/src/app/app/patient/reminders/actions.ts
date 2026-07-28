@@ -1,17 +1,17 @@
-"use server";
+'use server';
 
-import { revalidatePath } from "next/cache";
-import { z } from "zod";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requirePatientAccessWithPhone } from "@/app-layer/guards/requireRole";
-import { routePaths } from "@/app-layer/routes/paths";
-import type { ReminderCategory } from "@/modules/reminders/types";
-import type { UpdateRuleData } from "@/modules/reminders/service";
+import { revalidatePath } from 'next/cache';
+import { z } from 'zod';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { requirePatientAccessWithPhone } from '@/app-layer/guards/requireRole';
+import { routePaths } from '@/app-layer/routes/paths';
+import type { ReminderCategory } from '@/modules/reminders/types';
+import type { UpdateRuleData } from '@/modules/reminders/service';
 
 const DAYS_MASK_RE = /^[01]{7}$/;
 
 const toggleSchema = z.object({
-  category: z.enum(["appointment", "lfk", "chat", "important", "broadcast"]),
+  category: z.enum(['appointment', 'lfk', 'chat', 'important', 'broadcast']),
   enabled: z.boolean(),
 });
 
@@ -20,16 +20,14 @@ const updateScheduleSchema = z.object({
   intervalMinutes: z
     .number()
     .int()
-    .min(30, "Интервал от 30 минут")
-    .max(659, "Интервал не более 10 ч 59 мин"),
+    .min(30, 'Интервал от 30 минут')
+    .max(659, 'Интервал не более 10 ч 59 мин'),
   windowStartMinute: z.number().int().min(0).max(1439),
   windowEndMinute: z.number().int().min(1).max(1440),
-  daysMask: z.string().regex(DAYS_MASK_RE, "Неверный формат маски дней"),
+  daysMask: z.string().regex(DAYS_MASK_RE, 'Неверный формат маски дней'),
 });
 
-export type ToggleResult =
-  | { ok: true; syncWarning?: string }
-  | { ok: false; error: string };
+export type ToggleResult = { ok: true; syncWarning?: string } | { ok: false; error: string };
 export type UpdateScheduleResult =
   | { ok: true; syncWarning?: string }
   | { ok: false; error: string };
@@ -41,7 +39,7 @@ export async function toggleReminderCategory(
   const session = await requirePatientAccessWithPhone(routePaths.patientReminders);
   const parsed = toggleSchema.safeParse({ category, enabled });
   if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? "Неверные данные" };
+    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Неверные данные' };
   }
 
   const deps = buildAppDeps();
@@ -58,11 +56,11 @@ export async function updateReminderRule(
   const session = await requirePatientAccessWithPhone(routePaths.patientReminders);
   const parsed = updateScheduleSchema.safeParse(data);
   if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? "Неверные данные" };
+    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Неверные данные' };
   }
 
   if (parsed.data.windowStartMinute >= parsed.data.windowEndMinute) {
-    return { ok: false, error: "Начало периода должно быть меньше конца" };
+    return { ok: false, error: 'Начало периода должно быть меньше конца' };
   }
 
   const deps = buildAppDeps();
@@ -81,11 +79,11 @@ export async function updateReminderRule(
 /** Полная замена расписания (interval_window / slots_v1, quiet hours) — как в REST PATCH с `schedule`. */
 export async function patchPatientReminderScheduleBundle(input: {
   ruleId: string;
-  schedule: NonNullable<UpdateRuleData["schedule"]>;
+  schedule: NonNullable<UpdateRuleData['schedule']>;
 }): Promise<UpdateScheduleResult> {
   const session = await requirePatientAccessWithPhone(routePaths.patientReminders);
   if (!input.ruleId?.trim()) {
-    return { ok: false, error: "Неверные данные" };
+    return { ok: false, error: 'Неверные данные' };
   }
 
   const deps = buildAppDeps();

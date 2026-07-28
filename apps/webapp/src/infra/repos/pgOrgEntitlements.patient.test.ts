@@ -1,68 +1,76 @@
 /** @vitest-environment node */
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { getCurrentWebappDbOperationFamily } from "@/infra/db/saasIsolationOperationContext";
-import { CMS_PAGES_USAGE_SQL } from "@/infra/repos/cmsPagesUsageSql";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { getCurrentWebappDbOperationFamily } from '@/infra/db/saasIsolationOperationContext';
+import { CMS_PAGES_USAGE_SQL } from '@/infra/repos/cmsPagesUsageSql';
 
 type TestPrincipal =
-  | { kind: "patient"; organizationId?: string; platformUserId: string }
-  | { kind: "staff"; organizationId: string; platformUserId: string }
+  | { kind: 'patient'; organizationId?: string; platformUserId: string }
+  | { kind: 'staff'; organizationId: string; platformUserId: string }
   | undefined;
 
 const getCurrentDbPrincipalMock = vi.hoisted(() => vi.fn<() => TestPrincipal>());
 const getDrizzleMock = vi.hoisted(() => vi.fn());
 const runWebappPgTextMock = vi.hoisted(() => vi.fn());
 
-vi.mock("@bersoncare/db-principal", () => ({
+vi.mock('@bersoncare/db-principal', () => ({
   getCurrentDbPrincipal: getCurrentDbPrincipalMock,
 }));
 
-vi.mock("@/app-layer/db/drizzle", () => ({
+vi.mock('@/app-layer/db/drizzle', () => ({
   getDrizzle: getDrizzleMock,
 }));
 
-vi.mock("@/infra/db/runWebappSql", () => ({
+vi.mock('@/infra/db/runWebappSql', () => ({
   runWebappPgText: runWebappPgTextMock,
 }));
 
-import { createPgOrgEntitlementsPort } from "./pgOrgEntitlements";
+import { createPgOrgEntitlementsPort } from './pgOrgEntitlements';
 
-const ORGANIZATION_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
-const FOREIGN_ORGANIZATION_ID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
-const PATIENT_ID = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+const ORGANIZATION_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const FOREIGN_ORGANIZATION_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+const PATIENT_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 
 const patientRows = [
   {
     tariff_mechanics: { courses: false, clinic_team: true },
-    tariff_quotas: { courses: { kind: "unlimited", limit: null, unit: "items", period: "month", usagePolicy: "consumption" } },
+    tariff_quotas: {
+      courses: {
+        kind: 'unlimited',
+        limit: null,
+        unit: 'items',
+        period: 'month',
+        usagePolicy: 'consumption',
+      },
+    },
     included_seats: 3,
-    override_mechanic: "courses",
+    override_mechanic: 'courses',
     override_enabled: true,
     override_quota: null,
-    override_expires_at: "2026-08-01T00:00:00.000Z",
+    override_expires_at: '2026-08-01T00:00:00.000Z',
     seat_limit_override: null,
-    lifecycle: "grace",
-    effective_tariff_id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
-    access_source: "trial",
+    lifecycle: 'grace',
+    effective_tariff_id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+    access_source: 'trial',
   },
 ];
 
-describe("pgOrgEntitlements current-patient capability", () => {
+describe('pgOrgEntitlements current-patient capability', () => {
   beforeEach(() => {
     getCurrentDbPrincipalMock.mockReset();
     getDrizzleMock.mockReset();
     runWebappPgTextMock.mockReset();
   });
 
-  it("reads tariff and overrides only through the exact current-patient capability", async () => {
+  it('reads tariff and overrides only through the exact current-patient capability', async () => {
     getCurrentDbPrincipalMock.mockReturnValue({
-      kind: "patient",
+      kind: 'patient',
       organizationId: ORGANIZATION_ID,
       platformUserId: PATIENT_ID,
     });
     runWebappPgTextMock.mockImplementation(async (sql: string) => {
-      expect(sql).toBe("SELECT * FROM app.read_current_patient_organization_entitlements()");
-      expect(getCurrentWebappDbOperationFamily()).toBe("patient_ui_config");
+      expect(sql).toBe('SELECT * FROM app.read_current_patient_organization_entitlements()');
+      expect(getCurrentWebappDbOperationFamily()).toBe('patient_ui_config');
       return { rows: patientRows };
     });
 
@@ -73,94 +81,118 @@ describe("pgOrgEntitlements current-patient capability", () => {
       includedSeats: 3,
     });
     await expect(port.listOverrides(ORGANIZATION_ID)).resolves.toEqual([
-      { mechanic: "courses", enabled: true, quota: null, expiresAt: "2026-08-01T00:00:00.000Z", seatLimitOverride: null },
+      {
+        mechanic: 'courses',
+        enabled: true,
+        quota: null,
+        expiresAt: '2026-08-01T00:00:00.000Z',
+        seatLimitOverride: null,
+      },
     ]);
     await expect(port.getEffectiveCommercialAccess(ORGANIZATION_ID)).resolves.toEqual({
-      lifecycle: "grace",
-      tariffId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
-      source: "trial",
+      lifecycle: 'grace',
+      tariffId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+      source: 'trial',
     });
 
     expect(getDrizzleMock).not.toHaveBeenCalled();
   });
 
-  it("rejects a caller-supplied foreign organization before any SQL", async () => {
+  it('rejects a caller-supplied foreign organization before any SQL', async () => {
     getCurrentDbPrincipalMock.mockReturnValue({
-      kind: "patient",
+      kind: 'patient',
       organizationId: ORGANIZATION_ID,
       platformUserId: PATIENT_ID,
     });
 
     await expect(
       createPgOrgEntitlementsPort().getTariffForOrg(FOREIGN_ORGANIZATION_ID),
-    ).rejects.toThrow("patient_entitlement_organization_mismatch");
+    ).rejects.toThrow('patient_entitlement_organization_mismatch');
     expect(runWebappPgTextMock).not.toHaveBeenCalled();
     expect(getDrizzleMock).not.toHaveBeenCalled();
   });
 
-  it("rejects missing organization context before any SQL", async () => {
-    getCurrentDbPrincipalMock.mockReturnValue({ kind: "patient", platformUserId: PATIENT_ID });
+  it('rejects missing organization context before any SQL', async () => {
+    getCurrentDbPrincipalMock.mockReturnValue({ kind: 'patient', platformUserId: PATIENT_ID });
 
-    await expect(
-      createPgOrgEntitlementsPort().listOverrides(ORGANIZATION_ID),
-    ).rejects.toThrow("patient_entitlement_organization_mismatch");
+    await expect(createPgOrgEntitlementsPort().listOverrides(ORGANIZATION_ID)).rejects.toThrow(
+      'patient_entitlement_organization_mismatch',
+    );
     expect(runWebappPgTextMock).not.toHaveBeenCalled();
   });
 
-  it("fails closed when the DB capability rejects a revoked or inactive relationship", async () => {
+  it('fails closed when the DB capability rejects a revoked or inactive relationship', async () => {
     getCurrentDbPrincipalMock.mockReturnValue({
-      kind: "patient",
+      kind: 'patient',
       organizationId: ORGANIZATION_ID,
       platformUserId: PATIENT_ID,
     });
     runWebappPgTextMock.mockResolvedValue({ rows: [] });
 
-    await expect(
-      createPgOrgEntitlementsPort().getTariffForOrg(ORGANIZATION_ID),
-    ).rejects.toThrow("patient_entitlement_context_denied");
+    await expect(createPgOrgEntitlementsPort().getTariffForOrg(ORGANIZATION_ID)).rejects.toThrow(
+      'patient_entitlement_context_denied',
+    );
   });
 
-  it("keeps the existing staff Drizzle path unchanged", async () => {
+  it('keeps the existing staff Drizzle path unchanged', async () => {
     getCurrentDbPrincipalMock.mockReturnValue({
-      kind: "staff",
+      kind: 'staff',
       organizationId: ORGANIZATION_ID,
       platformUserId: PATIENT_ID,
     });
-    const organizationLimit = vi.fn().mockResolvedValue([{ tariffId: "tariff-1" }]);
+    const organizationLimit = vi.fn().mockResolvedValue([{ tariffId: 'tariff-1' }]);
     const organizationWhere = vi.fn(() => ({ limit: organizationLimit }));
     const trialLimit = vi.fn().mockResolvedValue([]);
     const trialWhere = vi.fn(() => ({ limit: trialLimit }));
-    const tariffLimit = vi.fn().mockResolvedValue([
-      { mechanics: { courses: true }, quotas: {}, includedSeats: 2 },
-    ]);
+    const tariffLimit = vi
+      .fn()
+      .mockResolvedValue([{ mechanics: { courses: true }, quotas: {}, includedSeats: 2 }]);
     const tariffWhere = vi.fn(() => ({ limit: tariffLimit }));
-    const overridesWhere = vi.fn().mockResolvedValue([
-      { mechanic: "courses", enabled: false, quota: null, expiresAt: null, seatLimitOverride: null },
-    ]);
+    const overridesWhere = vi
+      .fn()
+      .mockResolvedValue([
+        {
+          mechanic: 'courses',
+          enabled: false,
+          quota: null,
+          expiresAt: null,
+          seatLimitOverride: null,
+        },
+      ]);
     const select = vi
       .fn()
       .mockReturnValueOnce({ from: vi.fn(() => ({ where: organizationWhere })) })
       .mockReturnValueOnce({ from: vi.fn(() => ({ where: trialWhere })) })
       .mockReturnValueOnce({ from: vi.fn(() => ({ where: tariffWhere })) })
       .mockReturnValueOnce({ from: vi.fn(() => ({ where: overridesWhere })) });
-    getDrizzleMock.mockReturnValue({ transaction: (callback: (tx: { select: typeof select }) => unknown) => callback({ select }) });
+    getDrizzleMock.mockReturnValue({
+      transaction: (callback: (tx: { select: typeof select }) => unknown) => callback({ select }),
+    });
 
     const port = createPgOrgEntitlementsPort();
     await expect(port.getSnapshot(ORGANIZATION_ID)).resolves.toMatchObject({
       tariff: { mechanics: { courses: true }, quotas: {}, includedSeats: 2 },
-      overrides: [{ mechanic: "courses", enabled: false, quota: null, expiresAt: null, seatLimitOverride: null }],
-      access: { lifecycle: "active", tariffId: "tariff-1", source: "assignment" },
+      overrides: [
+        {
+          mechanic: 'courses',
+          enabled: false,
+          quota: null,
+          expiresAt: null,
+          seatLimitOverride: null,
+        },
+      ],
+      access: { lifecycle: 'active', tariffId: 'tariff-1', source: 'assignment' },
     });
     expect(runWebappPgTextMock).not.toHaveBeenCalled();
   });
 
-  it("publishes enforced usage only through count-only DB capabilities", async () => {
+  it('publishes enforced usage only through count-only DB capabilities', async () => {
     runWebappPgTextMock.mockImplementation(async (query: string, params: unknown[]) => {
       if (query.includes(CMS_PAGES_USAGE_SQL)) {
         expect(params).toEqual([ORGANIZATION_ID]);
         return { rows: [{ used_value: 4 }] };
       }
-      expect(query).toContain("FROM app.read_org_enforced_quota_usage($1::uuid)");
+      expect(query).toContain('FROM app.read_org_enforced_quota_usage($1::uuid)');
       expect(params).toEqual([ORGANIZATION_ID]);
       return { rows: [{ courses_used: 2, clinic_team_used: 3 }] };
     });
@@ -172,9 +204,7 @@ describe("pgOrgEntitlements current-patient capability", () => {
       cms_pages: 4,
       clinic_team: 3,
     });
-    expect(CMS_PAGES_USAGE_SQL).toBe(
-      "app.cms_pages_snapshot_usage($1::uuid)::int",
-    );
+    expect(CMS_PAGES_USAGE_SQL).toBe('app.cms_pages_snapshot_usage($1::uuid)::int');
     expect(getDrizzleMock).not.toHaveBeenCalled();
   });
 });

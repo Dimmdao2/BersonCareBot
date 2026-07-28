@@ -1,21 +1,21 @@
 ---
 name: Backlog post-audits implementation
-overview: "Пошаговая реализация бэклога из [BACKLOG_PRODUCT_AFTER_AUDITS.md](./BACKLOG_PRODUCT_AFTER_AUDITS.md): скрытие пустых этапов у пациента, guard «одна активная программа», UI редактирования instance-группы у врача, локальный календарь для чек-листа по IANA. A5-TS — вне объёма «сейчас»."
+overview: 'Пошаговая реализация бэклога из [BACKLOG_PRODUCT_AFTER_AUDITS.md](./BACKLOG_PRODUCT_AFTER_AUDITS.md): скрытие пустых этапов у пациента, guard «одна активная программа», UI редактирования instance-группы у врача, локальный календарь для чек-листа по IANA. A5-TS — вне объёма «сейчас».'
 todos:
   - id: hide-empty-stage
-    content: "§1: patientStageSectionShouldRender в stage-semantics + фильтр в PatientTreatmentProgramDetailClient + тесты"
+    content: '§1: patientStageSectionShouldRender в stage-semantics + фильтр в PatientTreatmentProgramDetailClient + тесты'
     status: completed
   - id: single-active-guard
-    content: "§2: проверка в assignTemplateToPatient + сообщение + тест instance-service"
+    content: '§2: проверка в assignTemplateToPatient + сообщение + тест instance-service'
     status: completed
   - id: instance-group-edit-ui
-    content: "§3: Dialog PATCH группы в TreatmentProgramInstanceDetailClient"
+    content: '§3: Dialog PATCH группы в TreatmentProgramInstanceDetailClient'
     status: completed
   - id: checklist-timezone
-    content: "§4: миграция/настройка IANA пациента + local day window в patient-program-actions + тесты"
+    content: '§4: миграция/настройка IANA пациента + local day window в patient-program-actions + тесты'
     status: completed
   - id: docs-log
-    content: "§5: BACKLOG/LOG/api.md после мерж-батча"
+    content: '§5: BACKLOG/LOG/api.md после мерж-батча'
     status: completed
 isProject: false
 ---
@@ -70,11 +70,13 @@ isProject: false
 ### 1) Скрыть пустой этап у пациента
 
 Файлы:
+
 - [`apps/webapp/src/modules/treatment-program/stage-semantics.ts`](../../../../apps/webapp/src/modules/treatment-program/stage-semantics.ts)
 - [`apps/webapp/src/modules/treatment-program/stage-semantics.test.ts`](../../../../apps/webapp/src/modules/treatment-program/stage-semantics.test.ts)
 - [`apps/webapp/src/app/app/patient/treatment-programs/PatientTreatmentProgramDetailClient.tsx`](../../../../apps/webapp/src/app/app/patient/treatment-programs/PatientTreatmentProgramDetailClient.tsx)
 
 Действия:
+
 - Вынести условие видимости этапа в семантический helper `patientStageSectionShouldRender(...)`.
 - В `PatientTreatmentProgramDetailClient` фильтровать `stageZeroStages` и `otherStages` по helper до рендера `PatientInstanceStageBody`.
 - Правило:
@@ -83,6 +85,7 @@ isProject: false
   - иначе этап не рендерится.
 
 Checklist проверок:
+
 - `rg "patientStageSectionShouldRender|stageZeroStages|otherStages" apps/webapp/src/modules/treatment-program apps/webapp/src/app/app/patient/treatment-programs`
 - `pnpm --dir apps/webapp exec vitest run src/modules/treatment-program/stage-semantics.test.ts`
 - `pnpm --dir apps/webapp exec eslint "src/modules/treatment-program/stage-semantics.ts" "src/modules/treatment-program/stage-semantics.test.ts" "src/app/app/patient/treatment-programs/PatientTreatmentProgramDetailClient.tsx"`
@@ -90,17 +93,20 @@ Checklist проверок:
 ### 2) Ограничить вторую активную программу
 
 Файлы:
+
 - [`apps/webapp/src/modules/treatment-program/instance-service.ts`](../../../../apps/webapp/src/modules/treatment-program/instance-service.ts)
 - [`apps/webapp/src/modules/treatment-program/instance-service.test.ts`](../../../../apps/webapp/src/modules/treatment-program/instance-service.test.ts)
 - при необходимости [`apps/webapp/src/app/api/doctor/clients/[userId]/treatment-program-instances/route.ts`](../../../../apps/webapp/src/app/api/doctor/clients/[userId]/treatment-program-instances/route.ts)
 - docs API: [`apps/webapp/src/app/api/api.md`](../../../../apps/webapp/src/app/api/api.md)
 
 Действия:
+
 - В начале `assignTemplateToPatient` проверять через `listInstancesForPatient(...)`, что нет инстанса со `status === "active"`.
 - При наличии активного инстанса выбрасывать понятную доменную ошибку на русском.
 - Убедиться, что route корректно отдаёт ошибку врачу (400/409 — зафиксировать и документировать единообразно).
 
 Checklist проверок:
+
 - `rg "assignTemplateToPatient|listInstancesForPatient|active" apps/webapp/src/modules/treatment-program apps/webapp/src/app/api/doctor/clients`
 - `pnpm --dir apps/webapp exec vitest run src/modules/treatment-program/instance-service.test.ts`
 - `pnpm --dir apps/webapp exec eslint "src/modules/treatment-program/instance-service.ts" "src/modules/treatment-program/instance-service.test.ts" "src/app/api/doctor/clients/[userId]/treatment-program-instances/route.ts"`
@@ -108,21 +114,25 @@ Checklist проверок:
 ### 3) UI редактирования instance-группы (A3-UI-INST-01)
 
 Файлы:
+
 - [`apps/webapp/src/app/app/doctor/clients/treatment-programs/[instanceId]/TreatmentProgramInstanceDetailClient.tsx`](../../../../apps/webapp/src/app/app/doctor/clients/treatment-programs/[instanceId]/TreatmentProgramInstanceDetailClient.tsx)
 - [`apps/webapp/src/app/api/doctor/treatment-program-instances/[instanceId]/stage-groups/[groupId]/route.ts`](../../../../apps/webapp/src/app/api/doctor/treatment-program-instances/[instanceId]/stage-groups/[groupId]/route.ts)
 
 Действия:
+
 - Добавить кнопку «Изменить» у группы в `InstanceStageGroupsPanel`.
 - Добавить `Dialog` с полями `title`, `description`, `scheduleText`.
 - PATCH в существующий endpoint + `onSaved()` по успеху.
 - Сохранить composer-safe primitives (`Button`, `Dialog`, `Input`, `Textarea`, `Label`).
 
 Checklist проверок:
+
 - `rg "InstanceStageGroupsPanel|stage-groups|PATCH" apps/webapp/src/app/app/doctor/clients/treatment-programs/[instanceId] apps/webapp/src/app/api/doctor/treatment-program-instances/[instanceId]/stage-groups/[groupId]`
 - `pnpm --dir apps/webapp exec eslint "src/app/app/doctor/clients/treatment-programs/[instanceId]/TreatmentProgramInstanceDetailClient.tsx" "src/app/api/doctor/treatment-program-instances/[instanceId]/stage-groups/[groupId]/route.ts"`
 - smoke руками: create/edit/reorder/delete group в doctor instance UI
 
 Gate батча 1:
+
 - целевые тесты `vitest` и `eslint` зелёные;
 - `tsc --noEmit` по webapp, если затронуты shared типы.
 
@@ -133,6 +143,7 @@ Gate батча 1:
 ### 4) A4-UTC-01 — локальные сутки пациента
 
 Файлы (ожидаемо):
+
 - [`apps/webapp/db/schema/schema.ts`](../../../../apps/webapp/db/schema/schema.ts) + новая миграция
 - [`apps/webapp/src/modules/treatment-program/patient-program-actions.ts`](../../../../apps/webapp/src/modules/treatment-program/patient-program-actions.ts)
 - [`apps/webapp/src/modules/treatment-program/patient-program-actions.test.ts`](../../../../apps/webapp/src/modules/treatment-program/patient-program-actions.test.ts)
@@ -140,11 +151,13 @@ Gate батча 1:
 - при необходимости `system_settings` доступ для fallback `app_display_timezone`
 
 Решение данных:
+
 - Добавить персональный `calendar_timezone` (IANA) пациенту.
 - Fallback при `NULL`: `app_display_timezone`.
 - Никаких env для timezone логики.
 
 Действия:
+
 - Ввести `localDayWindowIso(now, iana)` (DST-safe, через Luxon).
 - Использовать окно во всех чек-листовых операциях:
   - `listChecklistDoneToday`
@@ -153,12 +166,14 @@ Gate батча 1:
 - Пробросить получение timezone по `patientUserId` через порт/репозиторий.
 
 Checklist проверок:
+
 - `rg "utcDayWindowIso|localDayWindowIso|checklist" apps/webapp/src/modules/treatment-program`
 - `pnpm --dir apps/webapp exec vitest run src/modules/treatment-program/patient-program-actions.test.ts`
 - `pnpm --dir apps/webapp exec eslint "src/modules/treatment-program/patient-program-actions.ts" "src/modules/treatment-program/patient-program-actions.test.ts"`
 - `pnpm --dir apps/webapp exec tsc --noEmit`
 
 Gate батча 2:
+
 - миграция применяется локально без ошибок;
 - тесты на границе суток в не-UTC зоне проходят.
 
@@ -167,6 +182,7 @@ Gate батча 2:
 ## Синхронизация документации
 
 После каждого батча:
+
 - Запись в [`LOG.md`](./LOG.md) по шаблону.
 - Обновить [`BACKLOG_PRODUCT_AFTER_AUDITS.md`](./BACKLOG_PRODUCT_AFTER_AUDITS.md) статусами «done/todo».
 - Если меняется контракт API: [`apps/webapp/src/app/api/api.md`](../../../../apps/webapp/src/app/api/api.md).

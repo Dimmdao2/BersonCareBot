@@ -1,12 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from 'vitest';
 import {
   accumulateClientContactBreakdown,
   classifyClientContact,
   emptyClientContactBreakdown,
-} from "./clientContactSegments";
+} from './clientContactSegments';
 
-describe("clientContactSegments", () => {
-  it("classifies pie and plaque buckets exclusively", () => {
+describe('clientContactSegments', () => {
+  it('classifies pie and plaque buckets exclusively', () => {
     expect(
       classifyClientContact({
         hasTelegram: true,
@@ -14,7 +14,7 @@ describe("clientContactSegments", () => {
         hasVerifiedEmail: false,
         hasPhone: false,
       }),
-    ).toBe("telegram_only");
+    ).toBe('telegram_only');
     expect(
       classifyClientContact({
         hasTelegram: true,
@@ -22,7 +22,7 @@ describe("clientContactSegments", () => {
         hasVerifiedEmail: true,
         hasPhone: true,
       }),
-    ).toBe("telegram_email");
+    ).toBe('telegram_email');
     expect(
       classifyClientContact({
         hasTelegram: false,
@@ -30,7 +30,7 @@ describe("clientContactSegments", () => {
         hasVerifiedEmail: false,
         hasPhone: true,
       }),
-    ).toBe("phone_only");
+    ).toBe('phone_only');
     expect(
       classifyClientContact({
         hasTelegram: false,
@@ -38,10 +38,10 @@ describe("clientContactSegments", () => {
         hasVerifiedEmail: false,
         hasPhone: false,
       }),
-    ).toBe("app_guest");
+    ).toBe('app_guest');
   });
 
-  it("blocked telegram binding is not classified as telegram_only", () => {
+  it('blocked telegram binding is not classified as telegram_only', () => {
     expect(
       classifyClientContact({
         hasTelegram: false,
@@ -49,7 +49,7 @@ describe("clientContactSegments", () => {
         hasVerifiedEmail: false,
         hasPhone: true,
       }),
-    ).toBe("phone_only");
+    ).toBe('phone_only');
     expect(
       classifyClientContact({
         hasTelegram: true,
@@ -57,10 +57,10 @@ describe("clientContactSegments", () => {
         hasVerifiedEmail: false,
         hasPhone: false,
       }),
-    ).toBe("telegram_only");
+    ).toBe('telegram_only');
   });
 
-  it("accumulates breakdown totals", () => {
+  it('accumulates breakdown totals', () => {
     const b = emptyClientContactBreakdown();
     accumulateClientContactBreakdown(b, {
       hasTelegram: true,

@@ -1,9 +1,9 @@
-import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
-import { doctorNotes } from "../../../db/schema/schema";
-import { runDrizzleMutationTransaction } from "@/infra/db/drizzleMutationTx";
-import { runWebappPgText } from "@/infra/db/runWebappSql";
-import { toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
-import type { DoctorNoteRow, DoctorNotesPort } from "@/modules/doctor-notes/ports";
+import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
+import { doctorNotes } from '../../../db/schema/schema';
+import { runDrizzleMutationTransaction } from '@/infra/db/drizzleMutationTx';
+import { runWebappPgText } from '@/infra/db/runWebappSql';
+import { toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
+import type { DoctorNoteRow, DoctorNotesPort } from '@/modules/doctor-notes/ports';
 
 function mapRow(row: typeof doctorNotes.$inferSelect): DoctorNoteRow {
   return {
@@ -38,7 +38,7 @@ export function createPgDoctorNotesPort(): DoctorNotesPort {
          WHERE user_id = $1
            AND ($2::uuid IS NULL OR organization_id = $2::uuid)
          ORDER BY created_at DESC`,
-        [userId, getCurrentDbPrincipalOrganizationId()]
+        [userId, getCurrentDbPrincipalOrganizationId()],
       );
       return r.rows.map((row) => ({
         id: row.id,
@@ -51,7 +51,11 @@ export function createPgDoctorNotesPort(): DoctorNotesPort {
       }));
     },
 
-    async create(params: { userId: string; authorId: string; text: string }): Promise<DoctorNoteRow> {
+    async create(params: {
+      userId: string;
+      authorId: string;
+      text: string;
+    }): Promise<DoctorNoteRow> {
       return runDrizzleMutationTransaction(async (tx) => {
         const [row] = await tx
           .insert(doctorNotes)
@@ -62,7 +66,7 @@ export function createPgDoctorNotesPort(): DoctorNotesPort {
             text: params.text,
           })
           .returning();
-        if (!row) throw new Error("doctor_notes insert failed");
+        if (!row) throw new Error('doctor_notes insert failed');
         return mapRow(row);
       });
     },

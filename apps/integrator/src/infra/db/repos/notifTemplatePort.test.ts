@@ -21,9 +21,7 @@ function dbReturnsRow(valueJson: unknown): DbPort {
 }
 
 function dbReturnsEmpty(): DbPort {
-  return makeDb(
-    vi.fn().mockResolvedValue({ rows: [], rowCount: 0 } as DbQueryResult),
-  );
+  return makeDb(vi.fn().mockResolvedValue({ rows: [], rowCount: 0 } as DbQueryResult));
 }
 
 function dbThrows(): DbPort {

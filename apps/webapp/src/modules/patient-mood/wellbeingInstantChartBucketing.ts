@@ -1,6 +1,7 @@
 /** Минимальный шаг линии «в течение дня» на графиках самочувствия (главная + статистика). */
 export const WELLBEING_INSTANT_CHART_BUCKET_HOURS = 2;
-export const WELLBEING_INSTANT_CHART_BUCKET_MS = WELLBEING_INSTANT_CHART_BUCKET_HOURS * 60 * 60 * 1000;
+export const WELLBEING_INSTANT_CHART_BUCKET_MS =
+  WELLBEING_INSTANT_CHART_BUCKET_HOURS * 60 * 60 * 1000;
 
 export type WellbeingInstantChartPoint = { t: number; v: number };
 

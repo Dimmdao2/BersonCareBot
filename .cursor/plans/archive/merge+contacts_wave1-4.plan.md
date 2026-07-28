@@ -6,40 +6,40 @@ todos:
     content: "Этап 1: расширить merge-core (перенос таблиц + дедуп/UPSERT + guard'ы + email-order fix)."
     status: completed
   - id: stage1-merge-preview
-    content: "Этап 1: синхронизировать merge preview/dependentCounts/hard blockers под новый merge-core."
+    content: 'Этап 1: синхронизировать merge preview/dependentCounts/hard blockers под новый merge-core.'
     status: completed
   - id: stage1-tests
-    content: "Этап 1: покрыть merge регрессиями и конфликтами по новым таблицам/ограничениям."
+    content: 'Этап 1: покрыть merge регрессиями и конфликтами по новым таблицам/ограничениям.'
     status: completed
   - id: stage2-schema-migration
-    content: "Этап 2: добавить schema+migration platform_user_contacts + relations."
+    content: 'Этап 2: добавить schema+migration platform_user_contacts + relations.'
     status: completed
   - id: stage2-module-di
-    content: "Этап 2: модуль platform-user-contacts (ports/service/repo) + DI wiring."
+    content: 'Этап 2: модуль platform-user-contacts (ports/service/repo) + DI wiring.'
     status: completed
   - id: stage3-merge-fallback
-    content: "Этап 3: сохранить непобеждающие телефоны/почты из merge в platform_user_contacts."
+    content: 'Этап 3: сохранить непобеждающие телефоны/почты из merge в platform_user_contacts.'
     status: completed
   - id: stage3-audit-details
-    content: "Этап 3: добавить в audit details факт и результат fallback-сохранения контактов."
+    content: 'Этап 3: добавить в audit details факт и результат fallback-сохранения контактов.'
     status: completed
   - id: stage4-booking-upsert
-    content: "Этап 4: best-effort upsert контактов из booking create (canonical + legacy path)."
+    content: 'Этап 4: best-effort upsert контактов из booking create (canonical + legacy path).'
     status: completed
   - id: stage4-doctor-read-surfaces
-    content: "Этап 4: вывести доп.контакты в doctor API/UI (минимум ClientProfileCard)."
+    content: 'Этап 4: вывести доп.контакты в doctor API/UI (минимум ClientProfileCard).'
     status: completed
   - id: stage4-tests-docs
-    content: "Этап 4: завершить тесты и docs/LOG обновления."
+    content: 'Этап 4: завершить тесты и docs/LOG обновления.'
     status: completed
   - id: audit-identity-skip
-    content: "Post-audit: booking upsert пропускает контакт = identity; shared normalize в platform-merge."
+    content: 'Post-audit: booking upsert пропускает контакт = identity; shared normalize в platform-merge.'
     status: completed
   - id: audit-doctor-crud
-    content: "Post-audit: doctor CRUD supplementary contacts (POST/DELETE staff-only)."
+    content: 'Post-audit: doctor CRUD supplementary contacts (POST/DELETE staff-only).'
     status: completed
   - id: audit-preview-docs
-    content: "Post-audit: merge preview platformUserContacts count; матрица переносов в PLATFORM_USER_MERGE.md."
+    content: 'Post-audit: merge preview platformUserContacts count; матрица переносов в PLATFORM_USER_MERGE.md.'
     status: completed
 isProject: false
 completedAt: 2026-05-30
@@ -48,6 +48,7 @@ completedAt: 2026-05-30
 # План: Merge + дополнительные контакты (пункты 1–4)
 
 ## Scope
+
 - Делаем только пункты 1–4:
   - усиление механизма merge для сохранения данных;
   - универсальная таблица дополнительных контактов пациента для врача;
@@ -68,6 +69,7 @@ completedAt: 2026-05-30
   - перенос integrator legacy `contacts` в источник истины webapp.
 
 ## Целевая модель (без ломки identity)
+
 ```mermaid
 flowchart LR
   identityPhone[platform_users.phone_normalized]
@@ -85,6 +87,7 @@ flowchart LR
 ## Этап 1. Merge Core Hardening (сохранение данных)
 
 ### Пакет задачи для Composer
+
 - **Цель:** расширить merge-движок так, чтобы после merge канон видел максимум пользовательских данных.
 - **Основные файлы:**
   - [packages/platform-merge/src/pgPlatformUserMerge.ts](packages/platform-merge/src/pgPlatformUserMerge.ts)
@@ -105,6 +108,7 @@ flowchart LR
 ## Этап 2. Contacts Foundation (схема + модуль)
 
 ### Пакет задачи для Composer
+
 - **Цель:** добавить отдельную таблицу `platform_user_contacts` как врачебную информацию (не identity).
 - **Основные файлы:**
   - [apps/webapp/db/schema/](apps/webapp/db/schema/)
@@ -125,6 +129,7 @@ flowchart LR
 ## Этап 3. Merge Fallback to Contacts
 
 ### Пакет задачи для Composer
+
 - **Цель:** при merge сохранять непобеждающие контактные телефоны/почты в `platform_user_contacts`, не влияя на identity.
 - **Основные файлы:**
   - [packages/platform-merge/src/pgPlatformUserMerge.ts](packages/platform-merge/src/pgPlatformUserMerge.ts)
@@ -144,6 +149,7 @@ flowchart LR
 ## Этап 4. Booking Upsert + Doctor Surfaces
 
 ### Пакет задачи для Composer
+
 - **Цель:** сохранять контакты из booking формы в `platform_user_contacts` и показывать их врачу.
 - **Основные файлы:**
   - [apps/webapp/src/modules/patient-booking/canonicalCreate.ts](apps/webapp/src/modules/patient-booking/canonicalCreate.ts)
@@ -172,6 +178,7 @@ flowchart LR
 - [x] Документация: матрица `mergeExtendedUserOwnedData`, `DB_STRUCTURE`, `DATA_MODEL_REFERENCE`, `LOG.md`.
 
 ## Документация и критерии закрытия
+
 - [x] [docs/ARCHITECTURE/PLATFORM_USER_MERGE.md](docs/ARCHITECTURE/PLATFORM_USER_MERGE.md) — матрица переносов и supplementary contacts.
 - [x] [docs/OWN_BOOKING_ENGINE_INITIATIVE/DATA_MODEL_REFERENCE.md](docs/OWN_BOOKING_ENGINE_INITIATIVE/DATA_MODEL_REFERENCE.md) — `patient_contact` / API.
 - [x] [docs/ARCHITECTURE/DB_STRUCTURE.md](docs/ARCHITECTURE/DB_STRUCTURE.md) — таблица `platform_user_contacts`.
@@ -179,6 +186,7 @@ flowchart LR
 - [x] План архивирован: `.cursor/plans/archive/merge+contacts_wave1-4.plan.md`.
 
 Definition of Done:
+
 - [x] Merge не теряет данные по целевым таблицам этапа 1.
 - [x] Непобеждающие телефоны/почты сохраняются как доп. контакты и видимы врачу.
 - [x] Booking create сохраняет контакт как информацию, не меняя identity/login.

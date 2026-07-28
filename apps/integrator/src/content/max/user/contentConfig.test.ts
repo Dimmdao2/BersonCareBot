@@ -10,7 +10,10 @@ describe('max user static content', () => {
     const scripts = JSON.parse(readFileSync(join(dir, 'scripts.json'), 'utf8')) as Array<{
       id: string;
       priority?: number;
-      match?: { context?: { conversationState?: { $notStartsWith?: string[] } }; input?: { phonePresent?: boolean } };
+      match?: {
+        context?: { conversationState?: { $notStartsWith?: string[] } };
+        input?: { phonePresent?: boolean };
+      };
       steps?: Array<{ action?: string }>;
     }>;
     const link = scripts.find((s) => s.id === 'max.contact.phone.link');
@@ -36,7 +39,8 @@ describe('max user static content', () => {
     expect(contact?.priority).toBe(54);
     expect(contact?.steps?.[0]?.action).toBe('webapp.phoneMessengerBind.complete');
     const onboarding = scripts.find((s) => s.id === 'max.start.onboarding');
-    const exclude = (onboarding?.match as { input?: { excludeActions?: string[] } })?.input?.excludeActions;
+    const exclude = (onboarding?.match as { input?: { excludeActions?: string[] } })?.input
+      ?.excludeActions;
     expect(exclude).toContain('start.phoneauth');
   });
 
@@ -69,7 +73,9 @@ describe('max user static content', () => {
 
   it('menu.json main — одна строка: запись (callback) и приложение (WebApp на главную), паритет с Telegram', () => {
     const menus = JSON.parse(readFileSync(join(dir, 'menu.json'), 'utf8')) as {
-      main: Array<Array<{ textTemplateKey?: string; callbackData?: string; webAppUrlFact?: string }>>;
+      main: Array<
+        Array<{ textTemplateKey?: string; callbackData?: string; webAppUrlFact?: string }>
+      >;
     };
     expect(menus.main).toHaveLength(1);
     expect(menus.main[0]).toEqual([
@@ -87,8 +93,9 @@ describe('max user static content', () => {
     expect(more).toBeTruthy();
     const send = more?.steps?.find(
       (s) =>
-        s.action === 'message.send'
-        && (s.params as { _when?: { path?: string } })?._when?.path === 'facts.links.webappRemindersUrl',
+        s.action === 'message.send' &&
+        (s.params as { _when?: { path?: string } })?._when?.path ===
+          'facts.links.webappRemindersUrl',
     );
     expect(send?.params?.templateKey).toBe('max:menu.webapp.prompt');
   });

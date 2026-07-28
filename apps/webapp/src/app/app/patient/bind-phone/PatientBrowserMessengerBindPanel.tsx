@@ -1,17 +1,21 @@
-"use client";
+'use client';
 
-import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
-import toast from "react-hot-toast";
-import { Button } from "@/shared/ui/patient/primitives/button";
-import { finishChannelLinkNavigation } from "@/shared/lib/telegramChannelLinkOpen";
-import { SupportContactLink } from "@/shared/ui/patient/SupportContactLink";
-import { cn } from "@/lib/utils";
-import { patientInlineLinkClass, patientMutedTextClass, PatientShimmerLine } from "@/shared/ui/patient/patientVisual";
+import { useRouter } from 'next/navigation';
+import { useCallback, useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
+import { Button } from '@/shared/ui/patient/primitives/button';
+import { finishChannelLinkNavigation } from '@/shared/lib/telegramChannelLinkOpen';
+import { SupportContactLink } from '@/shared/ui/patient/SupportContactLink';
+import { cn } from '@/lib/utils';
+import {
+  patientInlineLinkClass,
+  patientMutedTextClass,
+  PatientShimmerLine,
+} from '@/shared/ui/patient/patientVisual';
 import {
   FAIL_CLOSED_AUTH_CHANNEL_UI_POLICY,
   type AuthChannelUiPolicy,
-} from "@/modules/auth/otpChannelUi";
+} from '@/modules/auth/otpChannelUi';
 
 const POLL_MS = 4000;
 
@@ -19,7 +23,7 @@ type Props = {
   hint?: string;
   supportContactHref?: string;
   /** По умолчанию — копирай под подтверждение номера на bind-phone. В профиле — только уведомления/связь. */
-  variant?: "bind_phone" | "notifications";
+  variant?: 'bind_phone' | 'notifications';
   channelPolicy?: AuthChannelUiPolicy;
 };
 
@@ -27,88 +31,91 @@ type Props = {
  * Браузер: нет привязки TG/MAX — deep link через POST /api/auth/channel-link/start.
  */
 const NOTIFICATIONS_DEFAULT_HINT =
-  "Можно приявзать бота для входа в приложение и получения уведомлений";
+  'Можно приявзать бота для входа в приложение и получения уведомлений';
 
 export function PatientBrowserMessengerBindPanel({
   hint,
   supportContactHref,
-  variant = "bind_phone",
+  variant = 'bind_phone',
   channelPolicy = FAIL_CLOSED_AUTH_CHANNEL_UI_POLICY,
 }: Props) {
   const router = useRouter();
-  const [loading, setLoading] = useState<"telegram" | "max" | null>(null);
+  const [loading, setLoading] = useState<'telegram' | 'max' | null>(null);
   const [telegramUrl, setTelegramUrl] = useState<string | null>(null);
   const [maxOpenUrl, setMaxOpenUrl] = useState<string | null>(null);
   const [maxCommand, setMaxCommand] = useState<string | null>(null);
 
-  const startLink = useCallback(async (channelCode: "telegram" | "max") => {
-    if (!channelPolicy[channelCode]) return;
-    const blank = null as Window | null;
-    setLoading(channelCode);
-    setTelegramUrl(null);
-    setMaxOpenUrl(null);
-    setMaxCommand(null);
-    try {
-      const res = await fetch("/api/auth/channel-link/start", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ channelCode }),
-      });
-      const data = (await res.json().catch(() => ({}))) as {
-        ok?: boolean;
-        url?: string;
-        manualCommand?: string;
-        error?: string;
-        message?: string;
-      };
-      if (res.status === 429 || data.error === "rate_limited") {
-        try {
-          blank?.close();
-        } catch {
-          /* ignore */
-        }
-        toast.error(data.message ?? "Слишком много запросов. Попробуйте позже.");
-        return;
-      }
-      if (!res.ok || !data.ok || !data.url) {
-        try {
-          blank?.close();
-        } catch {
-          /* ignore */
-        }
-        toast.error(data.message ?? data.error ?? "Не удалось получить ссылку");
-        return;
-      }
-      if (channelCode === "telegram") {
-        setTelegramUrl(data.url);
-        finishChannelLinkNavigation({
-          blankWin: blank,
-          url: data.url,
-          channel: "telegram",
-          userAgent: navigator.userAgent,
+  const startLink = useCallback(
+    async (channelCode: 'telegram' | 'max') => {
+      if (!channelPolicy[channelCode]) return;
+      const blank = null as Window | null;
+      setLoading(channelCode);
+      setTelegramUrl(null);
+      setMaxOpenUrl(null);
+      setMaxCommand(null);
+      try {
+        const res = await fetch('/api/auth/channel-link/start', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ channelCode }),
         });
-      } else {
-        setMaxCommand(data.manualCommand ?? null);
-        setMaxOpenUrl(data.url);
-        finishChannelLinkNavigation({
-          blankWin: blank,
-          url: data.url,
-          channel: "max",
-          userAgent: navigator.userAgent,
-        });
-        if (data.manualCommand) {
+        const data = (await res.json().catch(() => ({}))) as {
+          ok?: boolean;
+          url?: string;
+          manualCommand?: string;
+          error?: string;
+          message?: string;
+        };
+        if (res.status === 429 || data.error === 'rate_limited') {
           try {
-            await navigator.clipboard.writeText(data.manualCommand);
-            toast.success("Команда скопирована — вставьте её в чат с ботом в Max");
+            blank?.close();
           } catch {
-            toast("Скопируйте команду вручную в чат с ботом в Max");
+            /* ignore */
+          }
+          toast.error(data.message ?? 'Слишком много запросов. Попробуйте позже.');
+          return;
+        }
+        if (!res.ok || !data.ok || !data.url) {
+          try {
+            blank?.close();
+          } catch {
+            /* ignore */
+          }
+          toast.error(data.message ?? data.error ?? 'Не удалось получить ссылку');
+          return;
+        }
+        if (channelCode === 'telegram') {
+          setTelegramUrl(data.url);
+          finishChannelLinkNavigation({
+            blankWin: blank,
+            url: data.url,
+            channel: 'telegram',
+            userAgent: navigator.userAgent,
+          });
+        } else {
+          setMaxCommand(data.manualCommand ?? null);
+          setMaxOpenUrl(data.url);
+          finishChannelLinkNavigation({
+            blankWin: blank,
+            url: data.url,
+            channel: 'max',
+            userAgent: navigator.userAgent,
+          });
+          if (data.manualCommand) {
+            try {
+              await navigator.clipboard.writeText(data.manualCommand);
+              toast.success('Команда скопирована — вставьте её в чат с ботом в Max');
+            } catch {
+              toast('Скопируйте команду вручную в чат с ботом в Max');
+            }
           }
         }
+      } finally {
+        setLoading(null);
       }
-    } finally {
-      setLoading(null);
-    }
-  }, [channelPolicy]);
+    },
+    [channelPolicy],
+  );
 
   useEffect(() => {
     if (!channelPolicy.telegram && !channelPolicy.max) return;
@@ -120,63 +127,75 @@ export function PatientBrowserMessengerBindPanel({
 
   return (
     <div id="patient-browser-messenger-bind-panel" className="flex flex-col gap-4">
-      {variant === "notifications" ? (
+      {variant === 'notifications' ? (
         <p className={patientMutedTextClass}>{hint ?? NOTIFICATIONS_DEFAULT_HINT}</p>
       ) : (
         <>
-          <p className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>Привязка телефона</p>
+          <p className={cn(patientMutedTextClass, 'text-xs font-medium uppercase tracking-wide')}>
+            Привязка телефона
+          </p>
           <p className={patientMutedTextClass}>
             {hint ??
-              "Для стабильной работы приложения и синхронизации на всех платформах необходимо привязать номер телефона. Он не будет использоваться для SMS-рассылок."}
+              'Для стабильной работы приложения и синхронизации на всех платформах необходимо привязать номер телефона. Он не будет использоваться для SMS-рассылок.'}
           </p>
-          <p className="text-sm text-[var(--patient-text-primary)]">Выберите мессенджер, в котором удобнее подтвердить номер:</p>
+          <p className="text-sm text-[var(--patient-text-primary)]">
+            Выберите мессенджер, в котором удобнее подтвердить номер:
+          </p>
         </>
       )}
       {channelPolicy.telegram || channelPolicy.max ? (
-      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-        {channelPolicy.telegram ? <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          className="flex-1"
-          disabled={loading !== null}
-          aria-busy={loading === "telegram"}
-          onClick={() => void startLink("telegram")}
-        >
-          {loading === "telegram" ?
-            <>
-              <span className="sr-only">Загрузка</span>
-              <span className="inline-flex w-full justify-center py-0.5" aria-hidden>
-                <PatientShimmerLine className="h-4 w-24" />
-              </span>
-            </>
-          : "Телеграм"}
-        </Button> : null}
-        {channelPolicy.max ? <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          className="flex-1"
-          disabled={loading !== null}
-          aria-busy={loading === "max"}
-          onClick={() => void startLink("max")}
-        >
-          {loading === "max" ?
-            <>
-              <span className="sr-only">Загрузка</span>
-              <span className="inline-flex w-full justify-center py-0.5" aria-hidden>
-                <PatientShimmerLine className="h-4 w-20" />
-              </span>
-            </>
-          : "Макс"}
-        </Button> : null}
-      </div>
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+          {channelPolicy.telegram ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="flex-1"
+              disabled={loading !== null}
+              aria-busy={loading === 'telegram'}
+              onClick={() => void startLink('telegram')}
+            >
+              {loading === 'telegram' ? (
+                <>
+                  <span className="sr-only">Загрузка</span>
+                  <span className="inline-flex w-full justify-center py-0.5" aria-hidden>
+                    <PatientShimmerLine className="h-4 w-24" />
+                  </span>
+                </>
+              ) : (
+                'Телеграм'
+              )}
+            </Button>
+          ) : null}
+          {channelPolicy.max ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="flex-1"
+              disabled={loading !== null}
+              aria-busy={loading === 'max'}
+              onClick={() => void startLink('max')}
+            >
+              {loading === 'max' ? (
+                <>
+                  <span className="sr-only">Загрузка</span>
+                  <span className="inline-flex w-full justify-center py-0.5" aria-hidden>
+                    <PatientShimmerLine className="h-4 w-20" />
+                  </span>
+                </>
+              ) : (
+                'Макс'
+              )}
+            </Button>
+          ) : null}
+        </div>
       ) : (
         <p className={patientMutedTextClass}>Привязка через мессенджеры сейчас недоступна.</p>
       )}
       {telegramUrl ? (
-        <p className={cn(patientMutedTextClass, "text-xs")}>
-          Если окно не открылось, перейдите по ссылке:{" "}
+        <p className={cn(patientMutedTextClass, 'text-xs')}>
+          Если окно не открылось, перейдите по ссылке:{' '}
           <Button
             type="button"
             variant="link"
@@ -185,7 +204,7 @@ export function PatientBrowserMessengerBindPanel({
               finishChannelLinkNavigation({
                 blankWin: null,
                 url: telegramUrl,
-                channel: "telegram",
+                channel: 'telegram',
                 userAgent: navigator.userAgent,
               })
             }
@@ -195,8 +214,8 @@ export function PatientBrowserMessengerBindPanel({
         </p>
       ) : null}
       {maxOpenUrl ? (
-        <p className={cn(patientMutedTextClass, "text-xs")}>
-          Если окно не открылось:{" "}
+        <p className={cn(patientMutedTextClass, 'text-xs')}>
+          Если окно не открылось:{' '}
           <Button
             type="button"
             variant="link"
@@ -205,7 +224,7 @@ export function PatientBrowserMessengerBindPanel({
               finishChannelLinkNavigation({
                 blankWin: null,
                 url: maxOpenUrl,
-                channel: "max",
+                channel: 'max',
                 userAgent: navigator.userAgent,
               })
             }
@@ -215,15 +234,22 @@ export function PatientBrowserMessengerBindPanel({
         </p>
       ) : null}
       {maxCommand ? (
-        <p className="rounded-md bg-[var(--patient-color-primary-soft)]/40 px-2 py-1 font-mono text-xs break-all" data-testid="max-manual-command">
+        <p
+          className="rounded-md bg-[var(--patient-color-primary-soft)]/40 px-2 py-1 font-mono text-xs break-all"
+          data-testid="max-manual-command"
+        >
           {maxCommand}
         </p>
       ) : null}
-      <p className={cn(patientMutedTextClass, "text-xs")}>
-        После нажатия Start в боте и отправки контакта эта страница обновится сама (или обновите вручную через несколько секунд).
+      <p className={cn(patientMutedTextClass, 'text-xs')}>
+        После нажатия Start в боте и отправки контакта эта страница обновится сама (или обновите
+        вручную через несколько секунд).
       </p>
       {supportContactHref ? (
-        <SupportContactLink href={supportContactHref} className={cn(patientInlineLinkClass, "text-sm")}>
+        <SupportContactLink
+          href={supportContactHref}
+          className={cn(patientInlineLinkClass, 'text-sm')}
+        >
           Связаться с поддержкой
         </SupportContactLink>
       ) : null}

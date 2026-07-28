@@ -1,59 +1,63 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import type { ClinicalTest, ClinicalTestUsageSnapshot } from "@/modules/tests/types";
-import type { ReferenceItemDto } from "@/modules/references/referenceCache";
-import type { ReferenceItem } from "@/modules/references/types";
-import { buildClinicalAssessmentKindSelectOptions } from "@/modules/tests/clinicalTestAssessmentKind";
-import { cn } from "@/lib/utils";
-import { useViewportMinWidth } from "@/shared/hooks/useViewportMinWidth";
+import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import type { ClinicalTest, ClinicalTestUsageSnapshot } from '@/modules/tests/types';
+import type { ReferenceItemDto } from '@/modules/references/referenceCache';
+import type { ReferenceItem } from '@/modules/references/types';
+import { buildClinicalAssessmentKindSelectOptions } from '@/modules/tests/clinicalTestAssessmentKind';
+import { cn } from '@/lib/utils';
+import { useViewportMinWidth } from '@/shared/hooks/useViewportMinWidth';
 import {
   doctorCatalogViewStorageKey,
   readDoctorCatalogViewPreference,
   writeDoctorCatalogViewPreference,
-} from "@/shared/lib/doctorCatalogViewPreference";
-import { MediaThumb } from "@/shared/ui/doctor/media/MediaThumb";
-import { clinicalTestMediaItemToPreviewUi } from "@/shared/ui/doctor/media/mediaPreviewUiModel";
-import { VirtualizedItemGrid } from "@/shared/ui/doctor/catalog/VirtualizedItemGrid";
-import { DoctorCatalogMasterListHeader } from "@/shared/ui/doctor/DoctorCatalogMasterListHeader";
+} from '@/shared/lib/doctorCatalogViewPreference';
+import { MediaThumb } from '@/shared/ui/doctor/media/MediaThumb';
+import { clinicalTestMediaItemToPreviewUi } from '@/shared/ui/doctor/media/mediaPreviewUiModel';
+import { VirtualizedItemGrid } from '@/shared/ui/doctor/catalog/VirtualizedItemGrid';
+import { DoctorCatalogMasterListHeader } from '@/shared/ui/doctor/DoctorCatalogMasterListHeader';
 import {
   doctorCatalogToolbarPrimaryActionClassName,
   DoctorCatalogFiltersToolbar,
   DoctorCatalogToolbarFiltersSlot,
-} from "@/shared/ui/doctor/DoctorCatalogFiltersToolbar";
-import { CatalogLeftPane } from "@/shared/ui/doctor/catalog/CatalogLeftPane";
-import { CatalogRightPane } from "@/shared/ui/doctor/catalog/CatalogRightPane";
-import { CatalogSplitLayout } from "@/shared/ui/doctor/catalog/CatalogSplitLayout";
-import { DoctorCatalogPageLayout } from "@/shared/ui/doctor/catalog/DoctorCatalogPageLayout";
-import type { RecommendationListFilterScope } from "@/shared/lib/doctorCatalogListStatus";
-import { archiveClinicalTestInline, saveClinicalTestInline, unarchiveClinicalTestInline } from "./actionsInline";
+} from '@/shared/ui/doctor/DoctorCatalogFiltersToolbar';
+import { CatalogLeftPane } from '@/shared/ui/doctor/catalog/CatalogLeftPane';
+import { CatalogRightPane } from '@/shared/ui/doctor/catalog/CatalogRightPane';
+import { CatalogSplitLayout } from '@/shared/ui/doctor/catalog/CatalogSplitLayout';
+import { DoctorCatalogPageLayout } from '@/shared/ui/doctor/catalog/DoctorCatalogPageLayout';
+import type { RecommendationListFilterScope } from '@/shared/lib/doctorCatalogListStatus';
+import {
+  archiveClinicalTestInline,
+  saveClinicalTestInline,
+  unarchiveClinicalTestInline,
+} from './actionsInline';
 import {
   DoctorCatalogFiltersForm,
   type DoctorCatalogToolbarLayout,
-} from "@/shared/ui/doctor/DoctorCatalogFiltersForm";
+} from '@/shared/ui/doctor/DoctorCatalogFiltersForm';
 import {
   DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_EXPANDED,
   DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE,
-} from "@/shared/ui/doctor/doctorWorkspaceLayout";
-import { Card, CardContent } from "@/shared/ui/doctor/primitives/card";
-import { ClinicalTestForm } from "./ClinicalTestForm";
-import { useDoctorCatalogDisplayList } from "@/shared/hooks/useDoctorCatalogDisplayList";
-import { useDoctorCatalogClientFilterMerge } from "@/shared/hooks/useDoctorCatalogClientFilterMerge";
+} from '@/shared/ui/doctor/doctorWorkspaceLayout';
+import { Card, CardContent } from '@/shared/ui/doctor/primitives/card';
+import { ClinicalTestForm } from './ClinicalTestForm';
+import { useDoctorCatalogDisplayList } from '@/shared/hooks/useDoctorCatalogDisplayList';
+import { useDoctorCatalogClientFilterMerge } from '@/shared/hooks/useDoctorCatalogClientFilterMerge';
 import {
   doctorCatalogListEmptyClass,
   doctorCatalogListEmptyTilesClass,
   doctorInteractiveSurfaceButtonClass,
   doctorCatalogRowActiveClass,
   doctorCatalogRowClass,
-} from "@/shared/ui/doctor/doctorVisual";
+} from '@/shared/ui/doctor/doctorVisual';
 
-export type ClinicalTestsViewMode = "tiles" | "list";
-export type ClinicalTestTitleSort = "asc" | "desc";
+export type ClinicalTestsViewMode = 'tiles' | 'list';
+export type ClinicalTestTitleSort = 'asc' | 'desc';
 
 const LIST_ROW_VISIBILITY_STYLE = {
-  contentVisibility: "auto",
-  containIntrinsicSize: "52px",
+  contentVisibility: 'auto',
+  containIntrinsicSize: '52px',
 } as const;
 
 type Props = {
@@ -107,23 +111,23 @@ function ClinicalTestTileCard({
       variant="ghost"
       className={cn(
         doctorInteractiveSurfaceButtonClass,
-        "flex w-full cursor-pointer justify-center rounded-[calc(var(--radius-xl)*0.5)] text-left",
+        'flex w-full cursor-pointer justify-center rounded-[calc(var(--radius-xl)*0.5)] text-left',
       )}
       onClick={() => onSelect(test.id)}
     >
       <Card
         size="sm"
         className={cn(
-          "h-full w-full min-w-0 rounded-[calc(var(--radius-xl)*0.5)] transition-shadow data-[size=sm]:py-1.5",
-          isActive && "ring-1 ring-primary/50 ring-offset-1 ring-offset-background",
+          'h-full w-full min-w-0 rounded-[calc(var(--radius-xl)*0.5)] transition-shadow data-[size=sm]:py-1.5',
+          isActive && 'ring-1 ring-primary/50 ring-offset-1 ring-offset-background',
         )}
       >
         <CardContent className="flex h-full flex-col gap-1 py-px group-data-[size=sm]/card:px-1.5">
           {firstMedia ? (
             <div
               className={cn(
-                "w-full overflow-hidden rounded-[calc(var(--radius-md)*0.5)] border border-border/60 bg-muted/30",
-                squarePreview ? "aspect-square shrink-0" : "h-[135px]",
+                'w-full overflow-hidden rounded-[calc(var(--radius-md)*0.5)] border border-border/60 bg-muted/30',
+                squarePreview ? 'aspect-square shrink-0' : 'h-[135px]',
               )}
             >
               <MediaThumb
@@ -134,9 +138,13 @@ function ClinicalTestTileCard({
               />
             </div>
           ) : null}
-          <p className="line-clamp-2 text-center text-xs leading-snug text-foreground">{test.title}</p>
+          <p className="line-clamp-2 text-center text-xs leading-snug text-foreground">
+            {test.title}
+          </p>
           {test.testType ? (
-            <p className="line-clamp-1 text-center text-[10px] text-muted-foreground">{test.testType}</p>
+            <p className="line-clamp-1 text-center text-[10px] text-muted-foreground">
+              {test.testType}
+            </p>
           ) : null}
         </CardContent>
       </Card>
@@ -161,7 +169,7 @@ function mediaThumbRow(test: ClinicalTest) {
   );
 }
 
-type ClinicalCatalogFiltersMerged = Props["filters"] & { titleSort: ClinicalTestTitleSort | null };
+type ClinicalCatalogFiltersMerged = Props['filters'] & { titleSort: ClinicalTestTitleSort | null };
 
 function ClinicalTestsContent({
   initialItems,
@@ -214,16 +222,14 @@ function ClinicalTestsContent({
 
   const getItemRegionCodes = useCallback(
     (t: ClinicalTest) =>
-      t.bodyRegionIds
-        .map((id) => bodyRegionIdToCode[id])
-        .filter((c): c is string => Boolean(c)),
+      t.bodyRegionIds.map((id) => bodyRegionIdToCode[id]).filter((c): c is string => Boolean(c)),
     [bodyRegionIdToCode],
   );
 
   const displayTests = useDoctorCatalogDisplayList(
     initialItems,
     filters.q,
-    filters.titleSort === null ? "default" : filters.titleSort,
+    filters.titleSort === null ? 'default' : filters.titleSort,
     {
       regionCode: filters.regionCode,
       getItemRegionCodes,
@@ -241,7 +247,11 @@ function ClinicalTestsContent({
 
   const testForDesktop = useMemo(() => {
     if (!desktopSelectedId) return null;
-    return displayTests.find((t) => t.id === desktopSelectedId) ?? initialItems.find((t) => t.id === desktopSelectedId) ?? null;
+    return (
+      displayTests.find((t) => t.id === desktopSelectedId) ??
+      initialItems.find((t) => t.id === desktopSelectedId) ??
+      null
+    );
   }, [desktopSelectedId, displayTests, initialItems]);
 
   const isDesktopViewport = useViewportMinWidth(1024);
@@ -253,7 +263,11 @@ function ClinicalTestsContent({
   const formTest = mobileSheet != null ? mobileSheet.test : testForDesktop;
 
   const assessmentKindSelectOptions = useMemo(
-    () => buildClinicalAssessmentKindSelectOptions(assessmentKindCatalogItems, formTest?.assessmentKind ?? null),
+    () =>
+      buildClinicalAssessmentKindSelectOptions(
+        assessmentKindCatalogItems,
+        formTest?.assessmentKind ?? null,
+      ),
     [assessmentKindCatalogItems, formTest?.assessmentKind],
   );
 
@@ -360,12 +374,12 @@ function ClinicalTestsContent({
                 regionCode={filters.regionCode}
                 tertiaryFilter={{
                   items: assessmentKindFilterItems,
-                  paramName: "assessment",
+                  paramName: 'assessment',
                   value: filters.assessmentKind ?? null,
-                  label: "Вид оценки",
-                  placeholder: "Все виды",
-                  clearLabel: "Все виды",
-                  summaryLabel: "Вид оценки",
+                  label: 'Вид оценки',
+                  placeholder: 'Все виды',
+                  clearLabel: 'Все виды',
+                  summaryLabel: 'Вид оценки',
                 }}
                 view={viewMode}
                 titleSort={filters.titleSort}
@@ -401,7 +415,7 @@ function ClinicalTestsContent({
       ) : null}
       <CatalogSplitLayout
         className={cn(
-          filterToolbarLayout === "expanded"
+          filterToolbarLayout === 'expanded'
             ? DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_EXPANDED
             : DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE,
         )}
@@ -412,7 +426,9 @@ function ClinicalTestsContent({
             className="h-full"
             headerSlot={
               <DoctorCatalogMasterListHeader
-                summaryLine={displayTests.length === 0 ? "Нет тестов" : `Тестов: ${displayTests.length}`}
+                summaryLine={
+                  displayTests.length === 0 ? 'Нет тестов' : `Тестов: ${displayTests.length}`
+                }
                 viewMode={toolbarViewMode}
                 onToggleView={toggleViewMode}
                 titleSort={filters.titleSort}
@@ -428,12 +444,12 @@ function ClinicalTestsContent({
           >
             <div
               className={cn(
-                "min-h-0 flex-1 overflow-hidden transition-opacity",
-                isListPending && "opacity-80",
+                'min-h-0 flex-1 overflow-hidden transition-opacity',
+                isListPending && 'opacity-80',
               )}
               aria-busy={isListPending}
             >
-              {viewMode === "list"
+              {viewMode === 'list'
                 ? renderTestList(displayTests, {
                     activeId: desktopSelectedId,
                     onRowSelect: pickRow,
@@ -447,10 +463,15 @@ function ClinicalTestsContent({
           </CatalogLeftPane>
         }
         right={rightPanel}
-        mobileView={mobileSheet != null ? "detail" : "list"}
+        mobileView={mobileSheet != null ? 'detail' : 'list'}
         mobileBackSlot={
           mobileSheet != null ? (
-            <Button variant="ghost" type="button" className="mb-2 h-9 px-2" onClick={() => setMobileSheet(null)}>
+            <Button
+              variant="ghost"
+              type="button"
+              className="mb-2 h-9 px-2"
+              onClick={() => setMobileSheet(null)}
+            >
               ← Назад
             </Button>
           ) : null
@@ -478,7 +499,8 @@ export function ClinicalTestsPageClient({
   const [desktopSelectedId, setDesktopSelectedId] = useState<string | null>(null);
   const [mobileSheet, setMobileSheet] = useState<{ test: ClinicalTest | null } | null>(null);
   const [isListPending, startListTransition] = useTransition();
-  const [filterToolbarLayout, setFilterToolbarLayout] = useState<DoctorCatalogToolbarLayout>("compact");
+  const [filterToolbarLayout, setFilterToolbarLayout] =
+    useState<DoctorCatalogToolbarLayout>('compact');
   const onFilterToolbarLayoutChange = useCallback((layout: DoctorCatalogToolbarLayout) => {
     setFilterToolbarLayout(layout);
   }, []);
@@ -501,7 +523,7 @@ export function ClinicalTestsPageClient({
   }, [initialTitleSort]);
 
   const toggleViewMode = () => {
-    const next = toolbarViewMode === "tiles" ? "list" : "tiles";
+    const next = toolbarViewMode === 'tiles' ? 'list' : 'tiles';
     setToolbarViewMode(next);
     writeDoctorCatalogViewPreference(doctorCatalogViewStorageKey.clinicalTests, next);
     startListTransition(() => {

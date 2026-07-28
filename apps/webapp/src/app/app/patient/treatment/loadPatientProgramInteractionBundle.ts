@@ -1,8 +1,8 @@
-import type { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import type { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import {
   patientProgramCommentsInteractionEnabled,
   patientProgramMediaInteractionEnabled,
-} from "@/modules/doctor-clients/patientProgramInteractionAccess";
+} from '@/modules/doctor-clients/patientProgramInteractionAccess';
 
 export type PatientProgramInteractionBundle = {
   comments: { visible: boolean; enabled: boolean };
@@ -17,11 +17,11 @@ export async function loadPatientProgramInteractionBundle(
 ): Promise<PatientProgramInteractionBundle> {
   const [policy, adminDiscussionUiEnabled, adminMediaSubmissionEnabled] = await Promise.all([
     deps.doctorClients.getPatientProgramInteractionPolicy(patientUserId, { organizationId }),
-    deps.runtimeConfig.getBoolean("patient_program_discussion_ui_enabled", {
+    deps.runtimeConfig.getBoolean('patient_program_discussion_ui_enabled', {
       patientUserId,
       organizationId,
     }),
-    deps.runtimeConfig.getBoolean("patient_program_discussion_media_submission_enabled", {
+    deps.runtimeConfig.getBoolean('patient_program_discussion_media_submission_enabled', {
       patientUserId,
       organizationId,
     }),

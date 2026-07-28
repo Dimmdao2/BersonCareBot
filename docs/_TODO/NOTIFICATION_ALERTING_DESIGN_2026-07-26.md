@@ -14,11 +14,11 @@ July 2026: the mail provider's quota ran out, deliveries silently failed, and th
 green for over a day. The same class is documented in the field:
 
 - **GitLab.com, 2017-01-31** — backup-failure e-mails were configured, but DMARC was never enabled so the
-  receiving server rejected them. Nobody saw the alerts; there were no backups when they were needed. *The
-  alerting channel and the failing channel were the same channel.*
+  receiving server rejected them. Nobody saw the alerts; there were no backups when they were needed. _The
+  alerting channel and the failing channel were the same channel._
 - **GitHub, 2022-09-28** — "our alerts were monitoring error rates but did not alert for lack of overall
   traffic". Same shape, full SRE org.
-- **Open Build Service, 2023-02** — ~100 000 failed notification jobs; the correct absence-alert *did* fire
+- **Open Build Service, 2023-02** — ~100 000 failed notification jobs; the correct absence-alert _did_ fire
   and went unacted for 62 hours.
 
 ## Decisions
@@ -28,11 +28,11 @@ green for over a day. The same class is documented in the field:
 1. **Authorization** — explicit user↔role assignment (ANSI INCITS 359 RBAC). Never an e-mail string.
    Today's `admin_emails` grants admin by address, which is CWE-266/269 by construction and means "CC someone
    on alerts" silently makes them an administrator.
-2. **Operator alert destinations** — an explicit, *verified* endpoint list (channel, address, `verified_at`),
+2. **Operator alert destinations** — an explicit, _verified_ endpoint list (channel, address, `verified_at`),
    double opt-in on the AWS SNS / Azure action-group model.
 3. **User notification preferences** — category × channel, resolved at send time.
 
-Roles may *populate* the destination list; they must never *be* the list. Azure's own docs warn a role-derived
+Roles may _populate_ the destination list; they must never _be_ the list. Azure's own docs warn a role-derived
 audience takes up to 24 hours to propagate and silently supports only five roles.
 
 ### D-b. An empty audience must be structurally impossible — and alarming when it happens anyway.
@@ -42,8 +42,8 @@ audience takes up to 24 hours to propagate and silently supports only five roles
   Workspace's Operations alert whose recipient cannot be removed).
 - **Never early-return on an empty recipient set.** Resolve → if empty and severity is operational, deliver to
   the fallback, increment a counter, and let that counter itself alert. Our July bug is literally this
-  early-return; PagerDuty documents the same semantics as intended behaviour — *"If no one is on call on the
-  entire escalation policy, an incident will not be created."*
+  early-return; PagerDuty documents the same semantics as intended behaviour — _"If no one is on call on the
+  entire escalation policy, an incident will not be created."_
 - A destination that is unverified or bounce-suppressed counts as ABSENT for that check. SNS suppresses a
   bounced address for 7 days; Azure's SMS `STOP` disables every action group at once.
 
@@ -56,20 +56,21 @@ our infrastructure entirely.
 ### D-d. A dead man's switch is the centrepiece, not an extra.
 
 The mechanism: something that is always supposed to arrive, and an **external** service that alerts when it
-stops. kube-prometheus ships exactly this as the `Watchdog` alert (`vector(1)`, always firing) — *"This alert
-is always firing… There are integrations that send a notification when this alert is **not** firing."*
-Healthchecks.io states the semantics plainly: *"It keeps silent as long as pings arrive on time. It raises an
-alert as soon as a ping does not arrive on time."*
+stops. kube-prometheus ships exactly this as the `Watchdog` alert (`vector(1)`, always firing) — _"This alert
+is always firing… There are integrations that send a notification when this alert is **not** firing."_
+Healthchecks.io states the semantics plainly: _"It keeps silent as long as pings arrive on time. It raises an
+alert as soon as a ping does not arrive on time."_
 
 Two heartbeats:
-1. **Pipeline heartbeat** — the sender pings only after a *confirmed* successful send (or a periodic canary at
+
+1. **Pipeline heartbeat** — the sender pings only after a _confirmed_ successful send (or a periodic canary at
    low volume).
 2. **Digest heartbeat** — the digest job pings. A digest that fails to run looks exactly like a quiet day.
 
 And the digest must report **evidence**: count of confirmed deliveries, timestamp of the last one, age of the
 oldest unsent item. "Green" means positive evidence, never "no errors logged".
 
-### D-e. Two severities, and escalation *within one person*.
+### D-e. Two severities, and escalation _within one person_.
 
 - **Immediate** — user-visible breakage, or the pipeline being dead. Staggered channels to one human, on
   PagerDuty's own per-user pattern: push at 0 min, e-mail at +3, SMS at +5 once wired.
@@ -78,7 +79,7 @@ oldest unsent item. "Green" means positive evidence, never "no errors logged".
 **Deliberately dropped because they assume staff we do not have:** on-call rotations; escalation policies with
 a second level; acknowledge-or-escalate timeouts (there is nobody to escalate to, so an unacknowledged alert
 must never be what keeps us safe); multiwindow multi-burn-rate SLO alerting; inhibition trees; anomaly
-detection. Also dropped: Google SRE's *"prefer a dashboard over e-mail alerts"* — that presumes someone is
+detection. Also dropped: Google SRE's _"prefer a dashboard over e-mail alerts"_ — that presumes someone is
 watching the dashboard.
 
 Silences are allowed but capped in hours and listed in the digest; the forgotten-silence failure is real and
@@ -89,8 +90,8 @@ still an open request against Alertmanager.
 - When outbound delivery is confirmed dead, show a persistent in-app banner to clinic staff — the humans
   already inside the product learn what the operator has not yet.
 - Never drop on failure: retain and retry, and alert on the **age of the oldest unsent item**, not queue
-  depth. AWS's Builders' Library is explicit: *"we focus more on measuring the age… DLQ information would
-  arrive too late."*
+  depth. AWS's Builders' Library is explicit: _"we focus more on measuring the age… DLQ information would
+  arrive too late."_
 - Classify provider quota/credit responses as their own page-on-first-occurrence class. They are traps:
   SES answers `454 Throttling failure: Daily message quota exceeded` — a **4xx**, which conforming clients
   retry silently for days — and SendGrid credit exhaustion arrives as **HTTP 401**, which application code
@@ -103,13 +104,13 @@ still an open request against Alertmanager.
 - Stored sparsely as unset / on / off so org defaults and user overrides merge (Knock's model; Braze keeps
   `subscribed` distinct from `opted_in` for the same reason).
 - **Precedence is user-wins, written down and shown in the UI.** Publisher-wins products document the failure
-  mode: Novu — *"If the email channel is disabled in workflow channel preferences, global and subscriber
-  preferences are ignored"* — a user switches e-mail on and receives nothing.
-- A **critical class** where the channel is choosable but delivery is not, and the toggle is *absent* rather
+  mode: Novu — _"If the email channel is disabled in workflow channel preferences, global and subscriber
+  preferences are ignored"_ — a user switches e-mail on and receives nothing.
+- A **critical class** where the channel is choosable but delivery is not, and the toggle is _absent_ rather
   than present-and-ignored (Novu `critical`, Courier `REQUIRED`). Minimum members: account/security,
   delivery-failure, anything with a clinical or legal deadline. Quiet hours never apply to it.
 - **Saving must fail if the critical class would be left with no live channel.** Chrome revokes push on its
-  own — *"Less than 1% of all notifications receive any interaction from users"* — and Web Push has no
+  own — _"Less than 1% of all notifications receive any interaction from users"_ — and Web Push has no
   equivalent of iOS Critical Alerts.
 
 ### D-h. Content: a content-free nudge for anything patient-linked.
@@ -118,8 +119,8 @@ Neutral sender; no condition, procedure, specialty, provider or patient name in 
 payload; the body says an item exists and links to sign-in.
 
 **Correction to my own earlier reasoning (2026-07-26, deeper legal research).** I first justified this partly
-by "minimum necessary". **That justification is wrong.** 45 CFR §164.502(b)(2)(ii) exempts *uses or
-disclosures made to the individual* from minimum-necessary entirely — it never reaches a message addressed to
+by "minimum necessary". **That justification is wrong.** 45 CFR §164.502(b)(2)(ii) exempts _uses or
+disclosures made to the individual_ from minimum-necessary entirely — it never reaches a message addressed to
 the patient. It is the single most repeated wrong argument for this pattern, and we will not repeat it.
 Equally: **no regulation anywhere requires a content-free notification** — not HIPAA, not OCR guidance, not
 NIST SP 800-66r2 (checked: zero occurrences of "lock screen", "SMS", "push notif", "preview"), and not any
@@ -127,12 +128,12 @@ Russian norm. It is convergent industry practice. The real justifications are th
 
 1. **The delivery vendor is a business associate, not a conduit.** The conduit exception is explicitly narrow
    (78 FR 5566 at 5571-5572: "mere courier services… transient versus persistent"). An e-mail/SMS API vendor
-   queues, retries and *persists* bodies in delivery logs and webhooks — that is maintaining, not transporting.
+   queues, retries and _persists_ bodies in delivery logs and webhooks — that is maintaining, not transporting.
 2. **The last leg is a conduit you cannot contract with** — the recipient's mail provider, the mobile carrier,
    APNs/FCM. No agreement, no audit, no breach notification.
 3. **The visible envelope sits outside any encryption you control**, and the regulator has already fined seven
    figures over exactly that surface: OCR's Aetna settlement ($1,000,000, 2020) was for "HIV medication"
-   being readable *through a window envelope* — 11 887 people — without anyone opening it. A subject line and
+   being readable _through a window envelope_ — 11 887 people — without anyone opening it. A subject line and
    a lock-screen preview are the same surface. On iOS, preview visibility is **user-controlled and the sender
    cannot force it off**.
 4. **Russia, which is our operative jurisdiction, pushes harder than HIPAA** — see below.
@@ -144,7 +145,7 @@ Russian norm. It is convergent industry practice. The real justifications are th
   напоминание о визите" discloses protected matter to whoever reads the screen. Broader than HIPAA's
   practical floor.
 - **Мера ЗИС.3 of ФСТЭК order № 21 is mandatory at EVERY protection level** (marked "+" in all four УЗ
-  columns) — protection of personal data *from disclosure* when transmitted over channels leaving the
+  columns) — protection of personal data _from disclosure_ when transmitted over channels leaving the
   controlled zone. SMS cannot satisfy that cryptographically. п. 8.13 of the same order expressly allows
   satisfying ЗИС-group measures «архитектуры информационной системы и проектных решений». **Content
   minimisation is therefore the only executable compliance route for SMS** — this is the sharpest argument we
@@ -156,7 +157,7 @@ Russian norm. It is convergent industry practice. The real justifications are th
 - **152-ФЗ ст. 18 ч. 5**: storing Russian citizens' personal data outside the Russian Federation is
   prohibited. A foreign mail or SMS provider that retains message bodies in logs abroad is a live exposure —
   another reason bodies must be empty. (Our current relay is Russian; this constrains any future change.)
-- **ФЗ-38 ст. 18 ч. 2 bans automated mass *advertising* dispatch outright, regardless of consent**, and one
+- **ФЗ-38 ст. 18 ч. 2 bans automated mass _advertising_ dispatch outright, regardless of consent**, and one
   message mixing a reminder with an offer becomes advertising in its entirety. Keep operational and
   promotional messages structurally separate — this is also why 16 CFR §316.3 matters on the US side.
 - **152-ФЗ ст. 9 ч. 1, as amended by ФЗ 24.06.2025 № 156-ФЗ**, requires consent to be «конкретным,
@@ -206,7 +207,7 @@ If any step depends on someone noticing, it is not done.
    the box dying.
 3. Classify provider quota/credit errors and page on first occurrence — ~2 h. Signature-dependent, so it is an
    addition to 1 and 2, never a replacement.
-4. Poll the provider's quota endpoint where one exists — ~1 h. The only one that fires *before* failure.
+4. Poll the provider's quota endpoint where one exists — ~1 h. The only one that fires _before_ failure.
 5. Age of oldest unsent item > 15 min — ~2 h. One signal covers quota exhaustion, worker death and a stuck
    consumer.
 6. Ingest delivery/bounce webhooks and reconcile — ~1 day.
@@ -214,7 +215,7 @@ If any step depends on someone noticing, it is not done.
    this incident for a twentieth of the effort. Build it on the `check_email_loop` model — an SMTP banner
    check would NOT have caught the quota outage, because the port answers `220` normally and rejects at DATA.
 
-**Not delivery evidence, do not use as such:** read receipts/MDNs (RFC 8098: *"cannot be relied upon"*, and
+**Not delivery evidence, do not use as such:** read receipts/MDNs (RFC 8098: _"cannot be relied upon"_, and
 forgeable), open-tracking pixels, DMARC aggregate reports (daily), Google Postmaster Tools (daily, and blank
 at low volume). And note RFC 5321 §6.1: a `250` is one hop accepting responsibility, not delivery — while
 §6.2 permits dropping mail without notifying anyone.

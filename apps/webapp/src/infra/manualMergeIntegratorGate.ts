@@ -1,14 +1,14 @@
-import { NextResponse } from "next/server";
-import type { Pool } from "pg";
-import { checkIntegratorCanonicalPair } from "@/infra/integrations/integratorUserMergeM2mClient";
-import { runPgPoolPgText } from "@/infra/db/runWebappSql";
-import type { VerifiedDistinctIntegratorUserIds } from "@/infra/repos/pgPlatformUserMerge";
-import { getConfigBool } from "@/modules/system-settings/configAdapter";
+import { NextResponse } from 'next/server';
+import type { Pool } from 'pg';
+import { checkIntegratorCanonicalPair } from '@/infra/integrations/integratorUserMergeM2mClient';
+import { runPgPoolPgText } from '@/infra/db/runWebappSql';
+import type { VerifiedDistinctIntegratorUserIds } from '@/infra/repos/pgPlatformUserMerge';
+import { getConfigBool } from '@/modules/system-settings/configAdapter';
 
 function normIntegratorId(v: string | null | undefined): string | null {
   if (v == null) return null;
   const t = v.trim();
-  return t === "" ? null : t;
+  return t === '' ? null : t;
 }
 
 export type ManualMergeIntegratorGateOk = {
@@ -31,7 +31,7 @@ export async function verifyManualMergeIntegratorIntegratorGate(
   targetId: string,
   duplicateId: string,
 ): Promise<ManualMergeIntegratorGateOk | ManualMergeIntegratorGateFail> {
-  const v2 = await getConfigBool("platform_user_merge_v2_enabled", false);
+  const v2 = await getConfigBool('platform_user_merge_v2_enabled', false);
   const r = await runPgPoolPgText<{ id: string; integrator_user_id: string | null }>(
     pool,
     `SELECT id::text AS id, integrator_user_id::text AS integrator_user_id
@@ -54,16 +54,16 @@ export async function verifyManualMergeIntegratorIntegratorGate(
 
   const st = await checkIntegratorCanonicalPair(iTarget, iDup);
   if (!st.ok) {
-    if (st.reason === "unconfigured" || st.reason === "timeout") {
+    if (st.reason === 'unconfigured' || st.reason === 'timeout') {
       return {
         ok: false,
         response: NextResponse.json(
           {
             ok: false,
-            error: "merge_failed",
-            code: "integrator_merge_status_unavailable",
+            error: 'merge_failed',
+            code: 'integrator_merge_status_unavailable',
             message:
-              "Integrator canonical merge status is currently unavailable (configuration missing or request timed out).",
+              'Integrator canonical merge status is currently unavailable (configuration missing or request timed out).',
           },
           { status: 503 },
         ),
@@ -74,8 +74,8 @@ export async function verifyManualMergeIntegratorIntegratorGate(
       response: NextResponse.json(
         {
           ok: false,
-          error: "merge_failed",
-          code: "integrator_canonical_status_failed",
+          error: 'merge_failed',
+          code: 'integrator_canonical_status_failed',
           message: `Integrator canonical-pair check failed (HTTP ${st.status}).`,
         },
         { status: 502 },
@@ -89,10 +89,10 @@ export async function verifyManualMergeIntegratorIntegratorGate(
       response: NextResponse.json(
         {
           ok: false,
-          error: "merge_failed",
-          code: "integrator_canonical_merge_required",
+          error: 'merge_failed',
+          code: 'integrator_canonical_merge_required',
           message:
-            "Integrator users are not merged to the same canonical id yet — run integrator merge first, then webapp projection realignment if needed.",
+            'Integrator users are not merged to the same canonical id yet — run integrator merge first, then webapp projection realignment if needed.',
         },
         { status: 409 },
       ),

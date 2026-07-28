@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import {
   createContext,
@@ -9,29 +9,29 @@ import {
   useRef,
   useState,
   type ReactNode,
-} from "react";
-import { fetchPatientWebPushStatus } from "@/shared/lib/webPush/patientWebPushApi";
+} from 'react';
+import { fetchPatientWebPushStatus } from '@/shared/lib/webPush/patientWebPushApi';
 import {
   getExistingPushSubscription,
   getPushPermissionState,
   probePushSupported,
-} from "@/shared/lib/webPush/pushCapability";
-import { consumeFreshLoginFlag } from "@/shared/lib/webPush/freshLoginStorage";
+} from '@/shared/lib/webPush/pushCapability';
+import { consumeFreshLoginFlag } from '@/shared/lib/webPush/freshLoginStorage';
 import {
   PUSH_PROMPT_DISMISS_COOLDOWN_DAYS,
   readPushPromptDismissedAt,
   writePushPromptDismissedAt,
-} from "@/shared/lib/webPush/pushPromptStorage";
+} from '@/shared/lib/webPush/pushPromptStorage';
 import {
   resolveWebPushUiStatus,
   shouldShowPushOnboardingPrompt,
   type WebPushUiStatus,
-} from "@/shared/lib/webPush/pushOnboardingEligibility";
-import { reconcileStalePatientWebPushSubscriptions } from "@/shared/lib/webPush/reconcilePatientWebPush";
-import { isPushLikelyAfterPwaInstall } from "@/shared/lib/webPush/pushPlatform";
-import { isStandalonePwa } from "@/shared/lib/webPush/pwaDisplay";
-import { registerPatientServiceWorker } from "@/shared/lib/webPush/registerPatientServiceWorker";
-import { syncLocalPushSubscriptionToServer } from "@/shared/lib/webPush/syncLocalPushSubscription";
+} from '@/shared/lib/webPush/pushOnboardingEligibility';
+import { reconcileStalePatientWebPushSubscriptions } from '@/shared/lib/webPush/reconcilePatientWebPush';
+import { isPushLikelyAfterPwaInstall } from '@/shared/lib/webPush/pushPlatform';
+import { isStandalonePwa } from '@/shared/lib/webPush/pwaDisplay';
+import { registerPatientServiceWorker } from '@/shared/lib/webPush/registerPatientServiceWorker';
+import { syncLocalPushSubscriptionToServer } from '@/shared/lib/webPush/syncLocalPushSubscription';
 
 export type WebPushClientSnapshot = {
   mounted: boolean;
@@ -56,12 +56,12 @@ const idleSnapshot: WebPushClientSnapshot = {
   standalone: false,
   pushSupported: false,
   pushNeedsPwaInstall: false,
-  permission: "unsupported",
+  permission: 'unsupported',
   hasLocalSubscription: false,
   hasServerSubscription: false,
   globalWebPushEnabled: false,
   vapidConfigured: false,
-  uiStatus: "unsupported",
+  uiStatus: 'unsupported',
   showOnboardingPrompt: false,
   showFreshLoginDeniedPrompt: false,
   dismissFreshLoginDeniedPrompt: () => {},
@@ -120,7 +120,7 @@ export function PatientWebPushProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    if (!serverSub && localSub && perm === "granted" && globalEnabled) {
+    if (!serverSub && localSub && perm === 'granted' && globalEnabled) {
       const synced = await syncLocalPushSubscriptionToServer();
       if (synced) {
         serverSub = true;
@@ -147,7 +147,7 @@ export function PatientWebPushProvider({ children }: { children: ReactNode }) {
         const freshLogin = consumeFreshLoginFlag();
         if (!freshLogin) return;
         const perm = getPushPermissionState();
-        if (perm === "denied") {
+        if (perm === 'denied') {
           setShowFreshLoginDeniedPrompt(true);
         }
       });
@@ -157,14 +157,14 @@ export function PatientWebPushProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const onVisibility = () => {
-      if (document.visibilityState === "visible") scheduleRefresh();
+      if (document.visibilityState === 'visible') scheduleRefresh();
     };
     const onFocus = () => scheduleRefresh();
-    document.addEventListener("visibilitychange", onVisibility);
-    window.addEventListener("focus", onFocus);
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('focus', onFocus);
     return () => {
-      document.removeEventListener("visibilitychange", onVisibility);
-      window.removeEventListener("focus", onFocus);
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('focus', onFocus);
       if (refreshDebounceRef.current) window.clearTimeout(refreshDebounceRef.current);
     };
   }, [scheduleRefresh]);

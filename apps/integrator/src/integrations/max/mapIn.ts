@@ -1,20 +1,30 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import type { IncomingCallbackUpdate, IncomingMessageUpdate, IncomingUpdate } from '../../kernel/domain/types.js';
+import type {
+  IncomingCallbackUpdate,
+  IncomingMessageUpdate,
+  IncomingUpdate,
+} from '../../kernel/domain/types.js';
 import type { MaxUpdateValidated } from './schema.js';
 import type { SupportRelayMessageType } from '../../kernel/domain/supportRelay/messageTypes.js';
 import { logger } from '../../infra/observability/logger.js';
-import { canonicalizeMessengerStartText, parseMessengerStartCommand } from '../common/messengerStartParse.js';
-import { normalizeChannelCallbackPayload, normalizeTelegramContactPhone } from '../telegram/mapIn.js';
+import {
+  canonicalizeMessengerStartText,
+  parseMessengerStartCommand,
+} from '../common/messengerStartParse.js';
+import {
+  normalizeChannelCallbackPayload,
+  normalizeTelegramContactPhone,
+} from '../telegram/mapIn.js';
 
 /** Map MAX button payload / text to internal action (e.g. for menu). */
 const MESSAGE_TEXT_TO_ACTION: Record<string, string> = {
   '📅 Запись на приём': 'booking.open',
   'Запись на приём': 'booking.open',
   '⚙️ Меню': 'menu.more',
-  'Меню': 'menu.more',
-  'Помощник': 'menu.more',
+  Меню: 'menu.more',
+  Помощник: 'menu.more',
   '📓 Дневник': 'diary.open',
-  'Дневник': 'diary.open',
+  Дневник: 'diary.open',
   '/admin_bookings': 'admin.stats.bookings',
   '/admin_users': 'admin.stats.users',
   '/dialogs': 'admin.dialogs.open',
@@ -23,7 +33,7 @@ const MESSAGE_TEXT_TO_ACTION: Record<string, string> = {
   '/book': 'booking.open',
   '/diary': 'nav.webapp.diary',
   '/menu': 'nav.webapp.menu',
-  'Отмена': 'phone.request.cancel',
+  Отмена: 'phone.request.cancel',
   'Вернуться в меню': 'phone.request.cancel',
   'Неотвеченные вопросы': 'admin.questions.unanswered',
 };
@@ -118,7 +128,8 @@ function verifyContactHash(
   const unescaped = unescapeVcfLiterals(vcfInfo);
   if (unescaped !== vcfInfo) candidates.push(unescaped);
   const expected = candidates.map((c) => createHmac('sha256', botToken).update(c).digest('hex'));
-  if (expected.some((e) => safeHashEquals(e, hash))) return { status: 'valid', expectedPrefixes: [] };
+  if (expected.some((e) => safeHashEquals(e, hash)))
+    return { status: 'valid', expectedPrefixes: [] };
   return { status: 'mismatch', expectedPrefixes: expected.map((e) => e.slice(0, 8)) };
 }
 
@@ -180,7 +191,9 @@ function getContactPhoneFromMaxMessage(
   return null;
 }
 
-function getRelayMessageTypeFromMaxMessage(msg: MaxUpdateValidated['message']): SupportRelayMessageType | null {
+function getRelayMessageTypeFromMaxMessage(
+  msg: MaxUpdateValidated['message'],
+): SupportRelayMessageType | null {
   const attachments = Array.isArray(msg?.body?.attachments) ? msg.body.attachments : [];
   const first = attachments[0] as { type?: unknown } | undefined;
   const type = typeof first?.type === 'string' ? first.type : null;
@@ -229,19 +242,35 @@ export function fromMax(body: MaxUpdateValidated, botToken?: string): IncomingUp
       action: normalized.action,
       callbackData: normalized.action,
       callbackQueryId: callbackId,
-      ...(typeof normalized.conversationId === 'string' ? { conversationId: normalized.conversationId } : {}),
-      ...(typeof body.callback.user?.username === 'string' ? { channelUsername: body.callback.user.username } : {}),
-      ...(typeof body.callback.user?.first_name === 'string' ? { channelFirstName: body.callback.user.first_name } : {}),
-      ...(typeof body.callback.user?.last_name === 'string' ? { channelLastName: body.callback.user.last_name } : {}),
+      ...(typeof normalized.conversationId === 'string'
+        ? { conversationId: normalized.conversationId }
+        : {}),
+      ...(typeof body.callback.user?.username === 'string'
+        ? { channelUsername: body.callback.user.username }
+        : {}),
+      ...(typeof body.callback.user?.first_name === 'string'
+        ? { channelFirstName: body.callback.user.first_name }
+        : {}),
+      ...(typeof body.callback.user?.last_name === 'string'
+        ? { channelLastName: body.callback.user.last_name }
+        : {}),
       ...(typeof normalized.trackingId === 'string' ? { trackingId: normalized.trackingId } : {}),
       ...(typeof normalized.value === 'number' ? { value: normalized.value } : {}),
       ...(typeof normalized.entryType === 'string' ? { entryType: normalized.entryType } : {}),
       ...(typeof normalized.complexId === 'string' ? { complexId: normalized.complexId } : {}),
-      ...(typeof normalized.reminderOccurrenceId === 'string' ? { reminderOccurrenceId: normalized.reminderOccurrenceId } : {}),
-      ...(typeof normalized.reminderSnoozeMinutes === 'number' ? { reminderSnoozeMinutes: normalized.reminderSnoozeMinutes } : {}),
-      ...(typeof normalized.reminderMuteMinutes === 'number' ? { reminderMuteMinutes: normalized.reminderMuteMinutes } : {}),
+      ...(typeof normalized.reminderOccurrenceId === 'string'
+        ? { reminderOccurrenceId: normalized.reminderOccurrenceId }
+        : {}),
+      ...(typeof normalized.reminderSnoozeMinutes === 'number'
+        ? { reminderSnoozeMinutes: normalized.reminderSnoozeMinutes }
+        : {}),
+      ...(typeof normalized.reminderMuteMinutes === 'number'
+        ? { reminderMuteMinutes: normalized.reminderMuteMinutes }
+        : {}),
       ...(normalized.reminderMutePreset === 'tomorrow' ? { reminderMutePreset: 'tomorrow' } : {}),
-      ...(typeof normalized.skipReasonCode === 'string' ? { skipReasonCode: normalized.skipReasonCode } : {}),
+      ...(typeof normalized.skipReasonCode === 'string'
+        ? { skipReasonCode: normalized.skipReasonCode }
+        : {}),
       ...(normalized.questionConfirm === 'yes' || normalized.questionConfirm === 'no'
         ? { questionConfirm: normalized.questionConfirm }
         : {}),
@@ -278,17 +307,25 @@ export function fromMax(body: MaxUpdateValidated, botToken?: string): IncomingUp
       kind: 'message',
       chatId,
       channelId: String(userId),
-      ...(getMessageIdFromMessage(msg) ? { messageId: getMessageIdFromMessage(msg) as string } : {}),
+      ...(getMessageIdFromMessage(msg)
+        ? { messageId: getMessageIdFromMessage(msg) as string }
+        : {}),
       text,
       action,
       ...(linkSecret !== undefined ? { linkSecret } : {}),
       ...(authSecret !== undefined ? { authSecret } : {}),
       ...(phoneOut ? { phone: phoneOut } : {}),
       ...(replyToMid ? { replyToMessageId: replyToMid } : {}),
-      ...(getRelayMessageTypeFromMaxMessage(msg) ? { relayMessageType: getRelayMessageTypeFromMaxMessage(msg) as SupportRelayMessageType } : {}),
+      ...(getRelayMessageTypeFromMaxMessage(msg)
+        ? { relayMessageType: getRelayMessageTypeFromMaxMessage(msg) as SupportRelayMessageType }
+        : {}),
       ...(typeof msg.sender?.username === 'string' ? { channelUsername: msg.sender.username } : {}),
-      ...(typeof msg.sender?.first_name === 'string' ? { channelFirstName: msg.sender.first_name } : {}),
-      ...(typeof msg.sender?.last_name === 'string' ? { channelLastName: msg.sender.last_name } : {}),
+      ...(typeof msg.sender?.first_name === 'string'
+        ? { channelFirstName: msg.sender.first_name }
+        : {}),
+      ...(typeof msg.sender?.last_name === 'string'
+        ? { channelLastName: msg.sender.last_name }
+        : {}),
       userRow: null,
       userState: '',
     };
@@ -301,9 +338,9 @@ export function fromMax(body: MaxUpdateValidated, botToken?: string): IncomingUp
     const userId = msg ? getUserIdFromMessage(msg) : (body.user?.user_id ?? null);
     if (chatId === null || userId == null) return null;
     const payloadRaw =
-      (typeof body.payload === 'string' && body.payload.trim().length > 0 ? body.payload : null)
-      ?? (typeof body.data === 'string' && body.data.trim().length > 0 ? body.data : null)
-      ?? (typeof msg?.body?.text === 'string' ? msg.body.text : null);
+      (typeof body.payload === 'string' && body.payload.trim().length > 0 ? body.payload : null) ??
+      (typeof body.data === 'string' && body.data.trim().length > 0 ? body.data : null) ??
+      (typeof msg?.body?.text === 'string' ? msg.body.text : null);
     const rawTrim = typeof payloadRaw === 'string' ? payloadRaw.trim() : '';
     const canonical = rawTrim ? canonicalizeMessengerStartText(rawTrim) : '/start';
     const effectiveStart = canonical.startsWith('/start')
@@ -321,9 +358,15 @@ export function fromMax(body: MaxUpdateValidated, botToken?: string): IncomingUp
       ...(p.linkSecret !== undefined ? { linkSecret: p.linkSecret } : {}),
       ...(p.authSecret !== undefined ? { authSecret: p.authSecret } : {}),
       ...(p.phone !== undefined ? { phone: p.phone } : {}),
-      ...(typeof (msg?.sender?.username ?? body.user?.username) === 'string' ? { channelUsername: (msg?.sender?.username ?? body.user?.username) as string } : {}),
-      ...(typeof (msg?.sender?.first_name ?? body.user?.first_name) === 'string' ? { channelFirstName: (msg?.sender?.first_name ?? body.user?.first_name) as string } : {}),
-      ...(typeof (msg?.sender?.last_name ?? body.user?.last_name) === 'string' ? { channelLastName: (msg?.sender?.last_name ?? body.user?.last_name) as string } : {}),
+      ...(typeof (msg?.sender?.username ?? body.user?.username) === 'string'
+        ? { channelUsername: (msg?.sender?.username ?? body.user?.username) as string }
+        : {}),
+      ...(typeof (msg?.sender?.first_name ?? body.user?.first_name) === 'string'
+        ? { channelFirstName: (msg?.sender?.first_name ?? body.user?.first_name) as string }
+        : {}),
+      ...(typeof (msg?.sender?.last_name ?? body.user?.last_name) === 'string'
+        ? { channelLastName: (msg?.sender?.last_name ?? body.user?.last_name) as string }
+        : {}),
       userRow: null,
       userState: '',
     };
@@ -338,7 +381,9 @@ export function fromMax(body: MaxUpdateValidated, botToken?: string): IncomingUp
       text: '/start',
       action: '',
       ...(typeof body.user.username === 'string' ? { channelUsername: body.user.username } : {}),
-      ...(typeof body.user.first_name === 'string' ? { channelFirstName: body.user.first_name } : {}),
+      ...(typeof body.user.first_name === 'string'
+        ? { channelFirstName: body.user.first_name }
+        : {}),
       ...(typeof body.user.last_name === 'string' ? { channelLastName: body.user.last_name } : {}),
       userRow: null,
       userState: '',

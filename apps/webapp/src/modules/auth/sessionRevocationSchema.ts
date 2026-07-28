@@ -35,7 +35,7 @@
  * only a reachable database that is MISSING the column is fatal.
  */
 
-const SESSION_REVOCATION_COLUMN = "platform_users.session_epoch";
+const SESSION_REVOCATION_COLUMN = 'platform_users.session_epoch';
 
 export type SessionRevocationSchemaProbe = () => Promise<boolean>;
 
@@ -43,10 +43,10 @@ export class SessionRevocationSchemaError extends Error {
   constructor() {
     super(
       `Database schema is behind this build: ${SESSION_REVOCATION_COLUMN} is missing. ` +
-        "Session revocation compares that column on every request, so starting now would reject " +
-        "every session including new logins. Run the webapp migrations (0243) and start again.",
+        'Session revocation compares that column on every request, so starting now would reject ' +
+        'every session including new logins. Run the webapp migrations (0243) and start again.',
     );
-    this.name = "SessionRevocationSchemaError";
+    this.name = 'SessionRevocationSchemaError';
   }
 }
 
@@ -64,7 +64,7 @@ export async function assertSessionRevocationSchema(
   } catch {
     log(
       `[boot] could not verify ${SESSION_REVOCATION_COLUMN} (database unreachable); ` +
-        "continuing — this check fails the boot only on a database that answers and is behind.",
+        'continuing — this check fails the boot only on a database that answers and is behind.',
     );
     return;
   }
@@ -77,7 +77,7 @@ export async function assertSessionRevocationSchema(
 
 /** The real probe. Kept separate from the assertion so the assertion stays unit-testable. */
 export async function probeSessionRevocationColumn(databaseUrl: string): Promise<boolean> {
-  const { Pool } = await import("pg");
+  const { Pool } = await import('pg');
   const pool = new Pool({
     connectionString: databaseUrl,
     max: 1,

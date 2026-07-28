@@ -1,4 +1,5 @@
 # Code Audit 3 — CR-5 (2nd independent audit of clean implementation) — 2026-06-18
+
 **Verdict: PASS**
 **Auditor: code-auditor-B-CR5**
 
@@ -22,6 +23,7 @@ export function pickWorkingHours(rows: WorkingHoursRow[]): WorkingHoursRow[] {
 Empty input returns empty. No conditional branch, no phantom fallback.
 
 All existing functions confirmed present and intact:
+
 - `WorkingDayRow` type — present
 - `splitByBreak` — present (N-break model, 56 lines)
 - `resolveWorkingDayBreaks` (private helper inside splitByBreak scope) — present
@@ -71,6 +73,7 @@ All 22 tests in the suite pass (verified by running vitest directly — see Test
 ### D. Architecture (no raw SQL, DI): PASS
 
 Three changed files examined:
+
 - `computeSlots.ts` — pure computation module, no DB access.
 - `computeSlots.test.ts` — pure unit test, no DB access.
 - `calendar/route.ts` — uses `deps.bookingEngine` from `buildAppDeps()` (DI factory), not a direct Drizzle import. The `listSpecialists` call goes through the port abstraction.
@@ -140,6 +143,7 @@ cd apps/webapp && npx tsc --noEmit --project tsconfig.json
 ```
 
 Clean on the HEAD working tree. The new route code in the branch uses:
+
 - `deps.bookingEngine` typed as `BookingEngineService | null` — the `&& deps.bookingEngine` guard satisfies TS narrowing
 - `active[0]!.id` — non-null assert correct inside `if (active.length === 1)` — TS cannot infer this from array length but the assert is logically sound
 - `BeSpecialist.isActive: boolean` — confirmed in types.ts

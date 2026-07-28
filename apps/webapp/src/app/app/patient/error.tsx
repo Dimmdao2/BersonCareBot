@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { routePaths } from "@/app-layer/routes/paths";
-import { SegmentRouteError } from "@/shared/ui/patient/SegmentRouteError";
+import { routePaths } from '@/app-layer/routes/paths';
+import { SegmentRouteError } from '@/shared/ui/patient/SegmentRouteError';
 
 export default function PatientSegmentError(props: {
   error: Error & { digest?: string };

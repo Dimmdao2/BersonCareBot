@@ -6,16 +6,16 @@
 
 **Связанные документы**
 
-| Документ | Назначение |
-|----------|------------|
-| [01-current-state-and-gap-analysis.md](./01-current-state-and-gap-analysis.md) | Аудит текущей выдачи видео и пробелов (обязательный gap analysis) |
-| [02-target-architecture.md](./02-target-architecture.md) | Целевая схема: webapp API, S3, `apps/media-worker`, без video microservice |
-| [03-rollout-strategy.md](./03-rollout-strategy.md) | Порядок выкатки, canary, backfill, переключение default |
-| [04-test-strategy.md](./04-test-strategy.md) | Пирамида тестов, контракты, негативные сценарии |
-| [05-risk-register.md](./05-risk-register.md) | Реестр рисков и митигации |
-| [06-execution-log.md](./06-execution-log.md) | Журнал работы агента / команды |
-| [07-post-documentation-implementation-roadmap.md](./07-post-documentation-implementation-roadmap.md) | Этап B: дорожная карта реализации после утверждения доков |
-| [phases/](./phases/) | Детализация фаз 01–10 с чек-листами |
+| Документ                                                                                             | Назначение                                                                 |
+| ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| [01-current-state-and-gap-analysis.md](./01-current-state-and-gap-analysis.md)                       | Аудит текущей выдачи видео и пробелов (обязательный gap analysis)          |
+| [02-target-architecture.md](./02-target-architecture.md)                                             | Целевая схема: webapp API, S3, `apps/media-worker`, без video microservice |
+| [03-rollout-strategy.md](./03-rollout-strategy.md)                                                   | Порядок выкатки, canary, backfill, переключение default                    |
+| [04-test-strategy.md](./04-test-strategy.md)                                                         | Пирамида тестов, контракты, негативные сценарии                            |
+| [05-risk-register.md](./05-risk-register.md)                                                         | Реестр рисков и митигации                                                  |
+| [06-execution-log.md](./06-execution-log.md)                                                         | Журнал работы агента / команды                                             |
+| [07-post-documentation-implementation-roadmap.md](./07-post-documentation-implementation-roadmap.md) | Этап B: дорожная карта реализации после утверждения доков                  |
+| [phases/](./phases/)                                                                                 | Детализация фаз 01–10 с чек-листами                                        |
 
 ---
 
@@ -76,18 +76,18 @@ flowchart LR
   P09 --> P10
 ```
 
-| Фаза | Файл | Кратко |
-|------|------|--------|
-| 01 | [phases/phase-01-data-model-and-dual-delivery-foundation.md](./phases/phase-01-data-model-and-dual-delivery-foundation.md) | Поля БД, `processingStatus`, `deliveryMode`, без изменения поведения MP4 |
-| 02 | [phases/phase-02-transcoding-pipeline-and-worker.md](./phases/phase-02-transcoding-pipeline-and-worker.md) | Очередь, `apps/media-worker`, FFmpeg, retries |
-| 03 | [phases/phase-03-storage-layout-and-artifact-management.md](./phases/phase-03-storage-layout-and-artifact-management.md) | Префиксы S3, master playlist, сегменты, cleanup |
-| 04 | [phases/phase-04-playback-api-and-delivery-strategy.md](./phases/phase-04-playback-api-and-delivery-strategy.md) | Единый playback endpoint, флаги, fallback |
-| 05 | [phases/phase-05-player-integration-and-dual-mode-frontend.md](./phases/phase-05-player-integration-and-dual-mode-frontend.md) | hls.js / Safari, ошибки, fallback UX |
-| 06 | [phases/phase-06-new-video-hls-default-path.md](./phases/phase-06-new-video-hls-default-path.md) | Новые загрузки → HLS pipeline при включённом флаге |
-| 07 | [phases/phase-07-backfill-legacy-library.md](./phases/phase-07-backfill-legacy-library.md) | Батч backfill, пауза, отчёты |
-| 08 | [phases/phase-08-default-switch-to-hls.md](./phases/phase-08-default-switch-to-hls.md) | Переключение default delivery, откат |
-| 09 | [phases/phase-09-signed-urls-ttl-and-private-access.md](./phases/phase-09-signed-urls-ttl-and-private-access.md) | Усиление без DRM |
-| 10 | [phases/phase-10-watermark-and-further-hardening.md](./phases/phase-10-watermark-and-further-hardening.md) | Watermark, опциональные шаги |
+| Фаза | Файл                                                                                                                           | Кратко                                                                   |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
+| 01   | [phases/phase-01-data-model-and-dual-delivery-foundation.md](./phases/phase-01-data-model-and-dual-delivery-foundation.md)     | Поля БД, `processingStatus`, `deliveryMode`, без изменения поведения MP4 |
+| 02   | [phases/phase-02-transcoding-pipeline-and-worker.md](./phases/phase-02-transcoding-pipeline-and-worker.md)                     | Очередь, `apps/media-worker`, FFmpeg, retries                            |
+| 03   | [phases/phase-03-storage-layout-and-artifact-management.md](./phases/phase-03-storage-layout-and-artifact-management.md)       | Префиксы S3, master playlist, сегменты, cleanup                          |
+| 04   | [phases/phase-04-playback-api-and-delivery-strategy.md](./phases/phase-04-playback-api-and-delivery-strategy.md)               | Единый playback endpoint, флаги, fallback                                |
+| 05   | [phases/phase-05-player-integration-and-dual-mode-frontend.md](./phases/phase-05-player-integration-and-dual-mode-frontend.md) | hls.js / Safari, ошибки, fallback UX                                     |
+| 06   | [phases/phase-06-new-video-hls-default-path.md](./phases/phase-06-new-video-hls-default-path.md)                               | Новые загрузки → HLS pipeline при включённом флаге                       |
+| 07   | [phases/phase-07-backfill-legacy-library.md](./phases/phase-07-backfill-legacy-library.md)                                     | Батч backfill, пауза, отчёты                                             |
+| 08   | [phases/phase-08-default-switch-to-hls.md](./phases/phase-08-default-switch-to-hls.md)                                         | Переключение default delivery, откат                                     |
+| 09   | [phases/phase-09-signed-urls-ttl-and-private-access.md](./phases/phase-09-signed-urls-ttl-and-private-access.md)               | Усиление без DRM                                                         |
+| 10   | [phases/phase-10-watermark-and-further-hardening.md](./phases/phase-10-watermark-and-further-hardening.md)                     | Watermark, опциональные шаги                                             |
 
 ---
 
@@ -130,27 +130,27 @@ flowchart LR
 
 ## 9. Принципы (напоминание)
 
-1. Не ломать текущую MP4-выдачу.  
-2. Обратимые изменения и feature flags.  
-3. Независимые безопасные инкременты.  
-4. Без DRM, без live, без отдельного video microservice на старте.  
-5. Heavy work только в **`apps/media-worker`**, не в Next.js request path.  
+1. Не ломать текущую MP4-выдачу.
+2. Обратимые изменения и feature flags.
+3. Независимые безопасные инкременты.
+4. Без DRM, без live, без отдельного video microservice на старте.
+5. Heavy work только в **`apps/media-worker`**, не в Next.js request path.
 6. Видео **не** стримить через тело ответа API — только presigned URL к S3.
 
 ---
 
 ## 10. Карта соответствия запросу заказчика
 
-| Требование | Где отражено |
-|------------|----------------|
-| Dual delivery MP4 + HLS | Phase 01, 04, 02-target-architecture |
-| Очередь + worker + FFmpeg | Phase 02, 03 |
-| Playback API + strategy | Phase 04 |
-| Frontend dual mode | Phase 05 |
-| Новые → HLS, старые → старое | Phase 06 |
-| Backfill | Phase 07 |
-| Default HLS | Phase 08 |
-| Signed / TTL / private | Phase 09 |
-| Watermark | Phase 10 |
-| Gap analysis отдельным файлом | 01-current-state-and-gap-analysis |
-| Execution log | 06-execution-log |
+| Требование                    | Где отражено                         |
+| ----------------------------- | ------------------------------------ |
+| Dual delivery MP4 + HLS       | Phase 01, 04, 02-target-architecture |
+| Очередь + worker + FFmpeg     | Phase 02, 03                         |
+| Playback API + strategy       | Phase 04                             |
+| Frontend dual mode            | Phase 05                             |
+| Новые → HLS, старые → старое  | Phase 06                             |
+| Backfill                      | Phase 07                             |
+| Default HLS                   | Phase 08                             |
+| Signed / TTL / private        | Phase 09                             |
+| Watermark                     | Phase 10                             |
+| Gap analysis отдельным файлом | 01-current-state-and-gap-analysis    |
+| Execution log                 | 06-execution-log                     |

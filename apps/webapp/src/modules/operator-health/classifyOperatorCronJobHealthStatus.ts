@@ -12,9 +12,9 @@ export type OperatorCronJobHealthSignals = {
  */
 export function classifyOperatorCronJobHealthStatus(
   s: OperatorCronJobHealthSignals,
-): "ok" | "degraded" | "error" | "no_data" {
+): 'ok' | 'degraded' | 'error' | 'no_data' {
   if (s.lastStatus == null && s.lastSuccessAt == null && s.lastFailureAt == null) {
-    return "no_data";
+    return 'no_data';
   }
 
   let rank = 0;
@@ -22,7 +22,7 @@ export function classifyOperatorCronJobHealthStatus(
     if (to > rank) rank = to;
   };
 
-  if (s.lastStatus === "failure") {
+  if (s.lastStatus === 'failure') {
     bump(2);
   }
 
@@ -40,11 +40,11 @@ export function classifyOperatorCronJobHealthStatus(
     if (ageSec > s.staleAfterSec) {
       bump(1);
     }
-  } else if (s.lastStatus !== "success") {
+  } else if (s.lastStatus !== 'success') {
     bump(1);
   }
 
-  if (rank >= 2) return "error";
-  if (rank >= 1) return "degraded";
-  return "ok";
+  if (rank >= 2) return 'error';
+  if (rank >= 1) return 'degraded';
+  return 'ok';
 }

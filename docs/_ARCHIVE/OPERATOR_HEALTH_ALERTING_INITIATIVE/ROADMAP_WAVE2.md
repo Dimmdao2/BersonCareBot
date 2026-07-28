@@ -10,19 +10,19 @@
 
 ## 0. Навигация по документам
 
-| Документ | Роль | Статус |
-|----------|------|--------|
-| [`SCOPE_DECISIONS.md`](SCOPE_DECISIONS.md) | Канон продукт/архитектура/Ops | **Active** |
-| **ROADMAP_WAVE2** (этот файл) | Волны, шаги, DoD | **Closed** |
-| [`MASTER_PLAN.md`](MASTER_PLAN.md) | Полное видение интеграций | Reference; доставка — Wave 2 |
-| [`MVP_IMPLEMENTATION_PLAN.md`](MVP_IMPLEMENTATION_PLAN.md) | Сделано в коде до Wave 2 | **Closed** |
-| PHASE A | Модель инцидентов | **Partial** (integrator path; Wave 2 scope закрыт) |
-| PHASE B | Синтетические пробы | **Closed** (Wave 4: MAX/Rubitime/TG/GCal) |
-| PHASE C | Last-status вебхуков | **Closed** (Wave 4) |
-| PHASE D | Событийные хуки | **Closed** (Wave 3: projection debounce; GCal probe в B) |
-| PHASE E | Recovery push | **Superseded** |
-| PHASE F | UI интеграций | **Closed** (Wave 4: блок «Интеграции») |
-| PHASE G | Тесты/docs полного MASTER | **Partial** (Wave 2 DoD; полировка MASTER — backlog) |
+| Документ                                                   | Роль                          | Статус                                                   |
+| ---------------------------------------------------------- | ----------------------------- | -------------------------------------------------------- |
+| [`SCOPE_DECISIONS.md`](SCOPE_DECISIONS.md)                 | Канон продукт/архитектура/Ops | **Active**                                               |
+| **ROADMAP_WAVE2** (этот файл)                              | Волны, шаги, DoD              | **Closed**                                               |
+| [`MASTER_PLAN.md`](MASTER_PLAN.md)                         | Полное видение интеграций     | Reference; доставка — Wave 2                             |
+| [`MVP_IMPLEMENTATION_PLAN.md`](MVP_IMPLEMENTATION_PLAN.md) | Сделано в коде до Wave 2      | **Closed**                                               |
+| PHASE A                                                    | Модель инцидентов             | **Partial** (integrator path; Wave 2 scope закрыт)       |
+| PHASE B                                                    | Синтетические пробы           | **Closed** (Wave 4: MAX/Rubitime/TG/GCal)                |
+| PHASE C                                                    | Last-status вебхуков          | **Closed** (Wave 4)                                      |
+| PHASE D                                                    | Событийные хуки               | **Closed** (Wave 3: projection debounce; GCal probe в B) |
+| PHASE E                                                    | Recovery push                 | **Superseded**                                           |
+| PHASE F                                                    | UI интеграций                 | **Closed** (Wave 4: блок «Интеграции»)                   |
+| PHASE G                                                    | Тесты/docs полного MASTER     | **Partial** (Wave 2 DoD; полировка MASTER — backlog)     |
 
 ### Правила агентов (обязательно перед волной)
 
@@ -54,12 +54,12 @@ flowchart LR
   D --> TGd[TG / Max / Push digest]
 ```
 
-| Уровень | Когда | Каналы | Формат |
-|---------|--------|--------|--------|
-| **critical** | Падения из §3 (вкл. outbox **error**) | Свои TG/Max/Push | Один push на `dedup_key`; tick ≤5 мин |
-| **account_conflicts** | Чекбокс «Конфликты аккаунтов» | Свои TG/Max/Push | Немедленно |
-| **digest** | 1×/день в `digestTime` (default `09:00`) | Свои TG/Max/Push | `⚠️` + до ~15 строк **или** `✅ Всё в порядке` |
-| **warn** | due backlog, projection retries, … | — | Баннер + сводка за окно |
+| Уровень               | Когда                                    | Каналы           | Формат                                         |
+| --------------------- | ---------------------------------------- | ---------------- | ---------------------------------------------- |
+| **critical**          | Падения из §3 (вкл. outbox **error**)    | Свои TG/Max/Push | Один push на `dedup_key`; tick ≤5 мин          |
+| **account_conflicts** | Чекбокс «Конфликты аккаунтов»            | Свои TG/Max/Push | Немедленно                                     |
+| **digest**            | 1×/день в `digestTime` (default `09:00`) | Свои TG/Max/Push | `⚠️` + до ~15 строк **или** `✅ Всё в порядке` |
+| **warn**              | due backlog, projection retries, …       | —                | Баннер + сводка за окно                        |
 
 **Не делаем:** push на каждый `degraded` в health UI.
 
@@ -74,27 +74,27 @@ cron/internal tick
   → relayOutbound / staff push (TG, Max, Web Push)
 ```
 
-| Компонент | Путь (план) |
-|-----------|-------------|
-| Конфиг | `operator_health_alert_config` + merge legacy `admin_incident_alert_config` |
-| Диспетчер (функция, не процесс) | `dispatchOperatorAlert` → существующие `relayOutbound` + `outgoing_delivery_queue` + integrator worker |
-| Critical classify | `apps/webapp/src/modules/operator-health/criticalHealthSignals.ts` |
-| Digest build | `apps/webapp/src/modules/operator-health/buildOperatorHealthDigest.ts` (+ `digestHealthSnapshotLines`, `collectOperatorHealthDigestInput`) |
-| Dedup sent | `apps/webapp/db/schema/operatorHealthAlertSent.ts` (имя уточнить в миграции) |
-| Integrator enqueue | `reportOperatorFailure` → unified payload + `admin_telegram_ids` lists |
-| Ticks | `operator-health-critical/tick`, `operator-health-digest/tick`, `system-health-guard/tick` |
+| Компонент                       | Путь (план)                                                                                                                                |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| Конфиг                          | `operator_health_alert_config` + merge legacy `admin_incident_alert_config`                                                                |
+| Диспетчер (функция, не процесс) | `dispatchOperatorAlert` → существующие `relayOutbound` + `outgoing_delivery_queue` + integrator worker                                     |
+| Critical classify               | `apps/webapp/src/modules/operator-health/criticalHealthSignals.ts`                                                                         |
+| Digest build                    | `apps/webapp/src/modules/operator-health/buildOperatorHealthDigest.ts` (+ `digestHealthSnapshotLines`, `collectOperatorHealthDigestInput`) |
+| Dedup sent                      | `apps/webapp/db/schema/operatorHealthAlertSent.ts` (имя уточнить в миграции)                                                               |
+| Integrator enqueue              | `reportOperatorFailure` → unified payload + `admin_telegram_ids` lists                                                                     |
+| Ticks                           | `operator-health-critical/tick`, `operator-health-digest/tick`, `system-health-guard/tick`                                                 |
 
 ---
 
 ## 3. Волны (порядок строгий)
 
-| Волна | Цель | Оценка | Закрытие |
-|-------|------|--------|----------|
-| **0** | Диспетчер, конфиг, UI, dedup table, deploy snippets | 2–3 дн | DoD §8.0 |
-| **1** | Critical tick + classify + баннер из общей матрицы | 2–3 дн | DoD §8.1 |
+| Волна | Цель                                                   | Оценка | Закрытие |
+| ----- | ------------------------------------------------------ | ------ | -------- |
+| **0** | Диспетчер, конфиг, UI, dedup table, deploy snippets    | 2–3 дн | DoD §8.0 |
+| **1** | Critical tick + classify + баннер из общей матрицы     | 2–3 дн | DoD §8.1 |
 | **2** | Суточная сводка 1× (`digestTime`, default 09:00) ⚠️/✅ | 3–4 дн | DoD §8.2 |
-| **3** | Projection/media хуки + recovery в сводке | 3–4 дн | DoD §8.3 |
-| **4** | PHASE B/C/F остаток | 4–5 дн | DoD §8.4 |
+| **3** | Projection/media хуки + recovery в сводке              | 3–4 дн | DoD §8.3 |
+| **4** | PHASE B/C/F остаток                                    | 4–5 дн | DoD §8.4 |
 
 ---
 
@@ -102,14 +102,14 @@ cron/internal tick
 
 ### Scope
 
-| Разрешено | Запрещено |
-|-----------|-----------|
-| `apps/webapp/src/modules/operator-alerts/**` | Patient routes |
+| Разрешено                                                             | Запрещено                |
+| --------------------------------------------------------------------- | ------------------------ |
+| `apps/webapp/src/modules/operator-alerts/**`                          | Patient routes           |
 | `apps/webapp/src/modules/admin-incidents/**` (рефактор под диспетчер) | Новые env для интеграций |
-| `apps/webapp/src/modules/operator-health/**` | GitHub CI workflow |
-| `apps/integrator/src/infra/operatorIncident/**` | LFK DDL |
-| `apps/webapp/db/schema/**`, миграция Drizzle | |
-| `deploy/host/cron.d/**`, `HOST_DEPLOY_README.md` | |
+| `apps/webapp/src/modules/operator-health/**`                          | GitHub CI workflow       |
+| `apps/integrator/src/infra/operatorIncident/**`                       | LFK DDL                  |
+| `apps/webapp/db/schema/**`, миграция Drizzle                          |                          |
+| `deploy/host/cron.d/**`, `HOST_DEPLOY_README.md`                      |                          |
 
 ### Шаг 0.1 — `dispatchOperatorAlert`
 
@@ -308,11 +308,11 @@ cron/internal tick
 
 ## 8. Волна 4 — Интеграции (PHASE B/C/F)
 
-| Шаг | Содержание | Политика алертов |
-|-----|------------|------------------|
-| 4.1 | Пробы TG, GCal ([`PHASE_B`](PHASE_B_SYNTHETIC_PROBES_CRON.md)) | P7: 3-strike critical |
-| 4.2 | Last-status webhooks ([`PHASE_C`](PHASE_C_INBOUND_WEBHOOK_LAST_STATUS.md)) | P8: burst → critical |
-| 4.3 | UI «Интеграции» ([`PHASE_F`](PHASE_F_UI_AND_ADMIN_API.md)) | Только in-app |
+| Шаг | Содержание                                                                 | Политика алертов      |
+| --- | -------------------------------------------------------------------------- | --------------------- |
+| 4.1 | Пробы TG, GCal ([`PHASE_B`](PHASE_B_SYNTHETIC_PROBES_CRON.md))             | P7: 3-strike critical |
+| 4.2 | Last-status webhooks ([`PHASE_C`](PHASE_C_INBOUND_WEBHOOK_LAST_STATUS.md)) | P8: burst → critical  |
+| 4.3 | UI «Интеграции» ([`PHASE_F`](PHASE_F_UI_AND_ADMIN_API.md))                 | Только in-app         |
 
 **Вне scope волны 4:** SMSC, SMTP, email.
 
@@ -347,12 +347,12 @@ cron/internal tick
 
 ## 11. Связанные файлы
 
-| Область | Путь |
-|---------|------|
-| Решения | [`SCOPE_DECISIONS.md`](SCOPE_DECISIONS.md) |
+| Область              | Путь                                                                                                        |
+| -------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Решения              | [`SCOPE_DECISIONS.md`](SCOPE_DECISIONS.md)                                                                  |
 | Сбор health (полный) | [`collectAdminSystemHealthData.ts`](../../apps/webapp/src/app-layer/health/collectAdminSystemHealthData.ts) |
-| Баннер | [`adminDoctorTodayHealthBanner.ts`](../../apps/webapp/src/app-layer/health/adminDoctorTodayHealthBanner.ts) |
-| Legacy relay | [`sendAdminIncidentAlerts.ts`](../../apps/webapp/src/modules/admin-incidents/sendAdminIncidentAlerts.ts) |
-| Integrator incidents | [`reportOperatorFailure.ts`](../../apps/integrator/src/infra/operatorIncident/reportOperatorFailure.ts) |
-| Cron registry | [`cronJobRegistry.ts`](../../apps/webapp/src/modules/operator-health/cronJobRegistry.ts) |
-| Deploy | [`deploy/HOST_DEPLOY_README.md`](../../deploy/HOST_DEPLOY_README.md) |
+| Баннер               | [`adminDoctorTodayHealthBanner.ts`](../../apps/webapp/src/app-layer/health/adminDoctorTodayHealthBanner.ts) |
+| Legacy relay         | [`sendAdminIncidentAlerts.ts`](../../apps/webapp/src/modules/admin-incidents/sendAdminIncidentAlerts.ts)    |
+| Integrator incidents | [`reportOperatorFailure.ts`](../../apps/integrator/src/infra/operatorIncident/reportOperatorFailure.ts)     |
+| Cron registry        | [`cronJobRegistry.ts`](../../apps/webapp/src/modules/operator-health/cronJobRegistry.ts)                    |
+| Deploy               | [`deploy/HOST_DEPLOY_README.md`](../../deploy/HOST_DEPLOY_README.md)                                        |

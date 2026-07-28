@@ -1,17 +1,17 @@
-"use client";
+'use client';
 
-import { useState, useTransition } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { Switch } from "@/shared/ui/doctor/primitives/switch";
-import { patchAdminSetting } from "./patchAdminSetting";
+import { useState, useTransition } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { Switch } from '@/shared/ui/doctor/primitives/switch';
+import { patchAdminSetting } from './patchAdminSetting';
 import {
   normalizeDigestTimeHour,
   type OperatorAlertBlock,
   type OperatorAlertChannels,
   type OperatorHealthAlertConfig,
-} from "@/modules/operator-alerts/operatorHealthAlertConfig";
+} from '@/modules/operator-alerts/operatorHealthAlertConfig';
 
 export type OperatorHealthAlertsSectionProps = {
   initialConfig: OperatorHealthAlertConfig;
@@ -20,15 +20,15 @@ export type OperatorHealthAlertsSectionProps = {
 type BlockDef = {
   block: OperatorAlertBlock;
   title: string;
-  topicKey: keyof OperatorHealthAlertConfig["topics"];
+  topicKey: keyof OperatorHealthAlertConfig['topics'];
   showTime?: boolean;
 };
 
 const BLOCKS: BlockDef[] = [
-  { block: "critical", title: "Критичные сбои", topicKey: "critical_enabled" },
-  { block: "digest", title: "Суточная сводка", topicKey: "digest_enabled", showTime: true },
-  { block: "account_conflicts", title: "Конфликты аккаунтов", topicKey: "account_conflicts" },
-  { block: "support", title: "Обращения в поддержку", topicKey: "support_enabled" },
+  { block: 'critical', title: 'Критичные сбои', topicKey: 'critical_enabled' },
+  { block: 'digest', title: 'Суточная сводка', topicKey: 'digest_enabled', showTime: true },
+  { block: 'account_conflicts', title: 'Конфликты аккаунтов', topicKey: 'account_conflicts' },
+  { block: 'support', title: 'Обращения в поддержку', topicKey: 'support_enabled' },
 ];
 
 function ChannelRow({
@@ -74,18 +74,18 @@ export function OperatorHealthAlertsSection({ initialConfig }: OperatorHealthAle
     setError(null);
     const trimmedDigestTime = digestTime.trim();
     if (!/^([01]?\d|2[0-3]):([0-5]\d)$/.test(trimmedDigestTime)) {
-      setError("Не удалось сохранить");
+      setError('Не удалось сохранить');
       return;
     }
     const normalizedDigestTime = normalizeDigestTimeHour(trimmedDigestTime);
     startTransition(async () => {
-      const ok = await patchAdminSetting("operator_health_alert_config", {
+      const ok = await patchAdminSetting('operator_health_alert_config', {
         topics,
         channels,
         digestTime: normalizedDigestTime,
       });
       if (!ok) {
-        setError("Не удалось сохранить");
+        setError('Не удалось сохранить');
         return;
       }
       setSaved(true);

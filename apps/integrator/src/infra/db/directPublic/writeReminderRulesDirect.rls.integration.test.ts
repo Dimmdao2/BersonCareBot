@@ -55,102 +55,122 @@ const enabled =
   Boolean((process.env.DATABASE_URL ?? '').trim()) &&
   Boolean((process.env.DB_PRINCIPAL_SIGNING_SECRET ?? '').trim());
 
-describe.skipIf(!enabled)('upsertReminderRuleDirect RLS under the real integrator principal (opt-in, real Postgres)', () => {
-  // Real TEST fixture: a platform user with exactly one active org_enrollments row. See D5 report
-  // (commit 384e7ca29) for provenance — same fixture used for the live manual audit re-verification.
-  const ORG_A = 'a0000000-0000-4000-8000-000000000001';
-  const FIXTURE_INTEGRATOR_USER_ID = '126';
-  const writtenRuleIds: string[] = [];
+describe.skipIf(!enabled)(
+  'upsertReminderRuleDirect RLS under the real integrator principal (opt-in, real Postgres)',
+  () => {
+    // Real TEST fixture: a platform user with exactly one active org_enrollments row. See D5 report
+    // (commit 384e7ca29) for provenance — same fixture used for the live manual audit re-verification.
+    const ORG_A = 'a0000000-0000-4000-8000-000000000001';
+    const FIXTURE_INTEGRATOR_USER_ID = '126';
+    const writtenRuleIds: string[] = [];
 
-  async function assertTestDb(): Promise<void> {
-    const r = await runWithOrganizationPrincipal(ORG_A, () => createDbPort().query<{ n: string }>('SELECT current_database() AS n', []));
-    const n = r.rows[0]?.n ?? '';
-    if (!/_test$/i.test(n)) {
-      throw new Error(`refusing: current_database="${n}" — expected a *_test database`);
+    async function assertTestDb(): Promise<void> {
+      const r = await runWithOrganizationPrincipal(ORG_A, () =>
+        createDbPort().query<{ n: string }>('SELECT current_database() AS n', []),
+      );
+      const n = r.rows[0]?.n ?? '';
+      if (!/_test$/i.test(n)) {
+        throw new Error(`refusing: current_database="${n}" — expected a *_test database`);
+      }
     }
-  }
 
-  function ruleInput(id: string) {
-    writtenRuleIds.push(id);
-    return {
-      integratorUserId: FIXTURE_INTEGRATOR_USER_ID,
-      integratorRuleId: id,
-      category: 'lfk' as const,
-      isEnabled: true,
-      scheduleType: 'interval_window',
-      timezone: 'Europe/Moscow',
-      intervalMinutes: 60,
-      windowStartMinute: 480,
-      windowEndMinute: 1320,
-      daysMask: '1111111',
-      contentMode: 'none' as const,
-      linkedObjectType: null,
-      linkedObjectId: null,
-      customTitle: null,
-      customText: null,
-      scheduleData: undefined,
-      reminderIntent: null,
-      quietHoursStartMinute: null,
-      quietHoursEndMinute: null,
-      notificationTopicCode: undefined,
-    };
-  }
-
-  afterAll(async () => {
-    await assertTestDb();
-    if (writtenRuleIds.length > 0) {
-      await runWithOrganizationPrincipal(ORG_A, () => createDbPort().query(
-        'DELETE FROM public.reminder_rules WHERE integrator_rule_id = ANY($1)',
-        [writtenRuleIds],
-      ));
+    function ruleInput(id: string) {
+      writtenRuleIds.push(id);
+      return {
+        integratorUserId: FIXTURE_INTEGRATOR_USER_ID,
+        integratorRuleId: id,
+        category: 'lfk' as const,
+        isEnabled: true,
+        scheduleType: 'interval_window',
+        timezone: 'Europe/Moscow',
+        intervalMinutes: 60,
+        windowStartMinute: 480,
+        windowEndMinute: 1320,
+        daysMask: '1111111',
+        contentMode: 'none' as const,
+        linkedObjectType: null,
+        linkedObjectId: null,
+        customTitle: null,
+        customText: null,
+        scheduleData: undefined,
+        reminderIntent: null,
+        quietHoursStartMinute: null,
+        quietHoursEndMinute: null,
+        notificationTopicCode: undefined,
+      };
     }
-  });
 
-  it('bare login (no principal at all) is denied', async () => {
-    await assertTestDb();
-    const id = `rls-it-bare-${Date.now()}`;
-    await expect(upsertReminderRuleDirect(createDbPort(), ruleInput(id))).rejects.toThrow();
-  });
-
-  it('REGRESSION GUARD: the real integrator principal (org set, patient NULL) WITHOUT the org-principal re-wrap is denied', async () => {
-    const id = `rls-it-unfixed-${Date.now()}`;
-    await expect(
-      runWithIntegratorPrincipal(
-        { organizationId: ORG_A, integratorUserId: FIXTURE_INTEGRATOR_USER_ID, source: 'rls-integration-test' },
-        () => upsertReminderRuleDirect(createDbPort(), ruleInput(id)),
-      ),
-    ).rejects.toThrow();
-  });
-
-  it('FIX PROOF: the real integrator principal WITH the org-principal re-wrap succeeds, full field set + non-NULL org', async () => {
-    const id = `rls-it-fixed-${Date.now()}`;
-    const result = await runWithIntegratorPrincipal(
-      { organizationId: ORG_A, integratorUserId: FIXTURE_INTEGRATOR_USER_ID, source: 'rls-integration-test' },
-      () => runDirectPublicWriteWithOrgPrincipal(() => upsertReminderRuleDirect(createDbPort(), {
-        ...ruleInput(id),
-        linkedObjectType: 'lfk_complex',
-        linkedObjectId: 'complex-rls-it',
-        reminderIntent: 'exercises',
-        notificationTopicCode: 'training_reminders',
-      })),
-    );
-    expect(result.organizationId).toBe(ORG_A);
-    expect(result.platformUserId).toBeTruthy();
-
-    const row = await runWithOrganizationPrincipal(ORG_A, () => createDbPort().query<{
-      organization_id: string;
-      platform_user_id: string;
-      linked_object_type: string;
-      notification_topic_code: string;
-    }>(
-      'SELECT organization_id, platform_user_id, linked_object_type, notification_topic_code FROM public.reminder_rules WHERE integrator_rule_id = $1',
-      [id],
-    ));
-    expect(row.rows[0]).toMatchObject({
-      organization_id: ORG_A,
-      platform_user_id: result.platformUserId,
-      linked_object_type: 'lfk_complex',
-      notification_topic_code: 'training_reminders',
+    afterAll(async () => {
+      await assertTestDb();
+      if (writtenRuleIds.length > 0) {
+        await runWithOrganizationPrincipal(ORG_A, () =>
+          createDbPort().query(
+            'DELETE FROM public.reminder_rules WHERE integrator_rule_id = ANY($1)',
+            [writtenRuleIds],
+          ),
+        );
+      }
     });
-  });
-});
+
+    it('bare login (no principal at all) is denied', async () => {
+      await assertTestDb();
+      const id = `rls-it-bare-${Date.now()}`;
+      await expect(upsertReminderRuleDirect(createDbPort(), ruleInput(id))).rejects.toThrow();
+    });
+
+    it('REGRESSION GUARD: the real integrator principal (org set, patient NULL) WITHOUT the org-principal re-wrap is denied', async () => {
+      const id = `rls-it-unfixed-${Date.now()}`;
+      await expect(
+        runWithIntegratorPrincipal(
+          {
+            organizationId: ORG_A,
+            integratorUserId: FIXTURE_INTEGRATOR_USER_ID,
+            source: 'rls-integration-test',
+          },
+          () => upsertReminderRuleDirect(createDbPort(), ruleInput(id)),
+        ),
+      ).rejects.toThrow();
+    });
+
+    it('FIX PROOF: the real integrator principal WITH the org-principal re-wrap succeeds, full field set + non-NULL org', async () => {
+      const id = `rls-it-fixed-${Date.now()}`;
+      const result = await runWithIntegratorPrincipal(
+        {
+          organizationId: ORG_A,
+          integratorUserId: FIXTURE_INTEGRATOR_USER_ID,
+          source: 'rls-integration-test',
+        },
+        () =>
+          runDirectPublicWriteWithOrgPrincipal(() =>
+            upsertReminderRuleDirect(createDbPort(), {
+              ...ruleInput(id),
+              linkedObjectType: 'lfk_complex',
+              linkedObjectId: 'complex-rls-it',
+              reminderIntent: 'exercises',
+              notificationTopicCode: 'training_reminders',
+            }),
+          ),
+      );
+      expect(result.organizationId).toBe(ORG_A);
+      expect(result.platformUserId).toBeTruthy();
+
+      const row = await runWithOrganizationPrincipal(ORG_A, () =>
+        createDbPort().query<{
+          organization_id: string;
+          platform_user_id: string;
+          linked_object_type: string;
+          notification_topic_code: string;
+        }>(
+          'SELECT organization_id, platform_user_id, linked_object_type, notification_topic_code FROM public.reminder_rules WHERE integrator_rule_id = $1',
+          [id],
+        ),
+      );
+      expect(row.rows[0]).toMatchObject({
+        organization_id: ORG_A,
+        platform_user_id: result.platformUserId,
+        linked_object_type: 'lfk_complex',
+        notification_topic_code: 'training_reminders',
+      });
+    });
+  },
+);

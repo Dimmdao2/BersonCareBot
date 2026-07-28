@@ -1,58 +1,58 @@
 /** @vitest-environment jsdom */
 
-import { describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
-import { BillingSection } from "./BillingSection";
+import { describe, expect, it } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import { BillingSection } from './BillingSection';
 
 const emptyBilling = {
-  organizationId: "org-1",
+  organizationId: 'org-1',
   subscriptions: [],
   invoices: [],
   providerEvents: [],
 };
 
-describe("BillingSection", () => {
-  it("shows the tariff name, the human commercial-state sentence, and human mechanic labels", () => {
+describe('BillingSection', () => {
+  it('shows the tariff name, the human commercial-state sentence, and human mechanic labels', () => {
     render(
       <BillingSection
         tariffName="ПОЛНЫЙ ДОСТУП - РАЗРАБОТЧИК"
         commercialStateLabel="Тариф активен."
         mechanics={[
-          { mechanic: "payments", label: "Оплата записи", enabled: true },
-          { mechanic: "courses", label: "Курсы", enabled: false },
+          { mechanic: 'payments', label: 'Оплата записи', enabled: true },
+          { mechanic: 'courses', label: 'Курсы', enabled: false },
         ]}
         billing={emptyBilling}
       />,
     );
 
-    expect(screen.getByText("ПОЛНЫЙ ДОСТУП - РАЗРАБОТЧИК")).toBeInTheDocument();
-    expect(screen.getByText("Тариф активен.")).toBeInTheDocument();
-    expect(screen.getByText("Оплата записи")).toBeInTheDocument();
-    expect(screen.getByText("Курсы")).toBeInTheDocument();
+    expect(screen.getByText('ПОЛНЫЙ ДОСТУП - РАЗРАБОТЧИК')).toBeInTheDocument();
+    expect(screen.getByText('Тариф активен.')).toBeInTheDocument();
+    expect(screen.getByText('Оплата записи')).toBeInTheDocument();
+    expect(screen.getByText('Курсы')).toBeInTheDocument();
     // Never the raw mechanic key.
-    expect(screen.queryByText("payments")).not.toBeInTheDocument();
-    expect(screen.queryByText("courses")).not.toBeInTheDocument();
-    expect(screen.getByText("Включено")).toBeInTheDocument();
-    expect(screen.getByText("Недоступно")).toBeInTheDocument();
+    expect(screen.queryByText('payments')).not.toBeInTheDocument();
+    expect(screen.queryByText('courses')).not.toBeInTheDocument();
+    expect(screen.getByText('Включено')).toBeInTheDocument();
+    expect(screen.getByText('Недоступно')).toBeInTheDocument();
   });
 
-  it("renders an honest empty state instead of a lie when no tariff is assigned", () => {
+  it('renders an honest empty state instead of a lie when no tariff is assigned', () => {
     render(
       <BillingSection
         tariffName={null}
         commercialStateLabel="Совместимость: коммерческий тариф ещё не подключён администратором платформы, доступ работает в режиме до введения тарифов."
-        mechanics={[{ mechanic: "booking", label: "Онлайн-запись", enabled: true }]}
+        mechanics={[{ mechanic: 'booking', label: 'Онлайн-запись', enabled: true }]}
         billing={emptyBilling}
       />,
     );
 
-    expect(screen.getByText("Тариф не назначен")).toBeInTheDocument();
+    expect(screen.getByText('Тариф не назначен')).toBeInTheDocument();
     expect(
       screen.getByText(/коммерческий тариф ещё не подключён администратором платформы/),
     ).toBeInTheDocument();
   });
 
-  it("never mentions connecting a tariff as if none were possible — no hardcoded stub text", () => {
+  it('never mentions connecting a tariff as if none were possible — no hardcoded stub text', () => {
     render(
       <BillingSection
         tariffName="Базовый"
@@ -62,11 +62,11 @@ describe("BillingSection", () => {
       />,
     );
     expect(
-      screen.queryByText("Коммерческие настройки станут доступны после подключения тарифа."),
+      screen.queryByText('Коммерческие настройки станут доступны после подключения тарифа.'),
     ).not.toBeInTheDocument();
   });
 
-  it("shows honest no-data states instead of billing zeroes", () => {
+  it('shows honest no-data states instead of billing zeroes', () => {
     render(
       <BillingSection
         tariffName={null}
@@ -76,9 +76,9 @@ describe("BillingSection", () => {
       />,
     );
 
-    expect(screen.getByText("Данных о подписках пока нет.")).toBeInTheDocument();
-    expect(screen.getByText("Счетов пока нет.")).toBeInTheDocument();
+    expect(screen.getByText('Данных о подписках пока нет.')).toBeInTheDocument();
+    expect(screen.getByText('Счетов пока нет.')).toBeInTheDocument();
     expect(screen.queryByText(/^0(?:[,.]00)?/)).not.toBeInTheDocument();
-    expect(screen.queryByText("События провайдера")).not.toBeInTheDocument();
+    expect(screen.queryByText('События провайдера')).not.toBeInTheDocument();
   });
 });

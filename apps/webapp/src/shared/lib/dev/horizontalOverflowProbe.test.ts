@@ -1,35 +1,35 @@
 /** @vitest-environment jsdom */
 
-import { describe, expect, it, beforeEach } from "vitest";
+import { describe, expect, it, beforeEach } from 'vitest';
 import {
   documentHasHorizontalScroll,
   runHorizontalOverflowProbe,
   scanHorizontalOverflowOffenders,
-} from "./horizontalOverflowProbe";
+} from './horizontalOverflowProbe';
 
-describe("horizontalOverflowProbe", () => {
+describe('horizontalOverflowProbe', () => {
   beforeEach(() => {
-    document.body.innerHTML = "";
-    document.documentElement.style.width = "";
-    Object.defineProperty(document.documentElement, "clientWidth", {
+    document.body.innerHTML = '';
+    document.documentElement.style.width = '';
+    Object.defineProperty(document.documentElement, 'clientWidth', {
       configurable: true,
       value: 390,
     });
-    Object.defineProperty(document.documentElement, "scrollWidth", {
+    Object.defineProperty(document.documentElement, 'scrollWidth', {
       configurable: true,
       value: 390,
     });
   });
 
-  it("returns no offenders when all nodes fit viewport", () => {
+  it('returns no offenders when all nodes fit viewport', () => {
     document.body.innerHTML = '<div style="width:200px">ok</div>';
     expect(scanHorizontalOverflowOffenders(400)).toEqual([]);
   });
 
-  it("detects element wider than viewport", () => {
-    const wide = document.createElement("div");
-    wide.style.width = "500px";
-    wide.style.height = "20px";
+  it('detects element wider than viewport', () => {
+    const wide = document.createElement('div');
+    wide.style.width = '500px';
+    wide.style.height = '20px';
     document.body.appendChild(wide);
     wide.getBoundingClientRect = () =>
       ({
@@ -49,8 +49,8 @@ describe("horizontalOverflowProbe", () => {
     expect(offenders[0]?.overflowRightPx).toBeGreaterThan(0);
   });
 
-  it("reports document scroll overflow", () => {
-    Object.defineProperty(document.documentElement, "scrollWidth", {
+  it('reports document scroll overflow', () => {
+    Object.defineProperty(document.documentElement, 'scrollWidth', {
       configurable: true,
       value: 420,
     });

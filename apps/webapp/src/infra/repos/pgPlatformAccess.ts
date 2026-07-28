@@ -1,11 +1,11 @@
-import { getPool } from "@/infra/db/client";
-import { getCurrentDbPrincipal } from "@bersoncare/db-principal";
-import { resolveCanonicalUserId } from "@/infra/repos/pgCanonicalPlatformUser";
-import type { PlatformAccessCanonRow, PlatformAccessPort } from "@/modules/platform-access/ports";
+import { getPool } from '@/infra/db/client';
+import { getCurrentDbPrincipal } from '@bersoncare/db-principal';
+import { resolveCanonicalUserId } from '@/infra/repos/pgCanonicalPlatformUser';
+import type { PlatformAccessCanonRow, PlatformAccessPort } from '@/modules/platform-access/ports';
 
 function credentialPresenceSql(): string {
   const principal = getCurrentDbPrincipal();
-  if (principal?.kind === "staff" || principal?.kind === "organization") {
+  if (principal?.kind === 'staff' || principal?.kind === 'organization') {
     return `app.staff_user_has_password_credentials(pu.id) AS has_password_credentials,
             app.staff_user_has_web_oauth_binding(pu.id) AS has_web_oauth_binding`;
   }

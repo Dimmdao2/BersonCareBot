@@ -1,12 +1,14 @@
-import type { TreatmentProgramInstanceStageInput } from "./types";
+import type { TreatmentProgramInstanceStageInput } from './types';
 import {
   TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_SORT_RECOMMENDATIONS,
   TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_SORT_TESTS,
   TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_TITLE_RECOMMENDATIONS,
   TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_TITLE_TESTS,
-} from "./types";
+} from './types';
 
-type InstanceTreeStageGroupInput = NonNullable<TreatmentProgramInstanceStageInput["groups"]>[number];
+type InstanceTreeStageGroupInput = NonNullable<
+  TreatmentProgramInstanceStageInput['groups']
+>[number];
 
 /**
  * Для `createInstanceTree`: если в дереве есть элементы без `templateGroupId` типов
@@ -19,10 +21,14 @@ export function withDefaultSystemGroupsIfNeededForTreeStage(
 ): TreatmentProgramInstanceStageInput {
   const existing = st.groups ?? [];
   const { items } = st;
-  const needRec = items.some((it) => it.templateGroupId == null && it.itemType === "recommendation");
-  const needTests = items.some((it) => it.templateGroupId == null && it.itemType === "clinical_test");
-  const hasRec = existing.some((g) => g.systemKind === "recommendations");
-  const hasTests = existing.some((g) => g.systemKind === "tests");
+  const needRec = items.some(
+    (it) => it.templateGroupId == null && it.itemType === 'recommendation',
+  );
+  const needTests = items.some(
+    (it) => it.templateGroupId == null && it.itemType === 'clinical_test',
+  );
+  const hasRec = existing.some((g) => g.systemKind === 'recommendations');
+  const hasTests = existing.some((g) => g.systemKind === 'tests');
   const prepend: InstanceTreeStageGroupInput[] = [];
   if (needRec && !hasRec) {
     prepend.push({
@@ -31,7 +37,7 @@ export function withDefaultSystemGroupsIfNeededForTreeStage(
       description: null,
       scheduleText: null,
       sortOrder: TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_SORT_RECOMMENDATIONS,
-      systemKind: "recommendations",
+      systemKind: 'recommendations',
     });
   }
   if (needTests && !hasTests) {
@@ -41,7 +47,7 @@ export function withDefaultSystemGroupsIfNeededForTreeStage(
       description: null,
       scheduleText: null,
       sortOrder: TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_SORT_TESTS,
-      systemKind: "tests",
+      systemKind: 'tests',
     });
   }
   if (prepend.length === 0) return st;

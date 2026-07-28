@@ -1,6 +1,6 @@
 # Owner-ready TEST — roadmap
 
-> RE-VERIFIED 2026-07-23 (all [x] audited vs code): see docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/PRODUCTION_READINESS_LEDGER_2026-07-23.md
+> RE-VERIFIED 2026-07-23 (all [x] audited vs code): see docs/\_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/PRODUCTION_READINESS_LEDGER_2026-07-23.md
 
 Канон исполнения: `docs/ORCHESTRATION_BINDINGS.md`. Канон SaaS:
 `../SEQUENCE.md`, `../SAAS_ENFORCE_ROADMAP.md`, `../HARD_MIGRATION_PROTOCOL.md`.
@@ -13,7 +13,6 @@
 > **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
-
 
 Acceptance: `audit/acceptance-ST-01.md`.
 
@@ -34,7 +33,6 @@ Acceptance: `audit/acceptance-ST-01.md`.
 > **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
-
 
 Acceptance: `audit/acceptance-ST-02.md`.
 
@@ -59,7 +57,6 @@ Acceptance: `audit/acceptance-ST-02.md`.
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-
 Acceptance: `audit/acceptance-ST-03.md`.
 
 - [x] Code/scratch: отдельная true-global redacted event/aggregate модель.
@@ -81,7 +78,6 @@ Acceptance: `audit/acceptance-ST-03.md`.
 > **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
-
 
 Acceptance: `audit/acceptance-ST-04.md`.
 
@@ -110,7 +106,6 @@ Acceptance: `audit/acceptance-ST-04.md`.
 > **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
-
 
 - [ ] ST-01—ST-04 закрыты по своим acceptance.
 - [ ] #770, #797 и #798 синхронизированы с доказательствами и commit refs.

@@ -1,11 +1,15 @@
-"use client";
+'use client';
 
-import { useRouter } from "next/navigation";
-import { useState } from "react";
-import type { BookingSelection } from "./useBookingSelection";
-import type { BookingContactFioInput, BookingSlot, PatientBookingRecord } from "@/modules/patient-booking/types";
-import { mapBookingCreateErrorCodeToRu } from "./bookingCreateErrorMessages";
-import { redirectIfPatientActivationRequired } from "./bookingPatientActivation";
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
+import type { BookingSelection } from './useBookingSelection';
+import type {
+  BookingContactFioInput,
+  BookingSlot,
+  PatientBookingRecord,
+} from '@/modules/patient-booking/types';
+import { mapBookingCreateErrorCodeToRu } from './bookingCreateErrorMessages';
+import { redirectIfPatientActivationRequired } from './bookingPatientActivation';
 
 type FormAnswer = { fieldKey: string; value: string };
 
@@ -32,9 +36,9 @@ export function useCreateBooking() {
     setError(null);
     try {
       const body =
-        input.selection.type === "online"
+        input.selection.type === 'online'
           ? {
-              type: "online" as const,
+              type: 'online' as const,
               category: input.selection.category,
               slotStart: input.slot.startAt,
               slotEnd: input.slot.endAt,
@@ -47,7 +51,7 @@ export function useCreateBooking() {
             }
           : (() => {
               return {
-                type: "in_person" as const,
+                type: 'in_person' as const,
                 branchId: input.selection.branchId,
                 serviceId: input.selection.serviceId,
                 cityCode: input.selection.cityCode,
@@ -64,9 +68,9 @@ export function useCreateBooking() {
               };
             })();
 
-      const res = await fetch("/api/booking/create", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const res = await fetch('/api/booking/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
       const json = (await res.json().catch(() => ({}))) as {
@@ -85,7 +89,7 @@ export function useCreateBooking() {
       }
       return json.booking;
     } catch {
-      setError("Ошибка сети при создании записи");
+      setError('Ошибка сети при создании записи');
       return false;
     } finally {
       setSubmitting(false);

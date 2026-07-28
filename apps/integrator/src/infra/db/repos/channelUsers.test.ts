@@ -83,7 +83,9 @@ describe('channelUsers repo (identity/contact/state split)', () => {
 
   it('keeps messenger identity organization context unset when no active org exists', async () => {
     const { db, execute } = createDbMock();
-    execute.mockResolvedValueOnce({ rows: [], rowCount: 0 } as DbQueryResult<{ organization_id: string }>);
+    execute.mockResolvedValueOnce({ rows: [], rowCount: 0 } as DbQueryResult<{
+      organization_id: string;
+    }>);
 
     const orgId = await resolveActiveOrganizationIdForMessengerIdentity(db, {
       resource: 'max',
@@ -167,7 +169,9 @@ describe('channelUsers repo (identity/contact/state split)', () => {
       // With the is_active filter, a deployment holding a single *deactivated* org returns zero
       // rows from Postgres — never the deactivated org's id.
       const { db, execute } = createDbMock();
-      execute.mockResolvedValueOnce({ rows: [], rowCount: 0 } as DbQueryResult<{ organization_id: string }>);
+      execute.mockResolvedValueOnce({ rows: [], rowCount: 0 } as DbQueryResult<{
+        organization_id: string;
+      }>);
 
       const orgId = await resolveDeploymentSingleActiveOrganizationId(db);
 
@@ -176,7 +180,9 @@ describe('channelUsers repo (identity/contact/state split)', () => {
 
     it('returns null when zero or more than one organization exists (no single deployment org inferable)', async () => {
       const { db, execute } = createDbMock();
-      execute.mockResolvedValueOnce({ rows: [], rowCount: 0 } as DbQueryResult<{ organization_id: string }>);
+      execute.mockResolvedValueOnce({ rows: [], rowCount: 0 } as DbQueryResult<{
+        organization_id: string;
+      }>);
       expect(await resolveDeploymentSingleActiveOrganizationId(db)).toBeNull();
 
       execute.mockResolvedValueOnce({
@@ -274,7 +280,9 @@ describe('channelUsers repo (identity/contact/state split)', () => {
     expect(insSql).toContain('count(DISTINCT active_user_orgs.organization_id) = 1');
     expect(insSql).toContain('::bigint');
     expect(insSql).toContain('WHERE contacts.user_id = ');
-    expect(insSql).toContain('organization_id = COALESCE(EXCLUDED.organization_id, contacts.organization_id)');
+    expect(insSql).toContain(
+      'organization_id = COALESCE(EXCLUDED.organization_id, contacts.organization_id)',
+    );
     expect(insSql).not.toContain('UPDATE telegram_users');
     expect(insSql).toContain('7');
     expect(insSql).toContain('+79990001122');
@@ -345,7 +353,12 @@ describe('channelUsers repo (identity/contact/state split)', () => {
       notify_bookings: boolean | null;
     }>);
     const settings = await getNotificationSettings(db, 123);
-    expect(settings).toEqual({ notify_spb: true, notify_msk: false, notify_online: false, notify_bookings: false });
+    expect(settings).toEqual({
+      notify_spb: true,
+      notify_msk: false,
+      notify_online: false,
+      notify_bookings: false,
+    });
 
     execute.mockResolvedValueOnce({ rows: [], rowCount: 1 } as DbQueryResult);
     const advanced = await tryAdvanceLastUpdateId(db, 123, 1001);

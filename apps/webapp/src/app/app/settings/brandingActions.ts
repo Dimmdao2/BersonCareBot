@@ -1,8 +1,8 @@
-"use server";
+'use server';
 
-import { revalidatePath } from "next/cache";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireOrgBrandingManagementContext } from "@/app-layer/guards/requireOrgBrandingManagementContext";
+import { revalidatePath } from 'next/cache';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { requireOrgBrandingManagementContext } from '@/app-layer/guards/requireOrgBrandingManagementContext';
 
 type ActionState = { ok: true } | { ok: false; error: string };
 
@@ -16,9 +16,9 @@ function fail(error: string): ActionState {
  * (BRANDING_DOMAIN_CONTRACT.md, owner decision 2026-07-25).
  */
 function revalidateOrgBrandingSurfaces(): void {
-  revalidatePath("/app/settings");
-  revalidatePath("/app/doctor", "layout");
-  revalidatePath("/app/patient", "layout");
+  revalidatePath('/app/settings');
+  revalidatePath('/app/doctor', 'layout');
+  revalidatePath('/app/patient', 'layout');
 }
 
 /**
@@ -47,6 +47,6 @@ export async function saveOrgBranding(input: {
     revalidateOrgBrandingSurfaces();
     return { ok: true };
   } catch (error) {
-    return fail(error instanceof Error ? error.message : "save_failed");
+    return fail(error instanceof Error ? error.message : 'save_failed');
   }
 }

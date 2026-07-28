@@ -1,21 +1,21 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useState, useTransition } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { Label } from "@/shared/ui/doctor/primitives/label";
+import { useCallback, useEffect, useState, useTransition } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { Label } from '@/shared/ui/doctor/primitives/label';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/ui/doctor/primitives/select";
-import { apiJson } from "@/shared/lib/apiJson";
+} from '@/shared/ui/doctor/primitives/select';
+import { apiJson } from '@/shared/lib/apiJson';
 
-const OVERVIEW = "/api/admin/booking-engine/overview";
-const SLOTS_PROBE = "/api/admin/booking-engine/slots-probe";
+const OVERVIEW = '/api/admin/booking-engine/overview';
+const SLOTS_PROBE = '/api/admin/booking-engine/slots-probe';
 
 type BranchRow = { id: string; title: string; isActive: boolean };
 type ServiceRow = { id: string; title: string; isActive: boolean };
@@ -23,8 +23,8 @@ type ServiceRow = { id: string; title: string; isActive: boolean };
 export function BookingScheduleSlotsProbeSection() {
   const [branches, setBranches] = useState<BranchRow[]>([]);
   const [services, setServices] = useState<ServiceRow[]>([]);
-  const [branchId, setBranchId] = useState("");
-  const [serviceId, setServiceId] = useState("");
+  const [branchId, setBranchId] = useState('');
+  const [serviceId, setServiceId] = useState('');
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [slots, setSlots] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -44,7 +44,7 @@ export function BookingScheduleSlotsProbeSection() {
       if (activeBranches[0]) setBranchId((prev) => prev || activeBranches[0]!.id);
       if (activeServices[0]) setServiceId((prev) => prev || activeServices[0]!.id);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "overview_load_failed");
+      setError(e instanceof Error ? e.message : 'overview_load_failed');
     }
   }, []);
 
@@ -66,7 +66,7 @@ export function BookingScheduleSlotsProbeSection() {
         }>(`${SLOTS_PROBE}?${qs.toString()}`);
         setSlots(json.slots ?? []);
       } catch (e) {
-        setError(e instanceof Error ? e.message : "probe_failed");
+        setError(e instanceof Error ? e.message : 'probe_failed');
         setSlots([]);
       }
     });
@@ -114,7 +114,12 @@ export function BookingScheduleSlotsProbeSection() {
           </div>
           <div className="space-y-2">
             <Label>Дата</Label>
-            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="max-w-md" />
+            <Input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="max-w-md"
+            />
           </div>
         </div>
         <Button type="button" size="sm" disabled={pending} onClick={probe}>
@@ -122,13 +127,13 @@ export function BookingScheduleSlotsProbeSection() {
         </Button>
         {error ? (
           <p className="text-sm text-destructive">
-            {error === "branch_service_mapping_missing"
-              ? "Нет сопоставления локации и услуги для patient API — проверьте доступность."
+            {error === 'branch_service_mapping_missing'
+              ? 'Нет сопоставления локации и услуги для patient API — проверьте доступность.'
               : error}
           </p>
         ) : null}
         {slots.length > 0 ? (
-          <p className="text-sm text-muted-foreground">Слоты: {slots.join(", ")}</p>
+          <p className="text-sm text-muted-foreground">Слоты: {slots.join(', ')}</p>
         ) : null}
         {!error && !pending && slots.length === 0 && branchId && serviceId ? (
           <p className="text-sm text-muted-foreground">На выбранную дату свободных слотов нет.</p>

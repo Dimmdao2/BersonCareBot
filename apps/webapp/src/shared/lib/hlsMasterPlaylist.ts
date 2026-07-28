@@ -11,14 +11,14 @@ export type MasterVariantEntry = {
 };
 
 export function buildVodMasterPlaylistBody(variants: MasterVariantEntry[]): string {
-  const lines = ["#EXTM3U", "#EXT-X-VERSION:3"];
+  const lines = ['#EXTM3U', '#EXT-X-VERSION:3'];
   for (const v of variants) {
     lines.push(
       `#EXT-X-STREAM-INF:BANDWIDTH=${v.bandwidth},RESOLUTION=${v.width}x${v.height},CODECS="avc1.64001f,mp4a.40.2"`,
     );
     lines.push(v.uri);
   }
-  return `${lines.join("\n")}\n`;
+  return `${lines.join('\n')}\n`;
 }
 
 /** Smoke: non-comment, non-empty lines after headers = variant playlist relative URIs. */
@@ -27,7 +27,7 @@ export function parseMasterPlaylistVariantRelativeUris(masterBody: string): stri
   for (const line of masterBody.split(/\r?\n/)) {
     const t = line.trim();
     if (t.length === 0) continue;
-    if (t.startsWith("#")) continue;
+    if (t.startsWith('#')) continue;
     out.push(t);
   }
   return out;

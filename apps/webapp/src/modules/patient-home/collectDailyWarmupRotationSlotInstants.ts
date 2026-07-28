@@ -1,5 +1,5 @@
-import { DateTime } from "luxon";
-import { normalizeDailyWarmupRotationTime } from "@/modules/patient-home/patientHomeDailyWarmupRotationSettings";
+import { DateTime } from 'luxon';
+import { normalizeDailyWarmupRotationTime } from '@/modules/patient-home/patientHomeDailyWarmupRotationSettings';
 
 /**
  * Слоты расписания (patient IANA) строго после `lastRotationAt` и не позже `now`.
@@ -26,12 +26,12 @@ export function collectDailyWarmupRotationSlotInstants(params: {
   if (!anchor.isValid) return [];
 
   const slots: string[] = [];
-  let day = anchor.startOf("day");
-  const endDay = nowDt.startOf("day");
+  let day = anchor.startOf('day');
+  const endDay = nowDt.startOf('day');
 
   while (day <= endDay) {
     for (const time of times) {
-      const [hs, ms] = time.split(":");
+      const [hs, ms] = time.split(':');
       const slot = day.set({
         hour: Number.parseInt(hs!, 10),
         minute: Number.parseInt(ms!, 10),

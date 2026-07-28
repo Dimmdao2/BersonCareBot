@@ -8,7 +8,7 @@ import type {
   CloseWorkingDaysInput,
   ClearWorkingDaysInput,
   CreateScheduleTemplateInput,
-} from "./ports";
+} from './ports';
 import {
   busyFromRecords,
   generateSlotsFromFree,
@@ -18,7 +18,7 @@ import {
   pickWorkingHours,
   subtractBusy,
   workingIntervalsForDate,
-} from "./computeSlots";
+} from './computeSlots';
 
 // ── Validation helpers ───────────────────────────────────────────────────────
 
@@ -85,45 +85,50 @@ function validateBreaks(breaks: BreakInterval[], dayStart: number, dayEnd: numbe
 }
 
 function validateUpsertInput(input: UpsertWorkingDaysInput): void {
-  assertUuid(input.organizationId, "organizationId");
-  assertUuid(input.specialistId, "specialistId");
-  assertUuid(input.branchId, "branchId");
-  assertUuid(input.roomId, "roomId");
-  if (!input.dates.length) throw new Error("dates_required");
-  for (const d of input.dates) assertDate(d, "date");
+  assertUuid(input.organizationId, 'organizationId');
+  assertUuid(input.specialistId, 'specialistId');
+  assertUuid(input.branchId, 'branchId');
+  assertUuid(input.roomId, 'roomId');
+  if (!input.dates.length) throw new Error('dates_required');
+  for (const d of input.dates) assertDate(d, 'date');
   assertDateRangeDays(input.dates);
-  assertMinute(input.startMinute, "startMinute");
-  assertMinute(input.endMinute, "endMinute");
-  if (input.startMinute >= input.endMinute) throw new Error("invalid_working_hours_range");
+  assertMinute(input.startMinute, 'startMinute');
+  assertMinute(input.endMinute, 'endMinute');
+  if (input.startMinute >= input.endMinute) throw new Error('invalid_working_hours_range');
   if (input.breaks && input.breaks.length > 0) {
     validateBreaks(input.breaks, input.startMinute, input.endMinute);
   }
 }
 
 function validateScheduleTemplateInput(input: CreateScheduleTemplateInput): void {
-  assertUuid(input.organizationId, "organizationId");
-  assertUuid(input.branchId, "branchId");
-  assertMinute(input.startMinute, "startMinute");
-  assertMinute(input.endMinute, "endMinute");
-  if (input.startMinute >= input.endMinute) throw new Error("invalid_template_range");
+  assertUuid(input.organizationId, 'organizationId');
+  assertUuid(input.branchId, 'branchId');
+  assertMinute(input.startMinute, 'startMinute');
+  assertMinute(input.endMinute, 'endMinute');
+  if (input.startMinute >= input.endMinute) throw new Error('invalid_template_range');
   if (input.breaks && input.breaks.length > 0) {
     validateBreaks(input.breaks, input.startMinute, input.endMinute);
   }
-  if (!input.name.trim()) throw new Error("template_name_required");
+  if (!input.name.trim()) throw new Error('template_name_required');
 }
 
 function addDays(dateKey: string, days: number): string {
-  const [y, m, d] = dateKey.split("-").map(Number);
+  const [y, m, d] = dateKey.split('-').map(Number);
   const dt = new Date(Date.UTC(y, m - 1, d + days));
   return dt.toISOString().slice(0, 10);
 }
 
-function defaultDateRange(date: string | undefined, timeZone: string): { from: string; to: string } {
+function defaultDateRange(
+  date: string | undefined,
+  timeZone: string,
+): { from: string; to: string } {
   const today = date ?? localDateKey(new Date().toISOString(), timeZone);
   return { from: today, to: addDays(today, 13) };
 }
 
-export function createBookingSchedulingService(port: BookingSchedulingPort): BookingSchedulingService {
+export function createBookingSchedulingService(
+  port: BookingSchedulingPort,
+): BookingSchedulingService {
   return {
     resolvePublicBookingOrganization(input) {
       return port.resolvePublicBookingOrganization(input);
@@ -146,8 +151,12 @@ export function createBookingSchedulingService(port: BookingSchedulingPort): Boo
     },
 
     async getInPersonSlots({ organizationId, branchId, serviceId, date, slotCount = 1 }) {
-      const ctx = await port.resolveCanonicalInPersonContext({ organizationId, branchId, serviceId });
-      if (!ctx) throw new Error("branch_service_not_found");
+      const ctx = await port.resolveCanonicalInPersonContext({
+        organizationId,
+        branchId,
+        serviceId,
+      });
+      if (!ctx) throw new Error('branch_service_not_found');
       const { from, to } = defaultDateRange(date, ctx.branchTimezone);
       return port.getSlots({
         organizationId: ctx.organizationId,
@@ -164,7 +173,7 @@ export function createBookingSchedulingService(port: BookingSchedulingPort): Boo
       });
     },
 
-    async getOnlineSlots({ organizationId, date, branchTimezone = "Europe/Moscow", slotCount }) {
+    async getOnlineSlots({ organizationId, date, branchTimezone = 'Europe/Moscow', slotCount }) {
       const { from, to } = defaultDateRange(date, branchTimezone);
       return port.getSlots({
         organizationId,
@@ -184,10 +193,11 @@ export function createBookingSchedulingService(port: BookingSchedulingPort): Boo
     async assertSlotAvailable(input) {
       let specialistId = input.specialistId ?? null;
       let roomId = input.roomId ?? null;
-      let organizationId = input.organizationId ?? "";
+      let organizationId = input.organizationId ?? '';
       let durationMinutes = input.durationMinutes;
       const slotCount = input.slotCount ?? 1;
-      if (!Number.isInteger(slotCount) || slotCount < 1 || slotCount > 8) throw new Error("invalid_slot_count");
+      if (!Number.isInteger(slotCount) || slotCount < 1 || slotCount > 8)
+        throw new Error('invalid_slot_count');
 
       const busy = await port.listBusyIntervals({
         organizationId,
@@ -197,22 +207,16 @@ export function createBookingSchedulingService(port: BookingSchedulingPort): Boo
         rangeEnd: input.slotEnd,
         excludeAppointmentId: input.excludeAppointmentId,
       });
-      if (
-        !isChainFree(
-          input.slotStart,
-          slotCount,
-          durationMinutes,
-          busy,
-        )
-      ) {
-        throw new Error("slot_overlap");
+      if (!isChainFree(input.slotStart, slotCount, durationMinutes, busy)) {
+        throw new Error('slot_overlap');
       }
     },
 
     listScheduleBlocks(input) {
       const now = new Date();
       const rangeStart = input.rangeStart ?? now.toISOString();
-      const rangeEnd = input.rangeEnd ?? new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000).toISOString();
+      const rangeEnd =
+        input.rangeEnd ?? new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000).toISOString();
       return port.listScheduleBlocks({
         organizationId: input.organizationId,
         rangeStart,
@@ -224,7 +228,7 @@ export function createBookingSchedulingService(port: BookingSchedulingPort): Boo
     },
 
     createScheduleBlock(input) {
-      if (!input.organizationId) throw new Error("organization_id_required");
+      if (!input.organizationId) throw new Error('organization_id_required');
       return port.createScheduleBlock({
         organizationId: input.organizationId,
         specialistId: input.specialistId ?? null,
@@ -253,8 +257,8 @@ export function createBookingSchedulingService(port: BookingSchedulingPort): Boo
     },
 
     createWorkingHours(input) {
-      if (!input.organizationId) throw new Error("organization_id_required");
-      if (input.startMinute >= input.endMinute) throw new Error("invalid_working_hours_range");
+      if (!input.organizationId) throw new Error('organization_id_required');
+      if (input.startMinute >= input.endMinute) throw new Error('invalid_working_hours_range');
       return port.createWorkingHours({
         organizationId: input.organizationId,
         specialistId: input.specialistId ?? null,
@@ -268,8 +272,12 @@ export function createBookingSchedulingService(port: BookingSchedulingPort): Boo
     },
 
     updateWorkingHours(input) {
-      if (input.startMinute != null && input.endMinute != null && input.startMinute >= input.endMinute) {
-        throw new Error("invalid_working_hours_range");
+      if (
+        input.startMinute != null &&
+        input.endMinute != null &&
+        input.startMinute >= input.endMinute
+      ) {
+        throw new Error('invalid_working_hours_range');
       }
       return port.updateWorkingHours(input);
     },
@@ -305,10 +313,10 @@ export function createBookingSchedulingService(port: BookingSchedulingPort): Boo
     },
 
     listWorkingDays(input) {
-      assertUuid(input.organizationId, "organizationId");
-      assertUuid(input.specialistId, "specialistId");
-      assertDate(input.dateFrom, "dateFrom");
-      assertDate(input.dateTo, "dateTo");
+      assertUuid(input.organizationId, 'organizationId');
+      assertUuid(input.specialistId, 'specialistId');
+      assertDate(input.dateFrom, 'dateFrom');
+      assertDate(input.dateTo, 'dateTo');
       return port.listWorkingDays(input);
     },
 
@@ -318,23 +326,23 @@ export function createBookingSchedulingService(port: BookingSchedulingPort): Boo
     },
 
     closeWorkingDays(input) {
-      assertUuid(input.organizationId, "organizationId");
-      assertUuid(input.specialistId, "specialistId");
-      if (!input.dates.length) throw new Error("dates_required");
-      for (const d of input.dates) assertDate(d, "date");
+      assertUuid(input.organizationId, 'organizationId');
+      assertUuid(input.specialistId, 'specialistId');
+      if (!input.dates.length) throw new Error('dates_required');
+      for (const d of input.dates) assertDate(d, 'date');
       return port.closeWorkingDays(input);
     },
 
     clearWorkingDays(input) {
-      assertUuid(input.organizationId, "organizationId");
-      assertUuid(input.specialistId, "specialistId");
-      if (!input.dates.length) throw new Error("dates_required");
-      for (const d of input.dates) assertDate(d, "date");
+      assertUuid(input.organizationId, 'organizationId');
+      assertUuid(input.specialistId, 'specialistId');
+      if (!input.dates.length) throw new Error('dates_required');
+      for (const d of input.dates) assertDate(d, 'date');
       return port.clearWorkingDays(input);
     },
 
     listScheduleTemplates(organizationId) {
-      assertUuid(organizationId, "organizationId");
+      assertUuid(organizationId, 'organizationId');
       return port.listScheduleTemplates(organizationId);
     },
 
@@ -348,15 +356,15 @@ export function createBookingSchedulingService(port: BookingSchedulingPort): Boo
     },
 
     async applyScheduleTemplate({ organizationId, specialistId, templateId, dates }) {
-      assertUuid(organizationId, "organizationId");
-      assertUuid(specialistId, "specialistId");
-      assertUuid(templateId, "templateId");
-      if (!dates.length) throw new Error("dates_required");
-      for (const d of dates) assertDate(d, "date");
+      assertUuid(organizationId, 'organizationId');
+      assertUuid(specialistId, 'specialistId');
+      assertUuid(templateId, 'templateId');
+      if (!dates.length) throw new Error('dates_required');
+      for (const d of dates) assertDate(d, 'date');
       assertDateRangeDays(dates);
       const templates = await port.listScheduleTemplates(organizationId);
       const tmpl = templates.find((t) => t.id === templateId);
-      if (!tmpl) throw new Error("template_not_found");
+      if (!tmpl) throw new Error('template_not_found');
       return port.upsertWorkingDays({
         organizationId,
         specialistId: specialistId ?? null,
@@ -373,15 +381,15 @@ export function createBookingSchedulingService(port: BookingSchedulingPort): Boo
 
 export function buildSlotsForContext(
   port: BookingSchedulingPort,
-  context: Parameters<BookingSchedulingPort["getSlots"]>[0],
-): Promise<import("@/modules/patient-booking/types").BookingSlotsByDate[]> {
+  context: Parameters<BookingSchedulingPort['getSlots']>[0],
+): Promise<import('@/modules/patient-booking/types').BookingSlotsByDate[]> {
   return computeSlotsInternal(port, context);
 }
 
 async function computeSlotsInternal(
   port: BookingSchedulingPort,
-  context: Parameters<BookingSchedulingPort["getSlots"]>[0],
-): Promise<import("@/modules/patient-booking/types").BookingSlotsByDate[]> {
+  context: Parameters<BookingSchedulingPort['getSlots']>[0],
+): Promise<import('@/modules/patient-booking/types').BookingSlotsByDate[]> {
   const working = pickWorkingHours(
     await port.listWorkingHours({
       organizationId: context.organizationId,
@@ -439,7 +447,12 @@ async function computeSlotsInternal(
       effectivePerDayRow,
     );
     const free = subtractBusy(workingIntervals, busyMs);
-    const daySlots = generateSlotsFromFree(free, slotDuration, context.durationMinutes, requiredDuration);
+    const daySlots = generateSlotsFromFree(
+      free,
+      slotDuration,
+      context.durationMinutes,
+      requiredDuration,
+    );
     for (const slot of daySlots) {
       if (new Date(slot.startAt).getTime() < minSlotStartMs) continue;
       if (slotCount > 1 && !isChainFree(slot.startAt, slotCount, context.durationMinutes, busy)) {

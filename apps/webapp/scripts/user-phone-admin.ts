@@ -53,17 +53,17 @@
  * Ручные правки БД / другие скрипты и tier «patient»: см. `PLATFORM_IDENTITY_OPS.md` в этой папке.
  */
 
-import { execFileSync } from "node:child_process";
-import { config as loadDotenv } from "dotenv";
-import fs from "node:fs";
-import path from "node:path";
-import pg, { type PoolClient } from "pg";
+import { execFileSync } from 'node:child_process';
+import { config as loadDotenv } from 'dotenv';
+import fs from 'node:fs';
+import path from 'node:path';
+import pg, { type PoolClient } from 'pg';
 const { Pool } = pg;
 
-const ACCOUNT_PURGE_DISABLED = "ACCOUNT_PURGE_DISABLED";
+const ACCOUNT_PURGE_DISABLED = 'ACCOUNT_PURGE_DISABLED';
 
 function rejectAccountPurge(
-  command: "reset-user" | "purge-by-id" | "integrator-clear-phone" | "integrator-purge-user-id",
+  command: 'reset-user' | 'purge-by-id' | 'integrator-clear-phone' | 'integrator-purge-user-id',
 ): void {
   console.error(
     `${ACCOUNT_PURGE_DISABLED}: команда ${command} временно отключена до принятой retention state machine.`,
@@ -72,10 +72,10 @@ function rejectAccountPurge(
 }
 
 /** Имена хостов из docker-compose, недоступные с хоста ОС при запуске tsx. */
-const BLOCKED_DB_HOSTS = new Set(["base"]);
+const BLOCKED_DB_HOSTS = new Set(['base']);
 
-const DEFAULT_PROD_ENV = "/opt/env/bersoncarebot/webapp.prod";
-const DEFAULT_INTEGRATOR_ENV = "/opt/env/bersoncarebot/api.prod";
+const DEFAULT_PROD_ENV = '/opt/env/bersoncarebot/webapp.prod';
+const DEFAULT_INTEGRATOR_ENV = '/opt/env/bersoncarebot/api.prod';
 
 function candidateEnvFiles(): string[] {
   const fromFlag = process.env.USER_PHONE_ADMIN_ENV_FILE?.trim();
@@ -83,7 +83,7 @@ function candidateEnvFiles(): string[] {
   const list: string[] = [];
   if (fromFlag) list.push(fromFlag);
   if (fromEnvFile) list.push(fromEnvFile);
-  list.push(DEFAULT_PROD_ENV, path.resolve(process.cwd(), ".env.dev"));
+  list.push(DEFAULT_PROD_ENV, path.resolve(process.cwd(), '.env.dev'));
   return list.map((p) => (path.isAbsolute(p) ? p : path.resolve(process.cwd(), p)));
 }
 
@@ -94,17 +94,12 @@ function candidateEnvFiles(): string[] {
 function readDatabaseUrlViaBashSource(filePath: string): string | null {
   try {
     const out = execFileSync(
-      "bash",
-      [
-        "-c",
-        'set -a && source "$1" && set +a && printf "%s" "${DATABASE_URL-}"',
-        "_",
-        filePath,
-      ],
+      'bash',
+      ['-c', 'set -a && source "$1" && set +a && printf "%s" "${DATABASE_URL-}"', '_', filePath],
       {
-        encoding: "utf8",
+        encoding: 'utf8',
         maxBuffer: 1024 * 1024,
-        env: { ...process.env, DATABASE_URL: "" },
+        env: { ...process.env, DATABASE_URL: '' },
       },
     );
     const s = out.trim();
@@ -128,11 +123,11 @@ function resolveConnectionString(): string {
   if (!raw) {
     const checked = candidateEnvFiles().filter((p) => fs.existsSync(p));
     console.error(
-      "DATABASE_URL не задан: ни в окружении, ни в проверенных env-файлах (после dotenv и bash source).\n" +
-        "Укажите `DATABASE_URL=...` или проверьте строку DATABASE_URL в файле (см. список ниже).",
+      'DATABASE_URL не задан: ни в окружении, ни в проверенных env-файлах (после dotenv и bash source).\n' +
+        'Укажите `DATABASE_URL=...` или проверьте строку DATABASE_URL в файле (см. список ниже).',
     );
     if (checked.length > 0) {
-      console.error("Существующие кандидаты:");
+      console.error('Существующие кандидаты:');
       for (const p of checked) console.error(`  ${p}`);
     } else {
       console.error(
@@ -146,15 +141,15 @@ function resolveConnectionString(): string {
   try {
     hostname = new URL(raw).hostname;
   } catch {
-    console.error("DATABASE_URL: невалидный URL.");
+    console.error('DATABASE_URL: невалидный URL.');
     process.exit(1);
   }
 
   if (BLOCKED_DB_HOSTS.has(hostname)) {
     console.error(
       `DATABASE_URL указывает на хост «${hostname}» (обычно имя сервиса в Docker, с хоста ОС не резолвится).\n` +
-        "Задайте URL к Postgres, доступный с этой машины (например из /opt/env/bersoncarebot/webapp.prod), " +
-        "или удалите неверный DATABASE_URL из окружения и запустите скрипт снова — будет загружен prod-файл.",
+        'Задайте URL к Postgres, доступный с этой машины (например из /opt/env/bersoncarebot/webapp.prod), ' +
+        'или удалите неверный DATABASE_URL из окружения и запустите скрипт снова — будет загружен prod-файл.',
     );
     process.exit(1);
   }
@@ -171,16 +166,19 @@ function candidateIntegratorEnvFiles(): string[] {
 }
 
 /** Читает одну переменную из shell-env файла (как webapp DATABASE_URL). */
-function readNamedVarFromBashSource(filePath: string, varName: "DATABASE_URL" | "INTEGRATOR_DATABASE_URL"): string | null {
+function readNamedVarFromBashSource(
+  filePath: string,
+  varName: 'DATABASE_URL' | 'INTEGRATOR_DATABASE_URL',
+): string | null {
   const script =
-    varName === "DATABASE_URL"
+    varName === 'DATABASE_URL'
       ? 'set -a && source "$1" && set +a && printf "%s" "${DATABASE_URL-}"'
       : 'set -a && source "$1" && set +a && printf "%s" "${INTEGRATOR_DATABASE_URL-}"';
   try {
-    const out = execFileSync("bash", ["-c", script, "_", filePath], {
-      encoding: "utf8",
+    const out = execFileSync('bash', ['-c', script, '_', filePath], {
+      encoding: 'utf8',
       maxBuffer: 1024 * 1024,
-      env: { ...process.env, DATABASE_URL: "", INTEGRATOR_DATABASE_URL: "" },
+      env: { ...process.env, DATABASE_URL: '', INTEGRATOR_DATABASE_URL: '' },
     });
     const s = out.trim();
     return s.length > 0 ? s : null;
@@ -191,9 +189,9 @@ function readNamedVarFromBashSource(filePath: string, varName: "DATABASE_URL" | 
 
 function readFirstIntegratorUrlFromFile(filePath: string): string | null {
   if (!fs.existsSync(filePath)) return null;
-  const i1 = readNamedVarFromBashSource(filePath, "INTEGRATOR_DATABASE_URL");
+  const i1 = readNamedVarFromBashSource(filePath, 'INTEGRATOR_DATABASE_URL');
   if (i1) return i1.trim();
-  const i2 = readNamedVarFromBashSource(filePath, "DATABASE_URL");
+  const i2 = readNamedVarFromBashSource(filePath, 'DATABASE_URL');
   return i2?.trim() ?? null;
 }
 
@@ -204,7 +202,7 @@ function resolveIntegratorConnectionStringOptional(): string | null {
     process.env.USER_PHONE_ADMIN_INTEGRATOR_DATABASE_URL?.trim();
   if (!raw) {
     for (const abs of candidateIntegratorEnvFiles()) {
-      raw = readFirstIntegratorUrlFromFile(abs) ?? "";
+      raw = readFirstIntegratorUrlFromFile(abs) ?? '';
       if (raw) break;
     }
   }
@@ -214,7 +212,7 @@ function resolveIntegratorConnectionStringOptional(): string | null {
   try {
     hostname = new URL(raw).hostname;
   } catch {
-    console.error("INTEGRATOR_DATABASE_URL: невалидный URL — integrator пропущен.");
+    console.error('INTEGRATOR_DATABASE_URL: невалидный URL — integrator пропущен.');
     return null;
   }
   if (BLOCKED_DB_HOSTS.has(hostname)) {
@@ -228,16 +226,18 @@ function resolveIntegratorConnectionStringOptional(): string | null {
 
 const db = new Pool({ connectionString: resolveConnectionString() });
 const integratorConnectionString = resolveIntegratorConnectionStringOptional();
-const integratorDb = integratorConnectionString ? new Pool({ connectionString: integratorConnectionString }) : null;
+const integratorDb = integratorConnectionString
+  ? new Pool({ connectionString: integratorConnectionString })
+  : null;
 
 function normalize(phone: string): string {
-  const digits = phone.replace(/\D/g, "");
-  return digits.startsWith("7") ? `+${digits}` : `+7${digits}`;
+  const digits = phone.replace(/\D/g, '');
+  return digits.startsWith('7') ? `+${digits}` : `+7${digits}`;
 }
 
 /** Только цифры; для сопоставления записей, где телефон могли сохранить в разном формате. */
 function phoneDigits(phone: string): string {
-  return phone.replace(/\D/g, "");
+  return phone.replace(/\D/g, '');
 }
 
 async function findUser(phone: string) {
@@ -288,27 +288,27 @@ async function resolveIntegratorUserIds(
  * Полное удаление — в `platformUserFullPurge` (+ deleteSymptomAndLfkDiaryForUser для дневников).
  */
 const CONTENT_TABLES: { table: string; column: string }[] = [
-  { table: "symptom_entries", column: "user_id" },
-  { table: "symptom_trackings", column: "user_id" },
-  { table: "lfk_complexes", column: "user_id" },
-  { table: "lfk_sessions", column: "user_id" },
-  { table: "patient_bookings", column: "platform_user_id" },
-  { table: "reminder_rules", column: "platform_user_id" },
-  { table: "doctor_notes", column: "user_id" },
-  { table: "support_conversations", column: "platform_user_id" },
-  { table: "patient_lfk_assignments", column: "patient_user_id" },
-  { table: "content_access_grants_webapp", column: "platform_user_id" },
-  { table: "user_notification_topics", column: "user_id" },
-  { table: "user_channel_preferences", column: "user_id" },
-  { table: "online_intake_requests", column: "user_id" },
+  { table: 'symptom_entries', column: 'user_id' },
+  { table: 'symptom_trackings', column: 'user_id' },
+  { table: 'lfk_complexes', column: 'user_id' },
+  { table: 'lfk_sessions', column: 'user_id' },
+  { table: 'patient_bookings', column: 'platform_user_id' },
+  { table: 'reminder_rules', column: 'platform_user_id' },
+  { table: 'doctor_notes', column: 'user_id' },
+  { table: 'support_conversations', column: 'platform_user_id' },
+  { table: 'patient_lfk_assignments', column: 'patient_user_id' },
+  { table: 'content_access_grants_webapp', column: 'platform_user_id' },
+  { table: 'user_notification_topics', column: 'user_id' },
+  { table: 'user_channel_preferences', column: 'user_id' },
+  { table: 'online_intake_requests', column: 'user_id' },
 ];
 
 /** Tables that hold identity/auth data — deleted on reset. */
 const IDENTITY_TABLES: { table: string; column: string }[] = [
-  { table: "user_channel_bindings", column: "user_id" },
-  { table: "user_pins", column: "user_id" },
-  { table: "login_tokens", column: "user_id" },
-  { table: "user_oauth_bindings", column: "user_id" },
+  { table: 'user_channel_bindings', column: 'user_id' },
+  { table: 'user_pins', column: 'user_id' },
+  { table: 'login_tokens', column: 'user_id' },
+  { table: 'user_oauth_bindings', column: 'user_id' },
 ];
 
 async function info(phone: string): Promise<void> {
@@ -322,25 +322,30 @@ async function info(phone: string): Promise<void> {
   console.log(`Телефон: ${user.phone_normalized}`);
   console.log(`Создан: ${user.created_at}\n`);
 
-  console.log("Контентные данные (сохраняются при reset):");
+  console.log('Контентные данные (сохраняются при reset):');
   for (const { table, column } of CONTENT_TABLES) {
-    const r = await db.query(`SELECT count(*)::int AS cnt FROM ${table} WHERE ${column} = $1`, [user.id]);
+    const r = await db.query(`SELECT count(*)::int AS cnt FROM ${table} WHERE ${column} = $1`, [
+      user.id,
+    ]);
     const cnt = r.rows[0]?.cnt ?? 0;
     if (cnt > 0) console.log(`  ${table}: ${cnt}`);
   }
 
-  console.log("\nДанные identity (удаляются при reset):");
+  console.log('\nДанные identity (удаляются при reset):');
   for (const { table, column } of IDENTITY_TABLES) {
-    const r = await db.query(`SELECT count(*)::int AS cnt FROM ${table} WHERE ${column} = $1`, [user.id]);
+    const r = await db.query(`SELECT count(*)::int AS cnt FROM ${table} WHERE ${column} = $1`, [
+      user.id,
+    ]);
     const cnt = r.rows[0]?.cnt ?? 0;
     if (cnt > 0) console.log(`  ${table}: ${cnt}`);
   }
 
   const digs = phoneDigits(user.phone_normalized);
   const phonePred = `regexp_replace(phone_normalized, '\\D', '', 'g') = $1`;
-  const otp = await db.query<{ cnt: number }>(`SELECT count(*)::int AS cnt FROM phone_otp_locks WHERE ${phonePred}`, [
-    digs,
-  ]);
+  const otp = await db.query<{ cnt: number }>(
+    `SELECT count(*)::int AS cnt FROM phone_otp_locks WHERE ${phonePred}`,
+    [digs],
+  );
   const ch = await db.query<{ cnt: number }>(
     `SELECT count(*)::int AS cnt FROM phone_challenges WHERE regexp_replace(phone, '\\D', '', 'g') = $1`,
     [digs],
@@ -349,7 +354,7 @@ async function info(phone: string): Promise<void> {
     `SELECT count(*)::int AS cnt FROM appointment_records WHERE phone_normalized IS NOT NULL AND ${phonePred}`,
     [digs],
   );
-  console.log("\nПо номеру телефона (удаляются при reset-user):");
+  console.log('\nПо номеру телефона (удаляются при reset-user):');
   console.log(`  phone_otp_locks: ${otp.rows[0]?.cnt ?? 0}`);
   console.log(`  phone_challenges: ${ch.rows[0]?.cnt ?? 0}`);
   console.log(`  appointment_records: ${appts.rows[0]?.cnt ?? 0}`);
@@ -361,17 +366,24 @@ async function info(phone: string): Promise<void> {
        WHERE regexp_replace(phone_normalized, '\\D', '', 'g') = $1`,
       [digs],
     );
-    console.log("\nIntegrator (очищается при reset-user):");
-    console.log(`  users.id (удаление строки users + CASCADE): ${intIds.length ? intIds.join(", ") : "—"}`);
+    console.log('\nIntegrator (очищается при reset-user):');
+    console.log(
+      `  users.id (удаление строки users + CASCADE): ${intIds.length ? intIds.join(', ') : '—'}`,
+    );
     console.log(`  message_retry_jobs: ${rj.rows[0]?.cnt ?? 0}`);
   } else {
-    console.log("\nIntegrator: URL не задан (INTEGRATOR_DATABASE_URL / api.prod) — блок integrator пропущен.");
+    console.log(
+      '\nIntegrator: URL не задан (INTEGRATOR_DATABASE_URL / api.prod) — блок integrator пропущен.',
+    );
   }
   console.log();
 }
 
 /** OTP-блокировки, челленджи и проекции записей по номеру — только webapp. */
-async function deletePhoneKeyedWebappRows(client: PoolClient, phoneNormalized: string): Promise<void> {
+async function deletePhoneKeyedWebappRows(
+  client: PoolClient,
+  phoneNormalized: string,
+): Promise<void> {
   const digs = phoneDigits(phoneNormalized);
   const log = (label: string, rowCount: number) => {
     if (rowCount > 0) console.log(`  ${label}: ${rowCount}`);
@@ -381,10 +393,13 @@ async function deletePhoneKeyedWebappRows(client: PoolClient, phoneNormalized: s
     `DELETE FROM phone_otp_locks WHERE regexp_replace(phone_normalized, '\\D', '', 'g') = $1`,
     [digs],
   );
-  log("Удалено из phone_otp_locks", r.rowCount ?? 0);
+  log('Удалено из phone_otp_locks', r.rowCount ?? 0);
 
-  r = await client.query(`DELETE FROM phone_challenges WHERE regexp_replace(phone, '\\D', '', 'g') = $1`, [digs]);
-  log("Удалено из phone_challenges", r.rowCount ?? 0);
+  r = await client.query(
+    `DELETE FROM phone_challenges WHERE regexp_replace(phone, '\\D', '', 'g') = $1`,
+    [digs],
+  );
+  log('Удалено из phone_challenges', r.rowCount ?? 0);
 
   r = await client.query(
     `DELETE FROM appointment_records
@@ -392,7 +407,7 @@ async function deletePhoneKeyedWebappRows(client: PoolClient, phoneNormalized: s
        AND regexp_replace(phone_normalized, '\\D', '', 'g') = $1`,
     [digs],
   );
-  log("Удалено из appointment_records (по номеру)", r.rowCount ?? 0);
+  log('Удалено из appointment_records (по номеру)', r.rowCount ?? 0);
 
   r = await client.query(
     `DELETE FROM message_log
@@ -408,7 +423,7 @@ async function deletePhoneKeyedWebappRows(client: PoolClient, phoneNormalized: s
         )`,
     [digs],
   );
-  log("Удалено из message_log (doctor-журнал, user_id по номеру)", r.rowCount ?? 0);
+  log('Удалено из message_log (doctor-журнал, user_id по номеру)', r.rowCount ?? 0);
 }
 
 /**
@@ -425,23 +440,37 @@ async function deleteWebappProjectionByIntegratorUserId(
     if (rowCount > 0) console.log(`  ${label}: ${rowCount}`);
   };
 
-  let r = await client.query(`DELETE FROM reminder_delivery_events WHERE integrator_user_id = $1::bigint`, [id]);
-  log("Удалено из reminder_delivery_events (integrator_user_id)", r.rowCount ?? 0);
+  let r = await client.query(
+    `DELETE FROM reminder_delivery_events WHERE integrator_user_id = $1::bigint`,
+    [id],
+  );
+  log('Удалено из reminder_delivery_events (integrator_user_id)', r.rowCount ?? 0);
 
-  r = await client.query(`DELETE FROM reminder_occurrence_history WHERE integrator_user_id = $1::bigint`, [id]);
-  log("Удалено из reminder_occurrence_history (integrator_user_id)", r.rowCount ?? 0);
+  r = await client.query(
+    `DELETE FROM reminder_occurrence_history WHERE integrator_user_id = $1::bigint`,
+    [id],
+  );
+  log('Удалено из reminder_occurrence_history (integrator_user_id)', r.rowCount ?? 0);
 
   r = await client.query(`DELETE FROM reminder_rules WHERE integrator_user_id = $1::bigint`, [id]);
-  log("Удалено из reminder_rules (integrator_user_id)", r.rowCount ?? 0);
+  log('Удалено из reminder_rules (integrator_user_id)', r.rowCount ?? 0);
 
-  r = await client.query(`DELETE FROM content_access_grants_webapp WHERE integrator_user_id = $1::bigint`, [id]);
-  log("Удалено из content_access_grants_webapp (integrator_user_id)", r.rowCount ?? 0);
+  r = await client.query(
+    `DELETE FROM content_access_grants_webapp WHERE integrator_user_id = $1::bigint`,
+    [id],
+  );
+  log('Удалено из content_access_grants_webapp (integrator_user_id)', r.rowCount ?? 0);
 
-  r = await client.query(`DELETE FROM user_subscriptions_webapp WHERE integrator_user_id = $1::bigint`, [id]);
-  log("Удалено из user_subscriptions_webapp", r.rowCount ?? 0);
+  r = await client.query(
+    `DELETE FROM user_subscriptions_webapp WHERE integrator_user_id = $1::bigint`,
+    [id],
+  );
+  log('Удалено из user_subscriptions_webapp', r.rowCount ?? 0);
 
-  r = await client.query(`DELETE FROM mailing_logs_webapp WHERE integrator_user_id = $1::bigint`, [id]);
-  log("Удалено из mailing_logs_webapp", r.rowCount ?? 0);
+  r = await client.query(`DELETE FROM mailing_logs_webapp WHERE integrator_user_id = $1::bigint`, [
+    id,
+  ]);
+  log('Удалено из mailing_logs_webapp', r.rowCount ?? 0);
 
   r = await client.query(
     `DELETE FROM support_question_messages WHERE question_id IN (
@@ -451,7 +480,7 @@ async function deleteWebappProjectionByIntegratorUserId(
      )`,
     [id],
   );
-  log("Удалено из support_question_messages (по integrator диалогам)", r.rowCount ?? 0);
+  log('Удалено из support_question_messages (по integrator диалогам)', r.rowCount ?? 0);
 
   r = await client.query(
     `DELETE FROM support_questions WHERE conversation_id IN (
@@ -459,10 +488,13 @@ async function deleteWebappProjectionByIntegratorUserId(
      )`,
     [id],
   );
-  log("Удалено из support_questions (по integrator диалогам)", r.rowCount ?? 0);
+  log('Удалено из support_questions (по integrator диалогам)', r.rowCount ?? 0);
 
-  r = await client.query(`DELETE FROM support_conversations WHERE integrator_user_id = $1::bigint`, [id]);
-  log("Удалено из support_conversations (integrator_user_id)", r.rowCount ?? 0);
+  r = await client.query(
+    `DELETE FROM support_conversations WHERE integrator_user_id = $1::bigint`,
+    [id],
+  );
+  log('Удалено из support_conversations (integrator_user_id)', r.rowCount ?? 0);
 }
 
 async function scrubWebappByPhone(phone: string): Promise<void> {
@@ -470,12 +502,12 @@ async function scrubWebappByPhone(phone: string): Promise<void> {
   console.log(`\nWebapp: очистка appointment_records / OTP / message_log по номеру ${norm}\n`);
   const client = await db.connect();
   try {
-    await client.query("BEGIN");
+    await client.query('BEGIN');
     await deletePhoneKeyedWebappRows(client, norm);
-    await client.query("COMMIT");
-    console.log("\n✓ Webapp: scrub по номеру выполнен.");
+    await client.query('COMMIT');
+    console.log('\n✓ Webapp: scrub по номеру выполнен.');
   } catch (err) {
-    await client.query("ROLLBACK");
+    await client.query('ROLLBACK');
     throw err;
   } finally {
     client.release();
@@ -485,7 +517,7 @@ async function scrubWebappByPhone(phone: string): Promise<void> {
 async function messageLogDeleteForUserId(rawId: string): Promise<void> {
   const id = rawId.trim();
   if (!isPlatformUserUuid(id)) {
-    console.error("Ожидается UUID (как в message_log.user_id, текстом).");
+    console.error('Ожидается UUID (как в message_log.user_id, текстом).');
     process.exitCode = 1;
     return;
   }
@@ -501,20 +533,20 @@ async function webappCleanupByIntegratorId(raw: string): Promise<void> {
   const id = raw.trim();
   if (!/^\d+$/.test(id)) {
     console.error(
-      "Ожидается целый integrator_user_id (как в platform_users.integrator_user_id и проекциях webapp).",
+      'Ожидается целый integrator_user_id (как в platform_users.integrator_user_id и проекциях webapp).',
     );
     process.exitCode = 1;
     return;
   }
   const client = await db.connect();
   try {
-    await client.query("BEGIN");
+    await client.query('BEGIN');
     console.log(`\nОчистка webapp-проекций по integrator_user_id = ${id}\n`);
     await deleteWebappProjectionByIntegratorUserId(client, id);
-    await client.query("COMMIT");
-    console.log("\n✓ Webapp: проекции по integrator id очищены.");
+    await client.query('COMMIT');
+    console.log('\n✓ Webapp: проекции по integrator id очищены.');
   } catch (err) {
-    await client.query("ROLLBACK");
+    await client.query('ROLLBACK');
     throw err;
   } finally {
     client.release();
@@ -524,11 +556,13 @@ async function webappCleanupByIntegratorId(raw: string): Promise<void> {
 async function reassignUser(phone: string, oldUuid: string): Promise<void> {
   const user = await findUser(phone);
   if (!user) {
-    console.log(`Пользователь с номером ${normalize(phone)} не найден. Сначала зарегистрируйтесь заново.`);
+    console.log(
+      `Пользователь с номером ${normalize(phone)} не найден. Сначала зарегистрируйтесь заново.`,
+    );
     return;
   }
   if (user.id === oldUuid) {
-    console.log("Старый и новый UUID совпадают, ничего делать не нужно.");
+    console.log('Старый и новый UUID совпадают, ничего делать не нужно.');
     return;
   }
 
@@ -536,27 +570,28 @@ async function reassignUser(phone: string, oldUuid: string): Promise<void> {
 
   const client = await db.connect();
   try {
-    await client.query("BEGIN");
+    await client.query('BEGIN');
 
     for (const { table, column } of CONTENT_TABLES) {
-      const r = await client.query(
-        `UPDATE ${table} SET ${column} = $1 WHERE ${column} = $2`,
-        [user.id, oldUuid],
-      );
+      const r = await client.query(`UPDATE ${table} SET ${column} = $1 WHERE ${column} = $2`, [
+        user.id,
+        oldUuid,
+      ]);
       if ((r.rowCount ?? 0) > 0) console.log(`  ${table}: перенесено ${r.rowCount}`);
     }
 
     // doctor_notes.author_id — если автор тоже был тем же пользователем
-    const dn = await client.query(
-      `UPDATE doctor_notes SET author_id = $1 WHERE author_id = $2`,
-      [user.id, oldUuid],
-    );
-    if ((dn.rowCount ?? 0) > 0) console.log(`  doctor_notes (author_id): перенесено ${dn.rowCount}`);
+    const dn = await client.query(`UPDATE doctor_notes SET author_id = $1 WHERE author_id = $2`, [
+      user.id,
+      oldUuid,
+    ]);
+    if ((dn.rowCount ?? 0) > 0)
+      console.log(`  doctor_notes (author_id): перенесено ${dn.rowCount}`);
 
-    await client.query("COMMIT");
+    await client.query('COMMIT');
     console.log(`\n✓ Данные перенесены на ${user.id}`);
   } catch (err) {
-    await client.query("ROLLBACK");
+    await client.query('ROLLBACK');
     throw err;
   } finally {
     client.release();
@@ -568,66 +603,72 @@ async function main() {
 
   try {
     switch (cmd) {
-      case "info":
-        if (!arg1) { console.error("Укажите номер: info 79189000782"); process.exit(1); }
+      case 'info':
+        if (!arg1) {
+          console.error('Укажите номер: info 79189000782');
+          process.exit(1);
+        }
         await info(arg1);
         break;
-      case "reset-user":
-        if (!arg1) { console.error("Укажите номер: reset-user 79189000782"); process.exit(1); }
-        rejectAccountPurge("reset-user");
+      case 'reset-user':
+        if (!arg1) {
+          console.error('Укажите номер: reset-user 79189000782');
+          process.exit(1);
+        }
+        rejectAccountPurge('reset-user');
         break;
-      case "reassign-user":
+      case 'reassign-user':
         if (!arg1 || !arg2) {
-          console.error("Укажите номер и старый UUID: reassign-user 79189000782 <old-uuid>");
+          console.error('Укажите номер и старый UUID: reassign-user 79189000782 <old-uuid>');
           process.exit(1);
         }
         await reassignUser(arg1, arg2);
         break;
-      case "integrator-clear-phone":
+      case 'integrator-clear-phone':
         if (!arg1) {
-          console.error("Укажите номер: integrator-clear-phone 79189000782");
+          console.error('Укажите номер: integrator-clear-phone 79189000782');
           process.exit(1);
         }
-        rejectAccountPurge("integrator-clear-phone");
+        rejectAccountPurge('integrator-clear-phone');
         break;
-      case "purge-by-id":
+      case 'purge-by-id':
         if (!arg1) {
-          console.error("Укажите UUID: purge-by-id 05f08456-1205-41d7-9060-e132c12359b8");
+          console.error('Укажите UUID: purge-by-id 05f08456-1205-41d7-9060-e132c12359b8');
           process.exit(1);
         }
-        rejectAccountPurge("purge-by-id");
+        rejectAccountPurge('purge-by-id');
         break;
-      case "webapp-cleanup-by-integrator-id":
+      case 'webapp-cleanup-by-integrator-id':
         if (!arg1) {
-          console.error("Укажите id: webapp-cleanup-by-integrator-id 12345");
+          console.error('Укажите id: webapp-cleanup-by-integrator-id 12345');
           process.exit(1);
         }
         await webappCleanupByIntegratorId(arg1);
         break;
-      case "integrator-purge-user-id":
+      case 'integrator-purge-user-id':
         if (!arg1) {
-          console.error("Укажите id: integrator-purge-user-id 12345");
+          console.error('Укажите id: integrator-purge-user-id 12345');
           process.exit(1);
         }
-        rejectAccountPurge("integrator-purge-user-id");
+        rejectAccountPurge('integrator-purge-user-id');
         break;
-      case "scrub-webapp-by-phone":
+      case 'scrub-webapp-by-phone':
         if (!arg1) {
-          console.error("Укажите номер: scrub-webapp-by-phone 79189000782");
+          console.error('Укажите номер: scrub-webapp-by-phone 79189000782');
           process.exit(1);
         }
         await scrubWebappByPhone(arg1);
         break;
-      case "message-log-delete":
+      case 'message-log-delete':
         if (!arg1) {
-          console.error("Укажите UUID: message-log-delete 05f08456-1205-41d7-9060-e132c12359b8");
+          console.error('Укажите UUID: message-log-delete 05f08456-1205-41d7-9060-e132c12359b8');
           process.exit(1);
         }
         await messageLogDeleteForUserId(arg1);
         break;
       default:
         console.error(
-          "Команды: info | reset-user | reassign-user | integrator-clear-phone | scrub-webapp-by-phone | message-log-delete | purge-by-id | webapp-cleanup-by-integrator-id | integrator-purge-user-id",
+          'Команды: info | reset-user | reassign-user | integrator-clear-phone | scrub-webapp-by-phone | message-log-delete | purge-by-id | webapp-cleanup-by-integrator-id | integrator-purge-user-id',
         );
         process.exit(1);
     }
@@ -638,14 +679,14 @@ async function main() {
 }
 
 function isErrnoException(err: unknown): err is NodeJS.ErrnoException & { hostname?: string } {
-  return err instanceof Error && "code" in err;
+  return err instanceof Error && 'code' in err;
 }
 
 main().catch((err: unknown) => {
-  if (isErrnoException(err) && err.code === "EAI_AGAIN" && err.hostname) {
+  if (isErrnoException(err) && err.code === 'EAI_AGAIN' && err.hostname) {
     console.error(
       `DNS: не удалось разрешить хост «${err.hostname}». ` +
-        "Если это имя сервиса из Docker — задайте DATABASE_URL с хоста (localhost или реальный Postgres), " +
+        'Если это имя сервиса из Docker — задайте DATABASE_URL с хоста (localhost или реальный Postgres), ' +
         `см. ${DEFAULT_PROD_ENV}.`,
     );
   }

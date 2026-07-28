@@ -1,5 +1,5 @@
-import type { BroadcastAuditEntry, BroadcastAuditPort } from "@/modules/doctor-broadcasts/ports";
-import { registerInMemoryBroadcastAuditForPatientRead } from "./inMemoryPatientBroadcasts";
+import type { BroadcastAuditEntry, BroadcastAuditPort } from '@/modules/doctor-broadcasts/ports';
+import { registerInMemoryBroadcastAuditForPatientRead } from './inMemoryPatientBroadcasts';
 
 const store: BroadcastAuditEntry[] = [];
 
@@ -19,7 +19,7 @@ export const inMemoryBroadcastAuditPort: BroadcastAuditPort = {
     const executedAt = new Date().toISOString();
     const full: BroadcastAuditEntry = {
       ...entry,
-      messageBody: entry.messageBody ?? "",
+      messageBody: entry.messageBody ?? '',
       deliveryJobsTotal: entry.deliveryJobsTotal ?? 0,
       attachMenuAfterSend: entry.attachMenuAfterSend ?? false,
       id,

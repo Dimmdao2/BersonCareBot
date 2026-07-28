@@ -1,6 +1,6 @@
-import { env } from "@/config/env";
-import type { UserRole } from "@/shared/types/session";
-import { normalizeEmail } from "./emailAuth";
+import { env } from '@/config/env';
+import type { UserRole } from '@/shared/types/session';
+import { normalizeEmail } from './emailAuth';
 
 /**
  * C-4 (2026-07-26, docs/ARCHITECTURE/ADMIN_ACCESS_MODEL.md): admin/doctor role is never granted by
@@ -17,8 +17,12 @@ import { normalizeEmail } from "./emailAuth";
  * over — an existing DB role, so an env source that can only ever say "client" is structurally
  * unable to demote an existing admin/doctor row.
  */
-export function resolveRoleFromEnv(_ids: { phone?: string; telegramId?: string; maxId?: string }): UserRole {
-  return "client";
+export function resolveRoleFromEnv(_ids: {
+  phone?: string;
+  telegramId?: string;
+  maxId?: string;
+}): UserRole {
+  return 'client';
 }
 
 /**
@@ -36,11 +40,11 @@ export function resolveRoleFromEnv(_ids: { phone?: string; telegramId?: string; 
  * env/DB source that resolves "admin"/"doctor" again still could not demote an existing DB role.
  */
 export function reconcileDbRoleWithEnvRole(currentRole: UserRole, envRole: UserRole): UserRole {
-  if (envRole === "admin") return "admin";
-  if (currentRole === "admin") return "admin";
-  if (envRole === "doctor") return "doctor";
-  if (currentRole === "doctor") return "doctor";
-  return "client";
+  if (envRole === 'admin') return 'admin';
+  if (currentRole === 'admin') return 'admin';
+  if (envRole === 'doctor') return 'doctor';
+  if (currentRole === 'doctor') return 'doctor';
+  return 'client';
 }
 
 /**
@@ -54,7 +58,7 @@ export async function resolveRoleAsync(_ids: {
   telegramId?: string;
   maxId?: string;
 }): Promise<UserRole> {
-  return "client";
+  return 'client';
 }
 
 /**
@@ -68,9 +72,9 @@ export async function resolveRoleAsync(_ids: {
  * ЕСИА id (taskdb #1034/#1035) is a value change here, not a rebuild.
  */
 export async function isVerifiedEmailGlobalAdminAsync(email: string | undefined): Promise<boolean> {
-  const normalized = normalizeEmail(email ?? "");
+  const normalized = normalizeEmail(email ?? '');
   if (!normalized) return false;
-  const pinned = normalizeEmail(env.PLATFORM_OWNER_IDENTITY ?? "");
+  const pinned = normalizeEmail(env.PLATFORM_OWNER_IDENTITY ?? '');
   return Boolean(pinned) && pinned === normalized;
 }
 

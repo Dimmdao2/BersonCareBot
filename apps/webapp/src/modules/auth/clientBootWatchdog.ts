@@ -1,10 +1,10 @@
-import type { ClientEnvironmentTelemetry } from "./supportedClientMatrix";
+import type { ClientEnvironmentTelemetry } from './supportedClientMatrix';
 
-export const CLIENT_BOOT_FALLBACK_ID = "bc-unsupported-client-fallback";
-export const CLIENT_BOOT_ACTIVE_CONTENT_ID = "bc-app-entry-active-content";
+export const CLIENT_BOOT_FALLBACK_ID = 'bc-unsupported-client-fallback';
+export const CLIENT_BOOT_ACTIVE_CONTENT_ID = 'bc-app-entry-active-content';
 export const CLIENT_BOOT_WATCHDOG_MS = 10_000;
 
-export type ClientBootWatchdogStage = "module_executed" | "react_mounted";
+export type ClientBootWatchdogStage = 'module_executed' | 'react_mounted';
 
 export type ClientBootWatchdogContract = Readonly<{
   ok(stage: ClientBootWatchdogStage): void;
@@ -18,9 +18,9 @@ declare global {
 
 function safeInlineJson(value: unknown): string {
   return JSON.stringify(value)
-    .replace(/</g, "\\u003c")
-    .replace(/\u2028/g, "\\u2028")
-    .replace(/\u2029/g, "\\u2029");
+    .replace(/</g, '\\u003c')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
 }
 
 /**
@@ -28,12 +28,12 @@ function safeInlineJson(value: unknown): string {
  * module syntax or dependency on the application bundle.
  */
 export function buildClientBootWatchdogScript(input: {
-  entrySurface: "tg" | "max" | "browser";
+  entrySurface: 'tg' | 'max' | 'browser';
   client: ClientEnvironmentTelemetry;
   timeoutMs?: number;
 }): string {
   const config = safeInlineJson({
-    endpoint: "/api/patient-app/client-boot-report",
+    endpoint: '/api/patient-app/client-boot-report',
     fallbackId: CLIENT_BOOT_FALLBACK_ID,
     activeContentId: CLIENT_BOOT_ACTIVE_CONTENT_ID,
     entrySurface: input.entrySurface,
@@ -64,9 +64,9 @@ w.__bcBootWatch={ok:ok};if(w.addEventListener){w.addEventListener('error',onErro
 
 /** Earliest safe acknowledgement from a client-module evaluation. */
 export function markClientBootModuleExecuted(): void {
-  if (typeof window !== "undefined") window.__bcBootWatch?.ok("module_executed");
+  if (typeof window !== 'undefined') window.__bcBootWatch?.ok('module_executed');
 }
 
 export function markClientBootReactMounted(): void {
-  if (typeof window !== "undefined") window.__bcBootWatch?.ok("react_mounted");
+  if (typeof window !== 'undefined') window.__bcBootWatch?.ok('react_mounted');
 }

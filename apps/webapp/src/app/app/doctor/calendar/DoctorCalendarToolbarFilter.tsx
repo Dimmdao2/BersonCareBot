@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import {
   Select,
@@ -6,12 +6,12 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/ui/doctor/primitives/select";
+} from '@/shared/ui/doctor/primitives/select';
 import {
   calendarCreateFieldLabel,
   resolveCalendarCreateFieldMode,
-} from "@/modules/booking-calendar/calendarCreateFieldMode";
-import type { CalendarFilterOption } from "@/modules/booking-calendar/types";
+} from '@/modules/booking-calendar/calendarCreateFieldMode';
+import type { CalendarFilterOption } from '@/modules/booking-calendar/types';
 
 type Props = {
   noneLabel: string;
@@ -21,15 +21,15 @@ type Props = {
 };
 
 function noneValue() {
-  return "__none__";
+  return '__none__';
 }
 
 /** Фильтр календаря: один вариант в каталоге — только подпись, иначе селект. */
 export function DoctorCalendarToolbarFilter({ noneLabel, options, value, onChange }: Props) {
   const mode = resolveCalendarCreateFieldMode(options, null);
-  if (mode === "hidden") return null;
+  if (mode === 'hidden') return null;
 
-  if (mode === "fixed") {
+  if (mode === 'fixed') {
     const label = calendarCreateFieldLabel(options, value ?? options[0]?.id ?? null, noneLabel);
     return (
       <span className="inline-flex h-8 w-[10rem] min-w-0 items-center rounded-md border border-border bg-muted/40 px-2 text-xs text-foreground">
@@ -39,7 +39,10 @@ export function DoctorCalendarToolbarFilter({ noneLabel, options, value, onChang
   }
 
   return (
-    <Select value={value ?? noneValue()} onValueChange={(v) => onChange(v === noneValue() ? null : v)}>
+    <Select
+      value={value ?? noneValue()}
+      onValueChange={(v) => onChange(v === noneValue() ? null : v)}
+    >
       <SelectTrigger className="w-[10rem]">
         <SelectValue />
       </SelectTrigger>

@@ -2,15 +2,15 @@
  * Wave 3 phase 14C — domain SQL via `runWebappPgText` / `getWebappSqlFromPgClient`.
  * R0/S3S routes the open-conflict transaction through `withPoolTransaction`.
  */
-import { createHash } from "node:crypto";
-import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
-import type { Pool, PoolClient } from "pg";
-import { ADMIN_AUDIT_SYSTEM_HEALTH_OPERATOR_ACTIONS } from "@/modules/admin/adminAuditListQuery";
-import { getWebappSqlFromPgClient, runWebappPgText } from "@/infra/db/runWebappSql";
-import { withPoolTransaction } from "@/infra/db/withClient";
-import { logger } from "@/infra/logging/logger";
+import { createHash } from 'node:crypto';
+import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
+import type { Pool, PoolClient } from 'pg';
+import { ADMIN_AUDIT_SYSTEM_HEALTH_OPERATOR_ACTIONS } from '@/modules/admin/adminAuditListQuery';
+import { getWebappSqlFromPgClient, runWebappPgText } from '@/infra/db/runWebappSql';
+import { withPoolTransaction } from '@/infra/db/withClient';
+import { logger } from '@/infra/logging/logger';
 
-const DEFAULT_ORGANIZATION_ID = "a0000000-0000-4000-8000-000000000001";
+const DEFAULT_ORGANIZATION_ID = 'a0000000-0000-4000-8000-000000000001';
 
 function txPgText<T = unknown>(
   client: PoolClient,
@@ -28,7 +28,7 @@ function currentPrincipalOrganizationId(): string | null {
   return getCurrentDbPrincipalOrganizationId() ?? null;
 }
 
-export type AuditLogStatus = "ok" | "partial_failure" | "error";
+export type AuditLogStatus = 'ok' | 'partial_failure' | 'error';
 
 export type AuditLogWriteEntry = {
   actorId: string | null;
@@ -46,9 +46,9 @@ export type AuditLogWriteEntry = {
 export function computeConflictKeyFromCandidateIds(candidateIds: string[]): string {
   const normalized = [...new Set(candidateIds.map((id) => id.trim()).filter(Boolean))].sort();
   if (normalized.length === 0) {
-    throw new Error("computeConflictKeyFromCandidateIds: candidateIds must be non-empty");
+    throw new Error('computeConflictKeyFromCandidateIds: candidateIds must be non-empty');
   }
-  return createHash("sha256").update(normalized.join("|"), "utf8").digest("hex");
+  return createHash('sha256').update(normalized.join('|'), 'utf8').digest('hex');
 }
 
 /** Open-row dedupe key for channel-link ownership conflicts (distinct from merge candidate hashes). */
@@ -58,24 +58,24 @@ export function computeChannelLinkOwnershipConflictKey(
   tokenUserId: string,
   existingUserId: string,
 ): string {
-  const sorted = [tokenUserId, existingUserId].map((x) => x.trim()).filter(Boolean).sort();
-  const payload = `channel_link_ownership|${channelCode.trim()}|${externalId.trim()}|${sorted.join("|")}`;
-  return createHash("sha256").update(payload, "utf8").digest("hex");
+  const sorted = [tokenUserId, existingUserId]
+    .map((x) => x.trim())
+    .filter(Boolean)
+    .sort();
+  const payload = `channel_link_ownership|${channelCode.trim()}|${externalId.trim()}|${sorted.join('|')}`;
+  return createHash('sha256').update(payload, 'utf8').digest('hex');
 }
 
-function mergeSeenEventTypes(
-  existing: unknown,
-  incoming: unknown,
-): string[] {
+function mergeSeenEventTypes(existing: unknown, incoming: unknown): string[] {
   const fromArr = (v: unknown): string[] => {
     if (!Array.isArray(v)) return [];
-    return v.filter((x): x is string => typeof x === "string");
+    return v.filter((x): x is string => typeof x === 'string');
   };
   const a = new Set(fromArr(existing));
   for (const x of fromArr(incoming)) {
     a.add(x);
   }
-  if (typeof incoming === "string" && incoming.length > 0) {
+  if (typeof incoming === 'string' && incoming.length > 0) {
     a.add(incoming);
   }
   return [...a].sort();
@@ -83,10 +83,10 @@ function mergeSeenEventTypes(
 
 function isPgUniqueViolation(err: unknown): boolean {
   return (
-    typeof err === "object" &&
+    typeof err === 'object' &&
     err !== null &&
-    "code" in err &&
-    (err as { code?: unknown }).code === "23505"
+    'code' in err &&
+    (err as { code?: unknown }).code === '23505'
   );
 }
 
@@ -95,7 +95,7 @@ function isPgUniqueViolation(err: unknown): boolean {
  * Failure is logged and does not throw (fire-and-forget from callers).
  */
 export async function writeAuditLog(_pool: Pool, entry: AuditLogWriteEntry): Promise<void> {
-  const status: AuditLogStatus = entry.status ?? "ok";
+  const status: AuditLogStatus = entry.status ?? 'ok';
   const organizationId = currentAuditOrganizationId();
   try {
     await runWebappPgText(
@@ -112,7 +112,7 @@ export async function writeAuditLog(_pool: Pool, entry: AuditLogWriteEntry): Pro
       ],
     );
   } catch (err) {
-    logger.error({ err, action: entry.action }, "writeAuditLog failed");
+    logger.error({ err, action: entry.action }, 'writeAuditLog failed');
   }
 }
 
@@ -135,9 +135,9 @@ export async function getLastAuditLogDetailsField(
       [action, field],
     );
     const v = res.rows[0]?.value;
-    return typeof v === "string" ? v : null;
+    return typeof v === 'string' ? v : null;
   } catch (err) {
-    logger.error({ err, action, field }, "getLastAuditLogDetailsField failed");
+    logger.error({ err, action, field }, 'getLastAuditLogDetailsField failed');
     return null;
   }
 }
@@ -146,7 +146,7 @@ export async function writeAuditLogDedupeOpenConflictKey(
   _pool: Pool,
   entry: AuditLogWriteEntry & { conflictKey: string },
 ): Promise<void> {
-  const status: AuditLogStatus = entry.status ?? "ok";
+  const status: AuditLogStatus = entry.status ?? 'ok';
   const organizationId = currentAuditOrganizationId();
   try {
     await runWebappPgText(
@@ -164,7 +164,7 @@ export async function writeAuditLogDedupeOpenConflictKey(
     );
   } catch (err) {
     if (isPgUniqueViolation(err)) return;
-    logger.error({ err, action: entry.action }, "writeAuditLogDedupeOpenConflictKey failed");
+    logger.error({ err, action: entry.action }, 'writeAuditLogDedupeOpenConflictKey failed');
   }
 }
 
@@ -186,9 +186,9 @@ export type UpsertOpenConflictLogInput = {
 };
 
 export type UpsertOpenConflictLogResult =
-  | { kind: "anomaly" }
-  | { kind: "conflict"; insertedFirst: boolean }
-  | { kind: "skipped" };
+  | { kind: 'anomaly' }
+  | { kind: 'conflict'; insertedFirst: boolean }
+  | { kind: 'skipped' };
 
 /**
  * Dedup open rows by `conflict_key` among unresolved (`resolved_at IS NULL`) audit rows.
@@ -200,18 +200,18 @@ export async function upsertOpenConflictLog(
   input: UpsertOpenConflictLogInput,
 ): Promise<UpsertOpenConflictLogResult> {
   const { candidateIds } = input;
-  const action = (input.action ?? "auto_merge_conflict").trim() || "auto_merge_conflict";
+  const action = (input.action ?? 'auto_merge_conflict').trim() || 'auto_merge_conflict';
   const organizationId = currentAuditOrganizationId();
   if (!candidateIds.length) {
     // Plan contract: empty candidateIds is anomaly-path without conflict_key.
     await writeAuditLog(pool, {
       actorId: input.actorId,
-      action: "auto_merge_conflict_anomaly",
+      action: 'auto_merge_conflict_anomaly',
       targetId: input.targetId ?? null,
       details: { ...input.details, candidateIds: [] },
-      status: input.status ?? "error",
+      status: input.status ?? 'error',
     });
-    return { kind: "anomaly" };
+    return { kind: 'anomaly' };
   }
   let conflictKey: string;
   const overrideKey = input.conflictKey?.trim();
@@ -221,16 +221,16 @@ export async function upsertOpenConflictLog(
     try {
       conflictKey = computeConflictKeyFromCandidateIds(candidateIds);
     } catch (err) {
-      logger.error({ err }, "upsertOpenConflictLog: conflict key failed");
-      return { kind: "skipped" };
+      logger.error({ err }, 'upsertOpenConflictLog: conflict key failed');
+      return { kind: 'skipped' };
     }
   }
 
-  const status: AuditLogStatus = input.status ?? "error";
+  const status: AuditLogStatus = input.status ?? 'error';
   const baseDetails: Record<string, unknown> = { ...input.details, candidateIds };
   const incomingSeenEventTypes = mergeSeenEventTypes(
     baseDetails.seenEventTypes,
-    typeof baseDetails.eventType === "string" ? [baseDetails.eventType] : [],
+    typeof baseDetails.eventType === 'string' ? [baseDetails.eventType] : [],
   );
 
   try {
@@ -278,7 +278,15 @@ export async function upsertOpenConflictLog(
           `INSERT INTO admin_audit_log
              (organization_id, actor_id, action, target_id, conflict_key, details, status, repeat_count, last_seen_at)
            VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6::jsonb, $7, 1, now())`,
-          [organizationId, input.actorId, action, input.targetId ?? null, conflictKey, JSON.stringify(firstDetails), status],
+          [
+            organizationId,
+            input.actorId,
+            action,
+            input.targetId ?? null,
+            conflictKey,
+            JSON.stringify(firstDetails),
+            status,
+          ],
         );
         return true;
       } catch (err) {
@@ -316,10 +324,10 @@ export async function upsertOpenConflictLog(
         return false;
       }
     });
-    return { kind: "conflict", insertedFirst };
+    return { kind: 'conflict', insertedFirst };
   } catch (err) {
-    logger.error({ err }, "upsertOpenConflictLog failed");
-    return { kind: "skipped" };
+    logger.error({ err }, 'upsertOpenConflictLog failed');
+    return { kind: 'skipped' };
   }
 }
 
@@ -364,7 +372,7 @@ export type ListAdminAuditLogParams = {
 export async function countOpenAutoMergeConflicts(_pool: Pool): Promise<number> {
   try {
     const principalOrganizationId = currentPrincipalOrganizationId();
-    const orgSql = principalOrganizationId ? " AND organization_id = $1::uuid" : "";
+    const orgSql = principalOrganizationId ? ' AND organization_id = $1::uuid' : '';
     const values = principalOrganizationId ? [principalOrganizationId] : [];
     const r = await runWebappPgText<{ n: string }>(
       `SELECT count(*)::text AS n
@@ -374,7 +382,7 @@ export async function countOpenAutoMergeConflicts(_pool: Pool): Promise<number> 
     );
     return Number(r.rows[0]?.n ?? 0);
   } catch (err) {
-    logger.error({ err }, "countOpenAutoMergeConflicts failed");
+    logger.error({ err }, 'countOpenAutoMergeConflicts failed');
     return 0;
   }
 }
@@ -386,12 +394,15 @@ export type ListAdminAuditLogResult = {
   limit: number;
 };
 
-export async function listAdminAuditLog(_pool: Pool, params: ListAdminAuditLogParams): Promise<ListAdminAuditLogResult> {
+export async function listAdminAuditLog(
+  _pool: Pool,
+  params: ListAdminAuditLogParams,
+): Promise<ListAdminAuditLogResult> {
   const page = Math.max(1, params.page);
   const limit = Math.min(200, Math.max(1, params.limit));
   const offset = (page - 1) * limit;
 
-  const conditions: string[] = ["1=1"];
+  const conditions: string[] = ['1=1'];
   const values: unknown[] = [];
   let i = 1;
   const principalOrganizationId = currentPrincipalOrganizationId();
@@ -461,10 +472,8 @@ export async function listAdminAuditLog(_pool: Pool, params: ListAdminAuditLogPa
     i++;
   }
   if (params.systemHealthScopeOnly) {
-    conditions.push(
-      `(l.action LIKE $${i} || '%' OR l.action = ANY($${i + 1}::text[]))`,
-    );
-    values.push("system_health_", [...ADMIN_AUDIT_SYSTEM_HEALTH_OPERATOR_ACTIONS]);
+    conditions.push(`(l.action LIKE $${i} || '%' OR l.action = ANY($${i + 1}::text[]))`);
+    values.push('system_health_', [...ADMIN_AUDIT_SYSTEM_HEALTH_OPERATOR_ACTIONS]);
     i += 2;
   }
   if (params.excludeActionPrefix?.trim()) {
@@ -473,17 +482,17 @@ export async function listAdminAuditLog(_pool: Pool, params: ListAdminAuditLogPa
     i++;
   }
 
-  const whereSql = conditions.join(" AND ");
+  const whereSql = conditions.join(' AND ');
   const filterValues = [...values];
   // app_platform_settings deliberately has no SELECT on platform_users (the C5A exact role
   // wall asserts that invariant). A platform principal has no organization id, so keep the
   // global audit query on admin_audit_log alone. Organization staff retain the actor-name join.
   const actorDisplayNameSql = principalOrganizationId
-    ? "pu.display_name AS actor_display_name"
-    : "NULL::text AS actor_display_name";
+    ? 'pu.display_name AS actor_display_name'
+    : 'NULL::text AS actor_display_name';
   const actorJoinSql = principalOrganizationId
-    ? "LEFT JOIN platform_users pu ON pu.id = l.actor_id"
-    : "";
+    ? 'LEFT JOIN platform_users pu ON pu.id = l.actor_id'
+    : '';
 
   const countRes = await runWebappPgText<{ n: string }>(
     `SELECT count(*)::text AS n FROM admin_audit_log l WHERE ${whereSql}`,
@@ -528,29 +537,33 @@ export async function listAdminAuditLog(_pool: Pool, params: ListAdminAuditLogPa
 
 /** Admin UI may set `resolved_at` for these `admin_audit_log.action` values (manual close). */
 export const MANUALLY_RESOLVABLE_ADMIN_AUDIT_ACTIONS = [
-  "auto_merge_conflict",
-  "auto_merge_conflict_anomaly",
-  "email_auth_conflict",
-  "messenger_phone_bind_blocked",
-  "messenger_phone_bind_anomaly",
-  "channel_link_ownership_conflict",
+  'auto_merge_conflict',
+  'auto_merge_conflict_anomaly',
+  'email_auth_conflict',
+  'messenger_phone_bind_blocked',
+  'messenger_phone_bind_anomaly',
+  'channel_link_ownership_conflict',
 ] as const;
 
-export type ManuallyResolvableAdminAuditAction = (typeof MANUALLY_RESOLVABLE_ADMIN_AUDIT_ACTIONS)[number];
+export type ManuallyResolvableAdminAuditAction =
+  (typeof MANUALLY_RESOLVABLE_ADMIN_AUDIT_ACTIONS)[number];
 
 export type ResolveAdminAuditConflictResult =
   | { ok: true; updated: true }
-  | { ok: false; error: "not_found" | "already_resolved" | "not_closeable" };
+  | { ok: false; error: 'not_found' | 'already_resolved' | 'not_closeable' };
 
 /**
  * Mark a single open audit row as resolved (`resolved_at = now()`).
  * Only {@link MANUALLY_RESOLVABLE_ADMIN_AUDIT_ACTIONS}; idempotent for already-resolved rows.
  */
-export async function resolveAdminAuditConflictById(_pool: Pool, id: string): Promise<ResolveAdminAuditConflictResult> {
+export async function resolveAdminAuditConflictById(
+  _pool: Pool,
+  id: string,
+): Promise<ResolveAdminAuditConflictResult> {
   const trimmed = id.trim();
-  if (!trimmed) return { ok: false, error: "not_found" };
+  if (!trimmed) return { ok: false, error: 'not_found' };
   const principalOrganizationId = currentPrincipalOrganizationId();
-  const orgSql = principalOrganizationId ? " AND organization_id = $2::uuid" : "";
+  const orgSql = principalOrganizationId ? ' AND organization_id = $2::uuid' : '';
   const orgValues = principalOrganizationId ? [principalOrganizationId] : [];
 
   const meta = await runWebappPgText<{ action: string; resolved_at: string | null }>(
@@ -558,17 +571,21 @@ export async function resolveAdminAuditConflictById(_pool: Pool, id: string): Pr
     [trimmed, ...orgValues],
   );
   const row = meta.rows[0];
-  if (!row) return { ok: false, error: "not_found" };
-  if (row.resolved_at != null) return { ok: false, error: "already_resolved" };
-  if (!MANUALLY_RESOLVABLE_ADMIN_AUDIT_ACTIONS.includes(row.action as ManuallyResolvableAdminAuditAction)) {
-    return { ok: false, error: "not_closeable" };
+  if (!row) return { ok: false, error: 'not_found' };
+  if (row.resolved_at != null) return { ok: false, error: 'already_resolved' };
+  if (
+    !MANUALLY_RESOLVABLE_ADMIN_AUDIT_ACTIONS.includes(
+      row.action as ManuallyResolvableAdminAuditAction,
+    )
+  ) {
+    return { ok: false, error: 'not_closeable' };
   }
 
   const upd = await runWebappPgText(
     `UPDATE admin_audit_log
      SET resolved_at = NOW()
      WHERE id = $1::uuid
-       ${principalOrganizationId ? "AND organization_id = $3::uuid" : ""}
+       ${principalOrganizationId ? 'AND organization_id = $3::uuid' : ''}
        AND resolved_at IS NULL
        AND action = ANY($2::text[])
      RETURNING id`,
@@ -577,7 +594,7 @@ export async function resolveAdminAuditConflictById(_pool: Pool, id: string): Pr
       : [trimmed, [...MANUALLY_RESOLVABLE_ADMIN_AUDIT_ACTIONS]],
   );
   if ((upd.rowCount ?? 0) === 0) {
-    return { ok: false, error: "already_resolved" };
+    return { ok: false, error: 'already_resolved' };
   }
   return { ok: true, updated: true };
 }

@@ -1,29 +1,30 @@
 /**
  * Главная страница кабинета специалиста («/app/doctor») — экран «Сегодня».
  */
-import Link from "next/link";
-import { loadDoctorAnalyticsAudience } from "@/app-layer/analytics/loadAnalyticsAudience";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getOnlineIntakeService } from "@/app-layer/di/onlineIntakeDeps";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
-import { requireOrganizationWorkspaceContext } from "@/app-layer/guards/requireRole";
-import { loadAdminRegistrationFailureAttention } from "@/app-layer/product-analytics/loadAdminRegistrationFailureAttention";
-import { loadAdminDoctorTodayHealthBanner } from "@/modules/operator-health/adminDoctorTodayHealthBanner";
-import {
-  deriveWorkingBounds,
-  pickWorkingHours,
-} from "@/modules/booking-scheduling/computeSlots";
-import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
+import Link from 'next/link';
+import { loadDoctorAnalyticsAudience } from '@/app-layer/analytics/loadAnalyticsAudience';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { getOnlineIntakeService } from '@/app-layer/di/onlineIntakeDeps';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
+import { requireOrganizationWorkspaceContext } from '@/app-layer/guards/requireRole';
+import { loadAdminRegistrationFailureAttention } from '@/app-layer/product-analytics/loadAdminRegistrationFailureAttention';
+import { loadAdminDoctorTodayHealthBanner } from '@/modules/operator-health/adminDoctorTodayHealthBanner';
+import { deriveWorkingBounds, pickWorkingHours } from '@/modules/booking-scheduling/computeSlots';
+import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 import {
   DOCTOR_TODAY_PREFERENCES_KEY,
   parseDoctorTodayPreferences,
-} from "@/modules/system-settings/doctorTodayPreferences";
-import { DateTime } from "luxon";
-import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
-import { DoctorSection, DoctorSectionHeader, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
-import { buttonVariants } from "@/shared/ui/doctor/primitives/button-variants";
-import { DoctorTodayDashboard } from "./DoctorTodayDashboard";
-import { loadDoctorTodayDashboard } from "./loadDoctorTodayDashboard";
+} from '@/modules/system-settings/doctorTodayPreferences';
+import { DateTime } from 'luxon';
+import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
+import {
+  DoctorSection,
+  DoctorSectionHeader,
+  DoctorSectionTitle,
+} from '@/shared/ui/doctor/DoctorSection';
+import { buttonVariants } from '@/shared/ui/doctor/primitives/button-variants';
+import { DoctorTodayDashboard } from './DoctorTodayDashboard';
+import { loadDoctorTodayDashboard } from './loadDoctorTodayDashboard';
 
 /**
  * §1.2 (S4): Вычисляет рабочие границы текущего дня через scheduling-порт.
@@ -92,7 +93,7 @@ export default async function DoctorPage() {
             Кабинет создан. Чтобы открыть пациентов и клинические данные, подключите двухфакторную
             защиту и сохраните резервные коды.
           </p>
-          <Link className={buttonVariants({ size: "sm" })} href="/app/account?tab=security">
+          <Link className={buttonVariants({ size: 'sm' })} href="/app/account?tab=security">
             Настроить двухфакторную защиту
           </Link>
         </DoctorSection>
@@ -105,7 +106,7 @@ export default async function DoctorPage() {
   const audience = await loadDoctorAnalyticsAudience();
   const todayPreferencesRow = await deps.systemSettings.getSetting(
     DOCTOR_TODAY_PREFERENCES_KEY,
-    "doctor",
+    'doctor',
     { organizationId: workspace.organizationId },
   );
   const todayPreferences = parseDoctorTodayPreferences(todayPreferencesRow?.valueJson);
@@ -133,7 +134,7 @@ export default async function DoctorPage() {
           displayIana,
           loadMonthAppointments: () =>
             deps.doctorAppointments.listAppointmentsForSpecialist(
-              { kind: "recordsInCalendarMonth" },
+              { kind: 'recordsInCalendarMonth' },
               workspaceAudience,
             ),
         },
@@ -143,18 +144,19 @@ export default async function DoctorPage() {
       ),
     ),
     deps.doctorStats.getStats(workspaceAudience),
-    deps.doctorAppointments.getDashboardAppointmentMetrics(
-      {
-        excludedUserIds: audience.excludedUserIds,
-        organizationId: workspace.organizationId,
-      },
-    ),
+    deps.doctorAppointments.getDashboardAppointmentMetrics({
+      excludedUserIds: audience.excludedUserIds,
+      organizationId: workspace.organizationId,
+    }),
     // §1.2: рабочие границы сегодняшнего дня для мини-календаря
     loadTodayWorkingBounds(deps, displayIana, workspace.organizationId),
   ]);
   const [adminHealthBanner, adminRegistrationFailureBanner] =
-    session.user.role === "admin"
-      ? await Promise.all([loadAdminDoctorTodayHealthBanner(), loadAdminRegistrationFailureAttention()])
+    session.user.role === 'admin'
+      ? await Promise.all([
+          loadAdminDoctorTodayHealthBanner(),
+          loadAdminRegistrationFailureAttention(),
+        ])
       : [undefined, undefined];
 
   return (

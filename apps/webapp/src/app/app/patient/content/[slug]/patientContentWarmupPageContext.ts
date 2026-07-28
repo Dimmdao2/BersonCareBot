@@ -1,11 +1,11 @@
-import { routePaths } from "@/app-layer/routes/paths";
+import { routePaths } from '@/app-layer/routes/paths';
 import {
   buildPatientDailyWarmupNav,
   type DailyWarmupListEntry,
   type PatientDailyWarmupNav,
-} from "@/modules/patient-home/todayConfig";
+} from '@/modules/patient-home/todayConfig';
 
-export type ContentPagePracticeSource = "daily_warmup" | "section_page";
+export type ContentPagePracticeSource = 'daily_warmup' | 'section_page';
 
 export function resolveIsDailyWarmupMember(
   slug: string,
@@ -21,18 +21,22 @@ export function resolvePatientContentBackNav(params: {
 }): { backHref: string; backLabel: string; showBackToSectionRow: boolean } {
   const sectionSlug = params.sectionSlug.trim();
   if (params.isDailyWarmupMember && params.fromDailyWarmup) {
-    return { backHref: routePaths.patient, backLabel: "Меню", showBackToSectionRow: false };
+    return { backHref: routePaths.patient, backLabel: 'Меню', showBackToSectionRow: false };
   }
   if (params.isDailyWarmupMember) {
     return {
-      backHref: sectionSlug ? `/app/patient/sections/${encodeURIComponent(sectionSlug)}` : routePaths.patient,
-      backLabel: sectionSlug ? "Назад к разделу" : "Меню",
+      backHref: sectionSlug
+        ? `/app/patient/sections/${encodeURIComponent(sectionSlug)}`
+        : routePaths.patient,
+      backLabel: sectionSlug ? 'Назад к разделу' : 'Меню',
       showBackToSectionRow: false,
     };
   }
   return {
-    backHref: sectionSlug ? `/app/patient/sections/${encodeURIComponent(sectionSlug)}` : routePaths.patient,
-    backLabel: sectionSlug ? "Назад к разделу" : "Меню",
+    backHref: sectionSlug
+      ? `/app/patient/sections/${encodeURIComponent(sectionSlug)}`
+      : routePaths.patient,
+    backLabel: sectionSlug ? 'Назад к разделу' : 'Меню',
     showBackToSectionRow: Boolean(sectionSlug),
   };
 }
@@ -49,14 +53,18 @@ export function resolvePatientContentWarmupPageContext(params: {
   slug: string;
   fromDailyWarmup: boolean;
   sectionSlug: string;
-  orderedDailyWarmupPages: ReadonlyArray<Pick<DailyWarmupListEntry, "slug">>;
+  orderedDailyWarmupPages: ReadonlyArray<Pick<DailyWarmupListEntry, 'slug'>>;
 }): PatientContentWarmupPageContext {
-  const isDailyWarmupMember = resolveIsDailyWarmupMember(params.slug, params.orderedDailyWarmupPages);
+  const isDailyWarmupMember = resolveIsDailyWarmupMember(
+    params.slug,
+    params.orderedDailyWarmupPages,
+  );
   return {
     isDailyWarmupMember,
-    practiceSource: isDailyWarmupMember ? "daily_warmup" : "section_page",
-    warmupNav:
-      isDailyWarmupMember ? buildPatientDailyWarmupNav(params.slug, params.orderedDailyWarmupPages) : null,
+    practiceSource: isDailyWarmupMember ? 'daily_warmup' : 'section_page',
+    warmupNav: isDailyWarmupMember
+      ? buildPatientDailyWarmupNav(params.slug, params.orderedDailyWarmupPages)
+      : null,
     backNav: resolvePatientContentBackNav({
       isDailyWarmupMember,
       fromDailyWarmup: params.fromDailyWarmup,

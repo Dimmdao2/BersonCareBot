@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
   envHolder,
@@ -9,7 +9,7 @@ const {
   loggerErrorMock,
   loggerWarnMock,
 } = vi.hoisted(() => ({
-  envHolder: { INTERNAL_JOB_SECRET: "test-internal-secret" as string | undefined },
+  envHolder: { INTERNAL_JOB_SECRET: 'test-internal-secret' as string | undefined },
   runTickMock: vi.fn(),
   recordSuccessMock: vi.fn(),
   recordFailureMock: vi.fn(),
@@ -18,15 +18,15 @@ const {
   loggerWarnMock: vi.fn(),
 }));
 
-vi.mock("@/config/env", () => ({
+vi.mock('@/config/env', () => ({
   env: envHolder,
 }));
 
-vi.mock("@/app-layer/reminders/runWebPushOnlyReminderInternalTick", () => ({
+vi.mock('@/app-layer/reminders/runWebPushOnlyReminderInternalTick', () => ({
   runWebPushOnlyReminderInternalTick: runTickMock,
 }));
 
-vi.mock("@/app-layer/di/buildAppDeps", () => ({
+vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: vi.fn(() => ({
     channelPreferencesPort: {},
     topicChannelPrefs: {},
@@ -44,14 +44,14 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
   })),
 }));
 
-vi.mock("@/app-layer/logging/logger", () => ({
+vi.mock('@/app-layer/logging/logger', () => ({
   logger: {
     error: loggerErrorMock,
     warn: loggerWarnMock,
   },
 }));
 
-import { POST } from "./route";
+import { POST } from './route';
 
 const emptyTickResult = {
   rulesFound: 1,
@@ -65,7 +65,7 @@ const emptyTickResult = {
   failed: 0,
 };
 
-describe("POST /api/internal/reminders/web-push-only/tick", () => {
+describe('POST /api/internal/reminders/web-push-only/tick', () => {
   beforeEach(() => {
     runTickMock.mockReset();
     recordSuccessMock.mockReset();
@@ -73,27 +73,27 @@ describe("POST /api/internal/reminders/web-push-only/tick", () => {
     getOperatorJobStatusMock.mockReset();
     loggerErrorMock.mockReset();
     loggerWarnMock.mockReset();
-    envHolder.INTERNAL_JOB_SECRET = "test-internal-secret";
+    envHolder.INTERNAL_JOB_SECRET = 'test-internal-secret';
     runTickMock.mockResolvedValue(emptyTickResult);
     recordSuccessMock.mockResolvedValue(undefined);
     recordFailureMock.mockResolvedValue(undefined);
     getOperatorJobStatusMock.mockResolvedValue(null);
   });
 
-  it("returns 401 when bearer is missing", async () => {
+  it('returns 401 when bearer is missing', async () => {
     const res = await POST(
-      new Request("http://localhost/api/internal/reminders/web-push-only/tick", { method: "POST" }),
+      new Request('http://localhost/api/internal/reminders/web-push-only/tick', { method: 'POST' }),
     );
     expect(res.status).toBe(401);
     expect(runTickMock).not.toHaveBeenCalled();
   });
 
-  it("returns 200 with tick summary JSON when internal tick succeeds", async () => {
+  it('returns 200 with tick summary JSON when internal tick succeeds', async () => {
     runTickMock.mockResolvedValue({ ...emptyTickResult, sent: 1 });
     const res = await POST(
-      new Request("http://localhost/api/internal/reminders/web-push-only/tick?limit=50", {
-        method: "POST",
-        headers: { Authorization: "Bearer test-internal-secret" },
+      new Request('http://localhost/api/internal/reminders/web-push-only/tick?limit=50', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer test-internal-secret' },
       }),
     );
     expect(res.status).toBe(200);
@@ -105,25 +105,25 @@ describe("POST /api/internal/reminders/web-push-only/tick", () => {
     expect(recordFailureMock).not.toHaveBeenCalled();
   });
 
-  it("records failure heartbeat when tick throws", async () => {
-    runTickMock.mockRejectedValue(new Error("boom"));
+  it('records failure heartbeat when tick throws', async () => {
+    runTickMock.mockRejectedValue(new Error('boom'));
     getOperatorJobStatusMock.mockResolvedValue({
-      jobKey: "reminders.web_push_only.tick",
-      jobFamily: "reminders",
-      lastStatus: "failure",
+      jobKey: 'reminders.web_push_only.tick',
+      jobFamily: 'reminders',
+      lastStatus: 'failure',
       metaJson: { consecutiveCronFailures: 2 },
     });
 
     const res = await POST(
-      new Request("http://localhost/api/internal/reminders/web-push-only/tick", {
-        method: "POST",
-        headers: { Authorization: "Bearer test-internal-secret" },
+      new Request('http://localhost/api/internal/reminders/web-push-only/tick', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer test-internal-secret' },
       }),
     );
 
     expect(res.status).toBe(500);
     expect(recordFailureMock).toHaveBeenCalledTimes(1);
-    expect(recordFailureMock.mock.calls[0]?.[0]?.error).toContain("boom");
+    expect(recordFailureMock.mock.calls[0]?.[0]?.error).toContain('boom');
     expect(recordFailureMock.mock.calls[0]?.[0]?.metaJson).toEqual({ consecutiveCronFailures: 3 });
     expect(loggerErrorMock).toHaveBeenCalled();
   });

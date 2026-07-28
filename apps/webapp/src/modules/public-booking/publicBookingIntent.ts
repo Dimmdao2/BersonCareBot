@@ -14,8 +14,8 @@
  *   1. the shape of the booking payload that is pinned server-side while the code is outstanding;
  *   2. the rule mapping "which channel delivered the code" → "which contact was proved".
  */
-import { z } from "zod";
-import type { PhoneChallengePayload } from "@/modules/auth/phoneChallengeStore";
+import { z } from 'zod';
+import type { PhoneChallengePayload } from '@/modules/auth/phoneChallengeStore';
 
 /** Bumped whenever the pinned shape changes; an intent of an unknown version is discarded. */
 export const PUBLIC_BOOKING_INTENT_VERSION = 1;
@@ -67,7 +67,7 @@ export function parsePublicBookingIntent(raw: unknown): PublicBookingIntent | nu
  * person.
  */
 export function channelProvesPhoneControl(
-  channel: PhoneChallengePayload["deliveryChannel"],
+  channel: PhoneChallengePayload['deliveryChannel'],
 ): boolean {
-  return channel === "sms";
+  return channel === 'sms';
 }

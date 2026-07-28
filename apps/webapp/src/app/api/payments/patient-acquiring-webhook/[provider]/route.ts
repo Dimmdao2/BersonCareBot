@@ -14,32 +14,32 @@
  * FIN-02
  */
 
-import { runWithDbOrganizationPrincipal } from "@bersoncare/db-principal";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
-import { getPaymentProviderAdapter } from "@/infra/payments/paymentProviderRegistry";
-import type { PaymentProviderConfig } from "@/modules/payments/types";
+import { runWithDbOrganizationPrincipal } from '@bersoncare/db-principal';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipal';
+import { getPaymentProviderAdapter } from '@/infra/payments/paymentProviderRegistry';
+import type { PaymentProviderConfig } from '@/modules/payments/types';
 import {
   jsonError,
   jsonOk,
   mapApiError,
   type ApiErrorLiteralRules,
-} from "@/shared/http/apiResponse";
+} from '@/shared/http/apiResponse';
 
 type RouteContext = { params: Promise<{ provider: string }> };
 
 const ACQUIRING_WEBHOOK_ERROR_RULES = {
-  invalid_webhook_signature: { status: 401, code: "invalid_webhook_signature" },
+  invalid_webhook_signature: { status: 401, code: 'invalid_webhook_signature' },
 } as const satisfies ApiErrorLiteralRules;
 
 export async function POST(request: Request, context: RouteContext) {
-  stampBootstrapPrincipal("api/payments/patient-acquiring-webhook:POST:pre-routing", request);
+  stampBootstrapPrincipal('api/payments/patient-acquiring-webhook:POST:pre-routing', request);
   const { provider: providerId } = await context.params;
   const deps = buildAppDeps();
 
   // Load payment settings to get the webhook secret for this provider.
   if (!deps.payments) {
-    return jsonError("payments_unavailable", {}, { status: 503 });
+    return jsonError('payments_unavailable', {}, { status: 503 });
   }
 
   const bodyText = await request.text();
@@ -48,17 +48,19 @@ export async function POST(request: Request, context: RouteContext) {
   try {
     settings = await deps.payments.getSettings();
   } catch {
-    return jsonError("settings_unavailable", {}, { status: 503 });
+    return jsonError('settings_unavailable', {}, { status: 503 });
   }
 
-  const providerCfg = settings.providers.find((p: PaymentProviderConfig) => p.id === providerId && p.enabled);
+  const providerCfg = settings.providers.find(
+    (p: PaymentProviderConfig) => p.id === providerId && p.enabled,
+  );
   if (!providerCfg) {
-    return jsonError("payment_provider_unavailable", {}, { status: 400 });
+    return jsonError('payment_provider_unavailable', {}, { status: 400 });
   }
 
   const secret = providerCfg.webhookSecret?.trim();
   if (!secret) {
-    return jsonError("webhook_secret_missing", {}, { status: 503 });
+    return jsonError('webhook_secret_missing', {}, { status: 503 });
   }
 
   // Verify the webhook signature using the provider adapter.
@@ -74,7 +76,7 @@ export async function POST(request: Request, context: RouteContext) {
   } catch (error) {
     const mapped = mapApiError(error, ACQUIRING_WEBHOOK_ERROR_RULES, {
       status: 400,
-      code: "webhook_verification_failed",
+      code: 'webhook_verification_failed',
     });
     return jsonError(mapped.code, mapped.publicFields ?? {}, {
       status: mapped.status,
@@ -86,14 +88,15 @@ export async function POST(request: Request, context: RouteContext) {
   // intentRef is set by the adapter; fall back to payload.intentRef for adapters that embed it there.
   const providerPaymentId =
     verified.intentRef ??
-    (typeof verified.payload.intentRef === "string" ? verified.payload.intentRef : null);
+    (typeof verified.payload.intentRef === 'string' ? verified.payload.intentRef : null);
 
   if (!providerPaymentId) {
     // Webhook does not carry a payment reference we can look up — ack and ignore.
     return jsonOk({ ignored: true });
   }
 
-  const organizationId = await deps.patientPayments.resolveOrganizationIdByProviderPaymentId(providerPaymentId);
+  const organizationId =
+    await deps.patientPayments.resolveOrganizationIdByProviderPaymentId(providerPaymentId);
   if (!organizationId) {
     return jsonOk({ ignored: true });
   }
@@ -106,7 +109,7 @@ export async function POST(request: Request, context: RouteContext) {
   );
 
   if (!result.ok) {
-    if (result.reason === "payment_not_found") {
+    if (result.reason === 'payment_not_found') {
       // Payment not found in patient ledger — may be a booking payment; ack to avoid retries.
       return jsonOk({ ignored: true });
     }

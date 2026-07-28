@@ -1,15 +1,15 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { Switch } from "@/shared/ui/doctor/primitives/switch";
-import { savePatientHomeWarmupRotationAction } from "@/app/app/doctor/patient-home/patientHomeDoctorSettingsActions";
+import { useState } from 'react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { Switch } from '@/shared/ui/doctor/primitives/switch';
+import { savePatientHomeWarmupRotationAction } from '@/app/app/doctor/patient-home/patientHomeDoctorSettingsActions';
 import {
   DEFAULT_PATIENT_HOME_DAILY_WARMUP_ROTATION_TIMES,
   MAX_DAILY_WARMUP_ROTATION_TIMES,
-} from "@/modules/patient-home/patientHomeDailyWarmupRotationSettings";
-import { doctorSectionCardClass, doctorSectionTitleClass } from "@/shared/ui/doctor/doctorVisual";
+} from '@/modules/patient-home/patientHomeDailyWarmupRotationSettings';
+import { doctorSectionCardClass, doctorSectionTitleClass } from '@/shared/ui/doctor/doctorVisual';
 
 type Props = {
   initialEnabled: boolean;
@@ -19,9 +19,9 @@ type Props = {
 export function PatientHomeDailyWarmupRotationPanel(props: Props) {
   const [enabled, setEnabled] = useState(props.initialEnabled);
   const [times, setTimes] = useState<string[]>(
-    props.initialTimes.length > 0 ?
-      props.initialTimes
-    : [...DEFAULT_PATIENT_HOME_DAILY_WARMUP_ROTATION_TIMES],
+    props.initialTimes.length > 0
+      ? props.initialTimes
+      : [...DEFAULT_PATIENT_HOME_DAILY_WARMUP_ROTATION_TIMES],
   );
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -29,7 +29,7 @@ export function PatientHomeDailyWarmupRotationPanel(props: Props) {
 
   function addTimeRow() {
     if (times.length >= MAX_DAILY_WARMUP_ROTATION_TIMES) return;
-    setTimes((prev) => [...prev, "12:00"]);
+    setTimes((prev) => [...prev, '12:00']);
   }
 
   function removeTimeRow(index: number) {
@@ -41,17 +41,17 @@ export function PatientHomeDailyWarmupRotationPanel(props: Props) {
     setError(null);
     for (const t of times) {
       if (!/^([01]?\d|2[0-3]):([0-5]\d)$/.test(t.trim())) {
-        setError("Время: формат HH:MM.");
+        setError('Время: формат HH:MM.');
         return;
       }
     }
     const unique = new Set(times.map((t) => t.trim()));
     if (unique.size !== times.length) {
-      setError("Времена не должны повторяться.");
+      setError('Времена не должны повторяться.');
       return;
     }
     if (enabled && times.length < 1) {
-      setError("Укажите хотя бы одно время.");
+      setError('Укажите хотя бы одно время.');
       return;
     }
     setPending(true);
@@ -61,23 +61,26 @@ export function PatientHomeDailyWarmupRotationPanel(props: Props) {
         times: [...times].map((t) => t.trim()),
       });
       if (!result.ok) {
-        setError("Не удалось сохранить.");
+        setError('Не удалось сохранить.');
         return;
       }
-      setMessage("Сохранено");
+      setMessage('Сохранено');
     } finally {
       setPending(false);
     }
   }
 
   return (
-    <section className={doctorSectionCardClass} aria-labelledby="patient-home-warmup-rotation-heading">
+    <section
+      className={doctorSectionCardClass}
+      aria-labelledby="patient-home-warmup-rotation-heading"
+    >
       <h2 id="patient-home-warmup-rotation-heading" className={doctorSectionTitleClass}>
         Автосмена разминок на главной
       </h2>
       <p className="text-sm text-muted-foreground">
-        Какая разминка дня на главной пациента. До 3 времён в календарной таймзоне пациента (не путать с
-        исходящим сообщением бота ниже).
+        Какая разминка дня на главной пациента. До 3 времён в календарной таймзоне пациента (не
+        путать с исходящим сообщением бота ниже).
       </p>
       <div className="flex flex-col gap-3">
         <label className="flex items-center gap-2 text-sm">
@@ -104,7 +107,7 @@ export function PatientHomeDailyWarmupRotationPanel(props: Props) {
                   aria-label={`Время смены ${index + 1}`}
                 />
               </label>
-              {times.length > 1 ?
+              {times.length > 1 ? (
                 <Button
                   type="button"
                   variant="outline"
@@ -114,29 +117,36 @@ export function PatientHomeDailyWarmupRotationPanel(props: Props) {
                 >
                   Удалить
                 </Button>
-              : null}
+              ) : null}
             </li>
           ))}
         </ul>
-        {times.length < MAX_DAILY_WARMUP_ROTATION_TIMES ?
-          <Button type="button" variant="outline" size="sm" className="w-fit" onClick={addTimeRow} disabled={pending}>
+        {times.length < MAX_DAILY_WARMUP_ROTATION_TIMES ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="w-fit"
+            onClick={addTimeRow}
+            disabled={pending}
+          >
             Добавить время
           </Button>
-        : null}
+        ) : null}
         <Button type="button" onClick={() => void onSave()} disabled={pending} className="w-fit">
-          {pending ? "Сохранение…" : "Сохранить"}
+          {pending ? 'Сохранение…' : 'Сохранить'}
         </Button>
       </div>
-      {error ?
+      {error ? (
         <p className="mt-2 text-sm text-destructive" role="alert">
           {error}
         </p>
-      : null}
-      {message ?
+      ) : null}
+      {message ? (
         <p className="mt-2 text-sm text-green-700" role="status">
           {message}
         </p>
-      : null}
+      ) : null}
     </section>
   );
 }

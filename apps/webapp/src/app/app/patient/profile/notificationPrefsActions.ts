@@ -1,4 +1,4 @@
 export {
   setNotificationTopicMasterEnabled,
   setTopicChannelNotificationEnabled,
-} from "../notifications/notificationPrefsActions";
+} from '../notifications/notificationPrefsActions';

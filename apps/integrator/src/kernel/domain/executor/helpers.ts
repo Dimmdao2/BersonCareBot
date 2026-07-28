@@ -61,7 +61,7 @@ export function nowIso(ctx: DomainContext): string {
 }
 
 export function asRecord(value: unknown): Record<string, unknown> {
-  return typeof value === 'object' && value !== null ? value as Record<string, unknown> : {};
+  return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {};
 }
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
@@ -121,8 +121,12 @@ export function readIncomingText(ctx: DomainContext): string | null {
 
 export function readIncomingPhone(ctx: DomainContext): string | null {
   const incoming = readIncoming(ctx);
-  return asString(incoming.phone)
-    ?? (asString(incoming.contactPhone) ? normalizePhone(asString(incoming.contactPhone) as string) : null);
+  return (
+    asString(incoming.phone) ??
+    (asString(incoming.contactPhone)
+      ? normalizePhone(asString(incoming.contactPhone) as string)
+      : null)
+  );
 }
 
 export function readIncomingChatId(ctx: DomainContext): string | null {
@@ -145,27 +149,36 @@ export function readRelayMessageType(ctx: DomainContext): string | null {
 }
 
 export function readConversationId(action: Action, ctx: DomainContext): string | null {
-  return asString(action.params.conversationId)
-    ?? asString(ctx.base.replyConversationId)
-    ?? asString(readIncoming(ctx).conversationId)
-    ?? asString(ctx.base.activeConversationId);
+  return (
+    asString(action.params.conversationId) ??
+    asString(ctx.base.replyConversationId) ??
+    asString(readIncoming(ctx).conversationId) ??
+    asString(ctx.base.activeConversationId)
+  );
 }
 
 export function readExternalActorId(ctx: DomainContext): string | null {
-  return asString(ctx.event.meta.userId)
-    ?? asNumericString(readIncoming(ctx).channelUserId)
-    ?? asString(readIncoming(ctx).channelId);
+  return (
+    asString(ctx.event.meta.userId) ??
+    asNumericString(readIncoming(ctx).channelUserId) ??
+    asString(readIncoming(ctx).channelId)
+  );
 }
 
 /** Channel external id for messenger writes (meta → params → incoming chat/channel). */
-export function readMessengerChannelUserId(ctx: DomainContext, action?: { params?: Record<string, unknown> }): string | null {
+export function readMessengerChannelUserId(
+  ctx: DomainContext,
+  action?: { params?: Record<string, unknown> },
+): string | null {
   const params = action?.params;
   const incoming = readIncoming(ctx);
-  return readExternalActorId(ctx)
-    ?? asNumericString(params?.channelUserId)
-    ?? asNumericString(params?.channelId)
-    ?? asNumericString(incoming.channelUserId)
-    ?? asNumericString(incoming.chatId);
+  return (
+    readExternalActorId(ctx) ??
+    asNumericString(params?.channelUserId) ??
+    asNumericString(params?.channelId) ??
+    asNumericString(incoming.channelUserId) ??
+    asNumericString(incoming.chatId)
+  );
 }
 
 export function formatActorLabel(input: {
@@ -222,11 +235,20 @@ export function readNotificationSettings(ctx: DomainContext): NotificationSettin
   const notify_msk = asBoolean(raw.notify_msk);
   const notify_online = asBoolean(raw.notify_online);
   const notify_bookings = asBoolean(raw.notify_bookings);
-  if (notify_spb === null || notify_msk === null || notify_online === null || notify_bookings === null) return null;
+  if (
+    notify_spb === null ||
+    notify_msk === null ||
+    notify_online === null ||
+    notify_bookings === null
+  )
+    return null;
   return { notify_spb, notify_msk, notify_online, notify_bookings };
 }
 
-export function readNotificationToggleState(callbackData: string, settings: NotificationSettings): boolean {
+export function readNotificationToggleState(
+  callbackData: string,
+  settings: NotificationSettings,
+): boolean {
   switch (callbackData) {
     case 'notify_toggle_spb':
     case 'notifications.toggle.spb':
@@ -242,13 +264,21 @@ export function readNotificationToggleState(callbackData: string, settings: Noti
       return settings.notify_bookings;
     case 'notify_toggle_all':
     case 'notifications.toggle.all':
-      return settings.notify_spb && settings.notify_msk && settings.notify_online && settings.notify_bookings;
+      return (
+        settings.notify_spb &&
+        settings.notify_msk &&
+        settings.notify_online &&
+        settings.notify_bookings
+      );
     default:
       return false;
   }
 }
 
-export function splitTemplateKey(templateKey: string, source: string): { source: string; templateId: string } {
+export function splitTemplateKey(
+  templateKey: string,
+  source: string,
+): { source: string; templateId: string } {
   if (!templateKey.includes(':')) return { source, templateId: templateKey };
   const [templateSource, templateId] = templateKey.split(':', 2);
   return {
@@ -277,7 +307,10 @@ export async function expandContentMenuParam(
 ): Promise<Record<string, unknown>> {
   const menuId = asString(params.menu);
   if (!menuId || !contentPort?.getBundle) return params;
-  const bundle = await contentPort.getBundle({ source: ctx.event.meta.source, audience: contentAudience(ctx) });
+  const bundle = await contentPort.getBundle({
+    source: ctx.event.meta.source,
+    audience: contentAudience(ctx),
+  });
   const menuKeyboard = bundle?.menus?.[menuId];
   if (!Array.isArray(menuKeyboard)) return params;
   const next: Record<string, unknown> = { ...params, inlineKeyboard: menuKeyboard };
@@ -290,7 +323,8 @@ export async function buildMainReplyKeyboardMarkup(input: {
   templatePort: TemplatePort | undefined;
   contentPort: ContentPort | undefined;
 }): Promise<unknown | undefined> {
-  if (contentAudience(input.ctx) !== 'user' || !input.templatePort || !input.contentPort) return undefined;
+  if (contentAudience(input.ctx) !== 'user' || !input.templatePort || !input.contentPort)
+    return undefined;
   const scope = { source: input.ctx.event.meta.source, audience: 'user' as const };
   const bundle = await input.contentPort.getBundle?.(scope);
   if (!bundle?.mainReplyKeyboard || !Array.isArray(bundle.mainReplyKeyboard)) return undefined;
@@ -314,12 +348,14 @@ export async function renderText(input: {
   const templateKey = asString(input.templateKey);
   if (!templateKey || !input.templatePort) return '';
   const { source, templateId } = splitTemplateKey(templateKey, input.ctx.event.meta.source);
-  return (await input.templatePort.renderTemplate({
-    source,
-    templateId,
-    vars: buildTemplateVars(input.ctx, input.vars),
-    audience: contentAudience(input.ctx),
-  })).text;
+  return (
+    await input.templatePort.renderTemplate({
+      source,
+      templateId,
+      vars: buildTemplateVars(input.ctx, input.vars),
+      audience: contentAudience(input.ctx),
+    })
+  ).text;
 }
 
 export async function renderButtonText(input: {
@@ -333,12 +369,14 @@ export async function renderButtonText(input: {
   const templateKey = asString(input.button.textTemplateKey);
   if (!templateKey || !input.templatePort) return '';
   const { source, templateId } = splitTemplateKey(templateKey, input.ctx.event.meta.source);
-  const rendered = (await input.templatePort.renderTemplate({
-    source,
-    templateId,
-    vars: buildTemplateVars(input.ctx, input.vars),
-    audience: contentAudience(input.ctx),
-  })).text;
+  const rendered = (
+    await input.templatePort.renderTemplate({
+      source,
+      templateId,
+      vars: buildTemplateVars(input.ctx, input.vars),
+      audience: contentAudience(input.ctx),
+    })
+  ).text;
   const prefixKey = asString(input.button.prefixTemplateKey);
   if (!prefixKey) return rendered;
   const prefix = await renderText({
@@ -378,38 +416,53 @@ export async function buildReplyMarkup(input: {
 }): Promise<unknown> {
   if (Array.isArray(input.params.keyboard)) {
     const facts = asRecord(input.ctx.base?.facts ?? {});
-    const keyboard = await Promise.all(input.params.keyboard.map(async (row) => {
-      if (!Array.isArray(row)) return [];
-      return Promise.all(row.map(async (item) => {
-        const button = asRecord(item);
-        const text = await renderButtonText({ button, ctx: input.ctx, templatePort: input.templatePort, vars: input.vars });
-        const webAppUrlFact = asString(button.webAppUrlFact);
-        const webAppUrl = webAppUrlFact
-          ? (getFactByPath(facts, webAppUrlFact) as string | undefined)
-          : undefined;
-        const webAppUrlString = typeof webAppUrl === 'string' && webAppUrl.trim().length > 0 ? webAppUrl.trim() : null;
-        return {
-          text,
-          ...(webAppUrlString ? { web_app: { url: webAppUrlString } } : {}),
-          ...(isPhoneRequestButton(button) ? { request_contact: true } : {}),
-        };
-      }));
-    }));
-    const containsPhoneRequest = input.params.keyboard.some((row) =>
-      Array.isArray(row) && row.some((item) => isPhoneRequestButton(asRecord(item))),
+    const keyboard = await Promise.all(
+      input.params.keyboard.map(async (row) => {
+        if (!Array.isArray(row)) return [];
+        return Promise.all(
+          row.map(async (item) => {
+            const button = asRecord(item);
+            const text = await renderButtonText({
+              button,
+              ctx: input.ctx,
+              templatePort: input.templatePort,
+              vars: input.vars,
+            });
+            const webAppUrlFact = asString(button.webAppUrlFact);
+            const webAppUrl = webAppUrlFact
+              ? (getFactByPath(facts, webAppUrlFact) as string | undefined)
+              : undefined;
+            const webAppUrlString =
+              typeof webAppUrl === 'string' && webAppUrl.trim().length > 0
+                ? webAppUrl.trim()
+                : null;
+            return {
+              text,
+              ...(webAppUrlString ? { web_app: { url: webAppUrlString } } : {}),
+              ...(isPhoneRequestButton(button) ? { request_contact: true } : {}),
+            };
+          }),
+        );
+      }),
+    );
+    const containsPhoneRequest = input.params.keyboard.some(
+      (row) => Array.isArray(row) && row.some((item) => isPhoneRequestButton(asRecord(item))),
     );
     if (containsPhoneRequest) {
-      const cancelButtonText = (await renderText({
-        templateKey: `${input.ctx.event.meta.source}:requestPhone.cancelButton`,
-        vars: input.vars,
-        ctx: input.ctx,
-        templatePort: input.templatePort,
-      })) || 'Вернуться в меню';
-      const hasCancelButton = keyboard.some((row) =>
-        Array.isArray(row) && row.some((btn) => {
-          const b = asRecord(btn);
-          return asString(b.text) === cancelButtonText && !b.request_contact;
-        }),
+      const cancelButtonText =
+        (await renderText({
+          templateKey: `${input.ctx.event.meta.source}:requestPhone.cancelButton`,
+          vars: input.vars,
+          ctx: input.ctx,
+          templatePort: input.templatePort,
+        })) || 'Вернуться в меню';
+      const hasCancelButton = keyboard.some(
+        (row) =>
+          Array.isArray(row) &&
+          row.some((btn) => {
+            const b = asRecord(btn);
+            return asString(b.text) === cancelButtonText && !b.request_contact;
+          }),
       );
       if (!hasCancelButton) {
         keyboard.push([{ text: cancelButtonText }]);
@@ -427,38 +480,51 @@ export async function buildReplyMarkup(input: {
 
   if (Array.isArray(input.params.inlineKeyboard)) {
     const facts = asRecord(input.ctx.base?.facts ?? {});
-    const inline_keyboard = await Promise.all(input.params.inlineKeyboard.map(async (row) => {
-      if (!Array.isArray(row)) return [];
-      return Promise.all(row.map(async (item) => {
-        const button = asRecord(item);
-        const text = await renderButtonText({ button, ctx: input.ctx, templatePort: input.templatePort, vars: input.vars });
-        if (isPhoneRequestButton(button)) {
-          return { text, request_contact: true };
-        }
-        const webAppUrlFact = asString(button.webAppUrlFact);
-        const webAppUrl = webAppUrlFact
-          ? (getFactByPath(facts, webAppUrlFact) as string | undefined)
-          : undefined;
-        const webAppUrlStr =
-          typeof webAppUrl === 'string' && webAppUrl.trim().length > 0 ? webAppUrl.trim() : null;
-        if (webAppUrlStr) {
-          return { text, web_app: { url: webAppUrlStr } };
-        }
-        const urlFact = asString(button.urlFact);
-        const urlFromFact = urlFact
-          ? (getFactByPath(facts, urlFact) as string | undefined)
-          : undefined;
-        const urlStr =
-          typeof urlFromFact === 'string' && urlFromFact.trim().length > 0
-            ? urlFromFact.trim()
-            : asString(button.url)?.trim() || null;
-        return {
-          text,
-          ...(asString(button.callbackData) ? { callback_data: asString(button.callbackData) } : {}),
-          ...(urlStr ? { url: urlStr } : {}),
-        };
-      }));
-    }));
+    const inline_keyboard = await Promise.all(
+      input.params.inlineKeyboard.map(async (row) => {
+        if (!Array.isArray(row)) return [];
+        return Promise.all(
+          row.map(async (item) => {
+            const button = asRecord(item);
+            const text = await renderButtonText({
+              button,
+              ctx: input.ctx,
+              templatePort: input.templatePort,
+              vars: input.vars,
+            });
+            if (isPhoneRequestButton(button)) {
+              return { text, request_contact: true };
+            }
+            const webAppUrlFact = asString(button.webAppUrlFact);
+            const webAppUrl = webAppUrlFact
+              ? (getFactByPath(facts, webAppUrlFact) as string | undefined)
+              : undefined;
+            const webAppUrlStr =
+              typeof webAppUrl === 'string' && webAppUrl.trim().length > 0
+                ? webAppUrl.trim()
+                : null;
+            if (webAppUrlStr) {
+              return { text, web_app: { url: webAppUrlStr } };
+            }
+            const urlFact = asString(button.urlFact);
+            const urlFromFact = urlFact
+              ? (getFactByPath(facts, urlFact) as string | undefined)
+              : undefined;
+            const urlStr =
+              typeof urlFromFact === 'string' && urlFromFact.trim().length > 0
+                ? urlFromFact.trim()
+                : asString(button.url)?.trim() || null;
+            return {
+              text,
+              ...(asString(button.callbackData)
+                ? { callback_data: asString(button.callbackData) }
+                : {}),
+              ...(urlStr ? { url: urlStr } : {}),
+            };
+          }),
+        );
+      }),
+    );
     return { inline_keyboard };
   }
 
@@ -497,9 +563,10 @@ export async function resolveGenericMessageParams(input: {
 
   if (replyMarkup) nextParams.replyMarkup = replyMarkup;
 
-  const parseMode = input.params.parseMode === 'HTML' || input.params.parseMode === 'Markdown'
-    ? input.params.parseMode
-    : undefined;
+  const parseMode =
+    input.params.parseMode === 'HTML' || input.params.parseMode === 'Markdown'
+      ? input.params.parseMode
+      : undefined;
   if (parseMode) nextParams.parse_mode = parseMode;
 
   delete nextParams.templateKey;
@@ -550,12 +617,14 @@ export async function resolveTargets(
     const bindings = fetched?.channelBindings;
     if (bindings && typeof bindings === 'object') {
       const targets: Array<{ resource: string; address: Record<string, unknown> }> = [];
-      const telegramId = typeof bindings.telegramId === 'string' && bindings.telegramId.trim().length > 0
-        ? bindings.telegramId.trim()
-        : null;
-      const maxId = typeof bindings.maxId === 'string' && bindings.maxId.trim().length > 0
-        ? bindings.maxId.trim()
-        : null;
+      const telegramId =
+        typeof bindings.telegramId === 'string' && bindings.telegramId.trim().length > 0
+          ? bindings.telegramId.trim()
+          : null;
+      const maxId =
+        typeof bindings.maxId === 'string' && bindings.maxId.trim().length > 0
+          ? bindings.maxId.trim()
+          : null;
       const resource = explicitResource ?? channels[0];
       if (telegramId && (!resource || resource === 'telegram')) {
         const cid = Number(telegramId);
@@ -580,9 +649,7 @@ export async function resolveTargets(
     });
     if (lookup && typeof lookup.chatId === 'number' && Number.isFinite(lookup.chatId)) {
       const resource = explicitResource ?? channels[0];
-      return resource
-        ? [{ resource, address: { chatId: lookup.chatId, phoneNormalized } }]
-        : [];
+      return resource ? [{ resource, address: { chatId: lookup.chatId, phoneNormalized } }] : [];
     }
   }
 
@@ -594,24 +661,36 @@ export function buildDeliveryJob(input: {
   actionId: string;
   params: Record<string, unknown>;
   now: string;
-}): { id: string; kind: string; runAt: string; attempts: number; maxAttempts: number; payload: Record<string, unknown> } {
-  const kind = typeof input.params.kind === 'string' && input.params.kind.length > 0
-    ? input.params.kind
-    : 'delivery.intent';
-  const runAt = typeof input.params.runAt === 'string' && input.params.runAt.length > 0
-    ? input.params.runAt
-    : input.now;
+}): {
+  id: string;
+  kind: string;
+  runAt: string;
+  attempts: number;
+  maxAttempts: number;
+  payload: Record<string, unknown>;
+} {
+  const kind =
+    typeof input.params.kind === 'string' && input.params.kind.length > 0
+      ? input.params.kind
+      : 'delivery.intent';
+  const runAt =
+    typeof input.params.runAt === 'string' && input.params.runAt.length > 0
+      ? input.params.runAt
+      : input.now;
   const attemptsRaw = input.params.attempts;
   const maxAttemptsRaw = input.params.maxAttempts;
-  const attempts = typeof attemptsRaw === 'number' && Number.isFinite(attemptsRaw)
-    ? Math.max(0, Math.trunc(attemptsRaw))
-    : 0;
-  const maxAttempts = typeof maxAttemptsRaw === 'number' && Number.isFinite(maxAttemptsRaw)
-    ? Math.max(1, Math.trunc(maxAttemptsRaw))
-    : 3;
-  const payload = typeof input.params.payload === 'object' && input.params.payload !== null
-    ? input.params.payload as Record<string, unknown>
-    : input.params;
+  const attempts =
+    typeof attemptsRaw === 'number' && Number.isFinite(attemptsRaw)
+      ? Math.max(0, Math.trunc(attemptsRaw))
+      : 0;
+  const maxAttempts =
+    typeof maxAttemptsRaw === 'number' && Number.isFinite(maxAttemptsRaw)
+      ? Math.max(1, Math.trunc(maxAttemptsRaw))
+      : 3;
+  const payload =
+    typeof input.params.payload === 'object' && input.params.payload !== null
+      ? (input.params.payload as Record<string, unknown>)
+      : input.params;
   return {
     id: `${kind}:${input.actionId}`,
     kind,
@@ -628,7 +707,14 @@ export async function buildMessageDeliverJob(input: {
   readPort?: DbReadPort;
   deliveryDefaultsPort?: DeliveryDefaultsPort | null;
   deliveryTargetsPort?: DeliveryTargetsPort | null;
-}): Promise<{ id: string; kind: string; runAt: string; attempts: number; maxAttempts: number; payload: Record<string, unknown> }> {
+}): Promise<{
+  id: string;
+  kind: string;
+  runAt: string;
+  attempts: number;
+  maxAttempts: number;
+  payload: Record<string, unknown>;
+}> {
   const resolvedParams = await applyMessageSendDeliveryPolicy(
     input.action.params,
     input.ctx,
@@ -641,13 +727,15 @@ export async function buildMessageDeliverJob(input: {
   const channels = asStringArray(delivery.channels);
   const retryRaw = asRecord(resolvedParams.retry);
   const maxAttemptsRaw = retryRaw.maxAttempts ?? resolvedParams.maxAttempts ?? delivery.maxAttempts;
-  const maxAttempts = typeof maxAttemptsRaw === 'number' && Number.isFinite(maxAttemptsRaw)
-    ? Math.max(1, Math.trunc(maxAttemptsRaw))
-    : 1;
+  const maxAttempts =
+    typeof maxAttemptsRaw === 'number' && Number.isFinite(maxAttemptsRaw)
+      ? Math.max(1, Math.trunc(maxAttemptsRaw))
+      : 1;
   const firstBackoffRaw = Array.isArray(retryRaw.backoffSeconds)
     ? retryRaw.backoffSeconds.find((value) => typeof value === 'number' && Number.isFinite(value))
     : undefined;
-  const firstBackoff = typeof firstBackoffRaw === 'number' ? Math.max(0, Math.trunc(firstBackoffRaw)) : 0;
+  const firstBackoff =
+    typeof firstBackoffRaw === 'number' ? Math.max(0, Math.trunc(firstBackoffRaw)) : 0;
   const opts: { readPort?: DbReadPort; deliveryTargetsPort?: DeliveryTargetsPort | null } = {};
   if (input.readPort !== undefined) opts.readPort = input.readPort;
   if (input.deliveryTargetsPort !== undefined) opts.deliveryTargetsPort = input.deliveryTargetsPort;
@@ -666,7 +754,9 @@ export async function buildMessageDeliverJob(input: {
           eventId: `${input.ctx.event.meta.eventId}:delivery:${input.action.id}`,
           occurredAt: input.ctx.nowIso,
           source: input.ctx.event.meta.source,
-          ...(input.ctx.event.meta.correlationId ? { correlationId: input.ctx.event.meta.correlationId } : {}),
+          ...(input.ctx.event.meta.correlationId
+            ? { correlationId: input.ctx.event.meta.correlationId }
+            : {}),
           ...(input.ctx.event.meta.userId ? { userId: input.ctx.event.meta.userId } : {}),
         },
         payload: {
@@ -681,7 +771,11 @@ export async function buildMessageDeliverJob(input: {
       retry: {
         maxAttempts,
         backoffSeconds: Array.isArray(retryRaw.backoffSeconds)
-          ? retryRaw.backoffSeconds.filter((value): value is number => typeof value === 'number' && Number.isFinite(value)).map((value) => Math.max(0, Math.trunc(value)))
+          ? retryRaw.backoffSeconds
+              .filter(
+                (value): value is number => typeof value === 'number' && Number.isFinite(value),
+              )
+              .map((value) => Math.max(0, Math.trunc(value)))
           : [],
         ...(typeof retryRaw.deadlineAt === 'string' ? { deadlineAt: retryRaw.deadlineAt } : {}),
       },
@@ -690,7 +784,10 @@ export async function buildMessageDeliverJob(input: {
   };
 }
 
-export async function persistWrites(writePort: DbWritePort | undefined, writes: DbWriteMutation[]): Promise<void> {
+export async function persistWrites(
+  writePort: DbWritePort | undefined,
+  writes: DbWriteMutation[],
+): Promise<void> {
   if (!writePort) return;
   for (const write of writes) {
     await writePort.writeDb(write);
@@ -725,7 +822,9 @@ export function sendAdminMessage(input: {
     payload: {
       recipient: { chatId: adminChatId },
       message: { text: input.text },
-      ...(input.buttons && input.buttons.length > 0 ? { replyMarkup: { inline_keyboard: input.buttons } } : {}),
+      ...(input.buttons && input.buttons.length > 0
+        ? { replyMarkup: { inline_keyboard: input.buttons } }
+        : {}),
       delivery: { maxAttempts: 1 },
     },
   };

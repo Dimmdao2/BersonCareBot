@@ -1,11 +1,11 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import { ChevronDown, X } from "lucide-react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { cn } from "@/lib/utils";
-import { loadReferenceItems, type ReferenceItemDto } from "@/modules/references/referenceCache";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { ChevronDown, X } from 'lucide-react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { cn } from '@/lib/utils';
+import { loadReferenceItems, type ReferenceItemDto } from '@/modules/references/referenceCache';
 
 export type ReferenceMultiSelectProps = {
   categoryCode: string;
@@ -33,12 +33,12 @@ export function ReferenceMultiSelect({
   className,
   name,
   id,
-  placeholder = "Добавить регион…",
+  placeholder = 'Добавить регион…',
   searchable = true,
 }: ReferenceMultiSelectProps) {
   const [items, setItems] = useState<ReferenceItemDto[]>([]);
-  const [loadState, setLoadState] = useState<"loading" | "done">("loading");
-  const [query, setQuery] = useState("");
+  const [loadState, setLoadState] = useState<'loading' | 'done'>('loading');
+  const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
   const [listScrollOverflowBottom, setListScrollOverflowBottom] = useState(false);
   /** First pointer click after programmatic open from focus would otherwise toggle closed (same event sequence). */
@@ -50,19 +50,19 @@ export function ReferenceMultiSelect({
   useEffect(() => {
     let cancelled = false;
     queueMicrotask(() => {
-      if (!cancelled) setLoadState("loading");
+      if (!cancelled) setLoadState('loading');
     });
     void loadReferenceItems(categoryCode)
       .then((list) => {
         if (!cancelled) {
           setItems(list);
-          setLoadState("done");
+          setLoadState('done');
         }
       })
       .catch(() => {
         // `loadReferenceItems` itself never rejects, but a stuck "loading" state (no error, no
         // retry) is worse than surfacing an empty list — never leave the field disabled forever.
-        if (!cancelled) setLoadState("done");
+        if (!cancelled) setLoadState('done');
       });
     return () => {
       cancelled = true;
@@ -77,7 +77,10 @@ export function ReferenceMultiSelect({
     return m;
   }, [items]);
 
-  const availableToPick = useMemo(() => items.filter((i) => !selectedSet.has(i.id)), [items, selectedSet]);
+  const availableToPick = useMemo(
+    () => items.filter((i) => !selectedSet.has(i.id)),
+    [items, selectedSet],
+  );
 
   const filteredAvailableToPick = useMemo(() => {
     if (!searchable) return availableToPick;
@@ -102,7 +105,7 @@ export function ReferenceMultiSelect({
     }
     const el = listboxRef.current;
     if (!el) return;
-    const RO = typeof globalThis.ResizeObserver === "function" ? globalThis.ResizeObserver : null;
+    const RO = typeof globalThis.ResizeObserver === 'function' ? globalThis.ResizeObserver : null;
     if (!RO) {
       queueMicrotask(updateListScrollOverflow);
       return;
@@ -124,7 +127,7 @@ export function ReferenceMultiSelect({
     (rid: string) => {
       if (selectedSet.has(rid)) return;
       onChange([...value, rid]);
-      setQuery("");
+      setQuery('');
       setOpen(false);
     },
     [onChange, selectedSet, value],
@@ -133,48 +136,46 @@ export function ReferenceMultiSelect({
   useEffect(() => {
     if (!open) return;
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
+      if (e.key === 'Escape') {
         setOpen(false);
       }
     };
-    globalThis.addEventListener?.("keydown", onKeyDown);
-    return () => globalThis.removeEventListener?.("keydown", onKeyDown);
+    globalThis.addEventListener?.('keydown', onKeyDown);
+    return () => globalThis.removeEventListener?.('keydown', onKeyDown);
   }, [open]);
 
   return (
-    <div ref={rootRef} className={cn("flex flex-col gap-2", className)}>
-      {name
-        ? value.map((rid) => <input key={rid} type="hidden" name={name} value={rid} />)
-        : null}
+    <div ref={rootRef} className={cn('flex flex-col gap-2', className)}>
+      {name ? value.map((rid) => <input key={rid} type="hidden" name={name} value={rid} />) : null}
       <div className="flex flex-wrap gap-1.5">
-        {value.length === 0 ? null : (
-          value.map((rid) => (
-            <span
-              key={rid}
-              className="inline-flex max-w-full items-center gap-1 rounded-md border border-border bg-muted/60 px-2 py-0.5 text-xs"
-            >
-              {/*
+        {value.length === 0
+          ? null
+          : value.map((rid) => (
+              <span
+                key={rid}
+                className="inline-flex max-w-full items-center gap-1 rounded-md border border-border bg-muted/60 px-2 py-0.5 text-xs"
+              >
+                {/*
                 Ключ (uuid) в чипе пользователю не показываем НИКОГДА: пока справочник грузится —
                 многоточие, если после загрузки совпадения нет (значение удалили из справочника) —
                 явная подпись. Раньше здесь стоял `?? rid`, и на форме упражнения в поле «Регион»
                 висел сырой uuid, пока не отработает fetch.
               */}
-              <span className="truncate">
-                {titleById.get(rid) ?? (loadState === "done" ? "Значение недоступно" : "…")}
+                <span className="truncate">
+                  {titleById.get(rid) ?? (loadState === 'done' ? 'Значение недоступно' : '…')}
+                </span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="shrink-0 rounded p-0.5 text-muted-foreground hover:bg-background hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+                  onClick={() => remove(rid)}
+                  disabled={disabled}
+                  aria-label="Удалить"
+                >
+                  <X className="size-3.5" />
+                </Button>
               </span>
-              <Button
-                type="button"
-                variant="ghost"
-                className="shrink-0 rounded p-0.5 text-muted-foreground hover:bg-background hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
-                onClick={() => remove(rid)}
-                disabled={disabled}
-                aria-label="Удалить"
-              >
-                <X className="size-3.5" />
-              </Button>
-            </span>
-          ))
-        )}
+            ))}
       </div>
       <div className="relative">
         <Input
@@ -183,9 +184,9 @@ export function ReferenceMultiSelect({
           role="combobox"
           aria-expanded={open}
           aria-controls={open && filteredAvailableToPick.length > 0 ? listboxId : undefined}
-          disabled={disabled || loadState !== "done"}
-          placeholder={loadState !== "done" ? "Загрузка…" : placeholder}
-          value={open && searchable ? query : ""}
+          disabled={disabled || loadState !== 'done'}
+          placeholder={loadState !== 'done' ? 'Загрузка…' : placeholder}
+          value={open && searchable ? query : ''}
           readOnly={!searchable}
           onChange={(e) => {
             if (!searchable) return;
@@ -193,7 +194,7 @@ export function ReferenceMultiSelect({
             setOpen(true);
           }}
           onClick={() => {
-            if (loadState !== "done" || disabled) return;
+            if (loadState !== 'done' || disabled) return;
             if (searchable) {
               setOpen(true);
               return;
@@ -205,18 +206,18 @@ export function ReferenceMultiSelect({
             setOpen((o) => !o);
           }}
           onFocus={() => {
-            if (loadState !== "done" || disabled) return;
+            if (loadState !== 'done' || disabled) return;
             if (!searchable) ignoreNextToggleClickRef.current = true;
             setOpen(true);
-            if (searchable) setQuery("");
+            if (searchable) setQuery('');
           }}
           onBlur={() => {
             setTimeout(() => {
               setOpen(false);
-              setQuery("");
+              setQuery('');
             }, 150);
           }}
-          className={cn("w-full", !searchable && "cursor-pointer caret-transparent")}
+          className={cn('w-full', !searchable && 'cursor-pointer caret-transparent')}
           autoComplete="off"
         />
         <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-muted-foreground">
@@ -254,7 +255,10 @@ export function ReferenceMultiSelect({
                   aria-hidden
                 >
                   <div className="absolute inset-0 bg-gradient-to-t from-background from-25% via-background/70 to-transparent" />
-                  <ChevronDown className="relative size-4 shrink-0 text-muted-foreground opacity-80" strokeWidth={2.25} />
+                  <ChevronDown
+                    className="relative size-4 shrink-0 text-muted-foreground opacity-80"
+                    strokeWidth={2.25}
+                  />
                 </div>
               ) : null}
             </div>

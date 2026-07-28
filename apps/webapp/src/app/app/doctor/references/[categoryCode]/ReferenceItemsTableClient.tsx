@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { useDeferredValue, useEffect, useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useDeferredValue, useEffect, useMemo, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   DndContext,
   KeyboardSensor,
@@ -10,31 +10,31 @@ import {
   useSensor,
   useSensors,
   type DragEndEvent,
-} from "@dnd-kit/core";
+} from '@dnd-kit/core';
 import {
   SortableContext,
   arrayMove,
   sortableKeyboardCoordinates,
   useSortable,
   verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
-import { EllipsisVertical, Eye, EyeOff } from "lucide-react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Input } from "@/shared/ui/doctor/primitives/input";
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { EllipsisVertical, Eye, EyeOff } from 'lucide-react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Input } from '@/shared/ui/doctor/primitives/input';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/shared/ui/doctor/primitives/dropdown-menu";
+} from '@/shared/ui/doctor/primitives/dropdown-menu';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/ui/doctor/primitives/select";
+} from '@/shared/ui/doctor/primitives/select';
 import {
   Dialog,
   DialogContent,
@@ -42,19 +42,19 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/shared/ui/doctor/primitives/dialog";
-import { cn } from "@/lib/utils";
-import { doctorPageTitleClass } from "@/shared/ui/doctor/doctorVisual";
+} from '@/shared/ui/doctor/primitives/dialog';
+import { cn } from '@/lib/utils';
+import { doctorPageTitleClass } from '@/shared/ui/doctor/doctorVisual';
 import {
   DOCTOR_CATALOG_STICKY_BAR_CLASS,
   DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS,
-} from "@/shared/ui/doctor/doctorWorkspaceLayout";
+} from '@/shared/ui/doctor/doctorWorkspaceLayout';
 import {
   saveReferenceCatalog,
   softDeleteReferenceItem,
   type SaveReferenceCatalogResult,
   type SoftDeleteReferenceItemResult,
-} from "../actions";
+} from '../actions';
 
 type ReferenceErrorDialog = {
   title: string;
@@ -63,44 +63,47 @@ type ReferenceErrorDialog = {
   detail?: string;
 };
 
-function dialogForSaveFailure(result: Extract<SaveReferenceCatalogResult, { ok: false }>): ReferenceErrorDialog {
+function dialogForSaveFailure(
+  result: Extract<SaveReferenceCatalogResult, { ok: false }>,
+): ReferenceErrorDialog {
   switch (result.code) {
-    case "duplicate_code":
+    case 'duplicate_code':
       return {
-        title: "Ошибка сохранения",
+        title: 'Ошибка сохранения',
         summary:
-          "Код уже существует: в справочнике уже есть строка с таким кодом, либо среди новых строк указан один код дважды.",
+          'Код уже существует: в справочнике уже есть строка с таким кодом, либо среди новых строк указан один код дважды.',
       };
-    case "invalid_add_payload":
-    case "invalid_update_payload":
+    case 'invalid_add_payload':
+    case 'invalid_update_payload':
       return {
-        title: "Ошибка сохранения",
+        title: 'Ошибка сохранения',
         summary: result.invalidValue
           ? `Недопустимое значение: ${result.invalidValue}`
-          : "Недопустимое значение.",
+          : 'Недопустимое значение.',
       };
-    case "category_not_found":
-    case "item_not_found":
+    case 'category_not_found':
+    case 'item_not_found':
       return {
-        title: "Ошибка сохранения",
-        summary: "Данные устарели или строка не найдена. Обновите страницу и попробуйте сохранить снова.",
+        title: 'Ошибка сохранения',
+        summary:
+          'Данные устарели или строка не найдена. Обновите страницу и попробуйте сохранить снова.',
       };
-    case "category_not_extensible":
+    case 'category_not_extensible':
       return {
-        title: "Ошибка сохранения",
-        summary: "В этот справочник нельзя добавлять новые значения из интерфейса.",
+        title: 'Ошибка сохранения',
+        summary: 'В этот справочник нельзя добавлять новые значения из интерфейса.',
       };
-    case "category_required":
-    case "empty_update":
+    case 'category_required':
+    case 'empty_update':
       return {
-        title: "Ошибка сохранения",
-        summary: "Не удалось выполнить запрос. Обновите страницу и попробуйте снова.",
+        title: 'Ошибка сохранения',
+        summary: 'Не удалось выполнить запрос. Обновите страницу и попробуйте снова.',
       };
-    case "save_failed":
+    case 'save_failed':
     default:
       return {
-        title: "Ошибка сохранения",
-        summary: "Ошибка соединения с сервером или временный сбой. Попробуйте ещё раз.",
+        title: 'Ошибка сохранения',
+        summary: 'Ошибка соединения с сервером или временный сбой. Попробуйте ещё раз.',
       };
   }
 }
@@ -109,17 +112,17 @@ function dialogForDeleteFailure(
   result: Extract<SoftDeleteReferenceItemResult, { ok: false }>,
 ): ReferenceErrorDialog {
   switch (result.code) {
-    case "item_required":
-    case "category_required":
+    case 'item_required':
+    case 'category_required':
       return {
-        title: "Ошибка удаления",
-        summary: "Не удалось выполнить запрос. Обновите страницу и попробуйте снова.",
+        title: 'Ошибка удаления',
+        summary: 'Не удалось выполнить запрос. Обновите страницу и попробуйте снова.',
       };
-    case "delete_failed":
+    case 'delete_failed':
     default:
       return {
-        title: "Ошибка удаления",
-        summary: "Ошибка соединения с сервером или временный сбой. Попробуйте ещё раз.",
+        title: 'Ошибка удаления',
+        summary: 'Ошибка соединения с сервером или временный сбой. Попробуйте ещё раз.',
       };
   }
 }
@@ -133,17 +136,17 @@ type Row = {
   isNew?: boolean;
 };
 
-type StatusFilter = "all" | "active" | "archived";
+type StatusFilter = 'all' | 'active' | 'archived';
 
 const STATUS_FILTER_LABEL: Record<StatusFilter, string> = {
-  all: "Все",
-  active: "Активные",
-  archived: "Архивные",
+  all: 'Все',
+  active: 'Активные',
+  archived: 'Архивные',
 };
 
 function matchesStatusFilter(row: Row, statusFilter: StatusFilter): boolean {
-  if (statusFilter === "all") return true;
-  if (statusFilter === "active") return row.isActive;
+  if (statusFilter === 'all') return true;
+  if (statusFilter === 'active') return row.isActive;
   return !row.isActive;
 }
 
@@ -162,9 +165,9 @@ function rowIdsWithCodeConflicts(rows: Row[], serverConflictingCodes?: string[])
   const norm = (s: string) => s.trim().toLowerCase();
   if (serverConflictingCodes?.length) {
     const set = new Set(serverConflictingCodes.map((c) => norm(c)));
-    return rows.filter((r) => r.code.trim() !== "" && set.has(norm(r.code))).map((r) => r.id);
+    return rows.filter((r) => r.code.trim() !== '' && set.has(norm(r.code))).map((r) => r.id);
   }
-  const withCode = rows.filter((r) => r.code.trim() !== "");
+  const withCode = rows.filter((r) => r.code.trim() !== '');
   const codeCounts = new Map<string, number>();
   for (const r of withCode) {
     const c = norm(r.code);
@@ -173,7 +176,13 @@ function rowIdsWithCodeConflicts(rows: Row[], serverConflictingCodes?: string[])
   return withCode.filter((r) => (codeCounts.get(norm(r.code)) ?? 0) > 1).map((r) => r.id);
 }
 
-function DragHandle({ listeners, attributes }: { listeners: Record<string, unknown>; attributes: Record<string, unknown> }) {
+function DragHandle({
+  listeners,
+  attributes,
+}: {
+  listeners: Record<string, unknown>;
+  attributes: Record<string, unknown>;
+}) {
   return (
     <Button
       type="button"
@@ -212,7 +221,9 @@ function SortableRow({
   showCodeInput: boolean;
   codeHasConflict: boolean;
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: row.id });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: row.id,
+  });
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -233,8 +244,9 @@ function SortableRow({
               placeholder="код_snake_case"
               aria-invalid={codeHasConflict || undefined}
               className={cn(
-                "h-8 font-mono text-xs",
-                codeHasConflict && "border-destructive ring-1 ring-destructive/80 focus-visible:ring-destructive"
+                'h-8 font-mono text-xs',
+                codeHasConflict &&
+                  'border-destructive ring-1 ring-destructive/80 focus-visible:ring-destructive',
               )}
               onChange={(e) => onChange(row.id, { code: e.target.value })}
             />
@@ -248,8 +260,8 @@ function SortableRow({
           variant="ghost"
           size="icon"
           className="size-9 shrink-0 rounded-full border border-border/80"
-          title={row.isActive ? "Активна" : "В архиве"}
-          aria-label={row.isActive ? "Активна" : "В архиве"}
+          title={row.isActive ? 'Активна' : 'В архиве'}
+          aria-label={row.isActive ? 'Активна' : 'В архиве'}
           onClick={() => onToggleActive(row.id)}
         >
           {row.isActive ? (
@@ -270,7 +282,7 @@ function SortableRow({
           <DropdownMenuContent align="end">
             {!row.isNew ? (
               <DropdownMenuItem onClick={() => onToggleEditCode(row.id)}>
-                {showCodeInput ? "Скрыть поле кода" : "Править код"}
+                {showCodeInput ? 'Скрыть поле кода' : 'Править код'}
               </DropdownMenuItem>
             ) : null}
             <DropdownMenuItem onClick={() => onSoftDelete(row.id)}>Удалить</DropdownMenuItem>
@@ -284,31 +296,43 @@ function SortableRow({
 type Props = {
   categoryTitle: string;
   categoryCode: string;
-  initialItems: Array<{ id: string; code: string; title: string; sortOrder: number; isActive: boolean }>;
+  initialItems: Array<{
+    id: string;
+    code: string;
+    title: string;
+    sortOrder: number;
+    isActive: boolean;
+  }>;
 };
 
 export function ReferenceItemsTableClient({ categoryTitle, categoryCode, initialItems }: Props) {
   const router = useRouter();
   const normalizedInitialRows = useMemo(
-    () => [...initialItems].sort((a, b) => a.sortOrder - b.sortOrder).map((item, idx) => ({ ...item, sortOrder: idx + 1 })),
-    [initialItems]
+    () =>
+      [...initialItems]
+        .sort((a, b) => a.sortOrder - b.sortOrder)
+        .map((item, idx) => ({ ...item, sortOrder: idx + 1 })),
+    [initialItems],
   );
   const [rows, setRows] = useState<Row[]>(normalizedInitialRows);
   const [isPending, startTransition] = useTransition();
   const [errorDialog, setErrorDialog] = useState<ReferenceErrorDialog | null>(null);
   const [codeConflictRowIds, setCodeConflictRowIds] = useState<string[]>([]);
   const [editingCodeRowIds, setEditingCodeRowIds] = useState<string[]>([]);
-  const [searchRaw, setSearchRaw] = useState("");
+  const [searchRaw, setSearchRaw] = useState('');
   const deferredSearch = useDeferredValue(searchRaw);
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
 
   const qTrimmed = deferredSearch.trim();
   const filteredRows = useMemo(
     () => filterRows(rows, statusFilter, qTrimmed),
-    [rows, statusFilter, qTrimmed]
+    [rows, statusFilter, qTrimmed],
   );
 
-  const initialState = useMemo(() => JSON.stringify(normalizedInitialRows), [normalizedInitialRows]);
+  const initialState = useMemo(
+    () => JSON.stringify(normalizedInitialRows),
+    [normalizedInitialRows],
+  );
   const isDirty = JSON.stringify(rows) !== initialState;
 
   useEffect(() => {
@@ -319,12 +343,14 @@ export function ReferenceItemsTableClient({ categoryTitle, categoryCode, initial
   }, [normalizedInitialRows]);
 
   const onToggleEditCode = (rowId: string) => {
-    setEditingCodeRowIds((prev) => (prev.includes(rowId) ? prev.filter((id) => id !== rowId) : [...prev, rowId]));
+    setEditingCodeRowIds((prev) =>
+      prev.includes(rowId) ? prev.filter((id) => id !== rowId) : [...prev, rowId],
+    );
   };
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
   const onDragEnd = (event: DragEndEvent) => {
@@ -349,12 +375,14 @@ export function ReferenceItemsTableClient({ categoryTitle, categoryCode, initial
   };
 
   const onChange = (rowId: string, patch: Partial<Row>) => {
-    if ("code" in patch) setCodeConflictRowIds([]);
+    if ('code' in patch) setCodeConflictRowIds([]);
     setRows((prev) => prev.map((row) => (row.id === rowId ? { ...row, ...patch } : row)));
   };
 
   const onToggleActive = (rowId: string) => {
-    setRows((prev) => prev.map((row) => (row.id === rowId ? { ...row, isActive: !row.isActive } : row)));
+    setRows((prev) =>
+      prev.map((row) => (row.id === rowId ? { ...row, isActive: !row.isActive } : row)),
+    );
   };
 
   const onSoftDeleteRow = (rowId: string) => {
@@ -362,27 +390,31 @@ export function ReferenceItemsTableClient({ categoryTitle, categoryCode, initial
     if (!row) return;
     if (row.isNew) {
       setEditingCodeRowIds((prev) => prev.filter((id) => id !== rowId));
-      setRows((prev) => prev.filter((r) => r.id !== rowId).map((r, idx) => ({ ...r, sortOrder: idx + 1 })));
+      setRows((prev) =>
+        prev.filter((r) => r.id !== rowId).map((r, idx) => ({ ...r, sortOrder: idx + 1 })),
+      );
       return;
     }
     startTransition(async () => {
       setErrorDialog(null);
       try {
         const fd = new FormData();
-        fd.set("categoryCode", categoryCode);
-        fd.set("itemId", rowId);
+        fd.set('categoryCode', categoryCode);
+        fd.set('itemId', rowId);
         const delResult = await softDeleteReferenceItem(fd);
         if (!delResult.ok) {
           setErrorDialog(dialogForDeleteFailure(delResult));
           return;
         }
         setEditingCodeRowIds((prev) => prev.filter((id) => id !== rowId));
-        setRows((prev) => prev.filter((r) => r.id !== rowId).map((r, idx) => ({ ...r, sortOrder: idx + 1 })));
+        setRows((prev) =>
+          prev.filter((r) => r.id !== rowId).map((r, idx) => ({ ...r, sortOrder: idx + 1 })),
+        );
         router.refresh();
       } catch {
         setErrorDialog({
-          title: "Ошибка удаления",
-          summary: "Ошибка соединения с сервером. Проверьте подключение и попробуйте снова.",
+          title: 'Ошибка удаления',
+          summary: 'Ошибка соединения с сервером. Проверьте подключение и попробуйте снова.',
         });
       }
     });
@@ -393,8 +425,8 @@ export function ReferenceItemsTableClient({ categoryTitle, categoryCode, initial
       ...prev,
       {
         id: `new-${crypto.randomUUID()}`,
-        code: "",
-        title: "",
+        code: '',
+        title: '',
         sortOrder: prev.length + 1,
         isActive: true,
         isNew: true,
@@ -407,41 +439,43 @@ export function ReferenceItemsTableClient({ categoryTitle, categoryCode, initial
     if (rows.some((row) => !row.isNew && !row.title.trim())) {
       setCodeConflictRowIds([]);
       setErrorDialog({
-        title: "Ошибка сохранения",
-        summary: "У существующей строки не может быть пустого названия.",
+        title: 'Ошибка сохранения',
+        summary: 'У существующей строки не может быть пустого названия.',
         detail:
-          "Источник: проверка на клиенте.\nПравило: для уже сохранённых позиций название обязательно (пробелы по краям не считаются).",
+          'Источник: проверка на клиенте.\nПравило: для уже сохранённых позиций название обязательно (пробелы по краям не считаются).',
       });
       return;
     }
     if (rows.some((row) => !row.isNew && !/^[a-z][a-z0-9_]*$/.test(row.code.trim()))) {
       setCodeConflictRowIds([]);
       setErrorDialog({
-        title: "Ошибка сохранения",
-        summary: "Код существующей строки должен быть в формате lower_snake_case.",
+        title: 'Ошибка сохранения',
+        summary: 'Код существующей строки должен быть в формате lower_snake_case.',
         detail:
-          "Источник: проверка на клиенте.\nПравило: код начинается с латинской буквы в нижнем регистре, далее только a–z, цифры и подчёркивание (пример: body_region).",
+          'Источник: проверка на клиенте.\nПравило: код начинается с латинской буквы в нижнем регистре, далее только a–z, цифры и подчёркивание (пример: body_region).',
       });
       return;
     }
-    const newRowsToPersist = rows.filter((row) => row.isNew && (row.code.trim() !== "" || row.title.trim() !== ""));
+    const newRowsToPersist = rows.filter(
+      (row) => row.isNew && (row.code.trim() !== '' || row.title.trim() !== ''),
+    );
     if (newRowsToPersist.some((row) => !/^[a-z][a-z0-9_]*$/.test(row.code.trim()))) {
       setCodeConflictRowIds([]);
       setErrorDialog({
-        title: "Ошибка сохранения",
-        summary: "Код новой строки должен быть в формате lower_snake_case.",
+        title: 'Ошибка сохранения',
+        summary: 'Код новой строки должен быть в формате lower_snake_case.',
         detail:
-          "Источник: проверка на клиенте.\nПравило: код начинается с латинской буквы в нижнем регистре, далее только a–z, цифры и подчёркивание (пример: body_region).\nПолностью пустые новые строки (без кода и без названия) при сохранении не отправляются.",
+          'Источник: проверка на клиенте.\nПравило: код начинается с латинской буквы в нижнем регистре, далее только a–z, цифры и подчёркивание (пример: body_region).\nПолностью пустые новые строки (без кода и без названия) при сохранении не отправляются.',
       });
       return;
     }
     if (newRowsToPersist.some((row) => !row.title.trim())) {
       setCodeConflictRowIds([]);
       setErrorDialog({
-        title: "Ошибка сохранения",
-        summary: "Для новой строки с указанным кодом нужно заполнить название.",
+        title: 'Ошибка сохранения',
+        summary: 'Для новой строки с указанным кодом нужно заполнить название.',
         detail:
-          "Источник: проверка на клиенте.\nПравило: если для новой строки задан код, название не может быть пустым.\nПолностью пустые новые строки при сохранении не отправляются.",
+          'Источник: проверка на клиенте.\nПравило: если для новой строки задан код, название не может быть пустым.\nПолностью пустые новые строки при сохранении не отправляются.',
       });
       return;
     }
@@ -467,16 +501,16 @@ export function ReferenceItemsTableClient({ categoryTitle, categoryCode, initial
         if (new Set(combinedNorm).size !== combinedNorm.length) {
           setCodeConflictRowIds(rowIdsWithCodeConflicts(rows));
           setErrorDialog({
-            title: "Ошибка сохранения",
-            summary: "Коды строк должны быть уникальными внутри справочника (без учёта регистра).",
+            title: 'Ошибка сохранения',
+            summary: 'Коды строк должны быть уникальными внутри справочника (без учёта регистра).',
             detail:
-              "Источник: проверка на клиенте.\nДва или более пункта (новых или уже существующих) имеют один и тот же код. Исправьте и сохраните снова.",
+              'Источник: проверка на клиенте.\nДва или более пункта (новых или уже существующих) имеют один и тот же код. Исправьте и сохраните снова.',
           });
           return;
         }
         const saveResult = await saveReferenceCatalog({ categoryCode, updates, additions });
         if (!saveResult.ok) {
-          if (saveResult.code === "duplicate_code") {
+          if (saveResult.code === 'duplicate_code') {
             setCodeConflictRowIds(rowIdsWithCodeConflicts(rows, saveResult.conflictingCodes));
           } else {
             setCodeConflictRowIds([]);
@@ -490,8 +524,8 @@ export function ReferenceItemsTableClient({ categoryTitle, categoryCode, initial
       } catch {
         setCodeConflictRowIds([]);
         setErrorDialog({
-          title: "Ошибка сохранения",
-          summary: "Ошибка соединения с сервером. Проверьте подключение и попробуйте снова.",
+          title: 'Ошибка сохранения',
+          summary: 'Ошибка соединения с сервером. Проверьте подключение и попробуйте снова.',
         });
       }
     });
@@ -530,7 +564,7 @@ export function ReferenceItemsTableClient({ categoryTitle, categoryCode, initial
       <div
         className={cn(
           DOCTOR_CATALOG_STICKY_BAR_CLASS,
-          "flex flex-col gap-3 bg-card pb-3 pt-1 supports-backdrop-filter:bg-card/90",
+          'flex flex-col gap-3 bg-card pb-3 pt-1 supports-backdrop-filter:bg-card/90',
           DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS,
         )}
       >
@@ -573,7 +607,10 @@ export function ReferenceItemsTableClient({ categoryTitle, categoryCode, initial
         <p className="text-sm text-muted-foreground">Нет строк по текущему фильтру.</p>
       ) : (
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-          <SortableContext items={filteredRows.map((row) => row.id)} strategy={verticalListSortingStrategy}>
+          <SortableContext
+            items={filteredRows.map((row) => row.id)}
+            strategy={verticalListSortingStrategy}
+          >
             <div className="overflow-x-auto">
               <table className="w-full border-collapse text-sm">
                 <thead>

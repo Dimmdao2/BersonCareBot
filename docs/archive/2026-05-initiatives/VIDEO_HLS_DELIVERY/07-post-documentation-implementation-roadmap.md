@@ -8,19 +8,19 @@
 
 ## Последовательность PR (рекомендуемая)
 
-| # | Содержание PR | Фазы | Примечание |
-|---|----------------|------|------------|
-| 1 | Миграция БД + TS типы, без смены runtime поведения | 01 | Чистый additive |
-| 2 | Таблица очереди + enqueue stub (admin/internal only) + package `apps/media-worker` skeleton | 02 (partial) | Worker может логировать «no-op» |
-| 3 | FFmpeg pipeline + upload HLS + статусы | 02 + 03 | E2E dev путь |
-| 4 | Purge/delete расширение для HLS keys | 03 | Согласовать с delete flow |
-| 5 | `GET .../playback` + resolver + тесты | 04 | Флаг выкл |
-| 6 | Player dual-mode + patient page | 05 | За флагом |
-| 7 | Auto-enqueue на new upload | 06 | Canary |
-| 8 | Backfill runner | 07 | Ops playbook |
-| 9 | Default delivery flip + мониторинг | 08 | Требует gate |
-| 10 | TTL из settings | 09 | |
-| 11 | Watermark optional | 10 | Отдельное согласование PII |
+| #   | Содержание PR                                                                               | Фазы         | Примечание                      |
+| --- | ------------------------------------------------------------------------------------------- | ------------ | ------------------------------- |
+| 1   | Миграция БД + TS типы, без смены runtime поведения                                          | 01           | Чистый additive                 |
+| 2   | Таблица очереди + enqueue stub (admin/internal only) + package `apps/media-worker` skeleton | 02 (partial) | Worker может логировать «no-op» |
+| 3   | FFmpeg pipeline + upload HLS + статусы                                                      | 02 + 03      | E2E dev путь                    |
+| 4   | Purge/delete расширение для HLS keys                                                        | 03           | Согласовать с delete flow       |
+| 5   | `GET .../playback` + resolver + тесты                                                       | 04           | Флаг выкл                       |
+| 6   | Player dual-mode + patient page                                                             | 05           | За флагом                       |
+| 7   | Auto-enqueue на new upload                                                                  | 06           | Canary                          |
+| 8   | Backfill runner                                                                             | 07           | Ops playbook                    |
+| 9   | Default delivery flip + мониторинг                                                          | 08           | Требует gate                    |
+| 10  | TTL из settings                                                                             | 09           |                                 |
+| 11  | Watermark optional                                                                          | 10           | Отдельное согласование PII      |
 
 ---
 

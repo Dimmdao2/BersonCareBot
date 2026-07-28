@@ -8,11 +8,7 @@ export const REMINDER_CATEGORIES = [
 
 export type ReminderCategory = (typeof REMINDER_CATEGORIES)[number];
 
-export const REMINDER_SCHEDULE_PRESETS = [
-  'daily',
-  'twice_daily',
-  'every_3_hours',
-] as const;
+export const REMINDER_SCHEDULE_PRESETS = ['daily', 'twice_daily', 'every_3_hours'] as const;
 
 export type ReminderSchedulePreset = (typeof REMINDER_SCHEDULE_PRESETS)[number];
 

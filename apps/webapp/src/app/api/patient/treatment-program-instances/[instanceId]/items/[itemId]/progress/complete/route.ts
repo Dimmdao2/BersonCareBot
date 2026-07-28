@@ -1,12 +1,12 @@
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
-import { routePaths } from "@/app-layer/routes/paths";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { requirePatientApiBusinessAccess } from '@/app-layer/guards/requireRole';
+import { routePaths } from '@/app-layer/routes/paths';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 
 const completeBodySchema = z
   .object({
-    perceivedDifficulty: z.enum(["easy", "medium", "hard"]).optional(),
+    perceivedDifficulty: z.enum(['easy', 'medium', 'hard']).optional(),
     reps: z.number().int().positive().max(5000).optional(),
     sets: z.number().int().positive().max(500).optional(),
     weightKg: z.number().min(0).max(500).optional(),
@@ -21,23 +21,26 @@ export async function POST(
   if (!gate.ok) return gate.response;
 
   const { instanceId, itemId } = await context.params;
-  if (!z.string().uuid().safeParse(instanceId).success || !z.string().uuid().safeParse(itemId).success) {
-    return NextResponse.json({ ok: false, error: "invalid_id" }, { status: 400 });
+  if (
+    !z.string().uuid().safeParse(instanceId).success ||
+    !z.string().uuid().safeParse(itemId).success
+  ) {
+    return NextResponse.json({ ok: false, error: 'invalid_id' }, { status: 400 });
   }
 
   let parsedBody: z.infer<typeof completeBodySchema> = {};
   try {
     const rawText = await request.text();
-    if (rawText.trim() !== "") {
+    if (rawText.trim() !== '') {
       const bodyJson = JSON.parse(rawText) as unknown;
       const validated = completeBodySchema.safeParse(bodyJson);
       if (!validated.success) {
-        return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
+        return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
       }
       parsedBody = validated.data;
     }
   } catch {
-    return NextResponse.json({ ok: false, error: "invalid_json" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_json' }, { status: 400 });
   }
 
   const deps = buildAppDeps();
@@ -50,8 +53,8 @@ export async function POST(
     });
     return NextResponse.json({ ok: true, item });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "error";
-    const status = msg.includes("не найден") ? 404 : 400;
+    const msg = e instanceof Error ? e.message : 'error';
+    const status = msg.includes('не найден') ? 404 : 400;
     return NextResponse.json({ ok: false, error: msg }, { status });
   }
 }

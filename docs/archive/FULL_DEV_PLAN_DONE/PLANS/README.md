@@ -36,26 +36,26 @@ PLANS/
 
 ## Порядок выполнения
 
-| # | Папка | Описание |
-|---|-------|----------|
-| 0 | `STAGE_00_TAILWIND_SETUP/` | Установка Tailwind 4 + shadcn/ui + bundle analyzer |
-| 1 | `STAGE_01_BUGFIXES/` | 9 критических багов |
-| 2 | `STAGE_02_DESIGN_SYSTEM/` | Шапки, меню, компоненты, иконки |
-| 3 | `STAGE_03_PROFILE/` | Профиль, email, OTP, deep-link, BindPhoneBlock |
-| 4 | `STAGE_04_HOME_AND_APPOINTMENTS/` | Главная, записи, уведомления, мини-статистика |
-| 5 | `STAGE_05_AUTH_SYSTEM/` | Multi-method auth (PIN, мессенджер, OAuth, SMS) |
-| 6 | `STAGE_06_DIARIES_EXTENSION/` | Справочники, расширение модели, вкладки, быстрое добавление |
-| 7 | `STAGE_07_CHARTS/` | recharts, графики симптомов, таблица ЛФК |
-| 8 | `STAGE_08_MESSAGING/` | Чат UI, список диалогов, real-time |
-| 9 | `STAGE_09_DOCTOR_CABINET/` | Дашборд, клиенты/подписчики, карточки |
-| 10 | `STAGE_10_CMS/` | Markdown-редактор, медиа (S3), новости, мотивашки |
-| 11 | `STAGE_11_LFK/` | Справочник упражнений, конструктор комплексов |
-| **✓** | **CSS CLEANUP** | **Дочистить globals.css, убрать все старые классы** |
-| 12 | `STAGE_12_REMINDERS/` | Напоминания, колокольчик |
-| 13 | `STAGE_13_INTEGRATIONS/` | Email, deep-link, Google Calendar, Rubitime |
-| 14 | `STAGE_14_SETTINGS_ADMIN/` | Настройки, режим админа |
-| 15 | `STAGE_15_PWA/` | ⏸ Отложен |
-| 16–20 | Будущее | Рефералы, карта пациента, сервер, сценарии, мультитенант |
+| #     | Папка                             | Описание                                                    |
+| ----- | --------------------------------- | ----------------------------------------------------------- |
+| 0     | `STAGE_00_TAILWIND_SETUP/`        | Установка Tailwind 4 + shadcn/ui + bundle analyzer          |
+| 1     | `STAGE_01_BUGFIXES/`              | 9 критических багов                                         |
+| 2     | `STAGE_02_DESIGN_SYSTEM/`         | Шапки, меню, компоненты, иконки                             |
+| 3     | `STAGE_03_PROFILE/`               | Профиль, email, OTP, deep-link, BindPhoneBlock              |
+| 4     | `STAGE_04_HOME_AND_APPOINTMENTS/` | Главная, записи, уведомления, мини-статистика               |
+| 5     | `STAGE_05_AUTH_SYSTEM/`           | Multi-method auth (PIN, мессенджер, OAuth, SMS)             |
+| 6     | `STAGE_06_DIARIES_EXTENSION/`     | Справочники, расширение модели, вкладки, быстрое добавление |
+| 7     | `STAGE_07_CHARTS/`                | recharts, графики симптомов, таблица ЛФК                    |
+| 8     | `STAGE_08_MESSAGING/`             | Чат UI, список диалогов, real-time                          |
+| 9     | `STAGE_09_DOCTOR_CABINET/`        | Дашборд, клиенты/подписчики, карточки                       |
+| 10    | `STAGE_10_CMS/`                   | Markdown-редактор, медиа (S3), новости, мотивашки           |
+| 11    | `STAGE_11_LFK/`                   | Справочник упражнений, конструктор комплексов               |
+| **✓** | **CSS CLEANUP**                   | **Дочистить globals.css, убрать все старые классы**         |
+| 12    | `STAGE_12_REMINDERS/`             | Напоминания, колокольчик                                    |
+| 13    | `STAGE_13_INTEGRATIONS/`          | Email, deep-link, Google Calendar, Rubitime                 |
+| 14    | `STAGE_14_SETTINGS_ADMIN/`        | Настройки, режим админа                                     |
+| 15    | `STAGE_15_PWA/`                   | ⏸ Отложен                                                   |
+| 16–20 | Будущее                           | Рефералы, карта пациента, сервер, сценарии, мультитенант    |
 
 ## Правило Tailwind
 

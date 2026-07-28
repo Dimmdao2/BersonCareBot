@@ -1,8 +1,8 @@
-import { NextResponse } from "next/server";
-import { verifyIntegratorSignature } from "@/app-layer/integrator/verifyIntegratorSignature";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getPool } from "@/app-layer/db/client";
-import { findCanonicalUserIdByIntegratorId } from "@/app-layer/platform-user/canonicalPlatformUser";
+import { NextResponse } from 'next/server';
+import { verifyIntegratorSignature } from '@/app-layer/integrator/verifyIntegratorSignature';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { getPool } from '@/app-layer/db/client';
+import { findCanonicalUserIdByIntegratorId } from '@/app-layer/platform-user/canonicalPlatformUser';
 
 type Body = {
   integratorUserId?: unknown;
@@ -11,47 +11,48 @@ type Body = {
 };
 
 function parseBody(raw: unknown): { ok: true; data: Body } | { ok: false; error: string } {
-  if (typeof raw !== "object" || raw === null) return { ok: false, error: "invalid payload" };
+  if (typeof raw !== 'object' || raw === null) return { ok: false, error: 'invalid payload' };
   const o = raw as Body;
   const integratorUserId =
-    typeof o.integratorUserId === "string" && o.integratorUserId.trim().length > 0
+    typeof o.integratorUserId === 'string' && o.integratorUserId.trim().length > 0
       ? o.integratorUserId.trim()
       : null;
   const occurrenceId =
-    typeof o.occurrenceId === "string" && o.occurrenceId.trim().length > 0
+    typeof o.occurrenceId === 'string' && o.occurrenceId.trim().length > 0
       ? o.occurrenceId.trim()
       : null;
-  if (!integratorUserId || !occurrenceId) return { ok: false, error: "integratorUserId and occurrenceId required" };
+  if (!integratorUserId || !occurrenceId)
+    return { ok: false, error: 'integratorUserId and occurrenceId required' };
   let reason: string | null = null;
   if (o.reason === null || o.reason === undefined) {
     reason = null;
-  } else if (typeof o.reason === "string") {
+  } else if (typeof o.reason === 'string') {
     const t = o.reason.trim();
     reason = t.length === 0 ? null : t.slice(0, 500);
   } else {
-    return { ok: false, error: "reason must be string or null" };
+    return { ok: false, error: 'reason must be string or null' };
   }
   return { ok: true, data: { integratorUserId, occurrenceId, reason } };
 }
 
 export async function POST(request: Request) {
-  const timestamp = request.headers.get("x-bersoncare-timestamp");
-  const signature = request.headers.get("x-bersoncare-signature");
+  const timestamp = request.headers.get('x-bersoncare-timestamp');
+  const signature = request.headers.get('x-bersoncare-signature');
   const rawBody = await request.text();
 
   if (!timestamp || !signature) {
-    return NextResponse.json({ ok: false, error: "missing webhook headers" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'missing webhook headers' }, { status: 400 });
   }
 
   if (!verifyIntegratorSignature(timestamp, rawBody, signature, request)) {
-    return NextResponse.json({ ok: false, error: "invalid signature" }, { status: 401 });
+    return NextResponse.json({ ok: false, error: 'invalid signature' }, { status: 401 });
   }
 
   let json: unknown;
   try {
     json = JSON.parse(rawBody) as unknown;
   } catch {
-    return NextResponse.json({ ok: false, error: "invalid json" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid json' }, { status: 400 });
   }
 
   const parsed = parseBody(json);
@@ -69,7 +70,7 @@ export async function POST(request: Request) {
   const pool = getPool();
   const platformUserId = await findCanonicalUserIdByIntegratorId(pool, integratorUserId);
   if (!platformUserId) {
-    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+    return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
 
   const res = await deps.reminders.skipOccurrence(platformUserId, occurrenceId, reason);

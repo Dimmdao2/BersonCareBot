@@ -1,15 +1,15 @@
-import { createHash, randomInt, randomUUID } from "node:crypto";
-import { env, integratorWebhookSecret } from "@/config/env";
+import { createHash, randomInt, randomUUID } from 'node:crypto';
+import { env, integratorWebhookSecret } from '@/config/env';
 import {
   OTP_LOCKOUT_BASE_SEC,
   OTP_MAX_VERIFY_ATTEMPTS,
   OTP_RESEND_COOLDOWN_SEC,
   nextOtpLockoutDurationSeconds,
-} from "@/modules/auth/otpConstants";
-import type { EmailAuthDbPort, EmailChallengePurpose } from "@/modules/auth/emailAuthPort";
-import { sendEmailAuthCode } from "@/modules/auth/emailSendPort";
+} from '@/modules/auth/otpConstants';
+import type { EmailAuthDbPort, EmailChallengePurpose } from '@/modules/auth/emailAuthPort';
+import { sendEmailAuthCode } from '@/modules/auth/emailSendPort';
 
-export type { EmailChallengePurpose } from "@/modules/auth/emailAuthPort";
+export type { EmailChallengePurpose } from '@/modules/auth/emailAuthPort';
 
 // 10 -> 30 минут (владелец 28.07: код на yandex.ru приходил уже мёртвым).
 // Измерено по заголовкам настоящего письма: наше приложение отдало письмо релею в 16:06:24, а Яндекс получил
@@ -31,7 +31,9 @@ export function bindEmailAuthDbPort(port: EmailAuthDbPort): void {
 
 function requireEmailAuthDb(): EmailAuthDbPort {
   if (!emailAuthDbPort) {
-    throw new Error("EmailAuthDbPort is not bound. Call ensureAuthModulePortsBound() from buildAppDeps.");
+    throw new Error(
+      'EmailAuthDbPort is not bound. Call ensureAuthModulePortsBound() from buildAppDeps.',
+    );
   }
   return emailAuthDbPort;
 }
@@ -39,7 +41,14 @@ function requireEmailAuthDb(): EmailAuthDbPort {
 /** Без БД (тесты): хранение челленджей в памяти процесса. */
 const memEmailChallenges = new Map<
   string,
-  { userId: string; email: string; code: string; expiresAt: number; attempts: number; purpose: EmailChallengePurpose }
+  {
+    userId: string;
+    email: string;
+    code: string;
+    expiresAt: number;
+    attempts: number;
+    purpose: EmailChallengePurpose;
+  }
 >();
 
 /** In-memory владельцы email (только без DATABASE_URL). */
@@ -119,12 +128,12 @@ export function normalizeEmail(email: string): string {
 }
 
 function emailCodePepper(): string {
-  return integratorWebhookSecret() || env.SESSION_COOKIE_SECRET || "test-email-pepper";
+  return integratorWebhookSecret() || env.SESSION_COOKIE_SECRET || 'test-email-pepper';
 }
 
 /** Shared hash contract for every email challenge caller; raw OTPs never enter SQL. */
 export function hashEmailChallengeCode(code: string): string {
-  return createHash("sha256").update(`${code}:${emailCodePepper()}`).digest("hex");
+  return createHash('sha256').update(`${code}:${emailCodePepper()}`).digest('hex');
 }
 
 function generateEmailCode(): string {
@@ -138,7 +147,7 @@ function generateEmailCode(): string {
  * so it can never activate on test/prod hosts even if the flag leaks there.
  */
 function isEmailOtpDebugEnabled(): boolean {
-  return env.DEV_EMAIL_OTP_DEBUG && env.NODE_ENV === "development";
+  return env.DEV_EMAIL_OTP_DEBUG && env.NODE_ENV === 'development';
 }
 
 export type PendingEmailChallenge = { email: string; expiresAt: string } | null;
@@ -171,13 +180,17 @@ export async function getPendingEmailChallenge(userId: string): Promise<PendingE
 
 export type EmailStartResult =
   | { ok: true; challengeId: string; retryAfterSeconds?: number }
-  | { ok: false; code: "invalid_email" | "rate_limited" | "too_many_attempts" | "email_send_failed"; retryAfterSeconds?: number };
+  | {
+      ok: false;
+      code: 'invalid_email' | 'rate_limited' | 'too_many_attempts' | 'email_send_failed';
+      retryAfterSeconds?: number;
+    };
 
 export type EmailConfirmResult =
   | { ok: true }
   | {
       ok: false;
-      code: "invalid_code" | "expired_code" | "too_many_attempts" | "email_conflict";
+      code: 'invalid_code' | 'expired_code' | 'too_many_attempts' | 'email_conflict';
       retryAfterSeconds?: number;
     };
 
@@ -190,7 +203,13 @@ async function verifyChallengeCodeRow(params: {
   userId: string;
   challengeId: string;
   code: string;
-  row: { id: string; code_hash: string; expires_at: string; attempts: string; purpose: string | null };
+  row: {
+    id: string;
+    code_hash: string;
+    expires_at: string;
+    attempts: string;
+    purpose: string | null;
+  };
   /**
    * C-2 step 4 (OWASP ASVS V6.6.2 / NIST SP 800-63B §5.1.3): the purpose THIS confirm call expects.
    * A row whose purpose does not match is treated exactly like a wrong code -- same attempts
@@ -205,7 +224,7 @@ async function verifyChallengeCodeRow(params: {
   const expiresAt = Number(params.row.expires_at);
   if (expiresAt <= now) {
     await db.deleteEmailChallengeById(params.challengeId);
-    return { ok: false, code: "expired_code" };
+    return { ok: false, code: 'expired_code' };
   }
 
   const attempts = Number(params.row.attempts);
@@ -218,13 +237,14 @@ async function verifyChallengeCodeRow(params: {
     const lockState = await checkEmailOtpLock(params.userId);
     return {
       ok: false,
-      code: "too_many_attempts",
+      code: 'too_many_attempts',
       retryAfterSeconds: lockState.locked ? lockState.retryAfterSeconds : OTP_LOCKOUT_BASE_SEC,
     };
   }
 
   const expectedHash = hashEmailChallengeCode(params.code);
-  const purposeMatches = params.row.purpose == null || params.row.purpose === params.expectedPurpose;
+  const purposeMatches =
+    params.row.purpose == null || params.row.purpose === params.expectedPurpose;
   if (expectedHash !== params.row.code_hash || !purposeMatches) {
     // Atomic: the database computes `attempts + 1` itself inside a row-locked SECURITY DEFINER
     // function (0247), never the caller. Two concurrent wrong-code confirms against the SAME
@@ -236,16 +256,16 @@ async function verifyChallengeCodeRow(params: {
       // The challenge vanished between the earlier read and this increment (e.g. a concurrent
       // resend or expiry cleanup) -- treat exactly like "no such challenge", never "invalid code"
       // against a challenge that no longer exists.
-      return { ok: false, code: "expired_code" };
+      return { ok: false, code: 'expired_code' };
     }
     if (next >= OTP_MAX_VERIFY_ATTEMPTS) {
       await db.deleteEmailChallengeById(params.challengeId);
       // Decaying lockout (night plan C-2 step 3): escalate this user's cycle instead of a flat
       // 10-minute block -- see registerEmailOtpLockoutForUser / otpConstants.ts for the curve.
       const retryAfterSeconds = await registerEmailOtpLockoutForUser(params.userId);
-      return { ok: false, code: "too_many_attempts", retryAfterSeconds };
+      return { ok: false, code: 'too_many_attempts', retryAfterSeconds };
     }
-    return { ok: false, code: "invalid_code" };
+    return { ok: false, code: 'invalid_code' };
   }
 
   // NIST SP 800-63B §5.2.2: disregard previous failed attempts after a successful verification --
@@ -262,7 +282,7 @@ export async function startEmailChallenge(
 ): Promise<EmailStartResult> {
   const email = normalizeEmail(emailRaw);
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return { ok: false, code: "invalid_email" };
+    return { ok: false, code: 'invalid_email' };
   }
 
   // Decaying lockout gate (night plan C-2 step 3): before this fix, exhausting attempts on one
@@ -272,7 +292,7 @@ export async function startEmailChallenge(
   // delegate to this same function.
   const lockState = await checkEmailOtpLock(userId);
   if (lockState.locked) {
-    return { ok: false, code: "too_many_attempts", retryAfterSeconds: lockState.retryAfterSeconds };
+    return { ok: false, code: 'too_many_attempts', retryAfterSeconds: lockState.retryAfterSeconds };
   }
 
   if (!env.DATABASE_URL) {
@@ -283,7 +303,7 @@ export async function startEmailChallenge(
     const sent = await sendEmailAuthCode(email, code);
     if (!sent.ok) {
       memEmailChallenges.delete(challengeId);
-      return { ok: false, code: "email_send_failed" };
+      return { ok: false, code: 'email_send_failed' };
     }
     return { ok: true, challengeId, retryAfterSeconds: OTP_RESEND_COOLDOWN_SEC };
   }
@@ -296,7 +316,7 @@ export async function startEmailChallenge(
     if (delta < OTP_RESEND_COOLDOWN_SEC) {
       return {
         ok: false,
-        code: "rate_limited",
+        code: 'rate_limited',
         retryAfterSeconds: OTP_RESEND_COOLDOWN_SEC - delta,
       };
     }
@@ -314,15 +334,23 @@ export async function startEmailChallenge(
     console.log(`[DEV] Email OTP code for ${email}: ${code}`);
   }
 
-  const challengeId = await db.insertEmailChallenge({ userId, email, codeHash, expiresAt, purpose });
+  const challengeId = await db.insertEmailChallenge({
+    userId,
+    email,
+    codeHash,
+    expiresAt,
+    purpose,
+  });
   const sent = await sendEmailAuthCode(email, code);
   if (!sent.ok) {
     if (isEmailOtpDebugEnabled()) {
       // Opt-in dev aid: tolerate send failure (no integrator running). Code was logged above.
-      console.warn(`[DEV] Email send failed for ${email}: ${sent.error}. Use the code from the log.`);
+      console.warn(
+        `[DEV] Email send failed for ${email}: ${sent.error}. Use the code from the log.`,
+      );
     } else {
       await db.deleteEmailChallengeById(challengeId);
-      return { ok: false, code: "email_send_failed" };
+      return { ok: false, code: 'email_send_failed' };
     }
   }
   await db.upsertEmailSendCooldown(userId, email);
@@ -339,17 +367,17 @@ export async function confirmEmailChallenge(
 ): Promise<EmailConfirmResult> {
   const code = codeRaw.trim();
   if (!code) {
-    return { ok: false, code: "invalid_code" };
+    return { ok: false, code: 'invalid_code' };
   }
 
   if (!env.DATABASE_URL) {
     const row = memEmailChallenges.get(challengeId);
     if (!row || row.userId !== userId) {
-      return { ok: false, code: "expired_code" };
+      return { ok: false, code: 'expired_code' };
     }
     if (row.expiresAt <= Math.floor(Date.now() / 1000)) {
       memEmailChallenges.delete(challengeId);
-      return { ok: false, code: "expired_code" };
+      return { ok: false, code: 'expired_code' };
     }
     // C-2 step 4: a purpose mismatch is folded into the SAME branch as a wrong code (ASVS 6.3.8
     // uniform response) -- see verifyChallengeCodeRow for the DB-backed equivalent.
@@ -358,9 +386,9 @@ export async function confirmEmailChallenge(
       if (row.attempts >= OTP_MAX_VERIFY_ATTEMPTS) {
         memEmailChallenges.delete(challengeId);
         const retryAfterSeconds = await registerEmailOtpLockoutForUser(userId);
-        return { ok: false, code: "too_many_attempts", retryAfterSeconds };
+        return { ok: false, code: 'too_many_attempts', retryAfterSeconds };
       }
-      return { ok: false, code: "invalid_code" };
+      return { ok: false, code: 'invalid_code' };
     }
     // NIST SP 800-63B §5.2.2: disregard previous failed attempts after a successful verification.
     await resetEmailOtpLockoutForUser(userId);
@@ -368,7 +396,7 @@ export async function confirmEmailChallenge(
     const owner = memEmailOwnerByNormalized.get(normalized);
     if (owner && owner !== userId) {
       memEmailChallenges.delete(challengeId);
-      return { ok: false, code: "email_conflict" };
+      return { ok: false, code: 'email_conflict' };
     }
     for (const [emailNorm, uid] of memEmailOwnerByNormalized) {
       if (uid === userId) memEmailOwnerByNormalized.delete(emailNorm);
@@ -381,7 +409,7 @@ export async function confirmEmailChallenge(
   const db = requireEmailAuthDb();
   const row = await db.findEmailChallengeForConfirm(challengeId, userId);
   if (!row) {
-    return { ok: false, code: "expired_code" };
+    return { ok: false, code: 'expired_code' };
   }
 
   return verifyChallengeCodeRow({
@@ -395,13 +423,16 @@ export async function confirmEmailChallenge(
         const claimed = await db.claimVerifiedEmail(userId, row.email, options);
         if (!claimed.ok) {
           await db.deleteEmailChallengesForUser(userId);
-          return { ok: false, code: "email_conflict" };
+          return { ok: false, code: 'email_conflict' };
         }
       } catch (err: unknown) {
-        const pgCode = typeof err === "object" && err !== null ? String((err as { code?: unknown }).code ?? "") : "";
-        if (pgCode === "23505") {
+        const pgCode =
+          typeof err === 'object' && err !== null
+            ? String((err as { code?: unknown }).code ?? '')
+            : '';
+        if (pgCode === '23505') {
           await db.deleteEmailChallengesForUser(userId);
-          return { ok: false, code: "email_conflict" };
+          return { ok: false, code: 'email_conflict' };
         }
         throw err;
       }
@@ -419,17 +450,17 @@ export async function consumeEmailChallengeCode(
 ): Promise<EmailConfirmResult> {
   const code = codeRaw.trim();
   if (!code) {
-    return { ok: false, code: "invalid_code" };
+    return { ok: false, code: 'invalid_code' };
   }
 
   if (!env.DATABASE_URL) {
     const row = memEmailChallenges.get(challengeId);
     if (!row || row.userId !== userId) {
-      return { ok: false, code: "expired_code" };
+      return { ok: false, code: 'expired_code' };
     }
     if (row.expiresAt <= Math.floor(Date.now() / 1000)) {
       memEmailChallenges.delete(challengeId);
-      return { ok: false, code: "expired_code" };
+      return { ok: false, code: 'expired_code' };
     }
     // C-2 step 4: a purpose mismatch is folded into the SAME branch as a wrong code (ASVS 6.3.8
     // uniform response).
@@ -438,9 +469,9 @@ export async function consumeEmailChallengeCode(
       if (row.attempts >= OTP_MAX_VERIFY_ATTEMPTS) {
         memEmailChallenges.delete(challengeId);
         const retryAfterSeconds = await registerEmailOtpLockoutForUser(userId);
-        return { ok: false, code: "too_many_attempts", retryAfterSeconds };
+        return { ok: false, code: 'too_many_attempts', retryAfterSeconds };
       }
-      return { ok: false, code: "invalid_code" };
+      return { ok: false, code: 'invalid_code' };
     }
     // NIST SP 800-63B §5.2.2: disregard previous failed attempts after a successful verification.
     await resetEmailOtpLockoutForUser(userId);
@@ -451,7 +482,7 @@ export async function consumeEmailChallengeCode(
   const db = requireEmailAuthDb();
   const row = await db.findEmailChallengeForConsume(challengeId, userId);
   if (!row) {
-    return { ok: false, code: "expired_code" };
+    return { ok: false, code: 'expired_code' };
   }
 
   return verifyChallengeCodeRow({
@@ -481,13 +512,20 @@ export async function confirmLatestEmailChallengeCodeForUser(
 ): Promise<EmailConfirmResult> {
   const code = codeRaw.trim();
   if (!code) {
-    return { ok: false, code: "invalid_code" };
+    return { ok: false, code: 'invalid_code' };
   }
 
   if (!env.DATABASE_URL) {
     const now = Math.floor(Date.now() / 1000);
     let bestId: string | null = null;
-    let best: { userId: string; email: string; code: string; expiresAt: number; attempts: number; purpose: EmailChallengePurpose } | null = null;
+    let best: {
+      userId: string;
+      email: string;
+      code: string;
+      expiresAt: number;
+      attempts: number;
+      purpose: EmailChallengePurpose;
+    } | null = null;
     for (const [cid, row] of memEmailChallenges) {
       if (row.userId !== userId) continue;
       if (row.expiresAt <= now) {
@@ -500,7 +538,7 @@ export async function confirmLatestEmailChallengeCodeForUser(
       }
     }
     if (!bestId || !best) {
-      return { ok: false, code: "expired_code" };
+      return { ok: false, code: 'expired_code' };
     }
     // C-2 step 4: a purpose mismatch is folded into the SAME branch as a wrong code (ASVS 6.3.8
     // uniform response).
@@ -509,9 +547,9 @@ export async function confirmLatestEmailChallengeCodeForUser(
       if (best.attempts >= OTP_MAX_VERIFY_ATTEMPTS) {
         memEmailChallenges.delete(bestId);
         const retryAfterSeconds = await registerEmailOtpLockoutForUser(userId);
-        return { ok: false, code: "too_many_attempts", retryAfterSeconds };
+        return { ok: false, code: 'too_many_attempts', retryAfterSeconds };
       }
-      return { ok: false, code: "invalid_code" };
+      return { ok: false, code: 'invalid_code' };
     }
     // NIST SP 800-63B §5.2.2: disregard previous failed attempts after a successful verification.
     await resetEmailOtpLockoutForUser(userId);
@@ -519,7 +557,7 @@ export async function confirmLatestEmailChallengeCodeForUser(
     const owner = memEmailOwnerByNormalized.get(normalized);
     if (owner && owner !== userId) {
       memEmailChallenges.delete(bestId);
-      return { ok: false, code: "email_conflict" };
+      return { ok: false, code: 'email_conflict' };
     }
     for (const [emailNorm, uid] of memEmailOwnerByNormalized) {
       if (uid === userId) memEmailOwnerByNormalized.delete(emailNorm);
@@ -533,7 +571,7 @@ export async function confirmLatestEmailChallengeCodeForUser(
   const now = Math.floor(Date.now() / 1000);
   const row = await db.findLatestPendingEmailChallengeForUser(userId, now);
   if (!row) {
-    return { ok: false, code: "expired_code" };
+    return { ok: false, code: 'expired_code' };
   }
 
   return verifyChallengeCodeRow({
@@ -547,13 +585,16 @@ export async function confirmLatestEmailChallengeCodeForUser(
         const claimed = await db.claimVerifiedEmail(userId, row.email, options);
         if (!claimed.ok) {
           await db.deleteEmailChallengesForUser(userId);
-          return { ok: false, code: "email_conflict" };
+          return { ok: false, code: 'email_conflict' };
         }
       } catch (err: unknown) {
-        const pgCode = typeof err === "object" && err !== null ? String((err as { code?: unknown }).code ?? "") : "";
-        if (pgCode === "23505") {
+        const pgCode =
+          typeof err === 'object' && err !== null
+            ? String((err as { code?: unknown }).code ?? '')
+            : '';
+        if (pgCode === '23505') {
           await db.deleteEmailChallengesForUser(userId);
-          return { ok: false, code: "email_conflict" };
+          return { ok: false, code: 'email_conflict' };
         }
         throw err;
       }
@@ -570,13 +611,20 @@ export async function consumeLatestEmailChallengeCodeForUser(
 ): Promise<EmailConfirmResult> {
   const code = codeRaw.trim();
   if (!code) {
-    return { ok: false, code: "invalid_code" };
+    return { ok: false, code: 'invalid_code' };
   }
 
   if (!env.DATABASE_URL) {
     const now = Math.floor(Date.now() / 1000);
     let bestId: string | null = null;
-    let best: { userId: string; email: string; code: string; expiresAt: number; attempts: number; purpose: EmailChallengePurpose } | null = null;
+    let best: {
+      userId: string;
+      email: string;
+      code: string;
+      expiresAt: number;
+      attempts: number;
+      purpose: EmailChallengePurpose;
+    } | null = null;
     for (const [cid, row] of memEmailChallenges) {
       if (row.userId !== userId) continue;
       if (row.expiresAt <= now) {
@@ -589,7 +637,7 @@ export async function consumeLatestEmailChallengeCodeForUser(
       }
     }
     if (!bestId || !best) {
-      return { ok: false, code: "expired_code" };
+      return { ok: false, code: 'expired_code' };
     }
     // C-2 step 4: a purpose mismatch is folded into the SAME branch as a wrong code (ASVS 6.3.8
     // uniform response).
@@ -598,9 +646,9 @@ export async function consumeLatestEmailChallengeCodeForUser(
       if (best.attempts >= OTP_MAX_VERIFY_ATTEMPTS) {
         memEmailChallenges.delete(bestId);
         const retryAfterSeconds = await registerEmailOtpLockoutForUser(userId);
-        return { ok: false, code: "too_many_attempts", retryAfterSeconds };
+        return { ok: false, code: 'too_many_attempts', retryAfterSeconds };
       }
-      return { ok: false, code: "invalid_code" };
+      return { ok: false, code: 'invalid_code' };
     }
     // NIST SP 800-63B §5.2.2: disregard previous failed attempts after a successful verification.
     await resetEmailOtpLockoutForUser(userId);
@@ -612,7 +660,7 @@ export async function consumeLatestEmailChallengeCodeForUser(
   const now = Math.floor(Date.now() / 1000);
   const row = await db.findLatestEmailChallengeForUser(userId, now);
   if (!row) {
-    return { ok: false, code: "expired_code" };
+    return { ok: false, code: 'expired_code' };
   }
 
   return verifyChallengeCodeRow({

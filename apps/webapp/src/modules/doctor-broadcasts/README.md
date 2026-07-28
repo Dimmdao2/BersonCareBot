@@ -6,13 +6,13 @@
 
 ## Каналы доставки
 
-| Канал | `BroadcastChannel` | Механизм | Счётчик (БД) |
-|-------|-------------------|---------|--------------|
-| Telegram | `telegram` | `outgoing_delivery_queue` → integrator worker (telegramId биндинг) | `user_channel_bindings WHERE channel_code='telegram'` |
-| MAX | `max` | `outgoing_delivery_queue` → integrator worker (maxId биндинг) | `user_channel_bindings WHERE channel_code='max'` |
-| Push | `push` | `fanOutBroadcastWebPush` → `runPatientWebPushNotify` (`intentType: news`) | `user_web_push_subscriptions` (активные подписки) |
-| SMS | `sms` | `outgoing_delivery_queue` (smsc) | `platform_users.phone_normalized IS NOT NULL` |
-| Email | `email` | `fanOutBroadcastEmail` → `sendTransactionalSmtpEmail` (guarded) | `platform_users.email_verified_at IS NOT NULL` |
+| Канал    | `BroadcastChannel` | Механизм                                                                  | Счётчик (БД)                                          |
+| -------- | ------------------ | ------------------------------------------------------------------------- | ----------------------------------------------------- |
+| Telegram | `telegram`         | `outgoing_delivery_queue` → integrator worker (telegramId биндинг)        | `user_channel_bindings WHERE channel_code='telegram'` |
+| MAX      | `max`              | `outgoing_delivery_queue` → integrator worker (maxId биндинг)             | `user_channel_bindings WHERE channel_code='max'`      |
+| Push     | `push`             | `fanOutBroadcastWebPush` → `runPatientWebPushNotify` (`intentType: news`) | `user_web_push_subscriptions` (активные подписки)     |
+| SMS      | `sms`              | `outgoing_delivery_queue` (smsc)                                          | `platform_users.phone_normalized IS NOT NULL`         |
+| Email    | `email`            | `fanOutBroadcastEmail` → `sendTransactionalSmtpEmail` (guarded)           | `platform_users.email_verified_at IS NOT NULL`        |
 
 **Legacy:** `bot_message` — старое значение, сохранено в `BroadcastChannel` для исторического аудита.
 `normalizeBroadcastChannels` раскрывает `bot_message` → `["telegram", "max"]` (backward compat).

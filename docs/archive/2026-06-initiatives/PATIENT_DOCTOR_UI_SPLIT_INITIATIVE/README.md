@@ -11,12 +11,12 @@
 
 ## Канон
 
-| Документ | Назначение |
-|----------|------------|
+| Документ                                                                                                                                         | Назначение                               |
+| ------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------- |
 | План [`.cursor/plans/archive/patient_doctor_ui_split_9a04ff8e.plan.md`](../../../.cursor/plans/archive/patient_doctor_ui_split_9a04ff8e.plan.md) | Фазы 0–4, gates, DoD (закрыт 2026-06-04) |
-| [`LOG.md`](LOG.md) | Журнал исполнения и smoke checklist |
-| [`docs/ARCHITECTURE/PATIENT_APP_UI_STYLE_GUIDE.md`](../../ARCHITECTURE/PATIENT_APP_UI_STYLE_GUIDE.md) | Patient UI (не менять визуал) |
-| [`docs/ARCHITECTURE/DOCTOR_APP_UI_STYLE_GUIDE.md`](../../ARCHITECTURE/DOCTOR_APP_UI_STYLE_GUIDE.md) | Doctor UI (post-split baseline) |
+| [`LOG.md`](LOG.md)                                                                                                                               | Журнал исполнения и smoke checklist      |
+| [`docs/ARCHITECTURE/PATIENT_APP_UI_STYLE_GUIDE.md`](../../ARCHITECTURE/PATIENT_APP_UI_STYLE_GUIDE.md)                                            | Patient UI (не менять визуал)            |
+| [`docs/ARCHITECTURE/DOCTOR_APP_UI_STYLE_GUIDE.md`](../../ARCHITECTURE/DOCTOR_APP_UI_STYLE_GUIDE.md)                                              | Doctor UI (post-split baseline)          |
 
 ## Scope
 
@@ -26,13 +26,13 @@
 
 ## Фазы
 
-| Фаза | Содержание |
-|------|------------|
-| 0 | Baseline smoke + vitest |
-| 1 | Split `globals.css` → 4 CSS files + layouts |
-| 2 | Patient UI split + gate |
-| 3 | Doctor/settings UI split |
-| 4 | Docs, cursor rule, `pnpm run ci` |
+| Фаза | Содержание                                  |
+| ---- | ------------------------------------------- |
+| 0    | Baseline smoke + vitest                     |
+| 1    | Split `globals.css` → 4 CSS files + layouts |
+| 2    | Patient UI split + gate                     |
+| 3    | Doctor/settings UI split                    |
+| 4    | Docs, cursor rule, `pnpm run ci`            |
 
 ## Статус
 

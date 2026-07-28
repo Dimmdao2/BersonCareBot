@@ -3,12 +3,12 @@
  * Pure fetch + jose — тестируемо с моками.
  */
 
-import { SignJWT, importPKCS8, jwtVerify, createRemoteJWKSet } from "jose";
-import { fetchWithTimeout, OAUTH_PROVIDER_FETCH_TIMEOUT_MS } from "@/shared/lib/externalFetch";
+import { SignJWT, importPKCS8, jwtVerify, createRemoteJWKSet } from 'jose';
+import { fetchWithTimeout, OAUTH_PROVIDER_FETCH_TIMEOUT_MS } from '@/shared/lib/externalFetch';
 
-const APPLE_JWKS = createRemoteJWKSet(new URL("https://appleid.apple.com/auth/keys"));
-const APPLE_ISSUER = "https://appleid.apple.com";
-const APPLE_TOKEN_AUD = "https://appleid.apple.com";
+const APPLE_JWKS = createRemoteJWKSet(new URL('https://appleid.apple.com/auth/keys'));
+const APPLE_ISSUER = 'https://appleid.apple.com';
+const APPLE_TOKEN_AUD = 'https://appleid.apple.com';
 
 export async function buildAppleClientSecretJwt(opts: {
   teamId: string;
@@ -17,11 +17,11 @@ export async function buildAppleClientSecretJwt(opts: {
   privateKeyPem: string;
 }): Promise<string> {
   const pem = opts.privateKeyPem.trim();
-  if (!pem) throw new Error("apple_private_key_empty");
-  const key = await importPKCS8(pem, "ES256");
+  if (!pem) throw new Error('apple_private_key_empty');
+  const key = await importPKCS8(pem, 'ES256');
   const now = Math.floor(Date.now() / 1000);
   return new SignJWT({})
-    .setProtectedHeader({ alg: "ES256", kid: opts.keyId })
+    .setProtectedHeader({ alg: 'ES256', kid: opts.keyId })
     .setIssuer(opts.teamId)
     .setIssuedAt(now)
     .setExpirationTime(now + 3600)
@@ -45,20 +45,20 @@ export async function exchangeAppleAuthorizationCode(opts: {
     client_id: opts.clientId,
     client_secret: opts.clientSecretJwt,
     code: opts.code,
-    grant_type: "authorization_code",
+    grant_type: 'authorization_code',
     redirect_uri: opts.redirectUri,
   });
   return fetchWithTimeout(
-    "https://appleid.apple.com/auth/token",
+    'https://appleid.apple.com/auth/token',
     {
-      method: "POST",
-      headers: { "content-type": "application/x-www-form-urlencoded" },
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
       body,
     },
     { timeoutMs: OAUTH_PROVIDER_FETCH_TIMEOUT_MS },
     async (res) => {
       if (!res.ok) {
-        const text = await res.text().catch(() => "");
+        const text = await res.text().catch(() => '');
         throw new Error(`apple_token_exchange_failed: ${res.status} ${text.slice(0, 200)}`);
       }
       return (await res.json()) as AppleTokenResponse;
@@ -81,16 +81,16 @@ export async function verifyAppleIdToken(opts: {
     issuer: APPLE_ISSUER,
     audience: opts.clientId,
   });
-  const sub = typeof payload.sub === "string" ? payload.sub : "";
-  if (!sub) throw new Error("apple_id_token_missing_sub");
+  const sub = typeof payload.sub === 'string' ? payload.sub : '';
+  if (!sub) throw new Error('apple_id_token_missing_sub');
   if (opts.expectedNonce !== undefined) {
     const n = payload.nonce;
-    if (typeof n !== "string" || n !== opts.expectedNonce) {
-      throw new Error("apple_id_token_nonce_mismatch");
+    if (typeof n !== 'string' || n !== opts.expectedNonce) {
+      throw new Error('apple_id_token_nonce_mismatch');
     }
   }
-  const email = typeof payload.email === "string" ? payload.email : undefined;
-  const nonce = typeof payload.nonce === "string" ? payload.nonce : undefined;
+  const email = typeof payload.email === 'string' ? payload.email : undefined;
+  const nonce = typeof payload.nonce === 'string' ? payload.nonce : undefined;
   return { sub, email, nonce };
 }
 
@@ -99,8 +99,8 @@ export function parseAppleUserNameJson(userJson: string | null): string | null {
   if (!userJson?.trim()) return null;
   try {
     const u = JSON.parse(userJson) as { name?: { firstName?: string; lastName?: string } };
-    const f = u.name?.firstName?.trim() ?? "";
-    const l = u.name?.lastName?.trim() ?? "";
+    const f = u.name?.firstName?.trim() ?? '';
+    const l = u.name?.lastName?.trim() ?? '';
     const full = `${f} ${l}`.trim();
     return full.length > 0 ? full : null;
   } catch {

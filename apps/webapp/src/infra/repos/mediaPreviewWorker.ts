@@ -1,30 +1,30 @@
-import { createWriteStream } from "node:fs";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { spawn } from "node:child_process";
-import { pipeline } from "node:stream/promises";
-import { Readable } from "node:stream";
-import ffmpegInstaller from "@ffmpeg-installer/ffmpeg";
-import ffmpeg from "fluent-ffmpeg";
-import type { FfmpegCommand } from "fluent-ffmpeg";
-import sharp from "sharp";
-import { sql } from "drizzle-orm";
-import { env } from "@/config/env";
-import { getPool } from "@/infra/db/client";
-import { getWebappSqlFromPgClient, runWebappSql } from "@/infra/db/runWebappSql";
-import { withPoolTransaction } from "@/infra/db/withClient";
-import { logger } from "@/infra/logging/logger";
-import { mediaReadableStatusPredicate } from "@/infra/repos/mediaSqlPredicates";
-import { presignGetUrl, s3GetObjectBody, s3PreviewKey, s3PutObjectBody } from "@/infra/s3/client";
-import { MAX_MEDIA_BYTES } from "@/modules/media/uploadAllowedMime";
+import { createWriteStream } from 'node:fs';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { spawn } from 'node:child_process';
+import { pipeline } from 'node:stream/promises';
+import { Readable } from 'node:stream';
+import ffmpegInstaller from '@ffmpeg-installer/ffmpeg';
+import ffmpeg from 'fluent-ffmpeg';
+import type { FfmpegCommand } from 'fluent-ffmpeg';
+import sharp from 'sharp';
+import { sql } from 'drizzle-orm';
+import { env } from '@/config/env';
+import { getPool } from '@/infra/db/client';
+import { getWebappSqlFromPgClient, runWebappSql } from '@/infra/db/runWebappSql';
+import { withPoolTransaction } from '@/infra/db/withClient';
+import { logger } from '@/infra/logging/logger';
+import { mediaReadableStatusPredicate } from '@/infra/repos/mediaSqlPredicates';
+import { presignGetUrl, s3GetObjectBody, s3PreviewKey, s3PutObjectBody } from '@/infra/s3/client';
+import { MAX_MEDIA_BYTES } from '@/modules/media/uploadAllowedMime';
 
 const resolvedFfmpegPath = env.FFMPEG_PATH || ffmpegInstaller.path;
 try {
   ffmpeg.setFfmpegPath(resolvedFfmpegPath);
-  logger.info({ path: resolvedFfmpegPath }, "[mediaPreviewWorker] ffmpeg path set");
+  logger.info({ path: resolvedFfmpegPath }, '[mediaPreviewWorker] ffmpeg path set');
 } catch (e) {
-  logger.warn({ err: e, path: resolvedFfmpegPath }, "[mediaPreviewWorker] ffmpeg path not set");
+  logger.warn({ err: e, path: resolvedFfmpegPath }, '[mediaPreviewWorker] ffmpeg path not set');
 }
 
 const MAX_PREVIEW_ATTEMPTS = 5;
@@ -34,10 +34,10 @@ const MAX_IMAGE_PREVIEW_BYTES = 50 * 1024 * 1024;
 const MAX_PREVIEW_SOURCE_BYTES = MAX_MEDIA_BYTES;
 const FFMPEG_EXTRACT_TIMEOUT_MS = 120_000;
 const PERMANENT_ERROR_PATTERNS = [
-  "compression format has not been built in",
-  "Input buffer contains unsupported image format",
-  "Invalid data found when processing input",
-  "was killed with signal SIGSEGV",
+  'compression format has not been built in',
+  'Input buffer contains unsupported image format',
+  'Invalid data found when processing input',
+  'was killed with signal SIGSEGV',
 ] as const;
 
 export type ProcessMediaPreviewBatchResult = {
@@ -45,7 +45,7 @@ export type ProcessMediaPreviewBatchResult = {
   errors: number;
 };
 
-type MediaPreviewIterationOutcome = "empty" | "processed" | "error";
+type MediaPreviewIterationOutcome = 'empty' | 'processed' | 'error';
 
 function backoffMinutesAfterFailure(attemptsAfterIncrement: number): number {
   const exp = Math.min(attemptsAfterIncrement, 20);
@@ -66,12 +66,12 @@ async function generateImagePreviews(original: Buffer): Promise<{
   const meta = await sharp(original).metadata();
   const sm = await sharp(original)
     .rotate()
-    .resize(160, 160, { fit: "inside" })
+    .resize(160, 160, { fit: 'inside' })
     .jpeg({ quality: 82 })
     .toBuffer();
   const md = await sharp(original)
     .rotate()
-    .resize(400, 400, { fit: "inside" })
+    .resize(400, 400, { fit: 'inside' })
     .jpeg({ quality: 85 })
     .toBuffer();
   return {
@@ -92,7 +92,11 @@ function ffprobeSourceDimensions(url: string): Promise<{ width: number; height: 
       }
       const streams = metadata.streams ?? [];
       const withDims = streams.filter(
-        (s) => typeof s.width === "number" && typeof s.height === "number" && s.width > 0 && s.height > 0,
+        (s) =>
+          typeof s.width === 'number' &&
+          typeof s.height === 'number' &&
+          s.width > 0 &&
+          s.height > 0,
       );
       if (withDims.length === 0) {
         resolve(null);
@@ -122,12 +126,12 @@ function extractVideoPosterJpeg(presignedUrl: string, seekSeconds: number): Prom
       };
 
       try {
-        dir = await mkdtemp(join(tmpdir(), "media-prev-v-"));
-        const outPath = join(dir, "poster.jpg");
+        dir = await mkdtemp(join(tmpdir(), 'media-prev-v-'));
+        const outPath = join(dir, 'poster.jpg');
         const cmd: FfmpegCommand = ffmpeg(presignedUrl);
         const killTimer = setTimeout(() => {
           try {
-            cmd.kill("SIGKILL");
+            cmd.kill('SIGKILL');
           } catch {
             /* ignore */
           }
@@ -135,9 +139,9 @@ function extractVideoPosterJpeg(presignedUrl: string, seekSeconds: number): Prom
 
         cmd
           .seekInput(seekSeconds)
-          .outputOptions(["-frames:v", "1", "-q:v", "3"])
+          .outputOptions(['-frames:v', '1', '-q:v', '3'])
           .output(outPath)
-          .on("end", async () => {
+          .on('end', async () => {
             clearTimeout(killTimer);
             try {
               const buf = await readFile(outPath);
@@ -148,7 +152,7 @@ function extractVideoPosterJpeg(presignedUrl: string, seekSeconds: number): Prom
               reject(e);
             }
           })
-          .on("error", async (err) => {
+          .on('error', async (err) => {
             clearTimeout(killTimer);
             await cleanup();
             reject(err);
@@ -167,15 +171,23 @@ async function videoPosterJpegRaw(s3Key: string): Promise<Buffer> {
   try {
     return await extractVideoPosterJpeg(url1, 1);
   } catch (e1) {
-    logger.warn({ err: e1 }, "[mediaPreviewWorker] video poster @1s failed, retry @0");
+    logger.warn({ err: e1 }, '[mediaPreviewWorker] video poster @1s failed, retry @0');
     const url0 = await presignGetUrl(s3Key);
     return await extractVideoPosterJpeg(url0, 0);
   }
 }
 
 async function posterJpegToSmMd(raw: Buffer): Promise<{ sm: Buffer; md: Buffer }> {
-  const sm = await sharp(raw).rotate().resize(160, 160, { fit: "inside" }).jpeg({ quality: 82 }).toBuffer();
-  const md = await sharp(raw).rotate().resize(400, 400, { fit: "inside" }).jpeg({ quality: 85 }).toBuffer();
+  const sm = await sharp(raw)
+    .rotate()
+    .resize(160, 160, { fit: 'inside' })
+    .jpeg({ quality: 82 })
+    .toBuffer();
+  const md = await sharp(raw)
+    .rotate()
+    .resize(400, 400, { fit: 'inside' })
+    .jpeg({ quality: 85 })
+    .toBuffer();
   return { sm, md };
 }
 
@@ -184,7 +196,7 @@ function resolveMagickCommand(): string[] {
   if (custom) {
     return [custom];
   }
-  return ["magick", "convert"];
+  return ['magick', 'convert'];
 }
 
 async function downloadFileToPath(url: string, outPath: string): Promise<void> {
@@ -194,8 +206,8 @@ async function downloadFileToPath(url: string, outPath: string): Promise<void> {
   try {
     response = await fetch(url, { signal: controller.signal });
   } catch (e) {
-    if (e instanceof Error && e.name === "AbortError") {
-      throw new Error("download_timeout");
+    if (e instanceof Error && e.name === 'AbortError') {
+      throw new Error('download_timeout');
     }
     throw e;
   } finally {
@@ -214,32 +226,32 @@ function runMagickConvert(inputPath: string, outPath: string): Promise<void> {
 
     const runNext = () => {
       if (idx >= candidates.length) {
-        reject(new Error("magick_not_found_or_failed"));
+        reject(new Error('magick_not_found_or_failed'));
         return;
       }
       const command = candidates[idx++]!;
-      const args = [inputPath + "[0]", "-auto-orient", "-quality", "85", outPath];
+      const args = [inputPath + '[0]', '-auto-orient', '-quality', '85', outPath];
       const child = spawn(command, args, {
-        stdio: ["ignore", "pipe", "pipe"],
+        stdio: ['ignore', 'pipe', 'pipe'],
         shell: false,
       });
-      let stderr = "";
-      child.stderr.on("data", (chunk) => {
+      let stderr = '';
+      child.stderr.on('data', (chunk) => {
         stderr += String(chunk);
       });
       const killTimer = setTimeout(() => {
-        child.kill("SIGKILL");
+        child.kill('SIGKILL');
       }, FFMPEG_EXTRACT_TIMEOUT_MS);
-      child.on("error", (err) => {
+      child.on('error', (err) => {
         clearTimeout(killTimer);
         const code = (err as NodeJS.ErrnoException).code;
-        if (code === "ENOENT" && idx < candidates.length) {
+        if (code === 'ENOENT' && idx < candidates.length) {
           runNext();
           return;
         }
         reject(err);
       });
-      child.on("close", (code) => {
+      child.on('close', (code) => {
         clearTimeout(killTimer);
         if (code === 0) {
           resolve();
@@ -277,14 +289,17 @@ async function heicPosterBuffers(s3Key: string): Promise<{
     const { sm, md } = await posterJpegToSmMd(raw);
     return { sm, md, sourceWidth, sourceHeight };
   } catch (ffmpegErr) {
-    logger.warn({ err: ffmpegErr }, "[mediaPreviewWorker] heic ffmpeg decode failed, retry via magick");
+    logger.warn(
+      { err: ffmpegErr },
+      '[mediaPreviewWorker] heic ffmpeg decode failed, retry via magick',
+    );
   }
 
   let dir: string | null = null;
   try {
-    dir = await mkdtemp(join(tmpdir(), "media-prev-heic-"));
-    const inputPath = join(dir, "input.heic");
-    const outputPath = join(dir, "out.jpg");
+    dir = await mkdtemp(join(tmpdir(), 'media-prev-heic-'));
+    const inputPath = join(dir, 'input.heic');
+    const outputPath = join(dir, 'out.jpg');
     const url = await presignGetUrl(s3Key);
     await downloadFileToPath(url, inputPath);
     await runMagickConvert(inputPath, outputPath);
@@ -311,26 +326,30 @@ async function heicPosterBuffers(s3Key: string): Promise<{
  * Background worker: generate preview JPEGs in MinIO and set preview_status=ready.
  * Pattern: same cron + INTERNAL_JOB_SECRET as media-pending-delete purge.
  */
-export async function processMediaPreviewBatch(limit: number = 10): Promise<ProcessMediaPreviewBatchResult> {
+export async function processMediaPreviewBatch(
+  limit: number = 10,
+): Promise<ProcessMediaPreviewBatchResult> {
   const pool = getPool();
   const take = Math.max(1, Math.min(50, limit));
   let processed = 0;
   let errors = 0;
 
   for (let i = 0; i < take; i++) {
-    const outcome = await withPoolTransaction<MediaPreviewIterationOutcome>(pool, async (client) => {
-      const db = getWebappSqlFromPgClient(client);
-      const claim = await runWebappSql<{
-        id: string;
-        s3_key: string;
-        mime_type: string;
-        size_bytes: string;
-        preview_attempts: number;
-        source_width: number | null;
-        source_height: number | null;
-      }>(
-        db,
-        sql`SELECT id, s3_key, mime_type, size_bytes::text AS size_bytes, COALESCE(preview_attempts, 0)::int AS preview_attempts,
+    const outcome = await withPoolTransaction<MediaPreviewIterationOutcome>(
+      pool,
+      async (client) => {
+        const db = getWebappSqlFromPgClient(client);
+        const claim = await runWebappSql<{
+          id: string;
+          s3_key: string;
+          mime_type: string;
+          size_bytes: string;
+          preview_attempts: number;
+          source_width: number | null;
+          source_height: number | null;
+        }>(
+          db,
+          sql`SELECT id, s3_key, mime_type, size_bytes::text AS size_bytes, COALESCE(preview_attempts, 0)::int AS preview_attempts,
                 source_width, source_height
          FROM media_files
          WHERE preview_status = 'pending'
@@ -340,54 +359,143 @@ export async function processMediaPreviewBatch(limit: number = 10): Promise<Proc
          ORDER BY created_at ASC
          LIMIT 1
          FOR UPDATE SKIP LOCKED`,
-      );
-      const rows = claim.rows;
+        );
+        const rows = claim.rows;
 
-      if (rows.length === 0) {
-        return "empty";
-      }
+        if (rows.length === 0) {
+          return 'empty';
+        }
 
-      const row = rows[0]!;
-      if (row.source_width == null && row.source_height == null) {
-        logger.debug({ mediaId: row.id }, "[mediaPreviewWorker] backfill: source dimensions NULL before processing");
-      }
-      const mime = row.mime_type.toLowerCase();
-      const sizeBytes = Number.parseInt(row.size_bytes, 10) || 0;
-      const smKey = s3PreviewKey(row.id, "sm");
-      const mdKey = s3PreviewKey(row.id, "md");
+        const row = rows[0]!;
+        if (row.source_width == null && row.source_height == null) {
+          logger.debug(
+            { mediaId: row.id },
+            '[mediaPreviewWorker] backfill: source dimensions NULL before processing',
+          );
+        }
+        const mime = row.mime_type.toLowerCase();
+        const sizeBytes = Number.parseInt(row.size_bytes, 10) || 0;
+        const smKey = s3PreviewKey(row.id, 'sm');
+        const mdKey = s3PreviewKey(row.id, 'md');
 
-      try {
-        if (mime === "image/heic" || mime === "image/heif") {
-          if (sizeBytes > MAX_PREVIEW_SOURCE_BYTES) {
+        try {
+          if (mime === 'image/heic' || mime === 'image/heif') {
+            if (sizeBytes > MAX_PREVIEW_SOURCE_BYTES) {
+              await runWebappSql(
+                db,
+                sql`UPDATE media_files SET preview_status = 'skipped', preview_next_attempt_at = NULL WHERE id = ${row.id}::uuid`,
+              );
+              logger.info(
+                { mediaId: row.id, sizeBytes, max: MAX_PREVIEW_SOURCE_BYTES },
+                '[processMediaPreviewBatch] heic/heif too large for ffmpeg preview, skipped',
+              );
+            } else {
+              const {
+                sm: posterSm,
+                md: posterMd,
+                sourceWidth: jpegW,
+                sourceHeight: jpegH,
+              } = await heicPosterBuffers(row.s3_key);
+              await s3PutObjectBody(smKey, posterSm, 'image/jpeg');
+              await s3PutObjectBody(mdKey, posterMd, 'image/jpeg');
+              let sw: number | null = jpegW;
+              let sh: number | null = jpegH;
+              try {
+                const presigned = await presignGetUrl(row.s3_key);
+                const dims = await ffprobeSourceDimensions(presigned);
+                if (dims) {
+                  sw = dims.width;
+                  sh = dims.height;
+                }
+              } catch (e) {
+                logger.warn(
+                  { err: e, mediaId: row.id },
+                  '[mediaPreviewWorker] heic dimension probe failed',
+                );
+              }
+              await runWebappSql(
+                db,
+                sql`UPDATE media_files SET
+               preview_status = 'ready',
+               preview_sm_key = ${smKey},
+               preview_md_key = ${mdKey},
+               preview_attempts = 0,
+               preview_next_attempt_at = NULL,
+               source_width = ${sw},
+               source_height = ${sh}
+             WHERE id = ${row.id}::uuid`,
+              );
+              if (sw != null && sh != null) {
+                logger.info(
+                  { mediaId: row.id, width: sw, height: sh },
+                  '[mediaPreviewWorker] source dimensions stored',
+                );
+              }
+            }
+          } else if (mime.startsWith('image/') && sizeBytes > MAX_IMAGE_PREVIEW_BYTES) {
+            await runWebappSql(
+              db,
+              sql`UPDATE media_files SET preview_status = 'skipped', preview_next_attempt_at = NULL WHERE id = ${row.id}::uuid`,
+            );
+            logger.info(
+              { mediaId: row.id, sizeBytes, max: MAX_IMAGE_PREVIEW_BYTES },
+              '[processMediaPreviewBatch] image too large for in-process preview, skipped',
+            );
+          } else if (mime.startsWith('video/') && sizeBytes > MAX_PREVIEW_SOURCE_BYTES) {
             await runWebappSql(
               db,
               sql`UPDATE media_files SET preview_status = 'skipped', preview_next_attempt_at = NULL WHERE id = ${row.id}::uuid`,
             );
             logger.info(
               { mediaId: row.id, sizeBytes, max: MAX_PREVIEW_SOURCE_BYTES },
-              "[processMediaPreviewBatch] heic/heif too large for ffmpeg preview, skipped",
+              '[processMediaPreviewBatch] video too large for ffmpeg preview, skipped',
             );
-          } else {
-            const {
-              sm: posterSm,
-              md: posterMd,
-              sourceWidth: jpegW,
-              sourceHeight: jpegH,
-            } = await heicPosterBuffers(row.s3_key);
-            await s3PutObjectBody(smKey, posterSm, "image/jpeg");
-            await s3PutObjectBody(mdKey, posterMd, "image/jpeg");
-            let sw: number | null = jpegW;
-            let sh: number | null = jpegH;
+          } else if (mime.startsWith('image/')) {
+            const raw = await s3GetObjectBody(row.s3_key);
+            if (!raw) {
+              throw new Error('s3_get_object_empty');
+            }
+            const { sm, md, sourceWidth, sourceHeight } = await generateImagePreviews(raw);
+            await s3PutObjectBody(smKey, sm, 'image/jpeg');
+            await s3PutObjectBody(mdKey, md, 'image/jpeg');
+            await runWebappSql(
+              db,
+              sql`UPDATE media_files SET
+               preview_status = 'ready',
+               preview_sm_key = ${smKey},
+               preview_md_key = ${mdKey},
+               preview_attempts = 0,
+               preview_next_attempt_at = NULL,
+               source_width = ${sourceWidth},
+               source_height = ${sourceHeight}
+             WHERE id = ${row.id}::uuid`,
+            );
+            if (sourceWidth != null && sourceHeight != null) {
+              logger.info(
+                { mediaId: row.id, width: sourceWidth, height: sourceHeight },
+                '[mediaPreviewWorker] source dimensions stored',
+              );
+            }
+          } else if (mime.startsWith('video/')) {
+            const presigned = await presignGetUrl(row.s3_key);
+            let sw: number | null = null;
+            let sh: number | null = null;
             try {
-              const presigned = await presignGetUrl(row.s3_key);
               const dims = await ffprobeSourceDimensions(presigned);
               if (dims) {
                 sw = dims.width;
                 sh = dims.height;
               }
             } catch (e) {
-              logger.warn({ err: e, mediaId: row.id }, "[mediaPreviewWorker] heic dimension probe failed");
+              logger.warn(
+                { err: e, mediaId: row.id },
+                '[mediaPreviewWorker] video dimension probe failed',
+              );
             }
+            const rawPoster = await videoPosterJpegRaw(row.s3_key);
+            const { sm: posterSm, md: posterMd } = await posterJpegToSmMd(rawPoster);
+            await s3PutObjectBody(smKey, posterSm, 'image/jpeg');
+            await s3PutObjectBody(mdKey, posterMd, 'image/jpeg');
             await runWebappSql(
               db,
               sql`UPDATE media_files SET
@@ -401,136 +509,66 @@ export async function processMediaPreviewBatch(limit: number = 10): Promise<Proc
              WHERE id = ${row.id}::uuid`,
             );
             if (sw != null && sh != null) {
-              logger.info({ mediaId: row.id, width: sw, height: sh }, "[mediaPreviewWorker] source dimensions stored");
+              logger.info(
+                { mediaId: row.id, width: sw, height: sh },
+                '[mediaPreviewWorker] source dimensions stored',
+              );
             }
-          }
-        } else if (mime.startsWith("image/") && sizeBytes > MAX_IMAGE_PREVIEW_BYTES) {
-          await runWebappSql(
-            db,
-            sql`UPDATE media_files SET preview_status = 'skipped', preview_next_attempt_at = NULL WHERE id = ${row.id}::uuid`,
-          );
-          logger.info(
-            { mediaId: row.id, sizeBytes, max: MAX_IMAGE_PREVIEW_BYTES },
-            "[processMediaPreviewBatch] image too large for in-process preview, skipped",
-          );
-        } else if (mime.startsWith("video/") && sizeBytes > MAX_PREVIEW_SOURCE_BYTES) {
-          await runWebappSql(
-            db,
-            sql`UPDATE media_files SET preview_status = 'skipped', preview_next_attempt_at = NULL WHERE id = ${row.id}::uuid`,
-          );
-          logger.info(
-            { mediaId: row.id, sizeBytes, max: MAX_PREVIEW_SOURCE_BYTES },
-            "[processMediaPreviewBatch] video too large for ffmpeg preview, skipped",
-          );
-        } else if (mime.startsWith("image/")) {
-          const raw = await s3GetObjectBody(row.s3_key);
-          if (!raw) {
-            throw new Error("s3_get_object_empty");
-          }
-          const { sm, md, sourceWidth, sourceHeight } = await generateImagePreviews(raw);
-          await s3PutObjectBody(smKey, sm, "image/jpeg");
-          await s3PutObjectBody(mdKey, md, "image/jpeg");
-          await runWebappSql(
-            db,
-            sql`UPDATE media_files SET
-               preview_status = 'ready',
-               preview_sm_key = ${smKey},
-               preview_md_key = ${mdKey},
-               preview_attempts = 0,
-               preview_next_attempt_at = NULL,
-               source_width = ${sourceWidth},
-               source_height = ${sourceHeight}
-             WHERE id = ${row.id}::uuid`,
-          );
-          if (sourceWidth != null && sourceHeight != null) {
-            logger.info(
-              { mediaId: row.id, width: sourceWidth, height: sourceHeight },
-              "[mediaPreviewWorker] source dimensions stored",
+          } else {
+            await runWebappSql(
+              db,
+              sql`UPDATE media_files SET preview_status = 'skipped', preview_next_attempt_at = NULL WHERE id = ${row.id}::uuid`,
             );
           }
-        } else if (mime.startsWith("video/")) {
-          const presigned = await presignGetUrl(row.s3_key);
-          let sw: number | null = null;
-          let sh: number | null = null;
-          try {
-            const dims = await ffprobeSourceDimensions(presigned);
-            if (dims) {
-              sw = dims.width;
-              sh = dims.height;
-            }
-          } catch (e) {
-            logger.warn({ err: e, mediaId: row.id }, "[mediaPreviewWorker] video dimension probe failed");
+        } catch (e) {
+          if (isPermanentPreviewError(e)) {
+            await runWebappSql(
+              db,
+              sql`UPDATE media_files SET preview_status = 'skipped', preview_next_attempt_at = NULL WHERE id = ${row.id}::uuid`,
+            );
+            logger.warn(
+              { err: e, mediaId: row.id },
+              '[processMediaPreviewBatch] permanent error, skipped',
+            );
+            return 'error';
           }
-          const rawPoster = await videoPosterJpegRaw(row.s3_key);
-          const { sm: posterSm, md: posterMd } = await posterJpegToSmMd(rawPoster);
-          await s3PutObjectBody(smKey, posterSm, "image/jpeg");
-          await s3PutObjectBody(mdKey, posterMd, "image/jpeg");
-          await runWebappSql(
-            db,
-            sql`UPDATE media_files SET
-               preview_status = 'ready',
-               preview_sm_key = ${smKey},
-               preview_md_key = ${mdKey},
-               preview_attempts = 0,
-               preview_next_attempt_at = NULL,
-               source_width = ${sw},
-               source_height = ${sh}
-             WHERE id = ${row.id}::uuid`,
-          );
-          if (sw != null && sh != null) {
-            logger.info({ mediaId: row.id, width: sw, height: sh }, "[mediaPreviewWorker] source dimensions stored");
-          }
-        } else {
-          await runWebappSql(
-            db,
-            sql`UPDATE media_files SET preview_status = 'skipped', preview_next_attempt_at = NULL WHERE id = ${row.id}::uuid`,
-          );
-        }
-      } catch (e) {
-        if (isPermanentPreviewError(e)) {
-          await runWebappSql(
-            db,
-            sql`UPDATE media_files SET preview_status = 'skipped', preview_next_attempt_at = NULL WHERE id = ${row.id}::uuid`,
-          );
-          logger.warn({ err: e, mediaId: row.id }, "[processMediaPreviewBatch] permanent error, skipped");
-          return "error";
-        }
-        const prev = row.preview_attempts ?? 0;
-        const nextAttempts = prev + 1;
-        if (nextAttempts >= MAX_PREVIEW_ATTEMPTS) {
-          await runWebappSql(
-            db,
-            sql`UPDATE media_files SET
+          const prev = row.preview_attempts ?? 0;
+          const nextAttempts = prev + 1;
+          if (nextAttempts >= MAX_PREVIEW_ATTEMPTS) {
+            await runWebappSql(
+              db,
+              sql`UPDATE media_files SET
                preview_status = 'failed',
                preview_attempts = ${nextAttempts},
                preview_next_attempt_at = NULL
              WHERE id = ${row.id}::uuid`,
-          );
-        } else {
-          const minutes = backoffMinutesAfterFailure(nextAttempts);
-          await runWebappSql(
-            db,
-            sql`UPDATE media_files SET
+            );
+          } else {
+            const minutes = backoffMinutesAfterFailure(nextAttempts);
+            await runWebappSql(
+              db,
+              sql`UPDATE media_files SET
                preview_attempts = ${nextAttempts},
                preview_next_attempt_at = now() + (${minutes}::numeric * interval '1 minute')
              WHERE id = ${row.id}::uuid`,
-          );
+            );
+          }
+          logger.error({ err: e, mediaId: row.id }, '[processMediaPreviewBatch] preview failed');
+          return 'error';
         }
-        logger.error({ err: e, mediaId: row.id }, "[processMediaPreviewBatch] preview failed");
-        return "error";
-      }
 
-      return "processed";
-    });
+        return 'processed';
+      },
+    );
 
-    if (outcome === "empty") {
+    if (outcome === 'empty') {
       break;
     }
-    if (outcome === "error") {
+    if (outcome === 'error') {
       errors += 1;
       continue;
     }
-    if (outcome === "processed") {
+    if (outcome === 'processed') {
       processed += 1;
     }
   }

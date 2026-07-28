@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import type { ReactNode } from "react";
-import { useRef } from "react";
-import { measureElement, useVirtualizer } from "@tanstack/react-virtual";
-import { cn } from "@/lib/utils";
+import type { ReactNode } from 'react';
+import { useRef } from 'react';
+import { measureElement, useVirtualizer } from '@tanstack/react-virtual';
+import { cn } from '@/lib/utils';
 
 export type VirtualizedItemGridProps<T> = {
   items: T[];
@@ -46,7 +46,7 @@ export function VirtualizedItemGrid<T>({
   }
 
   return (
-    <div ref={parentRef} className={cn("relative overflow-y-auto", containerClassName)}>
+    <div ref={parentRef} className={cn('relative overflow-y-auto', containerClassName)}>
       <div className="relative w-full" style={{ height: rowVirtualizer.getTotalSize() }}>
         {virtualRows.map((virtualRow) => {
           return (
@@ -54,10 +54,7 @@ export function VirtualizedItemGrid<T>({
               key={virtualRow.key}
               data-index={virtualRow.index}
               ref={rowVirtualizer.measureElement}
-              className={cn(
-                "absolute grid w-full gap-3 p-0.5",
-                gridClassName,
-              )}
+              className={cn('absolute grid w-full gap-3 p-0.5', gridClassName)}
               style={{
                 top: virtualRow.start,
                 gridTemplateColumns: `repeat(${safeColumns}, minmax(0, 1fr))`,

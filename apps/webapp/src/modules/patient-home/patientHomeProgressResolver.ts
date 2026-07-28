@@ -1,25 +1,25 @@
-import { DateTime } from "luxon";
-import type { ContentSectionsPort } from "@/modules/content-sections/ports";
-import { resolvePatientContentSectionSlug } from "@/modules/content-sections/resolvePatientContentSectionSlug";
-import { isWarmupsContentSectionReminderRule } from "@/modules/reminders/warmupsReminderRuleMatch";
-import { computePracticeStreak } from "@/modules/patient-practice/streakLogic";
-import { resolveCalendarDayIanaForPatient } from "@/modules/system-settings/calendarIana";
-import { pickActivePlanInstance } from "@/modules/treatment-program/pickActivePlanInstance";
-import type { ReminderRule } from "@/modules/reminders/types";
-import type { PatientPracticeCompletionRow } from "@/modules/patient-practice/types";
-import { DEFAULT_WARMUPS_SECTION_SLUG } from "./warmupsSection";
+import { DateTime } from 'luxon';
+import type { ContentSectionsPort } from '@/modules/content-sections/ports';
+import { resolvePatientContentSectionSlug } from '@/modules/content-sections/resolvePatientContentSectionSlug';
+import { isWarmupsContentSectionReminderRule } from '@/modules/reminders/warmupsReminderRuleMatch';
+import { computePracticeStreak } from '@/modules/patient-practice/streakLogic';
+import { resolveCalendarDayIanaForPatient } from '@/modules/system-settings/calendarIana';
+import { pickActivePlanInstance } from '@/modules/treatment-program/pickActivePlanInstance';
+import type { ReminderRule } from '@/modules/reminders/types';
+import type { PatientPracticeCompletionRow } from '@/modules/patient-practice/types';
+import { DEFAULT_WARMUPS_SECTION_SLUG } from './warmupsSection';
 import {
   assemblePatientHomeProgress,
   countProgramChecklistItemsDoneToday,
   countWarmupCompletionsInRows,
   patientHomeLocalDayUtcWindow,
   resolvePatientHomePracticeTarget,
-} from "./patientHomeTodayProgress";
+} from './patientHomeTodayProgress';
 import {
   countPlannedHomeLinkedReminderOccurrencesWithPredicate,
   countPlannedHomeReminderOccurrencesInUtcRange,
   hasConfiguredHomeLinkedReminders,
-} from "./nextReminderOccurrence";
+} from './nextReminderOccurrence';
 
 export type PatientHomeProgressSnapshot = {
   todayDone: number;
@@ -33,9 +33,17 @@ export type PatientHomeProgressResolverDeps = {
     getReminderMutedUntil(userId: string): Promise<string | null>;
   };
   patientPractice: {
-    listByUserInUtcRange(userId: string, fromUtcIso: string, toUtcExclusiveIso: string): Promise<PatientPracticeCompletionRow[]>;
+    listByUserInUtcRange(
+      userId: string,
+      fromUtcIso: string,
+      toUtcExclusiveIso: string,
+    ): Promise<PatientPracticeCompletionRow[]>;
     listRecent(userId: string, limit: number): Promise<PatientPracticeCompletionRow[]>;
-    getProgress(userId: string, tz: string, todayTarget: number): Promise<{ todayDone: number; todayTarget: number; streak: number }>;
+    getProgress(
+      userId: string,
+      tz: string,
+      todayTarget: number,
+    ): Promise<{ todayDone: number; todayTarget: number; streak: number }>;
   };
   patientCalendarTimezone: {
     getIanaForUser(userId: string): Promise<string | null>;
@@ -53,7 +61,7 @@ export type PatientHomeProgressResolverDeps = {
       days: number,
     ): Promise<{ iana: string; dateKeys: string[] }>;
   };
-  contentSections: Pick<ContentSectionsPort, "getBySlug" | "getRedirectNewSlugForOldSlug">;
+  contentSections: Pick<ContentSectionsPort, 'getBySlug' | 'getRedirectNewSlugForOldSlug'>;
 };
 
 /**
@@ -66,23 +74,27 @@ export async function loadPatientHomeProgressForUser(
   appTz: string,
   adminPracticeTarget: number,
 ): Promise<PatientHomeProgressSnapshot> {
-  const [rules, patientCalTz, mutedUntilIso, recentPracticeRows, lfkRecentDays] = await Promise.all([
-    deps.reminders.listRulesByUser(userId),
-    deps.patientCalendarTimezone.getIanaForUser(userId),
-    deps.reminders.getReminderMutedUntil(userId),
-    deps.patientPractice.listRecent(userId, 1500),
-    deps.treatmentProgramPatientActions.listLocalDoneDateKeysForRecentDays(userId, 120),
-  ]);
+  const [rules, patientCalTz, mutedUntilIso, recentPracticeRows, lfkRecentDays] = await Promise.all(
+    [
+      deps.reminders.listRulesByUser(userId),
+      deps.patientCalendarTimezone.getIanaForUser(userId),
+      deps.reminders.getReminderMutedUntil(userId),
+      deps.patientPractice.listRecent(userId, 1500),
+      deps.treatmentProgramPatientActions.listLocalDoneDateKeysForRecentDays(userId, 120),
+    ],
+  );
 
   const patientDayIana = resolveCalendarDayIanaForPatient(patientCalTz, appTz);
   const compareNow = new Date();
   const muted = !!(mutedUntilIso && new Date(mutedUntilIso).getTime() > compareNow.getTime());
-  const dayStart = DateTime.now().setZone(patientDayIana).startOf("day");
+  const dayStart = DateTime.now().setZone(patientDayIana).startOf('day');
   const rangeStart = dayStart.toUTC().toJSDate();
   const rangeEnd = dayStart.plus({ days: 1 }).toUTC().toJSDate();
 
   const hasConfiguredSchedule = hasConfiguredHomeLinkedReminders(rules);
-  const plannedTotal = muted ? 0 : countPlannedHomeReminderOccurrencesInUtcRange(rules, rangeStart, rangeEnd);
+  const plannedTotal = muted
+    ? 0
+    : countPlannedHomeReminderOccurrencesInUtcRange(rules, rangeStart, rangeEnd);
   const practiceTarget = resolvePatientHomePracticeTarget({
     muted,
     hasConfiguredHomeLinkedReminders: hasConfiguredSchedule,
@@ -120,9 +132,12 @@ export async function loadPatientHomeProgressForUser(
   let programDoneToday = 0;
   const instances = await deps.treatmentProgramInstance.listForPatient(userId);
   const picked = pickActivePlanInstance(instances);
-  const doctorPlan = picked?.assignmentSource === "doctor" ? picked : null;
+  const doctorPlan = picked?.assignmentSource === 'doctor' ? picked : null;
   if (doctorPlan) {
-    const snap = await deps.treatmentProgramPatientActions.listChecklistDoneToday(userId, doctorPlan.id);
+    const snap = await deps.treatmentProgramPatientActions.listChecklistDoneToday(
+      userId,
+      doctorPlan.id,
+    );
     programDoneToday = countProgramChecklistItemsDoneToday(snap);
   }
 
@@ -140,7 +155,9 @@ export async function loadPatientHomeProgressForUser(
   const gp = await deps.patientPractice.getProgress(userId, patientDayIana, practiceTarget || 1);
   const mergedDates = new Set<string>();
   for (const row of recentPracticeRows) {
-    const d = DateTime.fromISO(row.completedAt, { setZone: true }).setZone(lfkRecentDays.iana).toISODate();
+    const d = DateTime.fromISO(row.completedAt, { setZone: true })
+      .setZone(lfkRecentDays.iana)
+      .toISODate();
     if (d) mergedDates.add(d);
   }
   for (const key of lfkRecentDays.dateKeys) {

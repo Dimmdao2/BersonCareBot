@@ -1,29 +1,19 @@
-"use client";
+'use client';
 
-import { type ReactNode } from "react";
-import { cn } from "@/lib/utils";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "./primitives/dialog";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "./primitives/sheet";
-import { useIsMobileViewport } from "./primitives/useIsMobileViewport";
+import { type ReactNode } from 'react';
+import { cn } from '@/lib/utils';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from './primitives/dialog';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from './primitives/sheet';
+import { useIsMobileViewport } from './primitives/useIsMobileViewport';
 
-type DoctorModalSize = "sm" | "md" | "lg" | "content";
+type DoctorModalSize = 'sm' | 'md' | 'lg' | 'content';
 
 /** Десктоп: ограничение ширины по размеру. Мобила — всегда bottom-sheet во всю ширину. */
 const sizeMaxWidth: Record<DoctorModalSize, string> = {
-  sm: "sm:max-w-sm",
-  md: "sm:max-w-md",
-  lg: "sm:max-w-2xl",
-  content: "sm:max-w-3xl",
+  sm: 'sm:max-w-sm',
+  md: 'sm:max-w-md',
+  lg: 'sm:max-w-2xl',
+  content: 'sm:max-w-3xl',
 };
 
 type DoctorModalProps = {
@@ -58,20 +48,20 @@ export function DoctorModal({
   title,
   description,
   children,
-  size = "md",
+  size = 'md',
   footer,
   bodyClassName,
 }: DoctorModalProps) {
   const isMobile = useIsMobileViewport();
-  const isContent = size === "content";
+  const isContent = size === 'content';
 
   const body = (
     <div
       className={cn(
-        "min-h-0 flex-1",
+        'min-h-0 flex-1',
         isContent
-          ? "flex flex-col overflow-hidden px-4 pt-3 pb-4"
-          : "overflow-y-auto px-4 pt-3 pb-4",
+          ? 'flex flex-col overflow-hidden px-4 pt-3 pb-4'
+          : 'overflow-y-auto px-4 pt-3 pb-4',
         bodyClassName,
       )}
     >
@@ -102,9 +92,7 @@ export function DoctorModal({
         >
           <SheetHeader className="shrink-0 border-b border-border/60 px-4 pt-4 pb-3 pr-12">
             <SheetTitle>{title}</SheetTitle>
-            {description && (
-              <p className="text-sm text-muted-foreground">{description}</p>
-            )}
+            {description && <p className="text-sm text-muted-foreground">{description}</p>}
           </SheetHeader>
           {body}
           {footerNode}
@@ -118,15 +106,13 @@ export function DoctorModal({
       <DialogContent
         showCloseButton
         className={cn(
-          "flex max-h-[calc(100dvh-3rem)] flex-col gap-0 overflow-hidden p-0",
+          'flex max-h-[calc(100dvh-3rem)] flex-col gap-0 overflow-hidden p-0',
           sizeMaxWidth[size],
         )}
       >
         <DialogHeader className="shrink-0 border-b border-border/60 px-4 pt-4 pb-3 pr-12">
           <DialogTitle>{title}</DialogTitle>
-          {description && (
-            <p className="text-sm text-muted-foreground">{description}</p>
-          )}
+          {description && <p className="text-sm text-muted-foreground">{description}</p>}
         </DialogHeader>
         {body}
         {footerNode}

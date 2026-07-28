@@ -65,7 +65,10 @@ export type UpsertMailingTopicParams = {
 };
 
 /** Создаёт или обновляет тему рассылки (для writePort и проекции). */
-export async function upsertMailingTopic(db: DbPort, params: UpsertMailingTopicParams): Promise<void> {
+export async function upsertMailingTopic(
+  db: DbPort,
+  params: UpsertMailingTopicParams,
+): Promise<void> {
   const d = getIntegratorDrizzleSession(db);
   await d
     .insert(mailingTopics)

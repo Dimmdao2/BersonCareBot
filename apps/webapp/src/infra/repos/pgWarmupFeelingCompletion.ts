@@ -1,50 +1,54 @@
-import { and, eq, isNull } from "drizzle-orm";
-import { getDrizzle } from "@/app-layer/db/drizzle";
-import { patientPracticeCompletions, symptomEntries } from "../../../db/schema";
-import { WELLBEING_GENERAL_MIRROR_NOTE } from "@/modules/diaries/wellbeingGeneralMirrorNote";
-import type { SymptomDiaryPort } from "@/modules/diaries/ports";
-import type { PatientPracticePort } from "@/modules/patient-practice/ports";
+import { and, eq, isNull } from 'drizzle-orm';
+import { getDrizzle } from '@/app-layer/db/drizzle';
+import { patientPracticeCompletions, symptomEntries } from '../../../db/schema';
+import { WELLBEING_GENERAL_MIRROR_NOTE } from '@/modules/diaries/wellbeingGeneralMirrorNote';
+import type { SymptomDiaryPort } from '@/modules/diaries/ports';
+import type { PatientPracticePort } from '@/modules/patient-practice/ports';
 import type {
   ApplyDailyWarmupFeelingParams,
   WarmupFeelingCompletionPort,
-} from "@/modules/patient-practice/warmupFeelingCompletionPort";
+} from '@/modules/patient-practice/warmupFeelingCompletionPort';
 
 function pgErrCode(e: unknown): string | undefined {
-  if (typeof e === "object" && e !== null && "code" in e && typeof (e as { code?: unknown }).code === "string") {
+  if (
+    typeof e === 'object' &&
+    e !== null &&
+    'code' in e &&
+    typeof (e as { code?: unknown }).code === 'string'
+  ) {
     return (e as { code: string }).code;
   }
-  if (typeof e === "object" && e !== null && "cause" in e) {
+  if (typeof e === 'object' && e !== null && 'cause' in e) {
     return pgErrCode((e as { cause?: unknown }).cause);
   }
   return undefined;
 }
 
 export function createPgWarmupFeelingCompletionPort(opts: {
-  diaries: Pick<SymptomDiaryPort, "upsertWarmupFeelingTrackingIdInTx" | "ensureGeneralWellbeingTracking">;
-  completions: Pick<PatientPracticePort, "getByIdForUser" | "updateFeelingById">;
+  diaries: Pick<
+    SymptomDiaryPort,
+    'upsertWarmupFeelingTrackingIdInTx' | 'ensureGeneralWellbeingTracking'
+  >;
+  completions: Pick<PatientPracticePort, 'getByIdForUser' | 'updateFeelingById'>;
 }): WarmupFeelingCompletionPort {
   return {
-    async applyDailyWarmupFeeling(params: ApplyDailyWarmupFeelingParams): Promise<{ duplicate: boolean }> {
-      const {
-        userId,
-        completionId,
-        feeling,
-        completedAtIso,
-        symptomTypeRefId,
-        symptomTitle,
-      } = params;
+    async applyDailyWarmupFeeling(
+      params: ApplyDailyWarmupFeelingParams,
+    ): Promise<{ duplicate: boolean }> {
+      const { userId, completionId, feeling, completedAtIso, symptomTypeRefId, symptomTitle } =
+        params;
 
       const db = getDrizzle();
       let duplicate = false;
 
       const generalTracking =
-        params.generalWellbeingSymptomTypeRefId && params.generalWellbeingSymptomTitle ?
-          await opts.diaries.ensureGeneralWellbeingTracking({
-            userId,
-            symptomTitle: params.generalWellbeingSymptomTitle,
-            symptomTypeRefId: params.generalWellbeingSymptomTypeRefId,
-          })
-        : null;
+        params.generalWellbeingSymptomTypeRefId && params.generalWellbeingSymptomTitle
+          ? await opts.diaries.ensureGeneralWellbeingTracking({
+              userId,
+              symptomTitle: params.generalWellbeingSymptomTitle,
+              symptomTypeRefId: params.generalWellbeingSymptomTypeRefId,
+            })
+          : null;
 
       try {
         await db.transaction(async (tx) => {
@@ -79,9 +83,9 @@ export function createPgWarmupFeelingCompletionPort(opts: {
             platformUserId: userId,
             trackingId,
             value010: feeling,
-            entryType: "instant",
+            entryType: 'instant',
             recordedAt: completedAtIso,
-            source: "webapp",
+            source: 'webapp',
             notes: null,
             patientPracticeCompletionId: completionId,
           });
@@ -92,9 +96,9 @@ export function createPgWarmupFeelingCompletionPort(opts: {
               platformUserId: userId,
               trackingId: generalTracking.id,
               value010: feeling,
-              entryType: "instant",
+              entryType: 'instant',
               recordedAt: completedAtIso,
-              source: "webapp",
+              source: 'webapp',
               notes: WELLBEING_GENERAL_MIRROR_NOTE,
               patientPracticeCompletionId: null,
             });
@@ -104,12 +108,15 @@ export function createPgWarmupFeelingCompletionPort(opts: {
             .update(patientPracticeCompletions)
             .set({ feeling })
             .where(
-              and(eq(patientPracticeCompletions.id, completionId), eq(patientPracticeCompletions.userId, userId)),
+              and(
+                eq(patientPracticeCompletions.id, completionId),
+                eq(patientPracticeCompletions.userId, userId),
+              ),
             );
         });
       } catch (e: unknown) {
         const code = pgErrCode(e);
-        if (code === "23505") {
+        if (code === '23505') {
           duplicate = true;
         } else {
           throw e;

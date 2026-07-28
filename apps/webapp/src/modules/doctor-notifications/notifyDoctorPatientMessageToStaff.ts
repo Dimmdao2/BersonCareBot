@@ -15,18 +15,18 @@
  * systemSettings dep is kept in the type for backward compat with call sites; it is no longer
  * used by this function.
  */
-import { logger } from "@/app-layer/logging/logger";
-import type { ChannelPreferencesPort } from "@/modules/channel-preferences/ports";
-import { buildPersonalChatNotificationText } from "@/modules/messaging/notifyPatientDoctorReply";
-import { relayOutbound, type RelayInlineButton } from "@/modules/messaging/relayOutbound";
-import type { TopicChannelPrefsPort } from "@/modules/patient-notifications/topicChannelPrefsPort";
-import type { SystemSettingsService } from "@/modules/system-settings/service";
-import type { WebPushSubscriptionsPort } from "@/modules/web-push/ports";
-import { defaultDoctorTopicFallbackChannels } from "./doctorTopicChannelDefaults";
-import type { DoctorNotificationTopicCode } from "./doctorNotificationTopics";
-import { resolveDoctorNotificationChannels } from "./resolveDoctorNotificationChannels";
-import type { StaffUsersPort } from "./staffUsersPort";
-import { reportEmptyAudience } from "@/modules/operator-alerts/emptyAudienceRuntime";
+import { logger } from '@/app-layer/logging/logger';
+import type { ChannelPreferencesPort } from '@/modules/channel-preferences/ports';
+import { buildPersonalChatNotificationText } from '@/modules/messaging/notifyPatientDoctorReply';
+import { relayOutbound, type RelayInlineButton } from '@/modules/messaging/relayOutbound';
+import type { TopicChannelPrefsPort } from '@/modules/patient-notifications/topicChannelPrefsPort';
+import type { SystemSettingsService } from '@/modules/system-settings/service';
+import type { WebPushSubscriptionsPort } from '@/modules/web-push/ports';
+import { defaultDoctorTopicFallbackChannels } from './doctorTopicChannelDefaults';
+import type { DoctorNotificationTopicCode } from './doctorNotificationTopics';
+import { resolveDoctorNotificationChannels } from './resolveDoctorNotificationChannels';
+import type { StaffUsersPort } from './staffUsersPort';
+import { reportEmptyAudience } from '@/modules/operator-alerts/emptyAudienceRuntime';
 
 export type NotifyDoctorPatientMessageToStaffDeps = {
   staffUsers: StaffUsersPort;
@@ -34,7 +34,7 @@ export type NotifyDoctorPatientMessageToStaffDeps = {
   channelPreferences: ChannelPreferencesPort;
   webPushSubscriptions: WebPushSubscriptionsPort;
   /** Kept for call-site compat. No longer used; VAPID is read by the integrator adapter. */
-  systemSettings: Pick<SystemSettingsService, "getSetting">;
+  systemSettings: Pick<SystemSettingsService, 'getSetting'>;
   getChannelBindings: (
     platformUserId: string,
   ) => Promise<{ telegramId?: string | null; maxId?: string | null }>;
@@ -62,7 +62,7 @@ export async function notifyDoctorPatientMessageToStaff(
   const staffIds = await deps.staffUsers.listActiveStaffUserIds();
   const globalFallback = defaultDoctorTopicFallbackChannels(input.topicCode);
   const replyMarkup = input.replyMarkup;
-  const notificationText = buildPersonalChatNotificationText(input.senderDisplayName, "patient");
+  const notificationText = buildPersonalChatNotificationText(input.senderDisplayName, 'patient');
   const messengerText = `${notificationText}\n\n${input.notificationUrl}`;
 
   let telegramDelivered = 0;
@@ -76,8 +76,8 @@ export async function notifyDoctorPatientMessageToStaff(
     // «все отписались».
     await reportEmptyAudience({
       topic: `doctor_staff_notify:${input.topicCode}`,
-      severity: "operational",
-      channels: ["telegram", "max", "web_push"],
+      severity: 'operational',
+      channels: ['telegram', 'max', 'web_push'],
     });
     return { telegramDelivered, maxDelivered, pushDelivered };
   }
@@ -108,7 +108,7 @@ export async function notifyDoctorPatientMessageToStaff(
 
     logger.info(
       {
-        event: "doctor_staff_notify.channels",
+        event: 'doctor_staff_notify.channels',
         userId,
         topicCode: input.topicCode,
         messageId: input.messageId,
@@ -116,42 +116,42 @@ export async function notifyDoctorPatientMessageToStaff(
         hasWebPushSubscription: hasPush,
         vapidConfigured: true,
       },
-      "doctor staff notify channels",
+      'doctor staff notify channels',
     );
 
-    if (channels.includes("telegram") && bindings.telegramId?.trim()) {
+    if (channels.includes('telegram') && bindings.telegramId?.trim()) {
       const recipient = bindings.telegramId.trim();
       const result = await relayOutbound({
         messageId: `${input.messageId}:tg:${userId}:${recipient}`,
-        channel: "telegram",
+        channel: 'telegram',
         recipient,
         text: messengerText,
         userId,
         ...(replyMarkup ? { replyMarkup } : {}),
       }).catch((err: unknown) => {
-        logger.warn({ err, userId, topicCode: input.topicCode }, "doctor staff telegram failed");
-        return { ok: false as const, reason: "exception" };
+        logger.warn({ err, userId, topicCode: input.topicCode }, 'doctor staff telegram failed');
+        return { ok: false as const, reason: 'exception' };
       });
       if (result.ok) telegramDelivered += 1;
     }
 
-    if (channels.includes("max") && bindings.maxId?.trim()) {
+    if (channels.includes('max') && bindings.maxId?.trim()) {
       const recipient = bindings.maxId.trim();
       const result = await relayOutbound({
         messageId: `${input.messageId}:max:${userId}:${recipient}`,
-        channel: "max",
+        channel: 'max',
         recipient,
         text: messengerText,
         userId,
         ...(replyMarkup ? { replyMarkup } : {}),
       }).catch((err: unknown) => {
-        logger.warn({ err, userId, topicCode: input.topicCode }, "doctor staff max failed");
-        return { ok: false as const, reason: "exception" };
+        logger.warn({ err, userId, topicCode: input.topicCode }, 'doctor staff max failed');
+        return { ok: false as const, reason: 'exception' };
       });
       if (result.ok) maxDelivered += 1;
     }
 
-    if (channels.includes("web_push") && hasPush) {
+    if (channels.includes('web_push') && hasPush) {
       // Emit a web_push intent to the integrator via relay-outbound.
       // The integrator's WebPushDeliveryAdapter performs the actual send.
       // In dev (DEV_DELIVERY_REDIRECT=1), the pre-fork redirect collapses to the
@@ -160,17 +160,20 @@ export async function notifyDoctorPatientMessageToStaff(
       const result = await relayOutbound({
         messageId: `${input.messageId}:push:${userId}`,
         organizationId: input.organizationId,
-        channel: "web_push",
+        channel: 'web_push',
         recipient: userId,
         text: notificationText,
         metadata: {
-          title: "Новое сообщение",
+          title: 'Новое сообщение',
           url: input.notificationUrl,
           pushExtras: { tag },
         },
       }).catch((err: unknown) => {
-        logger.warn({ err, userId, topicCode: input.topicCode }, "doctor staff web push relay failed");
-        return { ok: false as const, reason: "relay_error" };
+        logger.warn(
+          { err, userId, topicCode: input.topicCode },
+          'doctor staff web push relay failed',
+        );
+        return { ok: false as const, reason: 'relay_error' };
       });
       if (result.ok) pushDelivered += 1;
     }

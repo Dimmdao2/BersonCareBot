@@ -4,13 +4,13 @@
 
 **0 → 1 → 2 → 3 → финал.** После каждого этапа — блок в [`LOG.md`](./LOG.md).
 
-| Этап | Содержание |
-|------|------------|
-| 0 | Папка инициативы, README, STAGE_PLAN, LOG |
-| 1 | `docs/README` + политика в README инициативы + `apps/webapp/scripts/README` |
-| 2 | Playbook ниже (полный чеклист PR) |
-| 3 | Vitest / CI / legacy: документация + backlog в LOG |
-| Финал | `pnpm install --frozen-lockfile && pnpm run ci` из корня репозитория |
+| Этап  | Содержание                                                                  |
+| ----- | --------------------------------------------------------------------------- |
+| 0     | Папка инициативы, README, STAGE_PLAN, LOG                                   |
+| 1     | `docs/README` + политика в README инициативы + `apps/webapp/scripts/README` |
+| 2     | Playbook ниже (полный чеклист PR)                                           |
+| 3     | Vitest / CI / legacy: документация + backlog в LOG                          |
+| Финал | `pnpm install --frozen-lockfile && pnpm run ci` из корня репозитория        |
 
 ---
 

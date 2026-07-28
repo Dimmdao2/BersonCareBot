@@ -15,7 +15,7 @@
   background-color: var(--doctor-page-gap-background);
 
   /* Doctor visual identity tokens (depth via borders/soft surfaces). */
-  --doctor-surface-subtle: var(--bc-rail, #FBFAF6);
+  --doctor-surface-subtle: var(--bc-rail, #fbfaf6);
   --doctor-border-soft: color-mix(in srgb, var(--border) 75%, transparent);
   --doctor-nav-active-bg: color-mix(in srgb, var(--primary) 12%, #ffffff);
   --doctor-nav-active-fg: var(--primary);
@@ -26,7 +26,10 @@
    * <md (мобильный): под фиксированной глобальной DoctorHeader → её высота.
    * md+ (desktop): глобальной шапки нет; якорь = per-page DoctorPageHeader (0, если шапки на странице нет).
    */
-  --doctor-sticky-offset: var(--doctor-mobile-header-h, calc(3.5rem + env(safe-area-inset-top, 0px)));
+  --doctor-sticky-offset: var(
+    --doctor-mobile-header-h,
+    calc(3.5rem + env(safe-area-inset-top, 0px))
+  );
 }
 
 @media (min-width: 768px) {

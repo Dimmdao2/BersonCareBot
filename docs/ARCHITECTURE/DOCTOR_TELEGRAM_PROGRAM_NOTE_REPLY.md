@@ -66,9 +66,9 @@
 
 ## Доставка пациенту
 
-| Канал | Поведение |
-|--------|-----------|
-| PWA `/app/patient/messages` | Полный текст с префиксом в `support_conversation_messages` (`sender_role: admin`) |
+| Канал                             | Поведение                                                                                                                                                |
+| --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| PWA `/app/patient/messages`       | Полный текст с префиксом в `support_conversation_messages` (`sender_role: admin`)                                                                        |
 | Telegram / MAX / email / Web Push | [`notifyPatientDoctorReply`](../../apps/webapp/src/modules/messaging/notifyPatientDoctorReply.ts) — preview + ссылка на чат (тот же текст, что в thread) |
 
 Идемпотентность admin-reply: `support-admin:{integratorMessageId}`.
@@ -84,11 +84,11 @@
 
 ## M2M API (webapp)
 
-| Endpoint | Назначение |
-|----------|------------|
-| `POST /api/integrator/program-note/reply-begin` | `{ stageItemId }` → `{ ok, programNoteReplyState, platformUserId, exerciseTitle, integratorConversationId }` |
-| `POST /api/integrator/support/admin-reply` | `{ integratorConversationId, integratorMessageId, text, createdAt, programNoteStageItemId? }` |
-| `POST /api/integrator/support/sync-user-message` | Входящие от пациента из бота (без изменений) |
+| Endpoint                                         | Назначение                                                                                                   |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| `POST /api/integrator/program-note/reply-begin`  | `{ stageItemId }` → `{ ok, programNoteReplyState, platformUserId, exerciseTitle, integratorConversationId }` |
+| `POST /api/integrator/support/admin-reply`       | `{ integratorConversationId, integratorMessageId, text, createdAt, programNoteStageItemId? }`                |
+| `POST /api/integrator/support/sync-user-message` | Входящие от пациента из бота (без изменений)                                                                 |
 
 Подпись и idempotency — как у других integrator M2M (`x-bersoncare-*`).
 
@@ -101,16 +101,16 @@
 
 ## Код (краткая карта)
 
-| Слой | Файлы |
-|------|--------|
-| Webapp notify / prefix | `notifyDoctorPatientProgramNote.ts`, `programNoteReplyContext.ts`, `integratorSupportBridge.ts`, `sendProgramNoteReply.ts` |
-| Webapp patient discussion | `modules/program-item-discussion/**`, `ProgramItemDiscussionDialog.tsx`, patient discussion API routes |
-| Webapp doctor reply UI | `TreatmentProgramInstanceDetailClient.tsx`, `POST .../program-note-reply/route.ts` |
-| Webapp API | `api/integrator/program-note/reply-begin/route.ts`, `api/integrator/support/admin-reply/route.ts` |
-| Integrator scripts | `content/telegram/admin/scripts.json`, `content/max/admin/scripts.json` |
-| Integrator executor | `executeAction.ts` (`webapp.programNote.replyBegin`), `handlers/supportRelay.ts` |
-| Integrator mapIn | `integrations/telegram/mapIn.ts` — `program_reply:` |
-| Staff `isAdmin` | `infra/db/messengerStaffIds.ts`, `app/routes.ts` → `buildAdminFacts` / `buildMaxFacts` |
+| Слой                      | Файлы                                                                                                                      |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Webapp notify / prefix    | `notifyDoctorPatientProgramNote.ts`, `programNoteReplyContext.ts`, `integratorSupportBridge.ts`, `sendProgramNoteReply.ts` |
+| Webapp patient discussion | `modules/program-item-discussion/**`, `ProgramItemDiscussionDialog.tsx`, patient discussion API routes                     |
+| Webapp doctor reply UI    | `TreatmentProgramInstanceDetailClient.tsx`, `POST .../program-note-reply/route.ts`                                         |
+| Webapp API                | `api/integrator/program-note/reply-begin/route.ts`, `api/integrator/support/admin-reply/route.ts`                          |
+| Integrator scripts        | `content/telegram/admin/scripts.json`, `content/max/admin/scripts.json`                                                    |
+| Integrator executor       | `executeAction.ts` (`webapp.programNote.replyBegin`), `handlers/supportRelay.ts`                                           |
+| Integrator mapIn          | `integrations/telegram/mapIn.ts` — `program_reply:`                                                                        |
+| Staff `isAdmin`           | `infra/db/messengerStaffIds.ts`, `app/routes.ts` → `buildAdminFacts` / `buildMaxFacts`                                     |
 
 Инициатива фиксов ботов (2026-05-30): [`docs/BOT_FIXES/README.md`](../BOT_FIXES/README.md).
 

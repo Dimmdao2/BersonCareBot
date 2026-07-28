@@ -1,15 +1,15 @@
-import { NextResponse } from "next/server";
-import { and, desc, eq } from "drizzle-orm";
-import { getDrizzle } from "@/app-layer/db/drizzle";
-import { beAppointments } from "../../../../../../db/schema/bookingEngine";
-import { requireClinicManagementBookingEngine } from "../_requireAdminBookingEngine";
+import { NextResponse } from 'next/server';
+import { and, desc, eq } from 'drizzle-orm';
+import { getDrizzle } from '@/app-layer/db/drizzle';
+import { beAppointments } from '../../../../../../db/schema/bookingEngine';
+import { requireClinicManagementBookingEngine } from '../_requireAdminBookingEngine';
 
 export async function GET(request: Request) {
   const gate = await requireClinicManagementBookingEngine();
   if (!gate.ok) return gate.response;
 
   const url = new URL(request.url);
-  const limit = Math.min(50, Math.max(1, Number(url.searchParams.get("limit") ?? "20") || 20));
+  const limit = Math.min(50, Math.max(1, Number(url.searchParams.get('limit') ?? '20') || 20));
 
   const db = getDrizzle();
   const rows = await db
@@ -24,7 +24,7 @@ export async function GET(request: Request) {
     .where(
       and(
         eq(beAppointments.organizationId, gate.ctx.organizationId),
-        eq(beAppointments.source, "public_widget"),
+        eq(beAppointments.source, 'public_widget'),
       ),
     )
     .orderBy(desc(beAppointments.createdAt))

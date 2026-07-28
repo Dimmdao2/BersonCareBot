@@ -16,13 +16,13 @@
 - **Только** стандартное всплывающее уведомление — в проекте **`react-hot-toast`** (как в booking/cabinet).
 - Контент **чужого** кабинета **не рендерится**; пользователь оказывается на **своём** hub, видит toast.
 
-| Кто | Куда лезет | Станет (волна 2) |
-|-----|------------|------------------|
-| `client` | staff-зона (`/app/doctor`, `/app/settings`, `/app/admin`) | не рендерим staff → свой `/app/patient` + **toast** |
-| `doctor` / `admin` | `/app/patient/**` | не рендерим patient → свой `/app/doctor` + **toast** |
-| `doctor` (не admin) | `/app/admin/**` | не рендерим admin → свой `/app/doctor` + **toast** |
-| Entry `/app`, `/app/tg`, `/app/max` | — | как сейчас — вход в свой hub, **без** toast |
-| API | — | 401/403 JSON, без изменений |
+| Кто                                 | Куда лезет                                                | Станет (волна 2)                                     |
+| ----------------------------------- | --------------------------------------------------------- | ---------------------------------------------------- |
+| `client`                            | staff-зона (`/app/doctor`, `/app/settings`, `/app/admin`) | не рендерим staff → свой `/app/patient` + **toast**  |
+| `doctor` / `admin`                  | `/app/patient/**`                                         | не рендерим patient → свой `/app/doctor` + **toast** |
+| `doctor` (не admin)                 | `/app/admin/**`                                           | не рендерим admin → свой `/app/doctor` + **toast**   |
+| Entry `/app`, `/app/tg`, `/app/max` | —                                                         | как сейчас — вход в свой hub, **без** toast          |
+| API                                 | —                                                         | 401/403 JSON, без изменений                          |
 
 **Текст toast (одна строка):** например «Нет доступа к этому разделу» — без подзаголовков и CTA на экране (правило лаконичных строк UI).
 
@@ -46,12 +46,12 @@
 
 ## Целевой UX (Staff PWA)
 
-| | Patient PWA | Staff PWA (волна 2) |
-|--|-------------|---------------------|
-| Иконка | `pwa-icon-*.png` | LOGO_BERSONADMIN |
-| `start_url` | `/app/patient` | `/app/doctor` |
-| Install | `/`, `/app/patient/install` | `/app/doctor/install` |
-| Чужая зона | toast на своём hub | toast на своём hub |
+|             | Patient PWA                 | Staff PWA (волна 2)   |
+| ----------- | --------------------------- | --------------------- |
+| Иконка      | `pwa-icon-*.png`            | LOGO_BERSONADMIN      |
+| `start_url` | `/app/patient`              | `/app/doctor`         |
+| Install     | `/`, `/app/patient/install` | `/app/doctor/install` |
+| Чужая зона  | toast на своём hub          | toast на своём hub    |
 
 ---
 
@@ -59,53 +59,53 @@
 
 ### A. Блокировка + toast (сначала)
 
-| Этап | Содержание | Файлы |
-|------|------------|-------|
-| **2.A0** ✅ | Константа query + helper редиректа на свой hub с флагом toast | `shared/lib/appAccessDeniedToast.ts`, `appAccessDeniedToast.test.ts` |
-| **2.A1** ✅ | Client: чтение флага в shell, `react-hot-toast`, strip query | `AppAccessDeniedToastEffect`, `PatientAppShell`, `DoctorWorkspaceShell` |
-| **2.A2** ✅ | Staff guards: `requireDoctorAccess`, `settings/layout`, `admin/layout` | `requireRole.ts`, staff layouts |
-| **2.A3** ✅ | Patient: staff на `/app/patient/**` — тот же паттерн | `patient/layout.tsx` (только role-block) |
-| **2.A4** ✅ | Тесты: guards → redirect на свой hub + query; toast helper unit | vitest / e2e |
-| **2.A5** ✅ | INVENTORY, ACCEPTANCE_WAVE2 §access | `INVENTORY_AND_MATRIX.md`, `ACCEPTANCE_WAVE2.md`, `SCOPE_BOUNDARIES.md` |
-| **2.A5+** ✅ | Доработка по аудиту: `next=` toast, тесты, docs sync | `LandingPwaClientBootstrap`, helpers в `appAccessDeniedToast.ts`, +6 тестов |
+| Этап         | Содержание                                                             | Файлы                                                                       |
+| ------------ | ---------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| **2.A0** ✅  | Константа query + helper редиректа на свой hub с флагом toast          | `shared/lib/appAccessDeniedToast.ts`, `appAccessDeniedToast.test.ts`        |
+| **2.A1** ✅  | Client: чтение флага в shell, `react-hot-toast`, strip query           | `AppAccessDeniedToastEffect`, `PatientAppShell`, `DoctorWorkspaceShell`     |
+| **2.A2** ✅  | Staff guards: `requireDoctorAccess`, `settings/layout`, `admin/layout` | `requireRole.ts`, staff layouts                                             |
+| **2.A3** ✅  | Patient: staff на `/app/patient/**` — тот же паттерн                   | `patient/layout.tsx` (только role-block)                                    |
+| **2.A4** ✅  | Тесты: guards → redirect на свой hub + query; toast helper unit        | vitest / e2e                                                                |
+| **2.A5** ✅  | INVENTORY, ACCEPTANCE_WAVE2 §access                                    | `INVENTORY_AND_MATRIX.md`, `ACCEPTANCE_WAVE2.md`, `SCOPE_BOUNDARIES.md`     |
+| **2.A5+** ✅ | Доработка по аудиту: `next=` toast, тесты, docs sync                   | `LandingPwaClientBootstrap`, helpers в `appAccessDeniedToast.ts`, +6 тестов |
 
 **Не делать:** `AccessDeniedScreen`, `/app/access-denied`, Dialog «нет доступа».
 
 ### §A — точки enforcement (итог)
 
-| Механизм | Файл |
-|----------|------|
-| `requireDoctorAccess` | `requireRole.ts` |
-| `requirePatientAccess`, `getOptionalPatientSession` | `requireRole.ts` |
-| Role-block | `patient/layout.tsx` |
-| Settings / admin layout | `settings/layout.tsx`, `admin/layout.tsx` |
-| Toast consumer (hub) | `PatientAppShell`, `DoctorWorkspaceShell` |
-| Toast consumer (install `next`) | `LandingPwaClientBootstrap` |
+| Механизм                                            | Файл                                      |
+| --------------------------------------------------- | ----------------------------------------- |
+| `requireDoctorAccess`                               | `requireRole.ts`                          |
+| `requirePatientAccess`, `getOptionalPatientSession` | `requireRole.ts`                          |
+| Role-block                                          | `patient/layout.tsx`                      |
+| Settings / admin layout                             | `settings/layout.tsx`, `admin/layout.tsx` |
+| Toast consumer (hub)                                | `PatientAppShell`, `DoctorWorkspaceShell` |
+| Toast consumer (install `next`)                     | `LandingPwaClientBootstrap`               |
 
 ### B. Staff PWA (после 2.A2 или параллельно)
 
-| Этап | Содержание |
-|------|------------|
-| **2.B0** ✅ | ADR: scope manifest, обязательность install | [`STAFF_PWA_ADR.md`](STAFF_PWA_ADR.md) |
-| **2.B1** ✅ | `staff-pwa-icon-192/512` (LOGO_BERSONADMIN) | `public/staff-pwa-icon-*`, `staff-pwa-apple-touch.png` |
-| **2.B2** ✅ | `manifest-staff` | `staffPwaManifest.ts`, `manifest-staff.webmanifest/route.ts` |
-| **2.B3** ✅ | `/app/doctor/install` | `doctor/install/page.tsx`, `StaffPwaInstallSection.tsx` |
-| **2.B4** ✅ | SW registration staff | `StaffPwaBootstrap.tsx` → `DoctorWorkspaceShell` |
-| **2.B5** ✅ | Metadata install | `staffPwaLayoutMetadata.ts` → doctor/settings/admin layouts |
-| **2.B6** ✅ | Smoke + `ACCEPTANCE_WAVE2.md` | vitest manifest/route/layouts + smoke `doctor/install` |
-| **2.B7** ✅ | Ссылка на install в меню staff | `DoctorAdminSidebar`, `DoctorHeader` Sheet |
-| **2.B8** ✅ | «Готово» без false positive patient standalone | `staffPwaInstallState.ts` (marker, не `standalone` alone) |
+| Этап        | Содержание                                     |
+| ----------- | ---------------------------------------------- | ------------------------------------------------------------ |
+| **2.B0** ✅ | ADR: scope manifest, обязательность install    | [`STAFF_PWA_ADR.md`](STAFF_PWA_ADR.md)                       |
+| **2.B1** ✅ | `staff-pwa-icon-192/512` (LOGO_BERSONADMIN)    | `public/staff-pwa-icon-*`, `staff-pwa-apple-touch.png`       |
+| **2.B2** ✅ | `manifest-staff`                               | `staffPwaManifest.ts`, `manifest-staff.webmanifest/route.ts` |
+| **2.B3** ✅ | `/app/doctor/install`                          | `doctor/install/page.tsx`, `StaffPwaInstallSection.tsx`      |
+| **2.B4** ✅ | SW registration staff                          | `StaffPwaBootstrap.tsx` → `DoctorWorkspaceShell`             |
+| **2.B5** ✅ | Metadata install                               | `staffPwaLayoutMetadata.ts` → doctor/settings/admin layouts  |
+| **2.B6** ✅ | Smoke + `ACCEPTANCE_WAVE2.md`                  | vitest manifest/route/layouts + smoke `doctor/install`       |
+| **2.B7** ✅ | Ссылка на install в меню staff                 | `DoctorAdminSidebar`, `DoctorHeader` Sheet                   |
+| **2.B8** ✅ | «Готово» без false positive patient standalone | `staffPwaInstallState.ts` (marker, не `standalone` alone)    |
 
 ### §B — артефакты (итог)
 
-| Область | Файлы |
-|---------|--------|
-| ADR | [`STAFF_PWA_ADR.md`](STAFF_PWA_ADR.md) |
-| Manifest | `staffPwaManifest.ts`, `manifest-staff.webmanifest/route.ts`, `staffPwaLayoutMetadata.ts` |
-| Install | `doctor/install/page.tsx`, `StaffPwaInstallSection.tsx`, `staffPwaInstallState.ts` |
-| SW | `StaffPwaBootstrap.tsx` → `DoctorWorkspaceShell` |
-| Иконки | `public/staff-pwa-icon-192/512.png`, `staff-pwa-apple-touch.png` |
-| Навигация | `routePaths.doctorInstall`, sidebar + mobile Sheet |
+| Область   | Файлы                                                                                     |
+| --------- | ----------------------------------------------------------------------------------------- |
+| ADR       | [`STAFF_PWA_ADR.md`](STAFF_PWA_ADR.md)                                                    |
+| Manifest  | `staffPwaManifest.ts`, `manifest-staff.webmanifest/route.ts`, `staffPwaLayoutMetadata.ts` |
+| Install   | `doctor/install/page.tsx`, `StaffPwaInstallSection.tsx`, `staffPwaInstallState.ts`        |
+| SW        | `StaffPwaBootstrap.tsx` → `DoctorWorkspaceShell`                                          |
+| Иконки    | `public/staff-pwa-icon-192/512.png`, `staff-pwa-apple-touch.png`                          |
+| Навигация | `routePaths.doctorInstall`, sidebar + mobile Sheet                                        |
 
 ---
 
@@ -148,13 +148,13 @@
 
 ### C. Staff web push (post-§B)
 
-| Этап | Содержание |
-|------|------------|
-| **2.C0** ✅ | API `/api/doctor/web-push/*`, subscribe/unsubscribe, VAPID из admin settings |
-| **2.C1** ✅ | `/app/settings` — push + матрица тем (`doctor_specialist_task_reminders`, `doctor_patient_messages`) |
+| Этап        | Содержание                                                                                                                                                                            |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **2.C0** ✅ | API `/api/doctor/web-push/*`, subscribe/unsubscribe, VAPID из admin settings                                                                                                          |
+| **2.C1** ✅ | `/app/settings` — push + матрица тем (`doctor_specialist_task_reminders`, `doctor_patient_messages`)                                                                                  |
 | **2.C2** ✅ | Доставка: задачи per-owner; сообщения per-staff (**push-first**: web_push → tg → max); integrator sync — канон [`NOTIFICATION_CHANNELS.md`](../ARCHITECTURE/NOTIFICATION_CHANNELS.md) |
-| **2.C3** ✅ | `StaffWebPushBootstrap`, defaults при subscribe, opt-in на install |
-| **2.C4** ✅ | Тесты + docs (`STAFF_PWA_ADR` post-§B, `api.md`, `INTEGRATOR_CONTRACT`) |
+| **2.C3** ✅ | `StaffWebPushBootstrap`, defaults при subscribe, opt-in на install                                                                                                                    |
+| **2.C4** ✅ | Тесты + docs (`STAFF_PWA_ADR` post-§B, `api.md`, `INTEGRATOR_CONTRACT`)                                                                                                               |
 
 ## Проверки
 

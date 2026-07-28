@@ -1,6 +1,6 @@
-import { createHmac } from "node:crypto";
-import { getCurrentCorrelationIdHeader } from "@bersoncare/db-principal";
-import { env, integratorWebhookSecret } from "@/config/env";
+import { createHmac } from 'node:crypto';
+import { getCurrentCorrelationIdHeader } from '@bersoncare/db-principal';
+import { env, integratorWebhookSecret } from '@/config/env';
 
 type SendEmailResult = { ok: true } | { ok: false; error: string };
 
@@ -11,17 +11,17 @@ export type IntegratorEmailAdapterDeps = {
 };
 
 function signPayload(timestamp: string, rawBody: string, secret: string): string {
-  return createHmac("sha256", secret).update(`${timestamp}.${rawBody}`).digest("base64url");
+  return createHmac('sha256', secret).update(`${timestamp}.${rawBody}`).digest('base64url');
 }
 
 export function createIntegratorEmailAdapter(deps: IntegratorEmailAdapterDeps) {
   const fetchImpl = deps.fetchImpl ?? fetch;
-  const baseUrl = deps.integratorBaseUrl.replace(/\/$/, "");
+  const baseUrl = deps.integratorBaseUrl.replace(/\/$/, '');
   const url = `${baseUrl}/api/bersoncare/send-email`;
 
   async function postSendEmail(payload: Record<string, string>): Promise<SendEmailResult> {
     if (!deps.integratorBaseUrl || !deps.sharedSecret) {
-      return { ok: false, error: "integrator_not_configured" };
+      return { ok: false, error: 'integrator_not_configured' };
     }
 
     const body = JSON.stringify(payload);
@@ -31,24 +31,24 @@ export function createIntegratorEmailAdapter(deps: IntegratorEmailAdapterDeps) {
     let res: Response;
     try {
       res = await fetchImpl(url, {
-        method: "POST",
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
-          "X-Bersoncare-Timestamp": timestamp,
-          "X-Bersoncare-Signature": signature,
+          'Content-Type': 'application/json',
+          'X-Bersoncare-Timestamp': timestamp,
+          'X-Bersoncare-Signature': signature,
           ...getCurrentCorrelationIdHeader(),
         },
         body,
       });
     } catch {
-      return { ok: false, error: "network_error" };
+      return { ok: false, error: 'network_error' };
     }
     if (!res.ok) {
       return { ok: false, error: `http_${res.status}` };
     }
     const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
     if (!data.ok) {
-      return { ok: false, error: data.error ?? "integrator_send_failed" };
+      return { ok: false, error: data.error ?? 'integrator_send_failed' };
     }
     return { ok: true };
   }
@@ -58,13 +58,20 @@ export function createIntegratorEmailAdapter(deps: IntegratorEmailAdapterDeps) {
       return postSendEmail({ to, code });
     },
 
-    async sendTransactionalEmail(to: string, subject: string, text: string): Promise<SendEmailResult> {
+    async sendTransactionalEmail(
+      to: string,
+      subject: string,
+      text: string,
+    ): Promise<SendEmailResult> {
       return postSendEmail({ to, subject, text });
     },
   };
 }
 
-export async function sendEmailCodeViaIntegrator(to: string, code: string): Promise<SendEmailResult> {
+export async function sendEmailCodeViaIntegrator(
+  to: string,
+  code: string,
+): Promise<SendEmailResult> {
   const adapter = createIntegratorEmailAdapter({
     integratorBaseUrl: env.INTEGRATOR_API_URL,
     sharedSecret: integratorWebhookSecret(),

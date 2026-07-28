@@ -1,21 +1,21 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
-import { reconcileStalePatientWebPushSubscriptions } from "./reconcilePatientWebPush";
+import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { reconcileStalePatientWebPushSubscriptions } from './reconcilePatientWebPush';
 
 const unsubscribeAll = vi.fn();
 
-vi.mock("@/shared/lib/webPush/patientWebPushApi", () => ({
+vi.mock('@/shared/lib/webPush/patientWebPushApi', () => ({
   unsubscribeAllPatientWebPush: () => unsubscribeAll(),
 }));
 
-describe("reconcileStalePatientWebPushSubscriptions", () => {
+describe('reconcileStalePatientWebPushSubscriptions', () => {
   beforeEach(() => {
     unsubscribeAll.mockReset();
     unsubscribeAll.mockResolvedValue(true);
   });
 
-  it("clears server subs when permission denied", async () => {
+  it('clears server subs when permission denied', async () => {
     const ok = await reconcileStalePatientWebPushSubscriptions({
-      permission: "denied",
+      permission: 'denied',
       hasLocalSubscription: false,
       hasServerSubscription: true,
     });
@@ -23,18 +23,18 @@ describe("reconcileStalePatientWebPushSubscriptions", () => {
     expect(unsubscribeAll).toHaveBeenCalledOnce();
   });
 
-  it("clears stale server subs when default and no local sub", async () => {
+  it('clears stale server subs when default and no local sub', async () => {
     const ok = await reconcileStalePatientWebPushSubscriptions({
-      permission: "default",
+      permission: 'default',
       hasLocalSubscription: false,
       hasServerSubscription: true,
     });
     expect(ok).toBe(true);
   });
 
-  it("skips when no server subscription", async () => {
+  it('skips when no server subscription', async () => {
     const ok = await reconcileStalePatientWebPushSubscriptions({
-      permission: "denied",
+      permission: 'denied',
       hasLocalSubscription: false,
       hasServerSubscription: false,
     });
@@ -42,9 +42,9 @@ describe("reconcileStalePatientWebPushSubscriptions", () => {
     expect(unsubscribeAll).not.toHaveBeenCalled();
   });
 
-  it("skips when granted with local sub", async () => {
+  it('skips when granted with local sub', async () => {
     const ok = await reconcileStalePatientWebPushSubscriptions({
-      permission: "granted",
+      permission: 'granted',
       hasLocalSubscription: true,
       hasServerSubscription: true,
     });
@@ -52,9 +52,9 @@ describe("reconcileStalePatientWebPushSubscriptions", () => {
     expect(unsubscribeAll).not.toHaveBeenCalled();
   });
 
-  it("clears server subs when global web push pref is off", async () => {
+  it('clears server subs when global web push pref is off', async () => {
     const ok = await reconcileStalePatientWebPushSubscriptions({
-      permission: "granted",
+      permission: 'granted',
       hasLocalSubscription: true,
       hasServerSubscription: true,
       globalWebPushEnabled: false,

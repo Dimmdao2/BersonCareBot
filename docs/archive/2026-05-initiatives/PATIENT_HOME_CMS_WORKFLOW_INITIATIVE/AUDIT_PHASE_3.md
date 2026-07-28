@@ -16,36 +16,36 @@ Inline-create раздела для сценария «пустые кандид
 
 ## 2. Checklist coverage (`03_INLINE_CREATE_SECTIONS_PLAN.md`)
 
-| Пункт чеклиста | Статус | Доказательство |
-| --- | --- | --- |
-| Server action implemented with strict validation. | **Да** | `createContentSectionForPatientHomeBlock` в `actions.ts`: `requireDoctorAccess`, Zod, slug/media/slug uniqueness, `patientHomeCmsBlockAllowsContentSection`. |
-| UI inline form integrated into block editor. | **Да** | `PatientHomeCreateSectionInlineForm.tsx`, `PatientHomeBlockCandidatePicker` + `PatientHomeBlockEditorDialog`. |
-| Successful create auto-adds item. | **Да (UI)** | `onInlineSectionCreated` добавляет `item` в локальный список; персистентная строка блока — после `patient_home_*`. |
-| Duplicate/invalid slug failures handled. | **Да** | `getBySlug` + паттерн slug; тесты в `actions.test.ts`. |
-| Media URL policy reused. | **Да** | `validateOptionalMediaUrl` + `API_MEDIA_URL_RE` / `isLegacyAbsoluteUrl`. |
-| Tests for action + UI added/updated. | **Да** | `actions.test.ts`, `patientHomeBlockEditor.test.tsx`. |
-| `LOG.md` updated. | **Частично** → **FIX** | Была запись Phase 3 EXEC, но **не** выполнен явный пункт плана §Documentation Artifacts: контракт action и edge cases в журнале; плюс дублирующая запись «повторный запрос». |
+| Пункт чеклиста                                    | Статус                 | Доказательство                                                                                                                                                               |
+| ------------------------------------------------- | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Server action implemented with strict validation. | **Да**                 | `createContentSectionForPatientHomeBlock` в `actions.ts`: `requireDoctorAccess`, Zod, slug/media/slug uniqueness, `patientHomeCmsBlockAllowsContentSection`.                 |
+| UI inline form integrated into block editor.      | **Да**                 | `PatientHomeCreateSectionInlineForm.tsx`, `PatientHomeBlockCandidatePicker` + `PatientHomeBlockEditorDialog`.                                                                |
+| Successful create auto-adds item.                 | **Да (UI)**            | `onInlineSectionCreated` добавляет `item` в локальный список; персистентная строка блока — после `patient_home_*`.                                                           |
+| Duplicate/invalid slug failures handled.          | **Да**                 | `getBySlug` + паттерн slug; тесты в `actions.test.ts`.                                                                                                                       |
+| Media URL policy reused.                          | **Да**                 | `validateOptionalMediaUrl` + `API_MEDIA_URL_RE` / `isLegacyAbsoluteUrl`.                                                                                                     |
+| Tests for action + UI added/updated.              | **Да**                 | `actions.test.ts`, `patientHomeBlockEditor.test.tsx`.                                                                                                                        |
+| `LOG.md` updated.                                 | **Частично** → **FIX** | Была запись Phase 3 EXEC, но **не** выполнен явный пункт плана §Documentation Artifacts: контракт action и edge cases в журнале; плюс дублирующая запись «повторный запрос». |
 
 ---
 
 ## 3. Scope vs plan
 
-| Пункт `03` Scope | Статус |
-| --- | --- |
-| 1. Server action `createContentSectionForPatientHomeBlock` | **Да** |
+| Пункт `03` Scope                                               | Статус                                                               |
+| -------------------------------------------------------------- | -------------------------------------------------------------------- | --------------------------------------------------- |
+| 1. Server action `createContentSectionForPatientHomeBlock`     | **Да**                                                               |
 | 2. Validate doctor/admin, block, title/slug, media, uniqueness | **Да** (`requireDoctorAccess` = врач или админ по `canAccessDoctor`) |
-| 3. Create via content sections port | **Да** |
-| 4. Add as `patient_home_block_item` | **Отложено** | Нет таблицы; UI получает элемент из ответа action. |
-| 5. Keep user in editor context | **Да** | Диалог не закрывается; список обновляется локально. |
+| 3. Create via content sections port                            | **Да**                                                               |
+| 4. Add as `patient_home_block_item`                            | **Отложено**                                                         | Нет таблицы; UI получает элемент из ответа action.  |
+| 5. Keep user in editor context                                 | **Да**                                                               | Диалог не закрывается; список обновляется локально. |
 
 ---
 
 ## 4. Out of scope (негативная проверка)
 
-| Запрет | Статус |
-| --- | --- |
-| No inline pages/courses | **Ок** |
-| No slug rename | **Ок** |
+| Запрет                           | Статус                                       |
+| -------------------------------- | -------------------------------------------- |
+| No inline pages/courses          | **Ок**                                       |
+| No slug rename                   | **Ок**                                       |
 | No patient runtime style changes | **Ок** (footprint — doctor/settings/modules) |
 
 ---

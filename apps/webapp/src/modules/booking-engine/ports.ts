@@ -12,13 +12,18 @@ import type {
   CreateManualPatientVisitInput,
   CreateManualPatientVisitResult,
   TransitionAppointmentStatusInput,
-} from "./types";
+} from './types';
 
 export type OrganizationPort = {
   getDefaultOrganizationId(): Promise<string>;
   getOrganization(id: string): Promise<BeOrganization | null>;
   listOrganizations(): Promise<BeOrganization[]>;
-  upsertOrganization(input: { id?: string; title: string; isActive: boolean; sortOrder: number }): Promise<BeOrganization>;
+  upsertOrganization(input: {
+    id?: string;
+    title: string;
+    isActive: boolean;
+    sortOrder: number;
+  }): Promise<BeOrganization>;
 };
 
 export type OrganizationCatalogPort = {
@@ -90,9 +95,9 @@ export type OrganizationCatalogPort = {
     isActive: boolean;
   }): Promise<void>;
 
-  listSpecialistRooms(organizationId: string): Promise<
-    { id: string; specialistId: string; roomId: string; isActive: boolean }[]
-  >;
+  listSpecialistRooms(
+    organizationId: string,
+  ): Promise<{ id: string; specialistId: string; roomId: string; isActive: boolean }[]>;
 };
 
 export type ServiceAvailabilityPort = {
@@ -127,7 +132,9 @@ export type ServiceAvailabilityPort = {
     isActive: boolean;
     sortOrder: number;
   }): Promise<BeSpecialistServiceAvailability>;
-  listSpecialistServiceAvailability(organizationId: string): Promise<BeSpecialistServiceAvailability[]>;
+  listSpecialistServiceAvailability(
+    organizationId: string,
+  ): Promise<BeSpecialistServiceAvailability[]>;
   deactivateSpecialistServiceAvailability(id: string): Promise<boolean>;
 
   upsertServiceLocationAvailability(input: {
@@ -153,7 +160,10 @@ export type ServiceAvailabilityPort = {
 export type BookingEnginePort = {
   getAppointment(id: string): Promise<BeAppointment | null>;
   /** Chain rows are ordered by their zero-based position. */
-  listAppointmentsByChainId(input: { organizationId: string; chainId: string }): Promise<BeAppointment[]>;
+  listAppointmentsByChainId(input: {
+    organizationId: string;
+    chainId: string;
+  }): Promise<BeAppointment[]>;
   /** Status immediately before transition to `charged_to_package` (for package refund revert). */
   getStatusBeforePackageCharge(appointmentId: string): Promise<AppointmentStatus | null>;
   createAppointment(input: CreateAppointmentInput): Promise<BeAppointment>;
@@ -167,7 +177,10 @@ export type BookingEnginePort = {
   createAppointmentChain(inputs: CreateAppointmentInput[]): Promise<BeAppointment[]>;
   transitionAppointmentStatus(input: TransitionAppointmentStatusInput): Promise<BeAppointment>;
   /** Hard delete is used only for immediate create rollback before side-effects. */
-  deleteAppointmentHard?(input: { organizationId: string; appointmentId: string }): Promise<boolean>;
+  deleteAppointmentHard?(input: {
+    organizationId: string;
+    appointmentId: string;
+  }): Promise<boolean>;
 };
 
 export type BookingEngineCorePort = OrganizationPort &

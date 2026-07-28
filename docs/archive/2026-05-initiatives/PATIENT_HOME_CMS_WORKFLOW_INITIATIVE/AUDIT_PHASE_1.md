@@ -16,14 +16,14 @@
 
 ## 2. Checklist coverage (`01_DIAGNOSTICS_LABELS_PLAN.md`)
 
-| Пункт чеклиста | Статус | Доказательство |
-| --- | --- | --- |
-| Metadata helper added with full block coverage. | **Да** | `blocks.ts` (CMS + системные коды), `getPatientHomeBlockEditorMetadata` / `getPatientHomeBlockDisplayTitle` / `getPatientHomeAddItemDialogTitle` в `blockEditorMetadata.ts`; покрытие в `blockEditorMetadata.test.ts` по всем `PATIENT_HOME_CMS_BLOCK_CODES`. |
-| Settings copy uses metadata helper. | **Да** | `PatientHomeBlockSettingsCard.tsx`, `PatientHomeBlockPreview.tsx`, unified `PatientHomeBlockEditorDialog.tsx` / picker импортируют метаданные из `@/modules/patient-home/blockEditorMetadata` и `@/modules/patient-home/blocks`. Отдельный `PatientHomeAddItemDialog.tsx` не используется с Phase 2 (см. `02_UNIFIED_BLOCK_EDITOR_PLAN.md`, FIX). |
-| Empty-state warnings implemented. | **Да** | `PatientHomeBlockPreview`: скрытый блок, видимый пустой CMS-блок (`role="alert"` + текст из `VISIBLE_EMPTY_ADMIN`), системные блоки без списка. |
-| No functional regression in existing add/edit/reorder/repair actions. | **Условно да** → **документально закрыто FIX** | Ранее в дереве не было целевых actions; Phase 1 не добавляла server actions с побочными эффектами. Обязательство на будущее: `BLOCK_EDITOR_CONTRACT.md`, раздел «Обязательная повторная верификация (AUDIT_PHASE_1 §2, FIX)». |
-| Tests for metadata and UI copy added/updated. | **Да** | `blockEditorMetadata.test.ts`, `patientHomeUnresolvedRefs.test.ts`, `patientHomeBlockEditor.test.tsx` (RTL: раздел/курс, предупреждение пустого блока, non-item, диалог). |
-| `LOG.md` updated. | **Да** | Запись Phase 1 EXEC с перечнем файлов и командами проверок. |
+| Пункт чеклиста                                                        | Статус                                         | Доказательство                                                                                                                                                                                                                                                                                                                                    |
+| --------------------------------------------------------------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Metadata helper added with full block coverage.                       | **Да**                                         | `blocks.ts` (CMS + системные коды), `getPatientHomeBlockEditorMetadata` / `getPatientHomeBlockDisplayTitle` / `getPatientHomeAddItemDialogTitle` в `blockEditorMetadata.ts`; покрытие в `blockEditorMetadata.test.ts` по всем `PATIENT_HOME_CMS_BLOCK_CODES`.                                                                                     |
+| Settings copy uses metadata helper.                                   | **Да**                                         | `PatientHomeBlockSettingsCard.tsx`, `PatientHomeBlockPreview.tsx`, unified `PatientHomeBlockEditorDialog.tsx` / picker импортируют метаданные из `@/modules/patient-home/blockEditorMetadata` и `@/modules/patient-home/blocks`. Отдельный `PatientHomeAddItemDialog.tsx` не используется с Phase 2 (см. `02_UNIFIED_BLOCK_EDITOR_PLAN.md`, FIX). |
+| Empty-state warnings implemented.                                     | **Да**                                         | `PatientHomeBlockPreview`: скрытый блок, видимый пустой CMS-блок (`role="alert"` + текст из `VISIBLE_EMPTY_ADMIN`), системные блоки без списка.                                                                                                                                                                                                   |
+| No functional regression in existing add/edit/reorder/repair actions. | **Условно да** → **документально закрыто FIX** | Ранее в дереве не было целевых actions; Phase 1 не добавляла server actions с побочными эффектами. Обязательство на будущее: `BLOCK_EDITOR_CONTRACT.md`, раздел «Обязательная повторная верификация (AUDIT_PHASE_1 §2, FIX)».                                                                                                                     |
+| Tests for metadata and UI copy added/updated.                         | **Да**                                         | `blockEditorMetadata.test.ts`, `patientHomeUnresolvedRefs.test.ts`, `patientHomeBlockEditor.test.tsx` (RTL: раздел/курс, предупреждение пустого блока, non-item, диалог).                                                                                                                                                                         |
+| `LOG.md` updated.                                                     | **Да**                                         | Запись Phase 1 EXEC с перечнем файлов и командами проверок.                                                                                                                                                                                                                                                                                       |
 
 **Test gate (phase-level):** в `LOG.md` указаны успешные прогоны `vitest` (указанные тестовые файлы), `tsc --noEmit`, `lint`; полный корневой CI не требовался планом.
 
@@ -31,12 +31,12 @@
 
 ## 3. Acceptance criteria
 
-| Критерий | Статус | Комментарий |
-| --- | --- | --- |
-| Editor copy matches actual target types. | **Да** | Лейблы добавления и существительные согласованы с типами по `BLOCK_EDITOR_CONTRACT.md` / MASTER (раздел vs материал vs смешанный случай). |
-| Admin can understand why a visible block is absent on runtime. | **Да** | Текст `emptyPreviewText` / `emptyRuntimeText` и превью для пустого включённого блока. |
-| No DB schema changes. | **Да** | В перечне Phase 1 (`LOG.md`) нет `db/schema`, `drizzle-migrations`, SQL. |
-| `pnpm --dir apps/webapp exec vitest run <phase files>` passes. | **Да** | Зафиксировано в `LOG.md`. |
+| Критерий                                                       | Статус | Комментарий                                                                                                                               |
+| -------------------------------------------------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Editor copy matches actual target types.                       | **Да** | Лейблы добавления и существительные согласованы с типами по `BLOCK_EDITOR_CONTRACT.md` / MASTER (раздел vs материал vs смешанный случай). |
+| Admin can understand why a visible block is absent on runtime. | **Да** | Текст `emptyPreviewText` / `emptyRuntimeText` и превью для пустого включённого блока.                                                     |
+| No DB schema changes.                                          | **Да** | В перечне Phase 1 (`LOG.md`) нет `db/schema`, `drizzle-migrations`, SQL.                                                                  |
+| `pnpm --dir apps/webapp exec vitest run <phase files>` passes. | **Да** | Зафиксировано в `LOG.md`.                                                                                                                 |
 
 **Completion criteria плана:**
 
@@ -47,13 +47,13 @@
 
 ## 4. Required UX outcomes
 
-| Требование | Статус | Проверка |
-| --- | --- | --- |
-| `situations` uses «Добавить раздел». | **Да** | `blockEditorMetadata.ts` → `addLabel: "Добавить раздел"`; тест и RTL на кнопке. |
-| `courses` uses «Добавить курс». | **Да** | `addLabel: "Добавить курс"`; RTL. |
-| `subscription_carousel` uses mixed label. | **Да** | `addLabel: "Добавить раздел / материал / курс"`; unit-тест в `blockEditorMetadata.test.ts`. |
-| visible-empty block warns that patient runtime may hide it. | **Да** | Константа `VISIBLE_EMPTY_ADMIN` + `role="alert"` в превью при `isBlockVisible && visibleItemsCount === 0`. |
-| non-item blocks explain where data comes from. | **Да** | Ветка `!patientHomeBlockRequiresItemList` в `PatientHomeBlockPreview` + `emptyPreviewText` для `lfk_progress` / `next_reminder` / `mood_checkin`; RTL для `lfk_progress`. |
+| Требование                                                  | Статус | Проверка                                                                                                                                                                  |
+| ----------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `situations` uses «Добавить раздел».                        | **Да** | `blockEditorMetadata.ts` → `addLabel: "Добавить раздел"`; тест и RTL на кнопке.                                                                                           |
+| `courses` uses «Добавить курс».                             | **Да** | `addLabel: "Добавить курс"`; RTL.                                                                                                                                         |
+| `subscription_carousel` uses mixed label.                   | **Да** | `addLabel: "Добавить раздел / материал / курс"`; unit-тест в `blockEditorMetadata.test.ts`.                                                                               |
+| visible-empty block warns that patient runtime may hide it. | **Да** | Константа `VISIBLE_EMPTY_ADMIN` + `role="alert"` в превью при `isBlockVisible && visibleItemsCount === 0`.                                                                |
+| non-item blocks explain where data comes from.              | **Да** | Ветка `!patientHomeBlockRequiresItemList` в `PatientHomeBlockPreview` + `emptyPreviewText` для `lfk_progress` / `next_reminder` / `mood_checkin`; RTL для `lfk_progress`. |
 
 **Документация:** `BLOCK_EDITOR_CONTRACT.md` дополнен заметкой Phase 1 (optional artifact из плана — выполнено).
 
@@ -61,11 +61,11 @@
 
 ## 5. Out of scope (негативная проверка)
 
-| Запрет | Статус |
-| --- | --- |
-| No new actions with side effects. | **Ок** | Нет новых `actions.ts` / server actions в списке Phase 1. |
-| No patient runtime visual changes (в смысле плана: patient shell/cards/nav из Phase 1). | **Ок по footprint Phase 1** | См. раздел 6. |
-| No shell/nav/styles redesign. | **Ок** | Изменения навигации — добавление одного пункта в меню врача (`doctorNavLinks.ts`) и `routePaths`, что в scope админки Phase 1. |
+| Запрет                                                                                  | Статус                      |
+| --------------------------------------------------------------------------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| No new actions with side effects.                                                       | **Ок**                      | Нет новых `actions.ts` / server actions в списке Phase 1.                                                                      |
+| No patient runtime visual changes (в смысле плана: patient shell/cards/nav из Phase 1). | **Ок по footprint Phase 1** | См. раздел 6.                                                                                                                  |
+| No shell/nav/styles redesign.                                                           | **Ок**                      | Изменения навигации — добавление одного пункта в меню врача (`doctorNavLinks.ts`) и `routePaths`, что в scope админки Phase 1. |
 
 ---
 

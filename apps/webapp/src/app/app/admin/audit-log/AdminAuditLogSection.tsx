@@ -1,17 +1,29 @@
-"use client";
+'use client';
 
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { Label } from "@/shared/ui/doctor/primitives/label";
-import { Badge } from "@/shared/ui/doctor/primitives/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/ui/doctor/primitives/select";
-import { AuditLogMergeTarget } from "@/components/admin/AuditLogMergeTarget";
-import { auditActorShortLabel } from "@/infra/adminAuditLogPresentation";
-import { CopyForAiButton } from "@/app/app/settings/CopyForAiButton";
-import { apiJson } from "@/shared/lib/apiJson";
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/shared/ui/doctor/primitives/card';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { Label } from '@/shared/ui/doctor/primitives/label';
+import { Badge } from '@/shared/ui/doctor/primitives/badge';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/shared/ui/doctor/primitives/select';
+import { AuditLogMergeTarget } from '@/components/admin/AuditLogMergeTarget';
+import { auditActorShortLabel } from '@/infra/adminAuditLogPresentation';
+import { CopyForAiButton } from '@/app/app/settings/CopyForAiButton';
+import { apiJson } from '@/shared/lib/apiJson';
 
 type AuditItem = {
   id: string;
@@ -20,7 +32,7 @@ type AuditItem = {
   target_id: string | null;
   conflict_key: string | null;
   details: Record<string, unknown>;
-  status: "ok" | "partial_failure" | "error";
+  status: 'ok' | 'partial_failure' | 'error';
   repeat_count: number;
   last_seen_at: string;
   resolved_at: string | null;
@@ -38,104 +50,104 @@ type ApiOk = {
   openAutoMergeConflictCount?: number;
 };
 
-const ACTION_FILTER_ALL = "";
-const ACTION_FILTER_SYSTEM_HEALTH = "__system_health__";
+const ACTION_FILTER_ALL = '';
+const ACTION_FILTER_SYSTEM_HEALTH = '__system_health__';
 
 const ACTION_FILTER_OPTIONS = [
-  { value: ACTION_FILTER_ALL, label: "Все действия" },
-  { value: ACTION_FILTER_SYSTEM_HEALTH, label: "Системные снимки" },
-  { value: "auth_register_failure", label: "Сбои регистрации" },
-  { value: "auto_merge_conflict", label: "auto_merge_conflict" },
-  { value: "auto_merge_conflict_anomaly", label: "auto_merge_conflict_anomaly" },
-  { value: "email_auth_conflict", label: "email_auth_conflict" },
-  { value: "messenger_phone_bind_blocked", label: "messenger_phone_bind_blocked" },
-  { value: "messenger_phone_bind_anomaly", label: "messenger_phone_bind_anomaly" },
-  { value: "user_purge", label: "user_purge" },
-  { value: "user_purge_external_retry", label: "user_purge_external_retry" },
-  { value: "user_merge", label: "user_merge" },
-  { value: "integrator_user_merge", label: "integrator_user_merge" },
-  { value: "admin_client_profile_patch", label: "admin_client_profile_patch" },
-  { value: "health_failure_archive_clear_dead", label: "health_failure_archive_clear_dead" },
-  { value: "operator_incidents_resolve_all", label: "operator_incidents_resolve_all" },
+  { value: ACTION_FILTER_ALL, label: 'Все действия' },
+  { value: ACTION_FILTER_SYSTEM_HEALTH, label: 'Системные снимки' },
+  { value: 'auth_register_failure', label: 'Сбои регистрации' },
+  { value: 'auto_merge_conflict', label: 'auto_merge_conflict' },
+  { value: 'auto_merge_conflict_anomaly', label: 'auto_merge_conflict_anomaly' },
+  { value: 'email_auth_conflict', label: 'email_auth_conflict' },
+  { value: 'messenger_phone_bind_blocked', label: 'messenger_phone_bind_blocked' },
+  { value: 'messenger_phone_bind_anomaly', label: 'messenger_phone_bind_anomaly' },
+  { value: 'user_purge', label: 'user_purge' },
+  { value: 'user_purge_external_retry', label: 'user_purge_external_retry' },
+  { value: 'user_merge', label: 'user_merge' },
+  { value: 'integrator_user_merge', label: 'integrator_user_merge' },
+  { value: 'admin_client_profile_patch', label: 'admin_client_profile_patch' },
+  { value: 'health_failure_archive_clear_dead', label: 'health_failure_archive_clear_dead' },
+  { value: 'operator_incidents_resolve_all', label: 'operator_incidents_resolve_all' },
 ] as const;
 
 function actionTierLabel(action: string): string {
   const tier1 = new Set([
-    "user_purge",
-    "user_purge_external_retry",
-    "user_merge",
-    "integrator_user_merge",
-    "appointment_soft_delete",
-    "media_delete",
-    "reference_archive",
-    "health_failure_archive_clear_dead",
-    "operator_incidents_resolve_all",
+    'user_purge',
+    'user_purge_external_retry',
+    'user_merge',
+    'integrator_user_merge',
+    'appointment_soft_delete',
+    'media_delete',
+    'reference_archive',
+    'health_failure_archive_clear_dead',
+    'operator_incidents_resolve_all',
   ]);
   const tier2 = new Set([
-    "settings_change",
-    "doctor_settings_change",
-    "google_calendar_connect",
-    "admin_mode_toggle",
+    'settings_change',
+    'doctor_settings_change',
+    'google_calendar_connect',
+    'admin_mode_toggle',
   ]);
-  if (tier1.has(action)) return "Высокий риск";
-  if (tier2.has(action)) return "Конфигурация";
-  if (action.startsWith("catalog_")) return "Каталог";
+  if (tier1.has(action)) return 'Высокий риск';
+  if (tier2.has(action)) return 'Конфигурация';
+  if (action.startsWith('catalog_')) return 'Каталог';
   if (
-    action.startsWith("user_") ||
-    action === "intake_status_change" ||
-    action === "admin_client_profile_patch" ||
-    action.startsWith("auto_merge_conflict") ||
-    action === "email_auth_conflict" ||
-    action.startsWith("messenger_phone_bind")
+    action.startsWith('user_') ||
+    action === 'intake_status_change' ||
+    action === 'admin_client_profile_patch' ||
+    action.startsWith('auto_merge_conflict') ||
+    action === 'email_auth_conflict' ||
+    action.startsWith('messenger_phone_bind')
   ) {
-    return "Клиент / данные";
+    return 'Клиент / данные';
   }
-  return "Прочее";
+  return 'Прочее';
 }
 
-function statusBadgeVariant(status: AuditItem["status"]): "secondary" | "outline" | "destructive" {
-  if (status === "ok") return "secondary";
-  if (status === "partial_failure") return "outline";
-  return "destructive";
+function statusBadgeVariant(status: AuditItem['status']): 'secondary' | 'outline' | 'destructive' {
+  if (status === 'ok') return 'secondary';
+  if (status === 'partial_failure') return 'outline';
+  return 'destructive';
 }
 
 function canManuallyResolveAuditRow(row: AuditItem): boolean {
   if (row.resolved_at != null) return false;
   return (
-    row.action === "auto_merge_conflict" ||
-    row.action === "auto_merge_conflict_anomaly" ||
-    row.action === "email_auth_conflict" ||
-    row.action === "messenger_phone_bind_blocked" ||
-    row.action === "messenger_phone_bind_anomaly" ||
-    row.action === "channel_link_ownership_conflict"
+    row.action === 'auto_merge_conflict' ||
+    row.action === 'auto_merge_conflict_anomaly' ||
+    row.action === 'email_auth_conflict' ||
+    row.action === 'messenger_phone_bind_blocked' ||
+    row.action === 'messenger_phone_bind_anomaly' ||
+    row.action === 'channel_link_ownership_conflict'
   );
 }
 
 function isOpenConflictLabel(row: AuditItem): boolean {
   if (row.resolved_at != null) return false;
-  if (row.action === "auto_merge_conflict" && row.conflict_key) return true;
-  if (row.action === "auto_merge_conflict_anomaly") return true;
-  if (row.action === "email_auth_conflict" && row.conflict_key) return true;
-  if (row.action === "messenger_phone_bind_blocked" && row.conflict_key) return true;
-  if (row.action === "messenger_phone_bind_anomaly") return true;
-  if (row.action === "channel_link_ownership_conflict") return true;
+  if (row.action === 'auto_merge_conflict' && row.conflict_key) return true;
+  if (row.action === 'auto_merge_conflict_anomaly') return true;
+  if (row.action === 'email_auth_conflict' && row.conflict_key) return true;
+  if (row.action === 'messenger_phone_bind_blocked' && row.conflict_key) return true;
+  if (row.action === 'messenger_phone_bind_anomaly') return true;
+  if (row.action === 'channel_link_ownership_conflict') return true;
   return false;
 }
 
 type FilterState = {
   action: string;
   target: string;
-  status: "" | AuditItem["status"];
+  status: '' | AuditItem['status'];
   from: string;
   to: string;
 };
 
 const emptyFilters = (): FilterState => ({
-  action: "",
-  target: "",
-  status: "",
-  from: "",
-  to: "",
+  action: '',
+  target: '',
+  status: '',
+  from: '',
+  to: '',
 });
 
 export function AdminAuditLogSection() {
@@ -152,19 +164,19 @@ export function AdminAuditLogSection() {
 
   const queryString = useMemo(() => {
     const p = new URLSearchParams();
-    p.set("page", String(page));
-    p.set("limit", String(limit));
+    p.set('page', String(page));
+    p.set('limit', String(limit));
     if (applied.action === ACTION_FILTER_SYSTEM_HEALTH) {
-      p.set("systemHealthOnly", "1");
+      p.set('systemHealthOnly', '1');
     } else if (applied.action.trim()) {
-      p.set("action", applied.action.trim());
+      p.set('action', applied.action.trim());
     } else {
-      p.set("excludeSystemHealth", "1");
+      p.set('excludeSystemHealth', '1');
     }
-    if (applied.target.trim()) p.set("target", applied.target.trim());
-    if (applied.status) p.set("status", applied.status);
-    if (applied.from) p.set("from", applied.from);
-    if (applied.to) p.set("to", applied.to);
+    if (applied.target.trim()) p.set('target', applied.target.trim());
+    if (applied.status) p.set('status', applied.status);
+    if (applied.from) p.set('from', applied.from);
+    if (applied.to) p.set('to', applied.to);
     return p.toString();
   }, [applied, page, limit]);
 
@@ -172,10 +184,12 @@ export function AdminAuditLogSection() {
     setLoading(true);
     setError(null);
     try {
-      const json = await apiJson<ApiOk>(`/api/admin/audit-log?${queryString}`, { credentials: "include" });
+      const json = await apiJson<ApiOk>(`/api/admin/audit-log?${queryString}`, {
+        credentials: 'include',
+      });
       setData(json);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "network");
+      setError(e instanceof Error ? e.message : 'network');
       setData(null);
     } finally {
       setLoading(false);
@@ -187,7 +201,7 @@ export function AdminAuditLogSection() {
   }, [load]);
 
   useEffect(() => {
-    const action = searchParams.get("action")?.trim() ?? "";
+    const action = searchParams.get('action')?.trim() ?? '';
     if (!action) return;
     const known = ACTION_FILTER_OPTIONS.some((o) => o.value === action);
     if (!known) return;
@@ -205,17 +219,22 @@ export function AdminAuditLogSection() {
         <div className="flex flex-wrap items-start justify-between gap-2">
           <CardTitle className="text-base">Лог операций</CardTitle>
           {data != null &&
-          typeof data.openAutoMergeConflictCount === "number" &&
+          typeof data.openAutoMergeConflictCount === 'number' &&
           data.openAutoMergeConflictCount > 0 ? (
-            <Badge variant="destructive" className="font-mono text-xs" title="Нерешённых auto_merge_conflict (открытых строк)">
+            <Badge
+              variant="destructive"
+              className="font-mono text-xs"
+              title="Нерешённых auto_merge_conflict (открытых строк)"
+            >
               auto_merge_conflict: {data.openAutoMergeConflictCount}
             </Badge>
           ) : null}
         </div>
         <CardDescription>
-          Журнал действий администратора и опасных операций. Записи дополняются по мере внедрения сценариев
-          (purge, merge, настройки и т.д.). Счётчик по открытым конфликтам интеграции — по строкам с{" "}
-          <span className="font-mono">resolved_at IS NULL</span>, без дублирования по повторам одного ключа.
+          Журнал действий администратора и опасных операций. Записи дополняются по мере внедрения
+          сценариев (purge, merge, настройки и т.д.). Счётчик по открытым конфликтам интеграции — по
+          строкам с <span className="font-mono">resolved_at IS NULL</span>, без дублирования по
+          повторам одного ключа.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -224,14 +243,14 @@ export function AdminAuditLogSection() {
             <Label htmlFor="audit-action">Тип действия</Label>
             <Select
               value={draft.action}
-              onValueChange={(v) => setDraft((d) => ({ ...d, action: v ?? "" }))}
+              onValueChange={(v) => setDraft((d) => ({ ...d, action: v ?? '' }))}
             >
               <SelectTrigger id="audit-action" className="w-full">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 {ACTION_FILTER_OPTIONS.map((opt) => (
-                  <SelectItem key={opt.value || "_all"} value={opt.value}>
+                  <SelectItem key={opt.value || '_all'} value={opt.value}>
                     {opt.label}
                   </SelectItem>
                 ))}
@@ -252,7 +271,7 @@ export function AdminAuditLogSection() {
             <Label htmlFor="audit-status">Статус</Label>
             <Select
               value={draft.status}
-              onValueChange={(v) => setDraft((d) => ({ ...d, status: v as FilterState["status"] }))}
+              onValueChange={(v) => setDraft((d) => ({ ...d, status: v as FilterState['status'] }))}
             >
               <SelectTrigger id="audit-status" className="w-full">
                 <SelectValue />
@@ -310,7 +329,9 @@ export function AdminAuditLogSection() {
           <>
             <p className="text-sm text-muted-foreground">
               Записей: {data.total}. Страница {data.page} из {totalPages}.
-              {applied.action === "" ? " Системные снимки скрыты — фильтр «Системные снимки»." : null}
+              {applied.action === ''
+                ? ' Системные снимки скрыты — фильтр «Системные снимки».'
+                : null}
             </p>
             <div className="overflow-x-auto rounded-md border border-border/60">
               <table className="w-full min-w-[720px] text-left text-sm">
@@ -345,11 +366,13 @@ export function AdminAuditLogSection() {
                                 <Badge variant="outline" className="font-mono text-[10px]">
                                   {row.action}
                                 </Badge>
-                                <span className="text-[10px] text-muted-foreground">{actionTierLabel(row.action)}</span>
+                                <span className="text-[10px] text-muted-foreground">
+                                  {actionTierLabel(row.action)}
+                                </span>
                               </div>
-                              {row.action === "auto_merge_conflict" && row.repeat_count > 1 && (
+                              {row.action === 'auto_merge_conflict' && row.repeat_count > 1 && (
                                 <p className="mt-1 text-[10px] text-muted-foreground">
-                                  Повторов: {row.repeat_count}, последнее:{" "}
+                                  Повторов: {row.repeat_count}, последнее:{' '}
                                   {new Date(row.last_seen_at).toLocaleString()}
                                 </p>
                               )}
@@ -364,7 +387,9 @@ export function AdminAuditLogSection() {
                               <div className="flex flex-col gap-1">
                                 <Badge variant={statusBadgeVariant(row.status)}>{row.status}</Badge>
                                 {isOpenConflictLabel(row) ? (
-                                  <span className="text-[10px] text-amber-700 dark:text-amber-400">конфликт открыт</span>
+                                  <span className="text-[10px] text-amber-700 dark:text-amber-400">
+                                    конфликт открыт
+                                  </span>
                                 ) : null}
                                 {row.resolved_at ? (
                                   <span className="text-[10px] text-muted-foreground">
@@ -382,15 +407,18 @@ export function AdminAuditLogSection() {
                                       setResolvingId(row.id);
                                       setError(null);
                                       try {
-                                        await apiJson<{ ok: boolean }>("/api/admin/audit-log/resolve", {
-                                          method: "POST",
-                                          credentials: "include",
-                                          headers: { "Content-Type": "application/json" },
-                                          body: JSON.stringify({ id: row.id }),
-                                        });
+                                        await apiJson<{ ok: boolean }>(
+                                          '/api/admin/audit-log/resolve',
+                                          {
+                                            method: 'POST',
+                                            credentials: 'include',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({ id: row.id }),
+                                          },
+                                        );
                                         await load();
                                       } catch (e) {
-                                        setError(e instanceof Error ? e.message : "close_failed");
+                                        setError(e instanceof Error ? e.message : 'close_failed');
                                       } finally {
                                         setResolvingId(null);
                                       }
@@ -415,7 +443,7 @@ export function AdminAuditLogSection() {
                                   className="h-8 text-xs"
                                   onClick={() => setOpenId(expanded ? null : row.id)}
                                 >
-                                  {expanded ? "Скрыть" : "Детали"}
+                                  {expanded ? 'Скрыть' : 'Детали'}
                                 </Button>
                               </div>
                             </td>

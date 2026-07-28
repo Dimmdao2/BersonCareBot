@@ -1,19 +1,17 @@
-import Link from "next/link";
+import Link from 'next/link';
 import type {
   TreatmentProgramInstanceDetail,
   TreatmentProgramInstanceSummary,
-} from "@/modules/treatment-program/types";
-import {
-  patientHomeCardHeroClass,
-} from "../home/patientHomeCardStyles";
+} from '@/modules/treatment-program/types';
+import { patientHomeCardHeroClass } from '../home/patientHomeCardStyles';
 import {
   omitDisabledInstanceStageItemsForPatientApi,
   selectCurrentWorkingStageForPatientDetail,
   splitPatientProgramStagesForDetailUi,
-} from "@/modules/treatment-program/stage-semantics";
-import { PATIENT_PLAN_TAB_UI_LABEL } from "@/app-layer/routes/navigation";
-import { routePaths } from "@/app-layer/routes/paths";
-import { cn } from "@/lib/utils";
+} from '@/modules/treatment-program/stage-semantics';
+import { PATIENT_PLAN_TAB_UI_LABEL } from '@/app-layer/routes/navigation';
+import { routePaths } from '@/app-layer/routes/paths';
+import { cn } from '@/lib/utils';
 import {
   patientCardCompactClass,
   patientCardListSectionClass,
@@ -23,13 +21,14 @@ import {
   patientMutedTextClass,
   patientInnerPageStackClass,
   patientSectionTitleClass,
-} from "@/shared/ui/patient/patientVisual";
-import { PatientPlanPersonalProgramCtaCard } from "@/app/app/patient/treatment/program-detail/PatientPlanPersonalProgramCtaCard";
-import { PatientTreatmentProgramsListPromoRetry } from "./PatientTreatmentProgramsListPromoRetry";
-
+} from '@/shared/ui/patient/patientVisual';
+import { PatientPlanPersonalProgramCtaCard } from '@/app/app/patient/treatment/program-detail/PatientPlanPersonalProgramCtaCard';
+import { PatientTreatmentProgramsListPromoRetry } from './PatientTreatmentProgramsListPromoRetry';
 
 /** Текущий этап для hero списка: та же семантика, что на detail (`pipeline` без этапа 0). */
-export function patientProgramsListCurrentStageTitle(detail: TreatmentProgramInstanceDetail): string | null {
+export function patientProgramsListCurrentStageTitle(
+  detail: TreatmentProgramInstanceDetail,
+): string | null {
   const d = omitDisabledInstanceStageItemsForPatientApi(detail);
   const { pipeline } = splitPatientProgramStagesForDetailUi(d.stages);
   const cur = selectCurrentWorkingStageForPatientDetail(pipeline);
@@ -54,30 +53,37 @@ export function PatientTreatmentProgramsListClient(props: {
 
   return (
     <div className={patientInnerPageStackClass}>
-      <h1 className={cn(patientSectionTitleClass, "hidden min-w-0 patient-desktop:block")}>
+      <h1 className={cn(patientSectionTitleClass, 'hidden min-w-0 patient-desktop:block')}>
         {PATIENT_PLAN_TAB_UI_LABEL}
       </h1>
       {promoEnsureFailed ? <PatientTreatmentProgramsListPromoRetry /> : null}
       {hero ? (
         <section
-          className={cn(patientHomeCardHeroClass, "relative isolate overflow-hidden p-4 lg:p-5")}
+          className={cn(patientHomeCardHeroClass, 'relative isolate overflow-hidden p-4 lg:p-5')}
           aria-labelledby="patient-tp-list-hero-title"
         >
-          <h2 id="patient-tp-list-hero-title" className={cn(patientHeroTitleBaseClass, patientInnerHeroListPrimaryTitleClass)}>
+          <h2
+            id="patient-tp-list-hero-title"
+            className={cn(patientHeroTitleBaseClass, patientInnerHeroListPrimaryTitleClass)}
+          >
             {hero.title}
           </h2>
-          <p className={cn(patientMutedTextClass, "mt-2 text-sm")}>
+          <p className={cn(patientMutedTextClass, 'mt-2 text-sm')}>
             {hero.currentStageTitle ? (
               <>
                 Текущий этап: <span className="text-foreground">{hero.currentStageTitle}</span>
               </>
             ) : (
-              <>Текущий этап: <span className="text-foreground">—</span></>
+              <>
+                Текущий этап: <span className="text-foreground">—</span>
+              </>
             )}
           </p>
           {hero.planUpdatedLabel?.trim() ? (
             <p className="mt-2 flex items-center gap-1.5 text-sm font-medium" role="status">
-              <span className="text-destructive" aria-hidden="true">●</span>
+              <span className="text-destructive" aria-hidden="true">
+                ●
+              </span>
               <span>{hero.planUpdatedLabel.trim()}</span>
             </p>
           ) : null}
@@ -87,7 +93,7 @@ export function PatientTreatmentProgramsListClient(props: {
               prefetch={false}
               className={cn(
                 patientHeroPrimaryActionClass,
-                "inline-flex min-h-9 items-center justify-center rounded-md px-4 py-2 text-sm no-underline",
+                'inline-flex min-h-9 items-center justify-center rounded-md px-4 py-2 text-sm no-underline',
               )}
             >
               Открыть программу
@@ -99,10 +105,12 @@ export function PatientTreatmentProgramsListClient(props: {
       {!hero ? <PatientPlanPersonalProgramCtaCard /> : null}
 
       {archived.length > 0 ? (
-        <details className={cn(patientCardListSectionClass, "group")}>
+        <details className={cn(patientCardListSectionClass, 'group')}>
           <summary className="cursor-pointer list-none py-1 text-sm font-semibold text-foreground [&::-webkit-details-marker]:hidden">
             Завершённые программы
-            <span className={cn(patientMutedTextClass, "ml-2 text-xs font-normal")}>({archived.length})</span>
+            <span className={cn(patientMutedTextClass, 'ml-2 text-xs font-normal')}>
+              ({archived.length})
+            </span>
           </summary>
           <ul className="m-0 mt-4 list-none space-y-3 border-t border-[var(--patient-border)]/60 p-0 pt-4">
             {archived.map((p) => (
@@ -112,11 +120,13 @@ export function PatientTreatmentProgramsListClient(props: {
                   prefetch={false}
                   className={cn(
                     patientCardCompactClass,
-                    "block cursor-pointer text-sm font-medium transition-colors hover:border-primary/30",
+                    'block cursor-pointer text-sm font-medium transition-colors hover:border-primary/30',
                   )}
                 >
                   {p.title}
-                  <span className={cn(patientMutedTextClass, "mt-1 block text-xs font-normal")}>завершена</span>
+                  <span className={cn(patientMutedTextClass, 'mt-1 block text-xs font-normal')}>
+                    завершена
+                  </span>
                 </Link>
               </li>
             ))}

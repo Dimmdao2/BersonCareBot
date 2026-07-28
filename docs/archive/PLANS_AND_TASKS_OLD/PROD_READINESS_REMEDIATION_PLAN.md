@@ -19,15 +19,15 @@
 
 ## Порядок выполнения
 
-| ID   | Приоритет | Кратко |
-|------|-----------|--------|
-| R1   | Критично  | Backup перед webapp migrate в deploy-webapp-prod.sh |
-| R2   | Средне    | Runbook: контракт backup (какие БД, куда пишется) |
-| R3   | Средне    | Channel analytics: зафиксировать решение в ownership/плане |
-| R4   | Низко     | Pre/post migrate checklist в deploy |
-| R5   | Низко     | Комментарий в коде: eventId message-retry с Date.now() |
-| R6   | Низко     | Обновить Foundation: webapp migrations уже с ledger |
-| R7   | Низко     | Семантика bookings.forUser: при необходимости проверить и задокументировать |
+| ID  | Приоритет | Кратко                                                                      |
+| --- | --------- | --------------------------------------------------------------------------- |
+| R1  | Критично  | Backup перед webapp migrate в deploy-webapp-prod.sh                         |
+| R2  | Средне    | Runbook: контракт backup (какие БД, куда пишется)                           |
+| R3  | Средне    | Channel analytics: зафиксировать решение в ownership/плане                  |
+| R4  | Низко     | Pre/post migrate checklist в deploy                                         |
+| R5  | Низко     | Комментарий в коде: eventId message-retry с Date.now()                      |
+| R6  | Низко     | Обновить Foundation: webapp migrations уже с ledger                         |
+| R7  | Низко     | Семантика bookings.forUser: при необходимости проверить и задокументировать |
 
 ---
 
@@ -46,6 +46,7 @@
 **Действие:**
 
 1. После строки с `WEBAPP_SERVICE=bersoncarebot-webapp-prod.service` (приблизительно строка 6) добавить:
+
    ```bash
    BACKUP_SCRIPT=/opt/backups/scripts/postgres-backup.sh
    ```
@@ -64,6 +65,7 @@
 **Файл:** `deploy/host/deploy-webapp-prod.sh`
 
 **Найти:**
+
 ```bash
 # Run webapp DB migrations (DATABASE_URL from webapp.prod)
 set -a
@@ -73,6 +75,7 @@ pnpm --dir apps/webapp run migrate
 ```
 
 **Заменить на:**
+
 ```bash
 # Run webapp DB migrations (DATABASE_URL from webapp.prod)
 set -a
@@ -94,6 +97,7 @@ pnpm --dir apps/webapp run migrate
 **Место:** В подразделе «Отдельный webapp deploy» (где перечислены шаги скрипта).
 
 **Действие:** В список шагов скрипта добавить пункт:
+
 - «Перед миграциями: вызов backup (`BACKUP_SCRIPT` pre-migrations). Требуется наличие скрипта и sudo-прав (см. Sudoers).»
 
 И при первом упоминании backup в этом подразделе добавить предложение:
@@ -177,11 +181,11 @@ pnpm --dir apps/webapp run migrate
 ```markdown
 ### Channel analytics и SMS delivery accounting
 
-| Компонент | Статус | Примечание |
-|-----------|--------|------------|
-| webapp.message_log | **webapp** | Аудит сообщений врача (doctor-facing); уже в webapp. |
-| integrator.delivery_attempt_logs | **integrator** | Transport/delivery попытки; проекция в webapp не реализована на этапах 1–13. |
-| Агрегаты «доставлено/не доставлено», SMS-учёт по каналам | **Отложено** | После этапа 13: отчётность может опираться на message_log и при необходимости на отдельную проекцию delivery_attempt_logs (запланировать в Stage 14 или отдельной задачей). |
+| Компонент                                                | Статус         | Примечание                                                                                                                                                                  |
+| -------------------------------------------------------- | -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| webapp.message_log                                       | **webapp**     | Аудит сообщений врача (doctor-facing); уже в webapp.                                                                                                                        |
+| integrator.delivery_attempt_logs                         | **integrator** | Transport/delivery попытки; проекция в webapp не реализована на этапах 1–13.                                                                                                |
+| Агрегаты «доставлено/не доставлено», SMS-учёт по каналам | **Отложено**   | После этапа 13: отчётность может опираться на message_log и при необходимости на отдельную проекцию delivery_attempt_logs (запланировать в Stage 14 или отдельной задачей). |
 
 Итог: единый слой «channel analytics» в webapp на момент Stage 13 — message_log; интеграция delivery_attempt_logs и SMS-учёта — в плане Stage 14 или отдельного бэклога.
 ```
@@ -214,11 +218,13 @@ pnpm --dir apps/webapp run migrate
 ## Pre/post migrate checklist
 
 **Перед миграциями (integrator и/или webapp):**
+
 - [ ] Backup выполнен (pre-migrations) и файлы дампа присутствуют в целевом каталоге.
 - [ ] Переменные окружения (api.prod / webapp.prod) указывают на нужные БД.
 - [ ] Доступ к БД с хоста проверен (например, `psql` или приложение подключается).
 
 **После миграций:**
+
 - [ ] Миграции завершились без ошибок (код выхода 0).
 - [ ] Сервисы перезапущены и в статусе active.
 - [ ] Health check возвращает ok (API и webapp).
@@ -246,12 +252,14 @@ pnpm --dir apps/webapp run migrate
 **Файл:** `apps/integrator/src/infra/db/writePort.ts`
 
 **Найти:**
+
 ```ts
                 meta: {
                   eventId: `message-retry:${phoneNormalized}:${Date.now()}`,
 ```
 
 **Заменить на:**
+
 ```ts
                 meta: {
                   // Intentionally unique per attempt (not a projection idempotency key); retry events must not dedupe.
@@ -279,6 +287,7 @@ pnpm --dir apps/webapp run migrate
 **Файл:** `docs/PLANS AND TASKS/DB_MIGRATION_PREPARATION_FOUNDATION.md`
 
 **Найти (раздел 4. Webapp migration safeguards):**
+
 ```markdown
 - [apps/webapp/scripts/run-migrations.mjs](apps/webapp/scripts/run-migrations.mjs): перечисляет все `.sql`, сортирует, выполняет `client.query(sql)` **без**:
   - таблицы учёта применённых миграций;
@@ -287,16 +296,19 @@ pnpm --dir apps/webapp run migrate
 ```
 
 **Заменить на:**
+
 ```markdown
 - [apps/webapp/scripts/run-migrations.mjs](apps/webapp/scripts/run-migrations.mjs): перечисляет все `.sql`, сортирует, выполняет каждую миграцию в транзакции и записывает имя файла в таблицу `schema_migrations` (аналог ledger). Уже применённые миграции пропускаются. Checksum/версионирование не реализовано.
 ```
 
 **Найти (в том же разделе):**
+
 ```markdown
 2. Нет явного **migration ledger** для webapp — нельзя безопасно нарастить только additive миграции без дисциплины.
 ```
 
 **Заменить на:**
+
 ```markdown
 2. ~~Нет явного migration ledger для webapp~~ — ledger введён (schema_migrations); новые миграции по-прежнему должны быть по возможности additive и идемпотентные (IF NOT EXISTS).
 ```
@@ -319,9 +331,10 @@ pnpm --dir apps/webapp run migrate
 
 ### Шаг R7.1: Проверить передачу userId в contextQuery bookings.forUser и в appointmentsReadsPort
 
-**Файлы:**  
-- `apps/integrator/src/infra/adapters/contextQueryPort.ts` (case 'bookings.forUser', query.userId).  
-- `apps/integrator/src/infra/db/readPort.ts` (case 'booking.activeByUser', appointmentsReadsPort.getActiveRecordsByPhone(userId)).  
+**Файлы:**
+
+- `apps/integrator/src/infra/adapters/contextQueryPort.ts` (case 'bookings.forUser', query.userId).
+- `apps/integrator/src/infra/db/readPort.ts` (case 'booking.activeByUser', appointmentsReadsPort.getActiveRecordsByPhone(userId)).
 - Webapp API активных записей (например, route или сервис, принимающий параметр для «по пользователю»).
 
 **Действие:** Проследить цепочку: откуда приходит query.userId в contextQuery (orchestrator/планы), что передаётся в readPort (userId), что ожидает appointmentsReadsPort (getActiveRecordsByPhone — по смыслу телефон или идентификатор?). Проверить webapp API: по какому полю ищет активные записи (phone_normalized, integrator_user_id, platform_user_id).
@@ -332,8 +345,9 @@ pnpm --dir apps/webapp run migrate
 
 **Файл:** `docs/ARCHITECTURE/STAGE13_OWNERSHIP_MAP.md` или код (комментарий в contextQueryPort/readPort).
 
-**Действие:**  
-- Если семантика согласована: добавить в STAGE13_OWNERSHIP_MAP в раздел appointments одну строку, например: «bookings.forUser: идентификатор, передаваемый в webapp API активных записей — phone_normalized (источник: …).»  
+**Действие:**
+
+- Если семантика согласована: добавить в STAGE13_OWNERSHIP_MAP в раздел appointments одну строку, например: «bookings.forUser: идентификатор, передаваемый в webapp API активных записей — phone_normalized (источник: …).»
 - Если найдено расхождение: завести задачу на исправление (или явно описать ограничение в ownership map и в коде комментарием).
 
 **Верификация:** Документ или комментарий отражают фактическую семантику; при расхождении зафиксировано ограничение или следующая задача.

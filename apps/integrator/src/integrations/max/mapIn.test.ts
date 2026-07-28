@@ -164,7 +164,10 @@ describe('max mapIn', () => {
       timestamp: 1,
       message: {
         recipient: { chat_id: 201 },
-        body: { mid: 'mid-photo', attachments: [{ type: 'image', payload: { url: 'https://x.test/a.jpg' } }] },
+        body: {
+          mid: 'mid-photo',
+          attachments: [{ type: 'image', payload: { url: 'https://x.test/a.jpg' } }],
+        },
         sender: { user_id: 201 },
       },
     };
@@ -209,7 +212,11 @@ describe('max mapIn', () => {
         payload: 'admin_reply:conv-42',
         user: { user_id: 202, username: 'callback-user', first_name: 'Call', last_name: 'Back' },
       },
-      message: { recipient: { chat_id: 202 }, body: { mid: 'mid-callback-1' }, sender: { user_id: 12345 } },
+      message: {
+        recipient: { chat_id: 202 },
+        body: { mid: 'mid-callback-1' },
+        sender: { user_id: 12345 },
+      },
     };
     const incoming = fromMax(body);
     expect(incoming).not.toBeNull();
@@ -388,7 +395,8 @@ describe('max mapIn', () => {
 
   const VCF_SIMPLE = 'BEGIN:VCARD\r\nVERSION:3.0\r\nTEL:+79001112233\r\nEND:VCARD';
   // eslint-disable-next-line no-secrets/no-secrets
-  const VCF_TYPE = 'BEGIN:VCARD\r\nVERSION:3.0\r\nTEL;TYPE=cell:+79004445566\r\nFN:Ivan\r\nEND:VCARD';
+  const VCF_TYPE =
+    'BEGIN:VCARD\r\nVERSION:3.0\r\nTEL;TYPE=cell:+79004445566\r\nFN:Ivan\r\nEND:VCARD';
   // eslint-disable-next-line no-secrets/no-secrets
   const VCF_LF = 'BEGIN:VCARD\nVERSION:3.0\nTEL;TYPE=CELL,HOME:+79007778899\nEND:VCARD';
 
@@ -469,7 +477,9 @@ describe('max mapIn', () => {
         body: {
           mid: 'mid-contact-bad',
           text: '',
-          attachments: [{ type: 'contact', payload: { vcf_info: vcf, hash: 'deadbeef'.repeat(8) } }],
+          attachments: [
+            { type: 'contact', payload: { vcf_info: vcf, hash: 'deadbeef'.repeat(8) } },
+          ],
         },
         sender: { user_id: 504 },
       },
@@ -497,7 +507,12 @@ describe('max mapIn', () => {
         body: {
           mid: 'mid-contact-esc1',
           text: '',
-          attachments: [{ type: 'contact', payload: { vcf_info: VCF_LITERAL_ESCAPED, hash: makeHash(unescaped) } }],
+          attachments: [
+            {
+              type: 'contact',
+              payload: { vcf_info: VCF_LITERAL_ESCAPED, hash: makeHash(unescaped) },
+            },
+          ],
         },
         sender: { user_id: 507 },
       },
@@ -517,7 +532,10 @@ describe('max mapIn', () => {
           mid: 'mid-contact-esc2',
           text: '',
           attachments: [
-            { type: 'contact', payload: { vcf_info: VCF_LITERAL_ESCAPED, hash: makeHash(VCF_LITERAL_ESCAPED) } },
+            {
+              type: 'contact',
+              payload: { vcf_info: VCF_LITERAL_ESCAPED, hash: makeHash(VCF_LITERAL_ESCAPED) },
+            },
           ],
         },
         sender: { user_id: 508 },
@@ -539,7 +557,10 @@ describe('max mapIn', () => {
           mid: 'mid-contact-esc3',
           text: '',
           attachments: [
-            { type: 'contact', payload: { vcf_info: VCF_LITERAL_ESCAPED, hash: 'cafebabe'.repeat(8) } },
+            {
+              type: 'contact',
+              payload: { vcf_info: VCF_LITERAL_ESCAPED, hash: 'cafebabe'.repeat(8) },
+            },
           ],
         },
         sender: { user_id: 509 },

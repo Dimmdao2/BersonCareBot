@@ -1,10 +1,10 @@
-"use client";
+'use client';
 
-import { useEffect } from "react";
-import { usePathname } from "next/navigation";
-import { resolveClientEntryChannel } from "@/modules/product-analytics/clientEntryChannel";
-import { normalizePageKey } from "@/modules/product-analytics/normalizePageKey";
-import type { PatientAnalyticsClientEvent } from "@/modules/product-analytics/ingestSchemas";
+import { useEffect } from 'react';
+import { usePathname } from 'next/navigation';
+import { resolveClientEntryChannel } from '@/modules/product-analytics/clientEntryChannel';
+import { normalizePageKey } from '@/modules/product-analytics/normalizePageKey';
+import type { PatientAnalyticsClientEvent } from '@/modules/product-analytics/ingestSchemas';
 import {
   getOrRotateClientSessionId,
   HEARTBEAT_INTERVAL_MS,
@@ -12,13 +12,13 @@ import {
   shouldSendPageView,
   touchClientSessionActivity,
   wasAppOpenSent,
-} from "@/shared/lib/productAnalytics/patientAnalyticsSession";
-import { postPatientAnalyticsEvents } from "@/shared/lib/productAnalytics/postPatientAnalyticsEvents";
+} from '@/shared/lib/productAnalytics/patientAnalyticsSession';
+import { postPatientAnalyticsEvents } from '@/shared/lib/productAnalytics/postPatientAnalyticsEvents';
 
 function buildBaseEvent(
-  eventType: PatientAnalyticsClientEvent["eventType"],
+  eventType: PatientAnalyticsClientEvent['eventType'],
   clientSessionId: string,
-): Pick<PatientAnalyticsClientEvent, "eventType" | "entryChannel" | "clientSessionId"> {
+): Pick<PatientAnalyticsClientEvent, 'eventType' | 'entryChannel' | 'clientSessionId'> {
   return {
     eventType,
     entryChannel: resolveClientEntryChannel(),
@@ -28,7 +28,7 @@ function buildBaseEvent(
 
 /** Client ingest: app_open (once per session), page_view, heartbeat. */
 export function PatientAnalyticsReporter() {
-  const pathname = usePathname() ?? "";
+  const pathname = usePathname() ?? '';
 
   useEffect(() => {
     const clientSessionId = getOrRotateClientSessionId();
@@ -38,7 +38,7 @@ export function PatientAnalyticsReporter() {
       markAppOpenSent();
       void postPatientAnalyticsEvents([
         {
-          ...buildBaseEvent("app_open", clientSessionId),
+          ...buildBaseEvent('app_open', clientSessionId),
           idempotencyKey: `app_open:${clientSessionId}`,
         },
       ]);
@@ -57,7 +57,7 @@ export function PatientAnalyticsReporter() {
 
     void postPatientAnalyticsEvents([
       {
-        ...buildBaseEvent("page_view", clientSessionId),
+        ...buildBaseEvent('page_view', clientSessionId),
         pathname,
         pageKey,
         idempotencyKey: `page_view:${clientSessionId}:${pageKey}`,
@@ -67,7 +67,7 @@ export function PatientAnalyticsReporter() {
 
   useEffect(() => {
     const tick = () => {
-      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
 
       const now = Date.now();
       const clientSessionId = getOrRotateClientSessionId(now);
@@ -75,7 +75,7 @@ export function PatientAnalyticsReporter() {
 
       void postPatientAnalyticsEvents([
         {
-          ...buildBaseEvent("heartbeat", clientSessionId),
+          ...buildBaseEvent('heartbeat', clientSessionId),
           idempotencyKey: `heartbeat:${clientSessionId}:${Math.floor(now / HEARTBEAT_INTERVAL_MS)}`,
         },
       ]);

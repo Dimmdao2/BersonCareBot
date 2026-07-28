@@ -1,16 +1,19 @@
-"use client";
+'use client';
 
-import type { ComponentProps, ReactNode } from "react";
-import { DialogContent, DialogHeader, DialogTitle } from "@/shared/ui/patient/primitives/dialog";
-import { cn } from "@/lib/utils";
+import type { ComponentProps, ReactNode } from 'react';
+import { DialogContent, DialogHeader, DialogTitle } from '@/shared/ui/patient/primitives/dialog';
+import { cn } from '@/lib/utils';
 import {
   patientModalBodyScrollClass,
   patientModalDialogContentShellClass,
   patientModalDialogTitleClass,
   patientModalHeaderBarClass,
-} from "@/shared/ui/patient/patientVisual";
+} from '@/shared/ui/patient/patientVisual';
 
-export type PatientModalDialogContentProps = Omit<ComponentProps<typeof DialogContent>, "children"> & {
+export type PatientModalDialogContentProps = Omit<
+  ComponentProps<typeof DialogContent>,
+  'children'
+> & {
   title: ReactNode;
   /** Блок между синей шапкой и прокручиваемым телом (например CTA). Для primary-кнопок — `patientModalPortalPrimaryCtaClass` из `patientVisual` (portal вне `#app-shell-patient`, иначе `var(--patient-color-primary)` не задан). */
   topSlot?: ReactNode;
@@ -39,7 +42,7 @@ export function PatientModalDialogContent({
         </DialogHeader>
       </div>
       {topSlot ? <div className="shrink-0 pt-3">{topSlot}</div> : null}
-      <div className={cn("mt-3", patientModalBodyScrollClass, bodyClassName)}>{children}</div>
+      <div className={cn('mt-3', patientModalBodyScrollClass, bodyClassName)}>{children}</div>
     </DialogContent>
   );
 }

@@ -1,19 +1,19 @@
-import { and, asc, desc, eq, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm";
-import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
-import { getDrizzle } from "@/app-layer/db/drizzle";
-import { runDrizzleMutationTransaction } from "@/infra/db/drizzleMutationTx";
-import { clinicalTests } from "../../../db/schema/clinicalTests";
-import { platformUsers } from "../../../db/schema/schema";
+import { and, asc, desc, eq, inArray, isNotNull, isNull, ne, sql } from 'drizzle-orm';
+import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
+import { getDrizzle } from '@/app-layer/db/drizzle';
+import { runDrizzleMutationTransaction } from '@/infra/db/drizzleMutationTx';
+import { clinicalTests } from '../../../db/schema/clinicalTests';
+import { platformUsers } from '../../../db/schema/schema';
 import {
   treatmentProgramInstances as instanceTable,
   treatmentProgramInstanceStageItems as itemTable,
   treatmentProgramInstanceStages as stageTable,
-} from "../../../db/schema/treatmentProgramInstances";
+} from '../../../db/schema/treatmentProgramInstances';
 import {
   treatmentProgramTestAttempts as attemptTable,
   treatmentProgramTestResults as resultTable,
-} from "../../../db/schema/treatmentProgramTestAttempts";
-import type { TreatmentProgramTestAttemptsPort } from "@/modules/treatment-program/ports";
+} from '../../../db/schema/treatmentProgramTestAttempts';
+import type { TreatmentProgramTestAttemptsPort } from '@/modules/treatment-program/ports';
 import type {
   TreatmentProgramTestAttemptRow,
   TreatmentProgramTestResultDetailRow,
@@ -21,8 +21,8 @@ import type {
   NormalizedTestDecision,
   PendingProgramTestEvaluationRow,
   PendingProgramTestEvaluationGlobalRow,
-} from "@/modules/treatment-program/types";
-import { clinicalTestTitleFromInstanceSnapshot } from "@/modules/treatment-program/clinicalTestSnapshotTitle";
+} from '@/modules/treatment-program/types';
+import { clinicalTestTitleFromInstanceSnapshot } from '@/modules/treatment-program/clinicalTestSnapshotTitle';
 
 function mapAttempt(row: typeof attemptTable.$inferSelect): TreatmentProgramTestAttemptRow {
   return {
@@ -55,9 +55,11 @@ function currentWriteOrganizationId(...fallbacks: (string | null | undefined)[])
   const hasFallbackMismatch = fallbackOrganizationIds.some((id) => id !== fallbackOrganizationId);
   if (
     hasFallbackMismatch ||
-    (principalOrganizationId && fallbackOrganizationId && principalOrganizationId !== fallbackOrganizationId)
+    (principalOrganizationId &&
+      fallbackOrganizationId &&
+      principalOrganizationId !== fallbackOrganizationId)
   ) {
-    throw new Error("organization_principal_mismatch");
+    throw new Error('organization_principal_mismatch');
   }
   return principalOrganizationId ?? fallbackOrganizationId;
 }
@@ -70,8 +72,8 @@ function pendingEvaluationGlobalWhere(organizationId: string) {
     eq(attemptTable.organizationId, organizationId),
     eq(resultTable.organizationId, organizationId),
     eq(clinicalTests.organizationId, organizationId),
-    eq(instanceTable.status, "active"),
-    ne(instanceTable.assignmentSource, "promo"),
+    eq(instanceTable.status, 'active'),
+    ne(instanceTable.assignmentSource, 'promo'),
     isNull(resultTable.decidedBy),
     isNotNull(attemptTable.submittedAt),
   );
@@ -101,7 +103,7 @@ function mapPendingEvaluationGlobalRow(r: {
     stageTitle: r.stageTitle,
     stageItemId: r.instanceStageItemId,
     patientUserId: r.patientUserId,
-    patientDisplayName: r.patientDisplayName?.trim() || "—",
+    patientDisplayName: r.patientDisplayName?.trim() || '—',
   };
 }
 
@@ -140,7 +142,7 @@ export function createPgTreatmentProgramTestAttemptsPort(): TreatmentProgramTest
             patientUserId: input.patientUserId,
           })
           .returning();
-        if (!row) throw new Error("insert attempt failed");
+        if (!row) throw new Error('insert attempt failed');
         return mapAttempt(row);
       });
     },
@@ -163,7 +165,12 @@ export function createPgTreatmentProgramTestAttemptsPort(): TreatmentProgramTest
       const rows = await db
         .select()
         .from(attemptTable)
-        .where(and(eq(attemptTable.instanceStageItemId, stageItemId), eq(attemptTable.patientUserId, patientUserId)))
+        .where(
+          and(
+            eq(attemptTable.instanceStageItemId, stageItemId),
+            eq(attemptTable.patientUserId, patientUserId),
+          ),
+        )
         .orderBy(desc(attemptTable.startedAt), desc(attemptTable.id))
         .limit(cap);
       return rows.map(mapAttempt);
@@ -171,7 +178,7 @@ export function createPgTreatmentProgramTestAttemptsPort(): TreatmentProgramTest
 
     async acceptAttempt(input: { attemptId: string; instanceId: string; doctorUserId: string }) {
       const now = new Date().toISOString();
-      const errStale = "Нельзя принять неактуальную попытку";
+      const errStale = 'Нельзя принять неактуальную попытку';
       await runDrizzleMutationTransaction(async (tx) => {
         const rows = await tx
           .select({
@@ -181,12 +188,14 @@ export function createPgTreatmentProgramTestAttemptsPort(): TreatmentProgramTest
           .from(attemptTable)
           .innerJoin(itemTable, eq(attemptTable.instanceStageItemId, itemTable.id))
           .innerJoin(stageTable, eq(itemTable.stageId, stageTable.id))
-          .where(and(eq(attemptTable.id, input.attemptId), eq(stageTable.instanceId, input.instanceId)))
+          .where(
+            and(eq(attemptTable.id, input.attemptId), eq(stageTable.instanceId, input.instanceId)),
+          )
           .limit(1);
         const hit = rows[0];
-        if (!hit) throw new Error("Попытка не найдена");
+        if (!hit) throw new Error('Попытка не найдена');
         if (!hit.attempt.submittedAt) {
-          throw new Error("Попытка ещё не отправлена пациентом");
+          throw new Error('Попытка ещё не отправлена пациентом');
         }
 
         const ordered = await tx
@@ -200,7 +209,7 @@ export function createPgTreatmentProgramTestAttemptsPort(): TreatmentProgramTest
           )
           .orderBy(desc(attemptTable.startedAt), desc(attemptTable.id));
         const H = ordered[0];
-        if (!H) throw new Error("Попытка не найдена");
+        if (!H) throw new Error('Попытка не найдена');
         if (!H.submittedAt) {
           throw new Error(errStale);
         }
@@ -233,12 +242,12 @@ export function createPgTreatmentProgramTestAttemptsPort(): TreatmentProgramTest
           .where(and(eq(itemTable.id, input.stageItemId), eq(instanceTable.id, input.instanceId)))
           .limit(1);
         const m = meta[0];
-        if (!m) throw new Error("Элемент не найден");
+        if (!m) throw new Error('Элемент не найден');
         if (m.inst.patientUserId !== input.patientUserId) {
-          throw new Error("Элемент не найден");
+          throw new Error('Элемент не найден');
         }
-        if (m.item.itemType !== "clinical_test") {
-          throw new Error("Элемент не является клиническим тестом");
+        if (m.item.itemType !== 'clinical_test') {
+          throw new Error('Элемент не является клиническим тестом');
         }
 
         const openRows = await tx
@@ -253,7 +262,7 @@ export function createPgTreatmentProgramTestAttemptsPort(): TreatmentProgramTest
           )
           .limit(1);
         if (openRows.length > 0) {
-          throw new Error("Сначала отправьте текущую попытку");
+          throw new Error('Сначала отправьте текущую попытку');
         }
 
         const anySubmitted = await tx
@@ -268,20 +277,26 @@ export function createPgTreatmentProgramTestAttemptsPort(): TreatmentProgramTest
           )
           .limit(1);
         if (anySubmitted.length === 0) {
-          throw new Error("Сначала отправьте набор тестов");
+          throw new Error('Сначала отправьте набор тестов');
         }
 
-        await tx.update(itemTable).set({ completedAt: null }).where(eq(itemTable.id, input.stageItemId));
+        await tx
+          .update(itemTable)
+          .set({ completedAt: null })
+          .where(eq(itemTable.id, input.stageItemId));
 
         const [row] = await tx
           .insert(attemptTable)
           .values({
-            organizationId: currentWriteOrganizationId(m.item.organizationId, m.inst.organizationId),
+            organizationId: currentWriteOrganizationId(
+              m.item.organizationId,
+              m.inst.organizationId,
+            ),
             instanceStageItemId: input.stageItemId,
             patientUserId: input.patientUserId,
           })
           .returning();
-        if (!row) throw new Error("insert attempt failed");
+        if (!row) throw new Error('insert attempt failed');
         return mapAttempt(row);
       });
     },
@@ -295,7 +310,10 @@ export function createPgTreatmentProgramTestAttemptsPort(): TreatmentProgramTest
     }) {
       return runDrizzleMutationTransaction(async (tx) => {
         const existing = await tx.query.treatmentProgramTestResults.findFirst({
-          where: and(eq(resultTable.attemptId, input.attemptId), eq(resultTable.testId, input.testId)),
+          where: and(
+            eq(resultTable.attemptId, input.attemptId),
+            eq(resultTable.testId, input.testId),
+          ),
         });
         if (existing) {
           const [row] = await tx
@@ -323,7 +341,7 @@ export function createPgTreatmentProgramTestAttemptsPort(): TreatmentProgramTest
             decidedBy: input.decidedBy,
           })
           .returning();
-        if (!row) throw new Error("insert result failed");
+        if (!row) throw new Error('insert result failed');
         return mapResult(row);
       });
     },
@@ -338,7 +356,9 @@ export function createPgTreatmentProgramTestAttemptsPort(): TreatmentProgramTest
       return rows.map(mapResult);
     },
 
-    async listResultDetailsForInstance(instanceId: string): Promise<TreatmentProgramTestResultDetailRow[]> {
+    async listResultDetailsForInstance(
+      instanceId: string,
+    ): Promise<TreatmentProgramTestResultDetailRow[]> {
       const db = getDrizzle();
       const rows = await db
         .select({
@@ -404,8 +424,8 @@ export function createPgTreatmentProgramTestAttemptsPort(): TreatmentProgramTest
             eq(attemptTable.organizationId, organizationId),
             eq(resultTable.organizationId, organizationId),
             eq(clinicalTests.organizationId, organizationId),
-            eq(instanceTable.status, "active"),
-            ne(instanceTable.assignmentSource, "promo"),
+            eq(instanceTable.status, 'active'),
+            ne(instanceTable.assignmentSource, 'promo'),
             isNull(resultTable.decidedBy),
             isNotNull(attemptTable.submittedAt),
           ),
@@ -450,7 +470,7 @@ export function createPgTreatmentProgramTestAttemptsPort(): TreatmentProgramTest
       const attemptRows = await db
         .select({
           attemptId: attemptTable.id,
-          latestAt: sql<string>`max(${resultTable.createdAt})`.as("latest_at"),
+          latestAt: sql<string>`max(${resultTable.createdAt})`.as('latest_at'),
         })
         .from(resultTable)
         .innerJoin(attemptTable, eq(resultTable.attemptId, attemptTable.id))
@@ -486,7 +506,9 @@ export function createPgTreatmentProgramTestAttemptsPort(): TreatmentProgramTest
         .innerJoin(instanceTable, eq(stageTable.instanceId, instanceTable.id))
         .innerJoin(clinicalTests, eq(resultTable.testId, clinicalTests.id))
         .innerJoin(platformUsers, eq(platformUsers.id, instanceTable.patientUserId))
-        .where(and(pendingEvaluationGlobalWhere(organizationId), inArray(attemptTable.id, attemptIds)))
+        .where(
+          and(pendingEvaluationGlobalWhere(organizationId), inArray(attemptTable.id, attemptIds)),
+        )
         .orderBy(desc(resultTable.createdAt), asc(resultTable.id));
 
       return rows.map(mapPendingEvaluationGlobalRow);

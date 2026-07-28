@@ -1,24 +1,24 @@
-"use client";
+'use client';
 
-import dynamic from "next/dynamic";
-import { useCallback, useEffect, useRef, useState } from "react";
-import type { ComponentType } from "react";
-import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
-import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { doctorSectionTabClass } from "@/shared/ui/doctor/DoctorSectionTabs";
-import { cn } from "@/lib/utils";
+import dynamic from 'next/dynamic';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { ComponentType } from 'react';
+import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
+import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { doctorSectionTabClass } from '@/shared/ui/doctor/DoctorSectionTabs';
+import { cn } from '@/lib/utils';
 import {
   COMMUNICATIONS_BASE,
   COMMUNICATIONS_DEFAULT_TAB,
   COMMUNICATIONS_TABS,
   communicationsTabFromQuery,
   type CommunicationsTabId,
-} from "./doctorCommunicationsTabs";
+} from './doctorCommunicationsTabs';
 import {
   COMMUNICATIONS_TAB_REGISTRY,
   type CommunicationsTabProps,
-} from "./communicationsTabRegistry";
+} from './communicationsTabRegistry';
 
 // ---------------------------------------------------------------------------
 // Tabs nav (inline, passed to DoctorPageHeader.tabs slot)
@@ -46,10 +46,10 @@ function CommunicationsTabsNav({ activeTab, badges, onTabClick }: Communications
           badge && badge > 0 ? (
             <span
               className={cn(
-                "inline-flex min-w-4 items-center justify-center rounded-full px-1 text-[10px] leading-none tabular-nums",
+                'inline-flex min-w-4 items-center justify-center rounded-full px-1 text-[10px] leading-none tabular-nums',
                 active
-                  ? "bg-primary-foreground/20 text-primary-foreground"
-                  : "bg-destructive/10 text-destructive",
+                  ? 'bg-primary-foreground/20 text-primary-foreground'
+                  : 'bg-destructive/10 text-destructive',
               )}
             >
               {badge}
@@ -61,7 +61,7 @@ function CommunicationsTabsNav({ activeTab, badges, onTabClick }: Communications
             type="button"
             variant="ghost"
             data-testid={`btn-${tab.id}`}
-            aria-current={active ? "page" : undefined}
+            aria-current={active ? 'page' : undefined}
             onClick={() => onTabClick(tab.id)}
             className={doctorSectionTabClass(active)}
           >
@@ -130,8 +130,8 @@ export function DoctorCommunicationsShell({
 }: DoctorCommunicationsShellProps) {
   const resolvedInit: CommunicationsTabId = (() => {
     if (initialTab) return initialTab;
-    if (typeof window !== "undefined") {
-      return communicationsTabFromQuery(new URLSearchParams(window.location.search).get("tab"));
+    if (typeof window !== 'undefined') {
+      return communicationsTabFromQuery(new URLSearchParams(window.location.search).get('tab'));
     }
     return COMMUNICATIONS_DEFAULT_TAB;
   })();
@@ -148,7 +148,7 @@ export function DoctorCommunicationsShell({
   const [deepLinks, setDeepLinks] = useState<
     Partial<Record<CommunicationsTabId, Record<string, string>>>
   >(() =>
-    typeof window !== "undefined"
+    typeof window !== 'undefined'
       ? readDeepLinksFromSearchParams(new URLSearchParams(window.location.search))
       : {},
   );
@@ -166,13 +166,13 @@ export function DoctorCommunicationsShell({
   useEffect(() => {
     const handlePopState = () => {
       const params = new URLSearchParams(window.location.search);
-      const tab = communicationsTabFromQuery(params.get("tab"));
+      const tab = communicationsTabFromQuery(params.get('tab'));
       setActiveTab(tab);
       setMountedTabs((prev) => new Set([...prev, tab]));
       setDeepLinks(readDeepLinksFromSearchParams(params));
     };
-    window.addEventListener("popstate", handlePopState);
-    return () => window.removeEventListener("popstate", handlePopState);
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
   const buildTabUrl = useCallback(
@@ -190,11 +190,7 @@ export function DoctorCommunicationsShell({
     (tabId: CommunicationsTabId) => {
       setActiveTab(tabId);
       setMountedTabs((prev) => new Set([...prev, tabId]));
-      window.history.replaceState(
-        null,
-        "",
-        buildTabUrl(tabId, deepLinksRef.current[tabId] ?? {}),
-      );
+      window.history.replaceState(null, '', buildTabUrl(tabId, deepLinksRef.current[tabId] ?? {}));
     },
     [buildTabUrl],
   );
@@ -212,7 +208,7 @@ export function DoctorCommunicationsShell({
       deepLinksRef.current = next;
       setDeepLinks(next);
       if (activeTabRef.current === tabId) {
-        window.history.replaceState(null, "", buildTabUrl(tabId, tabParams));
+        window.history.replaceState(null, '', buildTabUrl(tabId, tabParams));
       }
     },
     [buildTabUrl],

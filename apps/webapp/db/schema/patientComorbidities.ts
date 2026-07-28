@@ -1,15 +1,7 @@
-import { sql } from "drizzle-orm";
-import {
-  pgTable,
-  uuid,
-  text,
-  timestamp,
-  index,
-  foreignKey,
-  check,
-} from "drizzle-orm/pg-core";
-import { platformUsers } from "./schema";
-import { beOrganizations } from "./bookingEngine";
+import { sql } from 'drizzle-orm';
+import { pgTable, uuid, text, timestamp, index, foreignKey, check } from 'drizzle-orm/pg-core';
+import { platformUsers } from './schema';
+import { beOrganizations } from './bookingEngine';
 
 /**
  * Сопутствующие заболевания пациента («Карта» → «Сопутствующие заболевания»).
@@ -19,43 +11,45 @@ import { beOrganizations } from "./bookingEngine";
  * Поле since хранит человекочитаемую строку (напр. «с 2017»), введённую врачом.
  */
 
-export const COMORBIDITY_STATUSES = ["active", "removed"] as const;
+export const COMORBIDITY_STATUSES = ['active', 'removed'] as const;
 export type ComorbidityStatus = (typeof COMORBIDITY_STATUSES)[number];
 
 export const patientComorbidity = pgTable(
-  "patient_comorbidity",
+  'patient_comorbidity',
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
-    organizationId: uuid("organization_id"),
-    patientUserId: uuid("patient_user_id").notNull(),
-    text: text("text").notNull(),
-    since: text("since"),
-    status: text("status").default("active").notNull(),
-    createdBy: uuid("created_by").notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    removedAt: timestamp("removed_at", { withTimezone: true, mode: "string" }),
+    organizationId: uuid('organization_id'),
+    patientUserId: uuid('patient_user_id').notNull(),
+    text: text('text').notNull(),
+    since: text('since'),
+    status: text('status').default('active').notNull(),
+    createdBy: uuid('created_by').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+    removedAt: timestamp('removed_at', { withTimezone: true, mode: 'string' }),
   },
   (table) => [
-    index("idx_patient_comorbidity_organization_id").on(table.organizationId),
-    index("idx_patient_comorbidity_patient_user_id").on(table.patientUserId),
-    index("idx_patient_comorbidity_status").on(table.patientUserId, table.status),
+    index('idx_patient_comorbidity_organization_id').on(table.organizationId),
+    index('idx_patient_comorbidity_patient_user_id').on(table.patientUserId),
+    index('idx_patient_comorbidity_status').on(table.patientUserId, table.status),
     foreignKey({
       columns: [table.organizationId],
       foreignColumns: [beOrganizations.id],
-      name: "patient_comorbidity_organization_id_fkey",
-    }).onDelete("cascade"),
+      name: 'patient_comorbidity_organization_id_fkey',
+    }).onDelete('cascade'),
     foreignKey({
       columns: [table.patientUserId],
       foreignColumns: [platformUsers.id],
-      name: "patient_comorbidity_patient_user_id_fkey",
-    }).onDelete("cascade"),
+      name: 'patient_comorbidity_patient_user_id_fkey',
+    }).onDelete('cascade'),
     foreignKey({
       columns: [table.createdBy],
       foreignColumns: [platformUsers.id],
-      name: "patient_comorbidity_created_by_fkey",
-    }).onDelete("restrict"),
+      name: 'patient_comorbidity_created_by_fkey',
+    }).onDelete('restrict'),
     check(
-      "patient_comorbidity_status_check",
+      'patient_comorbidity_status_check',
       sql`status = ANY (ARRAY['active'::text, 'removed'::text])`,
     ),
   ],

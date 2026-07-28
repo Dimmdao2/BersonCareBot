@@ -3,24 +3,24 @@
  * Uses Drizzle ORM; all writes are scoped by patientUserId.
  */
 
-import { and, asc, eq } from "drizzle-orm";
-import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
-import { getDrizzle } from "@/app-layer/db/drizzle";
-import { runDrizzleMutationTransaction } from "@/infra/db/drizzleMutationTx";
+import { and, asc, eq } from 'drizzle-orm';
+import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
+import { getDrizzle } from '@/app-layer/db/drizzle';
+import { runDrizzleMutationTransaction } from '@/infra/db/drizzleMutationTx';
 import type {
   AddComorbidityInput,
   Comorbidity,
   EditComorbidityTextInput,
   PatientComorbiditiesPort,
-} from "@/modules/patient-comorbidities/ports";
-import { patientComorbidity } from "../../../db/schema/patientComorbidities";
+} from '@/modules/patient-comorbidities/ports';
+import { patientComorbidity } from '../../../db/schema/patientComorbidities';
 
 function toComorbidity(r: typeof patientComorbidity.$inferSelect): Comorbidity {
   return {
     id: r.id,
     text: r.text,
     since: r.since ?? null,
-    status: r.status as "active" | "removed",
+    status: r.status as 'active' | 'removed',
     createdAt: r.createdAt,
     removedAt: r.removedAt ?? null,
   };
@@ -29,7 +29,7 @@ function toComorbidity(r: typeof patientComorbidity.$inferSelect): Comorbidity {
 function currentPrincipalOrganizationId(): string {
   const principalOrganizationId = getCurrentDbPrincipalOrganizationId();
   if (!principalOrganizationId) {
-    throw new Error("organization_principal_required");
+    throw new Error('organization_principal_required');
   }
   return principalOrganizationId;
 }
@@ -39,8 +39,11 @@ function currentWriteOrganizationId(...fallbacks: (string | null | undefined)[])
   const fallbackOrganizationIds = fallbacks.filter((x): x is string => Boolean(x));
   const fallbackOrganizationId = fallbackOrganizationIds[0] ?? null;
   const hasFallbackMismatch = fallbackOrganizationIds.some((id) => id !== fallbackOrganizationId);
-  if (hasFallbackMismatch || (fallbackOrganizationId && principalOrganizationId !== fallbackOrganizationId)) {
-    throw new Error("organization_principal_mismatch");
+  if (
+    hasFallbackMismatch ||
+    (fallbackOrganizationId && principalOrganizationId !== fallbackOrganizationId)
+  ) {
+    throw new Error('organization_principal_mismatch');
   }
   return principalOrganizationId;
 }
@@ -49,12 +52,12 @@ export function createPgPatientComorbiditiesPort(): PatientComorbiditiesPort {
   return {
     async listByPatient(
       patientUserId: string,
-      status: "active" | "removed" | "all",
+      status: 'active' | 'removed' | 'all',
     ): Promise<Comorbidity[]> {
       const organizationId = currentPrincipalOrganizationId();
       const db = getDrizzle();
       const condition =
-        status === "all"
+        status === 'all'
           ? and(
               eq(patientComorbidity.patientUserId, patientUserId),
               eq(patientComorbidity.organizationId, organizationId),
@@ -82,13 +85,13 @@ export function createPgPatientComorbiditiesPort(): PatientComorbiditiesPort {
             patientUserId: input.patientUserId,
             text: input.text,
             since: input.since ?? null,
-            status: "active",
+            status: 'active',
             createdBy: input.createdBy,
           })
           .returning(),
       );
       const row = inserted[0];
-      if (!row) throw new Error("patient_comorbidity insert failed");
+      if (!row) throw new Error('patient_comorbidity insert failed');
       return toComorbidity(row);
     },
 
@@ -135,7 +138,7 @@ export function createPgPatientComorbiditiesPort(): PatientComorbiditiesPort {
             and(
               eq(patientComorbidity.id, comorbidityId),
               eq(patientComorbidity.patientUserId, patientUserId),
-              eq(patientComorbidity.status, "active"),
+              eq(patientComorbidity.status, 'active'),
             ),
           )
           .limit(1);
@@ -145,14 +148,14 @@ export function createPgPatientComorbiditiesPort(): PatientComorbiditiesPort {
           .update(patientComorbidity)
           .set({
             organizationId,
-            status: "removed",
+            status: 'removed',
             removedAt: new Date().toISOString(),
           })
           .where(
             and(
               eq(patientComorbidity.id, comorbidityId),
               eq(patientComorbidity.patientUserId, patientUserId),
-              eq(patientComorbidity.status, "active"),
+              eq(patientComorbidity.status, 'active'),
             ),
           )
           .returning({ id: patientComorbidity.id });
@@ -170,7 +173,7 @@ export function createPgPatientComorbiditiesPort(): PatientComorbiditiesPort {
             and(
               eq(patientComorbidity.id, comorbidityId),
               eq(patientComorbidity.patientUserId, patientUserId),
-              eq(patientComorbidity.status, "removed"),
+              eq(patientComorbidity.status, 'removed'),
             ),
           )
           .limit(1);
@@ -180,14 +183,14 @@ export function createPgPatientComorbiditiesPort(): PatientComorbiditiesPort {
           .update(patientComorbidity)
           .set({
             organizationId,
-            status: "active",
+            status: 'active',
             removedAt: null,
           })
           .where(
             and(
               eq(patientComorbidity.id, comorbidityId),
               eq(patientComorbidity.patientUserId, patientUserId),
-              eq(patientComorbidity.status, "removed"),
+              eq(patientComorbidity.status, 'removed'),
             ),
           )
           .returning({ id: patientComorbidity.id });

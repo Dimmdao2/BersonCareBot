@@ -1,9 +1,9 @@
-import { LEGACY_NON_UUID_SESSION_RESOLUTION } from "@/modules/auth/sessionCanonicalUserIdPolicy";
-import { isPlatformUserUuid } from "@/shared/platform-user/isPlatformUserUuid";
-import type { UserRole } from "@/shared/types/session";
-import type { ClientAccessTier, PlatformAccessContext } from "./types";
-import { isTrustedPatientPhoneActivation } from "./trustedPhonePolicy";
-import { getPlatformAccessPort, type PlatformAccessCanonRow } from "./ports";
+import { LEGACY_NON_UUID_SESSION_RESOLUTION } from '@/modules/auth/sessionCanonicalUserIdPolicy';
+import { isPlatformUserUuid } from '@/shared/platform-user/isPlatformUserUuid';
+import type { UserRole } from '@/shared/types/session';
+import type { ClientAccessTier, PlatformAccessContext } from './types';
+import { isTrustedPatientPhoneActivation } from './trustedPhonePolicy';
+import { getPlatformAccessPort, type PlatformAccessCanonRow } from './ports';
 
 /** DoD §8 / MASTER_PLAN §3.8: tier + trust signals (no raw phone). Skips noisy happy path (patient + trusted + resolved_canon). */
 function logClientPlatformAccess(payload: {
@@ -14,18 +14,18 @@ function logClientPlatformAccess(payload: {
   canonicalUserId: string | null;
 }): void {
   const skipNoisyHappyPath =
-    payload.resolution === "resolved_canon" &&
-    payload.tier === "patient" &&
+    payload.resolution === 'resolved_canon' &&
+    payload.tier === 'patient' &&
     payload.phoneTrustedForPatient;
   if (skipNoisyHappyPath) return;
 
   console.info(
-    "[platform_access] tier=%s resolution=%s phone_trusted=%s has_phone_db=%s canon=%s",
-    payload.tier ?? "n/a",
+    '[platform_access] tier=%s resolution=%s phone_trusted=%s has_phone_db=%s canon=%s',
+    payload.tier ?? 'n/a',
     payload.resolution,
     String(payload.phoneTrustedForPatient),
     String(payload.hasPhoneInDb),
-    payload.canonicalUserId ?? "none",
+    payload.canonicalUserId ?? 'none',
   );
 }
 
@@ -40,7 +40,7 @@ function computeClientTier(row: PlatformAccessCanonRow): {
   const webIdentityCabinet =
     emailVerifiedCabinet || row.has_password_credentials || row.has_web_oauth_binding;
   const tier: ClientAccessTier =
-    phoneTrustedForPatient || webIdentityCabinet ? "patient" : "onboarding";
+    phoneTrustedForPatient || webIdentityCabinet ? 'patient' : 'onboarding';
   return { tier, hasPhoneInDb, phoneTrustedForPatient };
 }
 
@@ -62,17 +62,17 @@ export async function resolvePlatformAccessContext(
     return {
       canonicalUserId: null,
       dbRole: null,
-      tier: "guest",
+      tier: 'guest',
       hasPhoneInDb: false,
       phoneTrustedForPatient: false,
-      resolution: "no_session",
+      resolution: 'no_session',
     };
   }
 
   if (!isPlatformUserUuid(sessionUserId)) {
     const hint = input.sessionRoleHint ?? null;
-    const tier: ClientAccessTier | null = hint === "client" ? "onboarding" : null;
-    if (hint === "client") {
+    const tier: ClientAccessTier | null = hint === 'client' ? 'onboarding' : null;
+    if (hint === 'client') {
       logClientPlatformAccess({
         tier,
         resolution: LEGACY_NON_UUID_SESSION_RESOLUTION,
@@ -98,39 +98,39 @@ export async function resolvePlatformAccessContext(
     return {
       canonicalUserId: null,
       dbRole: null,
-      tier: "guest",
+      tier: 'guest',
       hasPhoneInDb: false,
       phoneTrustedForPatient: false,
-      resolution: "session_user_missing",
+      resolution: 'session_user_missing',
     };
   }
 
   const dbRole = row.role as UserRole;
-  if (dbRole !== "client") {
+  if (dbRole !== 'client') {
     return {
       canonicalUserId,
       dbRole,
       tier: null,
       hasPhoneInDb: Boolean(row.phone_normalized?.trim()),
       phoneTrustedForPatient: false,
-      resolution: "resolved_canon",
+      resolution: 'resolved_canon',
     };
   }
 
   const { tier, hasPhoneInDb, phoneTrustedForPatient } = computeClientTier(row);
   logClientPlatformAccess({
     tier,
-    resolution: "resolved_canon",
+    resolution: 'resolved_canon',
     phoneTrustedForPatient,
     hasPhoneInDb,
     canonicalUserId,
   });
   return {
     canonicalUserId,
-    dbRole: "client",
+    dbRole: 'client',
     tier,
     hasPhoneInDb,
     phoneTrustedForPatient,
-    resolution: "resolved_canon",
+    resolution: 'resolved_canon',
   };
 }

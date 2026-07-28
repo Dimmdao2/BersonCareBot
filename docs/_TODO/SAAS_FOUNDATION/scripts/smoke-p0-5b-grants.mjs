@@ -45,39 +45,41 @@
  * No push/deploy.
  */
 
-import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const repoRoot = path.resolve(__dirname, "..", "..", "..", "..");
+const repoRoot = path.resolve(__dirname, '..', '..', '..', '..');
 
 const dbName = `bcb_saas_p0_5b_grants_scratch_${process.pid}_${Date.now()}`;
 
-if (!dbName.startsWith("bcb_saas_") || !dbName.includes("scratch")) {
+if (!dbName.startsWith('bcb_saas_') || !dbName.includes('scratch')) {
   throw new Error(`refusing unsafe scratch DB name: ${dbName}`);
 }
 if (/bcb_webapp_(dev|prod|test)/.test(dbName)) {
-  throw new Error("refusing dev/prod/test-shaped scratch DB name");
+  throw new Error('refusing dev/prod/test-shaped scratch DB name');
 }
 
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
     cwd: repoRoot,
-    encoding: "utf8",
-    stdio: options.input != null ? ["pipe", "pipe", "pipe"] : "inherit",
+    encoding: 'utf8',
+    stdio: options.input != null ? ['pipe', 'pipe', 'pipe'] : 'inherit',
     input: options.input,
   });
 
   if (result.error) {
-    throw new Error(`${command} ${args.join(" ")} failed to start: ${result.error.message}`);
+    throw new Error(`${command} ${args.join(' ')} failed to start: ${result.error.message}`);
   }
 
   if (result.status !== 0) {
     if (result.stdout) process.stdout.write(result.stdout);
     if (result.stderr) process.stderr.write(result.stderr);
-    throw new Error(`${command} ${args.join(" ")} failed with ${result.status ?? "unknown status"}`);
+    throw new Error(
+      `${command} ${args.join(' ')} failed with ${result.status ?? 'unknown status'}`,
+    );
   }
 
   if (result.stdout) process.stdout.write(result.stdout);
@@ -86,32 +88,42 @@ function run(command, args, options = {}) {
 }
 
 function psql(sql, { database = dbName } = {}) {
-  run("sudo", ["-n", "-u", "postgres", "psql", "-v", "ON_ERROR_STOP=1", "-d", database], { input: sql });
+  run('sudo', ['-n', '-u', 'postgres', 'psql', '-v', 'ON_ERROR_STOP=1', '-d', database], {
+    input: sql,
+  });
 }
 
 function clusterRoleExists(roleName) {
   const result = spawnSync(
-    "sudo",
+    'sudo',
     [
-      "-n", "-u", "postgres", "psql", "-X", "-Atq", "-d", "postgres",
-      "-c", `SELECT 1 FROM pg_roles WHERE rolname='${roleName}'`,
+      '-n',
+      '-u',
+      'postgres',
+      'psql',
+      '-X',
+      '-Atq',
+      '-d',
+      'postgres',
+      '-c',
+      `SELECT 1 FROM pg_roles WHERE rolname='${roleName}'`,
     ],
-    { cwd: repoRoot, encoding: "utf8" },
+    { cwd: repoRoot, encoding: 'utf8' },
   );
   if (result.error || result.status !== 0) {
     throw new Error(`failed to inspect pre-existing cluster role ${roleName}`);
   }
-  return result.stdout.trim() === "1";
+  return result.stdout.trim() === '1';
 }
 
 function readRepoFile(relPath) {
-  return readFileSync(path.join(repoRoot, relPath), "utf8");
+  return readFileSync(path.join(repoRoot, relPath), 'utf8');
 }
 
-const roleSplitSql = readRepoFile("deploy/postgres/p0-5b-role-split-staff-patient.sql");
+const roleSplitSql = readRepoFile('deploy/postgres/p0-5b-role-split-staff-patient.sql');
 
 const { getAppStaffGrantTables, getAppPatientGrantTables, appPatientColumnGrants } = await import(
-  path.join(__dirname, "p0-5b-grants-sql.mjs")
+  path.join(__dirname, 'p0-5b-grants-sql.mjs')
 );
 
 const staffTables = getAppStaffGrantTables();
@@ -128,44 +140,48 @@ function findColumnGrantOrThrow(qualifiedName, privilege) {
     (grant) => grant.qualifiedName === qualifiedName && grant.privilege === privilege,
   );
   if (!found) {
-    throw new Error(`Expected a ${privilege} column grant for ${qualifiedName} in appPatientColumnGrants`);
+    throw new Error(
+      `Expected a ${privilege} column grant for ${qualifiedName} in appPatientColumnGrants`,
+    );
   }
   return found;
 }
 
 // (a)/(d): a real INFRA table, staff-only (present in app_staff's set, absent from app_patient's).
-const infraTable = findOrThrow(staffTables, "integrator.projection_outbox");
-if (patientTables.some((t) => t.qualifiedName === "integrator.projection_outbox")) {
-  throw new Error("integrator.projection_outbox must NOT be in the app_patient grant set");
+const infraTable = findOrThrow(staffTables, 'integrator.projection_outbox');
+if (patientTables.some((t) => t.qualifiedName === 'integrator.projection_outbox')) {
+  throw new Error('integrator.projection_outbox must NOT be in the app_patient grant set');
 }
 
 // (b): a real patient-owned, write-capable table. 2026-07-11 audit fix: be_appointments' whole-table
 // privilege is now SELECT-only -- its INSERT/UPDATE moved to column-level grants (see (e)-style
 // reasoning in the generator); this smoke only exercises the whole-table SELECT proof for it, same as
 // before.
-const patientTable = findOrThrow(patientTables, "public.be_appointments");
-if (patientTable.privileges !== "SELECT") {
+const patientTable = findOrThrow(patientTables, 'public.be_appointments');
+if (patientTable.privileges !== 'SELECT') {
   throw new Error(`Unexpected privileges for public.be_appointments: ${patientTable.privileges}`);
 }
 
 // (c): a real SCOPED-but-staff-only table, present in app_staff's set, absent from app_patient's.
-const staffOnlyTable = findOrThrow(staffTables, "public.patient_merge_candidates");
-if (patientTables.some((t) => t.qualifiedName === "public.patient_merge_candidates")) {
-  throw new Error("public.patient_merge_candidates must NOT be in the app_patient grant set");
+const staffOnlyTable = findOrThrow(staffTables, 'public.patient_merge_candidates');
+if (patientTables.some((t) => t.qualifiedName === 'public.patient_merge_candidates')) {
+  throw new Error('public.patient_merge_candidates must NOT be in the app_patient grant set');
 }
 
 // (e): platform_users -- whole-table SELECT-only, PLUS a column-level UPDATE grant restricted to
 // calendar_timezone/reminder_muted_until (2026-07-11 gpt-5.6-sol audit fix: the original whole-table
 // UPDATE grant let a patient write its own `role` column -- this is the fix under test).
-const platformUsersTable = findOrThrow(patientTables, "public.platform_users");
-if (platformUsersTable.privileges !== "SELECT") {
-  throw new Error(`Unexpected privileges for public.platform_users: ${platformUsersTable.privileges}`);
+const platformUsersTable = findOrThrow(patientTables, 'public.platform_users');
+if (platformUsersTable.privileges !== 'SELECT') {
+  throw new Error(
+    `Unexpected privileges for public.platform_users: ${platformUsersTable.privileges}`,
+  );
 }
-const platformUsersUpdateGrant = findColumnGrantOrThrow("public.platform_users", "UPDATE");
+const platformUsersUpdateGrant = findColumnGrantOrThrow('public.platform_users', 'UPDATE');
 if (
   platformUsersUpdateGrant.columns.length !== 2 ||
-  !platformUsersUpdateGrant.columns.includes("calendar_timezone") ||
-  !platformUsersUpdateGrant.columns.includes("reminder_muted_until")
+  !platformUsersUpdateGrant.columns.includes('calendar_timezone') ||
+  !platformUsersUpdateGrant.columns.includes('reminder_muted_until')
 ) {
   throw new Error(
     `Unexpected platform_users UPDATE column grant: ${JSON.stringify(platformUsersUpdateGrant.columns)}`,
@@ -173,73 +189,86 @@ if (
 }
 
 // (f): org_enrollments -- write grant removed entirely (2026-07-11 audit fix).
-const orgEnrollmentsTable = findOrThrow(patientTables, "public.org_enrollments");
-if (orgEnrollmentsTable.privileges !== "SELECT") {
-  throw new Error(`Unexpected privileges for public.org_enrollments: ${orgEnrollmentsTable.privileges}`);
+const orgEnrollmentsTable = findOrThrow(patientTables, 'public.org_enrollments');
+if (orgEnrollmentsTable.privileges !== 'SELECT') {
+  throw new Error(
+    `Unexpected privileges for public.org_enrollments: ${orgEnrollmentsTable.privileges}`,
+  );
 }
 
 // (g): be_patient_booking_profiles -- write grant removed entirely (all-staff-columns table,
 // 2026-07-11 audit fix).
-const bookingProfilesTable = findOrThrow(patientTables, "public.be_patient_booking_profiles");
-if (bookingProfilesTable.privileges !== "SELECT") {
+const bookingProfilesTable = findOrThrow(patientTables, 'public.be_patient_booking_profiles');
+if (bookingProfilesTable.privileges !== 'SELECT') {
   throw new Error(
     `Unexpected privileges for public.be_patient_booking_profiles: ${bookingProfilesTable.privileges}`,
   );
 }
 
 // (h): specialist_tasks -- excluded from the app_patient grant set entirely (2026-07-11 audit fix).
-if (patientTables.some((t) => t.qualifiedName === "public.specialist_tasks")) {
-  throw new Error("public.specialist_tasks must NOT be in the app_patient grant set at all");
+if (patientTables.some((t) => t.qualifiedName === 'public.specialist_tasks')) {
+  throw new Error('public.specialist_tasks must NOT be in the app_patient grant set at all');
 }
-findOrThrow(staffTables, "public.specialist_tasks"); // still a real app_staff table, sanity-check.
+findOrThrow(staffTables, 'public.specialist_tasks'); // still a real app_staff table, sanity-check.
 
 // (j)-(l): second-pass exhaustive sweep additions (taskdb #655, this task) plus P2-C2 grant reopen:
 // lfk_complexes.origin remains excluded, user_channel_preferences.is_preferred_for_auth is re-added
 // behind the P2-C2 value guard, treatment_program_events.actor_id remains excluded.
-const lfkComplexesTable = findOrThrow(patientTables, "public.lfk_complexes");
-if (lfkComplexesTable.privileges !== "SELECT") {
-  throw new Error(`Unexpected privileges for public.lfk_complexes: ${lfkComplexesTable.privileges}`);
+const lfkComplexesTable = findOrThrow(patientTables, 'public.lfk_complexes');
+if (lfkComplexesTable.privileges !== 'SELECT') {
+  throw new Error(
+    `Unexpected privileges for public.lfk_complexes: ${lfkComplexesTable.privileges}`,
+  );
 }
-const lfkComplexesInsertGrant = findColumnGrantOrThrow("public.lfk_complexes", "INSERT");
-if (lfkComplexesInsertGrant.columns.includes("origin")) {
-  throw new Error("public.lfk_complexes INSERT column grant must NOT include origin");
+const lfkComplexesInsertGrant = findColumnGrantOrThrow('public.lfk_complexes', 'INSERT');
+if (lfkComplexesInsertGrant.columns.includes('origin')) {
+  throw new Error('public.lfk_complexes INSERT column grant must NOT include origin');
 }
 
-const userChannelPreferencesTable = findOrThrow(patientTables, "public.user_channel_preferences");
-if (userChannelPreferencesTable.privileges !== "SELECT") {
+const userChannelPreferencesTable = findOrThrow(patientTables, 'public.user_channel_preferences');
+if (userChannelPreferencesTable.privileges !== 'SELECT') {
   throw new Error(
     `Unexpected privileges for public.user_channel_preferences: ${userChannelPreferencesTable.privileges}`,
   );
 }
-const userChannelPreferencesInsertGrant = findColumnGrantOrThrow("public.user_channel_preferences", "INSERT");
-const userChannelPreferencesUpdateGrant = findColumnGrantOrThrow("public.user_channel_preferences", "UPDATE");
+const userChannelPreferencesInsertGrant = findColumnGrantOrThrow(
+  'public.user_channel_preferences',
+  'INSERT',
+);
+const userChannelPreferencesUpdateGrant = findColumnGrantOrThrow(
+  'public.user_channel_preferences',
+  'UPDATE',
+);
 if (
-  !userChannelPreferencesInsertGrant.columns.includes("is_preferred_for_auth") ||
-  !userChannelPreferencesUpdateGrant.columns.includes("is_preferred_for_auth")
+  !userChannelPreferencesInsertGrant.columns.includes('is_preferred_for_auth') ||
+  !userChannelPreferencesUpdateGrant.columns.includes('is_preferred_for_auth')
 ) {
   throw new Error(
-    "public.user_channel_preferences INSERT/UPDATE column grants must include is_preferred_for_auth after P2-C2 guard",
+    'public.user_channel_preferences INSERT/UPDATE column grants must include is_preferred_for_auth after P2-C2 guard',
   );
 }
 
-const onlineIntakeStatusHistoryTable = findOrThrow(patientTables, "public.online_intake_status_history");
-if (onlineIntakeStatusHistoryTable.privileges !== "SELECT") {
+const onlineIntakeStatusHistoryTable = findOrThrow(
+  patientTables,
+  'public.online_intake_status_history',
+);
+if (onlineIntakeStatusHistoryTable.privileges !== 'SELECT') {
   throw new Error(
     `Unexpected privileges for public.online_intake_status_history: ${onlineIntakeStatusHistoryTable.privileges}`,
   );
 }
 const onlineIntakeStatusHistoryInsertGrant = findColumnGrantOrThrow(
-  "public.online_intake_status_history",
-  "INSERT",
+  'public.online_intake_status_history',
+  'INSERT',
 );
-for (const requiredColumn of ["id", "request_id", "organization_id", "from_status", "to_status"]) {
+for (const requiredColumn of ['id', 'request_id', 'organization_id', 'from_status', 'to_status']) {
   if (!onlineIntakeStatusHistoryInsertGrant.columns.includes(requiredColumn)) {
     throw new Error(
       `public.online_intake_status_history INSERT column grant must include ${requiredColumn}`,
     );
   }
 }
-for (const forbiddenColumn of ["changed_by", "note"]) {
+for (const forbiddenColumn of ['changed_by', 'note']) {
   if (onlineIntakeStatusHistoryInsertGrant.columns.includes(forbiddenColumn)) {
     throw new Error(
       `public.online_intake_status_history INSERT column grant must NOT include ${forbiddenColumn}`,
@@ -247,24 +276,33 @@ for (const forbiddenColumn of ["changed_by", "note"]) {
   }
 }
 
-const treatmentProgramEventsTable = findOrThrow(patientTables, "public.treatment_program_events");
-if (treatmentProgramEventsTable.privileges !== "SELECT") {
+const treatmentProgramEventsTable = findOrThrow(patientTables, 'public.treatment_program_events');
+if (treatmentProgramEventsTable.privileges !== 'SELECT') {
   throw new Error(
     `Unexpected privileges for public.treatment_program_events: ${treatmentProgramEventsTable.privileges}`,
   );
 }
-const treatmentProgramEventsInsertGrant = findColumnGrantOrThrow("public.treatment_program_events", "INSERT");
-if (treatmentProgramEventsInsertGrant.columns.includes("actor_id")) {
-  throw new Error("public.treatment_program_events INSERT column grant must NOT include actor_id");
+const treatmentProgramEventsInsertGrant = findColumnGrantOrThrow(
+  'public.treatment_program_events',
+  'INSERT',
+);
+if (treatmentProgramEventsInsertGrant.columns.includes('actor_id')) {
+  throw new Error('public.treatment_program_events INSERT column grant must NOT include actor_id');
 }
 
-const beAppointmentCancellationsUpdateGrant = findColumnGrantOrThrow("public.be_appointment_cancellations", "UPDATE");
-const beAppointmentReschedulesUpdateGrant = findColumnGrantOrThrow("public.be_appointment_reschedules", "UPDATE");
+const beAppointmentCancellationsUpdateGrant = findColumnGrantOrThrow(
+  'public.be_appointment_cancellations',
+  'UPDATE',
+);
+const beAppointmentReschedulesUpdateGrant = findColumnGrantOrThrow(
+  'public.be_appointment_reschedules',
+  'UPDATE',
+);
 for (const [tableName, grant] of [
-  ["public.be_appointment_cancellations", beAppointmentCancellationsUpdateGrant],
-  ["public.be_appointment_reschedules", beAppointmentReschedulesUpdateGrant],
+  ['public.be_appointment_cancellations', beAppointmentCancellationsUpdateGrant],
+  ['public.be_appointment_reschedules', beAppointmentReschedulesUpdateGrant],
 ]) {
-  if (grant.columns.length !== 1 || grant.columns[0] !== "notifications_sent") {
+  if (grant.columns.length !== 1 || grant.columns[0] !== 'notifications_sent') {
     throw new Error(`${tableName} UPDATE column grant must be exactly notifications_sent`);
   }
 }
@@ -423,13 +461,15 @@ INSERT INTO public.be_appointment_reschedules (id, staff_comment) VALUES
 // Real GRANT statement shapes, restricted to just these tables (same format() call the real
 // generator emits, just not run through the full 219/110-row temp-table pipeline since this scratch
 // DB does not have the rest of the application schema).
-const platformUsersUpdateColumns = platformUsersUpdateGrant.columns.join(", ");
-const lfkComplexesInsertColumns = lfkComplexesInsertGrant.columns.join(", ");
-const userChannelPreferencesInsertColumns = userChannelPreferencesInsertGrant.columns.join(", ");
-const userChannelPreferencesUpdateColumns = userChannelPreferencesUpdateGrant.columns.join(", ");
-const treatmentProgramEventsInsertColumns = treatmentProgramEventsInsertGrant.columns.join(", ");
-const beAppointmentCancellationsUpdateColumns = beAppointmentCancellationsUpdateGrant.columns.join(", ");
-const beAppointmentReschedulesUpdateColumns = beAppointmentReschedulesUpdateGrant.columns.join(", ");
+const platformUsersUpdateColumns = platformUsersUpdateGrant.columns.join(', ');
+const lfkComplexesInsertColumns = lfkComplexesInsertGrant.columns.join(', ');
+const userChannelPreferencesInsertColumns = userChannelPreferencesInsertGrant.columns.join(', ');
+const userChannelPreferencesUpdateColumns = userChannelPreferencesUpdateGrant.columns.join(', ');
+const treatmentProgramEventsInsertColumns = treatmentProgramEventsInsertGrant.columns.join(', ');
+const beAppointmentCancellationsUpdateColumns =
+  beAppointmentCancellationsUpdateGrant.columns.join(', ');
+const beAppointmentReschedulesUpdateColumns =
+  beAppointmentReschedulesUpdateGrant.columns.join(', ');
 
 const grantSql = String.raw`
 GRANT USAGE ON SCHEMA public, integrator TO app_staff, app_patient;
@@ -474,17 +514,17 @@ function fatal(assertionVar, message) {
     `\\echo 'FATAL: ${message}'`,
     `SELECT 1/0; -- forces a real error under ON_ERROR_STOP`,
     `\\endif`,
-  ].join("\n");
+  ].join('\n');
 }
 
 // (a) app_staff: patient-owned table AND infra queue table both readable.
 const proofA = String.raw`
 SET SESSION AUTHORIZATION app_staff;
 SELECT (count(*) = 1)::int AS b5g_a_staff_reads_patient_table FROM public.be_appointments \gset
-${fatal("b5g_a_staff_reads_patient_table", "(a) app_staff must be able to SELECT public.be_appointments")}
+${fatal('b5g_a_staff_reads_patient_table', '(a) app_staff must be able to SELECT public.be_appointments')}
 
 SELECT (count(*) = 1)::int AS b5g_a_staff_reads_infra_table FROM integrator.projection_outbox \gset
-${fatal("b5g_a_staff_reads_infra_table", "(a) app_staff must be able to SELECT integrator.projection_outbox (INFRA)")}
+${fatal('b5g_a_staff_reads_infra_table', '(a) app_staff must be able to SELECT integrator.projection_outbox (INFRA)')}
 
 RESET SESSION AUTHORIZATION;
 `;
@@ -493,7 +533,7 @@ RESET SESSION AUTHORIZATION;
 const proofB = String.raw`
 SET SESSION AUTHORIZATION app_patient;
 SELECT (count(*) = 1)::int AS b5g_b_patient_reads_own_table FROM public.be_appointments \gset
-${fatal("b5g_b_patient_reads_own_table", "(b) app_patient must be able to SELECT public.be_appointments")}
+${fatal('b5g_b_patient_reads_own_table', '(b) app_patient must be able to SELECT public.be_appointments')}
 `;
 
 // (c) THE money assertion #1: still app_patient, patient_merge_candidates must be permission-denied
@@ -525,7 +565,7 @@ SELECT 1/0;
 \endif
 
 SELECT (current_user = 'app_patient')::int AS b5g_d_still_patient \gset
-${fatal("b5g_d_still_patient", "(d) session must still be app_patient after the two rejected reads")}
+${fatal('b5g_d_still_patient', '(d) session must still be app_patient after the two rejected reads')}
 `;
 
 // (e) THE column-level money assertion: still app_patient. The confirmed self-service column
@@ -535,7 +575,7 @@ ${fatal("b5g_d_still_patient", "(d) session must still be app_patient after the 
 const proofE = String.raw`
 UPDATE public.platform_users SET calendar_timezone = 'Europe/Kaliningrad' WHERE id = 'b5000000-0000-4000-8000-0000000000a1';
 SELECT (calendar_timezone = 'Europe/Kaliningrad')::int AS b5g_e_patient_updates_own_column FROM public.platform_users WHERE id = 'b5000000-0000-4000-8000-0000000000a1' \gset
-${fatal("b5g_e_patient_updates_own_column", "(e) app_patient must be able to UPDATE platform_users.calendar_timezone (own confirmed self-service column)")}
+${fatal('b5g_e_patient_updates_own_column', '(e) app_patient must be able to UPDATE platform_users.calendar_timezone (own confirmed self-service column)')}
 
 \set ON_ERROR_STOP off
 UPDATE public.platform_users SET role = 'admin' WHERE id = 'b5000000-0000-4000-8000-0000000000a1';
@@ -548,7 +588,7 @@ SELECT 1/0;
 \endif
 
 SELECT (role = 'patient')::int AS b5g_e_role_unchanged FROM public.platform_users WHERE id = 'b5000000-0000-4000-8000-0000000000a1' \gset
-${fatal("b5g_e_role_unchanged", "(e) platform_users.role must remain unchanged after the rejected UPDATE")}
+${fatal('b5g_e_role_unchanged', '(e) platform_users.role must remain unchanged after the rejected UPDATE')}
 `;
 
 // (f) org_enrollments: app_patient INSERT must be permission-denied (write grant removed entirely --
@@ -601,7 +641,7 @@ SELECT 1/0;
 const proofJ = String.raw`
 INSERT INTO public.lfk_complexes (platform_user_id, title) VALUES ('b5000000-0000-4000-8000-0000000000a1', 'My own complex');
 SELECT (count(*) = 1)::int AS b5g_j_patient_self_insert_default_origin FROM public.lfk_complexes WHERE title = 'My own complex' AND origin = 'manual' \gset
-${fatal("b5g_j_patient_self_insert_default_origin", "(j) app_patient must be able to INSERT its own lfk_complexes row and have origin default to 'manual'")}
+${fatal('b5g_j_patient_self_insert_default_origin', "(j) app_patient must be able to INSERT its own lfk_complexes row and have origin default to 'manual'")}
 
 \set ON_ERROR_STOP off
 INSERT INTO public.lfk_complexes (platform_user_id, title, origin) VALUES ('b5000000-0000-4000-8000-0000000000a1', 'Forged complex', 'assigned_by_specialist');
@@ -620,11 +660,11 @@ SELECT 1/0;
 const proofK = String.raw`
 UPDATE public.user_channel_preferences SET is_enabled_for_messages = false WHERE platform_user_id = 'b5000000-0000-4000-8000-0000000000a1';
 SELECT (is_enabled_for_messages = false)::int AS b5g_k_patient_updates_own_toggle FROM public.user_channel_preferences WHERE platform_user_id = 'b5000000-0000-4000-8000-0000000000a1' \gset
-${fatal("b5g_k_patient_updates_own_toggle", "(k) app_patient must be able to UPDATE its own user_channel_preferences.is_enabled_for_messages")}
+${fatal('b5g_k_patient_updates_own_toggle', '(k) app_patient must be able to UPDATE its own user_channel_preferences.is_enabled_for_messages')}
 
 UPDATE public.user_channel_preferences SET is_preferred_for_auth = true WHERE platform_user_id = 'b5000000-0000-4000-8000-0000000000a1';
 SELECT (is_preferred_for_auth = true)::int AS b5g_k_auth_pref_granted FROM public.user_channel_preferences WHERE platform_user_id = 'b5000000-0000-4000-8000-0000000000a1' \gset
-${fatal("b5g_k_auth_pref_granted", "(k) app_patient must be able to UPDATE user_channel_preferences.is_preferred_for_auth after P2-C2 guard")}
+${fatal('b5g_k_auth_pref_granted', '(k) app_patient must be able to UPDATE user_channel_preferences.is_preferred_for_auth after P2-C2 guard')}
 `;
 
 // (l) treatment_program_events: still app_patient. Legit self-write without actor_id succeeds; an
@@ -633,7 +673,7 @@ ${fatal("b5g_k_auth_pref_granted", "(k) app_patient must be able to UPDATE user_
 const proofL = String.raw`
 INSERT INTO public.treatment_program_events (instance_id, event_type) VALUES ('b5000000-0000-4000-8000-0000000000d1', 'item_added');
 SELECT (count(*) = 2)::int AS b5g_l_patient_self_insert_no_actor FROM public.treatment_program_events WHERE event_type = 'item_added' \gset
-${fatal("b5g_l_patient_self_insert_no_actor", "(l) app_patient must be able to INSERT its own treatment_program_events row without actor_id")}
+${fatal('b5g_l_patient_self_insert_no_actor', '(l) app_patient must be able to INSERT its own treatment_program_events row without actor_id')}
 
 \set ON_ERROR_STOP off
 INSERT INTO public.treatment_program_events (instance_id, actor_id, event_type) VALUES ('b5000000-0000-4000-8000-0000000000d1', 'b5000000-0000-4000-8000-0000000000c1', 'item_added');
@@ -661,7 +701,7 @@ WHERE id = 'b5000000-0000-4000-8000-0000000000e1';
 SELECT (notifications_sent = '{"patient":"sent"}'::jsonb)::int AS b5g_m_cancel_notifications_updated
 FROM public.be_appointment_cancellations
 WHERE id = 'b5000000-0000-4000-8000-0000000000e1' \gset
-${fatal("b5g_m_cancel_notifications_updated", "(m) app_patient must be able to UPDATE be_appointment_cancellations.notifications_sent")}
+${fatal('b5g_m_cancel_notifications_updated', '(m) app_patient must be able to UPDATE be_appointment_cancellations.notifications_sent')}
 
 UPDATE public.be_appointment_reschedules
 SET notifications_sent = '{"staff":"failed"}'::jsonb
@@ -669,7 +709,7 @@ WHERE id = 'b5000000-0000-4000-8000-0000000000e2';
 SELECT (notifications_sent = '{"staff":"failed"}'::jsonb)::int AS b5g_m_reschedule_notifications_updated
 FROM public.be_appointment_reschedules
 WHERE id = 'b5000000-0000-4000-8000-0000000000e2' \gset
-${fatal("b5g_m_reschedule_notifications_updated", "(m) app_patient must be able to UPDATE be_appointment_reschedules.notifications_sent")}
+${fatal('b5g_m_reschedule_notifications_updated', '(m) app_patient must be able to UPDATE be_appointment_reschedules.notifications_sent')}
 
 \set ON_ERROR_STOP off
 UPDATE public.be_appointment_cancellations
@@ -693,30 +733,32 @@ const proofI = String.raw`
 SET SESSION AUTHORIZATION app_staff;
 UPDATE public.platform_users SET role = 'admin' WHERE id = 'b5000000-0000-4000-8000-0000000000a1';
 SELECT (role = 'admin')::int AS b5g_i_staff_updates_role FROM public.platform_users WHERE id = 'b5000000-0000-4000-8000-0000000000a1' \gset
-${fatal("b5g_i_staff_updates_role", "(i) app_staff must be able to UPDATE platform_users.role (unrestricted, unlike app_patient)")}
+${fatal('b5g_i_staff_updates_role', '(i) app_staff must be able to UPDATE platform_users.role (unrestricted, unlike app_patient)')}
 RESET SESSION AUTHORIZATION;
 \echo 'P0.5b grants smoke: proof (i) CONFIRMED -- app_staff remains fully unrestricted.'
 `;
 
 const preExistingRoles = {
-  appPatient: clusterRoleExists("app_patient"),
-  appStaff: clusterRoleExists("app_staff"),
+  appPatient: clusterRoleExists('app_patient'),
+  appStaff: clusterRoleExists('app_staff'),
 };
 let databaseCreated = false;
 let executionError;
 const cleanupErrors = [];
 
 try {
-  run("sudo", ["-n", "-u", "postgres", "createdb", dbName]);
+  run('sudo', ['-n', '-u', 'postgres', 'createdb', dbName]);
   databaseCreated = true;
 
-  console.log("--- phase 1: p0-5b role split (app_staff/app_patient, real deploy script) ---");
+  console.log('--- phase 1: p0-5b role split (app_staff/app_patient, real deploy script) ---');
   psql(roleSplitSql);
 
-  console.log("--- phase 2: synthetic schema (representative real table names) ---");
+  console.log('--- phase 2: synthetic schema (representative real table names) ---');
   psql(schemaSql);
 
-  console.log("--- phase 3: grants restricted to those tables (real privilege + column-grant strings from the generator) ---");
+  console.log(
+    '--- phase 3: grants restricted to those tables (real privilege + column-grant strings from the generator) ---',
+  );
   psql(grantSql);
 
   // All of proofA..proofI (minus the isolated app_staff-only proofA/proofI blocks) MUST run inside a
@@ -725,10 +767,24 @@ try {
   // session to still genuinely BE app_patient (not a fresh superuser connection) when the
   // permission-denied checks run.
   console.log(
-    "--- phases 4-14: proofs (a) staff full surface, (b) patient own table, (c) staff-only denied, (d) infra denied, (e) column-level role-escalation blocked, (f) org_enrollments INSERT denied, (g) booking-profile UPDATE denied, (h) specialist_tasks denied, (j) lfk_complexes.origin forgery blocked, (k) user_channel_preferences.is_preferred_for_auth granted behind P2-C2 guard, (l) treatment_program_events.actor_id forgery blocked, (m) booking lifecycle notification patch column grants, (i) staff unrestricted ---",
+    '--- phases 4-14: proofs (a) staff full surface, (b) patient own table, (c) staff-only denied, (d) infra denied, (e) column-level role-escalation blocked, (f) org_enrollments INSERT denied, (g) booking-profile UPDATE denied, (h) specialist_tasks denied, (j) lfk_complexes.origin forgery blocked, (k) user_channel_preferences.is_preferred_for_auth granted behind P2-C2 guard, (l) treatment_program_events.actor_id forgery blocked, (m) booking lifecycle notification patch column grants, (i) staff unrestricted ---',
   );
   psql(
-    [proofA, proofB, proofC, proofD, proofE, proofF, proofG, proofH, proofJ, proofK, proofL, proofM, proofI].join("\n"),
+    [
+      proofA,
+      proofB,
+      proofC,
+      proofD,
+      proofE,
+      proofF,
+      proofG,
+      proofH,
+      proofJ,
+      proofK,
+      proofL,
+      proofM,
+      proofI,
+    ].join('\n'),
   );
 
   console.log(`smoke-p0-5b-grants: OK (${dbName})`);
@@ -737,19 +793,19 @@ try {
 } finally {
   if (databaseCreated) {
     try {
-      run("sudo", ["-n", "-u", "postgres", "dropdb", "--if-exists", dbName]);
+      run('sudo', ['-n', '-u', 'postgres', 'dropdb', '--if-exists', dbName]);
     } catch (error) {
       cleanupErrors.push(error);
     }
   }
   const rolesCreatedBySmoke = [
-    ...(!preExistingRoles.appPatient ? ["app_patient"] : []),
-    ...(!preExistingRoles.appStaff ? ["app_staff"] : []),
+    ...(!preExistingRoles.appPatient ? ['app_patient'] : []),
+    ...(!preExistingRoles.appStaff ? ['app_staff'] : []),
   ];
   if (rolesCreatedBySmoke.length > 0) {
     try {
-      run("sudo", ["-n", "-u", "postgres", "psql", "-v", "ON_ERROR_STOP=1", "-d", "postgres"], {
-        input: rolesCreatedBySmoke.map((role) => `DROP ROLE IF EXISTS ${role};`).join("\n"),
+      run('sudo', ['-n', '-u', 'postgres', 'psql', '-v', 'ON_ERROR_STOP=1', '-d', 'postgres'], {
+        input: rolesCreatedBySmoke.map((role) => `DROP ROLE IF EXISTS ${role};`).join('\n'),
       });
     } catch (error) {
       cleanupErrors.push(error);
@@ -760,12 +816,12 @@ try {
 if (executionError && cleanupErrors.length > 0) {
   throw new AggregateError(
     [executionError, ...cleanupErrors],
-    "smoke-p0-5b-grants execution and cleanup failed",
+    'smoke-p0-5b-grants execution and cleanup failed',
   );
 }
 if (executionError) {
   throw executionError;
 }
 if (cleanupErrors.length > 0) {
-  throw new AggregateError(cleanupErrors, "smoke-p0-5b-grants cleanup failed");
+  throw new AggregateError(cleanupErrors, 'smoke-p0-5b-grants cleanup failed');
 }

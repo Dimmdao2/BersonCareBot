@@ -12,15 +12,19 @@
  * organization context goes through `app.read_org_brand_core_context()` (0238), not through
  * `public.be_organizations`. See the audit note on getCoreContext below.
  */
-import { runWebappPgText, runWebappTransaction, type WebappSqlExecutor } from "@/infra/db/runWebappSql";
+import {
+  runWebappPgText,
+  runWebappTransaction,
+  type WebappSqlExecutor,
+} from '@/infra/db/runWebappSql';
 import type {
   CoreOrganizationContext,
   OrgBrandRevision,
   OrgBrandRevisionStatus,
   OrgBrandingPort,
   SaveOrgBrandDraftInput,
-} from "@/modules/org-branding/ports";
-import { ORG_BRAND_REVISION_STATUSES } from "@/modules/org-branding/ports";
+} from '@/modules/org-branding/ports';
+import { ORG_BRAND_REVISION_STATUSES } from '@/modules/org-branding/ports';
 
 type CoreRow = {
   organization_id: string;
@@ -144,11 +148,11 @@ export function createPgOrgBrandingPort(): OrgBrandingPort {
     },
 
     async getPublishedRevision(organizationId: string): Promise<OrgBrandRevision | null> {
-      return selectRevision(organizationId, "published");
+      return selectRevision(organizationId, 'published');
     },
 
     async getDraftRevision(organizationId: string): Promise<OrgBrandRevision | null> {
-      return selectRevision(organizationId, "draft");
+      return selectRevision(organizationId, 'draft');
     },
 
     async saveDraft(input: SaveOrgBrandDraftInput): Promise<OrgBrandRevision> {
@@ -165,8 +169,8 @@ export function createPgOrgBrandingPort(): OrgBrandingPort {
            updated_at = now()`,
         [input.organizationId, input.displayName, input.logoMediaId, input.actorPlatformUserId],
       );
-      const draft = await selectRevision(input.organizationId, "draft");
-      if (!draft) throw new Error("org_brand_draft_save_failed");
+      const draft = await selectRevision(input.organizationId, 'draft');
+      if (!draft) throw new Error('org_brand_draft_save_failed');
       return draft;
     },
 
@@ -209,7 +213,7 @@ export function createPgOrgBrandingPort(): OrgBrandingPort {
           tx,
         );
         if (rows.length === 0) return null;
-        return selectRevision(input.organizationId, "published", tx);
+        return selectRevision(input.organizationId, 'published', tx);
       });
     },
 

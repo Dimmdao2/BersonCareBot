@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from 'vitest';
 import {
   buildDefaultManualMergeResolution,
   canSubmitManualMerge,
@@ -9,30 +9,30 @@ import {
   resolveMergePreviewAlignment,
   uuidEqualsNormalized,
   type MergePreviewApiOk,
-} from "./adminMergeAccountsLogic";
-import type { ManualMergeResolution } from "@/infra/repos/manualMergeResolution";
+} from './adminMergeAccountsLogic';
+import type { ManualMergeResolution } from '@/infra/repos/manualMergeResolution';
 
-const T1 = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
-const T2 = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+const T1 = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const T2 = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 
 function basePreview(over: Partial<MergePreviewApiOk> = {}): MergePreviewApiOk {
   const target = {
     id: T1,
-    phoneNormalized: "+79000000001",
-    integratorUserId: "1",
-    displayName: "A",
-    firstName: "a",
-    lastName: "a",
+    phoneNormalized: '+79000000001',
+    integratorUserId: '1',
+    displayName: 'A',
+    firstName: 'a',
+    lastName: 'a',
     email: null,
     createdAt: new Date().toISOString(),
   };
   const duplicate = {
     id: T2,
-    phoneNormalized: "+79000000001",
+    phoneNormalized: '+79000000001',
     integratorUserId: null,
-    displayName: "B",
-    firstName: "b",
-    lastName: "b",
+    displayName: 'B',
+    firstName: 'b',
+    lastName: 'b',
     email: null,
     createdAt: new Date().toISOString(),
   };
@@ -85,28 +85,33 @@ function basePreview(over: Partial<MergePreviewApiOk> = {}): MergePreviewApiOk {
     recommendation: {
       suggestedTargetId: T1,
       suggestedDuplicateId: T2,
-      basis: "pick_merge_target_heuristic",
-      defaultWinnerBias: "older_created_at",
+      basis: 'pick_merge_target_heuristic',
+      defaultWinnerBias: 'older_created_at',
     },
     mergeAllowed: true,
     v1MergeEngineCallable: true,
     platformUserMergeV2Enabled: false,
     integratorUserPresence: {
-      target: { webappIntegratorUserId: "1", rowExistsInIntegratorDb: true },
+      target: { webappIntegratorUserId: '1', rowExistsInIntegratorDb: true },
       duplicate: { webappIntegratorUserId: null, rowExistsInIntegratorDb: null },
-      checkStatus: "ok",
+      checkStatus: 'ok',
     },
     hardBlockers: [],
     ...over,
   };
 }
 
-describe("getAlignedMergePreviewRequest", () => {
-  it("asks refetch when recommendation order differs from preview ids", () => {
+describe('getAlignedMergePreviewRequest', () => {
+  it('asks refetch when recommendation order differs from preview ids', () => {
     const p = basePreview({
       targetId: T2,
       duplicateId: T1,
-      recommendation: { suggestedTargetId: T1, suggestedDuplicateId: T2, basis: "x", defaultWinnerBias: "x" },
+      recommendation: {
+        suggestedTargetId: T1,
+        suggestedDuplicateId: T2,
+        basis: 'x',
+        defaultWinnerBias: 'x',
+      },
     });
     const r = getAlignedMergePreviewRequest(T2, T1, p);
     expect(r.shouldRefetch).toBe(true);
@@ -114,19 +119,24 @@ describe("getAlignedMergePreviewRequest", () => {
     expect(r.duplicateId).toBe(T2);
   });
 
-  it("does not refetch when already aligned", () => {
+  it('does not refetch when already aligned', () => {
     const p = basePreview();
     const r = getAlignedMergePreviewRequest(T1, T2, p);
     expect(r.shouldRefetch).toBe(false);
   });
 });
 
-describe("resolveMergePreviewAlignment", () => {
-  it("never refetches when alignToRecommendation is false", () => {
+describe('resolveMergePreviewAlignment', () => {
+  it('never refetches when alignToRecommendation is false', () => {
     const p = basePreview({
       targetId: T2,
       duplicateId: T1,
-      recommendation: { suggestedTargetId: T1, suggestedDuplicateId: T2, basis: "x", defaultWinnerBias: "x" },
+      recommendation: {
+        suggestedTargetId: T1,
+        suggestedDuplicateId: T2,
+        basis: 'x',
+        defaultWinnerBias: 'x',
+      },
     });
     const r = resolveMergePreviewAlignment(false, T1, T2, p);
     expect(r.shouldRefetch).toBe(false);
@@ -134,11 +144,16 @@ describe("resolveMergePreviewAlignment", () => {
     expect(r.duplicateId).toBe(T1);
   });
 
-  it("delegates to heuristic when alignToRecommendation is true", () => {
+  it('delegates to heuristic when alignToRecommendation is true', () => {
     const p = basePreview({
       targetId: T2,
       duplicateId: T1,
-      recommendation: { suggestedTargetId: T1, suggestedDuplicateId: T2, basis: "x", defaultWinnerBias: "x" },
+      recommendation: {
+        suggestedTargetId: T1,
+        suggestedDuplicateId: T2,
+        basis: 'x',
+        defaultWinnerBias: 'x',
+      },
     });
     const r = resolveMergePreviewAlignment(true, T1, T2, p);
     expect(r.shouldRefetch).toBe(true);
@@ -147,14 +162,14 @@ describe("resolveMergePreviewAlignment", () => {
   });
 });
 
-describe("canSubmitManualMerge", () => {
-  it("returns false when hard blockers present", () => {
+describe('canSubmitManualMerge', () => {
+  it('returns false when hard blockers present', () => {
     const p = basePreview({
       mergeAllowed: false,
       hardBlockers: [
         {
-          code: "different_non_null_integrator_user_id",
-          message: "x",
+          code: 'different_non_null_integrator_user_id',
+          message: 'x',
         },
       ],
     });
@@ -162,22 +177,22 @@ describe("canSubmitManualMerge", () => {
     expect(canSubmitManualMerge(p, res)).toBe(false);
   });
 
-  it("returns false when resolution ids mismatch preview", () => {
+  it('returns false when resolution ids mismatch preview', () => {
     const p = basePreview();
     const res = buildDefaultManualMergeResolution(p);
     const bad: ManualMergeResolution = { ...res, duplicateId: T1 };
     expect(canSubmitManualMerge(p, bad)).toBe(false);
   });
 
-  it("returns false when oauth conflict missing provider choice", () => {
+  it('returns false when oauth conflict missing provider choice', () => {
     const p = basePreview({
       oauthConflicts: [
         {
-          provider: "google",
-          targetProviderUserId: "a",
-          duplicateProviderUserId: "b",
-          recommendedWinner: "target",
-          reason: "x",
+          provider: 'google',
+          targetProviderUserId: 'a',
+          duplicateProviderUserId: 'b',
+          recommendedWinner: 'target',
+          reason: 'x',
         },
       ],
     });
@@ -191,68 +206,71 @@ describe("canSubmitManualMerge", () => {
     const p = basePreview({
       channelConflicts: [
         {
-          channelCode: "telegram",
-          targetExternalId: "tg-target",
-          duplicateExternalId: "tg-dup",
-          recommendedWinner: "target",
-          reason: "x",
+          channelCode: 'telegram',
+          targetExternalId: 'tg-target',
+          duplicateExternalId: 'tg-dup',
+          recommendedWinner: 'target',
+          reason: 'x',
         },
       ],
     });
     const res = buildDefaultManualMergeResolution(p);
     const bad: ManualMergeResolution = {
       ...res,
-      bindings: { ...res.bindings, telegram: "both" },
+      bindings: { ...res.bindings, telegram: 'both' },
     };
     expect(canSubmitManualMerge(p, bad)).toBe(false);
     expect(canSubmitManualMerge(p, res)).toBe(true);
   });
 });
 
-describe("hardBlockerUi", () => {
-  it("returns Russian copy for known integrator blocker", () => {
-    const u = hardBlockerUi("different_non_null_integrator_user_id");
-    expect(u.title).toContain("integrator");
+describe('hardBlockerUi', () => {
+  it('returns Russian copy for known integrator blocker', () => {
+    const u = hardBlockerUi('different_non_null_integrator_user_id');
+    expect(u.title).toContain('integrator');
     expect(u.detail.length).toBeGreaterThan(10);
   });
 
-  it("returns Russian copy for treatment program blocker", () => {
-    const u = hardBlockerUi("active_treatment_program_conflict");
-    expect(u.title).toContain("программ");
+  it('returns Russian copy for treatment program blocker', () => {
+    const u = hardBlockerUi('active_treatment_program_conflict');
+    expect(u.title).toContain('программ');
   });
 
-  it("returns Russian copy for open test attempt blocker", () => {
-    const u = hardBlockerUi("open_test_attempt_conflict");
-    expect(u.title).toContain("тест");
+  it('returns Russian copy for open test attempt blocker', () => {
+    const u = hardBlockerUi('open_test_attempt_conflict');
+    expect(u.title).toContain('тест');
   });
 });
 
-describe("uuidEqualsNormalized", () => {
-  it("matches hex UUID case-insensitively", () => {
+describe('uuidEqualsNormalized', () => {
+  it('matches hex UUID case-insensitively', () => {
     expect(
-      uuidEqualsNormalized("AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA", "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"),
+      uuidEqualsNormalized(
+        'AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA',
+        'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      ),
     ).toBe(true);
   });
-  it("rejects different ids", () => {
+  it('rejects different ids', () => {
     expect(uuidEqualsNormalized(T1, T2)).toBe(false);
   });
 });
 
-describe("mergeDuplicatePrefixConfirmed", () => {
-  it("returns first four hex chars of duplicate UUID", () => {
-    expect(duplicateUuidFirstFourHex(T2)).toBe("bbbb");
-    expect(duplicateUuidFirstFourHex("BBBBBBBB-BBBB-4BBB-8BBB-BBBBBBBBBBBB")).toBe("bbbb");
+describe('mergeDuplicatePrefixConfirmed', () => {
+  it('returns first four hex chars of duplicate UUID', () => {
+    expect(duplicateUuidFirstFourHex(T2)).toBe('bbbb');
+    expect(duplicateUuidFirstFourHex('BBBBBBBB-BBBB-4BBB-8BBB-BBBBBBBBBBBB')).toBe('bbbb');
   });
 
-  it("accepts exactly four matching hex chars (case-insensitive, ignores hyphens in input)", () => {
-    expect(mergeDuplicatePrefixConfirmed("bbbb", T2)).toBe(true);
-    expect(mergeDuplicatePrefixConfirmed("BBBB", T2)).toBe(true);
-    expect(mergeDuplicatePrefixConfirmed("bb-bb", T2)).toBe(true);
+  it('accepts exactly four matching hex chars (case-insensitive, ignores hyphens in input)', () => {
+    expect(mergeDuplicatePrefixConfirmed('bbbb', T2)).toBe(true);
+    expect(mergeDuplicatePrefixConfirmed('BBBB', T2)).toBe(true);
+    expect(mergeDuplicatePrefixConfirmed('bb-bb', T2)).toBe(true);
   });
 
-  it("rejects wrong prefix or wrong length", () => {
-    expect(mergeDuplicatePrefixConfirmed("aaaa", T2)).toBe(false);
-    expect(mergeDuplicatePrefixConfirmed("bbb", T2)).toBe(false);
-    expect(mergeDuplicatePrefixConfirmed("bbbbb", T2)).toBe(false);
+  it('rejects wrong prefix or wrong length', () => {
+    expect(mergeDuplicatePrefixConfirmed('aaaa', T2)).toBe(false);
+    expect(mergeDuplicatePrefixConfirmed('bbb', T2)).toBe(false);
+    expect(mergeDuplicatePrefixConfirmed('bbbbb', T2)).toBe(false);
   });
 });

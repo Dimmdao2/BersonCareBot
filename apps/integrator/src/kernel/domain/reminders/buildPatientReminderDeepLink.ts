@@ -71,7 +71,8 @@ export function buildPatientReminderDeepLink(
   if (!base) return '/app/patient/reminders?from=reminder';
   const rawType = typeof params.linkedObjectType === 'string' ? params.linkedObjectType.trim() : '';
   const linkedObjectType = KNOWN.has(rawType) ? rawType : null;
-  const linkedObjectId = typeof params.linkedObjectId === 'string' ? params.linkedObjectId.trim() : '';
+  const linkedObjectId =
+    typeof params.linkedObjectId === 'string' ? params.linkedObjectId.trim() : '';
   if (!linkedObjectType || !linkedObjectId) {
     return `${base}/app/patient/reminders?from=reminder`;
   }

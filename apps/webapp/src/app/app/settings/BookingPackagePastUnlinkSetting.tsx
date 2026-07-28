@@ -1,10 +1,10 @@
-"use client";
+'use client';
 
-import { useState, useTransition } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { LabeledSwitch } from "@/components/common/form/LabeledSwitch";
-import { patchAdminSetting } from "./patchAdminSetting";
+import { useState, useTransition } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { LabeledSwitch } from '@/components/common/form/LabeledSwitch';
+import { patchAdminSetting } from './patchAdminSetting';
 
 type Props = {
   allowPastUnlink: boolean;
@@ -18,8 +18,11 @@ export function BookingPackagePastUnlinkSetting({ allowPastUnlink: initial }: Pr
   function save() {
     setError(null);
     startTransition(async () => {
-      const ok = await patchAdminSetting("booking_allow_doctor_unlink_past_package_sessions", enabled);
-      if (!ok) setError("Не удалось сохранить");
+      const ok = await patchAdminSetting(
+        'booking_allow_doctor_unlink_past_package_sessions',
+        enabled,
+      );
+      if (!ok) setError('Не удалось сохранить');
     });
   }
 

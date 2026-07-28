@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import type { ReactNode } from "react";
-import { cn } from "@/lib/utils";
+import type { ReactNode } from 'react';
+import { cn } from '@/lib/utils';
 
 export type CatalogRightPaneProps = {
   children: ReactNode;
@@ -19,13 +19,13 @@ export function CatalogRightPane({ children, className, contentClassName }: Cata
   return (
     <div
       className={cn(
-        "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-[var(--doctor-page-block-radius,12px)] bg-card lg:overflow-visible",
+        'flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-[var(--doctor-page-block-radius,12px)] bg-card lg:overflow-visible',
         className,
       )}
     >
       <div
         className={cn(
-          "flex min-h-0 flex-1 flex-col overflow-y-auto p-[var(--doctor-block-padding,18px)]",
+          'flex min-h-0 flex-1 flex-col overflow-y-auto p-[var(--doctor-block-padding,18px)]',
           contentClassName,
         )}
       >

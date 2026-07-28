@@ -2,7 +2,7 @@ import type {
   TreatmentProgramInstanceDetail,
   TreatmentProgramStageItem,
   TreatmentProgramTemplateDetail,
-} from "./types";
+} from './types';
 
 /**
  * Находит id элемента экземпляра, скопированного из пункта шаблона (совпадение этапа, группы и полей пункта).

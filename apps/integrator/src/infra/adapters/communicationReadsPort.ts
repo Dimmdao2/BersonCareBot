@@ -57,27 +57,44 @@ function mapConversation(row: WebappConversationRow): CommunicationConversationL
   return {
     id,
     source: typeof row.source === 'string' ? row.source : '',
-    user_identity_id: typeof row.integratorUserId === 'string' ? row.integratorUserId : (row.integratorUserId != null ? String(row.integratorUserId) : ''),
+    user_identity_id:
+      typeof row.integratorUserId === 'string'
+        ? row.integratorUserId
+        : row.integratorUserId != null
+          ? String(row.integratorUserId)
+          : '',
     admin_scope: typeof row.adminScope === 'string' ? row.adminScope : '',
     status: typeof row.status === 'string' ? row.status : 'open',
     opened_at: typeof row.openedAt === 'string' ? row.openedAt : '',
     last_message_at: typeof row.lastMessageAt === 'string' ? row.lastMessageAt : '',
     closed_at: toNull(typeof row.closedAt === 'string' ? row.closedAt : row.closedAt),
     close_reason: toNull(typeof row.closeReason === 'string' ? row.closeReason : row.closeReason),
-    user_channel_id: typeof row.channelExternalId === 'string' ? row.channelExternalId : (row.channelExternalId ?? ''),
+    user_channel_id:
+      typeof row.channelExternalId === 'string'
+        ? row.channelExternalId
+        : (row.channelExternalId ?? ''),
     user_chat_id: toNull(typeof row.userChatId === 'string' ? row.userChatId : row.userChatId),
     username: null,
     first_name: displayName || null,
     last_name: null,
-    phone_normalized: toNull(typeof row.phoneNormalized === 'string' ? row.phoneNormalized : row.phoneNormalized),
-    last_message_text: toNull(typeof row.lastMessageText === 'string' ? row.lastMessageText : row.lastMessageText),
-    last_sender_role: toNull(typeof row.lastSenderRole === 'string' ? row.lastSenderRole : row.lastSenderRole),
+    phone_normalized: toNull(
+      typeof row.phoneNormalized === 'string' ? row.phoneNormalized : row.phoneNormalized,
+    ),
+    last_message_text: toNull(
+      typeof row.lastMessageText === 'string' ? row.lastMessageText : row.lastMessageText,
+    ),
+    last_sender_role: toNull(
+      typeof row.lastSenderRole === 'string' ? row.lastSenderRole : row.lastSenderRole,
+    ),
   };
 }
 
 function mapConversationDetail(row: WebappConversationRow): CommunicationConversationDetail {
   const base = mapConversation(row);
-  return { ...base, user_chat_id: toNull(typeof row.userChatId === 'string' ? row.userChatId : row.userChatId) };
+  return {
+    ...base,
+    user_chat_id: toNull(typeof row.userChatId === 'string' ? row.userChatId : row.userChatId),
+  };
 }
 
 function mapQuestion(row: WebappQuestionRow): CommunicationQuestionListItem {
@@ -86,13 +103,20 @@ function mapQuestion(row: WebappQuestionRow): CommunicationQuestionListItem {
   return {
     id,
     user_identity_id: '',
-    conversation_id: toNull(typeof row.integratorConversationId === 'string' ? row.integratorConversationId : row.integratorConversationId),
+    conversation_id: toNull(
+      typeof row.integratorConversationId === 'string'
+        ? row.integratorConversationId
+        : row.integratorConversationId,
+    ),
     telegram_message_id: null,
     text: typeof row.text === 'string' ? row.text : '',
     created_at: typeof row.createdAt === 'string' ? row.createdAt : '',
     answered: Boolean(row.answered),
     answered_at: toNull(typeof row.answeredAt === 'string' ? row.answeredAt : row.answeredAt),
-    user_channel_id: typeof row.channelExternalId === 'string' ? row.channelExternalId : (row.channelExternalId ?? ''),
+    user_channel_id:
+      typeof row.channelExternalId === 'string'
+        ? row.channelExternalId
+        : (row.channelExternalId ?? ''),
     username: null,
     first_name: displayName || null,
     last_name: null,
@@ -119,7 +143,13 @@ async function fetchCommunicationGet<T>(
   };
   try {
     const res = await fetch(url, { method: 'GET', headers });
-    const data = (await res.json().catch(() => ({}))) as { ok?: boolean; conversations?: WebappConversationRow[]; conversation?: WebappConversationRow; questions?: WebappQuestionRow[]; question?: { id: string; answered: boolean } | null };
+    const data = (await res.json().catch(() => ({}))) as {
+      ok?: boolean;
+      conversations?: WebappConversationRow[];
+      conversation?: WebappConversationRow;
+      questions?: WebappQuestionRow[];
+      question?: { id: string; answered: boolean } | null;
+    };
     return { ok: res.ok && data.ok === true, data: data as T, status: res.status };
   } catch {
     return { ok: false, status: 0 };
@@ -145,7 +175,11 @@ export function createCommunicationReadsPort(deps: { db: DbPort }): Communicatio
 
     async getConversationById(integratorConversationId: string) {
       const pathname = `/api/integrator/communication/conversations/${encodeURIComponent(integratorConversationId)}`;
-      const result = await fetchCommunicationGet<{ conversation?: WebappConversationRow }>(db, pathname, '');
+      const result = await fetchCommunicationGet<{ conversation?: WebappConversationRow }>(
+        db,
+        pathname,
+        '',
+      );
       if (!result.ok || result.status === 404 || !result.data?.conversation) return null;
       return mapConversationDetail(result.data.conversation);
     },
@@ -165,11 +199,9 @@ export function createCommunicationReadsPort(deps: { db: DbPort }): Communicatio
 
     async getQuestionByConversationId(integratorConversationId: string) {
       const pathname = `/api/integrator/communication/questions/by-conversation/${encodeURIComponent(integratorConversationId)}`;
-      const result = await fetchCommunicationGet<{ question?: { id: string; answered: boolean } | null }>(
-        db,
-        pathname,
-        '',
-      );
+      const result = await fetchCommunicationGet<{
+        question?: { id: string; answered: boolean } | null;
+      }>(db, pathname, '');
       if (!result.ok) return null;
       const q = result.data?.question;
       if (q == null) return null;

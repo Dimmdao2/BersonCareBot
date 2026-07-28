@@ -90,11 +90,13 @@
 
 **Проблема:** нельзя делать silent takeover binding.  
 **Файлы:**
+
 - `apps/webapp/src/modules/auth/channelLink.ts`
 - `apps/webapp/src/app/api/integrator/channel-link/complete/route.ts`
 - тесты рядом
 
 **Действия:**
+
 1. В `completeChannelLinkFromIntegrator` заменить conflict-стратегию:
    - если `(channel_code, external_id)` уже привязан к другому user -> вернуть `conflict`.
    - не менять существующий `user_id`.
@@ -105,11 +107,13 @@
 4. Добавить TODO-hook/порт для уведомления админа и пользователя (как минимум структурированный warning), без изобретения новых policy.
 
 **Тесты (минимум):**
+
 - Unit: conflict branch.
 - Route integration: `409` на conflict.
 - Regression: повторный complete того же токена остаётся идемпотентным.
 
 **DoD:**
+
 - Нет перезаписи чужого binding.
 - Поведение конфликта детерминировано и покрыто тестами.
 
@@ -120,16 +124,19 @@
 **Проблема:** E.5 требует `googleapis`, E.7 требует `nock`.
 
 **Файлы:**
+
 - `apps/integrator/package.json`
 - `pnpm-lock.yaml`
 
 **Действия:**
+
 1. Убедиться, что зависимости реально добавлены package manager-ом:
    - `googleapis` в dependencies.
    - `nock` в devDependencies.
 2. Проверить lockfile изменился согласованно.
 
 **DoD:**
+
 - Пакеты присутствуют в `package.json` и lockfile.
 
 ---
@@ -141,15 +148,18 @@
 **Проблема:** EXEC E.5 указывает `rubitime/connector.ts` для вызова sync.
 
 **Файлы:**
+
 - `apps/integrator/src/integrations/rubitime/connector.ts`
 - `apps/integrator/src/integrations/rubitime/webhook.ts`
 
 **Действия:**
+
 1. Перенести/дублировать вызов `syncAppointmentToCalendar` в корректный слой по архитектуре пакета.
 2. Не допустить двойного вызова sync на один webhook.
 3. Обновить тесты на место вызова.
 
 **DoD:**
+
 - Вызов sync расположен согласно EXEC.
 - Нет дублирующих side effects.
 
@@ -160,9 +170,11 @@
 **Проблема:** нет nock integration tests.
 
 **Файлы:**
+
 - `apps/integrator/src/integrations/google-calendar/*.test.ts`
 
 **Действия:**
+
 1. Добавить `nock`-тесты на:
    - token refresh (`oauth2.googleapis.com/token`) success/fail;
    - create event (POST);
@@ -171,6 +183,7 @@
 2. Проверить disabled-flag путь: 0 внешних вызовов.
 
 **DoD:**
+
 - Критические outbound path покрыты nock.
 - Нет реальных сетевых вызовов в CI.
 
@@ -181,16 +194,19 @@
 **Проблема:** принудительное добавление `Z` может сдвигать локальное время.
 
 **Файлы:**
+
 - `apps/integrator/src/integrations/google-calendar/sync.ts`
 - `apps/integrator/src/integrations/google-calendar/sync.test.ts`
 
 **Действия:**
+
 1. Явно разделить форматы:
    - ISO с timezone -> не трогать.
    - `YYYY-MM-DD HH:mm:ss` -> парсить как локальное бизнес-время по оговорённому правилу.
 2. Зафиксировать поведение в тестах (не допускать скрытого timezone drift).
 
 **DoD:**
+
 - Парсинг времени детерминирован и покрыт тестами.
 
 ---
@@ -200,16 +216,19 @@
 ### E-R3.1 Rubitime reverse API
 
 **Файлы:**
+
 - `apps/integrator/src/integrations/rubitime/client.ts`
 - `apps/integrator/src/integrations/rubitime/connector.ts`
 - webapp route/UI из EXEC
 
 **Действия:**
+
 1. Добавить `updateRecord(id, data)` и `cancelRecord(id)` (если API Rubitime доступен).
 2. Прокинуть M2M path webapp -> integrator -> Rubitime.
 3. Если reverse API недоступен: задокументировать external blocker в контракте и отчёте.
 
 **Тесты:**
+
 - Integration mock клиента на update/cancel.
 
 ---
@@ -217,11 +236,13 @@
 ### E-R3.2 Auto-email bind policy
 
 **Файлы:**
+
 - `apps/integrator/src/integrations/rubitime/connector.ts`
 - `apps/webapp/src/modules/integrator/events.ts`
 - tests рядом
 
 **Действия:**
+
 1. Вытаскивать email из Rubitime payload и эмитить `user.email.autobind`.
 2. В webapp обработать policy из `USER_TODO_STAGE.md`:
    - invalid email -> skip;
@@ -230,6 +251,7 @@
    - иначе сохранить как unverified.
 
 **Тесты:**
+
 - Unit connector emit;
 - Unit events policy branches.
 
@@ -240,6 +262,7 @@
 ### E-R4.1 External domain nock coverage
 
 **Действия:**
+
 1. Для доменов: `api.telegram.org`, MAX API, `googleapis.com`, SMSC, Rubitime:
    - минимум 1 nock-тест критичного outbound.
 2. Зафиксировать запрет реальных сетевых вызовов в тестах.
@@ -247,6 +270,7 @@
 ### E-R4.2 Webhook inject coverage
 
 **Действия:**
+
 1. Проверить/добавить `fastify.inject` тесты для:
    - `/webhook/telegram`
    - `/webhook/max`
@@ -256,9 +280,11 @@
 ### E-R4.3 Manual smoke doc
 
 **Файл:**
+
 - `apps/integrator/e2e/README.md` (новый)
 
 **Содержимое:**
+
 - пошаговый smoke для staging;
 - входные сообщения/команды;
 - ожидаемый результат в UI/боте/БД.
@@ -270,6 +296,7 @@
 ### E-R5.1 Targeted regression on A-D touched areas
 
 **Действия:**
+
 1. Запустить целевые тесты модулей, затронутых E изменениями:
    - auth email/channel-link;
    - messaging relay;
@@ -279,6 +306,7 @@
 ### E-R5.2 Contract review
 
 **Действия:**
+
 1. Актуализировать `apps/webapp/INTEGRATOR_CONTRACT.md` по итогам E.5-E.7.
 2. Проверить, что flow numbering не конфликтует.
 
@@ -289,6 +317,7 @@
 ### E-R6.1 QA checklist closeout
 
 Отметить секцию Pack E в `docs/FULL_DEV_PLAN/EXEC/QA_CHECKLIST.md`:
+
 - send-email HMAC,
 - email OTP via integrator,
 - TG deep-link hardening,
@@ -339,4 +368,3 @@ pnpm run ci
 - Секция Pack E в `QA_CHECKLIST.md` закрыта.
 - `INTEGRATOR_CONTRACT.md` синхронизирован.
 - `pnpm run ci` подтверждённо PASS.
-

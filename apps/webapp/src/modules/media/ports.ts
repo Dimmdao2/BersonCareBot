@@ -2,7 +2,14 @@
  * Port for uploading and resolving media (images, audio, video).
  * Implementations: mock (in-memory), later S3/disk with stable URLs.
  */
-import type { MediaFolderRecord, MediaListParams, MediaListResult, MediaRecord, MediaUsageRef, MediaUsageSummary } from "./types";
+import type {
+  MediaFolderRecord,
+  MediaListParams,
+  MediaListResult,
+  MediaRecord,
+  MediaUsageRef,
+  MediaUsageSummary,
+} from './types';
 
 export type UploadMediaParams = {
   /** File content. */
@@ -34,10 +41,14 @@ export type MediaStoragePort = {
   updateMediaFolder(mediaId: string, folderId: string | null): Promise<boolean>;
   listFolders(parentId: string | null): Promise<MediaFolderRecord[]>;
   listAllFolders(): Promise<MediaFolderRecord[]>;
-  createFolder(params: { name: string; parentId: string | null; createdBy: string }): Promise<MediaFolderRecord>;
+  createFolder(params: {
+    name: string;
+    parentId: string | null;
+    createdBy: string;
+  }): Promise<MediaFolderRecord>;
   renameFolder(folderId: string, name: string): Promise<boolean>;
   moveFolder(folderId: string, newParentId: string | null): Promise<boolean>;
-  deleteFolder(folderId: string): Promise<{ ok: true } | { ok: false; error: "not_empty" }>;
+  deleteFolder(folderId: string): Promise<{ ok: true } | { ok: false; error: 'not_empty' }>;
   folderExists(folderId: string): Promise<boolean>;
   findUsage(mediaId: string): Promise<MediaUsageRef[]>;
   getUsageSummary(mediaId: string): Promise<MediaUsageSummary>;

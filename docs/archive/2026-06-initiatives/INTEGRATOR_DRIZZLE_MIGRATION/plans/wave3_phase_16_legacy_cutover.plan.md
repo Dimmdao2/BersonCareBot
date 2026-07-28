@@ -5,25 +5,25 @@ status: completed
 isProject: false
 todos:
   - id: w3-p16-inventory
-    content: "Инвентаризация всех живых ссылок на migrate:legacy/run-migrations.mjs (scripts, docs, tests, deploy)."
+    content: 'Инвентаризация всех живых ссылок на migrate:legacy/run-migrations.mjs (scripts, docs, tests, deploy).'
     status: completed
   - id: w3-p16-policy
-    content: "Если нет blockers после 09–15: обновить runbook/policy: regular flow = Drizzle only; legacy path = emergency-only/manual gate."
+    content: 'Если нет blockers после 09–15: обновить runbook/policy: regular flow = Drizzle only; legacy path = emergency-only/manual gate.'
     status: completed
   - id: w3-p16-blocker-decision
-    content: "Проверено: blocker после 09–15 не найден; regular flow закреплён как Drizzle-only, legacy путь оставлен manual/emergency."
+    content: 'Проверено: blocker после 09–15 не найден; regular flow закреплён как Drizzle-only, legacy путь оставлен manual/emergency.'
     status: completed
   - id: w3-p16-script-guards
-    content: "Усилить guardrails: запрет использования migrate:legacy в регулярных pipeline/CI и явный warning gate в runner."
+    content: 'Усилить guardrails: запрет использования migrate:legacy в регулярных pipeline/CI и явный warning gate в runner.'
     status: completed
   - id: w3-p16-test-bootstrap
-    content: "Для test/bootstrap path убрать неявную зависимость от legacy runner или явно изолировать её в dedicated emergency setup."
+    content: 'Для test/bootstrap path убрать неявную зависимость от legacy runner или явно изолировать её в dedicated emergency setup.'
     status: completed
   - id: w3-p16-zod-ledger
-    content: "Добавить Zod-валидацию ledger/runtime parsing в migration tooling, где есть untyped JSON/shape."
+    content: 'Добавить Zod-валидацию ledger/runtime parsing в migration tooling, где есть untyped JSON/shape.'
     status: completed
   - id: w3-p16-verify
-    content: "Проверить: rg migrate:legacy/run-migrations в регулярных путях = 0; docs/LOG/RAW_SQL синхронизированы."
+    content: 'Проверить: rg migrate:legacy/run-migrations в регулярных путях = 0; docs/LOG/RAW_SQL синхронизированы.'
     status: completed
 ---
 
@@ -66,12 +66,12 @@ pnpm --dir apps/webapp run lint
 
 ## Риски
 
-| Риск | Митигация |
-|------|-----------|
-| Старые окружения всё ещё требуют legacy bootstrap | emergency-runbook + explicit gate, не regular deploy |
+| Риск                                                                   | Митигация                                                                        |
+| ---------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| Старые окружения всё ещё требуют legacy bootstrap                      | emergency-runbook + explicit gate, не regular deploy                             |
 | После 09–15 остался raw SQL, который может требовать legacy migrations | не отключать regular legacy path; зафиксировать blocker и повторный cutover gate |
-| Тестовый bootstrap сломается при жёстком запрете legacy | выделить test-only path и задокументировать |
-| Dual-ledger путаница | фиксировать source-of-truth (`drizzle.__drizzle_migrations`) и repair steps |
+| Тестовый bootstrap сломается при жёстком запрете legacy                | выделить test-only path и задокументировать                                      |
+| Dual-ledger путаница                                                   | фиксировать source-of-truth (`drizzle.__drizzle_migrations`) и repair steps      |
 
 ## Закрытие (2026-06-06)
 

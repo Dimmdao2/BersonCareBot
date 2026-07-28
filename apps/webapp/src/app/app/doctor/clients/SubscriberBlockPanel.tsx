@@ -1,13 +1,13 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Label } from "@/shared/ui/doctor/primitives/label";
-import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
+import { useState } from 'react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Label } from '@/shared/ui/doctor/primitives/label';
+import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
 import {
   doctorClientOverviewPrimaryCardClass,
   doctorClientSectionTitleClass,
-} from "./doctorClientCardChrome";
+} from './doctorClientCardChrome';
 
 type Props = {
   userId: string;
@@ -17,7 +17,7 @@ type Props = {
 
 export function SubscriberBlockPanel({ userId, initiallyBlocked, blockedReason }: Props) {
   const [blocked, setBlocked] = useState(initiallyBlocked);
-  const [reason, setReason] = useState(blockedReason ?? "");
+  const [reason, setReason] = useState(blockedReason ?? '');
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -26,13 +26,13 @@ export function SubscriberBlockPanel({ userId, initiallyBlocked, blockedReason }
     setError(null);
     try {
       const res = await fetch(`/api/doctor/clients/${encodeURIComponent(userId)}/block`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ blocked: next, reason: next ? reason.trim() || null : null }),
       });
       const data = (await res.json()) as { ok?: boolean };
       if (!res.ok || !data.ok) {
-        setError("Не удалось сохранить");
+        setError('Не удалось сохранить');
         return;
       }
       setBlocked(next);
@@ -56,7 +56,7 @@ export function SubscriberBlockPanel({ userId, initiallyBlocked, blockedReason }
       {blocked ? (
         <p className="text-sm">
           Статус: <strong className="text-destructive">заблокирован</strong>
-          {blockedReason ? ` — ${blockedReason}` : ""}
+          {blockedReason ? ` — ${blockedReason}` : ''}
         </p>
       ) : (
         <p className="text-sm">
@@ -65,7 +65,12 @@ export function SubscriberBlockPanel({ userId, initiallyBlocked, blockedReason }
       )}
       {error ? <p className="text-destructive text-sm">{error}</p> : null}
       {blocked ? (
-        <Button type="button" variant="secondary" disabled={pending} onClick={() => void setBlock(false)}>
+        <Button
+          type="button"
+          variant="secondary"
+          disabled={pending}
+          onClick={() => void setBlock(false)}
+        >
           Снять блокировку
         </Button>
       ) : (
@@ -81,7 +86,12 @@ export function SubscriberBlockPanel({ userId, initiallyBlocked, blockedReason }
             className="min-h-[56px]"
             maxLength={2000}
           />
-          <Button type="button" variant="destructive" disabled={pending} onClick={() => void setBlock(true)}>
+          <Button
+            type="button"
+            variant="destructive"
+            disabled={pending}
+            onClick={() => void setBlock(true)}
+          >
             Заблокировать отправку сообщений
           </Button>
         </div>

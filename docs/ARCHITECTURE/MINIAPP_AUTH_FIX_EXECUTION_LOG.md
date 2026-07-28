@@ -1,20 +1,20 @@
 # Miniapp auth fix — execution log
 
-**Scope (история 2026-04):** стабильный вход из miniapp при legacy `?ctx=bot|max` на `/app`, подавление query-JWT в контексте мессенджера, error+retry вместо авто-fallback в телефон, platform-cookie после `telegram-init`, согласованность ссылок integrator. **Продолжение 2026-05:** канонические entry **`/app/tg`** и **`/app/max`**, без `ctx` в ссылках integrator — см. раздел *2026-05-15* ниже и `apps/webapp/INTEGRATOR_CONTRACT.md`.
+**Scope (история 2026-04):** стабильный вход из miniapp при legacy `?ctx=bot|max` на `/app`, подавление query-JWT в контексте мессенджера, error+retry вместо авто-fallback в телефон, platform-cookie после `telegram-init`, согласованность ссылок integrator. **Продолжение 2026-05:** канонические entry **`/app/tg`** и **`/app/max`**, без `ctx` в ссылках integrator — см. раздел _2026-05-15_ ниже и `apps/webapp/INTEGRATOR_CONTRACT.md`.
 
 ## Ход выполнения
 
 ### Шаблон записи шага
 
-| Поле | Значение |
-|------|----------|
-| Дата/время | |
-| Шаг | |
-| Изменённые файлы | |
-| Rationale | |
-| Тесты | |
-| CI | |
-| Риски / заметки | |
+| Поле             | Значение |
+| ---------------- | -------- |
+| Дата/время       |          |
+| Шаг              |          |
+| Изменённые файлы |          |
+| Rationale        |          |
+| Тесты            |          |
+| CI               |          |
+| Риски / заметки  |          |
 
 ---
 
@@ -51,7 +51,7 @@
 ### 2026-04-15 — Шаг 4–5 (middleware / integrator)
 
 - **Файлы:** `apps/webapp/src/middleware/platformContext.ts` — `ctx=max` legacy → тот же redirect+cookie, что и `ctx=bot`; `apps/webapp/src/platformContextRedirects.test.ts`; `apps/webapp/src/app/api/auth/max-init/route.ts` — поле `miniappAuthOutcome: "session_ok"` в success-log.
-- **Integrator (2026-04):** ссылки с `ctx=bot` в `integrations/max/webhook.ts` и `integrations/telegram/webhook.ts`; тесты контракта URL: `integrations/max/webhook.links.test.ts`, `integrations/telegram/webhook.links.test.ts` (экспорт `buildMaxLinks` для MAX). **Актуализация 2026-05:** `ctx` убран; URL строятся через `buildWebappEntryUrlFromSource` → `/app/tg` / `/app/max` — см. раздел *2026-05-15*.
+- **Integrator (2026-04):** ссылки с `ctx=bot` в `integrations/max/webhook.ts` и `integrations/telegram/webhook.ts`; тесты контракта URL: `integrations/max/webhook.links.test.ts`, `integrations/telegram/webhook.links.test.ts` (экспорт `buildMaxLinks` для MAX). **Актуализация 2026-05:** `ctx` убран; URL строятся через `buildWebappEntryUrlFromSource` → `/app/tg` / `/app/max` — см. раздел _2026-05-15_.
 
 ---
 
@@ -72,10 +72,10 @@
 
 ## Итог (основная фаза 2026-04)
 
-| Критерий | Статус |
-|----------|--------|
-| `pnpm run ci` (на момент закрытия фазы) | зелёный (локально) |
-| Push | не выполнялся (агентская сессия) |
+| Критерий                                | Статус                           |
+| --------------------------------------- | -------------------------------- |
+| `pnpm run ci` (на момент закрытия фазы) | зелёный (локально)               |
+| Push                                    | не выполнялся (агентская сессия) |
 
 Продолжение по entry-split, докам и аудитам — **§2026-05-15**, **§2026-05-16** и **«Сводка: план, доки, аудиты»** в конце файла.
 
@@ -89,15 +89,15 @@
 
 ## Аудит по чек-листу плана (2026-04-15, повторная проверка)
 
-| Шаг плана | Зазор | Что сделано |
-|-----------|-------|-------------|
-| 2 | Не было автотеста на **retry** и **ошибку POST**; «timeout/error/retry» в чек-листе | Добавлен тест на 403 + повторный `telegram-init`; таймаут `ctx=bot` сохранён. |
-| 2 | Рассинхрон **`useSearchParams` vs `window.location`** в `useLayoutEffect` / tick → ложный miniapp-контекст в тестах и теоретически после навигации | `messengerEntryFromClient` и `messengerEntryFromUrlOrCookie` опираются на **`searchParams` (Next) + cookie**, без чтения `ctx` из `window`. |
-| 2 | Интеграционный тест «браузер → телефон» нестабилен в jsdom | Помечен **`it.skip`** с комментарием; standalone без `ctx` покрыт **`authEntryFlow.test.ts`**, E2E — шаг 8 плана. |
-| 4 | Чек-лист: **PlatformProvider** не переопределяет `bot` | Если `serverHint === "bot"`, cookie/mode не понижаются до standalone при кратковременном `!isMessengerMiniAppHost()`; тест `PlatformProvider.botHint.test.tsx`. |
-| 5 | Явные тесты ссылок MAX webhook | `max/webhook.links.test.ts` + экспорт **`buildMaxLinks`**; Telegram — расширен `webhook.links.test.ts`. |
-| 6 | Единый маркер, 400 `telegram-init` | `miniappAuthOutcome` на success/denied/**invalid_body**; строка в **`SERVER CONVENTIONS.md`**. |
-| 7–8 | Доки / smoke | Обновлены лог и `SERVER CONVENTIONS`; ручной smoke по плану — оператор. |
+| Шаг плана | Зазор                                                                                                                                              | Что сделано                                                                                                                                                     |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2         | Не было автотеста на **retry** и **ошибку POST**; «timeout/error/retry» в чек-листе                                                                | Добавлен тест на 403 + повторный `telegram-init`; таймаут `ctx=bot` сохранён.                                                                                   |
+| 2         | Рассинхрон **`useSearchParams` vs `window.location`** в `useLayoutEffect` / tick → ложный miniapp-контекст в тестах и теоретически после навигации | `messengerEntryFromClient` и `messengerEntryFromUrlOrCookie` опираются на **`searchParams` (Next) + cookie**, без чтения `ctx` из `window`.                     |
+| 2         | Интеграционный тест «браузер → телефон» нестабилен в jsdom                                                                                         | Помечен **`it.skip`** с комментарием; standalone без `ctx` покрыт **`authEntryFlow.test.ts`**, E2E — шаг 8 плана.                                               |
+| 4         | Чек-лист: **PlatformProvider** не переопределяет `bot`                                                                                             | Если `serverHint === "bot"`, cookie/mode не понижаются до standalone при кратковременном `!isMessengerMiniAppHost()`; тест `PlatformProvider.botHint.test.tsx`. |
+| 5         | Явные тесты ссылок MAX webhook                                                                                                                     | `max/webhook.links.test.ts` + экспорт **`buildMaxLinks`**; Telegram — расширен `webhook.links.test.ts`.                                                         |
+| 6         | Единый маркер, 400 `telegram-init`                                                                                                                 | `miniappAuthOutcome` на success/denied/**invalid_body**; строка в **`SERVER CONVENTIONS.md`**.                                                                  |
+| 7–8       | Доки / smoke                                                                                                                                       | Обновлены лог и `SERVER CONVENTIONS`; ручной smoke по плану — оператор.                                                                                         |
 
 ---
 
@@ -123,28 +123,28 @@
 
 ### Статус чек-листа после remediation
 
-| Шаг плана | Статус | Комментарий |
-|-----------|--------|-------------|
-| MAX bugfix | ✅ code complete | `max_unavailable`/UX/route покрыты кодом и тестами; фактический `max_bot_api_key` в production DB — ops-проверка. |
-| TG first-open stabilization | ✅ code complete | Убраны лишние recovery-вызовы в bind-phone; polling race стабилизирован. |
-| Server-first entry classification | ✅ complete | Ветка входа вычисляется на сервере и прокидывается в bootstrap. |
-| Lazy SDK + prefetch dedup | ✅ complete | SDK lazy, prefetch только в RSC, client-дубли удалены. |
-| PlatformProvider quiet | ✅ complete | `router.refresh()` отсутствует; `useEffect`-модель стабильна. |
-| Error isolation | ✅ complete | Сегментные `error.tsx` + `SegmentRouteError` (reset/hard reload). |
-| Scenario verification | ⚠️ partial (ops) | Автотесты/код закрыты; матрица 10 сценариев на dev/prod и измерения TTI/time-to-session требуют ручного прогонa на окружениях. |
+| Шаг плана                         | Статус           | Комментарий                                                                                                                    |
+| --------------------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| MAX bugfix                        | ✅ code complete | `max_unavailable`/UX/route покрыты кодом и тестами; фактический `max_bot_api_key` в production DB — ops-проверка.              |
+| TG first-open stabilization       | ✅ code complete | Убраны лишние recovery-вызовы в bind-phone; polling race стабилизирован.                                                       |
+| Server-first entry classification | ✅ complete      | Ветка входа вычисляется на сервере и прокидывается в bootstrap.                                                                |
+| Lazy SDK + prefetch dedup         | ✅ complete      | SDK lazy, prefetch только в RSC, client-дубли удалены.                                                                         |
+| PlatformProvider quiet            | ✅ complete      | `router.refresh()` отсутствует; `useEffect`-модель стабильна.                                                                  |
+| Error isolation                   | ✅ complete      | Сегментные `error.tsx` + `SegmentRouteError` (reset/hard reload).                                                              |
+| Scenario verification             | ⚠️ partial (ops) | Автотесты/код закрыты; матрица 10 сценариев на dev/prod и измерения TTI/time-to-session требуют ручного прогонa на окружениях. |
 
 ---
 
 ## 2026-05-15 — Miniapp entry split (`/app/tg`, `/app/max`)
 
-| Поле | Значение |
-|------|----------|
-| Дата | 2026-05-15 |
-| Цель | Убрать двусмысленность `ctx=bot` для MAX: явный surface по пути URL; синхронизировать integrator, middleware, клиентский fallback `?t=` после cap. |
-| Webapp | `AppEntryRsc.tsx`, `app/app/tg/page.tsx`, `app/app/max/page.tsx`, `app/app/page.tsx`; `appEntryClassification.ts` (`routeBoundMessengerSurface`); **`AuthBootstrap`** — miniapp **`?t=`** fallback, **`routeBoundMiniappEntry`**, poll **150 ms**, **`pickInitDataForMessengerTick(flowHint)`** (max-first / telegram-first / browser fallback), **`rawMaxDirect`** vs **`rawMaxLegacyMessenger`**; `messengerAuthStrategy.shouldExposeInteractiveLogin`; `platformContext.ts` (`ctx=max` на `/app` → `/app/max`); `classifyEntryHintFromRequest` — unit-тесты; `miniAppSessionRecovery`; `platformContext.test.ts`, `platformContextRedirects.test.ts`, `AuthBootstrap.test.tsx`. Follow-up аудита: [.cursor/plans/archive/miniapp-audit-fixes_813ba600.plan.md](../../.cursor/plans/archive/miniapp-audit-fixes_813ba600.plan.md). |
-| Integrator | `webappEntryToken.ts` (`/app/tg` / `/app/max`); убран `&ctx=bot` из `telegram/webhook.ts`, `max/webhook.ts`, `doctorBroadcastIntentMenu.ts`; **`reminderMessengerWebAppUrls.ts`** + **`reminderMessengerWebAppUrls.test.ts`**; morning ping **`web_app.url`** TG+MAX в **`patientHomeMorningPing.test.ts`**; тесты `webhook.links`. |
-| Доки | `apps/webapp/INTEGRATOR_CONTRACT.md`, `apps/webapp/src/modules/auth/auth.md`, `PLATFORM_IDENTITY_SCENARIOS_AND_CODE_MAP.md` §канон URL; smoke `e2e/smoke-app-router-rsc-pages-inprocess.test.ts` — `/app/tg`, `/app/max`. **Доп. синхронизация доков (сессия 2026-05):** `MAX_SETUP.md`, `SERVER CONVENTIONS.md`, `docs/README.md` (ссылка на архивный план), `apps/webapp/README.md` (URL Spaces), `PATIENT_UX_AUTH_MENU_LOG.md`, `CONTENT_CMS_REPORT.md`, `MINIAPP_AUTH_AUDIT_2026-04-19.md`, `apps/webapp/src/shared/lib/platform.md`. |
-| Проверки | Целевые vitest + `apps/webapp` typecheck (локально). |
+| Поле       | Значение                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Дата       | 2026-05-15                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Цель       | Убрать двусмысленность `ctx=bot` для MAX: явный surface по пути URL; синхронизировать integrator, middleware, клиентский fallback `?t=` после cap.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Webapp     | `AppEntryRsc.tsx`, `app/app/tg/page.tsx`, `app/app/max/page.tsx`, `app/app/page.tsx`; `appEntryClassification.ts` (`routeBoundMessengerSurface`); **`AuthBootstrap`** — miniapp **`?t=`** fallback, **`routeBoundMiniappEntry`**, poll **150 ms**, **`pickInitDataForMessengerTick(flowHint)`** (max-first / telegram-first / browser fallback), **`rawMaxDirect`** vs **`rawMaxLegacyMessenger`**; `messengerAuthStrategy.shouldExposeInteractiveLogin`; `platformContext.ts` (`ctx=max` на `/app` → `/app/max`); `classifyEntryHintFromRequest` — unit-тесты; `miniAppSessionRecovery`; `platformContext.test.ts`, `platformContextRedirects.test.ts`, `AuthBootstrap.test.tsx`. Follow-up аудита: [.cursor/plans/archive/miniapp-audit-fixes_813ba600.plan.md](../../.cursor/plans/archive/miniapp-audit-fixes_813ba600.plan.md). |
+| Integrator | `webappEntryToken.ts` (`/app/tg` / `/app/max`); убран `&ctx=bot` из `telegram/webhook.ts`, `max/webhook.ts`, `doctorBroadcastIntentMenu.ts`; **`reminderMessengerWebAppUrls.ts`** + **`reminderMessengerWebAppUrls.test.ts`**; morning ping **`web_app.url`** TG+MAX в **`patientHomeMorningPing.test.ts`**; тесты `webhook.links`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Доки       | `apps/webapp/INTEGRATOR_CONTRACT.md`, `apps/webapp/src/modules/auth/auth.md`, `PLATFORM_IDENTITY_SCENARIOS_AND_CODE_MAP.md` §канон URL; smoke `e2e/smoke-app-router-rsc-pages-inprocess.test.ts` — `/app/tg`, `/app/max`. **Доп. синхронизация доков (сессия 2026-05):** `MAX_SETUP.md`, `SERVER CONVENTIONS.md`, `docs/README.md` (ссылка на архивный план), `apps/webapp/README.md` (URL Spaces), `PATIENT_UX_AUTH_MENU_LOG.md`, `CONTENT_CMS_REPORT.md`, `MINIAPP_AUTH_AUDIT_2026-04-19.md`, `apps/webapp/src/shared/lib/platform.md`.                                                                                                                                                                                                                                                                                            |
+| Проверки   | Целевые vitest + `apps/webapp` typecheck (локально).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 
 **Ops:** в консоли MAX Business статический URL miniapp задать на **`https://<origin>/app/max`** (без обязательного `?t=` в настройках); Telegram — **`.../app/tg`** при наличии поля для базового URL.
 
@@ -152,12 +152,12 @@
 
 ## 2026-05-16 — Аудит follow-up (proxy, recovery, poll)
 
-| Поле | Значение |
-|------|----------|
-| Дата | 2026-05-16 |
-| Цель | Убрать неиспользуемый заголовок `x-bc-entry-hint` (риск рассинхрона с RSC); не блокировать `exchange` при legacy `ctx=max` в query; снизить частоту таймера опроса initData в `AuthBootstrap`. |
-| Webapp | `proxy.ts` — без `x-bc-entry-hint`; `platformContext.ts` — JSDoc для `classifyEntryHintFromRequest`; `miniAppSessionRecovery.ts`; `AuthBootstrap.tsx` (`TICK_MS` 150); доки `auth.md`, `ui.md`, `platform.md`, архитектура см. выше. |
-| Проверки | Целевые vitest по затронутым файлам (локально). Полный корневой **`pnpm run ci`** после этой волны в логе не фиксировался — рекомендуется перед merge. |
+| Поле     | Значение                                                                                                                                                                                                                             |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Дата     | 2026-05-16                                                                                                                                                                                                                           |
+| Цель     | Убрать неиспользуемый заголовок `x-bc-entry-hint` (риск рассинхрона с RSC); не блокировать `exchange` при legacy `ctx=max` в query; снизить частоту таймера опроса initData в `AuthBootstrap`.                                       |
+| Webapp   | `proxy.ts` — без `x-bc-entry-hint`; `platformContext.ts` — JSDoc для `classifyEntryHintFromRequest`; `miniAppSessionRecovery.ts`; `AuthBootstrap.tsx` (`TICK_MS` 150); доки `auth.md`, `ui.md`, `platform.md`, архитектура см. выше. |
+| Проверки | Целевые vitest по затронутым файлам (локально). Полный корневой **`pnpm run ci`** после этой волны в логе не фиксировался — рекомендуется перед merge.                                                                               |
 
 ---
 
@@ -167,34 +167,34 @@
 
 ### 1. План `.cursor/plans/archive/miniapp_entrypoint_split_be613c6d.plan.md`
 
-| Элемент | Статус |
-|---------|--------|
-| Перенос канона плана из `~/.cursor/plans/` в репозиторий (`mv`, без дубликата) | ✅ |
-| YAML frontmatter (`status: completed`, `overview`, `todos` со `status`) | ✅ |
-| **DoD плана:** `/app/max`, `/app/tg`, `/app` в браузере без регрессии; integrator без `ctx` как основного классификатора; fallback `?t=` после cap; legacy `ctx=max`→`/app/max` с тестом; unit/e2e smoke без анти-паттерна холодного `import` страниц в каждом `it` | ✅ по коду и перечисленным тестам |
-| Полный **`pnpm run ci`** после follow-up аудита (**`miniapp-audit-fixes`**) | ✅ зафиксирован в §Remediation miniapp audit |
+| Элемент                                                                                                                                                                                                                                                             | Статус                                       |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| Перенос канона плана из `~/.cursor/plans/` в репозиторий (`mv`, без дубликата)                                                                                                                                                                                      | ✅                                           |
+| YAML frontmatter (`status: completed`, `overview`, `todos` со `status`)                                                                                                                                                                                             | ✅                                           |
+| **DoD плана:** `/app/max`, `/app/tg`, `/app` в браузере без регрессии; integrator без `ctx` как основного классификатора; fallback `?t=` после cap; legacy `ctx=max`→`/app/max` с тестом; unit/e2e smoke без анти-паттерна холодного `import` страниц в каждом `it` | ✅ по коду и перечисленным тестам            |
+| Полный **`pnpm run ci`** после follow-up аудита (**`miniapp-audit-fixes`**)                                                                                                                                                                                         | ✅ зафиксирован в §Remediation miniapp audit |
 
 Todos плана (все **`completed`**): `route-entry-split`, `auth-bootstrap-surface-priority`, `integrator-links-update`, `fallback-policy`, `legacy-ctx-middleware`, `tests-and-docs`, `docs-architecture-and-logs`.
 
 ### 1a. План `.cursor/plans/archive/miniapp-audit-fixes_813ba600.plan.md`
 
-| Элемент | Статус |
-|---------|--------|
-| Усиление `AuthBootstrap`: `pickInitDataForMessengerTick`, dual MAX initData для route-bound | ✅ |
-| Тестовые контракты webapp + integrator (`reminderMessengerWebAppUrls.test`, TG+MAX morning ping `web_app.url`) | ✅ |
-| Доки `INTEGRATOR_CONTRACT`, execution log baseline + remediation, links из `docs/README` | ✅ |
-| YAML **`status: completed`**, **`isProject: false`**, смежная ссылки `../../../…` из archive | ✅ |
-| Ops (MAX/TG URL, `max_bot_api_key` на prod) | **`partial (ops)`** — §Remediation miniapp audit |
+| Элемент                                                                                                        | Статус                                           |
+| -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| Усиление `AuthBootstrap`: `pickInitDataForMessengerTick`, dual MAX initData для route-bound                    | ✅                                               |
+| Тестовые контракты webapp + integrator (`reminderMessengerWebAppUrls.test`, TG+MAX morning ping `web_app.url`) | ✅                                               |
+| Доки `INTEGRATOR_CONTRACT`, execution log baseline + remediation, links из `docs/README`                       | ✅                                               |
+| YAML **`status: completed`**, **`isProject: false`**, смежная ссылки `../../../…` из archive                   | ✅                                               |
+| Ops (MAX/TG URL, `max_bot_api_key` на prod)                                                                    | **`partial (ops)`** — §Remediation miniapp audit |
 
 ---
 
 ### 2. Независимый аудит реализации (после split) — исправлено в коде
 
-| Находка | Действие |
-|---------|----------|
+| Находка                                                                                                                 | Действие                                                                                                            |
+| ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
 | Заголовок **`x-bc-entry-hint`** выставлялся в `proxy.ts`, но **нигде не потреблялся** (риск будущего рассинхрона с RSC) | Убран из proxy; **`classifyEntryHintFromRequest`** оставлена с JSDoc и **unit-тестами** как эталон порядка эвристик |
-| **`miniAppSessionRecovery`:** при `ctx=max` в query ранний `return` мог **заблокировать** `exchange` при наличии `?t=` | Удалён блокирующий `return` |
-| Опрос initData в **`AuthBootstrap`**: шаг **100 ms** до cap (~70 тиков) | **`TICK_MS` = 150 ms** (меньше нагрузка на таймер в WebView при том же cap) |
+| **`miniAppSessionRecovery`:** при `ctx=max` в query ранний `return` мог **заблокировать** `exchange` при наличии `?t=`  | Удалён блокирующий `return`                                                                                         |
+| Опрос initData в **`AuthBootstrap`**: шаг **100 ms** до cap (~70 тиков)                                                 | **`TICK_MS` = 150 ms** (меньше нагрузка на таймер в WebView при том же cap)                                         |
 
 Связанная документация: `SERVER CONVENTIONS.md`, `PLATFORM_IDENTITY_SCENARIOS_AND_CODE_MAP.md`, `MINIAPP_AUTH_AUDIT_2026-04-19.md`, `platform.md`, архивный план, **`auth.md`** / **`ui.md`**.
 
@@ -202,33 +202,33 @@ Todos плана (все **`completed`**): `route-entry-split`, `auth-bootstrap-
 
 ### 3. Аудиты и чек-листы — что остаётся открытым
 
-| Источник | Закрыто в коде | Не закрыто / partial |
-|----------|----------------|----------------------|
-| **`MINIAPP_AUTH_AUDIT_2026-04-19`** (ops) | Code + локальные тесты | Матрица **10 сценариев** dev/prod, метрики **TTI** / **time-to-session**, подтверждение **`max_bot_api_key`** в production `system_settings` |
-| Чек-лист **Remediation update (2026-04-19)** в этом логе | Строки MAX bugfix, TG first-open, server-first, prefetch, PlatformProvider, error isolation | Строка **Scenario verification** — ⚠️ **partial (ops)** (без изменений по смыслу) |
-| Чек-лист **2026-04-15** (таблица «Аудит по чек-листу плана») | Закрыто по строкам таблицы | Ручной smoke по плану — **оператор** |
+| Источник                                                     | Закрыто в коде                                                                              | Не закрыто / partial                                                                                                                         |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`MINIAPP_AUTH_AUDIT_2026-04-19`** (ops)                    | Code + локальные тесты                                                                      | Матрица **10 сценариев** dev/prod, метрики **TTI** / **time-to-session**, подтверждение **`max_bot_api_key`** в production `system_settings` |
+| Чек-лист **Remediation update (2026-04-19)** в этом логе     | Строки MAX bugfix, TG first-open, server-first, prefetch, PlatformProvider, error isolation | Строка **Scenario verification** — ⚠️ **partial (ops)** (без изменений по смыслу)                                                            |
+| Чек-лист **2026-04-15** (таблица «Аудит по чек-листу плана») | Закрыто по строкам таблицы                                                                  | Ручной smoke по плану — **оператор**                                                                                                         |
 
 ---
 
 ### 4. Не делалось намеренно (вне этой волны правок / не репозиторий)
 
-| Тема | Почему не в scope правок |
-|------|---------------------------|
-| Настройки **MAX Business** / **BotFather** (статические URL **`/app/max`**, **`/app/tg`**) | Консоли мессенджеров и prod-конфиг; в коде не проверить |
-| **Кэш / облегчение** cold path **`AppEntryRsc`** (`buildPrefetchedPublicAuthConfig`, `buildAppDeps` на каждом анонимном заходе) | Нужны измерения и политика инвалидации при смене admin-настроек |
-| **Более агрессивная** оптимизация poll (двухфазный интервал, `rAF` и т.д.) | Отдельная задача с профилированием WebView |
-| **`?t=` в URL**, **client-readable** platform/surface **cookies** (не `httpOnly`) | Архитектурные компромиссы входа; менять — отдельная security/UX инициатива |
-| Отдельный **продуктовый** UX: «откройте из бота» при **`/app/tg`/`/app/max`** в обычном десктопном браузере | Сейчас по дизайну плана — ошибка / «Повторить», без полноценного web-login как на `/app` |
-| **Legacy `ctx=bot` на `/app`** для пользователя MAX | Сознательный tradeoff same-path редиректа (см. план §5); новые ссылки — только `/app/max` |
-| Полный **`pnpm run ci`** после волны miniapp audit (2026-05-15) | См. блок **Remediation miniapp audit** ниже (**exit 0** локально) |
+| Тема                                                                                                                            | Почему не в scope правок                                                                  |
+| ------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| Настройки **MAX Business** / **BotFather** (статические URL **`/app/max`**, **`/app/tg`**)                                      | Консоли мессенджеров и prod-конфиг; в коде не проверить                                   |
+| **Кэш / облегчение** cold path **`AppEntryRsc`** (`buildPrefetchedPublicAuthConfig`, `buildAppDeps` на каждом анонимном заходе) | Нужны измерения и политика инвалидации при смене admin-настроек                           |
+| **Более агрессивная** оптимизация poll (двухфазный интервал, `rAF` и т.д.)                                                      | Отдельная задача с профилированием WebView                                                |
+| **`?t=` в URL**, **client-readable** platform/surface **cookies** (не `httpOnly`)                                               | Архитектурные компромиссы входа; менять — отдельная security/UX инициатива                |
+| Отдельный **продуктовый** UX: «откройте из бота» при **`/app/tg`/`/app/max`** в обычном десктопном браузере                     | Сейчас по дизайну плана — ошибка / «Повторить», без полноценного web-login как на `/app`  |
+| **Legacy `ctx=bot` на `/app`** для пользователя MAX                                                                             | Сознательный tradeoff same-path редиректа (см. план §5); новые ссылки — только `/app/max` |
+| Полный **`pnpm run ci`** после волны miniapp audit (2026-05-15)                                                                 | См. блок **Remediation miniapp audit** ниже (**exit 0** локально)                         |
 
 ---
 
 ### 5. Кросс-ссылки
 
 - План дозакрытия аудита entry-split: [`.cursor/plans/archive/miniapp-audit-fixes_813ba600.plan.md`](../../.cursor/plans/archive/miniapp-audit-fixes_813ba600.plan.md)
-- Закрытый план: [`.cursor/plans/archive/miniapp_entrypoint_split_be613c6d.plan.md`](../../.cursor/plans/archive/miniapp_entrypoint_split_be613c6d.plan.md)  
-- Итоговый аудит (с актуализацией 2026-05): [`MINIAPP_AUTH_AUDIT_2026-04-19.md`](./MINIAPP_AUTH_AUDIT_2026-04-19.md)  
+- Закрытый план: [`.cursor/plans/archive/miniapp_entrypoint_split_be613c6d.plan.md`](../../.cursor/plans/archive/miniapp_entrypoint_split_be613c6d.plan.md)
+- Итоговый аудит (с актуализацией 2026-05): [`MINIAPP_AUTH_AUDIT_2026-04-19.md`](./MINIAPP_AUTH_AUDIT_2026-04-19.md)
 - Индекс доков (в т.ч. ссылка на план): [`docs/README.md`](../README.md)
 
 ---
@@ -264,11 +264,11 @@ Todos плана (все **`completed`**): `route-entry-split`, `auth-bootstrap-
 
 ## 2026-05-27 — MAX entry cookies для PWA gate (без `?ctx=`)
 
-| Поле | Значение |
-|------|----------|
-| Проблема | MAX → **`/app/max`** (статический URL в MAX Business): при **уже существующей** browser-сессии RSC редиректил в **`/app/patient`**, **`PwaAppAccessGate`** не видел Mini App (**initData** пуст, cookie **`bot`** не было) → сброс на лендинг **`/`**; параллельно таймаут initData на entry. |
-| Webapp | **`applyMessengerEntryPathCookies`** + **`setMessengerPlatformCookies`** в `middleware/platformContext.ts`; вызов из **`proxy.ts`** на pass-through для **`/app/tg`** / **`/app/max`** (если **`bersoncare_platform=bot`** ещё нет). Тесты: `platformContext.test.ts`, `proxy.test.ts`, `messengerMiniApp.test.ts` (cookie + `WebApp.ready`). |
-| Доки | `platform.md`, `INTEGRATOR_CONTRACT.md`, `PLATFORM_IDENTITY_SCENARIOS_AND_CODE_MAP.md`, `apps/webapp/README.md`, этот журнал. |
-| Не в scope | Пустой **initData** / **`max_bot_api_key`** — отдельная ops-настройка; cookie fix не заменяет **`max-init`**. |
+| Поле       | Значение                                                                                                                                                                                                                                                                                                                                      |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Проблема   | MAX → **`/app/max`** (статический URL в MAX Business): при **уже существующей** browser-сессии RSC редиректил в **`/app/patient`**, **`PwaAppAccessGate`** не видел Mini App (**initData** пуст, cookie **`bot`** не было) → сброс на лендинг **`/`**; параллельно таймаут initData на entry.                                                 |
+| Webapp     | **`applyMessengerEntryPathCookies`** + **`setMessengerPlatformCookies`** в `middleware/platformContext.ts`; вызов из **`proxy.ts`** на pass-through для **`/app/tg`** / **`/app/max`** (если **`bersoncare_platform=bot`** ещё нет). Тесты: `platformContext.test.ts`, `proxy.test.ts`, `messengerMiniApp.test.ts` (cookie + `WebApp.ready`). |
+| Доки       | `platform.md`, `INTEGRATOR_CONTRACT.md`, `PLATFORM_IDENTITY_SCENARIOS_AND_CODE_MAP.md`, `apps/webapp/README.md`, этот журнал.                                                                                                                                                                                                                 |
+| Не в scope | Пустой **initData** / **`max_bot_api_key`** — отдельная ops-настройка; cookie fix не заменяет **`max-init`**.                                                                                                                                                                                                                                 |
 
 **Проверки:** targeted vitest (файлы выше).

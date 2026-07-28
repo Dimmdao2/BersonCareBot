@@ -1,27 +1,27 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { routePaths } from "@/app-layer/routes/paths";
-import type { CourseCatalogItem } from "@/modules/courses/types";
-import { Button } from "@/shared/ui/patient/primitives/button";
-import { cn } from "@/lib/utils";
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
+import { routePaths } from '@/app-layer/routes/paths';
+import type { CourseCatalogItem } from '@/modules/courses/types';
+import { Button } from '@/shared/ui/patient/primitives/button';
+import { cn } from '@/lib/utils';
 import {
   patientCardClass,
   patientInlineLinkClass,
   patientMutedTextClass,
   patientPrimaryActionClass,
   patientSecondaryActionClass,
-} from "@/shared/ui/patient/patientVisual";
+} from '@/shared/ui/patient/patientVisual';
 
 function formatPrice(minor: number, currency: string): string {
   const major = minor / 100;
-  const n = major.toLocaleString("ru-RU", {
+  const n = major.toLocaleString('ru-RU', {
     minimumFractionDigits: 0,
     maximumFractionDigits: 2,
   });
-  if (currency === "RUB") return `${n} ₽`;
+  if (currency === 'RUB') return `${n} ₽`;
   return `${n} ${currency}`;
 }
 
@@ -42,7 +42,7 @@ export function PatientCoursesCatalogClient(props: {
     setBusyId(courseId);
     try {
       const res = await fetch(`/api/patient/courses/${encodeURIComponent(courseId)}/enroll`, {
-        method: "POST",
+        method: 'POST',
       });
       const data = (await res.json().catch(() => null)) as {
         ok?: boolean;
@@ -50,12 +50,12 @@ export function PatientCoursesCatalogClient(props: {
         instance?: { id?: string };
       };
       if (!res.ok || !data.ok || !data.instance?.id) {
-        setError(data.error ?? "Не удалось записаться");
+        setError(data.error ?? 'Не удалось записаться');
         return;
       }
       router.push(routePaths.patientTreatmentProgram(data.instance.id));
     } catch {
-      setError("Ошибка сети");
+      setError('Ошибка сети');
     } finally {
       setBusyId(null);
     }
@@ -78,18 +78,22 @@ export function PatientCoursesCatalogClient(props: {
             key={c.id}
             className={cn(
               patientCardClass,
-              highlightCourseId === c.id ? "border-[var(--patient-color-primary)] ring-2 ring-[var(--patient-color-primary)]/40" : "",
+              highlightCourseId === c.id
+                ? 'border-[var(--patient-color-primary)] ring-2 ring-[var(--patient-color-primary)]/40'
+                : '',
             )}
           >
             <h2 className="text-base font-semibold">{c.title}</h2>
             {c.description ? (
-              <p className={cn(patientMutedTextClass, "mt-2 whitespace-pre-wrap")}>{c.description}</p>
+              <p className={cn(patientMutedTextClass, 'mt-2 whitespace-pre-wrap')}>
+                {c.description}
+              </p>
             ) : null}
             <p className="mt-2 text-sm font-medium">{formatPrice(c.priceMinor, c.currency)}</p>
             {c.introContentSlug ? (
               <Link
                 href={`/app/patient/content/${encodeURIComponent(c.introContentSlug)}`}
-                className={cn(patientInlineLinkClass, "mt-3 inline-block text-sm")}
+                className={cn(patientInlineLinkClass, 'mt-3 inline-block text-sm')}
               >
                 Вступительный урок
               </Link>
@@ -98,14 +102,14 @@ export function PatientCoursesCatalogClient(props: {
               {!loggedIn ? (
                 <Link
                   href={`${routePaths.root}?next=${encodeURIComponent(routePaths.patientCourses)}`}
-                  className={cn(patientPrimaryActionClass, "!min-h-10 text-sm")}
+                  className={cn(patientPrimaryActionClass, '!min-h-10 text-sm')}
                 >
                   Войти, чтобы записаться
                 </Link>
               ) : !enrollReady ? (
                 <Link
                   href={`${routePaths.bindPhone}?next=${encodeURIComponent(routePaths.patientCourses)}`}
-                  className={cn(patientSecondaryActionClass, "!w-auto text-sm")}
+                  className={cn(patientSecondaryActionClass, '!w-auto text-sm')}
                 >
                   Активируйте профиль для записи
                 </Link>
@@ -114,9 +118,9 @@ export function PatientCoursesCatalogClient(props: {
                   type="button"
                   disabled={busyId !== null}
                   onClick={() => enroll(c.id)}
-                  className={cn(patientPrimaryActionClass, "!min-h-10 text-sm disabled:opacity-60")}
+                  className={cn(patientPrimaryActionClass, '!min-h-10 text-sm disabled:opacity-60')}
                 >
-                  {busyId === c.id ? "Запись…" : "Записаться на программу"}
+                  {busyId === c.id ? 'Запись…' : 'Записаться на программу'}
                 </Button>
               )}
             </div>

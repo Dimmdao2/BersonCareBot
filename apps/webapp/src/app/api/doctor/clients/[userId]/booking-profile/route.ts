@@ -1,11 +1,11 @@
 /**
  * GET/PATCH /api/doctor/clients/:userId/booking-profile — booking-репутация (отдельно от messaging block).
  */
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 
 const patchBodySchema = z.object({
   isProblematic: z.boolean().optional(),
@@ -19,27 +19,27 @@ async function resolveClient(userId: string, organizationId: string) {
     userId,
     organizationId,
   );
-  if (!identity) return { error: NextResponse.json({ ok: false, error: "not_found" }, { status: 404 }) };
+  if (!identity)
+    return { error: NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 }) };
   if (!deps.bookingEngine) {
-    return { error: NextResponse.json({ ok: false, error: "booking_unavailable" }, { status: 503 }) };
+    return {
+      error: NextResponse.json({ ok: false, error: 'booking_unavailable' }, { status: 503 }),
+    };
   }
   return { deps };
 }
 
-export async function GET(
-  _request: Request,
-  context: { params: Promise<{ userId: string }> },
-) {
+export async function GET(_request: Request, context: { params: Promise<{ userId: string }> }) {
   const gate = await requireDoctorWorkspaceApiContext();
   if (!gate.ok) return gate.response;
 
   const { userId } = await context.params;
   if (!z.string().uuid().safeParse(userId).success) {
-    return NextResponse.json({ ok: false, error: "invalid_user" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_user' }, { status: 400 });
   }
 
   const resolved = await resolveClient(userId, gate.ctx.organizationId);
-  if ("error" in resolved && resolved.error) return resolved.error;
+  if ('error' in resolved && resolved.error) return resolved.error;
   const { deps } = resolved as { deps: ReturnType<typeof buildAppDeps> };
 
   const profile = await deps.clientHistory.getBookingProfile(gate.ctx.organizationId, userId);
@@ -57,27 +57,24 @@ export async function GET(
   });
 }
 
-export async function PATCH(
-  request: Request,
-  context: { params: Promise<{ userId: string }> },
-) {
+export async function PATCH(request: Request, context: { params: Promise<{ userId: string }> }) {
   const gate = await requireDoctorWorkspaceApiContext();
   if (!gate.ok) return gate.response;
   const { session } = gate.ctx;
 
   const { userId } = await context.params;
   if (!z.string().uuid().safeParse(userId).success) {
-    return NextResponse.json({ ok: false, error: "invalid_user" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_user' }, { status: 400 });
   }
 
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = patchBodySchema.safeParse(raw);
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
 
   const resolved = await resolveClient(userId, gate.ctx.organizationId);
-  if ("error" in resolved && resolved.error) return resolved.error;
+  if ('error' in resolved && resolved.error) return resolved.error;
   const { deps } = resolved as { deps: ReturnType<typeof buildAppDeps> };
 
   const profile = await withDoctorWorkspacePrincipal(gate.ctx, () =>

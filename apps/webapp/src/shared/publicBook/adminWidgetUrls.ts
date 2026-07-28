@@ -1,4 +1,4 @@
-import { publicBookPaths } from "./paths";
+import { publicBookPaths } from './paths';
 
 export type PublicBookingWidgetSelection = {
   orgSlug: string;
@@ -15,9 +15,9 @@ function selectionQuery(selection: PublicBookingWidgetSelection): URLSearchParam
     branchId: selection.branchId,
     serviceId: selection.serviceId,
   });
-  if (selection.utmSource?.trim()) query.set("utm_source", selection.utmSource.trim());
-  if (selection.utmMedium?.trim()) query.set("utm_medium", selection.utmMedium.trim());
-  if (selection.utmCampaign?.trim()) query.set("utm_campaign", selection.utmCampaign.trim());
+  if (selection.utmSource?.trim()) query.set('utm_source', selection.utmSource.trim());
+  if (selection.utmMedium?.trim()) query.set('utm_medium', selection.utmMedium.trim());
+  if (selection.utmCampaign?.trim()) query.set('utm_campaign', selection.utmCampaign.trim());
   return query;
 }
 
@@ -33,11 +33,17 @@ export function buildPublicBookingWidgetUrl(
 export function buildPublicBookingWidgetOutputs(
   origin: string,
   selection: PublicBookingWidgetSelection,
-): { pageUrl: string; previewUrl: string; iframeSnippet: string; scriptSnippet: string; popupSnippet: string } {
+): {
+  pageUrl: string;
+  previewUrl: string;
+  iframeSnippet: string;
+  scriptSnippet: string;
+  popupSnippet: string;
+} {
   const pageUrl = buildPublicBookingWidgetUrl(origin, selection);
   const previewUrl = `${pageUrl}&embed=iframe`;
   const scriptSrc = `${origin}${publicBookPaths.embedScript}`;
-  const escapedUrl = pageUrl.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
+  const escapedUrl = pageUrl.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
   return {
     pageUrl,
     previewUrl,

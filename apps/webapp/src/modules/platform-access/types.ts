@@ -1,18 +1,18 @@
-import type { UserRole } from "@/shared/types/session";
+import type { UserRole } from '@/shared/types/session';
 
 /** Only for `dbRole === "client"`; guest = no usable session for closed patient flows. */
-export type ClientAccessTier = "guest" | "onboarding" | "patient";
+export type ClientAccessTier = 'guest' | 'onboarding' | 'patient';
 
 export type PlatformDbRole = UserRole;
 
 export type PlatformAccessResolution =
-  | "no_session"
+  | 'no_session'
   /** Session user id is not a platform UUID (e.g. legacy `tg:…`); DB canon not loaded here — см. `sessionCanonicalUserIdPolicy.ts`. */
-  | "legacy_non_uuid_session"
+  | 'legacy_non_uuid_session'
   /** Cookie pointed at a UUID row that no longer exists. */
-  | "session_user_missing"
+  | 'session_user_missing'
   /** Loaded `platform_users` after canonical id resolve. */
-  | "resolved_canon";
+  | 'resolved_canon';
 
 /**
  * Single server-side view of identity + tier for policy (pages, API, actions).

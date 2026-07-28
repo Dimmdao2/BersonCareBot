@@ -1,48 +1,48 @@
 ---
-name: "Own Booking Engine — Stage 5: Prepayment & payments layer"
-overview: "Этап 5 (done): платёжный слой 0092–0093, mock-провайдер и system_settings, предоплата (услуга + онлайн-категория), awaiting_payment → capture → confirmed, refund/retain, перенос → history, integrator booking.payment_captured. UI §A9–A10, §B-pay, §C-pay, §P-pay. YooKassa — Q1 backlog."
+name: 'Own Booking Engine — Stage 5: Prepayment & payments layer'
+overview: 'Этап 5 (done): платёжный слой 0092–0093, mock-провайдер и system_settings, предоплата (услуга + онлайн-категория), awaiting_payment → capture → confirmed, refund/retain, перенос → history, integrator booking.payment_captured. UI §A9–A10, §B-pay, §C-pay, §P-pay. YooKassa — Q1 backlog.'
 status: completed
 gitBranch: initiative/own-booking-engine
 isProject: false
 todos:
   - id: s5-core
-    content: "Drizzle 0092 + bookingPayments schema; payment layer tables"
+    content: 'Drizzle 0092 + bookingPayments schema; payment layer tables'
     status: completed
   - id: s5-online-policy
-    content: "0093 online_category на be_prepayment_policies; patient_bookings awaiting_payment"
+    content: '0093 online_category на be_prepayment_policies; patient_bookings awaiting_payment'
     status: completed
   - id: s5-provider-port
-    content: "PaymentProviderPort + mock adapter"
+    content: 'PaymentProviderPort + mock adapter'
     status: completed
   - id: s5-config-db
-    content: "booking_payment_* in system_settings + merge/redaction"
+    content: 'booking_payment_* in system_settings + merge/redaction'
     status: completed
   - id: s5-webhooks
-    content: "payment_provider_event + /api/payments/webhook/[provider]"
+    content: 'payment_provider_event + /api/payments/webhook/[provider]'
     status: completed
   - id: s5-prepay
-    content: "PrepaymentPolicy + awaiting_payment → paid → confirmed flow"
+    content: 'PrepaymentPolicy + awaiting_payment → paid → confirmed flow'
     status: completed
   - id: s5-refund-flow
-    content: "Refund/retain on cancel (stage 4 integration)"
+    content: 'Refund/retain on cancel (stage 4 integration)'
     status: completed
   - id: s5-reschedule-pay
-    content: "prepayment_carried_on_reschedule; payment_ref on capture"
+    content: 'prepayment_carried_on_reschedule; payment_ref on capture'
     status: completed
   - id: s5-history
-    content: "be_payment_history_events; patient + staff lists"
+    content: 'be_payment_history_events; patient + staff lists'
     status: completed
   - id: s5-ui
-    content: "A9/A10, B-pay, C-pay, P-pay (/book/pay)"
+    content: 'A9/A10, B-pay, C-pay, P-pay (/book/pay)'
     status: completed
   - id: s5-notify
-    content: "integrator booking.payment_captured (schema + handler)"
+    content: 'integrator booking.payment_captured (schema + handler)'
     status: completed
   - id: s5-verify
-    content: "Tests + typecheck; LOG/ROADMAP/STAGE_CHECKLISTS/UI_SURFACES"
+    content: 'Tests + typecheck; LOG/ROADMAP/STAGE_CHECKLISTS/UI_SURFACES'
     status: completed
   - id: s5-audit
-    content: "Post-audit: online quote, staff summary, schema status check, docs/api.md"
+    content: 'Post-audit: online quote, staff summary, schema status check, docs/api.md'
     status: completed
 ---
 
@@ -52,20 +52,20 @@ todos:
 
 ## Реализовано (карта кода)
 
-| Область | Пути |
-|--------|------|
-| Миграции | `0092_booking_stage5_payments.sql`, `0093_booking_prepayment_online_category.sql`; `db/schema/bookingPayments.ts` |
-| Модуль | `modules/payments/` (`service.ts`, `ports.ts`, `prepaymentCalculator.ts`, `prepaymentContextFromBooking.ts`) |
-| Infra | `infra/repos/pgPayments.ts`, `infra/payments/mockPaymentProvider.ts` |
-| Создание | `patient-booking/canonicalCreate.ts` — intent + `markAwaitingPayment` при required prepay |
-| DI | `buildAppDeps.ts` — `paymentsService`, `booking.payment_captured` → confirm projection |
-| API пациент | `GET /api/booking/payment-status`, `POST /api/booking/payments/mock-complete`, `GET /api/booking/payment-history` |
-| API публичный | `GET /api/booking/public/payment-status`, `POST /api/booking/public/payments/mock-complete` |
-| API staff | `GET .../admin|doctor/booking-engine/appointments/[id]/payment`; `PUT .../prepayment-policies` |
-| Webhook | `POST /api/payments/webhook/[provider]` |
-| Integrator | `booking.payment_captured` в `schema.ts` + `recordM2mRoute.ts` |
-| UI | `BookingPaymentsSection`, `BookingPrepaymentSection`, `BookingStaffPaymentPanel`, `/app/patient/booking/pay`, `/book/pay`, `BookingUpcomingSection`, `PatientBookingPaymentHistorySection` |
-| Staff helper | `app-layer/booking/staffAppointmentPaymentSummary.ts`, `getByCanonicalAppointmentId` на bookings port |
+| Область       | Пути                                                                                                                                                                                       |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------- |
+| Миграции      | `0092_booking_stage5_payments.sql`, `0093_booking_prepayment_online_category.sql`; `db/schema/bookingPayments.ts`                                                                          |
+| Модуль        | `modules/payments/` (`service.ts`, `ports.ts`, `prepaymentCalculator.ts`, `prepaymentContextFromBooking.ts`)                                                                               |
+| Infra         | `infra/repos/pgPayments.ts`, `infra/payments/mockPaymentProvider.ts`                                                                                                                       |
+| Создание      | `patient-booking/canonicalCreate.ts` — intent + `markAwaitingPayment` при required prepay                                                                                                  |
+| DI            | `buildAppDeps.ts` — `paymentsService`, `booking.payment_captured` → confirm projection                                                                                                     |
+| API пациент   | `GET /api/booking/payment-status`, `POST /api/booking/payments/mock-complete`, `GET /api/booking/payment-history`                                                                          |
+| API публичный | `GET /api/booking/public/payment-status`, `POST /api/booking/public/payments/mock-complete`                                                                                                |
+| API staff     | `GET .../admin                                                                                                                                                                             | doctor/booking-engine/appointments/[id]/payment`; `PUT .../prepayment-policies` |
+| Webhook       | `POST /api/payments/webhook/[provider]`                                                                                                                                                    |
+| Integrator    | `booking.payment_captured` в `schema.ts` + `recordM2mRoute.ts`                                                                                                                             |
+| UI            | `BookingPaymentsSection`, `BookingPrepaymentSection`, `BookingStaffPaymentPanel`, `/app/patient/booking/pay`, `/book/pay`, `BookingUpcomingSection`, `PatientBookingPaymentHistorySection` |
+| Staff helper  | `app-layer/booking/staffAppointmentPaymentSummary.ts`, `getByCanonicalAppointmentId` на bookings port                                                                                      |
 
 ## Поведение (контракты)
 

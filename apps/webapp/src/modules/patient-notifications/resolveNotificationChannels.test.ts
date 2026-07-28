@@ -1,11 +1,31 @@
-import { describe, expect, it } from "vitest";
-import { resolvePatientNotificationChannels } from "./resolveNotificationChannels";
+import { describe, expect, it } from 'vitest';
+import { resolvePatientNotificationChannels } from './resolveNotificationChannels';
 
 const basePrefs = [
-  { channelCode: "telegram" as const, isEnabledForMessages: true, isEnabledForNotifications: true, isPreferredForAuth: false },
-  { channelCode: "max" as const, isEnabledForMessages: true, isEnabledForNotifications: true, isPreferredForAuth: false },
-  { channelCode: "email" as const, isEnabledForMessages: true, isEnabledForNotifications: true, isPreferredForAuth: false },
-  { channelCode: "web_push" as const, isEnabledForMessages: true, isEnabledForNotifications: true, isPreferredForAuth: false },
+  {
+    channelCode: 'telegram' as const,
+    isEnabledForMessages: true,
+    isEnabledForNotifications: true,
+    isPreferredForAuth: false,
+  },
+  {
+    channelCode: 'max' as const,
+    isEnabledForMessages: true,
+    isEnabledForNotifications: true,
+    isPreferredForAuth: false,
+  },
+  {
+    channelCode: 'email' as const,
+    isEnabledForMessages: true,
+    isEnabledForNotifications: true,
+    isPreferredForAuth: false,
+  },
+  {
+    channelCode: 'web_push' as const,
+    isEnabledForMessages: true,
+    isEnabledForNotifications: true,
+    isPreferredForAuth: false,
+  },
 ];
 
 const allAvailable = {
@@ -18,176 +38,223 @@ const allAvailable = {
   smtpConfigured: true,
 };
 
-describe("resolvePatientNotificationChannels", () => {
-  it("selects telegram when enabled and binding exists", () => {
+describe('resolvePatientNotificationChannels', () => {
+  it('selects telegram when enabled and binding exists', () => {
     const r = resolvePatientNotificationChannels({
-      topicCode: "appointment_reminders",
-      availability: { ...allAvailable, hasMax: false, hasEmail: false, emailVerified: false, hasWebPushSubscription: false },
+      topicCode: 'appointment_reminders',
+      availability: {
+        ...allAvailable,
+        hasMax: false,
+        hasEmail: false,
+        emailVerified: false,
+        hasWebPushSubscription: false,
+      },
       channelPrefs: basePrefs,
       topicChannelRows: [],
     });
-    expect(r.selectedChannels).toContain("telegram");
-    expect(r.skippedChannels.find((s) => s.channel === "telegram")).toBeUndefined();
+    expect(r.selectedChannels).toContain('telegram');
+    expect(r.skippedChannels.find((s) => s.channel === 'telegram')).toBeUndefined();
   });
 
-  it("skips telegram with missing_binding when no binding", () => {
+  it('skips telegram with missing_binding when no binding', () => {
     const r = resolvePatientNotificationChannels({
-      topicCode: "appointment_reminders",
+      topicCode: 'appointment_reminders',
       availability: { ...allAvailable, hasTelegram: false },
       channelPrefs: basePrefs,
       topicChannelRows: [],
     });
-    expect(r.selectedChannels).not.toContain("telegram");
-    expect(r.skippedChannels.find((s) => s.channel === "telegram")?.reason).toBe("missing_binding");
+    expect(r.selectedChannels).not.toContain('telegram');
+    expect(r.skippedChannels.find((s) => s.channel === 'telegram')?.reason).toBe('missing_binding');
   });
 
-  it("selects max when enabled and binding exists", () => {
+  it('selects max when enabled and binding exists', () => {
     const r = resolvePatientNotificationChannels({
-      topicCode: "appointment_reminders",
-      availability: { ...allAvailable, hasTelegram: false, hasEmail: false, emailVerified: false, hasWebPushSubscription: false },
+      topicCode: 'appointment_reminders',
+      availability: {
+        ...allAvailable,
+        hasTelegram: false,
+        hasEmail: false,
+        emailVerified: false,
+        hasWebPushSubscription: false,
+      },
       channelPrefs: basePrefs,
       topicChannelRows: [],
     });
-    expect(r.selectedChannels).toContain("max");
+    expect(r.selectedChannels).toContain('max');
   });
 
-  it("skips max with missing_binding when no binding", () => {
+  it('skips max with missing_binding when no binding', () => {
     const r = resolvePatientNotificationChannels({
-      topicCode: "appointment_reminders",
+      topicCode: 'appointment_reminders',
       availability: { ...allAvailable, hasMax: false },
       channelPrefs: basePrefs,
       topicChannelRows: [],
     });
-    expect(r.skippedChannels.find((s) => s.channel === "max")?.reason).toBe("missing_binding");
+    expect(r.skippedChannels.find((s) => s.channel === 'max')?.reason).toBe('missing_binding');
   });
 
-  it("selects web_push when subscription and VAPID exist", () => {
+  it('selects web_push when subscription and VAPID exist', () => {
     const r = resolvePatientNotificationChannels({
-      topicCode: "training_reminders",
-      availability: { ...allAvailable, hasTelegram: false, hasMax: false, hasEmail: false, emailVerified: false },
+      topicCode: 'training_reminders',
+      availability: {
+        ...allAvailable,
+        hasTelegram: false,
+        hasMax: false,
+        hasEmail: false,
+        emailVerified: false,
+      },
       channelPrefs: basePrefs,
       topicChannelRows: [],
     });
-    expect(r.selectedChannels).toContain("web_push");
+    expect(r.selectedChannels).toContain('web_push');
   });
 
-  it("skips web_push with no_active_subscriptions", () => {
+  it('skips web_push with no_active_subscriptions', () => {
     const r = resolvePatientNotificationChannels({
-      topicCode: "training_reminders",
-      availability: { ...allAvailable, hasWebPushSubscription: false, hasTelegram: false, hasMax: false, hasEmail: false, emailVerified: false },
+      topicCode: 'training_reminders',
+      availability: {
+        ...allAvailable,
+        hasWebPushSubscription: false,
+        hasTelegram: false,
+        hasMax: false,
+        hasEmail: false,
+        emailVerified: false,
+      },
       channelPrefs: basePrefs,
       topicChannelRows: [],
     });
-    expect(r.skippedChannels.find((s) => s.channel === "web_push")?.reason).toBe("no_active_subscriptions");
+    expect(r.skippedChannels.find((s) => s.channel === 'web_push')?.reason).toBe(
+      'no_active_subscriptions',
+    );
   });
 
-  it("skips web_push with vapid_missing", () => {
+  it('skips web_push with vapid_missing', () => {
     const r = resolvePatientNotificationChannels({
-      topicCode: "training_reminders",
-      availability: { ...allAvailable, vapidConfigured: false, hasTelegram: false, hasMax: false, hasEmail: false, emailVerified: false },
+      topicCode: 'training_reminders',
+      availability: {
+        ...allAvailable,
+        vapidConfigured: false,
+        hasTelegram: false,
+        hasMax: false,
+        hasEmail: false,
+        emailVerified: false,
+      },
       channelPrefs: basePrefs,
       topicChannelRows: [],
     });
-    expect(r.skippedChannels.find((s) => s.channel === "web_push")?.reason).toBe("vapid_missing");
+    expect(r.skippedChannels.find((s) => s.channel === 'web_push')?.reason).toBe('vapid_missing');
   });
 
-  it("selects email when verified and SMTP configured", () => {
+  it('selects email when verified and SMTP configured', () => {
     const r = resolvePatientNotificationChannels({
-      topicCode: "appointment_reminders",
-      availability: { ...allAvailable, hasTelegram: false, hasMax: false, hasWebPushSubscription: false },
+      topicCode: 'appointment_reminders',
+      availability: {
+        ...allAvailable,
+        hasTelegram: false,
+        hasMax: false,
+        hasWebPushSubscription: false,
+      },
       channelPrefs: basePrefs,
       topicChannelRows: [],
     });
-    expect(r.selectedChannels).toContain("email");
+    expect(r.selectedChannels).toContain('email');
   });
 
-  it("skips email with missing_email", () => {
+  it('skips email with missing_email', () => {
     const r = resolvePatientNotificationChannels({
-      topicCode: "appointment_reminders",
+      topicCode: 'appointment_reminders',
       availability: { ...allAvailable, hasEmail: false },
       channelPrefs: basePrefs,
       topicChannelRows: [],
     });
-    expect(r.skippedChannels.find((s) => s.channel === "email")?.reason).toBe("missing_email");
+    expect(r.skippedChannels.find((s) => s.channel === 'email')?.reason).toBe('missing_email');
   });
 
-  it("skips email with email_not_verified", () => {
+  it('skips email with email_not_verified', () => {
     const r = resolvePatientNotificationChannels({
-      topicCode: "appointment_reminders",
+      topicCode: 'appointment_reminders',
       availability: { ...allAvailable, emailVerified: false },
       channelPrefs: basePrefs,
       topicChannelRows: [],
     });
-    expect(r.skippedChannels.find((s) => s.channel === "email")?.reason).toBe("email_not_verified");
+    expect(r.skippedChannels.find((s) => s.channel === 'email')?.reason).toBe('email_not_verified');
   });
 
-  it("skips email with provider_disabled when SMTP missing", () => {
+  it('skips email with provider_disabled when SMTP missing', () => {
     const r = resolvePatientNotificationChannels({
-      topicCode: "appointment_reminders",
+      topicCode: 'appointment_reminders',
       availability: { ...allAvailable, smtpConfigured: false },
       channelPrefs: basePrefs,
       topicChannelRows: [],
     });
-    expect(r.skippedChannels.find((s) => s.channel === "email")?.reason).toBe("provider_disabled");
+    expect(r.skippedChannels.find((s) => s.channel === 'email')?.reason).toBe('provider_disabled');
   });
 
-  it("skips all allowed channels when every topic channel is off", () => {
+  it('skips all allowed channels when every topic channel is off', () => {
     const r = resolvePatientNotificationChannels({
-      topicCode: "training_reminders",
+      topicCode: 'training_reminders',
       availability: allAvailable,
       channelPrefs: basePrefs,
       topicChannelRows: [
-        { topicCode: "training_reminders", channelCode: "telegram", isEnabled: false },
-        { topicCode: "training_reminders", channelCode: "max", isEnabled: false },
-        { topicCode: "training_reminders", channelCode: "web_push", isEnabled: false },
+        { topicCode: 'training_reminders', channelCode: 'telegram', isEnabled: false },
+        { topicCode: 'training_reminders', channelCode: 'max', isEnabled: false },
+        { topicCode: 'training_reminders', channelCode: 'web_push', isEnabled: false },
       ],
     });
     expect(r.selectedChannels).toEqual([]);
-    expect(r.skippedChannels.some((s) => s.reason === "disabled_by_user_topic_channel")).toBe(true);
+    expect(r.skippedChannels.some((s) => s.reason === 'disabled_by_user_topic_channel')).toBe(true);
   });
 
-  it("skips with disabled_by_user_global", () => {
+  it('skips with disabled_by_user_global', () => {
     const r = resolvePatientNotificationChannels({
-      topicCode: "training_reminders",
+      topicCode: 'training_reminders',
       availability: { ...allAvailable, hasMax: false, hasEmail: false, emailVerified: false },
       channelPrefs: basePrefs.map((p) =>
-        p.channelCode === "telegram" ? { ...p, isEnabledForNotifications: false } : p,
+        p.channelCode === 'telegram' ? { ...p, isEnabledForNotifications: false } : p,
       ),
       topicChannelRows: [],
     });
-    expect(r.selectedChannels).not.toContain("telegram");
-    expect(r.skippedChannels.find((s) => s.channel === "telegram")?.reason).toBe("disabled_by_user_global");
+    expect(r.selectedChannels).not.toContain('telegram');
+    expect(r.skippedChannels.find((s) => s.channel === 'telegram')?.reason).toBe(
+      'disabled_by_user_global',
+    );
   });
 
-  it("skips with disabled_by_user_topic_channel", () => {
+  it('skips with disabled_by_user_topic_channel', () => {
     const r = resolvePatientNotificationChannels({
-      topicCode: "training_reminders",
+      topicCode: 'training_reminders',
       availability: { ...allAvailable, hasMax: false, hasEmail: false, emailVerified: false },
       channelPrefs: basePrefs,
-      topicChannelRows: [{ topicCode: "training_reminders", channelCode: "web_push", isEnabled: false }],
+      topicChannelRows: [
+        { topicCode: 'training_reminders', channelCode: 'web_push', isEnabled: false },
+      ],
     });
-    expect(r.skippedChannels.find((s) => s.channel === "web_push")?.reason).toBe("disabled_by_user_topic_channel");
+    expect(r.skippedChannels.find((s) => s.channel === 'web_push')?.reason).toBe(
+      'disabled_by_user_topic_channel',
+    );
   });
 
-  it("skips email on training_reminders with channel_not_allowed_for_topic", () => {
+  it('skips email on training_reminders with channel_not_allowed_for_topic', () => {
     const r = resolvePatientNotificationChannels({
-      topicCode: "training_reminders",
+      topicCode: 'training_reminders',
       availability: allAvailable,
       channelPrefs: basePrefs,
       topicChannelRows: [],
     });
-    expect(r.skippedChannels.find((s) => s.channel === "email")?.reason).toBe("channel_not_allowed_for_topic");
+    expect(r.skippedChannels.find((s) => s.channel === 'email')?.reason).toBe(
+      'channel_not_allowed_for_topic',
+    );
   });
 
-  it("skips all allowed channels when muted", () => {
+  it('skips all allowed channels when muted', () => {
     const r = resolvePatientNotificationChannels({
-      topicCode: "training_reminders",
+      topicCode: 'training_reminders',
       availability: allAvailable,
       channelPrefs: basePrefs,
       topicChannelRows: [],
       gate: { muted: true, topicMasterEnabled: true },
     });
     expect(r.selectedChannels).toEqual([]);
-    expect(r.skippedChannels.every((s) => s.reason === "muted")).toBe(true);
+    expect(r.skippedChannels.every((s) => s.reason === 'muted')).toBe(true);
   });
 });

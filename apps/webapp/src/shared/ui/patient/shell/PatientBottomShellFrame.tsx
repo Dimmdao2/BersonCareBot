@@ -1,18 +1,18 @@
-"use client";
+'use client';
 
-import type { ReactNode } from "react";
-import { usePathname } from "next/navigation";
+import type { ReactNode } from 'react';
+import { usePathname } from 'next/navigation';
 import {
   isPatientHeaderProfileRoute,
   shouldShowPatientMobileHeaderBack,
-} from "@/app-layer/routes/navigation";
-import { cn } from "@/lib/utils";
-import { patientSectionTitleClass } from "@/shared/ui/patient/patientVisual";
-import { PatientBottomNav } from "@/shared/ui/patient/shell/PatientBottomNav";
-import { PatientShellTopChrome } from "@/shared/ui/patient/shell/PatientShellTopChrome";
-import { PatientShellPageTitleStrip } from "@/shared/ui/patient/shell/PatientShellPageTitleStrip";
-import { PatientShellPageTitleWithHistoryBack } from "@/shared/ui/patient/PatientShellPageTitleWithHistoryBack";
-import { PatientOrganizationContextBar } from "@/shared/ui/patient/organization/PatientOrganizationContext";
+} from '@/app-layer/routes/navigation';
+import { cn } from '@/lib/utils';
+import { patientSectionTitleClass } from '@/shared/ui/patient/patientVisual';
+import { PatientBottomNav } from '@/shared/ui/patient/shell/PatientBottomNav';
+import { PatientShellTopChrome } from '@/shared/ui/patient/shell/PatientShellTopChrome';
+import { PatientShellPageTitleStrip } from '@/shared/ui/patient/shell/PatientShellPageTitleStrip';
+import { PatientShellPageTitleWithHistoryBack } from '@/shared/ui/patient/PatientShellPageTitleWithHistoryBack';
+import { PatientOrganizationContextBar } from '@/shared/ui/patient/organization/PatientOrganizationContext';
 
 export type PatientBottomShellFrameProps = {
   title: string;
@@ -34,7 +34,7 @@ export function PatientBottomShellFrame({
   title,
   titleBadge,
   backHref,
-  backLabel = "Назад",
+  backLabel = 'Назад',
   suppressTitle = false,
   shellTitleSlot,
   mobileHeaderCenter,
@@ -42,10 +42,10 @@ export function PatientBottomShellFrame({
   children,
   bottomNav = <PatientBottomNav />,
 }: PatientBottomShellFrameProps) {
-  const pathname = usePathname() ?? "";
+  const pathname = usePathname() ?? '';
   const isPrimaryRoot = isPatientHeaderProfileRoute(pathname);
   const shellTitle = title.trim();
-  const shellTitleBadge = titleBadge?.trim() ?? "";
+  const shellTitleBadge = titleBadge?.trim() ?? '';
 
   const hasShellTitleContent =
     shellTitleSlot != null || Boolean(shellTitleBadge) || Boolean(shellTitle) || Boolean(backHref);
@@ -53,9 +53,7 @@ export function PatientBottomShellFrame({
     !isPrimaryRoot &&
     !suppressTitle &&
     hasShellTitleContent &&
-    (shellTitleSlot != null ||
-      !backHref ||
-      shouldShowPatientMobileHeaderBack(pathname, backHref));
+    (shellTitleSlot != null || !backHref || shouldShowPatientMobileHeaderBack(pathname, backHref));
 
   return (
     <>
@@ -69,53 +67,56 @@ export function PatientBottomShellFrame({
         mobileHeaderCenter={mobileHeaderCenter}
       />
       <PatientOrganizationContextBar />
-      {aboveTitleSlot ?
-        <div className={cn("w-full min-w-0 shrink-0", "patient-shell-above-slot-pad")}>
+      {aboveTitleSlot ? (
+        <div className={cn('w-full min-w-0 shrink-0', 'patient-shell-above-slot-pad')}>
           {aboveTitleSlot}
         </div>
-      : null}
-      {showSubpageTitleStrip ?
+      ) : null}
+      {showSubpageTitleStrip ? (
         <div className="hidden min-w-0 shrink-0 patient-desktop:block">
           <PatientShellPageTitleStrip collapseOnScroll={false}>
-          {shellTitleSlot ?
-            shellTitleSlot
-          : backHref || shellTitle ?
-            <>
-              {shellTitleBadge ?
-                <span
-                  data-testid="patient-header-title-badge"
-                  className="mb-2 inline-block max-w-full truncate rounded-full border border-border bg-muted/70 px-2 py-0.5 text-[10px] font-medium text-foreground"
-                  title={shellTitleBadge}
-                >
-                  {shellTitleBadge}
-                </span>
-              : null}
-              <PatientShellPageTitleWithHistoryBack
-                title={shellTitle || " "}
-                backLabel={backLabel}
-                fallbackHref={backHref}
-              />
-            </>
-          : <>
-              {shellTitleBadge ?
-                <span
-                  data-testid="patient-header-title-badge"
-                  className="inline-block max-w-full truncate rounded-full border border-border bg-muted/70 px-2 py-0.5 text-[10px] font-medium text-foreground"
-                  title={shellTitleBadge}
-                >
-                  {shellTitleBadge}
-                </span>
-              : null}
-              {shellTitle ?
-                <h1 className={cn(patientSectionTitleClass, "min-w-0", shellTitleBadge && "mt-2")}>
-                  {shellTitle}
-                </h1>
-              : null}
-            </>
-          }
+            {shellTitleSlot ? (
+              shellTitleSlot
+            ) : backHref || shellTitle ? (
+              <>
+                {shellTitleBadge ? (
+                  <span
+                    data-testid="patient-header-title-badge"
+                    className="mb-2 inline-block max-w-full truncate rounded-full border border-border bg-muted/70 px-2 py-0.5 text-[10px] font-medium text-foreground"
+                    title={shellTitleBadge}
+                  >
+                    {shellTitleBadge}
+                  </span>
+                ) : null}
+                <PatientShellPageTitleWithHistoryBack
+                  title={shellTitle || ' '}
+                  backLabel={backLabel}
+                  fallbackHref={backHref}
+                />
+              </>
+            ) : (
+              <>
+                {shellTitleBadge ? (
+                  <span
+                    data-testid="patient-header-title-badge"
+                    className="inline-block max-w-full truncate rounded-full border border-border bg-muted/70 px-2 py-0.5 text-[10px] font-medium text-foreground"
+                    title={shellTitleBadge}
+                  >
+                    {shellTitleBadge}
+                  </span>
+                ) : null}
+                {shellTitle ? (
+                  <h1
+                    className={cn(patientSectionTitleClass, 'min-w-0', shellTitleBadge && 'mt-2')}
+                  >
+                    {shellTitle}
+                  </h1>
+                ) : null}
+              </>
+            )}
           </PatientShellPageTitleStrip>
         </div>
-      : null}
+      ) : null}
       {children}
       {bottomNav}
     </>

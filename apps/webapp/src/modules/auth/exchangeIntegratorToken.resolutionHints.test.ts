@@ -1,51 +1,49 @@
-import { createHmac } from "node:crypto";
-import { describe, expect, it, vi } from "vitest";
-import { encodeBase64Url } from "@/shared/utils/base64url";
+import { createHmac } from 'node:crypto';
+import { describe, expect, it, vi } from 'vitest';
+import { encodeBase64Url } from '@/shared/utils/base64url';
 
 const cookieSet = vi.fn();
 
-vi.mock("next/headers", () => ({
+vi.mock('next/headers', () => ({
   cookies: vi.fn(async () => ({
     set: cookieSet,
     get: vi.fn(),
   })),
 }));
 
-vi.mock("@/config/env", async (importOriginal) => {
-  const mod = await importOriginal<typeof import("@/config/env")>();
+vi.mock('@/config/env', async (importOriginal) => {
+  const mod = await importOriginal<typeof import('@/config/env')>();
   return {
     ...mod,
     env: {
       ...mod.env,
-      NODE_ENV: "development",
+      NODE_ENV: 'development',
       ALLOW_DEV_AUTH_BYPASS: true,
-      ALLOWED_TELEGRAM_IDS: "999000111",
+      ALLOWED_TELEGRAM_IDS: '999000111',
       ADMIN_TELEGRAM_ID: 0,
-      DOCTOR_TELEGRAM_IDS: "",
+      DOCTOR_TELEGRAM_IDS: '',
     },
   };
 });
 
-vi.mock("@/modules/system-settings/configAdapter", async (importOriginal) => {
-  const mod = await importOriginal<typeof import("@/modules/system-settings/configAdapter")>();
+vi.mock('@/modules/system-settings/configAdapter', async (importOriginal) => {
+  const mod = await importOriginal<typeof import('@/modules/system-settings/configAdapter')>();
   return {
     ...mod,
     getConfigValue: async (_key: string, envFallback: string) => envFallback,
   };
 });
 
-import { integratorWebappEntrySecret } from "@/config/env";
-import type { SessionUser } from "@/shared/types/session";
-import type { IdentityResolutionPort } from "./identityResolutionPort";
-import { exchangeIntegratorToken } from "./service";
+import { integratorWebappEntrySecret } from '@/config/env';
+import type { SessionUser } from '@/shared/types/session';
+import type { IdentityResolutionPort } from './identityResolutionPort';
+import { exchangeIntegratorToken } from './service';
 
-const CLIENT_TG = "999000111";
+const CLIENT_TG = '999000111';
 
-type FindOrCreateParams = Parameters<IdentityResolutionPort["findOrCreateByChannelBinding"]>[0];
+type FindOrCreateParams = Parameters<IdentityResolutionPort['findOrCreateByChannelBinding']>[0];
 
-function firstFindOrCreateCall(
-  mockFn: ReturnType<typeof vi.fn>,
-): FindOrCreateParams | undefined {
+function firstFindOrCreateCall(mockFn: ReturnType<typeof vi.fn>): FindOrCreateParams | undefined {
   const calls = mockFn.mock.calls as unknown as [FindOrCreateParams][];
   return calls[0]?.[0];
 }
@@ -54,23 +52,23 @@ function buildWebappEntryToken(body: Record<string, unknown>): string {
   const exp = Math.floor(Date.now() / 1000) + 3600;
   const payload = encodeBase64Url(JSON.stringify({ ...body, exp }));
   const secret = integratorWebappEntrySecret();
-  const sig = createHmac("sha256", secret).update(payload).digest("base64url");
+  const sig = createHmac('sha256', secret).update(payload).digest('base64url');
   return `${payload}.${sig}`;
 }
 
-describe("exchangeIntegratorToken — resolutionHints (Phase B)", () => {
-  it("passes platformUserSub, integratorUserId, phoneNormalized when present on token", async () => {
+describe('exchangeIntegratorToken — resolutionHints (Phase B)', () => {
+  it('passes platformUserSub, integratorUserId, phoneNormalized when present on token', async () => {
     cookieSet.mockClear();
-    const platformUuid = "aaaaaaaa-bbbb-4ccc-dddd-eeeeeeeeeeee";
+    const platformUuid = 'aaaaaaaa-bbbb-4ccc-dddd-eeeeeeeeeeee';
     const findOrCreateByChannelBinding = vi.fn(async () => ({
       user: {
         userId: platformUuid,
-        role: "client" as const,
-        displayName: "Test",
-        phone: "+79991234567",
+        role: 'client' as const,
+        displayName: 'Test',
+        phone: '+79991234567',
         bindings: { telegramId: CLIENT_TG },
       },
-      accountOutcome: "created" as const,
+      accountOutcome: 'created' as const,
     }));
     const findByChannelBinding = vi.fn(async () => null);
     const identityResolutionPort: IdentityResolutionPort = {
@@ -80,40 +78,40 @@ describe("exchangeIntegratorToken — resolutionHints (Phase B)", () => {
 
     const token = buildWebappEntryToken({
       sub: platformUuid,
-      role: "client",
-      displayName: "Test",
-      phone: "+79991234567",
-      integratorUserId: "987654321",
+      role: 'client',
+      displayName: 'Test',
+      phone: '+79991234567',
+      integratorUserId: '987654321',
       bindings: { telegramId: CLIENT_TG },
-      purpose: "webapp-entry",
+      purpose: 'webapp-entry',
     });
 
     const result = await exchangeIntegratorToken(token, identityResolutionPort);
     expect(result).not.toBeNull();
     const callParams = firstFindOrCreateCall(findOrCreateByChannelBinding);
     expect(callParams).toMatchObject({
-      channelCode: "telegram",
+      channelCode: 'telegram',
       externalId: CLIENT_TG,
       resolutionHints: {
         platformUserSub: platformUuid,
-        integratorUserId: "987654321",
-        phoneNormalized: "+79991234567",
+        integratorUserId: '987654321',
+        phoneNormalized: '+79991234567',
       },
     });
     expect(findByChannelBinding).not.toHaveBeenCalled();
   });
 
-  it("does not set platformUserSub when sub is external (e.g. tg:…)", async () => {
+  it('does not set platformUserSub when sub is external (e.g. tg:…)', async () => {
     cookieSet.mockClear();
     const findOrCreateByChannelBinding = vi.fn(async () => ({
       user: {
-        userId: "u1",
-        role: "client" as const,
-        displayName: "Test",
+        userId: 'u1',
+        role: 'client' as const,
+        displayName: 'Test',
         phone: undefined,
         bindings: { telegramId: CLIENT_TG },
       },
-      accountOutcome: "created" as const,
+      accountOutcome: 'created' as const,
     }));
     const identityResolutionPort: IdentityResolutionPort = {
       findByChannelBinding: vi.fn(async () => null),
@@ -121,30 +119,30 @@ describe("exchangeIntegratorToken — resolutionHints (Phase B)", () => {
     };
 
     const token = buildWebappEntryToken({
-      sub: "tg:123456789",
-      role: "client",
-      displayName: "Test",
-      phone: "+79991234567",
+      sub: 'tg:123456789',
+      role: 'client',
+      displayName: 'Test',
+      phone: '+79991234567',
       bindings: { telegramId: CLIENT_TG },
-      purpose: "webapp-entry",
+      purpose: 'webapp-entry',
     });
 
     await exchangeIntegratorToken(token, identityResolutionPort);
     const params = firstFindOrCreateCall(findOrCreateByChannelBinding);
-    expect(params?.resolutionHints).toEqual({ phoneNormalized: "+79991234567" });
+    expect(params?.resolutionHints).toEqual({ phoneNormalized: '+79991234567' });
   });
 
-  it("resolves messenger binding from sub when bindings are omitted (tg:…)", async () => {
+  it('resolves messenger binding from sub when bindings are omitted (tg:…)', async () => {
     cookieSet.mockClear();
     const findOrCreateByChannelBinding = vi.fn(async () => ({
       user: {
-        userId: "u1",
-        role: "client" as const,
-        displayName: "Test",
+        userId: 'u1',
+        role: 'client' as const,
+        displayName: 'Test',
         phone: undefined,
         bindings: { telegramId: CLIENT_TG },
       },
-      accountOutcome: "created" as const,
+      accountOutcome: 'created' as const,
     }));
     const identityResolutionPort: IdentityResolutionPort = {
       findByChannelBinding: vi.fn(async () => null),
@@ -153,57 +151,57 @@ describe("exchangeIntegratorToken — resolutionHints (Phase B)", () => {
 
     const token = buildWebappEntryToken({
       sub: `tg:${CLIENT_TG}`,
-      role: "client",
-      purpose: "webapp-entry",
+      role: 'client',
+      purpose: 'webapp-entry',
     });
 
     await exchangeIntegratorToken(token, identityResolutionPort);
     const params = firstFindOrCreateCall(findOrCreateByChannelBinding);
     expect(params).toMatchObject({
-      channelCode: "telegram",
+      channelCode: 'telegram',
       externalId: CLIENT_TG,
     });
     expect(params?.resolutionHints).toBeUndefined();
   });
 
-  it("dev bypass with identityResolutionPort resolves canonical user by messenger binding", async () => {
+  it('dev bypass with identityResolutionPort resolves canonical user by messenger binding', async () => {
     cookieSet.mockClear();
     const findByChannelBinding = vi.fn(async () => ({
-      userId: "aaaaaaaa-bbbb-4ccc-dddd-eeeeeeeeeeee",
-      role: "client" as const,
-      displayName: "Demo Client",
-      phone: "+79990000001",
-      bindings: { telegramId: "111111111" },
+      userId: 'aaaaaaaa-bbbb-4ccc-dddd-eeeeeeeeeeee',
+      role: 'client' as const,
+      displayName: 'Demo Client',
+      phone: '+79990000001',
+      bindings: { telegramId: '111111111' },
     }));
     const findOrCreateByChannelBinding = vi.fn(async () => {
-      throw new Error("dev bypass must not create a messenger binding");
+      throw new Error('dev bypass must not create a messenger binding');
     });
     const identityResolutionPort: IdentityResolutionPort = {
       findByChannelBinding,
       findOrCreateByChannelBinding,
     };
 
-    const result = await exchangeIntegratorToken("dev:client", identityResolutionPort);
+    const result = await exchangeIntegratorToken('dev:client', identityResolutionPort);
     expect(result).not.toBeNull();
-    expect(result!.session.user.userId).toBe("aaaaaaaa-bbbb-4ccc-dddd-eeeeeeeeeeee");
+    expect(result!.session.user.userId).toBe('aaaaaaaa-bbbb-4ccc-dddd-eeeeeeeeeeee');
     expect(findByChannelBinding).toHaveBeenCalledWith({
-      channelCode: "telegram",
-      externalId: "111111111",
+      channelCode: 'telegram',
+      externalId: '111111111',
     });
     expect(findOrCreateByChannelBinding).not.toHaveBeenCalled();
   });
 
-  it("dev bypass fails closed when its synthetic messenger binding was not prepared", async () => {
+  it('dev bypass fails closed when its synthetic messenger binding was not prepared', async () => {
     cookieSet.mockClear();
     const findOrCreateByChannelBinding = vi.fn(async () => {
-      throw new Error("dev bypass must not create a messenger binding");
+      throw new Error('dev bypass must not create a messenger binding');
     });
     const identityResolutionPort: IdentityResolutionPort = {
       findByChannelBinding: vi.fn(async () => null),
       findOrCreateByChannelBinding,
     };
 
-    const result = await exchangeIntegratorToken("dev:client", identityResolutionPort);
+    const result = await exchangeIntegratorToken('dev:client', identityResolutionPort);
 
     expect(result).toBeNull();
     expect(findOrCreateByChannelBinding).not.toHaveBeenCalled();

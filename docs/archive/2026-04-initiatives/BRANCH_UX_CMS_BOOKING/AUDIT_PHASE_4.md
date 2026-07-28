@@ -9,21 +9,21 @@
 
 ## Файлы проверены
 
-| Файл | Статус |
-|---|---|
-| `broadcasts/actions.ts` | ✅ |
-| `broadcasts/actions.test.ts` | ✅ |
-| `broadcasts/labels.ts` | ✅ |
-| `broadcasts/BroadcastAudienceSelect.tsx` | ✅ |
-| `broadcasts/BroadcastAudienceSelect.test.tsx` | ✅ |
-| `broadcasts/BroadcastForm.tsx` | ⚠️ |
-| `broadcasts/BroadcastConfirmStep.tsx` | ⚠️ |
-| `broadcasts/BroadcastConfirmStep.test.tsx` | ✅ |
-| `broadcasts/BroadcastAuditLog.tsx` | ⚠️ |
-| `broadcasts/BroadcastAuditLog.test.tsx` | ✅ |
-| `broadcasts/page.tsx` | ❌ |
-| `app-layer/di/buildAppDeps.ts` — `resolveAudienceSize` | ⚠️ |
-| `shared/ui/DoctorHeader.tsx` | ✅ |
+| Файл                                                   | Статус |
+| ------------------------------------------------------ | ------ |
+| `broadcasts/actions.ts`                                | ✅     |
+| `broadcasts/actions.test.ts`                           | ✅     |
+| `broadcasts/labels.ts`                                 | ✅     |
+| `broadcasts/BroadcastAudienceSelect.tsx`               | ✅     |
+| `broadcasts/BroadcastAudienceSelect.test.tsx`          | ✅     |
+| `broadcasts/BroadcastForm.tsx`                         | ⚠️     |
+| `broadcasts/BroadcastConfirmStep.tsx`                  | ⚠️     |
+| `broadcasts/BroadcastConfirmStep.test.tsx`             | ✅     |
+| `broadcasts/BroadcastAuditLog.tsx`                     | ⚠️     |
+| `broadcasts/BroadcastAuditLog.test.tsx`                | ✅     |
+| `broadcasts/page.tsx`                                  | ❌     |
+| `app-layer/di/buildAppDeps.ts` — `resolveAudienceSize` | ⚠️     |
+| `shared/ui/DoctorHeader.tsx`                           | ✅     |
 
 ---
 
@@ -45,9 +45,9 @@
 - **Как исправить:**  
   В `executeBroadcastAction` после успешного вызова `deps.doctorBroadcasts.execute()` добавить:
   ```ts
-  import { revalidatePath } from "next/cache";
+  import { revalidatePath } from 'next/cache';
   // ...
-  revalidatePath("/app/doctor/broadcasts");
+  revalidatePath('/app/doctor/broadcasts');
   ```
   После этого Next.js автоматически перефетчит данные страницы, и новая запись появится в журнале.  
   Альтернатива: убрать фразу «Журнал обновится автоматически» и написать «Страница обновится при следующем переходе» — но это хуже UX.
@@ -71,15 +71,16 @@
 
 ### 3. [severity: major] Отсутствует `BroadcastForm.test.tsx`
 
-- **Файл:** *(не создан)*
+- **Файл:** _(не создан)_
 - **Что не так:**  
   Спека задачи 4.3 явно требует 4 RTL-теста:
   - при незаполненных полях кнопка «Предпросмотр» не вызывает Action;
   - при корректных полях Action вызывается с правильным `BroadcastCommand`;
   - в состоянии `previewing` кнопка `disabled`;
-  - после успешного preview рендерится блок с числом получателей.  
-  
+  - после успешного preview рендерится блок с числом получателей.
+
   Ни один из них не покрыт. `BroadcastConfirmStep.test.tsx` покрывает только компонент подтверждения, не сам flow формы.
+
 - **Как исправить:**  
   Создать `broadcasts/BroadcastForm.test.tsx` (`@vitest-environment jsdom`) с моком `./actions` и проверками четырёх кейсов из спека. Особое внимание: мок `previewBroadcastAction` должен возвращать `BroadcastPreviewResult` и проверять, что кнопка становится `disabled` во время transition.
 
@@ -122,7 +123,7 @@
 ### 7. [severity: minor] `BroadcastForm.tsx` — dead code в ветке `stage === "sent"` (строка 104)
 
 - **Файл:** `broadcasts/BroadcastForm.tsx`, строка 104
-- **Что не так:**  
+- **Что не так:**
   ```ts
   command={buildCommand() ?? { category: sentEntry.category, ... }}
   ```
@@ -136,14 +137,14 @@
 
 **Покрытие:**
 
-| Модуль | Тестов | Замечание |
-|---|---|---|
-| `actions.ts` | 4 unit | ✅ полное покрытие Actions |
-| `BroadcastAudienceSelect` | 3 RTL | ✅ |
-| `BroadcastConfirmStep` | 5 RTL | ✅ |
-| `BroadcastAuditLog` | 6 RTL | ✅ |
-| `BroadcastForm` | **0** | ❌ отсутствует, требуется по спеку |
-| `labels.ts` | 0 | acceptable — pure const map |
+| Модуль                    | Тестов | Замечание                          |
+| ------------------------- | ------ | ---------------------------------- |
+| `actions.ts`              | 4 unit | ✅ полное покрытие Actions         |
+| `BroadcastAudienceSelect` | 3 RTL  | ✅                                 |
+| `BroadcastConfirmStep`    | 5 RTL  | ✅                                 |
+| `BroadcastAuditLog`       | 6 RTL  | ✅                                 |
+| `BroadcastForm`           | **0**  | ❌ отсутствует, требуется по спеку |
+| `labels.ts`               | 0      | acceptable — pure const map        |
 
 **CI:** green ✅
 
@@ -155,15 +156,15 @@
 
 ## Rework (2026-03-31) — статус findings
 
-| # | Severity | Статус | Как закрыто |
-|---|----------|--------|-------------|
-| 1 | critical | **closed** | `executeBroadcastAction` → `revalidatePath("/app/doctor/broadcasts")` + тест в `actions.test.ts` |
-| 2 | critical | **closed** | Не требует отдельного кода: после #1 журнал обновляется; `onBroadcastSent` остаётся опциональным |
-| 3 | major | **closed** | `BroadcastForm.test.tsx`: 4 кейса из спеки + sent-flow |
-| 4 | major | **closed** | Суффикс опций + предупреждения в форме и на шаге подтверждения для `inactive`/`sms_only` |
-| 5 | minor | **closed** | `BroadcastSentMessage.tsx` отделён от `BroadcastConfirmStep` |
-| 6 | minor | **closed** | Удалён `"use client"` из `BroadcastAuditLog.tsx` |
-| 7 | minor | **closed** | Sent-ветка рендерит только `BroadcastSentMessage` без `buildCommand() ?? …` |
+| #   | Severity | Статус     | Как закрыто                                                                                      |
+| --- | -------- | ---------- | ------------------------------------------------------------------------------------------------ |
+| 1   | critical | **closed** | `executeBroadcastAction` → `revalidatePath("/app/doctor/broadcasts")` + тест в `actions.test.ts` |
+| 2   | critical | **closed** | Не требует отдельного кода: после #1 журнал обновляется; `onBroadcastSent` остаётся опциональным |
+| 3   | major    | **closed** | `BroadcastForm.test.tsx`: 4 кейса из спеки + sent-flow                                           |
+| 4   | major    | **closed** | Суффикс опций + предупреждения в форме и на шаге подтверждения для `inactive`/`sms_only`         |
+| 5   | minor    | **closed** | `BroadcastSentMessage.tsx` отделён от `BroadcastConfirmStep`                                     |
+| 6   | minor    | **closed** | Удалён `"use client"` из `BroadcastAuditLog.tsx`                                                 |
+| 7   | minor    | **closed** | Sent-ветка рендерит только `BroadcastSentMessage` без `buildCommand() ?? …`                      |
 
 **Повторный аудит:** **approve**  
 **CI после rework:** green (`pnpm run ci`)

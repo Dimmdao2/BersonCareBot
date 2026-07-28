@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
+import { useEffect, useState } from 'react';
 
-const PENDING_PROGRAM_TESTS_SUMMARY_URL = "/api/doctor/pending-program-tests/summary";
+const PENDING_PROGRAM_TESTS_SUMMARY_URL = '/api/doctor/pending-program-tests/summary';
 
 /** Число попыток «К проверке» для бейджа пункта «Сегодня» в меню врача. */
 export function useDoctorPendingProgramTestsCount(enabled = true) {
@@ -11,12 +11,12 @@ export function useDoctorPendingProgramTestsCount(enabled = true) {
     if (!enabled) return;
     let cancelled = false;
     const run = async () => {
-      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
       try {
         const res = await fetch(PENDING_PROGRAM_TESTS_SUMMARY_URL);
         if (!res.ok) return;
         const j = (await res.json()) as { count?: unknown };
-        if (!cancelled && typeof j.count === "number" && Number.isFinite(j.count) && j.count >= 0) {
+        if (!cancelled && typeof j.count === 'number' && Number.isFinite(j.count) && j.count >= 0) {
           setCount(j.count);
         }
       } catch {
@@ -26,13 +26,13 @@ export function useDoctorPendingProgramTestsCount(enabled = true) {
     void run();
     const t = setInterval(run, 20000);
     const onVis = () => {
-      if (document.visibilityState === "visible") void run();
+      if (document.visibilityState === 'visible') void run();
     };
-    document.addEventListener("visibilitychange", onVis);
+    document.addEventListener('visibilitychange', onVis);
     return () => {
       cancelled = true;
       clearInterval(t);
-      document.removeEventListener("visibilitychange", onVis);
+      document.removeEventListener('visibilitychange', onVis);
     };
   }, [enabled]);
   return enabled ? count : 0;

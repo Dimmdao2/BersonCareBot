@@ -1,9 +1,9 @@
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
-import { membershipErrorResponse } from "@/app/api/booking-engine/patientPackagesRouteShared";
-import { requireAdminBookingEngine } from "../../_requireAdminBookingEngine";
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
+import { membershipErrorResponse } from '@/app/api/booking-engine/patientPackagesRouteShared';
+import { requireAdminBookingEngine } from '../../_requireAdminBookingEngine';
 
 const patchSchema = z.object({
   notes: z.string().trim().max(2000).nullable(),
@@ -17,11 +17,11 @@ export async function PATCH(request: Request, context: RouteContext) {
   const { id } = await context.params;
   const parsed = patchSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
   const deps = buildAppDeps();
   if (!deps.memberships) {
-    return NextResponse.json({ ok: false, error: "memberships_unavailable" }, { status: 503 });
+    return NextResponse.json({ ok: false, error: 'memberships_unavailable' }, { status: 503 });
   }
   try {
     const pkg = await deps.memberships.updatePatientPackageNotes(
@@ -30,7 +30,11 @@ export async function PATCH(request: Request, context: RouteContext) {
       parsed.data.notes,
       {
         runMembershipWrite: (fn) =>
-          withDoctorWorkspacePrincipal(gate.ctx, "admin.booking-engine.patient-packages.notes.update", fn),
+          withDoctorWorkspacePrincipal(
+            gate.ctx,
+            'admin.booking-engine.patient-packages.notes.update',
+            fn,
+          ),
       },
     );
     return NextResponse.json({ ok: true, package: pkg });
@@ -45,11 +49,11 @@ export async function GET(_request: Request, context: RouteContext) {
   const { id } = await context.params;
   const deps = buildAppDeps();
   if (!deps.memberships) {
-    return NextResponse.json({ ok: false, error: "memberships_unavailable" }, { status: 503 });
+    return NextResponse.json({ ok: false, error: 'memberships_unavailable' }, { status: 503 });
   }
   const detail = await deps.memberships.getPatientPackageDetail(id, gate.ctx.organizationId);
   if (!detail) {
-    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+    return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
   return NextResponse.json({ ok: true, ...detail });
 }

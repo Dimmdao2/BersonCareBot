@@ -5,14 +5,14 @@ import type {
   TreatmentProgramInstanceStageItemStatus,
   TreatmentProgramInstanceStageItemView,
   TreatmentProgramItemType,
-} from "@/modules/treatment-program/types";
-import { effectiveInstanceStageItemComment } from "@/modules/treatment-program/types";
-import { sortByOrderThenId } from "./treatmentProgramReorderHelpers";
-import type { InstanceEditorItemLoadSettingsPatch } from "./instanceEditorLoadSettings";
+} from '@/modules/treatment-program/types';
+import { effectiveInstanceStageItemComment } from '@/modules/treatment-program/types';
+import { sortByOrderThenId } from './treatmentProgramReorderHelpers';
+import type { InstanceEditorItemLoadSettingsPatch } from './instanceEditorLoadSettings';
 
 export type { InstanceEditorItemLoadSettingsPatch };
 
-export const INSTANCE_EDITOR_DRAFT_ID_PREFIX = "draft:";
+export const INSTANCE_EDITOR_DRAFT_ID_PREFIX = 'draft:';
 
 export function isInstanceEditorDraftClientId(id: string): boolean {
   return id.startsWith(INSTANCE_EDITOR_DRAFT_ID_PREFIX);
@@ -62,7 +62,7 @@ export type InstanceEditorGroupCreate = {
 };
 
 export type InstanceEditorItemCreateLibraryItem = {
-  kind: "library_item";
+  kind: 'library_item';
   clientId: string;
   stageId: string;
   itemType: TreatmentProgramItemType;
@@ -76,7 +76,7 @@ export type InstanceEditorItemCreateLibraryItem = {
 };
 
 export type InstanceEditorItemCreateFreeformRecommendation = {
-  kind: "freeform_recommendation";
+  kind: 'freeform_recommendation';
   clientId: string;
   stageId: string;
   title: string;
@@ -88,7 +88,7 @@ export type InstanceEditorItemCreateFreeformRecommendation = {
 };
 
 export type InstanceEditorItemCreateIndividualExercise = {
-  kind: "individual_exercise";
+  kind: 'individual_exercise';
   clientId: string;
   stageId: string;
   groupId: string;
@@ -107,7 +107,7 @@ export type InstanceEditorItemCreateIndividualExercise = {
 };
 
 export type InstanceEditorItemCreateTestSetExpand = {
-  kind: "test_set_expand";
+  kind: 'test_set_expand';
   stageId: string;
   testSetId: string;
   items: Array<InstanceEditorItemCreateExpandLine>;
@@ -124,7 +124,7 @@ export type InstanceEditorItemCreateExpandLine = {
 };
 
 export type InstanceEditorItemCreateLfkComplexExpand = {
-  kind: "lfk_complex_expand";
+  kind: 'lfk_complex_expand';
   stageId: string;
   groupId: string;
   complexTemplateId: string;
@@ -139,20 +139,20 @@ export type InstanceEditorItemCreate =
   | InstanceEditorItemCreateLfkComplexExpand;
 
 export type InstanceEditorItemCreateInput =
-  | (Omit<InstanceEditorItemCreateLibraryItem, "clientId" | "kind"> & {
-      kind?: "library_item";
+  | (Omit<InstanceEditorItemCreateLibraryItem, 'clientId' | 'kind'> & {
+      kind?: 'library_item';
       clientId?: string;
     })
-  | (Omit<InstanceEditorItemCreateFreeformRecommendation, "clientId" | "kind"> & {
-      kind: "freeform_recommendation";
+  | (Omit<InstanceEditorItemCreateFreeformRecommendation, 'clientId' | 'kind'> & {
+      kind: 'freeform_recommendation';
       clientId?: string;
     })
-  | (Omit<InstanceEditorItemCreateIndividualExercise, "clientId" | "kind"> & {
-      kind: "individual_exercise";
+  | (Omit<InstanceEditorItemCreateIndividualExercise, 'clientId' | 'kind'> & {
+      kind: 'individual_exercise';
       clientId?: string;
     })
   | {
-      kind: "test_set_expand";
+      kind: 'test_set_expand';
       stageId: string;
       testSetId: string;
       items: Array<{
@@ -166,7 +166,7 @@ export type InstanceEditorItemCreateInput =
       }>;
     }
   | {
-      kind: "lfk_complex_expand";
+      kind: 'lfk_complex_expand';
       stageId: string;
       groupId: string;
       complexTemplateId: string;
@@ -184,20 +184,22 @@ export type InstanceEditorItemCreateInput =
 /** Все client-id строк, которые материализует одна запись itemCreates. */
 export function itemCreateClientIds(create: InstanceEditorItemCreate): string[] {
   switch (create.kind) {
-    case "library_item":
-    case "freeform_recommendation":
-    case "individual_exercise":
+    case 'library_item':
+    case 'freeform_recommendation':
+    case 'individual_exercise':
       return [create.clientId];
-    case "test_set_expand":
-    case "lfk_complex_expand":
+    case 'test_set_expand':
+    case 'lfk_complex_expand':
       return create.items.map((i) => i.clientId);
   }
 }
 
-export function prepareInstanceEditorItemCreate(input: InstanceEditorItemCreateInput): InstanceEditorItemCreate {
-  if (input.kind === "test_set_expand") {
+export function prepareInstanceEditorItemCreate(
+  input: InstanceEditorItemCreateInput,
+): InstanceEditorItemCreate {
+  if (input.kind === 'test_set_expand') {
     return {
-      kind: "test_set_expand",
+      kind: 'test_set_expand',
       stageId: input.stageId,
       testSetId: input.testSetId,
       items: input.items.map((item) => ({
@@ -206,9 +208,9 @@ export function prepareInstanceEditorItemCreate(input: InstanceEditorItemCreateI
       })),
     };
   }
-  if (input.kind === "lfk_complex_expand") {
+  if (input.kind === 'lfk_complex_expand') {
     return {
-      kind: "lfk_complex_expand",
+      kind: 'lfk_complex_expand',
       stageId: input.stageId,
       groupId: input.groupId,
       complexTemplateId: input.complexTemplateId,
@@ -218,9 +220,9 @@ export function prepareInstanceEditorItemCreate(input: InstanceEditorItemCreateI
       })),
     };
   }
-  if (input.kind === "freeform_recommendation") {
+  if (input.kind === 'freeform_recommendation') {
     return {
-      kind: "freeform_recommendation",
+      kind: 'freeform_recommendation',
       clientId: input.clientId ?? createInstanceEditorDraftClientId(),
       stageId: input.stageId,
       title: input.title,
@@ -228,15 +230,15 @@ export function prepareInstanceEditorItemCreate(input: InstanceEditorItemCreateI
       snapshot: input.snapshot,
     };
   }
-  if (input.kind === "individual_exercise") {
+  if (input.kind === 'individual_exercise') {
     return {
       ...input,
-      kind: "individual_exercise",
+      kind: 'individual_exercise',
       clientId: input.clientId ?? createInstanceEditorDraftClientId(),
     };
   }
   return {
-    kind: "library_item",
+    kind: 'library_item',
     clientId: input.clientId ?? createInstanceEditorDraftClientId(),
     stageId: input.stageId,
     itemType: input.itemType,
@@ -254,33 +256,39 @@ export function applyItemPatchToItemCreates(
   itemId: string,
   patch: InstanceEditorItemPatch,
 ): InstanceEditorItemCreate[] {
-  if (patch.localComment === undefined && patch.loadSettings === undefined && patch.personalTitle === undefined) {
+  if (
+    patch.localComment === undefined &&
+    patch.loadSettings === undefined &&
+    patch.personalTitle === undefined
+  ) {
     return creates;
   }
   return creates.map((create): InstanceEditorItemCreate => {
-    if (create.kind === "library_item" && create.clientId === itemId) {
+    if (create.kind === 'library_item' && create.clientId === itemId) {
       return {
         ...create,
         ...(patch.localComment !== undefined ? { localComment: patch.localComment } : {}),
         ...(patch.loadSettings !== undefined ? { loadSettings: patch.loadSettings } : {}),
       };
     }
-    if (create.kind === "freeform_recommendation" && create.clientId === itemId) {
+    if (create.kind === 'freeform_recommendation' && create.clientId === itemId) {
       return {
         ...create,
         ...(patch.localComment !== undefined ? { localComment: patch.localComment } : {}),
       };
     }
-    if (create.kind === "individual_exercise" && create.clientId === itemId) {
+    if (create.kind === 'individual_exercise' && create.clientId === itemId) {
       const personalTitle = patch.personalTitle?.trim();
       return {
         ...create,
         ...(patch.localComment !== undefined ? { localComment: patch.localComment } : {}),
         ...(patch.loadSettings !== undefined ? { loadSettings: patch.loadSettings } : {}),
-        ...(personalTitle ? { title: personalTitle, snapshot: { ...create.snapshot, title: personalTitle } } : {}),
+        ...(personalTitle
+          ? { title: personalTitle, snapshot: { ...create.snapshot, title: personalTitle } }
+          : {}),
       };
     }
-    if (create.kind === "test_set_expand" || create.kind === "lfk_complex_expand") {
+    if (create.kind === 'test_set_expand' || create.kind === 'lfk_complex_expand') {
       const lineIdx = create.items.findIndex((line) => line.clientId === itemId);
       if (lineIdx === -1) return create;
       const items = [...create.items];
@@ -310,7 +318,7 @@ export function applyItemStructuralPatchToItemCreates(
   if (!hasStructural) return creates;
 
   return creates.map((create): InstanceEditorItemCreate => {
-    if (create.kind === "library_item" && create.clientId === itemId) {
+    if (create.kind === 'library_item' && create.clientId === itemId) {
       if (patch.replace) {
         return {
           ...create,
@@ -329,20 +337,20 @@ export function applyItemStructuralPatchToItemCreates(
         ...(patch.status !== undefined ? { status: patch.status } : {}),
       };
     }
-    if (create.kind === "freeform_recommendation" && create.clientId === itemId) {
+    if (create.kind === 'freeform_recommendation' && create.clientId === itemId) {
       return {
         ...create,
         ...(patch.isActionable !== undefined ? { isActionable: patch.isActionable } : {}),
         ...(patch.status !== undefined ? { status: patch.status } : {}),
       };
     }
-    if (create.kind === "individual_exercise" && create.clientId === itemId) {
+    if (create.kind === 'individual_exercise' && create.clientId === itemId) {
       return {
         ...create,
         ...(patch.groupId !== undefined && patch.groupId ? { groupId: patch.groupId } : {}),
       };
     }
-    if (create.kind === "test_set_expand" || create.kind === "lfk_complex_expand") {
+    if (create.kind === 'test_set_expand' || create.kind === 'lfk_complex_expand') {
       const lineIdx = create.items.findIndex((line) => line.clientId === itemId);
       if (lineIdx === -1) return create;
       const items = [...create.items];
@@ -363,7 +371,11 @@ export function removeItemFromInstanceEditorItemCreates(
   itemId: string,
 ): InstanceEditorItemCreate[] {
   return creates.flatMap((create): InstanceEditorItemCreate[] => {
-    if (create.kind === "library_item" || create.kind === "freeform_recommendation" || create.kind === "individual_exercise") {
+    if (
+      create.kind === 'library_item' ||
+      create.kind === 'freeform_recommendation' ||
+      create.kind === 'individual_exercise'
+    ) {
       return create.clientId === itemId ? [] : [create];
     }
     const nextItems = create.items.filter((item) => item.clientId !== itemId);
@@ -439,7 +451,7 @@ export function isInstanceEditorDraftEmpty(draft: InstanceEditorDraft): boolean 
 
 function pickFirstFiniteNum(...values: unknown[]): number | null {
   for (const v of values) {
-    if (typeof v === "number" && Number.isFinite(v)) return v;
+    if (typeof v === 'number' && Number.isFinite(v)) return v;
   }
   return null;
 }
@@ -447,7 +459,7 @@ function pickFirstFiniteNum(...values: unknown[]): number | null {
 function normalizeNullableText(value: string | null | undefined): string | null {
   if (value == null) return null;
   const t = value.trim();
-  return t === "" ? null : t;
+  return t === '' ? null : t;
 }
 
 function orderedIdsEqual(a: readonly string[], b: readonly string[]): boolean {
@@ -460,7 +472,10 @@ function orderedIdsEqual(a: readonly string[], b: readonly string[]): boolean {
  * - убрать дубли;
  * - дописать отсутствующие id (например, новые create), чтобы сервер не падал на assertSameIdSet.
  */
-function reconcileReorderToExpectedIds(order: readonly string[], expectedOrder: readonly string[]): string[] {
+function reconcileReorderToExpectedIds(
+  order: readonly string[],
+  expectedOrder: readonly string[],
+): string[] {
   const allowed = new Set(expectedOrder);
   const seen = new Set<string>();
   const normalized: string[] = [];
@@ -480,11 +495,11 @@ function reconcileReorderToExpectedIds(order: readonly string[], expectedOrder: 
 export function readInstanceItemLoadSettingsPatch(
   item: TreatmentProgramInstanceStageItemRow,
 ): InstanceEditorItemLoadSettingsPatch {
-  if (item.itemType !== "exercise") {
+  if (item.itemType !== 'exercise') {
     return { reps: null, sets: null, maxPain: null };
   }
   const ov =
-    item.settings != null && typeof item.settings === "object" && !Array.isArray(item.settings)
+    item.settings != null && typeof item.settings === 'object' && !Array.isArray(item.settings)
       ? (item.settings as Record<string, unknown>)
       : {};
   const snap = item.snapshot;
@@ -502,7 +517,7 @@ function loadSettingsEqual(
   return a.reps === b.reps && a.sets === b.sets && a.maxPain === b.maxPain;
 }
 
-type InstanceEditorStageNode = TreatmentProgramInstanceDetail["stages"][number];
+type InstanceEditorStageNode = TreatmentProgramInstanceDetail['stages'][number];
 
 function findStage(baseline: TreatmentProgramInstanceDetail, stageId: string) {
   return baseline.stages.find((s) => s.id === stageId) ?? null;
@@ -532,7 +547,7 @@ function findGroupInBaseline(baseline: TreatmentProgramInstanceDetail, groupId: 
   return null;
 }
 
-function baselineStageIdOrder(stages: TreatmentProgramInstanceDetail["stages"]): string[] {
+function baselineStageIdOrder(stages: TreatmentProgramInstanceDetail['stages']): string[] {
   return sortByOrderThenId(stages).map((s) => s.id);
 }
 
@@ -553,10 +568,16 @@ function stageMetadataPatchDiffers(
   if (patch.description !== undefined && patch.description !== stage.description) return true;
   if (patch.goals !== undefined && patch.goals !== stage.goals) return true;
   if (patch.objectives !== undefined && patch.objectives !== stage.objectives) return true;
-  if (patch.expectedDurationDays !== undefined && patch.expectedDurationDays !== stage.expectedDurationDays) {
+  if (
+    patch.expectedDurationDays !== undefined &&
+    patch.expectedDurationDays !== stage.expectedDurationDays
+  ) {
     return true;
   }
-  if (patch.expectedDurationText !== undefined && patch.expectedDurationText !== stage.expectedDurationText) {
+  if (
+    patch.expectedDurationText !== undefined &&
+    patch.expectedDurationText !== stage.expectedDurationText
+  ) {
     return true;
   }
   return false;
@@ -586,7 +607,7 @@ function itemPatchDiffers(
     if (!loadSettingsEqual(patch.loadSettings, baseLoad)) return true;
   }
   if (patch.personalTitle !== undefined) {
-    const currentTitle = typeof item.snapshot.title === "string" ? item.snapshot.title : "";
+    const currentTitle = typeof item.snapshot.title === 'string' ? item.snapshot.title : '';
     if (patch.personalTitle.trim() !== currentTitle.trim()) return true;
   }
   return false;
@@ -610,7 +631,7 @@ function buildDraftStageRow(
   create: InstanceEditorStageCreate,
   instanceId: string,
   sortOrder: number,
-  status: InstanceEditorStageNode["status"],
+  status: InstanceEditorStageNode['status'],
 ): InstanceEditorStageNode {
   return {
     id: create.clientId,
@@ -632,7 +653,10 @@ function buildDraftStageRow(
   };
 }
 
-function buildDraftGroupRow(create: InstanceEditorGroupCreate, sortOrder: number): TreatmentProgramInstanceStageGroup {
+function buildDraftGroupRow(
+  create: InstanceEditorGroupCreate,
+  sortOrder: number,
+): TreatmentProgramInstanceStageGroup {
   return {
     id: create.clientId,
     stageId: create.stageId,
@@ -665,14 +689,11 @@ function buildDraftItemRowFromParts(input: {
     sortOrder: 9999,
     comment: null,
     localComment: input.localComment ?? null,
-    settings:
-      input.loadSettings != null
-        ? mergeItemSettings(null, input.loadSettings)
-        : null,
+    settings: input.loadSettings != null ? mergeItemSettings(null, input.loadSettings) : null,
     snapshot: input.snapshot,
     completedAt: null,
     isActionable: input.isActionable ?? null,
-    status: input.status ?? "active",
+    status: input.status ?? 'active',
     groupId: input.groupId ?? null,
     createdAt: new Date(0).toISOString(),
     lastViewedAt: null,
@@ -691,7 +712,7 @@ function materializeItemCreatesForStage(
   for (const create of creates) {
     if (create.stageId !== stageId) continue;
     switch (create.kind) {
-      case "library_item":
+      case 'library_item':
         rows.push(
           buildDraftItemRowFromParts({
             clientId: create.clientId,
@@ -707,12 +728,12 @@ function materializeItemCreatesForStage(
           }),
         );
         break;
-      case "freeform_recommendation":
+      case 'freeform_recommendation':
         rows.push(
           buildDraftItemRowFromParts({
             clientId: create.clientId,
             stageId: create.stageId,
-            itemType: "recommendation",
+            itemType: 'recommendation',
             itemRefId: create.clientId,
             snapshot: create.snapshot,
             localComment: create.localComment,
@@ -721,12 +742,12 @@ function materializeItemCreatesForStage(
           }),
         );
         break;
-      case "individual_exercise":
+      case 'individual_exercise':
         rows.push(
           buildDraftItemRowFromParts({
             clientId: create.clientId,
             stageId: create.stageId,
-            itemType: "exercise",
+            itemType: 'exercise',
             itemRefId: create.clientId,
             groupId: create.groupId,
             snapshot: create.snapshot,
@@ -735,13 +756,13 @@ function materializeItemCreatesForStage(
           }),
         );
         break;
-      case "test_set_expand":
+      case 'test_set_expand':
         for (const item of create.items) {
           rows.push(
             buildDraftItemRowFromParts({
               clientId: item.clientId,
               stageId: create.stageId,
-              itemType: "clinical_test",
+              itemType: 'clinical_test',
               itemRefId: item.itemRefId,
               groupId: item.groupId ?? null,
               snapshot: item.snapshot,
@@ -751,13 +772,13 @@ function materializeItemCreatesForStage(
           );
         }
         break;
-      case "lfk_complex_expand":
+      case 'lfk_complex_expand':
         for (const item of create.items) {
           rows.push(
             buildDraftItemRowFromParts({
               clientId: item.clientId,
               stageId: create.stageId,
-              itemType: "exercise",
+              itemType: 'exercise',
               itemRefId: item.itemRefId,
               groupId: item.groupId ?? create.groupId,
               snapshot: item.snapshot,
@@ -781,7 +802,7 @@ function applyGroupHidesToStage(
   const nextGroups = stage.groups.filter((g) => !groupHides[g.id]);
   const nextItems = stage.items.map((item) => {
     if (item.groupId && groupHides[item.groupId]) {
-      return { ...item, status: "disabled" as const, effectiveComment: item.effectiveComment };
+      return { ...item, status: 'disabled' as const, effectiveComment: item.effectiveComment };
     }
     return item;
   });
@@ -792,8 +813,8 @@ function applyUserGroupReorder(
   groups: TreatmentProgramInstanceStageGroup[],
   orderedUserGroupIds: string[],
 ): TreatmentProgramInstanceStageGroup[] {
-  const rec = groups.filter((g) => g.systemKind === "recommendations");
-  const tests = groups.filter((g) => g.systemKind === "tests");
+  const rec = groups.filter((g) => g.systemKind === 'recommendations');
+  const tests = groups.filter((g) => g.systemKind === 'tests');
   const user = groups.filter((g) => !g.systemKind);
   const byId = new Map(user.map((g) => [g.id, g]));
   const reordered: TreatmentProgramInstanceStageGroup[] = [];
@@ -832,13 +853,13 @@ function mergeItemSettings(
   loadSettings: InstanceEditorItemLoadSettingsPatch,
 ): Record<string, unknown> {
   const base =
-    settings != null && typeof settings === "object" && !Array.isArray(settings)
+    settings != null && typeof settings === 'object' && !Array.isArray(settings)
       ? { ...settings }
       : {};
   for (const [key, value] of [
-    ["reps", loadSettings.reps],
-    ["sets", loadSettings.sets],
-    ["maxPain", loadSettings.maxPain],
+    ['reps', loadSettings.reps],
+    ['sets', loadSettings.sets],
+    ['maxPain', loadSettings.maxPain],
   ] as const) {
     if (value === null) delete base[key];
     else if (value !== undefined) base[key] = value;
@@ -918,7 +939,12 @@ export function mergeInstanceEditorDraftIntoDetailRaw(
   const maxSort = detail.stages.reduce((m, s) => Math.max(m, s.sortOrder), 0);
   const hasExistingPipelineStage = detail.stages.some((s) => s.sortOrder > 0);
   const draftStages = stageCreates.map((create, idx) =>
-    buildDraftStageRow(create, detail.id, maxSort + idx + 1, !hasExistingPipelineStage && idx === 0 ? "available" : "locked"),
+    buildDraftStageRow(
+      create,
+      detail.id,
+      maxSort + idx + 1,
+      !hasExistingPipelineStage && idx === 0 ? 'available' : 'locked',
+    ),
   );
 
   let stages: InstanceEditorStageNode[] = [
@@ -928,7 +954,9 @@ export function mergeInstanceEditorDraftIntoDetailRaw(
         ? {
             ...stage,
             ...(stagePatch.title !== undefined ? { title: stagePatch.title } : {}),
-            ...(stagePatch.description !== undefined ? { description: stagePatch.description } : {}),
+            ...(stagePatch.description !== undefined
+              ? { description: stagePatch.description }
+              : {}),
             ...(stagePatch.goals !== undefined ? { goals: stagePatch.goals } : {}),
             ...(stagePatch.objectives !== undefined ? { objectives: stagePatch.objectives } : {}),
             ...(stagePatch.expectedDurationDays !== undefined
@@ -943,9 +971,7 @@ export function mergeInstanceEditorDraftIntoDetailRaw(
       const groupsWithCreates = [...nextStage.groups];
       for (const groupCreate of draft.groupCreates) {
         if (groupCreate.stageId !== nextStage.id) continue;
-        groupsWithCreates.push(
-          buildDraftGroupRow(groupCreate, groupsWithCreates.length),
-        );
+        groupsWithCreates.push(buildDraftGroupRow(groupCreate, groupsWithCreates.length));
       }
 
       let nextGroups = groupsWithCreates.map((group) => {
@@ -955,7 +981,9 @@ export function mergeInstanceEditorDraftIntoDetailRaw(
           ...group,
           ...(groupPatch.title !== undefined ? { title: groupPatch.title } : {}),
           ...(groupPatch.description !== undefined ? { description: groupPatch.description } : {}),
-          ...(groupPatch.scheduleText !== undefined ? { scheduleText: groupPatch.scheduleText } : {}),
+          ...(groupPatch.scheduleText !== undefined
+            ? { scheduleText: groupPatch.scheduleText }
+            : {}),
         };
       });
 
@@ -977,7 +1005,10 @@ export function mergeInstanceEditorDraftIntoDetailRaw(
         nextItems = reorderRowsById(nextItems, itemReorder);
       }
 
-      return applyGroupHidesToStage({ ...nextStage, groups: nextGroups, items: nextItems }, draft.groupHides);
+      return applyGroupHidesToStage(
+        { ...nextStage, groups: nextGroups, items: nextItems },
+        draft.groupHides,
+      );
     }),
     ...draftStages.map((stage) => {
       const groupsWithCreates = [...stage.groups];
@@ -992,7 +1023,9 @@ export function mergeInstanceEditorDraftIntoDetailRaw(
           ...group,
           ...(groupPatch.title !== undefined ? { title: groupPatch.title } : {}),
           ...(groupPatch.description !== undefined ? { description: groupPatch.description } : {}),
-          ...(groupPatch.scheduleText !== undefined ? { scheduleText: groupPatch.scheduleText } : {}),
+          ...(groupPatch.scheduleText !== undefined
+            ? { scheduleText: groupPatch.scheduleText }
+            : {}),
         };
       });
       const groupReorder = draft.groupReorders[stage.id];
@@ -1014,7 +1047,9 @@ export function mergeInstanceEditorDraftIntoDetailRaw(
         ? {
             ...stage,
             ...(stagePatch.title !== undefined ? { title: stagePatch.title } : {}),
-            ...(stagePatch.description !== undefined ? { description: stagePatch.description } : {}),
+            ...(stagePatch.description !== undefined
+              ? { description: stagePatch.description }
+              : {}),
             ...(stagePatch.goals !== undefined ? { goals: stagePatch.goals } : {}),
             ...(stagePatch.objectives !== undefined ? { objectives: stagePatch.objectives } : {}),
             ...(stagePatch.expectedDurationDays !== undefined
@@ -1025,7 +1060,10 @@ export function mergeInstanceEditorDraftIntoDetailRaw(
               : {}),
           }
         : stage;
-      return applyGroupHidesToStage({ ...patchedStage, groups: nextGroups, items: nextItems }, draft.groupHides);
+      return applyGroupHidesToStage(
+        { ...patchedStage, groups: nextGroups, items: nextItems },
+        draft.groupHides,
+      );
     }),
   ];
 
@@ -1060,7 +1098,7 @@ export function normalizeInstanceEditorDraft(
     if (next.stageMetadata[stageId]) continue;
     const create = next.stageCreates.find((c) => c.clientId === stageId);
     if (!create) continue;
-    const draftStage = buildDraftStageRow(create, baseline.id, 0, "available");
+    const draftStage = buildDraftStageRow(create, baseline.id, 0, 'available');
     if (stageMetadataPatchDiffers(draftStage, patch)) {
       next.stageMetadata[stageId] = patch;
     }
@@ -1121,7 +1159,10 @@ export function normalizeInstanceEditorDraft(
     itemReorders: {},
     groupReorders: {},
   };
-  const mergedForReorder = mergeInstanceEditorDraftIntoDetailRaw(baseline, partialForReorderCompare);
+  const mergedForReorder = mergeInstanceEditorDraftIntoDetailRaw(
+    baseline,
+    partialForReorderCompare,
+  );
 
   if (draft.stageOrder) {
     const expected = baselineStageIdOrder(mergedForReorder.stages);
@@ -1199,7 +1240,7 @@ export function pickInstanceEditorDraftChanges(
 
 export type InstanceEditorDraftFlushChanges = Pick<
   InstanceEditorDraft,
-  "stageMetadata" | "groupPatches" | "itemPatches"
+  'stageMetadata' | 'groupPatches' | 'itemPatches'
 >;
 
 /** Metadata-секции черновика (этап/группа/элемент) для unsaved gate и batch-save. */
@@ -1251,7 +1292,9 @@ export function hasInstanceEditorDraftStructuralChanges(
 }
 
 /** После успешного batch-save — очистить только metadata-секции (legacy helper). */
-export function clearFlushableInstanceEditorDraftSections(draft: InstanceEditorDraft): InstanceEditorDraft {
+export function clearFlushableInstanceEditorDraftSections(
+  draft: InstanceEditorDraft,
+): InstanceEditorDraft {
   return {
     ...draft,
     stageMetadata: {},

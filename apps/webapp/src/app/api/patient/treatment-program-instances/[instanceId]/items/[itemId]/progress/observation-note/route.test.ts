@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
   gateMock,
@@ -16,26 +16,26 @@ const {
   discussionUiEnabledMock: vi.fn(),
 }));
 
-vi.mock("@/app-layer/guards/requireRole", () => ({
+vi.mock('@/app-layer/guards/requireRole', () => ({
   requirePatientApiBusinessAccess: gateMock,
 }));
-vi.mock("@/app-layer/di/buildAppDeps", () => ({
+vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: buildAppDepsMock,
 }));
-vi.mock("@/modules/program-item-discussion/discussionFeatureGates", () => ({
+vi.mock('@/modules/program-item-discussion/discussionFeatureGates', () => ({
   isPatientProgramDiscussionUiEnabled: discussionUiEnabledMock,
 }));
-vi.mock("@/app-layer/cache/revalidatePatientTreatmentProgramUi", () => ({
+vi.mock('@/app-layer/cache/revalidatePatientTreatmentProgramUi', () => ({
   revalidatePatientTreatmentProgramUi: vi.fn(),
 }));
 
-import { POST } from "./route";
+import { POST } from './route';
 
-const instanceId = "11111111-1111-4111-8111-111111111111";
-const itemId = "22222222-2222-4222-8222-222222222222";
-const patientUserId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const instanceId = '11111111-1111-4111-8111-111111111111';
+const itemId = '22222222-2222-4222-8222-222222222222';
+const patientUserId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 
-describe("POST observation-note", () => {
+describe('POST observation-note', () => {
   beforeEach(() => {
     gateMock.mockReset();
     buildAppDepsMock.mockReset();
@@ -46,7 +46,7 @@ describe("POST observation-note", () => {
 
     gateMock.mockResolvedValue({
       ok: true,
-      session: { user: { userId: patientUserId, role: "client", phone: null, bindings: {} } },
+      session: { user: { userId: patientUserId, role: 'client', phone: null, bindings: {} } },
     });
     discussionUiEnabledMock.mockResolvedValue(true);
     getPatientProgramInteractionPolicyMock.mockResolvedValue({
@@ -56,8 +56,8 @@ describe("POST observation-note", () => {
     });
     getInstanceForPatientMock.mockResolvedValue({
       id: instanceId,
-      organizationId: "44444444-4444-4444-8444-444444444444",
-      assignmentSource: "doctor",
+      organizationId: '44444444-4444-4444-8444-444444444444',
+      assignmentSource: 'doctor',
     });
     appendNoteMock.mockResolvedValue(undefined);
     buildAppDepsMock.mockReturnValue({
@@ -67,7 +67,7 @@ describe("POST observation-note", () => {
     });
   });
 
-  it("returns 403 when support policy disables comments", async () => {
+  it('returns 403 when support policy disables comments', async () => {
     getPatientProgramInteractionPolicyMock.mockResolvedValue({
       onSupport: false,
       commentsAllowed: false,
@@ -75,16 +75,16 @@ describe("POST observation-note", () => {
     });
 
     const res = await POST(
-      new Request("http://localhost", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ note: "test" }),
+      new Request('http://localhost', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ note: 'test' }),
       }),
       { params: Promise.resolve({ instanceId, itemId }) },
     );
     expect(res.status).toBe(403);
     const data = (await res.json()) as { error?: string };
-    expect(data.error).toBe("patient_support_comments_disabled");
+    expect(data.error).toBe('patient_support_comments_disabled');
     expect(appendNoteMock).not.toHaveBeenCalled();
   });
 });

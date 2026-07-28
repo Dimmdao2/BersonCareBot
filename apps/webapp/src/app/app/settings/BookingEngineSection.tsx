@@ -1,30 +1,30 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useState, useTransition } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { Label } from "@/shared/ui/doctor/primitives/label";
-import { Switch } from "@/shared/ui/doctor/primitives/switch";
+import { useCallback, useEffect, useState, useTransition } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { Label } from '@/shared/ui/doctor/primitives/label';
+import { Switch } from '@/shared/ui/doctor/primitives/switch';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/ui/doctor/primitives/select";
+} from '@/shared/ui/doctor/primitives/select';
 import {
   BookingEngineBranchList,
   BookingEngineRoomList,
   BookingEngineServiceList,
   BookingEngineSpecialistList,
-} from "./BookingEngineCatalogLists";
-import { BookingAvailabilityMatrixTable } from "./BookingAvailabilityMatrixTable";
-import { parseRublesInput, rublesToMinor } from "@/app/app/settings/bookingSoloAdminApi";
-import { BOOKING_CARD_GRID_CLASS } from "@/shared/ui/doctor/doctorWorkspaceLayout";
-import { apiJson } from "@/shared/lib/apiJson";
+} from './BookingEngineCatalogLists';
+import { BookingAvailabilityMatrixTable } from './BookingAvailabilityMatrixTable';
+import { parseRublesInput, rublesToMinor } from '@/app/app/settings/bookingSoloAdminApi';
+import { BOOKING_CARD_GRID_CLASS } from '@/shared/ui/doctor/doctorWorkspaceLayout';
+import { apiJson } from '@/shared/lib/apiJson';
 
-const BASE = "/api/admin/booking-engine";
+const BASE = '/api/admin/booking-engine';
 
 type Overview = {
   organizationId: string;
@@ -51,49 +51,51 @@ type Overview = {
   specialistRooms: { id: string; specialistId: string; roomId: string; isActive: boolean }[];
 };
 
-export type BookingEngineSectionMode = "catalog" | "availability";
+export type BookingEngineSectionMode = 'catalog' | 'availability';
 
 const MODE_TITLES: Record<BookingEngineSectionMode, string> = {
-  catalog: "Каталог записи",
-  availability: "Доступность",
+  catalog: 'Каталог записи',
+  availability: 'Доступность',
 };
 
-export function BookingEngineSection({ mode = "catalog" }: { mode?: BookingEngineSectionMode }) {
+export function BookingEngineSection({ mode = 'catalog' }: { mode?: BookingEngineSectionMode }) {
   const [data, setData] = useState<Overview | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [unavailable, setUnavailable] = useState(false);
   const [isPending, start] = useTransition();
 
-  const [orgTitle, setOrgTitle] = useState("");
-  const [branchTitle, setBranchTitle] = useState("");
-  const [branchCity, setBranchCity] = useState("msk");
-  const [roomBranchId, setRoomBranchId] = useState("");
-  const [roomTitle, setRoomTitle] = useState("");
-  const [specialistName, setSpecialistName] = useState("");
-  const [specialistBranchId, setSpecialistBranchId] = useState("");
-  const [serviceTitle, setServiceTitle] = useState("");
-  const [serviceDuration, setServiceDuration] = useState("60");
-  const [servicePrice, setServicePrice] = useState("5000");
-  const [availSpecialistId, setAvailSpecialistId] = useState("");
-  const [availServiceId, setAvailServiceId] = useState("");
-  const [availBranchId, setAvailBranchId] = useState("");
-  const [availCityCode, setAvailCityCode] = useState("");
-  const [availRoomId, setAvailRoomId] = useState("");
+  const [orgTitle, setOrgTitle] = useState('');
+  const [branchTitle, setBranchTitle] = useState('');
+  const [branchCity, setBranchCity] = useState('msk');
+  const [roomBranchId, setRoomBranchId] = useState('');
+  const [roomTitle, setRoomTitle] = useState('');
+  const [specialistName, setSpecialistName] = useState('');
+  const [specialistBranchId, setSpecialistBranchId] = useState('');
+  const [serviceTitle, setServiceTitle] = useState('');
+  const [serviceDuration, setServiceDuration] = useState('60');
+  const [servicePrice, setServicePrice] = useState('5000');
+  const [availSpecialistId, setAvailSpecialistId] = useState('');
+  const [availServiceId, setAvailServiceId] = useState('');
+  const [availBranchId, setAvailBranchId] = useState('');
+  const [availCityCode, setAvailCityCode] = useState('');
+  const [availRoomId, setAvailRoomId] = useState('');
   const [servicePublicWidget, setServicePublicWidget] = useState(true);
   const [serviceManualOnly, setServiceManualOnly] = useState(false);
-  const [linkSpecId, setLinkSpecId] = useState("");
-  const [linkRoomId, setLinkRoomId] = useState("");
-  const [locServiceId, setLocServiceId] = useState("");
-  const [locBranchId, setLocBranchId] = useState("");
+  const [linkSpecId, setLinkSpecId] = useState('');
+  const [linkRoomId, setLinkRoomId] = useState('');
+  const [locServiceId, setLocServiceId] = useState('');
+  const [locBranchId, setLocBranchId] = useState('');
 
   const load = useCallback(async () => {
     setLoadError(null);
     setUnavailable(false);
     try {
-      const res = await apiJson<{ ok: boolean; error?: string } & Partial<Overview>>(`${BASE}/overview`);
+      const res = await apiJson<{ ok: boolean; error?: string } & Partial<Overview>>(
+        `${BASE}/overview`,
+      );
       setData(res as Overview);
-      setOrgTitle(res.organization?.title ?? "");
+      setOrgTitle(res.organization?.title ?? '');
       if (res.branches?.[0]) {
         setRoomBranchId((prev) => prev || res.branches![0]!.id);
         setSpecialistBranchId((prev) => prev || res.branches![0]!.id);
@@ -108,8 +110,8 @@ export function BookingEngineSection({ mode = "catalog" }: { mode?: BookingEngin
       if (res.rooms?.[0]) setLinkRoomId((prev) => prev || res.rooms![0]!.id);
       if (res.branches?.[0]) setLocBranchId((prev) => prev || res.branches![0]!.id);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "load_failed";
-      if (msg === "booking_engine_unavailable") {
+      const msg = e instanceof Error ? e.message : 'load_failed';
+      if (msg === 'booking_engine_unavailable') {
         setUnavailable(true);
         return;
       }
@@ -130,7 +132,7 @@ export function BookingEngineSection({ mode = "catalog" }: { mode?: BookingEngin
         await fn();
         await load();
       } catch (e) {
-        setActionError(e instanceof Error ? e.message : "action_failed");
+        setActionError(e instanceof Error ? e.message : 'action_failed');
       }
     });
   };
@@ -161,446 +163,445 @@ export function BookingEngineSection({ mode = "catalog" }: { mode?: BookingEngin
 
         {data && (
           <>
-            {mode === "catalog" ? (
-            <div className={BOOKING_CARD_GRID_CLASS}>
-              <div className="space-y-2">
-                <Label>Организация</Label>
-                <div className="flex gap-2">
-                  <Input value={orgTitle} onChange={(e) => setOrgTitle(e.target.value)} />
-                  <Button
-                    type="button"
-                    size="sm"
-                    disabled={isPending}
-                    onClick={() =>
-                      run(async () => {
-                        const res = await apiJson<{ ok: boolean }>(`${BASE}/organizations`, {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ title: orgTitle }),
-                        });
-                        if (!res.ok) throw new Error("org_save_failed");
-                      })
-                    }
-                  >
-                    Сохранить
-                  </Button>
+            {mode === 'catalog' ? (
+              <div className={BOOKING_CARD_GRID_CLASS}>
+                <div className="space-y-2">
+                  <Label>Организация</Label>
+                  <div className="flex gap-2">
+                    <Input value={orgTitle} onChange={(e) => setOrgTitle(e.target.value)} />
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={isPending}
+                      onClick={() =>
+                        run(async () => {
+                          const res = await apiJson<{ ok: boolean }>(`${BASE}/organizations`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ title: orgTitle }),
+                          });
+                          if (!res.ok) throw new Error('org_save_failed');
+                        })
+                      }
+                    >
+                      Сохранить
+                    </Button>
+                  </div>
                 </div>
-              </div>
 
-              <div className="space-y-2">
-                <Label>Филиал</Label>
-                <div className="flex flex-wrap gap-2">
-                  <Input
-                    className="min-w-[8rem] flex-1"
-                    placeholder="Название"
-                    value={branchTitle}
-                    onChange={(e) => setBranchTitle(e.target.value)}
+                <div className="space-y-2">
+                  <Label>Филиал</Label>
+                  <div className="flex flex-wrap gap-2">
+                    <Input
+                      className="min-w-[8rem] flex-1"
+                      placeholder="Название"
+                      value={branchTitle}
+                      onChange={(e) => setBranchTitle(e.target.value)}
+                    />
+                    <Input
+                      className="w-24"
+                      placeholder="Город"
+                      value={branchCity}
+                      onChange={(e) => setBranchCity(e.target.value)}
+                    />
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={isPending}
+                      onClick={() =>
+                        run(async () => {
+                          const res = await apiJson<{ ok: boolean }>(`${BASE}/branches`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ title: branchTitle, cityCode: branchCity }),
+                          });
+                          if (!res.ok) throw new Error('branch_save_failed');
+                          setBranchTitle('');
+                        })
+                      }
+                    >
+                      Добавить
+                    </Button>
+                  </div>
+                  <BookingEngineBranchList
+                    branches={data.branches}
+                    isPending={isPending}
+                    onChanged={catalogReload}
+                    onError={setActionError}
+                    layout="table"
                   />
-                  <Input
-                    className="w-24"
-                    placeholder="Город"
-                    value={branchCity}
-                    onChange={(e) => setBranchCity(e.target.value)}
-                  />
-                  <Button
-                    type="button"
-                    size="sm"
-                    disabled={isPending}
-                    onClick={() =>
-                      run(async () => {
-                        const res = await apiJson<{ ok: boolean }>(`${BASE}/branches`, {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ title: branchTitle, cityCode: branchCity }),
-                        });
-                        if (!res.ok) throw new Error("branch_save_failed");
-                        setBranchTitle("");
-                      })
-                    }
-                  >
-                    Добавить
-                  </Button>
                 </div>
-                <BookingEngineBranchList
-                  branches={data.branches}
-                  isPending={isPending}
-                  onChanged={catalogReload}
-                  onError={setActionError}
-                  layout="table"
-                />
-              </div>
 
-              <div className="space-y-2">
-                <Label>Кабинет</Label>
-                <div className="flex flex-wrap gap-2">
-                  <Select value={roomBranchId} onValueChange={(v) => v && setRoomBranchId(v)}>
-                    <SelectTrigger className="w-[10rem]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {data.branches.map((b) => (
-                        <SelectItem key={b.id} value={b.id} label={b.title}>
-                          {b.title}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Input
-                    className="min-w-[8rem] flex-1"
-                    value={roomTitle}
-                    onChange={(e) => setRoomTitle(e.target.value)}
+                <div className="space-y-2">
+                  <Label>Кабинет</Label>
+                  <div className="flex flex-wrap gap-2">
+                    <Select value={roomBranchId} onValueChange={(v) => v && setRoomBranchId(v)}>
+                      <SelectTrigger className="w-[10rem]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {data.branches.map((b) => (
+                          <SelectItem key={b.id} value={b.id} label={b.title}>
+                            {b.title}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      className="min-w-[8rem] flex-1"
+                      value={roomTitle}
+                      onChange={(e) => setRoomTitle(e.target.value)}
+                    />
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={isPending || !roomBranchId}
+                      onClick={() =>
+                        run(async () => {
+                          const res = await apiJson<{ ok: boolean }>(`${BASE}/rooms`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ branchId: roomBranchId, title: roomTitle }),
+                          });
+                          if (!res.ok) throw new Error('room_save_failed');
+                          setRoomTitle('');
+                        })
+                      }
+                    >
+                      Добавить
+                    </Button>
+                  </div>
+                  <BookingEngineRoomList
+                    rooms={data.rooms}
+                    isPending={isPending}
+                    onChanged={catalogReload}
+                    onError={setActionError}
+                    layout="table"
                   />
-                  <Button
-                    type="button"
-                    size="sm"
-                    disabled={isPending || !roomBranchId}
-                    onClick={() =>
-                      run(async () => {
-                        const res = await apiJson<{ ok: boolean }>(`${BASE}/rooms`, {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ branchId: roomBranchId, title: roomTitle }),
-                        });
-                        if (!res.ok) throw new Error("room_save_failed");
-                        setRoomTitle("");
-                      })
-                    }
-                  >
-                    Добавить
-                  </Button>
                 </div>
-                <BookingEngineRoomList
-                  rooms={data.rooms}
-                  isPending={isPending}
-                  onChanged={catalogReload}
-                  onError={setActionError}
-                  layout="table"
-                />
-              </div>
 
-              <div className="space-y-2">
-                <Label>Специалист</Label>
-                <div className="flex flex-wrap gap-2">
-                  <Input
-                    className="min-w-[8rem] flex-1"
-                    value={specialistName}
-                    onChange={(e) => setSpecialistName(e.target.value)}
+                <div className="space-y-2">
+                  <Label>Специалист</Label>
+                  <div className="flex flex-wrap gap-2">
+                    <Input
+                      className="min-w-[8rem] flex-1"
+                      value={specialistName}
+                      onChange={(e) => setSpecialistName(e.target.value)}
+                    />
+                    <Select
+                      value={specialistBranchId}
+                      onValueChange={(v) => v && setSpecialistBranchId(v)}
+                    >
+                      <SelectTrigger className="w-[10rem]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {data.branches.map((b) => (
+                          <SelectItem key={b.id} value={b.id} label={b.title}>
+                            {b.title}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={isPending}
+                      onClick={() =>
+                        run(async () => {
+                          const res = await apiJson<{ ok: boolean }>(`${BASE}/specialists`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              fullName: specialistName,
+                              branchId: specialistBranchId || undefined,
+                            }),
+                          });
+                          if (!res.ok) throw new Error('specialist_save_failed');
+                          setSpecialistName('');
+                        })
+                      }
+                    >
+                      Добавить
+                    </Button>
+                  </div>
+                  <BookingEngineSpecialistList
+                    specialists={data.specialists}
+                    isPending={isPending}
+                    onChanged={catalogReload}
+                    onError={setActionError}
+                    layout="table"
                   />
-                  <Select value={specialistBranchId} onValueChange={(v) => v && setSpecialistBranchId(v)}>
-                    <SelectTrigger className="w-[10rem]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {data.branches.map((b) => (
-                        <SelectItem key={b.id} value={b.id} label={b.title}>
-                          {b.title}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Button
-                    type="button"
-                    size="sm"
-                    disabled={isPending}
-                    onClick={() =>
-                      run(async () => {
-                        const res = await apiJson<{ ok: boolean }>(`${BASE}/specialists`, {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({
-                            fullName: specialistName,
-                            branchId: specialistBranchId || undefined,
-                          }),
-                        });
-                        if (!res.ok) throw new Error("specialist_save_failed");
-                        setSpecialistName("");
-                      })
-                    }
-                  >
-                    Добавить
-                  </Button>
                 </div>
-                <BookingEngineSpecialistList
-                  specialists={data.specialists}
-                  isPending={isPending}
-                  onChanged={catalogReload}
-                  onError={setActionError}
-                  layout="table"
-                />
-              </div>
 
-              <div className="space-y-2 md:col-span-2">
-                <Label>Услуга</Label>
-                <div className="flex flex-wrap gap-2">
-                  <Input
-                    className="min-w-[10rem] flex-1"
-                    value={serviceTitle}
-                    onChange={(e) => setServiceTitle(e.target.value)}
+                <div className="space-y-2 md:col-span-2">
+                  <Label>Услуга</Label>
+                  <div className="flex flex-wrap gap-2">
+                    <Input
+                      className="min-w-[10rem] flex-1"
+                      value={serviceTitle}
+                      onChange={(e) => setServiceTitle(e.target.value)}
+                    />
+                    <Input
+                      className="w-20"
+                      type="number"
+                      value={serviceDuration}
+                      onChange={(e) => setServiceDuration(e.target.value)}
+                    />
+                    <Input
+                      className="w-28"
+                      type="number"
+                      value={servicePrice}
+                      onChange={(e) => setServicePrice(e.target.value)}
+                    />
+                    <label className="flex items-center gap-2 text-sm">
+                      <Switch
+                        checked={servicePublicWidget}
+                        onCheckedChange={setServicePublicWidget}
+                      />
+                      Публичная запись
+                    </label>
+                    <label className="flex items-center gap-2 text-sm">
+                      <Switch checked={serviceManualOnly} onCheckedChange={setServiceManualOnly} />
+                      Только вручную
+                    </label>
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={isPending}
+                      onClick={() =>
+                        run(async () => {
+                          const res = await apiJson<{ ok: boolean }>(`${BASE}/services`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              title: serviceTitle,
+                              durationMinutes: Number(serviceDuration),
+                              priceMinor: rublesToMinor(parseRublesInput(servicePrice)),
+                              publicWidgetVisible: servicePublicWidget,
+                              adminManualOnly: serviceManualOnly,
+                            }),
+                          });
+                          if (!res.ok) throw new Error('service_save_failed');
+                          setServiceTitle('');
+                        })
+                      }
+                    >
+                      Добавить
+                    </Button>
+                  </div>
+                  <BookingEngineServiceList
+                    services={data.services}
+                    isPending={isPending}
+                    onChanged={catalogReload}
+                    onError={setActionError}
+                    layout="table"
                   />
-                  <Input
-                    className="w-20"
-                    type="number"
-                    value={serviceDuration}
-                    onChange={(e) => setServiceDuration(e.target.value)}
-                  />
-                  <Input
-                    className="w-28"
-                    type="number"
-                    value={servicePrice}
-                    onChange={(e) => setServicePrice(e.target.value)}
-                  />
-                  <label className="flex items-center gap-2 text-sm">
-                    <Switch checked={servicePublicWidget} onCheckedChange={setServicePublicWidget} />
-                    Публичная запись
-                  </label>
-                  <label className="flex items-center gap-2 text-sm">
-                    <Switch checked={serviceManualOnly} onCheckedChange={setServiceManualOnly} />
-                    Только вручную
-                  </label>
-                  <Button
-                    type="button"
-                    size="sm"
-                    disabled={isPending}
-                    onClick={() =>
-                      run(async () => {
-                        const res = await apiJson<{ ok: boolean }>(`${BASE}/services`, {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({
-                            title: serviceTitle,
-                            durationMinutes: Number(serviceDuration),
-                            priceMinor: rublesToMinor(parseRublesInput(servicePrice)),
-                            publicWidgetVisible: servicePublicWidget,
-                            adminManualOnly: serviceManualOnly,
-                          }),
-                        });
-                        if (!res.ok) throw new Error("service_save_failed");
-                        setServiceTitle("");
-                      })
-                    }
-                  >
-                    Добавить
-                  </Button>
                 </div>
-                <BookingEngineServiceList
-                  services={data.services}
-                  isPending={isPending}
-                  onChanged={catalogReload}
-                  onError={setActionError}
-                  layout="table"
-                />
               </div>
-            </div>
             ) : null}
 
-            {mode === "availability" ? (
-            <div className="space-y-6">
-              <div className="space-y-2 md:col-span-2">
-                <Label>Специалист × кабинет</Label>
-                <div className="flex flex-wrap gap-2">
-                  <Select value={linkSpecId} onValueChange={(v) => v && setLinkSpecId(v)}>
-                    <SelectTrigger
-                      className="w-[10rem]"
+            {mode === 'availability' ? (
+              <div className="space-y-6">
+                <div className="space-y-2 md:col-span-2">
+                  <Label>Специалист × кабинет</Label>
+                  <div className="flex flex-wrap gap-2">
+                    <Select value={linkSpecId} onValueChange={(v) => v && setLinkSpecId(v)}>
+                      <SelectTrigger className="w-[10rem]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {data.specialists.map((s) => (
+                          <SelectItem key={s.id} value={s.id} label={s.fullName}>
+                            {s.fullName}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Select value={linkRoomId} onValueChange={(v) => v && setLinkRoomId(v)}>
+                      <SelectTrigger className="w-[10rem]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {data.rooms.map((r) => (
+                          <SelectItem key={r.id} value={r.id} label={r.title}>
+                            {r.title}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={isPending || !linkSpecId || !linkRoomId}
+                      onClick={() =>
+                        run(async () => {
+                          const res = await apiJson<{ ok: boolean }>(`${BASE}/specialist-rooms`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ specialistId: linkSpecId, roomId: linkRoomId }),
+                          });
+                          if (!res.ok) throw new Error('specialist_room_failed');
+                        })
+                      }
                     >
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {data.specialists.map((s) => (
-                        <SelectItem key={s.id} value={s.id} label={s.fullName}>
-                          {s.fullName}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Select value={linkRoomId} onValueChange={(v) => v && setLinkRoomId(v)}>
-                    <SelectTrigger
-                      className="w-[10rem]"
-                    >
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {data.rooms.map((r) => (
-                        <SelectItem key={r.id} value={r.id} label={r.title}>
-                          {r.title}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Button
-                    type="button"
-                    size="sm"
-                    disabled={isPending || !linkSpecId || !linkRoomId}
-                    onClick={() =>
-                      run(async () => {
-                        const res = await apiJson<{ ok: boolean }>(`${BASE}/specialist-rooms`, {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ specialistId: linkSpecId, roomId: linkRoomId }),
-                        });
-                        if (!res.ok) throw new Error("specialist_room_failed");
-                      })
-                    }
-                  >
-                    Связать
-                  </Button>
+                      Связать
+                    </Button>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Связей: {data.specialistRooms.length}
+                  </p>
                 </div>
-                <p className="text-sm text-muted-foreground">
-                  Связей: {data.specialistRooms.length}
-                </p>
-              </div>
 
-              <div className="space-y-2 md:col-span-2">
-                <Label>Услуга × филиал</Label>
-                <div className="flex flex-wrap gap-2">
-                  <Select value={locServiceId} onValueChange={(v) => v && setLocServiceId(v)}>
-                    <SelectTrigger
-                      className="w-[10rem]"
+                <div className="space-y-2 md:col-span-2">
+                  <Label>Услуга × филиал</Label>
+                  <div className="flex flex-wrap gap-2">
+                    <Select value={locServiceId} onValueChange={(v) => v && setLocServiceId(v)}>
+                      <SelectTrigger className="w-[10rem]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {data.services.map((s) => (
+                          <SelectItem key={s.id} value={s.id} label={s.title}>
+                            {s.title}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Select value={locBranchId} onValueChange={(v) => v && setLocBranchId(v)}>
+                      <SelectTrigger className="w-[10rem]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {data.branches.map((b) => (
+                          <SelectItem key={b.id} value={b.id} label={b.title}>
+                            {b.title}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={isPending || !locServiceId || !locBranchId}
+                      onClick={() =>
+                        run(async () => {
+                          const res = await apiJson<{ ok: boolean }>(`${BASE}/availability`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              kind: 'service_location',
+                              serviceId: locServiceId,
+                              branchId: locBranchId,
+                            }),
+                          });
+                          if (!res.ok) throw new Error('location_availability_failed');
+                        })
+                      }
                     >
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {data.services.map((s) => (
-                        <SelectItem key={s.id} value={s.id} label={s.title}>
-                          {s.title}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Select value={locBranchId} onValueChange={(v) => v && setLocBranchId(v)}>
-                    <SelectTrigger
-                      className="w-[10rem]"
-                    >
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {data.branches.map((b) => (
-                        <SelectItem key={b.id} value={b.id} label={b.title}>
-                          {b.title}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Button
-                    type="button"
-                    size="sm"
-                    disabled={isPending || !locServiceId || !locBranchId}
-                    onClick={() =>
-                      run(async () => {
-                        const res = await apiJson<{ ok: boolean }>(`${BASE}/availability`, {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({
-                            kind: "service_location",
-                            serviceId: locServiceId,
-                            branchId: locBranchId,
-                          }),
-                        });
-                        if (!res.ok) throw new Error("location_availability_failed");
-                      })
-                    }
-                  >
-                    Связать
-                  </Button>
+                      Связать
+                    </Button>
+                  </div>
                 </div>
-              </div>
 
-              <div className="space-y-2 md:col-span-2">
-                <Label>Доступность специалист × услуга × филиал × город × кабинет</Label>
-                <div className="flex flex-wrap gap-2">
-                  <Select value={availSpecialistId} onValueChange={(v) => v && setAvailSpecialistId(v)}>
-                    <SelectTrigger className="w-[10rem]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {data.specialists.map((s) => (
-                        <SelectItem key={s.id} value={s.id} label={s.fullName}>
-                          {s.fullName}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Select value={availServiceId} onValueChange={(v) => v && setAvailServiceId(v)}>
-                    <SelectTrigger className="w-[10rem]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {data.services.map((s) => (
-                        <SelectItem key={s.id} value={s.id} label={s.title}>
-                          {s.title}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Select value={availBranchId} onValueChange={(v) => v && setAvailBranchId(v)}>
-                    <SelectTrigger className="w-[10rem]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {data.branches.map((b) => (
-                        <SelectItem key={b.id} value={b.id} label={b.title}>
-                          {b.title}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Input
-                    className="w-24"
-                    placeholder="Город"
-                    value={availCityCode}
-                    onChange={(e) => setAvailCityCode(e.target.value)}
-                  />
-                  <Select
-                    value={availRoomId || "__none__"}
-                    onValueChange={(v) => setAvailRoomId(!v || v === "__none__" ? "" : v)}
-                  >
-                    <SelectTrigger
-                      className="w-[10rem]"
+                <div className="space-y-2 md:col-span-2">
+                  <Label>Доступность специалист × услуга × филиал × город × кабинет</Label>
+                  <div className="flex flex-wrap gap-2">
+                    <Select
+                      value={availSpecialistId}
+                      onValueChange={(v) => v && setAvailSpecialistId(v)}
                     >
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none__" label="—">
-                        —
-                      </SelectItem>
-                      {data.rooms.map((r) => (
-                        <SelectItem key={r.id} value={r.id} label={r.title}>
-                          {r.title}
+                      <SelectTrigger className="w-[10rem]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {data.specialists.map((s) => (
+                          <SelectItem key={s.id} value={s.id} label={s.fullName}>
+                            {s.fullName}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Select value={availServiceId} onValueChange={(v) => v && setAvailServiceId(v)}>
+                      <SelectTrigger className="w-[10rem]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {data.services.map((s) => (
+                          <SelectItem key={s.id} value={s.id} label={s.title}>
+                            {s.title}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Select value={availBranchId} onValueChange={(v) => v && setAvailBranchId(v)}>
+                      <SelectTrigger className="w-[10rem]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {data.branches.map((b) => (
+                          <SelectItem key={b.id} value={b.id} label={b.title}>
+                            {b.title}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      className="w-24"
+                      placeholder="Город"
+                      value={availCityCode}
+                      onChange={(e) => setAvailCityCode(e.target.value)}
+                    />
+                    <Select
+                      value={availRoomId || '__none__'}
+                      onValueChange={(v) => setAvailRoomId(!v || v === '__none__' ? '' : v)}
+                    >
+                      <SelectTrigger className="w-[10rem]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__" label="—">
+                          —
                         </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Button
-                    type="button"
-                    size="sm"
-                    disabled={isPending || !availSpecialistId || !availServiceId}
-                    onClick={() =>
-                      run(async () => {
-                        const res = await apiJson<{ ok: boolean }>(`${BASE}/availability`, {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({
-                            kind: "specialist_service",
-                            specialistId: availSpecialistId,
-                            serviceId: availServiceId,
-                            branchId: availBranchId || null,
-                            cityCode: availCityCode.trim() || null,
-                            roomId: availRoomId || null,
-                          }),
-                        });
-                        if (!res.ok) throw new Error("availability_save_failed");
-                      })
-                    }
-                  >
-                    Связать
-                  </Button>
+                        {data.rooms.map((r) => (
+                          <SelectItem key={r.id} value={r.id} label={r.title}>
+                            {r.title}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={isPending || !availSpecialistId || !availServiceId}
+                      onClick={() =>
+                        run(async () => {
+                          const res = await apiJson<{ ok: boolean }>(`${BASE}/availability`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              kind: 'specialist_service',
+                              specialistId: availSpecialistId,
+                              serviceId: availServiceId,
+                              branchId: availBranchId || null,
+                              cityCode: availCityCode.trim() || null,
+                              roomId: availRoomId || null,
+                            }),
+                          });
+                          if (!res.ok) throw new Error('availability_save_failed');
+                        })
+                      }
+                    >
+                      Связать
+                    </Button>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Связей: {data.specialistAvailability.length} специалист×услуга,{' '}
+                    {data.locationAvailability.length} услуга×филиал
+                  </p>
                 </div>
-                <p className="text-sm text-muted-foreground">
-                  Связей: {data.specialistAvailability.length} специалист×услуга,{" "}
-                  {data.locationAvailability.length} услуга×филиал
-                </p>
+                <BookingAvailabilityMatrixTable data={data} />
               </div>
-              <BookingAvailabilityMatrixTable data={data} />
-            </div>
             ) : null}
           </>
         )}

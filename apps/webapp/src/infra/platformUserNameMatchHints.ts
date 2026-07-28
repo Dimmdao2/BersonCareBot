@@ -5,11 +5,11 @@
  * `limitMembersPerGroup` caps rows per key. `swappedPairs` is capped separately — full table scan;
  * tune limits if the `platform_users` table grows large.
  */
-import type { Pool } from "pg";
-import { runPgPoolPgText } from "@/infra/db/runWebappSql";
+import type { Pool } from 'pg';
+import { runPgPoolPgText } from '@/infra/db/runWebappSql';
 
 export const NAME_MATCH_HINTS_DISCLAIMER =
-  "Результаты носят справочный характер: совпадение ФИО не подтверждает, что это один человек. Решение о слиянии записей принимает администратор после ручной проверки.";
+  'Результаты носят справочный характер: совпадение ФИО не подтверждает, что это один человек. Решение о слиянии записей принимает администратор после ручной проверки.';
 
 export type NameMatchHintMember = {
   id: string;
@@ -94,17 +94,15 @@ function groupOrderedRows(rows: OrderedRow[]): NameMatchOrderedGroup[] {
 /**
  * Canonical clients only. Requires non-empty normalized first and last for hint rows.
  */
-export async function buildNameMatchHintsReport(pool: Pool, opts: BuildOpts): Promise<NameMatchHintsReport> {
-  const {
-    missingPhone,
-    limitGroups,
-    limitMembersPerGroup,
-    limitSwappedPairs,
-  } = opts;
+export async function buildNameMatchHintsReport(
+  pool: Pool,
+  opts: BuildOpts,
+): Promise<NameMatchHintsReport> {
+  const { missingPhone, limitGroups, limitMembersPerGroup, limitSwappedPairs } = opts;
 
   const phoneFilter = missingPhone
     ? `AND (pu.phone_normalized IS NULL OR trim(pu.phone_normalized) = '')`
-    : "";
+    : '';
 
   const baseCte = `
     base AS (
@@ -186,7 +184,10 @@ export async function buildNameMatchHintsReport(pool: Pool, opts: BuildOpts): Pr
     LIMIT $1::int
   `;
 
-  const orderedRes = await runPgPoolPgText<OrderedRow>(pool, orderedSql, [limitGroups, limitMembersPerGroup]);
+  const orderedRes = await runPgPoolPgText<OrderedRow>(pool, orderedSql, [
+    limitGroups,
+    limitMembersPerGroup,
+  ]);
   const swappedRes = await runPgPoolPgText<SwappedSqlRow>(pool, swappedSql, [limitSwappedPairs]);
 
   const orderedGroups = groupOrderedRows(orderedRes.rows);

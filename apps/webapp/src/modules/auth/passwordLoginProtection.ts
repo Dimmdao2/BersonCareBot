@@ -1,9 +1,9 @@
-import { createHash } from "node:crypto";
-import { getAuthRateLimitDbPort } from "@/modules/auth/authRateLimits";
+import { createHash } from 'node:crypto';
+import { getAuthRateLimitDbPort } from '@/modules/auth/authRateLimits';
 
-const IDENTIFIER_FAILURE_SCOPE = "auth.password_identifier_failure";
-const IDENTIFIER_LOCK_SCOPE = "auth.password_identifier_lock";
-const ACCOUNT_FAILURE_SCOPE = "auth.password_account_failure";
+const IDENTIFIER_FAILURE_SCOPE = 'auth.password_identifier_failure';
+const IDENTIFIER_LOCK_SCOPE = 'auth.password_identifier_lock';
+const ACCOUNT_FAILURE_SCOPE = 'auth.password_account_failure';
 const LOCK_MS = 15 * 60 * 1000;
 const FAILURE_WINDOW_MS = LOCK_MS;
 
@@ -30,34 +30,32 @@ export type PasswordVerificationResult =
     } & PasswordFailureState);
 
 function isUnboundPortError(error: unknown): boolean {
-  return error instanceof Error && error.message.startsWith("AuthRateLimitDbPort is not bound.");
+  return error instanceof Error && error.message.startsWith('AuthRateLimitDbPort is not bound.');
 }
 
 function identifierKey(emailNormalized: string): string {
-  return `password-email:v1:${createHash("sha256").update(emailNormalized).digest("hex")}`;
+  return `password-email:v1:${createHash('sha256').update(emailNormalized).digest('hex')}`;
 }
 
 /** Stable non-account UUID so unknown identifiers take the same principal/account-write path. */
 export function passwordFailurePrincipalId(emailNormalized: string): string {
-  const hex = createHash("sha256").update(`password-principal:v1:${emailNormalized}`).digest("hex");
-  const chars = hex.slice(0, 32).split("");
-  chars[12] = "4";
+  const hex = createHash('sha256').update(`password-principal:v1:${emailNormalized}`).digest('hex');
+  const chars = hex.slice(0, 32).split('');
+  chars[12] = '4';
   chars[16] = ((Number.parseInt(chars[16]!, 16) & 0x3) | 0x8).toString(16);
-  const value = chars.join("");
+  const value = chars.join('');
   return `${value.slice(0, 8)}-${value.slice(8, 12)}-${value.slice(12, 16)}-${value.slice(16, 20)}-${value.slice(20)}`;
 }
 
 export function passwordFailureDelaySeconds(attempts: number): number {
   if (attempts < 5 || attempts >= PASSWORD_LOCK_ATTEMPTS) return 0;
-  return 30 * (2 ** (attempts - 5));
+  return 30 * 2 ** (attempts - 5);
 }
 
 function memoryState(key: string, now = Date.now()): MemoryEvent {
   const previous = memoryEvents.get(key) ?? { failures: [], lockedAt: null };
   const lockedAt =
-    previous.lockedAt !== null && previous.lockedAt + LOCK_MS > now
-      ? previous.lockedAt
-      : null;
+    previous.lockedAt !== null && previous.lockedAt + LOCK_MS > now ? previous.lockedAt : null;
   const failures = previous.failures.filter((at) => at > now - FAILURE_WINDOW_MS);
   const next = { failures, lockedAt };
   memoryEvents.set(key, next);

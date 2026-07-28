@@ -1,12 +1,12 @@
-import { describe, expect, it } from "vitest";
-import { inMemoryUserByPhonePort } from "@/infra/repos/inMemoryUserByPhone";
-import { inMemoryUserPinsPort } from "@/infra/repos/inMemoryUserPins";
-import { inMemoryOAuthBindingsPort } from "@/infra/repos/inMemoryOAuthBindings";
-import { resolveAuthMethodsForPhone } from "./checkPhoneMethods";
+import { describe, expect, it } from 'vitest';
+import { inMemoryUserByPhonePort } from '@/infra/repos/inMemoryUserByPhone';
+import { inMemoryUserPinsPort } from '@/infra/repos/inMemoryUserPins';
+import { inMemoryOAuthBindingsPort } from '@/infra/repos/inMemoryOAuthBindings';
+import { resolveAuthMethodsForPhone } from './checkPhoneMethods';
 
-describe("resolveAuthMethodsForPhone", () => {
-  it("returns exists false for unknown phone", async () => {
-    const r = await resolveAuthMethodsForPhone("+79990000111", {
+describe('resolveAuthMethodsForPhone', () => {
+  it('returns exists false for unknown phone', async () => {
+    const r = await resolveAuthMethodsForPhone('+79990000111', {
       userByPhonePort: inMemoryUserByPhonePort,
       userPinsPort: inMemoryUserPinsPort,
       oauthBindingsPort: inMemoryOAuthBindingsPort,
@@ -18,8 +18,8 @@ describe("resolveAuthMethodsForPhone", () => {
     expect(r.methods.oauth).toBeUndefined();
   });
 
-  it("returns sms false for unknown non-RU phone", async () => {
-    const r = await resolveAuthMethodsForPhone("+4915123456789", {
+  it('returns sms false for unknown non-RU phone', async () => {
+    const r = await resolveAuthMethodsForPhone('+4915123456789', {
       userByPhonePort: inMemoryUserByPhonePort,
       userPinsPort: inMemoryUserPinsPort,
       oauthBindingsPort: inMemoryOAuthBindingsPort,
@@ -28,9 +28,9 @@ describe("resolveAuthMethodsForPhone", () => {
     expect(r.methods.sms).toBe(false);
   });
 
-  it("forces sms false when suppressSmsForPublicWebLogin", async () => {
+  it('forces sms false when suppressSmsForPublicWebLogin', async () => {
     const r = await resolveAuthMethodsForPhone(
-      "+79990000555",
+      '+79990000555',
       {
         userByPhonePort: inMemoryUserByPhonePort,
         userPinsPort: inMemoryUserPinsPort,
@@ -42,9 +42,9 @@ describe("resolveAuthMethodsForPhone", () => {
     expect(r.methods.sms).toBe(false);
   });
 
-  it("sets telegramLogin when option is true", async () => {
+  it('sets telegramLogin when option is true', async () => {
     const r = await resolveAuthMethodsForPhone(
-      "+79990000444",
+      '+79990000444',
       {
         userByPhonePort: inMemoryUserByPhonePort,
         userPinsPort: inMemoryUserPinsPort,
@@ -56,16 +56,16 @@ describe("resolveAuthMethodsForPhone", () => {
     expect(r.methods.telegramLogin).toBe(true);
   });
 
-  it("returns pin and messenger channels when user has data (no oauth in response)", async () => {
-    const phone = "+79990000222";
+  it('returns pin and messenger channels when user has data (no oauth in response)', async () => {
+    const phone = '+79990000222';
     await inMemoryUserByPhonePort.createOrBind(phone, {
-      channel: "telegram",
-      chatId: "tg-1",
-      displayName: "T",
+      channel: 'telegram',
+      chatId: 'tg-1',
+      displayName: 'T',
     });
     const u = await inMemoryUserByPhonePort.findByPhone(phone);
     expect(u).not.toBeNull();
-    await inMemoryUserPinsPort.upsertPinHash(u!.userId, "dummy-hash-not-verified");
+    await inMemoryUserPinsPort.upsertPinHash(u!.userId, 'dummy-hash-not-verified');
 
     const r = await resolveAuthMethodsForPhone(phone, {
       userByPhonePort: inMemoryUserByPhonePort,
@@ -73,7 +73,7 @@ describe("resolveAuthMethodsForPhone", () => {
       oauthBindingsPort: inMemoryOAuthBindingsPort,
     });
     expect(r.exists).toBe(true);
-    if (!r.exists) throw new Error("expected exists");
+    if (!r.exists) throw new Error('expected exists');
     expect(r.userId).toBe(u!.userId);
     expect(r.methods.pin).toBe(true);
     expect(r.methods.telegram).toBe(true);
@@ -81,12 +81,12 @@ describe("resolveAuthMethodsForPhone", () => {
     expect(r.methods.oauth).toBeUndefined();
   });
 
-  it("returns emailAddress when verified email exists (port override)", async () => {
-    const phone = "+79990000333";
+  it('returns emailAddress when verified email exists (port override)', async () => {
+    const phone = '+79990000333';
     await inMemoryUserByPhonePort.createOrBind(phone, {
-      channel: "web",
-      chatId: "web-email-1",
-      displayName: "E",
+      channel: 'web',
+      chatId: 'web-email-1',
+      displayName: 'E',
     });
     const u = await inMemoryUserByPhonePort.findByPhone(phone);
     expect(u).not.toBeNull();
@@ -94,7 +94,7 @@ describe("resolveAuthMethodsForPhone", () => {
     const userByPhoneWithEmail = {
       ...inMemoryUserByPhonePort,
       async getVerifiedEmailForUser(userId: string) {
-        return userId === u!.userId ? "user@test.example" : null;
+        return userId === u!.userId ? 'user@test.example' : null;
       },
     };
 
@@ -104,27 +104,27 @@ describe("resolveAuthMethodsForPhone", () => {
       oauthBindingsPort: inMemoryOAuthBindingsPort,
     });
     expect(r.exists).toBe(true);
-    if (!r.exists) throw new Error("expected exists");
+    if (!r.exists) throw new Error('expected exists');
     expect(r.userId).toBe(u!.userId);
     expect(r.methods.email).toBe(true);
-    expect(r.methods.emailAddress).toBe("user@test.example");
+    expect(r.methods.emailAddress).toBe('user@test.example');
   });
 
-  it("does not offer disabled auth channels even when bindings and provider data exist", async () => {
+  it('does not offer disabled auth channels even when bindings and provider data exist', async () => {
     const userByPhonePort = {
       ...inMemoryUserByPhonePort,
       findByPhone: async () => ({
-        userId: "policy-user",
-        role: "client" as const,
-        displayName: "Policy User",
-        phone: "+79990000666",
-        bindings: { telegramId: "tg-policy", maxId: "max-policy" },
+        userId: 'policy-user',
+        role: 'client' as const,
+        displayName: 'Policy User',
+        phone: '+79990000666',
+        bindings: { telegramId: 'tg-policy', maxId: 'max-policy' },
       }),
-      getVerifiedEmailForUser: async () => "policy@test.example",
+      getVerifiedEmailForUser: async () => 'policy@test.example',
     };
 
     const r = await resolveAuthMethodsForPhone(
-      "+79990000666",
+      '+79990000666',
       {
         userByPhonePort,
         userPinsPort: inMemoryUserPinsPort,

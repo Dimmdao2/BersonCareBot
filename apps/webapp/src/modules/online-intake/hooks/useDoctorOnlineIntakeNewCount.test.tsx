@@ -1,19 +1,19 @@
 /** @vitest-environment jsdom */
-import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { renderHook, waitFor, act } from "@testing-library/react";
-import { useDoctorOnlineIntakeNewCount } from "./useDoctorOnlineIntakeNewCount";
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
+import { renderHook, waitFor, act } from '@testing-library/react';
+import { useDoctorOnlineIntakeNewCount } from './useDoctorOnlineIntakeNewCount';
 
 const mockFetch = vi.fn();
-vi.stubGlobal("fetch", mockFetch);
+vi.stubGlobal('fetch', mockFetch);
 
-describe("useDoctorOnlineIntakeNewCount", () => {
+describe('useDoctorOnlineIntakeNewCount', () => {
   beforeEach(() => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     mockFetch.mockReset();
-    Object.defineProperty(document, "visibilityState", {
+    Object.defineProperty(document, 'visibilityState', {
       configurable: true,
       writable: true,
-      value: "visible",
+      value: 'visible',
     });
   });
 
@@ -21,12 +21,12 @@ describe("useDoctorOnlineIntakeNewCount", () => {
     vi.useRealTimers();
   });
 
-  it("fetches total on mount when visible", async () => {
+  it('fetches total on mount when visible', async () => {
     mockFetch.mockResolvedValue({
       ok: true,
       json: () =>
         Promise.resolve({
-          items: [{ id: "x" }],
+          items: [{ id: 'x' }],
           total: 7,
           page: 1,
           totalPages: 7,
@@ -36,14 +36,14 @@ describe("useDoctorOnlineIntakeNewCount", () => {
     await waitFor(() => {
       expect(result.current).toBe(7);
     });
-    expect(mockFetch).toHaveBeenCalledWith("/api/doctor/online-intake?open=1&limit=1");
+    expect(mockFetch).toHaveBeenCalledWith('/api/doctor/online-intake?open=1&limit=1');
   });
 
-  it("does not fetch when tab starts hidden", async () => {
-    Object.defineProperty(document, "visibilityState", {
+  it('does not fetch when tab starts hidden', async () => {
+    Object.defineProperty(document, 'visibilityState', {
       configurable: true,
       writable: true,
-      value: "hidden",
+      value: 'hidden',
     });
     mockFetch.mockResolvedValue({
       ok: true,
@@ -57,14 +57,14 @@ describe("useDoctorOnlineIntakeNewCount", () => {
     expect(mockFetch).not.toHaveBeenCalled();
   });
 
-  it("does not fetch when tenant runtime is disabled", () => {
+  it('does not fetch when tenant runtime is disabled', () => {
     const { result } = renderHook(() => useDoctorOnlineIntakeNewCount(false));
 
     expect(result.current).toBe(0);
     expect(mockFetch).not.toHaveBeenCalled();
   });
 
-  it("polls every 20s", async () => {
+  it('polls every 20s', async () => {
     mockFetch.mockResolvedValue({
       ok: true,
       json: () => Promise.resolve({ items: [], total: 1, page: 1, totalPages: 1 }),
@@ -82,11 +82,11 @@ describe("useDoctorOnlineIntakeNewCount", () => {
     await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
   });
 
-  it("does not update count when response is not ok", async () => {
+  it('does not update count when response is not ok', async () => {
     mockFetch.mockResolvedValue({
       ok: false,
       status: 500,
-      json: () => Promise.resolve({ error: "SERVER" }),
+      json: () => Promise.resolve({ error: 'SERVER' }),
     });
     const { result } = renderHook(() => useDoctorOnlineIntakeNewCount());
     await act(async () => {
@@ -95,15 +95,15 @@ describe("useDoctorOnlineIntakeNewCount", () => {
     expect(result.current).toBe(0);
   });
 
-  it("refetches when tab becomes visible", async () => {
+  it('refetches when tab becomes visible', async () => {
     mockFetch.mockResolvedValue({
       ok: true,
       json: () => Promise.resolve({ items: [], total: 1, page: 1, totalPages: 1 }),
     });
-    Object.defineProperty(document, "visibilityState", {
+    Object.defineProperty(document, 'visibilityState', {
       configurable: true,
       writable: true,
-      value: "hidden",
+      value: 'hidden',
     });
     renderHook(() => useDoctorOnlineIntakeNewCount());
     await act(async () => {
@@ -115,12 +115,12 @@ describe("useDoctorOnlineIntakeNewCount", () => {
       ok: true,
       json: () => Promise.resolve({ items: [], total: 4, page: 1, totalPages: 1 }),
     });
-    Object.defineProperty(document, "visibilityState", {
+    Object.defineProperty(document, 'visibilityState', {
       configurable: true,
       writable: true,
-      value: "visible",
+      value: 'visible',
     });
-    document.dispatchEvent(new Event("visibilitychange"));
+    document.dispatchEvent(new Event('visibilitychange'));
     await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
   });
 });

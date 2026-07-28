@@ -6,6 +6,7 @@
 > `db-pii-medical-separation-recon.md`. Cross-link: CRYPTO-01 §C4.
 
 ## Current state (PROVEN)
+
 - **No depersonalization boundary exists today.** `public.platform_users` (`apps/webapp/db/schema/schema.ts:53-114`)
   co-locates ФИО (`display_name/first_name/last_name/patronymic`), DOB, gender **AND** `height_cm/weight_kg`
   (arguably medical) in ONE row.
@@ -16,6 +17,7 @@
   `platform_users.id`.
 
 ## Coupling / blast radius (PROVEN + inferred floor)
+
 - Single linking key everywhere: `platform_users.id`. 46 backend files touch medical tables; 29 explicit joins to
   `platform_users` across 17 files; the doctor patient-card API is a dozen+ sibling routes all keyed by `[userId]`.
 - Rough floor for pseudonymization: **~40–50 backend files** would need touching.
@@ -23,14 +25,16 @@
   the integrator — any separation design must decide where that write lands.
 
 ## Options × complexity (described, not chosen)
-| Option | Effort | Defends against | Fit with current direction |
-|---|---|---|---|
-| (a) Same-DB **separate schema** + RLS/grant separation | **M** | schema-level access separation | Compatible with unified-Postgres |
-| (b) **Separate DB instance** + app-level join | **XL** | full physical store breach separation | **CONFLICTS** with the unified single-Postgres direction (which was a recent consolidation *away* from two DBs) |
-| (c) **Encryption-at-rest w/ separated key custody**, tables stay together | **M–L** | at-rest / key-holder breach | ≈ what CRYPTO-01 §C4 already plans |
-| (d) **Pseudonymization / tokenization** (medical keyed by opaque token, identity map in a separate guarded store) | **L–XL** | medical-store-only breach (strongest) | breaks search/join ergonomics; needs Track D identity-write updated |
+
+| Option                                                                                                            | Effort   | Defends against                       | Fit with current direction                                                                                      |
+| ----------------------------------------------------------------------------------------------------------------- | -------- | ------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| (a) Same-DB **separate schema** + RLS/grant separation                                                            | **M**    | schema-level access separation        | Compatible with unified-Postgres                                                                                |
+| (b) **Separate DB instance** + app-level join                                                                     | **XL**   | full physical store breach separation | **CONFLICTS** with the unified single-Postgres direction (which was a recent consolidation _away_ from two DBs) |
+| (c) **Encryption-at-rest w/ separated key custody**, tables stay together                                         | **M–L**  | at-rest / key-holder breach           | ≈ what CRYPTO-01 §C4 already plans                                                                              |
+| (d) **Pseudonymization / tokenization** (medical keyed by opaque token, identity map in a separate guarded store) | **L–XL** | medical-store-only breach (strongest) | breaks search/join ergonomics; needs Track D identity-write updated                                             |
 
 ## ⛔ OWNER DECISION 2026-07-24 — DEFERRED
+
 Store-separation is **deferred** (not in first-launch scope). Rationale confirmed with owner: full pseudonymization
 touches ~40–50 backend files + breaks search/join ergonomics; even a separate schema is M-effort and rubs against
 the unified-Postgres direction. The **encryption angle is already covered by CRYPTO-01** (field-level encryption) —
@@ -38,6 +42,7 @@ picked up when 152-ФЗ work lands. Optional tiny cleanup (move `height_cm`/`wei
 identity row) can happen anytime cheaply but is also not urgent. **No store-separation build now.**
 
 ## Bottom line (recon)
+
 - First-order cleanup independent of any option: `height_cm/weight_kg` (measurements) sitting in the identity row
   `platform_users` is the sharpest "identity+health co-located" smell.
 - (b) separate physical DB fights the unified-Postgres direction the owner just reaffirmed — likely off the table.

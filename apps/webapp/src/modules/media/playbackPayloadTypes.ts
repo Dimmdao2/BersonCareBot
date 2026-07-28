@@ -1,9 +1,9 @@
-import type { MediaAvailableQuality } from "./types";
+import type { MediaAvailableQuality } from './types';
 
 /** JSON body of GET /api/media/[id]/playback; safe to pass RSC → client as props. */
 export type MediaPlaybackPayload = {
   mediaId: string;
-  delivery: "hls" | "mp4" | "file";
+  delivery: 'hls' | 'mp4' | 'file';
   mimeType: string;
   durationSeconds: number | null;
   posterUrl: string | null;

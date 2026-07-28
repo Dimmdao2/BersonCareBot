@@ -1,14 +1,11 @@
-import { NextResponse } from "next/server";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
-import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
-import { requireAdminModeSession } from "@/modules/auth/requireAdminMode";
+import { NextResponse } from 'next/server';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
+import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import { requireAdminModeSession } from '@/modules/auth/requireAdminMode';
 
 /** Админ: soft-delete значения справочника (is_active = false). */
-export async function PATCH(
-  _request: Request,
-  context: { params: Promise<{ itemId: string }> }
-) {
+export async function PATCH(_request: Request, context: { params: Promise<{ itemId: string }> }) {
   const adminGate = await requireAdminModeSession();
   if (!adminGate.ok) return adminGate.response;
   const gate = await requireDoctorWorkspaceApiContext();
@@ -16,7 +13,7 @@ export async function PATCH(
 
   const { itemId } = await context.params;
   if (!itemId?.trim()) {
-    return NextResponse.json({ ok: false, error: "item_required" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'item_required' }, { status: 400 });
   }
 
   const deps = buildAppDeps();
@@ -27,7 +24,7 @@ export async function PATCH(
     return found;
   });
   if (!item) {
-    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+    return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
 
   return NextResponse.json({ ok: true });

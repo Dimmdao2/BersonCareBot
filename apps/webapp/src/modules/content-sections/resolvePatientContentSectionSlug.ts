@@ -1,4 +1,4 @@
-import type { ContentSectionRow } from "./ports";
+import type { ContentSectionRow } from './ports';
 
 export type PatientContentSectionSlugResolverDeps = {
   getBySlug: (slug: string) => Promise<ContentSectionRow | null>;

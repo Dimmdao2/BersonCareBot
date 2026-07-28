@@ -1,18 +1,18 @@
-import type { BeAppointment } from "@/modules/booking-engine/types";
-import type { BookingSyncPort } from "@/modules/patient-booking/ports";
-import type { PatientBookingRecord } from "@/modules/patient-booking/types";
+import type { BeAppointment } from '@/modules/booking-engine/types';
+import type { BookingSyncPort } from '@/modules/patient-booking/ports';
+import type { PatientBookingRecord } from '@/modules/patient-booking/types';
 
-type StaffBookingEventType = "booking.created" | "booking.cancelled" | "booking.rescheduled";
+type StaffBookingEventType = 'booking.created' | 'booking.cancelled' | 'booking.rescheduled';
 
 export function staffBookingContactNameFromAppointment(appt: BeAppointment): string {
   const attr = appt.attributionJson ?? {};
   const name =
-    typeof attr.contact_name === "string"
+    typeof attr.contact_name === 'string'
       ? attr.contact_name
-      : typeof attr.contactName === "string"
+      : typeof attr.contactName === 'string'
         ? attr.contactName
         : null;
-  return name?.trim() || "Пациент";
+  return name?.trim() || 'Пациент';
 }
 
 export function staffBookingServiceTitleFromAppointment(
@@ -22,9 +22,9 @@ export function staffBookingServiceTitleFromAppointment(
   if (bookingRow?.serviceTitleSnapshot) return bookingRow.serviceTitleSnapshot;
   const attr = appt.attributionJson ?? {};
   const title =
-    typeof attr.service_title === "string"
+    typeof attr.service_title === 'string'
       ? attr.service_title
-      : typeof attr.serviceTitle === "string"
+      : typeof attr.serviceTitle === 'string'
         ? attr.serviceTitle
         : null;
   return title?.trim() || null;
@@ -37,15 +37,17 @@ export async function emitStaffCanonicalBookingEvent(opts: {
   bookingRow?: PatientBookingRecord | null;
   /** R21: пробросить подавление пациентского уведомления в интегратор (cancel/no-show-путь). */
   suppressPatientNotification?: boolean;
-}): Promise<"sent" | "skipped"> {
+}): Promise<'sent' | 'skipped'> {
   // R21: if suppression is active, skip the integrator event entirely (patient notification).
-  if (opts.suppressPatientNotification) return "skipped";
-  if (!opts.syncPort) return "skipped";
+  if (opts.suppressPatientNotification) return 'skipped';
+  if (!opts.syncPort) return 'skipped';
   const bookingRow = opts.bookingRow ?? null;
   const bookingId = bookingRow?.id ?? opts.appointment.id;
   const userId = bookingRow?.userId ?? opts.appointment.platformUserId ?? opts.appointment.id;
-  const contactName = bookingRow?.contactName ?? staffBookingContactNameFromAppointment(opts.appointment);
-  const contactPhone = bookingRow?.contactPhone ?? opts.appointment.phoneNormalized ?? "+70000000000";
+  const contactName =
+    bookingRow?.contactName ?? staffBookingContactNameFromAppointment(opts.appointment);
+  const contactPhone =
+    bookingRow?.contactPhone ?? opts.appointment.phoneNormalized ?? '+70000000000';
   try {
     await opts.syncPort.emitBookingEvent({
       eventType: opts.eventType,
@@ -54,9 +56,9 @@ export async function emitStaffCanonicalBookingEvent(opts: {
         organizationId: opts.appointment.organizationId,
         bookingId,
         userId,
-        bookingType: bookingRow?.bookingType ?? "in_person",
+        bookingType: bookingRow?.bookingType ?? 'in_person',
         city: bookingRow?.city ?? undefined,
-        category: bookingRow?.category ?? "general",
+        category: bookingRow?.category ?? 'general',
         slotStart: opts.appointment.startAt,
         slotEnd: opts.appointment.endAt,
         contactName,
@@ -68,8 +70,8 @@ export async function emitStaffCanonicalBookingEvent(opts: {
         ...(opts.suppressPatientNotification ? { suppressPatientNotification: true } : {}),
       },
     });
-    return "sent";
+    return 'sent';
   } catch {
-    return "skipped";
+    return 'skipped';
   }
 }

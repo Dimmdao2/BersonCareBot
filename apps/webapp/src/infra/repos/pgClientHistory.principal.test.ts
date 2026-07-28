@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { getDrizzleMock } = vi.hoisted(() => ({
   getDrizzleMock: vi.fn(),
@@ -6,33 +6,33 @@ const { getDrizzleMock } = vi.hoisted(() => ({
 const runDrizzleMutationTransactionMock = vi.hoisted(() => vi.fn());
 const getCurrentDbPrincipalOrganizationIdMock = vi.hoisted(() => vi.fn());
 
-vi.mock("@/app-layer/db/drizzle", () => ({
+vi.mock('@/app-layer/db/drizzle', () => ({
   getDrizzle: getDrizzleMock,
 }));
 
-vi.mock("@/infra/db/drizzleMutationTx", () => ({
+vi.mock('@/infra/db/drizzleMutationTx', () => ({
   runDrizzleMutationTransaction: runDrizzleMutationTransactionMock,
 }));
 
-vi.mock("@bersoncare/db-principal", () => ({
+vi.mock('@bersoncare/db-principal', () => ({
   getCurrentDbPrincipalOrganizationId: getCurrentDbPrincipalOrganizationIdMock,
 }));
 
-import { createPgClientHistoryPort } from "./pgClientHistory";
+import { createPgClientHistoryPort } from './pgClientHistory';
 
-const ORG = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
-const APPOINTMENT = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
-const PATIENT = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
-const DOCTOR = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
-const COMMENT = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+const ORG = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const APPOINTMENT = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+const PATIENT = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+const DOCTOR = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+const COMMENT = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
 
-describe("pgClientHistory principal-safe appointment comment mutations", () => {
+describe('pgClientHistory principal-safe appointment comment mutations', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     getCurrentDbPrincipalOrganizationIdMock.mockReturnValue(ORG);
   });
 
-  it("creates appointment staff comments through runDrizzleMutationTransaction", async () => {
+  it('creates appointment staff comments through runDrizzleMutationTransaction', async () => {
     const returning = vi.fn(async () => [
       {
         id: COMMENT,
@@ -40,9 +40,9 @@ describe("pgClientHistory principal-safe appointment comment mutations", () => {
         appointmentId: APPOINTMENT,
         platformUserId: PATIENT,
         authorId: DOCTOR,
-        body: "Follow up",
-        createdAt: "2026-07-09T00:00:00.000Z",
-        updatedAt: "2026-07-09T00:00:00.000Z",
+        body: 'Follow up',
+        createdAt: '2026-07-09T00:00:00.000Z',
+        updatedAt: '2026-07-09T00:00:00.000Z',
       },
     ]);
     const values = vi.fn(() => ({ returning }));
@@ -58,7 +58,7 @@ describe("pgClientHistory principal-safe appointment comment mutations", () => {
       appointmentId: APPOINTMENT,
       platformUserId: PATIENT,
       authorId: DOCTOR,
-      body: "Follow up",
+      body: 'Follow up',
     });
 
     expect(row).toEqual({
@@ -66,9 +66,9 @@ describe("pgClientHistory principal-safe appointment comment mutations", () => {
       appointmentId: APPOINTMENT,
       platformUserId: PATIENT,
       authorId: DOCTOR,
-      body: "Follow up",
-      createdAt: "2026-07-09T00:00:00.000Z",
-      updatedAt: "2026-07-09T00:00:00.000Z",
+      body: 'Follow up',
+      createdAt: '2026-07-09T00:00:00.000Z',
+      updatedAt: '2026-07-09T00:00:00.000Z',
     });
     expect(runDrizzleMutationTransactionMock).toHaveBeenCalledTimes(1);
     expect(insert).toHaveBeenCalledTimes(1);
@@ -78,13 +78,13 @@ describe("pgClientHistory principal-safe appointment comment mutations", () => {
         appointmentId: APPOINTMENT,
         platformUserId: PATIENT,
         authorId: DOCTOR,
-        body: "Follow up",
+        body: 'Follow up',
       }),
     );
     expect(returning).toHaveBeenCalledTimes(1);
   });
 
-  it("upserts booking profiles through runDrizzleMutationTransaction", async () => {
+  it('upserts booking profiles through runDrizzleMutationTransaction', async () => {
     const selectLimit = vi.fn(async () => []);
     const selectWhere = vi.fn(() => ({ limit: selectLimit }));
     const selectFrom = vi.fn(() => ({ where: selectWhere }));
@@ -96,7 +96,7 @@ describe("pgClientHistory principal-safe appointment comment mutations", () => {
         isProblematic: true,
         bookingBlocked: false,
         problematicNote: null,
-        updatedAt: "2026-07-09T00:00:00.000Z",
+        updatedAt: '2026-07-09T00:00:00.000Z',
         updatedBy: DOCTOR,
       },
     ]);
@@ -106,7 +106,7 @@ describe("pgClientHistory principal-safe appointment comment mutations", () => {
     const db = {
       select,
       insert: vi.fn(() => {
-        throw new Error("db insert should not run outside mutation transaction");
+        throw new Error('db insert should not run outside mutation transaction');
       }),
     };
     getDrizzleMock.mockReturnValue(db);
@@ -134,7 +134,7 @@ describe("pgClientHistory principal-safe appointment comment mutations", () => {
     expect(db.insert).not.toHaveBeenCalled();
   });
 
-  it("does not use an untrusted patient phone to expose orphan payment history", async () => {
+  it('does not use an untrusted patient phone to expose orphan payment history', async () => {
     let selectCall = 0;
     const select = vi.fn(() => {
       selectCall += 1;
@@ -142,9 +142,9 @@ describe("pgClientHistory principal-safe appointment comment mutations", () => {
         return {
           from: () => ({
             where: () => ({
-              limit: vi.fn().mockResolvedValue([
-                { phone: "+12025550101", patientPhoneTrustAt: null },
-              ]),
+              limit: vi
+                .fn()
+                .mockResolvedValue([{ phone: '+12025550101', patientPhoneTrustAt: null }]),
             }),
           }),
         };
@@ -158,7 +158,7 @@ describe("pgClientHistory principal-safe appointment comment mutations", () => {
           }),
         };
       }
-      throw new Error("untrusted_phone_orphan_query_must_not_run");
+      throw new Error('untrusted_phone_orphan_query_must_not_run');
     });
     getDrizzleMock.mockReturnValue({ select });
 

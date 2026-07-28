@@ -89,11 +89,11 @@
 
 **Поведение (канон):**
 
-| Статус шаблона | «Сохранить черновик» | Сохранение контента |
-|----------------|----------------------|---------------------|
-| `draft` | disabled (уже черновик) | структура — сразу API; название/описание — blur |
-| `published` | enabled только при `templateBasicsDirty`; клик — PATCH `{ status: "draft" }` | структура — сразу API; blur для названия/описания |
-| `archived` | disabled | редактирование заблокировано |
+| Статус шаблона | «Сохранить черновик»                                                         | Сохранение контента                               |
+| -------------- | ---------------------------------------------------------------------------- | ------------------------------------------------- |
+| `draft`        | disabled (уже черновик)                                                      | структура — сразу API; название/описание — blur   |
+| `published`    | enabled только при `templateBasicsDirty`; клик — PATCH `{ status: "draft" }` | структура — сразу API; blur для названия/описания |
+| `archived`     | disabled                                                                     | редактирование заблокировано                      |
 
 **Сознательно не меняли:** автосохранение названия перед «Сохранить черновик» на published; отдельная кнопка «снять с публикации» без правок базовых полей (раньше persist был всегда доступен на published).
 
@@ -177,13 +177,13 @@
 
 ## 2026-05-08 — самочувствие: унификация с дневником симптомов (`general_wellbeing`)
 
-**Сделано (webapp):** миграция **`0049_wellbeing_symptom_unify`**: справочник `general_wellbeing`, backfill `symptom_trackings` для клиентов, перенос `patient_daily_mood` → `symptom_entries`, `DROP patient_daily_mood` (в одном теге с остальным rollout; см. комментарий в SQL). Миграция **`0050_symptom_general_wellbeing_unique`**: дедуп + partial unique для гонки первого чек-ина. Сервис настроения переведён на **`symptom_entries`** (`wellbeingMoodService`); **`GET …/mood/week`** для полоски 7 дней; **`PatientHomeWellbeingWeekStrip`** на главной. *(Повторный чек-ин, **409**, модалка 10–60 мин — эволюция до **2026-05-17**, см. запись выше и `patient-mood.md`.)* Пациентский **self-create** symptom tracking отключён (`createSymptomTracking` → **`patient_self_create_disabled`** + убран UI); операции rename/archive и журнал не трогают wellbeing-трекинг; врачебный **`POST /api/doctor/clients/[userId]/symptom-trackings`**. Дневник скрывает wellbeing-трекинг из списков пациента.
+**Сделано (webapp):** миграция **`0049_wellbeing_symptom_unify`**: справочник `general_wellbeing`, backfill `symptom_trackings` для клиентов, перенос `patient_daily_mood` → `symptom_entries`, `DROP patient_daily_mood` (в одном теге с остальным rollout; см. комментарий в SQL). Миграция **`0050_symptom_general_wellbeing_unique`**: дедуп + partial unique для гонки первого чек-ина. Сервис настроения переведён на **`symptom_entries`** (`wellbeingMoodService`); **`GET …/mood/week`** для полоски 7 дней; **`PatientHomeWellbeingWeekStrip`** на главной. _(Повторный чек-ин, **409**, модалка 10–60 мин — эволюция до **2026-05-17**, см. запись выше и `patient-mood.md`.)_ Пациентский **self-create** symptom tracking отключён (`createSymptomTracking` → **`patient_self_create_disabled`** + убран UI); операции rename/archive и журнал не трогают wellbeing-трекинг; врачебный **`POST /api/doctor/clients/[userId]/symptom-trackings`**. Дневник скрывает wellbeing-трекинг из списков пациента.
 
 **Документация:** [`apps/webapp/src/modules/patient-mood/patient-mood.md`](../../apps/webapp/src/modules/patient-mood/patient-mood.md), [`TARGET_STRUCTURE_PATIENT.md`](TARGET_STRUCTURE_PATIENT.md) §10 п.4.
 
 **Проверки:** `pnpm --dir apps/webapp exec vitest run` по затронутым тестам patient-mood / mood API / `PatientHomeToday` / `PatientHomeMoodCheckin`.
 
-**Доработка после аудита (тот же релизный контур, исторически):** промежуточные границы **10 / 60 мин** и модалка; *(заменено **2026-05-17** на окно **5 мин** без модалки и без **409** — см. запись **2026-05-17** выше.)* `lastEntry.score` допускает **`null`** при невалидном `value_0_10`, логика времени — по последней строке; **`GET /api/integrator/diary/symptom-trackings`** исключает `general_wellbeing`; обновлены `api.md`, `symptoms.md`, тесты (в т.ч. doctor `symptom-trackings`, integrator filter).
+**Доработка после аудита (тот же релизный контур, исторически):** промежуточные границы **10 / 60 мин** и модалка; _(заменено **2026-05-17** на окно **5 мин** без модалки и без **409** — см. запись **2026-05-17** выше.)_ `lastEntry.score` допускает **`null`** при невалидном `value_0_10`, логика времени — по последней строке; **`GET /api/integrator/diary/symptom-trackings`** исключает `general_wellbeing`; обновлены `api.md`, `symptoms.md`, тесты (в т.ч. doctor `symptom-trackings`, integrator filter).
 
 **Доработка (второй проход, аудит идемпотентности / контракта):** `diaries.ensureGeneralWellbeingTracking` (upsert в PG); в weekly-ответе поле **`diaryNoteHint`** (резерв); server action **`createSymptomTracking`** — явный **`reason: "patient_self_create_disabled"`**.
 
@@ -293,7 +293,7 @@
 
 ## 2026-05-04 — мини-инициатива `PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE`
 
-**Сделано:** добавлена папка мини-инициативы (`README.md`, `STAGE_PLAN.md`, `LOG.md`) — канон исполнения для **ROADMAP_2** §3 пунктов **1.0 / 1.1 / 1.1a** (порядок **A → B → C**). В **ROADMAP_2**, **APP_RESTRUCTURE_INITIATIVE/README**, корневой **docs/README** — ссылки на мини-инициативу. *(Исторически создана как `docs/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/`; с 2026-05-05 — в [`../archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/`](../archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/README.md), см. запись того же дня в этом `LOG.md`.)*
+**Сделано:** добавлена папка мини-инициативы (`README.md`, `STAGE_PLAN.md`, `LOG.md`) — канон исполнения для **ROADMAP_2** §3 пунктов **1.0 / 1.1 / 1.1a** (порядок **A → B → C**). В **ROADMAP_2**, **APP_RESTRUCTURE_INITIATIVE/README**, корневой **docs/README** — ссылки на мини-инициативу. _(Исторически создана как `docs/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/`; с 2026-05-05 — в [`../archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/`](../archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/README.md), см. запись того же дня в этом `LOG.md`.)_
 
 **Проверки:** docs-only.
 
@@ -1489,16 +1489,16 @@ ORDER BY 1, 2;
 
 Визуальный smoke по списку ниже пройден; инструментально все перечисленные маршруты также входят в успешную сборку Next.js (`build:webapp` в составе `pnpm run ci`).
 
-| Маршрут | Инструментально | Визуально |
-|---------|-----------------|-----------|
-| `/app/doctor` | OK (маршрут в сборке) | OK |
-| `/app/doctor/content` | OK | OK |
-| `/app/doctor/exercises` | OK | OK |
-| `/app/doctor/lfk-templates` | OK | OK |
-| `/app/doctor/treatment-program-templates` | OK | OK |
-| `/app/doctor/recommendations` | OK | OK |
-| `/app/doctor/courses` или `/app/doctor/clinical-tests` или `/app/doctor/test-sets` | OK | OK |
-| `/app/doctor/clients/[userId]` (карточка пациента, регрессия) | OK | OK |
+| Маршрут                                                                            | Инструментально       | Визуально |
+| ---------------------------------------------------------------------------------- | --------------------- | --------- |
+| `/app/doctor`                                                                      | OK (маршрут в сборке) | OK        |
+| `/app/doctor/content`                                                              | OK                    | OK        |
+| `/app/doctor/exercises`                                                            | OK                    | OK        |
+| `/app/doctor/lfk-templates`                                                        | OK                    | OK        |
+| `/app/doctor/treatment-program-templates`                                          | OK                    | OK        |
+| `/app/doctor/recommendations`                                                      | OK                    | OK        |
+| `/app/doctor/courses` или `/app/doctor/clinical-tests` или `/app/doctor/test-sets` | OK                    | OK        |
+| `/app/doctor/clients/[userId]` (карточка пациента, регрессия)                      | OK                    | OK        |
 
 ---
 

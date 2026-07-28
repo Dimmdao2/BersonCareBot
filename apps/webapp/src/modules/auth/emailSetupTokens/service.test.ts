@@ -1,12 +1,12 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
-import { EMAIL_SETUP_TOKEN_TTL_MS } from "./constants";
-import { hashEmailSetupToken } from "./tokenCrypto";
-import { createEmailSetupTokensService } from "./service";
-import type { EmailSetupTokensPort } from "./ports";
+import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { EMAIL_SETUP_TOKEN_TTL_MS } from './constants';
+import { hashEmailSetupToken } from './tokenCrypto';
+import { createEmailSetupTokensService } from './service';
+import type { EmailSetupTokensPort } from './ports';
 
 type MockTokenEntry = {
   id: string;
-  row: Parameters<EmailSetupTokensPort["insertToken"]>[0];
+  row: Parameters<EmailSetupTokensPort['insertToken']>[0];
   used: boolean;
   revoked: boolean;
 };
@@ -17,7 +17,12 @@ function createMockPort(): EmailSetupTokensPort {
   return {
     revokeActiveForUserEmail: vi.fn(async (userId, emailNormalized) => {
       for (const [hash, entry] of store) {
-        if (entry.row.userId === userId && entry.row.emailNormalized === emailNormalized && !entry.used && !entry.revoked) {
+        if (
+          entry.row.userId === userId &&
+          entry.row.emailNormalized === emailNormalized &&
+          !entry.used &&
+          !entry.revoked
+        ) {
           entry.revoked = true;
           store.set(hash, entry);
         }
@@ -58,27 +63,27 @@ function createMockPort(): EmailSetupTokensPort {
   };
 }
 
-describe("emailSetupTokens service", () => {
+describe('emailSetupTokens service', () => {
   let port: EmailSetupTokensPort;
 
   beforeEach(() => {
     port = createMockPort();
   });
 
-  it("issues token with 24h TTL and revokes previous active for user+email", async () => {
+  it('issues token with 24h TTL and revokes previous active for user+email', async () => {
     const svc = createEmailSetupTokensService(port);
     const first = await svc.issueEmailSetupToken({
-      userId: "u1",
-      emailNormalized: "a@b.com",
-      source: "doctor_profile",
+      userId: 'u1',
+      emailNormalized: 'a@b.com',
+      source: 'doctor_profile',
     });
     expect(first.ok).toBe(true);
     if (!first.ok) return;
 
     const second = await svc.issueEmailSetupToken({
-      userId: "u1",
-      emailNormalized: "a@b.com",
-      source: "doctor_profile",
+      userId: 'u1',
+      emailNormalized: 'a@b.com',
+      source: 'doctor_profile',
     });
     expect(second.ok).toBe(true);
     if (!second.ok) return;
@@ -89,83 +94,84 @@ describe("emailSetupTokens service", () => {
     expect(firstRow?.revokedAt).toBeTruthy();
 
     const ttlMs =
-      new Date((await port.findByTokenHash(hashEmailSetupToken(second.tokenPlain)))!.expiresAt).getTime() -
-      Date.now();
+      new Date(
+        (await port.findByTokenHash(hashEmailSetupToken(second.tokenPlain)))!.expiresAt,
+      ).getTime() - Date.now();
     expect(ttlMs).toBeGreaterThan(EMAIL_SETUP_TOKEN_TTL_MS - 60_000);
     expect(ttlMs).toBeLessThanOrEqual(EMAIL_SETUP_TOKEN_TTL_MS);
   });
 
-  it("validate rejects expired, used, and reused consume", async () => {
+  it('validate rejects expired, used, and reused consume', async () => {
     const svc = createEmailSetupTokensService(port);
     const issued = await svc.issueEmailSetupToken({
-      userId: "u1",
-      emailNormalized: "a@b.com",
-      source: "manual_resend",
+      userId: 'u1',
+      emailNormalized: 'a@b.com',
+      source: 'manual_resend',
     });
-    if (!issued.ok) throw new Error("issue failed");
+    if (!issued.ok) throw new Error('issue failed');
 
     const ok = await svc.validateEmailSetupToken(issued.tokenPlain);
-    expect(ok).toMatchObject({ ok: true, userId: "u1", emailNormalized: "a@b.com" });
+    expect(ok).toMatchObject({ ok: true, userId: 'u1', emailNormalized: 'a@b.com' });
 
     const consumed = await svc.consumeEmailSetupToken(issued.tokenPlain);
     expect(consumed.ok).toBe(true);
 
     const again = await svc.validateEmailSetupToken(issued.tokenPlain);
-    expect(again).toEqual({ ok: false, reason: "used" });
+    expect(again).toEqual({ ok: false, reason: 'used' });
   });
 
-  it("lookup returns expired without used/revoked for resend flow", async () => {
+  it('lookup returns expired without used/revoked for resend flow', async () => {
     const svc = createEmailSetupTokensService(port);
     const issued = await svc.issueEmailSetupToken({
-      userId: "u1",
-      emailNormalized: "a@b.com",
-      source: "manual_resend",
+      userId: 'u1',
+      emailNormalized: 'a@b.com',
+      source: 'manual_resend',
     });
-    if (!issued.ok) throw new Error("issue failed");
+    if (!issued.ok) throw new Error('issue failed');
 
     const hash = hashEmailSetupToken(issued.tokenPlain);
     const row = await port.findByTokenHash(hash);
-    if (!row) throw new Error("missing row");
+    if (!row) throw new Error('missing row');
 
-    vi.spyOn(port, "findByTokenHash").mockResolvedValueOnce({
+    vi.spyOn(port, 'findByTokenHash').mockResolvedValueOnce({
       ...row,
       expiresAt: new Date(Date.now() - 1000).toISOString(),
     });
 
     const r = await svc.lookupEmailSetupToken(issued.tokenPlain);
-    expect(r).toEqual({ ok: true, status: "expired", userId: "u1", emailNormalized: "a@b.com" });
+    expect(r).toEqual({ ok: true, status: 'expired', userId: 'u1', emailNormalized: 'a@b.com' });
   });
 
-  it("validate returns expired for past expires_at", async () => {
+  it('validate returns expired for past expires_at', async () => {
     const svc = createEmailSetupTokensService(port);
     const issued = await svc.issueEmailSetupToken({
-      userId: "u1",
-      emailNormalized: "a@b.com",
-      source: "registration_claim",
+      userId: 'u1',
+      emailNormalized: 'a@b.com',
+      source: 'registration_claim',
     });
-    if (!issued.ok) throw new Error("issue failed");
+    if (!issued.ok) throw new Error('issue failed');
 
     const hash = hashEmailSetupToken(issued.tokenPlain);
     const row = await port.findByTokenHash(hash);
-    if (!row) throw new Error("missing row");
+    if (!row) throw new Error('missing row');
 
-    vi.spyOn(port, "findByTokenHash").mockResolvedValueOnce({
+    vi.spyOn(port, 'findByTokenHash').mockResolvedValueOnce({
       ...row,
       expiresAt: new Date(Date.now() - 1000).toISOString(),
     });
 
     const r = await svc.validateEmailSetupToken(issued.tokenPlain);
-    expect(r).toEqual({ ok: false, reason: "expired" });
+    expect(r).toEqual({ ok: false, reason: 'expired' });
   });
 
-  it("stores only hash in port insert (not plain token)", async () => {
+  it('stores only hash in port insert (not plain token)', async () => {
     const svc = createEmailSetupTokensService(port);
     const issued = await svc.issueEmailSetupToken({
-      userId: "u1",
-      emailNormalized: "a@b.com",
-      source: "doctor_profile",
+      userId: 'u1',
+      emailNormalized: 'a@b.com',
+      source: 'doctor_profile',
     });
-    if (!issued.ok) throw new Error("issue failed");
+    if (!issued.ok) throw new Error('issue failed');
 
     const insertCall = vi.mocked(port.insertToken).mock.calls[0]?.[0];
     expect(insertCall?.tokenHash).toBe(hashEmailSetupToken(issued.tokenPlain));

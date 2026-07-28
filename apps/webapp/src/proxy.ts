@@ -1,36 +1,37 @@
-import type { NextRequest } from "next/server";
-import { NextResponse } from "next/server";
-import { BC_CORRELATION_ID_HEADER, resolveCorrelationId } from "@bersoncare/db-principal";
-import { applySessionRenewalToResponse } from "@/modules/auth/sessionCookie";
-import { doctorRouteRedirectResponse } from "@/middleware/doctorRouteRedirects";
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
+import { BC_CORRELATION_ID_HEADER, resolveCorrelationId } from '@bersoncare/db-principal';
+import { applySessionRenewalToResponse } from '@/modules/auth/sessionCookie';
+import { doctorRouteRedirectResponse } from '@/middleware/doctorRouteRedirects';
 import {
   applyMessengerEntryPathCookies,
   handlePlatformContextRequest,
-} from "@/middleware/platformContext";
-import { decideCsrfOrigin } from "@/middleware/csrfOrigin";
+} from '@/middleware/platformContext';
+import { decideCsrfOrigin } from '@/middleware/csrfOrigin';
 
 export function proxy(request: NextRequest) {
   // Only UUID-shaped values cross the trust boundary. Free-form/oversized caller text is replaced,
   // so it can never become a log field or an internal header value.
   const correlationId = resolveCorrelationId(
-    request.headers.get(BC_CORRELATION_ID_HEADER) ?? request.headers.get("x-bc-auth-correlation-id"),
+    request.headers.get(BC_CORRELATION_ID_HEADER) ??
+      request.headers.get('x-bc-auth-correlation-id'),
   );
   const csrfDecision = decideCsrfOrigin({
     method: request.method,
     pathname: request.nextUrl.pathname,
-    host: request.headers.get("host"),
+    host: request.headers.get('host'),
     requestUrlProtocol: request.nextUrl.protocol,
-    forwardedProto: request.headers.get("x-forwarded-proto"),
-    secFetchSite: request.headers.get("sec-fetch-site"),
-    origin: request.headers.get("origin"),
-    referer: request.headers.get("referer"),
+    forwardedProto: request.headers.get('x-forwarded-proto'),
+    secFetchSite: request.headers.get('sec-fetch-site'),
+    origin: request.headers.get('origin'),
+    referer: request.headers.get('referer'),
   });
-  if (csrfDecision.action === "reject") {
+  if (csrfDecision.action === 'reject') {
     const response = NextResponse.json(
-      { ok: false, error: "csrf_origin_forbidden" },
+      { ok: false, error: 'csrf_origin_forbidden' },
       { status: 403 },
     );
-    response.headers.set("Cache-Control", "no-store");
+    response.headers.set('Cache-Control', 'no-store');
     response.headers.set(BC_CORRELATION_ID_HEADER, correlationId);
     return response;
   }
@@ -50,7 +51,7 @@ export function proxy(request: NextRequest) {
   }
 
   const ctxResponse = handlePlatformContextRequest(request);
-  if (ctxResponse.headers.has("location")) {
+  if (ctxResponse.headers.has('location')) {
     const response = applySessionRenewalToResponse(request, ctxResponse);
     response.headers.set(BC_CORRELATION_ID_HEADER, correlationId);
     return response;
@@ -59,9 +60,9 @@ export function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set(BC_CORRELATION_ID_HEADER, correlationId);
-  if (pathname.startsWith("/app/patient")) {
-    requestHeaders.set("x-bc-pathname", pathname);
-    requestHeaders.set("x-bc-search", request.nextUrl.search);
+  if (pathname.startsWith('/app/patient')) {
+    requestHeaders.set('x-bc-pathname', pathname);
+    requestHeaders.set('x-bc-search', request.nextUrl.search);
   }
   const response = NextResponse.next({
     request: { headers: requestHeaders },
@@ -73,5 +74,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/app", "/app/:path*", "/api/:path*"],
+  matcher: ['/app', '/app/:path*', '/api/:path*'],
 };

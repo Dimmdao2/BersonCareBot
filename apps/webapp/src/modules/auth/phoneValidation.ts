@@ -1,4 +1,4 @@
-import { isValidPhoneNumber } from "libphonenumber-js/min";
+import { isValidPhoneNumber } from 'libphonenumber-js/min';
 
 /**
  * Нормализованный РФ-мобильный: ровно "+7" + 10 цифр (12 символов).
@@ -18,6 +18,6 @@ export function isRuMobile(normalized: string): boolean {
  */
 export function isValidPhoneE164(normalized: string): boolean {
   if (!normalized || normalized.length < 8) return false;
-  if (!normalized.startsWith("+")) return false;
+  if (!normalized.startsWith('+')) return false;
   return isValidPhoneNumber(normalized);
 }

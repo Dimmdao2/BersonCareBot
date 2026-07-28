@@ -1,18 +1,18 @@
-"use client";
+'use client';
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from 'react';
 import {
   DOCTOR_CATALOG_URL_SYNC_EVENT,
   emptyDoctorCatalogClientFilterUrlSlice,
   readDoctorCatalogClientFilterUrlSlice,
   type DoctorCatalogClientFilterUrlSlice,
-} from "@/shared/lib/doctorCatalogClientUrlSync";
+} from '@/shared/lib/doctorCatalogClientUrlSync';
 
 type ServerScopeWithUrlHints = {
   q?: string;
   regionCode?: string;
-  loadType?: DoctorCatalogClientFilterUrlSlice["loadType"];
-  titleSort?: DoctorCatalogClientFilterUrlSlice["titleSort"];
+  loadType?: DoctorCatalogClientFilterUrlSlice['loadType'];
+  titleSort?: DoctorCatalogClientFilterUrlSlice['titleSort'];
   domain?: string;
   assessmentKind?: string;
   hasRegionParam?: boolean;
@@ -22,11 +22,13 @@ type ServerScopeWithUrlHints = {
   hasAssessmentParam?: boolean;
 };
 
-function buildInitialSliceFromServerScope(serverScope: ServerScopeWithUrlHints): DoctorCatalogClientFilterUrlSlice {
+function buildInitialSliceFromServerScope(
+  serverScope: ServerScopeWithUrlHints,
+): DoctorCatalogClientFilterUrlSlice {
   const base = emptyDoctorCatalogClientFilterUrlSlice();
   return {
     ...base,
-    q: typeof serverScope.q === "string" ? serverScope.q : "",
+    q: typeof serverScope.q === 'string' ? serverScope.q : '',
     regionCode: serverScope.hasRegionParam ? serverScope.regionCode : undefined,
     loadType: serverScope.hasLoadParam ? serverScope.loadType : undefined,
     titleSort: serverScope.hasTitleSortParam ? (serverScope.titleSort ?? null) : null,
@@ -48,7 +50,7 @@ export function useDoctorCatalogClientFilterMerge<S extends Record<string, unkno
   serverScope: S,
 ): S & DoctorCatalogClientFilterUrlSlice {
   const [slice, setSlice] = useState<DoctorCatalogClientFilterUrlSlice>(() => {
-    if (typeof window !== "undefined") {
+    if (typeof window !== 'undefined') {
       return readDoctorCatalogClientFilterUrlSlice();
     }
     return buildInitialSliceFromServerScope(serverScope as ServerScopeWithUrlHints);
@@ -60,10 +62,10 @@ export function useDoctorCatalogClientFilterMerge<S extends Record<string, unkno
     };
     sync();
     window.addEventListener(DOCTOR_CATALOG_URL_SYNC_EVENT, sync);
-    window.addEventListener("popstate", sync);
+    window.addEventListener('popstate', sync);
     return () => {
       window.removeEventListener(DOCTOR_CATALOG_URL_SYNC_EVENT, sync);
-      window.removeEventListener("popstate", sync);
+      window.removeEventListener('popstate', sync);
     };
   }, [serverScope]);
 

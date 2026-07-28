@@ -42,13 +42,13 @@ isProject: false
 
 ## Порядок merge (канон)
 
-| Приоритет | Todo / фаза | Зачем |
-|-----------|-------------|--------|
-| 1 | `phase-0-repro-baseline` | Baseline до/после |
-| 2 | `execute-action-writes-first` + `login-main-menu-keyboard` | Снимает «успех + снова контакт» **до** или **вместе с** PWA finish |
-| 3 | План A (finish + UI) | Автовход PWA |
-| 4 | `bot-templates-no-otp-copy`, cancel, catch-all | Тексты и «Дмитрий» |
-| 5 | `orchestrator-regressions` + verify | Gates и CI |
+| Приоритет | Todo / фаза                                                | Зачем                                                              |
+| --------- | ---------------------------------------------------------- | ------------------------------------------------------------------ |
+| 1         | `phase-0-repro-baseline`                                   | Baseline до/после                                                  |
+| 2         | `execute-action-writes-first` + `login-main-menu-keyboard` | Снимает «успех + снова контакт» **до** или **вместе с** PWA finish |
+| 3         | План A (finish + UI)                                       | Автовход PWA                                                       |
+| 4         | `bot-templates-no-otp-copy`, cancel, catch-all             | Тексты и «Дмитрий»                                                 |
+| 5         | `orchestrator-regressions` + verify                        | Gates и CI                                                         |
 
 **Не полагаться на `$notIn: await_phoneauth:*`** — resolver поддерживает только точные state ([resolver.ts](apps/integrator/src/kernel/orchestrator/resolver.ts)); закрываем cancel scripts (priority 57) + excludeTexts.
 
@@ -72,12 +72,12 @@ flowchart LR
 
 ## Контекст
 
-| Симптом | Причина |
-|---------|---------|
-| «Аккаунт создан» + снова контакт | success до `user.phone.link`; login без reply menu; `oneTimeKeyboard` |
-| Повторный гейт | `linkedPhone === false` после failed link |
-| «Отмена» → Дмитрий | `menu.default` / `max.default` / `draft.replace` на текст в `await_phoneauth:*` |
-| «Вернуться в меню» бесполезно | `contact.link.cancel` только `await_contact:subscription` |
+| Симптом                          | Причина                                                                         |
+| -------------------------------- | ------------------------------------------------------------------------------- |
+| «Аккаунт создан» + снова контакт | success до `user.phone.link`; login без reply menu; `oneTimeKeyboard`           |
+| Повторный гейт                   | `linkedPhone === false` после failed link                                       |
+| «Отмена» → Дмитрий               | `menu.default` / `max.default` / `draft.replace` на текст в `await_phoneauth:*` |
+| «Вернуться в меню» бесполезно    | `contact.link.cancel` только `await_contact:subscription`                       |
 
 Баг порядка: [executeAction.ts](apps/integrator/src/kernel/domain/executor/executeAction.ts) ~324–430 — intents до `writeDb`, без проверки результата.
 
@@ -85,13 +85,13 @@ flowchart LR
 
 ### Разрешено
 
-| Область | Файлы |
-|---------|--------|
-| Executor | [executeAction.ts](apps/integrator/src/kernel/domain/executor/executeAction.ts), [executeAction.test.ts](apps/integrator/src/kernel/domain/executor/executeAction.test.ts) |
-| Scripts | [telegram/.../scripts.json](apps/integrator/src/content/telegram/user/scripts.json), [max/.../scripts.json](apps/integrator/src/content/max/user/scripts.json) |
-| Templates | [telegram/.../templates.json](apps/integrator/src/content/telegram/user/templates.json), [max/.../templates.json](apps/integrator/src/content/max/user/templates.json) |
-| Orchestrator | [buildPlan.test.ts](apps/integrator/src/kernel/orchestrator/buildPlan.test.ts) |
-| Docs | [PHONE_MESSENGER_AUTH_RUNBOOK.md](docs/OPERATIONS/PHONE_MESSENGER_AUTH_RUNBOOK.md), [auth.md](apps/webapp/src/modules/auth/auth.md), [INTEGRATOR_CONTRACT.md](apps/webapp/INTEGRATOR_CONTRACT.md), [LOG.md](docs/LOGIN_REGISTER_NEW_LOGIC/LOG.md) |
+| Область      | Файлы                                                                                                                                                                                                                                             |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Executor     | [executeAction.ts](apps/integrator/src/kernel/domain/executor/executeAction.ts), [executeAction.test.ts](apps/integrator/src/kernel/domain/executor/executeAction.test.ts)                                                                        |
+| Scripts      | [telegram/.../scripts.json](apps/integrator/src/content/telegram/user/scripts.json), [max/.../scripts.json](apps/integrator/src/content/max/user/scripts.json)                                                                                    |
+| Templates    | [telegram/.../templates.json](apps/integrator/src/content/telegram/user/templates.json), [max/.../templates.json](apps/integrator/src/content/max/user/templates.json)                                                                            |
+| Orchestrator | [buildPlan.test.ts](apps/integrator/src/kernel/orchestrator/buildPlan.test.ts)                                                                                                                                                                    |
+| Docs         | [PHONE_MESSENGER_AUTH_RUNBOOK.md](docs/OPERATIONS/PHONE_MESSENGER_AUTH_RUNBOOK.md), [auth.md](apps/webapp/src/modules/auth/auth.md), [INTEGRATOR_CONTRACT.md](apps/webapp/INTEGRATOR_CONTRACT.md), [LOG.md](docs/LOGIN_REGISTER_NEW_LOGIC/LOG.md) |
 
 ### Вне scope
 
@@ -106,12 +106,12 @@ flowchart LR
 
 Записать в [LOG.md](docs/LOGIN_REGISTER_NEW_LOGIC/LOG.md) **до** правок и повторить **после** merge:
 
-| # | Кейс | Ожидание после фикса |
-|---|------|----------------------|
-| 1 | PWA login → TG → контакт | PWA: автовход (A); бот: меню, не контакт (B) |
-| 2 | После сообщения об успехе | Нет залипшей «Предоставить контакт» |
-| 3 | «Отмена» (нативная) / «Вернуться в меню» в phoneauth | Нет `confirmQuestion` |
-| 4 | `profile_bind` с сессией | consumed, без OTP; меню в TG |
+| #   | Кейс                                                 | Ожидание после фикса                         |
+| --- | ---------------------------------------------------- | -------------------------------------------- |
+| 1   | PWA login → TG → контакт                             | PWA: автовход (A); бот: меню, не контакт (B) |
+| 2   | После сообщения об успехе                            | Нет залипшей «Предоставить контакт»          |
+| 3   | «Отмена» (нативная) / «Вернуться в меню» в phoneauth | Нет `confirmQuestion`                        |
+| 4   | `profile_bind` с сессией                             | consumed, без OTP; меню в TG                 |
 
 ## Шаг 1. `executeAction`: writes first + guard
 
@@ -196,17 +196,17 @@ pnpm --dir apps/integrator exec vitest run src/kernel/orchestrator/buildPlan.tes
 
 ## Риски
 
-| Риск | Митигация |
-|------|-----------|
-| Старый draft + «Отмена» | excludeTexts + cancel 57 |
-| cancel vs menu.default score | priority 57, узкий match |
-| PWA закрыта | шаблон phoneAuthReturnToApp |
-| A без B (промежуточный релиз) | документировать в LOG |
+| Риск                          | Митигация                   |
+| ----------------------------- | --------------------------- |
+| Старый draft + «Отмена»       | excludeTexts + cancel 57    |
+| cancel vs menu.default score  | priority 57, узкий match    |
+| PWA закрыта                   | шаблон phoneAuthReturnToApp |
+| A без B (промежуточный релиз) | документировать в LOG       |
 
 ## Milestone PR (рекомендация)
 
-1. **PR1 (критичный UX):** `execute-action-writes-first` + `login-main-menu-keyboard` + тесты.  
-2. **PR2:** план A (finish).  
+1. **PR1 (критичный UX):** `execute-action-writes-first` + `login-main-menu-keyboard` + тесты.
+2. **PR2:** план A (finish).
 3. **PR3:** cancel + catch-all + templates + orchestrator-regressions.
 
 Допустим один PR, если все todos закрыты и полный smoke пройден.

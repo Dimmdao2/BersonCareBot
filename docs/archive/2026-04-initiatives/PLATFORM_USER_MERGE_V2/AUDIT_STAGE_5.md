@@ -20,14 +20,14 @@
 
 ## 1) Флаг в `system_settings` реально управляет поведением
 
-| Проверка | Факт | Вердикт |
-|----------|------|---------|
-| Ключ в whitelist | `platform_user_merge_v2_enabled` в `ALLOWED_KEYS` | **PASS** |
-| Запись через админку | `PATCH /api/admin/settings` с `key` в `ADMIN_SCOPE_KEYS`; UI — переключатель в `AdminSettingsSection` | **PASS** |
-| Чтение в runtime | `getConfigBool("platform_user_merge_v2_enabled", false)` читает `system_settings` (scope `admin`) через `fetchFromDb` | **PASS** |
-| Ветвление логики | `buildMergePreview`: при `v2Enabled &&` двух разных id вызывается `checkIntegratorCanonicalPair`; иначе используется `inferIntegratorPairPreview` → `v1_both_different_non_null` | **PASS** |
-| Инвалидация кэша | После успешного PATCH вызывается `invalidateConfigKey(parsed.data.key)` — сброс TTL-кэша 60s для изменённого ключа | **PASS** |
-| Зеркало в integrator | Строка синхронизируется в БД integrator как и прочие `system_settings` (webapp `updateSetting`); integrator для этого ключа не обязан иметь потребителя | **OK** (не мешает) |
+| Проверка             | Факт                                                                                                                                                                             | Вердикт            |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
+| Ключ в whitelist     | `platform_user_merge_v2_enabled` в `ALLOWED_KEYS`                                                                                                                                | **PASS**           |
+| Запись через админку | `PATCH /api/admin/settings` с `key` в `ADMIN_SCOPE_KEYS`; UI — переключатель в `AdminSettingsSection`                                                                            | **PASS**           |
+| Чтение в runtime     | `getConfigBool("platform_user_merge_v2_enabled", false)` читает `system_settings` (scope `admin`) через `fetchFromDb`                                                            | **PASS**           |
+| Ветвление логики     | `buildMergePreview`: при `v2Enabled &&` двух разных id вызывается `checkIntegratorCanonicalPair`; иначе используется `inferIntegratorPairPreview` → `v1_both_different_non_null` | **PASS**           |
+| Инвалидация кэша     | После успешного PATCH вызывается `invalidateConfigKey(parsed.data.key)` — сброс TTL-кэша 60s для изменённого ключа                                                               | **PASS**           |
+| Зеркало в integrator | Строка синхронизируется в БД integrator как и прочие `system_settings` (webapp `updateSetting`); integrator для этого ключа не обязан иметь потребителя                          | **OK** (не мешает) |
 
 **Вердикт §1:** **PASS** — отсутствие строки в БД или `value: false` даёт поведение «как v1» для ветки integrator id; `true` включает canonical-pair и отдельный маршрут integrator merge.
 
@@ -35,12 +35,12 @@
 
 ## 2) При `flag=off` поведение как v1
 
-| Проверка | Факт | Вердикт |
-|----------|------|---------|
-| Preview, два разных non-null `integrator_user_id` | `v2Enabled === false` → не вызывается M2M; `integratorPairPreview` остаётся `v1_both_different_non_null` → hard blocker `different_non_null_integrator_user_id` | **PASS** |
-| `POST …/merge` | При `!v2` и двух разных id gate **пропускает** в merge tx; `MergeConflictError` → `409 merge_failed`, `message` как у движка (`merge: two different non-null integrator_user_id`), audit на фазе `merge_transaction` | **PASS** (после follow-up §9) |
-| Движок `mergePlatformUsersInTransaction` | Без `allowDistinctIntegratorUserIds` при двух разных id по-прежнему `MergeConflictError` (авто-пути `projection` / `phone_bind` не передают relax) | **PASS** |
-| Поле preview `platformUserMergeV2Enabled` | В JSON всегда `false` при выключенном флаге — расширение контракта, обратно совместимо | **PASS** |
+| Проверка                                          | Факт                                                                                                                                                                                                                 | Вердикт                       |
+| ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- |
+| Preview, два разных non-null `integrator_user_id` | `v2Enabled === false` → не вызывается M2M; `integratorPairPreview` остаётся `v1_both_different_non_null` → hard blocker `different_non_null_integrator_user_id`                                                      | **PASS**                      |
+| `POST …/merge`                                    | При `!v2` и двух разных id gate **пропускает** в merge tx; `MergeConflictError` → `409 merge_failed`, `message` как у движка (`merge: two different non-null integrator_user_id`), audit на фазе `merge_transaction` | **PASS** (после follow-up §9) |
+| Движок `mergePlatformUsersInTransaction`          | Без `allowDistinctIntegratorUserIds` при двух разных id по-прежнему `MergeConflictError` (авто-пути `projection` / `phone_bind` не передают relax)                                                                   | **PASS**                      |
+| Поле preview `platformUserMergeV2Enabled`         | В JSON всегда `false` при выключенном флаге — расширение контракта, обратно совместимо                                                                                                                               | **PASS**                      |
 
 **Вердикт §2:** **PASS** — поведение v1 совпадает с до–Stage-5 по точке отказа и тексту ошибки merge.
 
@@ -48,14 +48,14 @@
 
 ## 3) При `flag=on` сценарий двух non-null `integrator_user_id` проходит через integrator merge
 
-| Шаг | Реализация | Вердикт |
-|-----|------------|---------|
-| Блок до canonical merge | Preview: `integrator_canonical_merge_required`, если `sameCanonical === false` | **PASS** |
-| Вызов merge в integrator | `POST /api/doctor/clients/integrator-merge` требует `getConfigBool === true`; проксирует HMAC на `/api/integrator/users/merge` (`mergeIntegratorUsers`) | **PASS** |
-| Порядок winner/loser | Winner = `integrator_user_id` **целевого** (`targetId`) platform user, loser = **дубликата** (`duplicateId`) — совпадает с контрактом ручного merge | **PASS** |
-| После integrator merge | `canonical-pair` даёт `sameCanonical`; preview снимает integrator-hard-blocker; gate даёт `allowDistinctIntegratorUserIds: true` | **PASS** (по коду) |
-| Покрытие тестами | Unit: `platformUserMergePreview.test.ts`, `manualMergeIntegratorGate.test.ts`, `pgPlatformUserMerge.test.ts`, `userMergeM2mRoute.test.ts` (integrator). Интеграция без живого integrator: `integratorUserMergeM2mClient.flow.test.ts` (stub `fetch` + цепочка canonical → merge), `integrator-merge/route.test.ts` (прокси winner/loser) | **PASS** (после follow-up §9) |
-| E2E двух БД + UI | Полный браузерный сценарий и две живые PostgreSQL в CI **не** обязателен; риск снижен stub-flow тестами | **OK** (остаточный риск — см. MANDATORY §5 как опциональный hardening) |
+| Шаг                      | Реализация                                                                                                                                                                                                                                                                                                                               | Вердикт                                                                |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| Блок до canonical merge  | Preview: `integrator_canonical_merge_required`, если `sameCanonical === false`                                                                                                                                                                                                                                                           | **PASS**                                                               |
+| Вызов merge в integrator | `POST /api/doctor/clients/integrator-merge` требует `getConfigBool === true`; проксирует HMAC на `/api/integrator/users/merge` (`mergeIntegratorUsers`)                                                                                                                                                                                  | **PASS**                                                               |
+| Порядок winner/loser     | Winner = `integrator_user_id` **целевого** (`targetId`) platform user, loser = **дубликата** (`duplicateId`) — совпадает с контрактом ручного merge                                                                                                                                                                                      | **PASS**                                                               |
+| После integrator merge   | `canonical-pair` даёт `sameCanonical`; preview снимает integrator-hard-blocker; gate даёт `allowDistinctIntegratorUserIds: true`                                                                                                                                                                                                         | **PASS** (по коду)                                                     |
+| Покрытие тестами         | Unit: `platformUserMergePreview.test.ts`, `manualMergeIntegratorGate.test.ts`, `pgPlatformUserMerge.test.ts`, `userMergeM2mRoute.test.ts` (integrator). Интеграция без живого integrator: `integratorUserMergeM2mClient.flow.test.ts` (stub `fetch` + цепочка canonical → merge), `integrator-merge/route.test.ts` (прокси winner/loser) | **PASS** (после follow-up §9)                                          |
+| E2E двух БД + UI         | Полный браузерный сценарий и две живые PostgreSQL в CI **не** обязателен; риск снижен stub-flow тестами                                                                                                                                                                                                                                  | **OK** (остаточный риск — см. MANDATORY §5 как опциональный hardening) |
 
 **Вердикт §3:** **PASS** по реализации и CI-тестам (unit + stubbed M2M flow + route proxy).
 
@@ -63,12 +63,12 @@
 
 ## 4) Нет новых env vars для этого флага
 
-| Проверка | Факт | Вердикт |
-|----------|------|---------|
-| `apps/webapp/src/config/env.ts` (и `.env.example`) | Нет переменной вида `PLATFORM_USER_MERGE*` / `*_V2_*` для флага | **PASS** |
-| `grep` по репозиторию для `.env*` | Нет совпадений с `platform_user_merge` | **PASS** |
-| Fallback `getConfigBool(..., false)` | Второй аргумент — литерал `false`, не `process.env` | **PASS** |
-| Инфра M2M | Используются существующие `INTEGRATOR_API_URL` и webhook secret (как у прочих Bersoncare M2M); это **не** env для флага | **PASS** |
+| Проверка                                           | Факт                                                                                                                    | Вердикт  |
+| -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | -------- |
+| `apps/webapp/src/config/env.ts` (и `.env.example`) | Нет переменной вида `PLATFORM_USER_MERGE*` / `*_V2_*` для флага                                                         | **PASS** |
+| `grep` по репозиторию для `.env*`                  | Нет совпадений с `platform_user_merge`                                                                                  | **PASS** |
+| Fallback `getConfigBool(..., false)`               | Второй аргумент — литерал `false`, не `process.env`                                                                     | **PASS** |
+| Инфра M2M                                          | Используются существующие `INTEGRATOR_API_URL` и webhook secret (как у прочих Bersoncare M2M); это **не** env для флага | **PASS** |
 
 **Вердикт §4:** **PASS**.
 
@@ -83,13 +83,13 @@ pnpm install --frozen-lockfile
 pnpm run ci
 ```
 
-| Проверка | Результат |
-|----------|-----------|
-| Полный pipeline из корня | `pnpm run ci` — **exit 0** |
-| Integrator tests | **649 passed**, 6 skipped |
-| Webapp tests | **1417 passed**, 5 skipped |
-| Сборки | `apps/integrator` + `apps/webapp` production build — **OK** |
-| Audit prod dependencies | `pnpm audit --prod` — **No known vulnerabilities found** |
+| Проверка                 | Результат                                                   |
+| ------------------------ | ----------------------------------------------------------- |
+| Полный pipeline из корня | `pnpm run ci` — **exit 0**                                  |
+| Integrator tests         | **649 passed**, 6 skipped                                   |
+| Webapp tests             | **1417 passed**, 5 skipped                                  |
+| Сборки                   | `apps/integrator` + `apps/webapp` production build — **OK** |
+| Audit prod dependencies  | `pnpm audit --prod` — **No known vulnerabilities found**    |
 
 Журнал репозитория: [`AGENT_EXECUTION_LOG.md`](AGENT_EXECUTION_LOG.md) — записи «Stage 5: feature flag и смена flow» и «Stage 5 follow-up: замечания AUDIT_STAGE_5» (актуальные числа тестов webapp после follow-up).
 
@@ -99,13 +99,13 @@ pnpm run ci
 
 ## 6) Сводный вердикт
 
-| # | Вопрос | Вердикт |
-|---|--------|---------|
-| 1 | Флаг в `system_settings` управляет поведением | **PASS** |
-| 2 | При `flag=off` как v1 (preview-блок + merge-ошибка из движка) | **PASS** |
-| 3 | При `flag=on` цепочка integrator merge → canonical check → webapp merge | **PASS** (unit + stub flow) |
-| 4 | Нет новых env для флага | **PASS** |
-| 5 | CI evidence | **PASS** |
+| #   | Вопрос                                                                  | Вердикт                     |
+| --- | ----------------------------------------------------------------------- | --------------------------- |
+| 1   | Флаг в `system_settings` управляет поведением                           | **PASS**                    |
+| 2   | При `flag=off` как v1 (preview-блок + merge-ошибка из движка)           | **PASS**                    |
+| 3   | При `flag=on` цепочка integrator merge → canonical check → webapp merge | **PASS** (unit + stub flow) |
+| 4   | Нет новых env для флага                                                 | **PASS**                    |
+| 5   | CI evidence                                                             | **PASS**                    |
 
 **Общий вердикт Stage 5 (репозиторий):** **PASS** (после follow-up §9 — без открытых GAP по чеклисту аудита).
 
@@ -180,11 +180,11 @@ pnpm run ci
 
 ## 9) Follow-up 2026-04-10 — аудит-замечания
 
-| Замечание (первичный аудит) | Сделано |
-|-----------------------------|---------|
-| §2 Оговорка: ранний `409` на `POST …/merge` при v1 и иной текст ошибки | Gate при `!v2` и двух разных `integrator_user_id` **не** возвращает ответ — выполняется `runManualPlatformUserMerge`; ошибка и audit как до Stage 5 ([`manualMergeIntegratorGate.ts`](../../apps/webapp/src/infra/manualMergeIntegratorGate.ts)). |
-| §3 GAP: нет сквозного теста цепочки M2M | Добавлены [`integratorUserMergeM2mClient.flow.test.ts`](../../apps/webapp/src/infra/integrations/integratorUserMergeM2mClient.flow.test.ts) (stub `fetch`: canonical-pair + merge + двухшаговая последовательность) и [`integrator-merge/route.test.ts`](../../apps/webapp/src/app/api/doctor/clients/integrator-merge/route.test.ts) (winner/loser, флаг). |
-| Документация расхождения с кодом | Обновлены [`api.md`](../../apps/webapp/src/app/api/api.md) и [`PLATFORM_USER_MERGE.md`](../ARCHITECTURE/PLATFORM_USER_MERGE.md). |
-| Post-closeout hardening | Gate/apply race закрыт snapshot-проверкой пары integrator id; `integrator-merge` route читает `platform_users` под `FOR UPDATE`; M2M client ограничен timeout; docs синхронизированы с `integrator_timeout` / `integrator_ids_changed_since_gate`. |
+| Замечание (первичный аудит)                                            | Сделано                                                                                                                                                                                                                                                                                                                                                     |
+| ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| §2 Оговорка: ранний `409` на `POST …/merge` при v1 и иной текст ошибки | Gate при `!v2` и двух разных `integrator_user_id` **не** возвращает ответ — выполняется `runManualPlatformUserMerge`; ошибка и audit как до Stage 5 ([`manualMergeIntegratorGate.ts`](../../apps/webapp/src/infra/manualMergeIntegratorGate.ts)).                                                                                                           |
+| §3 GAP: нет сквозного теста цепочки M2M                                | Добавлены [`integratorUserMergeM2mClient.flow.test.ts`](../../apps/webapp/src/infra/integrations/integratorUserMergeM2mClient.flow.test.ts) (stub `fetch`: canonical-pair + merge + двухшаговая последовательность) и [`integrator-merge/route.test.ts`](../../apps/webapp/src/app/api/doctor/clients/integrator-merge/route.test.ts) (winner/loser, флаг). |
+| Документация расхождения с кодом                                       | Обновлены [`api.md`](../../apps/webapp/src/app/api/api.md) и [`PLATFORM_USER_MERGE.md`](../ARCHITECTURE/PLATFORM_USER_MERGE.md).                                                                                                                                                                                                                            |
+| Post-closeout hardening                                                | Gate/apply race закрыт snapshot-проверкой пары integrator id; `integrator-merge` route читает `platform_users` под `FOR UPDATE`; M2M client ограничен timeout; docs синхронизированы с `integrator_timeout` / `integrator_ids_changed_since_gate`.                                                                                                          |
 
 **CI:** см. актуальные числа в [`AGENT_EXECUTION_LOG.md`](AGENT_EXECUTION_LOG.md) (запись follow-up Stage 5 audit fix).

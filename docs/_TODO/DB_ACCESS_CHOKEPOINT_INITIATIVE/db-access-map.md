@@ -31,14 +31,14 @@ rg -n 'system_settings|FROM public\.system_settings|FROM system_settings|INSERT 
 
 ## Process trunks
 
-| Process / package | Current trunk | Pool source | S0 classification |
-|---|---|---|---|
-| Webapp runtime | `getPool()` + `getDrizzle()` + `runWebappSql()` / `runWebappPgText()` in `apps/webapp/src/infra/db/*`; Drizzle instance in `apps/webapp/src/app-layer/db/drizzle.ts` | `apps/webapp/src/infra/db/client.ts` singleton `new Pool` | Natural trunk exists, but dedicated `.connect()` and layer bypasses still need S1/S3/S4. |
-| Webapp legacy pool bridge | `runPgPoolPgText(pool, ...)` | Caller-provided `Pool`/`PoolClient` | KEEP as bridge only; callers must be moved behind sanctioned repos/withClient. |
-| Integrator runtime | `createDbPort(db)` + `runIntegratorSql(db, sql...)` | `apps/integrator/src/infra/db/client.ts` singleton `new Pool` | Natural trunk exists; `db.tx()`, scheduler locks and Rubitime throttle still checkout dedicated clients. |
-| Media worker | `runMediaWorkerSql()` / `runMediaWorkerPgText()` | `apps/media-worker/src/main.ts` process-local `new Pool` passed in context | Separate process trunk; `jobs/claim.ts` remains permanent queue SQL, but pool needs named provider + dormant hook in S4. |
-| `packages/booking-rubitime-sync` | Caller-injected `SqlExecutor.query` | Caller owns DB client | KEEP by ADR; package has no pool knowledge. |
-| `packages/platform-merge` | Caller-injected `PlatformMergeDbClient.query` / `PoolClient` | Caller owns DB client | KEEP by ADR; merge engine stays pg-style but must only be entered through sanctioned callers. |
+| Process / package                | Current trunk                                                                                                                                                        | Pool source                                                                | S0 classification                                                                                                        |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Webapp runtime                   | `getPool()` + `getDrizzle()` + `runWebappSql()` / `runWebappPgText()` in `apps/webapp/src/infra/db/*`; Drizzle instance in `apps/webapp/src/app-layer/db/drizzle.ts` | `apps/webapp/src/infra/db/client.ts` singleton `new Pool`                  | Natural trunk exists, but dedicated `.connect()` and layer bypasses still need S1/S3/S4.                                 |
+| Webapp legacy pool bridge        | `runPgPoolPgText(pool, ...)`                                                                                                                                         | Caller-provided `Pool`/`PoolClient`                                        | KEEP as bridge only; callers must be moved behind sanctioned repos/withClient.                                           |
+| Integrator runtime               | `createDbPort(db)` + `runIntegratorSql(db, sql...)`                                                                                                                  | `apps/integrator/src/infra/db/client.ts` singleton `new Pool`              | Natural trunk exists; `db.tx()`, scheduler locks and Rubitime throttle still checkout dedicated clients.                 |
+| Media worker                     | `runMediaWorkerSql()` / `runMediaWorkerPgText()`                                                                                                                     | `apps/media-worker/src/main.ts` process-local `new Pool` passed in context | Separate process trunk; `jobs/claim.ts` remains permanent queue SQL, but pool needs named provider + dormant hook in S4. |
+| `packages/booking-rubitime-sync` | Caller-injected `SqlExecutor.query`                                                                                                                                  | Caller owns DB client                                                      | KEEP by ADR; package has no pool knowledge.                                                                              |
+| `packages/platform-merge`        | Caller-injected `PlatformMergeDbClient.query` / `PoolClient`                                                                                                         | Caller owns DB client                                                      | KEEP by ADR; merge engine stays pg-style but must only be entered through sanctioned callers.                            |
 
 ## Permanent KEEP zones from prior ADR
 
@@ -57,11 +57,11 @@ R0 still needs these zones to be explicit in guards/allowlists, otherwise the CI
 
 Runtime `.connect()` files:
 
-| Area | Count | Files |
-|---|---:|---|
-| Webapp runtime | 24 | `apps/webapp/src/app-layer/doctor/createDoctorClient.ts`; `apps/webapp/src/app-layer/integrator/messengerPhoneHttpBindExecute.ts`; `apps/webapp/src/infra/adminAuditLog.ts`; `apps/webapp/src/infra/db/client.ts`; `apps/webapp/src/infra/integratorPlatformUserMerge.ts`; `apps/webapp/src/infra/multipartSessionLock.ts`; `apps/webapp/src/infra/platformUserFullPurge.ts`; `apps/webapp/src/infra/repos/mediaPreviewWorker.ts`; `apps/webapp/src/infra/repos/mediaUploadSessionsRepo.ts`; `apps/webapp/src/infra/repos/pgAppointmentProjection.ts`; `apps/webapp/src/infra/repos/pgChannelPreferences.ts`; `apps/webapp/src/infra/repos/pgDoctorBroadcastDelivery.ts`; `apps/webapp/src/infra/repos/pgDoctorMotivationQuotesEditor.ts`; `apps/webapp/src/infra/repos/pgIdentityResolution.ts`; `apps/webapp/src/infra/repos/pgOnlineIntake.ts`; `apps/webapp/src/infra/repos/pgPhoneMessengerBind.ts`; `apps/webapp/src/infra/repos/pgSupportCommunication.ts`; `apps/webapp/src/infra/repos/pgUserByPhone.ts`; `apps/webapp/src/infra/repos/pgUserProjection.ts`; `apps/webapp/src/infra/repos/pgWebPushSubscriptions.ts`; `apps/webapp/src/infra/repos/s3MediaStorage.ts`; `apps/webapp/src/infra/strictPlatformUserPurge.ts`; `apps/webapp/src/infra/userLifecycleLock.ts`; `apps/webapp/src/modules/auth/channelLink.ts` |
-| Integrator runtime | 4 | `apps/integrator/src/infra/db/client.ts`; `apps/integrator/src/infra/db/pgAdvisoryLock.ts`; `apps/integrator/src/infra/db/repos/schedulerLocks.ts`; `apps/integrator/src/integrations/rubitime/rubitimeApiThrottle.ts` |
-| Media worker runtime | 1 | `apps/media-worker/src/jobs/claim.ts` |
+| Area                 | Count | Files                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| -------------------- | ----: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Webapp runtime       |    24 | `apps/webapp/src/app-layer/doctor/createDoctorClient.ts`; `apps/webapp/src/app-layer/integrator/messengerPhoneHttpBindExecute.ts`; `apps/webapp/src/infra/adminAuditLog.ts`; `apps/webapp/src/infra/db/client.ts`; `apps/webapp/src/infra/integratorPlatformUserMerge.ts`; `apps/webapp/src/infra/multipartSessionLock.ts`; `apps/webapp/src/infra/platformUserFullPurge.ts`; `apps/webapp/src/infra/repos/mediaPreviewWorker.ts`; `apps/webapp/src/infra/repos/mediaUploadSessionsRepo.ts`; `apps/webapp/src/infra/repos/pgAppointmentProjection.ts`; `apps/webapp/src/infra/repos/pgChannelPreferences.ts`; `apps/webapp/src/infra/repos/pgDoctorBroadcastDelivery.ts`; `apps/webapp/src/infra/repos/pgDoctorMotivationQuotesEditor.ts`; `apps/webapp/src/infra/repos/pgIdentityResolution.ts`; `apps/webapp/src/infra/repos/pgOnlineIntake.ts`; `apps/webapp/src/infra/repos/pgPhoneMessengerBind.ts`; `apps/webapp/src/infra/repos/pgSupportCommunication.ts`; `apps/webapp/src/infra/repos/pgUserByPhone.ts`; `apps/webapp/src/infra/repos/pgUserProjection.ts`; `apps/webapp/src/infra/repos/pgWebPushSubscriptions.ts`; `apps/webapp/src/infra/repos/s3MediaStorage.ts`; `apps/webapp/src/infra/strictPlatformUserPurge.ts`; `apps/webapp/src/infra/userLifecycleLock.ts`; `apps/webapp/src/modules/auth/channelLink.ts` |
+| Integrator runtime   |     4 | `apps/integrator/src/infra/db/client.ts`; `apps/integrator/src/infra/db/pgAdvisoryLock.ts`; `apps/integrator/src/infra/db/repos/schedulerLocks.ts`; `apps/integrator/src/integrations/rubitime/rubitimeApiThrottle.ts`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| Media worker runtime |     1 | `apps/media-worker/src/jobs/claim.ts`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 
 Ops/script `.connect()` files:
 
@@ -81,14 +81,14 @@ S3 target: runtime checkouts move to one `withClient()` / `withTransaction()` pe
 
 Runtime `new Pool` / `new PgPool` files:
 
-| File | Current role | S4 disposition |
-|---|---|---|
-| `apps/webapp/src/infra/db/webappPoolProvider.ts` | Principal-aware webapp staff/nonstaff pools. | KEEP as named runtime provider. |
-| `apps/webapp/src/infra/db/saasIsolationTelemetryPoolProvider.ts` | Dedicated max-one event-writer/operator telemetry pools; no request principal reuse. | KEEP as explicit true-global telemetry provider. |
-| `apps/integrator/src/infra/db/integratorPoolProvider.ts` | Principal-aware integrator pool plus dedicated max-one telemetry pool factory. | KEEP as named runtime/telemetry provider. |
-| `apps/media-worker/src/poolProvider.ts` | Principal-aware media job pool plus dedicated max-one telemetry pool factory. | KEEP as named runtime/telemetry provider. |
-| `apps/webapp/src/infra/platformUserFullPurge.ts` | Separate integrator purge pool keyed by connection string. | Move behind named provider and document role/context. |
-| `apps/integrator/src/infra/db/migrate.ts` | Boot migration pool. | KEEP as migrator/admin provider, not app-role runtime. |
+| File                                                             | Current role                                                                         | S4 disposition                                         |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------ |
+| `apps/webapp/src/infra/db/webappPoolProvider.ts`                 | Principal-aware webapp staff/nonstaff pools.                                         | KEEP as named runtime provider.                        |
+| `apps/webapp/src/infra/db/saasIsolationTelemetryPoolProvider.ts` | Dedicated max-one event-writer/operator telemetry pools; no request principal reuse. | KEEP as explicit true-global telemetry provider.       |
+| `apps/integrator/src/infra/db/integratorPoolProvider.ts`         | Principal-aware integrator pool plus dedicated max-one telemetry pool factory.       | KEEP as named runtime/telemetry provider.              |
+| `apps/media-worker/src/poolProvider.ts`                          | Principal-aware media job pool plus dedicated max-one telemetry pool factory.        | KEEP as named runtime/telemetry provider.              |
+| `apps/webapp/src/infra/platformUserFullPurge.ts`                 | Separate integrator purge pool keyed by connection string.                           | Move behind named provider and document role/context.  |
+| `apps/integrator/src/infra/db/migrate.ts`                        | Boot migration pool.                                                                 | KEEP as migrator/admin provider, not app-role runtime. |
 
 Script-only pools:
 
@@ -104,26 +104,26 @@ The broad grep finds 54 webapp files under `modules`, `app-layer`, and `app` usi
 
 High-confidence S1 candidates:
 
-| File | Why it is a candidate |
-|---|---|
-| `apps/webapp/src/modules/auth/channelLink.ts` | Module imports DB transport and uses `getPool()`/dedicated client. Move SQL to infra repo + module port. |
-| `apps/webapp/src/modules/doctor-clients/clientArchiveChange.ts` | Module calls `getPool().query(...)` for role precheck. Move to infra repo/port. |
-| `apps/webapp/src/modules/system-settings/configAdapter.ts` | Module reads `system_settings` via raw SQL. S2 may own this specific read path. |
-| `apps/webapp/src/modules/reminders/disableReminderMessengerTopic.ts` | Module owns SQL via caller-injected pool. Move to repo/port or sanctioned accessor. |
-| `apps/webapp/src/modules/reminders/loadWarmupsSectionSlugs.ts` | Module owns SQL via caller-injected pool. Move to repo/port or sanctioned accessor. |
-| `apps/webapp/src/app-layer/doctor/createDoctorClient.ts` | App-layer SQL + dedicated client. Move DB work to infra repo and call through DI/service. |
-| `apps/webapp/src/app-layer/integrator/messengerPhoneHttpBindExecute.ts` | App-layer cross-schema SQL + dedicated client. Move DB work to infra repo/provider. |
-| `apps/webapp/src/app-layer/health/collectAdminSystemHealthData.ts` | App-layer SQL/read helpers. Move data access behind infra repo if not pure composition. |
-| `apps/webapp/src/app-layer/media/adminTranscodeHealthMetrics.ts` | App-layer SQL. Move to infra repo. |
-| `apps/webapp/src/app-layer/media/videoHlsLegacyBackfill.ts` | App-layer SQL with injected pool. Move to infra repo. |
-| `apps/webapp/src/app-layer/messaging/resolvePatientTelegramUsernameMention.ts` | App-layer SQL. Move to infra repo/port. |
-| `apps/webapp/src/app-layer/platform-user/recordPublicBookingMergeCandidates.ts` | App-layer SQL with injected pool. Move to infra repo. |
-| `apps/webapp/src/app-layer/platform-user/resolveOrCreateUserByPhone.ts` | App-layer SQL with injected pool. Move to infra repo. |
-| `apps/webapp/src/app/api/doctor/account/timezone/route.ts` | Route owns SQL. Route should call service/repo through deps. |
-| `apps/webapp/src/app/api/doctor/clients/[userId]/permanent-delete/route.ts` | Route calls `getPool().query(...)` for role precheck; also noted by `RAW_SQL_RULING.md`. |
-| `apps/webapp/src/app/app/doctor/patients/[userId]/page.tsx` | Page owns SQL. Page should call app deps/repo. |
-| `apps/webapp/src/app/app/doctor/patients/[userId]/programs/[instanceId]/page.tsx` | Page owns SQL. Page should call app deps/repo. |
-| `apps/webapp/src/app/app/settings/page.tsx` | Page owns SQL. Page should call service/repo. |
+| File                                                                              | Why it is a candidate                                                                                    |
+| --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `apps/webapp/src/modules/auth/channelLink.ts`                                     | Module imports DB transport and uses `getPool()`/dedicated client. Move SQL to infra repo + module port. |
+| `apps/webapp/src/modules/doctor-clients/clientArchiveChange.ts`                   | Module calls `getPool().query(...)` for role precheck. Move to infra repo/port.                          |
+| `apps/webapp/src/modules/system-settings/configAdapter.ts`                        | Module reads `system_settings` via raw SQL. S2 may own this specific read path.                          |
+| `apps/webapp/src/modules/reminders/disableReminderMessengerTopic.ts`              | Module owns SQL via caller-injected pool. Move to repo/port or sanctioned accessor.                      |
+| `apps/webapp/src/modules/reminders/loadWarmupsSectionSlugs.ts`                    | Module owns SQL via caller-injected pool. Move to repo/port or sanctioned accessor.                      |
+| `apps/webapp/src/app-layer/doctor/createDoctorClient.ts`                          | App-layer SQL + dedicated client. Move DB work to infra repo and call through DI/service.                |
+| `apps/webapp/src/app-layer/integrator/messengerPhoneHttpBindExecute.ts`           | App-layer cross-schema SQL + dedicated client. Move DB work to infra repo/provider.                      |
+| `apps/webapp/src/app-layer/health/collectAdminSystemHealthData.ts`                | App-layer SQL/read helpers. Move data access behind infra repo if not pure composition.                  |
+| `apps/webapp/src/app-layer/media/adminTranscodeHealthMetrics.ts`                  | App-layer SQL. Move to infra repo.                                                                       |
+| `apps/webapp/src/app-layer/media/videoHlsLegacyBackfill.ts`                       | App-layer SQL with injected pool. Move to infra repo.                                                    |
+| `apps/webapp/src/app-layer/messaging/resolvePatientTelegramUsernameMention.ts`    | App-layer SQL. Move to infra repo/port.                                                                  |
+| `apps/webapp/src/app-layer/platform-user/recordPublicBookingMergeCandidates.ts`   | App-layer SQL with injected pool. Move to infra repo.                                                    |
+| `apps/webapp/src/app-layer/platform-user/resolveOrCreateUserByPhone.ts`           | App-layer SQL with injected pool. Move to infra repo.                                                    |
+| `apps/webapp/src/app/api/doctor/account/timezone/route.ts`                        | Route owns SQL. Route should call service/repo through deps.                                             |
+| `apps/webapp/src/app/api/doctor/clients/[userId]/permanent-delete/route.ts`       | Route calls `getPool().query(...)` for role precheck; also noted by `RAW_SQL_RULING.md`.                 |
+| `apps/webapp/src/app/app/doctor/patients/[userId]/page.tsx`                       | Page owns SQL. Page should call app deps/repo.                                                           |
+| `apps/webapp/src/app/app/doctor/patients/[userId]/programs/[instanceId]/page.tsx` | Page owns SQL. Page should call app deps/repo.                                                           |
+| `apps/webapp/src/app/app/settings/page.tsx`                                       | Page owns SQL. Page should call service/repo.                                                            |
 
 Composition/gate call sites to review before changing:
 
@@ -139,12 +139,12 @@ Canonical webapp accessor:
 
 S2 status after `da3e4ff7` + guard stage:
 
-| File | Current query |
-|---|---|
-| `apps/webapp/src/infra/repos/pgSystemSettings.ts` | **CANONICAL webapp accessor** for reads/writes/audit. |
+| File                                                   | Current query                                                                         |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------- |
+| `apps/webapp/src/infra/repos/pgSystemSettings.ts`      | **CANONICAL webapp accessor** for reads/writes/audit.                                 |
 | `apps/integrator/src/infra/db/publicSystemSettings.ts` | **CANONICAL integrator accessor** for unified DB reads from `public.system_settings`. |
-| `apps/media-worker/src/pipelineEnabled.ts` | **ALLOW process accessor** until media-worker gets its own shared accessor. |
-| `apps/media-worker/src/watermarkEnabled.ts` | **ALLOW process accessor** until media-worker gets its own shared accessor. |
+| `apps/media-worker/src/pipelineEnabled.ts`             | **ALLOW process accessor** until media-worker gets its own shared accessor.           |
+| `apps/media-worker/src/watermarkEnabled.ts`            | **ALLOW process accessor** until media-worker gets its own shared accessor.           |
 
 Closed in S2:
 
@@ -182,5 +182,5 @@ Runtime repos now use `runIntegratorSql(...)` or `DbPort.query` through the tran
   - `new Pool` / `new PgPool` outside named provider files;
   - `.connect()` outside checkout helpers and documented `stage6-historical-time-backfill.ts` KEEP;
   - raw SQL signals in guarded webapp layers (`modules/**`, `app-layer/**`, `app/**/route.ts`, `page.tsx`, `actions.ts`) outside the explicit S5 residual allowlist.
-  `apps/webapp/scripts/check-system-settings-accessors.mjs` remains wired through webapp lint for the `system_settings` guard.
+    `apps/webapp/scripts/check-system-settings-accessors.mjs` remains wired through webapp lint for the `system_settings` guard.
 - **S6:** produce final funnel coverage report and full validation.

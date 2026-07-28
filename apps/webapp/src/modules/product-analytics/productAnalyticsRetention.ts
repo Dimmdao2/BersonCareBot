@@ -1,4 +1,4 @@
-import type { ProductAnalyticsPort } from "@/modules/product-analytics/ports";
+import type { ProductAnalyticsPort } from '@/modules/product-analytics/ports';
 
 /** Short-retention raw events (`product_analytics_events_recent`). */
 export const PRODUCT_ANALYTICS_RECENT_RETENTION_DAYS = 90;
@@ -33,7 +33,7 @@ export type ProductAnalyticsRetentionResult = {
 };
 
 function clampDays(raw: number | undefined, fallback: number): number {
-  const n = typeof raw === "number" && Number.isFinite(raw) ? Math.floor(raw) : fallback;
+  const n = typeof raw === 'number' && Number.isFinite(raw) ? Math.floor(raw) : fallback;
   return Math.max(1, n);
 }
 
@@ -43,7 +43,10 @@ export async function runProductAnalyticsRetention(
 ): Promise<ProductAnalyticsRetentionResult> {
   const dryRun = Boolean(options?.dryRun);
   const recentDays = clampDays(options?.recentDays, PRODUCT_ANALYTICS_RECENT_RETENTION_DAYS);
-  const userHourlyDays = clampDays(options?.userHourlyDays, PRODUCT_ANALYTICS_USER_HOURLY_RETENTION_DAYS);
+  const userHourlyDays = clampDays(
+    options?.userHourlyDays,
+    PRODUCT_ANALYTICS_USER_HOURLY_RETENTION_DAYS,
+  );
   const hourlyDays = clampDays(options?.hourlyDays, PRODUCT_ANALYTICS_HOURLY_RETENTION_DAYS);
   const pushDays = clampDays(options?.pushDays, PRODUCT_ANALYTICS_PUSH_RETENTION_DAYS);
 

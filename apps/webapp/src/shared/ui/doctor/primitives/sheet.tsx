@@ -1,1 +1,1 @@
-export * from "@/shared/ui/primitives/sheet"
+export * from '@/shared/ui/primitives/sheet';

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
   getSessionMock,
@@ -42,72 +42,74 @@ const {
     folderExistsMock: folderExistsMockInner,
     isInSubtreeMock: isInSubtreeMockInner,
     requireDoctorWorkspaceApiContextMock: vi.fn(),
-    withDoctorWorkspacePrincipalMock: vi.fn((_: unknown, sourceOrFn: string | (() => unknown), maybeFn?: () => unknown) => {
-  const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
-  if (!fn) throw new Error("principal_callback_required");
-  return fn();
-}),
+    withDoctorWorkspacePrincipalMock: vi.fn(
+      (_: unknown, sourceOrFn: string | (() => unknown), maybeFn?: () => unknown) => {
+        const fn = typeof sourceOrFn === 'function' ? sourceOrFn : maybeFn;
+        if (!fn) throw new Error('principal_callback_required');
+        return fn();
+      },
+    ),
   };
 });
 
-vi.mock("@/modules/auth/service", () => ({
+vi.mock('@/modules/auth/service', () => ({
   getCurrentSession: getSessionMock,
 }));
 
-vi.mock("@/app-layer/di/buildAppDeps", () => ({
+vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: buildAppDepsMock,
 }));
 
-vi.mock("@/app-layer/guards/requireRole", () => ({
+vi.mock('@/app-layer/guards/requireRole', () => ({
   requireDoctorWorkspaceApiContext: requireDoctorWorkspaceApiContextMock,
 }));
 
-vi.mock("@/app-layer/guards/doctorWorkspacePrincipal", () => ({
+vi.mock('@/app-layer/guards/doctorWorkspacePrincipal', () => ({
   withDoctorWorkspacePrincipal: (
     ctx: unknown,
     sourceOrFn: string | (() => unknown),
     maybeFn?: () => unknown,
   ) => {
-    const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
-    if (!fn) throw new Error("principal_callback_required");
+    const fn = typeof sourceOrFn === 'function' ? sourceOrFn : maybeFn;
+    if (!fn) throw new Error('principal_callback_required');
     return withDoctorWorkspacePrincipalMock(ctx, fn);
   },
 }));
 
-vi.mock("@/app-layer/media/clientMediaFolders", () => ({
+vi.mock('@/app-layer/media/clientMediaFolders', () => ({
   pgValidateUserAssignableMediaFolder: (...a: unknown[]) => validateFolderMock(...a),
   pgIsFolderInClientSubtree: (...a: unknown[]) => isInSubtreeMock(...a),
 }));
 
-vi.mock("@/app-layer/media/mediaFoldersRepo", () => ({
+vi.mock('@/app-layer/media/mediaFoldersRepo', () => ({
   pgFolderExists: (...a: unknown[]) => folderExistsMock(...a),
 }));
 
-import { DELETE, GET, PATCH } from "./route";
+import { DELETE, GET, PATCH } from './route';
 
-const mediaId = "11111111-1111-4111-8111-111111111111";
+const mediaId = '11111111-1111-4111-8111-111111111111';
 
-describe("GET /api/admin/media/[id]", () => {
+describe('GET /api/admin/media/[id]', () => {
   beforeEach(() => {
     getSessionMock.mockReset();
     getByIdMock.mockReset();
     requireDoctorWorkspaceApiContextMock.mockImplementation(async () => {
       const session = await getSessionMock();
       if (!session) return { ok: false, response: new Response(null, { status: 401 }) };
-      if (session.user.role === "client") {
+      if (session.user.role === 'client') {
         return { ok: false, response: new Response(null, { status: 403 }) };
       }
       return {
         ok: true,
         ctx: {
-          organizationId: "org-1",
-          session: { ...session, user: { ...session.user, userId: session.user.userId ?? "u1" } },
+          organizationId: 'org-1',
+          session: { ...session, user: { ...session.user, userId: session.user.userId ?? 'u1' } },
         },
       };
     });
   });
 
-  it("returns 401 without session", async () => {
+  it('returns 401 without session', async () => {
     getSessionMock.mockResolvedValue(null);
     const res = await GET(new Request(`http://localhost/api/admin/media/${mediaId}`), {
       params: Promise.resolve({ id: mediaId }),
@@ -115,16 +117,16 @@ describe("GET /api/admin/media/[id]", () => {
     expect(res.status).toBe(401);
   });
 
-  it("returns 403 for client role", async () => {
-    getSessionMock.mockResolvedValue({ user: { role: "client" } });
+  it('returns 403 for client role', async () => {
+    getSessionMock.mockResolvedValue({ user: { role: 'client' } });
     const res = await GET(new Request(`http://localhost/api/admin/media/${mediaId}`), {
       params: Promise.resolve({ id: mediaId }),
     });
     expect(res.status).toBe(403);
   });
 
-  it("returns 404 when media is missing", async () => {
-    getSessionMock.mockResolvedValue({ user: { role: "doctor" } });
+  it('returns 404 when media is missing', async () => {
+    getSessionMock.mockResolvedValue({ user: { role: 'doctor' } });
     getByIdMock.mockResolvedValue(null);
     const res = await GET(new Request(`http://localhost/api/admin/media/${mediaId}`), {
       params: Promise.resolve({ id: mediaId }),
@@ -132,16 +134,16 @@ describe("GET /api/admin/media/[id]", () => {
     expect(res.status).toBe(404);
   });
 
-  it("returns row json for doctor", async () => {
-    getSessionMock.mockResolvedValue({ user: { role: "doctor" } });
+  it('returns row json for doctor', async () => {
+    getSessionMock.mockResolvedValue({ user: { role: 'doctor' } });
     getByIdMock.mockResolvedValue({
       id: mediaId,
-      kind: "image",
-      mimeType: "image/png",
-      filename: "a.png",
+      kind: 'image',
+      mimeType: 'image/png',
+      filename: 'a.png',
       size: 12,
-      createdAt: "2026-01-01T00:00:00.000Z",
-      previewStatus: "ready",
+      createdAt: '2026-01-01T00:00:00.000Z',
+      previewStatus: 'ready',
       previewSmUrl: `/api/media/${mediaId}/preview/sm`,
       previewMdUrl: `/api/media/${mediaId}/preview/md`,
     });
@@ -156,18 +158,18 @@ describe("GET /api/admin/media/[id]", () => {
   });
 });
 
-describe("DELETE /api/admin/media/[id]", () => {
+describe('DELETE /api/admin/media/[id]', () => {
   beforeEach(() => {
     requireDoctorWorkspaceApiContextMock.mockReset();
     requireDoctorWorkspaceApiContextMock.mockResolvedValue({
       ok: true,
-      ctx: { organizationId: "org-1", session: { user: { userId: "admin-1", role: "admin" } } },
+      ctx: { organizationId: 'org-1', session: { user: { userId: 'admin-1', role: 'admin' } } },
     });
     withDoctorWorkspacePrincipalMock.mockClear();
     withDoctorWorkspacePrincipalMock.mockImplementation(
       (_: unknown, sourceOrFn: string | (() => unknown), maybeFn?: () => unknown) => {
-        const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
-        if (!fn) throw new Error("principal_callback_required");
+        const fn = typeof sourceOrFn === 'function' ? sourceOrFn : maybeFn;
+        if (!fn) throw new Error('principal_callback_required');
         return fn();
       },
     );
@@ -178,10 +180,10 @@ describe("DELETE /api/admin/media/[id]", () => {
     getByIdMock.mockReset();
   });
 
-  it("returns 401 without session", async () => {
+  it('returns 401 without session', async () => {
     requireDoctorWorkspaceApiContextMock.mockResolvedValueOnce({
       ok: false,
-      response: new Response(JSON.stringify({ ok: false, error: "unauthorized" }), { status: 401 }),
+      response: new Response(JSON.stringify({ ok: false, error: 'unauthorized' }), { status: 401 }),
     });
     const res = await DELETE(new Request(`http://localhost/api/admin/media/${mediaId}`), {
       params: Promise.resolve({ id: mediaId }),
@@ -189,10 +191,10 @@ describe("DELETE /api/admin/media/[id]", () => {
     expect(res.status).toBe(401);
   });
 
-  it("returns 401 for client role", async () => {
+  it('returns 401 for client role', async () => {
     requireDoctorWorkspaceApiContextMock.mockResolvedValueOnce({
       ok: false,
-      response: new Response(JSON.stringify({ ok: false, error: "unauthorized" }), { status: 401 }),
+      response: new Response(JSON.stringify({ ok: false, error: 'unauthorized' }), { status: 401 }),
     });
     const res = await DELETE(new Request(`http://localhost/api/admin/media/${mediaId}`), {
       params: Promise.resolve({ id: mediaId }),
@@ -200,24 +202,29 @@ describe("DELETE /api/admin/media/[id]", () => {
     expect(res.status).toBe(401);
   });
 
-  it("returns 409 when media is used and no confirmation", async () => {
-    getSessionMock.mockResolvedValue({ user: { role: "doctor" } });
-    findUsageMock.mockResolvedValue([{ pageId: "p1", pageSlug: "slug-1", field: "image_url" }]);
-    const res = await DELETE(new Request(`http://localhost/api/admin/media/${mediaId}?confirmDelete=true`), {
-      params: Promise.resolve({ id: mediaId }),
-    });
+  it('returns 409 when media is used and no confirmation', async () => {
+    getSessionMock.mockResolvedValue({ user: { role: 'doctor' } });
+    findUsageMock.mockResolvedValue([{ pageId: 'p1', pageSlug: 'slug-1', field: 'image_url' }]);
+    const res = await DELETE(
+      new Request(`http://localhost/api/admin/media/${mediaId}?confirmDelete=true`),
+      {
+        params: Promise.resolve({ id: mediaId }),
+      },
+    );
     expect(res.status).toBe(409);
     expect(deleteHardMock).not.toHaveBeenCalled();
   });
 
-  it("deletes media with confirmation flag", async () => {
-    getSessionMock.mockResolvedValue({ user: { role: "admin" } });
-    findUsageMock.mockResolvedValue([{ pageId: "p1", pageSlug: "slug-1", field: "video_url" }]);
+  it('deletes media with confirmation flag', async () => {
+    getSessionMock.mockResolvedValue({ user: { role: 'admin' } });
+    findUsageMock.mockResolvedValue([{ pageId: 'p1', pageSlug: 'slug-1', field: 'video_url' }]);
     deleteHardMock.mockResolvedValue(true);
     const res = await DELETE(
-      new Request(`http://localhost/api/admin/media/${mediaId}?confirmDelete=true&confirmUsed=true`),
+      new Request(
+        `http://localhost/api/admin/media/${mediaId}?confirmDelete=true&confirmUsed=true`,
+      ),
       {
-      params: Promise.resolve({ id: mediaId }),
+        params: Promise.resolve({ id: mediaId }),
       },
     );
     expect(res.status).toBe(200);
@@ -226,23 +233,25 @@ describe("DELETE /api/admin/media/[id]", () => {
     expect(body.scheduled).toBe(true);
     expect(deleteHardMock).toHaveBeenCalledWith(mediaId);
     expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
-      expect.objectContaining({ organizationId: "org-1" }),
+      expect.objectContaining({ organizationId: 'org-1' }),
       expect.any(Function),
     );
   });
 
-  it("deletes discussion-only media when confirmUsed is set", async () => {
-    getSessionMock.mockResolvedValue({ user: { role: "admin" } });
+  it('deletes discussion-only media when confirmUsed is set', async () => {
+    getSessionMock.mockResolvedValue({ user: { role: 'admin' } });
     findUsageMock.mockResolvedValue([
       {
-        pageId: "m1",
-        pageSlug: "program_item_discussion:stage-1",
-        field: "program_item_discussion_media_only",
+        pageId: 'm1',
+        pageSlug: 'program_item_discussion:stage-1',
+        field: 'program_item_discussion_media_only',
       },
     ]);
     deleteHardMock.mockResolvedValue(true);
     const res = await DELETE(
-      new Request(`http://localhost/api/admin/media/${mediaId}?confirmDelete=true&confirmUsed=true`),
+      new Request(
+        `http://localhost/api/admin/media/${mediaId}?confirmDelete=true&confirmUsed=true`,
+      ),
       {
         params: Promise.resolve({ id: mediaId }),
       },
@@ -251,18 +260,21 @@ describe("DELETE /api/admin/media/[id]", () => {
     expect(deleteHardMock).toHaveBeenCalledWith(mediaId);
   });
 
-  it("returns 404 if media already removed", async () => {
-    getSessionMock.mockResolvedValue({ user: { role: "admin" } });
+  it('returns 404 if media already removed', async () => {
+    getSessionMock.mockResolvedValue({ user: { role: 'admin' } });
     findUsageMock.mockResolvedValue([]);
     deleteHardMock.mockResolvedValue(false);
-    const res = await DELETE(new Request(`http://localhost/api/admin/media/${mediaId}?confirmDelete=true`), {
-      params: Promise.resolve({ id: mediaId }),
-    });
+    const res = await DELETE(
+      new Request(`http://localhost/api/admin/media/${mediaId}?confirmDelete=true`),
+      {
+        params: Promise.resolve({ id: mediaId }),
+      },
+    );
     expect(res.status).toBe(404);
   });
 
-  it("returns 409 when confirmDelete is missing", async () => {
-    getSessionMock.mockResolvedValue({ user: { role: "admin" } });
+  it('returns 409 when confirmDelete is missing', async () => {
+    getSessionMock.mockResolvedValue({ user: { role: 'admin' } });
     const res = await DELETE(new Request(`http://localhost/api/admin/media/${mediaId}`), {
       params: Promise.resolve({ id: mediaId }),
     });
@@ -271,14 +283,14 @@ describe("DELETE /api/admin/media/[id]", () => {
     expect(deleteHardMock).not.toHaveBeenCalled();
   });
 
-  it("renames media display name", async () => {
-    getSessionMock.mockResolvedValue({ user: { role: "admin" } });
+  it('renames media display name', async () => {
+    getSessionMock.mockResolvedValue({ user: { role: 'admin' } });
     updateDisplayNameMock.mockResolvedValue(true);
     const res = await PATCH(
       new Request(`http://localhost/api/admin/media/${mediaId}`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ displayName: "Видео для библиотеки" }),
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ displayName: 'Видео для библиотеки' }),
       }),
       {
         params: Promise.resolve({ id: mediaId }),
@@ -287,18 +299,18 @@ describe("DELETE /api/admin/media/[id]", () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as { ok: boolean; displayName: string };
     expect(body.ok).toBe(true);
-    expect(body.displayName).toBe("Видео для библиотеки");
-    expect(updateDisplayNameMock).toHaveBeenCalledWith(mediaId, "Видео для библиотеки");
+    expect(body.displayName).toBe('Видео для библиотеки');
+    expect(updateDisplayNameMock).toHaveBeenCalledWith(mediaId, 'Видео для библиотеки');
   });
 
-  it("clears display name when empty string provided", async () => {
-    getSessionMock.mockResolvedValue({ user: { role: "doctor" } });
+  it('clears display name when empty string provided', async () => {
+    getSessionMock.mockResolvedValue({ user: { role: 'doctor' } });
     updateDisplayNameMock.mockResolvedValue(true);
     const res = await PATCH(
       new Request(`http://localhost/api/admin/media/${mediaId}`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ displayName: "   " }),
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ displayName: '   ' }),
       }),
       {
         params: Promise.resolve({ id: mediaId }),
@@ -308,13 +320,13 @@ describe("DELETE /api/admin/media/[id]", () => {
     expect(updateDisplayNameMock).toHaveBeenCalledWith(mediaId, null);
   });
 
-  it("clears display name when null provided", async () => {
-    getSessionMock.mockResolvedValue({ user: { role: "doctor" } });
+  it('clears display name when null provided', async () => {
+    getSessionMock.mockResolvedValue({ user: { role: 'doctor' } });
     updateDisplayNameMock.mockResolvedValue(true);
     const res = await PATCH(
       new Request(`http://localhost/api/admin/media/${mediaId}`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ displayName: null }),
       }),
       {
@@ -326,22 +338,22 @@ describe("DELETE /api/admin/media/[id]", () => {
   });
 });
 
-const patientFolderId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
-const standardFolderId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
-const anotherPatientFolderId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+const patientFolderId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const standardFolderId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+const anotherPatientFolderId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 
-describe("PATCH /api/admin/media/[id] — ST-07 move-out gate", () => {
+describe('PATCH /api/admin/media/[id] — ST-07 move-out gate', () => {
   beforeEach(() => {
     requireDoctorWorkspaceApiContextMock.mockReset();
     requireDoctorWorkspaceApiContextMock.mockResolvedValue({
       ok: true,
-      ctx: { organizationId: "org-1", session: { user: { userId: "doc-1", role: "doctor" } } },
+      ctx: { organizationId: 'org-1', session: { user: { userId: 'doc-1', role: 'doctor' } } },
     });
     withDoctorWorkspacePrincipalMock.mockClear();
     withDoctorWorkspacePrincipalMock.mockImplementation(
       (_: unknown, sourceOrFn: string | (() => unknown), maybeFn?: () => unknown) => {
-        const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
-        if (!fn) throw new Error("principal_callback_required");
+        const fn = typeof sourceOrFn === 'function' ? sourceOrFn : maybeFn;
+        if (!fn) throw new Error('principal_callback_required');
         return fn();
       },
     );
@@ -352,13 +364,13 @@ describe("PATCH /api/admin/media/[id] — ST-07 move-out gate", () => {
     folderExistsMock.mockReset();
     isInSubtreeMock.mockReset();
 
-    getSessionMock.mockResolvedValue({ user: { role: "doctor" } });
+    getSessionMock.mockResolvedValue({ user: { role: 'doctor' } });
     validateFolderMock.mockResolvedValue({ ok: true });
     folderExistsMock.mockResolvedValue(true);
     updateMediaFolderMock.mockResolvedValue(true);
   });
 
-  it("returns 409 patient_folder_move_out when moving from client_patient folder to standard folder", async () => {
+  it('returns 409 patient_folder_move_out when moving from client_patient folder to standard folder', async () => {
     // File lives in a patient subtree folder
     getByIdMock.mockResolvedValue({ id: mediaId, folderId: patientFolderId });
     // Source folder is in subtree, target is not
@@ -370,8 +382,8 @@ describe("PATCH /api/admin/media/[id] — ST-07 move-out gate", () => {
 
     const res = await PATCH(
       new Request(`http://localhost/api/admin/media/${mediaId}`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ folderId: standardFolderId }),
       }),
       { params: Promise.resolve({ id: mediaId }) },
@@ -379,11 +391,11 @@ describe("PATCH /api/admin/media/[id] — ST-07 move-out gate", () => {
 
     expect(res.status).toBe(409);
     const body = (await res.json()) as { ok: boolean; error: string };
-    expect(body.error).toBe("patient_folder_move_out");
+    expect(body.error).toBe('patient_folder_move_out');
     expect(updateMediaFolderMock).not.toHaveBeenCalled();
   });
 
-  it("allows intra-subtree move from one client_patient folder to another", async () => {
+  it('allows intra-subtree move from one client_patient folder to another', async () => {
     // File lives in a patient subtree folder
     getByIdMock.mockResolvedValue({ id: mediaId, folderId: patientFolderId });
     // Both source and target are in the subtree
@@ -391,8 +403,8 @@ describe("PATCH /api/admin/media/[id] — ST-07 move-out gate", () => {
 
     const res = await PATCH(
       new Request(`http://localhost/api/admin/media/${mediaId}`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ folderId: anotherPatientFolderId }),
       }),
       { params: Promise.resolve({ id: mediaId }) },
@@ -401,12 +413,12 @@ describe("PATCH /api/admin/media/[id] — ST-07 move-out gate", () => {
     expect(res.status).toBe(200);
     expect(updateMediaFolderMock).toHaveBeenCalledWith(mediaId, anotherPatientFolderId);
     expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
-      expect.objectContaining({ organizationId: "org-1" }),
+      expect.objectContaining({ organizationId: 'org-1' }),
       expect.any(Function),
     );
   });
 
-  it("does not trigger ST-07 gate when file is in a standard folder", async () => {
+  it('does not trigger ST-07 gate when file is in a standard folder', async () => {
     // File lives in a standard (non-subtree) folder
     getByIdMock.mockResolvedValue({ id: mediaId, folderId: standardFolderId });
     // Source folder is not in subtree → gate must not block
@@ -417,8 +429,8 @@ describe("PATCH /api/admin/media/[id] — ST-07 move-out gate", () => {
 
     const res = await PATCH(
       new Request(`http://localhost/api/admin/media/${mediaId}`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ folderId: anotherPatientFolderId }),
       }),
       { params: Promise.resolve({ id: mediaId }) },
@@ -429,18 +441,18 @@ describe("PATCH /api/admin/media/[id] — ST-07 move-out gate", () => {
   });
 });
 
-describe("PATCH /api/admin/media/[id] — ST-09 displayName rename in patient folder", () => {
+describe('PATCH /api/admin/media/[id] — ST-09 displayName rename in patient folder', () => {
   beforeEach(() => {
     requireDoctorWorkspaceApiContextMock.mockReset();
     requireDoctorWorkspaceApiContextMock.mockResolvedValue({
       ok: true,
-      ctx: { organizationId: "org-1", session: { user: { userId: "doc-1", role: "doctor" } } },
+      ctx: { organizationId: 'org-1', session: { user: { userId: 'doc-1', role: 'doctor' } } },
     });
     withDoctorWorkspacePrincipalMock.mockClear();
     withDoctorWorkspacePrincipalMock.mockImplementation(
       (_: unknown, sourceOrFn: string | (() => unknown), maybeFn?: () => unknown) => {
-        const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
-        if (!fn) throw new Error("principal_callback_required");
+        const fn = typeof sourceOrFn === 'function' ? sourceOrFn : maybeFn;
+        if (!fn) throw new Error('principal_callback_required');
         return fn();
       },
     );
@@ -449,20 +461,20 @@ describe("PATCH /api/admin/media/[id] — ST-09 displayName rename in patient fo
     updateDisplayNameMock.mockReset();
     isInSubtreeMock.mockReset();
 
-    getSessionMock.mockResolvedValue({ user: { role: "doctor" } });
+    getSessionMock.mockResolvedValue({ user: { role: 'doctor' } });
     updateDisplayNameMock.mockResolvedValue(true);
   });
 
-  it("renames video in patient folder — returns 200, not blocked by any folder guard", async () => {
+  it('renames video in patient folder — returns 200, not blocked by any folder guard', async () => {
     // File lives in a patient subtree folder (isInSubtree would return true if called)
     // but displayName-only PATCH must never invoke pgIsFolderInClientSubtree
     getByIdMock.mockResolvedValue({ id: mediaId, folderId: patientFolderId });
 
     const res = await PATCH(
       new Request(`http://localhost/api/admin/media/${mediaId}`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ displayName: "Видео ЛФК для плеча" }),
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ displayName: 'Видео ЛФК для плеча' }),
       }),
       { params: Promise.resolve({ id: mediaId }) },
     );
@@ -470,19 +482,19 @@ describe("PATCH /api/admin/media/[id] — ST-09 displayName rename in patient fo
     expect(res.status).toBe(200);
     const body = (await res.json()) as { ok: boolean; displayName: string };
     expect(body.ok).toBe(true);
-    expect(body.displayName).toBe("Видео ЛФК для плеча");
-    expect(updateDisplayNameMock).toHaveBeenCalledWith(mediaId, "Видео ЛФК для плеча");
+    expect(body.displayName).toBe('Видео ЛФК для плеча');
+    expect(updateDisplayNameMock).toHaveBeenCalledWith(mediaId, 'Видео ЛФК для плеча');
     // The move-out guard must NOT have been consulted for a displayName-only change
     expect(isInSubtreeMock).not.toHaveBeenCalled();
   });
 
-  it("rename in patient folder with null clears displayName — not blocked", async () => {
+  it('rename in patient folder with null clears displayName — not blocked', async () => {
     getByIdMock.mockResolvedValue({ id: mediaId, folderId: patientFolderId });
 
     const res = await PATCH(
       new Request(`http://localhost/api/admin/media/${mediaId}`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ displayName: null }),
       }),
       { params: Promise.resolve({ id: mediaId }) },

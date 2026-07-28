@@ -1,10 +1,10 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Button } from "@/shared/ui/patient/primitives/button";
-import { Input } from "@/shared/ui/patient/primitives/input";
-import { cn } from "@/lib/utils";
-import { patientInlineLinkClass, patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Button } from '@/shared/ui/patient/primitives/button';
+import { Input } from '@/shared/ui/patient/primitives/input';
+import { cn } from '@/lib/utils';
+import { patientInlineLinkClass, patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
 
 type PinInputProps = {
   disabled?: boolean;
@@ -19,10 +19,10 @@ type PinInputProps = {
 };
 
 const CELL =
-  "w-12 h-14 rounded-lg border border-[var(--patient-border)] bg-[var(--patient-card-bg)] text-center text-2xl font-bold tabular-nums text-[var(--patient-text-primary)] outline-none transition-colors focus-visible:border-[var(--patient-color-primary)] focus-visible:ring-2 focus-visible:ring-[var(--patient-color-primary)]/50 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-[var(--patient-color-danger)]";
+  'w-12 h-14 rounded-lg border border-[var(--patient-border)] bg-[var(--patient-card-bg)] text-center text-2xl font-bold tabular-nums text-[var(--patient-text-primary)] outline-none transition-colors focus-visible:border-[var(--patient-color-primary)] focus-visible:ring-2 focus-visible:ring-[var(--patient-color-primary)]/50 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-[var(--patient-color-danger)]';
 
 function digitsOnly(s: string): string {
-  return s.replace(/\D/g, "");
+  return s.replace(/\D/g, '');
 }
 
 /** Ввод PIN (ровно 4 цифры), без хранения в sessionStorage. */
@@ -32,16 +32,16 @@ export function PinInput({
   onForgot,
   forgotLabel,
   forgotHidden = false,
-  submitLabel = "Войти",
+  submitLabel = 'Войти',
 }: PinInputProps) {
-  const [digits, setDigits] = useState(["", "", "", ""]);
+  const [digits, setDigits] = useState(['', '', '', '']);
   const [error, setError] = useState<string | null>(null);
   const inputsRef = useRef<(HTMLInputElement | null)[]>([]);
   /** Последний PIN, для которого уже вызван auto-submit (сбрасывается при правке). */
   const autoSubmittedForRef = useRef<string | null>(null);
   const submitInFlightRef = useRef(false);
 
-  const pin = digits.join("");
+  const pin = digits.join('');
 
   const focusAt = useCallback((index: number) => {
     const el = inputsRef.current[index];
@@ -63,7 +63,7 @@ export function PinInput({
   );
 
   /** Only reset auto-submit tracking when the digit string changes — not when `disabled` toggles (avoids triple-submit on loading). */
-  const prevPinRef = useRef<string>("");
+  const prevPinRef = useRef<string>('');
   useEffect(() => {
     if (prevPinRef.current !== pin) {
       prevPinRef.current = pin;
@@ -89,7 +89,7 @@ export function PinInput({
   };
 
   const handleKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Backspace") {
+    if (e.key === 'Backspace') {
       if (digits[index]) {
         return;
       }
@@ -97,17 +97,17 @@ export function PinInput({
       if (index > 0) {
         setDigits((prev) => {
           const next = [...prev] as [string, string, string, string];
-          next[index - 1] = "";
+          next[index - 1] = '';
           return next;
         });
         focusAt(index - 1);
       }
     }
-    if (e.key === "ArrowLeft" && index > 0) {
+    if (e.key === 'ArrowLeft' && index > 0) {
       e.preventDefault();
       focusAt(index - 1);
     }
-    if (e.key === "ArrowRight" && index < 3) {
+    if (e.key === 'ArrowRight' && index < 3) {
       e.preventDefault();
       focusAt(index + 1);
     }
@@ -117,11 +117,11 @@ export function PinInput({
   const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
     e.preventDefault();
     setError(null);
-    const chunk = digitsOnly(e.clipboardData.getData("text")).slice(0, 4);
+    const chunk = digitsOnly(e.clipboardData.getData('text')).slice(0, 4);
     if (!chunk) return;
-    const next: [string, string, string, string] = ["", "", "", ""];
+    const next: [string, string, string, string] = ['', '', '', ''];
     for (let i = 0; i < 4; i += 1) {
-      next[i] = chunk[i] ?? "";
+      next[i] = chunk[i] ?? '';
     }
     setDigits(next);
     queueMicrotask(() => focusAt(chunk.length >= 4 ? 3 : Math.max(0, chunk.length - 1)));
@@ -130,7 +130,7 @@ export function PinInput({
   const handleManualSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!/^\d{4}$/.test(pin)) {
-      setError("Введите 4 цифры");
+      setError('Введите 4 цифры');
       return;
     }
     runSubmit(pin);
@@ -138,23 +138,32 @@ export function PinInput({
 
   return (
     <form
-      className={cn("mx-auto flex w-full max-w-sm flex-col items-center gap-3")}
+      className={cn('mx-auto flex w-full max-w-sm flex-col items-center gap-3')}
       onSubmit={handleManualSubmit}
     >
-      <span className={cn(patientMutedTextClass, "text-center text-xs font-medium uppercase tracking-wide")}>
+      <span
+        className={cn(
+          patientMutedTextClass,
+          'text-center text-xs font-medium uppercase tracking-wide',
+        )}
+      >
         PIN-код
       </span>
-      <div className="flex w-full flex-row justify-center gap-3" role="group" aria-label="PIN-код из 4 цифр">
+      <div
+        className="flex w-full flex-row justify-center gap-3"
+        role="group"
+        aria-label="PIN-код из 4 цифр"
+      >
         {digits.map((value, i) => (
           <Input
             key={`pin-slot-${i}`}
             ref={(el) => {
               inputsRef.current[i] = el as HTMLInputElement | null;
             }}
-            id={i === 0 ? "auth-pin-field" : undefined}
+            id={i === 0 ? 'auth-pin-field' : undefined}
             type="text"
             inputMode="numeric"
-            autoComplete={i === 0 ? "one-time-code" : "off"}
+            autoComplete={i === 0 ? 'one-time-code' : 'off'}
             maxLength={1}
             value={value}
             disabled={disabled}
@@ -168,18 +177,28 @@ export function PinInput({
           />
         ))}
       </div>
-      {error ? <p className="text-center text-sm text-[var(--patient-color-danger)]">{error}</p> : null}
-      <Button type="submit" disabled={disabled} aria-label={submitLabel} className="w-full max-w-sm">
-        {disabled ? "Проверка…" : submitLabel}
+      {error ? (
+        <p className="text-center text-sm text-[var(--patient-color-danger)]">{error}</p>
+      ) : null}
+      <Button
+        type="submit"
+        disabled={disabled}
+        aria-label={submitLabel}
+        className="w-full max-w-sm"
+      >
+        {disabled ? 'Проверка…' : submitLabel}
       </Button>
       {!forgotHidden ? (
         <Button
           type="button"
           variant="link"
-          className={cn(patientInlineLinkClass, "h-auto min-h-0 px-0 py-0 text-center text-sm font-normal")}
+          className={cn(
+            patientInlineLinkClass,
+            'h-auto min-h-0 px-0 py-0 text-center text-sm font-normal',
+          )}
           onClick={onForgot}
         >
-          {forgotLabel ?? "Не помню PIN"}
+          {forgotLabel ?? 'Не помню PIN'}
         </Button>
       ) : null}
     </form>

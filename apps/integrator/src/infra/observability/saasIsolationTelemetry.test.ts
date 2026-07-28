@@ -56,13 +56,21 @@ describe('SaaS isolation telemetry transport', () => {
 
     await expect(reporter.probeWriter()).resolves.toBe(false);
     expect(reporter.inspectTransportStatus()).toMatchObject({
-      state: 'degraded', probeAttempts: 1, probeFailures: 1, transportFailures: 1, circuitOpen: true,
+      state: 'degraded',
+      probeAttempts: 1,
+      probeFailures: 1,
+      transportFailures: 1,
+      circuitOpen: true,
     });
 
     probeFails = false;
     await expect(reporter.probeWriter()).resolves.toBe(true);
     expect(reporter.inspectTransportStatus()).toMatchObject({
-      state: 'ready', probeAttempts: 2, probeFailures: 1, transportFailures: 1, circuitOpen: false,
+      state: 'ready',
+      probeAttempts: 2,
+      probeFailures: 1,
+      transportFailures: 1,
+      circuitOpen: false,
     });
     expect(JSON.stringify(statuses)).not.toContain('credential material');
   });
@@ -76,10 +84,16 @@ describe('SaaS isolation telemetry transport', () => {
 
     expect(query.mock.calls).toEqual([
       ['BEGIN'],
-      ['SELECT app.report_saas_isolation_event($1, $2, $3, $4)', [
-        // eslint-disable-next-line no-secrets/no-secrets -- closed telemetry enum, not credential material
-        'unclassified_background_operation', 'worker', 'worker_queue_drain', 'explained',
-      ]],
+      [
+        'SELECT app.report_saas_isolation_event($1, $2, $3, $4)',
+        [
+          // eslint-disable-next-line no-secrets/no-secrets -- closed telemetry enum, not credential material
+          'unclassified_background_operation',
+          'worker',
+          'worker_queue_drain',
+          'explained',
+        ],
+      ],
       ['ROLLBACK'],
     ]);
     expect(release).toHaveBeenCalledWith(undefined);
@@ -94,8 +108,9 @@ describe('SaaS isolation telemetry transport', () => {
     });
     const pool = { connect: vi.fn(async () => ({ query, release })) };
 
-    await expect(probeSaasIsolationTelemetryWriter(pool as never, source))
-      .rejects.toThrow('saas_isolation_telemetry_writer_probe_failed');
+    await expect(probeSaasIsolationTelemetryWriter(pool as never, source)).rejects.toThrow(
+      'saas_isolation_telemetry_writer_probe_failed',
+    );
     expect(query.mock.calls.at(-1)).toEqual(['ROLLBACK']);
     expect(release).toHaveBeenCalledWith(rawFailure);
   });
@@ -108,10 +123,13 @@ describe('SaaS isolation telemetry transport', () => {
     });
     const pool = { connect: vi.fn(async () => ({ query, release })) };
 
-    await expect(probeSaasIsolationTelemetryWriter(pool as never, source))
-      .rejects.toThrow('saas_isolation_telemetry_writer_probe_failed');
-    expect(release).toHaveBeenCalledWith(expect.objectContaining({
-      message: 'driver_non_error_failure',
-    }));
+    await expect(probeSaasIsolationTelemetryWriter(pool as never, source)).rejects.toThrow(
+      'saas_isolation_telemetry_writer_probe_failed',
+    );
+    expect(release).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'driver_non_error_failure',
+      }),
+    );
   });
 });

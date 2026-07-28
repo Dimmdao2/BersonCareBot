@@ -1,10 +1,16 @@
 /**
  * Сообщения поддержки для пациента (webapp thread `webapp:platform:{userId}`).
  */
-import type { SupportCommunicationPort, SupportConversationMessageRow } from "@/infra/repos/pgSupportCommunication";
-import { isSupportChatMessage } from "@/shared/lib/supportMessageKinds";
-import { serializeSupportMessage, type SerializedSupportMessage } from "@/modules/messaging/serializeSupportMessage";
-import { logger, serializeError } from "@/infra/logging/logger";
+import type {
+  SupportCommunicationPort,
+  SupportConversationMessageRow,
+} from '@/infra/repos/pgSupportCommunication';
+import { isSupportChatMessage } from '@/shared/lib/supportMessageKinds';
+import {
+  serializeSupportMessage,
+  type SerializedSupportMessage,
+} from '@/modules/messaging/serializeSupportMessage';
+import { logger, serializeError } from '@/infra/logging/logger';
 
 const MAX_LEN = 4000;
 
@@ -17,7 +23,7 @@ export function isSupportConversationReadOnly(conv: {
   status: string;
   closedAt: string | null;
 }): boolean {
-  return conv.status !== "open" || conv.closedAt !== null;
+  return conv.status !== 'open' || conv.closedAt !== null;
 }
 
 export type PatientMessagingServiceOptions = {
@@ -36,7 +42,7 @@ export type PatientMessagingServiceOptions = {
 
 export function createPatientMessagingService(
   port: SupportCommunicationPort,
-  options?: PatientMessagingServiceOptions
+  options?: PatientMessagingServiceOptions,
 ) {
   return {
     /**
@@ -51,9 +57,14 @@ export function createPatientMessagingService(
       readOnly: boolean;
     }> {
       const { id } = await port.ensureWebappConversationForUser(platformUserId);
-      await port.mergeLegacySupportConversationsForPlatformUser?.(platformUserId).catch((err: unknown) => {
-        logger.error({ err: serializeError(err) }, "[patientMessaging] merge legacy conversations error");
-      });
+      await port
+        .mergeLegacySupportConversationsForPlatformUser?.(platformUserId)
+        .catch((err: unknown) => {
+          logger.error(
+            { err: serializeError(err) },
+            '[patientMessaging] merge legacy conversations error',
+          );
+        });
       const [conv, messages] = await Promise.all([
         port.getConversationIfOwnedByUser(id, platformUserId),
         port.listMessagesSince(id, { sinceCreatedAt: null, limit: 100 }),
@@ -69,7 +80,7 @@ export function createPatientMessagingService(
     async pollNew(
       platformUserId: string,
       conversationId: string,
-      sinceCreatedAt: string | null
+      sinceCreatedAt: string | null,
     ): Promise<{ messages: SupportConversationMessageRow[]; readOnly: boolean } | null> {
       const conv = await port.getConversationIfOwnedByUser(conversationId, platformUserId);
       if (!conv) return null;
@@ -83,37 +94,44 @@ export function createPatientMessagingService(
       };
     },
 
-    async sendText(platformUserId: string, conversationId: string, text: string): Promise<
-      | { ok: true; message: SerializedSupportMessage }
-      | { ok: false; error: string }
-    > {
+    async sendText(
+      platformUserId: string,
+      conversationId: string,
+      text: string,
+    ): Promise<{ ok: true; message: SerializedSupportMessage } | { ok: false; error: string }> {
       const conv = await port.getConversationIfOwnedByUser(conversationId, platformUserId);
       // Чужое обращение — единый ответ «нет такого» (OWASP ASVS 5.0 V8.2.2 / CWE-639).
-      if (!conv) return { ok: false, error: "not_found" };
+      if (!conv) return { ok: false, error: 'not_found' };
       // Своё закрытое — существует, видно, читается; отказ честный, а не «не найдено».
       if (isSupportConversationReadOnly(conv)) {
-        return { ok: false, error: "conversation_closed" };
+        return { ok: false, error: 'conversation_closed' };
       }
       if (options?.isUserMessagingBlocked) {
         const blocked = await options.isUserMessagingBlocked(platformUserId);
-        if (blocked) return { ok: false, error: "blocked" };
+        if (blocked) return { ok: false, error: 'blocked' };
       }
       const trimmed = text.trim();
-      if (!trimmed) return { ok: false, error: "empty" };
-      if (trimmed.length > MAX_LEN) return { ok: false, error: "too_long" };
+      if (!trimmed) return { ok: false, error: 'empty' };
+      if (trimmed.length > MAX_LEN) return { ok: false, error: 'too_long' };
       const integratorMessageId = `webapp-msg:${crypto.randomUUID()}`;
       const now = new Date().toISOString();
-      await port.mergeLegacySupportConversationsForPlatformUser?.(platformUserId).catch((err: unknown) => {
-        logger.error({ err: serializeError(err) }, "[patientMessaging] merge legacy conversations error");
-      });
-      const { id: targetConversationId } = await port.ensureWebappConversationForUser(platformUserId);
+      await port
+        .mergeLegacySupportConversationsForPlatformUser?.(platformUserId)
+        .catch((err: unknown) => {
+          logger.error(
+            { err: serializeError(err) },
+            '[patientMessaging] merge legacy conversations error',
+          );
+        });
+      const { id: targetConversationId } =
+        await port.ensureWebappConversationForUser(platformUserId);
 
       const { id: messageId } = await port.appendWebappMessage({
         conversationId: targetConversationId,
         integratorMessageId,
-        senderRole: "user",
+        senderRole: 'user',
         text: trimmed,
-        source: "webapp",
+        source: 'webapp',
         createdAt: now,
       });
 
@@ -122,7 +140,7 @@ export function createPatientMessagingService(
         void (async () => {
           const patientLabel = options.resolvePatientLabel
             ? await options.resolvePatientLabel(platformUserId)
-            : "";
+            : '';
           await options.notifyDoctorOfPatientMessage!({
             organizationId,
             platformUserId,
@@ -131,7 +149,7 @@ export function createPatientMessagingService(
             patientLabel,
           });
         })().catch((err: unknown) => {
-          logger.error({ err: serializeError(err) }, "[patientMessaging] doctor notify error");
+          logger.error({ err: serializeError(err) }, '[patientMessaging] doctor notify error');
         });
       }
 
@@ -140,10 +158,10 @@ export function createPatientMessagingService(
         organizationId: null,
         integratorMessageId,
         conversationId: targetConversationId,
-        senderRole: "user",
-        messageType: "text",
+        senderRole: 'user',
+        messageType: 'text',
         text: trimmed,
-        source: "webapp",
+        source: 'webapp',
         externalChatId: null,
         externalMessageId: null,
         deliveryStatus: null,
@@ -167,9 +185,14 @@ export function createPatientMessagingService(
     },
 
     async unreadCount(platformUserId: string): Promise<number> {
-      await port.mergeLegacySupportConversationsForPlatformUser?.(platformUserId).catch((err: unknown) => {
-        logger.error({ err: serializeError(err) }, "[patientMessaging] merge legacy conversations error");
-      });
+      await port
+        .mergeLegacySupportConversationsForPlatformUser?.(platformUserId)
+        .catch((err: unknown) => {
+          logger.error(
+            { err: serializeError(err) },
+            '[patientMessaging] merge legacy conversations error',
+          );
+        });
       return port.countUnreadForUser(platformUserId);
     },
   };

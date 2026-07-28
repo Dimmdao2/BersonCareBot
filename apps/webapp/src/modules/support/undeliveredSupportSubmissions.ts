@@ -17,13 +17,13 @@
  * `emptyAudience.ts`'s `byTopic`.
  */
 
-export const SUPPORT_UNDELIVERED_JOB_FAMILY = "support" as const;
-export const SUPPORT_UNDELIVERED_JOB_KEY = "support.undelivered_submissions" as const;
+export const SUPPORT_UNDELIVERED_JOB_FAMILY = 'support' as const;
+export const SUPPORT_UNDELIVERED_JOB_KEY = 'support.undelivered_submissions' as const;
 
 export type UndeliveredSupportSubmission = {
   /** ISO timestamp of the submission (not the persistence attempt). */
   at: string;
-  kind: "patient" | "guest";
+  kind: 'patient' | 'guest';
   email: string;
   message: string;
   userId?: string;
@@ -45,27 +45,30 @@ function clip(s: string, max: number): string {
 }
 
 function asNumber(value: unknown): number {
-  const n = typeof value === "number" ? value : Number(value);
+  const n = typeof value === 'number' ? value : Number(value);
   return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0;
 }
 
 function parseOne(entry: unknown): UndeliveredSupportSubmission | null {
-  if (!entry || typeof entry !== "object") return null;
+  if (!entry || typeof entry !== 'object') return null;
   const e = entry as Record<string, unknown>;
-  if (typeof e.at !== "string" || typeof e.email !== "string" || typeof e.message !== "string") return null;
-  const kind = e.kind === "guest" ? "guest" : "patient";
+  if (typeof e.at !== 'string' || typeof e.email !== 'string' || typeof e.message !== 'string')
+    return null;
+  const kind = e.kind === 'guest' ? 'guest' : 'patient';
   return {
     at: e.at,
     kind,
     email: e.email,
     message: e.message,
-    ...(typeof e.userId === "string" && e.userId ? { userId: e.userId } : {}),
-    ...(typeof e.fromPath === "string" && e.fromPath ? { fromPath: e.fromPath } : {}),
+    ...(typeof e.userId === 'string' && e.userId ? { userId: e.userId } : {}),
+    ...(typeof e.fromPath === 'string' && e.fromPath ? { fromPath: e.fromPath } : {}),
   };
 }
 
-export function parseUndeliveredSupportSubmissionsMeta(meta: unknown): UndeliveredSupportSubmissionsMeta {
-  if (!meta || typeof meta !== "object" || Array.isArray(meta)) return { items: [], total: 0 };
+export function parseUndeliveredSupportSubmissionsMeta(
+  meta: unknown,
+): UndeliveredSupportSubmissionsMeta {
+  if (!meta || typeof meta !== 'object' || Array.isArray(meta)) return { items: [], total: 0 };
   const m = meta as Record<string, unknown>;
   const rawItems = Array.isArray(m.items) ? m.items : [];
   const items = rawItems.map(parseOne).filter((x): x is UndeliveredSupportSubmission => x !== null);

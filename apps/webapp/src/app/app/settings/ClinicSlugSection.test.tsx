@@ -1,68 +1,65 @@
 /** @vitest-environment jsdom */
 
-import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
-import { ClinicSlugSection, clinicSlugErrorMessage } from "./ClinicSlugSection";
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { describe, expect, it } from 'vitest';
+import { ClinicSlugSection, clinicSlugErrorMessage } from './ClinicSlugSection';
 
-describe("clinicSlugErrorMessage", () => {
-  it("keeps taken, invalid-character, and too-short failures distinct and actionable", () => {
-    expect(clinicSlugErrorMessage("slug_unavailable")).toBe(
-      "Этот адрес уже занят. Выберите другой.",
+describe('clinicSlugErrorMessage', () => {
+  it('keeps taken, invalid-character, and too-short failures distinct and actionable', () => {
+    expect(clinicSlugErrorMessage('slug_unavailable')).toBe(
+      'Этот адрес уже занят. Выберите другой.',
     );
-    expect(clinicSlugErrorMessage("slug_invalid_characters")).toBe(
-      "Используйте только латинские буквы, цифры и дефисы.",
+    expect(clinicSlugErrorMessage('slug_invalid_characters')).toBe(
+      'Используйте только латинские буквы, цифры и дефисы.',
     );
-    expect(clinicSlugErrorMessage("slug_too_short")).toBe(
-      "Адрес должен содержать минимум 3 символа.",
+    expect(clinicSlugErrorMessage('slug_too_short')).toBe(
+      'Адрес должен содержать минимум 3 символа.',
     );
   });
 
-  it("shows the full canonical public URL and an explicit copy affordance", () => {
+  it('shows the full canonical public URL and an explicit copy affordance', () => {
     render(
       <ClinicSlugSection
-        initialState={{ currentSlug: "clinic-a" }}
+        initialState={{ currentSlug: 'clinic-a' }}
         appBaseUrl="https://app.example/"
       />,
     );
 
-    expect(screen.getByRole("link", { name: "https://app.example/book/clinic-a" })).toHaveAttribute(
-      "href",
-      "https://app.example/book/clinic-a",
+    expect(screen.getByRole('link', { name: 'https://app.example/book/clinic-a' })).toHaveAttribute(
+      'href',
+      'https://app.example/book/clinic-a',
     );
-    expect(screen.getByRole("button", { name: "Скопировать" })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Скопировать' })).toBeEnabled();
   });
 
-  it("states the slug policy before rename confirmation: never to another clinic, reclaimable by this one", async () => {
+  it('states the slug policy before rename confirmation: never to another clinic, reclaimable by this one', async () => {
     const user = userEvent.setup();
     render(
       <ClinicSlugSection
-        initialState={{ currentSlug: "clinic-a" }}
+        initialState={{ currentSlug: 'clinic-a' }}
         appBaseUrl="https://app.example"
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "Изменить адрес" }));
+    await user.click(screen.getByRole('button', { name: 'Изменить адрес' }));
 
     expect(
       screen.getByText(
-        "Старый адрес продолжит работать и навсегда останется за вашей клиникой — другой клинике он не достанется никогда. При желании вы сможете вернуть его себе.",
+        'Старый адрес продолжит работать и навсегда останется за вашей клиникой — другой клинике он не достанется никогда. При желании вы сможете вернуть его себе.',
       ),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Переименовать" })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Переименовать' })).toBeDisabled();
   });
 
-  it("lowercases the clinic slug while it is entered", async () => {
+  it('lowercases the clinic slug while it is entered', async () => {
     const user = userEvent.setup();
     render(
-      <ClinicSlugSection
-        initialState={{ currentSlug: null }}
-        appBaseUrl="https://app.example"
-      />,
+      <ClinicSlugSection initialState={{ currentSlug: null }} appBaseUrl="https://app.example" />,
     );
 
     const slug = screen.getByLabelText(/Slug клиники/);
-    await user.type(slug, "Clinic-Upper");
-    expect(slug).toHaveValue("clinic-upper");
+    await user.type(slug, 'Clinic-Upper');
+    expect(slug).toHaveValue('clinic-upper');
   });
 });

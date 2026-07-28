@@ -48,15 +48,15 @@
 
 ## Тесты
 
-| Файл | Назначение |
-|------|------------|
-| `apps/webapp/src/infra/repos/pgContentSections.test.ts` | In-memory порт |
-| `apps/webapp/src/app/app/doctor/content/sections/actions.test.ts` | `saveContentSection` |
-| `apps/webapp/src/app/app/doctor/content/actions.test.ts` | раздел из БД, `image_url`, unknown section |
-| `apps/webapp/src/app/app/doctor/content/ContentForm.test.tsx` | `sections` prop, `image_url` input |
-| `apps/webapp/src/modules/menu/service.test.ts` | динамические пункты меню |
-| `apps/webapp/src/shared/ui/doctorScreenTitles.test.ts` | заголовки экранов разделов |
-| `apps/webapp/src/app-layer/di/buildAppDeps.test.ts` | наличие `contentSections` |
+| Файл                                                              | Назначение                                 |
+| ----------------------------------------------------------------- | ------------------------------------------ |
+| `apps/webapp/src/infra/repos/pgContentSections.test.ts`           | In-memory порт                             |
+| `apps/webapp/src/app/app/doctor/content/sections/actions.test.ts` | `saveContentSection`                       |
+| `apps/webapp/src/app/app/doctor/content/actions.test.ts`          | раздел из БД, `image_url`, unknown section |
+| `apps/webapp/src/app/app/doctor/content/ContentForm.test.tsx`     | `sections` prop, `image_url` input         |
+| `apps/webapp/src/modules/menu/service.test.ts`                    | динамические пункты меню                   |
+| `apps/webapp/src/shared/ui/doctorScreenTitles.test.ts`            | заголовки экранов разделов                 |
+| `apps/webapp/src/app-layer/di/buildAppDeps.test.ts`               | наличие `contentSections`                  |
 
 ## Чеклист ручной проверки
 

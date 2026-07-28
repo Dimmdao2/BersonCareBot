@@ -1,6 +1,10 @@
 import { createHash } from 'node:crypto';
 import { sql } from 'drizzle-orm';
-import type { MessengerBindAuditCandidateSummary, MessengerBindAuditInitiatorSummary, MessengerPhoneBindDb } from '@bersoncare/platform-merge';
+import type {
+  MessengerBindAuditCandidateSummary,
+  MessengerBindAuditInitiatorSummary,
+  MessengerPhoneBindDb,
+} from '@bersoncare/platform-merge';
 import {
   buildMessengerBindBlockedRelayLines,
   enrichMessengerBindAuditDetailsFields,
@@ -61,8 +65,12 @@ export async function recordMessengerPhoneBindBlocked(input: {
     enrichedFields = await enrichMessengerBindAuditDetailsFields(input.db as MessengerPhoneBindDb, {
       reason: input.reason,
       candidateIds,
-      ...(typeof input.details.channelCode === 'string' ? { channelCode: input.details.channelCode } : {}),
-      ...(typeof input.details.externalId === 'string' ? { externalId: input.details.externalId } : {}),
+      ...(typeof input.details.channelCode === 'string'
+        ? { channelCode: input.details.channelCode }
+        : {}),
+      ...(typeof input.details.externalId === 'string'
+        ? { externalId: input.details.externalId }
+        : {}),
     });
   } catch (err) {
     logger.warn({ err, reason: input.reason }, 'recordMessengerPhoneBindBlocked: enrich failed');
@@ -142,38 +150,57 @@ export async function recordMessengerPhoneBindBlocked(input: {
       }
     });
   } catch (err) {
-    logger.error({ err, reason: input.reason }, 'recordMessengerPhoneBindBlocked: audit insert failed');
+    logger.error(
+      { err, reason: input.reason },
+      'recordMessengerPhoneBindBlocked: audit insert failed',
+    );
     return;
   }
 
   if (!insertedFirst) return;
 
-  const topic: MessengerPhoneBindIncidentTopic = conflictKey ? 'messenger_phone_bind_blocked' : 'messenger_phone_bind_anomaly';
+  const topic: MessengerPhoneBindIncidentTopic = conflictKey
+    ? 'messenger_phone_bind_blocked'
+    : 'messenger_phone_bind_anomaly';
   let relayLines: string[];
   try {
     const appBaseUrl = await getAppBaseUrl(input.db);
     relayLines = buildMessengerBindBlockedRelayLines({
-      variantLabel: conflictKey ? 'integrator · user.phone.link' : 'integrator · user.phone.link (аномалия)',
+      variantLabel: conflictKey
+        ? 'integrator · user.phone.link'
+        : 'integrator · user.phone.link (аномалия)',
       machineReason: input.reason,
       reasonHumanRu: enrichedFields.reasonHumanRu,
       appBaseUrl,
       candidates: enrichedFields.candidates,
       initiator: enrichedFields.initiator,
-      ...(typeof input.details.channelCode === 'string' ? { channelCode: input.details.channelCode } : {}),
-      ...(typeof input.details.externalId === 'string' ? { externalId: input.details.externalId } : {}),
-      ...(typeof input.details.phoneSuffix === 'string' ? { phoneSuffix: input.details.phoneSuffix } : {}),
-      ...(typeof input.details.correlationId === 'string' ? { correlationId: input.details.correlationId } : {}),
+      ...(typeof input.details.channelCode === 'string'
+        ? { channelCode: input.details.channelCode }
+        : {}),
+      ...(typeof input.details.externalId === 'string'
+        ? { externalId: input.details.externalId }
+        : {}),
+      ...(typeof input.details.phoneSuffix === 'string'
+        ? { phoneSuffix: input.details.phoneSuffix }
+        : {}),
+      ...(typeof input.details.correlationId === 'string'
+        ? { correlationId: input.details.correlationId }
+        : {}),
       source: String(baseDetails.source ?? ''),
     });
   } catch (err) {
     logger.warn({ err, topic }, 'recordMessengerPhoneBindBlocked: relay line build failed');
     relayLines = [
-      conflictKey ? 'messenger_phone_bind_blocked (integrator)' : 'messenger_phone_bind_anomaly (integrator)',
+      conflictKey
+        ? 'messenger_phone_bind_blocked (integrator)'
+        : 'messenger_phone_bind_anomaly (integrator)',
       `reason=${input.reason}`,
       `candidates=${candidateIds.join(', ')}`,
       ...(input.details.channelCode ? [`channel=${String(input.details.channelCode)}`] : []),
       ...(input.details.externalId ? [`externalId=${String(input.details.externalId)}`] : []),
-      ...(input.details.correlationId ? [`correlation=${String(input.details.correlationId)}`] : []),
+      ...(input.details.correlationId
+        ? [`correlation=${String(input.details.correlationId)}`]
+        : []),
     ];
   }
   const dedupKey = messengerPhoneBindDedupKey({

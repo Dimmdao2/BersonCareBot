@@ -79,15 +79,15 @@ pnpm --filter webapp exec vitest run \
 
 **Трек 2.B (B0–B6):** staff manifest, install, иконки — **100%**.
 
-| Артефакт | Статус |
-|----------|--------|
-| [`STAFF_PWA_ADR.md`](STAFF_PWA_ADR.md) | 2.B0 ADR |
-| `public/staff-pwa-icon-*` | LOGO_BERSONADMIN |
+| Артефакт                                             | Статус                                     |
+| ---------------------------------------------------- | ------------------------------------------ |
+| [`STAFF_PWA_ADR.md`](STAFF_PWA_ADR.md)               | 2.B0 ADR                                   |
+| `public/staff-pwa-icon-*`                            | LOGO_BERSONADMIN                           |
 | `staffPwaManifest.ts`, `/manifest-staff.webmanifest` | `start_url: /app/doctor`, `id: /app-staff` |
-| `/app/doctor/install` | `StaffPwaInstallSection` (iOS copy) |
-| `StaffPwaBootstrap` | SW `/sw.js`, scope `/app` |
-| `staffPwaLayoutMetadata` | doctor/settings/admin layouts |
-| [`ACCEPTANCE_WAVE2.md`](ACCEPTANCE_WAVE2.md) | §B signed off |
+| `/app/doctor/install`                                | `StaffPwaInstallSection` (iOS copy)        |
+| `StaffPwaBootstrap`                                  | SW `/sw.js`, scope `/app`                  |
+| `staffPwaLayoutMetadata`                             | doctor/settings/admin layouts              |
+| [`ACCEPTANCE_WAVE2.md`](ACCEPTANCE_WAVE2.md)         | §B signed off                              |
 
 **Проверки:**
 
@@ -106,12 +106,12 @@ Patient `manifest.ts`, gate, SW push — **не в diff**.
 
 **Трек 2.A (A0–A5+):** cross-zone block + toast — **100%**.
 
-| Артефакт | Статус |
-|----------|--------|
-| [`WAVE2_STAFF_PWA.md`](WAVE2_STAFF_PWA.md) | §A + §B done |
-| [`ACCEPTANCE_WAVE2.md`](ACCEPTANCE_WAVE2.md) | §A signed off |
+| Артефакт                                             | Статус            |
+| ---------------------------------------------------- | ----------------- |
+| [`WAVE2_STAFF_PWA.md`](WAVE2_STAFF_PWA.md)           | §A + §B done      |
+| [`ACCEPTANCE_WAVE2.md`](ACCEPTANCE_WAVE2.md)         | §A signed off     |
 | [`INVENTORY_AND_MATRIX.md`](INVENTORY_AND_MATRIX.md) | матрица hub+toast |
-| [`SCOPE_BOUNDARIES.md`](SCOPE_BOUNDARIES.md) | исключения §A |
+| [`SCOPE_BOUNDARIES.md`](SCOPE_BOUNDARIES.md)         | исключения §A     |
 
 **Следующий шаг (на момент записи):** §B Staff PWA — **закрыто** 2026-06-07.
 
@@ -182,7 +182,6 @@ rg "access-denied|AccessDeniedScreen" apps/webapp/src  # нет forbidden-screen
 pnpm --filter webapp exec vitest run e2e/doctor-patient-role-layout-redirects.test.ts
 # 7 tests — green
 ```
-
 
 ## 2026-06-06 — Волна 2 этап 2.A2 (код)
 

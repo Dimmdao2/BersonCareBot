@@ -1,39 +1,39 @@
-import { ADMIN_DELIVERY_DUE_BACKLOG_WARNING } from "./adminHealthThresholds";
-import { classifyIntegratorPushOutboxSystemHealthStatus } from "./integratorPushOutboxHealth";
+import { ADMIN_DELIVERY_DUE_BACKLOG_WARNING } from './adminHealthThresholds';
+import { classifyIntegratorPushOutboxSystemHealthStatus } from './integratorPushOutboxHealth';
 import type {
   IntegratorPushOutboxHealthSnapshot,
   OperatorIncidentOpenRow,
   OutgoingDeliveryQueueHealthSnapshot,
   WebhookBurstRow,
-} from "./ports";
-import { isWebhookBurstCritical, WEBHOOK_BURST_MIN_COUNT } from "./webhookBurst";
-import type { TenantIsolationCriticalHealthSignal } from "./tenantIsolationCriticalHealth";
+} from './ports';
+import { isWebhookBurstCritical, WEBHOOK_BURST_MIN_COUNT } from './webhookBurst';
+import type { TenantIsolationCriticalHealthSignal } from './tenantIsolationCriticalHealth';
 import {
   OLDEST_UNSENT_ALERT_SECONDS,
   formatAgeRu,
   isOldestUnsentOverThreshold,
   type DeliveryEvidence,
-} from "./deliveryEvidence";
-import { formatHeartbeatAge, isHeartbeatFailing, type OperatorHeartbeatVerdict } from "./heartbeat";
-import type { EmptyAudienceSignal } from "@/modules/operator-alerts/emptyAudience";
+} from './deliveryEvidence';
+import { formatHeartbeatAge, isHeartbeatFailing, type OperatorHeartbeatVerdict } from './heartbeat';
+import type { EmptyAudienceSignal } from '@/modules/operator-alerts/emptyAudience';
 import {
   describeOutboundProviderErrorClass,
   isPageOnFirstOccurrenceProviderErrorClass,
-} from "@bersoncare/operator-db-schema";
+} from '@bersoncare/operator-db-schema';
 
-export const OUTBOUND_PROVIDER_FAILURE_DIRECTION = "outbound_delivery_provider";
+export const OUTBOUND_PROVIDER_FAILURE_DIRECTION = 'outbound_delivery_provider';
 export const OUTBOUND_PROVIDER_FAILURE_WINDOW_MINUTES = 15;
 export const OUTBOUND_PROVIDER_FAILURE_MIN_INCIDENTS = 1;
-export const OUTBOUND_PROVIDER_STOP_PREFIX = "🛑 !";
+export const OUTBOUND_PROVIDER_STOP_PREFIX = '🛑 !';
 const OPERATOR_PROBE_FAILURE_ERROR_CLASSES = new Set([
-  "max_probe_failed",
-  "telegram_probe_failed",
-  "google_calendar_probe_failed",
+  'max_probe_failed',
+  'telegram_probe_failed',
+  'google_calendar_probe_failed',
 ]);
 
-export type DbStatus = "up" | "down";
-export type IntegratorApiStatus = "ok" | "unreachable" | "error";
-export type ProjectionProbeStatus = "ok" | "degraded" | "unreachable" | "error";
+export type DbStatus = 'up' | 'down';
+export type IntegratorApiStatus = 'ok' | 'unreachable' | 'error';
+export type ProjectionProbeStatus = 'ok' | 'degraded' | 'unreachable' | 'error';
 
 export type CriticalHealthProjectionInput = {
   probeStatus: ProjectionProbeStatus;
@@ -41,13 +41,13 @@ export type CriticalHealthProjectionInput = {
   retriesOverThreshold: number;
 };
 
-export type VideoTranscodeHealthStatus = "ok" | "degraded" | "error";
+export type VideoTranscodeHealthStatus = 'ok' | 'degraded' | 'error';
 
 export type CriticalHealthSignalsInput = {
   webappDb: DbStatus;
   integratorApi: IntegratorApiStatus;
   projection: CriticalHealthProjectionInput;
-  outgoingDelivery: Pick<OutgoingDeliveryQueueHealthSnapshot, "deadTotal" | "dueBacklog">;
+  outgoingDelivery: Pick<OutgoingDeliveryQueueHealthSnapshot, 'deadTotal' | 'dueBacklog'>;
   outboundDeliveryProvider?: {
     recentIncidentCount: number;
     openIncidentCount?: number;
@@ -89,33 +89,43 @@ export type CriticalAlertCandidate = {
 };
 
 export function isProjectionCritical(p: CriticalHealthProjectionInput): boolean {
-  if (p.probeStatus === "unreachable" || p.probeStatus === "error") return true;
+  if (p.probeStatus === 'unreachable' || p.probeStatus === 'error') return true;
   if (p.deadCount > 0) return true;
   return false;
 }
 
 export function isProjectionBannerWarn(p: CriticalHealthProjectionInput): boolean {
   if (isProjectionCritical(p)) return true;
-  if (p.probeStatus === "degraded" || p.retriesOverThreshold > 0) return true;
+  if (p.probeStatus === 'degraded' || p.retriesOverThreshold > 0) return true;
   return false;
 }
 
 export function classifyOperatorHealthBannerSignals(input: OperatorHealthBannerInput): boolean {
-  if (input.webappDb === "down") return true;
-  if (input.integratorApi !== "ok") return true;
+  if (input.webappDb === 'down') return true;
+  if (input.integratorApi !== 'ok') return true;
   if (isProjectionBannerWarn(input.projection)) return true;
-  if (input.videoTranscodeStatus === "error") return true;
-  if (Object.values(input.backupJobs).some((j) => j.lastStatus === "failure")) return true;
+  if (input.videoTranscodeStatus === 'error') return true;
+  if (Object.values(input.backupJobs).some((j) => j.lastStatus === 'failure')) return true;
   if (input.operatorIncidentsOpenCount > 0) return true;
   if ((input.probeIncidentsOpenCount ?? 0) > 0) return true;
   if ((input.webhookBursts ?? []).some(isWebhookBurstCritical)) return true;
   const od = input.outgoingDelivery;
-  if ((input.outboundDeliveryProvider?.openIncidentCount ?? 0) >= OUTBOUND_PROVIDER_FAILURE_MIN_INCIDENTS) return true;
-  if ((input.outboundDeliveryProvider?.recentIncidentCount ?? 0) >= OUTBOUND_PROVIDER_FAILURE_MIN_INCIDENTS) return true;
+  if (
+    (input.outboundDeliveryProvider?.openIncidentCount ?? 0) >=
+    OUTBOUND_PROVIDER_FAILURE_MIN_INCIDENTS
+  )
+    return true;
+  if (
+    (input.outboundDeliveryProvider?.recentIncidentCount ?? 0) >=
+    OUTBOUND_PROVIDER_FAILURE_MIN_INCIDENTS
+  )
+    return true;
   if (od.deadTotal > 0 || od.dueBacklog >= ADMIN_DELIVERY_DUE_BACKLOG_WARNING) return true;
-  if (classifyIntegratorPushOutboxSystemHealthStatus(input.integratorPushOutbox) !== "ok") return true;
+  if (classifyIntegratorPushOutboxSystemHealthStatus(input.integratorPushOutbox) !== 'ok')
+    return true;
   if (classifyTenantIsolationSignals(input.tenantIsolation).length > 0) return true;
-  if (classifyProviderQuotaSignals(input.outboundDeliveryProvider?.openIncidents).length > 0) return true;
+  if (classifyProviderQuotaSignals(input.outboundDeliveryProvider?.openIncidents).length > 0)
+    return true;
   if (input.deliveryEvidence && isOldestUnsentOverThreshold(input.deliveryEvidence)) return true;
   if ((input.heartbeats ?? []).some(isHeartbeatFailing)) return true;
   if (input.emptyAudience?.active) return true;
@@ -140,13 +150,13 @@ export function classifyProviderQuotaSignals(
     if (seen.has(incident.errorClass)) continue;
     seen.add(incident.errorClass);
     out.push({
-      topic: "outbound_provider_quota",
+      topic: 'outbound_provider_quota',
       dedupKey: `critical:outbound_provider_quota:${incident.integration}:${incident.errorClass}`,
       pushTitle: `${OUTBOUND_PROVIDER_STOP_PREFIX} Провайдер доставки отверг отправку`,
       lines: [
         `${OUTBOUND_PROVIDER_STOP_PREFIX} ${incident.integration}: ${describeOutboundProviderErrorClass(incident.errorClass)}`,
         `Класс: ${incident.errorClass}, срабатываний: ${incident.occurrenceCount}`,
-        "Пейджится с первого раза: 4xx-квота ретраится молча, а 401 неотличим от кончившихся кредитов.",
+        'Пейджится с первого раза: 4xx-квота ретраится молча, а 401 неотличим от кончившихся кредитов.',
       ],
     });
   }
@@ -161,14 +171,14 @@ export function classifyOldestUnsentSignals(
   const age = evidence.oldestUnsentAgeSeconds ?? 0;
   return [
     {
-      topic: "outbound_oldest_unsent",
-      dedupKey: "critical:outbound_oldest_unsent:over_threshold",
-      pushTitle: "Критичный сбой: очередь доставки стоит",
+      topic: 'outbound_oldest_unsent',
+      dedupKey: 'critical:outbound_oldest_unsent:over_threshold',
+      pushTitle: 'Критичный сбой: очередь доставки стоит',
       lines: [
         `Самая старая неотправленная позиция: ${formatAgeRu(age)} (порог ${formatAgeRu(OLDEST_UNSENT_ALERT_SECONDS)})`,
         evidence.lastConfirmedDeliveryAt
           ? `Последняя подтверждённая доставка: ${evidence.lastConfirmedDeliveryAt}`
-          : "Последняя подтверждённая доставка: НИКОГДА",
+          : 'Последняя подтверждённая доставка: НИКОГДА',
       ],
     },
   ];
@@ -179,9 +189,9 @@ export function classifyHeartbeatSignals(
   heartbeats: OperatorHeartbeatVerdict[] | undefined,
 ): CriticalAlertCandidate[] {
   return (heartbeats ?? []).filter(isHeartbeatFailing).map((verdict) => ({
-    topic: "heartbeat_absent",
+    topic: 'heartbeat_absent',
     dedupKey: `critical:heartbeat_absent:${verdict.name}:${verdict.status}`,
-    pushTitle: "Критичный сбой: пропал пульс",
+    pushTitle: 'Критичный сбой: пропал пульс',
     lines: [
       `${verdict.label}: пульс не приходит`,
       `Последний пульс: ${formatHeartbeatAge(verdict)} (порог ${formatAgeRu(verdict.staleAfterSec)})`,
@@ -196,12 +206,12 @@ export function classifyEmptyAudienceSignals(
   if (!signal?.active) return [];
   return [
     {
-      topic: "notification_audience_empty",
-      dedupKey: "critical:notification_audience_empty:active",
-      pushTitle: "Критичный сбой: уведомлению некому уйти",
+      topic: 'notification_audience_empty',
+      dedupKey: 'critical:notification_audience_empty:active',
+      pushTitle: 'Критичный сбой: уведомлению некому уйти',
       lines: [
         `Уведомления с пустой аудиторией: всего ${signal.total}`,
-        `Последнее место: ${signal.lastTopic ?? "неизвестно"} (${signal.lastAt ?? "—"})`,
+        `Последнее место: ${signal.lastTopic ?? 'неизвестно'} (${signal.lastAt ?? '—'})`,
         ...signal.topTopics.map((t) => `${t.topic}: ${t.count}`),
       ],
     },
@@ -227,9 +237,12 @@ export function countRecentOutboundProviderFailureIncidents(
 }
 
 export function isOperatorProbeFailureIncident(
-  incident: Pick<OperatorIncidentOpenRow, "direction" | "errorClass">,
+  incident: Pick<OperatorIncidentOpenRow, 'direction' | 'errorClass'>,
 ): boolean {
-  return incident.direction === "outbound" && OPERATOR_PROBE_FAILURE_ERROR_CLASSES.has(incident.errorClass);
+  return (
+    incident.direction === 'outbound' &&
+    OPERATOR_PROBE_FAILURE_ERROR_CLASSES.has(incident.errorClass)
+  );
 }
 
 function classifyTenantIsolationSignals(
@@ -239,31 +252,31 @@ function classifyTenantIsolationSignals(
   const out: CriticalAlertCandidate[] = [];
   if (input.runtime.critical) {
     out.push({
-      topic: "tenant_isolation_runtime",
-      dedupKey: "critical:tenant_isolation:runtime",
-      pushTitle: "Критичный сбой: изоляция организаций",
+      topic: 'tenant_isolation_runtime',
+      dedupKey: 'critical:tenant_isolation:runtime',
+      pushTitle: 'Критичный сбой: изоляция организаций',
       lines: [
-        "Изоляция организаций: обнаружено нарушение runtime-контекста",
+        'Изоляция организаций: обнаружено нарушение runtime-контекста',
         `Без принципала: +${input.runtime.missingPrincipalDelta}`,
       ],
     });
   }
-  if (input.diagnostics.status === "critical" || input.diagnostics.status === "unavailable") {
+  if (input.diagnostics.status === 'critical' || input.diagnostics.status === 'unavailable') {
     out.push({
-      topic: "tenant_isolation_diagnostics",
+      topic: 'tenant_isolation_diagnostics',
       dedupKey: `critical:tenant_isolation:diagnostics:${input.diagnostics.status}`,
-      pushTitle: "Критичный сбой: диагностика изоляции",
+      pushTitle: 'Критичный сбой: диагностика изоляции',
       lines: [
         `Диагностика изоляции: ${input.diagnostics.status}`,
         `Активных необъяснённых событий: ${input.diagnostics.activeUnexplainedEvents}`,
       ],
     });
   }
-  if (input.wentDark.status === "critical" || input.wentDark.status === "unavailable") {
+  if (input.wentDark.status === 'critical' || input.wentDark.status === 'unavailable') {
     out.push({
-      topic: "tenant_isolation_went_dark",
+      topic: 'tenant_isolation_went_dark',
       dedupKey: `critical:tenant_isolation:went_dark:${input.wentDark.status}`,
-      pushTitle: "Критичный сбой: tenant-канарейка",
+      pushTitle: 'Критичный сбой: tenant-канарейка',
       lines: [
         `Tenant-канарейка: ${input.wentDark.status}`,
         `Организаций без ожидаемого сигнала: ${input.wentDark.affectedOrganizations}`,
@@ -273,38 +286,40 @@ function classifyTenantIsolationSignals(
   return out;
 }
 
-export function classifyCriticalHealthSignals(input: CriticalHealthSignalsInput): CriticalAlertCandidate[] {
+export function classifyCriticalHealthSignals(
+  input: CriticalHealthSignalsInput,
+): CriticalAlertCandidate[] {
   const out: CriticalAlertCandidate[] = [];
 
-  if (input.webappDb === "down") {
+  if (input.webappDb === 'down') {
     out.push({
-      topic: "webapp_db",
-      dedupKey: "critical:webapp_db:down",
-      pushTitle: "Критичный сбой: БД webapp",
-      lines: ["БД webapp: недоступна"],
+      topic: 'webapp_db',
+      dedupKey: 'critical:webapp_db:down',
+      pushTitle: 'Критичный сбой: БД webapp',
+      lines: ['БД webapp: недоступна'],
     });
   }
 
-  if (input.integratorApi !== "ok") {
+  if (input.integratorApi !== 'ok') {
     out.push({
-      topic: "integrator_api",
+      topic: 'integrator_api',
       dedupKey: `critical:integrator_api:${input.integratorApi}`,
-      pushTitle: "Критичный сбой: integrator API",
+      pushTitle: 'Критичный сбой: integrator API',
       lines: [`Integrator API: ${input.integratorApi}`],
     });
   }
 
   if (isProjectionCritical(input.projection)) {
     const reason =
-      input.projection.probeStatus === "unreachable" || input.projection.probeStatus === "error"
+      input.projection.probeStatus === 'unreachable' || input.projection.probeStatus === 'error'
         ? input.projection.probeStatus
         : input.projection.deadCount > 0
           ? `dead:${input.projection.deadCount}`
-          : "critical";
+          : 'critical';
     out.push({
-      topic: "projection",
+      topic: 'projection',
       dedupKey: `critical:projection:${reason}`,
-      pushTitle: "Критичный сбой: projection outbox",
+      pushTitle: 'Критичный сбой: projection outbox',
       lines: [
         `Projection: ${input.projection.probeStatus}`,
         ...(input.projection.deadCount > 0 ? [`dead: ${input.projection.deadCount}`] : []),
@@ -323,8 +338,8 @@ export function classifyCriticalHealthSignals(input: CriticalHealthSignalsInput)
     recentProviderIncidents >= OUTBOUND_PROVIDER_FAILURE_MIN_INCIDENTS
   ) {
     out.push({
-      topic: "outbound_delivery_provider",
-      dedupKey: "critical:outbound_delivery_provider:active",
+      topic: 'outbound_delivery_provider',
+      dedupKey: 'critical:outbound_delivery_provider:active',
       pushTitle: `${OUTBOUND_PROVIDER_STOP_PREFIX} Отказ провайдера доставки`,
       lines: [
         `${OUTBOUND_PROVIDER_STOP_PREFIX} Исходящая доставка: отказ провайдера`,
@@ -344,12 +359,12 @@ export function classifyCriticalHealthSignals(input: CriticalHealthSignalsInput)
   }
 
   const ipoStatus = classifyIntegratorPushOutboxSystemHealthStatus(input.integratorPushOutbox);
-  if (ipoStatus === "error") {
+  if (ipoStatus === 'error') {
     const hourKey = new Date().toISOString().slice(0, 13);
     out.push({
-      topic: "integrator_push_outbox",
+      topic: 'integrator_push_outbox',
       dedupKey: `ipo:${hourKey}:error`,
-      pushTitle: "Критичный сбой: очередь синка integrator",
+      pushTitle: 'Критичный сбой: очередь синка integrator',
       lines: [
         `Очередь integrator_push_outbox: ${ipoStatus}`,
         `Ждут (due): ${input.integratorPushOutbox.dueBacklog}, dead: ${input.integratorPushOutbox.deadTotal}`,
@@ -358,11 +373,11 @@ export function classifyCriticalHealthSignals(input: CriticalHealthSignalsInput)
   }
 
   for (const [jobKey, job] of Object.entries(input.backupJobs)) {
-    if (job.lastStatus !== "failure") continue;
+    if (job.lastStatus !== 'failure') continue;
     out.push({
-      topic: "backup",
+      topic: 'backup',
       dedupKey: `critical:backup:${jobKey}:failure`,
-      pushTitle: "Критичный сбой: бэкап",
+      pushTitle: 'Критичный сбой: бэкап',
       lines: [`Бэкап ${jobKey}: последний прогон failure`],
     });
   }
@@ -370,9 +385,9 @@ export function classifyCriticalHealthSignals(input: CriticalHealthSignalsInput)
   const probeIncidentsOpenCount = input.probeIncidentsOpenCount ?? 0;
   if (probeIncidentsOpenCount > 0) {
     out.push({
-      topic: "probe_outbound",
-      dedupKey: "critical:probe_outbound:active",
-      pushTitle: "Критичный сбой: исходящие пробы",
+      topic: 'probe_outbound',
+      dedupKey: 'critical:probe_outbound:active',
+      pushTitle: 'Критичный сбой: исходящие пробы',
       lines: [
         `Синтетические пробы интеграций: ${input.probeConsecutiveFailRuns} подряд неуспешных запусков`,
         `Открытых инцидентов после настроенного порога: ${probeIncidentsOpenCount}`,
@@ -380,21 +395,21 @@ export function classifyCriticalHealthSignals(input: CriticalHealthSignalsInput)
     });
   }
 
-  if (input.videoTranscodeStatus === "error") {
+  if (input.videoTranscodeStatus === 'error') {
     out.push({
-      topic: "video_transcode",
-      dedupKey: "critical:video_transcode:error",
-      pushTitle: "Критичный сбой: транскод HLS",
-      lines: ["Очередь транскода HLS: error"],
+      topic: 'video_transcode',
+      dedupKey: 'critical:video_transcode:error',
+      pushTitle: 'Критичный сбой: транскод HLS',
+      lines: ['Очередь транскода HLS: error'],
     });
   }
 
   for (const burst of input.webhookBursts ?? []) {
     if (!isWebhookBurstCritical(burst)) continue;
     out.push({
-      topic: "webhook_burst",
+      topic: 'webhook_burst',
       dedupKey: `critical:webhook_burst:${burst.source}:${burst.errorClass}`,
-      pushTitle: "Критичный сбой: вебхук",
+      pushTitle: 'Критичный сбой: вебхук',
       lines: [
         `Вебхук ${burst.source}: ${burst.errorClass}`,
         `Ошибок за окно: ${burst.count} (порог ${WEBHOOK_BURST_MIN_COUNT})`,

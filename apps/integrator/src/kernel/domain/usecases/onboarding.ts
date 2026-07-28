@@ -8,6 +8,9 @@ export async function upsertUser(
   return port.upsertUser(from);
 }
 
-export async function tryConsumeStart(channelUserId: number, port: ChannelUserPort): Promise<boolean> {
+export async function tryConsumeStart(
+  channelUserId: number,
+  port: ChannelUserPort,
+): Promise<boolean> {
   return port.tryConsumeStart(channelUserId);
 }

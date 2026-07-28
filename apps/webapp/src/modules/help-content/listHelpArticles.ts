@@ -1,7 +1,7 @@
-import { HELP_SECTION_SLUG } from "@/modules/content-sections/types";
-import type { HelpArticleListItem, HelpArticlesListPort } from "./ports";
+import { HELP_SECTION_SLUG } from '@/modules/content-sections/types';
+import type { HelpArticleListItem, HelpArticlesListPort } from './ports';
 
-export type { HelpArticleListItem } from "./ports";
+export type { HelpArticleListItem } from './ports';
 
 /** Published help pages for patient `/help` (section `help`). */
 export async function listHelpArticlesForPatient(

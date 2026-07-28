@@ -3,7 +3,10 @@ import { describe, expect, it } from 'vitest';
 import type { DbPort, DbQueryResult } from '../../../kernel/contracts/index.js';
 import { DirectPublicWriteError } from './writeIdentityAndPreferencesDirect.js';
 import { DiaryLfkDirectWriteError } from './writeDiaryLfkDirect.js';
-import { ReminderRuleDirectWriteError, upsertReminderRuleDirect } from './writeReminderRulesDirect.js';
+import {
+  ReminderRuleDirectWriteError,
+  upsertReminderRuleDirect,
+} from './writeReminderRulesDirect.js';
 
 type QueryResult = DbQueryResult<Record<string, unknown>>;
 type Router = (sql: string, params: unknown[]) => QueryResult;
@@ -11,9 +14,12 @@ type Router = (sql: string, params: unknown[]) => QueryResult;
 /** Route SQL text → tag for assertions (mock, no real pg). Same idiom as writeDiaryLfkDirect.test.ts. */
 function tagFor(sql: string): string {
   if (/FROM users\s+WHERE id =/.test(sql)) return 'integrator_users:canonical';
-  if (/FROM public\.platform_users/.test(sql) && /integrator_user_id =/.test(sql)) return 'platform_users:candidate_by_int';
-  if (/FROM public\.platform_users/.test(sql) && /phone_normalized =/.test(sql)) return 'platform_users:candidate_by_phone';
-  if (/FROM public\.user_channel_bindings ucb/.test(sql)) return 'platform_users:candidate_by_channel';
+  if (/FROM public\.platform_users/.test(sql) && /integrator_user_id =/.test(sql))
+    return 'platform_users:candidate_by_int';
+  if (/FROM public\.platform_users/.test(sql) && /phone_normalized =/.test(sql))
+    return 'platform_users:candidate_by_phone';
+  if (/FROM public\.user_channel_bindings ucb/.test(sql))
+    return 'platform_users:candidate_by_channel';
   if (/FROM public\.org_enrollments/.test(sql)) return 'org_enrollments:active';
   if (/INSERT INTO public\.reminder_rules/.test(sql)) return 'reminder_rules:upsert';
   return 'other';
@@ -124,7 +130,11 @@ describe('upsertReminderRuleDirect (D5 direct public write)', () => {
 
     expect(state.txCount).toBe(1);
     expect(state.committed).toBe(true);
-    expect(result).toEqual({ platformUserId: PLATFORM_USER_ID, organizationId: ORG_ID, updatedAt: UPDATED_AT });
+    expect(result).toEqual({
+      platformUserId: PLATFORM_USER_ID,
+      organizationId: ORG_ID,
+      updatedAt: UPDATED_AT,
+    });
 
     const insert = state.queries.find((q) => q.tag === 'reminder_rules:upsert');
     expect(insert?.params).toEqual([
@@ -164,7 +174,10 @@ describe('upsertReminderRuleDirect (D5 direct public write)', () => {
 
   it('sets notification_topic_code and marks it provided when the caller explicitly supplies a value', async () => {
     const { db, state } = createDbMock(baseRouter());
-    await upsertReminderRuleDirect(db, { ...baseInput, notificationTopicCode: 'training_reminders' });
+    await upsertReminderRuleDirect(db, {
+      ...baseInput,
+      notificationTopicCode: 'training_reminders',
+    });
     const insert = state.queries.find((q) => q.tag === 'reminder_rules:upsert');
     expect(insert?.params?.slice(-2)).toEqual(['training_reminders', true]);
   });
@@ -219,7 +232,12 @@ describe('upsertReminderRuleDirect (D5 direct public write)', () => {
 
   it('propagates DiaryLfkDirectWriteError(ambiguous_org_enrollment) — routes to durable-outbox fallback — when 2+ active orgs are found (no default-org fallback)', async () => {
     const { db, state } = createDbMock(
-      baseRouter({ 'org_enrollments:active': rows([{ organization_id: 'org-1' }, { organization_id: 'org-2' }]) }),
+      baseRouter({
+        'org_enrollments:active': rows([
+          { organization_id: 'org-1' },
+          { organization_id: 'org-2' },
+        ]),
+      }),
     );
     const err = await upsertReminderRuleDirect(db, baseInput).catch((e) => e);
     expect(err).toBeInstanceOf(DiaryLfkDirectWriteError);

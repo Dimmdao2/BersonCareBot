@@ -23,9 +23,17 @@ export type PatientTerms = {
  *                   Если не передано или `undefined/null`, используется дефолт «пациент».
  */
 export function resolvePatientTerms(singular?: string | null): PatientTerms {
-  const normalized = (singular ?? "пациент").trim().toLowerCase();
-  if (normalized === "клиент") {
-    return { patientPluralLabel: "Клиенты", patientGenPlural: "клиентов", patientSingularLabel: "Клиент" };
+  const normalized = (singular ?? 'пациент').trim().toLowerCase();
+  if (normalized === 'клиент') {
+    return {
+      patientPluralLabel: 'Клиенты',
+      patientGenPlural: 'клиентов',
+      patientSingularLabel: 'Клиент',
+    };
   }
-  return { patientPluralLabel: "Пациенты", patientGenPlural: "пациентов", patientSingularLabel: "Пациент" };
+  return {
+    patientPluralLabel: 'Пациенты',
+    patientGenPlural: 'пациентов',
+    patientSingularLabel: 'Пациент',
+  };
 }

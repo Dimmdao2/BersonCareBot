@@ -1,51 +1,51 @@
-"use client";
+'use client';
 
 /**
  * Composition modal: read-only overview of stage items. Per plan D.2, «Выполнено» / cooldown UX lives on the
  * item page and program tiles (`PatientProgramStageItemPageClient`, `PatientInstanceStageItemCard`), not here.
  */
 
-import Link from "next/link";
-import { useMemo } from "react";
-import { Dumbbell, ScrollText } from "lucide-react";
-import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
+import Link from 'next/link';
+import { useMemo } from 'react';
+import { Dumbbell, ScrollText } from 'lucide-react';
+import type { TreatmentProgramInstanceDetail } from '@/modules/treatment-program/types';
 import {
   formatRelativePatientCalendarDayRu,
   isInstanceStageItemShownInPatientCompositionModal,
   sortDoctorInstanceStageGroupsForDisplay,
-} from "@/modules/treatment-program/stage-semantics";
-import { programActionDoneActivityKey } from "@/modules/treatment-program/programActionActivityKey";
+} from '@/modules/treatment-program/stage-semantics';
+import { programActionDoneActivityKey } from '@/modules/treatment-program/programActionActivityKey';
 import {
   mergeLastActivityDisplayedIso,
   parseSnapshotMediaForRowThumb,
   pickRecommendationRowPreviewMedia,
-} from "@/app/app/patient/treatment/stageItemSnapshot";
-import type { RecommendationMediaItem } from "@/modules/recommendations/types";
-import { PatientCatalogMediaStaticThumb } from "@/shared/ui/patient/PatientCatalogMediaStaticThumb";
-import { routePaths } from "@/app-layer/routes/paths";
-import type { PatientPlanTab } from "@/app/app/patient/treatment/patientPlanTab";
-import { cn } from "@/lib/utils";
+} from '@/app/app/patient/treatment/stageItemSnapshot';
+import type { RecommendationMediaItem } from '@/modules/recommendations/types';
+import { PatientCatalogMediaStaticThumb } from '@/shared/ui/patient/PatientCatalogMediaStaticThumb';
+import { routePaths } from '@/app-layer/routes/paths';
+import type { PatientPlanTab } from '@/app/app/patient/treatment/patientPlanTab';
+import { cn } from '@/lib/utils';
 import {
   patientCompositionCurrentRowChromeClass,
   patientCompositionGroupTitleClass,
   patientCompositionListThumbSlotClass,
   patientSectionTitleClass,
-} from "@/shared/ui/patient/patientVisual";
-import type { PatientProgramItemNavMode } from "@/app/app/patient/treatment/patientProgramItemPageResolve";
-import { sortProgramCompositionItemsByOrderThenId } from "@/app/app/patient/treatment/programCompositionOrder";
+} from '@/shared/ui/patient/patientVisual';
+import type { PatientProgramItemNavMode } from '@/app/app/patient/treatment/patientProgramItemPageResolve';
+import { sortProgramCompositionItemsByOrderThenId } from '@/app/app/patient/treatment/programCompositionOrder';
 
-type InstanceStageRow = TreatmentProgramInstanceDetail["stages"][number];
+type InstanceStageRow = TreatmentProgramInstanceDetail['stages'][number];
 
 const MAX_COMPOSITION_TODAY_DOTS = 24;
 
 function snapshotTitle(snapshot: Record<string, unknown>, itemType: string): string {
   const t = snapshot.title;
-  if (typeof t === "string" && t.trim() !== "") return t;
+  if (typeof t === 'string' && t.trim() !== '') return t;
   return itemType;
 }
 
 function compositionModalTodayDoneCount(params: {
-  parentItem: InstanceStageRow["items"][number];
+  parentItem: InstanceStageRow['items'][number];
   activityKey: string;
   doneTodayCountByActivityKey: Readonly<Record<string, number>>;
   doneTodayCountByItemId: Readonly<Record<string, number>>;
@@ -54,7 +54,7 @@ function compositionModalTodayDoneCount(params: {
   return doneTodayCountByActivityKey[activityKey] ?? doneTodayCountByItemId[parentItem.id] ?? 0;
 }
 
-type CompositionModalEmptyMediaIcon = "exercise" | "recommendation";
+type CompositionModalEmptyMediaIcon = 'exercise' | 'recommendation';
 
 type CompositionModalRow = {
   key: string;
@@ -68,15 +68,17 @@ function compositionModalRowShowsMediaColumn(row: CompositionModalRow): boolean 
   return row.thumbMedia != null || row.emptyMediaSlotKind != null;
 }
 
-function compositionModalRowsForStageItem(item: InstanceStageRow["items"][number]): CompositionModalRow[] {
-  const isExerciseOrRec = item.itemType === "recommendation" || item.itemType === "exercise";
+function compositionModalRowsForStageItem(
+  item: InstanceStageRow['items'][number],
+): CompositionModalRow[] {
+  const isExerciseOrRec = item.itemType === 'recommendation' || item.itemType === 'exercise';
   const thumbMedia = isExerciseOrRec
     ? pickRecommendationRowPreviewMedia(parseSnapshotMediaForRowThumb(item.snapshot))
     : null;
-  const emptyMediaSlotKind: CompositionModalRow["emptyMediaSlotKind"] = isExerciseOrRec
-    ? item.itemType === "exercise"
-      ? "exercise"
-      : "recommendation"
+  const emptyMediaSlotKind: CompositionModalRow['emptyMediaSlotKind'] = isExerciseOrRec
+    ? item.itemType === 'exercise'
+      ? 'exercise'
+      : 'recommendation'
     : null;
 
   return [
@@ -92,7 +94,7 @@ function compositionModalRowsForStageItem(item: InstanceStageRow["items"][number
 
 function PatientCompositionModalMediaLeading(props: {
   thumbMedia: RecommendationMediaItem | null;
-  emptyMediaSlotKind: CompositionModalRow["emptyMediaSlotKind"];
+  emptyMediaSlotKind: CompositionModalRow['emptyMediaSlotKind'];
 }) {
   const { thumbMedia, emptyMediaSlotKind } = props;
   if (thumbMedia) {
@@ -105,16 +107,22 @@ function PatientCompositionModalMediaLeading(props: {
       />
     );
   }
-  if (emptyMediaSlotKind === "exercise") {
+  if (emptyMediaSlotKind === 'exercise') {
     return (
-      <div className={cn(patientCompositionListThumbSlotClass, "flex items-center justify-center")} aria-hidden>
+      <div
+        className={cn(patientCompositionListThumbSlotClass, 'flex items-center justify-center')}
+        aria-hidden
+      >
         <Dumbbell className="size-4 text-muted-foreground" strokeWidth={2} />
       </div>
     );
   }
-  if (emptyMediaSlotKind === "recommendation") {
+  if (emptyMediaSlotKind === 'recommendation') {
     return (
-      <div className={cn(patientCompositionListThumbSlotClass, "flex items-center justify-center")} aria-hidden>
+      <div
+        className={cn(patientCompositionListThumbSlotClass, 'flex items-center justify-center')}
+        aria-hidden
+      >
         <ScrollText className="size-4 text-muted-foreground" strokeWidth={2} />
       </div>
     );
@@ -123,10 +131,10 @@ function PatientCompositionModalMediaLeading(props: {
 }
 
 const stageCompositionModalRowClass =
-  "rounded-md border border-border/60 bg-card text-xs font-normal leading-snug";
+  'rounded-md border border-border/60 bg-card text-xs font-normal leading-snug';
 
 function PatientCompositionItemProgressAside(props: {
-  parentItem: InstanceStageRow["items"][number];
+  parentItem: InstanceStageRow['items'][number];
   activityKey: string;
   appDisplayTimeZone: string;
   doneTodayCountByActivityKey: Readonly<Record<string, number>>;
@@ -151,23 +159,32 @@ function PatientCompositionItemProgressAside(props: {
     doneTodayCountByItemId,
   });
   const dotCount = Math.min(todayCount, MAX_COMPOSITION_TODAY_DOTS);
-  const dotOverflow = todayCount > MAX_COMPOSITION_TODAY_DOTS ? todayCount - MAX_COMPOSITION_TODAY_DOTS : 0;
-  const relativeWhenDone = lastIso ? formatRelativePatientCalendarDayRu(lastIso, appDisplayTimeZone) : null;
+  const dotOverflow =
+    todayCount > MAX_COMPOSITION_TODAY_DOTS ? todayCount - MAX_COMPOSITION_TODAY_DOTS : 0;
+  const relativeWhenDone = lastIso
+    ? formatRelativePatientCalendarDayRu(lastIso, appDisplayTimeZone)
+    : null;
   const doneSummaryLine =
     relativeWhenDone == null
-      ? "Пока без отметок"
-      : relativeWhenDone === "Сегодня"
-        ? "Выполнено"
+      ? 'Пока без отметок'
+      : relativeWhenDone === 'Сегодня'
+        ? 'Выполнено'
         : `Выполнено ${relativeWhenDone}`;
 
   return (
     <div className="flex max-w-[11rem] shrink-0 flex-col items-end justify-center gap-0.5 text-right">
-      <span className="w-full text-[10px] font-normal leading-tight text-muted-foreground">{doneSummaryLine}</span>
+      <span className="w-full text-[10px] font-normal leading-tight text-muted-foreground">
+        {doneSummaryLine}
+      </span>
       <div className="flex items-center gap-1.5">
-        <span className="text-[10px] font-normal leading-tight text-muted-foreground">Сегодня:</span>
+        <span className="text-[10px] font-normal leading-tight text-muted-foreground">
+          Сегодня:
+        </span>
         <div
           className="flex min-h-[10px] flex-wrap items-center justify-end gap-0.5"
-          aria-label={todayCount === 0 ? "Сегодня не отмечено" : `Сегодня отмечено ${todayCount} раз`}
+          aria-label={
+            todayCount === 0 ? 'Сегодня не отмечено' : `Сегодня отмечено ${todayCount} раз`
+          }
         >
           {todayCount === 0 ? (
             <span className="size-2 shrink-0 rounded-full bg-muted-foreground/35" aria-hidden />
@@ -177,7 +194,10 @@ function PatientCompositionItemProgressAside(props: {
                 <span key={i} className="size-2 shrink-0 rounded-full bg-[#16a34a]" aria-hidden />
               ))}
               {dotOverflow > 0 ? (
-                <span className="text-[10px] font-medium leading-none text-muted-foreground" aria-hidden>
+                <span
+                  className="text-[10px] font-medium leading-none text-muted-foreground"
+                  aria-hidden
+                >
                   +{dotOverflow}
                 </span>
               ) : null}
@@ -215,14 +235,16 @@ export function PatientStageCompositionList(props: {
     itemLinksPlanTab = null,
   } = props;
 
-  const navForPath = navMode === "default" ? undefined : navMode;
+  const navForPath = navMode === 'default' ? undefined : navMode;
   const itemHref = (id: string) =>
     routePaths.patientTreatmentProgramItem(instanceId, id, navForPath, itemLinksPlanTab ?? null);
 
   const visibleItems = useMemo(
     () =>
       sortProgramCompositionItemsByOrderThenId(
-        stage.items.filter((it) => isInstanceStageItemShownInPatientCompositionModal(it, stage.groups)),
+        stage.items.filter((it) =>
+          isInstanceStageItemShownInPatientCompositionModal(it, stage.groups),
+        ),
       ),
     [stage],
   );
@@ -232,7 +254,9 @@ export function PatientStageCompositionList(props: {
   const sortedGroups = sortDoctorInstanceStageGroupsForDisplay(stage.groups).filter((g) =>
     visibleItems.some((it) => it.groupId === g.id),
   );
-  const ungroupedItems = sortProgramCompositionItemsByOrderThenId(visibleItems.filter((it) => !it.groupId));
+  const ungroupedItems = sortProgramCompositionItemsByOrderThenId(
+    visibleItems.filter((it) => !it.groupId),
+  );
 
   const renderCompositionItem = (it: (typeof visibleItems)[number]) => {
     const rows = compositionModalRowsForStageItem(it);
@@ -243,14 +267,14 @@ export function PatientStageCompositionList(props: {
         <div
           className={cn(
             stageCompositionModalRowClass,
-            "flex items-center gap-1.5 px-1.5 py-1.5",
+            'flex items-center gap-1.5 px-1.5 py-1.5',
             rowIsCurrent && patientCompositionCurrentRowChromeClass,
           )}
         >
           <div
             className={cn(
-              "flex min-w-0 flex-1 basis-0 gap-1.5",
-              showMediaCol ? "items-center" : "items-start",
+              'flex min-w-0 flex-1 basis-0 gap-1.5',
+              showMediaCol ? 'items-center' : 'items-start',
             )}
           >
             <PatientCompositionModalMediaLeading
@@ -259,8 +283,8 @@ export function PatientStageCompositionList(props: {
             />
             <span
               className={cn(
-                "min-w-0 self-center break-words text-[#444444]",
-                showMediaCol ? "flex-1" : "block flex-1",
+                'min-w-0 self-center break-words text-[#444444]',
+                showMediaCol ? 'flex-1' : 'block flex-1',
               )}
             >
               {row.text}
@@ -297,7 +321,7 @@ export function PatientStageCompositionList(props: {
   return (
     <section
       className={cn(
-        "mt-6 flex flex-col gap-2 border-t border-[var(--patient-border)]/40 pt-4",
+        'mt-6 flex flex-col gap-2 border-t border-[var(--patient-border)]/40 pt-4',
         className,
       )}
       aria-labelledby="patient-stage-composition-heading"
@@ -306,19 +330,23 @@ export function PatientStageCompositionList(props: {
         Состав этапа
       </h2>
       {ungroupedItems.length > 0 ? (
-        <ul className={cn("m-0 list-none space-y-1 p-0", sortedGroups.length > 0 && "mb-2")}>
+        <ul className={cn('m-0 list-none space-y-1 p-0', sortedGroups.length > 0 && 'mb-2')}>
           {ungroupedItems.flatMap(renderCompositionItem)}
         </ul>
       ) : null}
       {sortedGroups.map((g) => {
-        const gItems = sortProgramCompositionItemsByOrderThenId(visibleItems.filter((it) => it.groupId === g.id));
+        const gItems = sortProgramCompositionItemsByOrderThenId(
+          visibleItems.filter((it) => it.groupId === g.id),
+        );
         if (gItems.length === 0) return null;
         return (
           <section key={g.id} className="space-y-1">
             <div>
               <span className={patientCompositionGroupTitleClass}>{g.title}</span>
               {g.scheduleText?.trim() ? (
-                <span className="mt-1 block text-xs font-normal text-muted-foreground">{g.scheduleText.trim()}</span>
+                <span className="mt-1 block text-xs font-normal text-muted-foreground">
+                  {g.scheduleText.trim()}
+                </span>
               ) : null}
             </div>
             <ul className="m-0 list-none space-y-1 p-0">{gItems.flatMap(renderCompositionItem)}</ul>

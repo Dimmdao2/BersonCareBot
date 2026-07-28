@@ -1,16 +1,16 @@
-import type { QueryResultRow } from "pg";
-import { mergeLogger as logger } from "./mergeLogger.js";
-import type { ManualMergeResolution } from "./manualMergeResolution.js";
-import { assertManualMergeResolutionIds } from "./manualMergeResolution.js";
+import type { QueryResultRow } from 'pg';
+import { mergeLogger as logger } from './mergeLogger.js';
+import type { ManualMergeResolution } from './manualMergeResolution.js';
+import { assertManualMergeResolutionIds } from './manualMergeResolution.js';
 import {
   collectMergeLosingContacts,
   persistMergeLosingContacts,
   pruneIdentityPlatformUserContactsAfterMerge,
   repointPlatformUserContactsForMerge,
   type MergeContactsSaved,
-} from "./mergeContactFallback.js";
-import { MergeConflictError, MergeDependentConflictError } from "./platformUserMergeErrors.js";
-import { TrustedPatientPhoneSource, trustedPatientPhoneWriteAnchor } from "./trustedPhoneAnchor.js";
+} from './mergeContactFallback.js';
+import { MergeConflictError, MergeDependentConflictError } from './platformUserMergeErrors.js';
+import { TrustedPatientPhoneSource, trustedPatientPhoneWriteAnchor } from './trustedPhoneAnchor.js';
 
 /**
  * Minimal DB surface for merge (`pg` pool/transaction client, integrator `DbPort` inside `tx`).
@@ -22,20 +22,20 @@ export type PlatformMergeDbClient = {
   ): Promise<{ rows: R[]; rowCount?: number }>;
 };
 
-export type MergePlatformUsersReason = "projection" | "phone_bind" | "email_bind" | "manual";
+export type MergePlatformUsersReason = 'projection' | 'phone_bind' | 'email_bind' | 'manual';
 
-export type { MergeContactsSaved } from "./mergeContactFallback.js";
+export type { MergeContactsSaved } from './mergeContactFallback.js';
 
 export type VerifiedDistinctIntegratorUserIds = {
   targetIntegratorUserId: string;
   duplicateIntegratorUserId: string;
 };
 
-const CHANNEL_CODES = ["telegram", "max", "vk"] as const;
+const CHANNEL_CODES = ['telegram', 'max', 'vk'] as const;
 
 /** Сравнение UUID из PostgreSQL (::text) и из сессии/запроса (регистр, дефисы). */
 function uuidTextEquals(a: string, b: string): boolean {
-  return a.replace(/-/g, "").toLowerCase() === b.replace(/-/g, "").toLowerCase();
+  return a.replace(/-/g, '').toLowerCase() === b.replace(/-/g, '').toLowerCase();
 }
 
 type OauthRow = {
@@ -89,7 +89,7 @@ function preservedEmailVerifiedAtSql(chosenEmailSql: string): string {
           END`;
 }
 
-const SINGLETON_SYMPTOM_KEYS = ["general_wellbeing", "warmup_feeling"] as const;
+const SINGLETON_SYMPTOM_KEYS = ['general_wellbeing', 'warmup_feeling'] as const;
 
 /**
  * Before bulk reassignment of `symptom_trackings.platform_user_id`, collapse duplicate singleton
@@ -168,19 +168,31 @@ export async function mergePlatformUsersInTransaction(
   },
 ): Promise<{ targetId: string; duplicateId: string; mergeContactsSaved: MergeContactsSaved[] }> {
   if (targetId === duplicateId) {
-    throw new MergeConflictError("merge: target and duplicate are the same id", [targetId]);
+    throw new MergeConflictError('merge: target and duplicate are the same id', [targetId]);
   }
 
-  if (reason === "manual") {
+  if (reason === 'manual') {
     if (!options?.resolution) {
-      throw new MergeConflictError('merge: reason "manual" requires options.resolution', [targetId, duplicateId]);
+      throw new MergeConflictError('merge: reason "manual" requires options.resolution', [
+        targetId,
+        duplicateId,
+      ]);
     }
     assertManualMergeResolutionIds(options.resolution);
-    if (options.resolution.targetId !== targetId || options.resolution.duplicateId !== duplicateId) {
-      throw new MergeConflictError("merge: resolution targetId/duplicateId mismatch", [targetId, duplicateId]);
+    if (
+      options.resolution.targetId !== targetId ||
+      options.resolution.duplicateId !== duplicateId
+    ) {
+      throw new MergeConflictError('merge: resolution targetId/duplicateId mismatch', [
+        targetId,
+        duplicateId,
+      ]);
     }
   } else if (options?.resolution) {
-    throw new MergeConflictError("merge: resolution is only valid for reason manual", [targetId, duplicateId]);
+    throw new MergeConflictError('merge: resolution is only valid for reason manual', [
+      targetId,
+      duplicateId,
+    ]);
   }
 
   await client.query(
@@ -197,28 +209,40 @@ export async function mergePlatformUsersInTransaction(
     [targetId, duplicateId],
   );
   if (lockRes.rows.length !== 2) {
-    throw new MergeConflictError("merge: target or duplicate platform_users row missing", [targetId, duplicateId]);
+    throw new MergeConflictError('merge: target or duplicate platform_users row missing', [
+      targetId,
+      duplicateId,
+    ]);
   }
   const a = lockRes.rows.find((r) => r.id === targetId);
   const b = lockRes.rows.find((r) => r.id === duplicateId);
-  if (!a || !b) throw new MergeConflictError("merge: row load mismatch", [targetId, duplicateId]);
+  if (!a || !b) throw new MergeConflictError('merge: row load mismatch', [targetId, duplicateId]);
 
   if (b.merged_into_id != null) {
-    throw new MergeConflictError("merge: duplicate already merged", [targetId, duplicateId]);
+    throw new MergeConflictError('merge: duplicate already merged', [targetId, duplicateId]);
   }
   if (a.merged_into_id != null) {
-    throw new MergeConflictError("merge: target is not canonical (has merged_into_id)", [targetId, duplicateId]);
+    throw new MergeConflictError('merge: target is not canonical (has merged_into_id)', [
+      targetId,
+      duplicateId,
+    ]);
   }
-  if (a.role !== "client" || b.role !== "client") {
-    throw new MergeConflictError("merge: only role=client users can be merged", [targetId, duplicateId]);
+  if (a.role !== 'client' || b.role !== 'client') {
+    throw new MergeConflictError('merge: only role=client users can be merged', [
+      targetId,
+      duplicateId,
+    ]);
   }
 
-  const manualResolution = reason === "manual" ? options!.resolution! : undefined;
+  const manualResolution = reason === 'manual' ? options!.resolution! : undefined;
 
   const pA = a.phone_normalized?.trim() || null;
   const pB = b.phone_normalized?.trim() || null;
   if (!manualResolution && pA && pB && pA !== pB) {
-    throw new MergeConflictError("merge: two different non-null phone numbers", [targetId, duplicateId]);
+    throw new MergeConflictError('merge: two different non-null phone numbers', [
+      targetId,
+      duplicateId,
+    ]);
   }
   let iA = a.integrator_user_id?.trim() || null;
   let iB = b.integrator_user_id?.trim() || null;
@@ -228,23 +252,15 @@ export async function mergePlatformUsersInTransaction(
    * из мессенджера (другой id, чем у аккаунта с телефоном). Иначе merge блокируется, хотя COALESCE в UPDATE
    * оставил бы id канонического аккаунта.
    */
-  if (
-    reason === "phone_bind" &&
-    !manualResolution &&
-    pA &&
-    !pB &&
-    iA &&
-    iB &&
-    iA !== iB
-  ) {
+  if (reason === 'phone_bind' && !manualResolution && pA && !pB && iA && iB && iA !== iB) {
     await client.query(
       `UPDATE platform_users SET integrator_user_id = NULL, updated_at = now() WHERE id = $1::uuid`,
       [duplicateId],
     );
     iB = null;
     logger.info({
-      scope: "platform_merge",
-      event: "phone_bind_drop_duplicate_integrator_user_id",
+      scope: 'platform_merge',
+      event: 'phone_bind_drop_duplicate_integrator_user_id',
       targetId,
       duplicateId,
     });
@@ -252,11 +268,14 @@ export async function mergePlatformUsersInTransaction(
 
   if (iA && iB && iA !== iB) {
     const relaxed =
-      reason === "manual" &&
+      reason === 'manual' &&
       Boolean(options?.resolution) &&
       options?.allowDistinctIntegratorUserIds === true;
     if (!relaxed) {
-      throw new MergeConflictError("merge: two different non-null integrator_user_id", [targetId, duplicateId]);
+      throw new MergeConflictError('merge: two different non-null integrator_user_id', [
+        targetId,
+        duplicateId,
+      ]);
     }
     const verified = options?.verifiedDistinctIntegratorUserIds;
     if (
@@ -264,7 +283,10 @@ export async function mergePlatformUsersInTransaction(
       verified.targetIntegratorUserId !== iA ||
       verified.duplicateIntegratorUserId !== iB
     ) {
-      throw new MergeConflictError("merge: integrator ids changed since gate", [targetId, duplicateId]);
+      throw new MergeConflictError('merge: integrator ids changed since gate', [
+        targetId,
+        duplicateId,
+      ]);
     }
   }
 
@@ -293,7 +315,9 @@ export async function mergePlatformUsersInTransaction(
        updated_at = GREATEST(user_notification_topics.updated_at, EXCLUDED.updated_at)`,
     [targetId, duplicateId],
   );
-  await client.query(`DELETE FROM user_notification_topics WHERE user_id = $1::uuid`, [duplicateId]);
+  await client.query(`DELETE FROM user_notification_topics WHERE user_id = $1::uuid`, [
+    duplicateId,
+  ]);
 
   await client.query(
     `INSERT INTO user_notification_topic_channels (user_id, topic_code, channel_code, is_enabled, updated_at)
@@ -307,7 +331,9 @@ export async function mergePlatformUsersInTransaction(
        updated_at = GREATEST(user_notification_topic_channels.updated_at, EXCLUDED.updated_at)`,
     [targetId, duplicateId],
   );
-  await client.query(`DELETE FROM user_notification_topic_channels WHERE user_id = $1::uuid`, [duplicateId]);
+  await client.query(`DELETE FROM user_notification_topic_channels WHERE user_id = $1::uuid`, [
+    duplicateId,
+  ]);
 
   await client.query(
     `UPDATE support_conversations SET platform_user_id = $1::uuid WHERE platform_user_id = $2::uuid`,
@@ -321,7 +347,10 @@ export async function mergePlatformUsersInTransaction(
     `UPDATE content_access_grants_webapp SET platform_user_id = $1::uuid WHERE platform_user_id = $2::uuid`,
     [targetId, duplicateId],
   );
-  await client.query(`UPDATE doctor_notes SET user_id = $1::uuid WHERE user_id = $2::uuid`, [targetId, duplicateId]);
+  await client.query(`UPDATE doctor_notes SET user_id = $1::uuid WHERE user_id = $2::uuid`, [
+    targetId,
+    duplicateId,
+  ]);
 
   await client.query(
     `UPDATE patient_bookings SET platform_user_id = $1::uuid WHERE platform_user_id = $2::uuid`,
@@ -351,10 +380,17 @@ export async function mergePlatformUsersInTransaction(
     await mergeOauthBindingsAuto(client, targetId, duplicateId);
   }
 
-  const pinTarget = await client.query(`SELECT 1 FROM user_pins WHERE user_id = $1::uuid LIMIT 1`, [targetId]);
-  const pinDup = await client.query(`SELECT 1 FROM user_pins WHERE user_id = $1::uuid LIMIT 1`, [duplicateId]);
+  const pinTarget = await client.query(`SELECT 1 FROM user_pins WHERE user_id = $1::uuid LIMIT 1`, [
+    targetId,
+  ]);
+  const pinDup = await client.query(`SELECT 1 FROM user_pins WHERE user_id = $1::uuid LIMIT 1`, [
+    duplicateId,
+  ]);
   if (pinTarget.rows.length === 0 && pinDup.rows.length > 0) {
-    await client.query(`UPDATE user_pins SET user_id = $1::uuid WHERE user_id = $2::uuid`, [targetId, duplicateId]);
+    await client.query(`UPDATE user_pins SET user_id = $1::uuid WHERE user_id = $2::uuid`, [
+      targetId,
+      duplicateId,
+    ]);
   } else {
     await client.query(`DELETE FROM user_pins WHERE user_id = $1::uuid`, [duplicateId]);
   }
@@ -363,21 +399,28 @@ export async function mergePlatformUsersInTransaction(
     `UPDATE channel_link_secrets SET user_id = $1::uuid WHERE user_id = $2::uuid`,
     [targetId, duplicateId],
   );
-  await client.query(`UPDATE email_challenges SET user_id = $1::uuid WHERE user_id = $2::uuid`, [targetId, duplicateId]);
-
-  const pwTarget = await client.query(`SELECT 1 FROM user_password_credentials WHERE user_id = $1::uuid LIMIT 1`, [
+  await client.query(`UPDATE email_challenges SET user_id = $1::uuid WHERE user_id = $2::uuid`, [
     targetId,
-  ]);
-  const pwDup = await client.query(`SELECT 1 FROM user_password_credentials WHERE user_id = $1::uuid LIMIT 1`, [
     duplicateId,
   ]);
+
+  const pwTarget = await client.query(
+    `SELECT 1 FROM user_password_credentials WHERE user_id = $1::uuid LIMIT 1`,
+    [targetId],
+  );
+  const pwDup = await client.query(
+    `SELECT 1 FROM user_password_credentials WHERE user_id = $1::uuid LIMIT 1`,
+    [duplicateId],
+  );
   if (pwTarget.rows.length === 0 && pwDup.rows.length > 0) {
-    await client.query(`UPDATE user_password_credentials SET user_id = $1::uuid WHERE user_id = $2::uuid`, [
-      targetId,
+    await client.query(
+      `UPDATE user_password_credentials SET user_id = $1::uuid WHERE user_id = $2::uuid`,
+      [targetId, duplicateId],
+    );
+  } else {
+    await client.query(`DELETE FROM user_password_credentials WHERE user_id = $1::uuid`, [
       duplicateId,
     ]);
-  } else {
-    await client.query(`DELETE FROM user_password_credentials WHERE user_id = $1::uuid`, [duplicateId]);
   }
 
   await client.query(
@@ -392,7 +435,12 @@ export async function mergePlatformUsersInTransaction(
 
   await client.query(`DELETE FROM login_tokens WHERE user_id = $1::uuid`, [duplicateId]);
 
-  await mergeUserChannelPreferences(client, targetId, duplicateId, manualResolution?.channelPreferences ?? "keep_newer");
+  await mergeUserChannelPreferences(
+    client,
+    targetId,
+    duplicateId,
+    manualResolution?.channelPreferences ?? 'keep_newer',
+  );
 
   for (const sk of SINGLETON_SYMPTOM_KEYS) {
     await dedupeSingletonSymptomTrackingsForMerge(client, targetId, duplicateId, sk);
@@ -414,7 +462,10 @@ export async function mergePlatformUsersInTransaction(
      WHERE user_id = $3::text OR platform_user_id = $4::uuid`,
     [targetId, targetId, duplicateId, duplicateId],
   );
-  await client.query(`UPDATE lfk_sessions SET user_id = $1::uuid WHERE user_id = $2::uuid`, [targetId, duplicateId]);
+  await client.query(`UPDATE lfk_sessions SET user_id = $1::uuid WHERE user_id = $2::uuid`, [
+    targetId,
+    duplicateId,
+  ]);
 
   await client.query(
     `UPDATE message_log SET user_id = $1::text, platform_user_id = $2::uuid
@@ -426,10 +477,10 @@ export async function mergePlatformUsersInTransaction(
     targetId,
     duplicateId,
   ]);
-  await client.query(`UPDATE media_upload_sessions SET owner_user_id = $1::uuid WHERE owner_user_id = $2::uuid`, [
-    targetId,
-    duplicateId,
-  ]);
+  await client.query(
+    `UPDATE media_upload_sessions SET owner_user_id = $1::uuid WHERE owner_user_id = $2::uuid`,
+    [targetId, duplicateId],
+  );
 
   await mergeExtendedUserOwnedData(client, targetId, duplicateId);
 
@@ -451,7 +502,15 @@ export async function mergePlatformUsersInTransaction(
          updated_at = now()
        FROM platform_users dup
        WHERE pu.id = $1::uuid AND dup.id = $2::uuid`,
-      [targetId, duplicateId, f.phone_normalized, f.display_name, f.first_name, f.last_name, f.email],
+      [
+        targetId,
+        duplicateId,
+        f.phone_normalized,
+        f.display_name,
+        f.first_name,
+        f.last_name,
+        f.email,
+      ],
     );
   } else {
     const chosenEmailSql = `COALESCE(pu.email, dup.email)`;
@@ -589,7 +648,10 @@ export async function mergePlatformUsersInTransaction(
     [targetId, duplicateId],
   );
 
-  logger.info({ targetId, duplicateId, reason, mergeContactsSaved }, "[merge] merged duplicate into target");
+  logger.info(
+    { targetId, duplicateId, reason, mergeContactsSaved },
+    '[merge] merged duplicate into target',
+  );
   trustedPatientPhoneWriteAnchor(TrustedPatientPhoneSource.PlatformUserMerge);
   return { targetId, duplicateId, mergeContactsSaved };
 }
@@ -603,10 +665,10 @@ async function reassignAllUserChannelBindingsFromDuplicate(
   targetId: string,
   duplicateId: string,
 ): Promise<void> {
-  await client.query(`UPDATE user_channel_bindings SET user_id = $1::uuid WHERE user_id = $2::uuid`, [
-    targetId,
-    duplicateId,
-  ]);
+  await client.query(
+    `UPDATE user_channel_bindings SET user_id = $1::uuid WHERE user_id = $2::uuid`,
+    [targetId, duplicateId],
+  );
 }
 
 /** Все `user_oauth_bindings` дубликата → цель (UNIQUE по provider+provider_user_id). */
@@ -621,7 +683,11 @@ async function reassignAllUserOauthBindingsFromDuplicate(
   ]);
 }
 
-async function mergeChannelBindingsAuto(client: PlatformMergeDbClient, targetId: string, duplicateId: string): Promise<void> {
+async function mergeChannelBindingsAuto(
+  client: PlatformMergeDbClient,
+  targetId: string,
+  duplicateId: string,
+): Promise<void> {
   await reassignAllUserChannelBindingsFromDuplicate(client, targetId, duplicateId);
   await client.query(`DELETE FROM user_channel_bindings WHERE user_id = $1::uuid`, [duplicateId]);
 }
@@ -634,20 +700,24 @@ async function mergeChannelBindingsManual(
 ): Promise<void> {
   for (const ch of CHANNEL_CODES) {
     const winner = resolution.bindings[ch];
-    if (winner === "both") {
+    if (winner === 'both') {
       const bindingPresence = await client.query<{ user_id: string }>(
         `SELECT user_id::text AS user_id
          FROM user_channel_bindings
          WHERE user_id = ANY($1::uuid[]) AND channel_code = $2`,
         [[targetId, duplicateId], ch],
       );
-      const hasTargetBinding = bindingPresence.rows.some((row) => uuidTextEquals(row.user_id, targetId));
-      const hasDuplicateBinding = bindingPresence.rows.some((row) => uuidTextEquals(row.user_id, duplicateId));
+      const hasTargetBinding = bindingPresence.rows.some((row) =>
+        uuidTextEquals(row.user_id, targetId),
+      );
+      const hasDuplicateBinding = bindingPresence.rows.some((row) =>
+        uuidTextEquals(row.user_id, duplicateId),
+      );
       if (hasTargetBinding && hasDuplicateBinding) {
-        throw new MergeConflictError(`manual merge: channel ${ch} conflict requires target or duplicate`, [
-          targetId,
-          duplicateId,
-        ]);
+        throw new MergeConflictError(
+          `manual merge: channel ${ch} conflict requires target or duplicate`,
+          [targetId, duplicateId],
+        );
       }
       await client.query(
         `UPDATE user_channel_bindings SET user_id = $1::uuid
@@ -658,7 +728,7 @@ async function mergeChannelBindingsManual(
         `DELETE FROM user_channel_bindings WHERE user_id = $1::uuid AND channel_code = $2`,
         [duplicateId, ch],
       );
-    } else if (winner === "target") {
+    } else if (winner === 'target') {
       await client.query(
         `DELETE FROM user_channel_bindings WHERE user_id = $1::uuid AND channel_code = $2`,
         [duplicateId, ch],
@@ -678,7 +748,11 @@ async function mergeChannelBindingsManual(
   await client.query(`DELETE FROM user_channel_bindings WHERE user_id = $1::uuid`, [duplicateId]);
 }
 
-async function mergeOauthBindingsAuto(client: PlatformMergeDbClient, targetId: string, duplicateId: string): Promise<void> {
+async function mergeOauthBindingsAuto(
+  client: PlatformMergeDbClient,
+  targetId: string,
+  duplicateId: string,
+): Promise<void> {
   await reassignAllUserOauthBindingsFromDuplicate(client, targetId, duplicateId);
   await client.query(`DELETE FROM user_oauth_bindings WHERE user_id = $1::uuid`, [duplicateId]);
 }
@@ -723,12 +797,12 @@ async function mergeOauthBindingsManual(
       }
       const w = resolution.oauth[provider];
       if (!w) {
-        throw new MergeConflictError(`manual merge: missing oauth resolution for provider ${provider}`, [
-          targetId,
-          duplicateId,
-        ]);
+        throw new MergeConflictError(
+          `manual merge: missing oauth resolution for provider ${provider}`,
+          [targetId, duplicateId],
+        );
       }
-      if (w === "target") {
+      if (w === 'target') {
         await client.query(
           `DELETE FROM user_oauth_bindings WHERE user_id = $1::uuid AND provider = $2`,
           [duplicateId, provider],
@@ -752,9 +826,9 @@ async function mergeUserChannelPreferences(
   client: PlatformMergeDbClient,
   targetId: string,
   duplicateId: string,
-  strategy: "keep_target" | "keep_newer" | "merge",
+  strategy: 'keep_target' | 'keep_newer' | 'merge',
 ): Promise<void> {
-  if (strategy === "keep_target") {
+  if (strategy === 'keep_target') {
     await client.query(
       `DELETE FROM user_channel_preferences
        WHERE user_id = $1::text OR platform_user_id = $2::uuid`,
@@ -818,9 +892,18 @@ async function assertSharedPhoneGuard(
 
   async function meaningfulCount(uid: string): Promise<number> {
     const q: { sql: string; params: [string] | [string, string] }[] = [
-      { sql: `SELECT COUNT(*)::int AS c FROM patient_bookings WHERE platform_user_id = $1::uuid`, params: [uid] },
-      { sql: `SELECT COUNT(*)::int AS c FROM doctor_notes WHERE user_id = $1::uuid`, params: [uid] },
-      { sql: `SELECT COUNT(*)::int AS c FROM online_intake_requests WHERE user_id = $1::uuid`, params: [uid] },
+      {
+        sql: `SELECT COUNT(*)::int AS c FROM patient_bookings WHERE platform_user_id = $1::uuid`,
+        params: [uid],
+      },
+      {
+        sql: `SELECT COUNT(*)::int AS c FROM doctor_notes WHERE user_id = $1::uuid`,
+        params: [uid],
+      },
+      {
+        sql: `SELECT COUNT(*)::int AS c FROM online_intake_requests WHERE user_id = $1::uuid`,
+        params: [uid],
+      },
       {
         sql: `SELECT COUNT(*)::int AS c FROM symptom_trackings WHERE platform_user_id = $1::uuid OR user_id = $2::text`,
         params: [uid, uid],
@@ -829,7 +912,10 @@ async function assertSharedPhoneGuard(
         sql: `SELECT COUNT(*)::int AS c FROM lfk_complexes WHERE platform_user_id = $1::uuid OR user_id = $2::text`,
         params: [uid, uid],
       },
-      { sql: `SELECT COUNT(*)::int AS c FROM patient_lfk_assignments WHERE patient_user_id = $1::uuid`, params: [uid] },
+      {
+        sql: `SELECT COUNT(*)::int AS c FROM patient_lfk_assignments WHERE patient_user_id = $1::uuid`,
+        params: [uid],
+      },
     ];
     let sum = 0;
     for (const { sql, params } of q) {
@@ -841,10 +927,10 @@ async function assertSharedPhoneGuard(
 
   const [ct, cd] = await Promise.all([meaningfulCount(targetId), meaningfulCount(duplicateId)]);
   if (ct > 0 && cd > 0) {
-    throw new MergeDependentConflictError("shared-phone guard: meaningful data on both candidates", [
-      targetId,
-      duplicateId,
-    ]);
+    throw new MergeDependentConflictError(
+      'shared-phone guard: meaningful data on both candidates',
+      [targetId, duplicateId],
+    );
   }
 }
 
@@ -865,12 +951,12 @@ async function assertPatientBookingsSafeToMerge(
       AND pb2.status IN ('confirmed', 'rescheduled', 'creating', 'cancelling', 'cancel_failed')`,
     [targetId, duplicateId],
   );
-  const n = parseInt(overlap.rows[0]?.c ?? "0", 10);
+  const n = parseInt(overlap.rows[0]?.c ?? '0', 10);
   if (n > 0) {
-    throw new MergeDependentConflictError("patient_bookings: overlapping active slots between merge candidates", [
-      targetId,
-      duplicateId,
-    ]);
+    throw new MergeDependentConflictError(
+      'patient_bookings: overlapping active slots between merge candidates',
+      [targetId, duplicateId],
+    );
   }
 }
 
@@ -891,9 +977,12 @@ async function assertPatientLfkAssignmentsSafe(
       AND b.is_active = true`,
     [targetId, duplicateId],
   );
-  const n = parseInt(r.rows[0]?.c ?? "0", 10);
+  const n = parseInt(r.rows[0]?.c ?? '0', 10);
   if (n > 0) {
-    throw new MergeDependentConflictError("patient_lfk_assignments: active template conflict", [targetId, duplicateId]);
+    throw new MergeDependentConflictError('patient_lfk_assignments: active template conflict', [
+      targetId,
+      duplicateId,
+    ]);
   }
 }
 
@@ -1001,7 +1090,7 @@ async function assertAutoMergePasswordCredentialsSafe(
   duplicateId: string,
   reason: MergePlatformUsersReason,
 ): Promise<void> {
-  if (reason === "manual") return;
+  if (reason === 'manual') return;
   const credentials = await client.query<{ user_id: string }>(
     `SELECT user_id::text
      FROM user_password_credentials
@@ -1011,7 +1100,10 @@ async function assertAutoMergePasswordCredentialsSafe(
     [targetId, duplicateId],
   );
   if (credentials.rows.length > 1) {
-    throw new MergeConflictError("merge: both users have password credentials", [targetId, duplicateId]);
+    throw new MergeConflictError('merge: both users have password credentials', [
+      targetId,
+      duplicateId,
+    ]);
   }
 }
 
@@ -1044,27 +1136,30 @@ async function reconcileActiveTreatmentProgramInstancesForMerge(
   const pair = r.rows[0];
   if (!pair) return;
 
-  const targetIsPromo = pair.target_assignment_source === "promo";
-  const duplicateIsPromo = pair.duplicate_assignment_source === "promo";
+  const targetIsPromo = pair.target_assignment_source === 'promo';
+  const duplicateIsPromo = pair.duplicate_assignment_source === 'promo';
   if (!targetIsPromo && !duplicateIsPromo) {
-    throw new MergeDependentConflictError("treatment_program_instances: active program on both merge candidates", [
-      targetId,
-      duplicateId,
-    ]);
+    throw new MergeDependentConflictError(
+      'treatment_program_instances: active program on both merge candidates',
+      [targetId, duplicateId],
+    );
   }
 
   if (
     targetIsPromo &&
     duplicateIsPromo &&
-    typeof pair.target_template_id === "string" &&
+    typeof pair.target_template_id === 'string' &&
     pair.target_template_id === pair.duplicate_template_id
   ) {
-    await consolidateMatchingPromoProgress(client, pair.target_instance_id, pair.duplicate_instance_id);
+    await consolidateMatchingPromoProgress(
+      client,
+      pair.target_instance_id,
+      pair.duplicate_instance_id,
+    );
   }
 
-  const closingInstanceId = targetIsPromo && !duplicateIsPromo
-    ? pair.target_instance_id
-    : pair.duplicate_instance_id;
+  const closingInstanceId =
+    targetIsPromo && !duplicateIsPromo ? pair.target_instance_id : pair.duplicate_instance_id;
 
   await client.query(
     `WITH closed AS (
@@ -1112,12 +1207,12 @@ async function assertOpenTestAttemptsSafe(
       AND t.instance_stage_item_id = d.instance_stage_item_id`,
     [targetId, duplicateId],
   );
-  const n = parseInt(r.rows[0]?.c ?? "0", 10);
+  const n = parseInt(r.rows[0]?.c ?? '0', 10);
   if (n > 0) {
-    throw new MergeDependentConflictError("test_attempts: open attempt conflict on same stage item", [
-      targetId,
-      duplicateId,
-    ]);
+    throw new MergeDependentConflictError(
+      'test_attempts: open attempt conflict on same stage item',
+      [targetId, duplicateId],
+    );
   }
 }
 
@@ -1187,7 +1282,9 @@ async function mergeExtendedUserOwnedData(
        updated_at = GREATEST(patient_daily_warmup_presentations.updated_at, EXCLUDED.updated_at)`,
     [targetId, duplicateId],
   );
-  await client.query(`DELETE FROM patient_daily_warmup_presentations WHERE user_id = $1::uuid`, [duplicateId]);
+  await client.query(`DELETE FROM patient_daily_warmup_presentations WHERE user_id = $1::uuid`, [
+    duplicateId,
+  ]);
 
   await client.query(
     `INSERT INTO be_patient_booking_profiles (
@@ -1209,7 +1306,9 @@ async function mergeExtendedUserOwnedData(
        updated_by = COALESCE(be_patient_booking_profiles.updated_by, EXCLUDED.updated_by)`,
     [targetId, duplicateId],
   );
-  await client.query(`DELETE FROM be_patient_booking_profiles WHERE platform_user_id = $1::uuid`, [duplicateId]);
+  await client.query(`DELETE FROM be_patient_booking_profiles WHERE platform_user_id = $1::uuid`, [
+    duplicateId,
+  ]);
 
   await client.query(
     `INSERT INTO product_analytics_user_hourly (
@@ -1228,7 +1327,9 @@ async function mergeExtendedUserOwnedData(
        updated_at = GREATEST(product_analytics_user_hourly.updated_at, EXCLUDED.updated_at)`,
     [targetId, duplicateId],
   );
-  await client.query(`DELETE FROM product_analytics_user_hourly WHERE user_id = $1::uuid`, [duplicateId]);
+  await client.query(`DELETE FROM product_analytics_user_hourly WHERE user_id = $1::uuid`, [
+    duplicateId,
+  ]);
 
   await client.query(
     `DELETE FROM patient_diary_day_snapshots d
@@ -1269,10 +1370,10 @@ async function mergeExtendedUserOwnedData(
        )`,
     [targetId, duplicateId],
   );
-  await client.query(`UPDATE user_web_push_subscriptions SET user_id = $1::uuid WHERE user_id = $2::uuid`, [
-    targetId,
-    duplicateId,
-  ]);
+  await client.query(
+    `UPDATE user_web_push_subscriptions SET user_id = $1::uuid WHERE user_id = $2::uuid`,
+    [targetId, duplicateId],
+  );
 
   await client.query(
     `DELETE FROM broadcast_audit_recipients
@@ -1292,18 +1393,30 @@ async function mergeExtendedUserOwnedData(
       `UPDATE patient_content_rating_feedback SET user_id = $1::uuid WHERE user_id = $2::uuid`,
       [targetId, duplicateId],
     ],
-    [`UPDATE patient_practice_completions SET user_id = $1::uuid WHERE user_id = $2::uuid`, [targetId, duplicateId]],
+    [
+      `UPDATE patient_practice_completions SET user_id = $1::uuid WHERE user_id = $2::uuid`,
+      [targetId, duplicateId],
+    ],
     [
       `UPDATE patient_daily_warmup_video_views SET user_id = $1::uuid WHERE user_id = $2::uuid`,
       [targetId, duplicateId],
     ],
-    [`UPDATE program_action_log SET patient_user_id = $1::uuid WHERE patient_user_id = $2::uuid`, [targetId, duplicateId]],
-    [`UPDATE test_attempts SET patient_user_id = $1::uuid WHERE patient_user_id = $2::uuid`, [targetId, duplicateId]],
+    [
+      `UPDATE program_action_log SET patient_user_id = $1::uuid WHERE patient_user_id = $2::uuid`,
+      [targetId, duplicateId],
+    ],
+    [
+      `UPDATE test_attempts SET patient_user_id = $1::uuid WHERE patient_user_id = $2::uuid`,
+      [targetId, duplicateId],
+    ],
     [
       `UPDATE treatment_program_instances SET patient_user_id = $1::uuid WHERE patient_user_id = $2::uuid`,
       [targetId, duplicateId],
     ],
-    [`UPDATE be_appointments SET platform_user_id = $1::uuid WHERE platform_user_id = $2::uuid`, [targetId, duplicateId]],
+    [
+      `UPDATE be_appointments SET platform_user_id = $1::uuid WHERE platform_user_id = $2::uuid`,
+      [targetId, duplicateId],
+    ],
     [
       `UPDATE be_patient_timeline_events SET platform_user_id = $1::uuid WHERE platform_user_id = $2::uuid`,
       [targetId, duplicateId],
@@ -1312,8 +1425,14 @@ async function mergeExtendedUserOwnedData(
       `UPDATE be_appointment_staff_comments SET platform_user_id = $1::uuid WHERE platform_user_id = $2::uuid`,
       [targetId, duplicateId],
     ],
-    [`UPDATE be_payment_intents SET platform_user_id = $1::uuid WHERE platform_user_id = $2::uuid`, [targetId, duplicateId]],
-    [`UPDATE be_payments SET platform_user_id = $1::uuid WHERE platform_user_id = $2::uuid`, [targetId, duplicateId]],
+    [
+      `UPDATE be_payment_intents SET platform_user_id = $1::uuid WHERE platform_user_id = $2::uuid`,
+      [targetId, duplicateId],
+    ],
+    [
+      `UPDATE be_payments SET platform_user_id = $1::uuid WHERE platform_user_id = $2::uuid`,
+      [targetId, duplicateId],
+    ],
     [
       `UPDATE be_payment_history_events SET platform_user_id = $1::uuid WHERE platform_user_id = $2::uuid`,
       [targetId, duplicateId],
@@ -1322,9 +1441,18 @@ async function mergeExtendedUserOwnedData(
       `UPDATE be_product_purchases SET platform_user_id = $1::uuid WHERE platform_user_id = $2::uuid`,
       [targetId, duplicateId],
     ],
-    [`UPDATE be_patient_packages SET platform_user_id = $1::uuid WHERE platform_user_id = $2::uuid`, [targetId, duplicateId]],
-    [`UPDATE product_push_notifications SET user_id = $1::uuid WHERE user_id = $2::uuid`, [targetId, duplicateId]],
-    [`UPDATE product_analytics_events_recent SET user_id = $1::uuid WHERE user_id = $2::uuid`, [targetId, duplicateId]],
+    [
+      `UPDATE be_patient_packages SET platform_user_id = $1::uuid WHERE platform_user_id = $2::uuid`,
+      [targetId, duplicateId],
+    ],
+    [
+      `UPDATE product_push_notifications SET user_id = $1::uuid WHERE user_id = $2::uuid`,
+      [targetId, duplicateId],
+    ],
+    [
+      `UPDATE product_analytics_events_recent SET user_id = $1::uuid WHERE user_id = $2::uuid`,
+      [targetId, duplicateId],
+    ],
   ];
   for (const [sql, params] of simpleRepoints) {
     await client.query(sql, params);

@@ -3,8 +3,8 @@
  * write path is introduced here; S4-4 must make these sources one resolver.
  */
 export type EffectiveTariffSource =
-  | Readonly<{ kind: "manual"; tariffId: string }>
-  | Readonly<{ kind: "paid_subscription"; tariffId: string; subscriptionId: string }>;
+  | Readonly<{ kind: 'manual'; tariffId: string }>
+  | Readonly<{ kind: 'paid_subscription'; tariffId: string; subscriptionId: string }>;
 
 export type EffectiveTariffAccess = Readonly<{
   organizationId: string;

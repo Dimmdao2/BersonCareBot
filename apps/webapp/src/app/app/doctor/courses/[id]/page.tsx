@@ -1,15 +1,15 @@
-import { notFound } from "next/navigation";
-import { z } from "zod";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireEntitlementForPage } from "@/app-layer/guards/requireEntitlement";
-import { logServerRuntimeError } from "@/infra/logging/serverRuntimeLog";
-import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
-import { COURSE_LESSON_SECTIONS, type CourseUsageSnapshot } from "@/modules/courses/types";
-import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
-import { doctorCatalogEditorSectionClass } from "@/shared/ui/doctor/doctorVisual";
-import { DataLoadFailureNotice } from "@/shared/ui/doctor/DataLoadFailureNotice";
-import { DoctorCourseEditForm } from "./DoctorCourseEditForm";
+import { notFound } from 'next/navigation';
+import { z } from 'zod';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { requireEntitlementForPage } from '@/app-layer/guards/requireEntitlement';
+import { logServerRuntimeError } from '@/infra/logging/serverRuntimeLog';
+import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
+import { COURSE_LESSON_SECTIONS, type CourseUsageSnapshot } from '@/modules/courses/types';
+import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
+import { doctorCatalogEditorSectionClass } from '@/shared/ui/doctor/doctorVisual';
+import { DataLoadFailureNotice } from '@/shared/ui/doctor/DataLoadFailureNotice';
+import { DoctorCourseEditForm } from './DoctorCourseEditForm';
 
 type PageProps = { params: Promise<{ id: string }> };
 
@@ -19,14 +19,14 @@ function isLessonSection(section: string): boolean {
 
 export default async function DoctorCourseEditPage(props: PageProps) {
   const workspace = await requireDoctorWorkspaceContext();
-  await requireEntitlementForPage({ organizationId: workspace.organizationId }, "courses");
+  await requireEntitlementForPage({ organizationId: workspace.organizationId }, 'courses');
   const { id } = await props.params;
   if (!z.string().uuid().safeParse(id).success) {
     notFound();
   }
 
   const deps = buildAppDeps();
-  let course = await withDoctorWorkspacePrincipal(workspace, "app.doctor.courses.get", () =>
+  let course = await withDoctorWorkspacePrincipal(workspace, 'app.doctor.courses.get', () =>
     deps.courses.getCourseForDoctor(id),
   );
   if (!course) {
@@ -39,7 +39,7 @@ export default async function DoctorCourseEditPage(props: PageProps) {
   let usage: CourseUsageSnapshot | null = null;
 
   try {
-    usage = await withDoctorWorkspacePrincipal(workspace, "app.doctor.courses.usage", () =>
+    usage = await withDoctorWorkspacePrincipal(workspace, 'app.doctor.courses.usage', () =>
       deps.courses.getCourseUsage(id),
     );
   } catch {
@@ -47,49 +47,59 @@ export default async function DoctorCourseEditPage(props: PageProps) {
   }
 
   try {
-    const rows = await withDoctorWorkspacePrincipal(workspace, "app.doctor.courses.picker", () =>
+    const rows = await withDoctorWorkspacePrincipal(workspace, 'app.doctor.courses.picker', () =>
       deps.treatmentProgram.listTemplates({}),
     );
     templates = rows.map((r) => ({ id: r.id, title: r.title, status: r.status }));
     const templateIds = new Set(templates.map((t) => t.id));
     if (!templateIds.has(course.programTemplateId)) {
       try {
-        const d = await withDoctorWorkspacePrincipal(workspace, "app.doctor.courses.picker", () =>
+        const d = await withDoctorWorkspacePrincipal(workspace, 'app.doctor.courses.picker', () =>
           deps.treatmentProgram.getTemplate(course.programTemplateId),
         );
         templates = [{ id: d.id, title: d.title, status: d.status }, ...templates];
       } catch {
         templates = [
-          { id: course.programTemplateId, title: "Текущий шаблон (не найден в списке)", status: "?" },
+          {
+            id: course.programTemplateId,
+            title: 'Текущий шаблон (не найден в списке)',
+            status: '?',
+          },
           ...templates,
         ];
       }
     }
 
-    const allPages = await withDoctorWorkspacePrincipal(workspace, "app.doctor.courses.picker", () =>
-      deps.contentPages.listAll(),
+    const allPages = await withDoctorWorkspacePrincipal(
+      workspace,
+      'app.doctor.courses.picker',
+      () => deps.contentPages.listAll(),
     );
     const opts = allPages
       .filter((p) => !p.deletedAt && isLessonSection(p.section))
       .map((p) => ({ id: p.id, title: p.title }));
     const byId = new Map(opts.map((o) => [o.id, o]));
     if (course.introLessonPageId && !byId.has(course.introLessonPageId)) {
-      const extra = await withDoctorWorkspacePrincipal(workspace, "app.doctor.courses.picker", () =>
+      const extra = await withDoctorWorkspacePrincipal(workspace, 'app.doctor.courses.picker', () =>
         deps.contentPages.getById(course.introLessonPageId!),
       );
       if (extra) {
         opts.push({ id: extra.id, title: `${extra.title} (текущая)` });
       }
     }
-    introPageOptions = opts.sort((a, b) => a.title.localeCompare(b.title, "ru"));
+    introPageOptions = opts.sort((a, b) => a.title.localeCompare(b.title, 'ru'));
   } catch (err) {
-    loadError = logServerRuntimeError("app/doctor/courses/[id]", err, { courseId: id });
+    loadError = logServerRuntimeError('app/doctor/courses/[id]', err, { courseId: id });
   }
 
-  const isDev = process.env.NODE_ENV === "development";
+  const isDev = process.env.NODE_ENV === 'development';
 
   return (
-    <DoctorAppShell title={course.title} user={workspace.session.user} backHref="/app/doctor/courses">
+    <DoctorAppShell
+      title={course.title}
+      user={workspace.session.user}
+      backHref="/app/doctor/courses"
+    >
       <section className={doctorCatalogEditorSectionClass}>
         <p className="font-mono text-xs text-muted-foreground">{course.id}</p>
         {loadError ? (
@@ -99,7 +109,8 @@ export default async function DoctorCourseEditPage(props: PageProps) {
           />
         ) : templates.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            Нет шаблонов программ лечения — сначала создайте шаблон, затем вернитесь к редактированию курса.
+            Нет шаблонов программ лечения — сначала создайте шаблон, затем вернитесь к
+            редактированию курса.
           </p>
         ) : (
           <DoctorCourseEditForm

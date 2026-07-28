@@ -1,21 +1,21 @@
-"use client";
+'use client';
 
-import { useCallback, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
-import { cn } from "@/lib/utils";
-import type { Recommendation } from "@/modules/recommendations/types";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
+import { useCallback, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { cn } from '@/lib/utils';
+import type { Recommendation } from '@/modules/recommendations/types';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
 import {
   VISIT_MANIPULATION_REFERENCE_CATEGORY_CODE,
   appendVisitCatalogText,
   formatRecommendationForVisit,
   visitCatalogOptionToText,
   type VisitCatalogOption,
-} from "./visitCatalogText";
+} from './visitCatalogText';
 
-const fieldLabelClass = "text-xs font-semibold text-foreground";
-const hintClass = "text-xs text-muted-foreground";
+const fieldLabelClass = 'text-xs font-semibold text-foreground';
+const hintClass = 'text-xs text-muted-foreground';
 const VISIBLE_OPTIONS_LIMIT = 40;
 
 type ReferenceItemDto = {
@@ -27,7 +27,7 @@ type ReferenceItemDto = {
 
 async function loadDoctorReferenceItems(categoryCode: string): Promise<ReferenceItemDto[]> {
   const res = await fetch(`/api/doctor/references/${encodeURIComponent(categoryCode)}`, {
-    credentials: "include",
+    credentials: 'include',
   });
   if (!res.ok) return [];
   const data = (await res.json()) as { ok?: boolean; items?: ReferenceItemDto[] };
@@ -46,13 +46,13 @@ export function VisitCatalogTextarea({
   placeholder?: string;
   value: string;
   onChange: (v: string) => void;
-  catalog: "manipulations" | "recommendations";
+  catalog: 'manipulations' | 'recommendations';
   rows?: number;
 }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [options, setOptions] = useState<VisitCatalogOption[]>([]);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState('');
   const textareaId = useId();
   const listId = useId();
   const searchId = useId();
@@ -61,13 +61,13 @@ export function VisitCatalogTextarea({
   const loadOptions = useCallback(async () => {
     setLoading(true);
     try {
-      if (catalog === "manipulations") {
+      if (catalog === 'manipulations') {
         const items = await loadDoctorReferenceItems(VISIT_MANIPULATION_REFERENCE_CATEGORY_CODE);
         setOptions(items.map((item) => ({ id: item.id, title: item.title })));
         return;
       }
-      const res = await fetch("/api/doctor/recommendations", {
-        credentials: "include",
+      const res = await fetch('/api/doctor/recommendations', {
+        credentials: 'include',
       });
       if (!res.ok) {
         setOptions([]);
@@ -86,7 +86,7 @@ export function VisitCatalogTextarea({
     setOpen((prev) => {
       const next = !prev;
       if (next && options.length === 0) void loadOptions();
-      if (!next) setQuery("");
+      if (!next) setQuery('');
       return next;
     });
   };
@@ -94,16 +94,16 @@ export function VisitCatalogTextarea({
   const insertOption = (option: VisitCatalogOption) => {
     onChange(appendVisitCatalogText(value, visitCatalogOptionToText(option)));
     setOpen(false);
-    setQuery("");
+    setQuery('');
   };
 
-  const normalizedQuery = query.trim().toLocaleLowerCase("ru-RU");
+  const normalizedQuery = query.trim().toLocaleLowerCase('ru-RU');
   const filteredOptions = useMemo(() => {
     if (!normalizedQuery) return options;
     return options.filter((option) => {
-      const searchable = [option.title, option.meta ?? "", option.body ?? ""]
-        .join(" ")
-        .toLocaleLowerCase("ru-RU");
+      const searchable = [option.title, option.meta ?? '', option.body ?? '']
+        .join(' ')
+        .toLocaleLowerCase('ru-RU');
       return searchable.includes(normalizedQuery);
     });
   }, [normalizedQuery, options]);
@@ -111,13 +111,13 @@ export function VisitCatalogTextarea({
   const hiddenOptionsCount = filteredOptions.length - visibleOptions.length;
 
   const handleSearchKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === "Escape") {
+    if (event.key === 'Escape') {
       event.preventDefault();
       setOpen(false);
-      setQuery("");
+      setQuery('');
       return;
     }
-    if (event.key === "ArrowDown" && visibleOptions.length > 0) {
+    if (event.key === 'ArrowDown' && visibleOptions.length > 0) {
       event.preventDefault();
       optionRefs.current[0]?.focus();
     }
@@ -173,49 +173,51 @@ export function VisitCatalogTextarea({
                 {filteredOptions.length > 0 ? (
                   <>
                     Показано {visibleOptions.length} из {filteredOptions.length}
-                    {hiddenOptionsCount > 0 ? " — уточните поиск" : ""}
+                    {hiddenOptionsCount > 0 ? ' — уточните поиск' : ''}
                   </>
                 ) : (
-                  "По запросу ничего не найдено."
+                  'По запросу ничего не найдено.'
                 )}
               </div>
-              {visibleOptions.length > 0 ? (
-                visibleOptions.map((option, idx) => (
-                  <Button
-                    key={option.id}
-                    ref={(node) => {
-                      optionRefs.current[idx] = node;
-                    }}
-                    type="button"
-                    onClick={() => insertOption(option)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Escape") {
-                        event.preventDefault();
-                        setOpen(false);
-                        setQuery("");
-                      }
-                    }}
-                    variant="ghost"
-                    className={cn(
-                      "flex h-auto w-full min-w-0 flex-col items-start rounded-none",
-                      "px-2.5 py-1.5 text-left whitespace-normal hover:bg-primary/10",
-                      idx > 0 && "border-t border-border",
-                    )}
-                  >
-                    <span className="line-clamp-2 max-w-full break-words text-sm font-semibold text-foreground">
-                      {option.title}
-                    </span>
-                    {option.meta ? (
-                      <span className={cn(hintClass, "max-w-full break-words")}>{option.meta}</span>
-                    ) : null}
-                    {option.body ? (
-                      <span className="line-clamp-2 max-w-full break-words text-xs text-muted-foreground">
-                        {option.body}
+              {visibleOptions.length > 0
+                ? visibleOptions.map((option, idx) => (
+                    <Button
+                      key={option.id}
+                      ref={(node) => {
+                        optionRefs.current[idx] = node;
+                      }}
+                      type="button"
+                      onClick={() => insertOption(option)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Escape') {
+                          event.preventDefault();
+                          setOpen(false);
+                          setQuery('');
+                        }
+                      }}
+                      variant="ghost"
+                      className={cn(
+                        'flex h-auto w-full min-w-0 flex-col items-start rounded-none',
+                        'px-2.5 py-1.5 text-left whitespace-normal hover:bg-primary/10',
+                        idx > 0 && 'border-t border-border',
+                      )}
+                    >
+                      <span className="line-clamp-2 max-w-full break-words text-sm font-semibold text-foreground">
+                        {option.title}
                       </span>
-                    ) : null}
-                  </Button>
-                ))
-              ) : null}
+                      {option.meta ? (
+                        <span className={cn(hintClass, 'max-w-full break-words')}>
+                          {option.meta}
+                        </span>
+                      ) : null}
+                      {option.body ? (
+                        <span className="line-clamp-2 max-w-full break-words text-xs text-muted-foreground">
+                          {option.body}
+                        </span>
+                      ) : null}
+                    </Button>
+                  ))
+                : null}
             </>
           ) : (
             <div className="px-2.5 py-1.5 text-xs text-muted-foreground">

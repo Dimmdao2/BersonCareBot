@@ -46,9 +46,9 @@ describe('integrator DB client helpers', () => {
     await expect(withIntegratorPoolClient(pool as never, async () => 'ok')).resolves.toBe('ok');
 
     expect(query.mock.calls).toEqual([
-      ['SELECT set_config(\'app.org\', $1, false)', ['']],
-      ['SELECT set_config(\'app.patient_user_id\', $1, false)', ['']],
-      ['SELECT set_config(\'app.integrator_user_id\', $1, false)', ['']],
+      ["SELECT set_config('app.org', $1, false)", ['']],
+      ["SELECT set_config('app.patient_user_id', $1, false)", ['']],
+      ["SELECT set_config('app.integrator_user_id', $1, false)", ['']],
     ]);
     expect(release).toHaveBeenCalledTimes(1);
   });
@@ -64,15 +64,15 @@ describe('integrator DB client helpers', () => {
     );
 
     expect(query.mock.calls).toEqual([
-      ['SELECT set_config(\'app.org\', $1, false)', ['dddddddd-dddd-4ddd-8ddd-dddddddddddd']],
-      ['SELECT set_config(\'app.patient_user_id\', $1, false)', ['']],
-      ['SELECT set_config(\'app.integrator_user_id\', $1, false)', ['']],
+      ["SELECT set_config('app.org', $1, false)", ['dddddddd-dddd-4ddd-8ddd-dddddddddddd']],
+      ["SELECT set_config('app.patient_user_id', $1, false)", ['']],
+      ["SELECT set_config('app.integrator_user_id', $1, false)", ['']],
       ['BEGIN'],
-      ['SELECT set_config(\'app.org\', $1, true)', ['dddddddd-dddd-4ddd-8ddd-dddddddddddd']],
+      ["SELECT set_config('app.org', $1, true)", ['dddddddd-dddd-4ddd-8ddd-dddddddddddd']],
       ['COMMIT'],
-      ['SELECT set_config(\'app.org\', $1, false)', ['']],
-      ['SELECT set_config(\'app.patient_user_id\', $1, false)', ['']],
-      ['SELECT set_config(\'app.integrator_user_id\', $1, false)', ['']],
+      ["SELECT set_config('app.org', $1, false)", ['']],
+      ["SELECT set_config('app.patient_user_id', $1, false)", ['']],
+      ["SELECT set_config('app.integrator_user_id', $1, false)", ['']],
     ]);
     expect(release).toHaveBeenCalledTimes(1);
   });
@@ -105,22 +105,22 @@ describe('integrator DB client helpers', () => {
     expect(release).toHaveBeenCalledTimes(1);
   });
 
-	it('fails closed in locked mode before checkout when no DB principal is active', async () => {
-		process.env.DB_PRINCIPAL_CONTEXT_MODE = 'locked';
-		process.env.DB_PRINCIPAL_SIGNING_SECRET = 'test-db-principal-signing-secret';
-		const release = vi.fn();
+  it('fails closed in locked mode before checkout when no DB principal is active', async () => {
+    process.env.DB_PRINCIPAL_CONTEXT_MODE = 'locked';
+    process.env.DB_PRINCIPAL_SIGNING_SECRET = 'test-db-principal-signing-secret';
+    const release = vi.fn();
     const query = vi.fn(async () => ({ rows: [], rowCount: 0 }));
     const client = { query, release };
-		const pool = { connect: vi.fn(async () => client) };
+    const pool = { connect: vi.fn(async () => client) };
 
-		await expect(withIntegratorPoolClient(pool as never, async () => 'unused')).rejects.toThrow(
-			'DB principal context is required before integrator scoped DB access in locked mode',
-		);
+    await expect(withIntegratorPoolClient(pool as never, async () => 'unused')).rejects.toThrow(
+      'DB principal context is required before integrator scoped DB access in locked mode',
+    );
 
-		expect(pool.connect).not.toHaveBeenCalled();
-		expect(query).not.toHaveBeenCalled();
-		expect(release).not.toHaveBeenCalled();
-	});
+    expect(pool.connect).not.toHaveBeenCalled();
+    expect(query).not.toHaveBeenCalled();
+    expect(release).not.toHaveBeenCalled();
+  });
 
   it('fails closed in locked mode before checkout for unknown bootstrap principals', async () => {
     process.env.DB_PRINCIPAL_CONTEXT_MODE = 'locked';
@@ -225,16 +225,22 @@ describe('integrator DB client helpers', () => {
       'integrator-deployment-org-resolution',
       'integrator-server-runtime-config',
     ]) {
-      expect(() => runWithDbBootstrapPrincipal({ source }, () =>
-        assertIntegratorLockedPrincipalClassified(locked),
-      )).not.toThrow();
+      expect(() =>
+        runWithDbBootstrapPrincipal({ source }, () =>
+          assertIntegratorLockedPrincipalClassified(locked),
+        ),
+      ).not.toThrow();
     }
-    expect(() => runWithDbInfraPrincipal({ source: 'integrator-projection-health' }, () =>
-      assertIntegratorLockedPrincipalClassified(locked),
-    )).not.toThrow();
-    expect(() => runWithDbBootstrapPrincipal({ source: 'integrator-generic-http-request' }, () =>
-      assertIntegratorLockedPrincipalClassified(locked),
-    )).toThrow('DB bootstrap principal source is not allowed');
+    expect(() =>
+      runWithDbInfraPrincipal({ source: 'integrator-projection-health' }, () =>
+        assertIntegratorLockedPrincipalClassified(locked),
+      ),
+    ).not.toThrow();
+    expect(() =>
+      runWithDbBootstrapPrincipal({ source: 'integrator-generic-http-request' }, () =>
+        assertIntegratorLockedPrincipalClassified(locked),
+      ),
+    ).toThrow('DB bootstrap principal source is not allowed');
   });
 
   it('rejects invalid locked DB principal env before checking out a client', async () => {
@@ -261,15 +267,15 @@ describe('integrator DB client helpers', () => {
     );
 
     expect(query.mock.calls).toEqual([
-      ['SELECT set_config(\'app.org\', $1, false)', ['eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee']],
-      ['SELECT set_config(\'app.patient_user_id\', $1, false)', ['']],
-      ['SELECT set_config(\'app.integrator_user_id\', $1, false)', ['']],
+      ["SELECT set_config('app.org', $1, false)", ['eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee']],
+      ["SELECT set_config('app.patient_user_id', $1, false)", ['']],
+      ["SELECT set_config('app.integrator_user_id', $1, false)", ['']],
       ['BEGIN'],
-      ['SELECT set_config(\'app.org\', $1, true)', ['eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee']],
+      ["SELECT set_config('app.org', $1, true)", ['eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee']],
       ['COMMIT'],
-      ['SELECT set_config(\'app.org\', $1, false)', ['']],
-      ['SELECT set_config(\'app.patient_user_id\', $1, false)', ['']],
-      ['SELECT set_config(\'app.integrator_user_id\', $1, false)', ['']],
+      ["SELECT set_config('app.org', $1, false)", ['']],
+      ["SELECT set_config('app.patient_user_id', $1, false)", ['']],
+      ["SELECT set_config('app.integrator_user_id', $1, false)", ['']],
     ]);
     expect(release).toHaveBeenCalledTimes(1);
   });
@@ -425,13 +431,13 @@ describe('integrator DB client helpers', () => {
   it('rejects callback-form pool.query at the provider chokepoint', async () => {
     const pool = createIntegratorPoolProvider({ connectionString: 'postgres://example/test' });
 
-    expect(() =>
-      pool.query('SELECT ok', () => undefined),
-    ).toThrow('Callback-form pool.query is forbidden');
+    expect(() => pool.query('SELECT ok', () => undefined)).toThrow(
+      'Callback-form pool.query is forbidden',
+    );
     await pool.end();
   });
 
-	it('rejects invalid locked DB principal env before pool.query checkout', async () => {
+  it('rejects invalid locked DB principal env before pool.query checkout', async () => {
     process.env.DB_PRINCIPAL_CONTEXT_MODE = 'locked';
     delete process.env.DB_PRINCIPAL_SIGNING_SECRET;
     const connect = vi.spyOn(Pool.prototype, 'connect');
@@ -440,35 +446,35 @@ describe('integrator DB client helpers', () => {
     expect(() => pool.query('SELECT ok')).toThrow('DB_PRINCIPAL_SIGNING_SECRET is required');
     await pool.end();
 
-		expect(connect).not.toHaveBeenCalled();
-	});
+    expect(connect).not.toHaveBeenCalled();
+  });
 
-	it('rejects missing locked DB principal before pool.query checkout', async () => {
-		process.env.DB_PRINCIPAL_CONTEXT_MODE = 'locked';
-		process.env.DB_PRINCIPAL_SIGNING_SECRET = 'test-db-principal-signing-secret';
-		const connect = vi.spyOn(Pool.prototype, 'connect');
-		const pool = createIntegratorPoolProvider({ connectionString: 'postgres://example/test' });
+  it('rejects missing locked DB principal before pool.query checkout', async () => {
+    process.env.DB_PRINCIPAL_CONTEXT_MODE = 'locked';
+    process.env.DB_PRINCIPAL_SIGNING_SECRET = 'test-db-principal-signing-secret';
+    const connect = vi.spyOn(Pool.prototype, 'connect');
+    const pool = createIntegratorPoolProvider({ connectionString: 'postgres://example/test' });
 
-		await expect(pool.query('SELECT ok')).rejects.toThrow(
-			'DB principal context is required before integrator scoped DB access in locked mode',
-		);
-		await pool.end();
+    await expect(pool.query('SELECT ok')).rejects.toThrow(
+      'DB principal context is required before integrator scoped DB access in locked mode',
+    );
+    await pool.end();
 
-		expect(connect).not.toHaveBeenCalled();
-	});
+    expect(connect).not.toHaveBeenCalled();
+  });
 
-	it('rejects a locked operational source before request-pool checkout when its URL is missing', async () => {
-		process.env.DB_PRINCIPAL_CONTEXT_MODE = 'locked';
-		process.env.DB_PRINCIPAL_SIGNING_SECRET = 'test-db-principal-signing-secret';
-		const connect = vi.spyOn(Pool.prototype, 'connect');
-		vi.spyOn(Pool.prototype, 'end').mockResolvedValue(undefined);
-		const pool = createIntegratorPoolProvider({ connectionString: 'postgres://example/test' });
+  it('rejects a locked operational source before request-pool checkout when its URL is missing', async () => {
+    process.env.DB_PRINCIPAL_CONTEXT_MODE = 'locked';
+    process.env.DB_PRINCIPAL_SIGNING_SECRET = 'test-db-principal-signing-secret';
+    const connect = vi.spyOn(Pool.prototype, 'connect');
+    vi.spyOn(Pool.prototype, 'end').mockResolvedValue(undefined);
+    const pool = createIntegratorPoolProvider({ connectionString: 'postgres://example/test' });
 
-		expect(() =>
-			runWithDbInfraPrincipal({ source: 'worker:projection-outbox-tick' }, () => pool.connect()),
-		).toThrow('DATABASE_URL_DELIVERY_WORKER is required');
-		await pool.end();
+    expect(() =>
+      runWithDbInfraPrincipal({ source: 'worker:projection-outbox-tick' }, () => pool.connect()),
+    ).toThrow('DATABASE_URL_DELIVERY_WORKER is required');
+    await pool.end();
 
-		expect(connect).not.toHaveBeenCalled();
-	});
+    expect(connect).not.toHaveBeenCalled();
+  });
 });

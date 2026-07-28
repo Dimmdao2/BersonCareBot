@@ -49,11 +49,11 @@
 
 **Статус:** OK
 
-| Ключ | Где зафиксирован |
-|------|-------------------|
-| `yandex_oauth_client_id` | `ALLOWED_KEYS` в `modules/system-settings/types.ts` |
+| Ключ                         | Где зафиксирован                                          |
+| ---------------------------- | --------------------------------------------------------- |
+| `yandex_oauth_client_id`     | `ALLOWED_KEYS` в `modules/system-settings/types.ts`       |
 | `yandex_oauth_client_secret` | то же; `SECRET_LIKE_KEYS` в `api/admin/settings/route.ts` |
-| `yandex_oauth_redirect_uri` | то же |
+| `yandex_oauth_redirect_uri`  | то же                                                     |
 
 - Чтение: `integrationRuntime.ts` — `getYandexOauthClientId` / `Secret` / `RedirectUri` через `getConfigValue`.
 - Админка: `AuthProvidersSection.tsx` (ранее монолитный `RuntimeConfigSection.tsx`), список ключей в `api/admin/settings/route.ts`, тест обновления `yandex_oauth_client_id` в `route.test.ts`.
@@ -64,8 +64,8 @@
 
 **Статус:** OK
 
-| Команда | Результат |
-|---------|-----------|
+| Команда                                         | Результат               |
+| ----------------------------------------------- | ----------------------- |
 | `pnpm install --frozen-lockfile && pnpm run ci` | **exit 0** (2026-04-04) |
 
 ---

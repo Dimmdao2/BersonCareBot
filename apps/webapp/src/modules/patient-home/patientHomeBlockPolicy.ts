@@ -1,10 +1,10 @@
-import type { PatientHomeBlock, PatientHomeBlockCode } from "./ports";
+import type { PatientHomeBlock, PatientHomeBlockCode } from './ports';
 
 const PERSONAL_BLOCK_CODES = new Set<PatientHomeBlockCode>([
-  "progress",
-  "mood_checkin",
-  "next_reminder",
-  "plan",
+  'progress',
+  'mood_checkin',
+  'next_reminder',
+  'plan',
 ]);
 
 /** Блоки с персональными данными / gated drilldown (политика UI и ссылок, не скрытие с главной). */

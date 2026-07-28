@@ -90,6 +90,7 @@ pnpm --dir apps/webapp exec tsc --noEmit
 ```
 
 Audit artifact must include:
+
 - матрица container coverage;
 - список defer items с причинами;
 - подтверждение, что `bodyMd` не смешан с comment.

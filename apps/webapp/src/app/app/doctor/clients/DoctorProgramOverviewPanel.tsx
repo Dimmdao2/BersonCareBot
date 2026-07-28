@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 /**
  * DoctorProgramOverviewPanel — S3.1
@@ -13,21 +13,18 @@
  * уже имеют данные (пустая серия прячется автоматически ExerciseExecutionGraph).
  */
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
-import type { ExerciseMetricPoint } from "@/shared/ui/doctor/ExerciseMicroChart";
-import {
-  ExerciseExecutionGraph,
-  type DayBar,
-} from "@/shared/ui/doctor/ExerciseExecutionGraph";
-import { doctorClientTreatmentProgramInstanceHref } from "./doctorClientInstanceHref";
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import type { ExerciseMetricPoint } from '@/shared/ui/doctor/ExerciseMicroChart';
+import { ExerciseExecutionGraph, type DayBar } from '@/shared/ui/doctor/ExerciseExecutionGraph';
+import { doctorClientTreatmentProgramInstanceHref } from './doctorClientInstanceHref';
 import {
   doctorClientSectionTitleClass,
   doctorClientTabSectionClass,
   doctorClientStackedCardClass,
-} from "./doctorClientCardChrome";
-import { buttonVariants } from "@/shared/ui/doctor/primitives/button-variants";
-import { cn } from "@/lib/utils";
+} from './doctorClientCardChrome';
+import { buttonVariants } from '@/shared/ui/doctor/primitives/button-variants';
+import { cn } from '@/lib/utils';
 
 type Props = {
   userId: string;
@@ -37,10 +34,10 @@ type Props = {
 };
 
 type FetchState<T> =
-  | { status: "idle" }
-  | { status: "loading" }
-  | { status: "done"; data: T }
-  | { status: "error" };
+  | { status: 'idle' }
+  | { status: 'loading' }
+  | { status: 'done'; data: T }
+  | { status: 'error' };
 
 export function DoctorProgramOverviewPanel({
   userId,
@@ -50,12 +47,12 @@ export function DoctorProgramOverviewPanel({
 }: Props) {
   const [windowDays, setWindowDays] = useState<7 | 30>(7);
 
-  const [metricsState, setMetricsState] = useState<
-    FetchState<ExerciseMetricPoint[]>
-  >({ status: "idle" });
+  const [metricsState, setMetricsState] = useState<FetchState<ExerciseMetricPoint[]>>({
+    status: 'idle',
+  });
 
   const [barsState, setBarsState] = useState<FetchState<DayBar[]>>({
-    status: "idle",
+    status: 'idle',
   });
 
   // Note: exercise-metrics also needs stageItemId; without it we can only
@@ -65,22 +62,22 @@ export function DoctorProgramOverviewPanel({
   // For overview we just show the day-activity bars.
   useEffect(() => {
     const controller = new AbortController();
-    setBarsState({ status: "loading" });
+    setBarsState({ status: 'loading' });
 
     void (async () => {
       try {
         const url = `/api/doctor/clients/${encodeURIComponent(userId)}/program-day-activity?instanceId=${encodeURIComponent(instanceId)}&windowDays=${windowDays}`;
         const res = await fetch(url, { signal: controller.signal });
-        if (!res.ok) throw new Error("fetch failed");
+        if (!res.ok) throw new Error('fetch failed');
         const data = (await res.json()) as {
           ok: boolean;
           days?: DayBar[];
         };
-        if (!data.ok || !data.days) throw new Error("bad response");
-        setBarsState({ status: "done", data: data.days });
+        if (!data.ok || !data.days) throw new Error('bad response');
+        setBarsState({ status: 'done', data: data.days });
       } catch (err) {
-        if ((err as Error).name === "AbortError") return;
-        setBarsState({ status: "error" });
+        if ((err as Error).name === 'AbortError') return;
+        setBarsState({ status: 'error' });
       }
     })();
 
@@ -91,18 +88,15 @@ export function DoctorProgramOverviewPanel({
   // level (no stageItemId). Metrics stay empty; ExerciseExecutionGraph hides
   // empty series automatically.
   const metricPoints: ExerciseMetricPoint[] =
-    metricsState.status === "done" ? metricsState.data : [];
+    metricsState.status === 'done' ? metricsState.data : [];
   void metricsState; // suppress unused-var lint
 
-  const dayBars: DayBar[] =
-    barsState.status === "done" ? barsState.data : [];
+  const dayBars: DayBar[] = barsState.status === 'done' ? barsState.data : [];
 
-  const isLoading = barsState.status === "loading";
-  const instanceHref = doctorClientTreatmentProgramInstanceHref(
-    userId,
-    instanceId,
-    { profileListScope },
-  );
+  const isLoading = barsState.status === 'loading';
+  const instanceHref = doctorClientTreatmentProgramInstanceHref(userId, instanceId, {
+    profileListScope,
+  });
 
   return (
     <div className="flex flex-col gap-0">
@@ -111,17 +105,14 @@ export function DoctorProgramOverviewPanel({
           <h3 className={doctorClientSectionTitleClass}>Активность программы</h3>
           <Link
             href={instanceHref}
-            className={cn(
-              buttonVariants({ variant: "outline", size: "sm" }),
-              "text-xs",
-            )}
+            className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'text-xs')}
           >
             Открыть программу
           </Link>
         </div>
 
         {isLoading ? (
-          <div className={cn(doctorClientStackedCardClass, "space-y-2")}>
+          <div className={cn(doctorClientStackedCardClass, 'space-y-2')}>
             <div className="h-3 w-1/2 animate-pulse rounded bg-muted" />
             <div className="h-16 animate-pulse rounded bg-muted" />
             <div className="h-3 w-1/3 animate-pulse rounded bg-muted" />
@@ -140,11 +131,9 @@ export function DoctorProgramOverviewPanel({
       </section>
 
       <section className={doctorClientTabSectionClass}>
-        <h3 className={cn(doctorClientSectionTitleClass, "mb-2")}>
-          Комментарии к программе
-        </h3>
+        <h3 className={cn(doctorClientSectionTitleClass, 'mb-2')}>Комментарии к программе</h3>
         <p className="text-xs text-muted-foreground">
-          Полный журнал обсуждений доступен на странице программы.{" "}
+          Полный журнал обсуждений доступен на странице программы.{' '}
           <Link href={instanceHref} className="underline hover:text-foreground">
             Перейти к программе
           </Link>

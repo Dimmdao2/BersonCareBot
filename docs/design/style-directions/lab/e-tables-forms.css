@@ -6,7 +6,6 @@
    All rules use !important to beat inlined Tailwind utilities.
    ============================================================ */
 
-
 /* ── 0. Page canvas ─────────────────────────────────────────── */
 #app-shell-doctor {
   background: #f9f9f6 !important;
@@ -15,16 +14,16 @@
   background: #f9f9f6 !important;
 }
 
-
 /* ── 1. Left column — list panel card ──────────────────────── */
 /* The first <section> child inside the grid */
 #app-shell-content section:first-of-type {
   border: 1px solid #d8d5ce !important;
   border-radius: 9px !important;
   background: #ffffff !important;
-  box-shadow: 0 1px 2px rgba(22,32,46,.05), 0 4px 14px rgba(22,32,46,.07) !important;
+  box-shadow:
+    0 1px 2px rgba(22, 32, 46, 0.05),
+    0 4px 14px rgba(22, 32, 46, 0.07) !important;
 }
-
 
 /* ── 2. Search input ────────────────────────────────────────── */
 /* wrapper bar above filter bar */
@@ -35,7 +34,7 @@
 }
 
 /* the search input */
-#app-shell-content input[data-slot="input"][type="search"] {
+#app-shell-content input[data-slot='input'][type='search'] {
   border: 1.5px solid #dddbd6 !important;
   border-radius: 8px !important;
   background: #f7f7f5 !important;
@@ -44,25 +43,28 @@
   height: 36px !important;
   padding-left: 34px !important;
   padding-right: 10px !important;
-  transition: border-color .15s ease, box-shadow .15s ease !important;
-  box-shadow: inset 0 1px 3px rgba(22,32,46,.06) !important;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease !important;
+  box-shadow: inset 0 1px 3px rgba(22, 32, 46, 0.06) !important;
 }
-#app-shell-content input[data-slot="input"][type="search"]::placeholder {
+#app-shell-content input[data-slot='input'][type='search']::placeholder {
   color: #a0a9b5 !important;
   font-size: 12.5px !important;
 }
-#app-shell-content input[data-slot="input"][type="search"]:focus {
+#app-shell-content input[data-slot='input'][type='search']:focus {
   border-color: #42608a !important;
   background: #fff !important;
   outline: none !important;
-  box-shadow: 0 0 0 3px rgba(66,96,138,.14), inset 0 1px 2px rgba(22,32,46,.03) !important;
+  box-shadow:
+    0 0 0 3px rgba(66, 96, 138, 0.14),
+    inset 0 1px 2px rgba(22, 32, 46, 0.03) !important;
 }
 
 /* magnifier icon color */
 #app-shell-content .lucide-search {
   color: #a0a9b5 !important;
 }
-
 
 /* ── 3. Filter icon bar ─────────────────────────────────────── */
 /* sticky bar: "Пациентов: N" + icon toggle grid */
@@ -77,32 +79,34 @@
   color: #8b95a3 !important;
   font-size: 11px !important;
   font-weight: 500 !important;
-  letter-spacing: .02em !important;
+  letter-spacing: 0.02em !important;
 }
 
 /* icon toggle buttons — resting state */
-#app-shell-content [aria-label="Фильтры списка"] > button {
+#app-shell-content [aria-label='Фильтры списка'] > button {
   border: 1px solid #e0ddd7 !important;
   border-radius: 6px !important;
   background: #f4f3f0 !important;
   color: #9ba5b2 !important;
   width: 26px !important;
   height: 26px !important;
-  transition: background .12s ease, border-color .12s ease, color .12s ease !important;
+  transition:
+    background 0.12s ease,
+    border-color 0.12s ease,
+    color 0.12s ease !important;
 }
-#app-shell-content [aria-label="Фильтры списка"] > button:hover {
+#app-shell-content [aria-label='Фильтры списка'] > button:hover {
   background: #eef2f7 !important;
   border-color: #b0c2d6 !important;
   color: #42608a !important;
 }
 /* active icon filter */
-#app-shell-content [aria-label="Фильтры списка"] > button[aria-pressed="true"],
-#app-shell-content [aria-label="Фильтры списка"] > button[data-state="active"] {
+#app-shell-content [aria-label='Фильтры списка'] > button[aria-pressed='true'],
+#app-shell-content [aria-label='Фильтры списка'] > button[data-state='active'] {
   background: #42608a !important;
   border-color: #42608a !important;
   color: #fff !important;
 }
-
 
 /* ── 4. Patient list rows ───────────────────────────────────── */
 #doctor-patients-list {
@@ -129,13 +133,13 @@
 #doctor-patients-list > li > button {
   padding: 10px 8px !important;
   border-radius: 5px !important;
-  transition: background .11s ease !important;
+  transition: background 0.11s ease !important;
   width: 100% !important;
   background: transparent !important;
   position: relative !important;
 }
 #doctor-patients-list > li > button::before {
-  content: "" !important;
+  content: '' !important;
   position: absolute !important;
   left: 0 !important;
   top: 4px !important;
@@ -143,7 +147,7 @@
   width: 2px !important;
   border-radius: 2px !important;
   background: transparent !important;
-  transition: background .12s ease !important;
+  transition: background 0.12s ease !important;
 }
 #doctor-patients-list > li > button:hover {
   background: #f2f3f1 !important;
@@ -157,7 +161,7 @@
   color: #16202e !important;
   font-weight: 500 !important;
   font-size: 13px !important;
-  letter-spacing: -.01em !important;
+  letter-spacing: -0.01em !important;
 }
 #doctor-patients-list > li > button:hover span.font-semibold {
   color: #34507a !important;
@@ -170,7 +174,9 @@
   border-radius: 5px !important;
   background: #f4f3f0 !important;
   color: #7c8693 !important;
-  transition: background .11s ease, color .11s ease !important;
+  transition:
+    background 0.11s ease,
+    color 0.11s ease !important;
 }
 #doctor-patients-list > li > button:hover span.relative.size-6,
 #doctor-patients-list > li > button:hover .relative.inline-flex.size-6 {
@@ -179,48 +185,51 @@
   border-color: #bfcfdf !important;
 }
 
-
 /* ── 5. Right panel — stat segment cards ──────────────────── */
 /* the section card wrapping the segment grid + filters */
 #app-shell-content section:not(:first-of-type) {
   border: 1px solid #e7e3db !important;
   border-radius: 9px !important;
   background: #fff !important;
-  box-shadow: 0 1px 2px rgba(22,32,46,.04), 0 3px 10px rgba(22,32,46,.05) !important;
+  box-shadow:
+    0 1px 2px rgba(22, 32, 46, 0.04),
+    0 3px 10px rgba(22, 32, 46, 0.05) !important;
   padding: 12px !important;
 }
 
 /* base stat card button */
-#app-shell-content button[id^="doctor-patients-segment-"] {
+#app-shell-content button[id^='doctor-patients-segment-'] {
   border: 1px solid #e7e3db !important;
   border-radius: 7px !important;
   background: #f9f9f6 !important;
   padding: 8px 9px !important;
   text-align: left !important;
-  transition: border-color .13s ease, background .13s ease !important;
+  transition:
+    border-color 0.13s ease,
+    background 0.13s ease !important;
 }
-#app-shell-content button[id^="doctor-patients-segment-"]:hover {
+#app-shell-content button[id^='doctor-patients-segment-']:hover {
   border-color: #b0c2d6 !important;
   background: #eef2f7 !important;
 }
 
 /* stat card label */
-#app-shell-content button[id^="doctor-patients-segment-"] p:first-child {
+#app-shell-content button[id^='doctor-patients-segment-'] p:first-child {
   color: #8b95a3 !important;
   font-size: 9px !important;
   font-weight: 600 !important;
-  letter-spacing: .05em !important;
+  letter-spacing: 0.05em !important;
   text-transform: uppercase !important;
   line-height: 1.3 !important;
 }
 
 /* stat card number */
-#app-shell-content button[id^="doctor-patients-segment-"] p:last-child {
+#app-shell-content button[id^='doctor-patients-segment-'] p:last-child {
   color: #16202e !important;
   font-size: 20px !important;
   font-weight: 700 !important;
   font-variant-numeric: tabular-nums !important;
-  letter-spacing: -.02em !important;
+  letter-spacing: -0.02em !important;
   margin-top: 1px !important;
   line-height: 1.15 !important;
 }
@@ -230,11 +239,13 @@ html body #doctor-patients-segment-all,
 html body #doctor-patients-segment-all.rounded-lg {
   border-color: #42608a !important;
   background: #42608a !important;
-  box-shadow: 0 1px 4px rgba(66,96,138,.25), 0 3px 10px rgba(66,96,138,.12) !important;
+  box-shadow:
+    0 1px 4px rgba(66, 96, 138, 0.25),
+    0 3px 10px rgba(66, 96, 138, 0.12) !important;
 }
 html body #doctor-patients-segment-all p:first-child,
 html body #doctor-patients-segment-all > p:first-child {
-  color: rgba(255,255,255,.78) !important;
+  color: rgba(255, 255, 255, 0.78) !important;
 }
 html body #doctor-patients-segment-all p:last-child,
 html body #doctor-patients-segment-all > p:last-child {
@@ -244,7 +255,6 @@ html body #doctor-patients-segment-all:hover {
   background: #34507a !important;
   border-color: #34507a !important;
 }
-
 
 /* ── 6. "Дополнительные фильтры" section ───────────────────── */
 /* divider + label */
@@ -257,7 +267,7 @@ html body #doctor-patients-segment-all:hover {
   color: #8b95a3 !important;
   font-size: 10px !important;
   font-weight: 600 !important;
-  letter-spacing: .05em !important;
+  letter-spacing: 0.05em !important;
   text-transform: uppercase !important;
   margin-bottom: 8px !important;
 }
@@ -273,7 +283,10 @@ html body #doctor-patients-segment-all:hover {
   padding: 3px 10px !important;
   height: auto !important;
   line-height: 1.55 !important;
-  transition: background .12s ease, border-color .12s ease, color .12s ease !important;
+  transition:
+    background 0.12s ease,
+    border-color 0.12s ease,
+    color 0.12s ease !important;
   white-space: nowrap !important;
 }
 #doctor-patients-filters > button:hover {
@@ -281,13 +294,13 @@ html body #doctor-patients-segment-all:hover {
   border-color: #b0c2d6 !important;
   color: #42608a !important;
 }
-#doctor-patients-filters > button[aria-pressed="true"] {
+#doctor-patients-filters > button[aria-pressed='true'] {
   background: #42608a !important;
   border-color: #42608a !important;
   color: #fff !important;
   font-weight: 600 !important;
 }
-#doctor-patients-filters > button[aria-pressed="true"]:hover {
+#doctor-patients-filters > button[aria-pressed='true']:hover {
   background: #34507a !important;
   border-color: #34507a !important;
 }

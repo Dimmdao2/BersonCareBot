@@ -12,10 +12,10 @@
  *      a patient_files row does NOT cascade-delete the media_files row.
  */
 
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 // ── Drizzle mock ──────────────────────────────────────────────────────────────
-const MOCK_ORG_ID = vi.hoisted(() => "00000000-0000-4000-8000-0000000000aa");
+const MOCK_ORG_ID = vi.hoisted(() => '00000000-0000-4000-8000-0000000000aa');
 
 type MockInsertReturn = {
   id: string;
@@ -37,38 +37,38 @@ const mockDrizzle = {
   insert: vi.fn(),
 };
 
-vi.mock("@/app-layer/db/drizzle", () => ({
+vi.mock('@/app-layer/db/drizzle', () => ({
   getDrizzle: () => mockDrizzle,
 }));
 
-vi.mock("@/infra/db/drizzleMutationTx", () => ({
+vi.mock('@/infra/db/drizzleMutationTx', () => ({
   runDrizzleMutationTransaction: (fn: (tx: typeof mockDrizzle) => unknown) => fn(mockDrizzle),
 }));
 
-vi.mock("@bersoncare/db-principal", () => ({
+vi.mock('@bersoncare/db-principal', () => ({
   getCurrentDbPrincipalOrganizationId: () => MOCK_ORG_ID,
 }));
 
 // ── Import subject after mock is hoisted ──────────────────────────────────────
-import { createPgPatientFilesPort } from "@/infra/repos/pgPatientFiles";
-import { patientFiles } from "../../../db/schema/patientFiles";
+import { createPgPatientFilesPort } from '@/infra/repos/pgPatientFiles';
+import { patientFiles } from '../../../db/schema/patientFiles';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const BASE_PARAMS = {
-  patientUserId: "00000000-0000-4000-8000-000000000001",
-  category: "прочее" as const,
-  fileName: "test.pdf",
-  s3Key: "patient-files/abc/test.pdf",
-  s3Bucket: "bersonservices-private",
-  mimeType: "application/pdf",
+  patientUserId: '00000000-0000-4000-8000-000000000001',
+  category: 'прочее' as const,
+  fileName: 'test.pdf',
+  s3Key: 'patient-files/abc/test.pdf',
+  s3Bucket: 'bersonservices-private',
+  mimeType: 'application/pdf',
   sizeBytes: 1024,
-  uploadedByUserId: "00000000-0000-4000-8000-000000000002",
+  uploadedByUserId: '00000000-0000-4000-8000-000000000002',
 };
 
-const MOCK_MEDIA_FILE_ID = "00000000-0000-4000-8888-000000000010";
-const MOCK_PATIENT_FILE_ID = "00000000-0000-4000-9999-000000000020";
-const MOCK_FOLDER_ID = "00000000-0000-4000-7777-000000000030";
+const MOCK_MEDIA_FILE_ID = '00000000-0000-4000-8888-000000000010';
+const MOCK_PATIENT_FILE_ID = '00000000-0000-4000-9999-000000000020';
+const MOCK_FOLDER_ID = '00000000-0000-4000-7777-000000000030';
 
 function makePatientFileRow(overrides: Record<string, unknown> = {}) {
   return {
@@ -83,14 +83,14 @@ function makePatientFileRow(overrides: Record<string, unknown> = {}) {
     visitId: null,
     mediaFileId: MOCK_MEDIA_FILE_ID,
     uploadedByUserId: BASE_PARAMS.uploadedByUserId,
-    createdAt: "2026-06-19T00:00:00Z",
+    createdAt: '2026-06-19T00:00:00Z',
     ...overrides,
   };
 }
 
 // ── Tests ──────────────────────────────────────────────────────────────────────
 
-describe("pgPatientFiles — G3 consistency (PFI-ST-04)", () => {
+describe('pgPatientFiles — G3 consistency (PFI-ST-04)', () => {
   let port: ReturnType<typeof createPgPatientFilesPort>;
 
   beforeEach(() => {
@@ -99,8 +99,8 @@ describe("pgPatientFiles — G3 consistency (PFI-ST-04)", () => {
     port = createPgPatientFilesPort();
   });
 
-  describe("G3a: createFile with folderId links media_files row via mediaFileId", () => {
-    it("inserts into media_files first, then patient_files with the returned mediaFileId", async () => {
+  describe('G3a: createFile with folderId links media_files row via mediaFileId', () => {
+    it('inserts into media_files first, then patient_files with the returned mediaFileId', async () => {
       // First insert call → media_files row
       const mediaInsertBuilder = makeMockInsertBuilder([{ id: MOCK_MEDIA_FILE_ID }]);
       // Second insert call → patient_files row
@@ -120,7 +120,7 @@ describe("pgPatientFiles — G3 consistency (PFI-ST-04)", () => {
       expect(result.id).toBe(MOCK_PATIENT_FILE_ID);
     });
 
-    it("passes folderId and file metadata to the media_files insert", async () => {
+    it('passes folderId and file metadata to the media_files insert', async () => {
       const mediaInsertBuilder = makeMockInsertBuilder([{ id: MOCK_MEDIA_FILE_ID }]);
       const patientInsertBuilder = makeMockInsertBuilder([makePatientFileRow()]);
 
@@ -138,7 +138,7 @@ describe("pgPatientFiles — G3 consistency (PFI-ST-04)", () => {
           mimeType: BASE_PARAMS.mimeType,
           sizeBytes: BASE_PARAMS.sizeBytes,
           s3Key: BASE_PARAMS.s3Key,
-          status: "ready",
+          status: 'ready',
         }),
       );
 
@@ -151,7 +151,7 @@ describe("pgPatientFiles — G3 consistency (PFI-ST-04)", () => {
       );
     });
 
-    it("sets mediaFileId to null when no folderId is provided (backwards-compat)", async () => {
+    it('sets mediaFileId to null when no folderId is provided (backwards-compat)', async () => {
       const patientInsertBuilder = makeMockInsertBuilder([
         makePatientFileRow({ mediaFileId: null }),
       ]);
@@ -166,8 +166,8 @@ describe("pgPatientFiles — G3 consistency (PFI-ST-04)", () => {
     });
   });
 
-  describe("G3b: onDelete:set null semantics — schema column assertion", () => {
-    it("patient_files.mediaFileId column is nullable (FK with onDelete set null means media_files row survives patient_files deletion)", () => {
+  describe('G3b: onDelete:set null semantics — schema column assertion', () => {
+    it('patient_files.mediaFileId column is nullable (FK with onDelete set null means media_files row survives patient_files deletion)', () => {
       // The schema uses onDelete: "set null" on the patient_files → media_files FK.
       // This means:
       //   - If a media_files row is deleted → patient_files.media_file_id becomes NULL (not error).
@@ -180,21 +180,20 @@ describe("pgPatientFiles — G3 consistency (PFI-ST-04)", () => {
       expect((col as unknown as { notNull: boolean }).notNull).toBe(false);
     });
 
-    it("patient_files schema source file declares onDelete set null for media_file_id FK", async () => {
+    it('patient_files schema source file declares onDelete set null for media_file_id FK', async () => {
       // Read the schema source to assert the FK definition string is present.
       // This is a regression guard: changing onDelete to "cascade" would break this test.
-      const fs = await import("node:fs/promises");
-      const path = await import("node:path");
-      const schemaPath = path.resolve(
-        __dirname,
-        "../../../db/schema/patientFiles.ts",
-      );
-      const source = await fs.readFile(schemaPath, "utf8");
+      const fs = await import('node:fs/promises');
+      const path = await import('node:path');
+      const schemaPath = path.resolve(__dirname, '../../../db/schema/patientFiles.ts');
+      const source = await fs.readFile(schemaPath, 'utf8');
 
       // The FK for media_file_id must use onDelete("set null"), not "cascade"
-      expect(source).toContain("patient_files_media_file_id_fkey");
+      expect(source).toContain('patient_files_media_file_id_fkey');
       expect(source).toContain('.onDelete("set null")');
-      expect(source).not.toMatch(/patient_files_media_file_id_fkey[\s\S]{0,200}\.onDelete\("cascade"\)/);
+      expect(source).not.toMatch(
+        /patient_files_media_file_id_fkey[\s\S]{0,200}\.onDelete\("cascade"\)/,
+      );
     });
   });
 });

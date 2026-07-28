@@ -15,21 +15,23 @@
 **Файл:** `apps/webapp/src/modules/content-catalog/service.ts`
 
 **Найти:**
+
 ```ts
-            if (row.videoUrl && row.videoType === "url") {
-              item.videoSource = { type: "url", url: row.videoUrl };
-            } else if (row.videoUrl && row.videoType === "api") {
-              item.videoSource = { type: "api", mediaId: row.videoUrl };
-            }
+if (row.videoUrl && row.videoType === 'url') {
+  item.videoSource = { type: 'url', url: row.videoUrl };
+} else if (row.videoUrl && row.videoType === 'api') {
+  item.videoSource = { type: 'api', mediaId: row.videoUrl };
+}
 ```
 
 **Заменить на:**
+
 ```ts
-            if (row.videoUrl && (row.videoType === "url" || row.videoType === "youtube")) {
-              item.videoSource = { type: "url", url: row.videoUrl };
-            } else if (row.videoUrl && row.videoType === "api") {
-              item.videoSource = { type: "api", mediaId: row.videoUrl };
-            }
+if (row.videoUrl && (row.videoType === 'url' || row.videoType === 'youtube')) {
+  item.videoSource = { type: 'url', url: row.videoUrl };
+} else if (row.videoUrl && row.videoType === 'api') {
+  item.videoSource = { type: 'api', mediaId: row.videoUrl };
+}
 ```
 
 YouTube-URL будет передан как `type: "url"`. Компонент `[slug]/page.tsx` уже умеет распознавать YouTube URL и рендерить iframe.

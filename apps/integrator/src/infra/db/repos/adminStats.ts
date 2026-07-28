@@ -35,7 +35,9 @@ async function getActiveBookingsCount(db: DbPort): Promise<number> {
   }
 }
 
-async function getUserCountsByIntegration(db: DbPort): Promise<AdminStats['userCountsByIntegration']> {
+async function getUserCountsByIntegration(
+  db: DbPort,
+): Promise<AdminStats['userCountsByIntegration']> {
   const result: AdminStats['userCountsByIntegration'] = {};
 
   // Telegram: identities with resource='telegram'; withPhone = those user_ids with a phone in contacts

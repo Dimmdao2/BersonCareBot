@@ -11,11 +11,13 @@
 ## 2. Scope
 
 ### In scope
+
 - Анализ текущих progress-путей (`progress-service`, `patient-program-actions`).
 - Выравнивание контракта submit/decision для `test_set`.
 - Документация и тесты сценария `qualitative` (без отдельного «особого» режима).
 
 ### Out of scope
+
 - Новый UI-редизайн patient flow.
 - Новая модель scoring.
 

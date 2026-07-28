@@ -50,9 +50,7 @@ async function startScheduler(): Promise<void> {
     throw error;
   }
   if (!lockHandle) {
-    logger.warn(
-      'Scheduler lock not acquired, another instance is leader. Exiting.',
-    );
+    logger.warn('Scheduler lock not acquired, another instance is leader. Exiting.');
     await closeDb();
     // Non-zero exit with Restart=on-failure avoids a tight restart loop if two hosts share one DB.
     process.exit(1);

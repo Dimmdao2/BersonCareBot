@@ -1,26 +1,29 @@
-import Link from "next/link";
-import { Zap } from "lucide-react";
-import type { ResolvedSosCard } from "@/modules/patient-home/patientHomeResolvers";
+import Link from 'next/link';
+import { Zap } from 'lucide-react';
+import type { ResolvedSosCard } from '@/modules/patient-home/patientHomeResolvers';
 import {
   patientHomeBlockHeadingClass,
   patientHomeCardDangerClass,
   patientHomeSosCardGeometryClass,
   patientHomeSosSubtitleClampClass,
   patientIconLeadingDangerClass,
-} from "./patientHomeCardStyles";
-import { patientButtonDangerOutlineClass } from "@/shared/ui/patient/patientVisual";
-import { PatientHomeSafeImage } from "./PatientHomeSafeImage";
-import { cn } from "@/lib/utils";
+} from './patientHomeCardStyles';
+import { patientButtonDangerOutlineClass } from '@/shared/ui/patient/patientVisual';
+import { PatientHomeSafeImage } from './PatientHomeSafeImage';
+import { cn } from '@/lib/utils';
 
 type Props = { sos: ResolvedSosCard | null; blockIconImageUrl?: string | null };
 
 export function PatientHomeSosCard({ sos, blockIconImageUrl }: Props) {
   if (!sos) return null;
-  const sosCopy = "Рекомендации по облегчению боли";
+  const sosCopy = 'Рекомендации по облегчению боли';
 
   return (
     <section aria-labelledby="patient-home-sos-heading">
-      <article id="patient-home-sos-card" className={cn(patientHomeCardDangerClass, patientHomeSosCardGeometryClass)}>
+      <article
+        id="patient-home-sos-card"
+        className={cn(patientHomeCardDangerClass, patientHomeSosCardGeometryClass)}
+      >
         <div className="relative z-[1] flex min-h-0 flex-1 items-center gap-3 md:items-start">
           <div className={patientIconLeadingDangerClass} aria-hidden>
             <PatientHomeSafeImage
@@ -32,10 +35,13 @@ export function PatientHomeSosCard({ sos, blockIconImageUrl }: Props) {
             />
           </div>
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-            <h3 id="patient-home-sos-heading" className={cn(patientHomeBlockHeadingClass, "shrink-0")}>
+            <h3
+              id="patient-home-sos-heading"
+              className={cn(patientHomeBlockHeadingClass, 'shrink-0')}
+            >
               Если болит сейчас
             </h3>
-            <p className={cn(patientHomeSosSubtitleClampClass, "mt-1")}>{sosCopy}</p>
+            <p className={cn(patientHomeSosSubtitleClampClass, 'mt-1')}>{sosCopy}</p>
           </div>
         </div>
         <Link
@@ -43,8 +49,8 @@ export function PatientHomeSosCard({ sos, blockIconImageUrl }: Props) {
           prefetch={false}
           className={cn(
             patientButtonDangerOutlineClass,
-            "relative z-[1] !min-h-10 shrink-0 self-end whitespace-nowrap border-[#d8a3a3] px-3 text-[13px] text-[#8a3a3a] hover:bg-[#fff1f1]/80 active:bg-[#fee7e7]/80",
-            "md:mt-auto md:-mb-1 md:min-w-[8rem] md:self-end md:px-6 md:text-sm",
+            'relative z-[1] !min-h-10 shrink-0 self-end whitespace-nowrap border-[#d8a3a3] px-3 text-[13px] text-[#8a3a3a] hover:bg-[#fff1f1]/80 active:bg-[#fee7e7]/80',
+            'md:mt-auto md:-mb-1 md:min-w-[8rem] md:self-end md:px-6 md:text-sm',
           )}
         >
           Посмотреть

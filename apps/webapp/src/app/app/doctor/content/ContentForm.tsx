@@ -1,33 +1,33 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { useActionState, useEffect, useRef, useState } from "react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Checkbox } from "@/shared/ui/doctor/primitives/checkbox";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { Label } from "@/shared/ui/doctor/primitives/label";
+import Link from 'next/link';
+import { useActionState, useEffect, useRef, useState } from 'react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Checkbox } from '@/shared/ui/doctor/primitives/checkbox';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { Label } from '@/shared/ui/doctor/primitives/label';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/ui/doctor/primitives/select";
-import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
-import { MarkdownContent } from "@/shared/ui/doctor/markdown/MarkdownContent";
-import { MarkdownEditor } from "@/shared/ui/doctor/markdown/MarkdownEditor";
-import type { ContentSectionRow } from "@/infra/repos/pgContentSections";
+} from '@/shared/ui/doctor/primitives/select';
+import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
+import { MarkdownContent } from '@/shared/ui/doctor/markdown/MarkdownContent';
+import { MarkdownEditor } from '@/shared/ui/doctor/markdown/MarkdownEditor';
+import type { ContentSectionRow } from '@/infra/repos/pgContentSections';
 import {
   HELP_CANONICAL_ARTICLE_IA,
   HELP_CANONICAL_ARTICLE_SLUGS,
-} from "@/modules/help-content/canonicalSlugs";
-import { HELP_SECTION_SLUG } from "@/modules/content-sections/types";
-import type { PatientHomeCmsReturnQuery } from "@/modules/patient-home/patientHomeCmsReturnUrls";
-import { fallbackSlug, slugFromTitle } from "@/shared/lib/slugify";
-import { ruRatingCountLabel } from "@/shared/lib/ruRatingCountLabel";
-import { MediaLibraryPickerDialog } from "./MediaLibraryPickerDialog";
-import { ContentPreview } from "./ContentPreview";
-import { saveContentPage, type SaveContentPageState } from "./actions";
+} from '@/modules/help-content/canonicalSlugs';
+import { HELP_SECTION_SLUG } from '@/modules/content-sections/types';
+import type { PatientHomeCmsReturnQuery } from '@/modules/patient-home/patientHomeCmsReturnUrls';
+import { fallbackSlug, slugFromTitle } from '@/shared/lib/slugify';
+import { ruRatingCountLabel } from '@/shared/lib/ruRatingCountLabel';
+import { MediaLibraryPickerDialog } from './MediaLibraryPickerDialog';
+import { ContentPreview } from './ContentPreview';
+import { saveContentPage, type SaveContentPageState } from './actions';
 
 type ContentPage = {
   id: string;
@@ -50,7 +50,7 @@ type ContentPage = {
 export type PublishedCourseOption = { id: string; title: string };
 
 // ─── shared field-label style (mirrors existing span labels) ─────────────────
-const fieldLabelClass = "text-xs font-medium uppercase tracking-wide text-muted-foreground";
+const fieldLabelClass = 'text-xs font-medium uppercase tracking-wide text-muted-foreground';
 
 export function ContentForm({
   page,
@@ -85,18 +85,21 @@ export function ContentForm({
   onBack?: () => void;
   compact?: boolean;
 }) {
-  const [state, formAction, pending] = useActionState(saveContentPage, null as SaveContentPageState | null);
+  const [state, formAction, pending] = useActionState(
+    saveContentPage,
+    null as SaveContentPageState | null,
+  );
   const isNew = !page;
 
   // ─── recordKey: changes when the edited record changes ────────────────────
-  const recordKey = page?.id ?? "create";
+  const recordKey = page?.id ?? 'create';
 
   // ─── derived initial section ──────────────────────────────────────────────
   const defaultSectionSlugForSelect =
     page?.section ??
     (initialSectionSlug && sections.some((s) => s.slug === initialSectionSlug)
       ? initialSectionSlug
-      : sections[0]?.slug ?? "");
+      : (sections[0]?.slug ?? ''));
 
   const readOnlySection =
     !page &&
@@ -108,21 +111,21 @@ export function ContentForm({
     defaultSectionSlugForSelect === HELP_SECTION_SLUG || page?.section === HELP_SECTION_SLUG;
 
   // ─── state for controlled fields (needed for dirty detection + preview) ───
-  const initialBodyMd = page?.bodyMd ?? "";
+  const initialBodyMd = page?.bodyMd ?? '';
   const hasLegacyHtmlOnly = Boolean(
     page && page.bodyMd.trim().length === 0 && page.bodyHtml.trim().length > 0,
   );
 
-  const [titleValue, setTitleValue] = useState(page?.title ?? "");
-  const [summaryValue, setSummaryValue] = useState(page?.summary ?? "");
+  const [titleValue, setTitleValue] = useState(page?.title ?? '');
+  const [summaryValue, setSummaryValue] = useState(page?.summary ?? '');
   const [bodyMdValue, setBodyMdValue] = useState(initialBodyMd);
-  const [slugValue, setSlugValue] = useState(page?.slug ?? "");
-  const [imageUrlValue, setImageUrlValue] = useState(page?.imageUrl ?? "");
-  const [videoUrlValue, setVideoUrlValue] = useState(page?.videoUrl ?? "");
+  const [slugValue, setSlugValue] = useState(page?.slug ?? '');
+  const [imageUrlValue, setImageUrlValue] = useState(page?.imageUrl ?? '');
+  const [videoUrlValue, setVideoUrlValue] = useState(page?.videoUrl ?? '');
   const [isPublishedValue, setIsPublishedValue] = useState(page?.isPublished ?? true);
   const [requiresAuthValue, setRequiresAuthValue] = useState(page?.requiresAuth ?? false);
   const [sectionValue, setSectionValue] = useState(defaultSectionSlugForSelect);
-  const [linkedCourseIdValue, setLinkedCourseIdValue] = useState(page?.linkedCourseId ?? "");
+  const [linkedCourseIdValue, setLinkedCourseIdValue] = useState(page?.linkedCourseId ?? '');
   const [legacyReplacementStarted, setLegacyReplacementStarted] = useState(false);
 
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -133,52 +136,52 @@ export function ContentForm({
 
   // ─── baseline snapshot for dirty detection ────────────────────────────────
   const baselineRef = useRef({
-    title: page?.title ?? "",
-    summary: page?.summary ?? "",
+    title: page?.title ?? '',
+    summary: page?.summary ?? '',
     bodyMd: initialBodyMd,
-    slug: page?.slug ?? "",
-    imageUrl: page?.imageUrl ?? "",
-    videoUrl: page?.videoUrl ?? "",
+    slug: page?.slug ?? '',
+    imageUrl: page?.imageUrl ?? '',
+    videoUrl: page?.videoUrl ?? '',
     isPublished: page?.isPublished ?? true,
     requiresAuth: page?.requiresAuth ?? false,
     section: defaultSectionSlugForSelect,
-    linkedCourseId: page?.linkedCourseId ?? "",
+    linkedCourseId: page?.linkedCourseId ?? '',
   });
 
   // ─── record-keyed reset (ExerciseForm pattern) ────────────────────────────
   useEffect(() => {
-    const newBodyMd = page?.bodyMd ?? "";
+    const newBodyMd = page?.bodyMd ?? '';
     const newSection =
       page?.section ??
       (initialSectionSlug && sections.some((s) => s.slug === initialSectionSlug)
         ? initialSectionSlug
-        : sections[0]?.slug ?? "");
+        : (sections[0]?.slug ?? ''));
 
-    setTitleValue(page?.title ?? "");
-    setSummaryValue(page?.summary ?? "");
+    setTitleValue(page?.title ?? '');
+    setSummaryValue(page?.summary ?? '');
     setBodyMdValue(newBodyMd);
-    setSlugValue(page?.slug ?? "");
-    setImageUrlValue(page?.imageUrl ?? "");
-    setVideoUrlValue(page?.videoUrl ?? "");
+    setSlugValue(page?.slug ?? '');
+    setImageUrlValue(page?.imageUrl ?? '');
+    setVideoUrlValue(page?.videoUrl ?? '');
     setIsPublishedValue(page?.isPublished ?? true);
     setRequiresAuthValue(page?.requiresAuth ?? false);
     setSectionValue(newSection);
-    setLinkedCourseIdValue(page?.linkedCourseId ?? "");
+    setLinkedCourseIdValue(page?.linkedCourseId ?? '');
     setLegacyReplacementStarted(false);
     slugManualRef.current = false;
 
     // reset dirty baseline
     baselineRef.current = {
-      title: page?.title ?? "",
-      summary: page?.summary ?? "",
+      title: page?.title ?? '',
+      summary: page?.summary ?? '',
       bodyMd: newBodyMd,
-      slug: page?.slug ?? "",
-      imageUrl: page?.imageUrl ?? "",
-      videoUrl: page?.videoUrl ?? "",
+      slug: page?.slug ?? '',
+      imageUrl: page?.imageUrl ?? '',
+      videoUrl: page?.videoUrl ?? '',
       isPublished: page?.isPublished ?? true,
       requiresAuth: page?.requiresAuth ?? false,
       section: newSection,
-      linkedCourseId: page?.linkedCourseId ?? "",
+      linkedCourseId: page?.linkedCourseId ?? '',
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- full reset only on record identity change
   }, [recordKey]);
@@ -198,15 +201,15 @@ export function ContentForm({
       section: sectionValue,
       linkedCourseId: linkedCourseIdValue,
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally runs only when state.ok flips
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally runs only when state.ok flips
   }, [state?.ok]);
 
   // ─── scroll banner into view on save result ───────────────────────────────
   useEffect(() => {
     if (state?.ok || state?.error) {
       // scrollIntoView is not available in jsdom; guard for test environments
-      if (typeof bannerRef.current?.scrollIntoView === "function") {
-        bannerRef.current.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      if (typeof bannerRef.current?.scrollIntoView === 'function') {
+        bannerRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       }
     }
   }, [state]);
@@ -218,12 +221,12 @@ export function ContentForm({
     summaryValue !== b.summary ||
     bodyMdValue !== b.bodyMd ||
     slugValue !== b.slug ||
-    (imageUrlValue ?? "") !== (b.imageUrl ?? "") ||
-    (videoUrlValue ?? "") !== (b.videoUrl ?? "") ||
+    (imageUrlValue ?? '') !== (b.imageUrl ?? '') ||
+    (videoUrlValue ?? '') !== (b.videoUrl ?? '') ||
     isPublishedValue !== b.isPublished ||
     requiresAuthValue !== b.requiresAuth ||
     sectionValue !== b.section ||
-    (linkedCourseIdValue ?? "") !== (b.linkedCourseId ?? "");
+    (linkedCourseIdValue ?? '') !== (b.linkedCourseId ?? '');
 
   // ─── beforeunload guard ───────────────────────────────────────────────────
   useEffect(() => {
@@ -231,8 +234,8 @@ export function ContentForm({
       if (!isDirty) return;
       e.preventDefault();
     };
-    window.addEventListener("beforeunload", handler);
-    return () => window.removeEventListener("beforeunload", handler);
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
   }, [isDirty]);
 
   // ─── empty state ─────────────────────────────────────────────────────────
@@ -251,7 +254,7 @@ export function ContentForm({
   const handleBack = () => {
     if (!onBack) return;
     if (isDirty) {
-      if (!window.confirm("Есть несохранённые изменения. Уйти без сохранения?")) return;
+      if (!window.confirm('Есть несохранённые изменения. Уйти без сохранения?')) return;
     }
     onBack();
   };
@@ -261,10 +264,10 @@ export function ContentForm({
 
   // ─── derived grid/gap classes based on compact prop ─────────────────────
   const gridColsClass = compact
-    ? "lg:grid-cols-[minmax(0,1fr)_260px]"
-    : "lg:grid-cols-[minmax(0,1fr)_340px]";
-  const gapXClass = compact ? "gap-x-4" : "gap-x-6";
-  const colGapClass = compact ? "gap-4" : "gap-5";
+    ? 'lg:grid-cols-[minmax(0,1fr)_260px]'
+    : 'lg:grid-cols-[minmax(0,1fr)_340px]';
+  const gapXClass = compact ? 'gap-x-4' : 'gap-x-6';
+  const colGapClass = compact ? 'gap-4' : 'gap-5';
 
   return (
     <form
@@ -274,22 +277,26 @@ export function ContentForm({
       onInput={(e) => {
         const target = e.target as HTMLInputElement | HTMLTextAreaElement | null;
         if (!target) return;
-        if (target.name === "title") setTitleValue(target.value);
-        if (target.name === "summary") setSummaryValue(target.value);
-        if (target.name === "body_md") setBodyMdValue(target.value);
+        if (target.name === 'title') setTitleValue(target.value);
+        if (target.name === 'summary') setSummaryValue(target.value);
+        if (target.name === 'body_md') setBodyMdValue(target.value);
       }}
     >
       {/* Two-column grid: left = main content, right = sidebar */}
       <div className={`grid grid-cols-1 gap-y-6 ${gapXClass} ${gridColsClass}`}>
-
         {/* ── MAIN COLUMN ─────────────────────────────────────────────────── */}
         <div className={`flex flex-col ${colGapClass}`}>
-
           {/* Header row: optional back button + publish status chip (#8).
                Always rendered — chip is always visible; back button only in inline mode. */}
           <div className="flex items-center justify-between gap-2">
             {onBack ? (
-              <Button type="button" variant="ghost" size="sm" onClick={handleBack} className="-ml-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={handleBack}
+                className="-ml-2"
+              >
                 ← к списку
               </Button>
             ) : (
@@ -311,8 +318,8 @@ export function ContentForm({
           {page && materialRatingSummary ? (
             <p className="text-xs text-muted-foreground tabular-nums">
               {materialRatingSummary.count === 0
-                ? "Пациенты ещё не оценили материал."
-                : `Оценки пациентов: средняя ${materialRatingSummary.avg != null ? materialRatingSummary.avg.toFixed(1) : "—"}, ${materialRatingSummary.count} ${ruRatingCountLabel(materialRatingSummary.count)}.`}
+                ? 'Пациенты ещё не оценили материал.'
+                : `Оценки пациентов: средняя ${materialRatingSummary.avg != null ? materialRatingSummary.avg.toFixed(1) : '—'}, ${materialRatingSummary.count} ${ruRatingCountLabel(materialRatingSummary.count)}.`}
             </p>
           ) : null}
 
@@ -321,7 +328,9 @@ export function ContentForm({
 
           {/* Заголовок */}
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="content-title" className={fieldLabelClass}>Заголовок</Label>
+            <Label htmlFor="content-title" className={fieldLabelClass}>
+              Заголовок
+            </Label>
             {isNew ? (
               <Input
                 id="content-title"
@@ -344,8 +353,8 @@ export function ContentForm({
                 type="text"
                 name="title"
                 required
-                defaultValue={page?.title ?? ""}
-                key={`title-${page?.id ?? "new"}`}
+                defaultValue={page?.title ?? ''}
+                key={`title-${page?.id ?? 'new'}`}
                 onChange={(e) => setTitleValue(e.target.value)}
               />
             )}
@@ -355,14 +364,19 @@ export function ContentForm({
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {/* Раздел */}
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="content-section" className={fieldLabelClass}>Раздел</Label>
+              <Label htmlFor="content-section" className={fieldLabelClass}>
+                Раздел
+              </Label>
               {readOnlySection ? (
                 <>
                   <input type="hidden" name="section" value={defaultSectionSlugForSelect} />
                   <p className="text-sm text-foreground">
-                    {sections.find((s) => s.slug === defaultSectionSlugForSelect)?.title ?? defaultSectionSlugForSelect}
+                    {sections.find((s) => s.slug === defaultSectionSlugForSelect)?.title ??
+                      defaultSectionSlugForSelect}
                   </p>
-                  <p className="text-xs text-muted-foreground">Раздел задан контекстом страницы создания.</p>
+                  <p className="text-xs text-muted-foreground">
+                    Раздел задан контекстом страницы создания.
+                  </p>
                 </>
               ) : (
                 <Select
@@ -371,7 +385,7 @@ export function ContentForm({
                   required
                   defaultValue={defaultSectionSlugForSelect}
                   key={page ? `section-${page.id}` : `section-new-${defaultSectionSlugForSelect}`}
-                  onValueChange={(v) => setSectionValue(v ?? "")}
+                  onValueChange={(v) => setSectionValue(v ?? '')}
                 >
                   <SelectTrigger className="w-full">
                     <SelectValue />
@@ -387,10 +401,11 @@ export function ContentForm({
               )}
               {isHelpSectionContext ? (
                 <p className="text-xs text-muted-foreground">
-                  Канонические slug (плитки — после публикации; чеклист: `help-content/CMS_EDITOR_CHECKLIST.md`):{" "}
+                  Канонические slug (плитки — после публикации; чеклист:
+                  `help-content/CMS_EDITOR_CHECKLIST.md`):{' '}
                   {HELP_CANONICAL_ARTICLE_SLUGS.map(
                     (s) => `${s} — ${HELP_CANONICAL_ARTICLE_IA[s].title}`,
-                  ).join("; ")}
+                  ).join('; ')}
                   .
                 </p>
               ) : null}
@@ -398,7 +413,9 @@ export function ContentForm({
 
             {/* Slug */}
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="content-slug" className={fieldLabelClass}>Slug</Label>
+              <Label htmlFor="content-slug" className={fieldLabelClass}>
+                Slug
+              </Label>
               {isNew ? (
                 <div className="flex flex-wrap gap-2">
                   <Input
@@ -445,7 +462,9 @@ export function ContentForm({
           {/* Краткое описание + counter */}
           <div className="flex flex-col gap-1.5">
             <div className="flex items-baseline justify-between gap-2">
-              <Label htmlFor="content-summary" className={fieldLabelClass}>Краткое описание</Label>
+              <Label htmlFor="content-summary" className={fieldLabelClass}>
+                Краткое описание
+              </Label>
               <span className="text-xs tabular-nums text-muted-foreground">
                 {summaryValue.length}/2000
               </span>
@@ -454,15 +473,15 @@ export function ContentForm({
               id="content-summary"
               name="summary"
               rows={2}
-              defaultValue={page?.summary ?? ""}
-              key={`summary-${page?.id ?? "new"}`}
+              defaultValue={page?.summary ?? ''}
+              key={`summary-${page?.id ?? 'new'}`}
               onChange={(e) => setSummaryValue(e.target.value)}
             />
           </div>
 
           {/* Содержимое (markdown editor or protected legacy HTML preview) */}
           {hasLegacyHtmlOnly ? (
-            <input type="hidden" name="body_html" value={page?.bodyHtml ?? ""} readOnly />
+            <input type="hidden" name="body_html" value={page?.bodyHtml ?? ''} readOnly />
           ) : null}
           {hasLegacyHtmlOnly && !legacyReplacementStarted ? (
             <>
@@ -471,11 +490,12 @@ export function ContentForm({
                 <div className="flex flex-col gap-1">
                   <span className={fieldLabelClass}>Содержимое в старом формате</span>
                   <p className="m-0 text-sm text-muted-foreground">
-                    Пока вы явно не начнёте замену и не сохраните новый текст, текущее содержимое останется без изменений.
+                    Пока вы явно не начнёте замену и не сохраните новый текст, текущее содержимое
+                    останется без изменений.
                   </p>
                 </div>
                 <div className="max-h-80 overflow-auto rounded-lg border border-border bg-white p-[18px]">
-                  <MarkdownContent text={page?.bodyHtml ?? ""} bodyFormat="legacy-html" />
+                  <MarkdownContent text={page?.bodyHtml ?? ''} bodyFormat="legacy-html" />
                 </div>
                 <Button
                   type="button"
@@ -491,7 +511,7 @@ export function ContentForm({
             <MarkdownEditor
               name="body_md"
               defaultValue={bodyMdValue}
-              key={`body-${page?.id ?? "new"}`}
+              key={`body-${page?.id ?? 'new'}`}
               onChange={setBodyMdValue}
             />
           )}
@@ -505,8 +525,8 @@ export function ContentForm({
             ref={isPublishedHiddenRef}
             type="hidden"
             name="is_published"
-            key={`pub-hidden-${page?.id ?? "new"}`}
-            defaultValue={isPublishedValue ? "on" : ""}
+            key={`pub-hidden-${page?.id ?? 'new'}`}
+            defaultValue={isPublishedValue ? 'on' : ''}
           />
 
           {/* Requires-auth checkbox */}
@@ -515,7 +535,7 @@ export function ContentForm({
               <Checkbox
                 name="requires_auth"
                 defaultChecked={page?.requiresAuth ?? false}
-                key={`req-${page?.id ?? "new"}`}
+                key={`req-${page?.id ?? 'new'}`}
                 onCheckedChange={(checked) => setRequiresAuthValue(checked)}
               />
               <span className={fieldLabelClass}>Только для залогиненных (щит)</span>
@@ -528,27 +548,39 @@ export function ContentForm({
         <div className={`flex flex-col ${colGapClass}`}>
           {/* Sticky wrapper keeps sidebar in view while main column scrolls */}
           <div className={`lg:sticky lg:top-4 flex flex-col ${colGapClass}`}>
-
             {/* Error / success banner — at the top of sidebar for visibility after scroll */}
             <div ref={bannerRef}>
               {state?.error ? (
-                <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+                <p
+                  role="alert"
+                  className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive"
+                >
                   {state.error}
                 </p>
               ) : null}
               {state?.ok ? (
                 patientHomeContext ? (
-                  <div role="status" className="rounded-md border border-primary/30 bg-primary/5 p-4 text-sm">
+                  <div
+                    role="status"
+                    className="rounded-md border border-primary/30 bg-primary/5 p-4 text-sm"
+                  >
                     <p className="font-medium">Страница сохранена</p>
                     <p className="mt-1 text-muted-foreground">
-                      Вернитесь на экран главной пациента и добавьте материал в блок «{patientHomeContext.patientHomeBlock}».
+                      Вернитесь на экран главной пациента и добавьте материал в блок «
+                      {patientHomeContext.patientHomeBlock}».
                     </p>
-                    <Link href={patientHomeContext.returnTo} className="mt-2 inline-flex text-primary underline">
+                    <Link
+                      href={patientHomeContext.returnTo}
+                      className="mt-2 inline-flex text-primary underline"
+                    >
                       Открыть экран «Главная пациента»
                     </Link>
                   </div>
                 ) : (
-                  <p role="status" className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+                  <p
+                    role="status"
+                    className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700"
+                  >
                     Сохранено
                   </p>
                 )
@@ -563,7 +595,7 @@ export function ContentForm({
                  saveContentPage + FormData field names are untouched. */}
             <div className="flex flex-col gap-2">
               <Button type="submit" disabled={saveDisabled} className="w-full">
-                {pending ? "Сохранение…" : "Сохранить"}
+                {pending ? 'Сохранение…' : 'Сохранить'}
               </Button>
               {isPublishedValue ? (
                 <Button
@@ -573,7 +605,7 @@ export function ContentForm({
                   disabled={pending}
                   onClick={() => {
                     // Set DOM value synchronously so FormData picks it up on submit
-                    if (isPublishedHiddenRef.current) isPublishedHiddenRef.current.value = "";
+                    if (isPublishedHiddenRef.current) isPublishedHiddenRef.current.value = '';
                     setIsPublishedValue(false);
                     formRef.current?.requestSubmit();
                   }}
@@ -587,7 +619,7 @@ export function ContentForm({
                   className="w-full"
                   disabled={pending}
                   onClick={() => {
-                    if (isPublishedHiddenRef.current) isPublishedHiddenRef.current.value = "on";
+                    if (isPublishedHiddenRef.current) isPublishedHiddenRef.current.value = 'on';
                     setIsPublishedValue(true);
                     formRef.current?.requestSubmit();
                   }}
@@ -598,22 +630,35 @@ export function ContentForm({
             </div>
 
             {/* Preview toggle */}
-            <Button type="button" variant="outline" className="w-full" onClick={() => setPreviewOpen((v) => !v)}>
-              {previewOpen ? "Скрыть предпросмотр" : "Показать предпросмотр"}
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              onClick={() => setPreviewOpen((v) => !v)}
+            >
+              {previewOpen ? 'Скрыть предпросмотр' : 'Показать предпросмотр'}
             </Button>
 
             {/* Картинка */}
             <div className="flex flex-col gap-1.5">
               <Label className={fieldLabelClass}>Картинка</Label>
               <input type="hidden" name="image_url" value={imageUrlValue} />
-              <MediaLibraryPickerDialog kind="image" value={imageUrlValue} onChange={setImageUrlValue} />
+              <MediaLibraryPickerDialog
+                kind="image"
+                value={imageUrlValue}
+                onChange={setImageUrlValue}
+              />
             </div>
 
             {/* Видео */}
             <div className="flex flex-col gap-1.5">
               <Label className={fieldLabelClass}>Видео</Label>
               <input type="hidden" name="video_url" value={videoUrlValue} />
-              <MediaLibraryPickerDialog kind="video" value={videoUrlValue} onChange={setVideoUrlValue} />
+              <MediaLibraryPickerDialog
+                kind="video"
+                value={videoUrlValue}
+                onChange={setVideoUrlValue}
+              />
             </div>
 
             {/* Связан с курсом */}
@@ -624,9 +669,9 @@ export function ContentForm({
               <Select
                 id="content-linked-course"
                 name="linked_course_id"
-                defaultValue={page?.linkedCourseId ?? ""}
-                key={`linked-course-${page?.id ?? "new"}`}
-                onValueChange={(v) => setLinkedCourseIdValue(v ?? "")}
+                defaultValue={page?.linkedCourseId ?? ''}
+                key={`linked-course-${page?.id ?? 'new'}`}
+                onValueChange={(v) => setLinkedCourseIdValue(v ?? '')}
               >
                 <SelectTrigger className="w-full">
                   <SelectValue />

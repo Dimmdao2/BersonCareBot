@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from 'zod';
 
 export const integratorMergeBodySchema = z.object({
   targetId: z.string().uuid(),
@@ -36,7 +36,7 @@ export function parseIntegratorMergeHttpError(
 export function parseIntegratorMergeHttpDetails(bodyText: string): unknown {
   try {
     const json: unknown = JSON.parse(bodyText);
-    if (json !== null && typeof json === "object" && !Array.isArray(json)) {
+    if (json !== null && typeof json === 'object' && !Array.isArray(json)) {
       integratorMergeHttpErrorSchema.safeParse(json);
     }
     return json;

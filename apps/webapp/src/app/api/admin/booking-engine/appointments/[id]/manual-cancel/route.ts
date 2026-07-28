@@ -1,19 +1,19 @@
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { runStaffManualCancelAfterCanonical } from "@/app-layer/booking/staffManualCancelAfterCanonical";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
-import { requireAdminBookingEngine } from "../../../_requireAdminBookingEngine";
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { runStaffManualCancelAfterCanonical } from '@/app-layer/booking/staffManualCancelAfterCanonical';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
+import { requireAdminBookingEngine } from '../../../_requireAdminBookingEngine';
 
 const bodySchema = z.object({
   decisionType: z.enum([
-    "free",
-    "penalized",
-    "package_charged",
-    "no_package_charge",
-    "retain_prepayment",
-    "refund_prepayment",
-    "custom",
+    'free',
+    'penalized',
+    'package_charged',
+    'no_package_charge',
+    'retain_prepayment',
+    'refund_prepayment',
+    'custom',
   ]),
   reason: z.string().trim().max(400).optional(),
   staffComment: z.string().trim().max(1000).optional(),
@@ -27,21 +27,21 @@ export async function POST(request: Request, context: RouteContext) {
   const { id: appointmentId } = await context.params;
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
   const deps = buildAppDeps();
   const lifecycle = deps.bookingAppointmentLifecycle;
   if (!lifecycle) {
-    return NextResponse.json({ ok: false, error: "lifecycle_unavailable" }, { status: 503 });
+    return NextResponse.json({ ok: false, error: 'lifecycle_unavailable' }, { status: 503 });
   }
   const result = await withDoctorWorkspacePrincipal(
     gate.ctx,
-    "admin.booking-engine.appointments.manual-cancel",
+    'admin.booking-engine.appointments.manual-cancel',
     () =>
       lifecycle.staffCancel({
         appointmentId,
         organizationId: gate.ctx.organizationId,
-        actorType: "admin",
+        actorType: 'admin',
         actorId: gate.ctx.session.user.userId,
         decisionType: parsed.data.decisionType,
         reason: parsed.data.reason,
@@ -57,7 +57,7 @@ export async function POST(request: Request, context: RouteContext) {
     organizationId: gate.ctx.organizationId,
     appointmentId,
     actorId: gate.ctx.session.user.userId,
-    actorType: "admin",
+    actorType: 'admin',
     decisionType: parsed.data.decisionType,
     reason: parsed.data.reason,
     appointment: result.appointment,

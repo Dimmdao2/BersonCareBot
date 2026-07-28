@@ -9,28 +9,32 @@
  * email exists in the DB.  The only distinguishing error is rate_limited (timing-only).
  */
 
-import { randomUUID } from "node:crypto";
-import { startEmailChallenge, normalizeEmail, hashEmailChallengeCode } from "./emailAuth";
-import { OTP_RESEND_COOLDOWN_SEC } from "./otpConstants";
-import type { EmailOtpPublicDbPort } from "./emailOtpPublicPort";
-import { normalizeFioPart } from "@/shared/lib/fio";
+import { randomUUID } from 'node:crypto';
+import { startEmailChallenge, normalizeEmail, hashEmailChallengeCode } from './emailAuth';
+import { OTP_RESEND_COOLDOWN_SEC } from './otpConstants';
+import type { EmailOtpPublicDbPort } from './emailOtpPublicPort';
+import { normalizeFioPart } from '@/shared/lib/fio';
 
 export type StartPublicEmailOtpResult =
   | { ok: true; challengeId: string; retryAfterSeconds?: number }
   | {
       ok: false;
-      code: "invalid_email" | "rate_limited" | "email_send_failed" | "too_many_attempts";
+      code: 'invalid_email' | 'rate_limited' | 'email_send_failed' | 'too_many_attempts';
       retryAfterSeconds?: number;
     };
 
 export type StartPublicEmailOtpRegistrationResult =
   | StartPublicEmailOtpResult
-  | { ok: false; code: "duplicate_email" | "invalid_fio" };
+  | { ok: false; code: 'duplicate_email' | 'invalid_fio' };
 
 export type ConfirmPublicEmailOtpResult =
   /** No redirectTo here on purpose: the route loads the DB base role, then may apply the fresh session-only email-admin policy. */
   | { ok: true; userId: string }
-  | { ok: false; code: "invalid_code" | "expired_code" | "too_many_attempts" | "email_conflict"; retryAfterSeconds?: number };
+  | {
+      ok: false;
+      code: 'invalid_code' | 'expired_code' | 'too_many_attempts' | 'email_conflict';
+      retryAfterSeconds?: number;
+    };
 
 /**
  * Start a public email-OTP challenge.
@@ -47,7 +51,7 @@ export async function startPublicEmailOtpChallenge(
 ): Promise<StartPublicEmailOtpResult> {
   const email = normalizeEmail(emailRaw);
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return { ok: false, code: "invalid_email" };
+    return { ok: false, code: 'invalid_email' };
   }
 
   // Rate-limit: check by email (no userId needed yet — anti-enumeration).
@@ -55,7 +59,11 @@ export async function startPublicEmailOtpChallenge(
   if (lastSent) {
     const deltaSec = Math.floor((Date.now() - new Date(lastSent).getTime()) / 1000);
     if (deltaSec < OTP_RESEND_COOLDOWN_SEC) {
-      return { ok: false, code: "rate_limited", retryAfterSeconds: OTP_RESEND_COOLDOWN_SEC - deltaSec };
+      return {
+        ok: false,
+        code: 'rate_limited',
+        retryAfterSeconds: OTP_RESEND_COOLDOWN_SEC - deltaSec,
+      };
     }
   }
 
@@ -65,7 +73,7 @@ export async function startPublicEmailOtpChallenge(
   }
 
   // Delegate to existing startEmailChallenge (handles code gen, hash, DB insert, send, per-user cooldown).
-  return startEmailChallenge(user.userId, email, "login");
+  return startEmailChallenge(user.userId, email, 'login');
 }
 
 /** Start a distinct structured patient email-registration flow. */
@@ -78,15 +86,19 @@ export async function startPublicEmailOtpRegistration(
   const firstName = normalizeFioPart(input.firstName);
   const patronymic = normalizeFioPart(input.patronymic) || null;
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return { ok: false, code: "invalid_email" };
+    return { ok: false, code: 'invalid_email' };
   }
-  if (!lastName || !firstName) return { ok: false, code: "invalid_fio" };
+  if (!lastName || !firstName) return { ok: false, code: 'invalid_fio' };
 
   const lastSent = await publicDb.findEmailSendCooldownByEmail(email);
   if (lastSent) {
     const deltaSec = Math.floor((Date.now() - new Date(lastSent).getTime()) / 1000);
     if (deltaSec < OTP_RESEND_COOLDOWN_SEC) {
-      return { ok: false, code: "rate_limited", retryAfterSeconds: OTP_RESEND_COOLDOWN_SEC - deltaSec };
+      return {
+        ok: false,
+        code: 'rate_limited',
+        retryAfterSeconds: OTP_RESEND_COOLDOWN_SEC - deltaSec,
+      };
     }
   }
 
@@ -102,7 +114,7 @@ export async function startPublicEmailOtpRegistration(
   // unverified structured client as a pending registration and returns the same identity on retry
   // without overwriting its FIO. Deleting here defeated that pending contract and forced the person
   // to enter identity data again after an infrastructure failure.
-  return startEmailChallenge(registration.userId, email, "public_registration");
+  return startEmailChallenge(registration.userId, email, 'public_registration');
 }
 
 /**
@@ -116,10 +128,10 @@ export async function confirmPublicEmailOtpChallenge(
   publicDb: EmailOtpPublicDbPort,
 ): Promise<ConfirmPublicEmailOtpResult> {
   const email = normalizeEmail(emailRaw);
-  if (!email) return { ok: false, code: "expired_code" };
+  if (!email) return { ok: false, code: 'expired_code' };
 
   const code = codeRaw.trim();
-  if (!code) return { ok: false, code: "invalid_code" };
+  if (!code) return { ok: false, code: 'invalid_code' };
 
   return publicDb.consumeLatestEmailChallenge(email, hashEmailChallengeCode(code));
 }

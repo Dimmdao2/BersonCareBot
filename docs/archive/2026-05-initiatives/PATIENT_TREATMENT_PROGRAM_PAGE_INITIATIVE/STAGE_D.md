@@ -15,13 +15,13 @@
 
 ## Существующие файлы в scope
 
-| Файл | Статус |
-|------|--------|
-| `apps/webapp/src/app/app/patient/treatment-programs/page.tsx` | существующий — loader и RSC-шелл |
-| `apps/webapp/src/app/app/patient/treatment-programs/PatientTreatmentProgramsListClient.tsx` | существующий — клиентский компонент списка |
-| `apps/webapp/src/app/app/patient/treatment-programs/PatientTreatmentProgramsListClient.test.tsx` | существующий — **должен оставаться зелёным** |
-| `apps/webapp/src/app/app/patient/treatment-programs/page.nudgeResilience.test.tsx` | регресс списка: empty state / `redirect` при активной программе — **должен оставаться зелёным** |
-| `apps/webapp/src/shared/ui/patientVisual.ts` | существующий — только reuse-токены, без новых одноразовых классов |
+| Файл                                                                                             | Статус                                                                                          |
+| ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
+| `apps/webapp/src/app/app/patient/treatment-programs/page.tsx`                                    | существующий — loader и RSC-шелл                                                                |
+| `apps/webapp/src/app/app/patient/treatment-programs/PatientTreatmentProgramsListClient.tsx`      | существующий — клиентский компонент списка                                                      |
+| `apps/webapp/src/app/app/patient/treatment-programs/PatientTreatmentProgramsListClient.test.tsx` | существующий — **должен оставаться зелёным**                                                    |
+| `apps/webapp/src/app/app/patient/treatment-programs/page.nudgeResilience.test.tsx`               | регресс списка: empty state / `redirect` при активной программе — **должен оставаться зелёным** |
+| `apps/webapp/src/shared/ui/patientVisual.ts`                                                     | существующий — только reuse-токены, без новых одноразовых классов                               |
 
 ## Out of scope (запрещено)
 
@@ -32,15 +32,15 @@
 
 ## Подэтапы (декомпозиция)
 
-| Шаг | Что сделать | Критерий готовности |
-|-----|-------------|---------------------|
-| D1 | Hero активной программы: название, `current_stage_title`, бейдж «План обновлён» (через `planUpdatedLabel`), CTA → `/treatment-programs/[instanceId]` | Hero отображается только при наличии активной программы; использует patient primitives |
-| D2 | Архив завершённых программ в отдельной секции под `<details>` с заголовком «Завершённые программы» | Секция свёрнута по умолчанию |
-| D3 | Empty state: нет активной программы → «Здесь появится программа после назначения врачом» + ссылка на `/messages` | Empty state соответствует roadmap-копирайту |
-| D4 | Проверка на отсутствие `%` прогресса в hero и в списке | Метрики прогресса отсутствуют |
-| D5 | Убедиться, что `PatientTreatmentProgramsListClient.test.tsx` и `nudgeResilience` зелёные | Все существующие тесты зелёные |
-| D6 | Прогнать целевые проверки | Зелёные lint / typecheck / tests |
-| D7 | Обновить `LOG.md` | Зафиксированы scope, проверки и итог этапа |
+| Шаг | Что сделать                                                                                                                                          | Критерий готовности                                                                    |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| D1  | Hero активной программы: название, `current_stage_title`, бейдж «План обновлён» (через `planUpdatedLabel`), CTA → `/treatment-programs/[instanceId]` | Hero отображается только при наличии активной программы; использует patient primitives |
+| D2  | Архив завершённых программ в отдельной секции под `<details>` с заголовком «Завершённые программы»                                                   | Секция свёрнута по умолчанию                                                           |
+| D3  | Empty state: нет активной программы → «Здесь появится программа после назначения врачом» + ссылка на `/messages`                                     | Empty state соответствует roadmap-копирайту                                            |
+| D4  | Проверка на отсутствие `%` прогресса в hero и в списке                                                                                               | Метрики прогресса отсутствуют                                                          |
+| D5  | Убедиться, что `PatientTreatmentProgramsListClient.test.tsx` и `nudgeResilience` зелёные                                                             | Все существующие тесты зелёные                                                         |
+| D6  | Прогнать целевые проверки                                                                                                                            | Зелёные lint / typecheck / tests                                                       |
+| D7  | Обновить `LOG.md`                                                                                                                                    | Зафиксированы scope, проверки и итог этапа                                             |
 
 ## Проверки
 

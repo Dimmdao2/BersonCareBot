@@ -1,21 +1,21 @@
-"use client";
+'use client';
 
 /**
  * Блок «Подключите удобный вам мессенджер»: Telegram/MAX через одноразовый link-token.
  * Для MAX дополнительно показывается команда `/start link_...`, если deep-link не подставился автоматически.
  */
 
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import { Badge } from "@/shared/ui/patient/primitives/badge";
-import { Button, buttonVariants } from "@/shared/ui/patient/primitives/button";
-import { cn } from "@/lib/utils";
-import type { ChannelCard } from "@/modules/channel-preferences/types";
-import { finishChannelLinkNavigation } from "@/shared/lib/telegramChannelLinkOpen";
+import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { Badge } from '@/shared/ui/patient/primitives/badge';
+import { Button, buttonVariants } from '@/shared/ui/patient/primitives/button';
+import { cn } from '@/lib/utils';
+import type { ChannelCard } from '@/modules/channel-preferences/types';
+import { finishChannelLinkNavigation } from '@/shared/lib/telegramChannelLinkOpen';
 import {
   FAIL_CLOSED_AUTH_CHANNEL_UI_POLICY,
   type AuthChannelUiPolicy,
-} from "@/modules/auth/otpChannelUi";
+} from '@/modules/auth/otpChannelUi';
 
 const BIND_POLL_MS = 4000;
 
@@ -36,11 +36,11 @@ export function ConnectMessengersBlock({
 }: Props) {
   const router = useRouter();
   const implementedCards = implementedOnly
-    ? channelCards.filter((c): c is ChannelCard => c.code === "telegram" || c.code === "max")
-    : channelCards.filter((c) => c.code !== "vk" && c.code !== "web_push");
+    ? channelCards.filter((c): c is ChannelCard => c.code === 'telegram' || c.code === 'max')
+    : channelCards.filter((c) => c.code !== 'vk' && c.code !== 'web_push');
   const cards = implementedCards.filter((card) => {
-    if (card.code === "telegram") return channelPolicy.telegram;
-    if (card.code === "max") return channelPolicy.max;
+    if (card.code === 'telegram') return channelPolicy.telegram;
+    if (card.code === 'max') return channelPolicy.max;
     return true;
   });
   const linkedCount = cards.filter((c) => c.isLinked).length;
@@ -66,7 +66,7 @@ export function ConnectMessengersBlock({
     }
   }
 
-  async function startChannelLink(channelCode: "telegram" | "max"): Promise<void> {
+  async function startChannelLink(channelCode: 'telegram' | 'max'): Promise<void> {
     if (!channelPolicy[channelCode]) return;
     const blank = null as Window | null;
     setError(null);
@@ -74,9 +74,9 @@ export function ConnectMessengersBlock({
     setMaxManualCommand(null);
     setMaxOpenUrl(null);
     try {
-      const res = await fetch("/api/auth/channel-link/start", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
+      const res = await fetch('/api/auth/channel-link/start', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ channelCode }),
       });
       const data = (await res.json().catch(() => ({}))) as {
@@ -86,13 +86,13 @@ export function ConnectMessengersBlock({
         error?: string;
         message?: string;
       };
-      if (res.status === 429 || data.error === "rate_limited") {
+      if (res.status === 429 || data.error === 'rate_limited') {
         try {
           blank?.close();
         } catch {
           /* ignore */
         }
-        setError(data.message ?? "Слишком много запросов. Попробуйте позже.");
+        setError(data.message ?? 'Слишком много запросов. Попробуйте позже.');
         return;
       }
       if (!res.ok || !data.ok || !data.url) {
@@ -101,15 +101,15 @@ export function ConnectMessengersBlock({
         } catch {
           /* ignore */
         }
-        setError(data.message ?? data.error ?? "Не удалось получить ссылку. Попробуйте позже.");
+        setError(data.message ?? data.error ?? 'Не удалось получить ссылку. Попробуйте позже.');
         return;
       }
-      if (channelCode === "max") {
+      if (channelCode === 'max') {
         setMaxOpenUrl(data.url);
         finishChannelLinkNavigation({
           blankWin: blank,
           url: data.url,
-          channel: "max",
+          channel: 'max',
           userAgent: navigator.userAgent,
         });
         setMaxManualCommand(data.manualCommand ?? null);
@@ -121,7 +121,7 @@ export function ConnectMessengersBlock({
       finishChannelLinkNavigation({
         blankWin: blank,
         url: data.url,
-        channel: "telegram",
+        channel: 'telegram',
         userAgent: navigator.userAgent,
       });
     } finally {
@@ -132,14 +132,21 @@ export function ConnectMessengersBlock({
   if (cards.length === 0) return null;
 
   return (
-    <section id="connect-messengers-section" className={showHeading ? "rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4 mt-4" : "flex flex-col gap-3"}>
+    <section
+      id="connect-messengers-section"
+      className={
+        showHeading
+          ? 'rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4 mt-4'
+          : 'flex flex-col gap-3'
+      }
+    >
       {showHeading ? (
         <h2 className="h3">
           {linkedCount === 0
-            ? "Подключите удобный вам мессенджер"
+            ? 'Подключите удобный вам мессенджер'
             : linkedCount < cards.length
-              ? "Подключите ещё один мессенджер"
-              : "Мессенджеры"}
+              ? 'Подключите ещё один мессенджер'
+              : 'Мессенджеры'}
         </h2>
       ) : null}
       {error ? <p className="text-destructive text-sm">{error}</p> : null}
@@ -155,30 +162,30 @@ export function ConnectMessengersBlock({
               <Badge variant="secondary" className="w-fit cursor-default font-normal opacity-90">
                 Уже подключено
               </Badge>
-            ) : card.code === "telegram" ? (
+            ) : card.code === 'telegram' ? (
               <Button
                 type="button"
                 size="sm"
                 className="w-fit"
-                disabled={busy === "telegram"}
-                onClick={() => void startChannelLink("telegram")}
+                disabled={busy === 'telegram'}
+                onClick={() => void startChannelLink('telegram')}
               >
-                {busy === "telegram" ? "…" : "Подключить"}
+                {busy === 'telegram' ? '…' : 'Подключить'}
               </Button>
-            ) : card.code === "max" ? (
+            ) : card.code === 'max' ? (
               <div className="flex flex-col gap-2">
                 <Button
                   type="button"
                   size="sm"
                   className="w-fit"
-                  disabled={busy === "max"}
-                  onClick={() => void startChannelLink("max")}
+                  disabled={busy === 'max'}
+                  onClick={() => void startChannelLink('max')}
                 >
-                  {busy === "max" ? "…" : "Подключить"}
+                  {busy === 'max' ? '…' : 'Подключить'}
                 </Button>
                 {maxOpenUrl ? (
                   <p className="text-xs text-muted-foreground">
-                    Если окно не открылось:{" "}
+                    Если окно не открылось:{' '}
                     <Button
                       type="button"
                       variant="link"
@@ -187,7 +194,7 @@ export function ConnectMessengersBlock({
                         finishChannelLinkNavigation({
                           blankWin: null,
                           url: maxOpenUrl,
-                          channel: "max",
+                          channel: 'max',
                           userAgent: navigator.userAgent,
                         })
                       }
@@ -216,7 +223,7 @@ export function ConnectMessengersBlock({
                 href={card.openUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className={cn(buttonVariants({ variant: "default", size: "sm" }), "w-fit")}
+                className={cn(buttonVariants({ variant: 'default', size: 'sm' }), 'w-fit')}
               >
                 Подключить
               </a>

@@ -41,12 +41,12 @@
 
 ## Затронутые файлы
 
-| Файл | Задачи |
-|------|--------|
-| `apps/integrator/src/infra/db/readPort.ts` | T1 |
-| `apps/integrator/src/infra/db/readPort.test.ts` | T2 |
-| `apps/webapp/src/modules/integrator/events.test.ts` | T3 |
-| (запуск gate/reconcile, без изменений кода) | T4, T5 |
+| Файл                                                | Задачи |
+| --------------------------------------------------- | ------ |
+| `apps/integrator/src/infra/db/readPort.ts`          | T1     |
+| `apps/integrator/src/infra/db/readPort.test.ts`     | T2     |
+| `apps/webapp/src/modules/integrator/events.test.ts` | T3     |
+| (запуск gate/reconcile, без изменений кода)         | T4, T5 |
 
 ---
 
@@ -69,6 +69,7 @@
 **Файл:** `apps/integrator/src/infra/db/readPort.ts`
 
 **Найти:**
+
 ```ts
         case 'booking.byExternalId': {
           const recordId = asNonEmptyString(query.params.externalRecordId ?? query.params.recordId);
@@ -81,6 +82,7 @@
 ```
 
 **Заменить на:**
+
 ```ts
         case 'booking.byExternalId': {
           const recordId = asNonEmptyString(query.params.externalRecordId ?? query.params.recordId);
@@ -103,6 +105,7 @@
 **Файл:** `apps/integrator/src/infra/db/readPort.ts`
 
 **Найти:**
+
 ```ts
         case 'booking.activeByUser': {
           const userId = asNonEmptyString(query.params.userId);
@@ -115,6 +118,7 @@
 ```
 
 **Заменить на:**
+
 ```ts
         case 'booking.activeByUser': {
           const userId = asNonEmptyString(query.params.userId);
@@ -137,6 +141,7 @@
 **Файл:** `apps/integrator/src/infra/db/readPort.ts`
 
 **Найти (в блоке импортов из repos/bookingRecords.js):**
+
 ```ts
 import { getActiveRecordsByPhone, getRecordByExternalId } from './repos/bookingRecords.js';
 ```
@@ -170,33 +175,35 @@ import { getActiveRecordsByPhone, getRecordByExternalId } from './repos/bookingR
 **Найти и удалить целиком два теста:**
 
 1. Блок:
+
 ```ts
-    it('booking.byExternalId falls back to DB when appointmentsReadsPort is undefined', async () => {
-      const db = createMockDb();
-      const port = createDbReadPort({ db });
+it('booking.byExternalId falls back to DB when appointmentsReadsPort is undefined', async () => {
+  const db = createMockDb();
+  const port = createDbReadPort({ db });
 
-      await port.readDb({
-        type: 'booking.byExternalId',
-        params: { externalRecordId: 'rec-1' },
-      });
+  await port.readDb({
+    type: 'booking.byExternalId',
+    params: { externalRecordId: 'rec-1' },
+  });
 
-      expect(db.query).toHaveBeenCalled();
-    });
+  expect(db.query).toHaveBeenCalled();
+});
 ```
 
 2. Блок:
+
 ```ts
-    it('booking.activeByUser falls back to DB when appointmentsReadsPort is undefined', async () => {
-      const db = createMockDb();
-      const port = createDbReadPort({ db });
+it('booking.activeByUser falls back to DB when appointmentsReadsPort is undefined', async () => {
+  const db = createMockDb();
+  const port = createDbReadPort({ db });
 
-      await port.readDb({
-        type: 'booking.activeByUser',
-        params: { userId: '+79991234567' },
-      });
+  await port.readDb({
+    type: 'booking.activeByUser',
+    params: { userId: '+79991234567' },
+  });
 
-      expect(db.query).toHaveBeenCalled();
-    });
+  expect(db.query).toHaveBeenCalled();
+});
 ```
 
 **Верификация:** после удаления сохранить файл; тесты для других case не трогать.
@@ -212,18 +219,19 @@ import { getActiveRecordsByPhone, getRecordByExternalId } from './repos/bookingR
 **Место вставки:** внутри `describe('appointments reads delegation')`, после теста `booking.byExternalId delegates to appointmentsReadsPort when available` и перед тестом `booking.activeByUser delegates to ...`.
 
 **Добавить:**
-```ts
-    it('booking.byExternalId throws when appointmentsReadsPort is undefined', async () => {
-      const db = createMockDb();
-      const port = createDbReadPort({ db });
 
-      await expect(
-        port.readDb({
-          type: 'booking.byExternalId',
-          params: { externalRecordId: 'rec-1' },
-        })
-      ).rejects.toThrow(/appointmentsReadsPort|appointments product reads/);
-    });
+```ts
+it('booking.byExternalId throws when appointmentsReadsPort is undefined', async () => {
+  const db = createMockDb();
+  const port = createDbReadPort({ db });
+
+  await expect(
+    port.readDb({
+      type: 'booking.byExternalId',
+      params: { externalRecordId: 'rec-1' },
+    }),
+  ).rejects.toThrow(/appointmentsReadsPort|appointments product reads/);
+});
 ```
 
 **Верификация:** `pnpm --dir apps/integrator test -- readPort.test.ts` — новый тест зелёный.
@@ -239,18 +247,19 @@ import { getActiveRecordsByPhone, getRecordByExternalId } from './repos/bookingR
 **Место вставки:** внутри `describe('appointments reads delegation')`, после теста `booking.activeByUser delegates to appointmentsReadsPort when available`.
 
 **Добавить:**
-```ts
-    it('booking.activeByUser throws when appointmentsReadsPort is undefined', async () => {
-      const db = createMockDb();
-      const port = createDbReadPort({ db });
 
-      await expect(
-        port.readDb({
-          type: 'booking.activeByUser',
-          params: { userId: '+79991234567' },
-        })
-      ).rejects.toThrow(/appointmentsReadsPort|appointments product reads/);
-    });
+```ts
+it('booking.activeByUser throws when appointmentsReadsPort is undefined', async () => {
+  const db = createMockDb();
+  const port = createDbReadPort({ db });
+
+  await expect(
+    port.readDb({
+      type: 'booking.activeByUser',
+      params: { userId: '+79991234567' },
+    }),
+  ).rejects.toThrow(/appointmentsReadsPort|appointments product reads/);
+});
 ```
 
 **Верификация:** `pnpm --dir apps/integrator test -- readPort.test.ts` — все тесты в describe appointments зелёные.

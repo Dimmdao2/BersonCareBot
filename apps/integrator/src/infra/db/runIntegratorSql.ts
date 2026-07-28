@@ -19,7 +19,10 @@ function toDbQueryResult<T>(raw: unknown): DbQueryResult<T> {
  * When `db.integratorDrizzle` is set (active TX), uses that session; otherwise compiles
  * the fragment and runs via `db.query` (unit-test mocks and plain DbPort).
  */
-export async function runIntegratorSql<T = unknown>(db: DbPort, fragment: SQL): Promise<DbQueryResult<T>> {
+export async function runIntegratorSql<T = unknown>(
+  db: DbPort,
+  fragment: SQL,
+): Promise<DbQueryResult<T>> {
   const { sql: text, params } = pgDialect.sqlToQuery(fragment);
   // Canonical admin settings live in `public` — always use DbPort.query (also matches unit-test doubles).
   if (text.includes('public.system_settings')) {

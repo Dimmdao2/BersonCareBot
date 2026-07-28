@@ -1,4 +1,9 @@
-import type { DeliveryAttemptResult, DeliveryJob, DeliverySendResult, OutgoingIntent } from '../../../kernel/contracts/index.js';
+import type {
+  DeliveryAttemptResult,
+  DeliveryJob,
+  DeliverySendResult,
+  OutgoingIntent,
+} from '../../../kernel/contracts/index.js';
 import {
   OUTBOUND_MESSAGE_POLICY_DENIED,
   isOutboundMessagePolicyDenied,
@@ -19,7 +24,7 @@ export function assertWebappPushNotifyAccepted(result: { ok: boolean; status: nu
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
-  return typeof value === 'object' && value !== null ? value as Record<string, unknown> : {};
+  return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {};
 }
 
 function resolveIntentForAttempt(job: DeliveryJob): OutgoingIntent | null {
@@ -28,10 +33,11 @@ function resolveIntentForAttempt(job: DeliveryJob): OutgoingIntent | null {
   if (baseIntent.type !== 'message.send') return null;
   const baseMeta = asRecord(baseIntent.meta);
   if (
-    typeof baseMeta.eventId !== 'string'
-    || typeof baseMeta.occurredAt !== 'string'
-    || typeof baseMeta.source !== 'string'
-  ) return null;
+    typeof baseMeta.eventId !== 'string' ||
+    typeof baseMeta.occurredAt !== 'string' ||
+    typeof baseMeta.source !== 'string'
+  )
+    return null;
 
   const delivery = asRecord(asRecord(baseIntent.payload).delivery);
   const targets = Array.isArray(payload.targets)
@@ -45,16 +51,18 @@ function resolveIntentForAttempt(job: DeliveryJob): OutgoingIntent | null {
   const channel = channels[attemptIndex] ?? channels[channels.length - 1];
   const target = channel
     ? targets.find((item) => {
-      const resource = item.resource;
-      return typeof resource === 'string' && resource === channel;
-    })
-    : targets[attemptIndex] ?? targets[0];
+        const resource = item.resource;
+        return typeof resource === 'string' && resource === channel;
+      })
+    : (targets[attemptIndex] ?? targets[0]);
 
-  const resolvedChannel = channel
-    ?? (typeof target?.resource === 'string' ? target.resource : null);
+  const resolvedChannel =
+    channel ?? (typeof target?.resource === 'string' ? target.resource : null);
   if (!resolvedChannel) return null;
 
-  const recipient = target ? asRecord(target.address) : asRecord(asRecord(baseIntent.payload).recipient);
+  const recipient = target
+    ? asRecord(target.address)
+    : asRecord(asRecord(baseIntent.payload).recipient);
   return {
     type: 'message.send',
     // A persisted legacy booking row cannot grant itself an auth capability. Trusted
@@ -77,7 +85,10 @@ function resolveIntentForAttempt(job: DeliveryJob): OutgoingIntent | null {
 }
 
 /** Executes one delivery attempt from pre-built job payload without business decision making. */
-export async function executeJob(job: DeliveryJob, deps: JobExecutorDeps): Promise<DeliveryAttemptResult> {
+export async function executeJob(
+  job: DeliveryJob,
+  deps: JobExecutorDeps,
+): Promise<DeliveryAttemptResult> {
   const payload = asRecord(job.payload);
   const intent = resolveIntentForAttempt(job);
   if (!intent) {

@@ -1,6 +1,6 @@
 # BIG-07 «Финансы» — Design Doc (Phase 1 / Investigation + Scaffold)
 
-*Authored: 2026-06-17 by auto/big07-finances agent. Status: DRAFT FOR OWNER REVIEW.*
+_Authored: 2026-06-17 by auto/big07-finances agent. Status: DRAFT FOR OWNER REVIEW._
 
 ---
 
@@ -8,18 +8,19 @@
 
 ### 1.1 Database — fully wired, no migration needed
 
-| Table | Purpose | Rows (dev) |
-|---|---|---|
-| `patient_payment` | Doctor's manual ledger per patient: `kind=cash` (done) + `kind=acquiring` (plumbed) | 0 |
-| `be_payment_intents` | Booking-engine prepayment intents | 0 |
-| `be_payments` | Captured booking payments | 0 |
-| `be_payment_history_events` | Full audit trail for booking payments | 0 |
-| `be_payment_provider_events` | Raw webhook events from provider | 0 |
-| `be_refunds` | Refund records linked to `be_payments` | 0 |
+| Table                        | Purpose                                                                             | Rows (dev) |
+| ---------------------------- | ----------------------------------------------------------------------------------- | ---------- |
+| `patient_payment`            | Doctor's manual ledger per patient: `kind=cash` (done) + `kind=acquiring` (plumbed) | 0          |
+| `be_payment_intents`         | Booking-engine prepayment intents                                                   | 0          |
+| `be_payments`                | Captured booking payments                                                           | 0          |
+| `be_payment_history_events`  | Full audit trail for booking payments                                               | 0          |
+| `be_payment_provider_events` | Raw webhook events from provider                                                    | 0          |
+| `be_refunds`                 | Refund records linked to `be_payments`                                              | 0          |
 
 `be_appointments.payment_ref` (text) links an appointment to the capturing payment record.
 
 **Two payment ledgers exist:**
+
 - **`patient_payment`** — doctor's cash/acquiring register per patient (the "Учётка" ledger)
 - **`be_payments` / `be_payment_intents`** — booking-engine prepayment ledger per appointment
 
@@ -62,11 +63,13 @@ Provider keys live in `system_settings.booking_payment_providers` (JSONB). Admin
 The dedicated **«Финансы»** tab should unify BOTH ledgers per patient in one place:
 
 **Section A — Кассовый журнал (patient_payment)**
+
 - List of cash + future acquiring entries (already fetched via existing API)
 - Total paid (existing `totalPaidMinor` aggregate)
 - Form to add cash payment (already in PaymentsPanel — to be moved here from «Визиты»)
 
 **Section B — История предоплат из записей (be_payment_history_events)**
+
 - Per-appointment prepayments via booking engine
 - Status: `pending` → `captured` → refunded
 - Linked appointment date + service name
@@ -80,6 +83,7 @@ The dedicated **«Финансы»** tab should unify BOTH ledgers per patient i
 Owner decision: **real acquiring**. Provider = **YooKassa** (recommended: widest Russian market adoption, well-documented sandbox).
 
 **Flow (doctor-initiated charge):**
+
 1. Doctor enters amount + description in «Финансы» tab → clicks «Отправить ссылку на оплату»
 2. Backend: `acquiringGateway.createCharge(...)` → YooKassa creates payment → returns `redirectUrl` (confirmation_url)
 3. Backend writes `patient_payment` record (`kind=acquiring`, `status=pending`, `providerPaymentId`)
@@ -93,11 +97,13 @@ Owner decision: **real acquiring**. Provider = **YooKassa** (recommended: widest
 ### 2.3 Sandbox keys — YooKassa official test mode
 
 YooKassa publishes official **test (sandbox) credentials**. As of 2026, YooKassa provides:
+
 - Test Shop ID: `100500` (example — owner must create account at yookassa.ru, get real test keys)
 - Secret key: issued per account in the YooKassa dashboard under «Тестовый режим»
 - All API calls to `https://api.yookassa.ru/v3/` work identically in test mode (no money movement)
 
 **NEEDS-OWNER-5:** Owner needs to:
+
 1. Register/log in at yookassa.ru
 2. Enable «Тестовый режим» in the dashboard
 3. Copy «Секретный ключ» + «ИД магазина» from test mode
@@ -137,14 +143,14 @@ Tab added as 8th tab between «Учётка» and end. Tab ID: `finances`.
 
 ## 4. Open NEEDS-OWNER decisions (summary)
 
-| ID | Decision |
-|---|---|
-| NEEDS-OWNER-1 | Unified timeline vs two sub-sections for two ledgers? |
-| NEEDS-OWNER-2 | Remove PaymentsPanel from «Визиты» after «Финансы» tab is validated? |
+| ID            | Decision                                                                    |
+| ------------- | --------------------------------------------------------------------------- |
+| NEEDS-OWNER-1 | Unified timeline vs two sub-sections for two ledgers?                       |
+| NEEDS-OWNER-2 | Remove PaymentsPanel from «Визиты» after «Финансы» tab is validated?        |
 | NEEDS-OWNER-3 | Extend booking webhook handler OR separate patient-acquiring webhook route? |
-| NEEDS-OWNER-4 | Auto-send payment link via bot channel or doctor copies manually? |
-| NEEDS-OWNER-5 | Owner provides YooKassa test keys via admin settings UI |
-| NEEDS-OWNER-6 | When to remove PaymentsPanel from «Визиты» tab? |
+| NEEDS-OWNER-4 | Auto-send payment link via bot channel or doctor copies manually?           |
+| NEEDS-OWNER-5 | Owner provides YooKassa test keys via admin settings UI                     |
+| NEEDS-OWNER-6 | When to remove PaymentsPanel from «Визиты» tab?                             |
 
 ---
 

@@ -1,5 +1,5 @@
-import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
-import { runWebappPgText } from "@/infra/db/runWebappSql";
+import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
+import { runWebappPgText } from '@/infra/db/runWebappSql';
 
 /**
  * Narrow C4D read bridge for platform exercise media.

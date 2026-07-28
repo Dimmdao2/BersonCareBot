@@ -24,9 +24,7 @@ export function reminderIntentPrimaryLabel(intent: string | null | undefined): s
   return 'Начать тренировку';
 }
 
-export type ReminderOpenLinkSpec =
-  | { kind: 'web_app'; url: string }
-  | { kind: 'url'; url: string };
+export type ReminderOpenLinkSpec = { kind: 'web_app'; url: string } | { kind: 'url'; url: string };
 
 function openButton(label: string, spec: ReminderOpenLinkSpec): InlineKeyboardButton {
   if (spec.kind === 'web_app') return { text: label, web_app: { url: spec.url } };
@@ -34,7 +32,10 @@ function openButton(label: string, spec: ReminderOpenLinkSpec): InlineKeyboardBu
 }
 
 /** Exported for handlers that build follow-up keyboards (e.g. bot reminder ack rows). */
-export function reminderLinkKeyboardButton(label: string, spec: ReminderOpenLinkSpec): InlineKeyboardButton {
+export function reminderLinkKeyboardButton(
+  label: string,
+  spec: ReminderOpenLinkSpec,
+): InlineKeyboardButton {
   return openButton(label, spec);
 }
 
@@ -69,7 +70,9 @@ export function buildReminderDispatchInlineKeyboard(params: {
   return { inline_keyboard: rows };
 }
 
-export function buildReminderSkipReasonInlineKeyboard(occurrenceId: string): { inline_keyboard: InlineKeyboardButton[][] } {
+export function buildReminderSkipReasonInlineKeyboard(occurrenceId: string): {
+  inline_keyboard: InlineKeyboardButton[][];
+} {
   const rows: InlineKeyboardButton[][] = [
     [
       { text: 'Боль/дискомфорт', callback_data: `rem_skip_r:${occurrenceId}:pain` },
@@ -82,13 +85,17 @@ export function buildReminderSkipReasonInlineKeyboard(occurrenceId: string): { i
     [{ text: 'Без комментария', callback_data: `rem_skip_r:${occurrenceId}:none` }],
   ];
   const flat = rows.flat();
-  if (!flat.every((b) => 'callback_data' in b && isTelegramCallbackDataWithinLimit(b.callback_data))) {
+  if (
+    !flat.every((b) => 'callback_data' in b && isTelegramCallbackDataWithinLimit(b.callback_data))
+  ) {
     return { inline_keyboard: [] };
   }
   return { inline_keyboard: rows };
 }
 
-export function buildReminderSnoozeMenuInlineKeyboard(occurrenceId: string): { inline_keyboard: InlineKeyboardButton[][] } {
+export function buildReminderSnoozeMenuInlineKeyboard(occurrenceId: string): {
+  inline_keyboard: InlineKeyboardButton[][];
+} {
   const rows: InlineKeyboardButton[][] = [
     [
       { text: '30 минут', callback_data: `rem_snooze:${occurrenceId}:30` },
@@ -100,7 +107,9 @@ export function buildReminderSnoozeMenuInlineKeyboard(occurrenceId: string): { i
     ],
   ];
   const flat = rows.flat();
-  if (!flat.every((b) => 'callback_data' in b && isTelegramCallbackDataWithinLimit(b.callback_data))) {
+  if (
+    !flat.every((b) => 'callback_data' in b && isTelegramCallbackDataWithinLimit(b.callback_data))
+  ) {
     return { inline_keyboard: [] };
   }
   return { inline_keyboard: rows };

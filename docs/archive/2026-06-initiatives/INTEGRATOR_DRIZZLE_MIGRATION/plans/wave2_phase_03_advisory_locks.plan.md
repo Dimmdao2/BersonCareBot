@@ -5,16 +5,16 @@ status: completed
 isProject: false
 todos:
   - id: p03-integrator-locks
-    content: "apps/integrator: rubitimeApiThrottle.ts, schedulerLocks.ts — перевести на execute(sql) с тем же ключом/порядком lock/unlock; не менять ключи advisory."
+    content: 'apps/integrator: rubitimeApiThrottle.ts, schedulerLocks.ts — перевести на execute(sql) с тем же ключом/порядком lock/unlock; не менять ключи advisory.'
     status: completed
   - id: p03-webapp-locks
-    content: "apps/webapp: userLifecycleLock.ts, multipartSessionLock.ts, pgOnlineIntake.ts, pgDiaryPurge.ts, strictPlatformUserPurge.ts, s3MediaStorage.ts — только advisory lock/unlock wrapper на Drizzle execute(sql); остальной SQL s3MediaStorage остаётся этапу 5."
+    content: 'apps/webapp: userLifecycleLock.ts, multipartSessionLock.ts, pgOnlineIntake.ts, pgDiaryPurge.ts, strictPlatformUserPurge.ts, s3MediaStorage.ts — только advisory lock/unlock wrapper на Drizzle execute(sql); остальной SQL s3MediaStorage остаётся этапу 5.'
     status: completed
   - id: p03-doc
-    content: "Короткий абзац в LOG или ARCHITECTURE: какие lock transaction-level vs session-level; чеклист ревью для новых locks."
+    content: 'Короткий абзац в LOG или ARCHITECTURE: какие lock transaction-level vs session-level; чеклист ревью для новых locks.'
     status: completed
   - id: p03-verify
-    content: "typecheck/test по затронутым пакетам (integrator + webapp fast/inprocess по политике репозитория); rg на оставшийся client.query с pg_advisory в зоне этапа."
+    content: 'typecheck/test по затронутым пакетам (integrator + webapp fast/inprocess по политике репозитория); rg на оставшийся client.query с pg_advisory в зоне этапа.'
     status: completed
 ---
 

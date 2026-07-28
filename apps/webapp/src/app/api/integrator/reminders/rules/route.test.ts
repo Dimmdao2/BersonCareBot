@@ -1,17 +1,17 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 const assertMock = vi.hoisted(() => vi.fn());
-vi.mock("@/app-layer/integrator/assertIntegratorGetRequest", () => ({
+vi.mock('@/app-layer/integrator/assertIntegratorGetRequest', () => ({
   assertIntegratorGetRequest: assertMock,
 }));
 
 const mockListRules = vi.hoisted(() => vi.fn().mockResolvedValue([]));
 const mockHasActiveEnrollment = vi.hoisted(() => vi.fn().mockResolvedValue(true));
-vi.mock("@/app-layer/di/buildAppDeps", () => ({
+vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: () => ({
     userProjection: {
       findByIntegratorId: vi.fn().mockResolvedValue({
-        platformUserId: "22222222-2222-4222-8222-222222222222",
+        platformUserId: '22222222-2222-4222-8222-222222222222',
       }),
     },
     patientOrganization: { hasActiveEnrollment: mockHasActiveEnrollment },
@@ -27,99 +27,108 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
   }),
 }));
 
-import { GET } from "./route";
+import { GET } from './route';
 import {
   integratorGetSignedHeadersOk,
   wireDefaultAssertIntegratorGetForRouteTests,
-} from "../../testUtils/wireAssertIntegratorGetForRouteTests";
+} from '../../testUtils/wireAssertIntegratorGetForRouteTests';
 
-describe("GET /api/integrator/reminders/rules", () => {
+describe('GET /api/integrator/reminders/rules', () => {
   beforeEach(() => {
     mockListRules.mockClear();
     mockHasActiveEnrollment.mockReset().mockResolvedValue(true);
     wireDefaultAssertIntegratorGetForRouteTests(assertMock);
   });
 
-  it("rejects a user that is outside the signed organization", async () => {
+  it('rejects a user that is outside the signed organization', async () => {
     mockHasActiveEnrollment.mockResolvedValue(false);
     const res = await GET(
-      new Request("http://localhost/api/integrator/reminders/rules?integratorUserId=42&organizationId=11111111-1111-4111-8111-111111111111", {
-        headers: integratorGetSignedHeadersOk,
-      }),
+      new Request(
+        'http://localhost/api/integrator/reminders/rules?integratorUserId=42&organizationId=11111111-1111-4111-8111-111111111111',
+        {
+          headers: integratorGetSignedHeadersOk,
+        },
+      ),
     );
     expect(res.status).toBe(403);
     expect(mockListRules).not.toHaveBeenCalled();
   });
 
-  it("returns 400 when missing webhook headers", async () => {
-    const res = await GET(new Request("http://localhost/api/integrator/reminders/rules"));
+  it('returns 400 when missing webhook headers', async () => {
+    const res = await GET(new Request('http://localhost/api/integrator/reminders/rules'));
     expect(res.status).toBe(400);
     const json = await res.json();
     expect(json).toMatchObject({ ok: false, error: expect.any(String) });
   });
 
-  it("returns 401 when signature invalid", async () => {
+  it('returns 401 when signature invalid', async () => {
     const res = await GET(
-      new Request("http://localhost/api/integrator/reminders/rules?integratorUserId=42&organizationId=11111111-1111-4111-8111-111111111111", {
-        headers: { "x-bersoncare-timestamp": "1700000000", "x-bersoncare-signature": "bad" },
-      })
+      new Request(
+        'http://localhost/api/integrator/reminders/rules?integratorUserId=42&organizationId=11111111-1111-4111-8111-111111111111',
+        {
+          headers: { 'x-bersoncare-timestamp': '1700000000', 'x-bersoncare-signature': 'bad' },
+        },
+      ),
     );
     expect(res.status).toBe(401);
   });
 
-  it("returns 400 when integratorUserId missing", async () => {
+  it('returns 400 when integratorUserId missing', async () => {
     const res = await GET(
-      new Request("http://localhost/api/integrator/reminders/rules", {
-        headers: integratorGetSignedHeadersOk,
-      })
-    );
-    expect(res.status).toBe(400);
-    const json = await res.json();
-    expect(json.error).toContain("integratorUserId");
-  });
-
-  it("fails closed when the signed request has no organizationId", async () => {
-    const res = await GET(
-      new Request("http://localhost/api/integrator/reminders/rules?integratorUserId=42", {
+      new Request('http://localhost/api/integrator/reminders/rules', {
         headers: integratorGetSignedHeadersOk,
       }),
     );
     expect(res.status).toBe(400);
-    expect(await res.json()).toMatchObject({ error: "valid organizationId required" });
+    const json = await res.json();
+    expect(json.error).toContain('integratorUserId');
+  });
+
+  it('fails closed when the signed request has no organizationId', async () => {
+    const res = await GET(
+      new Request('http://localhost/api/integrator/reminders/rules?integratorUserId=42', {
+        headers: integratorGetSignedHeadersOk,
+      }),
+    );
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ error: 'valid organizationId required' });
     expect(mockListRules).not.toHaveBeenCalled();
   });
 
-  it("returns 200 with rules on happy path", async () => {
+  it('returns 200 with rules on happy path', async () => {
     mockListRules.mockResolvedValue([
       {
-        id: "rule-1",
-        userId: "42",
-        category: "exercise",
+        id: 'rule-1',
+        userId: '42',
+        category: 'exercise',
         isEnabled: true,
-        scheduleType: "daily",
-        timezone: "Europe/Moscow",
+        scheduleType: 'daily',
+        timezone: 'Europe/Moscow',
         intervalMinutes: 60,
         windowStartMinute: 0,
         windowEndMinute: 1440,
-        daysMask: "1111111",
-        contentMode: "none",
+        daysMask: '1111111',
+        contentMode: 'none',
         linkedObjectType: null,
         linkedObjectId: null,
         customTitle: null,
         customText: null,
-        deepLink: "http://127.0.0.1:5200/app/patient/reminders?from=reminder",
-        updatedAt: "2025-01-01T00:00:00.000Z",
+        deepLink: 'http://127.0.0.1:5200/app/patient/reminders?from=reminder',
+        updatedAt: '2025-01-01T00:00:00.000Z',
       },
     ]);
     const res = await GET(
-      new Request("http://localhost/api/integrator/reminders/rules?integratorUserId=42&organizationId=11111111-1111-4111-8111-111111111111", {
-        headers: integratorGetSignedHeadersOk,
-      })
+      new Request(
+        'http://localhost/api/integrator/reminders/rules?integratorUserId=42&organizationId=11111111-1111-4111-8111-111111111111',
+        {
+          headers: integratorGetSignedHeadersOk,
+        },
+      ),
     );
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json).toMatchObject({ ok: true, rules: expect.any(Array) });
     expect(json.rules).toHaveLength(1);
-    expect(json.rules[0].category).toBe("exercise");
+    expect(json.rules[0].category).toBe('exercise');
   });
 });

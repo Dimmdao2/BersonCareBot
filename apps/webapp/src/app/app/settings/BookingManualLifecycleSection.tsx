@@ -1,28 +1,28 @@
-"use client";
+'use client';
 
-import { useEffect, useState, useTransition } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { Label } from "@/shared/ui/doctor/primitives/label";
+import { useEffect, useState, useTransition } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { Label } from '@/shared/ui/doctor/primitives/label';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/ui/doctor/primitives/select";
-import { BookingStaffPaymentPanel } from "./BookingStaffPaymentPanel";
-import { apiJson } from "@/shared/lib/apiJson";
+} from '@/shared/ui/doctor/primitives/select';
+import { BookingStaffPaymentPanel } from './BookingStaffPaymentPanel';
+import { apiJson } from '@/shared/lib/apiJson';
 
 const CANCEL_TYPES = [
-  { value: "free", label: "Бесплатная" },
-  { value: "penalized", label: "Штрафная" },
-  { value: "package_charged", label: "Со списанием" },
-  { value: "no_package_charge", label: "Без списания" },
-  { value: "retain_prepayment", label: "Удержание предоплаты" },
-  { value: "refund_prepayment", label: "Возврат предоплаты" },
-  { value: "custom", label: "Индивидуально" },
+  { value: 'free', label: 'Бесплатная' },
+  { value: 'penalized', label: 'Штрафная' },
+  { value: 'package_charged', label: 'Со списанием' },
+  { value: 'no_package_charge', label: 'Без списания' },
+  { value: 'retain_prepayment', label: 'Удержание предоплаты' },
+  { value: 'refund_prepayment', label: 'Возврат предоплаты' },
+  { value: 'custom', label: 'Индивидуально' },
 ] as const;
 
 type AppointmentOption = { id: string; label: string };
@@ -36,30 +36,30 @@ type BookingManualLifecycleSectionProps = {
 };
 
 function isoToLocalInput(iso: string): string {
-  if (!iso.trim()) return "";
+  if (!iso.trim()) return '';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  const pad = (n: number) => String(n).padStart(2, "0");
+  const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 function localInputToIso(local: string): string {
-  if (!local.trim()) return "";
+  if (!local.trim()) return '';
   const d = new Date(local);
   if (Number.isNaN(d.getTime())) return local;
   return d.toISOString();
 }
 
 export function BookingManualLifecycleSection({
-  apiBase = "/api/admin/booking-engine",
+  apiBase = '/api/admin/booking-engine',
   useDateTimePickers = false,
   platformUserId,
 }: BookingManualLifecycleSectionProps) {
-  const [appointmentId, setAppointmentId] = useState("");
+  const [appointmentId, setAppointmentId] = useState('');
   const [appointmentOptions, setAppointmentOptions] = useState<AppointmentOption[]>([]);
-  const [cancelType, setCancelType] = useState<string>("free");
-  const [newStartAt, setNewStartAt] = useState("");
-  const [newEndAt, setNewEndAt] = useState("");
+  const [cancelType, setCancelType] = useState<string>('free');
+  const [newStartAt, setNewStartAt] = useState('');
+  const [newEndAt, setNewEndAt] = useState('');
   const [message, setMessage] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -86,11 +86,11 @@ export function BookingManualLifecycleSection({
         const byId = new Map<string, AppointmentOption>();
         for (const item of json.timeline) {
           if (!item.appointmentId) continue;
-          if (item.category !== "appointment" && item.category !== "reschedule") continue;
+          if (item.category !== 'appointment' && item.category !== 'reschedule') continue;
           const at = new Date(item.occurredAt);
           const when = Number.isNaN(at.getTime())
             ? item.occurredAt
-            : at.toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short" });
+            : at.toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' });
           byId.set(item.appointmentId, {
             id: item.appointmentId,
             label: `${item.title} · ${when}`,
@@ -126,7 +126,7 @@ export function BookingManualLifecycleSection({
             </Select>
           ) : (
             <Input
-              placeholder={platformUserId ? "Нет записей в истории" : "ID канонической записи"}
+              placeholder={platformUserId ? 'Нет записей в истории' : 'ID канонической записи'}
               value={appointmentId}
               onChange={(e) => setAppointmentId(e.target.value.trim())}
               className="max-w-lg"
@@ -136,7 +136,7 @@ export function BookingManualLifecycleSection({
         <div className="flex flex-wrap gap-4">
           <div className="space-y-2">
             <Label>Тип отмены</Label>
-            <Select value={cancelType} onValueChange={(v) => setCancelType(v ?? "free")}>
+            <Select value={cancelType} onValueChange={(v) => setCancelType(v ?? 'free')}>
               <SelectTrigger className="w-[14rem]">
                 <SelectValue />
               </SelectTrigger>
@@ -155,14 +155,17 @@ export function BookingManualLifecycleSection({
               onClick={() => {
                 startTransition(async () => {
                   try {
-                    await apiJson(`${apiBase}/appointments/${encodeURIComponent(appointmentId)}/manual-cancel`, {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ decisionType: cancelType }),
-                    });
-                    setMessage("Отмена применена");
+                    await apiJson(
+                      `${apiBase}/appointments/${encodeURIComponent(appointmentId)}/manual-cancel`,
+                      {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ decisionType: cancelType }),
+                      },
+                    );
+                    setMessage('Отмена применена');
                   } catch (e) {
-                    setMessage(e instanceof Error ? e.message : "error");
+                    setMessage(e instanceof Error ? e.message : 'error');
                   }
                 });
               }}
@@ -171,18 +174,18 @@ export function BookingManualLifecycleSection({
             </Button>
           </div>
           <div className="space-y-2">
-            <Label>{useDateTimePickers ? "Новое начало" : "Новое начало (ISO)"}</Label>
+            <Label>{useDateTimePickers ? 'Новое начало' : 'Новое начало (ISO)'}</Label>
             <Input
-              type={useDateTimePickers ? "datetime-local" : "text"}
+              type={useDateTimePickers ? 'datetime-local' : 'text'}
               value={useDateTimePickers ? isoToLocalInput(newStartAt) : newStartAt}
               onChange={(e) =>
                 setNewStartAt(useDateTimePickers ? localInputToIso(e.target.value) : e.target.value)
               }
               className="max-w-xs"
             />
-            <Label>{useDateTimePickers ? "Новое окончание" : "Новое окончание (ISO)"}</Label>
+            <Label>{useDateTimePickers ? 'Новое окончание' : 'Новое окончание (ISO)'}</Label>
             <Input
-              type={useDateTimePickers ? "datetime-local" : "text"}
+              type={useDateTimePickers ? 'datetime-local' : 'text'}
               value={useDateTimePickers ? isoToLocalInput(newEndAt) : newEndAt}
               onChange={(e) =>
                 setNewEndAt(useDateTimePickers ? localInputToIso(e.target.value) : e.target.value)
@@ -196,22 +199,27 @@ export function BookingManualLifecycleSection({
               onClick={() => {
                 const durationMinutes = Math.max(
                   1,
-                  Math.round((new Date(newEndAt).getTime() - new Date(newStartAt).getTime()) / 60_000),
+                  Math.round(
+                    (new Date(newEndAt).getTime() - new Date(newStartAt).getTime()) / 60_000,
+                  ),
                 );
                 startTransition(async () => {
                   try {
-                    await apiJson(`${apiBase}/appointments/${encodeURIComponent(appointmentId)}/manual-reschedule`, {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({
-                        newStartAt,
-                        newEndAt,
-                        durationMinutes,
-                      }),
-                    });
-                    setMessage("Перенос применён");
+                    await apiJson(
+                      `${apiBase}/appointments/${encodeURIComponent(appointmentId)}/manual-reschedule`,
+                      {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          newStartAt,
+                          newEndAt,
+                          durationMinutes,
+                        }),
+                      },
+                    );
+                    setMessage('Перенос применён');
                   } catch (e) {
-                    setMessage(e instanceof Error ? e.message : "error");
+                    setMessage(e instanceof Error ? e.message : 'error');
                   }
                 });
               }}

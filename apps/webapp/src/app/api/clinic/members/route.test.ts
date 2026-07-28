@@ -1,28 +1,28 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { NextResponse } from "next/server";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { NextResponse } from 'next/server';
 
 const buildAppDepsMock = vi.hoisted(() => vi.fn());
 const requireClinicManagementApiContextMock = vi.hoisted(() => vi.fn());
 const requireEntitlementMock = vi.hoisted(() => vi.fn());
 
-vi.mock("@/app-layer/guards/requireRole", () => ({
+vi.mock('@/app-layer/guards/requireRole', () => ({
   requireClinicManagementApiContext: () => requireClinicManagementApiContextMock(),
 }));
 
-vi.mock("@/app-layer/guards/requireEntitlement", () => ({
+vi.mock('@/app-layer/guards/requireEntitlement', () => ({
   requireEntitlementForRead: (...args: unknown[]) => requireEntitlementMock(...args),
 }));
 
-vi.mock("@/app-layer/di/buildAppDeps", () => ({
+vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: buildAppDepsMock,
 }));
 
-import { GET } from "./route";
+import { GET } from './route';
 
-const ORG_ID = "ed63b540-3fb6-499d-897c-f52227ea5dd8";
+const ORG_ID = 'ed63b540-3fb6-499d-897c-f52227ea5dd8';
 const defaultSeats = { limit: 3, used: 1, available: 2 };
 
-describe("GET /api/clinic/members", () => {
+describe('GET /api/clinic/members', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     requireClinicManagementApiContextMock.mockResolvedValue({
@@ -32,10 +32,10 @@ describe("GET /api/clinic/members", () => {
     requireEntitlementMock.mockResolvedValue({ ok: true });
   });
 
-  it("returns the clinic-management guard response before resolving deps", async () => {
+  it('returns the clinic-management guard response before resolving deps', async () => {
     requireClinicManagementApiContextMock.mockResolvedValueOnce({
       ok: false,
-      response: NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 }),
+      response: NextResponse.json({ ok: false, error: 'forbidden' }, { status: 403 }),
     });
 
     const res = await GET();
@@ -44,40 +44,40 @@ describe("GET /api/clinic/members", () => {
     expect(buildAppDepsMock).not.toHaveBeenCalled();
   });
 
-  it("lists only members from the guard organization and derives seatConsuming from the specialist binding, not role", async () => {
+  it('lists only members from the guard organization and derives seatConsuming from the specialist binding, not role', async () => {
     const listOrganizationMembers = vi.fn().mockResolvedValue([
       {
-        id: "membership-1",
+        id: 'membership-1',
         organizationId: ORG_ID,
-        platformUserId: "user-1",
-        role: "owner",
-        status: "active",
+        platformUserId: 'user-1',
+        role: 'owner',
+        status: 'active',
         specialistId: null,
-        displayName: "Owner",
-        createdAt: "2026-07-07T00:00:00.000Z",
-        updatedAt: "2026-07-07T00:00:00.000Z",
+        displayName: 'Owner',
+        createdAt: '2026-07-07T00:00:00.000Z',
+        updatedAt: '2026-07-07T00:00:00.000Z',
       },
       {
-        id: "membership-2",
+        id: 'membership-2',
         organizationId: ORG_ID,
-        platformUserId: "user-2",
-        role: "doctor",
-        status: "active",
-        specialistId: "specialist-2",
+        platformUserId: 'user-2',
+        role: 'doctor',
+        status: 'active',
+        specialistId: 'specialist-2',
         displayName: null,
-        createdAt: "2026-07-07T00:00:00.000Z",
-        updatedAt: "2026-07-07T00:00:00.000Z",
+        createdAt: '2026-07-07T00:00:00.000Z',
+        updatedAt: '2026-07-07T00:00:00.000Z',
       },
       {
-        id: "membership-3",
+        id: 'membership-3',
         organizationId: ORG_ID,
-        platformUserId: "user-3",
-        role: "admin",
-        status: "active",
-        specialistId: "specialist-3",
-        displayName: "Admin who also treats patients",
-        createdAt: "2026-07-07T00:00:00.000Z",
-        updatedAt: "2026-07-07T00:00:00.000Z",
+        platformUserId: 'user-3',
+        role: 'admin',
+        status: 'active',
+        specialistId: 'specialist-3',
+        displayName: 'Admin who also treats patients',
+        createdAt: '2026-07-07T00:00:00.000Z',
+        updatedAt: '2026-07-07T00:00:00.000Z',
       },
     ]);
     const getSeatStatus = vi.fn().mockResolvedValue(defaultSeats);
@@ -96,30 +96,30 @@ describe("GET /api/clinic/members", () => {
       members: [
         {
           // Owner without a specialist binding: manages the org but does not consume a seat.
-          id: "membership-1",
-          displayName: "Owner",
-          role: "owner",
-          status: "active",
+          id: 'membership-1',
+          displayName: 'Owner',
+          role: 'owner',
+          status: 'active',
           canManageOrganization: true,
           specialistLinked: false,
           seatConsuming: false,
         },
         {
           // Doctor with a specialist binding: consumes a seat.
-          id: "membership-2",
+          id: 'membership-2',
           displayName: null,
-          role: "doctor",
-          status: "active",
+          role: 'doctor',
+          status: 'active',
           canManageOrganization: false,
           specialistLinked: true,
           seatConsuming: true,
         },
         {
           // Non-clinical role can still consume a seat once bound to a specialist profile.
-          id: "membership-3",
-          displayName: "Admin who also treats patients",
-          role: "admin",
-          status: "active",
+          id: 'membership-3',
+          displayName: 'Admin who also treats patients',
+          role: 'admin',
+          status: 'active',
           canManageOrganization: true,
           specialistLinked: true,
           seatConsuming: true,

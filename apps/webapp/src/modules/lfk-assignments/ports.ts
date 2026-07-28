@@ -1,4 +1,4 @@
-import type { AssignTemplateResult } from "./types";
+import type { AssignTemplateResult } from './types';
 
 export type LfkAssignmentsPort = {
   assignPublishedTemplateToPatient(params: {

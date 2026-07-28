@@ -2,28 +2,28 @@
  * PATCH /api/admin/users/:userId/profile — правка ФИО, email и телефона канонического клиента.
  * Guard: admin + admin mode.
  */
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { fireAndForgetContactEmailSetup } from "@/modules/auth/emailSetupAccess/enqueueContactEmailSetup";
-import { getPool } from "@/app-layer/db/client";
-import { writeAuditLog } from "@/app-layer/admin/auditLog";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
-import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
-import { resolveCanonicalUserId } from "@/app-layer/platform-user/canonicalPlatformUser";
-import { requireAdminModeSession } from "@/modules/auth/requireAdminMode";
-import { normalizeRuPhoneE164 } from "@/shared/phone/normalizeRuPhoneE164";
-import { normalizeFioPart } from "@/shared/lib/fio";
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { fireAndForgetContactEmailSetup } from '@/modules/auth/emailSetupAccess/enqueueContactEmailSetup';
+import { getPool } from '@/app-layer/db/client';
+import { writeAuditLog } from '@/app-layer/admin/auditLog';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
+import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import { resolveCanonicalUserId } from '@/app-layer/platform-user/canonicalPlatformUser';
+import { requireAdminModeSession } from '@/modules/auth/requireAdminMode';
+import { normalizeRuPhoneE164 } from '@/shared/phone/normalizeRuPhoneE164';
+import { normalizeFioPart } from '@/shared/lib/fio';
 
 const bodySchema = z
   .object({
     firstName: z.union([z.string().max(200), z.null()]).optional(),
     lastName: z.union([z.string().max(200), z.null()]).optional(),
-    email: z.union([z.string().email().max(320), z.literal(""), z.null()]).optional(),
+    email: z.union([z.string().email().max(320), z.literal(''), z.null()]).optional(),
     phone: z.union([z.string().max(40), z.null()]).optional(),
   })
   .strict()
-  .refine((o) => Object.keys(o).length > 0, { message: "empty_patch" });
+  .refine((o) => Object.keys(o).length > 0, { message: 'empty_patch' });
 
 type AdminClientProfilePatch = {
   firstName?: string | null;
@@ -37,7 +37,7 @@ function normalizePatch(data: z.infer<typeof bodySchema>): AdminClientProfilePat
   if (data.firstName !== undefined) out.firstName = normalizeFioPart(data.firstName) ?? null;
   if (data.lastName !== undefined) out.lastName = normalizeFioPart(data.lastName) ?? null;
   if (data.email !== undefined) {
-    out.email = data.email === "" || data.email === null ? null : data.email;
+    out.email = data.email === '' || data.email === null ? null : data.email;
   }
   return out;
 }
@@ -52,27 +52,27 @@ export async function PATCH(request: Request, context: { params: Promise<{ userI
 
   const { userId } = await context.params;
   if (!z.string().uuid().safeParse(userId).success) {
-    return NextResponse.json({ ok: false, error: "invalid_user" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_user' }, { status: 400 });
   }
 
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {
-    const empty = parsed.error.issues.some((i) => i.message === "empty_patch");
+    const empty = parsed.error.issues.some((i) => i.message === 'empty_patch');
     return NextResponse.json(
-      { ok: false, error: empty ? "empty_patch" : "invalid_body" },
+      { ok: false, error: empty ? 'empty_patch' : 'invalid_body' },
       { status: 400 },
     );
   }
 
   const patch = normalizePatch(parsed.data);
   if (parsed.data.phone !== undefined) {
-    if (parsed.data.phone === null || String(parsed.data.phone).trim() === "") {
+    if (parsed.data.phone === null || String(parsed.data.phone).trim() === '') {
       patch.phoneNormalized = null;
     } else {
       const n = normalizeRuPhoneE164(String(parsed.data.phone).trim());
       if (!/^\+7\d{10}$/.test(n)) {
-        return NextResponse.json({ ok: false, error: "invalid_phone" }, { status: 400 });
+        return NextResponse.json({ ok: false, error: 'invalid_phone' }, { status: 400 });
       }
       patch.phoneNormalized = n;
     }
@@ -82,13 +82,13 @@ export async function PATCH(request: Request, context: { params: Promise<{ userI
   const canonicalId = (await resolveCanonicalUserId(pool, userId)) ?? userId;
   const deps = buildAppDeps();
 
-  if (patch.email !== undefined && patch.email !== null && patch.email.trim() !== "") {
+  if (patch.email !== undefined && patch.email !== null && patch.email.trim() !== '') {
     const conflictId = await deps.userProjection.findPlatformUserIdWithEmailConflict(
       canonicalId,
       patch.email.trim(),
     );
     if (conflictId) {
-      return NextResponse.json({ ok: false, error: "email_conflict" }, { status: 409 });
+      return NextResponse.json({ ok: false, error: 'email_conflict' }, { status: 409 });
     }
   }
 
@@ -98,11 +98,11 @@ export async function PATCH(request: Request, context: { params: Promise<{ userI
       patch.phoneNormalized,
     );
     if (conflictId) {
-      return NextResponse.json({ ok: false, error: "phone_conflict" }, { status: 409 });
+      return NextResponse.json({ ok: false, error: 'phone_conflict' }, { status: 409 });
     }
   }
   const emailBefore =
-    patch.email !== undefined && patch.email !== null && patch.email.trim() !== ""
+    patch.email !== undefined && patch.email !== null && patch.email.trim() !== ''
       ? await deps.userProjection.getProfileEmailFields(canonicalId)
       : null;
 
@@ -112,18 +112,13 @@ export async function PATCH(request: Request, context: { params: Promise<{ userI
   });
 
   if (!result.ok) {
-    if (result.reason === "nothing_to_update") {
-      return NextResponse.json({ ok: false, error: "empty_patch" }, { status: 400 });
+    if (result.reason === 'nothing_to_update') {
+      return NextResponse.json({ ok: false, error: 'empty_patch' }, { status: 400 });
     }
-    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+    return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
 
-  if (
-    result.ok &&
-    patch.email !== undefined &&
-    patch.email !== null &&
-    patch.email.trim() !== ""
-  ) {
+  if (result.ok && patch.email !== undefined && patch.email !== null && patch.email.trim() !== '') {
     const normNew = patch.email.trim().toLowerCase();
     const normBefore = emailBefore?.email?.trim().toLowerCase() ?? null;
     if (normNew !== normBefore) {
@@ -132,10 +127,10 @@ export async function PATCH(request: Request, context: { params: Promise<{ userI
         {
           userId: canonicalId,
           emailNormalized: normNew,
-          source: "doctor_profile",
+          source: 'doctor_profile',
           createdByUserId: adminGate.session.user.userId,
         },
-        { hook: "admin_client_profile_patch" },
+        { hook: 'admin_client_profile_patch' },
       );
     }
   }
@@ -144,14 +139,14 @@ export async function PATCH(request: Request, context: { params: Promise<{ userI
   await withDoctorWorkspacePrincipal(workspaceGate.ctx, () =>
     writeAuditLog(pool, {
       actorId: adminGate.session.user.userId,
-      action: "admin_client_profile_patch",
+      action: 'admin_client_profile_patch',
       targetId: canonicalId,
       details: {
         fields: fieldsChanged,
         emailTouched: patch.email !== undefined,
         phoneTouched: patch.phoneNormalized !== undefined,
       },
-      status: "ok",
+      status: 'ok',
     }),
   );
 

@@ -92,7 +92,8 @@ describe('logger rendered output', () => {
   });
 
   it('adds only trusted bounded correlation and organization context from the shared principal ALS', async () => {
-    const { runWithDbOrganizationPrincipal, runWithObservabilityContext } = await import('@bersoncare/db-principal');
+    const { runWithDbOrganizationPrincipal, runWithObservabilityContext } =
+      await import('@bersoncare/db-principal');
     const { logger: freshLogger } = await import('./logger.js');
     const correlationId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
     const organizationId = '11111111-1111-4111-8111-111111111111';

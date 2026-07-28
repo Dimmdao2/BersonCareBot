@@ -2,10 +2,10 @@
  * Broadcast draft persistence — one draft per doctor, last-write-wins.
  * Wave 3 phase 15G — migrated from pool.query to Drizzle db.execute(sql).
  */
-import { sql } from "drizzle-orm";
-import { getDrizzle } from "@/app-layer/db/drizzle";
-import { runWebappTransaction } from "@/infra/db/runWebappSql";
-import type { BroadcastDraftPort, BroadcastDraft } from "@/modules/doctor-broadcasts/draftPort";
+import { sql } from 'drizzle-orm';
+import { getDrizzle } from '@/app-layer/db/drizzle';
+import { runWebappTransaction } from '@/infra/db/runWebappSql';
+import type { BroadcastDraftPort, BroadcastDraft } from '@/modules/doctor-broadcasts/draftPort';
 
 type RawDraftRow = {
   category: string | null;
@@ -29,11 +29,11 @@ export function createPgBroadcastDraftPort(): BroadcastDraftPort {
       const row = result.rows[0] as RawDraftRow | undefined;
       if (!row) return null;
       return {
-        category: (row.category ?? null) as BroadcastDraft["category"],
-        audience: (row.audience ?? null) as BroadcastDraft["audience"],
-        channels: (row.channels ?? []) as BroadcastDraft["channels"],
-        title: row.title ?? "",
-        body: row.body ?? "",
+        category: (row.category ?? null) as BroadcastDraft['category'],
+        audience: (row.audience ?? null) as BroadcastDraft['audience'],
+        channels: (row.channels ?? []) as BroadcastDraft['channels'],
+        title: row.title ?? '',
+        body: row.body ?? '',
         mediaUrl: row.media_url ?? null,
         mediaType: row.media_type ?? null,
       };

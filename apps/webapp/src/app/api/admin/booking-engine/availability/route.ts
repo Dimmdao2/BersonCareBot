@@ -1,10 +1,10 @@
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
-import { requireClinicManagementBookingEngine } from "../_requireAdminBookingEngine";
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
+import { requireClinicManagementBookingEngine } from '../_requireAdminBookingEngine';
 
 const SpecialistSchema = z.object({
-  kind: z.literal("specialist_service"),
+  kind: z.literal('specialist_service'),
   specialistId: z.string().uuid(),
   serviceId: z.string().uuid(),
   branchId: z.string().uuid().nullable().optional(),
@@ -16,21 +16,25 @@ const SpecialistSchema = z.object({
 });
 
 const LocationSchema = z.object({
-  kind: z.literal("service_location"),
+  kind: z.literal('service_location'),
   serviceId: z.string().uuid(),
   branchId: z.string().uuid(),
   isActive: z.boolean().optional().default(true),
 });
 
 const SoloLocationSchema = z.object({
-  kind: z.literal("solo_service_location"),
+  kind: z.literal('solo_service_location'),
   specialistId: z.string().uuid(),
   serviceId: z.string().uuid(),
   branchId: z.string().uuid(),
   isActive: z.boolean().optional().default(true),
 });
 
-const PostSchema = z.discriminatedUnion("kind", [SpecialistSchema, LocationSchema, SoloLocationSchema]);
+const PostSchema = z.discriminatedUnion('kind', [
+  SpecialistSchema,
+  LocationSchema,
+  SoloLocationSchema,
+]);
 
 export async function GET() {
   const gate = await requireClinicManagementBookingEngine();
@@ -47,13 +51,14 @@ export async function POST(request: Request) {
   if (!gate.ok) return gate.response;
   const body = await request.json().catch(() => null);
   const parsed = PostSchema.safeParse(body);
-  if (!parsed.success) return NextResponse.json({ ok: false, error: "invalid_input" }, { status: 400 });
-  if (parsed.data.kind === "solo_service_location") {
+  if (!parsed.success)
+    return NextResponse.json({ ok: false, error: 'invalid_input' }, { status: 400 });
+  if (parsed.data.kind === 'solo_service_location') {
     const data = parsed.data;
     try {
       const result = await withDoctorWorkspacePrincipal(
         gate.ctx,
-        "admin.booking-engine.availability.solo-service-location.set",
+        'admin.booking-engine.availability.solo-service-location.set',
         async () => {
           const [service, branch, specialist] = await Promise.all([
             gate.ctx.service.services.getService(data.serviceId),
@@ -61,13 +66,13 @@ export async function POST(request: Request) {
             gate.ctx.service.catalog.getSpecialist(data.specialistId),
           ]);
           if (!service || service.organizationId !== gate.ctx.organizationId) {
-            throw new Error("service_not_found");
+            throw new Error('service_not_found');
           }
           if (!branch || branch.organizationId !== gate.ctx.organizationId) {
-            throw new Error("branch_not_found");
+            throw new Error('branch_not_found');
           }
           if (!specialist || specialist.organizationId !== gate.ctx.organizationId) {
-            throw new Error("specialist_not_found");
+            throw new Error('specialist_not_found');
           }
           return gate.ctx.service.services.setSoloServiceLocationAvailability({
             organizationId: gate.ctx.organizationId,
@@ -80,8 +85,12 @@ export async function POST(request: Request) {
       );
       return NextResponse.json({ ok: true, ...result });
     } catch (error) {
-      const code = error instanceof Error ? error.message : "";
-      if (code === "service_not_found" || code === "branch_not_found" || code === "specialist_not_found") {
+      const code = error instanceof Error ? error.message : '';
+      if (
+        code === 'service_not_found' ||
+        code === 'branch_not_found' ||
+        code === 'specialist_not_found'
+      ) {
         return NextResponse.json({ ok: false, error: code }, { status: 404 });
       }
       throw error;
@@ -89,17 +98,17 @@ export async function POST(request: Request) {
   }
   const service = await gate.ctx.service.services.getService(parsed.data.serviceId);
   if (!service || service.organizationId !== gate.ctx.organizationId) {
-    return NextResponse.json({ ok: false, error: "service_not_found" }, { status: 404 });
+    return NextResponse.json({ ok: false, error: 'service_not_found' }, { status: 404 });
   }
-  if (parsed.data.kind === "service_location") {
+  if (parsed.data.kind === 'service_location') {
     const data = parsed.data;
     const branch = await gate.ctx.service.catalog.getBranch(data.branchId);
     if (!branch || branch.organizationId !== gate.ctx.organizationId) {
-      return NextResponse.json({ ok: false, error: "branch_not_found" }, { status: 404 });
+      return NextResponse.json({ ok: false, error: 'branch_not_found' }, { status: 404 });
     }
     const row = await withDoctorWorkspacePrincipal(
       gate.ctx,
-      "admin.booking-engine.availability.service-location.upsert",
+      'admin.booking-engine.availability.service-location.upsert',
       () =>
         gate.ctx.service.services.upsertServiceLocationAvailability({
           organizationId: gate.ctx.organizationId,
@@ -117,17 +126,17 @@ export async function POST(request: Request) {
     data.roomId ? gate.ctx.service.catalog.getRoom(data.roomId) : null,
   ]);
   if (!specialist || specialist.organizationId !== gate.ctx.organizationId) {
-    return NextResponse.json({ ok: false, error: "specialist_not_found" }, { status: 404 });
+    return NextResponse.json({ ok: false, error: 'specialist_not_found' }, { status: 404 });
   }
   if (data.branchId && (!branch || branch.organizationId !== gate.ctx.organizationId)) {
-    return NextResponse.json({ ok: false, error: "branch_not_found" }, { status: 404 });
+    return NextResponse.json({ ok: false, error: 'branch_not_found' }, { status: 404 });
   }
   if (data.roomId && (!room || room.organizationId !== gate.ctx.organizationId)) {
-    return NextResponse.json({ ok: false, error: "room_not_found" }, { status: 404 });
+    return NextResponse.json({ ok: false, error: 'room_not_found' }, { status: 404 });
   }
   const row = await withDoctorWorkspacePrincipal(
     gate.ctx,
-    "admin.booking-engine.availability.specialist-service.upsert",
+    'admin.booking-engine.availability.specialist-service.upsert',
     () =>
       gate.ctx.service.services.upsertSpecialistServiceAvailability({
         organizationId: gate.ctx.organizationId,

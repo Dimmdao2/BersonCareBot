@@ -98,7 +98,10 @@ export async function resetStaleOutgoingDeliveryProcessing(
   return res.rows.length;
 }
 
-export async function claimDueOutgoingDeliveries(db: DbPort, limit: number): Promise<OutgoingDeliveryQueueRow[]> {
+export async function claimDueOutgoingDeliveries(
+  db: DbPort,
+  limit: number,
+): Promise<OutgoingDeliveryQueueRow[]> {
   const lim = Math.max(1, Math.trunc(limit));
   const res = await runIntegratorSql<{
     id: string;

@@ -1,5 +1,5 @@
-import type { Pool } from "pg";
-import { runPgPoolPgText } from "@/infra/db/runWebappSql";
+import type { Pool } from 'pg';
+import { runPgPoolPgText } from '@/infra/db/runWebappSql';
 
 export async function findPublicBookingNameCollisionCandidates(input: {
   pool: Pool;

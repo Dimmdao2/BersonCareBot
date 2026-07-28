@@ -1,7 +1,7 @@
-import { and, eq, isNull } from "drizzle-orm";
-import type { DrizzleDb } from "@/app-layer/db/drizzle";
-import { formatDoctorFio, normalizeFioPart } from "@/shared/lib/fio";
-import { platformUsers, userPhoneHistory } from "../../../db/schema/schema";
+import { and, eq, isNull } from 'drizzle-orm';
+import type { DrizzleDb } from '@/app-layer/db/drizzle';
+import { formatDoctorFio, normalizeFioPart } from '@/shared/lib/fio';
+import { platformUsers, userPhoneHistory } from '../../../db/schema/schema';
 
 export type ResolveOrCreateDoctorClientByPhoneInput = {
   phoneNormalized: string | null;
@@ -23,18 +23,15 @@ export type ResolveOrCreateDoctorClientByPhoneResult = {
 };
 
 export class DoctorClientIdentityError extends Error {
-  constructor(readonly code: "email_conflict" | "identity_conflict" | "create_failed") {
+  constructor(readonly code: 'email_conflict' | 'identity_conflict' | 'create_failed') {
     super(code);
   }
 }
 
 function isPhoneUniqueViolation(error: unknown): boolean {
-  if (typeof error !== "object" || error === null) return false;
-  if (!("code" in error) || !("constraint" in error)) return false;
-  return (
-    error.code === "23505" &&
-    error.constraint === "platform_users_phone_normalized_key"
-  );
+  if (typeof error !== 'object' || error === null) return false;
+  if (!('code' in error) || !('constraint' in error)) return false;
+  return error.code === '23505' && error.constraint === 'platform_users_phone_normalized_key';
 }
 
 /** Canonical staff-entered phone identity writer. The caller owns the outer Drizzle transaction. */
@@ -47,13 +44,13 @@ export async function resolveOrCreateDoctorClientByPhoneInTransaction(
   const firstName = normalizeFioPart(input.firstName);
   const patronymic = normalizeFioPart(input.patronymic);
   if (!lastName || !firstName) {
-    throw new DoctorClientIdentityError("create_failed");
+    throw new DoctorClientIdentityError('create_failed');
   }
   const displayName = formatDoctorFio({ lastName, firstName, patronymic });
 
   if (!input.phoneNormalized) {
     if (input.emailRaw || input.emailNormalized) {
-      throw new DoctorClientIdentityError("create_failed");
+      throw new DoctorClientIdentityError('create_failed');
     }
     const [inserted] = await tx
       .insert(platformUsers)
@@ -65,7 +62,7 @@ export async function resolveOrCreateDoctorClientByPhoneInTransaction(
         lastName,
         firstName,
         patronymic,
-        role: "client",
+        role: 'client',
         patientPhoneTrustAt: null,
       })
       .returning({
@@ -75,7 +72,7 @@ export async function resolveOrCreateDoctorClientByPhoneInTransaction(
         firstName: platformUsers.firstName,
         patronymic: platformUsers.patronymic,
       });
-    if (!inserted) throw new DoctorClientIdentityError("create_failed");
+    if (!inserted) throw new DoctorClientIdentityError('create_failed');
     return {
       userId: inserted.id,
       displayName: inserted.displayName,
@@ -101,18 +98,15 @@ export async function resolveOrCreateDoctorClientByPhoneInTransaction(
       })
       .from(platformUsers)
       .where(
-        and(
-          eq(platformUsers.phoneNormalized, phoneNormalized),
-          isNull(platformUsers.mergedIntoId),
-        ),
+        and(eq(platformUsers.phoneNormalized, phoneNormalized), isNull(platformUsers.mergedIntoId)),
       )
       .limit(1);
     return row ?? null;
   };
 
   const existing = await findByPhone();
-  if (existing && existing.role !== "client") {
-    throw new DoctorClientIdentityError("identity_conflict");
+  if (existing && existing.role !== 'client') {
+    throw new DoctorClientIdentityError('identity_conflict');
   }
 
   if (input.emailNormalized) {
@@ -127,7 +121,7 @@ export async function resolveOrCreateDoctorClientByPhoneInTransaction(
       )
       .limit(1);
     if (emailOwner && emailOwner.id !== existing?.id) {
-      throw new DoctorClientIdentityError("email_conflict");
+      throw new DoctorClientIdentityError('email_conflict');
     }
   }
 
@@ -162,7 +156,7 @@ export async function resolveOrCreateDoctorClientByPhoneInTransaction(
           patronymic,
           email: input.emailRaw,
           emailNormalized: input.emailNormalized,
-          role: "client",
+          role: 'client',
           patientPhoneTrustAt: new Date().toISOString(),
         })
         .returning({
@@ -182,8 +176,8 @@ export async function resolveOrCreateDoctorClientByPhoneInTransaction(
     if (!isPhoneUniqueViolation(error)) throw error;
     const concurrent = await findByPhone();
     if (!concurrent) throw error;
-    if (concurrent.role !== "client") {
-      throw new DoctorClientIdentityError("identity_conflict");
+    if (concurrent.role !== 'client') {
+      throw new DoctorClientIdentityError('identity_conflict');
     }
     return {
       userId: concurrent.id,
@@ -196,13 +190,13 @@ export async function resolveOrCreateDoctorClientByPhoneInTransaction(
     };
   }
 
-  if (!inserted) throw new DoctorClientIdentityError("create_failed");
+  if (!inserted) throw new DoctorClientIdentityError('create_failed');
 
   await tx.insert(userPhoneHistory).values({
     platformUserId: inserted.id,
     organizationId,
     phoneNormalized,
-    source: "admin",
+    source: 'admin',
   });
 
   return {

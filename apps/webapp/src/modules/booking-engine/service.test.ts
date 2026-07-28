@@ -1,23 +1,23 @@
-import { describe, expect, it, vi } from "vitest";
-import { createBookingEngineService } from "./service";
-import type { BookingEngineCorePort } from "./ports";
-import type { BeAppointment } from "./types";
+import { describe, expect, it, vi } from 'vitest';
+import { createBookingEngineService } from './service';
+import type { BookingEngineCorePort } from './ports';
+import type { BeAppointment } from './types';
 
 function mockPort(overrides: Partial<BookingEngineCorePort> = {}): BookingEngineCorePort {
   const appointment: BeAppointment = {
-    id: "11111111-1111-4111-8111-111111111111",
-    organizationId: "a0000000-0000-4000-8000-000000000001",
+    id: '11111111-1111-4111-8111-111111111111',
+    organizationId: 'a0000000-0000-4000-8000-000000000001',
     branchId: null,
     roomId: null,
     specialistId: null,
     serviceId: null,
     platformUserId: null,
-    startAt: "2026-06-01T10:00:00.000Z",
-    endAt: "2026-06-01T11:00:00.000Z",
+    startAt: '2026-06-01T10:00:00.000Z',
+    endAt: '2026-06-01T11:00:00.000Z',
     durationMinutes: 60,
-    source: "native",
-    status: "created",
-    originalStartAt: "2026-06-01T10:00:00.000Z",
+    source: 'native',
+    status: 'created',
+    originalStartAt: '2026-06-01T10:00:00.000Z',
     rescheduleCount: 0,
     paymentRef: null,
     packageUsageRef: null,
@@ -25,7 +25,7 @@ function mockPort(overrides: Partial<BookingEngineCorePort> = {}): BookingEngine
     attributionJson: {},
   };
   return {
-    getDefaultOrganizationId: vi.fn().mockResolvedValue("a0000000-0000-4000-8000-000000000001"),
+    getDefaultOrganizationId: vi.fn().mockResolvedValue('a0000000-0000-4000-8000-000000000001'),
     getOrganization: vi.fn(),
     listOrganizations: vi.fn().mockResolvedValue([]),
     upsertOrganization: vi.fn(),
@@ -62,18 +62,18 @@ function mockPort(overrides: Partial<BookingEngineCorePort> = {}): BookingEngine
     getStatusBeforePackageCharge: vi.fn().mockResolvedValue(null),
     createAppointment: vi.fn().mockResolvedValue(appointment),
     createManualPatientVisit: vi.fn().mockResolvedValue({
-      kind: "scheduled",
+      kind: 'scheduled',
       replayed: false,
       clinicalVisitId: null,
-      portalStatus: "not_activated",
+      portalStatus: 'not_activated',
       appointment,
       patient: {
-        userId: "22222222-2222-4222-8222-222222222222",
-        displayName: "Пациент",
-        lastName: "Пациент",
-        firstName: "Тестовый",
+        userId: '22222222-2222-4222-8222-222222222222',
+        displayName: 'Пациент',
+        lastName: 'Пациент',
+        firstName: 'Тестовый',
         patronymic: null,
-        phoneNormalized: "+79990000000",
+        phoneNormalized: '+79990000000',
         created: true,
       },
     }),
@@ -84,151 +84,153 @@ function mockPort(overrides: Partial<BookingEngineCorePort> = {}): BookingEngine
   };
 }
 
-describe("createBookingEngineService", () => {
-  it("resolves the configured palette for physical and Online creation independently", async () => {
+describe('createBookingEngineService', () => {
+  it('resolves the configured palette for physical and Online creation independently', async () => {
     const port = mockPort({
-      createPhysicalBranchWithDefaultColor: vi.fn().mockResolvedValue({ id: "physical" }),
-      upsertBranch: vi.fn().mockResolvedValue({ id: "online", color: "#ABCDEF", isActive: true }),
+      createPhysicalBranchWithDefaultColor: vi.fn().mockResolvedValue({ id: 'physical' }),
+      upsertBranch: vi.fn().mockResolvedValue({ id: 'online', color: '#ABCDEF', isActive: true }),
     });
     const svc = createBookingEngineService(port, {
       getLocationPaletteSetting: vi.fn().mockResolvedValue({
         value: {
-          physicalPalette: ["#111111", "#222222", "#333333", "#444444", "#555555"],
-          online: "#abcdef",
+          physicalPalette: ['#111111', '#222222', '#333333', '#444444', '#555555'],
+          online: '#abcdef',
         },
       }),
     });
     await svc.catalog.createPhysicalBranch({
-      organizationId: "a0000000-0000-4000-8000-000000000001",
-      title: "Москва",
-      cityCode: "moscow",
+      organizationId: 'a0000000-0000-4000-8000-000000000001',
+      title: 'Москва',
+      cityCode: 'moscow',
       isActive: true,
       sortOrder: 10,
     });
     await svc.catalog.setOnlineLocationState({
-      organizationId: "a0000000-0000-4000-8000-000000000001",
+      organizationId: 'a0000000-0000-4000-8000-000000000001',
       isActive: true,
     });
 
-    expect(port.createPhysicalBranchWithDefaultColor).toHaveBeenCalledWith(expect.objectContaining({
-      physicalPalette: ["#111111", "#222222", "#333333", "#444444", "#555555"],
-    }));
-    expect(port.upsertBranch).toHaveBeenCalledWith(expect.objectContaining({ color: "#ABCDEF" }));
+    expect(port.createPhysicalBranchWithDefaultColor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        physicalPalette: ['#111111', '#222222', '#333333', '#444444', '#555555'],
+      }),
+    );
+    expect(port.upsertBranch).toHaveBeenCalledWith(expect.objectContaining({ color: '#ABCDEF' }));
   });
 
-  it("createAppointment defaults status to created", async () => {
+  it('createAppointment defaults status to created', async () => {
     const port = mockPort();
     const svc = createBookingEngineService(port);
     await svc.createAppointment({
-      organizationId: "a0000000-0000-4000-8000-000000000001",
-      startAt: "2026-06-01T10:00:00.000Z",
-      endAt: "2026-06-01T11:00:00.000Z",
+      organizationId: 'a0000000-0000-4000-8000-000000000001',
+      startAt: '2026-06-01T10:00:00.000Z',
+      endAt: '2026-06-01T11:00:00.000Z',
       durationMinutes: 60,
-      source: "native",
+      source: 'native',
     });
     expect(port.createAppointment).toHaveBeenCalledWith(
-      expect.objectContaining({ status: "created" }),
+      expect.objectContaining({ status: 'created' }),
     );
   });
 
-  it("normalizes and forwards one consecutive online chain to the atomic port", async () => {
+  it('normalizes and forwards one consecutive online chain to the atomic port', async () => {
     const port = mockPort();
     const svc = createBookingEngineService(port);
     await svc.createOnlineAppointmentsIfAvailable([
       {
-        organizationId: "a0000000-0000-4000-8000-000000000001",
-        startAt: "2026-06-01T10:00:00Z",
-        endAt: "2026-06-01T11:00:00Z",
+        organizationId: 'a0000000-0000-4000-8000-000000000001',
+        startAt: '2026-06-01T10:00:00Z',
+        endAt: '2026-06-01T11:00:00Z',
         durationMinutes: 60,
-        source: "native",
+        source: 'native',
       },
       {
-        organizationId: "a0000000-0000-4000-8000-000000000001",
-        startAt: "2026-06-01T11:00:00Z",
-        endAt: "2026-06-01T12:00:00Z",
+        organizationId: 'a0000000-0000-4000-8000-000000000001',
+        startAt: '2026-06-01T11:00:00Z',
+        endAt: '2026-06-01T12:00:00Z',
         durationMinutes: 60,
-        source: "native",
+        source: 'native',
       },
     ]);
     expect(port.createOnlineAppointmentsIfAvailable).toHaveBeenCalledWith([
-      expect.objectContaining({ startAt: "2026-06-01T10:00:00.000Z", status: "created" }),
-      expect.objectContaining({ startAt: "2026-06-01T11:00:00.000Z", status: "created" }),
+      expect.objectContaining({ startAt: '2026-06-01T10:00:00.000Z', status: 'created' }),
+      expect.objectContaining({ startAt: '2026-06-01T11:00:00.000Z', status: 'created' }),
     ]);
   });
 
-  it("rejects an online chain with a gap before reaching the port", async () => {
+  it('rejects an online chain with a gap before reaching the port', async () => {
     const port = mockPort();
     const svc = createBookingEngineService(port);
     await expect(
       svc.createOnlineAppointmentsIfAvailable([
         {
-          organizationId: "a0000000-0000-4000-8000-000000000001",
-          startAt: "2026-06-01T10:00:00Z",
-          endAt: "2026-06-01T11:00:00Z",
+          organizationId: 'a0000000-0000-4000-8000-000000000001',
+          startAt: '2026-06-01T10:00:00Z',
+          endAt: '2026-06-01T11:00:00Z',
           durationMinutes: 60,
-          source: "native",
+          source: 'native',
         },
         {
-          organizationId: "a0000000-0000-4000-8000-000000000001",
-          startAt: "2026-06-01T12:00:00Z",
-          endAt: "2026-06-01T13:00:00Z",
+          organizationId: 'a0000000-0000-4000-8000-000000000001',
+          startAt: '2026-06-01T12:00:00Z',
+          endAt: '2026-06-01T13:00:00Z',
           durationMinutes: 60,
-          source: "native",
+          source: 'native',
         },
       ]),
-    ).rejects.toThrow("appointment_chain_not_consecutive");
+    ).rejects.toThrow('appointment_chain_not_consecutive');
     expect(port.createOnlineAppointmentsIfAvailable).not.toHaveBeenCalled();
   });
 
-  it("rejects sub-minute online ranges before reaching the range-locking port", async () => {
+  it('rejects sub-minute online ranges before reaching the range-locking port', async () => {
     const port = mockPort();
     const svc = createBookingEngineService(port);
     await expect(
       svc.createOnlineAppointmentsIfAvailable([
         {
-          organizationId: "a0000000-0000-4000-8000-000000000001",
-          startAt: "2026-06-01T10:00:30Z",
-          endAt: "2026-06-01T11:00:30Z",
+          organizationId: 'a0000000-0000-4000-8000-000000000001',
+          startAt: '2026-06-01T10:00:30Z',
+          endAt: '2026-06-01T11:00:30Z',
           durationMinutes: 60,
-          source: "native",
+          source: 'native',
         },
       ]),
-    ).rejects.toThrow("online_slot_minute_alignment_required");
+    ).rejects.toThrow('online_slot_minute_alignment_required');
     expect(port.createOnlineAppointmentsIfAvailable).not.toHaveBeenCalled();
   });
 
-  it("bounds the online range-lock cost to the allowed eight-hour chain", async () => {
+  it('bounds the online range-lock cost to the allowed eight-hour chain', async () => {
     const port = mockPort();
     const svc = createBookingEngineService(port);
     await expect(
       svc.createOnlineAppointmentsIfAvailable([
         {
-          organizationId: "a0000000-0000-4000-8000-000000000001",
-          startAt: "2026-06-01T10:00:00Z",
-          endAt: "2026-06-01T18:01:00Z",
+          organizationId: 'a0000000-0000-4000-8000-000000000001',
+          startAt: '2026-06-01T10:00:00Z',
+          endAt: '2026-06-01T18:01:00Z',
           durationMinutes: 481,
-          source: "native",
+          source: 'native',
         },
       ]),
-    ).rejects.toThrow("online_appointment_range_too_large");
+    ).rejects.toThrow('online_appointment_range_too_large');
     expect(port.createOnlineAppointmentsIfAvailable).not.toHaveBeenCalled();
   });
 
-  it("transitionAppointmentStatus rejects invalid FSM", async () => {
+  it('transitionAppointmentStatus rejects invalid FSM', async () => {
     const port = mockPort({
       getAppointment: vi.fn().mockResolvedValue({
-        id: "11111111-1111-4111-8111-111111111111",
-        organizationId: "a0000000-0000-4000-8000-000000000001",
+        id: '11111111-1111-4111-8111-111111111111',
+        organizationId: 'a0000000-0000-4000-8000-000000000001',
         branchId: null,
         roomId: null,
         specialistId: null,
         serviceId: null,
         platformUserId: null,
-        startAt: "2026-06-01T10:00:00.000Z",
-        endAt: "2026-06-01T11:00:00.000Z",
+        startAt: '2026-06-01T10:00:00.000Z',
+        endAt: '2026-06-01T11:00:00.000Z',
         durationMinutes: 60,
-        source: "native",
-        status: "completed",
+        source: 'native',
+        status: 'completed',
         originalStartAt: null,
         rescheduleCount: 0,
         paymentRef: null,
@@ -239,24 +241,24 @@ describe("createBookingEngineService", () => {
     const svc = createBookingEngineService(port);
     await expect(
       svc.transitionAppointmentStatus({
-        appointmentId: "11111111-1111-4111-8111-111111111111",
-        toStatus: "confirmed",
+        appointmentId: '11111111-1111-4111-8111-111111111111',
+        toStatus: 'confirmed',
       }),
     ).rejects.toThrow(/Недопустимый переход/);
   });
 
-  it("forwards the atomic solo service-location command to one port operation", async () => {
+  it('forwards the atomic solo service-location command to one port operation', async () => {
     const setSoloServiceLocationAvailability = vi.fn().mockResolvedValue({
-      locationAvailability: { id: "location" },
-      specialistAvailability: { id: "specialist" },
+      locationAvailability: { id: 'location' },
+      specialistAvailability: { id: 'specialist' },
     });
     const port = mockPort({ setSoloServiceLocationAvailability });
     const svc = createBookingEngineService(port);
     const input = {
-      organizationId: "a0000000-0000-4000-8000-000000000001",
-      specialistId: "a0000000-0000-4000-8000-000000000002",
-      serviceId: "a0000000-0000-4000-8000-000000000003",
-      branchId: "a0000000-0000-4000-8000-000000000004",
+      organizationId: 'a0000000-0000-4000-8000-000000000001',
+      specialistId: 'a0000000-0000-4000-8000-000000000002',
+      serviceId: 'a0000000-0000-4000-8000-000000000003',
+      branchId: 'a0000000-0000-4000-8000-000000000004',
       isActive: true,
     };
 

@@ -1,10 +1,10 @@
-import { env, isS3MediaEnabled } from "@/config/env";
-import { logServerRuntimeError } from "@/infra/logging/serverRuntimeLog";
-import { s3PublicUrl } from "@/infra/s3/client";
-import { getVideoPresignTtlSeconds } from "@/app-layer/media/videoPresignTtl";
-import { presignGetUrl } from "@/app-layer/media/s3Client";
-import { NUTRITION_ANSWER_LABELS } from "@/modules/online-intake/types";
-import type { IntakeRequestFullWithPatientIdentity } from "@/modules/online-intake/types";
+import { env, isS3MediaEnabled } from '@/config/env';
+import { logServerRuntimeError } from '@/infra/logging/serverRuntimeLog';
+import { s3PublicUrl } from '@/infra/s3/client';
+import { getVideoPresignTtlSeconds } from '@/app-layer/media/videoPresignTtl';
+import { presignGetUrl } from '@/app-layer/media/s3Client';
+import { NUTRITION_ANSWER_LABELS } from '@/modules/online-intake/types';
+import type { IntakeRequestFullWithPatientIdentity } from '@/modules/online-intake/types';
 
 export type DoctorLfkAttachmentFile = {
   id: string;
@@ -17,7 +17,7 @@ export type DoctorLfkAttachmentFile = {
 export type DoctorOnlineIntakeDetailJson = {
   id: string;
   patientUserId: string;
-  type: "lfk" | "nutrition";
+  type: 'lfk' | 'nutrition';
   status: string;
   patientName: string;
   patientPhone: string;
@@ -52,8 +52,8 @@ async function urlForIntakeS3Key(s3Key: string): Promise<string | null> {
   if (env.S3_ENDPOINT && env.S3_PUBLIC_BUCKET) {
     return s3PublicUrl(s3Key);
   }
-  logServerRuntimeError("online_intake_s3_url", new Error("intake_s3_url_misconfigured"), {
-    keyKind: s3Key.startsWith("media/") ? "media" : "other",
+  logServerRuntimeError('online_intake_s3_url', new Error('intake_s3_url_misconfigured'), {
+    keyKind: s3Key.startsWith('media/') ? 'media' : 'other',
   });
   return null;
 }
@@ -75,26 +75,26 @@ export async function buildDoctorOnlineIntakeDetailResponse(
     statusHistory: full.statusHistory.map((h) => ({
       fromStatus: h.fromStatus,
       toStatus: h.toStatus,
-      changedBy: h.changedBy ?? "",
+      changedBy: h.changedBy ?? '',
       note: h.note,
       changedAt: h.changedAt,
     })),
   };
 
-  if (full.type === "lfk") {
-    const desc = full.answers.find((a) => a.questionId === "lfk_description");
+  if (full.type === 'lfk') {
+    const desc = full.answers.find((a) => a.questionId === 'lfk_description');
     const attachmentUrls: string[] = [];
     const attachmentFiles: DoctorLfkAttachmentFile[] = [];
     for (const a of full.attachments) {
-      if (a.attachmentType === "url" && a.url) {
+      if (a.attachmentType === 'url' && a.url) {
         attachmentUrls.push(a.url);
-      } else if (a.attachmentType === "file" && a.s3Key) {
-        const url = (await urlForIntakeS3Key(a.s3Key)) ?? "";
+      } else if (a.attachmentType === 'file' && a.s3Key) {
+        const url = (await urlForIntakeS3Key(a.s3Key)) ?? '';
         attachmentFiles.push({
           id: a.id,
           url,
-          originalName: a.originalName ?? "file",
-          mimeType: a.mimeType ?? "application/octet-stream",
+          originalName: a.originalName ?? 'file',
+          mimeType: a.mimeType ?? 'application/octet-stream',
           sizeBytes: a.sizeBytes ?? 0,
         });
       }

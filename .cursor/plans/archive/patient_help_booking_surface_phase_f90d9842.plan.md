@@ -1,12 +1,12 @@
 ---
 name: patient_help_booking_surface_phase
-overview: "Patient UX справки на «Запись»: IA, плитки, city-aware адрес, /about + CMS чеклист — закрыт 2026-06-03."
+overview: 'Patient UX справки на «Запись»: IA, плитки, city-aware адрес, /about + CMS чеклист — закрыт 2026-06-03.'
 todos:
   - id: help-slugs-ia
-    content: "IA /help: 8 канонических slug (вкл. booking, ф4), HELP_CANONICAL_ARTICLE_IA, публикация через CMS"
+    content: 'IA /help: 8 канонических slug (вкл. booking, ф4), HELP_CANONICAL_ARTICLE_IA, публикация через CMS'
     status: completed
   - id: tests-docs-help-booking
-    content: "Vitest help-content + booking + about/HelpBookingAboutLink RTL; sync TODO/ACTIVE_WORKQUEUE/docs (ф1–4)."
+    content: 'Vitest help-content + booking + about/HelpBookingAboutLink RTL; sync TODO/ACTIVE_WORKQUEUE/docs (ф1–4).'
     status: completed
   - id: booking-links-mount
     content: Смонтировать блок полезных ссылок под «Предстоящими записями» на /app/patient/booking/new с переиспользованием CabinetInfoLinks/buildCabinetInfoLinkTiles
@@ -18,7 +18,7 @@ todos:
     content: Заложить city-aware адреса (cityCode->адрес/ссылка) на экране записи и в полезных ссылках без ломки текущего /app/patient/address
     status: completed
   - id: cms-editor-checklist
-    content: "Подготовить редакторский чеклист CMS: какие статьи обязательны к публикации для включения ссылок в booking/help"
+    content: 'Подготовить редакторский чеклист CMS: какие статьи обязательны к публикации для включения ссылок в booking/help'
     status: completed
 isProject: false
 ---
@@ -32,11 +32,13 @@ isProject: false
 **Закрыт 2026-06-03** — все `todos` completed. Коммиты: `89201d96` (ф1), `06b4ff59`/`dfebf1e5` (ф2), `231719e0` (ф3), `5568a397`/`79ada87e` (ф4).
 
 ## Scope
+
 - Включить полезные ссылки и справочный контент в рабочий поток `Запись`.
 - Добавить короткую внутреннюю страницу `about` со ссылкой на полный сайт.
 - Подготовить city-aware подачу адреса для СПб/Мск в рамках текущего booking UX.
 
 Разрешённые зоны:
+
 - [apps/webapp/src/app/app/patient/booking/new/page.tsx](apps/webapp/src/app/app/patient/booking/new/page.tsx)
 - [apps/webapp/src/app/app/patient/cabinet/CabinetInfoLinks.tsx](apps/webapp/src/app/app/patient/cabinet/CabinetInfoLinks.tsx)
 - [apps/webapp/src/modules/help-content/cabinetInfoLinkTiles.ts](apps/webapp/src/modules/help-content/cabinetInfoLinkTiles.ts)
@@ -46,6 +48,7 @@ isProject: false
 - Доки: `docs/TODO.md`, `docs/ACTIVE_WORKQUEUE.md`, `apps/webapp/src/app/app/patient/help/help.md`, `apps/webapp/src/app/app/patient/cabinet/cabinet.md`
 
 ## Out Of Scope
+
 - Редизайн всего booking wizard.
 - Полная переработка `/app/patient/address` на карте/гео.
 - Изменение Rubitime/booking core API.
@@ -58,6 +61,7 @@ isProject: false
 - [x] Vitest `help-content` (12 tests); `tsc --noEmit` webapp
 
 Проверки (выполнены):
+
 - `rg "HELP_CANONICAL_ARTICLE_SLUG" apps/webapp/src/modules/help-content`
 - Сверка `routePaths.patientHelpArticle` для всех канонических slug
 
@@ -93,6 +97,7 @@ isProject: false
 Проверки (выполнены): vitest `canonicalSlugs`, `about-page`, `PatientAboutSiteLink`, `HelpBookingAboutLink`, `help-booking-about-link`, help-content + booking (~10+32 tests по зонам)
 
 ## Definition Of Done (весь план)
+
 - [x] Структура `/help` и canonical slug зафиксированы и документированы (фаза 1)
 - [x] Блок полезных ссылок на `/app/patient/booking/new` (фаза 2)
 - [x] Страница `about` + ссылка на сайт + связь из `/help/booking` (фаза 4)

@@ -1,4 +1,4 @@
-import { sql, type SQL } from "drizzle-orm";
+import { sql, type SQL } from 'drizzle-orm';
 
 /** Rows visible in library / readable by GET (bare `media_files`, no alias). */
 export const mediaReadableStatusPredicate = sql`(status IS NULL OR status NOT IN ('pending', 'deleting', 'pending_delete'))`;
@@ -18,6 +18,6 @@ export const MEDIA_READABLE_STATUS_SQL_M = `(m.status IS NULL OR m.status NOT IN
 /** @deprecated Prefer `mediaS3PurgeStatusPredicate`. */
 export const MEDIA_S3_PURGE_STATUS_SQL = `status IN ('pending_delete', 'deleting')`;
 
-export function mediaReadableWhere(alias?: "m"): SQL {
-  return alias === "m" ? mediaReadableStatusPredicateM : mediaReadableStatusPredicate;
+export function mediaReadableWhere(alias?: 'm'): SQL {
+  return alias === 'm' ? mediaReadableStatusPredicateM : mediaReadableStatusPredicate;
 }

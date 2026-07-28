@@ -6,17 +6,17 @@
 
 **Wave 2 (закрыто, 2026-06-09):** [`ROADMAP_WAVE2.md`](ROADMAP_WAVE2.md) · **решения:** [`SCOPE_DECISIONS.md`](SCOPE_DECISIONS.md) · план: [`.cursor/plans/archive/operator_health_alerting_wave2.plan.md`](../../.cursor/plans/archive/operator_health_alerting_wave2.plan.md).
 
-| Фаза / волна | Статус |
-|--------------|--------|
-| MVP | **Closed** |
-| Wave 0–4 + `w-final-ci` | **Closed** |
-| PHASE A | Partial (incidents в integrator) |
-| PHASE B | **Closed** (пробы Wave 4) |
-| PHASE C | **Closed** (last-status Wave 4) |
-| PHASE D | **Closed** (debounce Wave 3; GCal probe) |
-| PHASE E | **Superseded** |
-| PHASE F | **Closed** (блок «Интеграции» Wave 4) |
-| PHASE G | Partial (Wave 2 DoD; расширенная полировка MASTER — backlog) |
+| Фаза / волна            | Статус                                                       |
+| ----------------------- | ------------------------------------------------------------ |
+| MVP                     | **Closed**                                                   |
+| Wave 0–4 + `w-final-ci` | **Closed**                                                   |
+| PHASE A                 | Partial (incidents в integrator)                             |
+| PHASE B                 | **Closed** (пробы Wave 4)                                    |
+| PHASE C                 | **Closed** (last-status Wave 4)                              |
+| PHASE D                 | **Closed** (debounce Wave 3; GCal probe)                     |
+| PHASE E                 | **Superseded**                                               |
+| PHASE F                 | **Closed** (блок «Интеграции» Wave 4)                        |
+| PHASE G                 | Partial (Wave 2 DoD; расширенная полировка MASTER — backlog) |
 
 **MVP (закрыт):** [`MVP_IMPLEMENTATION_PLAN.md`](MVP_IMPLEMENTATION_PLAN.md)
 

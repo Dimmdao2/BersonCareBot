@@ -7,9 +7,9 @@
  *
  * Весь SQL — Drizzle db.execute(sql`...`). pool.query/client.query не используются.
  */
-import { sql } from "drizzle-orm";
-import { getDrizzle } from "@/app-layer/db/drizzle";
-import type { BroadcastEmailRecipientsPort } from "@/modules/doctor-broadcasts/fanOutBroadcastEmail";
+import { sql } from 'drizzle-orm';
+import { getDrizzle } from '@/app-layer/db/drizzle';
+import type { BroadcastEmailRecipientsPort } from '@/modules/doctor-broadcasts/fanOutBroadcastEmail';
 
 export function createPgBroadcastEmailRecipientsPort(): BroadcastEmailRecipientsPort {
   return {

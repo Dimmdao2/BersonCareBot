@@ -1,5 +1,5 @@
-import { routePaths } from "@/app-layer/routes/paths";
-import { isSafeNext } from "@/modules/auth/redirectPolicy";
+import { routePaths } from '@/app-layer/routes/paths';
+import { isSafeNext } from '@/modules/auth/redirectPolicy';
 
 /**
  * Маппинг `start_param` / deep-link token из Mini App в безопасный путь `/app/patient/...`.
@@ -37,11 +37,11 @@ export function mapMaxStartParamToPatientPath(startParam: string | undefined): s
   const key = startParam.trim();
   if (!key) return null;
 
-  if (key.startsWith("/")) {
+  if (key.startsWith('/')) {
     return isSafeNext(key) ? key : null;
   }
 
-  const normalized = key.toLowerCase().replace(/-/g, "_");
+  const normalized = key.toLowerCase().replace(/-/g, '_');
   const mapped = START_PARAM_TO_PATH[normalized];
   if (mapped && isSafeNext(mapped)) return mapped;
   return null;

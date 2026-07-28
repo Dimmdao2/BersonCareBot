@@ -1,14 +1,14 @@
-import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
-import { NextResponse } from "next/server";
-import { logAuthRouteTiming } from "@/modules/auth/authRouteObservability";
-import { getLoginAlternativesPublicConfig } from "@/modules/auth/loginAlternativesConfig";
-import { getSpecialistSignupEnabled } from "@/modules/auth/specialistSignupRollout";
+import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipal';
+import { NextResponse } from 'next/server';
+import { logAuthRouteTiming } from '@/modules/auth/authRouteObservability';
+import { getLoginAlternativesPublicConfig } from '@/modules/auth/loginAlternativesConfig';
+import { getSpecialistSignupEnabled } from '@/modules/auth/specialistSignupRollout';
 
-const ROUTE = "auth/login/alternatives-config";
+const ROUTE = 'auth/login/alternatives-config';
 
 /** GET — публичный конфиг входа (Max-бот, VK URL и т.д.) для экрана входа, без секретов. */
 export async function GET(request: Request) {
-  stampBootstrapPrincipal("api/auth/login/alternatives-config:GET", request);
+  stampBootstrapPrincipal('api/auth/login/alternatives-config:GET', request);
   const startedAt = Date.now();
   try {
     const [cfg, specialistSignupEnabled] = await Promise.all([
@@ -24,18 +24,21 @@ export async function GET(request: Request) {
       request,
       startedAt,
       status: 200,
-      outcome: "ok",
+      outcome: 'ok',
     });
     return res;
   } catch (e) {
-    const res = NextResponse.json({ ok: false as const, error: "config_unavailable" }, { status: 500 });
+    const res = NextResponse.json(
+      { ok: false as const, error: 'config_unavailable' },
+      { status: 500 },
+    );
     logAuthRouteTiming({
       route: ROUTE,
       request,
       startedAt,
       status: 500,
-      outcome: "error",
-      errorType: e instanceof Error ? e.name : "unknown",
+      outcome: 'error',
+      errorType: e instanceof Error ? e.name : 'unknown',
     });
     return res;
   }

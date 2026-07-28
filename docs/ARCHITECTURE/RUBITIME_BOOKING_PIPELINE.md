@@ -28,10 +28,10 @@ Rubitime передаёт `name` как полную строку (часто Ф
 
 При создании записи из webapp (не через Rubitime iframe/сайт) поведение зависит от **`system_settings`** (scope `admin`):
 
-| Ключ | Значения | Эффект |
-|------|----------|--------|
+| Ключ                                      | Значения                                       | Эффект                                                                                 |
+| ----------------------------------------- | ---------------------------------------------- | -------------------------------------------------------------------------------------- |
 | `booking_doctor_appointments_read_source` | `rubitime_legacy` (default seed) · `canonical` | Список `/app/doctor/appointments`, KPI «Сегодня», **календарь** `/app/doctor/calendar` |
-| `booking_slots_read_source` | `rubitime` (default seed `0100`) · `canonical` | Patient/public **слоты** и **create** |
+| `booking_slots_read_source`               | `rubitime` (default seed `0100`) · `canonical` | Patient/public **слоты** и **create**                                                  |
 
 **Create при `booking_slots_read_source=rubitime` (2026-06-06 closeout):** Rubitime-first — обязательный `syncPort.createRecord`; канон **adopt** через projection mapping (`waitForRubitimeProjectionMapping`, до 5×100ms); **запрещён** native `createAppointment` fallback. При отсутствии mapping после retry — `rollbackFailedRubitimeCreate` (`deleteRecord` / `remove-record`) + `rubitime_projection_not_ready`. `assertSlotAvailable` **не** вызывается на create **и** reschedule (симметрия G4). Не зависит от `booking_rubitime_bridge_enabled`. Код: `rubitimeCreateRollback.ts`, `canonicalCreate.ts`.
 
@@ -40,15 +40,17 @@ Rubitime передаёт `name` как полную строку (часто Ф
 **Календарь:** reuse `booking_doctor_appointments_read_source` (отдельного ключа нет). При `rubitime_legacy` — `appointment_records` (`pgBookingCalendarLegacy`, фильтры `calendarLegacyFilters`); canonical free slots скрыты (`freeSlotsEnabled: false`). При `canonical` — `be_appointments` + optional free slots через `booking-scheduling`.
 
 **Patient path (webapp):**
+
 1. `POST /api/booking/create` (сессия) или `POST /api/booking/public/create` (гость, этап 3) → канон `be_appointments` при включённом booking-engine DI (порядок с Rubitime — см. таблицу выше).
    - **Без предоплаты:** `patient_bookings` (confirmed) → `emitBookingEvent('booking.created')` → TG/MAX + напоминания.
    - **С предоплатой (этап 5):** `awaiting_payment` + payment intent → оплата (`/app/patient/booking/pay` или `/book/pay`) → capture → `booking.payment_captured` → напоминания (событие `booking.created` до оплаты **не** шлётся).
 2. Integrator → M2M **`POST /api/integrator/patient-notifications/web-push`** (`intentType: appointment_lifecycle`) → текст в **PWA-чат** (`/app/patient/messages`) + Web Push с тем же `openUrl`. См. [`PATIENT_SUPPORT_CHAT_INBOX.md`](PATIENT_SUPPORT_CHAT_INBOX.md). Slot-напоминания (`appointment_reminder`) в чат **не** пишутся.
 
 **Doctor projection + GCal path (integrator):**
+
 1. Webapp → `POST /api/bersoncare/rubitime/create-record` (M2M) → integrator создаёт запись в Rubitime API → получает `recordId`. Пока integrator не ответил, исходящий запрос webapp к integrator **обычно открыт** всё время ожиданий throttle и повторов api2 — на стороне webapp нужен **индикатор загрузки** (см. `apps/webapp/INTEGRATOR_CONTRACT.md`).
 2. `runPostCreateProjection(recordId)` (файл `postCreateProjection.ts`) выполняет:
-   - `fetchRubitimeRecordById` — забрать полную запись из Rubitime; при ошибке — пауза **5200 ms**, затем вторая попытка. Все вызовы api2 (включая повтор после ответа Rubitime про «5 second / consecutive requests») проходят через общий throttle **5500 ms** (`rubitime_api_throttle`): следующий вызов не стартует, пока не выдержан интервал после *завершения* предыдущего. Подробнее: `docs/REPORTS/RUBITIME_API2_PACING_AND_PHASE2_BACKLOG.md`.
+   - `fetchRubitimeRecordById` — забрать полную запись из Rubitime; при ошибке — пауза **5200 ms**, затем вторая попытка. Все вызовы api2 (включая повтор после ответа Rubitime про «5 second / consecutive requests») проходят через общий throttle **5500 ms** (`rubitime_api_throttle`): следующий вызов не стартует, пока не выдержан интервал после _завершения_ предыдущего. Подробнее: `docs/REPORTS/RUBITIME_API2_PACING_AND_PHASE2_BACKLOG.md`.
    - Синтетический `RubitimeWebhookBodyValidated` c `from: 'webapp'`, `event: 'event-create-record'`.
    - `prepareRubitimeWebhookIngress` — нормализация timezone.
    - `syncRubitimeWebhookBodyToGoogleCalendar` — Google Calendar sync (best-effort, non-fatal).
@@ -59,6 +61,7 @@ Rubitime передаёт `name` как полную строку (часто Ф
 **Идемпотентность при дубле webhook:** `booking.upsert` использует `ON CONFLICT (rubitime_record_id) DO UPDATE`; projection outbox дедуплицируется по `idempotencyKey`. Если Rubitime webhook для той же записи придёт позже — данные обновятся без дубликатов.
 
 **Разделение UI:**
+
 - Doctor appointments UI питается из `appointment_records` (заполняется через projection).
 - В списке записей врача (`/app/doctor/appointments`) и на экране «Сегодня» основная строка имени — джойн к `platform_users` (как в SQL `COALESCE`); если `payload_json.name` от Rubitime после нормализации отличается от этой подписи, под основной строкой показывается краткая подсказка «В Rubitime: …».
 - Patient «Мои записи» питается из `patient_bookings` (заполняется напрямую в webapp).
@@ -79,14 +82,14 @@ Rubitime передаёт `name` как полную строку (часто Ф
 
 ### Журнал (фрагмент)
 
-| Дата | Изменение |
-|------|-----------|
-| 2026-05-02 | Описание события GCal: комментарии клиента/админа вместо одного только id; merge полей комментариев из тела вебхука; unit-тесты. |
-| 2026-06-03 | **Google Calendar:** при Rubitime-first create не дублировать событие на `booking.created`; отмена пациентом/специалистом — префикс **❌** в заголовке (событие остаётся); запрос переноса (`staff_confirmation_required`) — **⚠️**; удаление в Rubitime (`remove-record`/webhook delete) и soft-delete в кабинете — **удаление** из GCal; отмена в Rubitime — `update-record` status `4`, не `remove-record`. **Календарь врача (webapp):** dedupe legacy/`be:` проекции. |
-| 2026-06-05 | **Двустороннее зеркалирование (`AppointmentMirrorSync`):** live inbound/outbound для mapped appointments; единый `buildCanonicalInboundSnapshot`; см. § ниже и [`ACCEPTANCE_MIRROR_SYNC.md`](../BOOKING_REWORK_INITIATIVE/ACCEPTANCE_MIRROR_SYNC.md). |
-| 2026-06-05 | **Mirror integrity hardening:** partial-failure flags в patient/staff API; echo-guard / stale-mapping skip legacy fanout; revive-guard в `patient_bookings`; lifecycle `FOR UPDATE` + `state_conflict`; Rubitime-first rollback при package/product failure; `empty_patch` → 400 на M2M `update-record`. Контракт: [`BOOKING_MIRROR_INTEGRITY_CONTRACT.md`](../BOOKING_REWORK_INITIATIVE/BOOKING_MIRROR_INTEGRITY_CONTRACT.md). |
+| Дата       | Изменение                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-05-02 | Описание события GCal: комментарии клиента/админа вместо одного только id; merge полей комментариев из тела вебхука; unit-тесты.                                                                                                                                                                                                                                                                                                                                                                                            |
+| 2026-06-03 | **Google Calendar:** при Rubitime-first create не дублировать событие на `booking.created`; отмена пациентом/специалистом — префикс **❌** в заголовке (событие остаётся); запрос переноса (`staff_confirmation_required`) — **⚠️**; удаление в Rubitime (`remove-record`/webhook delete) и soft-delete в кабинете — **удаление** из GCal; отмена в Rubitime — `update-record` status `4`, не `remove-record`. **Календарь врача (webapp):** dedupe legacy/`be:` проекции.                                                  |
+| 2026-06-05 | **Двустороннее зеркалирование (`AppointmentMirrorSync`):** live inbound/outbound для mapped appointments; единый `buildCanonicalInboundSnapshot`; см. § ниже и [`ACCEPTANCE_MIRROR_SYNC.md`](../BOOKING_REWORK_INITIATIVE/ACCEPTANCE_MIRROR_SYNC.md).                                                                                                                                                                                                                                                                       |
+| 2026-06-05 | **Mirror integrity hardening:** partial-failure flags в patient/staff API; echo-guard / stale-mapping skip legacy fanout; revive-guard в `patient_bookings`; lifecycle `FOR UPDATE` + `state_conflict`; Rubitime-first rollback при package/product failure; `empty_patch` → 400 на M2M `update-record`. Контракт: [`BOOKING_MIRROR_INTEGRITY_CONTRACT.md`](../BOOKING_REWORK_INITIATIVE/BOOKING_MIRROR_INTEGRITY_CONTRACT.md).                                                                                             |
 | 2026-06-06 | **Gaps closeout:** rubitime-first — no `createAppointment` fallback; create-rollback **`deleteRecord`** (не `cancelRecord`); doctor legacy `rubitime/cancel` → `update-record` status 4; patient partial UI (`rubitimeMirrorFailed` warning toast); shared `rubitimeCreateRollback`. План: [`.cursor/plans/archive/booking_gaps_closeout_e5b725fb.plan.md`](../../.cursor/plans/archive/booking_gaps_closeout_e5b725fb.plan.md); LOG [`BOOKING_REWORK_INITIATIVE/LOG.md`](../BOOKING_REWORK_INITIATIVE/LOG.md) §2026-06-06. |
-| 2026-06-06 | **Desync fix:** cancel mirror invariants (URL null, staff→patient_bookings, stale sweep, legacy branch FK); GCal DELETE **410** + Rubitime `remove-record` gone + `update-record` duplicate cancel = idempotent silent. План: [`.cursor/plans/archive/booking_sync_desync_fix_4709fb07.plan.md`](../../.cursor/plans/archive/booking_sync_desync_fix_4709fb07.plan.md) (`completed`). |
+| 2026-06-06 | **Desync fix:** cancel mirror invariants (URL null, staff→patient_bookings, stale sweep, legacy branch FK); GCal DELETE **410** + Rubitime `remove-record` gone + `update-record` duplicate cancel = idempotent silent. План: [`.cursor/plans/archive/booking_sync_desync_fix_4709fb07.plan.md`](../../.cursor/plans/archive/booking_sync_desync_fix_4709fb07.plan.md) (`completed`).                                                                                                                                       |
 
 ## Каноническая модель и read-bridge (этап 1, OWN_BOOKING_ENGINE)
 

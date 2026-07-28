@@ -33,12 +33,12 @@
 
 **Статус:** OK (список из Stage 2 S2.T06)
 
-| Роут | Нормализация | Валидация |
-|------|----------------|-----------|
-| `app/api/auth/phone/start/route.ts` | `normalizePhone` → `normalized` | `isValidPhoneE164(normalized)` |
-| `app/api/auth/check-phone/route.ts` | `normalizePhone` | `isValidPhoneE164(phone)` |
-| `app/api/auth/pin/login/route.ts` | `normalizePhone` | `isValidPhoneE164(phone)` |
-| `app/api/auth/messenger/start/route.ts` | `normalizePhone` | `isValidPhoneE164(phone)` |
+| Роут                                    | Нормализация                    | Валидация                      |
+| --------------------------------------- | ------------------------------- | ------------------------------ |
+| `app/api/auth/phone/start/route.ts`     | `normalizePhone` → `normalized` | `isValidPhoneE164(normalized)` |
+| `app/api/auth/check-phone/route.ts`     | `normalizePhone`                | `isValidPhoneE164(phone)`      |
+| `app/api/auth/pin/login/route.ts`       | `normalizePhone`                | `isValidPhoneE164(phone)`      |
+| `app/api/auth/messenger/start/route.ts` | `normalizePhone`                | `isValidPhoneE164(phone)`      |
 
 Дополнительно: `startPhoneAuth` в `phoneAuth.ts` повторно проверяет `isValidPhoneE164` после `normalizePhone` (защита вне HTTP-слоя).
 
@@ -59,8 +59,8 @@
 
 **Статус:** OK
 
-| Команда | Результат |
-|---------|-----------|
+| Команда                                         | Результат               |
+| ----------------------------------------------- | ----------------------- |
 | `pnpm install --frozen-lockfile && pnpm run ci` | **exit 0** (2026-04-04) |
 
 В составе CI: lint, typecheck, integrator test, webapp test, webapp:typecheck, build, build:webapp, `audit --prod`.

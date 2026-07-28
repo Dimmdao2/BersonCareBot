@@ -1,10 +1,10 @@
-import { describe, expect, it, beforeEach, vi } from "vitest";
-import { ClinicalTestUsageConfirmationRequiredError, TestSetUsageConfirmationRequiredError } from "./errors";
+import { describe, expect, it, beforeEach, vi } from 'vitest';
 import {
-  createClinicalTestsService,
-  createTestSetsService,
-} from "./service";
-import type { ClinicalTestsPort, TestSetsPort } from "./ports";
+  ClinicalTestUsageConfirmationRequiredError,
+  TestSetUsageConfirmationRequiredError,
+} from './errors';
+import { createClinicalTestsService, createTestSetsService } from './service';
+import type { ClinicalTestsPort, TestSetsPort } from './ports';
 import {
   inMemoryClinicalTestsPort,
   resetInMemoryClinicalTestsStore,
@@ -12,86 +12,100 @@ import {
   seedInMemoryTestSetUsageSnapshot,
   inMemoryTestSetsPort,
   resetInMemoryTestSetsStore,
-} from "@/app-layer/testing/clinicalLibraryInMemory";
-import { inMemoryReferencesPort } from "@/infra/repos/inMemoryReferences";
-import { EMPTY_CLINICAL_TEST_USAGE_SNAPSHOT, EMPTY_TEST_SET_USAGE_SNAPSHOT } from "./types";
+} from '@/app-layer/testing/clinicalLibraryInMemory';
+import { inMemoryReferencesPort } from '@/infra/repos/inMemoryReferences';
+import { EMPTY_CLINICAL_TEST_USAGE_SNAPSHOT, EMPTY_TEST_SET_USAGE_SNAPSHOT } from './types';
 
-describe("clinical tests / test sets service", () => {
+describe('clinical tests / test sets service', () => {
   beforeEach(() => {
     resetInMemoryClinicalTestsStore();
     resetInMemoryTestSetsStore();
   });
 
-  it("createClinicalTest rejects empty title", async () => {
+  it('createClinicalTest rejects empty title', async () => {
     const svc = createClinicalTestsService(inMemoryClinicalTestsPort, inMemoryReferencesPort);
-    await expect(svc.createClinicalTest({ title: "  " }, null)).rejects.toThrow(/обязательно/);
+    await expect(svc.createClinicalTest({ title: '  ' }, null)).rejects.toThrow(/обязательно/);
   });
 
-  it("createClinicalTest rejects unknown assessmentKind", async () => {
+  it('createClinicalTest rejects unknown assessmentKind', async () => {
     const svc = createClinicalTestsService(inMemoryClinicalTestsPort, inMemoryReferencesPort);
     await expect(
-      svc.createClinicalTest({ title: "X", assessmentKind: "not_in_catalog" }, null),
+      svc.createClinicalTest({ title: 'X', assessmentKind: 'not_in_catalog' }, null),
     ).rejects.toThrow(/вид оценки/);
   });
 
-  it("createClinicalTest accepts assessmentKind from reference catalog", async () => {
+  it('createClinicalTest accepts assessmentKind from reference catalog', async () => {
     const svc = createClinicalTestsService(inMemoryClinicalTestsPort, inMemoryReferencesPort);
-    const t = await svc.createClinicalTest({ title: "Mob", assessmentKind: "mobility" }, null);
-    expect(t.assessmentKind).toBe("mobility");
+    const t = await svc.createClinicalTest({ title: 'Mob', assessmentKind: 'mobility' }, null);
+    expect(t.assessmentKind).toBe('mobility');
   });
 
-  it("updateClinicalTest allows unchanged legacy assessmentKind with other field updates", async () => {
-    const row = await inMemoryClinicalTestsPort.create({ title: "Leg", assessmentKind: "legacy_x" }, null);
+  it('updateClinicalTest allows unchanged legacy assessmentKind with other field updates', async () => {
+    const row = await inMemoryClinicalTestsPort.create(
+      { title: 'Leg', assessmentKind: 'legacy_x' },
+      null,
+    );
     const svc = createClinicalTestsService(inMemoryClinicalTestsPort, inMemoryReferencesPort);
-    const updated = await svc.updateClinicalTest(row.id, { title: "Renamed", assessmentKind: "legacy_x" });
-    expect(updated.title).toBe("Renamed");
-    expect(updated.assessmentKind).toBe("legacy_x");
+    const updated = await svc.updateClinicalTest(row.id, {
+      title: 'Renamed',
+      assessmentKind: 'legacy_x',
+    });
+    expect(updated.title).toBe('Renamed');
+    expect(updated.assessmentKind).toBe('legacy_x');
   });
 
-  it("updateClinicalTest rejects changing assessmentKind to unknown code", async () => {
-    const row = await inMemoryClinicalTestsPort.create({ title: "L", assessmentKind: "legacy_x" }, null);
+  it('updateClinicalTest rejects changing assessmentKind to unknown code', async () => {
+    const row = await inMemoryClinicalTestsPort.create(
+      { title: 'L', assessmentKind: 'legacy_x' },
+      null,
+    );
     const svc = createClinicalTestsService(inMemoryClinicalTestsPort, inMemoryReferencesPort);
-    await expect(svc.updateClinicalTest(row.id, { assessmentKind: "nope" })).rejects.toThrow(/вид оценки/);
+    await expect(svc.updateClinicalTest(row.id, { assessmentKind: 'nope' })).rejects.toThrow(
+      /вид оценки/,
+    );
   });
 
-  it("updateClinicalTest allows changing from legacy to catalog code", async () => {
-    const row = await inMemoryClinicalTestsPort.create({ title: "L", assessmentKind: "legacy_x" }, null);
+  it('updateClinicalTest allows changing from legacy to catalog code', async () => {
+    const row = await inMemoryClinicalTestsPort.create(
+      { title: 'L', assessmentKind: 'legacy_x' },
+      null,
+    );
     const svc = createClinicalTestsService(inMemoryClinicalTestsPort, inMemoryReferencesPort);
-    const updated = await svc.updateClinicalTest(row.id, { assessmentKind: "mobility" });
-    expect(updated.assessmentKind).toBe("mobility");
+    const updated = await svc.updateClinicalTest(row.id, { assessmentKind: 'mobility' });
+    expect(updated.assessmentKind).toBe('mobility');
   });
 
-  it("listClinicalTests hides archived by default", async () => {
-    await inMemoryClinicalTestsPort.create({ title: "Keep" }, null);
-    const hidden = await inMemoryClinicalTestsPort.create({ title: "Gone" }, null);
+  it('listClinicalTests hides archived by default', async () => {
+    await inMemoryClinicalTestsPort.create({ title: 'Keep' }, null);
+    const hidden = await inMemoryClinicalTestsPort.create({ title: 'Gone' }, null);
     await inMemoryClinicalTestsPort.archive(hidden.id);
 
     const svc = createClinicalTestsService(inMemoryClinicalTestsPort, inMemoryReferencesPort);
     const listed = await svc.listClinicalTests({});
     expect(listed.some((t) => t.id === hidden.id)).toBe(false);
-    const withArchived = await svc.listClinicalTests({ archiveScope: "all" });
+    const withArchived = await svc.listClinicalTests({ archiveScope: 'all' });
     expect(withArchived.some((t) => t.id === hidden.id)).toBe(true);
   });
 
-  it("setTestSetItems rejects archived test ids", async () => {
+  it('setTestSetItems rejects archived test ids', async () => {
     const clinical = createClinicalTestsService(inMemoryClinicalTestsPort, inMemoryReferencesPort);
-    const archived = await clinical.createClinicalTest({ title: "Old" }, null);
+    const archived = await clinical.createClinicalTest({ title: 'Old' }, null);
     await clinical.archiveClinicalTest(archived.id);
 
     const setsSvc = createTestSetsService(inMemoryTestSetsPort, inMemoryClinicalTestsPort);
-    const set = await setsSvc.createTestSet({ title: "S1" }, null);
+    const set = await setsSvc.createTestSet({ title: 'S1' }, null);
 
     await expect(
       setsSvc.setTestSetItems(set.id, [{ testId: archived.id, sortOrder: 0 }]),
     ).rejects.toThrow(/архивирован/);
   });
 
-  it("setTestSetItems persists ordered items", async () => {
-    const t1 = await inMemoryClinicalTestsPort.create({ title: "A" }, null);
-    const t2 = await inMemoryClinicalTestsPort.create({ title: "B" }, null);
+  it('setTestSetItems persists ordered items', async () => {
+    const t1 = await inMemoryClinicalTestsPort.create({ title: 'A' }, null);
+    const t2 = await inMemoryClinicalTestsPort.create({ title: 'B' }, null);
 
     const setsSvc = createTestSetsService(inMemoryTestSetsPort, inMemoryClinicalTestsPort);
-    const set = await setsSvc.createTestSet({ title: "Battery" }, null);
+    const set = await setsSvc.createTestSet({ title: 'Battery' }, null);
 
     await setsSvc.setTestSetItems(set.id, [
       { testId: t2.id, sortOrder: 0 },
@@ -102,19 +116,19 @@ describe("clinical tests / test sets service", () => {
     expect(again?.items.map((i) => i.testId)).toEqual([t2.id, t1.id]);
   });
 
-  it("setTestSetItems persists comments on items", async () => {
-    const t = await inMemoryClinicalTestsPort.create({ title: "Commented" }, null);
+  it('setTestSetItems persists comments on items', async () => {
+    const t = await inMemoryClinicalTestsPort.create({ title: 'Commented' }, null);
     const setsSvc = createTestSetsService(inMemoryTestSetsPort, inMemoryClinicalTestsPort);
-    const set = await setsSvc.createTestSet({ title: "S" }, null);
-    await setsSvc.setTestSetItems(set.id, [{ testId: t.id, sortOrder: 0, comment: "  note  " }]);
+    const set = await setsSvc.createTestSet({ title: 'S' }, null);
+    await setsSvc.setTestSetItems(set.id, [{ testId: t.id, sortOrder: 0, comment: '  note  ' }]);
     const again = await setsSvc.getTestSet(set.id);
-    expect(again?.items[0]?.comment).toBe("note");
+    expect(again?.items[0]?.comment).toBe('note');
   });
 
-  it("setTestSetItems rejects duplicate test ids", async () => {
-    const t = await inMemoryClinicalTestsPort.create({ title: "DupTest" }, null);
+  it('setTestSetItems rejects duplicate test ids', async () => {
+    const t = await inMemoryClinicalTestsPort.create({ title: 'DupTest' }, null);
     const setsSvc = createTestSetsService(inMemoryTestSetsPort, inMemoryClinicalTestsPort);
-    const set = await setsSvc.createTestSet({ title: "DupSet" }, null);
+    const set = await setsSvc.createTestSet({ title: 'DupSet' }, null);
     await expect(
       setsSvc.setTestSetItems(set.id, [
         { testId: t.id, sortOrder: 0 },
@@ -123,53 +137,59 @@ describe("clinical tests / test sets service", () => {
     ).rejects.toThrow(/дважды/);
   });
 
-  it("unarchiveClinicalTest clears isArchived", async () => {
-    const t = await inMemoryClinicalTestsPort.create({ title: "U" }, null);
+  it('unarchiveClinicalTest clears isArchived', async () => {
+    const t = await inMemoryClinicalTestsPort.create({ title: 'U' }, null);
     const svc = createClinicalTestsService(inMemoryClinicalTestsPort, inMemoryReferencesPort);
     await svc.archiveClinicalTest(t.id);
     await svc.unarchiveClinicalTest(t.id);
     expect((await svc.getClinicalTest(t.id))?.isArchived).toBe(false);
   });
 
-  it("unarchiveClinicalTest throws when not archived", async () => {
-    const t = await inMemoryClinicalTestsPort.create({ title: "N" }, null);
+  it('unarchiveClinicalTest throws when not archived', async () => {
+    const t = await inMemoryClinicalTestsPort.create({ title: 'N' }, null);
     const svc = createClinicalTestsService(inMemoryClinicalTestsPort, inMemoryReferencesPort);
-    await expect(svc.unarchiveClinicalTest(t.id)).rejects.toMatchObject({ name: "ClinicalTestUnarchiveNotArchivedError" });
+    await expect(svc.unarchiveClinicalTest(t.id)).rejects.toMatchObject({
+      name: 'ClinicalTestUnarchiveNotArchivedError',
+    });
   });
 
-  it("updateClinicalTest rejects when archived", async () => {
-    const t = await inMemoryClinicalTestsPort.create({ title: "A" }, null);
+  it('updateClinicalTest rejects when archived', async () => {
+    const t = await inMemoryClinicalTestsPort.create({ title: 'A' }, null);
     const svc = createClinicalTestsService(inMemoryClinicalTestsPort, inMemoryReferencesPort);
     await svc.archiveClinicalTest(t.id);
-    await expect(svc.updateClinicalTest(t.id, { title: "B" })).rejects.toThrow(/архиве/);
+    await expect(svc.updateClinicalTest(t.id, { title: 'B' })).rejects.toThrow(/архиве/);
   });
 
-  it("unarchiveTestSet clears isArchived", async () => {
+  it('unarchiveTestSet clears isArchived', async () => {
     const setsSvc = createTestSetsService(inMemoryTestSetsPort, inMemoryClinicalTestsPort);
-    const set = await setsSvc.createTestSet({ title: "S" }, null);
+    const set = await setsSvc.createTestSet({ title: 'S' }, null);
     await setsSvc.archiveTestSet(set.id);
     await setsSvc.unarchiveTestSet(set.id);
     expect((await setsSvc.getTestSet(set.id))?.isArchived).toBe(false);
   });
 
-  it("unarchiveTestSet throws when not archived", async () => {
+  it('unarchiveTestSet throws when not archived', async () => {
     const setsSvc = createTestSetsService(inMemoryTestSetsPort, inMemoryClinicalTestsPort);
-    const set = await setsSvc.createTestSet({ title: "S2" }, null);
-    await expect(setsSvc.unarchiveTestSet(set.id)).rejects.toMatchObject({ name: "TestSetUnarchiveNotArchivedError" });
+    const set = await setsSvc.createTestSet({ title: 'S2' }, null);
+    await expect(setsSvc.unarchiveTestSet(set.id)).rejects.toMatchObject({
+      name: 'TestSetUnarchiveNotArchivedError',
+    });
   });
 
-  it("setTestSetItems rejects when set is archived", async () => {
+  it('setTestSetItems rejects when set is archived', async () => {
     const clinical = createClinicalTestsService(inMemoryClinicalTestsPort, inMemoryReferencesPort);
-    const t = await clinical.createClinicalTest({ title: "T" }, null);
+    const t = await clinical.createClinicalTest({ title: 'T' }, null);
     const setsSvc = createTestSetsService(inMemoryTestSetsPort, inMemoryClinicalTestsPort);
-    const set = await setsSvc.createTestSet({ title: "Arch" }, null);
+    const set = await setsSvc.createTestSet({ title: 'Arch' }, null);
     await setsSvc.setTestSetItems(set.id, [{ testId: t.id, sortOrder: 0 }]);
     await setsSvc.archiveTestSet(set.id);
-    await expect(setsSvc.setTestSetItems(set.id, [{ testId: t.id, sortOrder: 0 }])).rejects.toThrow(/архиве/);
+    await expect(setsSvc.setTestSetItems(set.id, [{ testId: t.id, sortOrder: 0 }])).rejects.toThrow(
+      /архиве/,
+    );
   });
 
-  it("getClinicalTestUsage returns seeded snapshot", async () => {
-    const t = await inMemoryClinicalTestsPort.create({ title: "U" }, null);
+  it('getClinicalTestUsage returns seeded snapshot', async () => {
+    const t = await inMemoryClinicalTestsPort.create({ title: 'U' }, null);
     seedInMemoryClinicalTestUsageSnapshot(t.id, {
       ...EMPTY_CLINICAL_TEST_USAGE_SNAPSHOT,
       publishedTreatmentProgramTemplateCount: 2,
@@ -179,27 +199,29 @@ describe("clinical tests / test sets service", () => {
     expect(u.publishedTreatmentProgramTemplateCount).toBe(2);
   });
 
-  it("archiveClinicalTest blocks without acknowledgement when usage requires it", async () => {
-    const t = await inMemoryClinicalTestsPort.create({ title: "Guarded" }, null);
+  it('archiveClinicalTest blocks without acknowledgement when usage requires it', async () => {
+    const t = await inMemoryClinicalTestsPort.create({ title: 'Guarded' }, null);
     seedInMemoryClinicalTestUsageSnapshot(t.id, {
       ...EMPTY_CLINICAL_TEST_USAGE_SNAPSHOT,
       nonArchivedTestSetsContainingCount: 1,
-      nonArchivedTestSetRefs: [{ kind: "test_set", id: "set-1", title: "Набор" }],
+      nonArchivedTestSetRefs: [{ kind: 'test_set', id: 'set-1', title: 'Набор' }],
     });
     const svc = createClinicalTestsService(inMemoryClinicalTestsPort, inMemoryReferencesPort);
-    await expect(svc.archiveClinicalTest(t.id)).rejects.toBeInstanceOf(ClinicalTestUsageConfirmationRequiredError);
+    await expect(svc.archiveClinicalTest(t.id)).rejects.toBeInstanceOf(
+      ClinicalTestUsageConfirmationRequiredError,
+    );
     await svc.archiveClinicalTest(t.id, { acknowledgeUsageWarning: true });
     const row = await svc.getClinicalTest(t.id);
     expect(row?.isArchived).toBe(true);
   });
 
-  it("archiveClinicalTest proceeds without dialog when only archived program templates in usage", async () => {
-    const t = await inMemoryClinicalTestsPort.create({ title: "ArchivedTplOnly" }, null);
+  it('archiveClinicalTest proceeds without dialog when only archived program templates in usage', async () => {
+    const t = await inMemoryClinicalTestsPort.create({ title: 'ArchivedTplOnly' }, null);
     seedInMemoryClinicalTestUsageSnapshot(t.id, {
       ...EMPTY_CLINICAL_TEST_USAGE_SNAPSHOT,
       archivedTreatmentProgramTemplateCount: 2,
       archivedTreatmentProgramTemplateRefs: [
-        { kind: "treatment_program_template", id: "tpl-1", title: "Old" },
+        { kind: 'treatment_program_template', id: 'tpl-1', title: 'Old' },
       ],
     });
     const svc = createClinicalTestsService(inMemoryClinicalTestsPort, inMemoryReferencesPort);
@@ -207,8 +229,8 @@ describe("clinical tests / test sets service", () => {
     expect((await svc.getClinicalTest(t.id))?.isArchived).toBe(true);
   });
 
-  it("archiveClinicalTest proceeds without dialog when only historical usage", async () => {
-    const t = await inMemoryClinicalTestsPort.create({ title: "Hist" }, null);
+  it('archiveClinicalTest proceeds without dialog when only historical usage', async () => {
+    const t = await inMemoryClinicalTestsPort.create({ title: 'Hist' }, null);
     seedInMemoryClinicalTestUsageSnapshot(t.id, {
       ...EMPTY_CLINICAL_TEST_USAGE_SNAPSHOT,
       archivedTestSetsContainingCount: 1,
@@ -221,9 +243,9 @@ describe("clinical tests / test sets service", () => {
     expect((await svc.getClinicalTest(t.id))?.isArchived).toBe(true);
   });
 
-  it("getTestSetUsage returns seeded snapshot", async () => {
+  it('getTestSetUsage returns seeded snapshot', async () => {
     const setsSvc = createTestSetsService(inMemoryTestSetsPort, inMemoryClinicalTestsPort);
-    const set = await setsSvc.createTestSet({ title: "S" }, null);
+    const set = await setsSvc.createTestSet({ title: 'S' }, null);
     seedInMemoryTestSetUsageSnapshot(set.id, {
       ...EMPTY_TEST_SET_USAGE_SNAPSHOT,
       publishedTreatmentProgramTemplateCount: 1,
@@ -232,34 +254,40 @@ describe("clinical tests / test sets service", () => {
     expect(u.publishedTreatmentProgramTemplateCount).toBe(1);
   });
 
-  it("archiveTestSet blocks without acknowledgement when published templates reference set", async () => {
+  it('archiveTestSet blocks without acknowledgement when published templates reference set', async () => {
     const setsSvc = createTestSetsService(inMemoryTestSetsPort, inMemoryClinicalTestsPort);
-    const set = await setsSvc.createTestSet({ title: "GuardedSet" }, null);
+    const set = await setsSvc.createTestSet({ title: 'GuardedSet' }, null);
     seedInMemoryTestSetUsageSnapshot(set.id, {
       ...EMPTY_TEST_SET_USAGE_SNAPSHOT,
       publishedTreatmentProgramTemplateCount: 1,
-      publishedTreatmentProgramTemplateRefs: [{ kind: "treatment_program_template", id: "tpl", title: "P" }],
+      publishedTreatmentProgramTemplateRefs: [
+        { kind: 'treatment_program_template', id: 'tpl', title: 'P' },
+      ],
     });
-    await expect(setsSvc.archiveTestSet(set.id)).rejects.toBeInstanceOf(TestSetUsageConfirmationRequiredError);
+    await expect(setsSvc.archiveTestSet(set.id)).rejects.toBeInstanceOf(
+      TestSetUsageConfirmationRequiredError,
+    );
     await setsSvc.archiveTestSet(set.id, { acknowledgeUsageWarning: true });
     expect((await setsSvc.getTestSet(set.id))?.isArchived).toBe(true);
   });
 
-  it("archiveTestSet proceeds without acknowledgement when only draft templates reference set", async () => {
+  it('archiveTestSet proceeds without acknowledgement when only draft templates reference set', async () => {
     const setsSvc = createTestSetsService(inMemoryTestSetsPort, inMemoryClinicalTestsPort);
-    const set = await setsSvc.createTestSet({ title: "DraftTplOnly" }, null);
+    const set = await setsSvc.createTestSet({ title: 'DraftTplOnly' }, null);
     seedInMemoryTestSetUsageSnapshot(set.id, {
       ...EMPTY_TEST_SET_USAGE_SNAPSHOT,
       draftTreatmentProgramTemplateCount: 1,
-      draftTreatmentProgramTemplateRefs: [{ kind: "treatment_program_template", id: "d1", title: "Draft" }],
+      draftTreatmentProgramTemplateRefs: [
+        { kind: 'treatment_program_template', id: 'd1', title: 'Draft' },
+      ],
     });
     await setsSvc.archiveTestSet(set.id);
     expect((await setsSvc.getTestSet(set.id))?.isArchived).toBe(true);
   });
 
-  it("archiveTestSet proceeds when only attempts history", async () => {
+  it('archiveTestSet proceeds when only attempts history', async () => {
     const setsSvc = createTestSetsService(inMemoryTestSetsPort, inMemoryClinicalTestsPort);
-    const set = await setsSvc.createTestSet({ title: "AttemptsOnly" }, null);
+    const set = await setsSvc.createTestSet({ title: 'AttemptsOnly' }, null);
     seedInMemoryTestSetUsageSnapshot(set.id, {
       ...EMPTY_TEST_SET_USAGE_SNAPSHOT,
       testAttemptsRecordedCount: 10,
@@ -268,15 +296,15 @@ describe("clinical tests / test sets service", () => {
     expect((await setsSvc.getTestSet(set.id))?.isArchived).toBe(true);
   });
 
-  it("archiveClinicalTest runs only archive write through write options", async () => {
+  it('archiveClinicalTest runs only archive write through write options', async () => {
     const calls: string[] = [];
     const port: ClinicalTestsPort = {
       list: vi.fn(),
       getById: vi.fn(async () => {
-        calls.push("getById");
+        calls.push('getById');
         return {
-          id: "test-1",
-          title: "T",
+          id: 'test-1',
+          title: 'T',
           description: null,
           testType: null,
           scoring: null,
@@ -288,56 +316,52 @@ describe("clinical tests / test sets service", () => {
           tags: null,
           isArchived: false,
           createdBy: null,
-          createdAt: "",
-          updatedAt: "",
+          createdAt: '',
+          updatedAt: '',
         };
       }),
       create: vi.fn(),
       update: vi.fn(),
       getClinicalTestUsageSummary: vi.fn(async () => {
-        calls.push("usage");
+        calls.push('usage');
         return { ...EMPTY_CLINICAL_TEST_USAGE_SNAPSHOT };
       }),
       archive: vi.fn(async () => {
-        calls.push("archive");
+        calls.push('archive');
         return true;
       }),
       unarchive: vi.fn(),
     };
     const svc = createClinicalTestsService(port, inMemoryReferencesPort);
 
-    await svc.archiveClinicalTest(
-      "test-1",
-      undefined,
-      {
-        runClinicalTestWrite: async (fn) => {
-          calls.push("runner:start");
-          const result = await fn();
-          calls.push("runner:end");
-          return result;
-        },
+    await svc.archiveClinicalTest('test-1', undefined, {
+      runClinicalTestWrite: async (fn) => {
+        calls.push('runner:start');
+        const result = await fn();
+        calls.push('runner:end');
+        return result;
       },
-    );
+    });
 
-    expect(calls).toEqual(["getById", "usage", "runner:start", "archive", "runner:end"]);
+    expect(calls).toEqual(['getById', 'usage', 'runner:start', 'archive', 'runner:end']);
   });
 
-  it("setTestSetItems runs only replaceItems write through write options", async () => {
+  it('setTestSetItems runs only replaceItems write through write options', async () => {
     const calls: string[] = [];
-    const testId = "00000000-0000-4000-8000-000000000001";
+    const testId = '00000000-0000-4000-8000-000000000001';
     const setsPort: TestSetsPort = {
       list: vi.fn(),
       getById: vi.fn(async () => {
-        calls.push("set:getById");
+        calls.push('set:getById');
         return {
-          id: "set-1",
-          title: "Set",
+          id: 'set-1',
+          title: 'Set',
           description: null,
-          publicationStatus: "draft" as const,
+          publicationStatus: 'draft' as const,
           isArchived: false,
           createdBy: null,
-          createdAt: "",
-          updatedAt: "",
+          createdAt: '',
+          updatedAt: '',
           items: [],
         };
       }),
@@ -347,16 +371,16 @@ describe("clinical tests / test sets service", () => {
       archive: vi.fn(),
       unarchive: vi.fn(),
       replaceItems: vi.fn(async () => {
-        calls.push("replaceItems");
+        calls.push('replaceItems');
       }),
     };
     const testsPort: ClinicalTestsPort = {
       list: vi.fn(),
       getById: vi.fn(async () => {
-        calls.push("test:getById");
+        calls.push('test:getById');
         return {
           id: testId,
-          title: "T",
+          title: 'T',
           description: null,
           testType: null,
           scoring: null,
@@ -368,8 +392,8 @@ describe("clinical tests / test sets service", () => {
           tags: null,
           isArchived: false,
           createdBy: null,
-          createdAt: "",
-          updatedAt: "",
+          createdAt: '',
+          updatedAt: '',
         };
       }),
       create: vi.fn(),
@@ -380,19 +404,21 @@ describe("clinical tests / test sets service", () => {
     };
     const svc = createTestSetsService(setsPort, testsPort);
 
-    await svc.setTestSetItems(
-      "set-1",
-      [{ testId, sortOrder: 0 }],
-      {
-        runTestSetWrite: async (fn) => {
-          calls.push("runner:start");
-          const result = await fn();
-          calls.push("runner:end");
-          return result;
-        },
+    await svc.setTestSetItems('set-1', [{ testId, sortOrder: 0 }], {
+      runTestSetWrite: async (fn) => {
+        calls.push('runner:start');
+        const result = await fn();
+        calls.push('runner:end');
+        return result;
       },
-    );
+    });
 
-    expect(calls).toEqual(["set:getById", "test:getById", "runner:start", "replaceItems", "runner:end"]);
+    expect(calls).toEqual([
+      'set:getById',
+      'test:getById',
+      'runner:start',
+      'replaceItems',
+      'runner:end',
+    ]);
   });
 });

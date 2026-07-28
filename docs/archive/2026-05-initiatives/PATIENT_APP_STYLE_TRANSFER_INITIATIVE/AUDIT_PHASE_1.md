@@ -8,16 +8,16 @@
 
 ## 2. Style-Only Scope Check
 
-| Вопрос | Результат |
-|--------|-----------|
-| Content/copy не менялся? | **Да** — по `LOG.md` и диффу scope менялся только `patientVisual.ts` + `LOG.md`; строки UI и страницы patient не редактировались. |
-| Порядок секций / structure / flow? | **Да** — без правок `page.tsx` и клиентов маршрутов. |
-| Ссылки, маршруты, query params? | **Да** — не затрагивались. |
-| Data fetching? | **Да** — без изменений. |
-| Services / repos / API / migrations? | **Да** — не трогались. |
-| Doctor / admin? | **Да** — изменён только `apps/webapp/src/shared/ui/patientVisual.ts` (как разрешено Phase 1). Глобальные `buttonVariants` / shadcn `Card` не менялись; импортов из `app/app/doctor/**` или `settings/patient-home/**` в изменениях нет. |
-| Patient primitives вместо разовой стилизации? | **Да на уровне Phase 1** — добавлены общие константы классов в `patientVisual.ts` на `--patient-*` токенах; страницы пока **не** переведены на них (это Phase 2+), что соответствует `01_PRIMITIVES_PLAN.md` («no page restyling yet»). |
-| Home-specific geometry не обобщён? | **Да** — примитивы используют **карточные** токены (`--patient-card-radius-*`, `--patient-shadow-card-*`, `--patient-border`, …), не hero/mood/warm-gradient из `patientHomeCardStyles.ts`. В комментарии к `patientCardSurfaceTokens` и `patientPillClass` явно отсекаются hero / «метрики главной». `patientListItemClass` — плоская строка списка **без** тени полноформатной карточки, не сетка/фиксированная высота hero. |
+| Вопрос                                        | Результат                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Content/copy не менялся?                      | **Да** — по `LOG.md` и диффу scope менялся только `patientVisual.ts` + `LOG.md`; строки UI и страницы patient не редактировались.                                                                                                                                                                                                                                                                                              |
+| Порядок секций / structure / flow?            | **Да** — без правок `page.tsx` и клиентов маршрутов.                                                                                                                                                                                                                                                                                                                                                                           |
+| Ссылки, маршруты, query params?               | **Да** — не затрагивались.                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Data fetching?                                | **Да** — без изменений.                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Services / repos / API / migrations?          | **Да** — не трогались.                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Doctor / admin?                               | **Да** — изменён только `apps/webapp/src/shared/ui/patientVisual.ts` (как разрешено Phase 1). Глобальные `buttonVariants` / shadcn `Card` не менялись; импортов из `app/app/doctor/**` или `settings/patient-home/**` в изменениях нет.                                                                                                                                                                                        |
+| Patient primitives вместо разовой стилизации? | **Да на уровне Phase 1** — добавлены общие константы классов в `patientVisual.ts` на `--patient-*` токенах; страницы пока **не** переведены на них (это Phase 2+), что соответствует `01_PRIMITIVES_PLAN.md` («no page restyling yet»).                                                                                                                                                                                        |
+| Home-specific geometry не обобщён?            | **Да** — примитивы используют **карточные** токены (`--patient-card-radius-*`, `--patient-shadow-card-*`, `--patient-border`, …), не hero/mood/warm-gradient из `patientHomeCardStyles.ts`. В комментарии к `patientCardSurfaceTokens` и `patientPillClass` явно отсекаются hero / «метрики главной». `patientListItemClass` — плоская строка списка **без** тени полноформатной карточки, не сетка/фиксированная высота hero. |
 
 ## 3. Mandatory Fixes
 
@@ -33,13 +33,13 @@ No mandatory fixes.
 
 ## 5. Checks Reviewed/Run
 
-| Проверка | Статус |
-|----------|--------|
-| Ревью исходников `patientVisual.ts` | Выполнено в рамках аудита |
+| Проверка                                                            | Статус                                                                                            |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Ревью исходников `patientVisual.ts`                                 | Выполнено в рамках аудита                                                                         |
 | `pnpm --dir apps/webapp exec eslint src/shared/ui/patientVisual.ts` | Зафиксировано в `LOG.md` как выполненное при Phase 1 EXEC; **в этой audit-сессии не повторялось** |
-| `pnpm --dir apps/webapp typecheck` | То же |
-| Root `pnpm run ci` | **Не запускался** — по инструкции аудита |
-| Vitest | Новых компонентов/тестовых файлов по Phase 1 нет — тесты не требовались (`01_PRIMITIVES_PLAN.md`) |
+| `pnpm --dir apps/webapp typecheck`                                  | То же                                                                                             |
+| Root `pnpm run ci`                                                  | **Не запускался** — по инструкции аудита                                                          |
+| Vitest                                                              | Новых компонентов/тестовых файлов по Phase 1 нет — тесты не требовались (`01_PRIMITIVES_PLAN.md`) |
 
 ## 6. Route/Component Coverage
 
@@ -62,23 +62,23 @@ No mandatory fixes.
 
 ## Приложение — сверка с `01_PRIMITIVES_PLAN.md`
 
-| Primitive checklist | Экспорт в `patientVisual.ts` |
-|---------------------|------------------------------|
-| Card base | `patientCardClass` |
-| Card compact | `patientCardCompactClass` |
-| List item/card | `patientListItemClass` |
-| Form surface | `patientFormSurfaceClass` |
-| Section surface | `patientSectionSurfaceClass` |
-| Section title | `patientSectionTitleClass` |
-| Body/muted text | `patientBodyTextClass`, `patientMutedTextClass` |
-| Empty state | `patientEmptyStateClass` |
-| Pill/badge | `patientPillClass` |
+| Primitive checklist             | Экспорт в `patientVisual.ts`                                                                                        |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Card base                       | `patientCardClass`                                                                                                  |
+| Card compact                    | `patientCardCompactClass`                                                                                           |
+| List item/card                  | `patientListItemClass`                                                                                              |
+| Form surface                    | `patientFormSurfaceClass`                                                                                           |
+| Section surface                 | `patientSectionSurfaceClass`                                                                                        |
+| Section title                   | `patientSectionTitleClass`                                                                                          |
+| Body/muted text                 | `patientBodyTextClass`, `patientMutedTextClass`                                                                     |
+| Empty state                     | `patientEmptyStateClass`                                                                                            |
+| Pill/badge                      | `patientPillClass`                                                                                                  |
 | Primary/secondary/danger action | `patientPrimaryActionClass`, `patientSecondaryActionClass`, `patientDangerActionClass` (алиасы на `patientButton*`) |
-| Inline link | `patientInlineLinkClass` |
+| Inline link                     | `patientInlineLinkClass`                                                                                            |
 
-| Compatibility checklist | Статус |
-|---------------------------|--------|
-| Существующие экспорты `patientVisual.ts` сохранены | **Да** — `patientLineClamp*`, все `patientButton*` включая `patientButtonWarningOutlineClass` на месте |
-| Имена семантические, без `v2`/`new`/`tmp` | **Да** |
-| Токены `--patient-*` из `#app-shell-patient` | **Да** |
-| Нет фиксированных высот/grid главной как общего примитива | **Да** |
+| Compatibility checklist                                   | Статус                                                                                                 |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Существующие экспорты `patientVisual.ts` сохранены        | **Да** — `patientLineClamp*`, все `patientButton*` включая `patientButtonWarningOutlineClass` на месте |
+| Имена семантические, без `v2`/`new`/`tmp`                 | **Да**                                                                                                 |
+| Токены `--patient-*` из `#app-shell-patient`              | **Да**                                                                                                 |
+| Нет фиксированных высот/grid главной как общего примитива | **Да**                                                                                                 |

@@ -1,11 +1,11 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import toast from "react-hot-toast";
-import { Button } from "@/shared/ui/patient/primitives/button";
-import { PinInput } from "@/shared/ui/patient/auth/PinInput";
-import { patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import toast from 'react-hot-toast';
+import { Button } from '@/shared/ui/patient/primitives/button';
+import { PinInput } from '@/shared/ui/patient/auth/PinInput';
+import { patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
 
 type PinSectionProps = {
   /** На сервере: есть ли уже PIN у пользователя. */
@@ -20,7 +20,7 @@ type PinSectionProps = {
 export function PinSection({ hasPin: initialHasPin }: PinSectionProps) {
   const router = useRouter();
   const [resetting, setResetting] = useState(false);
-  const [stage, setStage] = useState<"first" | "second">("first");
+  const [stage, setStage] = useState<'first' | 'second'>('first');
   const [firstPin, setFirstPin] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -29,21 +29,21 @@ export function PinSection({ hasPin: initialHasPin }: PinSectionProps) {
   const submitPin = async (pin: string, confirmPin: string) => {
     setLoading(true);
     try {
-      const res = await fetch("/api/auth/pin/set", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        credentials: "include",
+      const res = await fetch('/api/auth/pin/set', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ pin, pinConfirm: confirmPin }),
       });
       const data = (await res.json().catch(() => ({}))) as { ok?: boolean; message?: string };
       if (!res.ok) {
-        toast.error(data.message ?? "Не удалось сохранить PIN");
-        setStage("first");
+        toast.error(data.message ?? 'Не удалось сохранить PIN');
+        setStage('first');
         setFirstPin(null);
         return;
       }
-      toast.success("PIN сохранён");
-      setStage("first");
+      toast.success('PIN сохранён');
+      setStage('first');
       setFirstPin(null);
       setResetting(false);
       router.refresh();
@@ -58,33 +58,43 @@ export function PinSection({ hasPin: initialHasPin }: PinSectionProps) {
         <p className={patientMutedTextClass}>
           Вы можете войти по номеру телефона и PIN без кода из SMS или мессенджера.
         </p>
-        <Button type="button" variant="outline" className="w-fit" onClick={() => setResetting(true)}>
+        <Button
+          type="button"
+          variant="outline"
+          className="w-fit"
+          onClick={() => setResetting(true)}
+        >
           Сбросить PIN
         </Button>
       </div>
     );
   }
 
-  if (stage === "first") {
+  if (stage === 'first') {
     return (
       <div id="patient-profile-pin-step-1" className="flex flex-col gap-3">
         <p className={patientMutedTextClass}>
           {initialHasPin
-            ? "Задайте новый PIN для входа по номеру телефона."
-            : "Задайте PIN для быстрого входа по номеру телефона."}
+            ? 'Задайте новый PIN для входа по номеру телефона.'
+            : 'Задайте PIN для быстрого входа по номеру телефона.'}
         </p>
         <PinInput
           disabled={loading}
           submitLabel="Далее"
           onSubmit={(pin) => {
             setFirstPin(pin);
-            setStage("second");
+            setStage('second');
           }}
           onForgot={() => {}}
           forgotHidden
         />
         {initialHasPin ? (
-          <Button type="button" variant="link" className="h-auto min-h-0 w-fit px-0 py-0 text-sm font-normal" onClick={() => setResetting(false)}>
+          <Button
+            type="button"
+            variant="link"
+            className="h-auto min-h-0 w-fit px-0 py-0 text-sm font-normal"
+            onClick={() => setResetting(false)}
+          >
             Отмена
           </Button>
         ) : null}
@@ -100,15 +110,15 @@ export function PinSection({ hasPin: initialHasPin }: PinSectionProps) {
         submitLabel="Сохранить PIN"
         onSubmit={async (confirmPin) => {
           if (confirmPin !== firstPin) {
-            toast.error("PIN не совпадает. Введите снова.");
-            setStage("first");
+            toast.error('PIN не совпадает. Введите снова.');
+            setStage('first');
             setFirstPin(null);
             return;
           }
           await submitPin(firstPin!, confirmPin);
         }}
         onForgot={() => {
-          setStage("first");
+          setStage('first');
           setFirstPin(null);
         }}
         forgotLabel="Назад"

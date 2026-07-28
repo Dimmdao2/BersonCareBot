@@ -1,1 +1,1 @@
-export * from "@/shared/ui/primitives/collapsible"
+export * from '@/shared/ui/primitives/collapsible';

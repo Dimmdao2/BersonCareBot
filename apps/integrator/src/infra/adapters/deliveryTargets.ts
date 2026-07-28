@@ -25,7 +25,9 @@ const BINDING_KEYS: Array<{ key: string; channel: 'telegram' | 'max' }> = [
 /**
  * Returns delivery targets for fan-out. Only includes channels present in bindings with non-empty externalId.
  */
-export function channelBindingsToTargets(bindings: Record<string, string> | undefined): DeliveryTarget[] {
+export function channelBindingsToTargets(
+  bindings: Record<string, string> | undefined,
+): DeliveryTarget[] {
   if (!bindings || typeof bindings !== 'object') return [];
   const out: DeliveryTarget[] = [];
   for (const { key, channel } of BINDING_KEYS) {

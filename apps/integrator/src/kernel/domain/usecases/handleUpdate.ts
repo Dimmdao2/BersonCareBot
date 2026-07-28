@@ -2,7 +2,14 @@ import type { ChannelUserPort } from '../ports/user.js';
 import type { NotificationsPort } from '../ports/notifications.js';
 import type { WebhookContent } from '../webhookContent.js';
 import type { IncomingUpdate, OutgoingAction } from '../types.js';
-import { handleStart, handleAsk, handleQuestion, handleBook, handleMore, handleDefaultIdle } from './handleMessage.js';
+import {
+  handleStart,
+  handleAsk,
+  handleQuestion,
+  handleBook,
+  handleMore,
+  handleDefaultIdle,
+} from './handleMessage.js';
 import { mainMenuMarkup, requestPhoneLink } from './requestContactFlow.js';
 import {
   handleNotificationCallback,
@@ -10,7 +17,10 @@ import {
   handleMyBookings,
   handleBack,
 } from './handleCallback.js';
-import { phoneLinkConflictUserMessage, phoneLinkSaveFailedUserMessage } from '../../../shared/phoneLinkUserMessages.js';
+import {
+  phoneLinkConflictUserMessage,
+  phoneLinkSaveFailedUserMessage,
+} from '../../../shared/phoneLinkUserMessages.js';
 
 function normalizePhone(value: string): string | null {
   const digits = value.replace(/[^\d+]/g, '');
@@ -65,7 +75,10 @@ export async function handleUpdate(
         userPort,
         content,
       );
-      return [...phoneActions, { type: 'answerCallbackQuery', callbackQueryId: incoming.callbackQueryId }];
+      return [
+        ...phoneActions,
+        { type: 'answerCallbackQuery', callbackQueryId: incoming.callbackQueryId },
+      ];
     }
 
     if (data.startsWith('notify_')) {
@@ -189,7 +202,13 @@ export async function handleUpdate(
   }
 
   if (userState === 'idle') {
-    return handleDefaultIdle(chatId, channelId, userPort, content, incoming.hasLinkedPhone ?? false);
+    return handleDefaultIdle(
+      chatId,
+      channelId,
+      userPort,
+      content,
+      incoming.hasLinkedPhone ?? false,
+    );
   }
 
   return [];

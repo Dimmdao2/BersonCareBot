@@ -1,8 +1,8 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   runWithDbOrganizationPrincipal,
   runWithDbPatientPrincipal,
-} from "@bersoncare/db-principal";
+} from '@bersoncare/db-principal';
 
 const runWebappPgTextMock = vi.hoisted(() => vi.fn());
 const runDrizzleMutationTransactionMock = vi.hoisted(() =>
@@ -11,28 +11,28 @@ const runDrizzleMutationTransactionMock = vi.hoisted(() =>
 const runMergeLegacySupportConversationsMock = vi.hoisted(() => vi.fn());
 const getPoolMock = vi.hoisted(() => vi.fn());
 
-vi.mock("@/infra/db/runWebappSql", () => ({
+vi.mock('@/infra/db/runWebappSql', () => ({
   runWebappPgText: runWebappPgTextMock,
 }));
 
-vi.mock("@/infra/db/drizzleMutationTx", () => ({
+vi.mock('@/infra/db/drizzleMutationTx', () => ({
   runDrizzleMutationTransaction: runDrizzleMutationTransactionMock,
 }));
 
-vi.mock("@/infra/db/client", () => ({
+vi.mock('@/infra/db/client', () => ({
   getPool: getPoolMock,
 }));
 
-vi.mock("@/infra/repos/mergeLegacySupportConversations", () => ({
+vi.mock('@/infra/repos/mergeLegacySupportConversations', () => ({
   mergeLegacySupportConversationsForPlatformUser: runMergeLegacySupportConversationsMock,
 }));
 
-import { createPgSupportCommunicationPort } from "./pgSupportCommunication";
+import { createPgSupportCommunicationPort } from './pgSupportCommunication';
 
-const TS = "2025-06-01T10:00:00.000Z";
-const ORG_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const TS = '2025-06-01T10:00:00.000Z';
+const ORG_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 
-describe("createPgSupportCommunicationPort", () => {
+describe('createPgSupportCommunicationPort', () => {
   beforeEach(() => {
     runWebappPgTextMock.mockReset();
     runDrizzleMutationTransactionMock.mockClear();
@@ -40,154 +40,155 @@ describe("createPgSupportCommunicationPort", () => {
     getPoolMock.mockReset();
   });
 
-  describe("upsertConversationFromProjection", () => {
-    it("uses ON CONFLICT and skips canonical lookup when integratorUserId empty", async () => {
-      runWebappPgTextMock.mockResolvedValueOnce({ rows: [{ id: "conv-1" }] });
+  describe('upsertConversationFromProjection', () => {
+    it('uses ON CONFLICT and skips canonical lookup when integratorUserId empty', async () => {
+      runWebappPgTextMock.mockResolvedValueOnce({ rows: [{ id: 'conv-1' }] });
       const port = createPgSupportCommunicationPort();
       const result = await port.upsertConversationFromProjection({
-        integratorConversationId: "conv-a",
+        integratorConversationId: 'conv-a',
         integratorUserId: null,
-        source: "telegram",
-        adminScope: "support",
-        status: "open",
+        source: 'telegram',
+        adminScope: 'support',
+        status: 'open',
         openedAt: TS,
         lastMessageAt: TS,
       });
-      expect(result.id).toBe("conv-1");
+      expect(result.id).toBe('conv-1');
       expect(runWebappPgTextMock).toHaveBeenCalledTimes(1);
-      const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
-      expect(sql).toContain("ON CONFLICT (integrator_conversation_id)");
+      const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? '');
+      expect(sql).toContain('ON CONFLICT (integrator_conversation_id)');
       expect(runWebappPgTextMock.mock.calls[0]?.[1]?.[1]).toBeNull();
     });
 
-    it("resolves platform_user_id via platform_users when integratorUserId set", async () => {
+    it('resolves platform_user_id via platform_users when integratorUserId set', async () => {
       runWebappPgTextMock
-        .mockResolvedValueOnce({ rows: [{ id: "pu-1" }] })
-        .mockResolvedValueOnce({ rows: [{ id: "conv-2" }] });
+        .mockResolvedValueOnce({ rows: [{ id: 'pu-1' }] })
+        .mockResolvedValueOnce({ rows: [{ id: 'conv-2' }] });
       const port = createPgSupportCommunicationPort();
       await port.upsertConversationFromProjection({
-        integratorConversationId: "conv-b",
-        integratorUserId: "42",
-        source: "telegram",
-        adminScope: "",
-        status: "open",
+        integratorConversationId: 'conv-b',
+        integratorUserId: '42',
+        source: 'telegram',
+        adminScope: '',
+        status: 'open',
         openedAt: TS,
         lastMessageAt: TS,
       });
       expect(runWebappPgTextMock).toHaveBeenCalledTimes(2);
-      const lookupSql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
-      expect(lookupSql).toContain("platform_users");
-      expect(lookupSql).toContain("merged_into_id IS NULL");
-      expect(runWebappPgTextMock.mock.calls[1]?.[1]?.[1]).toBe("pu-1");
+      const lookupSql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? '');
+      expect(lookupSql).toContain('platform_users');
+      expect(lookupSql).toContain('merged_into_id IS NULL');
+      expect(runWebappPgTextMock.mock.calls[1]?.[1]?.[1]).toBe('pu-1');
     });
   });
 
-  describe("setConversationStatusFromProjection", () => {
-    it("falls back to INSERT when UPDATE rowCount is 0", async () => {
+  describe('setConversationStatusFromProjection', () => {
+    it('falls back to INSERT when UPDATE rowCount is 0', async () => {
       runWebappPgTextMock
         .mockResolvedValueOnce({ rows: [], rowCount: 0 })
         .mockResolvedValueOnce({ rows: [], rowCount: 1 });
       const port = createPgSupportCommunicationPort();
       await port.setConversationStatusFromProjection({
-        integratorConversationId: "missing-conv",
-        status: "closed",
+        integratorConversationId: 'missing-conv',
+        status: 'closed',
         closedAt: TS,
-        closeReason: "resolved",
+        closeReason: 'resolved',
       });
       expect(runWebappPgTextMock).toHaveBeenCalledTimes(2);
-      const fallbackSql = String(runWebappPgTextMock.mock.calls[1]?.[0] ?? "");
-      expect(fallbackSql).toContain("INSERT INTO support_conversations");
-      expect(fallbackSql).toContain("ON CONFLICT (integrator_conversation_id)");
+      const fallbackSql = String(runWebappPgTextMock.mock.calls[1]?.[0] ?? '');
+      expect(fallbackSql).toContain('INSERT INTO support_conversations');
+      expect(fallbackSql).toContain('ON CONFLICT (integrator_conversation_id)');
     });
   });
 
-  describe("appendDeliveryEventFromProjection", () => {
-    const clinicA = "10000000-0000-4000-8000-000000000001";
-    const clinicB = "20000000-0000-4000-8000-000000000002";
+  describe('appendDeliveryEventFromProjection', () => {
+    const clinicA = '10000000-0000-4000-8000-000000000001';
+    const clinicB = '20000000-0000-4000-8000-000000000002';
     const params = {
       organizationId: clinicA,
       conversationMessageId: null,
-      integratorIntentEventId: "evt-org-1",
-      correlationId: "corr-org-1",
-      channelCode: "web_push",
-      status: "success",
+      integratorIntentEventId: 'evt-org-1',
+      correlationId: 'corr-org-1',
+      channelCode: 'web_push',
+      status: 'success',
       attempt: 1,
       reason: null,
       payloadJson: {},
       occurredAt: TS,
     };
 
-    it("inserts the verified organization under the matching principal", async () => {
-      runWebappPgTextMock.mockResolvedValueOnce({ rows: [{ id: "delivery-1" }] });
+    it('inserts the verified organization under the matching principal', async () => {
+      runWebappPgTextMock.mockResolvedValueOnce({ rows: [{ id: 'delivery-1' }] });
       const port = createPgSupportCommunicationPort();
 
       await expect(
         runWithDbOrganizationPrincipal(clinicA, () =>
           port.appendDeliveryEventFromProjection(params),
         ),
-      ).resolves.toEqual({ id: "delivery-1" });
+      ).resolves.toEqual({ id: 'delivery-1' });
 
-      const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
-      expect(sql).toContain("organization_id");
-      expect(sql).toContain("$1::uuid");
+      const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? '');
+      expect(sql).toContain('organization_id');
+      expect(sql).toContain('$1::uuid');
       expect(runWebappPgTextMock.mock.calls[0]?.[1]?.[0]).toBe(clinicA);
     });
 
-    it("rejects a cross-organization write before SQL", async () => {
+    it('rejects a cross-organization write before SQL', async () => {
       const port = createPgSupportCommunicationPort();
 
       await expect(
         runWithDbOrganizationPrincipal(clinicB, () =>
           port.appendDeliveryEventFromProjection(params),
         ),
-      ).rejects.toThrow("organization_principal_mismatch");
+      ).rejects.toThrow('organization_principal_mismatch');
       expect(runWebappPgTextMock).not.toHaveBeenCalled();
     });
 
-    it("rejects the projection write without an organization principal", async () => {
+    it('rejects the projection write without an organization principal', async () => {
       const port = createPgSupportCommunicationPort();
 
-      await expect(port.appendDeliveryEventFromProjection(params))
-        .rejects.toThrow("organization_principal_required");
+      await expect(port.appendDeliveryEventFromProjection(params)).rejects.toThrow(
+        'organization_principal_required',
+      );
       expect(runWebappPgTextMock).not.toHaveBeenCalled();
     });
   });
 
-  describe("markInboundReadForUser", () => {
-    const CONV_ID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
-    const USER_ID = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+  describe('markInboundReadForUser', () => {
+    const CONV_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    const USER_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 
-    it("scopes the read receipt to the one conversation and its owner", async () => {
+    it('scopes the read receipt to the one conversation and its owner', async () => {
       runWebappPgTextMock.mockResolvedValueOnce({ rows: [], rowCount: 1 });
       const port = createPgSupportCommunicationPort();
       await port.markInboundReadForUser(CONV_ID, USER_ID);
 
       expect(runWebappPgTextMock).toHaveBeenCalledTimes(1);
-      const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
-      expect(sql).toContain("UPDATE support_conversation_messages m");
-      expect(sql).toContain("FROM support_conversations c");
-      expect(sql).toContain("m.conversation_id = c.id");
-      expect(sql).toContain("c.id = $1::uuid");
-      expect(sql).toContain("c.platform_user_id = $2::uuid");
+      const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? '');
+      expect(sql).toContain('UPDATE support_conversation_messages m');
+      expect(sql).toContain('FROM support_conversations c');
+      expect(sql).toContain('m.conversation_id = c.id');
+      expect(sql).toContain('c.id = $1::uuid');
+      expect(sql).toContain('c.platform_user_id = $2::uuid');
       // The leak this replaces: every conversation of the user in one UPDATE.
-      expect(sql).not.toContain("conversation_id IN (");
+      expect(sql).not.toContain('conversation_id IN (');
       expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual([CONV_ID, USER_ID]);
     });
 
-    it("keeps the message class identical to the unread counter and never filters by conversation status", async () => {
+    it('keeps the message class identical to the unread counter and never filters by conversation status', async () => {
       runWebappPgTextMock.mockResolvedValueOnce({ rows: [], rowCount: 0 });
       const port = createPgSupportCommunicationPort();
       await port.markInboundReadForUser(CONV_ID, USER_ID);
-      const markSql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
+      const markSql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? '');
 
       runWebappPgTextMock.mockReset();
-      runWebappPgTextMock.mockResolvedValueOnce({ rows: [{ c: "0" }] });
+      runWebappPgTextMock.mockResolvedValueOnce({ rows: [{ c: '0' }] });
       await port.countUnreadForUser(USER_ID);
-      const countSql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
+      const countSql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? '');
 
       for (const clause of [
         "m.sender_role <> 'user'",
-        "m.read_at IS NULL",
+        'm.read_at IS NULL',
         "'doctor_broadcast', 'appointment_lifecycle'",
       ]) {
         expect(markSql).toContain(clause);
@@ -195,75 +196,80 @@ describe("createPgSupportCommunicationPort", () => {
       }
       // A closed / non-webapp conversation still contributes to the counter, so mark-read must be
       // able to clear it — otherwise the badge can never reach zero (owner ruling 2026-07-26).
-      expect(markSql).not.toContain("c.status");
-      expect(markSql).not.toContain("closed_at");
-      expect(markSql).not.toContain("admin_scope");
+      expect(markSql).not.toContain('c.status');
+      expect(markSql).not.toContain('closed_at');
+      expect(markSql).not.toContain('admin_scope');
     });
   });
 
-  describe("listOpenConversationsForAdmin", () => {
-    it("passes normalized source, limit and unreadOnly as bound params", async () => {
+  describe('listOpenConversationsForAdmin', () => {
+    it('passes normalized source, limit and unreadOnly as bound params', async () => {
       runWebappPgTextMock.mockResolvedValueOnce({ rows: [] });
       const port = createPgSupportCommunicationPort();
-      await port.listOpenConversationsForAdmin({ source: "  telegram  ", limit: 200, unreadOnly: true, organizationId: ORG_ID });
-      const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
+      await port.listOpenConversationsForAdmin({
+        source: '  telegram  ',
+        limit: 200,
+        unreadOnly: true,
+        organizationId: ORG_ID,
+      });
+      const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? '');
       expect(sql).toContain("sc.status <> 'closed'");
-      expect(sql).toContain("last_personal.personal_msg_at IS NOT NULL");
-      expect(sql).toContain("$1::text IS NULL OR sc.source = $1");
-      expect(sql).toContain("$3::boolean = false OR");
-      expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual(["telegram", 100, true, ORG_ID]);
+      expect(sql).toContain('last_personal.personal_msg_at IS NOT NULL');
+      expect(sql).toContain('$1::text IS NULL OR sc.source = $1');
+      expect(sql).toContain('$3::boolean = false OR');
+      expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual(['telegram', 100, true, ORG_ID]);
     });
 
-    it("uses null source when filter omitted", async () => {
+    it('uses null source when filter omitted', async () => {
       runWebappPgTextMock.mockResolvedValueOnce({ rows: [] });
       const port = createPgSupportCommunicationPort();
       await port.listOpenConversationsForAdmin({ limit: 10, organizationId: ORG_ID });
       expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual([null, 10, false, ORG_ID]);
     });
 
-    it("uses full structured FIO for communications while retaining a legacy label fallback", async () => {
+    it('uses full structured FIO for communications while retaining a legacy label fallback', async () => {
       runWebappPgTextMock.mockResolvedValueOnce({
         rows: [
           {
-            conversation_id: "conv-1",
-            integrator_conversation_id: "int-conv-1",
-            source: "telegram",
-            integrator_user_id: "42",
-            admin_scope: "support",
-            status: "open",
+            conversation_id: 'conv-1',
+            integrator_conversation_id: 'int-conv-1',
+            source: 'telegram',
+            integrator_user_id: '42',
+            admin_scope: 'support',
+            status: 'open',
             opened_at: TS,
             last_message_at: TS,
             closed_at: null,
             close_reason: null,
-            display_name: "Legacy label",
-            first_name: "Ivan",
-            last_name: "Petrov",
-            patronymic: "Sergeevich",
+            display_name: 'Legacy label',
+            first_name: 'Ivan',
+            last_name: 'Petrov',
+            patronymic: 'Sergeevich',
             phone_normalized: null,
             channel_external_id: null,
-            last_message_text: "",
-            last_sender_role: "user",
+            last_message_text: '',
+            last_sender_role: 'user',
             unread_from_user_count: 0,
           },
           {
-            conversation_id: "conv-2",
-            integrator_conversation_id: "int-conv-2",
-            source: "telegram",
-            integrator_user_id: "43",
-            admin_scope: "support",
-            status: "open",
+            conversation_id: 'conv-2',
+            integrator_conversation_id: 'int-conv-2',
+            source: 'telegram',
+            integrator_user_id: '43',
+            admin_scope: 'support',
+            status: 'open',
             opened_at: TS,
             last_message_at: TS,
             closed_at: null,
             close_reason: null,
-            display_name: "Legacy only",
+            display_name: 'Legacy only',
             first_name: null,
             last_name: null,
             patronymic: null,
             phone_normalized: null,
             channel_external_id: null,
-            last_message_text: "",
-            last_sender_role: "user",
+            last_message_text: '',
+            last_sender_role: 'user',
             unread_from_user_count: 0,
           },
         ],
@@ -272,42 +278,42 @@ describe("createPgSupportCommunicationPort", () => {
 
       const rows = await port.listOpenConversationsForAdmin({ organizationId: ORG_ID });
 
-      expect(rows.map((row) => row.displayName)).toEqual(["Petrov Ivan Sergeevich", "Legacy only"]);
+      expect(rows.map((row) => row.displayName)).toEqual(['Petrov Ivan Sergeevich', 'Legacy only']);
     });
   });
 
-  describe("countUnreadUserMessagesForAdmin", () => {
-    it("restricts to open conversations", async () => {
-      runWebappPgTextMock.mockResolvedValueOnce({ rows: [{ c: "3" }] });
+  describe('countUnreadUserMessagesForAdmin', () => {
+    it('restricts to open conversations', async () => {
+      runWebappPgTextMock.mockResolvedValueOnce({ rows: [{ c: '3' }] });
       const port = createPgSupportCommunicationPort();
       const n = await port.countUnreadUserMessagesForAdmin({ organizationId: ORG_ID });
       expect(n).toBe(3);
-      const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
+      const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? '');
       expect(sql).toContain("c.status <> 'closed'");
-      expect(sql).toContain("c.closed_at IS NULL");
+      expect(sql).toContain('c.closed_at IS NULL');
     });
   });
 
-  describe("conversationExists", () => {
-    it("returns false when SELECT 1 has no rows", async () => {
+  describe('conversationExists', () => {
+    it('returns false when SELECT 1 has no rows', async () => {
       runWebappPgTextMock.mockResolvedValueOnce({ rows: [] });
       const port = createPgSupportCommunicationPort();
-      await expect(
-        port.conversationExists("00000000-0000-4000-8000-000000000099"),
-      ).resolves.toBe(false);
+      await expect(port.conversationExists('00000000-0000-4000-8000-000000000099')).resolves.toBe(
+        false,
+      );
     });
   });
 
-  describe("webapp support chat principal stamping", () => {
-    it("preserves the legacy global key when no organization principal exists", async () => {
-      const patientUserId = "00000000-0000-4000-8000-000000000111";
+  describe('webapp support chat principal stamping', () => {
+    it('preserves the legacy global key when no organization principal exists', async () => {
+      const patientUserId = '00000000-0000-4000-8000-000000000111';
       runWebappPgTextMock
         .mockResolvedValueOnce({ rows: [] })
-        .mockResolvedValueOnce({ rows: [{ id: "conv-global" }] });
+        .mockResolvedValueOnce({ rows: [{ id: 'conv-global' }] });
 
       const port = createPgSupportCommunicationPort();
       await expect(port.ensureWebappConversationForUser(patientUserId)).resolves.toEqual({
-        id: "conv-global",
+        id: 'conv-global',
         organizationId: null,
       });
 
@@ -323,57 +329,57 @@ describe("createPgSupportCommunicationPort", () => {
       ]);
     });
 
-    it("stamps ensured webapp conversations from current organization principal", async () => {
-      const orgId = "10000000-0000-4000-8000-000000000001";
-      const patientUserId = "00000000-0000-4000-8000-000000000111";
+    it('stamps ensured webapp conversations from current organization principal', async () => {
+      const orgId = '10000000-0000-4000-8000-000000000001';
+      const patientUserId = '00000000-0000-4000-8000-000000000111';
       runWebappPgTextMock
         .mockResolvedValueOnce({ rows: [] })
-        .mockResolvedValueOnce({ rows: [{ id: "conv-webapp-1" }] });
+        .mockResolvedValueOnce({ rows: [{ id: 'conv-webapp-1' }] });
 
       const port = createPgSupportCommunicationPort();
       const result = await runWithDbOrganizationPrincipal(orgId, () =>
         port.ensureWebappConversationForUser(patientUserId),
       );
 
-      expect(result).toEqual({ id: "conv-webapp-1", organizationId: orgId });
+      expect(result).toEqual({ id: 'conv-webapp-1', organizationId: orgId });
       expect(runDrizzleMutationTransactionMock).toHaveBeenCalledTimes(1);
-      const lookupSql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
-      expect(lookupSql).toContain("organization_id = $1::uuid");
-      expect(lookupSql).toContain("platform_user_id = $2::uuid");
+      const lookupSql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? '');
+      expect(lookupSql).toContain('organization_id = $1::uuid');
+      expect(lookupSql).toContain('platform_user_id = $2::uuid');
       expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual([
         orgId,
         patientUserId,
         `webapp:organization:${orgId}:platform:${patientUserId}`,
       ]);
-      const insertSql = String(runWebappPgTextMock.mock.calls[1]?.[0] ?? "");
-      expect(insertSql).toContain("organization_id");
+      const insertSql = String(runWebappPgTextMock.mock.calls[1]?.[0] ?? '');
+      expect(insertSql).toContain('organization_id');
       expect(runWebappPgTextMock.mock.calls[1]?.[1]?.[0]).toBe(orgId);
       expect(runWebappPgTextMock.mock.calls[1]?.[1]?.[1]).toBe(
         `webapp:organization:${orgId}:platform:${patientUserId}`,
       );
     });
 
-    it("creates separate organization-scoped threads for a patient enrolled in Clinic A and Clinic B", async () => {
-      const clinicA = "10000000-0000-4000-8000-000000000001";
-      const clinicB = "20000000-0000-4000-8000-000000000002";
-      const patientUserId = "00000000-0000-4000-8000-000000000111";
+    it('creates separate organization-scoped threads for a patient enrolled in Clinic A and Clinic B', async () => {
+      const clinicA = '10000000-0000-4000-8000-000000000001';
+      const clinicB = '20000000-0000-4000-8000-000000000002';
+      const patientUserId = '00000000-0000-4000-8000-000000000111';
       runWebappPgTextMock
         .mockResolvedValueOnce({ rows: [] })
-        .mockResolvedValueOnce({ rows: [{ id: "conv-clinic-a" }] })
+        .mockResolvedValueOnce({ rows: [{ id: 'conv-clinic-a' }] })
         .mockResolvedValueOnce({ rows: [] })
-        .mockResolvedValueOnce({ rows: [{ id: "conv-clinic-b" }] });
+        .mockResolvedValueOnce({ rows: [{ id: 'conv-clinic-b' }] });
 
       const port = createPgSupportCommunicationPort();
       await expect(
         runWithDbOrganizationPrincipal(clinicA, () =>
           port.ensureWebappConversationForUser(patientUserId),
         ),
-      ).resolves.toEqual({ id: "conv-clinic-a", organizationId: clinicA });
+      ).resolves.toEqual({ id: 'conv-clinic-a', organizationId: clinicA });
       await expect(
         runWithDbOrganizationPrincipal(clinicB, () =>
           port.ensureWebappConversationForUser(patientUserId),
         ),
-      ).resolves.toEqual({ id: "conv-clinic-b", organizationId: clinicB });
+      ).resolves.toEqual({ id: 'conv-clinic-b', organizationId: clinicB });
 
       const clinicALookup = runWebappPgTextMock.mock.calls[0]?.[1];
       const clinicAInsert = runWebappPgTextMock.mock.calls[1]?.[1];
@@ -394,11 +400,11 @@ describe("createPgSupportCommunicationPort", () => {
       expect(clinicBInsert?.[0]).toBe(clinicB);
     });
 
-    it("reuses a legacy webapp thread only when it is visible in the current organization", async () => {
-      const orgId = "10000000-0000-4000-8000-000000000001";
-      const patientUserId = "00000000-0000-4000-8000-000000000111";
+    it('reuses a legacy webapp thread only when it is visible in the current organization', async () => {
+      const orgId = '10000000-0000-4000-8000-000000000001';
+      const patientUserId = '00000000-0000-4000-8000-000000000111';
       runWebappPgTextMock.mockResolvedValueOnce({
-        rows: [{ id: "legacy-current-org", organization_id: orgId }],
+        rows: [{ id: 'legacy-current-org', organization_id: orgId }],
       });
 
       const port = createPgSupportCommunicationPort();
@@ -406,138 +412,142 @@ describe("createPgSupportCommunicationPort", () => {
         runWithDbOrganizationPrincipal(orgId, () =>
           port.ensureWebappConversationForUser(patientUserId),
         ),
-      ).resolves.toEqual({ id: "legacy-current-org", organizationId: orgId });
+      ).resolves.toEqual({ id: 'legacy-current-org', organizationId: orgId });
 
       expect(runWebappPgTextMock).toHaveBeenCalledTimes(1);
-      expect(String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "")).toContain(
-        "WHERE organization_id = $1::uuid",
+      expect(String(runWebappPgTextMock.mock.calls[0]?.[0] ?? '')).toContain(
+        'WHERE organization_id = $1::uuid',
       );
     });
 
-    it("rejects ensured webapp conversation when existing organization differs from principal", async () => {
+    it('rejects ensured webapp conversation when existing organization differs from principal', async () => {
       runWebappPgTextMock.mockResolvedValueOnce({
-        rows: [{ id: "conv-webapp-1", organization_id: "20000000-0000-4000-8000-000000000002" }],
+        rows: [{ id: 'conv-webapp-1', organization_id: '20000000-0000-4000-8000-000000000002' }],
       });
 
       const port = createPgSupportCommunicationPort();
       await expect(
-        runWithDbOrganizationPrincipal("10000000-0000-4000-8000-000000000001", () =>
-          port.ensureWebappConversationForUser("00000000-0000-4000-8000-000000000111"),
+        runWithDbOrganizationPrincipal('10000000-0000-4000-8000-000000000001', () =>
+          port.ensureWebappConversationForUser('00000000-0000-4000-8000-000000000111'),
         ),
-      ).rejects.toThrow("organization_principal_mismatch");
+      ).rejects.toThrow('organization_principal_mismatch');
     });
 
-    it("stamps appended webapp messages from parent conversation organization", async () => {
-      const orgId = "10000000-0000-4000-8000-000000000001";
+    it('stamps appended webapp messages from parent conversation organization', async () => {
+      const orgId = '10000000-0000-4000-8000-000000000001';
       runWebappPgTextMock
         .mockResolvedValueOnce({ rows: [{ organization_id: orgId }] })
-        .mockResolvedValueOnce({ rows: [{ id: "msg-1" }] })
+        .mockResolvedValueOnce({ rows: [{ id: 'msg-1' }] })
         .mockResolvedValueOnce({ rows: [], rowCount: 1 });
 
       const port = createPgSupportCommunicationPort();
       const result = await runWithDbOrganizationPrincipal(orgId, () =>
         port.appendWebappMessage({
-          conversationId: "00000000-0000-4000-8000-000000000222",
-          integratorMessageId: "webapp-msg:test-1",
-          senderRole: "admin",
-          text: "hello",
-          source: "webapp",
+          conversationId: '00000000-0000-4000-8000-000000000222',
+          integratorMessageId: 'webapp-msg:test-1',
+          senderRole: 'admin',
+          text: 'hello',
+          source: 'webapp',
           createdAt: TS,
         }),
       );
 
-      expect(result).toEqual({ id: "msg-1", created: true });
-      const insertSql = String(runWebappPgTextMock.mock.calls[1]?.[0] ?? "");
-      expect(insertSql).toContain("organization_id");
+      expect(result).toEqual({ id: 'msg-1', created: true });
+      const insertSql = String(runWebappPgTextMock.mock.calls[1]?.[0] ?? '');
+      expect(insertSql).toContain('organization_id');
       expect(runWebappPgTextMock.mock.calls[1]?.[1]?.[0]).toBe(orgId);
       expect(runWebappPgTextMock.mock.calls[2]?.[1]?.[2]).toBe(orgId);
     });
 
-    it("uses the bounded current-patient capability after inserting an own message", async () => {
-      const orgId = "10000000-0000-4000-8000-000000000001";
-      const patientUserId = "00000000-0000-4000-8000-000000000111";
+    it('uses the bounded current-patient capability after inserting an own message', async () => {
+      const orgId = '10000000-0000-4000-8000-000000000001';
+      const patientUserId = '00000000-0000-4000-8000-000000000111';
       runWebappPgTextMock
-        .mockResolvedValueOnce({ rows: [{ organization_id: orgId, status: "open", closed_at: null }] })
-        .mockResolvedValueOnce({ rows: [{ id: "00000000-0000-4000-8000-000000000333" }] })
+        .mockResolvedValueOnce({
+          rows: [{ organization_id: orgId, status: 'open', closed_at: null }],
+        })
+        .mockResolvedValueOnce({ rows: [{ id: '00000000-0000-4000-8000-000000000333' }] })
         .mockResolvedValueOnce({ rows: [{ touched: true }] });
 
       const port = createPgSupportCommunicationPort();
       await expect(
         runWithDbPatientPrincipal({ organizationId: orgId, platformUserId: patientUserId }, () =>
           port.appendWebappMessage({
-            conversationId: "00000000-0000-4000-8000-000000000222",
-            integratorMessageId: "webapp-msg:patient-1",
-            senderRole: "user",
-            text: "hello",
-            source: "webapp",
+            conversationId: '00000000-0000-4000-8000-000000000222',
+            integratorMessageId: 'webapp-msg:patient-1',
+            senderRole: 'user',
+            text: 'hello',
+            source: 'webapp',
             createdAt: TS,
           }),
         ),
       ).resolves.toEqual({
-        id: "00000000-0000-4000-8000-000000000333",
+        id: '00000000-0000-4000-8000-000000000333',
         created: true,
       });
 
-      const activitySql = String(runWebappPgTextMock.mock.calls[2]?.[0] ?? "");
-      expect(activitySql).toContain("app.touch_current_patient_support_conversation_activity");
-      expect(activitySql).not.toContain("UPDATE support_conversations");
+      const activitySql = String(runWebappPgTextMock.mock.calls[2]?.[0] ?? '');
+      expect(activitySql).toContain('app.touch_current_patient_support_conversation_activity');
+      expect(activitySql).not.toContain('UPDATE support_conversations');
       expect(runWebappPgTextMock.mock.calls[2]?.[1]).toEqual([
-        "00000000-0000-4000-8000-000000000333",
+        '00000000-0000-4000-8000-000000000333',
       ]);
     });
 
-    it("rejects the patient message transaction when the bounded activity capability refuses it", async () => {
-      const orgId = "10000000-0000-4000-8000-000000000001";
-      const patientUserId = "00000000-0000-4000-8000-000000000111";
+    it('rejects the patient message transaction when the bounded activity capability refuses it', async () => {
+      const orgId = '10000000-0000-4000-8000-000000000001';
+      const patientUserId = '00000000-0000-4000-8000-000000000111';
       runWebappPgTextMock
-        .mockResolvedValueOnce({ rows: [{ organization_id: orgId, status: "open", closed_at: null }] })
-        .mockResolvedValueOnce({ rows: [{ id: "00000000-0000-4000-8000-000000000333" }] })
+        .mockResolvedValueOnce({
+          rows: [{ organization_id: orgId, status: 'open', closed_at: null }],
+        })
+        .mockResolvedValueOnce({ rows: [{ id: '00000000-0000-4000-8000-000000000333' }] })
         .mockResolvedValueOnce({ rows: [{ touched: false }] });
 
       const port = createPgSupportCommunicationPort();
       await expect(
         runWithDbPatientPrincipal({ organizationId: orgId, platformUserId: patientUserId }, () =>
           port.appendWebappMessage({
-            conversationId: "00000000-0000-4000-8000-000000000222",
-            integratorMessageId: "webapp-msg:patient-2",
-            senderRole: "user",
-            text: "hello",
-            source: "webapp",
+            conversationId: '00000000-0000-4000-8000-000000000222',
+            integratorMessageId: 'webapp-msg:patient-2',
+            senderRole: 'user',
+            text: 'hello',
+            source: 'webapp',
             createdAt: TS,
           }),
         ),
-      ).rejects.toThrow("patient_support_conversation_activity_rejected");
+      ).rejects.toThrow('patient_support_conversation_activity_rejected');
     });
 
-    it("rejects a patient send to an inactive conversation before message insertion", async () => {
-      const orgId = "10000000-0000-4000-8000-000000000001";
-      const patientUserId = "00000000-0000-4000-8000-000000000111";
+    it('rejects a patient send to an inactive conversation before message insertion', async () => {
+      const orgId = '10000000-0000-4000-8000-000000000001';
+      const patientUserId = '00000000-0000-4000-8000-000000000111';
       runWebappPgTextMock.mockResolvedValueOnce({
-        rows: [{ organization_id: orgId, status: "closed", closed_at: TS }],
+        rows: [{ organization_id: orgId, status: 'closed', closed_at: TS }],
       });
 
       const port = createPgSupportCommunicationPort();
       await expect(
         runWithDbPatientPrincipal({ organizationId: orgId, platformUserId: patientUserId }, () =>
           port.appendWebappMessage({
-            conversationId: "00000000-0000-4000-8000-000000000222",
-            integratorMessageId: "webapp-msg:patient-closed",
-            senderRole: "user",
-            text: "hello",
-            source: "webapp",
+            conversationId: '00000000-0000-4000-8000-000000000222',
+            integratorMessageId: 'webapp-msg:patient-closed',
+            senderRole: 'user',
+            text: 'hello',
+            source: 'webapp',
             createdAt: TS,
           }),
         ),
-      ).rejects.toThrow("patient_support_conversation_inactive");
+      ).rejects.toThrow('patient_support_conversation_inactive');
 
       expect(runWebappPgTextMock).toHaveBeenCalledTimes(1);
-      expect(String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "")).toContain(
-        "SELECT organization_id, status, closed_at::text",
+      expect(String(runWebappPgTextMock.mock.calls[0]?.[0] ?? '')).toContain(
+        'SELECT organization_id, status, closed_at::text',
       );
     });
 
-    it("marks only messages already stamped with the trusted conversation organization", async () => {
-      const orgId = "10000000-0000-4000-8000-000000000001";
+    it('marks only messages already stamped with the trusted conversation organization', async () => {
+      const orgId = '10000000-0000-4000-8000-000000000001';
       runWebappPgTextMock
         .mockResolvedValueOnce({ rows: [{ organization_id: orgId }] })
         .mockResolvedValueOnce({ rows: [], rowCount: 1 })
@@ -545,26 +555,26 @@ describe("createPgSupportCommunicationPort", () => {
 
       const port = createPgSupportCommunicationPort();
       await runWithDbOrganizationPrincipal(orgId, () =>
-        port.markUserMessagesReadByAdmin("00000000-0000-4000-8000-000000000222"),
+        port.markUserMessagesReadByAdmin('00000000-0000-4000-8000-000000000222'),
       );
 
-      const markSql = String(runWebappPgTextMock.mock.calls[2]?.[0] ?? "");
-      expect(markSql).toContain("organization_id = $2::uuid");
+      const markSql = String(runWebappPgTextMock.mock.calls[2]?.[0] ?? '');
+      expect(markSql).toContain('organization_id = $2::uuid');
       expect(runWebappPgTextMock.mock.calls[2]?.[1]).toEqual([
-        "00000000-0000-4000-8000-000000000222",
+        '00000000-0000-4000-8000-000000000222',
         orgId,
       ]);
     });
   });
 
-  describe("mergeLegacySupportConversationsForPlatformUser", () => {
+  describe('mergeLegacySupportConversationsForPlatformUser', () => {
     it("does not merge another tenant's thread while an organization principal is active", async () => {
       const port = createPgSupportCommunicationPort();
 
       await expect(
-        runWithDbOrganizationPrincipal("10000000-0000-4000-8000-000000000001", () =>
+        runWithDbOrganizationPrincipal('10000000-0000-4000-8000-000000000001', () =>
           port.mergeLegacySupportConversationsForPlatformUser!(
-            "00000000-0000-4000-8000-000000000111",
+            '00000000-0000-4000-8000-000000000111',
           ),
         ),
       ).resolves.toEqual({ mergedConversationCount: 0, movedMessageCount: 0 });
@@ -573,7 +583,7 @@ describe("createPgSupportCommunicationPort", () => {
       expect(runMergeLegacySupportConversationsMock).not.toHaveBeenCalled();
     });
 
-    it("runs legacy merge in a shared transaction helper", async () => {
+    it('runs legacy merge in a shared transaction helper', async () => {
       const client = {
         query: vi.fn().mockResolvedValue({ rows: [] }),
         release: vi.fn(),
@@ -590,7 +600,7 @@ describe("createPgSupportCommunicationPort", () => {
       const port = createPgSupportCommunicationPort();
       expect(port.mergeLegacySupportConversationsForPlatformUser).toBeDefined();
       const result = await port.mergeLegacySupportConversationsForPlatformUser!(
-        "00000000-0000-4000-8000-000000000001",
+        '00000000-0000-4000-8000-000000000001',
       );
 
       expect(result).toEqual({
@@ -598,17 +608,17 @@ describe("createPgSupportCommunicationPort", () => {
         movedMessageCount: 2,
       });
       expect(pool.connect).toHaveBeenCalledTimes(1);
-      expect(client.query).toHaveBeenCalledWith("BEGIN");
-      expect(client.query).toHaveBeenCalledWith("COMMIT");
-      expect(client.query).not.toHaveBeenCalledWith("ROLLBACK");
+      expect(client.query).toHaveBeenCalledWith('BEGIN');
+      expect(client.query).toHaveBeenCalledWith('COMMIT');
+      expect(client.query).not.toHaveBeenCalledWith('ROLLBACK');
       expect(client.release).toHaveBeenCalledTimes(1);
       expect(runMergeLegacySupportConversationsMock).toHaveBeenCalledWith(
         client,
-        "00000000-0000-4000-8000-000000000001",
+        '00000000-0000-4000-8000-000000000001',
       );
     });
 
-    it("rolls back when legacy merge fails", async () => {
+    it('rolls back when legacy merge fails', async () => {
       const client = {
         query: vi.fn().mockResolvedValue({ rows: [] }),
         release: vi.fn(),
@@ -617,19 +627,19 @@ describe("createPgSupportCommunicationPort", () => {
         connect: vi.fn().mockResolvedValue(client),
       };
       getPoolMock.mockReturnValue(pool);
-      runMergeLegacySupportConversationsMock.mockRejectedValue(new Error("merge failed"));
+      runMergeLegacySupportConversationsMock.mockRejectedValue(new Error('merge failed'));
 
       const port = createPgSupportCommunicationPort();
       expect(port.mergeLegacySupportConversationsForPlatformUser).toBeDefined();
       await expect(
         port.mergeLegacySupportConversationsForPlatformUser!(
-          "00000000-0000-4000-8000-000000000001",
+          '00000000-0000-4000-8000-000000000001',
         ),
-      ).rejects.toThrow("merge failed");
+      ).rejects.toThrow('merge failed');
 
-      expect(client.query).toHaveBeenCalledWith("BEGIN");
-      expect(client.query).toHaveBeenCalledWith("ROLLBACK");
-      expect(client.query).not.toHaveBeenCalledWith("COMMIT");
+      expect(client.query).toHaveBeenCalledWith('BEGIN');
+      expect(client.query).toHaveBeenCalledWith('ROLLBACK');
+      expect(client.query).not.toHaveBeenCalledWith('COMMIT');
       expect(client.release).toHaveBeenCalledTimes(1);
     });
   });

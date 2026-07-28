@@ -1,10 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from 'next/server';
 import {
   MESSENGER_SURFACE_COOKIE_NAME,
   PLATFORM_COOKIE_NAME,
   PLATFORM_COOKIE_MAX_AGE,
   type MessengerSurfaceHint,
-} from "@/shared/lib/platform";
+} from '@/shared/lib/platform';
 
 export type PlatformContextHandlerOptions = {
   /** Для тестов; по умолчанию `process.env.NODE_ENV === "production"`. */
@@ -12,22 +12,22 @@ export type PlatformContextHandlerOptions = {
 };
 
 export type MiddlewareEntryHint =
-  | "token_exchange"
-  | "telegram_miniapp"
-  | "max_miniapp"
-  | "browser_interactive";
+  | 'token_exchange'
+  | 'telegram_miniapp'
+  | 'max_miniapp'
+  | 'browser_interactive';
 
 /** Снимает завершающие `/` для сравнения канонических путей (`/app/` → `/app`). */
 export function normalizeWebappEntryPathname(pathname: string): string {
   if (pathname.length <= 1) return pathname;
-  const trimmed = pathname.replace(/\/+$/, "");
-  return trimmed.length > 0 ? trimmed : "/";
+  const trimmed = pathname.replace(/\/+$/, '');
+  return trimmed.length > 0 ? trimmed : '/';
 }
 
 function messengerSurfaceForCanonicalEntryPath(pathname: string): MessengerSurfaceHint | null {
   const path = normalizeWebappEntryPathname(pathname);
-  if (path === "/app/max") return "max";
-  if (path === "/app/tg") return "telegram";
+  if (path === '/app/max') return 'max';
+  if (path === '/app/tg') return 'telegram';
   return null;
 }
 
@@ -37,22 +37,22 @@ export function setMessengerPlatformCookies(
   surface: MessengerSurfaceHint,
   opts?: PlatformContextHandlerOptions,
 ): void {
-  const isProd = opts?.isProduction ?? process.env.NODE_ENV === "production";
+  const isProd = opts?.isProduction ?? process.env.NODE_ENV === 'production';
   response.cookies.set({
     name: PLATFORM_COOKIE_NAME,
-    value: "bot",
-    path: "/",
+    value: 'bot',
+    path: '/',
     maxAge: PLATFORM_COOKIE_MAX_AGE,
-    sameSite: isProd ? "none" : "lax",
+    sameSite: isProd ? 'none' : 'lax',
     secure: isProd,
     httpOnly: false,
   });
   response.cookies.set({
     name: MESSENGER_SURFACE_COOKIE_NAME,
     value: surface,
-    path: "/",
+    path: '/',
     maxAge: PLATFORM_COOKIE_MAX_AGE,
-    sameSite: isProd ? "none" : "lax",
+    sameSite: isProd ? 'none' : 'lax',
     secure: isProd,
     httpOnly: false,
   });
@@ -69,7 +69,7 @@ export function applyMessengerEntryPathCookies(
 ): void {
   const surface = messengerSurfaceForCanonicalEntryPath(request.nextUrl.pathname);
   if (!surface) return;
-  if (request.cookies.get(PLATFORM_COOKIE_NAME)?.value === "bot") return;
+  if (request.cookies.get(PLATFORM_COOKIE_NAME)?.value === 'bot') return;
   setMessengerPlatformCookies(response, surface, opts);
 }
 
@@ -82,22 +82,22 @@ export function handlePlatformContextRequest(
   request: NextRequest,
   opts?: PlatformContextHandlerOptions,
 ): NextResponse {
-  const ctx = request.nextUrl.searchParams.get("ctx")?.trim();
-  if (ctx !== "bot" && ctx !== "max") {
+  const ctx = request.nextUrl.searchParams.get('ctx')?.trim();
+  if (ctx !== 'bot' && ctx !== 'max') {
     return NextResponse.next();
   }
 
   const url = request.nextUrl.clone();
-  url.searchParams.delete("ctx");
-  if (ctx === "max") {
+  url.searchParams.delete('ctx');
+  if (ctx === 'max') {
     const normalizedPath = normalizeWebappEntryPathname(request.nextUrl.pathname);
-    if (normalizedPath === "/app") {
-      url.pathname = "/app/max";
+    if (normalizedPath === '/app') {
+      url.pathname = '/app/max';
     }
   }
 
   const response = NextResponse.redirect(url);
-  const surface: MessengerSurfaceHint = ctx === "max" ? "max" : "telegram";
+  const surface: MessengerSurfaceHint = ctx === 'max' ? 'max' : 'telegram';
   setMessengerPlatformCookies(response, surface, opts);
   return response;
 }
@@ -109,18 +109,22 @@ export function handlePlatformContextRequest(
  */
 export function classifyEntryHintFromRequest(request: NextRequest): MiddlewareEntryHint {
   const path = normalizeWebappEntryPathname(request.nextUrl.pathname);
-  if (path === "/app/max") {
-    return "max_miniapp";
+  if (path === '/app/max') {
+    return 'max_miniapp';
   }
-  if (path === "/app/tg") {
-    return "telegram_miniapp";
+  if (path === '/app/tg') {
+    return 'telegram_miniapp';
   }
-  const token = (request.nextUrl.searchParams.get("t") ?? request.nextUrl.searchParams.get("token") ?? "").trim();
-  const platformCookie = request.cookies.get(PLATFORM_COOKIE_NAME)?.value === "bot";
+  const token = (
+    request.nextUrl.searchParams.get('t') ??
+    request.nextUrl.searchParams.get('token') ??
+    ''
+  ).trim();
+  const platformCookie = request.cookies.get(PLATFORM_COOKIE_NAME)?.value === 'bot';
   const surfaceCookie = request.cookies.get(MESSENGER_SURFACE_COOKIE_NAME)?.value;
   if (platformCookie) {
-    return surfaceCookie === "max" ? "max_miniapp" : "telegram_miniapp";
+    return surfaceCookie === 'max' ? 'max_miniapp' : 'telegram_miniapp';
   }
-  if (token.length > 0) return "token_exchange";
-  return "browser_interactive";
+  if (token.length > 0) return 'token_exchange';
+  return 'browser_interactive';
 }

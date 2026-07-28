@@ -1,24 +1,24 @@
-import type { Pool } from "pg";
+import type { Pool } from 'pg';
 import {
   buildDbPrincipalApplyOptionsFromEnv,
   runWithDbBootstrapPrincipal,
-} from "@bersoncare/db-principal";
-import { env } from "@/config/env";
+} from '@bersoncare/db-principal';
+import { env } from '@/config/env';
 import {
   createConfigReaderPoolProvider,
   type ConfigReaderPoolProvider,
-} from "@/infra/db/configReaderPoolProvider";
-import { withPoolClient } from "@/infra/db/withClient";
+} from '@/infra/db/configReaderPoolProvider';
+import { withPoolClient } from '@/infra/db/withClient';
 import {
   createWebappPoolProvider,
   getWebappPoolRoutingMetrics,
   type WebappPoolRoutingMetrics,
-} from "@/infra/db/webappPoolProvider";
+} from '@/infra/db/webappPoolProvider';
 
-export const DATABASE_URL_STAFF_ENV = "DATABASE_URL_STAFF";
-export const DATABASE_URL_NONSTAFF_ENV = "DATABASE_URL_NONSTAFF";
-export const DATABASE_URL_WEB_PUSH_REMINDER_ENV = "DATABASE_URL_WEB_PUSH_REMINDER";
-export const DATABASE_URL_CONFIG_READER_ENV = "DATABASE_URL_CONFIG_READER";
+export const DATABASE_URL_STAFF_ENV = 'DATABASE_URL_STAFF';
+export const DATABASE_URL_NONSTAFF_ENV = 'DATABASE_URL_NONSTAFF';
+export const DATABASE_URL_WEB_PUSH_REMINDER_ENV = 'DATABASE_URL_WEB_PUSH_REMINDER';
+export const DATABASE_URL_CONFIG_READER_ENV = 'DATABASE_URL_CONFIG_READER';
 
 let pool: Pool | null = null;
 let configReaderPool: ConfigReaderPoolProvider | null = null;
@@ -31,7 +31,7 @@ type WebappRuntimeDatabaseEnv = {
 };
 
 function trimOptionalEnv(value: string | undefined): string {
-  return (value ?? "").trim();
+  return (value ?? '').trim();
 }
 
 export function resolveWebappPoolProviderConfig(
@@ -44,7 +44,7 @@ export function resolveWebappPoolProviderConfig(
 
   if (!staffConnectionString && !nonstaffConnectionString && !webPushReminderConnectionString) {
     if (!legacyConnectionString) {
-      throw new Error("DATABASE_URL is not set");
+      throw new Error('DATABASE_URL is not set');
     }
     return { connectionString: legacyConnectionString };
   }
@@ -53,7 +53,7 @@ export function resolveWebappPoolProviderConfig(
   const resolvedNonstaffConnectionString = nonstaffConnectionString || legacyConnectionString;
   if (!resolvedStaffConnectionString || !resolvedNonstaffConnectionString) {
     throw new Error(
-      "DATABASE_URL_STAFF and DATABASE_URL_NONSTAFF must both be set, or DATABASE_URL must be set as fallback",
+      'DATABASE_URL_STAFF and DATABASE_URL_NONSTAFF must both be set, or DATABASE_URL must be set as fallback',
     );
   }
 
@@ -75,7 +75,9 @@ function readWebappRuntimeDatabaseEnv(): WebappRuntimeDatabaseEnv {
 }
 
 export function getPool(): Pool {
-  pool ??= createWebappPoolProvider(resolveWebappPoolProviderConfig(readWebappRuntimeDatabaseEnv()));
+  pool ??= createWebappPoolProvider(
+    resolveWebappPoolProviderConfig(readWebappRuntimeDatabaseEnv()),
+  );
 
   return pool;
 }
@@ -105,9 +107,9 @@ export async function checkDbHealth(): Promise<boolean> {
     return false;
   }
   try {
-    return await runWithDbBootstrapPrincipal({ source: "webapp-health-check" }, () =>
+    return await runWithDbBootstrapPrincipal({ source: 'webapp-health-check' }, () =>
       withPoolClient(getPool(), async (client) => {
-        await client.query("select 1");
+        await client.query('select 1');
         return true;
       }),
     );

@@ -45,11 +45,10 @@ None.
   `pnpm --dir apps/webapp exec vitest run src/modules/patient-home/patientHomeBlockPolicy.test.ts src/modules/patient-home/patientHomeReminderPick.test.ts src/modules/patient-home/patientHomeResolvers.test.ts src/app/app/patient/home/PatientHomeSituationsRow.test.tsx src/app/app/patient/home/PatientHomeSubscriptionCarousel.test.tsx src/app/app/patient/home/PatientHomeBookingCard.test.tsx src/app/app/patient/home/PatientHomeSosCard.test.tsx src/modules/patient-home/todayConfig.test.ts`
 
 - Result:
-
   - `Test Files 8 passed (8)`
   - `Tests 26 passed (26)`
 
-*(Полный `pnpm test:webapp` не перезапускался в этом аудите; в [`LOG.md`](docs/PATIENT_HOME_REDESIGN_INITIATIVE/LOG.md) Phase 3 зафиксирован зелёный прогон.)*
+_(Полный `pnpm test:webapp` не перезапускался в этом аудите; в [`LOG.md`](docs/PATIENT_HOME_REDESIGN_INITIATIVE/LOG.md) Phase 3 зафиксирован зелёный прогон.)_
 
 ## 5. Explicit confirmation — no `CONTENT_PLAN.md` slug hardcode
 

@@ -5,14 +5,16 @@ import { defineIntegrationConfig, loadIntegrationEnv } from '../config.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-const SmscConfigSchema = z.object({
-  enabled: z.boolean(),
-  apiKey: z.string(),
-  baseUrl: z.string().url().or(z.literal('')),
-}).refine(
-  (data) => !data.enabled || data.baseUrl.length > 0,
-  { message: 'When SMSC is enabled, baseUrl is required', path: ['baseUrl'] },
-);
+const SmscConfigSchema = z
+  .object({
+    enabled: z.boolean(),
+    apiKey: z.string(),
+    baseUrl: z.string().url().or(z.literal('')),
+  })
+  .refine((data) => !data.enabled || data.baseUrl.length > 0, {
+    message: 'When SMSC is enabled, baseUrl is required',
+    path: ['baseUrl'],
+  });
 
 function loadSmscConfigFromEnv(): z.input<typeof SmscConfigSchema> {
   loadIntegrationEnv(__dirname, 'SMSC_');

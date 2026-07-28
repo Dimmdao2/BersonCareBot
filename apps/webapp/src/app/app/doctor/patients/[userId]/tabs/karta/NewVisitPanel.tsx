@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 /**
  * NewVisitPanel — «+ Новый визит» form wired to the real clinical backend.
@@ -19,22 +19,26 @@
  *   - canonical appointment id sent on save when created from a booking.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import type { ActiveComplaint, ActiveDiagnosis, DiagnosisCatalogSuggestion } from "@/modules/patient-clinical/ports";
-import type { PatientAppointmentItem } from "@/modules/doctor-clients/ports";
-import { cn } from "@/lib/utils";
-import { DoctorDatePicker } from "@/shared/ui/doctor/DoctorDatePicker";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
-import { Checkbox } from "@/shared/ui/doctor/primitives/checkbox";
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type {
+  ActiveComplaint,
+  ActiveDiagnosis,
+  DiagnosisCatalogSuggestion,
+} from '@/modules/patient-clinical/ports';
+import type { PatientAppointmentItem } from '@/modules/doctor-clients/ports';
+import { cn } from '@/lib/utils';
+import { DoctorDatePicker } from '@/shared/ui/doctor/DoctorDatePicker';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
+import { Checkbox } from '@/shared/ui/doctor/primitives/checkbox';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/ui/doctor/primitives/select";
+} from '@/shared/ui/doctor/primitives/select';
 import {
   Dialog,
   DialogContent,
@@ -42,14 +46,14 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/shared/ui/doctor/primitives/dialog";
-import { VisitCatalogTextarea } from "./VisitCatalogTextarea";
+} from '@/shared/ui/doctor/primitives/dialog';
+import { VisitCatalogTextarea } from './VisitCatalogTextarea';
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-type VisitType = "first" | "repeat";
+type VisitType = 'first' | 'repeat';
 
 type FormComplaintEntry = {
   id: string;
@@ -100,16 +104,16 @@ type LocationAvailabilityEntry = {
 // ---------------------------------------------------------------------------
 
 function toIsoDate(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 // ---------------------------------------------------------------------------
 // Shared style constants
 // ---------------------------------------------------------------------------
 
-const fieldLabelClass = "text-xs font-semibold text-foreground";
-const hintClass = "text-xs text-muted-foreground";
-const ONLINE_LOCATION = "Онлайн";
+const fieldLabelClass = 'text-xs font-semibold text-foreground';
+const hintClass = 'text-xs text-muted-foreground';
+const ONLINE_LOCATION = 'Онлайн';
 
 type LocationSourceAppointment = {
   location?: string;
@@ -128,10 +132,10 @@ export function buildVisitLocationOptions(
 ): string[] {
   const catalogLocations = branches
     .filter((b) => b.isActive)
-    .flatMap((b) => [b.title, b.shortTitle ?? ""])
+    .flatMap((b) => [b.title, b.shortTitle ?? ''])
     .filter(Boolean);
   const appointmentLocations = appointments
-    .map((a) => a.branchName ?? a.location ?? "")
+    .map((a) => a.branchName ?? a.location ?? '')
     .filter(Boolean);
   return Array.from(new Set([...catalogLocations, ...appointmentLocations, ONLINE_LOCATION]));
 }
@@ -145,10 +149,13 @@ function PriorityFlag({ on, onToggle }: { on: boolean; onToggle: () => void }) {
     <Button
       type="button"
       onClick={onToggle}
-      title={on ? "Приоритет: вкл" : "Приоритет: выкл"}
+      title={on ? 'Приоритет: вкл' : 'Приоритет: выкл'}
       variant="ghost"
       size="icon-xs"
-      className={cn("flex-none text-sm leading-none", on ? "text-primary" : "text-muted-foreground")}
+      className={cn(
+        'flex-none text-sm leading-none',
+        on ? 'text-primary' : 'text-muted-foreground',
+      )}
     >
       ⚑
     </Button>
@@ -158,7 +165,7 @@ function PriorityFlag({ on, onToggle }: { on: boolean; onToggle: () => void }) {
 function FormTextarea({
   label,
   placeholder,
-  minH = "min-h-[38px]",
+  minH = 'min-h-[38px]',
   value,
   onChange,
 }: {
@@ -192,7 +199,7 @@ function DiagnosisAutocomplete({
   userId: string;
   onSelect: (entry: FormDiagnosisEntry) => void;
 }) {
-  const [draft, setDraft] = useState("");
+  const [draft, setDraft] = useState('');
   const [suggestions, setSuggestions] = useState<DiagnosisCatalogSuggestion[]>([]);
   const [loading, setLoading] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -205,7 +212,9 @@ function DiagnosisAutocomplete({
       }
       setLoading(true);
       fetch(`/api/doctor/patients/${userId}/diagnosis-catalog?q=${encodeURIComponent(q)}`)
-        .then((r) => r.json() as Promise<{ ok: boolean; suggestions: DiagnosisCatalogSuggestion[] }>)
+        .then(
+          (r) => r.json() as Promise<{ ok: boolean; suggestions: DiagnosisCatalogSuggestion[] }>,
+        )
         .then((data) => {
           setSuggestions(data.suggestions ?? []);
         })
@@ -227,9 +236,9 @@ function DiagnosisAutocomplete({
       priority: false,
       text: s.label,
       catalogId: s.id,
-      comment: "",
+      comment: '',
     });
-    setDraft("");
+    setDraft('');
     setSuggestions([]);
   };
 
@@ -238,8 +247,8 @@ function DiagnosisAutocomplete({
     if (!label) return;
     try {
       const r = await fetch(`/api/doctor/patients/${userId}/diagnosis-catalog`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ label }),
       });
       if (!r.ok) throw new Error(`status ${r.status}`);
@@ -249,9 +258,9 @@ function DiagnosisAutocomplete({
         priority: false,
         text: data.entry.label,
         catalogId: data.entry.id,
-        comment: "",
+        comment: '',
       });
-      setDraft("");
+      setDraft('');
       setSuggestions([]);
     } catch {
       // silently ignore
@@ -274,7 +283,10 @@ function DiagnosisAutocomplete({
         />
         <Button
           type="button"
-          onClick={() => { setDraft(""); setSuggestions([]); }}
+          onClick={() => {
+            setDraft('');
+            setSuggestions([]);
+          }}
           variant="ghost"
           size="icon-xs"
           className="flex-none text-sm text-muted-foreground"
@@ -287,22 +299,23 @@ function DiagnosisAutocomplete({
           {loading && (
             <div className="px-2.5 py-1.5 text-xs text-muted-foreground animate-pulse">Поиск…</div>
           )}
-          {!loading && suggestions.map((s, idx) => (
-            <Button
-              type="button"
-              key={s.id}
-              onClick={() => handleSelect(s)}
-              variant="ghost"
-              className={cn(
-                "flex w-full items-center gap-1 px-2.5 py-1.5 text-left h-auto rounded-none hover:bg-primary/10",
-                idx === 0 && "bg-primary/10",
-                idx > 0 && "border-t border-border",
-              )}
-            >
-              <span className="font-semibold text-foreground">{s.label}</span>
-              {s.note && <span className={hintClass}>· {s.note}</span>}
-            </Button>
-          ))}
+          {!loading &&
+            suggestions.map((s, idx) => (
+              <Button
+                type="button"
+                key={s.id}
+                onClick={() => handleSelect(s)}
+                variant="ghost"
+                className={cn(
+                  'flex w-full items-center gap-1 px-2.5 py-1.5 text-left h-auto rounded-none hover:bg-primary/10',
+                  idx === 0 && 'bg-primary/10',
+                  idx > 0 && 'border-t border-border',
+                )}
+              >
+                <span className="font-semibold text-foreground">{s.label}</span>
+                {s.note && <span className={hintClass}>· {s.note}</span>}
+              </Button>
+            ))}
           <Button
             type="button"
             onClick={handleCreate}
@@ -331,24 +344,29 @@ function BookingInfoModal({
   onClose: () => void;
 }) {
   const dt = appointment.dateTime
-    ? new Date(appointment.dateTime).toLocaleString("ru-RU", {
-        day: "2-digit",
-        month: "long",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
+    ? new Date(appointment.dateTime).toLocaleString('ru-RU', {
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
       })
-    : "—";
+    : '—';
 
   const statusLabel: Record<string, string> = {
-    upcoming: "Предстоящая",
-    completed: "Состоялась",
-    rescheduled: "Перенесена",
-    canceled: "Отменена",
+    upcoming: 'Предстоящая',
+    completed: 'Состоялась',
+    rescheduled: 'Перенесена',
+    canceled: 'Отменена',
   };
 
   return (
-    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        if (!v) onClose();
+      }}
+    >
       <DialogContent showCloseButton={false}>
         <DialogHeader>
           <DialogTitle>Запись на приём</DialogTitle>
@@ -376,19 +394,15 @@ function BookingInfoModal({
               )}
               <span className="flex gap-2">
                 <span className="w-24 flex-none text-muted-foreground">ID записи</span>
-                <span className="break-all font-mono text-xs text-muted-foreground">{appointment.id}</span>
+                <span className="break-all font-mono text-xs text-muted-foreground">
+                  {appointment.id}
+                </span>
               </span>
             </span>
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button
-            type="button"
-            onClick={onClose}
-            variant="outline"
-            size="sm"
-            className="text-xs"
-          >
+          <Button type="button" onClick={onClose} variant="outline" size="sm" className="text-xs">
             Закрыть
           </Button>
         </DialogFooter>
@@ -433,7 +447,7 @@ export function NewVisitPanel({
   onClose: () => void;
   onSaved: () => void;
 }) {
-  const [visitType, setVisitType] = useState<VisitType>("repeat");
+  const [visitType, setVisitType] = useState<VisitType>('repeat');
 
   // Derive initial date from: pendingVisitDate prop > sourceAppointment.dateTime > today
   const [selectedDate, setSelectedDate] = useState(() => {
@@ -449,11 +463,11 @@ export function NewVisitPanel({
   const [selectedTime, setSelectedTime] = useState(() => {
     if (sourceAppointment?.dateTime) {
       const d = new Date(sourceAppointment.dateTime);
-      return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+      return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
     }
     const now = new Date();
-    const h = String(now.getHours()).padStart(2, "0");
-    const m = String(Math.round(now.getMinutes() / 5) * 5 % 60).padStart(2, "0");
+    const h = String(now.getHours()).padStart(2, '0');
+    const m = String((Math.round(now.getMinutes() / 5) * 5) % 60).padStart(2, '0');
     return `${h}:${m}`;
   });
 
@@ -463,10 +477,10 @@ export function NewVisitPanel({
     }
   }, [pendingVisitDate]);
 
-  const [location, setLocation] = useState(() => pendingLocation ?? "");
-  const [service, setService] = useState(() => pendingService ?? "");
+  const [location, setLocation] = useState(() => pendingLocation ?? '');
+  const [service, setService] = useState(() => pendingService ?? '');
   const [duration, setDuration] = useState(() =>
-    sourceAppointment?.durationMin ? String(sourceAppointment.durationMin) : "",
+    sourceAppointment?.durationMin ? String(sourceAppointment.durationMin) : '',
   );
   const initialHeaderRef = useRef({ selectedDate, selectedTime, location, service, duration });
 
@@ -517,61 +531,92 @@ export function NewVisitPanel({
     const snapshotService = pendingService;
 
     const apptsFetch = fetch(`/api/doctor/patients/${userId}/appointments`)
-      .then((r) => (r.ok ? (r.json() as Promise<{ appointments?: Array<{ location?: string; branchName?: string; serviceName?: string }> }>) : null))
+      .then((r) =>
+        r.ok
+          ? (r.json() as Promise<{
+              appointments?: Array<{
+                location?: string;
+                branchName?: string;
+                serviceName?: string;
+              }>;
+            }>)
+          : null,
+      )
       .catch(() => null);
 
     const servicesFetch = fetch(`/api/doctor/booking-engine/services`)
-      .then((r) => (r.ok ? (r.json() as Promise<{
-        ok: boolean;
-        services?: Array<{ id: string; title: string; isActive: boolean; durationMinutes?: number | null }>;
-        locationAvailability?: Array<{ serviceId: string; branchId: string; isActive: boolean }>;
-      }>) : null))
+      .then((r) =>
+        r.ok
+          ? (r.json() as Promise<{
+              ok: boolean;
+              services?: Array<{
+                id: string;
+                title: string;
+                isActive: boolean;
+                durationMinutes?: number | null;
+              }>;
+              locationAvailability?: Array<{
+                serviceId: string;
+                branchId: string;
+                isActive: boolean;
+              }>;
+            }>)
+          : null,
+      )
       .catch(() => null);
 
     // Fetch branches to build name→id map
     const overviewFetch = fetch(`/api/doctor/booking-engine/overview`)
-      .then((r) => (r.ok ? (r.json() as Promise<{
-        ok: boolean;
-        branches?: Array<{ id: string; title: string; shortTitle: string | null; isActive: boolean }>;
-      }>) : null))
+      .then((r) =>
+        r.ok
+          ? (r.json() as Promise<{
+              ok: boolean;
+              branches?: Array<{
+                id: string;
+                title: string;
+                shortTitle: string | null;
+                isActive: boolean;
+              }>;
+            }>)
+          : null,
+      )
       .catch(() => null);
 
-    void Promise.all([apptsFetch, servicesFetch, overviewFetch]).then(([apptData, servicesData, overviewData]) => {
-      const appts = apptData?.appointments ?? [];
+    void Promise.all([apptsFetch, servicesFetch, overviewFetch]).then(
+      ([apptData, servicesData, overviewData]) => {
+        const appts = apptData?.appointments ?? [];
 
-      const uniqueLocations = buildVisitLocationOptions(
-        appts,
-        overviewData?.branches ?? [],
-      );
-      setLocationOptions(uniqueLocations);
+        const uniqueLocations = buildVisitLocationOptions(appts, overviewData?.branches ?? []);
+        setLocationOptions(uniqueLocations);
 
-      setAllServices(
-        (servicesData?.services ?? []).map((s) => ({
-          id: s.id,
-          title: s.title,
-          isActive: s.isActive,
-          durationMinutes: s.durationMinutes ?? null,
-        })),
-      );
-      setLocationAvailability(servicesData?.locationAvailability ?? []);
+        setAllServices(
+          (servicesData?.services ?? []).map((s) => ({
+            id: s.id,
+            title: s.title,
+            isActive: s.isActive,
+            durationMinutes: s.durationMinutes ?? null,
+          })),
+        );
+        setLocationAvailability(servicesData?.locationAvailability ?? []);
 
-      // Build branch name → id map from overview
-      const nameToId: Record<string, string> = {};
-      for (const b of (overviewData?.branches ?? [])) {
-        nameToId[b.title] = b.id;
-        if (b.shortTitle) nameToId[b.shortTitle] = b.id;
-      }
-      setBranchNameToId(nameToId);
-
-      // Pre-fill location from the most recent appointment (if not already set from source)
-      const latest = appts[0];
-      if (latest) {
-        if (!snapshotLocation && (latest.branchName ?? latest.location)) {
-          setLocation(latest.branchName ?? latest.location ?? "");
+        // Build branch name → id map from overview
+        const nameToId: Record<string, string> = {};
+        for (const b of overviewData?.branches ?? []) {
+          nameToId[b.title] = b.id;
+          if (b.shortTitle) nameToId[b.shortTitle] = b.id;
         }
-        if (!snapshotService && latest.serviceName) setService(latest.serviceName);
-      }
-    });
+        setBranchNameToId(nameToId);
+
+        // Pre-fill location from the most recent appointment (if not already set from source)
+        const latest = appts[0];
+        if (latest) {
+          if (!snapshotLocation && (latest.branchName ?? latest.location)) {
+            setLocation(latest.branchName ?? latest.location ?? '');
+          }
+          if (!snapshotService && latest.serviceName) setService(latest.serviceName);
+        }
+      },
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
@@ -590,15 +635,15 @@ export function NewVisitPanel({
 
   // ── FIRST VISIT state ─────────────────────────────────────────────────────
   const [firstComplaints, setFirstComplaints] = useState<FormComplaintEntry[]>([
-    { id: "fc_init", priority: false, text: "", description: "", severity: 0 },
+    { id: 'fc_init', priority: false, text: '', description: '', severity: 0 },
   ]);
   const [firstDiagnoses, setFirstDiagnoses] = useState<FormDiagnosisEntry[]>([]);
 
-  const [anamnesisText, setAnamnesisText] = useState("");
-  const [examFirst, setExamFirst] = useState("");
-  const [manipulationsFirst, setManipulationsFirst] = useState("");
-  const [trialResultsFirst, setTrialResultsFirst] = useState("");
-  const [recommendationsFirst, setRecommendationsFirst] = useState("");
+  const [anamnesisText, setAnamnesisText] = useState('');
+  const [examFirst, setExamFirst] = useState('');
+  const [manipulationsFirst, setManipulationsFirst] = useState('');
+  const [trialResultsFirst, setTrialResultsFirst] = useState('');
+  const [recommendationsFirst, setRecommendationsFirst] = useState('');
 
   // ── REPEAT VISIT state ────────────────────────────────────────────────────
   const [complaintUpdates, setComplaintUpdates] = useState<Record<string, RepeatComplaintUpdate>>(
@@ -606,7 +651,7 @@ export function NewVisitPanel({
       Object.fromEntries(
         activeComplaints.map((c) => [
           c.id,
-          { complaintId: c.id, note: "", severity: c.currentSeverity, resolved: false },
+          { complaintId: c.id, note: '', severity: c.currentSeverity, resolved: false },
         ]),
       ),
   );
@@ -614,16 +659,13 @@ export function NewVisitPanel({
   const [diagnosisUpdates, setDiagnosisUpdates] = useState<Record<string, RepeatDiagnosisUpdate>>(
     () =>
       Object.fromEntries(
-        activeDiagnoses.map((d) => [
-          d.id,
-          { diagnosisId: d.id, refinement: "", removed: false },
-        ]),
+        activeDiagnoses.map((d) => [d.id, { diagnosisId: d.id, refinement: '', removed: false }]),
       ),
   );
 
-  const [examRepeat, setExamRepeat] = useState("");
-  const [manipulationsRepeat, setManipulationsRepeat] = useState("");
-  const [recommendationsRepeat, setRecommendationsRepeat] = useState("");
+  const [examRepeat, setExamRepeat] = useState('');
+  const [manipulationsRepeat, setManipulationsRepeat] = useState('');
+  const [recommendationsRepeat, setRecommendationsRepeat] = useState('');
 
   const restoredComplaintDraftRef = useRef(false);
   const restoredDiagnosisDraftRef = useRef(false);
@@ -637,7 +679,7 @@ export function NewVisitPanel({
       Object.fromEntries(
         activeComplaints.map((c) => [
           c.id,
-          { complaintId: c.id, note: "", severity: c.currentSeverity, resolved: false },
+          { complaintId: c.id, note: '', severity: c.currentSeverity, resolved: false },
         ]),
       ),
     );
@@ -650,19 +692,16 @@ export function NewVisitPanel({
     }
     setDiagnosisUpdates(
       Object.fromEntries(
-        activeDiagnoses.map((d) => [
-          d.id,
-          { diagnosisId: d.id, refinement: "", removed: false },
-        ]),
+        activeDiagnoses.map((d) => [d.id, { diagnosisId: d.id, refinement: '', removed: false }]),
       ),
     );
   }, [activeDiagnoses]);
 
   useEffect(() => {
     if (activeComplaints.length === 0 && activeDiagnoses.length === 0) {
-      setVisitType("first");
+      setVisitType('first');
     } else {
-      setVisitType("repeat");
+      setVisitType('repeat');
     }
   }, [activeComplaints, activeDiagnoses]);
 
@@ -700,27 +739,26 @@ export function NewVisitPanel({
 
   const isDirty =
     headerDirty ||
-    anamnesisText.trim() !== "" ||
-    examFirst.trim() !== "" ||
-    manipulationsFirst.trim() !== "" ||
-    trialResultsFirst.trim() !== "" ||
-    recommendationsFirst.trim() !== "" ||
-    examRepeat.trim() !== "" ||
-    manipulationsRepeat.trim() !== "" ||
-    recommendationsRepeat.trim() !== "" ||
-    firstComplaints.some((c) => (
-      c.text.trim() !== "" ||
-      c.description.trim() !== "" ||
-      c.priority ||
-      c.severity !== 0
-    )) ||
+    anamnesisText.trim() !== '' ||
+    examFirst.trim() !== '' ||
+    manipulationsFirst.trim() !== '' ||
+    trialResultsFirst.trim() !== '' ||
+    recommendationsFirst.trim() !== '' ||
+    examRepeat.trim() !== '' ||
+    manipulationsRepeat.trim() !== '' ||
+    recommendationsRepeat.trim() !== '' ||
+    firstComplaints.some(
+      (c) => c.text.trim() !== '' || c.description.trim() !== '' || c.priority || c.severity !== 0,
+    ) ||
     firstDiagnoses.length > 0 ||
-    Object.values(complaintUpdates).some((u) => (
-      u.note.trim() !== "" ||
-      u.resolved ||
-      u.severity !== (activeComplaints.find((c) => c.id === u.complaintId)?.currentSeverity ?? u.severity)
-    )) ||
-    Object.values(diagnosisUpdates).some((u) => u.refinement.trim() !== "" || u.removed);
+    Object.values(complaintUpdates).some(
+      (u) =>
+        u.note.trim() !== '' ||
+        u.resolved ||
+        u.severity !==
+          (activeComplaints.find((c) => c.id === u.complaintId)?.currentSeverity ?? u.severity),
+    ) ||
+    Object.values(diagnosisUpdates).some((u) => u.refinement.trim() !== '' || u.removed);
 
   const draftRestoredRef = useRef(false);
   useEffect(() => {
@@ -728,7 +766,7 @@ export function NewVisitPanel({
     draftRestoredRef.current = true;
     if (pendingVisitDate ?? pendingLocation ?? pendingService) return;
     try {
-      const raw = typeof window !== "undefined" ? localStorage.getItem(draftKey) : null;
+      const raw = typeof window !== 'undefined' ? localStorage.getItem(draftKey) : null;
       if (!raw) return;
       const d = JSON.parse(raw) as VisitDraft;
       if (d.visitType) setVisitType(d.visitType);
@@ -810,12 +848,21 @@ export function NewVisitPanel({
     complaintUpdates,
     diagnosisUpdates,
     anamnesisText,
-    examFirst, manipulationsFirst, trialResultsFirst, recommendationsFirst,
-    examRepeat, manipulationsRepeat, recommendationsRepeat,
+    examFirst,
+    manipulationsFirst,
+    trialResultsFirst,
+    recommendationsFirst,
+    examRepeat,
+    manipulationsRepeat,
+    recommendationsRepeat,
   ]);
 
   const clearDraft = useCallback(() => {
-    try { localStorage.removeItem(draftKey); } catch { /* ignore */ }
+    try {
+      localStorage.removeItem(draftKey);
+    } catch {
+      /* ignore */
+    }
   }, [draftKey]);
 
   // ── Save ──────────────────────────────────────────────────────────────────
@@ -827,10 +874,10 @@ export function NewVisitPanel({
 
     // Client-side validation — required fields
     const missing: string[] = [];
-    if (!location.trim()) missing.push("Место приёма");
-    if (!service.trim()) missing.push("Услуга");
+    if (!location.trim()) missing.push('Место приёма');
+    if (!service.trim()) missing.push('Услуга');
     if (missing.length > 0) {
-      setSaveError(`Заполните обязательные поля: ${missing.join(", ")}`);
+      setSaveError(`Заполните обязательные поля: ${missing.join(', ')}`);
       return;
     }
 
@@ -851,7 +898,7 @@ export function NewVisitPanel({
         : {}),
     };
 
-    if (visitType === "first") {
+    if (visitType === 'first') {
       const validComplaints = firstComplaints.filter((c) => c.text.trim());
       if (validComplaints.length > 0) {
         body.complaints = validComplaints.map((c) => ({
@@ -876,7 +923,13 @@ export function NewVisitPanel({
       if (recommendationsFirst.trim()) body.recommendations = recommendationsFirst;
     } else {
       const cuList = Object.values(complaintUpdates)
-        .filter((u) => u.note.trim() || u.resolved || u.severity !== (activeComplaints.find((c) => c.id === u.complaintId)?.currentSeverity ?? u.severity))
+        .filter(
+          (u) =>
+            u.note.trim() ||
+            u.resolved ||
+            u.severity !==
+              (activeComplaints.find((c) => c.id === u.complaintId)?.currentSeverity ?? u.severity),
+        )
         .map((u) => ({
           complaintId: u.complaintId,
           note: u.note,
@@ -901,18 +954,18 @@ export function NewVisitPanel({
 
     try {
       const r = await fetch(`/api/doctor/patients/${userId}/visits`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
       if (!r.ok) {
-        const text = await r.text().catch(() => "");
-        throw new Error(`status ${r.status}${text ? `: ${text}` : ""}`);
+        const text = await r.text().catch(() => '');
+        throw new Error(`status ${r.status}${text ? `: ${text}` : ''}`);
       }
       clearDraft();
       onSaved();
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : "Ошибка сохранения");
+      setSaveError(err instanceof Error ? err.message : 'Ошибка сохранения');
     } finally {
       setSaving(false);
     }
@@ -922,7 +975,7 @@ export function NewVisitPanel({
   const addFirstComplaint = () =>
     setFirstComplaints((prev) => [
       ...prev,
-      { id: `fc${Date.now()}`, priority: false, text: "", description: "", severity: 0 },
+      { id: `fc${Date.now()}`, priority: false, text: '', description: '', severity: 0 },
     ]);
 
   const addFirstDiagnosis = (entry: FormDiagnosisEntry) =>
@@ -935,26 +988,29 @@ export function NewVisitPanel({
       <div className="flex flex-wrap items-center gap-2.5 border-b border-border bg-primary/10 px-3.5 py-2.5">
         <span className="text-sm font-semibold text-foreground">Новый визит</span>
         <span className="flex gap-1">
-          {(["first", "repeat"] as const).map((vt) => (
+          {(['first', 'repeat'] as const).map((vt) => (
             <Button
               key={vt}
               type="button"
               onClick={() => setVisitType(vt)}
               size="xs"
-              variant={visitType === vt ? "default" : "ghost"}
+              variant={visitType === vt ? 'default' : 'ghost'}
               className={cn(
-                "text-xs",
-                visitType !== vt && "text-muted-foreground hover:text-foreground",
+                'text-xs',
+                visitType !== vt && 'text-muted-foreground hover:text-foreground',
               )}
             >
-              {vt === "first" ? "Первичный" : "Повторный"}
+              {vt === 'first' ? 'Первичный' : 'Повторный'}
             </Button>
           ))}
         </span>
         <Button
           type="button"
           onClick={() => {
-            if (isDirty) { setCloseConfirmOpen(true); return; }
+            if (isDirty) {
+              setCloseConfirmOpen(true);
+              return;
+            }
             onClose();
           }}
           title="Закрыть"
@@ -980,11 +1036,13 @@ export function NewVisitPanel({
             <Select
               value={location}
               onValueChange={(v) => {
-                if (v === "__other__") { setLocationOther(true); setLocation(""); }
-                else {
-                  setLocation(v ?? "");
+                if (v === '__other__') {
+                  setLocationOther(true);
+                  setLocation('');
+                } else {
+                  setLocation(v ?? '');
                   // When branch changes, reset service if it's no longer available
-                  setService("");
+                  setService('');
                   setServiceOther(false);
                 }
               }}
@@ -994,7 +1052,11 @@ export function NewVisitPanel({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="">— место приёма —</SelectItem>
-                {locationOptions.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                {locationOptions.map((o) => (
+                  <SelectItem key={o} value={o}>
+                    {o}
+                  </SelectItem>
+                ))}
                 <SelectItem value="__other__">Другое...</SelectItem>
               </SelectContent>
             </Select>
@@ -1012,9 +1074,11 @@ export function NewVisitPanel({
             <Select
               value={service}
               onValueChange={(v) => {
-                if (v === "__other__") { setServiceOther(true); setService(""); }
-                else {
-                  const next = v ?? "";
+                if (v === '__other__') {
+                  setServiceOther(true);
+                  setService('');
+                } else {
+                  const next = v ?? '';
                   setService(next);
                   const selected = allServices.find((s) => s.title === next);
                   if (selected?.durationMinutes) setDuration(String(selected.durationMinutes));
@@ -1026,7 +1090,11 @@ export function NewVisitPanel({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="">— услуга —</SelectItem>
-                {servicesForCurrentBranch.map((o) => <SelectItem key={o.id} value={o.title}>{o.title}</SelectItem>)}
+                {servicesForCurrentBranch.map((o) => (
+                  <SelectItem key={o.id} value={o.title}>
+                    {o.title}
+                  </SelectItem>
+                ))}
                 <SelectItem value="__other__">Другое...</SelectItem>
               </SelectContent>
             </Select>
@@ -1067,14 +1135,15 @@ export function NewVisitPanel({
 
       {/* Hint: source booking label */}
       {sourceAppointment ? (
-        <p className={cn(hintClass, "border-b border-border px-3.5 py-1.5")}>
-          Визит создаётся из записи{sourceAppointment.dateTime
-            ? ` от ${new Date(sourceAppointment.dateTime).toLocaleDateString("ru-RU", { day: "2-digit", month: "long" })}`
-            : ""}
-          {" "}· нажмите 📅 для просмотра деталей записи
+        <p className={cn(hintClass, 'border-b border-border px-3.5 py-1.5')}>
+          Визит создаётся из записи
+          {sourceAppointment.dateTime
+            ? ` от ${new Date(sourceAppointment.dateTime).toLocaleDateString('ru-RU', { day: '2-digit', month: 'long' })}`
+            : ''}{' '}
+          · нажмите 📅 для просмотра деталей записи
         </p>
       ) : (
-        <p className={cn(hintClass, "border-b border-border px-3.5 py-1.5")}>
+        <p className={cn(hintClass, 'border-b border-border px-3.5 py-1.5')}>
           Визит без привязки к записи на приём
         </p>
       )}
@@ -1089,7 +1158,7 @@ export function NewVisitPanel({
           onChange={setAnamnesisText}
         />
 
-        {visitType === "first" ? (
+        {visitType === 'first' ? (
           <>
             {/* Жалобы */}
             <div className="flex flex-col gap-1.5">
@@ -1108,7 +1177,10 @@ export function NewVisitPanel({
               </div>
               <div className="flex flex-col gap-1.5">
                 {firstComplaints.map((c) => (
-                  <div key={c.id} className="flex flex-col gap-1.5 rounded-lg border border-border bg-muted/10 p-2">
+                  <div
+                    key={c.id}
+                    className="flex flex-col gap-1.5 rounded-lg border border-border bg-muted/10 p-2"
+                  >
                     <div className="flex items-center gap-2">
                       <PriorityFlag
                         on={c.priority}
@@ -1164,7 +1236,9 @@ export function NewVisitPanel({
                       value={c.description}
                       onChange={(e) =>
                         setFirstComplaints((prev) =>
-                          prev.map((x) => (x.id === c.id ? { ...x, description: e.target.value } : x)),
+                          prev.map((x) =>
+                            x.id === c.id ? { ...x, description: e.target.value } : x,
+                          ),
                         )
                       }
                       placeholder="Описание под симптомом…"
@@ -1173,9 +1247,7 @@ export function NewVisitPanel({
                   </div>
                 ))}
               </div>
-              <p className={hintClass}>
-                ⚑ — приоритет · 0–10 — выраженность
-              </p>
+              <p className={hintClass}>⚑ — приоритет · 0–10 — выраженность</p>
             </div>
 
             <FormTextarea
@@ -1193,7 +1265,10 @@ export function NewVisitPanel({
               </div>
               <div className="flex flex-col gap-1.5">
                 {firstDiagnoses.map((d) => (
-                  <div key={d.id} className="flex flex-col gap-1.5 rounded-lg border border-border bg-muted/10 p-2">
+                  <div
+                    key={d.id}
+                    className="flex flex-col gap-1.5 rounded-lg border border-border bg-muted/10 p-2"
+                  >
                     <div className="flex items-center gap-2">
                       <PriorityFlag
                         on={d.priority}
@@ -1211,7 +1286,9 @@ export function NewVisitPanel({
                       </span>
                       <Button
                         type="button"
-                        onClick={() => setFirstDiagnoses((prev) => prev.filter((x) => x.id !== d.id))}
+                        onClick={() =>
+                          setFirstDiagnoses((prev) => prev.filter((x) => x.id !== d.id))
+                        }
                         title="Удалить"
                         variant="ghost"
                         size="icon-xs"
@@ -1266,13 +1343,15 @@ export function NewVisitPanel({
             <div className="flex flex-col gap-1.5">
               <span className={fieldLabelClass}>Динамика симптомов</span>
               {activeComplaints.length === 0 && (
-                <p className={hintClass}>Нет активных симптомов — добавьте через первичный визит.</p>
+                <p className={hintClass}>
+                  Нет активных симптомов — добавьте через первичный визит.
+                </p>
               )}
               <div className="flex flex-col gap-2">
                 {activeComplaints.map((c) => {
                   const upd = complaintUpdates[c.id] ?? {
                     complaintId: c.id,
-                    note: "",
+                    note: '',
                     severity: c.currentSeverity,
                     resolved: false,
                   };
@@ -1333,13 +1412,15 @@ export function NewVisitPanel({
             <div className="flex flex-col gap-1.5">
               <span className={fieldLabelClass}>Уточнение диагноза</span>
               {activeDiagnoses.length === 0 && (
-                <p className={hintClass}>Нет активных диагнозов — добавьте через первичный визит.</p>
+                <p className={hintClass}>
+                  Нет активных диагнозов — добавьте через первичный визит.
+                </p>
               )}
               <div className="flex flex-col gap-2">
                 {activeDiagnoses.map((d) => {
                   const upd = diagnosisUpdates[d.id] ?? {
                     diagnosisId: d.id,
-                    refinement: "",
+                    refinement: '',
                     removed: false,
                   };
                   const setUpd = (patch: Partial<RepeatDiagnosisUpdate>) =>
@@ -1407,21 +1488,12 @@ export function NewVisitPanel({
             size="sm"
             className="text-xs"
           >
-            {saving ? "Сохранение…" : "Сохранить визит"}
+            {saving ? 'Сохранение…' : 'Сохранить визит'}
           </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="text-xs"
-          >
+          <Button type="button" variant="outline" size="sm" className="text-xs">
             Прикрепить файлы
           </Button>
-          {!saveError && (
-            <span className={cn(hintClass, "ml-auto")}>
-              Ручное сохранение
-            </span>
-          )}
+          {!saveError && <span className={cn(hintClass, 'ml-auto')}>Ручное сохранение</span>}
         </div>
       </div>
 
@@ -1450,7 +1522,10 @@ export function NewVisitPanel({
             </Button>
             <Button
               type="button"
-              onClick={() => { setCloseConfirmOpen(false); onClose(); }}
+              onClick={() => {
+                setCloseConfirmOpen(false);
+                onClose();
+              }}
               size="sm"
               className="text-xs bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >

@@ -1,17 +1,17 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { Building2, Dna, Dumbbell } from "lucide-react";
-import type { BookingCity } from "@/modules/booking-catalog/types";
-import type { OnlineBookingLocationOption } from "@/modules/patient-booking/inPersonServicesCatalog";
-import { publicBookPaths } from "@/shared/publicBook/paths";
+import Link from 'next/link';
+import { Building2, Dna, Dumbbell } from 'lucide-react';
+import type { BookingCity } from '@/modules/booking-catalog/types';
+import type { OnlineBookingLocationOption } from '@/modules/patient-booking/inPersonServicesCatalog';
+import { publicBookPaths } from '@/shared/publicBook/paths';
 import {
   bookingChoiceRowClass,
   bookingChoiceRowIconClass,
   bookingChoiceSectionClass,
-} from "@/app/app/patient/booking/bookingChoiceStyles";
-import { patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
-import { cn } from "@/lib/utils";
+} from '@/app/app/patient/booking/bookingChoiceStyles';
+import { patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
+import { cn } from '@/lib/utils';
 
 type Props = {
   cities: BookingCity[];
@@ -23,13 +23,17 @@ type Props = {
 };
 
 export function PublicFormatStepClient({ cities, onlineLocation, catalogError, orgSlug }: Props) {
-  const sorted = [...cities].sort((a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title, "ru"));
-  const orgSlugQuery = orgSlug ? `&orgSlug=${encodeURIComponent(orgSlug)}` : "";
+  const sorted = [...cities].sort(
+    (a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title, 'ru'),
+  );
+  const orgSlugQuery = orgSlug ? `&orgSlug=${encodeURIComponent(orgSlug)}` : '';
 
   return (
     <div className={bookingChoiceSectionClass}>
       <div className="flex flex-col gap-2">
-        <p className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>Очный приём</p>
+        <p className={cn(patientMutedTextClass, 'text-xs font-medium uppercase tracking-wide')}>
+          Очный приём
+        </p>
         {catalogError ? <p className="text-sm text-destructive">{catalogError}</p> : null}
         {!catalogError ? (
           <div className="flex flex-col gap-2">
@@ -48,39 +52,43 @@ export function PublicFormatStepClient({ cities, onlineLocation, catalogError, o
         ) : null}
       </div>
 
-      {onlineLocation || !orgSlug ? <div className="flex flex-col gap-2">
-        <p className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>Онлайн</p>
-        {onlineLocation ? (
-          <Link
-            href={`${publicBookPaths.newService}?cityCode=${encodeURIComponent(onlineLocation.cityCode)}&cityTitle=${encodeURIComponent(onlineLocation.title)}${orgSlugQuery}`}
-            prefetch={false}
-            className={bookingChoiceRowClass}
-          >
-            <Building2 className={bookingChoiceRowIconClass} aria-hidden />
-            Онлайн-приём
-          </Link>
-        ) : null}
-        {!orgSlug ? (
-          <>
+      {onlineLocation || !orgSlug ? (
+        <div className="flex flex-col gap-2">
+          <p className={cn(patientMutedTextClass, 'text-xs font-medium uppercase tracking-wide')}>
+            Онлайн
+          </p>
+          {onlineLocation ? (
             <Link
-              href={`${publicBookPaths.newSlot}?type=online&category=rehab_lfk`}
+              href={`${publicBookPaths.newService}?cityCode=${encodeURIComponent(onlineLocation.cityCode)}&cityTitle=${encodeURIComponent(onlineLocation.title)}${orgSlugQuery}`}
               prefetch={false}
-              className={cn(bookingChoiceRowClass, "text-left")}
+              className={bookingChoiceRowClass}
             >
-              <Dumbbell className={bookingChoiceRowIconClass} aria-hidden />
-              Реабилитация онлайн
+              <Building2 className={bookingChoiceRowIconClass} aria-hidden />
+              Онлайн-приём
             </Link>
-            <Link
-              href={`${publicBookPaths.newSlot}?type=online&category=nutrition`}
-              prefetch={false}
-              className={cn(bookingChoiceRowClass, "text-left")}
-            >
-              <Dna className={bookingChoiceRowIconClass} aria-hidden />
-              Нутрициология онлайн
-            </Link>
-          </>
-        ) : null}
-      </div> : null}
+          ) : null}
+          {!orgSlug ? (
+            <>
+              <Link
+                href={`${publicBookPaths.newSlot}?type=online&category=rehab_lfk`}
+                prefetch={false}
+                className={cn(bookingChoiceRowClass, 'text-left')}
+              >
+                <Dumbbell className={bookingChoiceRowIconClass} aria-hidden />
+                Реабилитация онлайн
+              </Link>
+              <Link
+                href={`${publicBookPaths.newSlot}?type=online&category=nutrition`}
+                prefetch={false}
+                className={cn(bookingChoiceRowClass, 'text-left')}
+              >
+                <Dna className={bookingChoiceRowIconClass} aria-hidden />
+                Нутрициология онлайн
+              </Link>
+            </>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }

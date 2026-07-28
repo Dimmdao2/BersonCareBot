@@ -1,25 +1,25 @@
-"use server";
+'use server';
 
-import { revalidatePath } from "next/cache";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
-import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { logServerRuntimeError } from "@/infra/logging/serverRuntimeLog";
+import { revalidatePath } from 'next/cache';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
+import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { logServerRuntimeError } from '@/infra/logging/serverRuntimeLog';
 
 function parseSortOrder(raw: FormDataEntryValue | null): number {
-  if (typeof raw !== "string") return 999;
+  if (typeof raw !== 'string') return 999;
   const n = Number.parseInt(raw, 10);
   return Number.isFinite(n) ? n : 999;
 }
 
 function parseCategoryCode(formData: FormData): string {
-  const code = (formData.get("categoryCode") as string | null)?.trim() ?? "";
-  if (!code) throw new Error("category_required");
+  const code = (formData.get('categoryCode') as string | null)?.trim() ?? '';
+  if (!code) throw new Error('category_required');
   return code;
 }
 
 function revalidateReferencePaths(categoryCode: string): void {
-  revalidatePath("/app/doctor/references");
+  revalidatePath('/app/doctor/references');
   revalidatePath(`/app/doctor/references/${categoryCode}`);
 }
 
@@ -38,18 +38,18 @@ type CatalogAddInput = {
 };
 
 const SAVE_CATALOG_KNOWN_CODES = new Set([
-  "duplicate_code",
-  "invalid_update_payload",
-  "invalid_add_payload",
-  "category_required",
-  "category_not_found",
-  "category_not_extensible",
-  "item_not_found",
-  "empty_update",
+  'duplicate_code',
+  'invalid_update_payload',
+  'invalid_add_payload',
+  'category_required',
+  'category_not_found',
+  'category_not_extensible',
+  'item_not_found',
+  'empty_update',
 ]);
 
 function isPgUniqueViolation(err: unknown): boolean {
-  return typeof err === "object" && err !== null && (err as { code?: string }).code === "23505";
+  return typeof err === 'object' && err !== null && (err as { code?: string }).code === '23505';
 }
 
 export type SaveReferenceCatalogResult =
@@ -63,7 +63,7 @@ export async function saveReferenceCatalog(input: {
 }): Promise<SaveReferenceCatalogResult> {
   const workspace = await requireDoctorWorkspaceContext();
   const categoryCode = input.categoryCode.trim();
-  if (!categoryCode) return { ok: false, code: "category_required" };
+  if (!categoryCode) return { ok: false, code: 'category_required' };
   const deps = buildAppDeps();
   const updates = input.updates.map((item) => ({
     id: item.id.trim(),
@@ -78,28 +78,27 @@ export async function saveReferenceCatalog(input: {
       title: item.title.trim(),
       sortOrder: item.sortOrder,
     }))
-    .filter((item) => item.code !== "" || item.title !== "");
+    .filter((item) => item.code !== '' || item.title !== '');
   const badUpdate = updates.find(
-    (item) => !item.id || !item.title || !/^[a-z][a-z0-9_]*$/.test(item.code)
+    (item) => !item.id || !item.title || !/^[a-z][a-z0-9_]*$/.test(item.code),
   );
   if (badUpdate) {
-    const invalidValue =
-      !badUpdate.title.trim()
-        ? badUpdate.id
-        : !/^[a-z][a-z0-9_]*$/.test(badUpdate.code)
-          ? badUpdate.code
-          : badUpdate.title;
-    return { ok: false, code: "invalid_update_payload", invalidValue };
+    const invalidValue = !badUpdate.title.trim()
+      ? badUpdate.id
+      : !/^[a-z][a-z0-9_]*$/.test(badUpdate.code)
+        ? badUpdate.code
+        : badUpdate.title;
+    return { ok: false, code: 'invalid_update_payload', invalidValue };
   }
   const badAddition = additions.find((item) => !/^[a-z][a-z0-9_]*$/.test(item.code) || !item.title);
   if (badAddition) {
     const invalidValue =
-      !/^[a-z][a-z0-9_]*$/.test(badAddition.code) && badAddition.code !== ""
+      !/^[a-z][a-z0-9_]*$/.test(badAddition.code) && badAddition.code !== ''
         ? badAddition.code
-        : !badAddition.title.trim() && badAddition.code !== ""
+        : !badAddition.title.trim() && badAddition.code !== ''
           ? badAddition.code
           : badAddition.title || badAddition.code;
-    return { ok: false, code: "invalid_add_payload", invalidValue };
+    return { ok: false, code: 'invalid_add_payload', invalidValue };
   }
   try {
     await withDoctorWorkspacePrincipal(workspace, () =>
@@ -111,14 +110,16 @@ export async function saveReferenceCatalog(input: {
       return {
         ok: false,
         code: err.message,
-        ...(Array.isArray(conflictingCodes) && conflictingCodes.length > 0 ? { conflictingCodes } : {}),
+        ...(Array.isArray(conflictingCodes) && conflictingCodes.length > 0
+          ? { conflictingCodes }
+          : {}),
       };
     }
     if (isPgUniqueViolation(err)) {
-      return { ok: false, code: "duplicate_code" };
+      return { ok: false, code: 'duplicate_code' };
     }
-    logServerRuntimeError("saveReferenceCatalog", err, { categoryCode });
-    return { ok: false, code: "save_failed" };
+    logServerRuntimeError('saveReferenceCatalog', err, { categoryCode });
+    return { ok: false, code: 'save_failed' };
   }
   revalidateReferencePaths(categoryCode);
   return { ok: true };
@@ -127,13 +128,13 @@ export async function saveReferenceCatalog(input: {
 export async function addReferenceItem(formData: FormData): Promise<void> {
   const workspace = await requireDoctorWorkspaceContext();
   const categoryCode = parseCategoryCode(formData);
-  const code = (formData.get("code") as string | null)?.trim() ?? "";
-  const title = (formData.get("title") as string | null)?.trim() ?? "";
+  const code = (formData.get('code') as string | null)?.trim() ?? '';
+  const title = (formData.get('title') as string | null)?.trim() ?? '';
   if (!/^[a-z][a-z0-9_]*$/.test(code)) {
-    throw new Error("invalid_code");
+    throw new Error('invalid_code');
   }
   if (!title) {
-    throw new Error("title_required");
+    throw new Error('title_required');
   }
   const deps = buildAppDeps();
   await withDoctorWorkspacePrincipal(workspace, () =>
@@ -141,7 +142,7 @@ export async function addReferenceItem(formData: FormData): Promise<void> {
       categoryCode,
       code,
       title,
-      sortOrder: parseSortOrder(formData.get("sortOrder")),
+      sortOrder: parseSortOrder(formData.get('sortOrder')),
     }),
   );
   revalidateReferencePaths(categoryCode);
@@ -150,15 +151,15 @@ export async function addReferenceItem(formData: FormData): Promise<void> {
 export async function saveReferenceItem(formData: FormData): Promise<void> {
   const workspace = await requireDoctorWorkspaceContext();
   const categoryCode = parseCategoryCode(formData);
-  const itemId = (formData.get("itemId") as string | null)?.trim() ?? "";
-  const title = (formData.get("title") as string | null)?.trim() ?? "";
-  if (!itemId) throw new Error("item_required");
-  if (!title) throw new Error("title_required");
+  const itemId = (formData.get('itemId') as string | null)?.trim() ?? '';
+  const title = (formData.get('title') as string | null)?.trim() ?? '';
+  if (!itemId) throw new Error('item_required');
+  if (!title) throw new Error('title_required');
   const deps = buildAppDeps();
   await withDoctorWorkspacePrincipal(workspace, () =>
     deps.references.updateItem(itemId, {
       title,
-      sortOrder: parseSortOrder(formData.get("sortOrder")),
+      sortOrder: parseSortOrder(formData.get('sortOrder')),
     }),
   );
   revalidateReferencePaths(categoryCode);
@@ -167,10 +168,10 @@ export async function saveReferenceItem(formData: FormData): Promise<void> {
 export async function toggleReferenceItem(formData: FormData): Promise<void> {
   const workspace = await requireDoctorWorkspaceContext();
   const categoryCode = parseCategoryCode(formData);
-  const itemId = (formData.get("itemId") as string | null)?.trim() ?? "";
-  const nextActiveRaw = (formData.get("nextActive") as string | null)?.trim() ?? "";
-  const nextActive = nextActiveRaw === "true";
-  if (!itemId) throw new Error("item_required");
+  const itemId = (formData.get('itemId') as string | null)?.trim() ?? '';
+  const nextActiveRaw = (formData.get('nextActive') as string | null)?.trim() ?? '';
+  const nextActive = nextActiveRaw === 'true';
+  if (!itemId) throw new Error('item_required');
   const deps = buildAppDeps();
   await withDoctorWorkspacePrincipal(workspace, () =>
     deps.references.updateItem(itemId, { isActive: nextActive }),
@@ -181,25 +182,27 @@ export async function toggleReferenceItem(formData: FormData): Promise<void> {
 export type SoftDeleteReferenceItemResult = { ok: true } | { ok: false; code: string };
 
 /** Soft-delete reference item (deleted_at); distinct from archive (is_active). */
-export async function softDeleteReferenceItem(formData: FormData): Promise<SoftDeleteReferenceItemResult> {
+export async function softDeleteReferenceItem(
+  formData: FormData,
+): Promise<SoftDeleteReferenceItemResult> {
   const workspace = await requireDoctorWorkspaceContext();
   let categoryCode: string;
   try {
     categoryCode = parseCategoryCode(formData);
   } catch (err) {
-    if (err instanceof Error && err.message === "category_required") {
-      return { ok: false, code: "category_required" };
+    if (err instanceof Error && err.message === 'category_required') {
+      return { ok: false, code: 'category_required' };
     }
     throw err;
   }
-  const itemId = (formData.get("itemId") as string | null)?.trim() ?? "";
-  if (!itemId) return { ok: false, code: "item_required" };
+  const itemId = (formData.get('itemId') as string | null)?.trim() ?? '';
+  if (!itemId) return { ok: false, code: 'item_required' };
   const deps = buildAppDeps();
   try {
     await withDoctorWorkspacePrincipal(workspace, () => deps.references.softDeleteItem(itemId));
   } catch (err) {
-    logServerRuntimeError("softDeleteReferenceItem", err, { categoryCode, itemId });
-    return { ok: false, code: "delete_failed" };
+    logServerRuntimeError('softDeleteReferenceItem', err, { categoryCode, itemId });
+    return { ok: false, code: 'delete_failed' };
   }
   revalidateReferencePaths(categoryCode);
   return { ok: true };

@@ -1,21 +1,30 @@
-import type { MediaStoragePort } from "./ports";
-import type { MediaRecord } from "./types";
+import type { MediaStoragePort } from './ports';
+import type { MediaRecord } from './types';
 
-export type { MediaRecord, MediaPreviewStatus, MediaAvailableQuality, VideoDeliveryOverride, VideoProcessingStatus } from "./types";
-export type { MediaListParams, MediaListSortBy, MediaSortDirection, MediaUsageRef } from "./types";
-export type { UploadMediaParams, UploadMediaResult, MediaStoragePort } from "./ports";
+export type {
+  MediaRecord,
+  MediaPreviewStatus,
+  MediaAvailableQuality,
+  VideoDeliveryOverride,
+  VideoProcessingStatus,
+} from './types';
+export type { MediaListParams, MediaListSortBy, MediaSortDirection, MediaUsageRef } from './types';
+export type { UploadMediaParams, UploadMediaResult, MediaStoragePort } from './ports';
 
 export type MediaWriteOptions = {
   runMediaWrite?: <T>(fn: () => Promise<T>) => Promise<T>;
 };
 
-function runMediaWrite<T>(options: MediaWriteOptions | undefined, fn: () => Promise<T>): Promise<T> {
+function runMediaWrite<T>(
+  options: MediaWriteOptions | undefined,
+  fn: () => Promise<T>,
+): Promise<T> {
   return options?.runMediaWrite ? options.runMediaWrite(fn) : fn();
 }
 
 export function createMediaService(port: MediaStoragePort) {
   return {
-    async upload(params: Parameters<MediaStoragePort["upload"]>[0]) {
+    async upload(params: Parameters<MediaStoragePort['upload']>[0]) {
       return port.upload(params);
     },
     async getUrl(id: string): Promise<string | null> {
@@ -24,10 +33,14 @@ export function createMediaService(port: MediaStoragePort) {
     async getById(id: string): Promise<MediaRecord | null> {
       return port.getById(id);
     },
-    async list(params: Parameters<MediaStoragePort["list"]>[0]) {
+    async list(params: Parameters<MediaStoragePort['list']>[0]) {
       return port.list(params);
     },
-    async updateDisplayName(mediaId: string, displayName: string | null, options?: MediaWriteOptions) {
+    async updateDisplayName(
+      mediaId: string,
+      displayName: string | null,
+      options?: MediaWriteOptions,
+    ) {
       return runMediaWrite(options, () => port.updateDisplayName(mediaId, displayName));
     },
     async findUsage(mediaId: string) {
@@ -48,7 +61,10 @@ export function createMediaService(port: MediaStoragePort) {
     async listAllFolders() {
       return port.listAllFolders();
     },
-    async createFolder(params: Parameters<MediaStoragePort["createFolder"]>[0], options?: MediaWriteOptions) {
+    async createFolder(
+      params: Parameters<MediaStoragePort['createFolder']>[0],
+      options?: MediaWriteOptions,
+    ) {
       return runMediaWrite(options, () => port.createFolder(params));
     },
     async renameFolder(folderId: string, name: string, options?: MediaWriteOptions) {

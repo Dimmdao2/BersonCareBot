@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { createContext, useContext, type ReactNode } from "react";
-import { useDoctorSupportUnreadCountPolling } from "@/modules/messaging/hooks/useSupportUnreadPolling";
+import { createContext, useContext, type ReactNode } from 'react';
+import { useDoctorSupportUnreadCountPolling } from '@/modules/messaging/hooks/useSupportUnreadPolling';
 
 const DoctorSupportUnreadContext = createContext<number | undefined>(undefined);
 
@@ -15,14 +15,16 @@ export function DoctorSupportUnreadProvider({
 }) {
   const count = useDoctorSupportUnreadCountPolling(enabled);
   return (
-    <DoctorSupportUnreadContext.Provider value={count}>{children}</DoctorSupportUnreadContext.Provider>
+    <DoctorSupportUnreadContext.Provider value={count}>
+      {children}
+    </DoctorSupportUnreadContext.Provider>
   );
 }
 
 export function useDoctorSupportUnreadCount(): number {
   const v = useContext(DoctorSupportUnreadContext);
   if (v === undefined) {
-    throw new Error("useDoctorSupportUnreadCount must be used within DoctorSupportUnreadProvider");
+    throw new Error('useDoctorSupportUnreadCount must be used within DoctorSupportUnreadProvider');
   }
   return v;
 }

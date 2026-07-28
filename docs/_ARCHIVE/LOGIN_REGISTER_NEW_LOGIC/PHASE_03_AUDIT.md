@@ -9,24 +9,24 @@
 
 ## 1. Цель фазы и границы
 
-| | |
-|--|--|
-| **Цель** | Одноразовые setup-токены (TTL 24h, hash в БД) + отправка письма со ссылкой `{origin}/app/auth/email-setup?token=…`. |
-| **В scope** | Drizzle + migration; create / validate / consume / revoke; integrator send-email (link, не OTP); триггеры PHASE_02. |
-| **Вне scope** | Страница `/app/auth/email-setup`, submit → credentials + session (PHASE_04); register lookup (PHASE_05). |
+|               |                                                                                                                     |
+| ------------- | ------------------------------------------------------------------------------------------------------------------- |
+| **Цель**      | Одноразовые setup-токены (TTL 24h, hash в БД) + отправка письма со ссылкой `{origin}/app/auth/email-setup?token=…`. |
+| **В scope**   | Drizzle + migration; create / validate / consume / revoke; integrator send-email (link, не OTP); триггеры PHASE_02. |
+| **Вне scope** | Страница `/app/auth/email-setup`, submit → credentials + session (PHASE_04); register lookup (PHASE_05).            |
 
 ---
 
 ## 2. Definition of Done — по пунктам
 
-| Критерий (PHASE_03) | Статус | Доказательство |
-|---------------------|--------|----------------|
-| Миграция + schema в `apps/webapp/db/schema` | **Частично** | `0076_user_email_setup_tokens.sql`, `userEmailSetupTokens.ts`, экспорт в `schema/index.ts`, `drizzle.config.ts`; **journal без 0076** (см. §7) |
-| Revoke предыдущих active для user+email | **Выполнено** | `revokeActiveForUserEmail` перед `insertToken`; тест `issues token with 24h TTL and revokes previous` |
-| TTL 24h | **Выполнено** | `EMAIL_SETUP_TOKEN_TTL_MS`; `expires_at` при issue; validate + `markUsedById` с `expires_at >= now()` |
+| Критерий (PHASE_03)                                         | Статус        | Доказательство                                                                                                                                                   |
+| ----------------------------------------------------------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Миграция + schema в `apps/webapp/db/schema`                 | **Частично**  | `0076_user_email_setup_tokens.sql`, `userEmailSetupTokens.ts`, экспорт в `schema/index.ts`, `drizzle.config.ts`; **journal без 0076** (см. §7)                   |
+| Revoke предыдущих active для user+email                     | **Выполнено** | `revokeActiveForUserEmail` перед `insertToken`; тест `issues token with 24h TTL and revokes previous`                                                            |
+| TTL 24h                                                     | **Выполнено** | `EMAIL_SETUP_TOKEN_TTL_MS`; `expires_at` при issue; validate + `markUsedById` с `expires_at >= now()`                                                            |
 | Письмо через integrator `send-email` (link, не только code) | **Выполнено** | `sendEmailRoute.ts`: `code` **или** `text`; `pgEmailSetupAccessPort` → `sendEmailSetupLinkViaIntegrator`; тест integrator `transactional text body without code` |
-| Тесты: create, revoke, expired, used, hash not plain | **Выполнено** | `service.test.ts`, `tokenCrypto.test.ts`, `pgEmailSetupAccessPort.test.ts`; отдельного теста **revoked** на validate — нет (покрыто косвенно в issue) |
-| Запись в `LOG.md` | **Выполнено** | Секция `2026-05-19 — PHASE_03` |
+| Тесты: create, revoke, expired, used, hash not plain        | **Выполнено** | `service.test.ts`, `tokenCrypto.test.ts`, `pgEmailSetupAccessPort.test.ts`; отдельного теста **revoked** на validate — нет (покрыто косвенно в issue)            |
+| Запись в `LOG.md`                                           | **Выполнено** | Секция `2026-05-19 — PHASE_03`                                                                                                                                   |
 
 **Локальные проверки (аудит 2026-05-19):**
 
@@ -42,17 +42,17 @@ pnpm --filter @bersoncare/integrator exec vitest run sendEmailRoute.test.ts
 
 ## 3. Схема БД vs MAIN PLAN §9
 
-| Поле MAIN PLAN | Реализация |
-|----------------|------------|
-| `id` uuid | `id` PK `defaultRandom()` |
-| `user_id` | `userId` FK → `platform_users`, ON DELETE CASCADE |
-| `email_normalized` | `emailNormalized` text NOT NULL |
-| `token_hash` | `tokenHash` UNIQUE |
-| `expires_at` | `expiresAt` timestamptz |
-| `used_at` / `revoked_at` | nullable timestamps |
-| `created_at` | `createdAt` default now |
-| `source` enum | CHECK: rubitime, doctor_profile, manual_resend, registration_claim |
-| `created_by_user_id` | nullable FK SET NULL |
+| Поле MAIN PLAN           | Реализация                                                         |
+| ------------------------ | ------------------------------------------------------------------ |
+| `id` uuid                | `id` PK `defaultRandom()`                                          |
+| `user_id`                | `userId` FK → `platform_users`, ON DELETE CASCADE                  |
+| `email_normalized`       | `emailNormalized` text NOT NULL                                    |
+| `token_hash`             | `tokenHash` UNIQUE                                                 |
+| `expires_at`             | `expiresAt` timestamptz                                            |
+| `used_at` / `revoked_at` | nullable timestamps                                                |
+| `created_at`             | `createdAt` default now                                            |
+| `source` enum            | CHECK: rubitime, doctor_profile, manual_resend, registration_claim |
+| `created_by_user_id`     | nullable FK SET NULL                                               |
 
 Plain token **не** хранится в БД — только `hashEmailSetupToken(plain)` (SHA-256 + pepper из `integratorWebhookSecret`).
 
@@ -82,17 +82,17 @@ sequenceDiagram
   end
 ```
 
-| Слой | Файлы | Назначение |
-|------|-------|------------|
-| Domain | `modules/auth/emailSetupTokens/service.ts` | issue, validate, consume, rollback |
-| Domain | `modules/auth/emailSetupTokens/tokenCrypto.ts` | `est_*` plain, hash, format check |
-| Port | `modules/auth/emailSetupTokens/ports.ts` | `EmailSetupTokensPort` |
-| Infra | `infra/repos/pgEmailSetupTokens.ts` | SQL port |
-| Infra | `infra/repos/pgEmailSetupAccessPort.ts` | issue + mail + rollback |
-| Facade | `modules/auth/emailSetupAccess/service.ts` | email normalize/validate |
-| DI | `buildAppDeps.ts` | PG port если `!inMemoryRepos`, иначе noop |
-| Integrator | `sendEmailRoute.ts` | `text` без обязательного `code` |
-| Purge | `platformUserFullPurge.ts` | удаление токенов по `user_id` |
+| Слой       | Файлы                                          | Назначение                                |
+| ---------- | ---------------------------------------------- | ----------------------------------------- |
+| Domain     | `modules/auth/emailSetupTokens/service.ts`     | issue, validate, consume, rollback        |
+| Domain     | `modules/auth/emailSetupTokens/tokenCrypto.ts` | `est_*` plain, hash, format check         |
+| Port       | `modules/auth/emailSetupTokens/ports.ts`       | `EmailSetupTokensPort`                    |
+| Infra      | `infra/repos/pgEmailSetupTokens.ts`            | SQL port                                  |
+| Infra      | `infra/repos/pgEmailSetupAccessPort.ts`        | issue + mail + rollback                   |
+| Facade     | `modules/auth/emailSetupAccess/service.ts`     | email normalize/validate                  |
+| DI         | `buildAppDeps.ts`                              | PG port если `!inMemoryRepos`, иначе noop |
+| Integrator | `sendEmailRoute.ts`                            | `text` без обязательного `code`           |
+| Purge      | `platformUserFullPurge.ts`                     | удаление токенов по `user_id`             |
 
 **ESLint / слои:** `user_email_setup_tokens` используется только из `infra/repos/*`; `modules/auth/emailSetupTokens` не импортирует `@/infra/repos/*` — соответствует phase checklist.
 
@@ -100,10 +100,10 @@ sequenceDiagram
 
 ## 5. Подключение триггеров PHASE_02
 
-| Триггер | Условие | Результат (prod DB) |
-|---------|---------|---------------------|
-| `PATCH /api/admin/users/:userId/profile` | email изменился | `requestContactEmailSetup` → `enqueued` |
-| `user.email.autobind` | `outcome === "applied"` | то же, `source: rubitime` |
+| Триггер                                  | Условие                 | Результат (prod DB)                     |
+| ---------------------------------------- | ----------------------- | --------------------------------------- |
+| `PATCH /api/admin/users/:userId/profile` | email изменился         | `requestContactEmailSetup` → `enqueued` |
+| `user.email.autobind`                    | `outcome === "applied"` | то же, `source: rubitime`               |
 
 **По-прежнему без setup enqueue (до 2026-05-20):** email только из `appointment.record.upserted` / `ensureClient` — **закрыто hardening:** `contactEmailSetup` + enqueue в handler.
 
@@ -113,11 +113,11 @@ sequenceDiagram
 
 ## 6. Integrator `send-email`
 
-| Требование | Статус |
-|------------|--------|
+| Требование                                     | Статус                                                         |
+| ---------------------------------------------- | -------------------------------------------------------------- |
 | Расширить контракт: `subject` + `text` без OTP | **Да** — Zod `code` OR `text`; дефолт subject для OTP сохранён |
-| Webapp adapter | `sendTransactionalEmail` / `sendEmailSetupLinkViaIntegrator` |
-| Документация | `INTEGRATOR_CONTRACT.md` Flow 5 — пример setup-link JSON |
+| Webapp adapter                                 | `sendTransactionalEmail` / `sendEmailSetupLinkViaIntegrator`   |
+| Документация                                   | `INTEGRATOR_CONTRACT.md` Flow 5 — пример setup-link JSON       |
 
 Письмо: тема «Подтвердите email и создайте доступ к кабинету BersonCare», текст со ссылкой; `app_base_url` из `getAppBaseUrl()` (system_settings).
 
@@ -155,13 +155,13 @@ URL выпускается: `/app/auth/email-setup?token=…` — **PHASE_04 pen
 
 ## 8. Тестовое покрытие
 
-| Файл | Сценарии |
-|------|----------|
-| `emailSetupTokens/service.test.ts` | revoke при re-issue; TTL; validate/consume used; expired; hash-only insert |
-| `emailSetupTokens/tokenCrypto.test.ts` | prefix `est_`; hash stability |
-| `pgEmailSetupAccessPort.test.ts` | успешная отправка + URL; rollback при failed send |
-| `emailSetupAccess/service.test.ts` | invalid email; normalize delegate |
-| `integrator/sendEmailRoute.test.ts` | OTP; transactional text; signature; 503 mailer |
+| Файл                                   | Сценарии                                                                   |
+| -------------------------------------- | -------------------------------------------------------------------------- |
+| `emailSetupTokens/service.test.ts`     | revoke при re-issue; TTL; validate/consume used; expired; hash-only insert |
+| `emailSetupTokens/tokenCrypto.test.ts` | prefix `est_`; hash stability                                              |
+| `pgEmailSetupAccessPort.test.ts`       | успешная отправка + URL; rollback при failed send                          |
+| `emailSetupAccess/service.test.ts`     | invalid email; normalize delegate                                          |
+| `integrator/sendEmailRoute.test.ts`    | OTP; transactional text; signature; 503 mailer                             |
 
 **Пробелы:** нет интеграционного теста PG port + реальная БД; нет e2e «doctor patch → row in DB → mail»; `events.test` / `profile/route.test` мокают `stub_pending_phase3` (допустимо для route unit).
 
@@ -169,11 +169,11 @@ URL выпускается: `/app/auth/email-setup?token=…` — **PHASE_04 pen
 
 ## 9. Сверка с PHASE_02 и готовность к PHASE_04
 
-| PHASE_02 ожидал | PHASE_03 |
-|-----------------|----------|
+| PHASE_02 ожидал                | PHASE_03                                |
+| ------------------------------ | --------------------------------------- |
 | Заменить noop на реальный port | **Да** — `createPgEmailSetupAccessPort` |
-| `status: enqueued` | **Да** при успехе |
-| Таблица токенов | **Да** (с оговоркой journal) |
+| `status: enqueued`             | **Да** при успехе                       |
+| Таблица токенов                | **Да** (с оговоркой journal)            |
 
 **PHASE_04 может использовать:**
 
@@ -184,23 +184,23 @@ URL выпускается: `/app/auth/email-setup?token=…` — **PHASE_04 pen
 
 ## 10. Scope boundaries
 
-| Вне scope PHASE_03 | Подтверждение |
-|--------------------|---------------|
-| UI `/app/auth/email-setup` | Нет route/page в `app/` |
-| Register `existing_account_needs_email_setup` | PHASE_05 |
-| Проверка «email совпадает с contact» при validate | PHASE_04 |
+| Вне scope PHASE_03                                | Подтверждение           |
+| ------------------------------------------------- | ----------------------- |
+| UI `/app/auth/email-setup`                        | Нет route/page в `app/` |
+| Register `existing_account_needs_email_setup`     | PHASE_05                |
+| Проверка «email совпадает с contact» при validate | PHASE_04                |
 
 ---
 
 ## 11. Документация
 
-| Документ | Актуальность |
-|----------|--------------|
-| `LOG.md` PHASE_03 | **Актуален** |
-| `PHASE_03_EMAIL_SETUP_TOKENS.md` | DoD `[x]` согласован с кодом (кроме journal) |
-| `INTEGRATOR_CONTRACT.md` Flow 5 | **Обновлён** (text + setup example) |
-| `PHASE_02_AUDIT.md` | Устаревший вердикт «PHASE_03 pending» в шапке |
-| `AUDIT_REPORT.md` | Устарел (нет таблицы) |
+| Документ                         | Актуальность                                  |
+| -------------------------------- | --------------------------------------------- |
+| `LOG.md` PHASE_03                | **Актуален**                                  |
+| `PHASE_03_EMAIL_SETUP_TOKENS.md` | DoD `[x]` согласован с кодом (кроме journal)  |
+| `INTEGRATOR_CONTRACT.md` Flow 5  | **Обновлён** (text + setup example)           |
+| `PHASE_02_AUDIT.md`              | Устаревший вердикт «PHASE_03 pending» в шапке |
+| `AUDIT_REPORT.md`                | Устарел (нет таблицы)                         |
 
 ---
 

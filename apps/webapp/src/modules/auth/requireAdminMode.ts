@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
-import { getCurrentSession } from "@/modules/auth/service";
+import { NextResponse } from 'next/server';
+import { getCurrentSession } from '@/modules/auth/service';
 
 /**
  * Для опасных операций: только `role === admin` и включённый `adminMode` в сессии.
@@ -12,14 +12,20 @@ export async function requireAdminModeSession(): Promise<
   if (!session) {
     return {
       ok: false,
-      response: NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }),
+      response: NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 }),
     };
   }
-  if (session.user.role !== "admin") {
-    return { ok: false, response: NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 }) };
+  if (session.user.role !== 'admin') {
+    return {
+      ok: false,
+      response: NextResponse.json({ ok: false, error: 'forbidden' }, { status: 403 }),
+    };
   }
   if (session.adminMode !== true) {
-    return { ok: false, response: NextResponse.json({ ok: false, error: "admin_mode_required" }, { status: 403 }) };
+    return {
+      ok: false,
+      response: NextResponse.json({ ok: false, error: 'admin_mode_required' }, { status: 403 }),
+    };
   }
   return { ok: true, session };
 }

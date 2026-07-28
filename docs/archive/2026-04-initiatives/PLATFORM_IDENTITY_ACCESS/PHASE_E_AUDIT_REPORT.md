@@ -11,11 +11,11 @@
 
 ## 1. DoD §1 — три модуля
 
-| Модуль | Путь | Статус |
-|--------|------|--------|
-| Access context / tier | `apps/webapp/src/modules/platform-access/resolvePlatformAccessContext.ts`, `types.ts` | Внедрён; единая точка для `tier` / `phoneTrustedForPatient` |
-| Trusted phone policy | `apps/webapp/src/modules/platform-access/trustedPhonePolicy.ts` | `isTrustedPatientPhoneActivation`; перечень writers в `SCENARIOS_AND_CODE_MAP.md` §8 |
-| Route & API policy | `apps/webapp/src/modules/platform-access/patientRouteApiPolicy.ts` | Whitelist страниц, API-поверхности, декларативный список onboarding server actions |
+| Модуль                | Путь                                                                                  | Статус                                                                               |
+| --------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| Access context / tier | `apps/webapp/src/modules/platform-access/resolvePlatformAccessContext.ts`, `types.ts` | Внедрён; единая точка для `tier` / `phoneTrustedForPatient`                          |
+| Trusted phone policy  | `apps/webapp/src/modules/platform-access/trustedPhonePolicy.ts`                       | `isTrustedPatientPhoneActivation`; перечень writers в `SCENARIOS_AND_CODE_MAP.md` §8 |
+| Route & API policy    | `apps/webapp/src/modules/platform-access/patientRouteApiPolicy.ts`                    | Whitelist страниц, API-поверхности, декларативный список onboarding server actions   |
 
 Patient-контур для бизнес-операций делегирует в **`patientClientBusinessGate`** → `resolvePlatformAccessContext`. Дублирующие guard-файлы с отдельной бизнес-логикой tier не выявлены в ходе сверки с §7 `SCENARIOS`.
 
@@ -51,13 +51,13 @@ Patient-контур для бизнес-операций делегирует �
 
 ## 5. Покрытие сценариев `SCENARIOS_AND_CODE_MAP.md` §3–§6 тестами
 
-| Раздел | Сценарий | Как покрыто |
-|--------|----------|-------------|
-| **§3** Вход мессенджер | hints, `tg:`/`max:` в sub, exchange | `exchangeIntegratorToken.resolutionHints.test.ts`, `exchangeIntegratorToken.maxWhitelist.test.ts`, `exchangeIntegratorToken.messengerRole.test.ts`, `exchangeIntegratorToken.uuidSubWithoutBinding.test.ts` |
-| **§3** Tier без доверенного телефона → onboarding | Инвариант tier из БД | `resolvePlatformAccessContext.test.ts` (в т.ч. Phase E: нет телефона / телефон без trust / legacy `tg:`) |
-| **§4** OTP / trust | `patient_phone_trust_at` → patient | Phase E: строка с trust → `tier: patient`; без trust при наличии номера → onboarding; `trustedPhonePolicy.test.ts` |
-| **§5** OAuth без телефона → onboarding | Email-only канон | Phase E: «OAuth / email-only sign-up row» в `resolvePlatformAccessContext.test.ts`; callback/oauth — `oauth/callback/route.test.ts`, `oauthYandexResolve.test.ts` |
-| **§6** Интегратор → БД | События, проекция, не обход web tier | `modules/integrator/events.test.ts` (webapp), интеграторский suite; tier на web не выставляется webhook’ом — архитектурно отделён от §6 |
+| Раздел                                            | Сценарий                             | Как покрыто                                                                                                                                                                                                 |
+| ------------------------------------------------- | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **§3** Вход мессенджер                            | hints, `tg:`/`max:` в sub, exchange  | `exchangeIntegratorToken.resolutionHints.test.ts`, `exchangeIntegratorToken.maxWhitelist.test.ts`, `exchangeIntegratorToken.messengerRole.test.ts`, `exchangeIntegratorToken.uuidSubWithoutBinding.test.ts` |
+| **§3** Tier без доверенного телефона → onboarding | Инвариант tier из БД                 | `resolvePlatformAccessContext.test.ts` (в т.ч. Phase E: нет телефона / телефон без trust / legacy `tg:`)                                                                                                    |
+| **§4** OTP / trust                                | `patient_phone_trust_at` → patient   | Phase E: строка с trust → `tier: patient`; без trust при наличии номера → onboarding; `trustedPhonePolicy.test.ts`                                                                                          |
+| **§5** OAuth без телефона → onboarding            | Email-only канон                     | Phase E: «OAuth / email-only sign-up row» в `resolvePlatformAccessContext.test.ts`; callback/oauth — `oauth/callback/route.test.ts`, `oauthYandexResolve.test.ts`                                           |
+| **§6** Интегратор → БД                            | События, проекция, не обход web tier | `modules/integrator/events.test.ts` (webapp), интеграторский suite; tier на web не выставляется webhook’ом — архитектурно отделён от §6                                                                     |
 
 **D-TST-1 (warmups RSC + onboarding):** закрыт тестом `apps/webapp/src/app/app/patient/sections/[slug]/page.warmupsGate.test.tsx` — при `patientRscPersonalDataGate` → **`guest`** вызов **`listRulesByUser`** не выполняется; при **`allow`** — выполняется (фаза **E — FIX**, 2026-04-11).
 
@@ -65,15 +65,15 @@ Patient-контур для бизнес-операций делегирует �
 
 ## 6. DoD §8 — «почему onboarding»
 
-| Сигнал | Где |
-|--------|-----|
-| **tier, resolution, phone_trusted, has_phone_db, canon id** | `console.info` **`[platform_access]`** в `resolvePlatformAccessContext.ts` (без сырого телефона) |
-| **Эквивалент для клиента** | `GET /api/me` → `platformAccess` (`route.ts`) |
-| **Первичный резолв канала / merge path** | `[identity_resolution]` в `pgIdentityResolution.ts` |
-| **Legacy transport** | `[auth/exchange] client_session_transport=legacy_non_uuid_onboarding_only` (`service.ts`) |
-| **Merge** | `[merge] merged duplicate into target` (`pgPlatformUserMerge.ts` и др.) |
-| **Layout** | `[patient_layout] need_activation unresolved_pathname` (`layout.tsx`, dev/diagnostic) |
-| **Отклонённый onboarding server action** | `[platform_access] onboarding_server_action_rejected resolved_path=…` (`onboardingServerActionSurface.ts`) |
+| Сигнал                                                      | Где                                                                                                        |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| **tier, resolution, phone_trusted, has_phone_db, canon id** | `console.info` **`[platform_access]`** в `resolvePlatformAccessContext.ts` (без сырого телефона)           |
+| **Эквивалент для клиента**                                  | `GET /api/me` → `platformAccess` (`route.ts`)                                                              |
+| **Первичный резолв канала / merge path**                    | `[identity_resolution]` в `pgIdentityResolution.ts`                                                        |
+| **Legacy transport**                                        | `[auth/exchange] client_session_transport=legacy_non_uuid_onboarding_only` (`service.ts`)                  |
+| **Merge**                                                   | `[merge] merged duplicate into target` (`pgPlatformUserMerge.ts` и др.)                                    |
+| **Layout**                                                  | `[patient_layout] need_activation unresolved_pathname` (`layout.tsx`, dev/diagnostic)                      |
+| **Отклонённый onboarding server action**                    | `[platform_access] onboarding_server_action_rejected resolved_path=…` (`onboardingServerActionSurface.ts`) |
 
 Для кейса «телефон в БД есть, а tier onboarding» по логам **`[platform_access]`** видно `phone_trusted=false` и `has_phone_db=true` при `resolution=resolved_canon`.
 
@@ -90,10 +90,10 @@ Patient-контур для бизнес-операций делегирует �
 
 ## 8. Резюме
 
-| DoD | Закрытие |
-|-----|----------|
-| §1 | Да |
-| §2 | Да (с фазами B, C) |
-| §3 | Да (**D-SA-1** закрыт в E-REAUDIT — `patientOnboardingServerActionSurfaceOk`) |
-| §4 | Да (с C.02, D, D-FIX) |
-| §8 | Да (`[platform_access]` + агрегат существующих логов + `/api/me`) |
+| DoD | Закрытие                                                                      |
+| --- | ----------------------------------------------------------------------------- |
+| §1  | Да                                                                            |
+| §2  | Да (с фазами B, C)                                                            |
+| §3  | Да (**D-SA-1** закрыт в E-REAUDIT — `patientOnboardingServerActionSurfaceOk`) |
+| §4  | Да (с C.02, D, D-FIX)                                                         |
+| §8  | Да (`[platform_access]` + агрегат существующих логов + `/api/me`)             |

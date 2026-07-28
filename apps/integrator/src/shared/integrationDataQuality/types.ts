@@ -1,17 +1,17 @@
 /** Contract: integration-wide data-quality incidents (Stage 3+). */
 export type IntegrationDataQualityErrorReason =
-  | "invalid_datetime"
-  | "invalid_timezone"
-  | "unsupported_format"
-  | "invalid_branch_id"
-  | "query_failed"
-  | "missing_or_empty"
-  | "invalid_iana"
-  | "backfill_unresolvable";
+  | 'invalid_datetime'
+  | 'invalid_timezone'
+  | 'unsupported_format'
+  | 'invalid_branch_id'
+  | 'query_failed'
+  | 'missing_or_empty'
+  | 'invalid_iana'
+  | 'backfill_unresolvable';
 
-export type IntegrationDataQualityIncidentStatus = "open" | "resolved" | "unresolved";
+export type IntegrationDataQualityIncidentStatus = 'open' | 'resolved' | 'unresolved';
 
-export type IntegrationDataQualityIncidentField = "recordAt" | "dateTimeEnd" | string;
+export type IntegrationDataQualityIncidentField = 'recordAt' | 'dateTimeEnd' | string;
 
 export type IntegrationDataQualityIncidentInput = {
   integration: string;

@@ -27,14 +27,14 @@
 
 ## Модули
 
-| Слой | Путь |
-|------|------|
-| Порт | `ports.ts` |
-| Сервис | `service.ts` |
-| Калькулятор | `prepaymentCalculator.ts` |
-| Контекст из booking | `prepaymentContextFromBooking.ts` |
-| Repo | `infra/repos/pgPayments.ts` |
-| Mock adapter | `infra/payments/mockPaymentProvider.ts` |
+| Слой                | Путь                                    |
+| ------------------- | --------------------------------------- |
+| Порт                | `ports.ts`                              |
+| Сервис              | `service.ts`                            |
+| Калькулятор         | `prepaymentCalculator.ts`               |
+| Контекст из booking | `prepaymentContextFromBooking.ts`       |
+| Repo                | `infra/repos/pgPayments.ts`             |
+| Mock adapter        | `infra/payments/mockPaymentProvider.ts` |
 
 ## Тесты
 

@@ -1,13 +1,13 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useState, useTransition } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { Label } from "@/shared/ui/doctor/primitives/label";
-import { apiJson } from "@/app/app/settings/bookingSoloAdminApi";
+import { useCallback, useEffect, useState, useTransition } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { Label } from '@/shared/ui/doctor/primitives/label';
+import { apiJson } from '@/app/app/settings/bookingSoloAdminApi';
 
-const BASE = "/api/admin/booking-engine";
+const BASE = '/api/admin/booking-engine';
 
 type SpecialistRow = {
   id: string;
@@ -27,19 +27,21 @@ export function BookingSoloSpecialistsSection() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
-  const [fullName, setFullName] = useState("");
-  const [description, setDescription] = useState("");
+  const [fullName, setFullName] = useState('');
+  const [description, setDescription] = useState('');
   const [editId, setEditId] = useState<string | null>(null);
-  const [editFullName, setEditFullName] = useState("");
-  const [editDescription, setEditDescription] = useState("");
+  const [editFullName, setEditFullName] = useState('');
+  const [editDescription, setEditDescription] = useState('');
 
   const load = useCallback(async () => {
     setLoadError(null);
     try {
-      const json = await apiJson<{ ok: boolean; specialists: SpecialistRow[] }>(`${BASE}/specialists`);
+      const json = await apiJson<{ ok: boolean; specialists: SpecialistRow[] }>(
+        `${BASE}/specialists`,
+      );
       setSpecialists(json.specialists);
     } catch (e) {
-      setLoadError(e instanceof Error ? e.message : "load_failed");
+      setLoadError(e instanceof Error ? e.message : 'load_failed');
     }
   }, []);
 
@@ -56,7 +58,7 @@ export function BookingSoloSpecialistsSection() {
         await fn();
         await load();
       } catch (e) {
-        setActionError(e instanceof Error ? e.message : "action_failed");
+        setActionError(e instanceof Error ? e.message : 'action_failed');
       }
     });
   }
@@ -68,8 +70,8 @@ export function BookingSoloSpecialistsSection() {
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-xs text-muted-foreground">
-          Специалисты, на которых ведётся календарь записи (включая владельца/себя). Не связано с личными
-          «Настройками специалиста» аккаунта.
+          Специалисты, на которых ведётся календарь записи (включая владельца/себя). Не связано с
+          личными «Настройками специалиста» аккаунта.
         </p>
         {loadError ? <p className="text-sm text-destructive">{loadError}</p> : null}
         {actionError ? <p className="text-sm text-destructive">{actionError}</p> : null}
@@ -96,15 +98,15 @@ export function BookingSoloSpecialistsSection() {
               onClick={() =>
                 run(async () => {
                   await apiJson(`${BASE}/specialists`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                       fullName: fullName.trim(),
                       description: description.trim() || null,
                     }),
                   });
-                  setFullName("");
-                  setDescription("");
+                  setFullName('');
+                  setDescription('');
                 })
               }
             >
@@ -127,9 +129,15 @@ export function BookingSoloSpecialistsSection() {
                 <tr key={s.id} className="border-b border-border/60 last:border-0">
                   <td className="px-3 py-2">
                     {editId === s.id ? (
-                      <Input className="h-8" value={editFullName} onChange={(e) => setEditFullName(e.target.value)} />
+                      <Input
+                        className="h-8"
+                        value={editFullName}
+                        onChange={(e) => setEditFullName(e.target.value)}
+                      />
                     ) : (
-                      <span className={!s.isActive ? "text-muted-foreground line-through" : undefined}>
+                      <span
+                        className={!s.isActive ? 'text-muted-foreground line-through' : undefined}
+                      >
                         {s.fullName}
                       </span>
                     )}
@@ -142,7 +150,7 @@ export function BookingSoloSpecialistsSection() {
                         onChange={(e) => setEditDescription(e.target.value)}
                       />
                     ) : (
-                      (s.description ?? "—")
+                      (s.description ?? '—')
                     )}
                   </td>
                   <td className="px-3 py-2 text-right">
@@ -156,8 +164,8 @@ export function BookingSoloSpecialistsSection() {
                           onClick={() =>
                             run(async () => {
                               await apiJson(`${BASE}/specialists/${s.id}`, {
-                                method: "PATCH",
-                                headers: { "Content-Type": "application/json" },
+                                method: 'PATCH',
+                                headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({
                                   fullName: editFullName.trim(),
                                   description: editDescription.trim() || null,
@@ -191,7 +199,7 @@ export function BookingSoloSpecialistsSection() {
                           onClick={() => {
                             setEditId(s.id);
                             setEditFullName(s.fullName);
-                            setEditDescription(s.description ?? "");
+                            setEditDescription(s.description ?? '');
                           }}
                         >
                           Изм.
@@ -205,18 +213,18 @@ export function BookingSoloSpecialistsSection() {
                           onClick={() =>
                             run(async () => {
                               if (s.isActive) {
-                                await apiJson(`${BASE}/specialists/${s.id}`, { method: "DELETE" });
+                                await apiJson(`${BASE}/specialists/${s.id}`, { method: 'DELETE' });
                               } else {
                                 await apiJson(`${BASE}/specialists/${s.id}`, {
-                                  method: "PATCH",
-                                  headers: { "Content-Type": "application/json" },
+                                  method: 'PATCH',
+                                  headers: { 'Content-Type': 'application/json' },
                                   body: JSON.stringify({ isActive: true }),
                                 });
                               }
                             })
                           }
                         >
-                          {s.isActive ? "Выкл." : "Вкл."}
+                          {s.isActive ? 'Выкл.' : 'Вкл.'}
                         </Button>
                       </>
                     )}

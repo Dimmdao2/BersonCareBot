@@ -1,25 +1,25 @@
 /** @vitest-environment jsdom */
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
-import { SystemHealthSection } from "./SystemHealthSection";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
+import { SystemHealthSection } from './SystemHealthSection';
 
 const healthShell = {
-  webappDb: "up",
-  integratorApi: { status: "ok" },
-  projection: { status: "ok", snapshot: { pendingCount: 0, processingCount: 0 } },
-  mediaCronWorkers: { status: "configured" },
+  webappDb: 'up',
+  integratorApi: { status: 'ok' },
+  projection: { status: 'ok', snapshot: { pendingCount: 0, processingCount: 0 } },
+  mediaCronWorkers: { status: 'configured' },
   mediaPreview: {
-    status: "ok",
+    status: 'ok',
     stalePendingCount: 0,
     byMimeAndStatus: {
-      "video/quicktime": { pending: 0, ready: 0, failed: 0, skipped: 0 },
-      "image/heic": { pending: 0, ready: 0, failed: 0, skipped: 0 },
-      "image/heif": { pending: 0, ready: 0, failed: 0, skipped: 0 },
+      'video/quicktime': { pending: 0, ready: 0, failed: 0, skipped: 0 },
+      'image/heic': { pending: 0, ready: 0, failed: 0, skipped: 0 },
+      'image/heif': { pending: 0, ready: 0, failed: 0, skipped: 0 },
     },
   },
   videoPlayback: {
-    status: "ok",
+    status: 'ok',
     windowHours: 24,
     windowHoursShort: 1,
     playbackApiEnabled: false,
@@ -32,7 +32,7 @@ const healthShell = {
     totalResolutionsLast1h: 0,
   },
   videoTranscode: {
-    status: "ok",
+    status: 'ok',
     pipelineEnabled: false,
     reconcileEnabled: false,
     pendingCount: 0,
@@ -73,24 +73,26 @@ const healthShell = {
     lastQueueActivityAt: null,
   },
   meta: { probes: {} },
-  fetchedAt: "2026-06-09T10:00:00.000Z",
+  fetchedAt: '2026-06-09T10:00:00.000Z',
 };
 
-describe("SystemHealthSection operator health digest", () => {
+describe('SystemHealthSection operator health digest', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
   });
 
-  it("shows last digest timestamp when API returns operatorHealthDigest.lastSentAt", async () => {
+  it('shows last digest timestamp when API returns operatorHealthDigest.lastSentAt', async () => {
     vi.stubGlobal(
-      "fetch",
+      'fetch',
       vi.fn().mockResolvedValue({
         ok: true,
         text: () =>
-          Promise.resolve(JSON.stringify({
-            ...healthShell,
-            operatorHealthDigest: { lastSentAt: "2026-06-09T06:00:00.000Z" },
-          })),
+          Promise.resolve(
+            JSON.stringify({
+              ...healthShell,
+              operatorHealthDigest: { lastSentAt: '2026-06-09T06:00:00.000Z' },
+            }),
+          ),
       }),
     );
 

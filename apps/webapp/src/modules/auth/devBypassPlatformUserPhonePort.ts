@@ -11,7 +11,9 @@ export function bindDevBypassPlatformUserPhonePort(port: DevBypassPlatformUserPh
 
 function requireDevBypassPhonePort(): DevBypassPlatformUserPhonePort {
   if (!devBypassPhonePort) {
-    throw new Error("DevBypassPlatformUserPhonePort is not bound. Call ensureAuthModulePortsBound().");
+    throw new Error(
+      'DevBypassPlatformUserPhonePort is not bound. Call ensureAuthModulePortsBound().',
+    );
   }
   return devBypassPhonePort;
 }
@@ -22,7 +24,7 @@ export async function applyDevBypassPlatformUserPhoneInDb(
   phone: string,
 ): Promise<void> {
   const port = requireDevBypassPhonePort();
-  if (role === "client") {
+  if (role === 'client') {
     await port.applyClientPhone(userId, phone);
   } else {
     await port.applyStaffPhone(userId, phone);

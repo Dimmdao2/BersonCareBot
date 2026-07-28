@@ -1,13 +1,18 @@
-import type { AppointmentSummary } from "@/modules/appointments/service";
-import type { ChannelCard } from "@/modules/channel-preferences/types";
-import type { LfkComplex, LfkSession, SymptomEntry, SymptomTracking } from "@/modules/diaries/types";
-import type { DoctorSupplementaryContact } from "@/modules/platform-user-contacts/bookingContactUpsert";
-import type { DoctorClientsFilters, DoctorClientsPort, PatientCardHeader } from "./ports";
-import type { ClientIdentity, ClientListItem, PatientProgramInteractionPolicy } from "./ports";
-import type { ClientSupportProfile } from "./supportPolicy";
-import { resolvePatientProgramInteractionPolicy } from "./supportPolicy";
-import { countCancellations30d, lastVisitLabelFromHistory } from "./appointmentStatsFromHistory";
-import { clientChannelDeliveryContext } from "./clientChannelDeliveryContext";
+import type { AppointmentSummary } from '@/modules/appointments/service';
+import type { ChannelCard } from '@/modules/channel-preferences/types';
+import type {
+  LfkComplex,
+  LfkSession,
+  SymptomEntry,
+  SymptomTracking,
+} from '@/modules/diaries/types';
+import type { DoctorSupplementaryContact } from '@/modules/platform-user-contacts/bookingContactUpsert';
+import type { DoctorClientsFilters, DoctorClientsPort, PatientCardHeader } from './ports';
+import type { ClientIdentity, ClientListItem, PatientProgramInteractionPolicy } from './ports';
+import type { ClientSupportProfile } from './supportPolicy';
+import { resolvePatientProgramInteractionPolicy } from './supportPolicy';
+import { countCancellations30d, lastVisitLabelFromHistory } from './appointmentStatsFromHistory';
+import { clientChannelDeliveryContext } from './clientChannelDeliveryContext';
 
 /** Строка истории записей на приём из canonical doctor/client read model. */
 export type ClientAppointmentHistoryItem = {
@@ -44,15 +49,17 @@ export type DoctorClientsServiceDeps = {
   clientsPort: DoctorClientsPort;
   getUpcomingAppointments: (userId: string) => AppointmentSummary[] | Promise<AppointmentSummary[]>;
   /** История записей по нормализованному телефону. */
-  listAppointmentHistoryForPhone: (phoneNormalized: string | null) => Promise<ClientAppointmentHistoryItem[]>;
+  listAppointmentHistoryForPhone: (
+    phoneNormalized: string | null,
+  ) => Promise<ClientAppointmentHistoryItem[]>;
   listSymptomTrackings: (userId: string, activeOnly?: boolean) => Promise<SymptomTracking[]>;
   listSymptomEntries: (userId: string, limit?: number) => Promise<SymptomEntry[]>;
   listLfkComplexes: (userId: string, activeOnly?: boolean) => Promise<LfkComplex[]>;
   listLfkSessions: (userId: string, limit?: number) => Promise<LfkSession[]>;
   getChannelCards: (
     userId: string,
-    bindings: ClientIdentity["bindings"],
-    delivery?: { phone?: string | null; emailVerified?: boolean }
+    bindings: ClientIdentity['bindings'],
+    delivery?: { phone?: string | null; emailVerified?: boolean },
   ) => Promise<ChannelCard[]>;
   listSupplementaryContacts: (
     userId: string,
@@ -60,8 +67,8 @@ export type DoctorClientsServiceDeps = {
   ) => Promise<DoctorSupplementaryContact[]>;
   getDoctorSupportDefault: (
     key:
-      | "doctor_patient_support_comments_without_support_default_enabled"
-      | "doctor_patient_support_media_without_support_default_enabled",
+      | 'doctor_patient_support_comments_without_support_default_enabled'
+      | 'doctor_patient_support_media_without_support_default_enabled',
     context: { patientUserId: string; organizationId: string },
   ) => Promise<boolean>;
 };
@@ -144,7 +151,7 @@ export function createDoctorClientsService(deps: DoctorClientsServiceDeps) {
       return deps.clientsPort.setPatientBirthDate(userId, birthDate);
     },
 
-    async setPatientGender(userId: string, gender: "male" | "female" | null): Promise<void> {
+    async setPatientGender(userId: string, gender: 'male' | 'female' | null): Promise<void> {
       return deps.clientsPort.setPatientGender(userId, gender);
     },
 
@@ -178,7 +185,7 @@ export function createDoctorClientsService(deps: DoctorClientsServiceDeps) {
         context?.organizationId &&
         profile.organizationId !== context.organizationId
       ) {
-        throw new Error("organization_principal_mismatch");
+        throw new Error('organization_principal_mismatch');
       }
       if (profile?.onSupport) {
         return resolvePatientProgramInteractionPolicy({
@@ -196,11 +203,11 @@ export function createDoctorClientsService(deps: DoctorClientsServiceDeps) {
       const runtimeContext = { patientUserId, organizationId };
       const [commentsDefault, mediaDefault] = await Promise.all([
         deps.getDoctorSupportDefault(
-          "doctor_patient_support_comments_without_support_default_enabled",
+          'doctor_patient_support_comments_without_support_default_enabled',
           runtimeContext,
         ),
         deps.getDoctorSupportDefault(
-          "doctor_patient_support_media_without_support_default_enabled",
+          'doctor_patient_support_media_without_support_default_enabled',
           runtimeContext,
         ),
       ]);

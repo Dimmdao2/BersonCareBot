@@ -1,14 +1,18 @@
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { computeMessengerPhoneBindRequestHash } from "@/app-layer/idempotency/messengerPhoneBindRequestHash";
-import { getCachedResponse, isKeyValid, setCachedResponse } from "@/app-layer/idempotency/idempotencyStore";
-import { logger } from "@/app-layer/logging/logger";
-import { verifyIntegratorSignature } from "@/app-layer/integrator/verifyIntegratorSignature";
-import { executeMessengerPhoneHttpBindWithDefaultPool } from "@/app-layer/integrator/messengerPhoneHttpBindExecute";
-import { isAuthChannelEnabled } from "@/modules/auth/authChannelPolicy";
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { computeMessengerPhoneBindRequestHash } from '@/app-layer/idempotency/messengerPhoneBindRequestHash';
+import {
+  getCachedResponse,
+  isKeyValid,
+  setCachedResponse,
+} from '@/app-layer/idempotency/idempotencyStore';
+import { logger } from '@/app-layer/logging/logger';
+import { verifyIntegratorSignature } from '@/app-layer/integrator/verifyIntegratorSignature';
+import { executeMessengerPhoneHttpBindWithDefaultPool } from '@/app-layer/integrator/messengerPhoneHttpBindExecute';
+import { isAuthChannelEnabled } from '@/modules/auth/authChannelPolicy';
 
 const bodySchema = z.object({
-  channelCode: z.enum(["telegram", "max"]),
+  channelCode: z.enum(['telegram', 'max']),
   externalId: z.string().min(1).max(128),
   phoneNormalized: z.string().min(1).max(32),
   correlationId: z.string().max(256).optional(),
@@ -20,49 +24,55 @@ const bodySchema = z.object({
  * Same TX semantics as integrator `user.phone.link` — see `executeMessengerPhoneHttpBind`.
  */
 export async function POST(request: Request) {
-  const timestamp = request.headers.get("x-bersoncare-timestamp");
-  const signature = request.headers.get("x-bersoncare-signature");
-  const idempotencyKey = request.headers.get("x-bersoncare-idempotency-key");
+  const timestamp = request.headers.get('x-bersoncare-timestamp');
+  const signature = request.headers.get('x-bersoncare-signature');
+  const idempotencyKey = request.headers.get('x-bersoncare-idempotency-key');
   const rawBody = await request.text();
 
   if (!timestamp || !signature || !idempotencyKey) {
-    return NextResponse.json({ ok: false, error: "missing webhook headers" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'missing webhook headers' }, { status: 400 });
   }
   if (!isKeyValid(idempotencyKey)) {
-    return NextResponse.json({ ok: false, error: "invalid idempotency key" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid idempotency key' }, { status: 400 });
   }
 
   if (!verifyIntegratorSignature(timestamp, rawBody, signature, request)) {
-    logger.warn({ route: "integrator/messenger-phone/bind" }, "invalid integrator signature");
-    return NextResponse.json({ ok: false, error: "invalid signature" }, { status: 401 });
+    logger.warn({ route: 'integrator/messenger-phone/bind' }, 'invalid integrator signature');
+    return NextResponse.json({ ok: false, error: 'invalid signature' }, { status: 401 });
   }
 
   let parsed: Record<string, unknown>;
   try {
     parsed = JSON.parse(rawBody) as Record<string, unknown>;
   } catch {
-    return NextResponse.json({ ok: false, error: "invalid json" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid json' }, { status: 400 });
   }
 
   const validated = bodySchema.safeParse(parsed);
   if (!validated.success) {
-    return NextResponse.json({ ok: false, error: "validation_error" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'validation_error' }, { status: 400 });
   }
 
   if (validated.data.idempotencyKey && validated.data.idempotencyKey !== idempotencyKey) {
-    return NextResponse.json({ ok: false, error: "idempotency key mismatch between header and body" }, { status: 400 });
+    return NextResponse.json(
+      { ok: false, error: 'idempotency key mismatch between header and body' },
+      { status: 400 },
+    );
   }
 
   if (!(await isAuthChannelEnabled(validated.data.channelCode))) {
-    return NextResponse.json({ ok: false, error: "auth_channel_disabled" }, { status: 403 });
+    return NextResponse.json({ ok: false, error: 'auth_channel_disabled' }, { status: 403 });
   }
 
   const requestHash = computeMessengerPhoneBindRequestHash(parsed);
   const cached = await getCachedResponse(idempotencyKey, requestHash);
-  if (cached.hit && "mismatch" in cached && cached.mismatch) {
-    return NextResponse.json({ ok: false, error: "idempotency key reused with different payload" }, { status: 409 });
+  if (cached.hit && 'mismatch' in cached && cached.mismatch) {
+    return NextResponse.json(
+      { ok: false, error: 'idempotency key reused with different payload' },
+      { status: 409 },
+    );
   }
-  if (cached.hit && "status" in cached) {
+  if (cached.hit && 'status' in cached) {
     return NextResponse.json(cached.body, { status: cached.status });
   }
 
@@ -83,10 +93,13 @@ export async function POST(request: Request) {
     const stored = await setCachedResponse(idempotencyKey, requestHash, status, body);
     if (!stored) {
       const again = await getCachedResponse(idempotencyKey, requestHash);
-      if (again.hit && "mismatch" in again && again.mismatch) {
-        return NextResponse.json({ ok: false, error: "idempotency key reused with different payload" }, { status: 409 });
+      if (again.hit && 'mismatch' in again && again.mismatch) {
+        return NextResponse.json(
+          { ok: false, error: 'idempotency key reused with different payload' },
+          { status: 409 },
+        );
       }
-      if (again.hit && "status" in again) {
+      if (again.hit && 'status' in again) {
         return NextResponse.json(again.body, { status: again.status });
       }
     }
@@ -102,6 +115,6 @@ export async function POST(request: Request) {
     failBody.indeterminate = true;
   }
 
-  const status = result.reason === "db_transient_failure" ? 503 : 422;
+  const status = result.reason === 'db_transient_failure' ? 503 : 422;
   return NextResponse.json(failBody, { status });
 }

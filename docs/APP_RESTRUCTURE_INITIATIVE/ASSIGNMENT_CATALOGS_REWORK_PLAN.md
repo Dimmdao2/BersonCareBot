@@ -6,6 +6,7 @@
 **Назначение:** UX/тех-фиксы существующих каталогов раздела «Назначения» в кабинете врача (клинические тесты, наборы тестов, рекомендации, комплексы ЛФК, шаблоны программ). Решает накопленные баги текущей реализации и подготавливает почву для [`PROGRAM_PATIENT_SHAPE_PLAN.md`](PROGRAM_PATIENT_SHAPE_PLAN.md), не дублируя его доменную работу.
 
 **Связанные документы:**
+
 - ТЗ доменной модели плана пациента: [`PROGRAM_PATIENT_SHAPE_PLAN.md`](PROGRAM_PATIENT_SHAPE_PLAN.md) (этапы A1–A5).
 - Дорожная карта: [`RECOMMENDATIONS_AND_ROADMAP.md`](RECOMMENDATIONS_AND_ROADMAP.md) (этап 9, эта переработка — sister-план перед/параллельно A1+A3).
 - **Execution-контур B1–B7:** [`../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/README.md`](../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/README.md) (`MASTER_PLAN`, `STAGE_B1..B7`, `LOG`, сводный [`AUDIT_GLOBAL.md`](../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/AUDIT_GLOBAL.md), [`AUDIT_PREPUSH_POSTFIX.md`](../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/AUDIT_PREPUSH_POSTFIX.md)).
@@ -13,6 +14,7 @@
 - Целевая IA врача: [`TARGET_STRUCTURE_DOCTOR.md`](TARGET_STRUCTURE_DOCTOR.md) §6.
 
 > Принципы scope:
+>
 > 1. **Не делать доменную работу `PROGRAM_PATIENT_SHAPE`.** Здесь — только переработка существующих каталогов (типизация, недостающие поля, фильтры, замена убогого UI на нормальный, фикс багов).
 > 2. **Не плодить «второй движок».** Конструктор шаблона программ переписывается визуально (B6), доменное расширение (группы/цели/задачи) — в A1+A3 PROGRAM_PATIENT_SHAPE.
 > 3. **Не разбивать одну ось на две и наоборот.** «Опубликовано/черновик» и «архив/активно» — две **независимые** оси (см. B1).
@@ -21,15 +23,15 @@
 
 ## 1. Контекст: что сейчас не так
 
-| Каталог | Боль | Файл |
-|---|---|---|
-| Клинические тесты | `scoring_config` — `<Textarea>` JSON; `testType` — произвольная строка; нет региона тела; фильтр «Регион» в шапке списка ничего не фильтрует (поля нет в карточке) | [`apps/webapp/src/app/app/doctor/clinical-tests/ClinicalTestForm.tsx`](../../apps/webapp/src/app/app/doctor/clinical-tests/ClinicalTestForm.tsx) |
-| Наборы тестов | Состав набора вводится как «UUID по одной строке» в `<Textarea>` | [`apps/webapp/src/app/app/doctor/test-sets/TestSetItemsForm.tsx`](../../apps/webapp/src/app/app/doctor/test-sets/TestSetItemsForm.tsx) |
-| Рекомендации | Поле называется «Область», а это `domain` (тематика, не регион тела); нет `body_region`, нет структурированных «количество / частота / длительность» | [`apps/webapp/src/app/app/doctor/recommendations/RecommendationForm.tsx`](../../apps/webapp/src/app/app/doctor/recommendations/RecommendationForm.tsx), [`apps/webapp/src/modules/recommendations/recommendationDomain.ts`](../../apps/webapp/src/modules/recommendations/recommendationDomain.ts) |
-| Комплексы ЛФК | «Иконка глаза» (публикация черновика) визуально не реагирует на ожидаемое действие; в целом UX списка/карточки требует pass-1 | [`apps/webapp/src/app/app/doctor/lfk-templates/`](../../apps/webapp/src/app/app/doctor/lfk-templates/) |
-| Шаблоны программ | Конструктор минимально функциональный, но визуально настолько убогий, что воспринимается как «не правится»; модалка добавления элемента — без превьюшек; нет нормальных save/publish CTA | [`apps/webapp/src/app/app/doctor/treatment-program-templates/[id]/TreatmentProgramConstructorClient.tsx`](../../apps/webapp/src/app/app/doctor/treatment-program-templates/[id]/TreatmentProgramConstructorClient.tsx) |
-| Все каталоги с публикацией | Фильтр `DoctorCatalogListStatus = "all" \| "active" \| "archived"` сворачивает `draft`/`published` в `active` (см. legacy в [`apps/webapp/src/shared/lib/doctorCatalogListStatus.ts`](../../apps/webapp/src/shared/lib/doctorCatalogListStatus.ts)). Невозможно отдельно увидеть черновики vs опубликованные, при этом `archived draft` после восстановления должен оставаться черновиком | shared lib |
-| Все item-контейнеры | Универсального паттерна «коммент в шаблоне → копия в инстансе → опц. локальное переопределение» нет; есть только частный `local_comment` на `instance_stage_item` (зафиксирован в `PROGRAM_PATIENT_SHAPE_PLAN`) | разное |
+| Каталог                    | Боль                                                                                                                                                                                                                                                                                                                                                                                      | Файл                                                                                                                                                                                                                                                                                               |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Клинические тесты          | `scoring_config` — `<Textarea>` JSON; `testType` — произвольная строка; нет региона тела; фильтр «Регион» в шапке списка ничего не фильтрует (поля нет в карточке)                                                                                                                                                                                                                        | [`apps/webapp/src/app/app/doctor/clinical-tests/ClinicalTestForm.tsx`](../../apps/webapp/src/app/app/doctor/clinical-tests/ClinicalTestForm.tsx)                                                                                                                                                   |
+| Наборы тестов              | Состав набора вводится как «UUID по одной строке» в `<Textarea>`                                                                                                                                                                                                                                                                                                                          | [`apps/webapp/src/app/app/doctor/test-sets/TestSetItemsForm.tsx`](../../apps/webapp/src/app/app/doctor/test-sets/TestSetItemsForm.tsx)                                                                                                                                                             |
+| Рекомендации               | Поле называется «Область», а это `domain` (тематика, не регион тела); нет `body_region`, нет структурированных «количество / частота / длительность»                                                                                                                                                                                                                                      | [`apps/webapp/src/app/app/doctor/recommendations/RecommendationForm.tsx`](../../apps/webapp/src/app/app/doctor/recommendations/RecommendationForm.tsx), [`apps/webapp/src/modules/recommendations/recommendationDomain.ts`](../../apps/webapp/src/modules/recommendations/recommendationDomain.ts) |
+| Комплексы ЛФК              | «Иконка глаза» (публикация черновика) визуально не реагирует на ожидаемое действие; в целом UX списка/карточки требует pass-1                                                                                                                                                                                                                                                             | [`apps/webapp/src/app/app/doctor/lfk-templates/`](../../apps/webapp/src/app/app/doctor/lfk-templates/)                                                                                                                                                                                             |
+| Шаблоны программ           | Конструктор минимально функциональный, но визуально настолько убогий, что воспринимается как «не правится»; модалка добавления элемента — без превьюшек; нет нормальных save/publish CTA                                                                                                                                                                                                  | [`apps/webapp/src/app/app/doctor/treatment-program-templates/[id]/TreatmentProgramConstructorClient.tsx`](../../apps/webapp/src/app/app/doctor/treatment-program-templates/[id]/TreatmentProgramConstructorClient.tsx)                                                                             |
+| Все каталоги с публикацией | Фильтр `DoctorCatalogListStatus = "all" \| "active" \| "archived"` сворачивает `draft`/`published` в `active` (см. legacy в [`apps/webapp/src/shared/lib/doctorCatalogListStatus.ts`](../../apps/webapp/src/shared/lib/doctorCatalogListStatus.ts)). Невозможно отдельно увидеть черновики vs опубликованные, при этом `archived draft` после восстановления должен оставаться черновиком | shared lib                                                                                                                                                                                                                                                                                         |
+| Все item-контейнеры        | Универсального паттерна «коммент в шаблоне → копия в инстансе → опц. локальное переопределение» нет; есть только частный `local_comment` на `instance_stage_item` (зафиксирован в `PROGRAM_PATIENT_SHAPE_PLAN`)                                                                                                                                                                           | разное                                                                                                                                                                                                                                                                                             |
 
 ---
 
@@ -101,6 +103,7 @@
 ### B1. Универсальный паттерн фильтра «публикация × архив»
 
 **Scope:**
+
 - Расширить shared lib: добавить тип `DoctorCatalogPublicationStatus = "draft" | "published"` отдельно от `is_archived`.
 - Утилиты парсинга query: `?pub=draft|published|all` × `?arch=active|archived|all` → две независимые оси.
 - Backward compatibility со старыми ссылками (`status=active|archived` → пустой `pub` + `arch=active|archived`).
@@ -109,10 +112,12 @@
 - Для `test_sets` в этом этапе: добавить статус публикации (`draft`|`published`) и провести его в list/query/save.
 
 **Не делать:**
+
 - Не вводить `publication_status` у упражнений / клин. тестов / рекомендаций. У них только архив.
 - Не добавлять публикационный статус в сущности вне scope B1 (упражнения/клин. тесты/рекомендации).
 
 **Файлы:**
+
 - [`apps/webapp/src/shared/lib/doctorCatalogListStatus.ts`](../../apps/webapp/src/shared/lib/doctorCatalogListStatus.ts) — расширение.
 - `apps/webapp/src/shared/ui/doctor/CatalogStatusFilters.tsx` — новый.
 - ListPageClient-ы: lfk-templates, treatment-program-templates, test-sets — точечно.
@@ -126,6 +131,7 @@
 ### B2. Клинические тесты — типизация и структурированный scoring
 
 **Scope:**
+
 - Drizzle: добавить `assessment_kind TEXT NULL` (enum как у `loadType`), `body_region_id UUID NULL` FK, `scoring JSONB NULL` (новая структура), `raw_text TEXT NULL`.
 - Старый `scoring_config JSONB` — оставить колонкой; миграция данных в новую `scoring`-структуру (best-effort, остатки — в `raw_text`); потом deprecate в отдельном этапе.
 - `recommendationDomain.ts`-аналог: `apps/webapp/src/modules/tests/clinicalTestAssessmentKind.ts` с константами и подписями.
@@ -139,6 +145,7 @@
 - `ClinicalTestsPageClient`: фильтр «Регион» — наконец заработает по `body_region_id`; добавить фильтр по `assessmentKind`.
 
 **B2.5 — `CreatableComboboxInput` (новый shared компонент):**
+
 - Без `cmdk`/готового shadcn компонента (в проекте нет; shadcn Combobox — пример, не первичный примитив).
 - Минимум: `Input` с datalist-подобным dropdown поверх Popover; live-фильтр по введённой строке; кнопка «+ Добавить «xxx»» при отсутствии совпадений.
 - Источник данных — пропс `items: { value, label }[]` + callback `onCreate(rawValue) → Promise<{value, label}>`.
@@ -149,6 +156,7 @@
 - Файл: `apps/webapp/src/shared/ui/CreatableComboboxInput.tsx` + `*.test.tsx`.
 
 **Тесты:**
+
 - Unit: парсер `scoring` (legacy `scoring_config` → новый формат).
 - Compose: `ClinicalTestForm` с `assessmentKind`, `bodyRegion`, `scoring` всех 4 schema_type.
 - `CreatableComboboxInput`: фильтрация, Enter создаёт новый item.
@@ -161,6 +169,7 @@
 ### B3. Наборы тестов — переписать редактор как клон LFK-комплекса
 
 **Scope:**
+
 - `TestSetItemsForm.tsx` — полностью переписать.
 - Список items — карточками: превьюшка теста (`media[0]`), название, **поле «Комментарий»** (template-уровень), кнопка «Удалить», drag-handle.
 - Кнопка «Добавить тест» → диалог библиотеки (по образцу `TreatmentProgramConstructorClient` диалога «Элемент из библиотеки»).
@@ -168,13 +177,16 @@
 - Drizzle: добавить `comment TEXT NULL` на `test_set_items` (универсальный `template_comment` — см. B7).
 
 **Не делать:**
+
 - Не вводить reps/sets/side/pain — это упражнения, не тесты.
 
 **Файлы:**
+
 - [`apps/webapp/src/app/app/doctor/test-sets/TestSetItemsForm.tsx`](../../apps/webapp/src/app/app/doctor/test-sets/TestSetItemsForm.tsx) — переписать.
 - [`apps/webapp/src/modules/tests/`](../../apps/webapp/src/modules/tests/) — port для `comment`.
 
 **Тесты:**
+
 - Compose: добавление/удаление/сортировка/комментарий.
 - Server action: сохранение состава с комментариями.
 
@@ -185,6 +197,7 @@
 ### B4. Рекомендации — переименование, типизация, регион тела, метрики
 
 **Scope:**
+
 - Drizzle:
   - `recommendations.body_region_id UUID NULL` FK.
   - `recommendations.quantity_text TEXT NULL`.
@@ -200,6 +213,7 @@
 - `RecommendationsPageClient`: фильтр по `body_region_id`, по `kind` остаётся.
 
 **Тесты:**
+
 - Compose: форма рекомендации со всеми новыми полями.
 - Backfill: существующие `recommendations.body_region_id = NULL`, фильтр работает корректно.
 
@@ -210,17 +224,20 @@
 ### B5. Комплексы ЛФК — UX pass-1 + фикс «иконки глаза»
 
 **Scope:**
+
 - Диагностика и фикс «иконки глаза» (публикация/анпубликация / unarchive — выяснить корневую причину).
 - Список: превьюшка (миниатюра первого упражнения или собственная), счётчик упражнений, два статуса (`draft|published`, `active|archived`) — после B1.
 - Карточка-редактор: чёткие зоны «Метаданные / Упражнения / Действия», понятные кнопки сохранения/публикации/архивации.
 - Применить B1 фильтры.
 
 **Не делать:**
+
 - Не менять модель данных комплекса.
 
 **Файлы:** [`apps/webapp/src/app/app/doctor/lfk-templates/`](../../apps/webapp/src/app/app/doctor/lfk-templates/).
 
 **Тесты:**
+
 - E2E/manual smoke: публикация, архивация, восстановление.
 - Регресс на usage/archive (`done/ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`).
 
@@ -231,6 +248,7 @@
 ### B6. Шаблоны программ — UX pass-1 конструктора (без новой доменной модели)
 
 **Scope:**
+
 - Превьюшки в списке шаблонов: обязательны счётчики этапов и элементов; миниатюра **первого элемента программы** по порядку этапов — когда бэкенд заполняет `listPreviewMedia` (типы элемента `exercise`, `recommendation`, `test_set`, `lfk_complex`); иначе иконка-заглушка. Расширение на `lesson` — при отдельной задаче.
 - Превьюшки в модалке «Элемент из библиотеки» (`TreatmentProgramConstructorClient` диалог): для упражнения / комплекса / теста / набора / рекомендации / урока — миниатюра + название + короткий sub.
 - Двухколоночный layout, sticky-шапка с CTA «Сохранить черновик» / «Опубликовать» / «Архивировать», статус-бейдж рядом с заголовком.
@@ -238,11 +256,13 @@
 - Если будет найден баг «этапы не правятся в черновике» — починить в этом этапе. По текущему коду (`editLocked = busy || isArchived`) править должно — нужна верификация в realtime.
 
 **Не делать:**
+
 - **Не** добавлять `goals/objectives/expected_duration_*` (это A1 в `PROGRAM_PATIENT_SHAPE_PLAN`).
 - **Не** добавлять группы внутри этапа (это A3 там же).
 - **Не** менять item-types / снапшот-логику.
 
 **Файлы:**
+
 - [`apps/webapp/src/app/app/doctor/treatment-program-templates/[id]/TreatmentProgramConstructorClient.tsx`](../../apps/webapp/src/app/app/doctor/treatment-program-templates/[id]/TreatmentProgramConstructorClient.tsx).
 - [`apps/webapp/src/app/app/doctor/treatment-program-templates/TreatmentProgramTemplatesPageClient.tsx`](../../apps/webapp/src/app/app/doctor/treatment-program-templates/TreatmentProgramTemplatesPageClient.tsx).
 
@@ -255,6 +275,7 @@
 ### B7. Universal comment pattern (template + local override) — раскат на все item-контейнеры
 
 **Scope:**
+
 - Аудит всех item-таблиц на наличие `comment` поля (template) и парного `local_comment` (instance).
 - Drizzle:
   - Добавить недостающие колонки `comment TEXT NULL` на template-стороне (например, `test_set_items.comment`, `treatment_program_template_stage_items.comment` если ещё нет).
@@ -266,11 +287,13 @@
   - Пациент: показывается `local_comment ?? template_comment`.
 
 **Зависимости:**
+
 - B3 (test_sets — там пара `comment` / `local_comment` появляется впервые).
 - B4 (рекомендации — `bodyMd` ≠ комментарий, **не объединяем**, см. §2.6).
 - A2 PROGRAM_PATIENT_SHAPE — `instance_stage_item.local_comment` уже зафиксирован в плане (см. §1.4 / §1.9 этого плана).
 
 **Тесты:**
+
 - Unit: copy template→instance переносит comment.
 - Unit: override в инстансе работает, очистка → возврат к template.
 - UI compose.
@@ -281,16 +304,16 @@
 
 ## 4. Изменения в схеме данных (high-level)
 
-| Этап | Таблица | Изменение |
-|---|---|---|
-| B1 | `test_sets` | + `publication_status` (`draft` \| `published`), CHECK, индекс; shared lib `doctorCatalogListStatus` + UI `CatalogStatusFilters` на трёх каталогах |
-| B2 | `clinical_tests` | + `assessment_kind TEXT NULL`, `body_region_id UUID NULL`, `scoring JSONB NULL`, `raw_text TEXT NULL` |
-| B2 | `clinical_test_measure_kinds` | NEW (`id`, `code UNIQUE`, `label`, `sort_order`, `created_at`) |
-| B3 | `test_set_items` | + `comment TEXT NULL` |
-| B4 | `recommendations` | + `body_region_id UUID NULL`, `quantity_text`, `frequency_text`, `duration_text`; расширение enum `domain` |
-| B5 | — | Только UX/UI |
-| B6 | — | Только UX/UI |
-| B7 | разное | + `comment` на недостающих template-таблицах; + `local_comment` на недостающих instance-таблицах |
+| Этап | Таблица                       | Изменение                                                                                                                                          |
+| ---- | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| B1   | `test_sets`                   | + `publication_status` (`draft` \| `published`), CHECK, индекс; shared lib `doctorCatalogListStatus` + UI `CatalogStatusFilters` на трёх каталогах |
+| B2   | `clinical_tests`              | + `assessment_kind TEXT NULL`, `body_region_id UUID NULL`, `scoring JSONB NULL`, `raw_text TEXT NULL`                                              |
+| B2   | `clinical_test_measure_kinds` | NEW (`id`, `code UNIQUE`, `label`, `sort_order`, `created_at`)                                                                                     |
+| B3   | `test_set_items`              | + `comment TEXT NULL`                                                                                                                              |
+| B4   | `recommendations`             | + `body_region_id UUID NULL`, `quantity_text`, `frequency_text`, `duration_text`; расширение enum `domain`                                         |
+| B5   | —                             | Только UX/UI                                                                                                                                       |
+| B6   | —                             | Только UX/UI                                                                                                                                       |
+| B7   | разное                        | + `comment` на недостающих template-таблицах; + `local_comment` на недостающих instance-таблицах                                                   |
 
 Все ALTER — нерушащие (nullable / DEFAULT).
 
@@ -300,15 +323,15 @@
 
 Статусы синхронизированы с `PRE_IMPLEMENTATION_DECISIONS` и журналом решений §8.2.
 
-| # | Вопрос | Статус |
-|---|---|---|
-| Q1 | Виды оценки клинического теста (`assessmentKind`) | **Решено:** переводим в **редактируемый системный справочник в БД**. Текущий enum v1 — стартовый сид, не «вечный хардкод». |
-| Q2 | `schema_type = qualitative` в инстансе | **Решено:** врач отмечает прохождение теста так же, как для остальных типов; оценка результата и открытие следующего этапа идут общим контуром прогресса программы. |
-| Q3 | Старые/новые значения `recommendations.domain` | **Решено:** расширение множества кодов допустимо; делаем системный справочник в БД. Массовый merge legacy в той же миграции не обязателен. |
-| Q4 | `domain` vs `kind` в БД/коде | **Решено:** до отдельного эпика оставляем `domain`, UI = «Тип». Если объём изменения приемлем — переименовать в `kind` отдельным этапом. |
-| Q5 | UUID-textarea в редакторе наборов тестов | **Закрыто 2026-05-03** |
-| Q6 | Модерация `measure_kinds` | **Решено:** первый шаг — доступ к системному справочнику (управление списком). Merge/dedup/«тяжёлая» модерация — позже при необходимости. |
-| Q7 | `comment` у каталога рекомендации | **Закрыто:** отдельный template-comment каталога не вводим; `bodyMd` остаётся описанием. |
+| #   | Вопрос                                            | Статус                                                                                                                                                              |
+| --- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Q1  | Виды оценки клинического теста (`assessmentKind`) | **Решено:** переводим в **редактируемый системный справочник в БД**. Текущий enum v1 — стартовый сид, не «вечный хардкод».                                          |
+| Q2  | `schema_type = qualitative` в инстансе            | **Решено:** врач отмечает прохождение теста так же, как для остальных типов; оценка результата и открытие следующего этапа идут общим контуром прогресса программы. |
+| Q3  | Старые/новые значения `recommendations.domain`    | **Решено:** расширение множества кодов допустимо; делаем системный справочник в БД. Массовый merge legacy в той же миграции не обязателен.                          |
+| Q4  | `domain` vs `kind` в БД/коде                      | **Решено:** до отдельного эпика оставляем `domain`, UI = «Тип». Если объём изменения приемлем — переименовать в `kind` отдельным этапом.                            |
+| Q5  | UUID-textarea в редакторе наборов тестов          | **Закрыто 2026-05-03**                                                                                                                                              |
+| Q6  | Модерация `measure_kinds`                         | **Решено:** первый шаг — доступ к системному справочнику (управление списком). Merge/dedup/«тяжёлая» модерация — позже при необходимости.                           |
+| Q7  | `comment` у каталога рекомендации                 | **Закрыто:** отдельный template-comment каталога не вводим; `bodyMd` остаётся описанием.                                                                            |
 
 ---
 
@@ -328,16 +351,16 @@
 
 ## 7. Backlog (откладываемое)
 
-| Идея | Условие старта |
-|---|---|
-| ~~Удалить колонку `tests.scoring_config` (клинические тесты, таблица `tests`)~~ | **✅ закрыто (2026-05-04 репо + dev; prod — owner 2026-06-01):** миграция [`0040_drop_tests_scoring_config.sql`](../../apps/webapp/db/drizzle-migrations/0040_drop_tests_scoring_config.sql); код/схема без `scoring_config`. |
-| ~~Перевести `assessmentKind` в системный справочник БД (категория + UI управления + валидация)~~ | **Сделано (D2, 2026-05-03):** [`STAGE_D2_PLAN.md`](../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/STAGE_D2_PLAN.md), [`AUDIT_STAGE_D2.md`](../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/AUDIT_STAGE_D2.md) |
-| ~~Перевести типы рекомендаций в системный справочник БД~~ | **Сделано (D3, 2026-05-03):** [`STAGE_D3_PLAN.md`](../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/STAGE_D3_PLAN.md), [`AUDIT_STAGE_D3.md`](../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/AUDIT_STAGE_D3.md) |
-| Переименовать `recommendations.domain` → `recommendations.kind` (миграция + API + модуль `recommendations`) | **Отложено (2026-05-04):** отдельный этап по запросу; до снятия паузы остаёмся на колонке `domain` и UI «Тип» (см. [`STAGE_D5_PLAN.md`](../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/STAGE_D5_PLAN.md)). |
-| Расширить `CreatableComboboxInput` до **многозначного** (теги) | По запросу |
-| ~~Доступ к системному справочнику `measure_kinds` (список/правка позиций)~~ | **Сделано (D1, 2026-05-03):** [`STAGE_D1_PLAN.md`](../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/STAGE_D1_PLAN.md), [`AUDIT_STAGE_D1.md`](../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/AUDIT_STAGE_D1.md) |
-| ~~`publication_status` на упражнениях / клин. тестах / рекомендациях~~ | **Не делаем** (решение §8.2) |
-| ~~Отдельный API bulk-операций над items внутри контейнера~~ | **Не планируем** (решение §8.2; текущих батч-операций достаточно) |
+| Идея                                                                                                        | Условие старта                                                                                                                                                                                                                                           |
+| ----------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ~~Удалить колонку `tests.scoring_config` (клинические тесты, таблица `tests`)~~                             | **✅ закрыто (2026-05-04 репо + dev; prod — owner 2026-06-01):** миграция [`0040_drop_tests_scoring_config.sql`](../../apps/webapp/db/drizzle-migrations/0040_drop_tests_scoring_config.sql); код/схема без `scoring_config`.                            |
+| ~~Перевести `assessmentKind` в системный справочник БД (категория + UI управления + валидация)~~            | **Сделано (D2, 2026-05-03):** [`STAGE_D2_PLAN.md`](../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/STAGE_D2_PLAN.md), [`AUDIT_STAGE_D2.md`](../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/AUDIT_STAGE_D2.md) |
+| ~~Перевести типы рекомендаций в системный справочник БД~~                                                   | **Сделано (D3, 2026-05-03):** [`STAGE_D3_PLAN.md`](../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/STAGE_D3_PLAN.md), [`AUDIT_STAGE_D3.md`](../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/AUDIT_STAGE_D3.md) |
+| Переименовать `recommendations.domain` → `recommendations.kind` (миграция + API + модуль `recommendations`) | **Отложено (2026-05-04):** отдельный этап по запросу; до снятия паузы остаёмся на колонке `domain` и UI «Тип» (см. [`STAGE_D5_PLAN.md`](../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/STAGE_D5_PLAN.md)).                         |
+| Расширить `CreatableComboboxInput` до **многозначного** (теги)                                              | По запросу                                                                                                                                                                                                                                               |
+| ~~Доступ к системному справочнику `measure_kinds` (список/правка позиций)~~                                 | **Сделано (D1, 2026-05-03):** [`STAGE_D1_PLAN.md`](../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/STAGE_D1_PLAN.md), [`AUDIT_STAGE_D1.md`](../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/AUDIT_STAGE_D1.md) |
+| ~~`publication_status` на упражнениях / клин. тестах / рекомендациях~~                                      | **Не делаем** (решение §8.2)                                                                                                                                                                                                                             |
+| ~~Отдельный API bulk-операций над items внутри контейнера~~                                                 | **Не планируем** (решение §8.2; текущих батч-операций достаточно)                                                                                                                                                                                        |
 
 ---
 

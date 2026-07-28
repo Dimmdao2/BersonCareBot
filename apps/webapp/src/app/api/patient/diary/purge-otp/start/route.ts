@@ -1,8 +1,8 @@
-import { randomUUID } from "node:crypto";
-import { NextResponse } from "next/server";
-import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
-import { routePaths } from "@/app-layer/routes/paths";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { randomUUID } from 'node:crypto';
+import { NextResponse } from 'next/server';
+import { requirePatientApiBusinessAccess } from '@/app-layer/guards/requireRole';
+import { routePaths } from '@/app-layer/routes/paths';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 
 // SECURITY: PIN re-auth temporarily disabled with patient profile PIN UI removal (2026-05-10).
 // Destructive purge is protected by single-factor OTP only (SMS challenge).
@@ -17,13 +17,17 @@ export async function POST() {
   const session = gate.session;
   const phone = session.user.phone!.trim();
   const deps = buildAppDeps();
-  const result = await deps.auth.startPhoneAuth(phone, { channel: "web", chatId: randomUUID() }, { delivery: { channel: "sms" } });
+  const result = await deps.auth.startPhoneAuth(
+    phone,
+    { channel: 'web', chatId: randomUUID() },
+    { delivery: { channel: 'sms' } },
+  );
 
   if (!result.ok) {
     const status =
-      result.code === "rate_limited" || result.code === "too_many_attempts"
+      result.code === 'rate_limited' || result.code === 'too_many_attempts'
         ? 429
-        : result.code === "delivery_failed"
+        : result.code === 'delivery_failed'
           ? 503
           : 400;
     return NextResponse.json(
@@ -35,9 +39,9 @@ export async function POST() {
       {
         status,
         ...(result.retryAfterSeconds != null && {
-          headers: { "Retry-After": String(result.retryAfterSeconds) },
+          headers: { 'Retry-After': String(result.retryAfterSeconds) },
         }),
-      }
+      },
     );
   }
 

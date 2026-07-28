@@ -1,6 +1,6 @@
-export type MessengerMethod = "telegram" | "max";
+export type MessengerMethod = 'telegram' | 'max';
 
-export type LoginTokenStatus = "pending" | "confirmed" | "expired";
+export type LoginTokenStatus = 'pending' | 'confirmed' | 'expired';
 
 export type LoginTokenRow = {
   id: string;

@@ -1,11 +1,11 @@
-import { NextResponse } from "next/server";
-import { writeAuditLog } from "@/app-layer/admin/auditLog";
-import { getPool } from "@/app-layer/db/client";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
-import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
-import { logger } from "@/app-layer/logging/logger";
-import { requireAdminModeSession } from "@/modules/auth/requireAdminMode";
+import { NextResponse } from 'next/server';
+import { writeAuditLog } from '@/app-layer/admin/auditLog';
+import { getPool } from '@/app-layer/db/client';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
+import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import { logger } from '@/app-layer/logging/logger';
+import { requireAdminModeSession } from '@/modules/auth/requireAdminMode';
 
 export async function POST() {
   const gate = await requireAdminModeSession();
@@ -15,17 +15,14 @@ export async function POST() {
 
   const { resolved } = await buildAppDeps().operatorHealthWrite.resolveAllOpenIncidents();
 
-  logger.info(
-    { resolved, actorId: gate.session.user.userId },
-    "operator_incidents.resolve_all",
-  );
+  logger.info({ resolved, actorId: gate.session.user.userId }, 'operator_incidents.resolve_all');
 
   await withDoctorWorkspacePrincipal(workspaceGate.ctx, () =>
     writeAuditLog(getPool(), {
       actorId: gate.session.user.userId,
-      action: "operator_incidents_resolve_all",
+      action: 'operator_incidents_resolve_all',
       details: { resolved },
-      status: "ok",
+      status: 'ok',
     }),
   );
 

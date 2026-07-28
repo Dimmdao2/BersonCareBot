@@ -5,7 +5,7 @@
 
 export type PatientHomeBanner = {
   title: string;
-  variant: "info" | "important";
+  variant: 'info' | 'important';
   key: string;
 };
 

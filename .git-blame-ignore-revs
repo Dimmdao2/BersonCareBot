@@ -1,0 +1,5 @@
+# Массовые механические правки — игнорировать в git blame.
+# Использование: git config blame.ignoreRevsFile .git-blame-ignore-revs
+
+# chore(format): прогон prettier по репо (29.07.2026, этап 0 ревизии тестов)
+68bfcbeda4be1c76184dc494e42e562e1a8969da

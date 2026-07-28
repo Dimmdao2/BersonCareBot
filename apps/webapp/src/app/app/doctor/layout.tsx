@@ -2,23 +2,30 @@
  * Layout раздела кабинета специалиста (/app/doctor).
  * Шапка на всю ширину; на md+ под ней слева меню разделов (`DoctorAdminSidebar`), справа контент.
  */
-import type { ReactNode } from "react";
-import type { Metadata } from "next";
-import { redirect } from "next/navigation";
-import "../../styles/doctor.css";
-import { requireEntitlementForReadAction } from "@/app-layer/guards/requireEntitlement";
-import { requireOrganizationWorkspaceContext } from "@/app-layer/guards/requireRole";
-import { getCurrentSession } from "@/modules/auth/service";
-import { hasLaunchCapability, resolveLaunchCapabilities } from "@/app-layer/guards/workspaceCapabilities";
-import { staffPwaLayoutMetadata } from "@/shared/lib/pwa/staffPwaLayoutMetadata";
-import { DoctorWorkspaceShell } from "@/shared/ui/doctor/shell/DoctorWorkspaceShell";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import type { DoctorWorkspaceContext } from "@/modules/doctor-workspace/types";
+import type { ReactNode } from 'react';
+import type { Metadata } from 'next';
+import { redirect } from 'next/navigation';
+import '../../styles/doctor.css';
+import { requireEntitlementForReadAction } from '@/app-layer/guards/requireEntitlement';
+import { requireOrganizationWorkspaceContext } from '@/app-layer/guards/requireRole';
+import { getCurrentSession } from '@/modules/auth/service';
+import {
+  hasLaunchCapability,
+  resolveLaunchCapabilities,
+} from '@/app-layer/guards/workspaceCapabilities';
+import { staffPwaLayoutMetadata } from '@/shared/lib/pwa/staffPwaLayoutMetadata';
+import { DoctorWorkspaceShell } from '@/shared/ui/doctor/shell/DoctorWorkspaceShell';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import type { DoctorWorkspaceContext } from '@/modules/doctor-workspace/types';
 
 export const metadata: Metadata = staffPwaLayoutMetadata;
 
 function getValueJson<T>(valueJson: unknown, fallback: T): T {
-  if (valueJson !== null && typeof valueJson === "object" && "value" in (valueJson as Record<string, unknown>)) {
+  if (
+    valueJson !== null &&
+    typeof valueJson === 'object' &&
+    'value' in (valueJson as Record<string, unknown>)
+  ) {
     return (valueJson as Record<string, unknown>).value as T;
   }
   return fallback;
@@ -38,10 +45,10 @@ export default async function DoctorSectionLayout({ children }: { children: Reac
         sessionRole: currentSession.user.role,
         adminMode: currentSession.adminMode,
       }),
-      "platform.operations",
+      'platform.operations',
     )
   ) {
-    redirect("/app/admin/system-health");
+    redirect('/app/admin/system-health');
   }
   const workspaceAccess = await requireOrganizationWorkspaceContext();
   const session = workspaceAccess.session;
@@ -50,17 +57,17 @@ export default async function DoctorSectionLayout({ children }: { children: Reac
     // progressive 2FA-first-run state. Let that request reach the root onboarding page; every
     // clinical child has its own workspace guard. A management-only admin must keep the
     // historical organization-settings redirect rather than seeing the owner's 2FA prompt.
-    if (workspaceAccess.membershipRole === "owner" && workspaceAccess.specialistId !== null) {
+    if (workspaceAccess.membershipRole === 'owner' && workspaceAccess.specialistId !== null) {
       return children;
     }
-    redirect("/app/settings?tab=organization");
+    redirect('/app/settings?tab=organization');
   }
   const deps = buildAppDeps();
   const [organization, doctorSettings, effectiveBranding] = await Promise.all([
     deps.bookingEngine
       ? deps.bookingEngine.organization.getOrganization(workspaceAccess.organizationId)
       : Promise.resolve(null),
-    deps.systemSettings.listSettingsByScope("doctor", {
+    deps.systemSettings.listSettingsByScope('doctor', {
       organizationId: workspaceAccess.organizationId,
     }),
     // UX-05 B2: the staff shell brand mark is resolved server-side only — the client never
@@ -68,9 +75,9 @@ export default async function DoctorSectionLayout({ children }: { children: Reac
     // A resolution failure degrades to platform visuals below rather than 500ing the whole shell.
     deps.orgBranding.resolveEffectiveOrgBranding(workspaceAccess.organizationId).catch(() => null),
   ]);
-  const coursesEnabled = (await requireEntitlementForReadAction(workspaceAccess, "courses")).ok;
+  const coursesEnabled = (await requireEntitlementForReadAction(workspaceAccess, 'courses')).ok;
   const shellBrand = {
-    displayName: effectiveBranding?.effectiveDisplayName ?? organization?.title ?? "BersonCare",
+    displayName: effectiveBranding?.effectiveDisplayName ?? organization?.title ?? 'BersonCare',
     logoUrl: effectiveBranding?.paid.logoUrl ?? null,
   };
   const workspaceContext: DoctorWorkspaceContext = {
@@ -82,10 +89,15 @@ export default async function DoctorSectionLayout({ children }: { children: Reac
     canManageOrganization: workspaceAccess.canManageOrganization,
     canManageAllSpecialists: workspaceAccess.canManageAllSpecialists,
     canAccessClinicalWorkspace: workspaceAccess.canAccessClinicalWorkspace,
-    selectedSpecialistId: workspaceAccess.canManageAllSpecialists ? null : workspaceAccess.specialistId,
+    selectedSpecialistId: workspaceAccess.canManageAllSpecialists
+      ? null
+      : workspaceAccess.specialistId,
   };
   // P0.11.3: patient_label is PER-ORG (see orgScopedKeys.ts) — org-first, global-fallback.
-  const patientLabel = getValueJson(doctorSettings.find((x) => x.key === "patient_label")?.valueJson, "пациент");
+  const patientLabel = getValueJson(
+    doctorSettings.find((x) => x.key === 'patient_label')?.valueJson,
+    'пациент',
+  );
   return (
     <DoctorWorkspaceShell
       adminMode={session.adminMode ?? false}

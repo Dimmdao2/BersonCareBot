@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import type { ImgHTMLAttributes, ReactNode } from "react";
-import { useState } from "react";
+import type { ImgHTMLAttributes, ReactNode } from 'react';
+import { useState } from 'react';
 
-type Props = Omit<ImgHTMLAttributes<HTMLImageElement>, "src" | "alt"> & {
+type Props = Omit<ImgHTMLAttributes<HTMLImageElement>, 'src' | 'alt'> & {
   src?: string | null;
   fallbackSrc?: string | null;
   alt: string;
@@ -14,14 +14,23 @@ type Props = Omit<ImgHTMLAttributes<HTMLImageElement>, "src" | "alt"> & {
  * CMS/media URLs may be unavailable for guests or stale after content edits.
  * Keep the card geometry and show the local decorative fallback instead of a broken-image glyph.
  */
-export function PatientHomeSafeImage({ src, fallbackSrc, alt, fallback = null, onError, ...props }: Props) {
+export function PatientHomeSafeImage({
+  src,
+  fallbackSrc,
+  alt,
+  fallback = null,
+  onError,
+  ...props
+}: Props) {
   const [failedSources, setFailedSources] = useState<ReadonlySet<string>>(() => new Set());
   const imageSrc = src?.trim() || null;
   const fallbackImageSrc = fallbackSrc?.trim() || null;
   const currentSrc =
-    imageSrc && !failedSources.has(imageSrc) ? imageSrc
-    : fallbackImageSrc && fallbackImageSrc !== imageSrc && !failedSources.has(fallbackImageSrc) ? fallbackImageSrc
-    : null;
+    imageSrc && !failedSources.has(imageSrc)
+      ? imageSrc
+      : fallbackImageSrc && fallbackImageSrc !== imageSrc && !failedSources.has(fallbackImageSrc)
+        ? fallbackImageSrc
+        : null;
 
   if (!currentSrc) return <>{fallback}</>;
 

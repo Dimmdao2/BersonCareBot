@@ -1,4 +1,4 @@
-import type { PatientHomeWarmupPickContext } from "@/modules/patient-home/todayConfig";
+import type { PatientHomeWarmupPickContext } from '@/modules/patient-home/todayConfig';
 
 export type PatientHomeWarmupPickContextDeps = {
   patientPractice: {
@@ -11,10 +11,9 @@ export function buildPatientHomeWarmupPickContext(
   deps: PatientHomeWarmupPickContextDeps,
 ): PatientHomeWarmupPickContext {
   return {
-    tier: "patient",
+    tier: 'patient',
     userId,
-    getLatestCompletedContentPageId: deps.patientPractice.getLatestDailyWarmupCompletedContentPageId.bind(
-      deps.patientPractice,
-    ),
+    getLatestCompletedContentPageId:
+      deps.patientPractice.getLatestDailyWarmupCompletedContentPageId.bind(deps.patientPractice),
   };
 }

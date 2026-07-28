@@ -1,10 +1,14 @@
-import { and, count, eq, gt, like, sql } from "drizzle-orm";
-import { getDrizzle } from "@/app-layer/db/drizzle";
-import { reminderDeliveryEvents, reminderOccurrenceHistory, idempotencyKeys } from "../../../db/schema/schema";
-import { outgoingDeliveryQueue } from "../../../db/schema/outgoingDeliveryQueue";
+import { and, count, eq, gt, like, sql } from 'drizzle-orm';
+import { getDrizzle } from '@/app-layer/db/drizzle';
+import {
+  reminderDeliveryEvents,
+  reminderOccurrenceHistory,
+  idempotencyKeys,
+} from '../../../db/schema/schema';
+import { outgoingDeliveryQueue } from '../../../db/schema/outgoingDeliveryQueue';
 
 /** Matches integrator `enqueueOutgoingDeliveryIfAbsent` kind for patient reminder pushes. */
-export const REMINDER_OUTGOING_KIND = "reminder_dispatch";
+export const REMINDER_OUTGOING_KIND = 'reminder_dispatch';
 
 const WINDOW_HOURS = 24 as const;
 
@@ -56,7 +60,9 @@ function sumStatus(
 export async function loadAdminReminderPipelineMetrics(outgoingDelivery: {
   dueByKind: Record<string, number>;
   deadByKind: Record<string, number>;
-}): Promise<{ ok: true; value: RemindersPipelineHealthPayload } | { ok: false; errorCode: string }> {
+}): Promise<
+  { ok: true; value: RemindersPipelineHealthPayload } | { ok: false; errorCode: string }
+> {
   try {
     const db = getDrizzle();
     const due = outgoingDelivery.dueByKind[REMINDER_OUTGOING_KIND] ?? 0;
@@ -67,7 +73,10 @@ export async function loadAdminReminderPipelineMetrics(outgoingDelivery: {
         .select({ c: count() })
         .from(outgoingDeliveryQueue)
         .where(
-          and(eq(outgoingDeliveryQueue.kind, REMINDER_OUTGOING_KIND), eq(outgoingDeliveryQueue.status, "processing")),
+          and(
+            eq(outgoingDeliveryQueue.kind, REMINDER_OUTGOING_KIND),
+            eq(outgoingDeliveryQueue.status, 'processing'),
+          ),
         ),
       db
         .select({
@@ -89,19 +98,22 @@ export async function loadAdminReminderPipelineMetrics(outgoingDelivery: {
         .select({ c: count() })
         .from(idempotencyKeys)
         .where(
-          and(like(idempotencyKeys.key, "prn:%:channels"), gt(idempotencyKeys.expiresAt, sql`now()`)),
+          and(
+            like(idempotencyKeys.key, 'prn:%:channels'),
+            gt(idempotencyKeys.expiresAt, sql`now()`),
+          ),
         ),
     ]);
 
     const occurrenceHistory = sumStatus(
       occRows.map((r) => ({ status: r.status, n: r.n })),
-      "sent",
-      "failed",
+      'sent',
+      'failed',
     );
     const deliveryEvents = sumStatus(
       evRows.map((r) => ({ status: r.status, n: r.n })),
-      "sent",
-      "failed",
+      'sent',
+      'failed',
     );
 
     return {
@@ -119,6 +131,6 @@ export async function loadAdminReminderPipelineMetrics(outgoingDelivery: {
       },
     };
   } catch {
-    return { ok: false, errorCode: "reminder_pipeline_metrics_failed" };
+    return { ok: false, errorCode: 'reminder_pipeline_metrics_failed' };
   }
 }

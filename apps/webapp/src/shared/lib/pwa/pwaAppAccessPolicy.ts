@@ -1,9 +1,9 @@
-export const PWA_APP_MESSENGER_ENTRY_PATHS = ["/app/tg", "/app/max"] as const;
+export const PWA_APP_MESSENGER_ENTRY_PATHS = ['/app/tg', '/app/max'] as const;
 
 function normalizeAppPathname(pathname: string): string {
-  const trimmed = pathname.trim() || "/";
+  const trimmed = pathname.trim() || '/';
   if (trimmed.length <= 1) return trimmed;
-  return trimmed.replace(/\/+$/, "") || "/";
+  return trimmed.replace(/\/+$/, '') || '/';
 }
 
 export function isPwaMessengerEntryPath(pathname: string): boolean {

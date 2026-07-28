@@ -3,4 +3,4 @@
  * Данные — через `buildAppDeps().patientHomeLegacy` (`PatientHomeLegacyContentPort`).
  */
 
-export type { PatientHomeBanner, PatientHomeMailingRow } from "./patientHomeLegacyContentPort";
+export type { PatientHomeBanner, PatientHomeMailingRow } from './patientHomeLegacyContentPort';

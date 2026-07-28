@@ -22,10 +22,10 @@ apps/webapp/src/shared/lib/webPush/**    # patient client stack
 
 ### Исключения волны 2 §A (допустимые правки)
 
-| Файл | Что разрешено |
-|------|----------------|
-| `app/app/patient/layout.tsx` | Только role-block: staff → `buildOwnHubUrlWithAccessDeniedToast` |
-| `shared/ui/patient/PatientAppShell.tsx` | Подключение `AppAccessDeniedToastEffect` (toast на hub) |
+| Файл                                               | Что разрешено                                                                 |
+| -------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `app/app/patient/layout.tsx`                       | Только role-block: staff → `buildOwnHubUrlWithAccessDeniedToast`              |
+| `shared/ui/patient/PatientAppShell.tsx`            | Подключение `AppAccessDeniedToastEffect` (toast на hub)                       |
 | `components/landing/LandingPwaClientBootstrap.tsx` | Toast из `next=` после `PwaAppAccessGate` → install landing (без правки gate) |
 
 **Не трогали:** `PwaAppAccessGate`, `pwaAppAccessPolicy.ts`, `PatientClientLayout`, manifest, SW, push.
@@ -47,38 +47,38 @@ apps/webapp/src/shared/ui/AppAccessDeniedToastEffect.tsx
 
 ### Исключения волны 2 §B (staff PWA — допустимые правки)
 
-| Файл / путь | Что разрешено |
-|-------------|----------------|
-| `app/manifest-staff.webmanifest/route.ts` | Отдельный staff manifest (patient `manifest.ts` не меняем) |
-| `shared/lib/pwa/staffPwaManifest.ts`, `staffPwaLayoutMetadata.ts` | Канон staff manifest + metadata |
-| `shared/lib/pwa/staffPwaInstallState.ts` | Marker staff install (не patient standalone) |
-| `shared/ui/doctor/pwa/StaffPwaBootstrap.tsx`, `StaffPwaInstallSection.tsx` | SW register + install UI |
-| `shared/ui/doctor/shell/DoctorAdminSidebar.tsx`, `DoctorHeader.tsx` | Ссылка «Установить приложение» |
-| `doctor/install/page.tsx` | Страница установки staff PWA |
-| `doctor/settings/admin/layout.tsx` | `metadata.manifest` → staff manifest |
-| `public/staff-pwa-icon-*.png`, `staff-pwa-apple-touch.png` | Иконки LOGO_BERSONADMIN |
+| Файл / путь                                                                | Что разрешено                                              |
+| -------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| `app/manifest-staff.webmanifest/route.ts`                                  | Отдельный staff manifest (patient `manifest.ts` не меняем) |
+| `shared/lib/pwa/staffPwaManifest.ts`, `staffPwaLayoutMetadata.ts`          | Канон staff manifest + metadata                            |
+| `shared/lib/pwa/staffPwaInstallState.ts`                                   | Marker staff install (не patient standalone)               |
+| `shared/ui/doctor/pwa/StaffPwaBootstrap.tsx`, `StaffPwaInstallSection.tsx` | SW register + install UI                                   |
+| `shared/ui/doctor/shell/DoctorAdminSidebar.tsx`, `DoctorHeader.tsx`        | Ссылка «Установить приложение»                             |
+| `doctor/install/page.tsx`                                                  | Страница установки staff PWA                               |
+| `doctor/settings/admin/layout.tsx`                                         | `metadata.manifest` → staff manifest                       |
+| `public/staff-pwa-icon-*.png`, `staff-pwa-apple-touch.png`                 | Иконки LOGO_BERSONADMIN                                    |
 
 ### Post-§B — staff push (допустимые правки)
 
-| Файл / путь | Что разрешено |
-|-------------|----------------|
-| `app/api/doctor/web-push/**` | Staff subscribe/status/unsubscribe |
-| `modules/doctor-notifications/**` | Темы, resolve, delivery helpers |
-| `app/app/settings/DoctorNotification*.tsx`, `doctorNotificationPrefsActions.ts` | UI матрицы |
-| `shared/lib/webPush/staffWebPushApi.ts`, `subscribeStaffWebPush.ts` | **Новые** staff-файлы (patient helpers не меняли) |
-| `shared/ui/doctor/pwa/StaffWebPushBootstrap.tsx`, `StaffPwaPushOptIn.tsx` | Auto-restore + install opt-in |
-| `infra/repos/pgStaffUsers.ts` | Список staff для fan-out сообщений |
+| Файл / путь                                                                     | Что разрешено                                     |
+| ------------------------------------------------------------------------------- | ------------------------------------------------- |
+| `app/api/doctor/web-push/**`                                                    | Staff subscribe/status/unsubscribe                |
+| `modules/doctor-notifications/**`                                               | Темы, resolve, delivery helpers                   |
+| `app/app/settings/DoctorNotification*.tsx`, `doctorNotificationPrefsActions.ts` | UI матрицы                                        |
+| `shared/lib/webPush/staffWebPushApi.ts`, `subscribeStaffWebPush.ts`             | **Новые** staff-файлы (patient helpers не меняли) |
+| `shared/ui/doctor/pwa/StaffWebPushBootstrap.tsx`, `StaffPwaPushOptIn.tsx`       | Auto-restore + install opt-in                     |
+| `infra/repos/pgStaffUsers.ts`                                                   | Список staff для fan-out сообщений                |
 
 **Не трогали:** `manifest.ts` (patient), `PwaAppAccessGate`, `sw.js` (логика push), `/api/patient/web-push/*`, patient notification UI.
 
 ## Осторожно (shared, только staff-эффект)
 
-| Файл | Допустимо | Запрещено |
-|------|-----------|-----------|
-| `apps/webapp/src/app/app/layout.tsx` | Не менять в волне 1 (patient.css на всём `/app`) | Убирать patient.css, route groups |
-| `modules/auth/redirectPolicy.ts` | Уточнить redirect **doctor/admin** | Менять `isSafeNext`, client `next`, bind-phone |
-| `AppEntryRsc.tsx` | Документировать; правка только если doctor застревает на patient **login shell** | Менять patient guest chrome |
-| `proxy.ts` / `platformContext.ts` | Не менять (patient + miniapp) | — |
+| Файл                                 | Допустимо                                                                        | Запрещено                                      |
+| ------------------------------------ | -------------------------------------------------------------------------------- | ---------------------------------------------- |
+| `apps/webapp/src/app/app/layout.tsx` | Не менять в волне 1 (patient.css на всём `/app`)                                 | Убирать patient.css, route groups              |
+| `modules/auth/redirectPolicy.ts`     | Уточнить redirect **doctor/admin**                                               | Менять `isSafeNext`, client `next`, bind-phone |
+| `AppEntryRsc.tsx`                    | Документировать; правка только если doctor застревает на patient **login shell** | Менять patient guest chrome                    |
+| `proxy.ts` / `platformContext.ts`    | Не менять (patient + miniapp)                                                    | —                                              |
 
 ## Продуктовые инварианты (не оспариваем в этой волне)
 

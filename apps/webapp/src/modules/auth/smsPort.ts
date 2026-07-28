@@ -8,12 +8,12 @@
  */
 
 export const SMS_ERROR_CODES = [
-  "invalid_phone",
-  "delivery_failed",
-  "rate_limited",
-  "too_many_attempts",
-  "invalid_code",
-  "expired_code",
+  'invalid_phone',
+  'delivery_failed',
+  'rate_limited',
+  'too_many_attempts',
+  'invalid_code',
+  'expired_code',
 ] as const;
 
 export type SmsErrorCode = (typeof SMS_ERROR_CODES)[number];
@@ -28,10 +28,10 @@ export type VerifyCodeResult =
 
 /** Куда доставить OTP (код всегда в phone challenge store). */
 export type PhoneOtpDelivery =
-  | { channel: "sms" }
-  | { channel: "telegram"; recipientId: string }
-  | { channel: "max"; recipientId: string }
-  | { channel: "email"; email: string };
+  | { channel: 'sms' }
+  | { channel: 'telegram'; recipientId: string }
+  | { channel: 'max'; recipientId: string }
+  | { channel: 'email'; email: string };
 
 export type SmsPort = {
   /** Генерирует код и challengeId, сохраняет в store (с code), отправляет SMS (через интегратор или заглушку). */

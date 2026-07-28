@@ -1,5 +1,5 @@
-import { cn } from "@/lib/utils";
-import { ruRatingCountLabel } from "@/shared/lib/ruRatingCountLabel";
+import { cn } from '@/lib/utils';
+import { ruRatingCountLabel } from '@/shared/lib/ruRatingCountLabel';
 
 export type ContentRatingSummary = { avg: number | null; count: number };
 
@@ -19,7 +19,7 @@ export function ContentRatingChip({
     return (
       <span
         className={cn(
-          "inline-flex items-center gap-1 rounded-full bg-muted/60 px-2 py-0.5 text-[11px] font-medium text-muted-foreground",
+          'inline-flex items-center gap-1 rounded-full bg-muted/60 px-2 py-0.5 text-[11px] font-medium text-muted-foreground',
           className,
         )}
       >
@@ -32,7 +32,7 @@ export function ContentRatingChip({
     <span
       title={`${rating.count} ${ruRatingCountLabel(rating.count)}`}
       className={cn(
-        "inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400",
+        'inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400',
         className,
       )}
     >

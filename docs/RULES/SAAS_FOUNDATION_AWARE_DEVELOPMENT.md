@@ -3,6 +3,7 @@
 Этот документ — постоянное правило для любых новых разработок и изменений кода/БД до и во время `SAAS_FOUNDATION`.
 
 Канон инициативы:
+
 - `docs/_TODO/SAAS_FOUNDATION/REQUIREMENTS.md`
 - `docs/_TODO/SAAS_FOUNDATION/ROADMAP_TO_SAAS.md`
 - `docs/_TODO/SAAS_FOUNDATION/CORRECTED_PLAN.md`
@@ -13,6 +14,7 @@
 Перед добавлением новых таблиц, колонок, связей, миграций, репозиториев, API или фоновых процессов агент обязан учитывать, что продукт идет к shared-DB SaaS с tenant = `Organization` и будущей изоляцией данных.
 
 Новые данные не должны становиться глобальными по умолчанию, если они относятся к:
+
 - clinical / patient-facing / doctor-facing workflow;
 - booking, schedule, appointments, rooms, branches, services;
 - messaging, notifications, reminders, web-push, broadcast;
@@ -21,6 +23,7 @@
 - settings, integrations, staff/admin surfaces.
 
 Для таких данных перед изменением схемы или write-path нужно явно определить ownership path:
+
 - прямой `organization_id`, если владение очевидно;
 - путь через уже scoped parent, если прямое дублирование избыточно;
 - `specialist_id`, если сущность действительно принадлежит конкретному специалисту внутри организации;

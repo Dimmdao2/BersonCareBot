@@ -15,7 +15,10 @@ function buildCanonicalFingerprint(event: IncomingEvent): string | null {
   if (entries.length === 0) return null;
 
   const serialized = entries
-    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(serializeFingerprintValue(value))}`)
+    .map(
+      ([key, value]) =>
+        `${encodeURIComponent(key)}=${encodeURIComponent(serializeFingerprintValue(value))}`,
+    )
     .join(':');
   return `${event.meta.source}:${event.type}:${serialized}`;
 }
@@ -25,5 +28,7 @@ function buildCanonicalFingerprint(event: IncomingEvent): string | null {
  * При отсутствии fingerprint использует fallback `source:type:eventId`.
  */
 export function buildDedupKey(event: IncomingEvent): string {
-  return buildCanonicalFingerprint(event) ?? `${event.meta.source}:${event.type}:${event.meta.eventId}`;
+  return (
+    buildCanonicalFingerprint(event) ?? `${event.meta.source}:${event.type}:${event.meta.eventId}`
+  );
 }

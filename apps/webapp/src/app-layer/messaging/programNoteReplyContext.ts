@@ -2,9 +2,9 @@ import {
   buildProgramNoteReplyState,
   exerciseTitleFromSnapshot,
   type ProgramNoteReplyContext,
-} from "@/modules/messaging/programNoteReplyContext";
-import { webappPlatformConversationId } from "@/modules/messaging/supportConversationIds";
-import { loadProgramNoteReplyContextRow } from "@/infra/repos/pgProgramNoteReplyContext";
+} from '@/modules/messaging/programNoteReplyContext';
+import { webappPlatformConversationId } from '@/modules/messaging/supportConversationIds';
+import { loadProgramNoteReplyContextRow } from '@/infra/repos/pgProgramNoteReplyContext';
 
 export async function resolveProgramNoteReplyContext(
   stageItemId: string,

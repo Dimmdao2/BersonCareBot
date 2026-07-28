@@ -1,12 +1,12 @@
-import { Pool } from "pg";
-import type { PoolClient } from "pg";
+import { Pool } from 'pg';
+import type { PoolClient } from 'pg';
 import {
   applyCurrentDbPrincipalToConnection,
   buildDbPrincipalApplyOptionsFromEnv,
   clearDbPrincipalFromConnection,
   setDbOperationalRuntimeRole,
-} from "@bersoncare/db-principal";
-import { assertMediaWorkerLockedPrincipalClassified } from "./withClient.js";
+} from '@bersoncare/db-principal';
+import { assertMediaWorkerLockedPrincipalClassified } from './withClient.js';
 
 type MediaWorkerPoolProviderConfig = {
   connectionString: string;
@@ -31,19 +31,21 @@ function releasePoolClient(client: PoolClient, cleanupError?: unknown): void {
 
 function installPrincipalAwarePoolQuery(pool: Pool): void {
   const queryWithPrincipal = async (
-    ...args: Parameters<Pool["query"]>
-  ): Promise<Awaited<ReturnType<Pool["query"]>>> => {
+    ...args: Parameters<Pool['query']>
+  ): Promise<Awaited<ReturnType<Pool['query']>>> => {
     const principalApplyOptions = buildDbPrincipalApplyOptionsFromEnv(process.env);
     assertMediaWorkerLockedPrincipalClassified(principalApplyOptions);
     const client = await pool.connect();
-    let result: Awaited<ReturnType<Pool["query"]>> | undefined;
+    let result: Awaited<ReturnType<Pool['query']>> | undefined;
     let queryError: unknown;
     try {
       await applyCurrentDbPrincipalToConnection(client, principalApplyOptions);
-      if (principalApplyOptions.mode === "locked") {
-        await setDbOperationalRuntimeRole(client, "app_operational_media_worker");
+      if (principalApplyOptions.mode === 'locked') {
+        await setDbOperationalRuntimeRole(client, 'app_operational_media_worker');
       }
-      const query = client.query.bind(client) as unknown as (...innerArgs: Parameters<Pool["query"]>) => ReturnType<Pool["query"]>;
+      const query = client.query.bind(client) as unknown as (
+        ...innerArgs: Parameters<Pool['query']>
+      ) => ReturnType<Pool['query']>;
       result = await query(...args);
     } catch (err) {
       queryError = err;
@@ -62,30 +64,32 @@ function installPrincipalAwarePoolQuery(pool: Pool): void {
     if (cleanupError !== undefined) {
       throw cleanupError;
     }
-    return result as Awaited<ReturnType<Pool["query"]>>;
+    return result as Awaited<ReturnType<Pool['query']>>;
   };
 
-  pool.query = ((...args: Parameters<Pool["query"]>) => {
-    if (typeof args.at(-1) === "function") {
-      throw new Error("Callback-form pool.query is forbidden; use the promise-form DB chokepoint");
+  pool.query = ((...args: Parameters<Pool['query']>) => {
+    if (typeof args.at(-1) === 'function') {
+      throw new Error('Callback-form pool.query is forbidden; use the promise-form DB chokepoint');
     }
     return queryWithPrincipal(...args);
-  }) as unknown as Pool["query"];
+  }) as unknown as Pool['query'];
 }
 
 export function createMediaWorkerPoolProvider(config: MediaWorkerPoolProviderConfig): Pool {
   const pool = new Pool({ connectionString: config.connectionString, max: 4 });
-  pool.on("connect", prepareMediaWorkerPoolClient);
+  pool.on('connect', prepareMediaWorkerPoolClient);
   installPrincipalAwarePoolQuery(pool);
   return pool;
 }
 
 /** Dedicated true-global telemetry transport; intentionally bypasses job-principal installation. */
-export function createMediaWorkerSaasIsolationTelemetryPoolProvider(connectionString: string): Pool {
+export function createMediaWorkerSaasIsolationTelemetryPoolProvider(
+  connectionString: string,
+): Pool {
   return new Pool({
     connectionString,
     max: 1,
-    application_name: "bcb_media_worker_saas_telemetry",
+    application_name: 'bcb_media_worker_saas_telemetry',
     connectionTimeoutMillis: 250,
     query_timeout: 200,
     statement_timeout: 200,

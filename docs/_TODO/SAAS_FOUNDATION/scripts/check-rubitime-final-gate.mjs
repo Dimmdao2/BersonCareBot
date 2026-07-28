@@ -28,7 +28,8 @@ const expectedProofs = [
 const proofContracts = [
   {
     proof: expectedProofs[0],
-    template: 'docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R5_PRODUCTION_DISABLE_PROOF.template.md',
+    template:
+      'docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R5_PRODUCTION_DISABLE_PROOF.template.md',
     requiredFragments: [
       'TEST integrated SHA and declared monitoring-window start/end',
       'aggregate v1 `/api/bersoncare/rubitime/slots` request count',
@@ -76,11 +77,7 @@ const proofContracts = [
   },
 ];
 
-const forbiddenProofFragments = [
-  'TODO:',
-  'Do not rename this template',
-  'Final proof filename:',
-];
+const forbiddenProofFragments = ['TODO:', 'Do not rename this template', 'Final proof filename:'];
 
 const blockingItems = [
   {
@@ -121,7 +118,8 @@ const blockingItems = [
   {
     id: 'ONLY-PROVIDER-NEUTRAL-LIFECYCLE-ROUTE',
     status: 'gated',
-    checklistText: 'provider-neutral booking lifecycle route is the only live lifecycle integration route.',
+    checklistText:
+      'provider-neutral booking lifecycle route is the only live lifecycle integration route.',
     expectedProof: expectedProofs[1],
     gate: 'Rubitime lifecycle compatibility alias removed after cutoff/drain',
   },
@@ -384,7 +382,9 @@ if (selfTest) {
   if (!missingR5Errors.some((error) => error.includes('R5-TEST-NEGATIVE-ROUTES'))) {
     errors.push('self-test: incomplete gate did not fail for missing R5 TEST proof');
   }
-  if (r5FixtureErrors.some((error) => error.includes('R5-TEST-NEGATIVE-ROUTES: missing final proof'))) {
+  if (
+    r5FixtureErrors.some((error) => error.includes('R5-TEST-NEGATIVE-ROUTES: missing final proof'))
+  ) {
     errors.push('self-test: current R5 virtual TEST proof was not recognized');
   }
 }

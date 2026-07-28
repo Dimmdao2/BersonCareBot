@@ -1,24 +1,24 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useState } from "react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Badge } from "@/shared/ui/doctor/primitives/badge";
-import { LabeledSwitch } from "@/shared/ui/doctor/primitives/labeled-switch";
-import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
+import { useCallback, useEffect, useState } from 'react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Badge } from '@/shared/ui/doctor/primitives/badge';
+import { LabeledSwitch } from '@/shared/ui/doctor/primitives/labeled-switch';
+import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
 import {
   appointmentStatusLabel,
   formatAmountMinor,
   paymentMethodLabel,
   paymentPurposeLabel,
   timelineEventTitle,
-} from "@/modules/client-history/labels";
-import { isRefundEventType } from "@/modules/client-history/clientHistoryUtils";
-import { AppointmentStaffCommentsSection } from "./AppointmentStaffCommentsSection";
+} from '@/modules/client-history/labels';
+import { isRefundEventType } from '@/modules/client-history/clientHistoryUtils';
+import { AppointmentStaffCommentsSection } from './AppointmentStaffCommentsSection';
 import {
   doctorClientOverviewPrimaryCardClass,
   doctorClientPanelStackClass,
   doctorClientSectionTitleClass,
-} from "./doctorClientCardChrome";
+} from './doctorClientCardChrome';
 
 type TimelineItem = {
   id: string;
@@ -72,7 +72,7 @@ type BookingProfile = {
   problematicNote: string | null;
 };
 
-type Tab = "timeline" | "payments" | "visits";
+type Tab = 'timeline' | 'payments' | 'visits';
 
 type Props = {
   userId: string;
@@ -81,7 +81,7 @@ type Props = {
 };
 
 export function ClientBookingHistoryPanel({ userId, embedded = false }: Props) {
-  const [tab, setTab] = useState<Tab>("timeline");
+  const [tab, setTab] = useState<Tab>('timeline');
   const [timeline, setTimeline] = useState<TimelineItem[]>([]);
   const [payments, setPayments] = useState<PaymentRow[]>([]);
   const [visits, setVisits] = useState<VisitRow[]>([]);
@@ -90,7 +90,7 @@ export function ClientBookingHistoryPanel({ userId, embedded = false }: Props) {
     bookingBlocked: false,
     problematicNote: null,
   });
-  const [noteDraft, setNoteDraft] = useState("");
+  const [noteDraft, setNoteDraft] = useState('');
   const [loading, setLoading] = useState(true);
   const [savingProfile, setSavingProfile] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -112,7 +112,7 @@ export function ClientBookingHistoryPanel({ userId, embedded = false }: Props) {
       };
       const profileJson = (await profileRes.json()) as { ok?: boolean; profile?: BookingProfile };
       if (!historyRes.ok || !historyJson.ok) {
-        setError("Не удалось загрузить историю");
+        setError('Не удалось загрузить историю');
         return;
       }
       setTimeline(historyJson.timeline ?? []);
@@ -120,7 +120,7 @@ export function ClientBookingHistoryPanel({ userId, embedded = false }: Props) {
       setVisits(historyJson.visits ?? []);
       if (profileRes.ok && profileJson.ok && profileJson.profile) {
         setProfile(profileJson.profile);
-        setNoteDraft(profileJson.profile.problematicNote ?? "");
+        setNoteDraft(profileJson.profile.problematicNote ?? '');
       }
     } finally {
       setLoading(false);
@@ -136,8 +136,8 @@ export function ClientBookingHistoryPanel({ userId, embedded = false }: Props) {
     setError(null);
     try {
       const res = await fetch(`/api/doctor/clients/${encodeURIComponent(userId)}/booking-profile`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...patch,
           problematicNote: noteDraft.trim() || null,
@@ -145,7 +145,7 @@ export function ClientBookingHistoryPanel({ userId, embedded = false }: Props) {
       });
       const json = (await res.json()) as { ok?: boolean; profile?: BookingProfile };
       if (!res.ok || !json.ok || !json.profile) {
-        setError("Не удалось сохранить");
+        setError('Не удалось сохранить');
         return;
       }
       setProfile(json.profile);
@@ -155,7 +155,13 @@ export function ClientBookingHistoryPanel({ userId, embedded = false }: Props) {
   }
 
   function paymentMeta(p: PaymentRow): string {
-    const parts: string[] = [new Date(p.occurredAt).toLocaleString("ru-RU", { timeZone: "Europe/Moscow", dateStyle: "short", timeStyle: "short" })];
+    const parts: string[] = [
+      new Date(p.occurredAt).toLocaleString('ru-RU', {
+        timeZone: 'Europe/Moscow',
+        dateStyle: 'short',
+        timeStyle: 'short',
+      }),
+    ];
     if (p.serviceTitle) parts.push(p.serviceTitle);
     if (p.packageTitle) parts.push(p.packageTitle);
     if (p.productTitle) parts.push(p.productTitle);
@@ -164,7 +170,7 @@ export function ClientBookingHistoryPanel({ userId, embedded = false }: Props) {
     const purpose = paymentPurposeLabel(p.purpose);
     if (purpose) parts.push(purpose);
     if (p.status) parts.push(p.status);
-    return parts.join(" · ");
+    return parts.join(' · ');
   }
 
   const content = (
@@ -174,15 +180,15 @@ export function ClientBookingHistoryPanel({ userId, embedded = false }: Props) {
           История записи
         </h2>
         <div className="flex flex-wrap gap-1">
-          {(["timeline", "payments", "visits"] as const).map((t) => (
+          {(['timeline', 'payments', 'visits'] as const).map((t) => (
             <Button
               key={t}
               type="button"
               size="sm"
-              variant={tab === t ? "default" : "outline"}
+              variant={tab === t ? 'default' : 'outline'}
               onClick={() => setTab(t)}
             >
-              {t === "timeline" ? "События" : t === "payments" ? "Оплаты" : "Визиты"}
+              {t === 'timeline' ? 'События' : t === 'payments' ? 'Оплаты' : 'Визиты'}
             </Button>
           ))}
         </div>
@@ -194,13 +200,17 @@ export function ClientBookingHistoryPanel({ userId, embedded = false }: Props) {
             label="Проблемный"
             checked={profile.isProblematic}
             disabled={savingProfile}
-            onCheckedChange={(v) => void saveProfile({ isProblematic: v, bookingBlocked: profile.bookingBlocked })}
+            onCheckedChange={(v) =>
+              void saveProfile({ isProblematic: v, bookingBlocked: profile.bookingBlocked })
+            }
           />
           <LabeledSwitch
             label="Блок самозаписи"
             checked={profile.bookingBlocked}
             disabled={savingProfile}
-            onCheckedChange={(v) => void saveProfile({ bookingBlocked: v, isProblematic: profile.isProblematic })}
+            onCheckedChange={(v) =>
+              void saveProfile({ bookingBlocked: v, isProblematic: profile.isProblematic })
+            }
           />
           {profile.isProblematic ? <Badge variant="destructive">Проблемный</Badge> : null}
           {profile.bookingBlocked ? <Badge variant="secondary">Самозапись закрыта</Badge> : null}
@@ -217,7 +227,12 @@ export function ClientBookingHistoryPanel({ userId, embedded = false }: Props) {
           size="sm"
           variant="outline"
           disabled={savingProfile}
-          onClick={() => void saveProfile({ isProblematic: profile.isProblematic, bookingBlocked: profile.bookingBlocked })}
+          onClick={() =>
+            void saveProfile({
+              isProblematic: profile.isProblematic,
+              bookingBlocked: profile.bookingBlocked,
+            })
+          }
         >
           Сохранить пометки
         </Button>
@@ -226,7 +241,7 @@ export function ClientBookingHistoryPanel({ userId, embedded = false }: Props) {
       {loading ? <p className="text-muted-foreground text-sm">Загрузка…</p> : null}
       {error ? <p className="text-destructive text-sm">{error}</p> : null}
 
-      {tab === "timeline" && !loading ? (
+      {tab === 'timeline' && !loading ? (
         <ul className="m-0 list-none space-y-2 p-0">
           {timeline.length === 0 ? (
             <li className="text-sm text-muted-foreground">Нет событий</li>
@@ -236,7 +251,11 @@ export function ClientBookingHistoryPanel({ userId, embedded = false }: Props) {
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
                   <span className="font-medium">{item.title}</span>
                   <span className="text-xs text-muted-foreground">
-                    {new Date(item.occurredAt).toLocaleString("ru-RU", { timeZone: "Europe/Moscow", dateStyle: "short", timeStyle: "short" })}
+                    {new Date(item.occurredAt).toLocaleString('ru-RU', {
+                      timeZone: 'Europe/Moscow',
+                      dateStyle: 'short',
+                      timeStyle: 'short',
+                    })}
                   </span>
                 </div>
                 {item.summary ? <p className="mt-1 text-muted-foreground">{item.summary}</p> : null}
@@ -246,7 +265,7 @@ export function ClientBookingHistoryPanel({ userId, embedded = false }: Props) {
         </ul>
       ) : null}
 
-      {tab === "payments" && !loading ? (
+      {tab === 'payments' && !loading ? (
         <ul className="m-0 list-none space-y-2 p-0">
           {payments.length === 0 ? (
             <li className="text-sm text-muted-foreground">Нет оплат</li>
@@ -255,7 +274,7 @@ export function ClientBookingHistoryPanel({ userId, embedded = false }: Props) {
               <li key={p.id} className="rounded-md border border-border p-2 text-sm">
                 <div className="flex flex-wrap justify-between gap-2">
                   <span className="font-medium">{timelineEventTitle(p.eventType)}</span>
-                  <span>{formatAmountMinor(p.amountMinor, p.currency) ?? "—"}</span>
+                  <span>{formatAmountMinor(p.amountMinor, p.currency) ?? '—'}</span>
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">{paymentMeta(p)}</p>
                 {p.refundId || isRefundEventType(p.eventType) ? (
@@ -268,7 +287,7 @@ export function ClientBookingHistoryPanel({ userId, embedded = false }: Props) {
         </ul>
       ) : null}
 
-      {tab === "visits" && !loading ? (
+      {tab === 'visits' && !loading ? (
         <ul className="m-0 list-none space-y-2 p-0">
           {visits.length === 0 ? (
             <li className="text-sm text-muted-foreground">Нет визитов</li>
@@ -276,33 +295,41 @@ export function ClientBookingHistoryPanel({ userId, embedded = false }: Props) {
             visits.map((v) => (
               <li key={v.appointmentId} className="rounded-md border border-border p-2 text-sm">
                 <div className="flex flex-wrap justify-between gap-2">
-                  <span className="font-medium">{v.serviceTitle ?? "Запись"}</span>
+                  <span className="font-medium">{v.serviceTitle ?? 'Запись'}</span>
                   <span className="text-xs text-muted-foreground">
-                    {new Date(v.startAt).toLocaleString("ru-RU", { timeZone: "Europe/Moscow", dateStyle: "short", timeStyle: "short" })}
-                    {v.endAt ? ` — ${new Date(v.endAt).toLocaleString("ru-RU", { timeZone: "Europe/Moscow", hour: "2-digit", minute: "2-digit" })}` : ""}
+                    {new Date(v.startAt).toLocaleString('ru-RU', {
+                      timeZone: 'Europe/Moscow',
+                      dateStyle: 'short',
+                      timeStyle: 'short',
+                    })}
+                    {v.endAt
+                      ? ` — ${new Date(v.endAt).toLocaleString('ru-RU', { timeZone: 'Europe/Moscow', hour: '2-digit', minute: '2-digit' })}`
+                      : ''}
                   </span>
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
                   {appointmentStatusLabel(v.status)}
-                  {v.specialistName ? ` · ${v.specialistName}` : ""}
-                  {v.branchTitle ? ` · ${v.branchTitle}` : ""}
-                  {v.roomTitle ? ` · ${v.roomTitle}` : ""}
-                  {v.durationMinutes ? ` · ${v.durationMinutes} мин` : ""}
+                  {v.specialistName ? ` · ${v.specialistName}` : ''}
+                  {v.branchTitle ? ` · ${v.branchTitle}` : ''}
+                  {v.roomTitle ? ` · ${v.roomTitle}` : ''}
+                  {v.durationMinutes ? ` · ${v.durationMinutes} мин` : ''}
                 </p>
                 {v.wasViaPackage ? (
-                  <p className="mt-1">Абонемент: {v.packageUsageSummary ?? "да"}</p>
+                  <p className="mt-1">Абонемент: {v.packageUsageSummary ?? 'да'}</p>
                 ) : null}
                 {(v.prepaymentAmountMinor != null || v.finalPaymentAmountMinor != null) && (
                   <p className="mt-1 text-muted-foreground">
                     {v.prepaymentAmountMinor != null
-                      ? `Предоплата: ${formatAmountMinor(v.prepaymentAmountMinor, v.prepaymentCurrency ?? "RUB")}`
+                      ? `Предоплата: ${formatAmountMinor(v.prepaymentAmountMinor, v.prepaymentCurrency ?? 'RUB')}`
                       : null}
                     {v.finalPaymentAmountMinor != null
-                      ? ` · Оплата: ${formatAmountMinor(v.finalPaymentAmountMinor, v.finalPaymentCurrency ?? "RUB")}`
+                      ? ` · Оплата: ${formatAmountMinor(v.finalPaymentAmountMinor, v.finalPaymentCurrency ?? 'RUB')}`
                       : null}
                   </p>
                 )}
-                {v.staffComment ? <p className="mt-1 whitespace-pre-wrap">{v.staffComment}</p> : null}
+                {v.staffComment ? (
+                  <p className="mt-1 whitespace-pre-wrap">{v.staffComment}</p>
+                ) : null}
                 <AppointmentStaffCommentsSection
                   appointmentId={v.appointmentId}
                   onChanged={() => setHistoryVersion((n) => n + 1)}

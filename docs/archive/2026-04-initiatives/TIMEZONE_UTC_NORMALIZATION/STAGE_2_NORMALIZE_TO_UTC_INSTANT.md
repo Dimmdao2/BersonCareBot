@@ -11,6 +11,7 @@
 - Экспорт функции для повторного использования.
 
 Не включать:
+
 - Переподключение всех callsites проекта.
 - Массовые refactor в downstream модулях (это Stage 3+ и Stage 7).
 
@@ -18,9 +19,9 @@
 
 ```ts
 export type NormalizeToUtcInstantFailureReason =
-  | "invalid_datetime"
-  | "invalid_timezone"
-  | "unsupported_format";
+  | 'invalid_datetime'
+  | 'invalid_timezone'
+  | 'unsupported_format';
 
 export type TryNormalizeToUtcInstantResult =
   | { ok: true; utcIso: string }
@@ -32,10 +33,7 @@ export function tryNormalizeToUtcInstant(
 ): TryNormalizeToUtcInstantResult;
 
 /** Удобная обёртка: только UTC ISO или `null` (без причины). */
-export function normalizeToUtcInstant(
-  raw: string,
-  sourceTimezone: string,
-): string | null;
+export function normalizeToUtcInstant(raw: string, sourceTimezone: string): string | null;
 ```
 
 Поведение `normalizeToUtcInstant` / `tryNormalizeToUtcInstant`:
@@ -60,11 +58,11 @@ export function normalizeToUtcInstant(
 
 ### Семантика причин неуспеха (`tryNormalizeToUtcInstant`)
 
-| Причина | Когда |
-|--------|--------|
-| `invalid_timezone` | Пустая зона, нестроковая зона, IANA отклоняет `Intl` |
-| `invalid_datetime` | Пустой raw, нестроковый raw, наивная строка по regex, но календарь/Luxon невалидны |
-| `unsupported_format` | Не наивная по regex, и `Date.parse` вернул `NaN` |
+| Причина              | Когда                                                                              |
+| -------------------- | ---------------------------------------------------------------------------------- |
+| `invalid_timezone`   | Пустая зона, нестроковая зона, IANA отклоняет `Intl`                               |
+| `invalid_datetime`   | Пустой raw, нестроковый raw, наивная строка по regex, но календарь/Luxon невалидны |
+| `unsupported_format` | Не наивная по regex, и `Date.parse` вернул `NaN`                                   |
 
 ## План реализации (детально)
 

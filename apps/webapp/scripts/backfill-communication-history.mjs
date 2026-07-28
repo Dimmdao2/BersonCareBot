@@ -15,19 +15,19 @@
  *
  * Defaults to --dry-run.
  */
-import "dotenv/config";
-import pg from "pg";
-import { loadCutoverEnv } from "../../../scripts/load-cutover-env.mjs";
+import 'dotenv/config';
+import pg from 'pg';
+import { loadCutoverEnv } from '../../../scripts/load-cutover-env.mjs';
 
 loadCutoverEnv();
 
 const args = process.argv.slice(2);
-const dryRun = !args.includes("--commit");
-const limitArg = args.find((a) => a.startsWith("--limit="));
+const dryRun = !args.includes('--commit');
+const limitArg = args.find((a) => a.startsWith('--limit='));
 const MAX_BACKFILL_LIMIT = 500_000;
 function parseBackfillLimit(arg) {
-  if (!arg || !arg.includes("=")) return 0;
-  const raw = arg.slice(arg.indexOf("=") + 1);
+  if (!arg || !arg.includes('=')) return 0;
+  const raw = arg.slice(arg.indexOf('=') + 1);
   const n = parseInt(String(raw), 10);
   if (!Number.isFinite(n) || n < 0) return 0;
   return Math.min(n, MAX_BACKFILL_LIMIT);
@@ -38,20 +38,20 @@ const sourceUrl = process.env.INTEGRATOR_DATABASE_URL || process.env.SOURCE_DATA
 const targetUrl = process.env.DATABASE_URL;
 
 if (!sourceUrl) {
-  console.error("INTEGRATOR_DATABASE_URL (or SOURCE_DATABASE_URL) is not set");
+  console.error('INTEGRATOR_DATABASE_URL (or SOURCE_DATABASE_URL) is not set');
   process.exit(1);
 }
 if (!targetUrl) {
-  console.error("DATABASE_URL is not set (webapp DB)");
+  console.error('DATABASE_URL is not set (webapp DB)');
   process.exit(1);
 }
 
 if (dryRun) {
-  console.log("[DRY-RUN] No writes will be performed. Pass --commit to write.");
+  console.log('[DRY-RUN] No writes will be performed. Pass --commit to write.');
 }
 
 /** Integrator `conversation_messages` has no message_type column — bodies are always text. */
-const CONVERSATION_MESSAGE_TYPE = "text";
+const CONVERSATION_MESSAGE_TYPE = 'text';
 const BACKFILL_WRITE_BATCH = 1000;
 
 const src = new pg.Client({ connectionString: sourceUrl });
@@ -59,27 +59,26 @@ const dst = new pg.Client({ connectionString: targetUrl });
 
 async function resolveWebappPlatformUserId(integratorUserId) {
   if (!integratorUserId) return null;
-  const r = await dst.query(
-    "SELECT id FROM platform_users WHERE integrator_user_id = $1",
-    [String(integratorUserId)]
-  );
+  const r = await dst.query('SELECT id FROM platform_users WHERE integrator_user_id = $1', [
+    String(integratorUserId),
+  ]);
   return r.rows[0]?.id ?? null;
 }
 
 async function backfillConversations() {
-  const limitClause = limit > 0 ? ` LIMIT ${limit}` : "";
+  const limitClause = limit > 0 ? ` LIMIT ${limit}` : '';
   const { rows } = await src.query(
     `SELECT c.id, c.source, i.user_id, c.admin_scope, c.status,
             c.opened_at, c.last_message_at, c.closed_at, c.close_reason
      FROM conversations c
      LEFT JOIN identities i ON i.id = c.user_identity_id
-     ORDER BY c.opened_at ASC${limitClause}`
+     ORDER BY c.opened_at ASC${limitClause}`,
   );
   console.log(`Conversations to backfill: ${rows.length}`);
   let upserted = 0;
   for (let i = 0; i < rows.length; i += BACKFILL_WRITE_BATCH) {
     const chunk = rows.slice(i, i + BACKFILL_WRITE_BATCH);
-    if (!dryRun) await dst.query("BEGIN");
+    if (!dryRun) await dst.query('BEGIN');
     try {
       for (const row of chunk) {
         const platformUserId = await resolveWebappPlatformUserId(row.user_id);
@@ -108,16 +107,16 @@ async function backfillConversations() {
               row.last_message_at,
               row.closed_at,
               row.close_reason,
-            ]
+            ],
           );
         }
         upserted++;
       }
-      if (!dryRun) await dst.query("COMMIT");
+      if (!dryRun) await dst.query('COMMIT');
     } catch (err) {
       if (!dryRun) {
         try {
-          await dst.query("ROLLBACK");
+          await dst.query('ROLLBACK');
         } catch {
           // Best effort rollback; preserve original batch error.
         }
@@ -125,33 +124,35 @@ async function backfillConversations() {
       throw err;
     }
   }
-  console.log(`  Conversations ${dryRun ? "would upsert" : "upserted"}: ${upserted}`);
+  console.log(`  Conversations ${dryRun ? 'would upsert' : 'upserted'}: ${upserted}`);
 }
 
 async function backfillConversationMessages() {
-  const limitClause = limit > 0 ? ` LIMIT ${limit}` : "";
+  const limitClause = limit > 0 ? ` LIMIT ${limit}` : '';
   const { rows } = await src.query(
     `SELECT cm.id, cm.conversation_id, cm.sender_role, cm.text, cm.source,
             cm.external_chat_id, cm.external_message_id, cm.created_at
      FROM conversation_messages cm
      JOIN conversations c ON c.id = cm.conversation_id
-     ORDER BY cm.created_at ASC${limitClause}`
+     ORDER BY cm.created_at ASC${limitClause}`,
   );
   console.log(`Conversation messages to backfill: ${rows.length}`);
   let upserted = 0;
   for (let i = 0; i < rows.length; i += BACKFILL_WRITE_BATCH) {
     const chunk = rows.slice(i, i + BACKFILL_WRITE_BATCH);
-    if (!dryRun) await dst.query("BEGIN");
+    if (!dryRun) await dst.query('BEGIN');
     try {
       for (const row of chunk) {
         if (!dryRun) {
           const conv = await dst.query(
-            "SELECT id FROM support_conversations WHERE integrator_conversation_id = $1",
-            [row.conversation_id]
+            'SELECT id FROM support_conversations WHERE integrator_conversation_id = $1',
+            [row.conversation_id],
           );
           const conversationId = conv.rows[0]?.id;
           if (!conversationId) {
-            console.warn(`  WARN: conversation ${row.conversation_id} not found in webapp, skipping message ${row.id}`);
+            console.warn(
+              `  WARN: conversation ${row.conversation_id} not found in webapp, skipping message ${row.id}`,
+            );
             continue;
           }
           await dst.query(
@@ -170,16 +171,16 @@ async function backfillConversationMessages() {
               row.external_chat_id,
               row.external_message_id,
               row.created_at,
-            ]
+            ],
           );
         }
         upserted++;
       }
-      if (!dryRun) await dst.query("COMMIT");
+      if (!dryRun) await dst.query('COMMIT');
     } catch (err) {
       if (!dryRun) {
         try {
-          await dst.query("ROLLBACK");
+          await dst.query('ROLLBACK');
         } catch {
           // Best effort rollback; preserve original batch error.
         }
@@ -187,32 +188,32 @@ async function backfillConversationMessages() {
       throw err;
     }
   }
-  console.log(`  Conversation messages ${dryRun ? "would upsert" : "upserted"}: ${upserted}`);
+  console.log(`  Conversation messages ${dryRun ? 'would upsert' : 'upserted'}: ${upserted}`);
 }
 
 async function backfillQuestions() {
-  const limitClause = limit > 0 ? ` LIMIT ${limit}` : "";
+  const limitClause = limit > 0 ? ` LIMIT ${limit}` : '';
   const { rows } = await src.query(
     `SELECT id, user_identity_id, conversation_id, text, created_at, answered, answered_at
-     FROM user_questions ORDER BY created_at ASC${limitClause}`
+     FROM user_questions ORDER BY created_at ASC${limitClause}`,
   );
   console.log(`Questions to backfill: ${rows.length}`);
   let upserted = 0;
   for (let i = 0; i < rows.length; i += BACKFILL_WRITE_BATCH) {
     const chunk = rows.slice(i, i + BACKFILL_WRITE_BATCH);
-    if (!dryRun) await dst.query("BEGIN");
+    if (!dryRun) await dst.query('BEGIN');
     try {
       for (const row of chunk) {
         if (!dryRun) {
           let conversationId = null;
           if (row.conversation_id) {
             const c = await dst.query(
-              "SELECT id FROM support_conversations WHERE integrator_conversation_id = $1",
-              [row.conversation_id]
+              'SELECT id FROM support_conversations WHERE integrator_conversation_id = $1',
+              [row.conversation_id],
             );
             conversationId = c.rows[0]?.id ?? null;
           }
-          const status = row.answered ? "answered" : "open";
+          const status = row.answered ? 'answered' : 'open';
           await dst.query(
             `INSERT INTO support_questions (
           integrator_question_id, conversation_id, status, created_at, answered_at
@@ -222,16 +223,16 @@ async function backfillQuestions() {
           status = EXCLUDED.status,
           answered_at = COALESCE(EXCLUDED.answered_at, support_questions.answered_at),
           updated_at = now()`,
-            [row.id, conversationId, status, row.created_at, row.answered_at]
+            [row.id, conversationId, status, row.created_at, row.answered_at],
           );
         }
         upserted++;
       }
-      if (!dryRun) await dst.query("COMMIT");
+      if (!dryRun) await dst.query('COMMIT');
     } catch (err) {
       if (!dryRun) {
         try {
-          await dst.query("ROLLBACK");
+          await dst.query('ROLLBACK');
         } catch {
           // Best effort rollback; preserve original batch error.
         }
@@ -239,32 +240,34 @@ async function backfillQuestions() {
       throw err;
     }
   }
-  console.log(`  Questions ${dryRun ? "would upsert" : "upserted"}: ${upserted}`);
+  console.log(`  Questions ${dryRun ? 'would upsert' : 'upserted'}: ${upserted}`);
 }
 
 async function backfillQuestionMessages() {
-  const limitClause = limit > 0 ? ` LIMIT ${limit}` : "";
+  const limitClause = limit > 0 ? ` LIMIT ${limit}` : '';
   const { rows } = await src.query(
     `SELECT qm.id, qm.question_id, qm.sender_type, qm.message_text, qm.created_at
      FROM question_messages qm
      JOIN user_questions q ON q.id = qm.question_id
-     ORDER BY qm.created_at ASC${limitClause}`
+     ORDER BY qm.created_at ASC${limitClause}`,
   );
   console.log(`Question messages to backfill: ${rows.length}`);
   let upserted = 0;
   for (let i = 0; i < rows.length; i += BACKFILL_WRITE_BATCH) {
     const chunk = rows.slice(i, i + BACKFILL_WRITE_BATCH);
-    if (!dryRun) await dst.query("BEGIN");
+    if (!dryRun) await dst.query('BEGIN');
     try {
       for (const row of chunk) {
         if (!dryRun) {
           const q = await dst.query(
-            "SELECT id FROM support_questions WHERE integrator_question_id = $1",
-            [row.question_id]
+            'SELECT id FROM support_questions WHERE integrator_question_id = $1',
+            [row.question_id],
           );
           const questionId = q.rows[0]?.id;
           if (!questionId) {
-            console.warn(`  WARN: question ${row.question_id} not found in webapp, skipping question message ${row.id}`);
+            console.warn(
+              `  WARN: question ${row.question_id} not found in webapp, skipping question message ${row.id}`,
+            );
             continue;
           }
           await dst.query(
@@ -272,16 +275,16 @@ async function backfillQuestionMessages() {
           integrator_question_message_id, question_id, sender_role, text, created_at
         ) VALUES ($1, $2, $3, $4, $5)
         ON CONFLICT (integrator_question_message_id) DO NOTHING`,
-            [row.id, questionId, row.sender_type, row.message_text, row.created_at]
+            [row.id, questionId, row.sender_type, row.message_text, row.created_at],
           );
         }
         upserted++;
       }
-      if (!dryRun) await dst.query("COMMIT");
+      if (!dryRun) await dst.query('COMMIT');
     } catch (err) {
       if (!dryRun) {
         try {
-          await dst.query("ROLLBACK");
+          await dst.query('ROLLBACK');
         } catch {
           // Best effort rollback; preserve original batch error.
         }
@@ -289,20 +292,20 @@ async function backfillQuestionMessages() {
       throw err;
     }
   }
-  console.log(`  Question messages ${dryRun ? "would upsert" : "upserted"}: ${upserted}`);
+  console.log(`  Question messages ${dryRun ? 'would upsert' : 'upserted'}: ${upserted}`);
 }
 
 async function backfillDeliveryAttemptLogs() {
-  const limitClause = limit > 0 ? ` LIMIT ${limit}` : "";
+  const limitClause = limit > 0 ? ` LIMIT ${limit}` : '';
   const { rows } = await src.query(
     `SELECT id, intent_event_id, correlation_id, channel, status, attempt, reason, payload_json, occurred_at
-     FROM delivery_attempt_logs ORDER BY occurred_at ASC${limitClause}`
+     FROM delivery_attempt_logs ORDER BY occurred_at ASC${limitClause}`,
   );
   console.log(`Delivery attempt logs to backfill: ${rows.length}`);
   let inserted = 0;
   for (let i = 0; i < rows.length; i += BACKFILL_WRITE_BATCH) {
     const chunk = rows.slice(i, i + BACKFILL_WRITE_BATCH);
-    if (!dryRun) await dst.query("BEGIN");
+    if (!dryRun) await dst.query('BEGIN');
     try {
       for (const row of chunk) {
         if (!dryRun) {
@@ -321,16 +324,16 @@ async function backfillDeliveryAttemptLogs() {
               row.reason,
               JSON.stringify(row.payload_json ?? {}),
               row.occurred_at,
-            ]
+            ],
           );
         }
         inserted++;
       }
-      if (!dryRun) await dst.query("COMMIT");
+      if (!dryRun) await dst.query('COMMIT');
     } catch (err) {
       if (!dryRun) {
         try {
-          await dst.query("ROLLBACK");
+          await dst.query('ROLLBACK');
         } catch {
           // Best effort rollback; preserve original batch error.
         }
@@ -338,13 +341,13 @@ async function backfillDeliveryAttemptLogs() {
       throw err;
     }
   }
-  console.log(`  Delivery events ${dryRun ? "would insert" : "inserted"}: ${inserted}`);
+  console.log(`  Delivery events ${dryRun ? 'would insert' : 'inserted'}: ${inserted}`);
 }
 
 async function main() {
   await src.connect();
   await dst.connect();
-  console.log("Connected to source (integrator) and target (webapp) databases.\n");
+  console.log('Connected to source (integrator) and target (webapp) databases.\n');
 
   try {
     await backfillConversations();
@@ -357,9 +360,9 @@ async function main() {
     await dst.end();
   }
 
-  console.log("\nBackfill complete.");
+  console.log('\nBackfill complete.');
   if (dryRun) {
-    console.log("This was a DRY-RUN. Pass --commit to actually write data.");
+    console.log('This was a DRY-RUN. Pass --commit to actually write data.');
   }
 }
 

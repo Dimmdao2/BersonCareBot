@@ -1,14 +1,14 @@
-import { eq, sql } from "drizzle-orm";
-import { getWebappSqlDb, runWebappSql, runWebappTransaction } from "@/infra/db/runWebappSql";
-import { mediaReadableStatusPredicate } from "@/infra/repos/mediaSqlPredicates";
-import { mediaFiles, mediaTranscodeJobs } from "../../../db/schema/schema";
+import { eq, sql } from 'drizzle-orm';
+import { getWebappSqlDb, runWebappSql, runWebappTransaction } from '@/infra/db/runWebappSql';
+import { mediaReadableStatusPredicate } from '@/infra/repos/mediaSqlPredicates';
+import { mediaFiles, mediaTranscodeJobs } from '../../../db/schema/schema';
 
 export type EnqueueTranscodeResult =
-  | { ok: true; kind: "queued"; jobId: string; alreadyQueued: boolean }
-  | { ok: true; kind: "already_ready" }
+  | { ok: true; kind: 'queued'; jobId: string; alreadyQueued: boolean }
+  | { ok: true; kind: 'already_ready' }
   | {
       ok: false;
-      error: "not_found" | "not_video" | "not_readable" | "no_s3_key";
+      error: 'not_found' | 'not_video' | 'not_readable' | 'no_s3_key';
     };
 
 type MediaRowForEnqueue = {
@@ -21,7 +21,9 @@ type MediaRowForEnqueue = {
   usage_purpose: string | null;
 };
 
-async function loadMediaForEnqueue(mediaId: string): Promise<MediaRowForEnqueue | null | "not_found"> {
+async function loadMediaForEnqueue(
+  mediaId: string,
+): Promise<MediaRowForEnqueue | null | 'not_found'> {
   const res = await runWebappSql<MediaRowForEnqueue>(
     getWebappSqlDb(),
     sql`SELECT id, organization_id, mime_type, s3_key, hls_master_playlist_s3_key, video_processing_status, usage_purpose
@@ -34,7 +36,7 @@ async function loadMediaForEnqueue(mediaId: string): Promise<MediaRowForEnqueue 
     getWebappSqlDb(),
     sql`SELECT 1 AS one FROM media_files WHERE id = ${mediaId}::uuid LIMIT 1`,
   );
-  if (!exists.rows[0]) return "not_found";
+  if (!exists.rows[0]) return 'not_found';
   return null;
 }
 
@@ -48,11 +50,13 @@ async function findActiveTranscodeJobId(mediaId: string): Promise<string | null>
   return dup.rows[0]?.id ?? null;
 }
 
-async function insertTranscodeJobAndMarkPending(media: MediaRowForEnqueue): Promise<EnqueueTranscodeResult> {
+async function insertTranscodeJobAndMarkPending(
+  media: MediaRowForEnqueue,
+): Promise<EnqueueTranscodeResult> {
   const mediaId = media.id;
   const existingId = await findActiveTranscodeJobId(mediaId);
   if (existingId) {
-    return { ok: true, kind: "queued", jobId: existingId, alreadyQueued: true };
+    return { ok: true, kind: 'queued', jobId: existingId, alreadyQueued: true };
   }
 
   try {
@@ -62,7 +66,7 @@ async function insertTranscodeJobAndMarkPending(media: MediaRowForEnqueue): Prom
         .values({
           mediaId,
           organizationId: media.organization_id,
-          status: "pending",
+          status: 'pending',
           attempts: 0,
           createdAt: sql`now()`,
           updatedAt: sql`now()`,
@@ -70,26 +74,26 @@ async function insertTranscodeJobAndMarkPending(media: MediaRowForEnqueue): Prom
         .returning({ id: mediaTranscodeJobs.id });
       const jobId = ins[0]?.id;
       if (!jobId) {
-        return { ok: false as const, error: "not_found" as const };
+        return { ok: false as const, error: 'not_found' as const };
       }
 
       await tx
         .update(mediaFiles)
         .set({
-          videoProcessingStatus: "pending",
+          videoProcessingStatus: 'pending',
           videoProcessingError: null,
         })
         .where(eq(mediaFiles.id, mediaId));
 
-      return { ok: true as const, kind: "queued" as const, jobId, alreadyQueued: false };
+      return { ok: true as const, kind: 'queued' as const, jobId, alreadyQueued: false };
     });
   } catch (e: unknown) {
     const err = e as { code?: string; cause?: { code?: string } };
     const pgCode = err.code ?? err.cause?.code;
-    if (pgCode === "23505") {
+    if (pgCode === '23505') {
       const again = await findActiveTranscodeJobId(mediaId);
       if (again) {
-        return { ok: true, kind: "queued", jobId: again, alreadyQueued: true };
+        return { ok: true, kind: 'queued', jobId: again, alreadyQueued: true };
       }
     }
     throw e;
@@ -102,16 +106,16 @@ async function insertTranscodeJobAndMarkPending(media: MediaRowForEnqueue): Prom
  */
 export async function enqueueMediaTranscodeJob(mediaId: string): Promise<EnqueueTranscodeResult> {
   const loaded = await loadMediaForEnqueue(mediaId);
-  if (loaded === "not_found") return { ok: false, error: "not_found" };
-  if (!loaded) return { ok: false, error: "not_readable" };
+  if (loaded === 'not_found') return { ok: false, error: 'not_found' };
+  if (!loaded) return { ok: false, error: 'not_readable' };
 
-  if (!loaded.s3_key?.trim()) return { ok: false, error: "no_s3_key" };
-  if (!loaded.mime_type.toLowerCase().startsWith("video/")) {
-    return { ok: false, error: "not_video" };
+  if (!loaded.s3_key?.trim()) return { ok: false, error: 'no_s3_key' };
+  if (!loaded.mime_type.toLowerCase().startsWith('video/')) {
+    return { ok: false, error: 'not_video' };
   }
 
-  if (loaded.hls_master_playlist_s3_key?.trim() && loaded.video_processing_status === "ready") {
-    return { ok: true, kind: "already_ready" };
+  if (loaded.hls_master_playlist_s3_key?.trim() && loaded.video_processing_status === 'ready') {
+    return { ok: true, kind: 'already_ready' };
   }
 
   return insertTranscodeJobAndMarkPending(loaded);
@@ -121,22 +125,24 @@ export async function enqueueMediaTranscodeJob(mediaId: string): Promise<Enqueue
  * Enqueue 480p progressive transcode for patient program submission video.
  * Not gated by HLS pipeline flags — caller ensures usage_purpose=program_item_submission.
  */
-export async function enqueueProgramSubmissionTranscodeJob(mediaId: string): Promise<EnqueueTranscodeResult> {
+export async function enqueueProgramSubmissionTranscodeJob(
+  mediaId: string,
+): Promise<EnqueueTranscodeResult> {
   const loaded = await loadMediaForEnqueue(mediaId);
-  if (loaded === "not_found") return { ok: false, error: "not_found" };
-  if (!loaded) return { ok: false, error: "not_readable" };
+  if (loaded === 'not_found') return { ok: false, error: 'not_found' };
+  if (!loaded) return { ok: false, error: 'not_readable' };
 
-  if (loaded.usage_purpose !== "program_item_submission") {
-    return { ok: false, error: "not_found" };
+  if (loaded.usage_purpose !== 'program_item_submission') {
+    return { ok: false, error: 'not_found' };
   }
 
-  if (!loaded.s3_key?.trim()) return { ok: false, error: "no_s3_key" };
-  if (!loaded.mime_type.toLowerCase().startsWith("video/")) {
-    return { ok: false, error: "not_video" };
+  if (!loaded.s3_key?.trim()) return { ok: false, error: 'no_s3_key' };
+  if (!loaded.mime_type.toLowerCase().startsWith('video/')) {
+    return { ok: false, error: 'not_video' };
   }
 
-  if (loaded.video_processing_status === "ready") {
-    return { ok: true, kind: "already_ready" };
+  if (loaded.video_processing_status === 'ready') {
+    return { ok: true, kind: 'already_ready' };
   }
 
   return insertTranscodeJobAndMarkPending(loaded);

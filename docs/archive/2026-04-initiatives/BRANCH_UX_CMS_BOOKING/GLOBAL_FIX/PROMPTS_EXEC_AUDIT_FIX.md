@@ -372,12 +372,12 @@ docs/BRANCH_UX_CMS_BOOKING/GLOBAL_FIX/STAGE_7_FINAL_INTEGRATION_AUDIT.md
 
 ### Подтвержденные причины (RCA)
 
-1) Кэш слотов в `apps/webapp/src/modules/patient-booking/service.ts` живет до `5 минут` и не инвалидируется после `create/cancel/applyRubitimeUpdate`; из-за этого UI видит устаревшие окна.
-2) Конкурентные попытки создать запись на один и тот же слот не блокируются на входе сервиса; overlap ловится поздно (на confirm/DB constraint), что позволяет внешнему Rubitime create произойти лишний раз.
-3) В `apps/webapp/src/infra/repos/pgPatientBookings.ts` `createPending` не делает pre-check overlap по статусам in-flight (`creating`, `cancelling`, `cancel_failed`), поэтому в гонке возможны дубли попыток.
-4) UI ошибки пробрасываются как технические коды (`slot_overlap` и т.п.) вместо русских сообщений.
-5) Ссылка «Изменить» в активных записях ведет на `support_contact_url` через обычный `target=_blank`; в mini app это может открываться нестабильно или не открываться.
-6) Нет мгновенного toast-уведомления об успешной записи в native booking confirm flow.
+1. Кэш слотов в `apps/webapp/src/modules/patient-booking/service.ts` живет до `5 минут` и не инвалидируется после `create/cancel/applyRubitimeUpdate`; из-за этого UI видит устаревшие окна.
+2. Конкурентные попытки создать запись на один и тот же слот не блокируются на входе сервиса; overlap ловится поздно (на confirm/DB constraint), что позволяет внешнему Rubitime create произойти лишний раз.
+3. В `apps/webapp/src/infra/repos/pgPatientBookings.ts` `createPending` не делает pre-check overlap по статусам in-flight (`creating`, `cancelling`, `cancel_failed`), поэтому в гонке возможны дубли попыток.
+4. UI ошибки пробрасываются как технические коды (`slot_overlap` и т.п.) вместо русских сообщений.
+5. Ссылка «Изменить» в активных записях ведет на `support_contact_url` через обычный `target=_blank`; в mini app это может открываться нестабильно или не открываться.
+6. Нет мгновенного toast-уведомления об успешной записи в native booking confirm flow.
 
 ### План фиксирования (для простого агента)
 

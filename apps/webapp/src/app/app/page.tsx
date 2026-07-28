@@ -7,8 +7,12 @@
  * Miniapp с явным surface: `/app/tg` (Telegram), `/app/max` (MAX) — см. {@link AppEntryRsc}.
  */
 
-import { AppEntryRsc, type AppEntrySearchParams } from "./AppEntryRsc";
+import { AppEntryRsc, type AppEntrySearchParams } from './AppEntryRsc';
 
-export default async function AppEntryPage({ searchParams }: { searchParams: Promise<AppEntrySearchParams> }) {
+export default async function AppEntryPage({
+  searchParams,
+}: {
+  searchParams: Promise<AppEntrySearchParams>;
+}) {
   return <AppEntryRsc searchParams={searchParams} routeBoundMessengerSurface={null} />;
 }

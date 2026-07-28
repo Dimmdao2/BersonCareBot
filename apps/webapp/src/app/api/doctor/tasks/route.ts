@@ -9,12 +9,12 @@
  * (привязанные к пациенту и глобальные) — как и SSR-загрузка в loadDoctorTodayDashboard.ts.
  * POST по-прежнему поддерживает опциональный patientUserId (создание с привязкой к пациенту).
  */
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
-import { specialistTaskBodySchema } from "@/modules/specialist-tasks/apiSchemas";
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
+import { specialistTaskBodySchema } from '@/modules/specialist-tasks/apiSchemas';
 
 export async function GET(request: Request) {
   const gate = await requireDoctorWorkspaceApiContext();
@@ -22,8 +22,8 @@ export async function GET(request: Request) {
   const { session } = gate.ctx;
 
   const url = new URL(request.url);
-  const includeCompleted = url.searchParams.get("includeCompleted") === "1";
-  const limitRaw = url.searchParams.get("limit");
+  const includeCompleted = url.searchParams.get('includeCompleted') === '1';
+  const limitRaw = url.searchParams.get('limit');
   const limit = limitRaw ? Math.min(100, Math.max(1, Number.parseInt(limitRaw, 10) || 20)) : 20;
 
   const deps = buildAppDeps();
@@ -46,7 +46,7 @@ export async function POST(request: Request) {
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = specialistTaskBodySchema.safeParse(raw);
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
 
   const deps = buildAppDeps();
@@ -55,7 +55,7 @@ export async function POST(request: Request) {
       parsed.data.patientUserId,
       gate.ctx.organizationId,
     );
-    if (!identity) return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+    if (!identity) return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
 
   try {
@@ -72,8 +72,8 @@ export async function POST(request: Request) {
     );
     return NextResponse.json({ ok: true, task });
   } catch (e) {
-    if (e instanceof Error && e.message === "empty_title") {
-      return NextResponse.json({ ok: false, error: "empty_title" }, { status: 400 });
+    if (e instanceof Error && e.message === 'empty_title') {
+      return NextResponse.json({ ok: false, error: 'empty_title' }, { status: 400 });
     }
     throw e;
   }

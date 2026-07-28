@@ -1,1 +1,1 @@
-export { isCheckPhoneRateLimited } from "@/modules/auth/authRateLimits";
+export { isCheckPhoneRateLimited } from '@/modules/auth/authRateLimits';

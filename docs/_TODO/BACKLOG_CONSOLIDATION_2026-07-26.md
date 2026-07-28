@@ -4,11 +4,11 @@
 > that came from reading one plan file. This document is the correction: every `docs/_TODO/` plan file with at
 > least one open checkbox, read and classified against the repo's own rule that **only the owner defines scope**
 > (`docs/ORCHESTRATION_BINDINGS.md`; box-level canon). An audit finding or an agent-authored task list with no
-> line in an owner source is a *question*, never confirmed work — this repo has already paid for that mistake
+> line in an owner source is a _question_, never confirmed work — this repo has already paid for that mistake
 > once (73+ invented "CANON-NNN" requirements, three days burned).
 >
 > **Method, stated plainly:** raw checkbox counts were computed exactly (grep over every file, not sampled).
-> Classification of *which* checkboxes are real owner backlog was done by four parallel research passes (one
+> Classification of _which_ checkboxes are real owner backlog was done by four parallel research passes (one
 > lead pass, three delegated), each reading full files against `OWNER_RULINGS_2026-07-15.md`,
 > `OWNER_REVIEW_2026-07-18.md`, `BCB2_OWNER_PUNCHLIST_2026-07-18.md`, `OWNER_PRODUCT_RULES.md`,
 > `ADMIN_ACCESS_MODEL.md`, `INITIATIVES.md`, and `CURRENT_AUTHORITY_MAP.md`. **66 of 291 markdown files under
@@ -35,16 +35,16 @@ add another 223 closed, not counted as backlog). The user-supplied framing of "1
 files" is close but not exact — the difference is checkbox-syntax edge cases and which files get counted as
 "plan" files; this document's count is a direct `grep '^\s*-\s*\[ \]'` / `\[x\]` sweep, verified twice.
 
-| Classification | Open items | Files | What it means |
-|---|---:|---:|---|
-| **OWNER SCOPE** | 594 | 23 | Traces to a quoted or clearly-paraphrased owner ruling, punch-list line, or dated decision. |
-| **DERIVED** | 379 | 26 | Not owner-worded directly, but a genuine implementation/proof step required to deliver something he asked for. |
-| **SELF-GENERATED** | 139 | 6 | No owner line found behind it, and not a necessary step of anything he asked for either. |
-| **SUPERSEDED** | 106 | 7 | Overtaken by a later decision or a newer plan; several files self-declare this but were never pruned. |
-| **DUPLICATE** | 44 | 1 | Same work tracked twice (checked against the file it duplicates). |
-| **DISPUTED / needs verification** | 5 | 2 | Content that reads as a production-cutover runbook, in tension with the owner's "production only means fetching a fresh dump" rule — gated behind explicit authorization flags citing 07-24/07-25 rulings that were paraphrased, not quoted, in the source files. |
-| **EXCLUDED (in flight elsewhere)** | 32 | 1 | `NIGHT_PLAN_2026-07-26.md` — being reconciled by another agent concurrently with this research; read but deliberately not touched or classified in depth per the task's explicit instruction. |
-| **Total** | **1,299** | 66 | |
+| Classification                     | Open items | Files | What it means                                                                                                                                                                                                                                                     |
+| ---------------------------------- | ---------: | ----: | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **OWNER SCOPE**                    |        594 |    23 | Traces to a quoted or clearly-paraphrased owner ruling, punch-list line, or dated decision.                                                                                                                                                                       |
+| **DERIVED**                        |        379 |    26 | Not owner-worded directly, but a genuine implementation/proof step required to deliver something he asked for.                                                                                                                                                    |
+| **SELF-GENERATED**                 |        139 |     6 | No owner line found behind it, and not a necessary step of anything he asked for either.                                                                                                                                                                          |
+| **SUPERSEDED**                     |        106 |     7 | Overtaken by a later decision or a newer plan; several files self-declare this but were never pruned.                                                                                                                                                             |
+| **DUPLICATE**                      |         44 |     1 | Same work tracked twice (checked against the file it duplicates).                                                                                                                                                                                                 |
+| **DISPUTED / needs verification**  |          5 |     2 | Content that reads as a production-cutover runbook, in tension with the owner's "production only means fetching a fresh dump" rule — gated behind explicit authorization flags citing 07-24/07-25 rulings that were paraphrased, not quoted, in the source files. |
+| **EXCLUDED (in flight elsewhere)** |         32 |     1 | `NIGHT_PLAN_2026-07-26.md` — being reconciled by another agent concurrently with this research; read but deliberately not touched or classified in depth per the task's explicit instruction.                                                                     |
+| **Total**                          |  **1,299** |    66 |                                                                                                                                                                                                                                                                   |
 
 **The real backlog — OWNER SCOPE + DERIVED — is 973 open items, not 1,299 and certainly not 25.** That is still
 the honest number, and it is large. Two things cut it further, worth saying up front:
@@ -71,16 +71,16 @@ Files below are self-declared or independently-evidenced **SUPERSEDED or DUPLICA
 but not real backlog. None were deleted — repo rule is mark, never delete. Forward-pointers below are proposed;
 only the two files in `CURRENT_AUTHORITY_MAP.md` that could be evidenced were actually edited (§ see that file).
 
-| Residue file | Open items | Superseded by / duplicate of | Evidence |
-|---|---:|---|---|
-| `SAAS_FOUNDATION/AUTONOMOUS_NIGHTLY_RUNBOOK.md` | 51 | `T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md` / `R2_MVP_MASTER_CHECKLIST.md` | File's own first line: "Phase 0 is complete... Do not execute the 'Next Stage Plans' below as live work... next live direction is T0/R2." All 51 open boxes sit inside that self-disowned section. |
-| `SAAS_FOUNDATION/STORE_EXECUTION_PLAN.md` | 19 | `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` | Header literally says superseded/"не исполнять как текущий план." |
-| `SAAS_FOUNDATION/STORE_P0_ENTITLEMENTS_PLAN.md` | 14 | `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` | Header says historical P0 checklist, not the current product plan. |
-| `SAAS_FOUNDATION/TARIFFS_PAYMENTS_ADMIN_PLAN.md` | 44 | `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` (same card #751) | S4 shows the same phases closed with real commit hashes (2026-07-22, `a678d043d`); this file was never updated after 2026-07-17 and still shows them open. Risk: two agents could work the same ground independently. |
-| `SAAS_FOUNDATION/R2_ENFORCEMENT_PREP_PLAN.md` | 8 | `SAAS_ENFORCE_ROADMAP.md` / `R2_MVP_MASTER_CHECKLIST.md` | Header says "⚠️ НЕ АКТУАЛЬНО," written pre-07-15-pivot — correctly self-marked, but the same open items (B4-fanout, B7, B8, `be_organization_members` tier review) are still separately open in `R2_MVP_MASTER_CHECKLIST.md`, so it's a live duplicate as well as stale. |
-| `SAAS_FOUNDATION/SAAS_R0_PLAN_RECONCILIATION.md` | 5 | frozen historical ledger | Header: "ИСТОРИЧЕСКАЯ ЗАПИСЬ (frozen 2026-07-15)… must not retick." The 5 "open" boxes are permanent audit-FAIL verdicts, intentionally never closed — not backlog at all. |
-| `SAAS_FOUNDATION/SAAS_R1_FINISH_LINE_AND_DOC_HYGIENE.md` | 4 | frozen historical ledger | Same pattern as above. |
-| `DOCTOR_DNA_MIGRATION/PLAN.md` | 5 | `DOCTOR_UI_REWORK_2026-07-20/PLAN.md` (§UI-P) | `docs/INITIATIVES.md:18` states outright: "полный Doctor DNA `#885` отменён владельцем и остаётся только исторической записью." `DOCTOR_UI_REWORK_2026-07-20/PLAN.md`'s own task-mapping table independently confirms the same. This file's 5 open boxes carry no cancellation marker and would mislead a fresh reader into treating cancelled work as live. |
+| Residue file                                             | Open items | Superseded by / duplicate of                                            | Evidence                                                                                                                                                                                                                                                                                                                                                     |
+| -------------------------------------------------------- | ---------: | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `SAAS_FOUNDATION/AUTONOMOUS_NIGHTLY_RUNBOOK.md`          |         51 | `T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md` / `R2_MVP_MASTER_CHECKLIST.md` | File's own first line: "Phase 0 is complete... Do not execute the 'Next Stage Plans' below as live work... next live direction is T0/R2." All 51 open boxes sit inside that self-disowned section.                                                                                                                                                           |
+| `SAAS_FOUNDATION/STORE_EXECUTION_PLAN.md`                |         19 | `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md`                                 | Header literally says superseded/"не исполнять как текущий план."                                                                                                                                                                                                                                                                                            |
+| `SAAS_FOUNDATION/STORE_P0_ENTITLEMENTS_PLAN.md`          |         14 | `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md`                                 | Header says historical P0 checklist, not the current product plan.                                                                                                                                                                                                                                                                                           |
+| `SAAS_FOUNDATION/TARIFFS_PAYMENTS_ADMIN_PLAN.md`         |         44 | `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` (same card #751)                | S4 shows the same phases closed with real commit hashes (2026-07-22, `a678d043d`); this file was never updated after 2026-07-17 and still shows them open. Risk: two agents could work the same ground independently.                                                                                                                                        |
+| `SAAS_FOUNDATION/R2_ENFORCEMENT_PREP_PLAN.md`            |          8 | `SAAS_ENFORCE_ROADMAP.md` / `R2_MVP_MASTER_CHECKLIST.md`                | Header says "⚠️ НЕ АКТУАЛЬНО," written pre-07-15-pivot — correctly self-marked, but the same open items (B4-fanout, B7, B8, `be_organization_members` tier review) are still separately open in `R2_MVP_MASTER_CHECKLIST.md`, so it's a live duplicate as well as stale.                                                                                     |
+| `SAAS_FOUNDATION/SAAS_R0_PLAN_RECONCILIATION.md`         |          5 | frozen historical ledger                                                | Header: "ИСТОРИЧЕСКАЯ ЗАПИСЬ (frozen 2026-07-15)… must not retick." The 5 "open" boxes are permanent audit-FAIL verdicts, intentionally never closed — not backlog at all.                                                                                                                                                                                   |
+| `SAAS_FOUNDATION/SAAS_R1_FINISH_LINE_AND_DOC_HYGIENE.md` |          4 | frozen historical ledger                                                | Same pattern as above.                                                                                                                                                                                                                                                                                                                                       |
+| `DOCTOR_DNA_MIGRATION/PLAN.md`                           |          5 | `DOCTOR_UI_REWORK_2026-07-20/PLAN.md` (§UI-P)                           | `docs/INITIATIVES.md:18` states outright: "полный Doctor DNA `#885` отменён владельцем и остаётся только исторической записью." `DOCTOR_UI_REWORK_2026-07-20/PLAN.md`'s own task-mapping table independently confirms the same. This file's 5 open boxes carry no cancellation marker and would mislead a fresh reader into treating cancelled work as live. |
 
 **Currently live/authoritative** (cross-checked, no contradicting evidence found): `SEQUENCE.md`,
 `SAAS_ENFORCE_ROADMAP.md`, `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md`, `SAAS_S5_SETTINGS_ROOT_SPLIT.md`,
@@ -98,6 +98,7 @@ Only OWNER SCOPE + DERIVED items, i.e. the 973-item real backlog, grouped. "Need
 cannot proceed without him, so they belong on a decision list, not a work list.
 
 ### Security / tenant isolation (unblocks nearly everything else in SaaS track)
+
 - **Tenant enforcement roadmap** — `SAAS_FOUNDATION/SAAS_ENFORCE_ROADMAP.md` (57 open). Direct execution of the
   core multi-tenant pivot. No owner decision currently blocking it.
 - **Invented-scope cleanup (media worker tenant-agnosticism, staff single-org rule)** —
@@ -118,6 +119,7 @@ cannot proceed without him, so they belong on a decision list, not a work list.
   and shared-runner IP-range sign-off are explicit human-authorization gates, not code.
 
 ### Product — tariffs, store, billing
+
 - **Tariffs/store/entitlements** — `SAAS_FOUNDATION/SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` (59 open). Every
   major decision cites `OWNER_RULINGS_2026-07-15.md` or `OWNER_REVIEW_2026-07-18.md` directly. No owner decision
   blocking the open work; store-package phase is explicitly deferred by design, not stalled.
@@ -133,16 +135,18 @@ cannot proceed without him, so they belong on a decision list, not a work list.
   "what's next." Needs a sequencing decision, not a scope decision.
 
 ### Rubitime retirement (a hard, dated owner ruling)
+
 - `SAAS_FOUNDATION/RUBITIME_RETIREMENT_EXECUTION_PLAN.md` (63 open, 115 already closed — the most-worked file in
   the whole backlog). Directly quotes the owner: "Убираем... кластер Rubitime... запись из Rubitime это канон."
   No owner decision blocking further work; TEST-only, already in motion.
 
 ### Doctor UI (the owner's own dictated punch-list)
+
 - `BCB2_OWNER_PUNCHLIST_2026-07-18.md` (55 open, 6 closed) — this **is** the owner's list, dictated verbatim,
   organized by schedule/clients/client-page/chat/program/booking/subscriptions/settings. Treat this as the
   ground truth for what UI work he actually asked for.
 - `DOCTOR_UI_REWORK_2026-07-20/PLAN.md` (66 open, 69 closed) — most open items map to punch-list codes
-  (SCH-*, CLI-*, CLP-*, CHT-*, PRG-*, PBK-*, ABO-*, AB2-*, SET-*) or dated owner gates. Two weaker pockets flagged
+  (SCH-_, CLI-_, CLP-_, CHT-_, PRG-_, PBK-_, ABO-_, AB2-_, SET-\*) or dated owner gates. Two weaker pockets flagged
   by the reviewing pass: the ~20-item UI-5b detail list attributed to an "owner dump" commit that wasn't
   independently re-read here, and the ~25-bullet UI-7 scheduled-messages technical contract (durable state
   machine, CAS semantics, idempotency keys) which reads as agent engineering detail beyond what the owner is on
@@ -167,6 +171,7 @@ cannot proceed without him, so they belong on a decision list, not a work list.
   (route shape for tenant public pages, auth-intent UI mechanism, exact install-gated capability list).
 
 ### RU privacy / 152-FZ compliance (legitimate legal driver, engineering scope partly self-expanded — see §4)
+
 - `PR-03_DATA_RIGHTS_AND_RETENTION.md` (21 open, 6 closed) — the core rule (recoverable deletion, 90-day window,
   no silent purge) is directly owner-attributed; the dangerous immediate-delete path is already closed in code.
   Remaining automation waits on a legal retention-matrix gate.
@@ -186,9 +191,9 @@ cannot proceed without him, so they belong on a decision list, not a work list.
 
 1. **A 60-item, two-file initiative with no owner authority behind it at all: `NATIVE_MOBILE_APP_INITIATIVE/`
    (`MASTER_PLAN.md` 41 open, `FINAL_ACCEPTANCE.md` 19 open, both 0 closed — never executed).** It is absent from
-   `docs/INITIATIVES.md` (checked the current-execution table, the historical snapshot, *and* the
+   `docs/INITIATIVES.md` (checked the current-execution table, the historical snapshot, _and_ the
    FUTURE/NEEDS-OWNER table where genuinely-deferred owner ideas like "adaptive layout / site-vs-app" and
-   "nutrition/AI-assist" *are* listed) and absent from `docs/CURRENT_AUTHORITY_MAP.md`. Unlike every other design
+   "nutrition/AI-assist" _are_ listed) and absent from `docs/CURRENT_AUTHORITY_MAP.md`. Unlike every other design
    doc sampled in this pass, its own text poses product decisions as still-open "owner gates" it never records an
    answer to, rather than quoting one. This is the closest match in the entire sample to the documented
    73-invented-requirements failure pattern. **Recommend: ask the owner directly whether a native mobile app was
@@ -198,8 +203,8 @@ cannot proceed without him, so they belong on a decision list, not a work list.
 2. **The RU-privacy/152-FZ umbrella (277 open items across 16 files, ~139 of which land in this document's
    SELF-GENERATED bucket) has a real legal trigger but an agent-expanded engineering program.** 152-FZ genuinely
    applies — the initiative's own processing register independently confirms real health-PII schema in this
-   product. But no verbatim owner quote authorizing the *specific* engineering program was found anywhere: the
-   umbrella's own `LOG.md` shows an agent authoring the full roadmap on 2026-07-19, then the *same agent*
+   product. But no verbatim owner quote authorizing the _specific_ engineering program was found anywhere: the
+   umbrella's own `LOG.md` shows an agent authoring the full roadmap on 2026-07-19, then the _same agent_
    expanding it further the same day after running its own production audit, citing only that audit — not owner
    input — as the trigger for `CRYPTO-01` (client-side/field-level encryption) and `INFRA-01` (an entirely new
    encrypted production host). A later log entry does record real owner activation, but paraphrased as "everything
@@ -247,7 +252,7 @@ cannot proceed without him, so they belong on a decision list, not a work list.
   directly and checking line-by-line against the current UI-5b checklist.
 - **`DOCTOR_UI_REWORK_2026-07-20/PLAN.md` UI-7's technical contract** (~25 bullets: CAS claim semantics, retry
   backoff shape, idempotency keys) — the feature (scheduled messages) is owner-asked; this level of engineering
-  detail is not obviously owner-worded. Likely DERIVED (an engineer would need to design *something* here) but
+  detail is not obviously owner-worded. Likely DERIVED (an engineer would need to design _something_ here) but
   worth a second look for scope creep in the specifics.
 - **RU-privacy `OWNER_ACTIONS.md`'s O-01..O-12 items** (designate DPO, contact Selectel, brief a lawyer) — no
   file shows evidence any of these actually happened outside the repo. Only the owner (or his taskdb notes on
@@ -283,7 +288,7 @@ cannot proceed without him, so they belong on a decision list, not a work list.
   produce a stale answer immediately.
 - **Not read at all in this pass:** the ~210 `docs/_TODO/` markdown files with zero checkboxes (design notes,
   audit reports, decision records, historical snapshots). These carry no open-work count by definition but were
-  not screened for whether any of them *should* have a checklist and doesn't — that would be a different kind of
+  not screened for whether any of them _should_ have a checklist and doesn't — that would be a different kind of
   audit than the one requested.
 - **taskdb:** `node /home/dev/brain/tools/taskdb.mjs list bcb` was read in full (943 lines) and `waiting` was
   checked; no writes were made to it.
@@ -300,28 +305,29 @@ cannot proceed without him, so they belong on a decision list, not a work list.
 заказал», а НЕ на вопрос «сделано ли это». 973 = «сколько чекбоксов имеют законное происхождение».
 Реальной несделанной работы среди них — примерно вчетверо меньше.
 
-| Что это на самом деле | Чекбоксов | Доля |
-|---|---:|---:|
-| Уже сделано в коде, галочка не переставлена (с доказательствами) | ~245 | 19% |
-| Мёртвое: устаревшие планы, дубли, самопридуманное | ~237 | 18% |
-| Доказательства/прогоны/отчёты, не изменение продукта | ~270 | 21% |
-| Ждёт решения владельца, юриста или внешнего специалиста | ~130 | 10% |
-| **Реальная несделанная работа** | **~275** | **21%** |
-| 152-ФЗ «разумная гигиена» (derived, не обязательна по букве закона) | ~87 | 7% |
-| Прочее (NIGHT_PLAN и мелкие файлы, не классифицировано) | ~50 | 4% |
+| Что это на самом деле                                               | Чекбоксов |    Доля |
+| ------------------------------------------------------------------- | --------: | ------: |
+| Уже сделано в коде, галочка не переставлена (с доказательствами)    |      ~245 |     19% |
+| Мёртвое: устаревшие планы, дубли, самопридуманное                   |      ~237 |     18% |
+| Доказательства/прогоны/отчёты, не изменение продукта                |      ~270 |     21% |
+| Ждёт решения владельца, юриста или внешнего специалиста             |      ~130 |     10% |
+| **Реальная несделанная работа**                                     |  **~275** | **21%** |
+| 152-ФЗ «разумная гигиена» (derived, не обязательна по букве закона) |       ~87 |      7% |
+| Прочее (NIGHT_PLAN и мелкие файлы, не классифицировано)             |       ~50 |      4% |
 
 Ключевые числа по кластерам (raw открытых → A реальная работа / C уже сделано / B доказательства / D
 блокировано решением / E мёртвое):
 
-| Кластер | raw | A | B | C | D | E |
-|---|---:|---:|---:|---:|---:|---:|
-| Мультиарендность / RLS / безопасность (9 файлов) | 262 | 19 | 112 | 107 | 20 | 4 |
-| Доктор-UI / пунш-лист владельца (9 файлов) | 177 | 36 | 37 | 70 | 29 | 5 |
-| Тарифы / магазин / настройки / админ (9 файлов) | 253 | 129 | 55 | 49 | 14 | 6 |
-| Rubitime / стабильность / рунбуки (13 файлов) | 194 | 42 | 21 | 19 | 44 | 68 |
-| 152-ФЗ (230) + мобильное приложение (60) + owner-actions (26) | 316 | ~136 | 47 | — | ~26 | ~154 |
+| Кластер                                                       | raw |    A |   B |   C |   D |    E |
+| ------------------------------------------------------------- | --: | ---: | --: | --: | --: | ---: |
+| Мультиарендность / RLS / безопасность (9 файлов)              | 262 |   19 | 112 | 107 |  20 |    4 |
+| Доктор-UI / пунш-лист владельца (9 файлов)                    | 177 |   36 |  37 |  70 |  29 |    5 |
+| Тарифы / магазин / настройки / админ (9 файлов)               | 253 |  129 |  55 |  49 |  14 |    6 |
+| Rubitime / стабильность / рунбуки (13 файлов)                 | 194 |   42 |  21 |  19 |  44 |   68 |
+| 152-ФЗ (230) + мобильное приложение (60) + owner-actions (26) | 316 | ~136 |  47 |   — | ~26 | ~154 |
 
 **Доказанные схлопывания (проверено по коду, не по отчётам):**
+
 - Тарифы/магазин: 136 открытых чекбоксов в 4 файлах → **59 уникальных**. `TARIFFS_PAYMENTS_ADMIN_PLAN.md`
   (44 открытых) даёт **ноль** новой работы: 21 уже в коде, 23 — те же S4-4/S4-6. `STORE_EXECUTION_PLAN.md` +
   `STORE_P0_ENTITLEMENTS_PLAN.md` (33) — тоже ноль, схема и резолвер живут в
@@ -340,6 +346,7 @@ cannot proceed without him, so they belong on a decision list, not a work list.
   `SAAS_R0_PLAN_RECONCILIATION.md` 5, `SAAS_R1_FINISH_LINE_AND_DOC_HYGIENE.md` 4).
 
 **Найдено попутно, ни в одном плане не отслеживается:**
+
 - Дрейф инвентаря состояния БД: `check-phase4-prod-copy-db-state.mjs` ассертит 164, а
   `phase4-locked-policy-artifact.mjs` — 168 policy-таргетов. Расхождение в 4 таблицы никем не диагностировано.
 - `CLI-5` (фильтр по каналу push) реализован, но выключен флагом `CHANNEL_FILTERS_UI_ENABLED = false`
@@ -356,26 +363,26 @@ cannot proceed without him, so they belong on a decision list, not a work list.
 «выдуманного» и закрыл их своими решениями. Три пункта §6, поднятые как «вопросы к владельцу», —
 **УЖЕ ЗАКРЫТЫ, переспрашивать нельзя**:
 
-| Что §6 поднимал как вопрос | Решение владельца 27.07 | Следствие для счёта |
-|---|---|---|
-| Нативное приложение (60 пунктов) — «следа запроса нет» | «инициатива нативного мобильного приложения не выдумана - просто не сейчас. Пока pwa» | НЕ мёртвое. Реальный скоуп, **отложенный владельцем**. Из активного счёта — вон, из «выдуманного» — вон. |
-| CRYPTO-01 + INFRA-01 + SEC-04 (82-94 пункта) — «агент дописал сам» | «надо» | НЕ выдуманное. **Переходит в реальную несделанную работу**, причём 0 из 82 начато. |
-| Рунбук раскатки прода — «цитата пересказана» | «Раскатка прода - будет на проде» | Вопрос снят. |
-| Тарифы/платежи (44 пункта) | «уже насколько понимаю сделано или есть в плане доделать» | Совпадает с §6: пометить вытесненным ссылкой на `SAAS_S4`, содержимое не терять. |
-| Doctor DNA (5 пунктов) | «помечаем как "для справки если вернемся на доработку", частично сделано - меня устраивает» | Совпадает с §6. |
+| Что §6 поднимал как вопрос                                         | Решение владельца 27.07                                                                     | Следствие для счёта                                                                                      |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| Нативное приложение (60 пунктов) — «следа запроса нет»             | «инициатива нативного мобильного приложения не выдумана - просто не сейчас. Пока pwa»       | НЕ мёртвое. Реальный скоуп, **отложенный владельцем**. Из активного счёта — вон, из «выдуманного» — вон. |
+| CRYPTO-01 + INFRA-01 + SEC-04 (82-94 пункта) — «агент дописал сам» | «надо»                                                                                      | НЕ выдуманное. **Переходит в реальную несделанную работу**, причём 0 из 82 начато.                       |
+| Рунбук раскатки прода — «цитата пересказана»                       | «Раскатка прода - будет на проде»                                                           | Вопрос снят.                                                                                             |
+| Тарифы/платежи (44 пункта)                                         | «уже насколько понимаю сделано или есть в плане доделать»                                   | Совпадает с §6: пометить вытесненным ссылкой на `SAAS_S4`, содержимое не терять.                         |
+| Doctor DNA (5 пунктов)                                             | «помечаем как "для справки если вернемся на доработку", частично сделано - меня устраивает» | Совпадает с §6.                                                                                          |
 
 **Пересчитанная таблица §6 с учётом этих решений:**
 
-| Что это на самом деле | Чекбоксов | Доля |
-|---|---:|---:|
-| Реальная несделанная работа (включая 82 инфраструктурных «надо») | ~357 | 28% |
-| Доказательства/прогоны/отчёты — не изменение продукта | ~270 | 21% |
-| Уже сделано в коде, галочка не переставлена | ~245 | 19% |
-| Ждёт решения владельца, юриста или внешнего специалиста | ~130 | 10% |
-| Мёртвое: замороженные записи и задвоенный учёт | ~106 | 8% |
-| 152-ФЗ «разумная гигиена» (derived) | ~87 | 7% |
-| Отложено владельцем (мобильное приложение) | 60 | 5% |
-| Не классифицировано (ночной план и мелочь) | ~40 | 3% |
+| Что это на самом деле                                            | Чекбоксов | Доля |
+| ---------------------------------------------------------------- | --------: | ---: |
+| Реальная несделанная работа (включая 82 инфраструктурных «надо») |      ~357 |  28% |
+| Доказательства/прогоны/отчёты — не изменение продукта            |      ~270 |  21% |
+| Уже сделано в коде, галочка не переставлена                      |      ~245 |  19% |
+| Ждёт решения владельца, юриста или внешнего специалиста          |      ~130 |  10% |
+| Мёртвое: замороженные записи и задвоенный учёт                   |      ~106 |   8% |
+| 152-ФЗ «разумная гигиена» (derived)                              |       ~87 |   7% |
+| Отложено владельцем (мобильное приложение)                       |        60 |   5% |
+| Не классифицировано (ночной план и мелочь)                       |       ~40 |   3% |
 
 Главное следствие решения «надо» по CRYPTO-01/INFRA-01/SEC-04: это **самый крупный полностью не начатый
 блок бэклога после биллинга** — 82 пункта, 0 закрытых, 0 строк кода, и он требует нового сервера.
@@ -404,11 +411,11 @@ handover ставит уборщику 5 задач по учёту — 106 вы
 
 **Три пункта, которые §3 числила реальной работой, владелец 27.07 ОТМЕНИЛ** — вычесть из оценки объёма:
 
-| Пункт | Решение владельца | Где записано |
-|---|---|---|
+| Пункт                                                                                     | Решение владельца                                                                          | Где записано                             |
+| ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | ---------------------------------------- |
 | PBK-4 / actor-attendee (9 боксов в `BOOKING_ACTOR_ATTENDEE_DESIGN.md` + пункт пунш-листа) | «Если кого то другого надо записать, напишут в комментарии» — отдельный механизм не строим | design-док помечен ⛔ в шапке, пунш-лист |
-| CLI-4 «фильтр с приложением» | не нужен | пунш-лист |
-| ABO-9 (a) цена с комментарием рядом с сеансом | «бред» | пунш-лист |
+| CLI-4 «фильтр с приложением»                                                              | не нужен                                                                                   | пунш-лист                                |
+| ABO-9 (a) цена с комментарием рядом с сеансом                                             | «бред»                                                                                     | пунш-лист                                |
 
 **Два пункта, которые аудит 27.07 пометил как дефект, оказались верным поведением** — ошибка того же
 класса, что инцидент с SCH-G1: мерили по букве старого текста, а не по актуальному решению владельца.
@@ -433,14 +440,14 @@ handover ставит уборщику 5 задач по учёту — 106 вы
 Отменённая работа не должна попадать ни в «осталось», ни в «сделано» — иначе она врёт счётчиком в обе стороны.
 Поэтому состояний больше двух:
 
-| Состояние | Разметка |
-|---|---|
-| **Сделано** | `- [x] **<исходный текст>** — <доказательство: commit / file:line / зелёный тест>` |
-| **Отменено владельцем** | `- [-] ~~<исходный текст>~~ — ⛔ ОТМЕНЕНО ВЛАДЕЛЬЦЕМ <дата>: «<его слова>»` |
-| **Вытеснено** | `- [-] ~~<исходный текст>~~ — ↪️ ВЫТЕСНЕНО <дата>: работа живёт в `<файл>` §<раздел>` |
-| **Замороженная запись аудита** | `- [-] ~~<исходный текст>~~ — 🧊 ЗАМОРОЖЕНО <дата>: исторический вердикт, перезакрывать запрещено` |
-| **Отложено владельцем** | `- [-] ~~<исходный текст>~~ — ⏸ ОТЛОЖЕНО ВЛАДЕЛЬЦЕМ <дата>: «<его слова>»; вернуть в работу только по его команде` |
-| **Открыто** | `- [ ] <исходный текст>` |
+| Состояние                      | Разметка                                                                                                           |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| **Сделано**                    | `- [x] **<исходный текст>** — <доказательство: commit / file:line / зелёный тест>`                                 |
+| **Отменено владельцем**        | `- [-] ~~<исходный текст>~~ — ⛔ ОТМЕНЕНО ВЛАДЕЛЬЦЕМ <дата>: «<его слова>»`                                        |
+| **Вытеснено**                  | `- [-] ~~<исходный текст>~~ — ↪️ ВЫТЕСНЕНО <дата>: работа живёт в `<файл>` §<раздел>`                              |
+| **Замороженная запись аудита** | `- [-] ~~<исходный текст>~~ — 🧊 ЗАМОРОЖЕНО <дата>: исторический вердикт, перезакрывать запрещено`                 |
+| **Отложено владельцем**        | `- [-] ~~<исходный текст>~~ — ⏸ ОТЛОЖЕНО ВЛАДЕЛЬЦЕМ <дата>: «<его слова>»; вернуть в работу только по его команде` |
+| **Открыто**                    | `- [ ] <исходный текст>`                                                                                           |
 
 **Почему именно `- [-]`:** он не совпадает ни с `- [ ]`, ни с `- [x]`, поэтому сплошные подсчёты
 (`grep -c '^\s*-\s*\[ \]'` / `\[x\]`) перестают видеть такой пункт И как работу, И как достижение. Мёртвое

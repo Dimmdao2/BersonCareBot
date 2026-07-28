@@ -1,15 +1,15 @@
-"use client";
+'use client';
 
-import { useMemo, useState, useTransition } from "react";
-import TimezoneSelect, { type ITimezoneOption } from "react-timezone-select";
-import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { isValidSupportContactSetting } from "@/lib/url/isValidSupportContactSetting";
-import { isValidIanaTimeZoneId } from "@/shared/timezone/ianaTimezonesForAdminUi";
-import { mergePatientTimezoneSelectLabels } from "@/shared/timezone/patientTimezoneSelectLabels";
-import { patchAdminSetting } from "./patchAdminSetting";
-import { doctorTimezoneSelectStyles } from "./DoctorTimezoneSection";
+import { useMemo, useState, useTransition } from 'react';
+import TimezoneSelect, { type ITimezoneOption } from 'react-timezone-select';
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { isValidSupportContactSetting } from '@/lib/url/isValidSupportContactSetting';
+import { isValidIanaTimeZoneId } from '@/shared/timezone/ianaTimezonesForAdminUi';
+import { mergePatientTimezoneSelectLabels } from '@/shared/timezone/patientTimezoneSelectLabels';
+import { patchAdminSetting } from './patchAdminSetting';
+import { doctorTimezoneSelectStyles } from './DoctorTimezoneSection';
 
 export type AppParametersSectionProps = {
   /** Публичный origin веб-приложения (https://…), без завершающего слеша. */
@@ -23,13 +23,17 @@ function isValidAppBaseUrl(raw: string): boolean {
   if (t.length === 0) return true;
   try {
     const u = new URL(t);
-    return u.protocol === "http:" || u.protocol === "https:";
+    return u.protocol === 'http:' || u.protocol === 'https:';
   } catch {
     return false;
   }
 }
 
-export function AppParametersSection({ appBaseUrl, supportContactUrl, appDisplayTimezone }: AppParametersSectionProps) {
+export function AppParametersSection({
+  appBaseUrl,
+  supportContactUrl,
+  appDisplayTimezone,
+}: AppParametersSectionProps) {
   const [appUrl, setAppUrl] = useState(appBaseUrl);
   const [support, setSupport] = useState(supportContactUrl);
   const [timezone, setTimezone] = useState(appDisplayTimezone);
@@ -38,7 +42,7 @@ export function AppParametersSection({ appBaseUrl, supportContactUrl, appDisplay
   const [isPending, startTransition] = useTransition();
 
   const timezoneLabels = useMemo(
-    () => mergePatientTimezoneSelectLabels(timezone.trim() || "Europe/Moscow"),
+    () => mergePatientTimezoneSelectLabels(timezone.trim() || 'Europe/Moscow'),
     [timezone],
   );
 
@@ -49,31 +53,33 @@ export function AppParametersSection({ appBaseUrl, supportContactUrl, appDisplay
       try {
         const appUrlRaw = appUrl.trim();
         if (appUrlRaw.length > 0 && !isValidAppBaseUrl(appUrlRaw)) {
-          setError("Публичный URL приложения: укажите https://… (http допустим в dev) или оставьте пустым для env");
+          setError(
+            'Публичный URL приложения: укажите https://… (http допустим в dev) или оставьте пустым для env',
+          );
           return;
         }
         const supportRaw = support.trim();
         if (supportRaw.length > 0 && !isValidSupportContactSetting(supportRaw)) {
-          setError("Ссылка поддержки: укажите путь /app/… или URL https://… (http допустим в dev)");
+          setError('Ссылка поддержки: укажите путь /app/… или URL https://… (http допустим в dev)');
           return;
         }
-        const tzRaw = timezone.trim() || "Europe/Moscow";
+        const tzRaw = timezone.trim() || 'Europe/Moscow';
         if (!isValidIanaTimeZoneId(tzRaw)) {
-          setError("Таймзона: выберите валидную зону IANA из списка");
+          setError('Таймзона: выберите валидную зону IANA из списка');
           return;
         }
         const results = await Promise.all([
-          patchAdminSetting("app_base_url", appUrlRaw),
-          patchAdminSetting("support_contact_url", supportRaw),
-          patchAdminSetting("app_display_timezone", tzRaw),
+          patchAdminSetting('app_base_url', appUrlRaw),
+          patchAdminSetting('support_contact_url', supportRaw),
+          patchAdminSetting('app_display_timezone', tzRaw),
         ]);
         if (results.some((r) => !r)) {
-          setError("Не удалось сохранить часть настроек");
+          setError('Не удалось сохранить часть настроек');
           return;
         }
         setSaved(true);
       } catch {
-        setError("Ошибка при сохранении");
+        setError('Ошибка при сохранении');
       }
     });
   }
@@ -83,8 +89,8 @@ export function AppParametersSection({ appBaseUrl, supportContactUrl, appDisplay
       <CardHeader className="pb-2">
         <CardTitle className="text-base">Параметры приложения</CardTitle>
         <p className="text-xs text-muted-foreground">
-          Значения хранятся в БД (<code className="rounded bg-muted px-1">system_settings</code>, scope admin),
-          применяются без передеплоя.
+          Значения хранятся в БД (<code className="rounded bg-muted px-1">system_settings</code>,
+          scope admin), применяются без передеплоя.
         </p>
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
@@ -101,7 +107,7 @@ export function AppParametersSection({ appBaseUrl, supportContactUrl, appDisplay
               autoComplete="off"
             />
             <span className="text-xs text-muted-foreground">
-              Без завершающего /. Ссылки для ботов и OAuth строятся отсюда; пусто — используется{" "}
+              Без завершающего /. Ссылки для ботов и OAuth строятся отсюда; пусто — используется{' '}
               <code className="rounded bg-muted px-1">APP_BASE_URL</code> из окружения.
             </span>
           </label>
@@ -119,7 +125,8 @@ export function AppParametersSection({ appBaseUrl, supportContactUrl, appDisplay
               disabled={isPending}
             />
             <span className="text-xs text-muted-foreground">
-              Путь вида /app/… (форма в приложении) или внешняя ссылка https://… Пустое — дефолт из кода.
+              Путь вида /app/… (форма в приложении) или внешняя ссылка https://… Пустое — дефолт из
+              кода.
             </span>
           </label>
         </section>
@@ -130,7 +137,7 @@ export function AppParametersSection({ appBaseUrl, supportContactUrl, appDisplay
             <TimezoneSelect
               instanceId="app-display-timezone"
               inputId="app-display-timezone"
-              value={(timezone.trim() || "Europe/Moscow") as never}
+              value={(timezone.trim() || 'Europe/Moscow') as never}
               onChange={(tz: ITimezoneOption) => setTimezone(tz.value)}
               timezones={timezoneLabels}
               labelStyle="original"
@@ -138,7 +145,7 @@ export function AppParametersSection({ appBaseUrl, supportContactUrl, appDisplay
               isDisabled={isPending}
               isSearchable
               styles={doctorTimezoneSelectStyles as never}
-              menuPortalTarget={typeof document !== "undefined" ? document.body : null}
+              menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
               menuPosition="fixed"
               maxMenuHeight={280}
             />
@@ -150,7 +157,7 @@ export function AppParametersSection({ appBaseUrl, supportContactUrl, appDisplay
 
         <div className="flex items-center gap-3">
           <Button variant="outline" onClick={handleSave} disabled={isPending}>
-            {isPending ? "Сохранение…" : "Сохранить"}
+            {isPending ? 'Сохранение…' : 'Сохранить'}
           </Button>
           {saved && <span className="text-sm text-green-600">Сохранено</span>}
           {error && <span className="text-sm text-destructive">{error}</span>}

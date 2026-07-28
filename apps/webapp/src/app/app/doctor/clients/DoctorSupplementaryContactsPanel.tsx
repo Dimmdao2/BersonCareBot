@@ -1,24 +1,24 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useState } from "react";
-import { Trash2 } from "lucide-react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Input } from "@/shared/ui/doctor/primitives/input";
+import { useCallback, useEffect, useState } from 'react';
+import { Trash2 } from 'lucide-react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Input } from '@/shared/ui/doctor/primitives/input';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/ui/doctor/primitives/select";
-import type { DoctorSupplementaryContact } from "@/modules/platform-user-contacts/bookingContactUpsert";
-import type { PlatformUserContactType } from "@/modules/platform-user-contacts/types";
-import { phoneToTelHref } from "@/shared/lib/phoneLinks";
+} from '@/shared/ui/doctor/primitives/select';
+import type { DoctorSupplementaryContact } from '@/modules/platform-user-contacts/bookingContactUpsert';
+import type { PlatformUserContactType } from '@/modules/platform-user-contacts/types';
+import { phoneToTelHref } from '@/shared/lib/phoneLinks';
 
 const CONTACT_TYPE_OPTIONS: { value: PlatformUserContactType; label: string }[] = [
-  { value: "phone", label: "Телефон" },
-  { value: "email", label: "Email" },
-  { value: "whatsapp", label: "WhatsApp" },
+  { value: 'phone', label: 'Телефон' },
+  { value: 'email', label: 'Email' },
+  { value: 'whatsapp', label: 'WhatsApp' },
 ];
 
 type Props = {
@@ -28,8 +28,8 @@ type Props = {
 
 export function DoctorSupplementaryContactsPanel({ userId, initialContacts }: Props) {
   const [contacts, setContacts] = useState(initialContacts);
-  const [contactType, setContactType] = useState<PlatformUserContactType>("phone");
-  const [value, setValue] = useState("");
+  const [contactType, setContactType] = useState<PlatformUserContactType>('phone');
+  const [value, setValue] = useState('');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -48,7 +48,7 @@ export function DoctorSupplementaryContactsPanel({ userId, initialContacts }: Pr
       );
       const data = (await res.json()) as { ok?: boolean; contacts?: DoctorSupplementaryContact[] };
       if (!res.ok || !data.ok) {
-        setError("Не удалось загрузить контакты");
+        setError('Не удалось загрузить контакты');
         return;
       }
       setContacts(data.contacts ?? []);
@@ -67,23 +67,23 @@ export function DoctorSupplementaryContactsPanel({ userId, initialContacts }: Pr
       const res = await fetch(
         `/api/doctor/clients/${encodeURIComponent(userId)}/supplementary-contacts`,
         {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ contactType, value: trimmed }),
         },
       );
       const data = (await res.json()) as { ok?: boolean; error?: string };
       if (!res.ok || !data.ok) {
-        if (data.error === "matches_identity") {
-          setError("Совпадает с основным контактом учётной записи");
-        } else if (data.error === "invalid_value") {
-          setError("Некорректное значение");
+        if (data.error === 'matches_identity') {
+          setError('Совпадает с основным контактом учётной записи');
+        } else if (data.error === 'invalid_value') {
+          setError('Некорректное значение');
         } else {
-          setError("Не удалось сохранить");
+          setError('Не удалось сохранить');
         }
         return;
       }
-      setValue("");
+      setValue('');
       await load();
     } finally {
       setSaving(false);
@@ -96,14 +96,14 @@ export function DoctorSupplementaryContactsPanel({ userId, initialContacts }: Pr
     try {
       const res = await fetch(
         `/api/doctor/clients/${encodeURIComponent(userId)}/supplementary-contacts/${encodeURIComponent(contactId)}`,
-        { method: "DELETE" },
+        { method: 'DELETE' },
       );
       const data = (await res.json()) as { ok?: boolean; error?: string };
       if (!res.ok || !data.ok) {
-        if (data.error === "delete_not_allowed") {
-          setError("Нельзя удалить автоматически сохранённый контакт");
+        if (data.error === 'delete_not_allowed') {
+          setError('Нельзя удалить автоматически сохранённый контакт');
         } else {
-          setError("Не удалось удалить");
+          setError('Не удалось удалить');
         }
         return;
       }
@@ -121,14 +121,17 @@ export function DoctorSupplementaryContactsPanel({ userId, initialContacts }: Pr
         <ul id="doctor-client-supplementary-contacts-list" className="m-0 list-none space-y-1 p-0">
           {contacts.map((contact) => {
             const telHref =
-              contact.contactType === "phone" || contact.contactType === "whatsapp"
+              contact.contactType === 'phone' || contact.contactType === 'whatsapp'
                 ? phoneToTelHref(contact.value)
                 : null;
             return (
               <li key={contact.id} className="flex items-center gap-2">
                 <span className="min-w-0 flex-1">
-                  {contact.contactType === "email" ? (
-                    <a href={`mailto:${contact.value}`} className="font-medium text-primary underline">
+                  {contact.contactType === 'email' ? (
+                    <a
+                      href={`mailto:${contact.value}`}
+                      className="font-medium text-primary underline"
+                    >
                       {contact.value}
                     </a>
                   ) : telHref ? (
@@ -139,7 +142,7 @@ export function DoctorSupplementaryContactsPanel({ userId, initialContacts }: Pr
                     contact.value
                   )}
                 </span>
-                {contact.source === "doctor" || contact.source === "admin" ? (
+                {contact.source === 'doctor' || contact.source === 'admin' ? (
                   <Button
                     type="button"
                     variant="ghost"
@@ -158,7 +161,10 @@ export function DoctorSupplementaryContactsPanel({ userId, initialContacts }: Pr
         </ul>
       ) : null}
       <form onSubmit={onAdd} className="flex flex-col gap-2 sm:flex-row sm:items-end">
-        <Select value={contactType} onValueChange={(v) => setContactType(v as PlatformUserContactType)}>
+        <Select
+          value={contactType}
+          onValueChange={(v) => setContactType(v as PlatformUserContactType)}
+        >
           <SelectTrigger className="w-full sm:w-[9rem]">
             <SelectValue />
           </SelectTrigger>
@@ -178,7 +184,7 @@ export function DoctorSupplementaryContactsPanel({ userId, initialContacts }: Pr
           autoComplete="off"
         />
         <Button type="submit" disabled={saving || !value.trim()} className="shrink-0">
-          {saving ? "…" : "Добавить"}
+          {saving ? '…' : 'Добавить'}
         </Button>
       </form>
     </div>

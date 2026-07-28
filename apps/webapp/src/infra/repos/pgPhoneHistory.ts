@@ -2,11 +2,11 @@
 import {
   buildDbPrincipalApplyOptionsFromEnv,
   getCurrentDbPrincipalOrganizationId,
-} from "@bersoncare/db-principal";
-import type { Pool, PoolClient } from "pg";
-import { getWebappSqlFromPgClient, runWebappPgText } from "@/infra/db/runWebappSql";
+} from '@bersoncare/db-principal';
+import type { Pool, PoolClient } from 'pg';
+import { getWebappSqlFromPgClient, runWebappPgText } from '@/infra/db/runWebappSql';
 
-export type PhoneHistorySource = "otp" | "messenger" | "merge" | "admin" | "projection";
+export type PhoneHistorySource = 'otp' | 'messenger' | 'merge' | 'admin' | 'projection';
 
 /**
  * Вызывать **после** того, как в транзакции обновлён `platform_users.phone_normalized`
@@ -22,9 +22,9 @@ export async function applyPlatformUserPhoneHistoryTransition(
 ): Promise<void> {
   const db = getWebappSqlFromPgClient(client as PoolClient);
   const principalMode = buildDbPrincipalApplyOptionsFromEnv(process.env).mode;
-  if (principalMode === "locked") {
+  if (principalMode === 'locked') {
     await runWebappPgText(
-      "SELECT app.close_active_user_phone_history($1::uuid)",
+      'SELECT app.close_active_user_phone_history($1::uuid)',
       [opts.platformUserId],
       db,
     );

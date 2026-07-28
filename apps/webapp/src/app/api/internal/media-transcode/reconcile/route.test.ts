@@ -1,31 +1,31 @@
 /** @vitest-environment node */
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const runBackfillMock = vi.fn();
 
 const reconcileTestEnv = vi.hoisted(() => ({
-  INTERNAL_JOB_SECRET: "test-internal-secret" as string | undefined,
+  INTERNAL_JOB_SECRET: 'test-internal-secret' as string | undefined,
 }));
 
-vi.mock("@/config/env", () => ({
+vi.mock('@/config/env', () => ({
   env: reconcileTestEnv,
   webappReposAreInMemory: () => true,
 }));
 
-vi.mock("@/modules/system-settings/configAdapter", () => ({
+vi.mock('@/modules/system-settings/configAdapter', () => ({
   getConfigBool: vi.fn(),
 }));
 
-vi.mock("@/app-layer/media/videoHlsLegacyBackfill", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/app-layer/media/videoHlsLegacyBackfill")>();
+vi.mock('@/app-layer/media/videoHlsLegacyBackfill', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/app-layer/media/videoHlsLegacyBackfill')>();
   return {
     ...actual,
     runVideoHlsLegacyBackfill: (...args: unknown[]) => runBackfillMock(...args),
   };
 });
 
-vi.mock("@/app-layer/logging/logger", () => ({
+vi.mock('@/app-layer/logging/logger', () => ({
   logger: {
     info: vi.fn(),
     error: vi.fn(),
@@ -33,78 +33,82 @@ vi.mock("@/app-layer/logging/logger", () => ({
   },
 }));
 
-import { getConfigBool } from "@/modules/system-settings/configAdapter";
-import { logger } from "@/app-layer/logging/logger";
-import { resetMediaTranscodeReconcileWriteLog, mediaTranscodeReconcileWriteLog, setOperatorHealthWriteReconcileSuccessThrowsForTests } from "@/infra/repos/inMemoryOperatorHealthWrite";
-import { POST } from "./route";
+import { getConfigBool } from '@/modules/system-settings/configAdapter';
+import { logger } from '@/app-layer/logging/logger';
+import {
+  resetMediaTranscodeReconcileWriteLog,
+  mediaTranscodeReconcileWriteLog,
+  setOperatorHealthWriteReconcileSuccessThrowsForTests,
+} from '@/infra/repos/inMemoryOperatorHealthWrite';
+import { POST } from './route';
 
-describe("POST /api/internal/media-transcode/reconcile", () => {
+describe('POST /api/internal/media-transcode/reconcile', () => {
   beforeEach(() => {
     runBackfillMock.mockReset();
     vi.mocked(getConfigBool).mockReset();
-    reconcileTestEnv.INTERNAL_JOB_SECRET = "test-internal-secret";
+    reconcileTestEnv.INTERNAL_JOB_SECRET = 'test-internal-secret';
     resetMediaTranscodeReconcileWriteLog();
     setOperatorHealthWriteReconcileSuccessThrowsForTests(undefined);
   });
 
-  it("returns 503 when INTERNAL_JOB_SECRET is not configured", async () => {
-    reconcileTestEnv.INTERNAL_JOB_SECRET = "";
+  it('returns 503 when INTERNAL_JOB_SECRET is not configured', async () => {
+    reconcileTestEnv.INTERNAL_JOB_SECRET = '';
     vi.mocked(getConfigBool).mockResolvedValue(true);
     const res = await POST(
-      new Request("http://localhost/api/internal/media-transcode/reconcile", {
-        method: "POST",
+      new Request('http://localhost/api/internal/media-transcode/reconcile', {
+        method: 'POST',
         headers: {
-          authorization: "Bearer test-internal-secret",
-          "content-type": "application/json",
+          authorization: 'Bearer test-internal-secret',
+          'content-type': 'application/json',
         },
         body: JSON.stringify({ limit: 10 }),
       }),
     );
     expect(res.status).toBe(503);
     const json = (await res.json()) as { error?: string };
-    expect(json.error).toBe("not_configured");
+    expect(json.error).toBe('not_configured');
     expect(runBackfillMock).not.toHaveBeenCalled();
   });
 
-  it("returns 400 when JSON body is not valid JSON", async () => {
+  it('returns 400 when JSON body is not valid JSON', async () => {
     vi.mocked(getConfigBool).mockResolvedValue(true);
     const res = await POST(
-      new Request("http://localhost/api/internal/media-transcode/reconcile", {
-        method: "POST",
+      new Request('http://localhost/api/internal/media-transcode/reconcile', {
+        method: 'POST',
         headers: {
-          authorization: "Bearer test-internal-secret",
-          "content-type": "application/json",
+          authorization: 'Bearer test-internal-secret',
+          'content-type': 'application/json',
         },
-        body: "{",
+        body: '{',
       }),
     );
     expect(res.status).toBe(400);
     const json = (await res.json()) as { error?: string };
-    expect(json.error).toBe("invalid_body");
+    expect(json.error).toBe('invalid_body');
     expect(runBackfillMock).not.toHaveBeenCalled();
   });
 
-  it("returns 400 when limit is not coercible to a valid integer", async () => {
+  it('returns 400 when limit is not coercible to a valid integer', async () => {
     vi.mocked(getConfigBool).mockResolvedValue(true);
     const res = await POST(
-      new Request("http://localhost/api/internal/media-transcode/reconcile", {
-        method: "POST",
+      new Request('http://localhost/api/internal/media-transcode/reconcile', {
+        method: 'POST',
         headers: {
-          authorization: "Bearer test-internal-secret",
-          "content-type": "application/json",
+          authorization: 'Bearer test-internal-secret',
+          'content-type': 'application/json',
         },
-        body: JSON.stringify({ limit: "nope" }),
+        body: JSON.stringify({ limit: 'nope' }),
       }),
     );
     expect(res.status).toBe(400);
     expect(runBackfillMock).not.toHaveBeenCalled();
   });
 
-  it("returns 401 without bearer token", async () => {
+  it('returns 401 without bearer token', async () => {
     const res = await POST(
-      new Request("http://localhost/api/internal/media-transcode/reconcile", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
+      new Request('http://localhost/api/internal/media-transcode/reconcile', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ limit: 10 }),
       }),
     );
@@ -112,54 +116,54 @@ describe("POST /api/internal/media-transcode/reconcile", () => {
     expect(runBackfillMock).not.toHaveBeenCalled();
   });
 
-  it("returns 503 when pipeline flag is off", async () => {
+  it('returns 503 when pipeline flag is off', async () => {
     vi.mocked(getConfigBool).mockImplementation(async (key: string) =>
-      key === "video_hls_reconcile_enabled" ? true : false,
+      key === 'video_hls_reconcile_enabled' ? true : false,
     );
     const res = await POST(
-      new Request("http://localhost/api/internal/media-transcode/reconcile", {
-        method: "POST",
+      new Request('http://localhost/api/internal/media-transcode/reconcile', {
+        method: 'POST',
         headers: {
-          authorization: "Bearer test-internal-secret",
-          "content-type": "application/json",
+          authorization: 'Bearer test-internal-secret',
+          'content-type': 'application/json',
         },
         body: JSON.stringify({ limit: 10 }),
       }),
     );
     expect(res.status).toBe(503);
     const json = (await res.json()) as { error?: string };
-    expect(json.error).toBe("pipeline_disabled");
+    expect(json.error).toBe('pipeline_disabled');
     expect(runBackfillMock).not.toHaveBeenCalled();
   });
 
-  it("returns 503 when reconcile flag is off", async () => {
+  it('returns 503 when reconcile flag is off', async () => {
     vi.mocked(getConfigBool).mockImplementation(async (key: string) =>
-      key === "video_hls_pipeline_enabled" ? true : false,
+      key === 'video_hls_pipeline_enabled' ? true : false,
     );
     const res = await POST(
-      new Request("http://localhost/api/internal/media-transcode/reconcile", {
-        method: "POST",
+      new Request('http://localhost/api/internal/media-transcode/reconcile', {
+        method: 'POST',
         headers: {
-          authorization: "Bearer test-internal-secret",
-          "content-type": "application/json",
+          authorization: 'Bearer test-internal-secret',
+          'content-type': 'application/json',
         },
         body: JSON.stringify({ limit: 10 }),
       }),
     );
     expect(res.status).toBe(503);
     const json = (await res.json()) as { error?: string };
-    expect(json.error).toBe("reconcile_disabled");
+    expect(json.error).toBe('reconcile_disabled');
     expect(runBackfillMock).not.toHaveBeenCalled();
   });
 
-  it("returns 400 when limit exceeds cap", async () => {
+  it('returns 400 when limit exceeds cap', async () => {
     vi.mocked(getConfigBool).mockResolvedValue(true);
     const res = await POST(
-      new Request("http://localhost/api/internal/media-transcode/reconcile", {
-        method: "POST",
+      new Request('http://localhost/api/internal/media-transcode/reconcile', {
+        method: 'POST',
         headers: {
-          authorization: "Bearer test-internal-secret",
-          "content-type": "application/json",
+          authorization: 'Bearer test-internal-secret',
+          'content-type': 'application/json',
         },
         body: JSON.stringify({ limit: 201 }),
       }),
@@ -168,7 +172,7 @@ describe("POST /api/internal/media-transcode/reconcile", () => {
     expect(runBackfillMock).not.toHaveBeenCalled();
   });
 
-  it("runs one backfill batch when authorized and flags on", async () => {
+  it('runs one backfill batch when authorized and flags on', async () => {
     vi.mocked(getConfigBool).mockResolvedValue(true);
     runBackfillMock.mockResolvedValue({
       dryRun: false,
@@ -188,17 +192,17 @@ describe("POST /api/internal/media-transcode/reconcile", () => {
         notFound: 0,
         errors: 0,
       },
-      lastMediaId: "00000000-0000-4000-8000-000000000099",
+      lastMediaId: '00000000-0000-4000-8000-000000000099',
       statusHistogram: [],
       failedReasons: [],
     });
 
     const res = await POST(
-      new Request("http://localhost/api/internal/media-transcode/reconcile", {
-        method: "POST",
+      new Request('http://localhost/api/internal/media-transcode/reconcile', {
+        method: 'POST',
         headers: {
-          authorization: "Bearer test-internal-secret",
-          "content-type": "application/json",
+          authorization: 'Bearer test-internal-secret',
+          'content-type': 'application/json',
         },
         body: JSON.stringify({ limit: 100 }),
       }),
@@ -219,15 +223,18 @@ describe("POST /api/internal/media-transcode/reconcile", () => {
       }),
     );
     expect(mediaTranscodeReconcileWriteLog).toHaveLength(1);
-    expect(mediaTranscodeReconcileWriteLog[0]?.kind).toBe("success");
-    const tick = mediaTranscodeReconcileWriteLog[0] as { kind: "success"; metaJson: Record<string, unknown> };
+    expect(mediaTranscodeReconcileWriteLog[0]?.kind).toBe('success');
+    const tick = mediaTranscodeReconcileWriteLog[0] as {
+      kind: 'success';
+      metaJson: Record<string, unknown>;
+    };
     expect(tick.metaJson.candidatesScanned).toBe(5);
     expect(tick.metaJson.queuedNew).toBe(2);
   });
 
-  it("returns 200 with report when success tick write fails (best-effort)", async () => {
+  it('returns 200 with report when success tick write fails (best-effort)', async () => {
     vi.mocked(getConfigBool).mockResolvedValue(true);
-    setOperatorHealthWriteReconcileSuccessThrowsForTests(new Error("pg tick failed"));
+    setOperatorHealthWriteReconcileSuccessThrowsForTests(new Error('pg tick failed'));
     runBackfillMock.mockResolvedValue({
       dryRun: false,
       pipelineEnabled: true,
@@ -252,11 +259,11 @@ describe("POST /api/internal/media-transcode/reconcile", () => {
     });
 
     const res = await POST(
-      new Request("http://localhost/api/internal/media-transcode/reconcile", {
-        method: "POST",
+      new Request('http://localhost/api/internal/media-transcode/reconcile', {
+        method: 'POST',
         headers: {
-          authorization: "Bearer test-internal-secret",
-          "content-type": "application/json",
+          authorization: 'Bearer test-internal-secret',
+          'content-type': 'application/json',
         },
         body: JSON.stringify({ limit: 10 }),
       }),
@@ -269,23 +276,23 @@ describe("POST /api/internal/media-transcode/reconcile", () => {
     expect(logger.warn).toHaveBeenCalled();
   });
 
-  it("writes operator_job_status failure tick when reconcile throws", async () => {
+  it('writes operator_job_status failure tick when reconcile throws', async () => {
     vi.mocked(getConfigBool).mockResolvedValue(true);
-    runBackfillMock.mockRejectedValue(new Error("boom"));
+    runBackfillMock.mockRejectedValue(new Error('boom'));
 
     const res = await POST(
-      new Request("http://localhost/api/internal/media-transcode/reconcile", {
-        method: "POST",
+      new Request('http://localhost/api/internal/media-transcode/reconcile', {
+        method: 'POST',
         headers: {
-          authorization: "Bearer test-internal-secret",
-          "content-type": "application/json",
+          authorization: 'Bearer test-internal-secret',
+          'content-type': 'application/json',
         },
         body: JSON.stringify({ limit: 10 }),
       }),
     );
     expect(res.status).toBe(500);
     expect(mediaTranscodeReconcileWriteLog).toHaveLength(1);
-    expect(mediaTranscodeReconcileWriteLog[0]?.kind).toBe("failure");
-    expect((mediaTranscodeReconcileWriteLog[0] as { error: string }).error).toContain("boom");
+    expect(mediaTranscodeReconcileWriteLog[0]?.kind).toBe('failure');
+    expect((mediaTranscodeReconcileWriteLog[0] as { error: string }).error).toContain('boom');
   });
 });

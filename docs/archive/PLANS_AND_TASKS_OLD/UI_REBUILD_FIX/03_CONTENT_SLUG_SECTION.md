@@ -19,6 +19,7 @@
 **Файл:** `apps/webapp/src/infra/repos/pgContentPages.ts`
 
 **Найти:**
+
 ```ts
     async getBySlug(slug) {
       const pool = getPool();
@@ -32,6 +33,7 @@
 ```
 
 **Заменить на:**
+
 ```ts
     async getBySlug(slug) {
       const pool = getPool();
@@ -52,18 +54,21 @@
 Найти `<select>` для section. Если `page` (редактирование) — сделать disabled + hidden input:
 
 **Найти `name="section"` select и заменить на:**
+
 ```tsx
-{page ? (
-  <>
-    <input type="hidden" name="section" value={page.section} />
-    <input type="text" className="auth-input" value={page.section} disabled />
-  </>
-) : (
-  <select id="content-section" name="section" className="auth-input" defaultValue="lessons">
-    <option value="lessons">lessons</option>
-    <option value="emergency">emergency</option>
-  </select>
-)}
+{
+  page ? (
+    <>
+      <input type="hidden" name="section" value={page.section} />
+      <input type="text" className="auth-input" value={page.section} disabled />
+    </>
+  ) : (
+    <select id="content-section" name="section" className="auth-input" defaultValue="lessons">
+      <option value="lessons">lessons</option>
+      <option value="emergency">emergency</option>
+    </select>
+  );
+}
 ```
 
 ### Шаг 3.3: Валидация section и slug в server action
@@ -71,10 +76,11 @@
 **Файл:** `apps/webapp/src/app/app/doctor/content/actions.ts`
 
 **После строки с `const slug = ...` добавить:**
+
 ```ts
-  const ALLOWED_SECTIONS = ["lessons", "emergency"];
-  if (!ALLOWED_SECTIONS.includes(section)) return;
-  if (!/^[a-z0-9-]+$/.test(slug)) return;
+const ALLOWED_SECTIONS = ['lessons', 'emergency'];
+if (!ALLOWED_SECTIONS.includes(section)) return;
+if (!/^[a-z0-9-]+$/.test(slug)) return;
 ```
 
 ## Верификация

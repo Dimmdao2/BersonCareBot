@@ -1,26 +1,26 @@
 /** Reserved article section for patient `/help` (created by migration `0103_help_content_section.sql`). */
-export const HELP_SECTION_SLUG = "help" as const;
+export const HELP_SECTION_SLUG = 'help' as const;
 
 export function isHelpSectionSlug(slug: string): boolean {
   return slug.trim() === HELP_SECTION_SLUG;
 }
 
 /** Values stored in `content_sections.kind`. */
-export const CONTENT_SECTION_KINDS = ["article", "system"] as const;
+export const CONTENT_SECTION_KINDS = ['article', 'system'] as const;
 export type ContentSectionKind = (typeof CONTENT_SECTION_KINDS)[number];
 
 /** Non-null values for `content_sections.system_parent_code` (logical CMS folders / clusters). */
-export const SYSTEM_PARENT_CODES = ["situations", "sos", "warmups", "lessons"] as const;
+export const SYSTEM_PARENT_CODES = ['situations', 'sos', 'warmups', 'lessons'] as const;
 export type SystemParentCode = (typeof SYSTEM_PARENT_CODES)[number];
 
 /** Built-in section slugs that must never be renamed (patient app / code references). */
 export const IMMUTABLE_SYSTEM_SECTION_SLUGS = [
-  "warmups",
-  "lessons",
-  "course_lessons",
-  "emergency",
-  "materials",
-  "workouts",
+  'warmups',
+  'lessons',
+  'course_lessons',
+  'emergency',
+  'materials',
+  'workouts',
 ] as const;
 export type ImmutableSystemSectionSlug = (typeof IMMUTABLE_SYSTEM_SECTION_SLUGS)[number];
 
@@ -29,20 +29,24 @@ export function isImmutableSystemSectionSlug(slug: string): boolean {
 }
 
 /** Sentinel CMS section for pages left without a folder after section delete (DB + migration only; not a patient nav target). */
-export const CMS_UNASSIGNED_SECTION_SLUG = "_cms_unassigned" as const;
+export const CMS_UNASSIGNED_SECTION_SLUG = '_cms_unassigned' as const;
 
 export function isSectionSlugProtectedFromDelete(slug: string): boolean {
   const s = slug.trim();
-  return isImmutableSystemSectionSlug(s) || isHelpSectionSlug(s) || s === CMS_UNASSIGNED_SECTION_SLUG;
+  return (
+    isImmutableSystemSectionSlug(s) || isHelpSectionSlug(s) || s === CMS_UNASSIGNED_SECTION_SLUG
+  );
 }
 
 export function isSystemParentCode(value: string | null | undefined): value is SystemParentCode {
-  if (value == null || value === "") return false;
+  if (value == null || value === '') return false;
   return (SYSTEM_PARENT_CODES as readonly string[]).includes(value);
 }
 
-export function isContentSectionKind(value: string | null | undefined): value is ContentSectionKind {
-  if (value == null || value === "") return false;
+export function isContentSectionKind(
+  value: string | null | undefined,
+): value is ContentSectionKind {
+  if (value == null || value === '') return false;
   return (CONTENT_SECTION_KINDS as readonly string[]).includes(value);
 }
 
@@ -52,11 +56,13 @@ export function classifyExistingContentSectionSlug(slug: string): {
   systemParentCode: SystemParentCode | null;
 } {
   const s = slug.trim();
-  if (s === "warmups") return { kind: "system", systemParentCode: "warmups" };
-  if (s === "lessons" || s === "course_lessons") return { kind: "system", systemParentCode: "lessons" };
-  if (s === "emergency" || s === "materials" || s === "workouts") return { kind: "system", systemParentCode: null };
-  if (s === HELP_SECTION_SLUG) return { kind: "article", systemParentCode: null };
-  return { kind: "article", systemParentCode: null };
+  if (s === 'warmups') return { kind: 'system', systemParentCode: 'warmups' };
+  if (s === 'lessons' || s === 'course_lessons')
+    return { kind: 'system', systemParentCode: 'lessons' };
+  if (s === 'emergency' || s === 'materials' || s === 'workouts')
+    return { kind: 'system', systemParentCode: null };
+  if (s === HELP_SECTION_SLUG) return { kind: 'article', systemParentCode: null };
+  return { kind: 'article', systemParentCode: null };
 }
 
 /**
@@ -66,9 +72,9 @@ export function classifyExistingContentSectionSlug(slug: string): {
 export function systemParentCodeForPatientHomeBlock(
   code: string,
 ): SystemParentCode | null | undefined {
-  if (code === "situations") return "situations";
-  if (code === "sos") return "sos";
-  if (code === "daily_warmup") return "warmups";
+  if (code === 'situations') return 'situations';
+  if (code === 'sos') return 'sos';
+  if (code === 'daily_warmup') return 'warmups';
   return undefined;
 }
 
@@ -77,19 +83,19 @@ export function isValidSectionTaxonomy(
   kind: ContentSectionKind,
   systemParentCode: SystemParentCode | null,
 ): boolean {
-  if (kind === "article") return systemParentCode == null;
+  if (kind === 'article') return systemParentCode == null;
   if (!isContentSectionKind(kind)) return false;
   return systemParentCode == null || isSystemParentCode(systemParentCode);
 }
 
 /** Form value for CMS placement (create/edit). `system_root` is only for built-in rows without a folder parent. */
 export const CONTENT_SECTION_PLACEMENT_VALUES = [
-  "article",
-  "situations",
-  "sos",
-  "warmups",
-  "lessons",
-  "system_root",
+  'article',
+  'situations',
+  'sos',
+  'warmups',
+  'lessons',
+  'system_root',
 ] as const;
 export type ContentSectionPlacementValue = (typeof CONTENT_SECTION_PLACEMENT_VALUES)[number];
 
@@ -102,16 +108,16 @@ export function taxonomyFromPlacement(
   placement: string,
 ): { kind: ContentSectionKind; systemParentCode: SystemParentCode | null } | null {
   if (!isContentSectionPlacementValue(placement)) return null;
-  if (placement === "article") return { kind: "article", systemParentCode: null };
-  if (placement === "system_root") return { kind: "system", systemParentCode: null };
-  return { kind: "system", systemParentCode: placement };
+  if (placement === 'article') return { kind: 'article', systemParentCode: null };
+  if (placement === 'system_root') return { kind: 'system', systemParentCode: null };
+  return { kind: 'system', systemParentCode: placement };
 }
 
 export function placementFromTaxonomy(
   kind: ContentSectionKind,
   systemParentCode: SystemParentCode | null,
 ): ContentSectionPlacementValue {
-  if (kind === "article") return "article";
+  if (kind === 'article') return 'article';
   if (systemParentCode != null && isSystemParentCode(systemParentCode)) return systemParentCode;
-  return "system_root";
+  return 'system_root';
 }

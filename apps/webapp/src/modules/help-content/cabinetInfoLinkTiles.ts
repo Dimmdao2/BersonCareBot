@@ -1,12 +1,12 @@
-import { routePaths } from "@/app-layer/routes/paths";
+import { routePaths } from '@/app-layer/routes/paths';
 import {
   HELP_CANONICAL_ARTICLE_SLUG_ABOUT,
   HELP_CANONICAL_ARTICLE_SLUG_PREPARATION,
   HELP_CANONICAL_ARTICLE_SLUGS_IN_CABINET_TILES,
   type HelpCanonicalArticleSlug,
   resolvePublishedServicesPricingSlug,
-} from "./canonicalSlugs";
-import { resolvePatientAddressHref } from "./patientHelpAddressLink";
+} from './canonicalSlugs';
+import { resolvePatientAddressHref } from './patientHelpAddressLink';
 
 export type CabinetInfoLinkTile = { href: string; label: string };
 
@@ -19,8 +19,8 @@ export type BuildCabinetInfoLinkTilesOptions = {
 
 /** Подписи условных плиток по каноническому slug (расширять при добавлении slug в `HELP_CANONICAL_ARTICLE_SLUGS_IN_CABINET_TILES`). */
 const CABINET_TILE_LABEL_BY_SLUG: Partial<Record<HelpCanonicalArticleSlug, string>> = {
-  [HELP_CANONICAL_ARTICLE_SLUG_PREPARATION]: "Как подготовиться",
-  [HELP_CANONICAL_ARTICLE_SLUG_ABOUT]: "О специалисте",
+  [HELP_CANONICAL_ARTICLE_SLUG_PREPARATION]: 'Как подготовиться',
+  [HELP_CANONICAL_ARTICLE_SLUG_ABOUT]: 'О специалисте',
 };
 
 /** Плитки «Полезная информация»; статьи справки — только при опубликованном slug. */
@@ -31,11 +31,11 @@ export function buildCabinetInfoLinkTiles(
   const tiles: CabinetInfoLinkTile[] = [
     {
       href: resolvePatientAddressHref(publishedHelpSlugs, options.bookingCityCode),
-      label: "Адрес кабинета",
+      label: 'Адрес кабинета',
     },
   ];
   if (!options.omitBookingCta) {
-    tiles.push({ href: routePaths.bookingNew, label: "Записаться" });
+    tiles.push({ href: routePaths.bookingNew, label: 'Записаться' });
   }
   for (const slug of HELP_CANONICAL_ARTICLE_SLUGS_IN_CABINET_TILES) {
     if (!publishedHelpSlugs.has(slug)) continue;
@@ -47,9 +47,9 @@ export function buildCabinetInfoLinkTiles(
   if (servicesPricingSlug) {
     tiles.push({
       href: routePaths.patientHelpArticle(servicesPricingSlug),
-      label: "Стоимость",
+      label: 'Стоимость',
     });
   }
-  tiles.push({ href: routePaths.patientHelp, label: "Справка и контакты" });
+  tiles.push({ href: routePaths.patientHelp, label: 'Справка и контакты' });
   return tiles;
 }

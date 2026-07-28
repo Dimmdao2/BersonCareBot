@@ -1,5 +1,5 @@
 /** Wave 3 phase 15E — media folder existence check via `runWebappPgText`. */
-import { runWebappPgText } from "@/infra/db/runWebappSql";
+import { runWebappPgText } from '@/infra/db/runWebappSql';
 
 export async function mediaFolderExists(folderId: string): Promise<boolean> {
   const r = await runWebappPgText<{ id: string }>(

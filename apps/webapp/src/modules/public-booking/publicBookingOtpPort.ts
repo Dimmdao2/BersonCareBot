@@ -12,8 +12,8 @@
  * any outstanding challenge to the anonymous role — including staff login challenges, which live in
  * the same table.
  */
-import type { PhoneChallengePayload } from "@/modules/auth/phoneChallengeStore";
-import type { PublicBookingIntent } from "./publicBookingIntent";
+import type { PhoneChallengePayload } from '@/modules/auth/phoneChallengeStore';
+import type { PublicBookingIntent } from './publicBookingIntent';
 
 export type PublicBookingOtpIssueInput = {
   /** Normalised E.164 number the code is being sent to. */
@@ -23,7 +23,7 @@ export type PublicBookingOtpIssueInput = {
   ttlSec: number;
   /** `OTP_RESEND_COOLDOWN_SEC` — passed in so the constant lives in one place, not also in SQL. */
   resendCooldownSec: number;
-  deliveryChannel: NonNullable<PhoneChallengePayload["deliveryChannel"]>;
+  deliveryChannel: NonNullable<PhoneChallengePayload['deliveryChannel']>;
   intent: PublicBookingIntent;
 };
 
@@ -32,7 +32,7 @@ export type PublicBookingOtpConsumeResult =
       ok: true;
       /** Raw pinned intent; the caller re-validates it with `parsePublicBookingIntent`. */
       intent: unknown;
-      deliveryChannel: PhoneChallengePayload["deliveryChannel"];
+      deliveryChannel: PhoneChallengePayload['deliveryChannel'];
     }
   | { ok: false; retryAfterSeconds?: number };
 

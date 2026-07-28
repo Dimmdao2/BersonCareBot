@@ -4,12 +4,12 @@
 
 ## Операционные якоря (актуально)
 
-| Документ | Назначение |
-|----------|------------|
-| [RAW_SQL_INVENTORY.md](./RAW_SQL_INVENTORY.md) | Остаток сырого SQL: Class B/C/E, permanent ADR |
-| [DRIZZLE_TRANSITION_PLAN.md](./DRIZZLE_TRANSITION_PLAN.md) | Финальный снимок фаз и статусов |
-| [LOG.md](./LOG.md) | Журнал исполнения (история) |
-| [TEST_BEHAVIOR_AUDIT.md](./TEST_BEHAVIOR_AUDIT.md) | Аудит тестов закрытых фаз |
+| Документ                                                   | Назначение                                     |
+| ---------------------------------------------------------- | ---------------------------------------------- |
+| [RAW_SQL_INVENTORY.md](./RAW_SQL_INVENTORY.md)             | Остаток сырого SQL: Class B/C/E, permanent ADR |
+| [DRIZZLE_TRANSITION_PLAN.md](./DRIZZLE_TRANSITION_PLAN.md) | Финальный снимок фаз и статусов                |
+| [LOG.md](./LOG.md)                                         | Журнал исполнения (история)                    |
+| [TEST_BEHAVIOR_AUDIT.md](./TEST_BEHAVIOR_AUDIT.md)         | Аудит тестов закрытых фаз                      |
 
 ## Архив исполнительных планов
 

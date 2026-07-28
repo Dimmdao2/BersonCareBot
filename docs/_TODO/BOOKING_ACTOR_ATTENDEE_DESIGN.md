@@ -98,7 +98,7 @@ Source feedback (`patient-booking.md:41-49`) frames the same need: "не пер�
   payload JSON (`basePayloadJson`, `:27-40`) stores `contact_name` — one name, presented as if it were simply
   "the patient."
 - `appointment_records`/doctor projection schema carries `contact_name text NOT NULL` / `contact_phone text
-  NOT NULL` (`apps/webapp/db/schema/schema.ts:1684,1686`, table columns adjacent to the `appointment_records`
+NOT NULL` (`apps/webapp/db/schema/schema.ts:1684,1686`, table columns adjacent to the `appointment_records`
   definition) — again a single flat contact identity, no actor/attendee split.
 - Staff-side manual appointment creation (`DoctorCreateAppointmentDialog.tsx:82`,
   `platformUserId: patient?.id ?? null`) already has a **doctor-as-creator vs patient-as-subject** split in
@@ -112,12 +112,12 @@ Source feedback (`patient-booking.md:41-49`) frames the same need: "не пер�
 ### 1.d Broader context: this is a known, previously-flagged gap
 
 `docs/_TODO/SAAS_PRODUCT_UX_INITIATIVE/IMPLEMENTATION_ROADMAP.md:188` already lists, for "Public booking,"
-the gap: *"Success does not prove atomic enrollment/app continuation; internal `userId` authority/leak and
-identity ambiguity need removal"* — the same class of problem (one `userId` slot standing in for
+the gap: _"Success does not prove atomic enrollment/app continuation; internal `userId` authority/leak and
+identity ambiguity need removal"_ — the same class of problem (one `userId` slot standing in for
 "whoever is on the phone right now"), acknowledged at the broader UX-roadmap level but not designed down to
-a concrete contract there (per that roadmap's own scope note, `IMPLEMENTATION_ROADMAP.md:199-200`: *"Any gap
+a concrete contract there (per that roadmap's own scope note, `IMPLEMENTATION_ROADMAP.md:199-200`: _"Any gap
 that assumes a new persistence shape first gets a reviewed data/API contract... a future table or field name
-is not part of this roadmap"*). This design note is exactly that contract for the actor/attendee slice —
+is not part of this roadmap"_). This design note is exactly that contract for the actor/attendee slice —
 it does not duplicate or re-decide anything from the UX roadmap, it fills the delta the roadmap explicitly
 defers.
 
@@ -125,11 +125,11 @@ defers.
 
 ## 2. Owner decision restated as a contract
 
-| Concept | Who | Behavior |
-|---|---|---|
-| **Actor** | The authenticated `platform_user` who is logged in and performs the booking | Receives all booking notifications; can cancel/reschedule; is the row's `platform_user_id` / session-authorized owner for every existing authorization check that already keys off `platform_user_id` today |
-| **Attendee** | The person who will actually attend | Stored as a **snapshot** — FIO + phone, **not** necessarily any existing `platform_user` row; **not** written into the actor's own `platform_user_contacts`; **no automatic merge/link** to any other account |
-| **Conversion (attendee → patient)** | N/A yet | Explicitly **out of scope** for #543 MVP per the card text — a later, separate follow-up |
+| Concept                             | Who                                                                         | Behavior                                                                                                                                                                                                      |
+| ----------------------------------- | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Actor**                           | The authenticated `platform_user` who is logged in and performs the booking | Receives all booking notifications; can cancel/reschedule; is the row's `platform_user_id` / session-authorized owner for every existing authorization check that already keys off `platform_user_id` today   |
+| **Attendee**                        | The person who will actually attend                                         | Stored as a **snapshot** — FIO + phone, **not** necessarily any existing `platform_user` row; **not** written into the actor's own `platform_user_contacts`; **no automatic merge/link** to any other account |
+| **Conversion (attendee → patient)** | N/A yet                                                                     | Explicitly **out of scope** for #543 MVP per the card text — a later, separate follow-up                                                                                                                      |
 
 This is additive to what already exists, not a rebuild: `platform_user_id` on `be_appointments` /
 `patient_bookings` already **is** the actor slot today (§1.a) — it just isn't documented/enforced as
@@ -189,8 +189,8 @@ risk mapped in §1.b, and is a small, localized change (one new conditional at t
 
 ### 3.d "Is this for me or someone else?" — the missing UI signal
 
-Per source feedback (`patient-booking.md:41-43`): *"Если залогиненный клиент вводит чужое ФИО или по
-телефону видно, что это другой человек, нужно дать выбор: «записываете себя» или «другого человека»."*
+Per source feedback (`patient-booking.md:41-43`): _"Если залогиненный клиент вводит чужое ФИО или по
+телефону видно, что это другой человек, нужно дать выбор: «записываете себя» или «другого человека»."_
 Today `ConfirmStepClient.tsx` (`:115-119,285-298`) just has flat lastName/firstName/patronymic/phone/email
 inputs pre-filled from `defaultFio`/`defaultPhone`/`defaultEmail` (props passed from the page, presumably the
 actor's own profile) — there's no "self vs someone else" toggle, and no heuristic detecting a FIO/phone
@@ -203,8 +203,8 @@ the concrete answer to "не перетирать `platform_user` текущег
 
 ### 3.e Doctor UI: show both identities, actor clickable
 
-Per source feedback (`patient-booking.md:43`): *"В записи должно быть видно, кто придет, и кто записал;
-записавший кликабелен для связи."* Concretely: `projectCanonicalAppointmentForDoctor`'s payload
+Per source feedback (`patient-booking.md:43`): _"В записи должно быть видно, кто придет, и кто записал;
+записавший кликабелен для связи."_ Concretely: `projectCanonicalAppointmentForDoctor`'s payload
 (`projectCanonicalAppointment.ts:27-40`) needs an `actor_contact` (or similar) field alongside the existing
 `contact_name` (which becomes explicitly "attendee name," not "the patient"), and the doctor-facing
 appointment card component needs to render both — attendee name/phone as "кто придёт," and actor
@@ -241,35 +241,35 @@ accidentally starts sending notifications to "the attendee" as if the attendee h
 ## 5. Phased implementation checklist (for the follow-up ticket, not this design pass)
 
 - [-] ~~Confirm attendee-storage shape: Option A (documented `attribution_json` shape) vs Option B (first-class
-      nullable columns + `is_self_booking`) — recommend B (§3.b).~~ — ⛔ ОТМЕНЕНО ВЛАДЕЛЬЦЕМ 27.07.2026: «Если
-      кого то другого надо записать, напишут в комментарии».
+  nullable columns + `is_self_booking`) — recommend B (§3.b).~~ — ⛔ ОТМЕНЕНО ВЛАДЕЛЬЦЕМ 27.07.2026: «Если
+  кого то другого надо записать, напишут в комментарии».
 - [-] ~~Add `is_self_booking` (or equivalent) to the create input contract
-      (`CreatePatientBookingInput`/`PublicCreateBookingInput`, `types.ts:97-131`).~~ — ⛔ ОТМЕНЕНО ВЛАДЕЛЬЦЕМ
-      27.07.2026: «Если кого то другого надо записать, напишут в комментарии».
+  (`CreatePatientBookingInput`/`PublicCreateBookingInput`, `types.ts:97-131`).~~ — ⛔ ОТМЕНЕНО ВЛАДЕЛЬЦЕМ
+  27.07.2026: «Если кого то другого надо записать, напишут в комментарии».
 - [-] ~~Fix `persistBookingFormContacts`/`upsertBookingFormContactsBestEffort` call site to skip the
-      supplementary-contact upsert when the booking is for someone else (§3.c,
-      `canonicalCreate.ts:41-52,349,518`).~~ — ⛔ ОТМЕНЕНО ВЛАДЕЛЬЦЕМ 27.07.2026: «Если кого то другого надо
-      записать, напишут в комментарии».
+  supplementary-contact upsert when the booking is for someone else (§3.c,
+  `canonicalCreate.ts:41-52,349,518`).~~ — ⛔ ОТМЕНЕНО ВЛАДЕЛЬЦЕМ 27.07.2026: «Если кого то другого надо
+  записать, напишут в комментарии».
 - [-] ~~Add the "Себя" / "Другого человека" toggle to `ConfirmStepClient.tsx` (§3.d), with attendee fields
-      independent from `defaultFio`/`defaultPhone`/`defaultEmail` when toggled.~~ — ⛔ ОТМЕНЕНО ВЛАДЕЛЬЦЕМ
-      27.07.2026: «Если кого то другого надо записать, напишут в комментарии».
+  independent from `defaultFio`/`defaultPhone`/`defaultEmail` when toggled.~~ — ⛔ ОТМЕНЕНО ВЛАДЕЛЬЦЕМ
+  27.07.2026: «Если кого то другого надо записать, напишут в комментарии».
 - [-] ~~Extend doctor projection payload (`projectCanonicalAppointment.ts:17-40`) and the doctor-facing
-      appointment card component with a distinct actor field, clickable for contact (§3.e).~~ — ⛔ ОТМЕНЕНО
-      ВЛАДЕЛЬЦЕМ 27.07.2026: «Если кого то другого надо записать, напишут в комментарии».
+  appointment card component with a distinct actor field, clickable for contact (§3.e).~~ — ⛔ ОТМЕНЕНО
+  ВЛАДЕЛЬЦЕМ 27.07.2026: «Если кого то другого надо записать, напишут в комментарии».
 - [-] ~~If Option B: Drizzle migration adding attendee columns (+ `is_self_booking`) to `be_appointments` and
-      (mirrored subset) `patient_bookings`.~~ — ⛔ ОТМЕНЕНО ВЛАДЕЛЬЦЕМ 27.07.2026: «Если кого то другого надо
-      записать, напишут в комментарии».
+  (mirrored subset) `patient_bookings`.~~ — ⛔ ОТМЕНЕНО ВЛАДЕЛЬЦЕМ 27.07.2026: «Если кого то другого надо
+  записать, напишут в комментарии».
 - [-] ~~Tests: `canonicalCreate.test.ts` (attendee snapshot persisted, actor unaffected, contact-upsert skipped
-      for non-self bookings), `bookingContactUpsert.test.ts` (guard extended), `ConfirmStepClient.test.tsx`
-      (toggle behavior), doctor appointment-card test (both identities render, actor clickable).~~ — ⛔
-      ОТМЕНЕНО ВЛАДЕЛЬЦЕМ 27.07.2026: «Если кого то другого надо записать, напишут в комментарии».
+  for non-self bookings), `bookingContactUpsert.test.ts` (guard extended), `ConfirmStepClient.test.tsx`
+  (toggle behavior), doctor appointment-card test (both identities render, actor clickable).~~ — ⛔
+  ОТМЕНЕНО ВЛАДЕЛЬЦЕМ 27.07.2026: «Если кого то другого надо записать, напишут в комментарии».
 - [-] ~~Validation commands for the implementation pass: `pnpm --dir apps/webapp test -- patient-booking`,
-      `pnpm --dir apps/webapp test -- platform-user-contacts`, `pnpm --dir apps/webapp typecheck`
-      (step-level); full CI at the merge/integration checkpoint per `AGENTS.md` §9.~~ — ⛔ ОТМЕНЕНО
-      ВЛАДЕЛЬЦЕМ 27.07.2026: «Если кого то другого надо записать, напишут в комментарии».
+  `pnpm --dir apps/webapp test -- platform-user-contacts`, `pnpm --dir apps/webapp typecheck`
+  (step-level); full CI at the merge/integration checkpoint per `AGENTS.md` §9.~~ — ⛔ ОТМЕНЕНО
+  ВЛАДЕЛЬЦЕМ 27.07.2026: «Если кого то другого надо записать, напишут в комментарии».
 - [-] ~~Explicitly **not** in this ticket: attendee → patient conversion flow (owner decision states this is a
-      separate follow-up outside #543 MVP).~~ — ⛔ ОТМЕНЕНО ВЛАДЕЛЬЦЕМ 27.07.2026: «Если кого то другого надо
-      записать, напишут в комментарии».
+  separate follow-up outside #543 MVP).~~ — ⛔ ОТМЕНЕНО ВЛАДЕЛЬЦЕМ 27.07.2026: «Если кого то другого надо
+  записать, напишут в комментарии».
 
 ---
 

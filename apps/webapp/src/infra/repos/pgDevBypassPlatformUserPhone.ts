@@ -1,5 +1,5 @@
-import { runWebappPgText } from "@/infra/db/runWebappSql";
-import type { DevBypassPlatformUserPhonePort } from "@/modules/auth/devBypassPlatformUserPhonePort";
+import { runWebappPgText } from '@/infra/db/runWebappSql';
+import type { DevBypassPlatformUserPhonePort } from '@/modules/auth/devBypassPlatformUserPhonePort';
 
 export async function applyDevBypassClientPhoneInDb(userId: string, phone: string): Promise<void> {
   await runWebappPgText(

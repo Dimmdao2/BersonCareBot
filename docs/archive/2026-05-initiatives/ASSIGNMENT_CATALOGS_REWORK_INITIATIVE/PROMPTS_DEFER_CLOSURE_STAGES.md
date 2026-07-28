@@ -10,6 +10,7 @@
 - `docs/archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/LOG.md`
 
 Правила:
+
 - Каждый этап запускать как отдельный цикл: `EXEC` -> `AUDIT` -> `FIX`.
 - Не переходить к следующему этапу до закрытия critical/major текущего AUDIT.
 - Для каждого этапа: целевые `eslint`/`vitest`/`tsc`; полный `pnpm run ci` только перед push.

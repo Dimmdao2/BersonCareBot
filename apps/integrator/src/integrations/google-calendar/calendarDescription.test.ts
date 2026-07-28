@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  buildGoogleCalendarDescription,
-  formatPhoneHashtag,
-} from './calendarDescription.js';
+import { buildGoogleCalendarDescription, formatPhoneHashtag } from './calendarDescription.js';
 
 describe('google calendar description format', () => {
   it('formats phone as hashtag with plus', () => {
@@ -20,11 +17,11 @@ describe('google calendar description format', () => {
         supportProgramTitle: 'План реабилитации',
       }),
     ).toBe(
-      '#+79189000792\n\n'
-        + 'Болит спина\n\n'
-        + 'Часто опаздывает\n'
-        + 'Проблемный\n\n'
-        + 'На сопровождении: План реабилитации',
+      '#+79189000792\n\n' +
+        'Болит спина\n\n' +
+        'Часто опаздывает\n' +
+        'Проблемный\n\n' +
+        'На сопровождении: План реабилитации',
     );
   });
 

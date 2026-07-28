@@ -18,7 +18,7 @@
 ## После Pack A (Quick Fixes)
 
 - [x] `buildAppDeps` мемоизирован (нет дублирования при множественных вызовах).
-- [x] `shared/ui/` не импортирует из `modules/` напрямую *(в рамках Pack A: `PatientHeader` / `DoctorHeader` → `shared/hooks/useSupportUnreadPolling`; остальные файлы в `shared/ui/` с импортами из `modules/` — вне scope `EXEC_A_QUICK_FIXES`, отдельный архитектурный долг).*
+- [x] `shared/ui/` не импортирует из `modules/` напрямую _(в рамках Pack A: `PatientHeader` / `DoctorHeader` → `shared/hooks/useSupportUnreadPolling`; остальные файлы в `shared/ui/` с импортами из `modules/` — вне scope `EXEC_A_QUICK_FIXES`, отдельный архитектурный долг)._
 - [x] `appointmentStats` показывает реальные `cancellations30d` и `lastVisitLabel`.
 - [x] Новые тесты TEST-01 проходят.
 
@@ -58,7 +58,7 @@
 - [x] Колокольчик в PatientHeader показывает badge при unseen > 0.
 - [x] `mark-seen` уменьшает badge (`all: true` вызывает `markAllSeen`).
 - [x] Статистика (sent/seen/unseen/failed) корректна (getStats).
-- [ ] Policy "важных сообщений" (вариант B): все мессенджеры + email → ожидание → SMS *(вне scope Pack D; требует интеграции с integrator scheduler — отдельная задача).*
+- [ ] Policy "важных сообщений" (вариант B): все мессенджеры + email → ожидание → SMS _(вне scope Pack D; требует интеграции с integrator scheduler — отдельная задача)._
 - [x] Route tests: `GET /api/patient/reminders/unread-count`, `POST /api/patient/reminders/mark-seen`.
 - [x] Server action tests: `toggleReminderCategory` (valid/invalid/unauth), `updateReminderRule` (valid/invalid bounds).
 - [x] `mark-seen { all: true }` → `markAllSeen` (критический фикс из code review).
@@ -108,7 +108,7 @@
 - [x] Проверить: все migration номера уникальны и последовательны (031–035).
 - [x] Проверить: `SERVER CONVENTIONS.md` актуален (порты, пути, сервисы).
 - [x] Проверить: `INTEGRATOR_CONTRACT.md` описывает все M2M endpoints.
-- [ ] Проверить: `.env.example` содержит все новые переменные *(не хватает части ключей, см. `QA_CHEK_RESULT`)*.
+- [ ] Проверить: `.env.example` содержит все новые переменные _(не хватает части ключей, см. `QA_CHEK_RESULT`)_.
 
 ---
 

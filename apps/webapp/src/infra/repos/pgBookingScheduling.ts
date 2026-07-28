@@ -1,8 +1,8 @@
-import { and, asc, eq, gte, inArray, lte, ne, or, sql, isNull } from "drizzle-orm";
-import type { BreakInterval } from "@/modules/booking-scheduling/ports";
-import { getDrizzle, type DrizzleDb } from "@/app-layer/db/drizzle";
-import { runWebappPgText, runWebappTransaction } from "@/infra/db/runWebappSql";
-import { readAdminSystemSettingInnerValue } from "@/infra/repos/pgSystemSettings";
+import { and, asc, eq, gte, inArray, lte, ne, or, sql, isNull } from 'drizzle-orm';
+import type { BreakInterval } from '@/modules/booking-scheduling/ports';
+import { getDrizzle, type DrizzleDb } from '@/app-layer/db/drizzle';
+import { runWebappPgText, runWebappTransaction } from '@/infra/db/runWebappSql';
+import { readAdminSystemSettingInnerValue } from '@/infra/repos/pgSystemSettings';
 import {
   beAppointments,
   beBranches,
@@ -10,23 +10,23 @@ import {
   beServiceLocationAvailability,
   beSpecialists,
   beSpecialistServiceAvailability,
-} from "../../../db/schema/bookingEngine";
+} from '../../../db/schema/bookingEngine';
 import {
   beAvailabilityRules,
   beWorkingHours as beWh,
   beScheduleBlocks as beSb,
   beWorkingDays as beWd,
   beScheduleTemplates as beStmpl,
-} from "../../../db/schema/bookingScheduling";
-import { buildSlotsForContext } from "@/modules/booking-scheduling/service";
+} from '../../../db/schema/bookingScheduling';
+import { buildSlotsForContext } from '@/modules/booking-scheduling/service';
 import {
   computeNearestFreeWindowFromData,
   localDateKey,
   pickWorkingHours,
   workingIntervalsForDate,
   type BusyInterval,
-} from "@/modules/booking-scheduling/computeSlots";
-import { pickPreferredSsaId } from "@/modules/booking-scheduling/ssaResolve";
+} from '@/modules/booking-scheduling/computeSlots';
+import { pickPreferredSsaId } from '@/modules/booking-scheduling/ssaResolve';
 import type {
   BookingSchedulingPort,
   CanonicalBookingContext,
@@ -38,15 +38,15 @@ import type {
   CloseWorkingDaysInput,
   ClearWorkingDaysInput,
   CreateScheduleTemplateInput,
-} from "@/modules/booking-scheduling/ports";
+} from '@/modules/booking-scheduling/ports';
 
 const ACTIVE_APPOINTMENT_STATUSES = [
-  "created",
-  "awaiting_payment",
-  "paid",
-  "confirmed",
-  "rescheduled",
-  "manual_review_required",
+  'created',
+  'awaiting_payment',
+  'paid',
+  'confirmed',
+  'rescheduled',
+  'manual_review_required',
 ];
 
 export type BookingBusyIntervalsInput = {
@@ -58,7 +58,9 @@ export type BookingBusyIntervalsInput = {
   excludeAppointmentId?: string;
 };
 
-async function resolveCanonicalAvailabilityContext(availabilityId: string): Promise<CanonicalBookingContext | null> {
+async function resolveCanonicalAvailabilityContext(
+  availabilityId: string,
+): Promise<CanonicalBookingContext | null> {
   const db = getDrizzle();
   const ssaRows = await db
     .select()
@@ -129,7 +131,13 @@ async function resolveCanonicalAvailabilityContext(availabilityId: string): Prom
 /** Shared by availability reads and the transaction-locked online writer. */
 export async function listBookingBusyIntervals(
   db: DrizzleDb,
-  { organizationId, specialistId, rangeStart, rangeEnd, excludeAppointmentId }: BookingBusyIntervalsInput,
+  {
+    organizationId,
+    specialistId,
+    rangeStart,
+    rangeEnd,
+    excludeAppointmentId,
+  }: BookingBusyIntervalsInput,
 ): Promise<BusyInterval[]> {
   const apptConds = [
     eq(beAppointments.organizationId, organizationId),
@@ -154,7 +162,8 @@ export async function listBookingBusyIntervals(
     gte(beSb.endAt, rangeStart),
     lte(beSb.startAt, rangeEnd),
   ];
-  if (specialistId) blockConds.push(or(eq(beSb.specialistId, specialistId), isNull(beSb.specialistId))!);
+  if (specialistId)
+    blockConds.push(or(eq(beSb.specialistId, specialistId), isNull(beSb.specialistId))!);
   const blockRows = await db
     .select({ startAt: beSb.startAt, endAt: beSb.endAt })
     .from(beSb)
@@ -162,7 +171,9 @@ export async function listBookingBusyIntervals(
   return [...apptRows, ...blockRows];
 }
 
-export function createPgBookingSchedulingPort(_getDefaultOrgId?: () => Promise<string>): BookingSchedulingPort {
+export function createPgBookingSchedulingPort(
+  _getDefaultOrgId?: () => Promise<string>,
+): BookingSchedulingPort {
   return {
     async resolvePublicBookingOrganization({ branchId, serviceId }) {
       const result = await runWebappPgText<{ organization_id: string | null }>(
@@ -204,7 +215,7 @@ export function createPgBookingSchedulingPort(_getDefaultOrgId?: () => Promise<s
         .where(and(...conditions));
       if (rows.length === 0) return null;
       const organizations = new Set(rows.map((row) => row.organizationId));
-      if (organizations.size !== 1) throw new Error("ambiguous_booking_tenant");
+      if (organizations.size !== 1) throw new Error('ambiguous_booking_tenant');
       const availabilityId = pickPreferredSsaId(
         rows.map((row) => ({ id: row.id, createdAt: row.createdAt, isActive: true })),
       );
@@ -270,7 +281,14 @@ export function createPgBookingSchedulingPort(_getDefaultOrgId?: () => Promise<s
       return buildSlotsForContext(this, context);
     },
 
-    async listBusyIntervals({ organizationId, specialistId, roomId, rangeStart, rangeEnd, excludeAppointmentId }) {
+    async listBusyIntervals({
+      organizationId,
+      specialistId,
+      roomId,
+      rangeStart,
+      rangeEnd,
+      excludeAppointmentId,
+    }) {
       const db = getDrizzle();
       return listBookingBusyIntervals(db, {
         organizationId,
@@ -352,16 +370,19 @@ export function createPgBookingSchedulingPort(_getDefaultOrgId?: () => Promise<s
         .where(
           and(
             eq(beAvailabilityRules.organizationId, organizationId),
-            eq(beAvailabilityRules.ruleType, "buffer_minutes"),
+            eq(beAvailabilityRules.ruleType, 'buffer_minutes'),
             eq(beAvailabilityRules.isActive, true),
             specialistId
-              ? or(eq(beAvailabilityRules.specialistId, specialistId), isNull(beAvailabilityRules.specialistId))
+              ? or(
+                  eq(beAvailabilityRules.specialistId, specialistId),
+                  isNull(beAvailabilityRules.specialistId),
+                )
               : isNull(beAvailabilityRules.specialistId),
           ),
         )
         .limit(1);
       const cfg = rows[0]?.config;
-      const minutes = cfg && typeof cfg.minutes === "number" ? cfg.minutes : 0;
+      const minutes = cfg && typeof cfg.minutes === 'number' ? cfg.minutes : 0;
       return Math.max(0, Math.round(minutes));
     },
 
@@ -369,8 +390,10 @@ export function createPgBookingSchedulingPort(_getDefaultOrgId?: () => Promise<s
       const safeMinutes = Math.max(0, Math.min(240, Math.round(minutes)));
       const scopeConds = [
         eq(beAvailabilityRules.organizationId, organizationId),
-        eq(beAvailabilityRules.ruleType, "buffer_minutes"),
-        specialistId ? eq(beAvailabilityRules.specialistId, specialistId) : isNull(beAvailabilityRules.specialistId),
+        eq(beAvailabilityRules.ruleType, 'buffer_minutes'),
+        specialistId
+          ? eq(beAvailabilityRules.specialistId, specialistId)
+          : isNull(beAvailabilityRules.specialistId),
       ];
       const now = new Date().toISOString();
       await runWebappTransaction(async (tx) => {
@@ -390,7 +413,7 @@ export function createPgBookingSchedulingPort(_getDefaultOrgId?: () => Promise<s
           organizationId,
           specialistId: specialistId ?? null,
           branchId: null,
-          ruleType: "buffer_minutes",
+          ruleType: 'buffer_minutes',
           config: { minutes: safeMinutes },
           isActive: true,
         });
@@ -398,30 +421,37 @@ export function createPgBookingSchedulingPort(_getDefaultOrgId?: () => Promise<s
     },
 
     async getMinNoticeHours(_organizationId) {
-      const inner = await readAdminSystemSettingInnerValue("booking_min_notice_hours");
+      const inner = await readAdminSystemSettingInnerValue('booking_min_notice_hours');
       const n =
-        typeof inner === "number" && Number.isFinite(inner)
+        typeof inner === 'number' && Number.isFinite(inner)
           ? inner
-          : typeof inner === "string" && /^\d+$/.test(inner.trim())
+          : typeof inner === 'string' && /^\d+$/.test(inner.trim())
             ? Number.parseInt(inner.trim(), 10)
             : 0;
       return Math.max(0, Math.min(168, Math.round(n)));
     },
 
     async getMaxConsecutiveSlotHours(organizationId) {
-      const inner = await readAdminSystemSettingInnerValue("booking_max_consecutive_slot_hours", {
+      const inner = await readAdminSystemSettingInnerValue('booking_max_consecutive_slot_hours', {
         organizationId,
       });
       const n =
-        typeof inner === "number" && Number.isFinite(inner)
+        typeof inner === 'number' && Number.isFinite(inner)
           ? inner
-          : typeof inner === "string" && /^\d+(?:\.\d+)?$/.test(inner.trim())
+          : typeof inner === 'string' && /^\d+(?:\.\d+)?$/.test(inner.trim())
             ? Number.parseFloat(inner.trim())
             : 3;
       return Math.max(1, Math.min(24, n));
     },
 
-    async listScheduleBlocks({ organizationId, rangeStart, rangeEnd, specialistId, branchId, roomId }) {
+    async listScheduleBlocks({
+      organizationId,
+      rangeStart,
+      rangeEnd,
+      specialistId,
+      branchId,
+      roomId,
+    }) {
       const db = getDrizzle();
       const scopeConds = [
         eq(beSb.organizationId, organizationId),
@@ -502,7 +532,8 @@ export function createPgBookingSchedulingPort(_getDefaultOrgId?: () => Promise<s
       // the calendar show the same rows: a specialist-scoped query must also surface
       // global (specialist_id IS NULL) org-level rows that act as the default schedule.
       if (specialistId === null) conds.push(isNull(beWh.specialistId));
-      else if (specialistId) conds.push(or(eq(beWh.specialistId, specialistId), isNull(beWh.specialistId))!);
+      else if (specialistId)
+        conds.push(or(eq(beWh.specialistId, specialistId), isNull(beWh.specialistId))!);
       if (branchId === null) conds.push(isNull(beWh.branchId));
       else if (branchId) conds.push(eq(beWh.branchId, branchId));
       if (roomId === null) conds.push(isNull(beWh.roomId));
@@ -531,7 +562,7 @@ export function createPgBookingSchedulingPort(_getDefaultOrgId?: () => Promise<s
       const inserted = await db.transaction(async (tx) => {
         if (input.replace) {
           if (input.specialistId === undefined) {
-            throw new Error("replace=true requires specialistId for scope safety");
+            throw new Error('replace=true requires specialistId for scope safety');
           }
           const deactConds = [
             eq(beWh.organizationId, input.organizationId),
@@ -542,7 +573,10 @@ export function createPgBookingSchedulingPort(_getDefaultOrgId?: () => Promise<s
           else deactConds.push(eq(beWh.specialistId, input.specialistId));
           if (input.branchId === null) deactConds.push(isNull(beWh.branchId));
           else if (input.branchId) deactConds.push(eq(beWh.branchId, input.branchId));
-          await tx.update(beWh).set({ isActive: false, updatedAt: new Date().toISOString() }).where(and(...deactConds));
+          await tx
+            .update(beWh)
+            .set({ isActive: false, updatedAt: new Date().toISOString() })
+            .where(and(...deactConds));
         }
         return tx
           .insert(beWh)
@@ -587,7 +621,7 @@ export function createPgBookingSchedulingPort(_getDefaultOrgId?: () => Promise<s
           .returning(),
       );
       const row = updated[0];
-      if (!row) throw new Error("working_hours_not_found");
+      if (!row) throw new Error('working_hours_not_found');
       return {
         id: row.id,
         organizationId: row.organizationId,
@@ -641,11 +675,20 @@ export function createPgBookingSchedulingPort(_getDefaultOrgId?: () => Promise<s
       return rows.map(mapWorkingDayRow);
     },
 
-    async upsertWorkingDays({ organizationId, specialistId, branchId, roomId, dates, startMinute, endMinute, breaks }: Parameters<BookingSchedulingPort["upsertWorkingDays"]>[0]) {
+    async upsertWorkingDays({
+      organizationId,
+      specialistId,
+      branchId,
+      roomId,
+      dates,
+      startMinute,
+      endMinute,
+      breaks,
+    }: Parameters<BookingSchedulingPort['upsertWorkingDays']>[0]) {
       const db = getDrizzle();
       const now = new Date().toISOString();
       const results: WorkingDayRecord[] = [];
-      const sentinelId = "00000000-0000-0000-0000-000000000000";
+      const sentinelId = '00000000-0000-0000-0000-000000000000';
       const effectiveBreaks: BreakInterval[] = breaks ?? [];
       const breaksJson = JSON.stringify(effectiveBreaks);
       await db.transaction(async (tx) => {
@@ -677,11 +720,15 @@ export function createPgBookingSchedulingPort(_getDefaultOrgId?: () => Promise<s
       return results;
     },
 
-    async closeWorkingDays({ organizationId, specialistId, dates }: Parameters<BookingSchedulingPort["closeWorkingDays"]>[0]) {
+    async closeWorkingDays({
+      organizationId,
+      specialistId,
+      dates,
+    }: Parameters<BookingSchedulingPort['closeWorkingDays']>[0]) {
       const db = getDrizzle();
       const now = new Date().toISOString();
       const results: WorkingDayRecord[] = [];
-      const sentinelId = "00000000-0000-0000-0000-000000000000";
+      const sentinelId = '00000000-0000-0000-0000-000000000000';
       await db.transaction(async (tx) => {
         for (const workDate of dates) {
           const rows = await tx.execute<RawWorkingDayRow>(
@@ -707,12 +754,13 @@ export function createPgBookingSchedulingPort(_getDefaultOrgId?: () => Promise<s
       return results;
     },
 
-    async clearWorkingDays({ organizationId, specialistId, dates }: Parameters<BookingSchedulingPort["clearWorkingDays"]>[0]) {
+    async clearWorkingDays({
+      organizationId,
+      specialistId,
+      dates,
+    }: Parameters<BookingSchedulingPort['clearWorkingDays']>[0]) {
       const db = getDrizzle();
-      const baseConds = [
-        eq(beWd.organizationId, organizationId),
-        inArray(beWd.workDate, dates),
-      ];
+      const baseConds = [eq(beWd.organizationId, organizationId), inArray(beWd.workDate, dates)];
       const specialistCond =
         specialistId === null
           ? isNull(beWd.specialistId)
@@ -734,7 +782,15 @@ export function createPgBookingSchedulingPort(_getDefaultOrgId?: () => Promise<s
       return rows.map(mapTemplateRow);
     },
 
-    async createScheduleTemplate({ organizationId, branchId, name, startMinute, endMinute, breaks, sortOrder }: CreateScheduleTemplateInput) {
+    async createScheduleTemplate({
+      organizationId,
+      branchId,
+      name,
+      startMinute,
+      endMinute,
+      breaks,
+      sortOrder,
+    }: CreateScheduleTemplateInput) {
       const db = getDrizzle();
       const inserted = await db.transaction((tx) =>
         tx
@@ -766,13 +822,25 @@ export function createPgBookingSchedulingPort(_getDefaultOrgId?: () => Promise<s
 
     // ── Nearest free window (C3) ─────────────────────────────────────────────
 
-    async nearestFreeWindow({ organizationId, specialistId, branchId, roomId, timeZone, nowOverride }) {
+    async nearestFreeWindow({
+      organizationId,
+      specialistId,
+      branchId,
+      roomId,
+      timeZone,
+      nowOverride,
+    }) {
       const now = nowOverride ?? new Date();
       const nowMs = now.getTime();
       const todayKey = localDateKey(now.toISOString(), timeZone);
 
       // Рабочие часы weekday-модели
-      const workingHoursRaw = await this.listWorkingHours({ organizationId, specialistId, branchId, roomId });
+      const workingHoursRaw = await this.listWorkingHours({
+        organizationId,
+        specialistId,
+        branchId,
+        roomId,
+      });
       const workingHoursRows = workingHoursRaw.map((r) => ({
         weekday: r.weekday,
         startMinute: r.startMinute,
@@ -799,7 +867,13 @@ export function createPgBookingSchedulingPort(_getDefaultOrgId?: () => Promise<s
 
       // Рабочие интервалы для определения границ дня
       const effectiveHours = pickWorkingHours(workingHoursRows);
-      const dayIntervals = workingIntervalsForDate(todayKey, timeZone, effectiveHours, 0, effectivePerDayRow);
+      const dayIntervals = workingIntervalsForDate(
+        todayKey,
+        timeZone,
+        effectiveHours,
+        0,
+        effectivePerDayRow,
+      );
       if (dayIntervals.length === 0) return null;
 
       const dayStartMs = dayIntervals[0]!.startMs;

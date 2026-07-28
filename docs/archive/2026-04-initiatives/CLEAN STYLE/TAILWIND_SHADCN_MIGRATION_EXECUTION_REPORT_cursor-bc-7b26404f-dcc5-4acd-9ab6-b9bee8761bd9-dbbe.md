@@ -11,6 +11,7 @@ Base for comparison: `main`
 Report date: 2026-03-26
 
 Primary plan/checklist (на момент отчёта):
+
 - `docs/CLEAN STYLE/TAILWIND_SHADCN_MIGRATION_REPORT_AND_PLAN.md`
 
 ---
@@ -18,9 +19,11 @@ Primary plan/checklist (на момент отчёта):
 ## 1) Scope verified in this report
 
 This report describes only factual state and completed changes on:
+
 - `cursor/-bc-7b26404f-dcc5-4acd-9ab6-b9bee8761bd9-dbbe`
 
 Key migration commits on this branch:
+
 - `d5a8f42` — major migration batch (shared components, AppShell, globals.css cleanup)
 - `7c94d6c` — DoD alignment fixes (Button-only chips, no inline styles in NumericChipGroup)
 
@@ -51,6 +54,7 @@ rg "style=\{\{" apps/webapp/src --glob "*.tsx"
 ```
 
 Result: only:
+
 - `apps/webapp/src/app/global-error.tsx`
 
 Status: **DONE with allowed exception**  
@@ -67,6 +71,7 @@ rg "<button\b" apps/webapp/src --glob "*.tsx"
 ```
 
 Result: only:
+
 - `apps/webapp/src/app/global-error.tsx`
 
 Status: **DONE with allowed exception**
@@ -86,6 +91,7 @@ Result: **no matches** (`settings_local_toggle_files=0`).
 Status: **DONE**
 
 Evidence:
+
 - `SettingsForm.tsx` imports `LabeledSwitch`
 - `AdminSettingsSection.tsx` imports `LabeledSwitch`
 
@@ -94,11 +100,13 @@ Evidence:
 ### 2.5 Safe-area class migration
 
 Old classes removed from TSX usage:
+
 - `app-shell--patient`
 - `patient-edge-bleed`
 - `patient-fab-quick-add`
 
 New utility classes in use:
+
 - `safe-padding-patient`
 - `safe-bleed-x`
 - `safe-fab-br`
@@ -106,6 +114,7 @@ New utility classes in use:
 Status: **DONE**
 
 Evidence:
+
 - `apps/webapp/src/app/globals.css` contains new utilities in `@layer utilities`
 - `AppShell.tsx`, `PatientHeader.tsx`, `DiaryTabsClient.tsx`, `QuickAddPopup.tsx` use new classes
 
@@ -114,6 +123,7 @@ Evidence:
 ### 2.6 Reusable common components introduced and integrated
 
 Created:
+
 - `apps/webapp/src/components/common/typography/SectionHeading.tsx`
 - `apps/webapp/src/components/common/layout/PageSection.tsx`
 - `apps/webapp/src/components/common/form/LabeledSwitch.tsx`
@@ -121,6 +131,7 @@ Created:
 - `apps/webapp/src/components/common/controls/NumericChipGroup.tsx`
 
 Integrated in key targets:
+
 - `LabeledSwitch` -> settings forms
 - `SegmentControl` -> period bar + symptom side picker
 - `NumericChipGroup` -> symptom intensity chips
@@ -133,6 +144,7 @@ Status: **DONE**
 ### 2.7 `globals.css` cleanup status
 
 Current file preserves:
+
 - tailwind/shadcn imports
 - tokens (`:root`, `.dark`)
 - `@theme inline`
@@ -165,6 +177,7 @@ On the audited branch, the migration checklist was effectively complete for the 
 **После merge в `main` (справка, не аудит ветки):** optional по `PageHeader` закрыт — файл удалён, импортов нет; см. основной план, раздел **«Current status on main»**.
 
 DoD summary:
+
 - [x] no legacy classes (by checklist pattern)
 - [x] no inline styles except allowed `global-error.tsx`
 - [x] no raw buttons except allowed `global-error.tsx`
@@ -172,4 +185,3 @@ DoD summary:
 - [x] globals.css reduced to allowed minimal layers
 - [x] safe-area utilities renamed and wired
 - [x] optional: `PageHeader` — **на ветке** оставался открытым; **на `main` после merge** удалён (см. справку в §4 выше и основной план)
-

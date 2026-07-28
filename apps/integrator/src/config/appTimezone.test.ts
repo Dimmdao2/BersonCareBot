@@ -108,7 +108,6 @@ describe('getAppDisplayTimezone (DB source)', () => {
       }),
     );
   });
-
 });
 
 describe('legacy env display timezone helper', () => {

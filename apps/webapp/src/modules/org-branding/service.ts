@@ -16,11 +16,7 @@
  *   §3.8 a brand/tariff change never deletes identity, enrollment, clinical history or audit trail:
  *        unpublish archives, it does not delete.
  */
-import type {
-  CoreOrganizationContext,
-  OrgBrandRevision,
-  OrgBrandingPort,
-} from "./ports";
+import type { CoreOrganizationContext, OrgBrandRevision, OrgBrandingPort } from './ports';
 
 /** Trusted staff context. Only `requireOrganizationManagementContext()` may produce this. */
 export type OrgBrandingManagementContext = Readonly<{
@@ -32,10 +28,7 @@ export type OrgBrandingManagementContext = Readonly<{
 }>;
 
 /** Why the paid additions are (not) applied. Diagnostics for management UI; never an authorization input. */
-export type OrgBrandingResolution =
-  | "applied"
-  | "entitlement_disabled"
-  | "no_published_revision";
+export type OrgBrandingResolution = 'applied' | 'entitlement_disabled' | 'no_published_revision';
 
 export type EffectiveOrgBranding = {
   organizationId: string;
@@ -61,9 +54,9 @@ export type OrgBrandDraftInput = {
 };
 
 export type OrgBrandMutationFailure =
-  | { ok: false; code: "entitlement_disabled" }
-  | { ok: false; code: "nothing_to_publish" }
-  | { ok: false; code: "nothing_published" };
+  | { ok: false; code: 'entitlement_disabled' }
+  | { ok: false; code: 'nothing_to_publish' }
+  | { ok: false; code: 'nothing_published' };
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MAX_DISPLAY_NAME_LENGTH = 120;
@@ -76,18 +69,18 @@ const MAX_DISPLAY_NAME_LENGTH = 120;
  * only an untyped/adversarial caller can reach it — and it fails loudly instead of being ignored.
  */
 const REJECTED_MUTATION_KEYS = [
-  "organizationId",
-  "organization_id",
-  "organisationId",
-  "actorPlatformUserId",
-  "logoUrl",
-  "logo_url",
-  "logoMediaUrl",
-  "logoPath",
+  'organizationId',
+  'organization_id',
+  'organisationId',
+  'actorPlatformUserId',
+  'logoUrl',
+  'logo_url',
+  'logoMediaUrl',
+  'logoPath',
 ] as const;
 
-export const CALLER_SUPPLIED_ORGANIZATION_ID_ERROR = "caller_supplied_branding_field_rejected";
-export const CORE_CONTEXT_UNAVAILABLE_ERROR = "org_branding_core_context_unavailable";
+export const CALLER_SUPPLIED_ORGANIZATION_ID_ERROR = 'caller_supplied_branding_field_rejected';
+export const CORE_CONTEXT_UNAVAILABLE_ERROR = 'org_branding_core_context_unavailable';
 
 /** The one place an effective logo URL is produced, from a media id the server validated. */
 export function orgBrandLogoUrl(mediaId: string): string {
@@ -95,7 +88,7 @@ export function orgBrandLogoUrl(mediaId: string): string {
 }
 
 function assertNoCallerSuppliedFields(input: unknown): void {
-  if (input === null || typeof input !== "object") return;
+  if (input === null || typeof input !== 'object') return;
   for (const key of REJECTED_MUTATION_KEYS) {
     if (Object.prototype.hasOwnProperty.call(input, key)) {
       throw new Error(`${CALLER_SUPPLIED_ORGANIZATION_ID_ERROR}:${key}`);
@@ -104,18 +97,18 @@ function assertNoCallerSuppliedFields(input: unknown): void {
 }
 
 function normalizeDisplayNameOverride(value: string | null | undefined): string | null {
-  if (typeof value !== "string") return null;
+  if (typeof value !== 'string') return null;
   const trimmed = value.trim();
-  if (trimmed === "") return null;
+  if (trimmed === '') return null;
   if (trimmed.length > MAX_DISPLAY_NAME_LENGTH) return trimmed.slice(0, MAX_DISPLAY_NAME_LENGTH);
   return trimmed;
 }
 
 function normalizeLogoMediaId(value: string | null | undefined): string | null {
-  if (typeof value !== "string") return null;
+  if (typeof value !== 'string') return null;
   const trimmed = value.trim();
-  if (trimmed === "") return null;
-  if (!UUID_RE.test(trimmed)) throw new Error("org_brand_logo_media_id_invalid");
+  if (trimmed === '') return null;
+  if (!UUID_RE.test(trimmed)) throw new Error('org_brand_logo_media_id_invalid');
   return trimmed.toLowerCase();
 }
 
@@ -161,11 +154,11 @@ export function createOrgBrandingService(deps: {
 
     if (!(await deps.isBrandingMechanicEnabled(organizationId))) {
       // Retained published data is NOT deleted; it is merely not applied (§10).
-      return platformOnly(core, "entitlement_disabled");
+      return platformOnly(core, 'entitlement_disabled');
     }
 
     const published = await deps.port.getPublishedRevision(organizationId);
-    if (!published) return platformOnly(core, "no_published_revision");
+    if (!published) return platformOnly(core, 'no_published_revision');
 
     const paidDisplayName = normalizeDisplayNameOverride(published.displayName);
     // Readiness per asset: an unowned / unready / non-image logo collapses to null and the rest of
@@ -180,7 +173,7 @@ export function createOrgBrandingService(deps: {
       core: { displayName: core.displayName, isActive: core.isActive },
       paid: { displayName: paidDisplayName, logoUrl },
       effectiveDisplayName: paidDisplayName ?? core.displayName,
-      resolution: "applied",
+      resolution: 'applied',
     };
   }
 
@@ -206,7 +199,7 @@ export function createOrgBrandingService(deps: {
     ): Promise<{ ok: true; draft: OrgBrandRevision } | OrgBrandMutationFailure> {
       assertNoCallerSuppliedFields(input);
       if (!(await deps.isBrandingMechanicEnabled(ctx.organizationId))) {
-        return { ok: false, code: "entitlement_disabled" };
+        return { ok: false, code: 'entitlement_disabled' };
       }
       const draft = await deps.port.saveDraft({
         // The trusted context is the ONLY source of the organization id.
@@ -222,13 +215,13 @@ export function createOrgBrandingService(deps: {
       ctx: OrgBrandingManagementContext,
     ): Promise<{ ok: true; published: OrgBrandRevision } | OrgBrandMutationFailure> {
       if (!(await deps.isBrandingMechanicEnabled(ctx.organizationId))) {
-        return { ok: false, code: "entitlement_disabled" };
+        return { ok: false, code: 'entitlement_disabled' };
       }
       const published = await deps.port.publishDraft({
         organizationId: ctx.organizationId,
         actorPlatformUserId: ctx.actorPlatformUserId,
       });
-      if (!published) return { ok: false, code: "nothing_to_publish" };
+      if (!published) return { ok: false, code: 'nothing_to_publish' };
       return { ok: true, published };
     },
 
@@ -237,13 +230,13 @@ export function createOrgBrandingService(deps: {
       ctx: OrgBrandingManagementContext,
     ): Promise<{ ok: true } | OrgBrandMutationFailure> {
       if (!(await deps.isBrandingMechanicEnabled(ctx.organizationId))) {
-        return { ok: false, code: "entitlement_disabled" };
+        return { ok: false, code: 'entitlement_disabled' };
       }
       const unpublished = await deps.port.unpublish({
         organizationId: ctx.organizationId,
         actorPlatformUserId: ctx.actorPlatformUserId,
       });
-      if (!unpublished) return { ok: false, code: "nothing_published" };
+      if (!unpublished) return { ok: false, code: 'nothing_published' };
       return { ok: true };
     },
   };

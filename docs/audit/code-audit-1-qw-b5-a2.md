@@ -1,4 +1,5 @@
 # CODE-AUDIT-1 — QW-B5 + QW-A2
+
 **Аудитор:** CODE-AUDITOR-1 (Sonnet, независимый)  
 **Дата:** 2026-06-19  
 **Ветка:** `auto/qw-a2-b5`  
@@ -8,20 +9,20 @@
 
 ## ИТОГОВЫЙ ВЕРДИКТ
 
-| Пункт | Вердикт |
-|-------|---------|
-| B5-1: Трассировка условия `selectedChannels` | PASS |
-| B5-2: Трассировка truthy-проверки `if ([])` | PASS |
-| B5-3: Крайние случаи (null/undefined resolution, push-only selectedChannels) | PASS |
-| B5-4: Нет повторного присвоения `sendChannels` после блока | PASS |
-| B5-5: Тест-покрытие — 4 сценария | PASS |
-| A2-1: Удалённые импорты не используются в файле | PASS |
-| A2-2: `useMemo` по-прежнему нужен | PASS |
+| Пункт                                                                                              | Вердикт                  |
+| -------------------------------------------------------------------------------------------------- | ------------------------ |
+| B5-1: Трассировка условия `selectedChannels`                                                       | PASS                     |
+| B5-2: Трассировка truthy-проверки `if ([])`                                                        | PASS                     |
+| B5-3: Крайние случаи (null/undefined resolution, push-only selectedChannels)                       | PASS                     |
+| B5-4: Нет повторного присвоения `sendChannels` после блока                                         | PASS                     |
+| B5-5: Тест-покрытие — 4 сценария                                                                   | PASS                     |
+| A2-1: Удалённые импорты не используются в файле                                                    | PASS                     |
+| A2-2: `useMemo` по-прежнему нужен                                                                  | PASS                     |
 | A2-3: Остаточные Props в интерфейсе (`lastDoneAtIsoByItemId`, `planItemDoneRepeatCooldownMinutes`) | FAIL (minor / dead-prop) |
-| A2-4: JSX после удаления кнопки — нет dangling ternary | PASS |
-| §6-1: Нет сырого SQL | PASS |
-| §6-2: Нет новых hand-rolled UI без shared-примитива | PASS |
-| §6-3: Нет новых импортов, которые должны идти через shared | PASS |
+| A2-4: JSX после удаления кнопки — нет dangling ternary                                             | PASS                     |
+| §6-1: Нет сырого SQL                                                                               | PASS                     |
+| §6-2: Нет новых hand-rolled UI без shared-примитива                                                | PASS                     |
+| §6-3: Нет новых импортов, которые должны идти через shared                                         | PASS                     |
 
 **Общий вердикт: PASS с одним minor FAIL (A2-3)** — дефект не влияет на рантайм, но оставляет мёртвые props в интерфейсе (TypeScript-технически безопасно, но нарушает принцип чистоты).
 
@@ -36,6 +37,7 @@
 Как проверено: `apps/integrator/src/kernel/domain/executor/handlers/reminders.ts`, строки 487–551.
 
 Полный поток данных:
+
 1. `channelsToSend` строится из `occ.chatId` (Telegram) и `allIdentities` (MAX) — строки 487–497.
 2. `let sendChannels = channelsToSend` (строка 500) — изначально все каналы без фильтра.
 3. Если `topicCode && deps.deliveryTargetsPort` (строка 504): вызывается `getTargetsByChannelBinding(...)` → результат в `deliveryTargetsFetched` → `fetched = deliveryTargetsFetched` (строка 516).
@@ -76,17 +78,20 @@
 Как проверено: трассировка по типам + код строки 504–551.
 
 **(a) `selectedChannels` содержит только не-мессенджерные каналы (например `['push']`):**
+
 - `channelsToSend` строится только из `'telegram'` и `'max'` записей (строки 488–496).
 - `selectedSet = new Set(['push'])`.
 - `channelsToSend.filter((ch) => selectedSet.has(ch.channel))` — для `ch.channel === 'telegram'` или `'max'` → `has(...)` вернёт `false` → `sendChannels = []`.
 - Telegram/MAX не получат сообщение. Поведение корректное — `push`-канал не относится к мессенджерному пути `channelsToSend`.
 
 **(b) `fetched` существует, но `resolution` — null/undefined:**
+
 - `fetched?.resolution?.selectedChannels` → `undefined?.selectedChannels` → `undefined` → false.
 - Падает в `else if (hasResolvedTopicBindings)` → старое поведение.
 - `?.` цепочка безопасна.
 
 **(c) `deliveryTargetsPort` отсутствует (`deps.deliveryTargetsPort === undefined`):**
+
 - Строка 504: `if (topicCode && deps.deliveryTargetsPort)` → false → весь блок пропускается.
 - `sendChannels` остаётся `channelsToSend` без фильтра. Старое pre-fix поведение — ожидаемо для сред без порта.
 
@@ -97,9 +102,10 @@
 Как проверено: `grep -n "sendChannels"` — строки 500, 543, 545, 571, 689.
 
 После блока 504–551 переменная `sendChannels` используется только для:
+
 - `recordMessengerNotEnqueuedSkipsBestEffort(..., sendChannels, ...)` — строка 571 (только чтение).
 - `for (const { channel, chatId, externalId } of sendChannels)` — строка 689 (итерация, только чтение).
-Перезаписей нет.
+  Перезаписей нет.
 
 ### B5-5: Тест-покрытие
 
@@ -107,12 +113,12 @@
 
 Как проверено: `apps/integrator/src/kernel/domain/executor/handlers/reminders.channelFilter.test.ts` (4 теста).
 
-| Тест | Сценарий | Покрывает |
-|------|----------|-----------|
-| `baseline` | `selectedChannels: ['telegram']` + `channelBindings: {telegramId}` | Положительный кейс — telegram отправлен |
-| `all-off` | `selectedChannels: []` + `channelBindings: {}` | **Главный кейс бага** — пустые bindings + пустые selectedChannels → ничего не отправлено |
-| `partial-disable` | `selectedChannels: ['telegram']` + MAX identity в identities | Частичное отключение — telegram да, max нет |
-| `chatId-but-no-channel` | `occ.chatId > 0` + `selectedChannels: []` | ChatId присутствует, но explicit disable → ничего |
+| Тест                    | Сценарий                                                           | Покрывает                                                                                |
+| ----------------------- | ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
+| `baseline`              | `selectedChannels: ['telegram']` + `channelBindings: {telegramId}` | Положительный кейс — telegram отправлен                                                  |
+| `all-off`               | `selectedChannels: []` + `channelBindings: {}`                     | **Главный кейс бага** — пустые bindings + пустые selectedChannels → ничего не отправлено |
+| `partial-disable`       | `selectedChannels: ['telegram']` + MAX identity в identities       | Частичное отключение — telegram да, max нет                                              |
+| `chatId-but-no-channel` | `occ.chatId > 0` + `selectedChannels: []`                          | ChatId присутствует, но explicit disable → ничего                                        |
 
 Тест-файл правильно тестирует интеграцию через `handleReminders` целиком (не mock-пропуская логику), что обеспечивает регрессионную защиту.
 
@@ -127,6 +133,7 @@
 Как проверено: `grep -n` по файлу `PatientInstanceStageItemCard.tsx`.
 
 Удалённые сущности:
+
 - `mergeLastActivityDisplayedIso` — в файле отсутствует (grep: 0 вхождений).
 - `isItemDoneCooldownActive` — в файле отсутствует.
 - `planItemDoneRepeatCooldownMsFromMinutes` — в файле отсутствует.
@@ -142,6 +149,7 @@
 Как проверено: `grep -n "useMemo"` по файлу (строки 3, 81, 85).
 
 `useMemo` импортируется из React (строка 3) и используется дважды:
+
 - Строка 81: `const recommendationPreviewMedia = useMemo(...)`.
 - Строка 85: `const recommendationBodyPreview = useMemo(...)`.
 
@@ -168,6 +176,7 @@ planItemDoneRepeatCooldownMinutes: number;
 **Влияние на TypeScript:** компилятор не ругается на неиспользуемые props в объектном деструктурировании (это не переменная без использования). Компиляция успешна.
 
 **Влияние на вызывающий код:** все callers обязаны продолжать передавать `planItemDoneRepeatCooldownMinutes`, несмотря на то что он не используется. Это:
+
 1. Нарушает принцип минимального интерфейса.
 2. Может ввести следующего разработчика в заблуждение (зачем этот prop?).
 3. Вызывает ложные зависимости во всей цепочке: `PatientInstanceStageBody.tsx:152,189`, `PatientPlanTabPanels.tsx:89`, etc.
@@ -185,6 +194,7 @@ planItemDoneRepeatCooldownMinutes: number;
 Как проверено: прочтён весь JSX `PatientInstanceStageItemCard.tsx` (строки 156–338).
 
 После удаления кнопки «Отметить выполненным» остался блок (строки 302–327):
+
 ```tsx
 {!contentBlocked && !readOnly && itemInteraction === "full" ? (
   item.itemType === "clinical_test" ? (
@@ -196,6 +206,7 @@ planItemDoneRepeatCooldownMinutes: number;
 ```
 
 Это нормально:
+
 - Внешний ternary: `!contentBlocked && !readOnly && itemInteraction === "full"` — либо рендерит внутренний блок, либо `null`.
 - Внутренний ternary: только `clinical_test` тип рендерит форму, остальные → `null`.
 
@@ -229,19 +240,19 @@ planItemDoneRepeatCooldownMinutes: number;
 
 ## Итоговая таблица
 
-| # | Клауз | Вердикт | Как проверено |
-|---|-------|---------|---------------|
-| B5-1 | Трассировка пути данных `selectedChannels` | PASS | `reminders.ts:487–551, notificationChannels.ts:24–37` |
-| B5-2 | Truthy `[]` → `sendChannels=[]` → корректно | PASS | Анализ JS truthy + `reminders.ts:538–543` |
-| B5-3 | push-only selectedChannels, null resolution, no port | PASS | Трассировка типов + `reminders.ts:504–551` |
-| B5-4 | `sendChannels` не перезаписывается после блока | PASS | `grep sendChannels` → строки 500,543,545,571,689 |
-| B5-5 | 4 теста покрывают главный баг и крайние случаи | PASS | `reminders.channelFilter.test.ts:197–293` |
-| A2-1 | Удалённые импорты нигде не используются | PASS | `grep` по `PatientInstanceStageItemCard.tsx` |
-| A2-2 | `useMemo` не стал мёртвым | PASS | `PatientInstanceStageItemCard.tsx:3,81,85` |
-| A2-3 | Мёртвые props в интерфейсе | **FAIL** | `PatientInstanceStageItemCard.tsx:52,56` — объявлены, не деструктурированы |
-| A2-4 | JSX без dangling ternary | PASS | `PatientInstanceStageItemCard.tsx:302–332` |
-| §6-1 | Нет raw SQL | PASS | оба файла |
-| §6-2 | Нет new hand-rolled UI | PASS | QW-A2 удаляет, не добавляет |
-| §6-3 | Нет несанкционированных импортов | PASS | оба файла |
+| #    | Клауз                                                | Вердикт  | Как проверено                                                              |
+| ---- | ---------------------------------------------------- | -------- | -------------------------------------------------------------------------- |
+| B5-1 | Трассировка пути данных `selectedChannels`           | PASS     | `reminders.ts:487–551, notificationChannels.ts:24–37`                      |
+| B5-2 | Truthy `[]` → `sendChannels=[]` → корректно          | PASS     | Анализ JS truthy + `reminders.ts:538–543`                                  |
+| B5-3 | push-only selectedChannels, null resolution, no port | PASS     | Трассировка типов + `reminders.ts:504–551`                                 |
+| B5-4 | `sendChannels` не перезаписывается после блока       | PASS     | `grep sendChannels` → строки 500,543,545,571,689                           |
+| B5-5 | 4 теста покрывают главный баг и крайние случаи       | PASS     | `reminders.channelFilter.test.ts:197–293`                                  |
+| A2-1 | Удалённые импорты нигде не используются              | PASS     | `grep` по `PatientInstanceStageItemCard.tsx`                               |
+| A2-2 | `useMemo` не стал мёртвым                            | PASS     | `PatientInstanceStageItemCard.tsx:3,81,85`                                 |
+| A2-3 | Мёртвые props в интерфейсе                           | **FAIL** | `PatientInstanceStageItemCard.tsx:52,56` — объявлены, не деструктурированы |
+| A2-4 | JSX без dangling ternary                             | PASS     | `PatientInstanceStageItemCard.tsx:302–332`                                 |
+| §6-1 | Нет raw SQL                                          | PASS     | оба файла                                                                  |
+| §6-2 | Нет new hand-rolled UI                               | PASS     | QW-A2 удаляет, не добавляет                                                |
+| §6-3 | Нет несанкционированных импортов                     | PASS     | оба файла                                                                  |
 
 **Итог:** 11 PASS, 1 FAIL (minor A2-3 — dead props `lastDoneAtIsoByItemId` и `planItemDoneRepeatCooldownMinutes` остались в интерфейсе `PatientInstanceStageItemCard`).

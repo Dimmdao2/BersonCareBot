@@ -1,4 +1,4 @@
-import { apiJson } from "@/shared/lib/apiJson";
+import { apiJson } from '@/shared/lib/apiJson';
 
 /**
  * Doctor-self-scoped bootstrap for the «График работы» editor.
@@ -38,19 +38,25 @@ export type DoctorScheduleBootstrap = {
   specialistId: string | null;
 };
 
-const OVERVIEW = "/api/doctor/booking-engine/overview";
+const OVERVIEW = '/api/doctor/booking-engine/overview';
 
 export async function fetchDoctorScheduleBootstrap(): Promise<DoctorScheduleBootstrap | null> {
   let overview: DoctorOverviewResponse;
   try {
     overview = await apiJson<DoctorOverviewResponse>(OVERVIEW);
   } catch (e) {
-    if (e instanceof Error && e.message === "booking_engine_unavailable") return null;
+    if (e instanceof Error && e.message === 'booking_engine_unavailable') return null;
     throw e;
   }
   const branches = overview.branches
     .filter((b) => b.isActive)
-    .map((b) => ({ id: b.id, title: b.title, shortTitle: b.shortTitle, color: b.color, isActive: b.isActive }));
+    .map((b) => ({
+      id: b.id,
+      title: b.title,
+      shortTitle: b.shortTitle,
+      color: b.color,
+      isActive: b.isActive,
+    }));
   const ownSpecialist =
     overview.specialists.find((s) => s.isActive) ?? overview.specialists[0] ?? null;
   return {

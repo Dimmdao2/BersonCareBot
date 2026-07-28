@@ -1,4 +1,4 @@
-import type { StaffSecurityPort, StaffSecurityProfile } from "@/modules/staff-security/ports";
+import type { StaffSecurityPort, StaffSecurityProfile } from '@/modules/staff-security/ports';
 
 const profiles = new Map<string, StaffSecurityProfile>();
 
@@ -24,7 +24,9 @@ export function resetInMemoryStaffSecurityForTests(): void {
   profiles.clear();
 }
 
-export function createInMemoryStaffSecurityPort(selfUserId = "11111111-1111-4111-8111-111111111111"): StaffSecurityPort {
+export function createInMemoryStaffSecurityPort(
+  selfUserId = '11111111-1111-4111-8111-111111111111',
+): StaffSecurityPort {
   return {
     async ensureProfile() {
       const profile = profiles.get(selfUserId) ?? fresh(selfUserId);
@@ -46,11 +48,9 @@ export function createInMemoryStaffSecurityPort(selfUserId = "11111111-1111-4111
     },
     async completeTotpEnrollment({ encryptedSecret, recoveryCodeHashes }) {
       const profile = profiles.get(selfUserId);
-      if (
-        !profile ||
-        profile.pendingTotpSecretCiphertext !== encryptedSecret
-      ) throw new Error("staff_security_enrollment_conflict");
-      profile.factorType = "totp";
+      if (!profile || profile.pendingTotpSecretCiphertext !== encryptedSecret)
+        throw new Error('staff_security_enrollment_conflict');
+      profile.factorType = 'totp';
       profile.totpSecretCiphertext = encryptedSecret;
       profile.pendingTotpSecretCiphertext = null;
       profile.factorVerifiedAt = new Date().toISOString();
@@ -70,7 +70,7 @@ export function createInMemoryStaffSecurityPort(selfUserId = "11111111-1111-4111
     },
     async beginLoginChallenge({ challengeHash, expiresAt }) {
       const profile = profiles.get(selfUserId);
-      if (!profile?.factorVerifiedAt) throw new Error("staff_security_factor_not_enrolled");
+      if (!profile?.factorVerifiedAt) throw new Error('staff_security_factor_not_enrolled');
       profile.loginChallengeHash = challengeHash;
       profile.loginChallengeExpiresAt = expiresAt;
     },
@@ -82,7 +82,8 @@ export function createInMemoryStaffSecurityPort(selfUserId = "11111111-1111-4111
         !profile.loginChallengeExpiresAt ||
         Date.parse(profile.loginChallengeExpiresAt) <= Date.now() ||
         (profile.lockedUntil !== null && Date.parse(profile.lockedUntil) > Date.now())
-      ) return false;
+      )
+        return false;
       profile.loginChallengeHash = null;
       profile.loginChallengeExpiresAt = null;
       profile.failedAttempts = 0;
@@ -97,7 +98,8 @@ export function createInMemoryStaffSecurityPort(selfUserId = "11111111-1111-4111
         !profile.loginChallengeExpiresAt ||
         Date.parse(profile.loginChallengeExpiresAt) <= Date.now() ||
         (profile.lockedUntil !== null && Date.parse(profile.lockedUntil) > Date.now())
-      ) return { ok: false, sessionVersion: profile?.sessionVersion ?? 0 };
+      )
+        return { ok: false, sessionVersion: profile?.sessionVersion ?? 0 };
       const index = profile.recoveryCodeHashes.indexOf(recoveryCodeHash);
       if (index < 0) return { ok: false, sessionVersion: profile.sessionVersion };
       profile.recoveryCodeHashes.splice(index, 1);
@@ -115,12 +117,13 @@ export function createInMemoryStaffSecurityPort(selfUserId = "11111111-1111-4111
         profile.lockedUntil = null;
       }
       profile.failedAttempts += 1;
-      if (profile.failedAttempts >= 5) profile.lockedUntil = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+      if (profile.failedAttempts >= 5)
+        profile.lockedUntil = new Date(Date.now() + 15 * 60 * 1000).toISOString();
       return profile.lockedUntil;
     },
     async revokeSessions() {
       const profile = profiles.get(selfUserId);
-      if (!profile) throw new Error("staff_security_profile_missing");
+      if (!profile) throw new Error('staff_security_profile_missing');
       profile.sessionVersion += 1;
       profile.loginChallengeHash = null;
       profile.loginChallengeExpiresAt = null;

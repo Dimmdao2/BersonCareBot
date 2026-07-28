@@ -27,8 +27,8 @@
 
 ### Предварительный список accepted exceptions (**likely**, подтвердить при коде)
 
-1. **Webhook signature verify** — `verifyIntegratorGetSignature` / `verifyIntegratorSignature` из `@/infra/webhooks/verifyIntegratorSignature` *или* тонкая re-export обёртка в `app-layer` без изменения крипто-логики.
-2. **Structured logging** — `logger` / `logServerRuntimeError` из `@/infra/logging/*` *если* команда решит не оборачивать логгер в deps (**tradeoff:** меньше файлов, больше coupling).
+1. **Webhook signature verify** — `verifyIntegratorGetSignature` / `verifyIntegratorSignature` из `@/infra/webhooks/verifyIntegratorSignature` _или_ тонкая re-export обёртка в `app-layer` без изменения крипто-логики.
+2. **Structured logging** — `logger` / `logServerRuntimeError` из `@/infra/logging/*` _если_ команда решит не оборачивать логгер в deps (**tradeoff:** меньше файлов, больше coupling).
 
 **Правило композиции:** новые порты и выбор pg vs in-memory — в `buildAppDeps.ts` (или отдельном `app-layer/di/*` модуле), не в теле `route.ts`.
 
@@ -66,12 +66,12 @@
 
 ## Архитектурные документы — обновить после трека
 
-| Документ | Действие |
-|----------|----------|
-| `apps/webapp/src/app/api/api.md` | Выровнять формулировку «тонкие роуты» с фактическими импортами; перечислить **approved exceptions**. |
-| `apps/webapp/src/app-layer/di/di.md` | Описать новые поля `buildAppDeps` / фабрики. |
-| `docs/ARCHITECTURE/LOW_LEVEL_ARCHITECTURE_AUDIT_AND_REORG.md` | Пометить исправленные устаревшие примеры (напр. `events.ts` + `buildAppDeps`). |
-| `docs/TEST_AND_API_DI_OPTIMIZATION/api-di-boundary-normalization/LOG.md` | Журнал кластеров + остаточные исключения. |
+| Документ                                                                 | Действие                                                                                             |
+| ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| `apps/webapp/src/app/api/api.md`                                         | Выровнять формулировку «тонкие роуты» с фактическими импортами; перечислить **approved exceptions**. |
+| `apps/webapp/src/app-layer/di/di.md`                                     | Описать новые поля `buildAppDeps` / фабрики.                                                         |
+| `docs/ARCHITECTURE/LOW_LEVEL_ARCHITECTURE_AUDIT_AND_REORG.md`            | Пометить исправленные устаревшие примеры (напр. `events.ts` + `buildAppDeps`).                       |
+| `docs/TEST_AND_API_DI_OPTIMIZATION/api-di-boundary-normalization/LOG.md` | Журнал кластеров + остаточные исключения.                                                            |
 
 ## Документы **не** переписывать целиком
 

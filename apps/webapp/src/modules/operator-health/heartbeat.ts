@@ -18,9 +18,9 @@
  * который мы контролируем; внешний адрес подставляется конфигом (см. `externalPingUrlEnvVar`).
  */
 
-export const OPERATOR_HEARTBEAT_JOB_FAMILY = "heartbeat" as const;
+export const OPERATOR_HEARTBEAT_JOB_FAMILY = 'heartbeat' as const;
 
-export const OPERATOR_HEARTBEAT_NAMES = ["pipeline_delivery", "digest"] as const;
+export const OPERATOR_HEARTBEAT_NAMES = ['pipeline_delivery', 'digest'] as const;
 export type OperatorHeartbeatName = (typeof OPERATOR_HEARTBEAT_NAMES)[number];
 
 export function isOperatorHeartbeatName(value: string): value is OperatorHeartbeatName {
@@ -46,18 +46,18 @@ export type OperatorHeartbeatDefinition = {
 
 export const OPERATOR_HEARTBEATS: readonly OperatorHeartbeatDefinition[] = [
   {
-    name: "pipeline_delivery",
-    jobKey: "heartbeat.pipeline_delivery",
-    label: "Пульс доставки (подтверждённая отправка)",
+    name: 'pipeline_delivery',
+    jobKey: 'heartbeat.pipeline_delivery',
+    label: 'Пульс доставки (подтверждённая отправка)',
     defaultStaleAfterSec: 6 * 60 * 60,
-    externalPingUrlEnvVar: "OPERATOR_HEARTBEAT_PIPELINE_URL",
+    externalPingUrlEnvVar: 'OPERATOR_HEARTBEAT_PIPELINE_URL',
   },
   {
-    name: "digest",
-    jobKey: "heartbeat.digest",
-    label: "Пульс суточной сводки",
+    name: 'digest',
+    jobKey: 'heartbeat.digest',
+    label: 'Пульс суточной сводки',
     defaultStaleAfterSec: 26 * 60 * 60,
-    externalPingUrlEnvVar: "OPERATOR_HEARTBEAT_DIGEST_URL",
+    externalPingUrlEnvVar: 'OPERATOR_HEARTBEAT_DIGEST_URL',
   },
 ] as const;
 
@@ -66,13 +66,15 @@ export function findOperatorHeartbeat(name: string): OperatorHeartbeatDefinition
 }
 
 /** Ключ `system_settings` с переопределением порогов: `{"pipeline_delivery": 900}`. */
-export const OPERATOR_HEARTBEAT_CONFIG_KEY = "operator_heartbeat_config";
+export const OPERATOR_HEARTBEAT_CONFIG_KEY = 'operator_heartbeat_config';
 
 export type OperatorHeartbeatStaleOverrides = Partial<Record<OperatorHeartbeatName, number>>;
 
 /** Разбор конфигурации порогов; мусор игнорируется, дефолты остаются в силе. */
-export function parseOperatorHeartbeatStaleOverrides(raw: string | null | undefined): OperatorHeartbeatStaleOverrides {
-  const text = (raw ?? "").trim();
+export function parseOperatorHeartbeatStaleOverrides(
+  raw: string | null | undefined,
+): OperatorHeartbeatStaleOverrides {
+  const text = (raw ?? '').trim();
   if (!text) return {};
   let parsed: unknown;
   try {
@@ -80,11 +82,11 @@ export function parseOperatorHeartbeatStaleOverrides(raw: string | null | undefi
   } catch {
     return {};
   }
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
   const out: OperatorHeartbeatStaleOverrides = {};
   for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
     if (!isOperatorHeartbeatName(key)) continue;
-    const n = typeof value === "number" ? value : Number(value);
+    const n = typeof value === 'number' ? value : Number(value);
     if (!Number.isFinite(n) || n <= 0) continue;
     out[key] = Math.floor(n);
   }
@@ -108,7 +110,7 @@ export type OperatorHeartbeatObservation = {
 export type OperatorHeartbeatVerdict = {
   name: OperatorHeartbeatName;
   label: string;
-  status: "alive" | "absent" | "never";
+  status: 'alive' | 'absent' | 'never';
   lastPingAt: string | null;
   ageSeconds: number | null;
   staleAfterSec: number;
@@ -130,7 +132,7 @@ export function classifyOperatorHeartbeat(
     return {
       name: observation.name,
       label,
-      status: "never",
+      status: 'never',
       lastPingAt: null,
       ageSeconds: null,
       staleAfterSec: observation.staleAfterSec,
@@ -141,7 +143,7 @@ export function classifyOperatorHeartbeat(
     return {
       name: observation.name,
       label,
-      status: "never",
+      status: 'never',
       lastPingAt: observation.lastPingAt,
       ageSeconds: null,
       staleAfterSec: observation.staleAfterSec,
@@ -151,7 +153,7 @@ export function classifyOperatorHeartbeat(
   return {
     name: observation.name,
     label,
-    status: ageSeconds > observation.staleAfterSec ? "absent" : "alive",
+    status: ageSeconds > observation.staleAfterSec ? 'absent' : 'alive',
     lastPingAt: observation.lastPingAt,
     ageSeconds,
     staleAfterSec: observation.staleAfterSec,
@@ -159,11 +161,11 @@ export function classifyOperatorHeartbeat(
 }
 
 export function isHeartbeatFailing(verdict: OperatorHeartbeatVerdict): boolean {
-  return verdict.status !== "alive";
+  return verdict.status !== 'alive';
 }
 
 export function formatHeartbeatAge(verdict: OperatorHeartbeatVerdict): string {
-  if (verdict.ageSeconds == null) return "пульса не было ни разу";
+  if (verdict.ageSeconds == null) return 'пульса не было ни разу';
   const minutes = Math.floor(verdict.ageSeconds / 60);
   if (minutes < 60) return `${minutes} мин назад`;
   const hours = Math.floor(minutes / 60);

@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DbPort } from '../../../kernel/contracts/index.js';
 import { getIntegratorDrizzleSession } from '../drizzle.js';
-import { cancelPendingBookingReminderJobsByBookingId, claimDueMessageRetryJobs } from './jobQueue.js';
+import {
+  cancelPendingBookingReminderJobsByBookingId,
+  claimDueMessageRetryJobs,
+} from './jobQueue.js';
 
 vi.mock('../drizzle.js', () => ({
   getIntegratorDrizzleSession: vi.fn(),

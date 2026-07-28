@@ -1,24 +1,24 @@
-"use client";
+'use client';
 
-import { DoctorNotesPanel } from "./DoctorNotesPanel";
-import { DoctorClientOverviewCarePlan } from "./DoctorClientOverviewCarePlan";
-import { DoctorClientOverviewRecentProgramChanges } from "./DoctorClientOverviewRecentProgramChanges";
-import { DoctorClientOverviewWellbeing } from "./DoctorClientOverviewWellbeing";
-import { DoctorClientOverviewProactiveSignals } from "./DoctorClientOverviewProactiveSignals";
-import { PatientSpecialistTasksSection } from "./PatientSpecialistTasksSection";
-import { DoctorClientWarmupSchedulePanel } from "./DoctorClientWarmupSchedulePanel";
+import { DoctorNotesPanel } from './DoctorNotesPanel';
+import { DoctorClientOverviewCarePlan } from './DoctorClientOverviewCarePlan';
+import { DoctorClientOverviewRecentProgramChanges } from './DoctorClientOverviewRecentProgramChanges';
+import { DoctorClientOverviewWellbeing } from './DoctorClientOverviewWellbeing';
+import { DoctorClientOverviewProactiveSignals } from './DoctorClientOverviewProactiveSignals';
+import { PatientSpecialistTasksSection } from './PatientSpecialistTasksSection';
+import { DoctorClientWarmupSchedulePanel } from './DoctorClientWarmupSchedulePanel';
 import {
   doctorClientOverviewGridClass,
   doctorClientOverviewPrimaryCardClass,
   doctorClientSectionTitleClass,
-} from "./doctorClientCardChrome";
-import type { WellbeingWeekChartModel } from "@/modules/diaries/buildWellbeingWeekChartData";
-import type { TreatmentProgramInstanceSummary } from "@/modules/treatment-program/types";
+} from './doctorClientCardChrome';
+import type { WellbeingWeekChartModel } from '@/modules/diaries/buildWellbeingWeekChartData';
+import type { TreatmentProgramInstanceSummary } from '@/modules/treatment-program/types';
 import type {
   DoctorClientOverviewCarePlanModel,
   DoctorClientRecentProgramChangeRow,
-} from "@/modules/doctor-client-card/types";
-import type { ProactiveInsightRow } from "@/modules/doctor-proactive-insights/types";
+} from '@/modules/doctor-client-card/types';
+import type { ProactiveInsightRow } from '@/modules/doctor-proactive-insights/types';
 
 type Props = {
   userId: string;
@@ -65,11 +65,19 @@ export function DoctorClientOverviewTab({
         />
       ) : null}
       <DoctorClientOverviewProactiveSignals insights={proactiveInsights} />
-      <DoctorClientOverviewWellbeing chartModel={wellbeingModel} displayTimeZone={displayTimeZone} />
+      <DoctorClientOverviewWellbeing
+        chartModel={wellbeingModel}
+        displayTimeZone={displayTimeZone}
+      />
       <PatientSpecialistTasksSection patientUserId={userId} />
       <DoctorClientWarmupSchedulePanel userId={userId} />
-      <details id="doctor-client-section-notes" className={`md:col-span-2 ${doctorClientOverviewPrimaryCardClass}`}>
-        <summary className={`mb-0 cursor-pointer list-none ${doctorClientSectionTitleClass} [&::-webkit-details-marker]:hidden`}>
+      <details
+        id="doctor-client-section-notes"
+        className={`md:col-span-2 ${doctorClientOverviewPrimaryCardClass}`}
+      >
+        <summary
+          className={`mb-0 cursor-pointer list-none ${doctorClientSectionTitleClass} [&::-webkit-details-marker]:hidden`}
+        >
           Заметки
         </summary>
         <div className="mt-3">

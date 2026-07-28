@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import type { MediaFolderRecord } from "@/modules/media/types";
+import { useEffect, useState } from 'react';
+import type { MediaFolderRecord } from '@/modules/media/types';
 
 /**
  * Плоский список папок медиатеки (`/api/admin/media/folders?flat=true`).
@@ -24,10 +24,10 @@ export function useFlatMediaFolders(active: boolean): {
     }
     const ac = new AbortController();
     queueMicrotask(() => setFoldersLoaded(false));
-    fetch("/api/admin/media/folders?flat=true", { credentials: "same-origin", signal: ac.signal })
+    fetch('/api/admin/media/folders?flat=true', { credentials: 'same-origin', signal: ac.signal })
       .then(async (res) => {
         const data = (await res.json()) as { ok?: boolean; items?: MediaFolderRecord[] };
-        if (!res.ok || !data.ok) throw new Error("folders_failed");
+        if (!res.ok || !data.ok) throw new Error('folders_failed');
         return data.items ?? [];
       })
       .then((list) => {

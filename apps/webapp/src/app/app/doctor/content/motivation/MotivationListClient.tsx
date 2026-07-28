@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { useActionState, useCallback, useEffect, useState, useTransition } from "react";
+import { useActionState, useCallback, useEffect, useState, useTransition } from 'react';
 import {
   DndContext,
   KeyboardSensor,
@@ -9,20 +9,20 @@ import {
   useSensor,
   useSensors,
   type DragEndEvent,
-} from "@dnd-kit/core";
+} from '@dnd-kit/core';
 import {
   SortableContext,
   arrayMove,
   sortableKeyboardCoordinates,
   useSortable,
   verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
-import { EllipsisVertical, Eye, EyeOff } from "lucide-react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Checkbox } from "@/shared/ui/doctor/primitives/checkbox";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { EllipsisVertical, Eye, EyeOff } from 'lucide-react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Checkbox } from '@/shared/ui/doctor/primitives/checkbox';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -31,14 +31,14 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/shared/ui/doctor/primitives/dropdown-menu";
+} from '@/shared/ui/doctor/primitives/dropdown-menu';
 import {
   reorderMotivationQuotes,
   setQuoteActive,
   setQuoteArchived,
   upsertMotivationQuote,
   type MotivationActionState,
-} from "./actions";
+} from './actions';
 
 export type QuoteRow = {
   id: string;
@@ -49,7 +49,13 @@ export type QuoteRow = {
   archived_at: Date | null;
 };
 
-function DragHandle({ listeners, attributes }: { listeners: Record<string, unknown>; attributes: Record<string, unknown> }) {
+function DragHandle({
+  listeners,
+  attributes,
+}: {
+  listeners: Record<string, unknown>;
+  attributes: Record<string, unknown>;
+}) {
   return (
     <Button
       type="button"
@@ -87,7 +93,9 @@ function SortableQuoteRow({
   formPending: boolean;
 }) {
   const archived = q.archived_at != null;
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: q.id });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: q.id,
+  });
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -103,7 +111,7 @@ function SortableQuoteRow({
       <div className="flex items-start gap-2">
         <DragHandle listeners={listeners as never} attributes={attributes as never} />
         <div className="min-w-0 flex-1">
-          <p className="line-clamp-2 text-sm text-foreground">{q.body_text || "—"}</p>
+          <p className="line-clamp-2 text-sm text-foreground">{q.body_text || '—'}</p>
         </div>
         <Button
           type="button"
@@ -111,8 +119,8 @@ function SortableQuoteRow({
           size="icon"
           className="size-9 shrink-0 rounded-full border border-border/80"
           disabled={formPending || archived}
-          title={archived ? "В архиве" : q.is_active ? "Активна" : "Не активна"}
-          aria-label={q.is_active ? "Активна" : "Не активна"}
+          title={archived ? 'В архиве' : q.is_active ? 'Активна' : 'Не активна'}
+          aria-label={q.is_active ? 'Активна' : 'Не активна'}
           onClick={() => !archived && onToggleActive(q.id, !q.is_active)}
         >
           {q.is_active && !archived ? (
@@ -133,7 +141,7 @@ function SortableQuoteRow({
               <DropdownMenuLabel>Действия</DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => onToggleExpand(q.id)}>
-                {expanded ? "Свернуть" : "Изменить"}
+                {expanded ? 'Свернуть' : 'Изменить'}
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={(e) => {
@@ -141,7 +149,7 @@ function SortableQuoteRow({
                   void setQuoteArchived(q.id, !archived);
                 }}
               >
-                {archived ? "Из архива" : "Архивировать"}
+                {archived ? 'Из архива' : 'Архивировать'}
               </DropdownMenuItem>
             </DropdownMenuGroup>
           </DropdownMenuContent>
@@ -156,11 +164,17 @@ function SortableQuoteRow({
           <input type="hidden" name="sort_order" value={String(q.sort_order)} />
           <label className="flex flex-col gap-1 text-sm">
             Текст
-            <Textarea name="body_text" className="text-sm" rows={3} defaultValue={q.body_text} required />
+            <Textarea
+              name="body_text"
+              className="text-sm"
+              rows={3}
+              defaultValue={q.body_text}
+              required
+            />
           </label>
           <label className="flex flex-col gap-1 text-sm">
             Автор
-            <Input name="author" defaultValue={q.author ?? ""} />
+            <Input name="author" defaultValue={q.author ?? ''} />
           </label>
           <label className="flex items-center gap-2 text-sm">
             <Checkbox name="is_active" defaultChecked={q.is_active} />
@@ -181,7 +195,10 @@ export function MotivationListClient({ quoteRows }: { quoteRows: QuoteRow[] }) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [reorderPending, startReorderTransition] = useTransition();
   const [actPending, startActTransition] = useTransition();
-  const [quoteState, quoteAction, quotePending] = useActionState(upsertMotivationQuote, null as MotivationActionState | null);
+  const [quoteState, quoteAction, quotePending] = useActionState(
+    upsertMotivationQuote,
+    null as MotivationActionState | null,
+  );
 
   useEffect(() => {
     setItems(quoteRows);
@@ -238,12 +255,15 @@ export function MotivationListClient({ quoteRows }: { quoteRows: QuoteRow[] }) {
           className="ml-auto"
           onClick={() => setShowAdd((v) => !v)}
         >
-          {showAdd ? "Скрыть форму" : "Добавить"}
+          {showAdd ? 'Скрыть форму' : 'Добавить'}
         </Button>
       </div>
 
       {showAdd ? (
-        <form action={quoteAction} className="flex flex-col gap-2 rounded-xl border border-dashed border-border p-4">
+        <form
+          action={quoteAction}
+          className="flex flex-col gap-2 rounded-xl border border-dashed border-border p-4"
+        >
           <strong className="text-sm">Новая цитата</strong>
           <Textarea name="body_text" className="text-sm" rows={2} placeholder="Текст" required />
           <Input name="author" placeholder="Автор (необязательно)" />

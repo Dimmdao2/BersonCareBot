@@ -1,7 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const requireEntitlementForActionMock = vi.hoisted(() => vi.fn());
-vi.mock("@/app-layer/guards/requireEntitlement", () => ({
+vi.mock('@/app-layer/guards/requireEntitlement', () => ({
   requireEntitlementForReadAction: requireEntitlementForActionMock,
   requireEntitlementForMutationAction: requireEntitlementForActionMock,
 }));
@@ -25,20 +25,20 @@ const {
   withDoctorWorkspacePrincipalMock: vi.fn((_: unknown, fn: () => unknown) => fn()),
 }));
 
-vi.mock("next/cache", () => ({
+vi.mock('next/cache', () => ({
   revalidatePath: vi.fn(),
 }));
 
-vi.mock("@/app-layer/guards/requireRole", () => ({
+vi.mock('@/app-layer/guards/requireRole', () => ({
   requireDoctorWorkspaceContext: requireDoctorWorkspaceContextMock,
 }));
 
-vi.mock("@/app-layer/guards/doctorWorkspacePrincipal", () => ({
+vi.mock('@/app-layer/guards/doctorWorkspacePrincipal', () => ({
   withDoctorWorkspacePrincipal: (ctx: unknown, fn: () => unknown) =>
     withDoctorWorkspacePrincipalMock(ctx, fn),
 }));
 
-vi.mock("@/app-layer/di/buildAppDeps", () => ({
+vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: () => ({
     contentPages: {
       upsert: upsertMock,
@@ -53,7 +53,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
   }),
 }));
 
-import { saveContentPage } from "./actions";
+import { saveContentPage } from './actions';
 
 function formWith(entries: Record<string, string>) {
   const fd = new FormData();
@@ -63,7 +63,7 @@ function formWith(entries: Record<string, string>) {
   return fd;
 }
 
-describe("saveContentPage", () => {
+describe('saveContentPage', () => {
   beforeEach(() => {
     upsertMock.mockClear();
     listAllMock.mockReset();
@@ -79,104 +79,107 @@ describe("saveContentPage", () => {
     retargetReminderMock.mockResolvedValue(undefined);
     requireDoctorWorkspaceContextMock.mockReset();
     requireDoctorWorkspaceContextMock.mockResolvedValue({
-      organizationId: "org-1",
-      session: { user: { userId: "doc-1", role: "doctor" } },
+      organizationId: 'org-1',
+      session: { user: { userId: 'doc-1', role: 'doctor' } },
     });
     requireEntitlementForActionMock.mockReset();
     requireEntitlementForActionMock.mockResolvedValue({ ok: true });
     withDoctorWorkspacePrincipalMock.mockClear();
     withDoctorWorkspacePrincipalMock.mockImplementation((_: unknown, fn: () => unknown) => fn());
     getBySlugMock.mockResolvedValue({
-      id: "s1",
-      slug: "lessons",
-      title: "Уроки",
-      description: "",
+      id: 's1',
+      slug: 'lessons',
+      title: 'Уроки',
+      description: '',
       sortOrder: 0,
       isVisible: true,
     });
   });
 
-  it("stores body_md and clears body_html when md is non-empty", async () => {
+  it('stores body_md and clears body_html when md is non-empty', async () => {
     upsertMock.mockResolvedValue(undefined);
     const fd = formWith({
-      section: "lessons",
-      slug: "test-page",
-      title: "T",
-      summary: "S",
-      body_md: "# Hello",
+      section: 'lessons',
+      slug: 'test-page',
+      title: 'T',
+      summary: 'S',
+      body_md: '# Hello',
     });
     const res = await saveContentPage(null, fd);
     expect(res.ok).toBe(true);
     expect(upsertMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        bodyMd: "# Hello",
-        bodyHtml: "",
-        slug: "test-page",
+        bodyMd: '# Hello',
+        bodyHtml: '',
+        slug: 'test-page',
       }),
     );
   });
 
-  it("returns a clear tariff denial when the atomic CMS-page quota rejects a new row", async () => {
-    upsertMock.mockRejectedValueOnce(new Error("saas_quota_reached:cms_pages:5/5"));
+  it('returns a clear tariff denial when the atomic CMS-page quota rejects a new row', async () => {
+    upsertMock.mockRejectedValueOnce(new Error('saas_quota_reached:cms_pages:5/5'));
 
     const res = await saveContentPage(
       null,
       formWith({
-        section: "lessons",
-        slug: "over-limit",
-        title: "T",
+        section: 'lessons',
+        slug: 'over-limit',
+        title: 'T',
       }),
     );
 
     expect(res).toEqual({
       ok: false,
-      error: "Достигнут лимит страниц CMS по тарифу. Расширьте тариф.",
+      error: 'Достигнут лимит страниц CMS по тарифу. Расширьте тариф.',
     });
   });
 
-  it("returns cms_pages denial after auth without calling page service", async () => {
+  it('returns cms_pages denial after auth without calling page service', async () => {
     requireEntitlementForActionMock.mockResolvedValueOnce({
       ok: false,
-      mechanic: "cms_pages",
-      reason: "entitlement_required",
+      mechanic: 'cms_pages',
+      reason: 'entitlement_required',
     });
 
-    const res = await saveContentPage(null, formWith({ section: "lessons", slug: "test-page", title: "T" }));
+    const res = await saveContentPage(
+      null,
+      formWith({ section: 'lessons', slug: 'test-page', title: 'T' }),
+    );
 
-    expect(res).toEqual({ ok: false, error: "entitlement_required" });
+    expect(res).toEqual({ ok: false, error: 'entitlement_required' });
     expect(upsertMock).not.toHaveBeenCalled();
     expect(requireDoctorWorkspaceContextMock.mock.invocationCallOrder[0]).toBeLessThan(
       requireEntitlementForActionMock.mock.invocationCallOrder[0]!,
     );
   });
 
-  it("keeps legacy body_html when body_md is empty", async () => {
+  it('keeps legacy body_html when body_md is empty', async () => {
     upsertMock.mockResolvedValue(undefined);
     const fd = formWith({
-      section: "lessons",
-      slug: "legacy",
-      title: "T",
-      summary: "S",
-      body_md: "",
-      body_html: "<p>old</p>",
+      section: 'lessons',
+      slug: 'legacy',
+      title: 'T',
+      summary: 'S',
+      body_md: '',
+      body_html: '<p>old</p>',
     });
     const res = await saveContentPage(null, fd);
     expect(res.ok).toBe(true);
     expect(upsertMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        bodyMd: "",
-        bodyHtml: "<p>old</p>",
+        bodyMd: '',
+        bodyHtml: '<p>old</p>',
       }),
     );
   });
 
-  it("rejects body_md over max length", async () => {
-    const long = "x".repeat(50001);
+  it('rejects body_md over max length', async () => {
+    const long = 'x'.repeat(50001);
     const fd = formWith({
-      section: "lessons",
-      slug: "x",
-      title: "T",
-      summary: "S",
+      section: 'lessons',
+      slug: 'x',
+      title: 'T',
+      summary: 'S',
       body_md: long,
     });
     const res = await saveContentPage(null, fd);
@@ -184,116 +187,116 @@ describe("saveContentPage", () => {
     expect(upsertMock).not.toHaveBeenCalled();
   });
 
-  it("rejects slug consisting only of hyphens", async () => {
+  it('rejects slug consisting only of hyphens', async () => {
     const fd = formWith({
-      section: "lessons",
-      slug: "---",
-      title: "T",
-      summary: "S",
-      body_md: "# x",
+      section: 'lessons',
+      slug: '---',
+      title: 'T',
+      summary: 'S',
+      body_md: '# x',
     });
     const res = await saveContentPage(null, fd);
     expect(res.ok).toBe(false);
-    expect(res.error).toContain("дефис");
+    expect(res.error).toContain('дефис');
     expect(upsertMock).not.toHaveBeenCalled();
   });
 
-  it("rejects unknown section slug", async () => {
+  it('rejects unknown section slug', async () => {
     getBySlugMock.mockResolvedValue(null);
     const fd = formWith({
-      section: "no-such-section",
-      slug: "page",
-      title: "T",
-      summary: "S",
-      body_md: "# x",
+      section: 'no-such-section',
+      slug: 'page',
+      title: 'T',
+      summary: 'S',
+      body_md: '# x',
     });
     const res = await saveContentPage(null, fd);
     expect(res.ok).toBe(false);
     expect(upsertMock).not.toHaveBeenCalled();
   });
 
-  it("persists image_url when provided", async () => {
+  it('persists image_url when provided', async () => {
     upsertMock.mockResolvedValue(undefined);
     const fd = formWith({
-      section: "lessons",
-      slug: "with-img",
-      title: "T",
-      summary: "S",
-      body_md: "# x",
-      image_url: "https://example.com/a.png",
+      section: 'lessons',
+      slug: 'with-img',
+      title: 'T',
+      summary: 'S',
+      body_md: '# x',
+      image_url: 'https://example.com/a.png',
     });
     const res = await saveContentPage(null, fd);
     expect(res.ok).toBe(true);
     expect(upsertMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        imageUrl: "https://example.com/a.png",
+        imageUrl: 'https://example.com/a.png',
       }),
     );
   });
 
-  it("stores api video as videoType=api", async () => {
+  it('stores api video as videoType=api', async () => {
     upsertMock.mockResolvedValue(undefined);
     const fd = formWith({
-      section: "lessons",
-      slug: "with-api-video",
-      title: "T",
-      summary: "S",
-      body_md: "# x",
-      video_url: "/api/media/11111111-1111-4111-8111-111111111111",
+      section: 'lessons',
+      slug: 'with-api-video',
+      title: 'T',
+      summary: 'S',
+      body_md: '# x',
+      video_url: '/api/media/11111111-1111-4111-8111-111111111111',
     });
     const res = await saveContentPage(null, fd);
     expect(res.ok).toBe(true);
     expect(upsertMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        videoUrl: "/api/media/11111111-1111-4111-8111-111111111111",
-        videoType: "api",
+        videoUrl: '/api/media/11111111-1111-4111-8111-111111111111',
+        videoType: 'api',
       }),
     );
   });
 
-  it("rejects invalid local media url", async () => {
+  it('rejects invalid local media url', async () => {
     const fd = formWith({
-      section: "lessons",
-      slug: "invalid-media",
-      title: "T",
-      summary: "S",
-      body_md: "# x",
-      image_url: "/api/media/not-uuid",
+      section: 'lessons',
+      slug: 'invalid-media',
+      title: 'T',
+      summary: 'S',
+      body_md: '# x',
+      image_url: '/api/media/not-uuid',
     });
     const res = await saveContentPage(null, fd);
     expect(res.ok).toBe(false);
     expect(upsertMock).not.toHaveBeenCalled();
   });
 
-  it("saves new page without sort_order and appends to section end", async () => {
+  it('saves new page without sort_order and appends to section end', async () => {
     upsertMock.mockResolvedValue(undefined);
     listAllMock.mockResolvedValue([
-      { section: "lessons", slug: "a", sortOrder: 2 },
-      { section: "lessons", slug: "b", sortOrder: 4 },
+      { section: 'lessons', slug: 'a', sortOrder: 2 },
+      { section: 'lessons', slug: 'b', sortOrder: 4 },
     ]);
     const fd = formWith({
-      section: "lessons",
-      slug: "new-one",
-      title: "New",
-      summary: "",
-      body_md: "Body",
+      section: 'lessons',
+      slug: 'new-one',
+      title: 'New',
+      summary: '',
+      body_md: 'Body',
     });
     const res = await saveContentPage(null, fd);
     expect(res.ok).toBe(true);
     expect(upsertMock).toHaveBeenCalledWith(expect.objectContaining({ sortOrder: 5 }));
   });
 
-  it("keeps existing sort order when editing with page_id", async () => {
+  it('keeps existing sort order when editing with page_id', async () => {
     updateFullMock.mockResolvedValue(undefined);
-    const pageId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const pageId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
     getByIdMock.mockResolvedValue({
       id: pageId,
-      section: "lessons",
-      slug: "existing",
-      title: "Old",
-      summary: "",
-      bodyMd: "",
-      bodyHtml: "",
+      section: 'lessons',
+      slug: 'existing',
+      title: 'Old',
+      summary: '',
+      bodyMd: '',
+      bodyHtml: '',
       sortOrder: 7,
       isPublished: true,
       requiresAuth: false,
@@ -305,16 +308,16 @@ describe("saveContentPage", () => {
       linkedCourseId: null,
     });
     listAllMock.mockResolvedValue([
-      { id: pageId, section: "lessons", slug: "existing", sortOrder: 7 },
-      { id: "other-id", section: "lessons", slug: "other", sortOrder: 1 },
+      { id: pageId, section: 'lessons', slug: 'existing', sortOrder: 7 },
+      { id: 'other-id', section: 'lessons', slug: 'other', sortOrder: 1 },
     ]);
     const fd = formWith({
       page_id: pageId,
-      section: "lessons",
-      slug: "existing",
-      title: "Edited",
-      summary: "",
-      body_md: "Body",
+      section: 'lessons',
+      slug: 'existing',
+      title: 'Edited',
+      summary: '',
+      body_md: 'Body',
     });
     const res = await saveContentPage(null, fd);
     expect(res.ok).toBe(true);
@@ -324,26 +327,26 @@ describe("saveContentPage", () => {
     expect(upsertMock).not.toHaveBeenCalled();
   });
 
-  it("allows changing slug when editing with page_id", async () => {
+  it('allows changing slug when editing with page_id', async () => {
     const order: string[] = [];
     updateFullMock.mockImplementation(async () => {
-      order.push("update");
+      order.push('update');
     });
     retargetHomeMock.mockImplementation(async () => {
-      order.push("home");
+      order.push('home');
     });
     retargetReminderMock.mockImplementation(async () => {
-      order.push("reminder");
+      order.push('reminder');
     });
-    const pageId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const pageId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
     getByIdMock.mockResolvedValue({
       id: pageId,
-      section: "lessons",
-      slug: "old-slug",
-      title: "Old",
-      summary: "",
-      bodyMd: "",
-      bodyHtml: "",
+      section: 'lessons',
+      slug: 'old-slug',
+      title: 'Old',
+      summary: '',
+      bodyMd: '',
+      bodyHtml: '',
       sortOrder: 7,
       isPublished: true,
       requiresAuth: false,
@@ -355,38 +358,41 @@ describe("saveContentPage", () => {
       linkedCourseId: null,
     });
     listAllMock.mockResolvedValue([
-      { id: pageId, section: "lessons", slug: "old-slug", sortOrder: 7 },
-      { id: "other-id", section: "lessons", slug: "other", sortOrder: 1 },
+      { id: pageId, section: 'lessons', slug: 'old-slug', sortOrder: 7 },
+      { id: 'other-id', section: 'lessons', slug: 'other', sortOrder: 1 },
     ]);
     const fd = formWith({
       page_id: pageId,
-      section: "lessons",
-      slug: "new-slug",
-      title: "Edited",
-      summary: "",
-      body_md: "Body",
+      section: 'lessons',
+      slug: 'new-slug',
+      title: 'Edited',
+      summary: '',
+      body_md: 'Body',
     });
     const res = await saveContentPage(null, fd);
     expect(res.ok).toBe(true);
-    expect(order).toEqual(["update", "home", "reminder"]);
-    expect(retargetHomeMock).toHaveBeenCalledWith(pageId, "old-slug", "new-slug");
-    expect(retargetReminderMock).toHaveBeenCalledWith(pageId, "old-slug", "new-slug");
-    expect(updateFullMock).toHaveBeenCalledWith(pageId, expect.objectContaining({ slug: "new-slug", sortOrder: 7 }));
+    expect(order).toEqual(['update', 'home', 'reminder']);
+    expect(retargetHomeMock).toHaveBeenCalledWith(pageId, 'old-slug', 'new-slug');
+    expect(retargetReminderMock).toHaveBeenCalledWith(pageId, 'old-slug', 'new-slug');
+    expect(updateFullMock).toHaveBeenCalledWith(
+      pageId,
+      expect.objectContaining({ slug: 'new-slug', sortOrder: 7 }),
+    );
     expect(upsertMock).not.toHaveBeenCalled();
   });
 
-  it("when slug changes and retarget fails after save, returns error", async () => {
+  it('when slug changes and retarget fails after save, returns error', async () => {
     updateFullMock.mockResolvedValue(undefined);
-    retargetHomeMock.mockRejectedValueOnce(new Error("retarget failed"));
-    const pageId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    retargetHomeMock.mockRejectedValueOnce(new Error('retarget failed'));
+    const pageId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
     getByIdMock.mockResolvedValue({
       id: pageId,
-      section: "lessons",
-      slug: "old-slug",
-      title: "Old",
-      summary: "",
-      bodyMd: "",
-      bodyHtml: "",
+      section: 'lessons',
+      slug: 'old-slug',
+      title: 'Old',
+      summary: '',
+      bodyMd: '',
+      bodyHtml: '',
       sortOrder: 7,
       isPublished: true,
       requiresAuth: false,
@@ -398,16 +404,16 @@ describe("saveContentPage", () => {
       linkedCourseId: null,
     });
     listAllMock.mockResolvedValue([
-      { id: pageId, section: "lessons", slug: "old-slug", sortOrder: 7 },
-      { id: "other-id", section: "lessons", slug: "other", sortOrder: 1 },
+      { id: pageId, section: 'lessons', slug: 'old-slug', sortOrder: 7 },
+      { id: 'other-id', section: 'lessons', slug: 'other', sortOrder: 1 },
     ]);
     const fd = formWith({
       page_id: pageId,
-      section: "lessons",
-      slug: "new-slug",
-      title: "Edited",
-      summary: "",
-      body_md: "Body",
+      section: 'lessons',
+      slug: 'new-slug',
+      title: 'Edited',
+      summary: '',
+      body_md: 'Body',
     });
     const res = await saveContentPage(null, fd);
     expect(res.ok).toBe(false);
@@ -416,17 +422,17 @@ describe("saveContentPage", () => {
     expect(retargetReminderMock).not.toHaveBeenCalled();
   });
 
-  it("when moving section with page_id appends sort order in target section", async () => {
+  it('when moving section with page_id appends sort order in target section', async () => {
     updateFullMock.mockResolvedValue(undefined);
-    const pageId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    const pageId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
     getByIdMock.mockResolvedValue({
       id: pageId,
-      section: "from-sec",
-      slug: "page-x",
-      title: "T",
-      summary: "",
-      bodyMd: "# x",
-      bodyHtml: "",
+      section: 'from-sec',
+      slug: 'page-x',
+      title: 'T',
+      summary: '',
+      bodyMd: '# x',
+      bodyHtml: '',
       sortOrder: 3,
       isPublished: true,
       requiresAuth: false,
@@ -438,34 +444,37 @@ describe("saveContentPage", () => {
       linkedCourseId: null,
     });
     listAllMock.mockResolvedValue([
-      { id: pageId, section: "from-sec", slug: "page-x", sortOrder: 3 },
-      { id: "c1", section: "lessons", slug: "a", sortOrder: 2 },
-      { id: "c2", section: "lessons", slug: "b", sortOrder: 4 },
+      { id: pageId, section: 'from-sec', slug: 'page-x', sortOrder: 3 },
+      { id: 'c1', section: 'lessons', slug: 'a', sortOrder: 2 },
+      { id: 'c2', section: 'lessons', slug: 'b', sortOrder: 4 },
     ]);
     const fd = formWith({
       page_id: pageId,
-      section: "lessons",
-      slug: "page-x",
-      title: "T",
-      summary: "",
-      body_md: "# x",
+      section: 'lessons',
+      slug: 'page-x',
+      title: 'T',
+      summary: '',
+      body_md: '# x',
     });
     const res = await saveContentPage(null, fd);
     expect(res.ok).toBe(true);
     expect(retargetHomeMock).not.toHaveBeenCalled();
     expect(retargetReminderMock).not.toHaveBeenCalled();
-    expect(updateFullMock).toHaveBeenCalledWith(pageId, expect.objectContaining({ section: "lessons", sortOrder: 5 }));
+    expect(updateFullMock).toHaveBeenCalledWith(
+      pageId,
+      expect.objectContaining({ section: 'lessons', sortOrder: 5 }),
+    );
     expect(upsertMock).not.toHaveBeenCalled();
   });
 
-  it("returns error when listAll fails", async () => {
-    listAllMock.mockRejectedValue(new Error("db unavailable"));
+  it('returns error when listAll fails', async () => {
+    listAllMock.mockRejectedValue(new Error('db unavailable'));
     const fd = formWith({
-      section: "lessons",
-      slug: "any",
-      title: "T",
-      summary: "S",
-      body_md: "# x",
+      section: 'lessons',
+      slug: 'any',
+      title: 'T',
+      summary: 'S',
+      body_md: '# x',
     });
     const res = await saveContentPage(null, fd);
     expect(res.ok).toBe(false);
@@ -473,17 +482,17 @@ describe("saveContentPage", () => {
     expect(upsertMock).not.toHaveBeenCalled();
   });
 
-  const publishedCourseId = "11111111-1111-4111-8111-111111111111";
+  const publishedCourseId = '11111111-1111-4111-8111-111111111111';
 
-  it("passes linkedCourseId null when linked_course_id empty", async () => {
+  it('passes linkedCourseId null when linked_course_id empty', async () => {
     upsertMock.mockResolvedValue(undefined);
     const fd = formWith({
-      section: "lessons",
-      slug: "no-course",
-      title: "T",
-      summary: "S",
-      body_md: "# x",
-      linked_course_id: "",
+      section: 'lessons',
+      slug: 'no-course',
+      title: 'T',
+      summary: 'S',
+      body_md: '# x',
+      linked_course_id: '',
     });
     const res = await saveContentPage(null, fd);
     expect(res.ok).toBe(true);
@@ -491,40 +500,40 @@ describe("saveContentPage", () => {
     expect(getCourseForDoctorMock).not.toHaveBeenCalled();
   });
 
-  it("rejects invalid linked_course_id", async () => {
+  it('rejects invalid linked_course_id', async () => {
     const fd = formWith({
-      section: "lessons",
-      slug: "bad-course",
-      title: "T",
-      summary: "S",
-      body_md: "# x",
-      linked_course_id: "not-a-uuid",
+      section: 'lessons',
+      slug: 'bad-course',
+      title: 'T',
+      summary: 'S',
+      body_md: '# x',
+      linked_course_id: 'not-a-uuid',
     });
     const res = await saveContentPage(null, fd);
     expect(res.ok).toBe(false);
     expect(upsertMock).not.toHaveBeenCalled();
   });
 
-  it("rejects linked_course_id when course is not published", async () => {
+  it('rejects linked_course_id when course is not published', async () => {
     getCourseForDoctorMock.mockResolvedValue({
       id: publishedCourseId,
-      status: "draft",
-      programTemplateId: "22222222-2222-4222-8222-222222222222",
-      title: "Draft",
+      status: 'draft',
+      programTemplateId: '22222222-2222-4222-8222-222222222222',
+      title: 'Draft',
       description: null,
       introLessonPageId: null,
       accessSettings: {},
       priceMinor: 0,
-      currency: "RUB",
-      createdAt: "",
-      updatedAt: "",
+      currency: 'RUB',
+      createdAt: '',
+      updatedAt: '',
     });
     const fd = formWith({
-      section: "lessons",
-      slug: "x",
-      title: "T",
-      summary: "S",
-      body_md: "# x",
+      section: 'lessons',
+      slug: 'x',
+      title: 'T',
+      summary: 'S',
+      body_md: '# x',
       linked_course_id: publishedCourseId,
     });
     const res = await saveContentPage(null, fd);
@@ -532,48 +541,49 @@ describe("saveContentPage", () => {
     expect(upsertMock).not.toHaveBeenCalled();
   });
 
-  it("denies a course reference when courses is off, after CMS authorization and before any course/page write", async () => {
-    requireEntitlementForActionMock
-      .mockResolvedValueOnce({ ok: true })
-      .mockResolvedValueOnce({
-        ok: false,
-        mechanic: "courses",
-        reason: "entitlement_required",
-      });
+  it('denies a course reference when courses is off, after CMS authorization and before any course/page write', async () => {
+    requireEntitlementForActionMock.mockResolvedValueOnce({ ok: true }).mockResolvedValueOnce({
+      ok: false,
+      mechanic: 'courses',
+      reason: 'entitlement_required',
+    });
 
-    const res = await saveContentPage(null, formWith({
-      section: "lessons",
-      slug: "course-off",
-      title: "T",
-      linked_course_id: publishedCourseId,
-    }));
+    const res = await saveContentPage(
+      null,
+      formWith({
+        section: 'lessons',
+        slug: 'course-off',
+        title: 'T',
+        linked_course_id: publishedCourseId,
+      }),
+    );
 
-    expect(res).toEqual({ ok: false, error: "entitlement_required" });
+    expect(res).toEqual({ ok: false, error: 'entitlement_required' });
     expect(getCourseForDoctorMock).not.toHaveBeenCalled();
     expect(upsertMock).not.toHaveBeenCalled();
   });
 
-  it("saves linked_course_id when course is published", async () => {
+  it('saves linked_course_id when course is published', async () => {
     upsertMock.mockResolvedValue(undefined);
     getCourseForDoctorMock.mockResolvedValue({
       id: publishedCourseId,
-      status: "published",
-      programTemplateId: "22222222-2222-4222-8222-222222222222",
-      title: "Published",
+      status: 'published',
+      programTemplateId: '22222222-2222-4222-8222-222222222222',
+      title: 'Published',
       description: null,
       introLessonPageId: null,
       accessSettings: {},
       priceMinor: 0,
-      currency: "RUB",
-      createdAt: "",
-      updatedAt: "",
+      currency: 'RUB',
+      createdAt: '',
+      updatedAt: '',
     });
     const fd = formWith({
-      section: "lessons",
-      slug: "with-course",
-      title: "T",
-      summary: "S",
-      body_md: "# x",
+      section: 'lessons',
+      slug: 'with-course',
+      title: 'T',
+      summary: 'S',
+      body_md: '# x',
       linked_course_id: publishedCourseId,
     });
     const res = await saveContentPage(null, fd);

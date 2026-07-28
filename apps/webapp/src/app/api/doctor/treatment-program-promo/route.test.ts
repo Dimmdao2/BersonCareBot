@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
   getSessionMock,
@@ -16,9 +16,9 @@ const {
   const resolveOrganizationForUserMockInner = vi.fn(async () => ({
     ok: true,
     context: {
-      organizationId: "550e8400-e29b-41d4-a716-446655440010",
-      membershipId: "membership-1",
-      role: "owner",
+      organizationId: '550e8400-e29b-41d4-a716-446655440010',
+      membershipId: 'membership-1',
+      role: 'owner',
       specialistId: null,
       canManageOrganization: true,
       canManageAllSpecialists: true,
@@ -48,35 +48,35 @@ const {
   };
 });
 
-vi.mock("@/app-layer/di/buildAppDeps", () => ({ buildAppDeps: buildAppDepsMock }));
-vi.mock("@/modules/auth/service", () => ({ getCurrentSession: getSessionMock }));
-vi.mock("@/modules/system-settings/configAdapter", () => ({ invalidateConfigKey: vi.fn() }));
+vi.mock('@/app-layer/di/buildAppDeps', () => ({ buildAppDeps: buildAppDepsMock }));
+vi.mock('@/modules/auth/service', () => ({ getCurrentSession: getSessionMock }));
+vi.mock('@/modules/system-settings/configAdapter', () => ({ invalidateConfigKey: vi.fn() }));
 
-import { GET, PATCH } from "./route";
+import { GET, PATCH } from './route';
 
-const TEMPLATE_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const TEMPLATE_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 
-describe("GET /api/doctor/treatment-program-promo", () => {
+describe('GET /api/doctor/treatment-program-promo', () => {
   beforeEach(() => {
     getSessionMock.mockReset();
     getPatientDefaultPromoMock.mockReset();
     countInstancesMock.mockReset();
   });
 
-  it("returns 401 when no session", async () => {
+  it('returns 401 when no session', async () => {
     getSessionMock.mockResolvedValue(null);
     const res = await GET();
     expect(res.status).toBe(401);
   });
 
-  it("returns 401 for client role (requireDoctorWorkspaceApiContext rejects non-doctor)", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "u1", role: "client", bindings: {} } });
+  it('returns 401 for client role (requireDoctorWorkspaceApiContext rejects non-doctor)', async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: 'u1', role: 'client', bindings: {} } });
     const res = await GET();
     expect(res.status).toBe(401);
   });
 
-  it("returns promo config for doctor", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "d1", role: "doctor", bindings: {} } });
+  it('returns promo config for doctor', async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: 'd1', role: 'doctor', bindings: {} } });
     getPatientDefaultPromoMock.mockResolvedValue(TEMPLATE_ID);
     countInstancesMock.mockResolvedValueOnce(2).mockResolvedValueOnce(5);
     const res = await GET();
@@ -90,51 +90,51 @@ describe("GET /api/doctor/treatment-program-promo", () => {
   });
 });
 
-describe("PATCH /api/doctor/treatment-program-promo", () => {
+describe('PATCH /api/doctor/treatment-program-promo', () => {
   beforeEach(() => {
     getSessionMock.mockReset();
     getTemplateMock.mockReset();
     updateSettingMock.mockReset();
   });
 
-  it("returns 401 for client role (requireDoctorWorkspaceApiContext rejects non-doctor)", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "u1", role: "client", bindings: {} } });
+  it('returns 401 for client role (requireDoctorWorkspaceApiContext rejects non-doctor)', async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: 'u1', role: 'client', bindings: {} } });
     const res = await PATCH(
-      new Request("http://localhost/api/doctor/treatment-program-promo", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+      new Request('http://localhost/api/doctor/treatment-program-promo', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ templateId: TEMPLATE_ID }),
       }),
     );
     expect(res.status).toBe(401);
   });
 
-  it("clears promo template when templateId is empty", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "d1", role: "doctor", bindings: {} } });
+  it('clears promo template when templateId is empty', async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: 'd1', role: 'doctor', bindings: {} } });
     const res = await PATCH(
-      new Request("http://localhost/api/doctor/treatment-program-promo", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ templateId: "" }),
+      new Request('http://localhost/api/doctor/treatment-program-promo', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ templateId: '' }),
       }),
     );
     expect(res.status).toBe(200);
     expect(updateSettingMock).toHaveBeenCalledWith(
-      "patient_default_promo_treatment_program_template_id",
-      "admin",
-      { value: "" },
-      "d1",
-      { organizationId: "550e8400-e29b-41d4-a716-446655440010" },
+      'patient_default_promo_treatment_program_template_id',
+      'admin',
+      { value: '' },
+      'd1',
+      { organizationId: '550e8400-e29b-41d4-a716-446655440010' },
     );
   });
 
-  it("rejects unpublished template", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "d1", role: "doctor", bindings: {} } });
-    getTemplateMock.mockResolvedValue({ status: "draft" });
+  it('rejects unpublished template', async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: 'd1', role: 'doctor', bindings: {} } });
+    getTemplateMock.mockResolvedValue({ status: 'draft' });
     const res = await PATCH(
-      new Request("http://localhost/api/doctor/treatment-program-promo", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+      new Request('http://localhost/api/doctor/treatment-program-promo', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ templateId: TEMPLATE_ID }),
       }),
     );
@@ -142,23 +142,23 @@ describe("PATCH /api/doctor/treatment-program-promo", () => {
     expect(updateSettingMock).not.toHaveBeenCalled();
   });
 
-  it("saves published template for admin", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
-    getTemplateMock.mockResolvedValue({ status: "published" });
+  it('saves published template for admin', async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: 'a1', role: 'admin', bindings: {} } });
+    getTemplateMock.mockResolvedValue({ status: 'published' });
     const res = await PATCH(
-      new Request("http://localhost/api/doctor/treatment-program-promo", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+      new Request('http://localhost/api/doctor/treatment-program-promo', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ templateId: TEMPLATE_ID }),
       }),
     );
     expect(res.status).toBe(200);
     expect(updateSettingMock).toHaveBeenCalledWith(
-      "patient_default_promo_treatment_program_template_id",
-      "admin",
+      'patient_default_promo_treatment_program_template_id',
+      'admin',
       { value: TEMPLATE_ID },
-      "a1",
-      { organizationId: "550e8400-e29b-41d4-a716-446655440010" },
+      'a1',
+      { organizationId: '550e8400-e29b-41d4-a716-446655440010' },
     );
   });
 });

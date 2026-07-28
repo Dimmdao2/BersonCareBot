@@ -1,8 +1,8 @@
 /** @vitest-environment jsdom */
 
-import { describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
-import { PatientHomeProgressBlock } from "./PatientHomeProgressBlock";
+import { describe, expect, it } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import { PatientHomeProgressBlock } from './PatientHomeProgressBlock';
 
 const baseMetrics = {
   warmupPlanned: 2,
@@ -14,13 +14,13 @@ const baseMetrics = {
   plannedTotal: 3,
 };
 
-describe("PatientHomeProgressBlock", () => {
-  it("shows login hint for anonymous guest", () => {
+describe('PatientHomeProgressBlock', () => {
+  it('shows login hint for anonymous guest', () => {
     render(<PatientHomeProgressBlock metrics={null} anonymousGuest />);
-    expect(screen.getByRole("link", { name: /Войдите/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Войдите/i })).toBeInTheDocument();
   });
 
-  it("shows counters and incomplete goals flame copy", () => {
+  it('shows counters and incomplete goals flame copy', () => {
     render(<PatientHomeProgressBlock metrics={baseMetrics} anonymousGuest={false} />);
     expect(
       screen.getByLabelText(
@@ -32,7 +32,7 @@ describe("PatientHomeProgressBlock", () => {
     expect(screen.getByLabelText(/Еще немного и все получится!/i)).toBeInTheDocument();
   });
 
-  it("shows met goals flame copy when done equals plan", () => {
+  it('shows met goals flame copy when done equals plan', () => {
     render(
       <PatientHomeProgressBlock
         metrics={{ ...baseMetrics, warmupDone: 2, trainingDone: 1, doneTotal: 3 }}
@@ -42,7 +42,7 @@ describe("PatientHomeProgressBlock", () => {
     expect(screen.getByLabelText(/Все цели выполнены!/)).toBeInTheDocument();
   });
 
-  it("shows exceeded goals flame copy when done is above plan", () => {
+  it('shows exceeded goals flame copy when done is above plan', () => {
     render(
       <PatientHomeProgressBlock
         metrics={{ ...baseMetrics, trainingDone: 2, doneTotal: 4 }}

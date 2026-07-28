@@ -44,7 +44,7 @@
 - Line 718: Guards `if (selectedWeekday === null) return;`
 - Line 719–722: Filters `workingHours` state by `r.weekday === selectedWeekday && r.isActive`.
 - Line 723–725: If nothing to deactivate, sets a friendly `actionOk` message and returns without making any requests — empty case handled gracefully.
-- Lines 728–731: DELETEs each active row via `apiJson(\`${WH_BASE}?id=${encodeURIComponent(r.id)}\`, { method: "DELETE" })` — correct URL and method matching the backend DELETE handler which reads `?id=` param.
+- Lines 728–731: DELETEs each active row via `apiJson(\`${WH_BASE}?id=${encodeURIComponent(r.id)}\`, { method: "DELETE" })`— correct URL and method matching the backend DELETE handler which reads`?id=` param.
 
 ---
 
@@ -111,9 +111,9 @@
 
 ## Issues Summary
 
-| # | Severity | Description |
-|---|----------|-------------|
-| 1 | Low / Dead code | Lines 696–699 in `handleSaveWeekdayTemplate` compute `const breaks: BreakInterval[]` but never include it in the POST body. Backend schema has no `breaks` field for working-hours. The variable should be removed to avoid future confusion. |
+| #   | Severity        | Description                                                                                                                                                                                                                                   |
+| --- | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Low / Dead code | Lines 696–699 in `handleSaveWeekdayTemplate` compute `const breaks: BreakInterval[]` but never include it in the POST body. Backend schema has no `breaks` field for working-hours. The variable should be removed to avoid future confusion. |
 
 ---
 

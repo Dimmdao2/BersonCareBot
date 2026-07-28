@@ -58,13 +58,22 @@ function toAction(step: Step, context: DomainContext): Action {
 }
 
 function extractPhone(event: IncomingEvent): string | null {
-  const payload = event.payload as { phoneNormalized?: unknown; phone?: unknown; body?: { data?: { phone?: unknown } } };
-  const directPhone = typeof payload.phoneNormalized === 'string'
-    ? payload.phoneNormalized
-    : (typeof payload.phone === 'string' ? payload.phone : null);
+  const payload = event.payload as {
+    phoneNormalized?: unknown;
+    phone?: unknown;
+    body?: { data?: { phone?: unknown } };
+  };
+  const directPhone =
+    typeof payload.phoneNormalized === 'string'
+      ? payload.phoneNormalized
+      : typeof payload.phone === 'string'
+        ? payload.phone
+        : null;
   if (directPhone && directPhone.trim().length > 0) return directPhone.trim();
   const nestedPhone = payload.body?.data?.phone;
-  return typeof nestedPhone === 'string' && nestedPhone.trim().length > 0 ? nestedPhone.trim() : null;
+  return typeof nestedPhone === 'string' && nestedPhone.trim().length > 0
+    ? nestedPhone.trim()
+    : null;
 }
 
 function extractChannelId(event: IncomingEvent): string | null {
@@ -74,11 +83,12 @@ function extractChannelId(event: IncomingEvent): string | null {
     incoming?: { channelId?: unknown; channelUserId?: unknown };
   };
   const fromIncoming = payload.incoming;
-  const value = fromIncoming?.channelId
-    ?? fromIncoming?.channelUserId
-    ?? payload.channelId
-    ?? payload.channelUserId
-    ?? event.meta.userId;
+  const value =
+    fromIncoming?.channelId ??
+    fromIncoming?.channelUserId ??
+    payload.channelId ??
+    payload.channelUserId ??
+    event.meta.userId;
 
   if (typeof value === 'string' && value.trim().length > 0) return value.trim();
   if (typeof value === 'number' && Number.isFinite(value)) return String(Math.trunc(value));
@@ -88,7 +98,7 @@ function extractChannelId(event: IncomingEvent): string | null {
 function extractFacts(event: IncomingEvent): Record<string, unknown> {
   const payload = event.payload as { facts?: unknown };
   return typeof payload.facts === 'object' && payload.facts !== null
-    ? payload.facts as Record<string, unknown>
+    ? (payload.facts as Record<string, unknown>)
     : {};
 }
 
@@ -112,28 +122,31 @@ type ReadConversationContext = {
 async function loadUserContext(
   event: IncomingEvent,
   readPort?: DbReadPort,
-): Promise<Pick<
-  BaseContext,
-  | 'conversationState'
-  | 'linkedPhone'
-  | 'phoneNormalized'
-  | 'hasActiveDraft'
-  | 'draftState'
-  | 'draftTextCurrent'
-  | 'draftSourceMessageId'
-  | 'hasOpenConversation'
-  | 'activeConversationId'
-  | 'activeConversationStatus'
-  | 'replyMode'
-  | 'replyConversationId'
-  | 'programNoteStageItemId'
->> {
+): Promise<
+  Pick<
+    BaseContext,
+    | 'conversationState'
+    | 'linkedPhone'
+    | 'phoneNormalized'
+    | 'hasActiveDraft'
+    | 'draftState'
+    | 'draftTextCurrent'
+    | 'draftSourceMessageId'
+    | 'hasOpenConversation'
+    | 'activeConversationId'
+    | 'activeConversationStatus'
+    | 'replyMode'
+    | 'replyConversationId'
+    | 'programNoteStageItemId'
+  >
+> {
   if (!readPort) return {};
   const externalId = extractChannelId(event);
   if (!externalId) return {};
-  const resource = typeof event.meta.source === 'string' && event.meta.source.trim().length > 0
-    ? event.meta.source.trim()
-    : null;
+  const resource =
+    typeof event.meta.source === 'string' && event.meta.source.trim().length > 0
+      ? event.meta.source.trim()
+      : null;
   if (!resource) return {};
 
   // Fail-open per read: on the bootstrap pre-routing/unresolved-org path (brand-new/never-enrolled
@@ -161,7 +174,10 @@ async function loadUserContext(
         params: { resource, externalId, source: event.meta.source },
       })
       .catch((err: unknown) => {
-        logger.warn({ err }, 'loadUserContext: draft.activeByIdentity failed, treating as no active draft');
+        logger.warn(
+          { err },
+          'loadUserContext: draft.activeByIdentity failed, treating as no active draft',
+        );
         return null;
       }),
     readPort
@@ -170,7 +186,10 @@ async function loadUserContext(
         params: { resource, externalId, source: event.meta.source },
       })
       .catch((err: unknown) => {
-        logger.warn({ err }, 'loadUserContext: conversation.openByIdentity failed, treating as no open conversation');
+        logger.warn(
+          { err },
+          'loadUserContext: conversation.openByIdentity failed, treating as no open conversation',
+        );
         return null;
       }),
   ]);
@@ -194,25 +213,30 @@ async function loadUserContext(
 
   if (!user || typeof user !== 'object') {
     if (draft && typeof draft === 'object') {
-      const draftState = typeof draft.state === 'string' && draft.state.trim().length > 0 ? draft.state : undefined;
-      const draftTextCurrent = typeof draft.draft_text_current === 'string' && draft.draft_text_current.trim().length > 0
-        ? draft.draft_text_current
-        : undefined;
-      const draftSourceMessageId = typeof draft.external_message_id === 'string' && draft.external_message_id.trim().length > 0
-        ? draft.external_message_id
-        : undefined;
+      const draftState =
+        typeof draft.state === 'string' && draft.state.trim().length > 0 ? draft.state : undefined;
+      const draftTextCurrent =
+        typeof draft.draft_text_current === 'string' && draft.draft_text_current.trim().length > 0
+          ? draft.draft_text_current
+          : undefined;
+      const draftSourceMessageId =
+        typeof draft.external_message_id === 'string' && draft.external_message_id.trim().length > 0
+          ? draft.external_message_id
+          : undefined;
       result.hasActiveDraft = true;
       if (draftState) result.draftState = draftState;
       if (draftTextCurrent) result.draftTextCurrent = draftTextCurrent;
       if (draftSourceMessageId) result.draftSourceMessageId = draftSourceMessageId;
     }
     if (openConversation && typeof openConversation === 'object') {
-      const conversationId = typeof openConversation.id === 'string' && openConversation.id.trim().length > 0
-        ? openConversation.id
-        : undefined;
-      const conversationStatus = typeof openConversation.status === 'string' && openConversation.status.trim().length > 0
-        ? openConversation.status
-        : undefined;
+      const conversationId =
+        typeof openConversation.id === 'string' && openConversation.id.trim().length > 0
+          ? openConversation.id
+          : undefined;
+      const conversationStatus =
+        typeof openConversation.status === 'string' && openConversation.status.trim().length > 0
+          ? openConversation.status
+          : undefined;
       result.hasOpenConversation = !!conversationId;
       if (conversationId) result.activeConversationId = conversationId;
       if (conversationStatus) result.activeConversationStatus = conversationStatus;
@@ -221,12 +245,14 @@ async function loadUserContext(
     result.linkedPhone = false;
     return result;
   }
-  const conversationState = typeof user.userState === 'string' && user.userState.trim().length > 0
-    ? user.userState
-    : undefined;
-  const phoneNormalized = typeof user.phoneNormalized === 'string' && user.phoneNormalized.trim().length > 0
-    ? user.phoneNormalized.trim()
-    : undefined;
+  const conversationState =
+    typeof user.userState === 'string' && user.userState.trim().length > 0
+      ? user.userState
+      : undefined;
+  const phoneNormalized =
+    typeof user.phoneNormalized === 'string' && user.phoneNormalized.trim().length > 0
+      ? user.phoneNormalized.trim()
+      : undefined;
   const linkedPhone = !!phoneNormalized;
   if (conversationState) result.conversationState = conversationState;
   result.linkedPhone = linkedPhone;
@@ -248,13 +274,16 @@ async function loadUserContext(
   }
 
   if (draft && typeof draft === 'object') {
-    const draftState = typeof draft.state === 'string' && draft.state.trim().length > 0 ? draft.state : undefined;
-    const draftTextCurrent = typeof draft.draft_text_current === 'string' && draft.draft_text_current.trim().length > 0
-      ? draft.draft_text_current
-      : undefined;
-    const draftSourceMessageId = typeof draft.external_message_id === 'string' && draft.external_message_id.trim().length > 0
-      ? draft.external_message_id
-      : undefined;
+    const draftState =
+      typeof draft.state === 'string' && draft.state.trim().length > 0 ? draft.state : undefined;
+    const draftTextCurrent =
+      typeof draft.draft_text_current === 'string' && draft.draft_text_current.trim().length > 0
+        ? draft.draft_text_current
+        : undefined;
+    const draftSourceMessageId =
+      typeof draft.external_message_id === 'string' && draft.external_message_id.trim().length > 0
+        ? draft.external_message_id
+        : undefined;
     result.hasActiveDraft = true;
     if (draftState) result.draftState = draftState;
     if (draftTextCurrent) result.draftTextCurrent = draftTextCurrent;
@@ -262,12 +291,14 @@ async function loadUserContext(
   }
 
   if (openConversation && typeof openConversation === 'object') {
-    const conversationId = typeof openConversation.id === 'string' && openConversation.id.trim().length > 0
-      ? openConversation.id
-      : undefined;
-    const conversationStatus = typeof openConversation.status === 'string' && openConversation.status.trim().length > 0
-      ? openConversation.status
-      : undefined;
+    const conversationId =
+      typeof openConversation.id === 'string' && openConversation.id.trim().length > 0
+        ? openConversation.id
+        : undefined;
+    const conversationStatus =
+      typeof openConversation.status === 'string' && openConversation.status.trim().length > 0
+        ? openConversation.status
+        : undefined;
     result.hasOpenConversation = !!conversationId;
     if (conversationId) result.activeConversationId = conversationId;
     if (conversationStatus) result.activeConversationStatus = conversationStatus;
@@ -301,7 +332,6 @@ async function buildBaseContext(event: IncomingEvent, readPort?: DbReadPort): Pr
   return base;
 }
 
-
 /** Строит контекст, план по сценариям и выполняет шаги; возвращает записи в БД, исходящие сообщения и задания (сама рассылка не здесь). */
 export async function handleIncomingEvent(
   event: IncomingEvent,
@@ -318,9 +348,7 @@ export async function handleIncomingEvent(
     base,
   };
 
-  const steps = deps.buildPlan
-    ? await deps.buildPlan({ event, context: base })
-    : [];
+  const steps = deps.buildPlan ? await deps.buildPlan({ event, context: base }) : [];
 
   const actions: Action[] = [];
   const execute = deps.executeAction

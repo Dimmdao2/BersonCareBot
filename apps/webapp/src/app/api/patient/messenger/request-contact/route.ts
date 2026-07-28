@@ -1,12 +1,12 @@
-import { type NextRequest, NextResponse } from "next/server";
-import { requirePatientApiSession } from "@/app-layer/guards/requireRole";
-import { requestMessengerContactViaIntegrator } from "@/modules/messaging/requestMessengerContact";
-import { patientClientBusinessGate } from "@/app-layer/platform-access";
-import { env } from "@/config/env";
+import { type NextRequest, NextResponse } from 'next/server';
+import { requirePatientApiSession } from '@/app-layer/guards/requireRole';
+import { requestMessengerContactViaIntegrator } from '@/modules/messaging/requestMessengerContact';
+import { patientClientBusinessGate } from '@/app-layer/platform-access';
+import { env } from '@/config/env';
 import {
   AUTH_CHANNEL_DISABLED_ERROR,
   isAuthChannelEnabled,
-} from "@/modules/auth/authChannelPolicy";
+} from '@/modules/auth/authChannelPolicy';
 
 const RATE_LIMIT_MS = 60_000;
 const lastRequestContactByUserId = new Map<string, number>();
@@ -15,19 +15,19 @@ function resolveMessengerContactTarget(input: {
   headerHint: string | null;
   telegramId: string;
   maxId: string;
-}): { channel: "telegram" | "max"; recipientId: string } | null {
+}): { channel: 'telegram' | 'max'; recipientId: string } | null {
   const tg = input.telegramId.trim();
   const mx = input.maxId.trim();
   const hint = input.headerHint?.trim().toLowerCase();
   if (tg && mx) {
-    if (hint === "max" && mx) return { channel: "max", recipientId: mx };
-    if (hint === "telegram" && tg) return { channel: "telegram", recipientId: tg };
+    if (hint === 'max' && mx) return { channel: 'max', recipientId: mx };
+    if (hint === 'telegram' && tg) return { channel: 'telegram', recipientId: tg };
     return null;
   }
-  if (hint === "max" && mx) return { channel: "max", recipientId: mx };
-  if (hint === "telegram" && tg) return { channel: "telegram", recipientId: tg };
-  if (tg) return { channel: "telegram", recipientId: tg };
-  if (mx) return { channel: "max", recipientId: mx };
+  if (hint === 'max' && mx) return { channel: 'max', recipientId: mx };
+  if (hint === 'telegram' && tg) return { channel: 'telegram', recipientId: tg };
+  if (tg) return { channel: 'telegram', recipientId: tg };
+  if (mx) return { channel: 'max', recipientId: mx };
   return null;
 }
 
@@ -40,33 +40,30 @@ export async function POST(request: NextRequest) {
   if (!gate.ok) return gate.response;
   const session = gate.session;
 
-  const tg = session.user.bindings.telegramId?.trim() ?? "";
-  const mx = session.user.bindings.maxId?.trim() ?? "";
-  const hint = request.headers.get("x-bersoncare-contact-channel");
+  const tg = session.user.bindings.telegramId?.trim() ?? '';
+  const mx = session.user.bindings.maxId?.trim() ?? '';
+  const hint = request.headers.get('x-bersoncare-contact-channel');
   const target = resolveMessengerContactTarget({ headerHint: hint, telegramId: tg, maxId: mx });
   if (target && !(await isAuthChannelEnabled(target.channel))) {
-    return NextResponse.json(
-      { ok: false, error: AUTH_CHANNEL_DISABLED_ERROR },
-      { status: 403 },
-    );
+    return NextResponse.json({ ok: false, error: AUTH_CHANNEL_DISABLED_ERROR }, { status: 403 });
   }
 
   if (env.DATABASE_URL?.trim()) {
     const gate = await patientClientBusinessGate(session);
-    if (gate === "stale_session") {
-      return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+    if (gate === 'stale_session') {
+      return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 });
     }
-    if (gate !== "need_activation") {
-      return NextResponse.json({ ok: false, error: "not_required" }, { status: 400 });
+    if (gate !== 'need_activation') {
+      return NextResponse.json({ ok: false, error: 'not_required' }, { status: 400 });
     }
   } else {
     if (session.user.phone?.trim()) {
-      return NextResponse.json({ ok: false, error: "not_required" }, { status: 400 });
+      return NextResponse.json({ ok: false, error: 'not_required' }, { status: 400 });
     }
   }
 
   if (!target) {
-    const err = tg && mx ? "contact_channel_required" : "no_messenger_binding";
+    const err = tg && mx ? 'contact_channel_required' : 'no_messenger_binding';
     return NextResponse.json({ ok: false, error: err }, { status: 400 });
   }
 
@@ -75,7 +72,7 @@ export async function POST(request: NextRequest) {
     const now = Date.now();
     const prev = lastRequestContactByUserId.get(uid);
     if (prev !== undefined && now - prev < RATE_LIMIT_MS) {
-      return NextResponse.json({ ok: false, error: "rate_limited" }, { status: 429 });
+      return NextResponse.json({ ok: false, error: 'rate_limited' }, { status: 429 });
     }
   }
 
@@ -84,7 +81,8 @@ export async function POST(request: NextRequest) {
     recipientId: target.recipientId,
   });
   if (!result.ok) {
-    const status = result.reason === "no_integrator_url" || result.reason === "no_webhook_secret" ? 503 : 502;
+    const status =
+      result.reason === 'no_integrator_url' || result.reason === 'no_webhook_secret' ? 503 : 502;
     return NextResponse.json({ ok: false, error: result.reason }, { status });
   }
 

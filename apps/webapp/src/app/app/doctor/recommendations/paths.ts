@@ -1,1 +1,1 @@
-export const RECOMMENDATIONS_PATH = "/app/doctor/recommendations";
+export const RECOMMENDATIONS_PATH = '/app/doctor/recommendations';

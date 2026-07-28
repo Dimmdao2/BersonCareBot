@@ -1,33 +1,36 @@
-import type { ReactNode } from "react";
-import { headers } from "next/headers";
-import { redirect } from "next/navigation";
-import { patientClientBusinessGate } from "@/app-layer/platform-access";
-import { patientPathRequiresBoundPhone, resolvePatientLayoutPathname } from "@/modules/platform-access";
-import { logger } from "@/infra/logging/logger";
-import { routePaths } from "@/app-layer/routes/paths";
-import { env } from "@/config/env";
-import { getCurrentSession } from "@/modules/auth/service";
-import { buildOwnHubUrlWithAccessDeniedToast } from "@/shared/lib/appAccessDeniedToast";
-import { canAccessPatient } from "@/modules/roles/service";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
+import type { ReactNode } from 'react';
+import { headers } from 'next/headers';
+import { redirect } from 'next/navigation';
+import { patientClientBusinessGate } from '@/app-layer/platform-access';
+import {
+  patientPathRequiresBoundPhone,
+  resolvePatientLayoutPathname,
+} from '@/modules/platform-access';
+import { logger } from '@/infra/logging/logger';
+import { routePaths } from '@/app-layer/routes/paths';
+import { env } from '@/config/env';
+import { getCurrentSession } from '@/modules/auth/service';
+import { buildOwnHubUrlWithAccessDeniedToast } from '@/shared/lib/appAccessDeniedToast';
+import { canAccessPatient } from '@/modules/roles/service';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 import {
   getPatientMaintenanceConfig,
   patientMaintenanceReplacesPatientShell,
   patientMaintenanceSkipsPath,
-} from "@/modules/system-settings/patientMaintenance";
+} from '@/modules/system-settings/patientMaintenance';
 import {
   PatientMaintenanceScreen,
   selectMaintenanceUpcomingBookings,
   type PatientMaintenanceBooking,
-} from "./PatientMaintenanceScreen";
-import { PatientClientLayout } from "./PatientClientLayout";
+} from './PatientMaintenanceScreen';
+import { PatientClientLayout } from './PatientClientLayout';
 import {
   resolvePatientOrganizationRequestContext,
   stampPatientOrganizationRequestContext,
-} from "@/app-layer/patient-organization/requestContext";
-import { PatientOrganizationRecoveryScreen } from "@/shared/ui/patient/organization/PatientOrganizationContext";
-import { getAuthChannelPolicy } from "@/modules/auth/authChannelPolicy";
+} from '@/app-layer/patient-organization/requestContext';
+import { PatientOrganizationRecoveryScreen } from '@/shared/ui/patient/organization/PatientOrganizationContext';
+import { getAuthChannelPolicy } from '@/modules/auth/authChannelPolicy';
 
 function patientPathAllowsGlobalAccountWithoutCareContext(pathname: string): boolean {
   return [
@@ -36,9 +39,7 @@ function patientPathAllowsGlobalAccountWithoutCareContext(pathname: string): boo
     routePaths.bindPhone,
     routePaths.notifications,
     routePaths.patientInstall,
-  ].some(
-    (path) => pathname === path || pathname.startsWith(`${path}/`),
-  );
+  ].some((path) => pathname === path || pathname.startsWith(`${path}/`));
 }
 
 /**
@@ -48,7 +49,7 @@ function patientPathAllowsGlobalAccountWithoutCareContext(pathname: string): boo
 export default async function PatientLayout({ children }: { children: ReactNode }) {
   const h = await headers();
   const pathname = resolvePatientLayoutPathname((name) => h.get(name));
-  const search = h.get("x-bc-search") ?? "";
+  const search = h.get('x-bc-search') ?? '';
   const session = await getCurrentSession();
 
   if (!session) {
@@ -67,14 +68,14 @@ export default async function PatientLayout({ children }: { children: ReactNode 
   const gate = await patientClientBusinessGate(session);
 
   if (env.DATABASE_URL?.trim()) {
-    if (gate === "stale_session") {
+    if (gate === 'stale_session') {
       redirect(`${routePaths.root}?next=${encodeURIComponent(returnTo)}`);
     }
   } else if (!session.user.phone?.trim() && patientPathRequiresBoundPhone(pathname)) {
     redirect(`${routePaths.bindPhone}?next=${encodeURIComponent(returnTo)}`);
   }
 
-  if (session.user.role === "client") {
+  if (session.user.role === 'client') {
     const deps = buildAppDeps();
     const patientContext = await resolvePatientOrganizationRequestContext(
       deps.patientOrganization,
@@ -82,14 +83,22 @@ export default async function PatientLayout({ children }: { children: ReactNode 
     );
     if (!patientContext.ok) {
       if (patientPathAllowsGlobalAccountWithoutCareContext(pathname)) {
-        return <PatientClientLayout authChannelPolicy={authChannelPolicy}>{children}</PatientClientLayout>;
+        return (
+          <PatientClientLayout authChannelPolicy={authChannelPolicy}>
+            {children}
+          </PatientClientLayout>
+        );
       }
       return (
         <PatientClientLayout authChannelPolicy={authChannelPolicy}>
           <PatientOrganizationRecoveryScreen
-            organizations={patientContext.reason === "organization_selection_required" ? patientContext.organizations : []}
+            organizations={
+              patientContext.reason === 'organization_selection_required'
+                ? patientContext.organizations
+                : []
+            }
             invalidRememberedOrganization={
-              patientContext.reason === "organization_selection_required" &&
+              patientContext.reason === 'organization_selection_required' &&
               patientContext.invalidRememberedOrganization
             }
           />
@@ -99,7 +108,7 @@ export default async function PatientLayout({ children }: { children: ReactNode 
     stampPatientOrganizationRequestContext({
       organizationId: patientContext.organizationId,
       platformUserId: session.user.userId,
-      source: "app.patient.layout",
+      source: 'app.patient.layout',
     });
     const patientOrganizationId = patientContext.organizationId;
     const maintenance = await getPatientMaintenanceConfig(patientOrganizationId);
@@ -116,23 +125,25 @@ export default async function PatientLayout({ children }: { children: ReactNode 
         isTestAccount = await deps.systemSettings.isCurrentPatientTestAccount();
       } catch (err) {
         logger.warn({
-          scope: "patient_layout",
-          event: "patient_test_account_check_failed",
+          scope: 'patient_layout',
+          event: 'patient_test_account_check_failed',
           error: err instanceof Error ? err.message : String(err),
         });
         isTestAccount = false;
       }
     }
 
-    if (patientMaintenanceReplacesPatientShell(maintenance.enabled, skipMaintenance, isTestAccount)) {
+    if (
+      patientMaintenanceReplacesPatientShell(maintenance.enabled, skipMaintenance, isTestAccount)
+    ) {
       let upcoming: PatientMaintenanceBooking[] = [];
       try {
         const records = await deps.patientMaintenanceHistory.listCurrentPatientHistory();
         upcoming = selectMaintenanceUpcomingBookings(records);
       } catch (err) {
         logger.warn({
-          scope: "patient_layout",
-          event: "patient_maintenance_bookings_failed",
+          scope: 'patient_layout',
+          event: 'patient_maintenance_bookings_failed',
           error: err instanceof Error ? err.message : String(err),
         });
       }
@@ -140,7 +151,10 @@ export default async function PatientLayout({ children }: { children: ReactNode 
       const appDisplayTimeZone = await getAppDisplayTimeZone();
 
       return (
-        <PatientClientLayout organizationContext={patientContext} authChannelPolicy={authChannelPolicy}>
+        <PatientClientLayout
+          organizationContext={patientContext}
+          authChannelPolicy={authChannelPolicy}
+        >
           <PatientMaintenanceScreen
             user={session.user}
             message={maintenance.message}
@@ -154,7 +168,7 @@ export default async function PatientLayout({ children }: { children: ReactNode 
     return (
       <PatientClientLayout
         organizationContext={patientContext}
-        rememberOrganizationOnMount={patientContext.selectedBy === "only_active"}
+        rememberOrganizationOnMount={patientContext.selectedBy === 'only_active'}
         authChannelPolicy={authChannelPolicy}
       >
         {children}
@@ -162,5 +176,7 @@ export default async function PatientLayout({ children }: { children: ReactNode 
     );
   }
 
-  return <PatientClientLayout authChannelPolicy={authChannelPolicy}>{children}</PatientClientLayout>;
+  return (
+    <PatientClientLayout authChannelPolicy={authChannelPolicy}>{children}</PatientClientLayout>
+  );
 }

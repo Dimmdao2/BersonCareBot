@@ -1,7 +1,7 @@
-import { describe, expect, it } from "vitest";
-import { buildDigestHealthSnapshotLines } from "./digestHealthSnapshotLines";
+import { describe, expect, it } from 'vitest';
+import { buildDigestHealthSnapshotLines } from './digestHealthSnapshotLines';
 
-const emptyCronJobs = { status: "ok" as const, jobs: [] };
+const emptyCronJobs = { status: 'ok' as const, jobs: [] };
 
 const emptyIpo = {
   dueBacklog: 0,
@@ -15,90 +15,90 @@ const emptyIpo = {
 };
 
 const base = {
-  integratorApi: "ok" as const,
-  projection: { probeStatus: "ok" as const, deadCount: 0, retriesOverThreshold: 0 },
+  integratorApi: 'ok' as const,
+  projection: { probeStatus: 'ok' as const, deadCount: 0, retriesOverThreshold: 0 },
   outgoingDelivery: { dueBacklog: 0, deadTotal: 0 },
   outboundDeliveryProvider: { recentIncidentCount: 0 },
   integratorPushOutbox: emptyIpo,
   backupJobs: {},
   probeConsecutiveFailRuns: 0,
   probeIncidentsOpenCount: 0,
-  videoTranscodeStatus: "ok" as const,
+  videoTranscodeStatus: 'ok' as const,
   cronJobs: emptyCronJobs,
   operatorIncidentsOpenCount: 0,
 };
 
-describe("buildDigestHealthSnapshotLines", () => {
-  it("includes ongoing critical webapp db down", () => {
-    const lines = buildDigestHealthSnapshotLines({ ...base, webappDb: "down" });
-    expect(lines).toContain("БД webapp: недоступна");
+describe('buildDigestHealthSnapshotLines', () => {
+  it('includes ongoing critical webapp db down', () => {
+    const lines = buildDigestHealthSnapshotLines({ ...base, webappDb: 'down' });
+    expect(lines).toContain('БД webapp: недоступна');
   });
 
-  it("includes ongoing critical projection dead", () => {
+  it('includes ongoing critical projection dead', () => {
     const lines = buildDigestHealthSnapshotLines({
       ...base,
-      webappDb: "up",
-      projection: { probeStatus: "ok", deadCount: 2, retriesOverThreshold: 0 },
+      webappDb: 'up',
+      projection: { probeStatus: 'ok', deadCount: 2, retriesOverThreshold: 0 },
     });
-    expect(lines.some((l) => l.includes("Projection:"))).toBe(true);
-    expect(lines.some((l) => l.includes("dead: 2"))).toBe(true);
+    expect(lines.some((l) => l.includes('Projection:'))).toBe(true);
+    expect(lines.some((l) => l.includes('dead: 2'))).toBe(true);
   });
 
-  it("includes the threshold-gated probe incident critical line", () => {
+  it('includes the threshold-gated probe incident critical line', () => {
     const lines = buildDigestHealthSnapshotLines({
       ...base,
-      webappDb: "up",
+      webappDb: 'up',
       probeConsecutiveFailRuns: 2,
       probeIncidentsOpenCount: 1,
     });
-    expect(lines.some((l) => l.includes("Синтетические пробы"))).toBe(true);
+    expect(lines.some((l) => l.includes('Синтетические пробы'))).toBe(true);
   });
 
-  it("uses the same provider-failure critical line as the scheduled classifier", () => {
+  it('uses the same provider-failure critical line as the scheduled classifier', () => {
     const lines = buildDigestHealthSnapshotLines({
       ...base,
-      webappDb: "up",
+      webappDb: 'up',
       outboundDeliveryProvider: { recentIncidentCount: 1 },
     });
-    expect(lines).toContain("🛑 ! Исходящая доставка: отказ провайдера");
-    expect(lines.some((line) => line.includes("Свежих классов синхронного отказа"))).toBe(true);
+    expect(lines).toContain('🛑 ! Исходящая доставка: отказ провайдера');
+    expect(lines.some((line) => line.includes('Свежих классов синхронного отказа'))).toBe(true);
   });
 
-  it("keeps an old but open provider incident red in the morning snapshot", () => {
+  it('keeps an old but open provider incident red in the morning snapshot', () => {
     const lines = buildDigestHealthSnapshotLines({
       ...base,
-      webappDb: "up",
+      webappDb: 'up',
       outboundDeliveryProvider: { recentIncidentCount: 0, openIncidentCount: 1 },
     });
-    expect(lines).toContain("🛑 ! Исходящая доставка: отказ провайдера");
+    expect(lines).toContain('🛑 ! Исходящая доставка: отказ провайдера');
   });
 
-  it("includes projection retries only when debounce allows", () => {
+  it('includes projection retries only when debounce allows', () => {
     const withDebounce = buildDigestHealthSnapshotLines({
       ...base,
-      webappDb: "up",
-      projection: { probeStatus: "ok", deadCount: 0, retriesOverThreshold: 3 },
+      webappDb: 'up',
+      projection: { probeStatus: 'ok', deadCount: 0, retriesOverThreshold: 3 },
       projectionDigestDebounce: { includeRetriesLine: true, includeStalePendingLine: false },
     });
-    expect(withDebounce).toContain("Projection: ретраи (3)");
+    expect(withDebounce).toContain('Projection: ретраи (3)');
 
     const withoutDebounce = buildDigestHealthSnapshotLines({
       ...base,
-      webappDb: "up",
-      projection: { probeStatus: "ok", deadCount: 0, retriesOverThreshold: 3 },
+      webappDb: 'up',
+      projection: { probeStatus: 'ok', deadCount: 0, retriesOverThreshold: 3 },
     });
-    expect(withoutDebounce.some((l) => l.includes("ретраи"))).toBe(false);
+    expect(withoutDebounce.some((l) => l.includes('ретраи'))).toBe(false);
   });
 
-  it("omits open incidents line when probe already critical", () => {
+  it('omits open incidents line when probe already critical', () => {
     const lines = buildDigestHealthSnapshotLines({
       ...base,
-      webappDb: "up",
+      webappDb: 'up',
       probeConsecutiveFailRuns: 2,
       probeIncidentsOpenCount: 1,
       operatorIncidentsOpenCount: 2,
     });
-    expect(lines.some((l) => l.startsWith("Открытые инциденты:"))).toBe(false);
-    expect(lines.some((l) => l.includes("Синтетические пробы"))).toBe(true);
+    expect(lines.some((l) => l.startsWith('Открытые инциденты:'))).toBe(false);
+    expect(lines.some((l) => l.includes('Синтетические пробы'))).toBe(true);
   });
 });

@@ -20,7 +20,6 @@ production readiness.
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-
 - [ ] Роли оператора/обработчика и цели обработки утверждены (`G-01`).
 - [ ] Тексты/основания согласия, политика, договоры поручения и vendor register утверждены.
 - [ ] Для health consent внешний юрист подтвердил применимое основание, письменную форму/электронную подпись,
@@ -41,7 +40,6 @@ production readiness.
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-
 - [ ] Для launch закрыт `PR-03A`: manual authenticated request process работает, retention/legal holds утверждены,
       необратимый purge технически disabled и это покрыто проверкой.
 - [ ] Tenant-negative tests закрывают все реализованные privacy/audit paths; export/delete automation добавляется
@@ -49,8 +47,8 @@ production readiness.
 - [ ] Clinical access audit фиксирует success/deny/download/export без clinical payload.
 - [ ] Retention jobs идемпотентны, наблюдаемы и не обходят legal holds/обязательные сроки.
 - [ ] До purge доказаны recovery window, несколько email reminders и доступный export bundle с исходными
-  файлами/видео без tenant leakage; многогигабайтная выгрузка возобновляется после прерывания; реактивация внутри
-  окна сохраняет данные.
+      файлами/видео без tenant leakage; многогигабайтная выгрузка возобновляется после прерывания; реактивация внутри
+      окна сохраняет данные.
 - [ ] Если `PR-03B` ещё не закрыт при launch: пункт выше отмечен как accepted deferral с owner/deadline; ни один
       manual/timer/job/API path не может выполнить irreversible purge. Полное закрытие инициативы ждёт `PR-03B`.
 - [ ] Payment retention согласован с финальным billing contract `#751`.
@@ -72,7 +70,6 @@ production readiness.
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-
 - [ ] SG/firewall/SSH/fail2ban и rollback проверены без deploy lockout.
 - [ ] Service users/systemd sandbox/env permissions соответствуют утверждённой матрице.
 - [ ] Все secrets имеют owner, storage, rotation, revoke и emergency procedure; один drill выполнен.
@@ -92,7 +89,6 @@ production readiness.
 > **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
-
 
 - [ ] Central security logs и alerts проверены; секреты/clinical payload не попадают в лог.
 - [ ] `G-06B` имеет явный verdict: adopted EDR/HIDS доказал detection/load/alert/rollback и отдельный RU sink либо

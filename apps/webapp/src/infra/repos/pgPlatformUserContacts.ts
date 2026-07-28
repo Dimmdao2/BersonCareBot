@@ -1,12 +1,15 @@
-import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
-import { and, asc, eq, sql } from "drizzle-orm";
-import { getDrizzle } from "@/app-layer/db/drizzle";
+import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
+import { and, asc, eq, sql } from 'drizzle-orm';
+import { getDrizzle } from '@/app-layer/db/drizzle';
 import type {
   PlatformUserContactRecord,
   PlatformUserContactsPort,
-} from "@/modules/platform-user-contacts/ports";
-import type { PlatformUserContactSource, PlatformUserContactType } from "@/modules/platform-user-contacts/types";
-import { platformUserContacts } from "../../../db/schema/platformUserContacts";
+} from '@/modules/platform-user-contacts/ports';
+import type {
+  PlatformUserContactSource,
+  PlatformUserContactType,
+} from '@/modules/platform-user-contacts/types';
+import { platformUserContacts } from '../../../db/schema/platformUserContacts';
 
 function mapRow(row: typeof platformUserContacts.$inferSelect): PlatformUserContactRecord {
   return {
@@ -92,7 +95,7 @@ export function createPgPlatformUserContactsPort(): PlatformUserContactsPort {
           )
           .limit(1);
         if (!existing[0]) {
-          throw new Error("platform_user_contacts upsert: row missing after conflict");
+          throw new Error('platform_user_contacts upsert: row missing after conflict');
         }
         return mapRow(existing[0]);
       }

@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { useCallback, useRef, useState } from "react";
-import toast from "react-hot-toast";
-import { Button } from "@/shared/ui/doctor/primitives/button";
+import { useCallback, useRef, useState } from 'react';
+import toast from 'react-hot-toast';
+import { Button } from '@/shared/ui/doctor/primitives/button';
 import {
   Dialog,
   DialogContent,
@@ -10,8 +10,8 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/shared/ui/doctor/primitives/dialog";
-import { useInstanceEditorDraft } from "./InstanceEditorDraftContext";
+} from '@/shared/ui/doctor/primitives/dialog';
+import { useInstanceEditorDraft } from './InstanceEditorDraftContext';
 
 type Props = {
   open: boolean;
@@ -26,8 +26,8 @@ export function InstanceEditorUnsavedChangesDialog(props: Props) {
     open,
     onOpenChange,
     onProceed,
-    title = "Несохранённые изменения",
-    description = "Для изменения статуса этапа (программы) необходимо сохранить изменения. Сохранить?",
+    title = 'Несохранённые изменения',
+    description = 'Для изменения статуса этапа (программы) необходимо сохранить изменения. Сохранить?',
   } = props;
   const { saving, saveDraft } = useInstanceEditorDraft();
 
@@ -39,7 +39,12 @@ export function InstanceEditorUnsavedChangesDialog(props: Props) {
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
         <DialogFooter className="gap-2 sm:flex-wrap sm:justify-end">
-          <Button type="button" variant="outline" disabled={saving} onClick={() => onOpenChange(false)}>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={saving}
+            onClick={() => onOpenChange(false)}
+          >
             Вернуться к редактированию
           </Button>
           <Button
@@ -58,7 +63,7 @@ export function InstanceEditorUnsavedChangesDialog(props: Props) {
               });
             }}
           >
-            {saving ? "Сохранение…" : "Сохранить"}
+            {saving ? 'Сохранение…' : 'Сохранить'}
           </Button>
         </DialogFooter>
       </DialogContent>

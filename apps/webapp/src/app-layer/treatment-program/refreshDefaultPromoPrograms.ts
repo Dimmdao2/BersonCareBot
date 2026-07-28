@@ -1,5 +1,5 @@
-import { revalidatePatientTreatmentProgramUi } from "@/app-layer/cache/revalidatePatientTreatmentProgramUi";
-import type { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { revalidatePatientTreatmentProgramUi } from '@/app-layer/cache/revalidatePatientTreatmentProgramUi';
+import type { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 
 type AppDeps = ReturnType<typeof buildAppDeps>;
 

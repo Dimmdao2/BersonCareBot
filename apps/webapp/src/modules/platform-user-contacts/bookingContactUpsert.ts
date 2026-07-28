@@ -2,11 +2,11 @@ import {
   type IdentityContactFields,
   supplementaryContactMatchesIdentity,
   shouldSkipSupplementaryContactUpsert,
-} from "./identityContactMatch";
-import { normalizeContactValue } from "./normalizeContactValue";
-import type { PlatformUserContactRecord } from "./ports";
-import type { PlatformUserContactsService } from "./service";
-import type { PlatformUserContactSource } from "./types";
+} from './identityContactMatch';
+import { normalizeContactValue } from './normalizeContactValue';
+import type { PlatformUserContactRecord } from './ports';
+import type { PlatformUserContactsService } from './service';
+import type { PlatformUserContactSource } from './types';
 
 export type BookingContactSnapshotInput = {
   platformUserId: string;
@@ -24,15 +24,15 @@ export async function upsertBookingFormContactsBestEffort(
   if (!service) return;
 
   const phone = input.contactPhone.trim();
-  if (phone && !shouldSkipSupplementaryContactUpsert("phone", phone, input.identity)) {
-    const valueNormalized = normalizeContactValue("phone", phone);
+  if (phone && !shouldSkipSupplementaryContactUpsert('phone', phone, input.identity)) {
+    const valueNormalized = normalizeContactValue('phone', phone);
     if (valueNormalized) {
       try {
         await service.upsert({
           platformUserId: input.platformUserId,
-          contactType: "phone",
+          contactType: 'phone',
           value: phone,
-          source: "booking",
+          source: 'booking',
         });
       } catch {
         // Booking success must not depend on supplementary contacts persistence.
@@ -41,15 +41,15 @@ export async function upsertBookingFormContactsBestEffort(
   }
 
   const email = input.contactEmail?.trim();
-  if (email && !shouldSkipSupplementaryContactUpsert("email", email, input.identity)) {
-    const valueNormalized = normalizeContactValue("email", email);
+  if (email && !shouldSkipSupplementaryContactUpsert('email', email, input.identity)) {
+    const valueNormalized = normalizeContactValue('email', email);
     if (valueNormalized) {
       try {
         await service.upsert({
           platformUserId: input.platformUserId,
-          contactType: "email",
+          contactType: 'email',
           value: email,
-          source: "booking",
+          source: 'booking',
         });
       } catch {
         // Booking success must not depend on supplementary contacts persistence.
@@ -60,7 +60,7 @@ export async function upsertBookingFormContactsBestEffort(
 
 export type DoctorSupplementaryContact = Pick<
   PlatformUserContactRecord,
-  "id" | "contactType" | "value" | "source"
+  'id' | 'contactType' | 'value' | 'source'
 >;
 
 /** Doctor-facing list: hide rows that duplicate identity phone/email on `platform_users`. */
@@ -69,7 +69,9 @@ export function toDoctorSupplementaryContacts(
   identity: IdentityContactFields,
 ): DoctorSupplementaryContact[] {
   return contacts
-    .filter((row) => !supplementaryContactMatchesIdentity(row.contactType, row.valueNormalized, identity))
+    .filter(
+      (row) => !supplementaryContactMatchesIdentity(row.contactType, row.valueNormalized, identity),
+    )
     .map((row) => ({
       id: row.id,
       contactType: row.contactType,
@@ -78,4 +80,4 @@ export function toDoctorSupplementaryContacts(
     }));
 }
 
-export type { IdentityContactFields } from "./identityContactMatch";
+export type { IdentityContactFields } from './identityContactMatch';

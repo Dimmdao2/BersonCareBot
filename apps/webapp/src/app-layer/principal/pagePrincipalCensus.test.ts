@@ -61,14 +61,14 @@
  * authority is already gated by `doctorLaunchCensus.test.ts` and
  * `bootstrapPrincipal.routeCensus.test.ts`.
  */
-import { readdirSync, readFileSync, existsSync, statSync } from "node:fs";
-import path from "node:path";
-import ts from "typescript";
-import { describe, expect, it } from "vitest";
+import { readdirSync, readFileSync, existsSync, statSync } from 'node:fs';
+import path from 'node:path';
+import ts from 'typescript';
+import { describe, expect, it } from 'vitest';
 
-const WEBAPP_ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../../..");
-const SRC = path.join(WEBAPP_ROOT, "src");
-const APP = path.join(SRC, "app");
+const WEBAPP_ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../../..');
+const SRC = path.join(WEBAPP_ROOT, 'src');
+const APP = path.join(SRC, 'app');
 
 /**
  * Everything that puts a NON-bootstrap principal into the CURRENT async context and KEEPS it there
@@ -81,76 +81,76 @@ const APP = path.join(SRC, "app");
  * nothing) and is listed as CONDITIONAL below instead.
  */
 const STATEMENT_ESTABLISHERS = [
-  "requireSession",
-  "requirePatientAccess",
-  "requirePatientAccessWithPhone",
-  "requireDoctorAccess",
-  "requireDoctorWorkspaceContext",
-  "requireOrganizationWorkspaceContext",
-  "requireOrganizationManagementContext",
-  "requireOrgBrandingManagementContext",
-  "requirePlatformOperationsPage",
-  "requireAdminDoctorPage",
-  "requireGlobalAdminDoctorPage",
-  "requireClinicManagementDoctorPage",
-  "requireStaffAccountPage",
-  "requireStaffPersonalInstallPage",
-  "requireEntitlementForPage",
-  "requireEntitlementForRead",
+  'requireSession',
+  'requirePatientAccess',
+  'requirePatientAccessWithPhone',
+  'requireDoctorAccess',
+  'requireDoctorWorkspaceContext',
+  'requireOrganizationWorkspaceContext',
+  'requireOrganizationManagementContext',
+  'requireOrgBrandingManagementContext',
+  'requirePlatformOperationsPage',
+  'requireAdminDoctorPage',
+  'requireGlobalAdminDoctorPage',
+  'requireClinicManagementDoctorPage',
+  'requireStaffAccountPage',
+  'requireStaffPersonalInstallPage',
+  'requireEntitlementForPage',
+  'requireEntitlementForRead',
   // Page-level wrapper: `app/app/account/accountContext.ts` = requireStaffAccountPage() + context.
-  "loadStaffAccountPageContext",
+  'loadStaffAccountPageContext',
   // Only ever called with an already-resolved session; its own read runs under that session's
   // principal (`app-layer/guards/requireRole.ts:70-82`).
-  "patientRscPersonalDataGate",
-  "getCurrentSession",
-  "getCurrentSessionForIdentitySelf",
-  "stampDbPrincipalFromSession",
-  "ensureDbPrincipalContext",
-  "enterStaffSecuritySelfPrincipal",
-  "enterPatientReferencePrincipal",
-  "enterWithDbOrganizationPrincipal",
-  "enterWithDbStaffPrincipal",
-  "enterWithDbPatientPrincipal",
-  "enterWithDbPlatformPrincipal",
+  'patientRscPersonalDataGate',
+  'getCurrentSession',
+  'getCurrentSessionForIdentitySelf',
+  'stampDbPrincipalFromSession',
+  'ensureDbPrincipalContext',
+  'enterStaffSecuritySelfPrincipal',
+  'enterPatientReferencePrincipal',
+  'enterWithDbOrganizationPrincipal',
+  'enterWithDbStaffPrincipal',
+  'enterWithDbPatientPrincipal',
+  'enterWithDbPlatformPrincipal',
   // The repository's existing way to SAY "I read pre-auth, on purpose"
   // (`src/app-layer/principal/bootstrapPrincipal.ts`, already used by 43 route handlers).
-  "enterWithDbBootstrapPrincipal",
-  "stampBootstrapPrincipal",
+  'enterWithDbBootstrapPrincipal',
+  'stampBootstrapPrincipal',
 ] as const;
 
 /** Establishers that cover only what runs INSIDE them — their callback argument. */
 const WRAPPER_ESTABLISHERS = [
-  "withDoctorWorkspacePrincipal",
-  "withOrganizationPrincipal",
-  "withExplicitOrganizationPrincipal",
-  "withPatientOrganizationPrincipal",
-  "runWithStaffSecuritySelfPrincipal",
-  "runWithDbPrincipal",
-  "runWithDbOrganizationPrincipal",
-  "runWithDbStaffPrincipal",
-  "runWithDbPatientPrincipal",
-  "runWithDbPlatformPrincipal",
-  "runWithDbBootstrapPrincipal",
-  "runWithDbInfraPrincipal",
+  'withDoctorWorkspacePrincipal',
+  'withOrganizationPrincipal',
+  'withExplicitOrganizationPrincipal',
+  'withPatientOrganizationPrincipal',
+  'runWithStaffSecuritySelfPrincipal',
+  'runWithDbPrincipal',
+  'runWithDbOrganizationPrincipal',
+  'runWithDbStaffPrincipal',
+  'runWithDbPatientPrincipal',
+  'runWithDbPlatformPrincipal',
+  'runWithDbBootstrapPrincipal',
+  'runWithDbInfraPrincipal',
 ] as const;
 
 /** Stamps for a logged-in caller, stamps NOTHING for an anonymous one. Never covers. */
-const CONDITIONAL_ESTABLISHERS = ["getOptionalPatientSession"] as const;
+const CONDITIONAL_ESTABLISHERS = ['getOptionalPatientSession'] as const;
 
 /** The webapp's SQL executors: `src/infra/db/runWebappSql.ts` and `src/infra/db/client.ts`. */
 const SQL_EXECUTORS = new Set([
-  "getPool",
-  "getDrizzle",
-  "getWebappSqlDb",
-  "runWebappSql",
-  "runWebappPgText",
-  "runWebappTransaction",
-  "runPgPoolPgText",
+  'getPool',
+  'getDrizzle',
+  'getWebappSqlDb',
+  'runWebappSql',
+  'runWebappPgText',
+  'runWebappTransaction',
+  'runPgPoolPgText',
 ]);
 
 /** The DI container every repository hangs off. Building it reads nothing; USING it reads. */
-const DI_CONTAINER = "buildAppDeps";
-const DI_CONTAINER_VARIABLE = "deps";
+const DI_CONTAINER = 'buildAppDeps';
+const DI_CONTAINER_VARIABLE = 'deps';
 
 const ESTABLISHERS = new Set<string>([...STATEMENT_ESTABLISHERS, ...WRAPPER_ESTABLISHERS]);
 const NON_EDGE_NAMES = new Set<string>([
@@ -165,7 +165,7 @@ function walk(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
-      if (entry.name === "node_modules" || entry.name === ".next") continue;
+      if (entry.name === 'node_modules' || entry.name === '.next') continue;
       walk(full, out);
     } else out.push(full);
   }
@@ -178,30 +178,30 @@ function parse(file: string, text?: string): ts.SourceFile {
   if (cached && text === undefined) return cached;
   const sf = ts.createSourceFile(
     file,
-    text ?? readFileSync(file, "utf8"),
+    text ?? readFileSync(file, 'utf8'),
     ts.ScriptTarget.Latest,
     /* setParentNodes */ true,
-    file.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+    file.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
   );
   if (text === undefined) sourceFileCache.set(file, sf);
   return sf;
 }
 
 const isClientComponent = (file: string) =>
-  /^\s*(?:\/\/[^\n]*\n|\/\*[\s\S]*?\*\/|\s)*["']use client["']/.test(readFileSync(file, "utf8"));
+  /^\s*(?:\/\/[^\n]*\n|\/\*[\s\S]*?\*\/|\s)*["']use client["']/.test(readFileSync(file, 'utf8'));
 const isRouteEntry = (file: string) =>
   /(^|\/)(page|layout|default|template|not-found|route)\.tsx?$/.test(file);
 
 function resolveImport(specifier: string, fromFile: string): string | null {
   let base: string;
-  if (specifier.startsWith("@/")) base = path.join(SRC, specifier.slice(2));
-  else if (specifier.startsWith(".")) base = path.resolve(path.dirname(fromFile), specifier);
+  if (specifier.startsWith('@/')) base = path.join(SRC, specifier.slice(2));
+  else if (specifier.startsWith('.')) base = path.resolve(path.dirname(fromFile), specifier);
   else return null;
   for (const candidate of [
     `${base}.ts`,
     `${base}.tsx`,
-    path.join(base, "index.ts"),
-    path.join(base, "index.tsx"),
+    path.join(base, 'index.ts'),
+    path.join(base, 'index.tsx'),
   ]) {
     if (existsSync(candidate) && statSync(candidate).isFile()) return candidate;
   }
@@ -289,7 +289,7 @@ function importsOf(file: string): Map<string, ImportBinding> {
     const target = resolveImport(statement.moduleSpecifier.text, file);
     if (!target) continue;
     const clause = statement.importClause;
-    if (clause.name) map.set(clause.name.text, { file: target, name: "default" });
+    if (clause.name) map.set(clause.name.text, { file: target, name: 'default' });
     const bindings = clause.namedBindings;
     if (bindings && ts.isNamedImports(bindings)) {
       for (const element of bindings.elements) {
@@ -300,7 +300,7 @@ function importsOf(file: string): Map<string, ImportBinding> {
         });
       }
     } else if (bindings && ts.isNamespaceImport(bindings)) {
-      map.set(bindings.name.text, { file: target, name: "*" });
+      map.set(bindings.name.text, { file: target, name: '*' });
     }
   }
   importMapCache.set(file, map);
@@ -328,12 +328,12 @@ function localDeclarationsOf(file: string): Map<string, ts.Node> {
 /** The declarations that `import { name }` / the module entry actually refers to. */
 function rootsFor(file: string, exportName: string | null): ts.Node[] {
   const sf = parse(file);
-  if (exportName === null || exportName === "*") return [sf];
+  if (exportName === null || exportName === '*') return [sf];
   const roots: ts.Node[] = [];
   for (const statement of sf.statements) {
     if (ts.isFunctionDeclaration(statement)) {
       const isDefault = statement.modifiers?.some((m) => m.kind === ts.SyntaxKind.DefaultKeyword);
-      if (statement.name?.text === exportName || (exportName === "default" && isDefault)) {
+      if (statement.name?.text === exportName || (exportName === 'default' && isDefault)) {
         roots.push(statement);
       }
     } else if (ts.isVariableStatement(statement)) {
@@ -344,7 +344,7 @@ function rootsFor(file: string, exportName: string | null): ts.Node[] {
       }
     } else if (ts.isClassDeclaration(statement) && statement.name?.text === exportName) {
       roots.push(statement);
-    } else if (ts.isExportAssignment(statement) && exportName === "default") {
+    } else if (ts.isExportAssignment(statement) && exportName === 'default') {
       roots.push(statement);
     }
   }
@@ -410,7 +410,7 @@ function scan(
         (ESTABLISHERS.has(name) || (CONDITIONAL_ESTABLISHERS as readonly string[]).includes(name));
       const viaContainer =
         ts.isPropertyAccessExpression(node.expression) &&
-        containerVariables.has(rootObjectName(node.expression) ?? "");
+        containerVariables.has(rootObjectName(node.expression) ?? '');
       // An establisher's own read is the bootstrap read it exists to perform — out of this class.
       if (!isEstablisher && ((name !== null && SQL_EXECUTORS.has(name)) || viaContainer)) {
         reads.push({ file, line: sf.getLineAndCharacterOfPosition(start).line + 1 });
@@ -420,7 +420,10 @@ function scan(
       const imported = imports.get(node.text);
       if (imported) {
         const sameFileRouteEntry = imported.file === file;
-        if (!isClientComponent(imported.file) && (sameFileRouteEntry || !isRouteEntry(imported.file))) {
+        if (
+          !isClientComponent(imported.file) &&
+          (sameFileRouteEntry || !isRouteEntry(imported.file))
+        ) {
           edges.add(`${imported.file} ${imported.name}`);
         }
       } else {
@@ -442,7 +445,7 @@ const inProgress = new Set<string>();
 
 /** The first DB read reachable from `file#exportName` with no principal established on the way. */
 function firstUncoveredRead(file: string, exportName: string | null): ReadSite | null {
-  const key = `${file} ${exportName ?? ""}`;
+  const key = `${file} ${exportName ?? ''}`;
   const cached = firstUncoveredCache.get(key);
   if (cached !== undefined) return cached;
   if (inProgress.has(key)) return null; // cycle: the other frame answers for it
@@ -453,7 +456,7 @@ function firstUncoveredRead(file: string, exportName: string | null): ReadSite |
   let answer: ReadSite | null = reads[0] ?? null;
   if (answer === null) {
     for (const edge of [...edges].sort()) {
-      const [target, name] = edge.split(" ") as [string, string];
+      const [target, name] = edge.split(' ') as [string, string];
       const found = firstUncoveredRead(target, name);
       if (found !== null) {
         answer = found;
@@ -496,28 +499,28 @@ function ownFileUncoveredReads(entry: string): ReadSite[] {
 const UNPRINCIPLED_REACHABLE_PAGES: readonly string[] = [
   // Anonymous specialist-first landing. Reads `app_base_url` through the PUBLIC projection
   // accessor; charged here only because `getEffective` also holds the organization branch.
-  "page.tsx -> infra/repos/pgAppRuntimeSettings.ts",
+  'page.tsx -> infra/repos/pgAppRuntimeSettings.ts',
   // Anonymous clinic booking funnel: `app_display_timezone` through the same public accessor.
-  "book/confirm/page.tsx -> infra/repos/pgAppRuntimeSettings.ts",
-  "book/slot/page.tsx -> infra/repos/pgAppRuntimeSettings.ts",
-  "app/patient/booking/done/page.tsx -> infra/repos/pgAppRuntimeSettings.ts",
+  'book/confirm/page.tsx -> infra/repos/pgAppRuntimeSettings.ts',
+  'book/slot/page.tsx -> infra/repos/pgAppRuntimeSettings.ts',
+  'app/patient/booking/done/page.tsx -> infra/repos/pgAppRuntimeSettings.ts',
   // Public `/book/{slug}` catalog: reads run under `withExplicitOrganizationPrincipal`, the
   // organization id resolution under `stampBootstrapPrincipal`; the shared catalog helper takes
   // the container as a PARAMETER, which the walk charges to the caller.
-  "book/service/page.tsx -> app/app/patient/booking/bookingCatalogRsc.ts",
-  "app/patient/booking/service/page.tsx -> app/app/patient/booking/bookingCatalogRsc.ts",
-  "app/patient/booking/slot/page.tsx -> app/app/patient/booking/bookingCatalogRsc.ts",
+  'book/service/page.tsx -> app/app/patient/booking/bookingCatalogRsc.ts',
+  'app/patient/booking/service/page.tsx -> app/app/patient/booking/bookingCatalogRsc.ts',
+  'app/patient/booking/slot/page.tsx -> app/app/patient/booking/bookingCatalogRsc.ts',
   // `getOptionalPatientSession()` + early return: safe by control flow, not by lexical coverage.
-  "app/patient/booking/confirm/page.tsx -> app/app/patient/booking/confirm/page.tsx",
-  "app/patient/booking/page.tsx -> app/app/patient/booking/page.tsx",
-  "app/patient/content/[slug]/page.tsx -> app/app/patient/content/[slug]/page.tsx",
-  "app/patient/help/[slug]/page.tsx -> app/app/patient/help/[slug]/page.tsx",
-  "app/patient/sections/[slug]/page.tsx -> app/app/patient/sections/[slug]/page.tsx",
+  'app/patient/booking/confirm/page.tsx -> app/app/patient/booking/confirm/page.tsx',
+  'app/patient/booking/page.tsx -> app/app/patient/booking/page.tsx',
+  'app/patient/content/[slug]/page.tsx -> app/app/patient/content/[slug]/page.tsx',
+  'app/patient/help/[slug]/page.tsx -> app/app/patient/help/[slug]/page.tsx',
+  'app/patient/sections/[slug]/page.tsx -> app/app/patient/sections/[slug]/page.tsx',
 ];
 
-describe("RSC page DB-principal census (night plan A-5, bug class of 19f52fed2)", () => {
+describe('RSC page DB-principal census (night plan A-5, bug class of 19f52fed2)', () => {
   const analyze = (source: string) => {
-    const file = path.join(APP, "__census_selftest__.tsx");
+    const file = path.join(APP, '__census_selftest__.tsx');
     const sf = parse(file, source);
     coveredCache.set(file, coveredRanges(sf));
     importMapCache.set(file, new Map());
@@ -529,7 +532,7 @@ describe("RSC page DB-principal census (night plan A-5, bug class of 19f52fed2)"
     return result.reads.length;
   };
 
-  it("counts coverage at the CALL SITE, so neither an import nor a missing await satisfies it", () => {
+  it('counts coverage at the CALL SITE, so neither an import nor a missing await satisfies it', () => {
     // Shape 1 of 19f52fed2 (staff page): guard, then reads.
     expect(
       analyze(`export default async function P() {
@@ -590,28 +593,37 @@ describe("RSC page DB-principal census (night plan A-5, bug class of 19f52fed2)"
     ).toBe(1);
   });
 
-  it("makes every DB read written in a page entry itself state its own principal", () => {
+  it('makes every DB read written in a page entry itself state its own principal', () => {
+    // Владелец 29.07: номер строки НЕ может быть частью ожидаемого значения — он двигается от
+    // любого форматирования и делает гейт красным без единой поломки (этап 0 ревизии тестов,
+    // docs/_TODO/TEST_SUITE_AUDIT_2026-07-29.md). Сравниваем пути; строки уходят в текст ошибки,
+    // чтобы место всё так же находилось глазами.
     const offenders = pageEntries
       .filter((entry) => ownFileUncoveredReads(entry).length > 0)
-      .map((entry) => `${rel(entry)}:${ownFileUncoveredReads(entry)[0]!.line}`);
+      .map((entry) => rel(entry));
+    const offenderLines = pageEntries
+      .filter((entry) => ownFileUncoveredReads(entry).length > 0)
+      .map((entry) => `${rel(entry)}:${ownFileUncoveredReads(entry)[0]!.line}`)
+      .join(', ');
     // A page here reads with whatever principal happens to be ambient — for a page whose only
     // guard is its layout's, that is BOOTSTRAP: the bare `bcb_*_nonstaff_login`. Fix it in the
     // PAGE with one of the two shapes of 19f52fed2, or declare `stampBootstrapPrincipal()` if the
     // read is deliberately pre-authentication. Never by granting the nonstaff login role the table.
-    expect(offenders).toEqual([
+    expect(offenders, `непокрытые чтения (строки считаны сейчас): ${offenderLines}`).toEqual([
       // `getOptionalPatientSession()` + early return — safe by control flow, see the header.
       // PBK-1 (2026-07-27): path only — `new/confirm` -> `confirm`, `new/page.tsx` -> `page.tsx`.
-      "app/patient/booking/confirm/page.tsx:138",
-      "app/patient/booking/page.tsx:55",
-      "app/patient/content/[slug]/page.tsx:33",
-      "app/patient/help/[slug]/page.tsx:28",
-      "app/patient/sections/[slug]/page.tsx:42",
+      'app/patient/booking/confirm/page.tsx',
+      'app/patient/booking/page.tsx',
+      'app/patient/content/[slug]/page.tsx',
+      'app/patient/help/[slug]/page.tsx',
+      'app/patient/sections/[slug]/page.tsx',
     ]);
   });
 
-  it("freezes the census so a new DB-reading page is reviewed, not silently added", () => {
+  it('freezes the census so a new DB-reading page is reviewed, not silently added', () => {
     const readers = pageEntries.filter(
-      (entry) => scan(entry, [parse(entry)]).reads.length > 0 || firstUncoveredRead(entry, null) !== null,
+      (entry) =>
+        scan(entry, [parse(entry)]).reads.length > 0 || firstUncoveredRead(entry, null) !== null,
     );
     // PLAT-01…09 slice 1 (2026-07-26): net +1 page entry. `system-health/page.tsx` moved from
     // `(global-admin)/doctor/` to `app/platform/` (net 0: one entry removed, one added), plus the
@@ -648,7 +660,7 @@ describe("RSC page DB-principal census (night plan A-5, bug class of 19f52fed2)"
     expect(readers).toHaveLength(12);
   });
 
-  it("keeps the unprincipled-reachable page surface exact", () => {
+  it('keeps the unprincipled-reachable page surface exact', () => {
     const surface = pageEntries
       .map((entry) => ({ entry, hit: firstUncoveredRead(entry, null) }))
       .filter((row): row is { entry: string; hit: ReadSite } => row.hit !== null)

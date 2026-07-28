@@ -3,21 +3,30 @@
  * Warmup layout определяется membership в блоке `daily_warmup`, не query param.
  */
 
-import { notFound, redirect } from "next/navigation";
-import { Suspense } from "react";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { listDailyWarmupPagesForHome, type DailyWarmupListEntry } from "@/modules/patient-home/todayConfig";
-import { env } from "@/config/env";
-import { getOptionalPatientSession, patientRscPersonalDataGate } from "@/app-layer/guards/requireRole";
-import { resolvePatientCanViewContent } from "@/app-layer/platform-access";
-import { PatientAppShell } from "@/shared/ui/patient/PatientAppShell";
-import { PatientBackToSectionShellRow } from "@/shared/ui/patient/PatientBackToSectionShellRow";
-import { PatientLoadingPatternBody } from "@/shared/ui/patient/patientVisual";
-import { toYoutubeOrRutubeEmbedSrc } from "@/shared/lib/hostingEmbedUrls";
-import { parseApiMediaIdFromHref, parseApiMediaIdFromPlayableUrl } from "@/shared/lib/parseApiMediaIdFromPlayableUrl";
-import { PatientContentSlugArticle } from "./PatientContentSlugArticle";
-import { patientHelpArticlePathIfHelpSection } from "@/modules/help-content/patientHelpArticlePath";
-import { resolvePatientContentWarmupPageContext } from "./patientContentWarmupPageContext";
+import { notFound, redirect } from 'next/navigation';
+import { Suspense } from 'react';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import {
+  listDailyWarmupPagesForHome,
+  type DailyWarmupListEntry,
+} from '@/modules/patient-home/todayConfig';
+import { env } from '@/config/env';
+import {
+  getOptionalPatientSession,
+  patientRscPersonalDataGate,
+} from '@/app-layer/guards/requireRole';
+import { resolvePatientCanViewContent } from '@/app-layer/platform-access';
+import { PatientAppShell } from '@/shared/ui/patient/PatientAppShell';
+import { PatientBackToSectionShellRow } from '@/shared/ui/patient/PatientBackToSectionShellRow';
+import { PatientLoadingPatternBody } from '@/shared/ui/patient/patientVisual';
+import { toYoutubeOrRutubeEmbedSrc } from '@/shared/lib/hostingEmbedUrls';
+import {
+  parseApiMediaIdFromHref,
+  parseApiMediaIdFromPlayableUrl,
+} from '@/shared/lib/parseApiMediaIdFromPlayableUrl';
+import { PatientContentSlugArticle } from './PatientContentSlugArticle';
+import { patientHelpArticlePathIfHelpSection } from '@/modules/help-content/patientHelpArticlePath';
+import { resolvePatientContentWarmupPageContext } from './patientContentWarmupPageContext';
 
 type Props = {
   params: Promise<{ slug: string }>;
@@ -44,11 +53,12 @@ export default async function ContentSlugPage({ params, searchParams }: Props) {
   if (!item) notFound();
 
   const contentPath = `/app/patient/content/${encodeURIComponent(slug)}`;
-  const personalTierOk =
-    session ? (await patientRscPersonalDataGate(session, contentPath)) === "allow" : false;
+  const personalTierOk = session
+    ? (await patientRscPersonalDataGate(session, contentPath)) === 'allow'
+    : false;
   const rawFrom = sp.from;
   const fromVal = Array.isArray(rawFrom) ? rawFrom[0] : rawFrom;
-  const fromDailyWarmup = fromVal === "daily_warmup";
+  const fromDailyWarmup = fromVal === 'daily_warmup';
 
   const orderedDailyWarmupPages: DailyWarmupListEntry[] = await listDailyWarmupPagesForHome({
     patientHomeBlocks: deps.patientHomeBlocks,
@@ -57,22 +67,25 @@ export default async function ContentSlugPage({ params, searchParams }: Props) {
     systemSettings: deps.systemSettings,
   });
 
-  const { isDailyWarmupMember, practiceSource, warmupNav, backNav } = resolvePatientContentWarmupPageContext({
-    slug,
-    fromDailyWarmup,
-    sectionSlug: dbRow.section,
-    orderedDailyWarmupPages,
-  });
+  const { isDailyWarmupMember, practiceSource, warmupNav, backNav } =
+    resolvePatientContentWarmupPageContext({
+      slug,
+      fromDailyWarmup,
+      sectionSlug: dbRow.section,
+      orderedDailyWarmupPages,
+    });
 
   const videoPlayableUrl =
-    item.videoSource?.type === "url" && item.videoSource.url.trim()
+    item.videoSource?.type === 'url' && item.videoSource.url.trim()
       ? item.videoSource.url.trim()
-      : item.videoSource?.type === "api" && item.videoSource.mediaId.trim()
-        ? item.videoSource.mediaId.startsWith("/api/media/")
+      : item.videoSource?.type === 'api' && item.videoSource.mediaId.trim()
+        ? item.videoSource.mediaId.startsWith('/api/media/')
           ? item.videoSource.mediaId
           : `/api/media/${item.videoSource.mediaId}`
-      : undefined;
-  const hostedVideoIframeSrc = videoPlayableUrl ? toYoutubeOrRutubeEmbedSrc(videoPlayableUrl) : null;
+        : undefined;
+  const hostedVideoIframeSrc = videoPlayableUrl
+    ? toYoutubeOrRutubeEmbedSrc(videoPlayableUrl)
+    : null;
 
   let appTrustedOrigin: string | null = null;
   try {
@@ -84,7 +97,7 @@ export default async function ContentSlugPage({ params, searchParams }: Props) {
   const apiMediaId =
     videoPlayableUrl && !hostedVideoIframeSrc
       ? (parseApiMediaIdFromPlayableUrl(videoPlayableUrl) ??
-          parseApiMediaIdFromHref(videoPlayableUrl, appTrustedOrigin))
+        parseApiMediaIdFromHref(videoPlayableUrl, appTrustedOrigin))
       : null;
 
   return (
@@ -93,12 +106,11 @@ export default async function ContentSlugPage({ params, searchParams }: Props) {
       user={session?.user ?? null}
       backHref={backNav.backHref}
       backLabel={backNav.backLabel}
-     
       patientSuppressShellTitle
       patientShellAboveTitleSlot={
-        backNav.showBackToSectionRow ?
+        backNav.showBackToSectionRow ? (
           <PatientBackToSectionShellRow sectionSlug={dbRow.section} />
-        : undefined
+        ) : undefined
       }
     >
       <Suspense fallback={<PatientLoadingPatternBody pattern="heroList" />}>

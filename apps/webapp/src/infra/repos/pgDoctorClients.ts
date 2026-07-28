@@ -1,13 +1,13 @@
 /**
  * Wave 3 phase 13C — domain SQL via `runWebappPgText`; canonical helpers still accept `getPool()`.
  */
-import { getPool } from "@/infra/db/client";
-import { getDrizzle } from "@/app-layer/db/drizzle";
-import { toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
-import { runWebappPgText, runWebappTransaction } from "@/infra/db/runWebappSql";
-import { and, countDistinct, eq, inArray, isNull } from "drizzle-orm";
-import { resolveCanonicalUserId } from "@/infra/repos/pgCanonicalPlatformUser";
-import type { ChannelBindings } from "@/shared/types/session";
+import { getPool } from '@/infra/db/client';
+import { getDrizzle } from '@/app-layer/db/drizzle';
+import { toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
+import { runWebappPgText, runWebappTransaction } from '@/infra/db/runWebappSql';
+import { and, countDistinct, eq, inArray, isNull } from 'drizzle-orm';
+import { resolveCanonicalUserId } from '@/infra/repos/pgCanonicalPlatformUser';
+import type { ChannelBindings } from '@/shared/types/session';
 import type {
   ClientIdentity,
   ClientListItem,
@@ -15,43 +15,43 @@ import type {
   DoctorClientsPort,
   DoctorDashboardPatientMetrics,
   PatientAppointmentItem,
-} from "@/modules/doctor-clients/ports";
+} from '@/modules/doctor-clients/ports';
 import {
   accumulateClientContactBreakdown,
   emptyClientContactBreakdown,
-} from "@/modules/doctor-clients/clientContactSegments";
-import { matchesDoctorClientSearch } from "@/modules/doctor-clients/clientSearchMatch";
+} from '@/modules/doctor-clients/clientContactSegments';
+import { matchesDoctorClientSearch } from '@/modules/doctor-clients/clientSearchMatch';
 import {
   getClientSupportProfile,
   listOnSupportPatientUserIds,
   upsertClientSupportProfile,
-} from "@/infra/repos/pgDoctorPatientSupport";
-import { appendSqlExcludeUserIds } from "@/modules/analytics/analyticsAudience";
+} from '@/infra/repos/pgDoctorPatientSupport';
+import { appendSqlExcludeUserIds } from '@/modules/analytics/analyticsAudience';
 import {
   sqlActiveMaxBinding,
   sqlActiveTelegramBinding,
   sqlMessengerBotBlocked,
-} from "@/modules/doctor-clients/activeMessengerBindingSql";
-import { beAppointments } from "../../../db/schema/bookingEngine";
-import { bePatientPackages } from "../../../db/schema/bookingMemberships";
-import { beAppointmentReschedules } from "../../../db/schema/bookingPolicies";
+} from '@/modules/doctor-clients/activeMessengerBindingSql';
+import { beAppointments } from '../../../db/schema/bookingEngine';
+import { bePatientPackages } from '../../../db/schema/bookingMemberships';
+import { beAppointmentReschedules } from '../../../db/schema/bookingPolicies';
 
 function rowToBindings(
   rows: { channel_code: string; external_id: string; bot_blocked_at?: string | null }[],
 ): ChannelBindings {
   const bindings: ChannelBindings = {};
   for (const row of rows) {
-    if (row.channel_code === "telegram") {
+    if (row.channel_code === 'telegram') {
       bindings.telegramId = row.external_id;
       if (row.bot_blocked_at) bindings.telegramBotBlocked = true;
       continue;
     }
-    if (row.channel_code === "max") {
+    if (row.channel_code === 'max') {
       bindings.maxId = row.external_id;
       if (row.bot_blocked_at) bindings.maxBotBlocked = true;
       continue;
     }
-    if (row.channel_code === "vk") {
+    if (row.channel_code === 'vk') {
       bindings.vkId = row.external_id;
     }
   }
@@ -98,10 +98,10 @@ function sqlLiteralUuid(value: string): string {
 const CANONICAL_CANCELLED_STATUS_SQL =
   "'cancelled_by_patient', 'cancelled_by_specialist', 'late_cancellation', 'no_show'";
 const CANONICAL_CANCELLED_STATUSES = [
-  "cancelled_by_patient",
-  "cancelled_by_specialist",
-  "late_cancellation",
-  "no_show",
+  'cancelled_by_patient',
+  'cancelled_by_specialist',
+  'late_cancellation',
+  'no_show',
 ] as const;
 
 type ClientEventMetrics = {
@@ -201,7 +201,7 @@ async function loadClientMembershipMetrics(
       and(
         inArray(bePatientPackages.platformUserId, userIds),
         organizationId ? eq(bePatientPackages.organizationId, organizationId) : undefined,
-        inArray(bePatientPackages.status, ["active", "awaiting_payment", "expired"]),
+        inArray(bePatientPackages.status, ['active', 'awaiting_payment', 'expired']),
       ),
     )
     .groupBy(bePatientPackages.platformUserId, bePatientPackages.status);
@@ -215,12 +215,12 @@ async function loadClientMembershipMetrics(
       expiredMembershipsCount: 0,
     };
     const membershipsCount = Number(row.membershipsCount ?? 0);
-    if (row.status === "active") {
+    if (row.status === 'active') {
       current.purchasedMembershipsCount += membershipsCount;
       current.activeMembershipsCount += membershipsCount;
-    } else if (row.status === "awaiting_payment") {
+    } else if (row.status === 'awaiting_payment') {
       current.purchasedMembershipsCount += membershipsCount;
-    } else if (row.status === "expired") {
+    } else if (row.status === 'expired') {
       current.expiredMembershipsCount += membershipsCount;
     }
     metricsByUserId.set(row.userId, current);
@@ -229,7 +229,7 @@ async function loadClientMembershipMetrics(
 }
 
 function canonicalAppointmentOrgPredicate(alias: string, organizationId?: string): string {
-  if (!organizationId) return "TRUE";
+  if (!organizationId) return 'TRUE';
   return `${alias}.organization_id = ${sqlLiteralUuid(organizationId)}`;
 }
 
@@ -300,7 +300,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         listBaseParams.push(filters.userIds);
         listBaseWithUserIds = `${listBase} AND pu.id = ANY($${listBaseParams.length}::uuid[])`;
       }
-      const listQ = appendSqlExcludeUserIds(listBaseWithUserIds, "pu.id", excluded, listBaseParams);
+      const listQ = appendSqlExcludeUserIds(listBaseWithUserIds, 'pu.id', excluded, listBaseParams);
       const clientRows = await runWebappPgText<{
         id: string;
         display_name: string | null;
@@ -321,10 +321,17 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       const userIds = clientRows.rows.map((r) => r.id);
       const bindingsRows = await runWebappPgText(
         `SELECT user_id, channel_code, external_id, bot_blocked_at FROM user_channel_bindings WHERE user_id = ANY($1::uuid[])`,
-        [userIds]
+        [userIds],
       );
-      const bindingsByUser = new Map<string | number, { channel_code: string; external_id: string }[]>();
-      for (const row of bindingsRows.rows as { user_id: string; channel_code: string; external_id: string }[]) {
+      const bindingsByUser = new Map<
+        string | number,
+        { channel_code: string; external_id: string }[]
+      >();
+      for (const row of bindingsRows.rows as {
+        user_id: string;
+        channel_code: string;
+        external_id: string;
+      }[]) {
         const list = bindingsByUser.get(row.user_id) ?? [];
         list.push({ channel_code: row.channel_code, external_id: row.external_id });
         bindingsByUser.set(row.user_id, list);
@@ -343,13 +350,13 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         webPushRows,
       ] = await Promise.all([
         runWebappPgText<{
-            user_id: string;
-            history_count: number;
-            last_appointment_at: Date | string | null;
-            active_count: number;
-            visited_month_count: number;
-          }>(
-            `WITH clinical_visit_agg AS (
+          user_id: string;
+          history_count: number;
+          last_appointment_at: Date | string | null;
+          active_count: number;
+          visited_month_count: number;
+        }>(
+          `WITH clinical_visit_agg AS (
                SELECT
                  cv.patient_user_id,
                  COUNT(*)::int AS history_count,
@@ -408,15 +415,15 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
              LEFT JOIN clinical_visit_agg cva ON cva.patient_user_id = pu.id
              WHERE pu.id = ANY($1::uuid[])
              GROUP BY pu.id, cva.history_count, cva.last_visit_at, cva.visited_month_count`,
-            [userIds, organizationId],
-          ),
-          loadClientEventMetrics(userIds, organizationId),
-          runWebappPgText<{
-            user_id: string;
-            conversation_count: number;
-            unread_count: number;
-          }>(
-            `SELECT
+          [userIds, organizationId],
+        ),
+        loadClientEventMetrics(userIds, organizationId),
+        runWebappPgText<{
+          user_id: string;
+          conversation_count: number;
+          unread_count: number;
+        }>(
+          `SELECT
                sc.platform_user_id::text AS user_id,
                COUNT(DISTINCT sc.id)::int AS conversation_count,
                COUNT(m.id) FILTER (
@@ -428,10 +435,10 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
              WHERE sc.platform_user_id = ANY($1::uuid[])
                AND ($2::uuid IS NULL OR sc.organization_id = $2::uuid)
              GROUP BY sc.platform_user_id`,
-            [userIds, organizationId],
-          ),
-          runWebappPgText<{ patient_user_id: string; instance_id: string }>(
-            `SELECT DISTINCT ON (patient_user_id)
+          [userIds, organizationId],
+        ),
+        runWebappPgText<{ patient_user_id: string; instance_id: string }>(
+          `SELECT DISTINCT ON (patient_user_id)
                patient_user_id,
                id AS instance_id
              FROM treatment_program_instances
@@ -440,12 +447,12 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
                AND assignment_source = 'doctor'
                AND ($2::uuid IS NULL OR organization_id = $2::uuid)
              ORDER BY patient_user_id, updated_at DESC NULLS LAST`,
-            [userIds, organizationId],
-          ),
-          listOnSupportPatientUserIds(organizationId ?? undefined),
-          filters.viewerUserId
-            ? runWebappPgText<{ patient_user_id: string; unread_comments_count: number }>(
-                `WITH active_items AS (
+          [userIds, organizationId],
+        ),
+        listOnSupportPatientUserIds(organizationId ?? undefined),
+        filters.viewerUserId
+          ? runWebappPgText<{ patient_user_id: string; unread_comments_count: number }>(
+              `WITH active_items AS (
                    SELECT
                      tpi.patient_user_id,
                      tpsi.id AS stage_item_id
@@ -482,45 +489,49 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
                    ON r.instance_stage_item_id = ai.stage_item_id
                   AND r.patient_user_id = $2::uuid
                  GROUP BY ai.patient_user_id`,
-                [userIds, filters.viewerUserId, organizationId],
-              )
-            : Promise.resolve({ rows: [] as { patient_user_id: string; unread_comments_count: number }[] }),
-          loadClientMembershipMetrics(userIds, organizationId),
-          // no_show_count from booking profile
-          runWebappPgText<{ user_id: string; no_show_count: number }>(
-            `SELECT
+              [userIds, filters.viewerUserId, organizationId],
+            )
+          : Promise.resolve({
+              rows: [] as { patient_user_id: string; unread_comments_count: number }[],
+            }),
+        loadClientMembershipMetrics(userIds, organizationId),
+        // no_show_count from booking profile
+        runWebappPgText<{ user_id: string; no_show_count: number }>(
+          `SELECT
                platform_user_id::text AS user_id,
                COALESCE(no_show_count, 0)::int AS no_show_count
              FROM be_patient_booking_profiles
              WHERE platform_user_id = ANY($1::uuid[])
                AND ($2::uuid IS NULL OR organization_id = $2::uuid)`,
-            [userIds, organizationId],
-          ),
-          runWebappPgText<{ user_id: string }>(
-            `SELECT DISTINCT pah.user_id::text AS user_id
+          [userIds, organizationId],
+        ),
+        runWebappPgText<{ user_id: string }>(
+          `SELECT DISTINCT pah.user_id::text AS user_id
              FROM product_analytics_user_hourly pah
              WHERE pah.user_id = ANY($1::uuid[])
                AND pah.entry_channel = 'pwa'`,
-            [userIds],
-          ),
-          runWebappPgText<{ user_id: string }>(
-            `SELECT DISTINCT s.user_id::text AS user_id
+          [userIds],
+        ),
+        runWebappPgText<{ user_id: string }>(
+          `SELECT DISTINCT s.user_id::text AS user_id
              FROM user_web_push_subscriptions s
              LEFT JOIN user_channel_preferences p
                ON p.platform_user_id = s.user_id
               AND p.channel_code = 'web_push'
              WHERE s.user_id = ANY($1::uuid[])
                AND COALESCE(p.is_enabled_for_notifications, true) = true`,
-            [userIds],
-          ),
-        ]);
+          [userIds],
+        ),
+      ]);
 
       const appointmentAggByUserId = new Map(
         appointmentAggRows.rows.map((row) => [
           row.user_id,
           {
             hasHistory: Number(row.history_count ?? 0) > 0,
-            lastAppointmentAt: row.last_appointment_at ? toIsoStringSafe(row.last_appointment_at) : null,
+            lastAppointmentAt: row.last_appointment_at
+              ? toIsoStringSafe(row.last_appointment_at)
+              : null,
             activeCount: Number(row.active_count ?? 0),
             visitedThisCalendarMonth: Number(row.visited_month_count ?? 0) > 0,
           },
@@ -540,7 +551,10 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         activeProgramPatients.rows.map((row) => [row.patient_user_id, row.instance_id]),
       );
       const unreadExerciseCommentsByPatientId = new Map<string, number>(
-        unreadExerciseCommentRows.rows.map((row) => [row.patient_user_id, Number(row.unread_comments_count ?? 0)]),
+        unreadExerciseCommentRows.rows.map((row) => [
+          row.patient_user_id,
+          Number(row.unread_comments_count ?? 0),
+        ]),
       );
       const membershipsByPatientId = new Map(
         membershipRows.map((row) => [
@@ -559,44 +573,44 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       const webPushEnabledUserIds = new Set<string>(webPushRows.rows.map((row) => row.user_id));
 
       let list: ClientListItem[] = clientRows.rows.map((r) => {
-          const bindings = rowToBindings(bindingsByUser.get(r.id) ?? []);
-          const phone = r.phone_normalized;
-          const appointmentAgg = appointmentAggByUserId.get(r.id);
-          const eventMetrics = eventMetricsByUserId.get(r.id);
-          const supportConversation = supportConversationByUserId.get(r.id);
-          const activeAppointmentsCount = appointmentAgg?.activeCount ?? 0;
-          const activeInstanceId = activeProgramInstanceByPatient.get(r.id) ?? null;
-          const email = r.email?.trim() ?? "";
-          return {
-            userId: r.id,
-            displayName: r.display_name ?? "",
-            firstName: r.first_name ?? null,
-            lastName: r.last_name ?? null,
-            patronymic: r.patronymic ?? null,
-            phone,
-            bindings,
-            hasEmail: Boolean(email) || Boolean(r.email_verified_at),
-            hasApp: pwaActiveUserIds.has(r.id),
-            hasWebPush: webPushEnabledUserIds.has(r.id),
-            nextAppointmentLabel: activeAppointmentsCount > 0 ? "Есть запись" : null,
-            hasAppointmentHistory: appointmentAgg?.hasHistory ?? false,
-            lastAppointmentAt: appointmentAgg?.lastAppointmentAt ?? null,
-            activeAppointmentsCount,
-            activeTreatmentProgram: activeInstanceId != null,
-            activeTreatmentProgramInstanceId: activeInstanceId,
-            cancellationsCount: eventMetrics?.cancellationsCount ?? 0,
-            reschedulesCount: eventMetrics?.reschedulesCount ?? 0,
-            noShowCount: noShowByPatientId.get(r.id) ?? 0,
-            visitedThisCalendarMonth: appointmentAgg?.visitedThisCalendarMonth ?? false,
-            hasConversation: supportConversation?.hasConversation ?? false,
-            unreadMessagesCount: supportConversation?.unreadCount ?? 0,
-            unreadExerciseCommentsCount: unreadExerciseCommentsByPatientId.get(r.id) ?? 0,
-            isOnSupport: onSupportIds.has(r.id),
-            hasMemberships: (membershipsByPatientId.get(r.id)?.purchased ?? 0) > 0,
-            hasActiveMemberships: (membershipsByPatientId.get(r.id)?.active ?? 0) > 0,
-            hasExpiredMemberships: (membershipsByPatientId.get(r.id)?.expired ?? 0) > 0,
-          };
-        });
+        const bindings = rowToBindings(bindingsByUser.get(r.id) ?? []);
+        const phone = r.phone_normalized;
+        const appointmentAgg = appointmentAggByUserId.get(r.id);
+        const eventMetrics = eventMetricsByUserId.get(r.id);
+        const supportConversation = supportConversationByUserId.get(r.id);
+        const activeAppointmentsCount = appointmentAgg?.activeCount ?? 0;
+        const activeInstanceId = activeProgramInstanceByPatient.get(r.id) ?? null;
+        const email = r.email?.trim() ?? '';
+        return {
+          userId: r.id,
+          displayName: r.display_name ?? '',
+          firstName: r.first_name ?? null,
+          lastName: r.last_name ?? null,
+          patronymic: r.patronymic ?? null,
+          phone,
+          bindings,
+          hasEmail: Boolean(email) || Boolean(r.email_verified_at),
+          hasApp: pwaActiveUserIds.has(r.id),
+          hasWebPush: webPushEnabledUserIds.has(r.id),
+          nextAppointmentLabel: activeAppointmentsCount > 0 ? 'Есть запись' : null,
+          hasAppointmentHistory: appointmentAgg?.hasHistory ?? false,
+          lastAppointmentAt: appointmentAgg?.lastAppointmentAt ?? null,
+          activeAppointmentsCount,
+          activeTreatmentProgram: activeInstanceId != null,
+          activeTreatmentProgramInstanceId: activeInstanceId,
+          cancellationsCount: eventMetrics?.cancellationsCount ?? 0,
+          reschedulesCount: eventMetrics?.reschedulesCount ?? 0,
+          noShowCount: noShowByPatientId.get(r.id) ?? 0,
+          visitedThisCalendarMonth: appointmentAgg?.visitedThisCalendarMonth ?? false,
+          hasConversation: supportConversation?.hasConversation ?? false,
+          unreadMessagesCount: supportConversation?.unreadCount ?? 0,
+          unreadExerciseCommentsCount: unreadExerciseCommentsByPatientId.get(r.id) ?? 0,
+          isOnSupport: onSupportIds.has(r.id),
+          hasMemberships: (membershipsByPatientId.get(r.id)?.purchased ?? 0) > 0,
+          hasActiveMemberships: (membershipsByPatientId.get(r.id)?.active ?? 0) > 0,
+          hasExpiredMemberships: (membershipsByPatientId.get(r.id)?.expired ?? 0) > 0,
+        };
+      });
 
       if (filters.search?.trim()) {
         const s = filters.search.trim();
@@ -620,13 +634,11 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       if (filters.visitedThisCalendarMonth === true && !filters.archivedOnly) {
         list = list.filter((item) => item.visitedThisCalendarMonth === true);
       }
-      if (filters.supportStatus === "on") {
+      if (filters.supportStatus === 'on') {
         list = list.filter((item) => item.isOnSupport === true);
       }
-      if (filters.supportStatus === "programWithoutSupport") {
-        list = list.filter(
-          (item) => item.activeTreatmentProgram && item.isOnSupport !== true,
-        );
+      if (filters.supportStatus === 'programWithoutSupport') {
+        list = list.filter((item) => item.activeTreatmentProgram && item.isOnSupport !== true);
       }
       // New filters for Patients section
       if (filters.hasEmail === true) {
@@ -663,7 +675,8 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       if (filters.isFormer === true) {
         // «Бывшие» — были посещения, но сейчас нет активной будущей записи
         list = list.filter(
-          (item) => item.hasAppointmentHistory === true && (item.activeAppointmentsCount ?? 0) === 0,
+          (item) =>
+            item.hasAppointmentHistory === true && (item.activeAppointmentsCount ?? 0) === 0,
         );
       }
       if (filters.isSubscriberOnly === true) {
@@ -675,7 +688,10 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       return list;
     },
 
-    async listPatientAppointments(userId: string, organizationId?: string): Promise<PatientAppointmentItem[]> {
+    async listPatientAppointments(
+      userId: string,
+      organizationId?: string,
+    ): Promise<PatientAppointmentItem[]> {
       const pool = getPool();
       const canonicalId = (await resolveCanonicalUserId(pool, userId)) ?? userId;
 
@@ -722,36 +738,36 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         const recordAtMs = row.record_at ? new Date(row.record_at).getTime() : null;
         const isPast = recordAtMs !== null && recordAtMs < now;
 
-        let status: PatientAppointmentItem["status"];
-        if (row.status === "canceled") {
-          status = "canceled";
-        } else if (row.status === "rescheduled") {
-          status = "rescheduled";
+        let status: PatientAppointmentItem['status'];
+        if (row.status === 'canceled') {
+          status = 'canceled';
+        } else if (row.status === 'rescheduled') {
+          status = 'rescheduled';
         } else if (
-          row.status === "cancelled_by_patient"
-          || row.status === "cancelled_by_specialist"
-          || row.status === "late_cancellation"
-          || row.status === "no_show"
+          row.status === 'cancelled_by_patient' ||
+          row.status === 'cancelled_by_specialist' ||
+          row.status === 'late_cancellation' ||
+          row.status === 'no_show'
         ) {
-          status = "canceled";
-        } else if (row.status === "updated") {
+          status = 'canceled';
+        } else if (row.status === 'updated') {
           // «updated» = перенесённая запись — показываем актуальный слот
-          status = isPast ? "completed" : "upcoming";
+          status = isPast ? 'completed' : 'upcoming';
         } else {
           // «created»
-          status = isPast ? "completed" : "upcoming";
+          status = isPast ? 'completed' : 'upcoming';
         }
 
         const durationRaw = row.duration_minutes;
         const durationMin =
-          typeof durationRaw === "number" && Number.isFinite(durationRaw)
+          typeof durationRaw === 'number' && Number.isFinite(durationRaw)
             ? Math.round(durationRaw)
             : null;
 
         return {
           id: row.id,
           internalId: row.internal_id ?? null,
-          dateTime: row.record_at ? new Date(row.record_at).toISOString() : "",
+          dateTime: row.record_at ? new Date(row.record_at).toISOString() : '',
           status,
           serviceName: (row.service_title && row.service_title.trim()) || null,
           location: row.branch_name ?? null,
@@ -795,10 +811,14 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         [canonicalId],
       );
       const ur = userRow.rows[0];
-      if (!ur || ur.role !== "client") return null;
+      if (!ur || ur.role !== 'client') return null;
 
       // Fetch channel bindings
-      const bindingsRows = await runWebappPgText<{ channel_code: string; external_id: string; bot_blocked_at: string | null }>(
+      const bindingsRows = await runWebappPgText<{
+        channel_code: string;
+        external_id: string;
+        bot_blocked_at: string | null;
+      }>(
         `SELECT channel_code, external_id, bot_blocked_at FROM user_channel_bindings WHERE user_id = $1::uuid`,
         [canonicalId],
       );
@@ -828,7 +848,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
          LIMIT 1`,
         [canonicalId],
       );
-      const noShowCount = parseInt(noShowRows.rows[0]?.no_show_count ?? "0", 10);
+      const noShowCount = parseInt(noShowRows.rows[0]?.no_show_count ?? '0', 10);
 
       // Fetch appointment stats
       const apptRows = await runWebappPgText<{
@@ -872,9 +892,9 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       );
       const appt = apptRows.rows[0];
 
-      const totalVisits = parseInt(appt?.total_visits ?? "0", 10);
-      const cancellationsCount = parseInt(appt?.cancellations_count ?? "0", 10);
-      const reschedulesCount = parseInt(appt?.reschedules_count ?? "0", 10);
+      const totalVisits = parseInt(appt?.total_visits ?? '0', 10);
+      const cancellationsCount = parseInt(appt?.cancellations_count ?? '0', 10);
+      const reschedulesCount = parseInt(appt?.reschedules_count ?? '0', 10);
 
       // Fetch latest clinical_visit for this patient (for visitType + city)
       const clinicalVisitRow = await runWebappPgText<{
@@ -892,11 +912,11 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       const latestClinical = clinicalVisitRow.rows[0] ?? null;
 
       // Last visit: prefer clinical_visit (has visitType + city); fall back to canonical appointment date
-      let lastVisit: import("@/modules/doctor-clients/ports").PatientCardHeader["lastVisit"] = null;
+      let lastVisit: import('@/modules/doctor-clients/ports').PatientCardHeader['lastVisit'] = null;
       if (latestClinical) {
         lastVisit = {
           date: new Date(latestClinical.visited_at).toISOString(),
-          visitType: latestClinical.visit_type === "first" ? "Первичный" : "Повторный",
+          visitType: latestClinical.visit_type === 'first' ? 'Первичный' : 'Повторный',
           city: latestClinical.location ?? null,
         };
       } else if (appt?.last_visit_at) {
@@ -908,10 +928,11 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       }
 
       // Next appointment
-      let nextAppointment: import("@/modules/doctor-clients/ports").PatientCardHeader["nextAppointment"] = null;
+      let nextAppointment: import('@/modules/doctor-clients/ports').PatientCardHeader['nextAppointment'] =
+        null;
       if (appt?.next_appt_at) {
         const dt = new Date(appt.next_appt_at);
-        const pad = (n: number) => String(n).padStart(2, "0");
+        const pad = (n: number) => String(n).padStart(2, '0');
         nextAppointment = {
           date: dt.toISOString(),
           time: `${pad(dt.getUTCHours())}:${pad(dt.getUTCMinutes())}`,
@@ -922,8 +943,9 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
 
       // Support: precise start date + months on support (doctor_patient_support.support_started_at)
       const isOnSupport = supportProfile?.onSupport ?? false;
-      const supportStartedAt: string | null =
-        isOnSupport ? supportProfile?.supportStartedAt ?? null : null;
+      const supportStartedAt: string | null = isOnSupport
+        ? (supportProfile?.supportStartedAt ?? null)
+        : null;
       let supportMonthsApprox: number | null = null;
       if (supportStartedAt) {
         const start = new Date(supportStartedAt);
@@ -952,7 +974,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       return {
         identity: {
           userId: ur.id,
-          displayName: ur.display_name ?? "",
+          displayName: ur.display_name ?? '',
           firstName: ur.first_name,
           lastName: ur.last_name,
           patronymic: ur.patronymic ?? null,
@@ -964,8 +986,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
           isBlocked: ur.is_blocked,
           birthDate: birthDateIso,
           age: ageYears,
-          gender:
-            ur.gender === "male" || ur.gender === "female" ? ur.gender : null,
+          gender: ur.gender === 'male' || ur.gender === 'female' ? ur.gender : null,
         },
         support: {
           isOnSupport,
@@ -991,8 +1012,8 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
 
       const totalBase = `SELECT COUNT(*)::text AS c FROM platform_users pu WHERE pu.role = 'client' AND pu.merged_into_id IS NULL AND COALESCE(pu.is_archived, false) = false`;
       const totalQ = appendSqlOrganizationEnrollment(
-        appendSqlExcludeUserIds(totalBase, "pu.id", excluded, []),
-        "pu.id",
+        appendSqlExcludeUserIds(totalBase, 'pu.id', excluded, []),
+        'pu.id',
         organizationId,
       );
 
@@ -1005,11 +1026,11 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
              AND COALESCE(pu.is_archived, false) = false`;
       const supportQ = appendSqlOrganizationColumn(
         appendSqlOrganizationEnrollment(
-          appendSqlExcludeUserIds(supportBase, "pu.id", excluded, []),
-          "pu.id",
+          appendSqlExcludeUserIds(supportBase, 'pu.id', excluded, []),
+          'pu.id',
           organizationId,
         ),
-        "dps.organization_id",
+        'dps.organization_id',
         organizationId,
       );
 
@@ -1025,10 +1046,10 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
              AND bea.start_at < NOW()
              AND bea.status NOT IN (${CANONICAL_CANCELLED_STATUS_SQL})
              AND bea.deleted_at IS NULL
-             AND ${canonicalAppointmentOrgPredicate("bea", organizationId)}`;
+             AND ${canonicalAppointmentOrgPredicate('bea', organizationId)}`;
       const visitedQ = appendSqlOrganizationEnrollment(
-        appendSqlExcludeUserIds(visitedBase, "pu.id", excluded, []),
-        "pu.id",
+        appendSqlExcludeUserIds(visitedBase, 'pu.id', excluded, []),
+        'pu.id',
         organizationId,
       );
 
@@ -1043,11 +1064,11 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
              AND tpi.assignment_source = 'doctor'`;
       const withProgramQ = appendSqlOrganizationColumn(
         appendSqlOrganizationEnrollment(
-          appendSqlExcludeUserIds(withProgramBase, "pu.id", excluded, []),
-          "pu.id",
+          appendSqlExcludeUserIds(withProgramBase, 'pu.id', excluded, []),
+          'pu.id',
           organizationId,
         ),
-        "tpi.organization_id",
+        'tpi.organization_id',
         organizationId,
       );
 
@@ -1061,14 +1082,14 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
                AND bea.status NOT IN (${CANONICAL_CANCELLED_STATUS_SQL})
                AND bea.start_at IS NOT NULL
                AND bea.start_at < NOW()
-               AND ${canonicalAppointmentOrgPredicate("bea", organizationId)}
+               AND ${canonicalAppointmentOrgPredicate('bea', organizationId)}
            )::int AS past_count,
            COUNT(DISTINCT bea.id) FILTER (
              WHERE bea.deleted_at IS NULL
                AND bea.status NOT IN (${CANONICAL_CANCELLED_STATUS_SQL})
                AND bea.start_at IS NOT NULL
                AND bea.start_at >= NOW()
-               AND ${canonicalAppointmentOrgPredicate("bea", organizationId)}
+               AND ${canonicalAppointmentOrgPredicate('bea', organizationId)}
            )::int AS future_count
          FROM platform_users pu
          LEFT JOIN be_appointments bea ON bea.platform_user_id = pu.id
@@ -1076,8 +1097,8 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
            AND pu.merged_into_id IS NULL
            AND COALESCE(pu.is_archived, false) = false`;
       const aggQ = appendSqlOrganizationEnrollment(
-        appendSqlExcludeUserIds(aggBase, "pu.id", excluded, []),
-        "pu.id",
+        appendSqlExcludeUserIds(aggBase, 'pu.id', excluded, []),
+        'pu.id',
         organizationId,
       );
 
@@ -1090,10 +1111,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
           id: string;
           past_count: number;
           future_count: number;
-        }>(
-          `${aggQ.sql} GROUP BY pu.id`,
-          aggQ.params,
-        ),
+        }>(`${aggQ.sql} GROUP BY pu.id`, aggQ.params),
       ]);
 
       const eligibleUserIds = aggR.rows.map((row) => row.id);
@@ -1117,16 +1135,18 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       }
       const cancellationsCount = eventMetricRows.filter((row) => row.cancellationsCount > 0).length;
       const reschedulesCount = eventMetricRows.filter((row) => row.reschedulesCount > 0).length;
-      const membershipsCount = membershipMetricRows.filter((row) => row.activeMembershipsCount > 0).length;
+      const membershipsCount = membershipMetricRows.filter(
+        (row) => row.activeMembershipsCount > 0,
+      ).length;
       const expiredMembershipsCount = membershipMetricRows.filter(
         (row) => row.expiredMembershipsCount > 0,
       ).length;
 
       return {
-        totalClients: parseInt(totalR.rows[0]?.c ?? "0", 10),
-        onSupportCount: parseInt(supportR.rows[0]?.c ?? "0", 10),
-        visitedThisCalendarMonthCount: parseInt(visitedR.rows[0]?.c ?? "0", 10),
-        withProgramCount: parseInt(withProgramR.rows[0]?.c ?? "0", 10),
+        totalClients: parseInt(totalR.rows[0]?.c ?? '0', 10),
+        onSupportCount: parseInt(supportR.rows[0]?.c ?? '0', 10),
+        visitedThisCalendarMonthCount: parseInt(visitedR.rows[0]?.c ?? '0', 10),
+        withProgramCount: parseInt(withProgramR.rows[0]?.c ?? '0', 10),
         membershipsCount,
         expiredMembershipsCount,
         newCount,
@@ -1144,11 +1164,14 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         `SELECT role FROM platform_users WHERE id = $1::uuid`,
         [canonicalId],
       );
-      if (!roleRow.rows[0] || roleRow.rows[0].role !== "client") return null;
+      if (!roleRow.rows[0] || roleRow.rows[0].role !== 'client') return null;
       return this.getClientIdentity(userId);
     },
 
-    async getClientIdentityForOrganization(userId: string, organizationId: string): Promise<ClientIdentity | null> {
+    async getClientIdentityForOrganization(
+      userId: string,
+      organizationId: string,
+    ): Promise<ClientIdentity | null> {
       const pool = getPool();
       const canonicalId = (await resolveCanonicalUserId(pool, userId)) ?? userId;
       const membershipRow = await runWebappPgText<{ id: string }>(
@@ -1204,7 +1227,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         is_archived: boolean;
       };
       const bindingsRows = await runWebappPgText(
-        "SELECT channel_code, external_id, created_at FROM user_channel_bindings WHERE user_id = $1",
+        'SELECT channel_code, external_id, created_at FROM user_channel_bindings WHERE user_id = $1',
         [canonicalId],
       );
       const bindings = rowToBindings(
@@ -1220,7 +1243,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       }
       return {
         userId: r.id,
-        displayName: r.display_name ?? "",
+        displayName: r.display_name ?? '',
         phone: r.phone_normalized,
         bindings,
         createdAt: r.created_at,
@@ -1242,7 +1265,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
     async isClientMessagingBlocked(userId: string): Promise<boolean> {
       const r = await runWebappPgText<{ b: boolean }>(
         `SELECT COALESCE(is_blocked, false) AS b FROM platform_users WHERE id = $1`,
-        [userId]
+        [userId],
       );
       return Boolean(r.rows[0]?.b);
     },
@@ -1262,7 +1285,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
              blocked_by = $3::uuid,
              updated_at = now()
            WHERE id = $1::uuid AND role = 'client'`,
-          [params.userId, params.reason, params.actorId]
+          [params.userId, params.reason, params.actorId],
         );
       } else {
         await runWebappPgText(
@@ -1273,7 +1296,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
              blocked_by = NULL,
              updated_at = now()
            WHERE id = $1::uuid AND role = 'client'`,
-          [params.userId]
+          [params.userId],
         );
       }
     },
@@ -1290,7 +1313,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
            session_epoch = session_epoch + CASE WHEN $2 THEN 1 ELSE 0 END,
            updated_at = now()
          WHERE id = $1::uuid AND role = 'client'`,
-        [userId, archived]
+        [userId, archived],
       );
     },
 
@@ -1314,7 +1337,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       );
     },
 
-    async setPatientGender(userId: string, gender: "male" | "female" | null): Promise<void> {
+    async setPatientGender(userId: string, gender: 'male' | 'female' | null): Promise<void> {
       await runWebappTransaction((tx) =>
         runWebappPgText(
           `UPDATE platform_users SET gender = $2, updated_at = now()
@@ -1331,9 +1354,9 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
     ): Promise<void> {
       const sets: string[] = [];
       const params: unknown[] = [userId];
-      let firstNameExpr = "first_name";
-      let lastNameExpr = "last_name";
-      let patronymicExpr = "patronymic";
+      let firstNameExpr = 'first_name';
+      let lastNameExpr = 'last_name';
+      let patronymicExpr = 'patronymic';
       if (names.firstName !== undefined) {
         params.push(names.firstName);
         sets.push(`first_name = $${params.length}`);
@@ -1357,7 +1380,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         ), ''), '')`);
       await runWebappTransaction((tx) =>
         runWebappPgText(
-          `UPDATE platform_users SET ${sets.join(", ")}, updated_at = now()
+          `UPDATE platform_users SET ${sets.join(', ')}, updated_at = now()
            WHERE id = $1::uuid AND role = 'client'`,
           params,
           tx,
@@ -1379,34 +1402,37 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       userId: string,
       params: { heightCm?: number | null; weightKg?: number | null },
     ): Promise<void> {
-      const sets: string[] = ["updated_at = now()"];
+      const sets: string[] = ['updated_at = now()'];
       const values: unknown[] = [userId];
-      if ("heightCm" in params) {
+      if ('heightCm' in params) {
         values.push(params.heightCm ?? null);
         sets.push(`height_cm = $${values.length}::integer`);
       }
-      if ("weightKg" in params) {
+      if ('weightKg' in params) {
         values.push(params.weightKg ?? null);
         sets.push(`weight_kg = $${values.length}::integer`);
       }
       if (sets.length <= 1) return; // only updated_at, nothing to do
       await runWebappTransaction((tx) =>
         runWebappPgText(
-          `UPDATE platform_users SET ${sets.join(", ")} WHERE id = $1::uuid AND role = 'client'`,
+          `UPDATE platform_users SET ${sets.join(', ')} WHERE id = $1::uuid AND role = 'client'`,
           values,
           tx,
         ),
       );
     },
 
-    async getClientContactBreakdown(audience?: { excludedUserIds?: string[]; organizationId?: string }) {
+    async getClientContactBreakdown(audience?: {
+      excludedUserIds?: string[];
+      organizationId?: string;
+    }) {
       const excluded = audience?.excludedUserIds ?? [];
       const organizationId = audience?.organizationId;
       const base = `SELECT
-           ${sqlActiveTelegramBinding("pu.id")} AS has_telegram,
-           ${sqlActiveMaxBinding("pu.id")} AS has_max,
-           ${sqlMessengerBotBlocked("pu.id", "telegram")} AS telegram_bot_blocked,
-           ${sqlMessengerBotBlocked("pu.id", "max")} AS max_bot_blocked,
+           ${sqlActiveTelegramBinding('pu.id')} AS has_telegram,
+           ${sqlActiveMaxBinding('pu.id')} AS has_max,
+           ${sqlMessengerBotBlocked('pu.id', 'telegram')} AS telegram_bot_blocked,
+           ${sqlMessengerBotBlocked('pu.id', 'max')} AS max_bot_blocked,
            (pu.email_verified_at IS NOT NULL) AS has_verified_email,
            (pu.phone_normalized IS NOT NULL AND btrim(pu.phone_normalized) <> '') AS has_phone,
            EXISTS(
@@ -1414,15 +1440,15 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
              FROM be_appointments bea
              WHERE bea.platform_user_id = pu.id
                AND bea.deleted_at IS NULL
-               ${organizationId ? `AND bea.organization_id = ${sqlLiteralUuid(organizationId)}` : ""}
+               ${organizationId ? `AND bea.organization_id = ${sqlLiteralUuid(organizationId)}` : ''}
            ) AS has_appointment
          FROM platform_users pu
          WHERE pu.role = 'client'
            AND pu.merged_into_id IS NULL
            AND COALESCE(pu.is_archived, false) = false`;
       const q = appendSqlOrganizationEnrollment(
-        appendSqlExcludeUserIds(base, "pu.id", excluded, []),
-        "pu.id",
+        appendSqlExcludeUserIds(base, 'pu.id', excluded, []),
+        'pu.id',
         organizationId,
       );
       const rows = await runWebappPgText<{

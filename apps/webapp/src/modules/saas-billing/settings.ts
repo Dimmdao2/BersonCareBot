@@ -1,6 +1,6 @@
-import type { PaymentProviderConfig } from "@/modules/payments/types";
+import type { PaymentProviderConfig } from '@/modules/payments/types';
 
-export const DEFAULT_SAAS_BILLING_PAYMENT_PROVIDER_ID = "mock";
+export const DEFAULT_SAAS_BILLING_PAYMENT_PROVIDER_ID = 'mock';
 
 export type SaasBillingLifecyclePolicy = {
   graceDays: number;
@@ -27,9 +27,9 @@ export type SaasBillingPaymentProviderSettings = {
 function unwrap(envelope: unknown): unknown {
   if (
     envelope !== null &&
-    typeof envelope === "object" &&
+    typeof envelope === 'object' &&
     !Array.isArray(envelope) &&
-    "value" in envelope
+    'value' in envelope
   ) {
     return (envelope as Record<string, unknown>).value;
   }
@@ -37,7 +37,7 @@ function unwrap(envelope: unknown): unknown {
 }
 
 function nullableString(value: unknown): string | null {
-  return typeof value === "string" && value.trim() ? value.trim() : null;
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
 function positiveInteger(value: unknown): number | null {
@@ -47,29 +47,31 @@ function positiveInteger(value: unknown): number | null {
 function parseProviders(raw: unknown): PaymentProviderConfig[] {
   if (!Array.isArray(raw)) return [];
   return raw.flatMap((item) => {
-    if (item === null || typeof item !== "object" || Array.isArray(item)) return [];
+    if (item === null || typeof item !== 'object' || Array.isArray(item)) return [];
     const row = item as Record<string, unknown>;
     const id = nullableString(row.id);
     if (!id) return [];
-    return [{
-      id,
-      label: nullableString(row.label) ?? id,
-      enabled: row.enabled === true,
-      webhookSecret: nullableString(row.webhookSecret) ?? undefined,
-      apiKey: nullableString(row.apiKey) ?? undefined,
-      shopId: nullableString(row.shopId) ?? undefined,
-      terminalKey: nullableString(row.terminalKey) ?? undefined,
-      publicId: nullableString(row.publicId) ?? undefined,
-      merchantLogin: nullableString(row.merchantLogin) ?? undefined,
-      gatewayUrl: nullableString(row.gatewayUrl) ?? undefined,
-    }];
+    return [
+      {
+        id,
+        label: nullableString(row.label) ?? id,
+        enabled: row.enabled === true,
+        webhookSecret: nullableString(row.webhookSecret) ?? undefined,
+        apiKey: nullableString(row.apiKey) ?? undefined,
+        shopId: nullableString(row.shopId) ?? undefined,
+        terminalKey: nullableString(row.terminalKey) ?? undefined,
+        publicId: nullableString(row.publicId) ?? undefined,
+        merchantLogin: nullableString(row.merchantLogin) ?? undefined,
+        gatewayUrl: nullableString(row.gatewayUrl) ?? undefined,
+      },
+    ];
   });
 }
 
 function parsePayeeRequisites(raw: unknown): SaasBillingPayeeRequisites {
   const row =
-    raw !== null && typeof raw === "object" && !Array.isArray(raw)
-      ? raw as Record<string, unknown>
+    raw !== null && typeof raw === 'object' && !Array.isArray(raw)
+      ? (raw as Record<string, unknown>)
       : {};
   return {
     legalEntityType: nullableString(row.legalEntityType),
@@ -82,7 +84,7 @@ function parsePayeeRequisites(raw: unknown): SaasBillingPayeeRequisites {
 }
 
 function parseLifecyclePolicy(raw: unknown): SaasBillingLifecyclePolicy | null {
-  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return null;
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) return null;
   const row = raw as Record<string, unknown>;
   const graceDays = positiveInteger(row.graceDays);
   const chargeAttempts = positiveInteger(row.chargeAttempts);
@@ -97,8 +99,8 @@ export function parseSaasBillingPaymentProviderSettings(
 ): SaasBillingPaymentProviderSettings {
   const inner = unwrap(envelope);
   const row =
-    inner !== null && typeof inner === "object" && !Array.isArray(inner)
-      ? inner as Record<string, unknown>
+    inner !== null && typeof inner === 'object' && !Array.isArray(inner)
+      ? (inner as Record<string, unknown>)
       : {};
   const providers = parseProviders(row.providers);
   return {
@@ -107,11 +109,13 @@ export function parseSaasBillingPaymentProviderSettings(
     providers:
       providers.length > 0
         ? providers
-        : [{
-            id: DEFAULT_SAAS_BILLING_PAYMENT_PROVIDER_ID,
-            label: "Mock",
-            enabled: true,
-          }],
+        : [
+            {
+              id: DEFAULT_SAAS_BILLING_PAYMENT_PROVIDER_ID,
+              label: 'Mock',
+              enabled: true,
+            },
+          ],
     payeeRequisites: parsePayeeRequisites(row.payeeRequisites),
     lifecyclePolicy: parseLifecyclePolicy(row.lifecyclePolicy),
   };
@@ -120,8 +124,8 @@ export function parseSaasBillingPaymentProviderSettings(
 function redactProvider(provider: PaymentProviderConfig): PaymentProviderConfig {
   return {
     ...provider,
-    webhookSecret: provider.webhookSecret ? "[REDACTED]" : "",
-    apiKey: provider.apiKey ? "[REDACTED]" : "",
+    webhookSecret: provider.webhookSecret ? '[REDACTED]' : '',
+    apiKey: provider.apiKey ? '[REDACTED]' : '',
   };
 }
 
@@ -144,11 +148,11 @@ export async function mergeSaasBillingPaymentProviderSecretsRetain(
         return {
           ...provider,
           webhookSecret:
-            provider.webhookSecret === "[REDACTED]" || provider.webhookSecret === undefined
+            provider.webhookSecret === '[REDACTED]' || provider.webhookSecret === undefined
               ? previousProvider?.webhookSecret
               : provider.webhookSecret,
           apiKey:
-            provider.apiKey === "[REDACTED]" || provider.apiKey === undefined
+            provider.apiKey === '[REDACTED]' || provider.apiKey === undefined
               ? previousProvider?.apiKey
               : provider.apiKey,
         };

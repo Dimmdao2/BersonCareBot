@@ -2,7 +2,7 @@ export {
   pickNextHomeReminder,
   computeNextOccurrenceUtcForRule,
   formatNextReminderLabel,
-} from "./nextReminderOccurrence";
+} from './nextReminderOccurrence';
 
 /** @deprecated Use pickNextHomeReminder */
-export { pickNextHomeReminder as pickNextReminderRuleForHome } from "./nextReminderOccurrence";
+export { pickNextHomeReminder as pickNextReminderRuleForHome } from './nextReminderOccurrence';

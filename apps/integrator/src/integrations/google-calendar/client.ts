@@ -53,7 +53,10 @@ export function createGoogleCalendarClient(
     return accessToken;
   }
 
-  async function upsertEvent(googleEventId: string | null, event: GoogleCalendarEventInput): Promise<string> {
+  async function upsertEvent(
+    googleEventId: string | null,
+    event: GoogleCalendarEventInput,
+  ): Promise<string> {
     const config = await getConfig();
     const accessToken = await getAccessToken(config);
     const calendarId = encodeURIComponent(config.calendarId);

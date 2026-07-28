@@ -10,13 +10,13 @@
 
 Таблица `media_files` (доп. колонки):
 
-| Колонка | Смысл |
-|--------|--------|
-| `preview_status` | `pending` \| `ready` \| `failed` \| `skipped` |
-| `preview_sm_key` | Ключ объекта в private S3 (миниатюра ~160px) |
-| `preview_md_key` | Ключ среднего превью (~400px) для **image**, **video** и **HEIC/HEIF** (воркер пишет sm + md) |
-| `preview_attempts`, `preview_next_attempt_at` | Повторы при ошибке (экспоненциальная задержка) |
-| `source_width`, `source_height` | Размер исходника (пиксели), заполняет воркер (`sharp` metadata / `ffprobe`); UI библиотеки показывает «Разрешение» без client-side probe |
+| Колонка                                       | Смысл                                                                                                                                    |
+| --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `preview_status`                              | `pending` \| `ready` \| `failed` \| `skipped`                                                                                            |
+| `preview_sm_key`                              | Ключ объекта в private S3 (миниатюра ~160px)                                                                                             |
+| `preview_md_key`                              | Ключ среднего превью (~400px) для **image**, **video** и **HEIC/HEIF** (воркер пишет sm + md)                                            |
+| `preview_attempts`, `preview_next_attempt_at` | Повторы при ошибке (экспоненциальная задержка)                                                                                           |
+| `source_width`, `source_height`               | Размер исходника (пиксели), заполняет воркер (`sharp` metadata / `ffprobe`); UI библиотеки показывает «Разрешение» без client-side probe |
 
 Объекты в бакете: `previews/sm/{uuid}.jpg`, `previews/md/{uuid}.jpg` (стабильные ключи).
 
@@ -39,12 +39,12 @@
 
 ## Матрица форматов
 
-| Формат | Статус | Причина |
-|--------|--------|---------|
-| `image/jpeg`, `image/png`, `image/webp`, `image/gif` | `ready` | `sharp` поддерживает |
-| `image/heic`, `image/heif` | `ready` при наличии `ffmpeg` или `ImageMagick` | ffmpeg first (sm+md), fallback через `magick`/`convert` + sharp sm+md; при обеих ошибках будет `skipped` |
-| `video/mp4`, `video/webm` | `ready` | системный `ffmpeg` |
-| `video/quicktime` (`.mov`) | `ready` при системном `ffmpeg` | `@ffmpeg-installer` может давать `SIGSEGV` на хосте |
+| Формат                                               | Статус                                         | Причина                                                                                                  |
+| ---------------------------------------------------- | ---------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `image/jpeg`, `image/png`, `image/webp`, `image/gif` | `ready`                                        | `sharp` поддерживает                                                                                     |
+| `image/heic`, `image/heif`                           | `ready` при наличии `ffmpeg` или `ImageMagick` | ffmpeg first (sm+md), fallback через `magick`/`convert` + sharp sm+md; при обеих ошибках будет `skipped` |
+| `video/mp4`, `video/webm`                            | `ready`                                        | системный `ffmpeg`                                                                                       |
+| `video/quicktime` (`.mov`)                           | `ready` при системном `ffmpeg`                 | `@ffmpeg-installer` может давать `SIGSEGV` на хосте                                                      |
 
 ### Доступ к превью
 
@@ -70,9 +70,9 @@
 
 ## Логирование (сводно)
 
-| Место | Событие |
-|--------|---------|
-| `mediaPreviewWorker` | `source dimensions stored` при записи `source_width`/`source_height`; `backfill: source dimensions NULL before processing` (debug) |
+| Место                  | Событие                                                                                                                                 |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `mediaPreviewWorker`   | `source dimensions stored` при записи `source_width`/`source_height`; `backfill: source dimensions NULL before processing` (debug)      |
 | `preview/[size]/route` | успешная отдача тела / 304 — **debug** (`served body`, `not modified`); `not found` / `s3 read failed` / предупреждения — без понижения |
 
 ## Удаление

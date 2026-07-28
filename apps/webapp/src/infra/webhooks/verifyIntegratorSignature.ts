@@ -1,11 +1,11 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
-import { enterWithDbBootstrapPrincipal } from "@bersoncare/db-principal";
-import { integratorWebhookSecret } from "@/config/env";
+import { createHmac, timingSafeEqual } from 'node:crypto';
+import { enterWithDbBootstrapPrincipal } from '@bersoncare/db-principal';
+import { integratorWebhookSecret } from '@/config/env';
 
 const DEFAULT_WINDOW_SECONDS = 300; // ±5 minutes
 
 function sign(value: string): string {
-  return createHmac("sha256", integratorWebhookSecret()).update(value).digest("base64url");
+  return createHmac('sha256', integratorWebhookSecret()).update(value).digest('base64url');
 }
 
 function isTimestampFresh(timestamp: string, windowSeconds: number): boolean {
@@ -27,7 +27,7 @@ export function verifyIntegratorSignature(
   timestamp: string,
   body: string,
   signature: string,
-  options?: { windowSeconds?: number }
+  options?: { windowSeconds?: number },
 ): boolean {
   const windowSeconds = options?.windowSeconds ?? DEFAULT_WINDOW_SECONDS;
   if (!isTimestampFresh(timestamp, windowSeconds)) return false;
@@ -38,7 +38,7 @@ export function verifyIntegratorSignature(
 
   const ok = left.length === right.length && timingSafeEqual(left, right);
   if (ok) {
-    stampVerifiedIntegratorBootstrapPrincipal("verifyIntegratorSignature");
+    stampVerifiedIntegratorBootstrapPrincipal('verifyIntegratorSignature');
   }
   return ok;
 }
@@ -48,7 +48,7 @@ export function verifyIntegratorGetSignature(
   timestamp: string,
   canonicalGet: string,
   signature: string,
-  options?: { windowSeconds?: number }
+  options?: { windowSeconds?: number },
 ): boolean {
   const windowSeconds = options?.windowSeconds ?? DEFAULT_WINDOW_SECONDS;
   if (!isTimestampFresh(timestamp, windowSeconds)) return false;
@@ -57,7 +57,7 @@ export function verifyIntegratorGetSignature(
   const right = Buffer.from(signature);
   const ok = left.length === right.length && timingSafeEqual(left, right);
   if (ok) {
-    stampVerifiedIntegratorBootstrapPrincipal("verifyIntegratorGetSignature");
+    stampVerifiedIntegratorBootstrapPrincipal('verifyIntegratorGetSignature');
   }
   return ok;
 }

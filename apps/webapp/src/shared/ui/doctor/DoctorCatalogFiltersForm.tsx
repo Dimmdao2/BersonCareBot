@@ -1,22 +1,22 @@
-"use client";
+'use client';
 
-import type { ReactNode } from "react";
-import { startTransition, useCallback, useEffect, useRef, useState } from "react";
-import { usePathname } from "next/navigation";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { ReferenceSelect } from "@/shared/ui/doctor/ReferenceSelect";
-import { EXERCISE_LOAD_TYPE_CATEGORY_CODE } from "@/modules/lfk-exercises/exerciseLoadTypeReference";
-import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
-import type { ReferenceItemDto } from "@/modules/references/referenceCache";
-import type { DoctorCatalogPubArchQuery } from "@/shared/lib/doctorCatalogListStatus";
-import { DOCTOR_CATALOG_FILTER_MISSING } from "@/shared/lib/doctorCatalogEmptyFieldFilter";
-import { dispatchDoctorCatalogUrlSync } from "@/shared/lib/doctorCatalogClientUrlSync";
-import { cn } from "@/lib/utils";
+import type { ReactNode } from 'react';
+import { startTransition, useCallback, useEffect, useRef, useState } from 'react';
+import { usePathname } from 'next/navigation';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { ReferenceSelect } from '@/shared/ui/doctor/ReferenceSelect';
+import { EXERCISE_LOAD_TYPE_CATEGORY_CODE } from '@/modules/lfk-exercises/exerciseLoadTypeReference';
+import type { ExerciseLoadType } from '@/modules/lfk-exercises/types';
+import type { ReferenceItemDto } from '@/modules/references/referenceCache';
+import type { DoctorCatalogPubArchQuery } from '@/shared/lib/doctorCatalogListStatus';
+import { DOCTOR_CATALOG_FILTER_MISSING } from '@/shared/lib/doctorCatalogEmptyFieldFilter';
+import { dispatchDoctorCatalogUrlSync } from '@/shared/lib/doctorCatalogClientUrlSync';
+import { cn } from '@/lib/utils';
 
 const Q_DEBOUNCE_MS = 350;
 
-const missingRegionOption = { value: DOCTOR_CATALOG_FILTER_MISSING, label: "Без региона" };
-const missingLoadOption = { value: DOCTOR_CATALOG_FILTER_MISSING, label: "Без типа" };
+const missingRegionOption = { value: DOCTOR_CATALOG_FILTER_MISSING, label: 'Без региона' };
+const missingLoadOption = { value: DOCTOR_CATALOG_FILTER_MISSING, label: 'Без типа' };
 
 /** Альтернатива колонке «тип нагрузки»: свой справочник и имя GET-параметра (например область рекомендаций — `domain`). */
 export type DoctorCatalogTertiaryFilter = {
@@ -32,7 +32,7 @@ export type DoctorCatalogTertiaryFilter = {
   summaryLabel: string;
 };
 
-export type DoctorCatalogToolbarLayout = "compact" | "expanded";
+export type DoctorCatalogToolbarLayout = 'compact' | 'expanded';
 
 export type DoctorCatalogFiltersChange = {
   q: string;
@@ -51,8 +51,8 @@ export type DoctorCatalogFiltersFormProps = {
   showLoadFilter?: boolean;
   /** Если задано, третья колонка — не тип нагрузки, а этот список (напр. область рекомендации). */
   tertiaryFilter?: DoctorCatalogTertiaryFilter;
-  view?: "tiles" | "list";
-  titleSort?: "asc" | "desc" | null;
+  view?: 'tiles' | 'list';
+  titleSort?: 'asc' | 'desc' | null;
   selectedId?: string | null;
   idPrefix?: string;
   /** Сохранять оси каталога с публикацией при GET submit (ЛФК / шаблоны программ / наборы тестов). */
@@ -65,10 +65,13 @@ export type DoctorCatalogFiltersFormProps = {
   onFiltersChange?: (filters: DoctorCatalogFiltersChange) => void;
 };
 
-function applyParamsPatch(sp: URLSearchParams, patch: Record<string, string | null | undefined>): URLSearchParams {
+function applyParamsPatch(
+  sp: URLSearchParams,
+  patch: Record<string, string | null | undefined>,
+): URLSearchParams {
   const next = new URLSearchParams(sp.toString());
   for (const [k, v] of Object.entries(patch)) {
-    if (v === null || v === undefined || v === "") next.delete(k);
+    if (v === null || v === undefined || v === '') next.delete(k);
     else next.set(k, v);
   }
   return next;
@@ -88,7 +91,7 @@ export function DoctorCatalogFiltersForm({
   view,
   titleSort,
   selectedId,
-  idPrefix = "catalog",
+  idPrefix = 'catalog',
   catalogPubArch,
   leadingSlot,
   onFilterToolbarLayoutChange,
@@ -112,7 +115,7 @@ export function DoctorCatalogFiltersForm({
   }, [onFilterToolbarLayoutChange]);
 
   useEffect(() => {
-    onFilterToolbarLayoutChangeRef.current?.("compact");
+    onFilterToolbarLayoutChangeRef.current?.('compact');
   }, []);
 
   useEffect(() => {
@@ -123,8 +126,8 @@ export function DoctorCatalogFiltersForm({
     (next: URLSearchParams) => {
       const qs = next.toString();
       const url = qs ? `${pathname}?${qs}` : pathname;
-      if (typeof window === "undefined") return;
-      window.history.replaceState(window.history.state, "", url);
+      if (typeof window === 'undefined') return;
+      window.history.replaceState(window.history.state, '', url);
       startTransition(() => {
         dispatchDoctorCatalogUrlSync();
       });
@@ -134,22 +137,22 @@ export function DoctorCatalogFiltersForm({
 
   const mergeWorkspaceInto = useCallback(
     (sp: URLSearchParams) => {
-      if (view) sp.set("view", view);
-      else sp.delete("view");
+      if (view) sp.set('view', view);
+      else sp.delete('view');
 
-      if (titleSort) sp.set("titleSort", titleSort);
-      else sp.delete("titleSort");
+      if (titleSort) sp.set('titleSort', titleSort);
+      else sp.delete('titleSort');
 
-      if (selectedId) sp.set("selected", selectedId);
-      else sp.delete("selected");
+      if (selectedId) sp.set('selected', selectedId);
+      else sp.delete('selected');
 
-      if (catalogPubArch?.arch === "archived") sp.set("arch", "archived");
-      else sp.delete("arch");
+      if (catalogPubArch?.arch === 'archived') sp.set('arch', 'archived');
+      else sp.delete('arch');
 
-      if (catalogPubArch?.pub === "draft" || catalogPubArch?.pub === "published") {
-        sp.set("pub", catalogPubArch.pub);
+      if (catalogPubArch?.pub === 'draft' || catalogPubArch?.pub === 'published') {
+        sp.set('pub', catalogPubArch.pub);
       } else {
-        sp.delete("pub");
+        sp.delete('pub');
       }
     },
     [view, titleSort, selectedId, catalogPubArch],
@@ -164,12 +167,12 @@ export function DoctorCatalogFiltersForm({
       if (onFiltersChange) {
         onFiltersChange({
           q: qInputRef.current.trim(),
-          regionCode: patch.region === undefined ? selectedRegionCode : patch.region ?? null,
-          loadType: patch.load === undefined ? selectedExerciseLoad : patch.load ?? null,
+          regionCode: patch.region === undefined ? selectedRegionCode : (patch.region ?? null),
+          loadType: patch.load === undefined ? selectedExerciseLoad : (patch.load ?? null),
         });
         return;
       }
-      const base = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
+      const base = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
       const qTrim = qInputRef.current.trim();
       const next = applyParamsPatch(base, {
         ...patch,
@@ -193,14 +196,20 @@ export function DoctorCatalogFiltersForm({
         });
         return;
       }
-      const sp = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
+      const sp = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
       const qTrim = qInputRef.current.trim();
-      if (qTrim) sp.set("q", qTrim);
-      else sp.delete("q");
+      if (qTrim) sp.set('q', qTrim);
+      else sp.delete('q');
       mergeWorkspaceInto(sp);
       replaceSearch(sp);
     }, Q_DEBOUNCE_MS);
-  }, [mergeWorkspaceInto, onFiltersChange, replaceSearch, selectedExerciseLoad, selectedRegionCode]);
+  }, [
+    mergeWorkspaceInto,
+    onFiltersChange,
+    replaceSearch,
+    selectedExerciseLoad,
+    selectedRegionCode,
+  ]);
 
   useEffect(() => {
     setSelectedRegionCode(regionCode ?? null);
@@ -257,7 +266,7 @@ export function DoctorCatalogFiltersForm({
           clearOptionLabel={tertiaryFilter.clearLabel}
           missingValueOption={{
             value: DOCTOR_CATALOG_FILTER_MISSING,
-            label: tertiaryFilter.missingValueLabel ?? "Без типа",
+            label: tertiaryFilter.missingValueLabel ?? 'Без типа',
           }}
           showAllOnFocus
           searchable={false}
@@ -291,7 +300,7 @@ export function DoctorCatalogFiltersForm({
   }
 
   return (
-    <div className={cn("flex w-full min-w-0 flex-col gap-2")}>
+    <div className={cn('flex w-full min-w-0 flex-col gap-2')}>
       <div className="flex flex-wrap items-center gap-2">
         {leadingSlot}
         <div className="w-[168px] min-w-[140px] shrink-0">

@@ -84,12 +84,12 @@ sudo -u postgres psql -d <база> -v ON_ERROR_STOP=1 -f apps/webapp/scripts/co
 аудит нашёл уже ПОСЛЕ применения на TEST, что четыре колонки ссылаются на пользователя **без внешнего ключа**,
 поэтому в каталоге связей их не видно, а удаление прошло молча:
 
-| колонка | тип | строк |
-|---|---|---|
-| `integrator.system_settings.updated_by` | `text`, другая схема | 25 |
-| `public.broadcast_audit.actor_id` | `text` | 3 |
-| `public.operator_health_failure_archive.archived_by_user_id` | `uuid`, без FK | 9 |
-| `public.operator_health_failure_archive.doctor_user_id` | `uuid`, без FK | 11 |
+| колонка                                                      | тип                  | строк |
+| ------------------------------------------------------------ | -------------------- | ----- |
+| `integrator.system_settings.updated_by`                      | `text`, другая схема | 25    |
+| `public.broadcast_audit.actor_id`                            | `text`               | 3     |
+| `public.operator_health_failure_archive.archived_by_user_id` | `uuid`, без FK       | 9     |
+| `public.operator_health_failure_archive.doctor_user_id`      | `uuid`, без FK       | 11    |
 
 Все 48 вели на админское надгробие, поэтому перенос однозначен; в блоке «1b» скрипта они закрыты явно.
 **Вывод, который важнее самих колонок:** проверка, перечисляющая то, что перечислил автор, не проверяет ничего.

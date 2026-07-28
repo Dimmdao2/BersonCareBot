@@ -1,20 +1,23 @@
-import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
-import type { RecommendationUsageSnapshot } from "@/modules/recommendations/types";
-import { parseRecommendationCatalogSsrQuery } from "@/modules/recommendations/recommendationCatalogSsrQuery";
+import { requireDoctorAccess } from '@/app-layer/guards/requireRole';
+import type { RecommendationUsageSnapshot } from '@/modules/recommendations/types';
+import { parseRecommendationCatalogSsrQuery } from '@/modules/recommendations/recommendationCatalogSsrQuery';
 import {
   RECOMMENDATION_TYPE_CATEGORY_CODE,
   referenceItemsToRecommendationDomainFilterDto,
-} from "@/modules/recommendations/recommendationDomain";
-import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
-import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
-import { doctorCatalogViewFromSearchParams } from "@/shared/lib/doctorCatalogViewPreference";
+} from '@/modules/recommendations/recommendationDomain';
+import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
+import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
+import { doctorCatalogViewFromSearchParams } from '@/shared/lib/doctorCatalogViewPreference';
 import {
   parseRecommendationListFilterScope,
   recommendationArchiveScopeFromListScope,
-} from "@/shared/lib/doctorCatalogListStatus";
-import { resolveBodyRegionRefIdFromCatalogCode } from "@/shared/lib/doctorCatalogRegionQuery";
-import { doctorCatalogClientFilterUrlHints } from "@/shared/lib/doctorCatalogClientUrlSync";
-import { RecommendationsPageClient, type RecommendationTitleSort } from "./RecommendationsPageClient";
+} from '@/shared/lib/doctorCatalogListStatus';
+import { resolveBodyRegionRefIdFromCatalogCode } from '@/shared/lib/doctorCatalogRegionQuery';
+import { doctorCatalogClientFilterUrlHints } from '@/shared/lib/doctorCatalogClientUrlSync';
+import {
+  RecommendationsPageClient,
+  type RecommendationTitleSort,
+} from './RecommendationsPageClient';
 
 type PageProps = {
   searchParams?: Promise<{
@@ -30,25 +33,27 @@ type PageProps = {
 
 export default async function DoctorRecommendationsPage({ searchParams }: PageProps) {
   const session = await requireDoctorAccess();
-  const { buildAppDeps } = await import("@/app-layer/di/buildAppDeps");
+  const { buildAppDeps } = await import('@/app-layer/di/buildAppDeps');
   const deps = buildAppDeps();
   const sp = (await searchParams) ?? {};
-  const q = typeof sp.q === "string" ? sp.q : "";
+  const q = typeof sp.q === 'string' ? sp.q : '';
   const [recommendationTypeRefItems, bodyRegionItems] = await Promise.all([
     deps.references.listActiveItemsByCategoryCode(RECOMMENDATION_TYPE_CATEGORY_CODE),
-    deps.references.listActiveItemsByCategoryCode("body_region"),
+    deps.references.listActiveItemsByCategoryCode('body_region'),
   ]);
-  const domainFilterItems = referenceItemsToRecommendationDomainFilterDto(recommendationTypeRefItems);
+  const domainFilterItems = referenceItemsToRecommendationDomainFilterDto(
+    recommendationTypeRefItems,
+  );
   const catalogQuery = parseRecommendationCatalogSsrQuery(
     {
-      region: typeof sp.region === "string" ? sp.region : undefined,
-      domain: typeof sp.domain === "string" ? sp.domain : undefined,
+      region: typeof sp.region === 'string' ? sp.region : undefined,
+      domain: typeof sp.domain === 'string' ? sp.domain : undefined,
     },
     recommendationTypeRefItems,
   );
   const titleSort: RecommendationTitleSort | null =
-    sp.titleSort === "asc" || sp.titleSort === "desc" ? sp.titleSort : null;
-  const listStatus = parseRecommendationListFilterScope(sp, "active");
+    sp.titleSort === 'asc' || sp.titleSort === 'desc' ? sp.titleSort : null;
+  const listStatus = parseRecommendationListFilterScope(sp, 'active');
   const archiveScope = recommendationArchiveScopeFromListScope(listStatus);
 
   const regionRefIdForList = resolveBodyRegionRefIdFromCatalogCode(
@@ -62,15 +67,16 @@ export default async function DoctorRecommendationsPage({ searchParams }: PagePr
   });
   const bodyRegionIdToCode = Object.fromEntries(bodyRegionItems.map((it) => [it.id, it.code]));
 
-  const rawSelected = typeof sp.selected === "string" ? sp.selected.trim() : "";
+  const rawSelected = typeof sp.selected === 'string' ? sp.selected.trim() : '';
   const initialSelectedId =
     rawSelected && items.some((r) => r.id === rawSelected) ? rawSelected : null;
   let initialSelectedUsageSnapshot: RecommendationUsageSnapshot | null = null;
   if (initialSelectedId != null) {
-    initialSelectedUsageSnapshot = await deps.recommendations.getRecommendationUsage(initialSelectedId);
+    initialSelectedUsageSnapshot =
+      await deps.recommendations.getRecommendationUsage(initialSelectedId);
   }
   const { initialViewMode, viewLockedByUrl } = doctorCatalogViewFromSearchParams(
-    typeof sp.view === "string" ? sp.view : undefined,
+    typeof sp.view === 'string' ? sp.view : undefined,
   );
 
   return (

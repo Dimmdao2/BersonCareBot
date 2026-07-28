@@ -26,7 +26,6 @@ plans не редактируются. Production mutations выполняет �
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-
 - [ ] Закрыты `O-02`, `O-05…O-09`; подтверждены РФ-регионы всех copies и договорная роль Selectel.
 - [ ] Выбрана одна disk layout:
   - `A`: LUKS2 root с проверенным console/remote unlock; либо
@@ -42,7 +41,6 @@ plans не редактируются. Production mutations выполняет �
 > **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
-
 
 - [ ] Расширить существующие deploy scripts до idempotent `preflight/apply/verify/rollback`; не создавать ручной
       альтернативный deploy path.
@@ -71,7 +69,6 @@ port scan, service health, synthetic DB restore. Изменения deploy/root 
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-
 - [ ] Поднять временный VPS/volume без production credentials и реальных каналов.
 - [ ] Проверить install → encrypt/unlock → reboot → recovery console → rebuild from zero.
 - [ ] Восстановить synthetic TEST backup и encrypted media fixture; выполнить schema/tenant/integrity smoke.
@@ -89,7 +86,6 @@ port scan, service health, synthetic DB restore. Изменения deploy/root 
 > **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
-
 
 - [ ] Создать target network/SG/VPS/volumes по принятой спецификации; проверить IP reachability из РФ до переезда.
 - [ ] Установить ОС/packages/config из reviewed scripts. Новый host не принимает public app traffic.
@@ -109,7 +105,6 @@ port scan, service health, synthetic DB restore. Изменения deploy/root 
 > **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
-
 
 - [ ] Зафиксировать exact source/target host IDs, release SHA, DB migration state, storage manifests, DNS records,
       TTL, certificates, Telegram relay/VPN dependencies и health checks.
@@ -151,7 +146,6 @@ port scan, service health, synthetic DB restore. Изменения deploy/root 
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-
 - [ ] Ротировать DB/session/M2M/integration/S3/SSH secrets и доказать, что старые credentials отозваны.
 - [ ] Сохранить source host выключенным/изолированным только на утверждённое rollback window; не использовать как
       второй живой PROD.
@@ -168,7 +162,6 @@ port scan, service health, synthetic DB restore. Изменения deploy/root 
 > **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
-
 
 - [ ] Реальный PROD работает только на принятой encrypted topology; открытый source не является active fallback.
 - [ ] Reboot/unlock/recovery, DB/media restore и secret rotation доказаны, а не описаны теоретически.

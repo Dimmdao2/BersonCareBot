@@ -2,8 +2,8 @@ import type {
   ReminderProjectionPort,
   ReminderRuleListItem,
   ReminderOccurrenceHistoryItem,
-} from "./pgReminderProjection";
-import { buildReminderDeepLink } from "@/modules/reminders/buildReminderDeepLink";
+} from './pgReminderProjection';
+import { buildReminderDeepLink } from '@/modules/reminders/buildReminderDeepLink';
 
 const rulesByIntegratorRuleId = new Map<string, ReminderRuleListItem>();
 const occurrenceHistory: Array<{
@@ -11,7 +11,7 @@ const occurrenceHistory: Array<{
   integratorRuleId: string;
   integratorUserId: string;
   category: string;
-  status: "sent" | "failed";
+  status: 'sent' | 'failed';
   deliveryChannel: string | null;
   errorCode: string | null;
   occurredAt: string;
@@ -65,7 +65,7 @@ export const inMemoryReminderProjectionPort: ReminderProjectionPort = {
 
   async appendFinalizedOccurrenceFromProjection(params) {
     const existing = occurrenceHistory.some(
-      (o) => o.integratorOccurrenceId === params.integratorOccurrenceId
+      (o) => o.integratorOccurrenceId === params.integratorOccurrenceId,
     );
     if (existing) return;
     occurrenceHistory.push({
@@ -108,7 +108,7 @@ export const inMemoryReminderProjectionPort: ReminderProjectionPort = {
   async getRuleByIntegratorUserIdAndCategory(integratorUserId: string, category: string) {
     return (
       Array.from(rulesByIntegratorRuleId.values()).find(
-        (x) => x.userId === integratorUserId && x.category === category
+        (x) => x.userId === integratorUserId && x.category === category,
       ) ?? null
     );
   },
@@ -126,7 +126,7 @@ export const inMemoryReminderProjectionPort: ReminderProjectionPort = {
           deliveryChannel: o.deliveryChannel,
           errorCode: o.errorCode,
           occurredAt: o.occurredAt,
-        })
+        }),
       );
     return items;
   },

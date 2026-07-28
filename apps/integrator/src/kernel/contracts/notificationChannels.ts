@@ -26,7 +26,10 @@ export type ResolvedNotificationChannelsPayload = {
   topicCode: string;
   integratorUserId?: string;
   selectedChannels: NotificationChannelCode[];
-  skippedChannels: Array<{ channel: NotificationChannelCode; reason: SkippedNotificationChannelReason }>;
+  skippedChannels: Array<{
+    channel: NotificationChannelCode;
+    reason: SkippedNotificationChannelReason;
+  }>;
   availableChannels: NotificationChannelCode[];
   enabledChannels: NotificationChannelCode[];
 };

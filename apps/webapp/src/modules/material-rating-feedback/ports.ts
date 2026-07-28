@@ -1,4 +1,4 @@
-import type { MaterialRatingFeedbackReasonCode } from "./reasonCodes";
+import type { MaterialRatingFeedbackReasonCode } from './reasonCodes';
 
 export type MaterialRatingFeedbackRow = {
   id: string;
@@ -34,9 +34,21 @@ export type MaterialRatingFeedbackPort = {
     reasonCodes: MaterialRatingFeedbackReasonCode[];
     comment: string | null;
   }): Promise<{ id: string }>;
-  getDoctorSummary(input: { organizationId: string; contentPageId: string; recentLimit?: number }): Promise<MaterialRatingFeedbackDoctorSummary>;
-  listForPage(input: { organizationId: string; contentPageId: string; limit: number; offset: number }): Promise<MaterialRatingFeedbackRow[]>;
-  listDoctorFeedbackForPage(
-    input: { organizationId: string; contentPageId: string; limit: number; offset: number },
-  ): Promise<MaterialRatingFeedbackDoctorSummary["recent"]>;
+  getDoctorSummary(input: {
+    organizationId: string;
+    contentPageId: string;
+    recentLimit?: number;
+  }): Promise<MaterialRatingFeedbackDoctorSummary>;
+  listForPage(input: {
+    organizationId: string;
+    contentPageId: string;
+    limit: number;
+    offset: number;
+  }): Promise<MaterialRatingFeedbackRow[]>;
+  listDoctorFeedbackForPage(input: {
+    organizationId: string;
+    contentPageId: string;
+    limit: number;
+    offset: number;
+  }): Promise<MaterialRatingFeedbackDoctorSummary['recent']>;
 };

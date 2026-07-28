@@ -93,7 +93,10 @@ describe('runOperatorHealthProbes', () => {
       redirectUri: 'http://localhost',
     });
     probeGoogleCalendarAccessMock.mockRejectedValue(new Error('GOOGLE_CALENDAR_HTTP_403'));
-    recordProbeRunMock.mockResolvedValue({ consecutiveFailRuns: 2, consecutiveFailures: { google_calendar: 2 } });
+    recordProbeRunMock.mockResolvedValue({
+      consecutiveFailRuns: 2,
+      consecutiveFailures: { google_calendar: 2 },
+    });
     const r = await runOperatorHealthProbes({ dispatchPort });
     expect(r.google_calendar).toBe('fail');
     expect(getGoogleCalendarConfigMock).toHaveBeenCalledWith(
@@ -191,7 +194,10 @@ describe('runOperatorHealthProbes', () => {
 
   it('MAX fail reports failure and does not resolve', async () => {
     getMaxBotInfoMock.mockResolvedValue(null);
-    recordProbeRunMock.mockResolvedValue({ consecutiveFailRuns: 1, consecutiveFailures: { max: 1 } });
+    recordProbeRunMock.mockResolvedValue({
+      consecutiveFailRuns: 1,
+      consecutiveFailures: { max: 1 },
+    });
     const r = await runOperatorHealthProbes({ dispatchPort });
     expect(r.max).toBe('fail');
     expect(reportOperatorFailureMock).not.toHaveBeenCalled();

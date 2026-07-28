@@ -1,8 +1,8 @@
-import type { Pool } from "pg";
+import type { Pool } from 'pg';
 import {
   loadReminderMessengerChannelBindings,
   loadReminderRuleForMessengerTopicDisable,
-} from "@/infra/repos/pgReminderMessengerTopicDisable";
+} from '@/infra/repos/pgReminderMessengerTopicDisable';
 
 export function loadReminderOccurrenceRuleForMessengerTopicDisable(
   pool: Pool,
@@ -14,6 +14,9 @@ export function loadReminderOccurrenceRuleForMessengerTopicDisable(
   return loadReminderRuleForMessengerTopicDisable(pool, params);
 }
 
-export function loadMessengerChannelBindingsForReminderTopicDisable(pool: Pool, platformUserId: string) {
+export function loadMessengerChannelBindingsForReminderTopicDisable(
+  pool: Pool,
+  platformUserId: string,
+) {
   return loadReminderMessengerChannelBindings(pool, platformUserId);
 }

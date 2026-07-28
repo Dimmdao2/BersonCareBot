@@ -1,14 +1,14 @@
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requirePlatformOperationsApiContext } from "@/app-layer/guards/requireRole";
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { requirePlatformOperationsApiContext } from '@/app-layer/guards/requireRole';
 import {
   HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE,
   HEALTH_FAILURE_ARCHIVE_OUTGOING_PROBE,
   HEALTH_FAILURE_ARCHIVE_OUTGOING_REMINDER_PROBE,
   HEALTH_FAILURE_ARCHIVE_PROJECTION_PROBE,
-} from "@/modules/operator-health/healthFailureArchiveConstants";
-import type { HealthFailureArchiveProbe } from "@/modules/operator-health/healthFailureArchiveConstants";
+} from '@/modules/operator-health/healthFailureArchiveConstants';
+import type { HealthFailureArchiveProbe } from '@/modules/operator-health/healthFailureArchiveConstants';
 
 const probeEnum = z.enum([
   HEALTH_FAILURE_ARCHIVE_OUTGOING_PROBE,
@@ -37,17 +37,18 @@ export async function GET(request: Request) {
   if (!gate.ok) return gate.response;
 
   const url = new URL(request.url);
-  const probeRaw = url.searchParams.get("probe");
+  const probeRaw = url.searchParams.get('probe');
   const probe = parseProbe(probeRaw);
-  const probeInvalid =
-    probeRaw != null && String(probeRaw).trim().length > 0 && probe === null;
+  const probeInvalid = probeRaw != null && String(probeRaw).trim().length > 0 && probe === null;
   if (probeInvalid) {
-    return NextResponse.json({ ok: false, error: "invalid_probe" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_probe' }, { status: 400 });
   }
-  const cursor = url.searchParams.get("cursor");
-  const limitRaw = url.searchParams.get("limit");
+  const cursor = url.searchParams.get('cursor');
+  const limitRaw = url.searchParams.get('limit');
   const limit =
-    limitRaw != null && /^\d+$/.test(limitRaw.trim()) ? Math.min(100, Math.max(1, Number.parseInt(limitRaw, 10))) : 50;
+    limitRaw != null && /^\d+$/.test(limitRaw.trim())
+      ? Math.min(100, Math.max(1, Number.parseInt(limitRaw, 10)))
+      : 50;
 
   const { items, nextCursor } = await buildAppDeps().healthFailureArchive.listForAdmin({
     probe,

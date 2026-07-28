@@ -12,7 +12,10 @@ import type {
 } from '../../../kernel/contracts/index.js';
 import { env } from '../../../config/env.js';
 import { getAppBaseUrl } from '../../../config/appBaseUrl.js';
-import { buildWebappEntryUrl, buildWebappEntryUrlForMax } from '../../../integrations/webappEntryToken.js';
+import {
+  buildWebappEntryUrl,
+  buildWebappEntryUrlForMax,
+} from '../../../integrations/webappEntryToken.js';
 import { runIntegratorSql } from '../../db/runIntegratorSql.js';
 import {
   getIntegratorLinkedPhoneSource,
@@ -188,11 +191,16 @@ export async function enrichDoctorBroadcastIntentIfNeeded(input: {
 
   if (row.channel === 'sms') return intent;
 
-  const clientUserId = typeof row.payloadJson.clientUserId === 'string' ? row.payloadJson.clientUserId.trim() : '';
+  const clientUserId =
+    typeof row.payloadJson.clientUserId === 'string' ? row.payloadJson.clientUserId.trim() : '';
   if (!clientUserId) return intent;
 
   const messengerLabel = row.channel === 'max' ? 'max' : 'telegram';
-  const { linkedPhone, integratorUserId } = await resolveLinkedPhoneForPlatformUser(db, clientUserId, messengerLabel);
+  const { linkedPhone, integratorUserId } = await resolveLinkedPhoneForPlatformUser(
+    db,
+    clientUserId,
+    messengerLabel,
+  );
 
   const payload = asRecord(intent.payload);
   const recipient = asRecord(payload.recipient);
@@ -214,10 +222,10 @@ export async function enrichDoctorBroadcastIntentIfNeeded(input: {
   let nextPayload: Record<string, unknown> = { ...payload };
 
   if (
-    menu.sendMenuOnButtonPress === true
-    && linkedPhone
-    && row.channel === 'telegram'
-    && !nextPayload.replyMarkup
+    menu.sendMenuOnButtonPress === true &&
+    linkedPhone &&
+    row.channel === 'telegram' &&
+    !nextPayload.replyMarkup
   ) {
     const chatId = asNumber(recipient.chatId);
     if (chatId !== null) {

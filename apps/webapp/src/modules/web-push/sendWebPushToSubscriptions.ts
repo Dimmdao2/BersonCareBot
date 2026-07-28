@@ -1,7 +1,7 @@
-import webpush from "web-push";
-import { logger } from "@/infra/logging/logger";
-import { hashWebPushEndpoint } from "@/modules/patient-notifications/hashWebPushEndpoint";
-import type { WebPushSubscriptionPayloadV1 } from "@/modules/web-push/ports";
+import webpush from 'web-push';
+import { logger } from '@/infra/logging/logger';
+import { hashWebPushEndpoint } from '@/modules/patient-notifications/hashWebPushEndpoint';
+import type { WebPushSubscriptionPayloadV1 } from '@/modules/web-push/ports';
 
 export type WebPushClientPayload = {
   title: string;
@@ -21,10 +21,10 @@ export type WebPushClientPayload = {
  * Отправка Web Push всем подпискам пользователя. 410/404 — вызывает onSubscriptionDead.
  */
 export type WebPushDeliveryAttemptResult = {
-  status: "success" | "failed";
+  status: 'success' | 'failed';
   endpointHash: string;
   providerStatusCode?: number;
-  reason?: "provider_404" | "provider_410" | "provider_error" | "send_error";
+  reason?: 'provider_404' | 'provider_410' | 'provider_error' | 'send_error';
   errorMessage?: string;
 };
 
@@ -45,8 +45,17 @@ export async function sendWebPushToSubscriptions(params: {
     occurrenceId?: string;
   };
 }): Promise<{ delivered: number; errors: number; deactivated: number }> {
-  const { subscriptions, vapidPublicKey, vapidPrivateKey, vapidSubject, payload, onSubscriptionDead, onAttempt, verbose, logContext } =
-    params;
+  const {
+    subscriptions,
+    vapidPublicKey,
+    vapidPrivateKey,
+    vapidSubject,
+    payload,
+    onSubscriptionDead,
+    onAttempt,
+    verbose,
+    logContext,
+  } = params;
   if (subscriptions.length === 0) return { delivered: 0, errors: 0, deactivated: 0 };
 
   // S16 — DEV SECONDARY SAFETY GUARD (G2, retired as primary sink).
@@ -62,23 +71,23 @@ export async function sendWebPushToSubscriptions(params: {
   // All other subscriptions are SUPPRESSED. NEVER reaches a real endpoint in dev.
   //
   // ALLOW_DEV_WEB_PUSH=1 bypasses this guard entirely (e.g. for manual E2E runs with a real device).
-  if (process.env.NODE_ENV !== "production" && process.env.ALLOW_DEV_WEB_PUSH !== "1") {
+  if (process.env.NODE_ENV !== 'production' && process.env.ALLOW_DEV_WEB_PUSH !== '1') {
     const testUserId =
-      process.env.DEV_REDIRECT_WEB_PUSH_USER_ID?.trim() || "1c312a64-fab8-4b75-b24e-88a1d6ebe4e0";
+      process.env.DEV_REDIRECT_WEB_PUSH_USER_ID?.trim() || '1c312a64-fab8-4b75-b24e-88a1d6ebe4e0';
     const callerUserId = logContext?.userId;
 
     // If the caller userId does NOT match the test user, suppress entirely.
     if (!callerUserId || callerUserId !== testUserId) {
       logger.warn(
         {
-          scope: "web_push",
-          event: "dev_web_push_suppressed",
+          scope: 'web_push',
+          event: 'dev_web_push_suppressed',
           count: subscriptions.length,
           userId: callerUserId ?? null,
           testUserId,
           topicCode: logContext?.topicCode,
         },
-        "[web-push] DEV suppress: caller is not the test user — not sending to real subscriptions in non-production",
+        '[web-push] DEV suppress: caller is not the test user — not sending to real subscriptions in non-production',
       );
       return { delivered: 0, errors: 0, deactivated: 0 };
     }
@@ -86,8 +95,8 @@ export async function sendWebPushToSubscriptions(params: {
     // Caller IS the test user — allow all their subscriptions through.
     logger.warn(
       {
-        scope: "web_push",
-        event: "dev_web_push_test_user_allowed",
+        scope: 'web_push',
+        event: 'dev_web_push_test_user_allowed',
         count: subscriptions.length,
         userId: callerUserId,
         topicCode: logContext?.topicCode,
@@ -136,20 +145,20 @@ export async function sendWebPushToSubscriptions(params: {
       );
       delivered += 1;
       await onAttempt?.({
-        status: "success",
+        status: 'success',
         endpointHash,
         providerStatusCode: result?.statusCode,
       });
       if (verbose) {
         logger.info(
           {
-            event: "web_push_provider_response",
-            outcome: "ok",
+            event: 'web_push_provider_response',
+            outcome: 'ok',
             statusCode: result?.statusCode,
             endpointHash,
             ...logContext,
           },
-          "web push provider response",
+          'web push provider response',
         );
       }
     } catch (e: unknown) {
@@ -158,9 +167,9 @@ export async function sendWebPushToSubscriptions(params: {
       if (status === 410 || status === 404) {
         await onSubscriptionDead(sub.endpoint);
         deactivated += 1;
-        const reason = status === 410 ? "provider_410" : "provider_404";
+        const reason = status === 410 ? 'provider_410' : 'provider_404';
         await onAttempt?.({
-          status: "failed",
+          status: 'failed',
           endpointHash,
           providerStatusCode: status,
           reason,
@@ -169,33 +178,33 @@ export async function sendWebPushToSubscriptions(params: {
         if (verbose) {
           logger.info(
             {
-              event: "web_push_provider_response",
-              outcome: "subscription_dead",
+              event: 'web_push_provider_response',
+              outcome: 'subscription_dead',
               statusCode: status,
               endpointHash,
               ...logContext,
             },
-            "web push subscription deactivated",
+            'web push subscription deactivated',
           );
         }
       } else {
         await onAttempt?.({
-          status: "failed",
+          status: 'failed',
           endpointHash,
-          providerStatusCode: typeof status === "number" ? status : undefined,
-          reason: "provider_error",
+          providerStatusCode: typeof status === 'number' ? status : undefined,
+          reason: 'provider_error',
           errorMessage: message,
         });
         logger.warn(
           {
-            event: "web_push_provider_response",
-            outcome: "error",
+            event: 'web_push_provider_response',
+            outcome: 'error',
             statusCode: status ?? null,
             endpointHash,
             error: message,
             ...logContext,
           },
-          "web push provider error",
+          'web push provider error',
         );
       }
       errors += 1;

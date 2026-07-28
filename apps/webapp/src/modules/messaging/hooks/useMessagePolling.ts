@@ -1,13 +1,17 @@
-"use client";
+'use client';
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef } from 'react';
 
 /**
  * Интервальный опрос (например для новых сообщений). Интервал активен только пока
  * `document.visibilityState === "visible"`. При уходе на другую вкладку интервал
  * снимается; при возврате — запускается заново и немедленно стреляет один раз.
  */
-export function useMessagePolling(onTick: () => void | Promise<void>, enabled: boolean, intervalMs = 16000) {
+export function useMessagePolling(
+  onTick: () => void | Promise<void>,
+  enabled: boolean,
+  intervalMs = 16000,
+) {
   const ref = useRef(onTick);
   useEffect(() => {
     ref.current = onTick;
@@ -35,21 +39,21 @@ export function useMessagePolling(onTick: () => void | Promise<void>, enabled: b
     };
 
     const onVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
+      if (document.visibilityState === 'visible') {
         startInterval();
       } else {
         stopInterval();
       }
     };
 
-    if (document.visibilityState === "visible") {
+    if (document.visibilityState === 'visible') {
       startInterval();
     }
 
-    document.addEventListener("visibilitychange", onVisibilityChange);
+    document.addEventListener('visibilitychange', onVisibilityChange);
     return () => {
       stopInterval();
-      document.removeEventListener("visibilitychange", onVisibilityChange);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
     };
   }, [enabled, intervalMs]);
 }

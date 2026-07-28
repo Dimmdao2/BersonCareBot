@@ -1,21 +1,21 @@
-import Link from "next/link";
-import { Clock3 } from "lucide-react";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { resolvePatientEnrollmentOrganizationId } from "@/app/api/booking/bookingTenant";
-import { requireEntitlementForReadAction } from "@/app-layer/guards/requireEntitlement";
-import { withPatientOrganizationPrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
-import { routePaths } from "@/app-layer/routes/paths";
-import { cn } from "@/lib/utils";
-import { MarkdownContent } from "@/shared/ui/patient/markdown/MarkdownContent";
-import { resolveMediaPlaybackPayload } from "@/app-layer/media/resolveMediaPlaybackPayload";
-import { ContentHeroImage } from "@/shared/ui/patient/media/ContentHeroImage";
+import Link from 'next/link';
+import { Clock3 } from 'lucide-react';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { resolvePatientEnrollmentOrganizationId } from '@/app/api/booking/bookingTenant';
+import { requireEntitlementForReadAction } from '@/app-layer/guards/requireEntitlement';
+import { withPatientOrganizationPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
+import { routePaths } from '@/app-layer/routes/paths';
+import { cn } from '@/lib/utils';
+import { MarkdownContent } from '@/shared/ui/patient/markdown/MarkdownContent';
+import { resolveMediaPlaybackPayload } from '@/app-layer/media/resolveMediaPlaybackPayload';
+import { ContentHeroImage } from '@/shared/ui/patient/media/ContentHeroImage';
 import {
   patientCardClass,
   patientMutedTextClass,
   patientPrimaryActionClass,
   patientProgramItemHeroTitleClass,
   patientSectionSurfaceClass,
-} from "@/shared/ui/patient/patientVisual";
+} from '@/shared/ui/patient/patientVisual';
 import {
   patientDailyWarmupDetailHeroGeometryClass,
   patientDailyWarmupDetailHeroTextColumnClass,
@@ -25,21 +25,24 @@ import {
   patientHomeHeroBadgeClass,
   patientHomeHeroDurationBadgeClass,
   patientHomeHeroSummaryClampClass,
-} from "@/app/app/patient/home/patientHomeCardStyles";
-import { getPatientRuntimeBool } from "@/modules/system-settings/configAdapter";
-import { parsePatientHomeMoodIcons } from "@/modules/patient-home/patientHomeMoodIcons";
-import type { MediaPlaybackPayload } from "@/modules/media/playbackPayloadTypes";
-import type { ContentStubItem } from "@/modules/content-catalog/types";
-import type { ContentPageRow } from "@/infra/repos/pgContentPages";
-import type { DailyWarmupListEntry, PatientDailyWarmupNav } from "@/modules/patient-home/todayConfig";
-import type { AppSession } from "@/shared/types/session";
-import { PatientDailyWarmupPager } from "./PatientDailyWarmupPager";
-import { PatientContentAdaptiveVideo } from "./PatientContentAdaptiveVideo";
-import { PatientDailyWarmupVideoEngagement } from "./PatientDailyWarmupVideoEngagement";
-import { PatientContentMaterialRating } from "./PatientContentMaterialRating";
-import { PatientContentPracticeComplete } from "./PatientContentPracticeComplete";
-import { PatientDailyWarmupHeroCover } from "./PatientDailyWarmupHeroCover";
-import { PatientDailyWarmupQuickList } from "./PatientDailyWarmupQuickList";
+} from '@/app/app/patient/home/patientHomeCardStyles';
+import { getPatientRuntimeBool } from '@/modules/system-settings/configAdapter';
+import { parsePatientHomeMoodIcons } from '@/modules/patient-home/patientHomeMoodIcons';
+import type { MediaPlaybackPayload } from '@/modules/media/playbackPayloadTypes';
+import type { ContentStubItem } from '@/modules/content-catalog/types';
+import type { ContentPageRow } from '@/infra/repos/pgContentPages';
+import type {
+  DailyWarmupListEntry,
+  PatientDailyWarmupNav,
+} from '@/modules/patient-home/todayConfig';
+import type { AppSession } from '@/shared/types/session';
+import { PatientDailyWarmupPager } from './PatientDailyWarmupPager';
+import { PatientContentAdaptiveVideo } from './PatientContentAdaptiveVideo';
+import { PatientDailyWarmupVideoEngagement } from './PatientDailyWarmupVideoEngagement';
+import { PatientContentMaterialRating } from './PatientContentMaterialRating';
+import { PatientContentPracticeComplete } from './PatientContentPracticeComplete';
+import { PatientDailyWarmupHeroCover } from './PatientDailyWarmupHeroCover';
+import { PatientDailyWarmupQuickList } from './PatientDailyWarmupQuickList';
 
 type Props = {
   slug: string;
@@ -48,7 +51,7 @@ type Props = {
   item: ContentStubItem;
   personalTierOk: boolean;
   isDailyWarmup: boolean;
-  practiceSource: "daily_warmup" | "section_page";
+  practiceSource: 'daily_warmup' | 'section_page';
   videoPlayableUrl: string | undefined;
   /** YouTube или RuTube — канонический URL для `<iframe>` (не файл из медиабиблиотеки). */
   hostedVideoIframeSrc: string | null;
@@ -75,7 +78,7 @@ export async function PatientContentSlugArticle({
 
   let patientPlaybackInitial: MediaPlaybackPayload | null = null;
   if (apiMediaId && session) {
-    const playbackEnabled = await getPatientRuntimeBool("video_playback_api_enabled");
+    const playbackEnabled = await getPatientRuntimeBool('video_playback_api_enabled');
     if (playbackEnabled) {
       const resolved = await resolveMediaPlaybackPayload({
         id: apiMediaId,
@@ -88,24 +91,32 @@ export async function PatientContentSlugArticle({
     }
   }
 
-  const moodSetting = await deps.systemSettings.getSetting("patient_home_mood_icons", "admin");
+  const moodSetting = await deps.systemSettings.getSetting('patient_home_mood_icons', 'admin');
   const moodIconOptions = parsePatientHomeMoodIcons(moodSetting?.valueJson ?? null);
 
   let courseCta: { courseTitle: string; href: string } | null = null;
   if (dbRow?.linkedCourseId && session) {
-    const patientOrganization = await resolvePatientEnrollmentOrganizationId(deps, session.user.userId);
-    if (patientOrganization.ok && (await requireEntitlementForReadAction(patientOrganization, "courses")).ok) {
+    const patientOrganization = await resolvePatientEnrollmentOrganizationId(
+      deps,
+      session.user.userId,
+    );
+    if (
+      patientOrganization.ok &&
+      (await requireEntitlementForReadAction(patientOrganization, 'courses')).ok
+    ) {
       courseCta = await withPatientOrganizationPrincipal(
         {
           organizationId: patientOrganization.organizationId,
           platformUserId: session.user.userId,
-          source: "app.patient.content.course-cta",
+          source: 'app.patient.content.course-cta',
         },
         async () => {
           const course = await deps.courses.getCourseForDoctor(dbRow.linkedCourseId!);
-          if (course?.status !== "published") return null;
+          if (course?.status !== 'published') return null;
           const instances = await deps.treatmentProgramInstance.listForPatient(session.user.userId);
-          const match = instances.find((i) => i.status === "active" && i.templateId === course.programTemplateId);
+          const match = instances.find(
+            (i) => i.status === 'active' && i.templateId === course.programTemplateId,
+          );
           return {
             courseTitle: course.title,
             href: match
@@ -125,25 +136,24 @@ export async function PatientContentSlugArticle({
   const anonymousGuest = session === null;
 
   const videoSectionShellClass =
-    "overflow-hidden rounded-[var(--patient-card-radius-mobile)] shadow-[var(--patient-shadow-card-mobile)] lg:rounded-[var(--patient-card-radius-desktop)] lg:shadow-[var(--patient-shadow-card-desktop)]";
+    'overflow-hidden rounded-[var(--patient-card-radius-mobile)] shadow-[var(--patient-shadow-card-mobile)] lg:rounded-[var(--patient-card-radius-desktop)] lg:shadow-[var(--patient-shadow-card-desktop)]';
 
-  const sectionMaterialRatingUnderVideo =
-    simpleSectionMaterial ? (
-      <div
-        className={cn(
-          "w-full min-w-0 border-t border-[var(--patient-border)]/50",
-          "bg-[var(--patient-card-bg)] px-4 py-3 lg:px-5",
-        )}
-      >
-        <PatientContentMaterialRating
-          contentPageId={dbRow.id}
-          guest={session === null}
-          needsActivation={session !== null && !personalTierOk}
-          isDailyWarmup={isDailyWarmup}
-          className="w-full min-w-0"
-        />
-      </div>
-    ) : null;
+  const sectionMaterialRatingUnderVideo = simpleSectionMaterial ? (
+    <div
+      className={cn(
+        'w-full min-w-0 border-t border-[var(--patient-border)]/50',
+        'bg-[var(--patient-card-bg)] px-4 py-3 lg:px-5',
+      )}
+    >
+      <PatientContentMaterialRating
+        contentPageId={dbRow.id}
+        guest={session === null}
+        needsActivation={session !== null && !personalTierOk}
+        isDailyWarmup={isDailyWarmup}
+        className="w-full min-w-0"
+      />
+    </div>
+  ) : null;
 
   return (
     <article id={`patient-content-article-${slug}`} className="flex flex-col gap-3 lg:gap-4">
@@ -152,17 +162,21 @@ export async function PatientContentSlugArticle({
           <div className="relative z-20 flex h-6 shrink-0 items-start justify-start gap-1.5">
             <span className={patientHomeHeroBadgeClass}>Разминка дня</span>
             <span className={patientHomeHeroDurationBadgeClass}>
-              <Clock3 className="size-3.5 shrink-0" aria-hidden />
-              5 мин
+              <Clock3 className="size-3.5 shrink-0" aria-hidden />5 мин
             </span>
           </div>
           <div className={patientDailyWarmupDetailHeroTextColumnClass}>
-            <h1 id={`patient-content-warmup-title-${slug}`} className={patientDailyWarmupDetailHeroTitleClampClass}>
+            <h1
+              id={`patient-content-warmup-title-${slug}`}
+              className={patientDailyWarmupDetailHeroTitleClampClass}
+            >
               {item.title}
             </h1>
-            {item.summary?.trim() ?
+            {item.summary?.trim() ? (
               <p className={patientHomeHeroSummaryClampClass}>{item.summary.trim()}</p>
-            : <div className="mt-1 min-h-8 shrink-0 md:mt-2 md:min-h-[3rem]" aria-hidden />}
+            ) : (
+              <div className="mt-1 min-h-8 shrink-0 md:mt-2 md:min-h-[3rem]" aria-hidden />
+            )}
           </div>
           <PatientDailyWarmupHeroCover imageUrl={item.imageUrl} anonymousGuest={anonymousGuest} />
         </div>
@@ -172,15 +186,15 @@ export async function PatientContentSlugArticle({
         <div
           className={cn(
             patientHomeCardHeroClass,
-            "relative isolate overflow-hidden p-4 pt-3 lg:p-5",
-            hasDecorImage && "min-h-[160px] min-[380px]:min-h-[172px] lg:min-h-[200px]",
+            'relative isolate overflow-hidden p-4 pt-3 lg:p-5',
+            hasDecorImage && 'min-h-[160px] min-[380px]:min-h-[172px] lg:min-h-[200px]',
           )}
         >
           <h1
             className={cn(
               patientProgramItemHeroTitleClass,
-              "relative z-10 mt-2 line-clamp-3",
-              hasDecorImage && "pr-[108px] min-[380px]:pr-[124px] lg:pr-[180px]",
+              'relative z-10 mt-2 line-clamp-3',
+              hasDecorImage && 'pr-[108px] min-[380px]:pr-[124px] lg:pr-[180px]',
             )}
           >
             {item.title}
@@ -202,26 +216,27 @@ export async function PatientContentSlugArticle({
 
       {videoPlayableUrl ? (
         <section id={`patient-content-video-section-${slug}`} className={videoSectionShellClass}>
-          {isDailyWarmup ?
-            hostedVideoIframeSrc ?
+          {isDailyWarmup ? (
+            hostedVideoIframeSrc ? (
               <PatientDailyWarmupVideoEngagement
                 mode="hosted"
                 contentPageId={dbRow.id}
                 iframeSrc={hostedVideoIframeSrc}
                 title={item.title}
               />
-            : <PatientDailyWarmupVideoEngagement
+            ) : (
+              <PatientDailyWarmupVideoEngagement
                 mode="catalog"
                 contentPageId={dbRow.id}
                 player={{
-                  mediaId: apiMediaId ?? "",
+                  mediaId: apiMediaId ?? '',
                   mp4Url: videoPlayableUrl,
                   title: item.title,
                   initialPlayback: patientPlaybackInitial,
                 }}
               />
-
-          : hostedVideoIframeSrc ?
+            )
+          ) : hostedVideoIframeSrc ? (
             <div className="relative aspect-video">
               <iframe
                 src={hostedVideoIframeSrc}
@@ -231,21 +246,26 @@ export async function PatientContentSlugArticle({
                 title={item.title}
               />
             </div>
-          : <PatientContentAdaptiveVideo
-              mediaId={apiMediaId ?? ""}
+          ) : (
+            <PatientContentAdaptiveVideo
+              mediaId={apiMediaId ?? ''}
               mp4Url={videoPlayableUrl}
               title={item.title}
               initialPlayback={patientPlaybackInitial}
             />
-          }
+          )}
           {sectionMaterialRatingUnderVideo}
         </section>
       ) : (
         <section
           id={`patient-content-video-section-${slug}`}
-          className={simpleSectionMaterial ? cn(videoSectionShellClass, "flex flex-col") : cn(patientCardClass, "py-3")}
+          className={
+            simpleSectionMaterial
+              ? cn(videoSectionShellClass, 'flex flex-col')
+              : cn(patientCardClass, 'py-3')
+          }
         >
-          <p className={cn(patientMutedTextClass, simpleSectionMaterial && "px-4 py-3 lg:px-5")}>
+          <p className={cn(patientMutedTextClass, simpleSectionMaterial && 'px-4 py-3 lg:px-5')}>
             Видео будет добавлено в ближайшее время.
           </p>
           {sectionMaterialRatingUnderVideo}
@@ -254,7 +274,7 @@ export async function PatientContentSlugArticle({
 
       {!showWarmupBadge && item.bodyText?.trim() ? (
         <div className={patientCardClass}>
-          <MarkdownContent text={item.bodyText} bodyFormat={item.bodyFormat ?? "markdown"} />
+          <MarkdownContent text={item.bodyText} bodyFormat={item.bodyFormat ?? 'markdown'} />
         </div>
       ) : null}
 
@@ -271,7 +291,7 @@ export async function PatientContentSlugArticle({
 
       {showWarmupBadge && item.bodyText?.trim() ? (
         <div className={cn(patientCardClass, patientDailyWarmupDetailMarkdownClass)}>
-          <MarkdownContent text={item.bodyText} bodyFormat={item.bodyFormat ?? "markdown"} />
+          <MarkdownContent text={item.bodyText} bodyFormat={item.bodyFormat ?? 'markdown'} />
         </div>
       ) : null}
 
@@ -285,16 +305,23 @@ export async function PatientContentSlugArticle({
         />
       ) : null}
 
-      {showWarmupBadge ?
-        <PatientDailyWarmupQuickList currentSlug={slug} pages={orderedDailyWarmupPages} className="mt-1" />
-      : null}
+      {showWarmupBadge ? (
+        <PatientDailyWarmupQuickList
+          currentSlug={slug}
+          pages={orderedDailyWarmupPages}
+          className="mt-1"
+        />
+      ) : null}
 
       {courseCta ? (
-        <section id={`patient-content-course-cta-${slug}`} className={cn(patientSectionSurfaceClass)}>
+        <section
+          id={`patient-content-course-cta-${slug}`}
+          className={cn(patientSectionSurfaceClass)}
+        >
           <p className="text-sm font-medium">Это часть курса «{courseCta.courseTitle}»</p>
           <Link
             href={courseCta.href}
-            className={cn(patientPrimaryActionClass, "mt-3 !min-h-10 w-full text-sm sm:w-auto")}
+            className={cn(patientPrimaryActionClass, 'mt-3 !min-h-10 w-full text-sm sm:w-auto')}
           >
             Открыть курс
           </Link>

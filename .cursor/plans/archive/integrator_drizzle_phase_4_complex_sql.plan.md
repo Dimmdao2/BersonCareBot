@@ -7,7 +7,7 @@ overview: >-
   сохранением логики.
 todos:
   - id: p4-inventory
-    content: "Инвентаризация конструкций (CTE, LATERAL, merge/outbox) и решение builder vs sql template: таблица «Инвентаризация P4» в docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md (раздел этапа 4); итог — runIntegratorSql + drizzle-orm sql шаблоны."
+    content: 'Инвентаризация конструкций (CTE, LATERAL, merge/outbox) и решение builder vs sql template: таблица «Инвентаризация P4» в docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md (раздел этапа 4); итог — runIntegratorSql + drizzle-orm sql шаблоны.'
     status: completed
   - id: p4-message-threads
     content: Перевести messageThreads.ts; обновить messageThreads.test.ts
@@ -44,7 +44,7 @@ isProject: false
 ## Подход
 
 1. Не упрощать запрос ради Drizzle если это меняет план или граничные случаи (NULL, дубликаты, race).
-2. Допустим **целостный** `db.execute(sql\`...\`)` с параметризацией через `sql.raw`/`placeholder` по правилам drizzle-orm, если builder неэкономен; строка SQL должна быть максимально близка к исходной, diff в review обязателен.
+2. Допустим **целостный** `db.execute(sql\`...\`)`с параметризацией через`sql.raw`/`placeholder` по правилам drizzle-orm, если builder неэкономен; строка SQL должна быть максимально близка к исходной, diff в review обязателен.
 3. Цель этапа — убрать разбросанные template-строки из `DbPort.query` в пользу централизованных Drizzle/sql фрагментов с типизированными входами/выходами где это реально.
 
 ## Чек-лист

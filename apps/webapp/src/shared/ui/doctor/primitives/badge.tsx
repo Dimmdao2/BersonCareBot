@@ -1,1 +1,1 @@
-export * from "@/shared/ui/primitives/badge"
+export * from '@/shared/ui/primitives/badge';

@@ -8,24 +8,21 @@
  *   3. Badge carries title attr = package title (tooltip on hover).
  */
 
-import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { render, screen } from "@testing-library/react";
-import type { Visit } from "@/modules/patient-clinical/ports";
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import type { Visit } from '@/modules/patient-clinical/ports';
 
 // ---------------------------------------------------------------------------
 // Heavy module mocks
 // ---------------------------------------------------------------------------
 
-vi.mock("@/shared/ui/doctor/DoctorDatePicker", () => ({
+vi.mock('@/shared/ui/doctor/DoctorDatePicker', () => ({
   DoctorDatePicker: () => <div data-testid="mock-date-picker" />,
 }));
 
-vi.mock(
-  "@/app/app/doctor/patients/[userId]/tabs/karta/NewVisitPanel",
-  () => ({
-    NewVisitPanel: () => <div data-testid="mock-new-visit-panel" />,
-  }),
-);
+vi.mock('@/app/app/doctor/patients/[userId]/tabs/karta/NewVisitPanel', () => ({
+  NewVisitPanel: () => <div data-testid="mock-new-visit-panel" />,
+}));
 
 // ---------------------------------------------------------------------------
 // Fetch stub — clinical endpoint returns SSR visits so no extra fetch fires
@@ -33,19 +30,19 @@ vi.mock(
 
 function stubFetch(visits: Visit[]) {
   vi.stubGlobal(
-    "fetch",
+    'fetch',
     vi.fn(async (url: string) => {
       const u = String(url);
-      if (u.includes("/clinical")) {
+      if (u.includes('/clinical')) {
         return new Response(
           JSON.stringify({ ok: true, state: { complaints: [], diagnoses: [] }, visits }),
           { status: 200 },
         );
       }
-      if (u.includes("/comorbidities")) {
+      if (u.includes('/comorbidities')) {
         return new Response(JSON.stringify({ comorbidities: [] }), { status: 200 });
       }
-      if (u.includes("/anamnesis")) {
+      if (u.includes('/anamnesis')) {
         return new Response(
           JSON.stringify({ ok: true, anamnesis: { trauma: [], illness: [], lifestyle: [] } }),
           { status: 200 },
@@ -62,12 +59,12 @@ function stubFetch(visits: Visit[]) {
 
 function makeVisit(overrides: Partial<Visit> = {}): Visit {
   return {
-    id: "visit-1",
-    date: "22 января 2026",
-    time: "10:00",
-    type: "repeat",
-    location: "Кабинет 1",
-    duration: "60 мин",
+    id: 'visit-1',
+    date: '22 января 2026',
+    time: '10:00',
+    type: 'repeat',
+    location: 'Кабинет 1',
+    duration: '60 мин',
     anamnesisText: null,
     ...overrides,
   };
@@ -77,7 +74,7 @@ function makeVisit(overrides: Partial<Visit> = {}): Visit {
 // Tests
 // ---------------------------------------------------------------------------
 
-describe("PatientTabKarta — «По абонементу» badge (ST-05)", () => {
+describe('PatientTabKarta — «По абонементу» badge (ST-05)', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.clearAllMocks();
@@ -86,9 +83,8 @@ describe("PatientTabKarta — «По абонементу» badge (ST-05)", () =
   async function renderKarta(visits: Visit[]) {
     // Stub fetch before rendering so SSR-skip path works
     stubFetch(visits);
-    const { PatientTabKarta } = await import(
-      "@/app/app/doctor/patients/[userId]/tabs/PatientTabKarta"
-    );
+    const { PatientTabKarta } =
+      await import('@/app/app/doctor/patients/[userId]/tabs/PatientTabKarta');
     return render(
       <PatientTabKarta
         userId="user-test-1"
@@ -98,32 +94,32 @@ describe("PatientTabKarta — «По абонементу» badge (ST-05)", () =
     );
   }
 
-  it("shows short violet package badge when visit.package is set", async () => {
-    const visit = makeVisit({ package: { title: "Индивидуальный абонемент", displayNumber: 1 } });
+  it('shows short violet package badge when visit.package is set', async () => {
+    const visit = makeVisit({ package: { title: 'Индивидуальный абонемент', displayNumber: 1 } });
     await renderKarta([visit]);
-    const badge = screen.getByText("аб.#001");
+    const badge = screen.getByText('аб.#001');
     expect(badge).toBeDefined();
-    expect(badge.className).toContain("text-violet-900");
+    expect(badge.className).toContain('text-violet-900');
   });
 
-  it("badge title attribute contains the package title for tooltip", async () => {
-    const packageTitle = "VIP абонемент";
+  it('badge title attribute contains the package title for tooltip', async () => {
+    const packageTitle = 'VIP абонемент';
     const visit = makeVisit({ package: { title: packageTitle, displayNumber: 7 } });
     await renderKarta([visit]);
-    const badge = screen.getByText("аб.#007");
-    expect(badge.getAttribute("title")).toBe(packageTitle);
+    const badge = screen.getByText('аб.#007');
+    expect(badge.getAttribute('title')).toBe(packageTitle);
   });
 
-  it("does NOT render badge when visit.package is null", async () => {
+  it('does NOT render badge when visit.package is null', async () => {
     const visit = makeVisit({ package: null });
     await renderKarta([visit]);
-    expect(screen.queryByText("аб.#001")).toBeNull();
+    expect(screen.queryByText('аб.#001')).toBeNull();
   });
 
-  it("does NOT render badge when visit.package is absent (undefined)", async () => {
+  it('does NOT render badge when visit.package is absent (undefined)', async () => {
     const visit = makeVisit();
     // package field omitted
     await renderKarta([visit]);
-    expect(screen.queryByText("аб.#001")).toBeNull();
+    expect(screen.queryByText('аб.#001')).toBeNull();
   });
 });

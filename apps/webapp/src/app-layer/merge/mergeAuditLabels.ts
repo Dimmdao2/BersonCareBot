@@ -1,1 +1,1 @@
-export { fetchMergePartyDisplayLabels } from "@/infra/mergeAuditLabels";
+export { fetchMergePartyDisplayLabels } from '@/infra/mergeAuditLabels';

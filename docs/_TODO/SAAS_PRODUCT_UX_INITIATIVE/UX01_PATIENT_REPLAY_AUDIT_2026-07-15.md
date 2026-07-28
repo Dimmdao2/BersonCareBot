@@ -43,4 +43,3 @@ defect for later design/implementation work, while the factual evidence gate pas
 - privacy-safe regular-doctor communications;
 - expanded global-admin mobile navigation;
 - valid invite, signed miniapp, payment/write/delivery flows.
-

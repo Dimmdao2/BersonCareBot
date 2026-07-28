@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 /**
  * Панель «Обзор и записи» в чате врача (#814): открывается ПОВЕРХ левой колонки списка
@@ -15,15 +15,15 @@
  *  - «Статистика программы» — краткая статистика по программе реабилитации.
  */
 
-import { useCallback, useEffect, useState } from "react";
-import { X } from "lucide-react";
-import { CatalogLeftPane } from "@/shared/ui/doctor/catalog/CatalogLeftPane";
-import { DoctorEmptyState } from "@/shared/ui/doctor/DoctorEmptyState";
-import { Badge } from "@/shared/ui/doctor/primitives/badge";
-import { doctorSectionTitleClass } from "@/shared/ui/doctor/doctorVisual";
-import { appointmentStatusLabel } from "@/modules/client-history/labels";
-import { splitVisitsByActivity } from "@/modules/client-history/clientHistoryUtils";
-import type { ClientVisitHistoryRow } from "@/modules/client-history/types";
+import { useCallback, useEffect, useState } from 'react';
+import { X } from 'lucide-react';
+import { CatalogLeftPane } from '@/shared/ui/doctor/catalog/CatalogLeftPane';
+import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
+import { Badge } from '@/shared/ui/doctor/primitives/badge';
+import { doctorSectionTitleClass } from '@/shared/ui/doctor/doctorVisual';
+import { appointmentStatusLabel } from '@/modules/client-history/labels';
+import { splitVisitsByActivity } from '@/modules/client-history/clientHistoryUtils';
+import type { ClientVisitHistoryRow } from '@/modules/client-history/types';
 
 type Props = {
   /** Платформенный userId пациента за диалогом (см. `patientUserId` в /api/doctor/messages/conversations). */
@@ -32,20 +32,26 @@ type Props = {
   onClose: () => void;
 };
 
-const SECTION_CLASS = "border-b border-border pb-3 last:border-b-0 last:pb-0";
+const SECTION_CLASS = 'border-b border-border pb-3 last:border-b-0 last:pb-0';
 
 function formatVisitWhen(startAt: string): string {
   const date = new Date(startAt);
-  if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleString("ru-RU", { timeZone: "Europe/Moscow", dateStyle: "short", timeStyle: "short" });
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleString('ru-RU', {
+    timeZone: 'Europe/Moscow',
+    dateStyle: 'short',
+    timeStyle: 'short',
+  });
 }
 
 function VisitRowItem({ visit }: { visit: ClientVisitHistoryRow }) {
   return (
     <li className="rounded-md border border-border p-2 text-sm">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <span className="min-w-0 truncate font-medium">{visit.serviceTitle ?? "Запись"}</span>
-        <span className="shrink-0 text-xs text-muted-foreground">{formatVisitWhen(visit.startAt)}</span>
+        <span className="min-w-0 truncate font-medium">{visit.serviceTitle ?? 'Запись'}</span>
+        <span className="shrink-0 text-xs text-muted-foreground">
+          {formatVisitWhen(visit.startAt)}
+        </span>
       </div>
       <p className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
         <Badge variant="outline">{appointmentStatusLabel(visit.status)}</Badge>
@@ -77,13 +83,13 @@ export function ChatClientOverviewPanel({ patientUserId, patientDisplayName, onC
       const res = await fetch(`/api/doctor/clients/${encodeURIComponent(patientUserId)}/history`);
       const json = (await res.json()) as { ok?: boolean; visits?: ClientVisitHistoryRow[] };
       if (!res.ok || !json.ok) {
-        setError("Не удалось загрузить записи");
+        setError('Не удалось загрузить записи');
         setVisits([]);
         return;
       }
       setVisits(json.visits ?? []);
     } catch {
-      setError("Не удалось загрузить записи");
+      setError('Не удалось загрузить записи');
       setVisits([]);
     } finally {
       setLoading(false);

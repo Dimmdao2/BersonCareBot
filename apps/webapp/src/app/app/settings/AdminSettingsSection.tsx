@@ -1,17 +1,22 @@
-"use client";
+'use client';
 
-import { useMemo, useState, useTransition } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
-import { LabeledSwitch } from "@/shared/ui/doctor/primitives/labeled-switch";
-import { Select, SelectContent, SelectItem, SelectTrigger } from "@/shared/ui/doctor/primitives/select";
-import { parseIdTokens } from "@/shared/parsers/parseIdTokens";
-import { previewTestAccountPhoneTokens } from "@/modules/system-settings/testAccounts";
-import { patchAdminSettingsBatch } from "./patchAdminSetting";
+import { useMemo, useState, useTransition } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
+import { LabeledSwitch } from '@/shared/ui/doctor/primitives/labeled-switch';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+} from '@/shared/ui/doctor/primitives/select';
+import { parseIdTokens } from '@/shared/parsers/parseIdTokens';
+import { previewTestAccountPhoneTokens } from '@/modules/system-settings/testAccounts';
+import { patchAdminSettingsBatch } from './patchAdminSetting';
 
-export type IntegratorLinkedPhoneSource = "public_then_contacts" | "public_only" | "contacts_only";
+export type IntegratorLinkedPhoneSource = 'public_then_contacts' | 'public_only' | 'contacts_only';
 
 export type AdminSettingsSectionProps = {
   devMode: boolean;
@@ -91,19 +96,19 @@ export function AdminSettingsSection({
 
     const msgRaw = maintenanceMessage.trim();
     if (msgRaw.length > 500) {
-      setError("Текст техработ: не более 500 символов");
+      setError('Текст техработ: не более 500 символов');
       return;
     }
     const bookingRaw = bookingUrl.trim();
     if (bookingRaw.length > 0) {
       try {
         const u = new URL(bookingRaw);
-        if (u.protocol !== "http:" && u.protocol !== "https:") {
-          setError("Ссылка записи: укажите URL с http:// или https:// либо оставьте пустым");
+        if (u.protocol !== 'http:' && u.protocol !== 'https:') {
+          setError('Ссылка записи: укажите URL с http:// или https:// либо оставьте пустым');
           return;
         }
       } catch {
-        setError("Ссылка записи: неверный URL");
+        setError('Ссылка записи: неверный URL');
         return;
       }
     }
@@ -118,49 +123,49 @@ export function AdminSettingsSection({
         };
 
         const batchResult = await patchAdminSettingsBatch([
-          { key: "dev_mode", value: devModeVal },
-          { key: "debug_forward_to_admin", value: debugForward },
-          { key: "max_debug_page_enabled", value: miniappVerbose },
-          { key: "important_fallback_delay_minutes", value: fallbackDelay },
-          { key: "platform_user_merge_v2_enabled", value: mergeV2 },
-          { key: "integrator_linked_phone_source", value: linkedPhoneSource },
-          { key: "test_account_identifiers", value: testPayload },
-          { key: "patient_app_maintenance_enabled", value: maintenanceEnabled },
-          { key: "patient_app_maintenance_message", value: msgRaw },
+          { key: 'dev_mode', value: devModeVal },
+          { key: 'debug_forward_to_admin', value: debugForward },
+          { key: 'max_debug_page_enabled', value: miniappVerbose },
+          { key: 'important_fallback_delay_minutes', value: fallbackDelay },
+          { key: 'platform_user_merge_v2_enabled', value: mergeV2 },
+          { key: 'integrator_linked_phone_source', value: linkedPhoneSource },
+          { key: 'test_account_identifiers', value: testPayload },
+          { key: 'patient_app_maintenance_enabled', value: maintenanceEnabled },
+          { key: 'patient_app_maintenance_message', value: msgRaw },
           {
-            key: "patient_program_discussion_doctor_reply_from_log_enabled",
+            key: 'patient_program_discussion_doctor_reply_from_log_enabled',
             value: discussionDoctorReplyFromLogEnabled,
           },
-          { key: "patient_program_discussion_ui_enabled", value: discussionUiEnabled },
+          { key: 'patient_program_discussion_ui_enabled', value: discussionUiEnabled },
           {
-            key: "patient_program_discussion_media_submission_enabled",
+            key: 'patient_program_discussion_media_submission_enabled',
             value: discussionMediaSubmissionEnabled,
           },
-          { key: "patient_booking_url", value: bookingRaw },
+          { key: 'patient_booking_url', value: bookingRaw },
         ]);
         if (!batchResult.ok) {
           const idx = batchResult.atIndex;
           const key = batchResult.key;
           const suffix =
-            typeof idx === "number"
-              ? ` (элемент ${idx + 1}${key != null ? `, ключ ${key}` : ""})`
-              : "";
+            typeof idx === 'number'
+              ? ` (элемент ${idx + 1}${key != null ? `, ключ ${key}` : ''})`
+              : '';
           setError(
-            batchResult.error === "duplicate_key_in_batch"
-              ? "В запросе повторяется один и тот же ключ настроек"
-              : batchResult.error === "ambiguous_body"
-                ? "Некорректное тело запроса (лишние поля)"
-                : batchResult.error === "empty_batch"
-                  ? "Пустой список настроек"
-                  : batchResult.error === "invalid_value"
+            batchResult.error === 'duplicate_key_in_batch'
+              ? 'В запросе повторяется один и тот же ключ настроек'
+              : batchResult.error === 'ambiguous_body'
+                ? 'Некорректное тело запроса (лишние поля)'
+                : batchResult.error === 'empty_batch'
+                  ? 'Пустой список настроек'
+                  : batchResult.error === 'invalid_value'
                     ? `Некорректное значение${suffix}`
-                    : "Не удалось сохранить настройки",
+                    : 'Не удалось сохранить настройки',
           );
           return;
         }
         setSaved(true);
       } catch {
-        setError("Ошибка при сохранении");
+        setError('Ошибка при сохранении');
       }
     });
   }
@@ -170,16 +175,18 @@ export function AdminSettingsSection({
       <CardHeader>
         <CardTitle className="text-destructive">Режимы</CardTitle>
         <p className="text-xs text-muted-foreground">
-          Ключи в БД (<code className="rounded bg-muted px-1">system_settings</code>, scope admin). Свой числовой ID в
-          Telegram или Max — команда <span className="font-mono">/show_my_id</span> в личном чате с ботом.
+          Ключи в БД (<code className="rounded bg-muted px-1">system_settings</code>, scope admin).
+          Свой числовой ID в Telegram или Max — команда{' '}
+          <span className="font-mono">/show_my_id</span> в личном чате с ботом.
         </p>
       </CardHeader>
       <CardContent className="flex flex-col gap-6">
         <section className="flex flex-col gap-3 rounded-lg border border-border/80 bg-muted/20 p-4">
           <p className="text-sm font-semibold">Тестовые аккаунты</p>
           <p className="text-xs text-muted-foreground">
-            При включённых техработах пациентского приложения эти аккаунты видят полный интерфейс. При dev_mode
-            рассылки уходят только на перечисленные Telegram / Max ID, номера SMS и адреса e-mail.
+            При включённых техработах пациентского приложения эти аккаунты видят полный интерфейс.
+            При dev_mode рассылки уходят только на перечисленные Telegram / Max ID, номера SMS и
+            адреса e-mail.
           </p>
           <label className="flex flex-col gap-1">
             <span className="text-xs font-medium">Телефоны (пробел, запятая)</span>
@@ -194,15 +201,19 @@ export function AdminSettingsSection({
               <div className="max-w-2xl rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-950 dark:text-amber-100">
                 {testPhonesPreview.rejected.length > 0 && (
                   <p>
-                    <span className="font-medium">Не попадут в сохранённый список (невалидный E.164 или лимит): </span>
-                    {testPhonesPreview.rejected.slice(0, 12).join(", ")}
+                    <span className="font-medium">
+                      Не попадут в сохранённый список (невалидный E.164 или лимит):{' '}
+                    </span>
+                    {testPhonesPreview.rejected.slice(0, 12).join(', ')}
                     {testPhonesPreview.rejected.length > 12
                       ? ` (+ещё ${testPhonesPreview.rejected.length - 12})`
-                      : ""}
+                      : ''}
                   </p>
                 )}
                 {testPhonesPreview.truncatedAfterCap && (
-                  <p className="mt-1 font-medium">Дальше 200 номеров в списке сервер не сохраняет.</p>
+                  <p className="mt-1 font-medium">
+                    Дальше 200 номеров в списке сервер не сохраняет.
+                  </p>
                 )}
               </div>
             )}
@@ -229,15 +240,22 @@ export function AdminSettingsSection({
           </label>
           <label className="flex flex-col gap-1">
             <span className="text-xs font-medium">E-mail (пробел, запятая)</span>
-            <Input type="text" value={testEmailsVal} onChange={(e) => setTestEmailsVal(e.target.value)} disabled={isPending} className="max-w-2xl font-mono text-sm" />
+            <Input
+              type="text"
+              value={testEmailsVal}
+              onChange={(e) => setTestEmailsVal(e.target.value)}
+              disabled={isPending}
+              className="max-w-2xl font-mono text-sm"
+            />
           </label>
         </section>
 
         <section className="flex flex-col gap-3 rounded-lg border border-border/80 bg-muted/20 p-4">
           <p className="text-sm font-semibold">Режим техработ пациентского приложения</p>
           <p className="text-xs text-muted-foreground">
-            Для роли «клиент» под <code className="rounded bg-muted px-1">/app/patient</code> обычно показывается экран
-            техработ; тестовые аккаунты (блок выше) — полный UI. Врач/админ не затрагиваются.
+            Для роли «клиент» под <code className="rounded bg-muted px-1">/app/patient</code> обычно
+            показывается экран техработ; тестовые аккаунты (блок выше) — полный UI. Врач/админ не
+            затрагиваются.
           </p>
           <LabeledSwitch
             label="Включить режим техработ для пациентов"
@@ -255,7 +273,9 @@ export function AdminSettingsSection({
               rows={4}
               className="max-w-2xl resize-y"
             />
-            <span className="text-xs text-muted-foreground">До 500 символов; пусто — текст по умолчанию из кода.</span>
+            <span className="text-xs text-muted-foreground">
+              До 500 символов; пусто — текст по умолчанию из кода.
+            </span>
           </label>
           <label className="flex flex-col gap-1">
             <span className="text-xs font-medium">Ссылка «Записаться на приём» (внешняя)</span>
@@ -268,7 +288,9 @@ export function AdminSettingsSection({
               autoComplete="off"
               className="max-w-2xl"
             />
-            <span className="text-xs text-muted-foreground">Пусто — кнопка записи для пациента не показывается.</span>
+            <span className="text-xs text-muted-foreground">
+              Пусто — кнопка записи для пациента не показывается.
+            </span>
           </label>
         </section>
 
@@ -342,19 +364,27 @@ export function AdminSettingsSection({
             onValueChange={(v) => setLinkedPhoneSource(v as IntegratorLinkedPhoneSource)}
             disabled={isPending}
           >
-            <SelectTrigger id="integrator-linked-phone-source" className="max-w-xl" displayLabel={linkedPhoneSource}>
-            </SelectTrigger>
+            <SelectTrigger
+              id="integrator-linked-phone-source"
+              className="max-w-xl"
+              displayLabel={linkedPhoneSource}
+            ></SelectTrigger>
             <SelectContent>
               <SelectItem value="public_then_contacts">
-                public_then_contacts — сначала public.platform_users, иначе legacy contacts (по умолчанию)
+                public_then_contacts — сначала public.platform_users, иначе legacy contacts (по
+                умолчанию)
               </SelectItem>
-              <SelectItem value="public_only">public_only — только канон webapp (целевой режим)</SelectItem>
-              <SelectItem value="contacts_only">contacts_only — только legacy contacts (аварийный откат)</SelectItem>
+              <SelectItem value="public_only">
+                public_only — только канон webapp (целевой режим)
+              </SelectItem>
+              <SelectItem value="contacts_only">
+                contacts_only — только legacy contacts (аварийный откат)
+              </SelectItem>
             </SelectContent>
           </Select>
           <p className="text-xs text-muted-foreground">
-            Влияет на /start и меню: при public_only без телефона в public потребуется контакт, даже если номер остался
-            только в integrator.contacts.
+            Влияет на /start и меню: при public_only без телефона в public потребуется контакт, даже
+            если номер остался только в integrator.contacts.
           </p>
         </div>
 
@@ -379,7 +409,7 @@ export function AdminSettingsSection({
 
         <div className="flex items-center gap-3">
           <Button variant="destructive" onClick={handleSave} disabled={isPending}>
-            {isPending ? "Сохранение..." : "Сохранить настройки"}
+            {isPending ? 'Сохранение...' : 'Сохранить настройки'}
           </Button>
           {saved && <span className="text-sm text-green-600">Сохранено</span>}
           {error && <span className="text-sm text-destructive">{error}</span>}

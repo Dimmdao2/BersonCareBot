@@ -1,56 +1,66 @@
-import Link from "next/link";
-import { redirect } from "next/navigation";
-import { runWithDbClinicBillingPrincipal } from "@bersoncare/db-principal";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireEntitlementForReadAction } from "@/app-layer/guards/requireEntitlement";
-import { requireOrganizationWorkspaceContext } from "@/app-layer/guards/requireRole";
-import { routePaths } from "@/app-layer/routes/paths";
-import { isSeatConsumingMember } from "@/modules/clinic-seats/service";
-import { entitlementsFromSnapshot } from "@/modules/org-entitlements/service";
-import { MECHANIC_REGISTRY, MECHANICS } from "@/modules/org-entitlements/types";
-import { orgBrandLogoUrl, type OrgBrandingManagementContext } from "@/modules/org-branding/service";
-import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
-import { DoctorSection, DoctorSectionHeader, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
-import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
-import { ADMIN_TAB_REDIRECTS, parseHealthArchiveProbeParam } from "./adminSettingsData";
-import { AppointmentReminderSettingsSection } from "./AppointmentReminderSettingsSection";
-import { GoogleCalendarSection } from "./GoogleCalendarSection";
-import { BillingSection, type BillingMechanicRow } from "./BillingSection";
-import { describeCommercialAccessState } from "./billingCommercialState";
-import { DoctorTodayPreferencesSection } from "./DoctorTodayPreferencesSection";
-import { ClinicSlugSection } from "./ClinicSlugSection";
-import { OrgBrandingSection } from "./OrgBrandingSection";
-import { SettingsForm } from "./SettingsForm";
-import { SettingsTabsNav } from "./SettingsTabsNav";
-import type { SettingsTabId } from "./settingsTabs";
-import { TeamSection } from "./TeamSection";
-import { parseDoctorTodayPreferences } from "@/modules/system-settings/doctorTodayPreferences";
-import { getAppBaseUrl } from "@/modules/system-settings/integrationRuntime";
-import { parsePlatformIntegrationAvailabilityEnvelope } from "@/modules/system-settings/platformIntegrationAvailability";
+import Link from 'next/link';
+import { redirect } from 'next/navigation';
+import { runWithDbClinicBillingPrincipal } from '@bersoncare/db-principal';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { requireEntitlementForReadAction } from '@/app-layer/guards/requireEntitlement';
+import { requireOrganizationWorkspaceContext } from '@/app-layer/guards/requireRole';
+import { routePaths } from '@/app-layer/routes/paths';
+import { isSeatConsumingMember } from '@/modules/clinic-seats/service';
+import { entitlementsFromSnapshot } from '@/modules/org-entitlements/service';
+import { MECHANIC_REGISTRY, MECHANICS } from '@/modules/org-entitlements/types';
+import { orgBrandLogoUrl, type OrgBrandingManagementContext } from '@/modules/org-branding/service';
+import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
+import {
+  DoctorSection,
+  DoctorSectionHeader,
+  DoctorSectionTitle,
+} from '@/shared/ui/doctor/DoctorSection';
+import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
+import { ADMIN_TAB_REDIRECTS, parseHealthArchiveProbeParam } from './adminSettingsData';
+import { AppointmentReminderSettingsSection } from './AppointmentReminderSettingsSection';
+import { GoogleCalendarSection } from './GoogleCalendarSection';
+import { BillingSection, type BillingMechanicRow } from './BillingSection';
+import { describeCommercialAccessState } from './billingCommercialState';
+import { DoctorTodayPreferencesSection } from './DoctorTodayPreferencesSection';
+import { ClinicSlugSection } from './ClinicSlugSection';
+import { OrgBrandingSection } from './OrgBrandingSection';
+import { SettingsForm } from './SettingsForm';
+import { SettingsTabsNav } from './SettingsTabsNav';
+import type { SettingsTabId } from './settingsTabs';
+import { TeamSection } from './TeamSection';
+import { parseDoctorTodayPreferences } from '@/modules/system-settings/doctorTodayPreferences';
+import { getAppBaseUrl } from '@/modules/system-settings/integrationRuntime';
+import { parsePlatformIntegrationAvailabilityEnvelope } from '@/modules/system-settings/platformIntegrationAvailability';
 
-type LegacySettingsTab = "specialist" | "organization" | "team" | "billing" | "install";
+type LegacySettingsTab = 'specialist' | 'organization' | 'team' | 'billing' | 'install';
 
 function valueOf<T>(valueJson: unknown, fallback: T): T {
-  return valueJson !== null && typeof valueJson === "object" && "value" in (valueJson as Record<string, unknown>)
-    ? (valueJson as Record<string, unknown>).value as T
+  return valueJson !== null &&
+    typeof valueJson === 'object' &&
+    'value' in (valueJson as Record<string, unknown>)
+    ? ((valueJson as Record<string, unknown>).value as T)
     : fallback;
 }
 
 function parseTab(raw: string | string[] | undefined): LegacySettingsTab | null {
-  const value = typeof raw === "string" ? raw : raw?.[0];
+  const value = typeof raw === 'string' ? raw : raw?.[0];
   if (value === undefined) return null;
-  return value === "organization" || value === "team" || value === "billing" || value === "install"
+  return value === 'organization' || value === 'team' || value === 'billing' || value === 'install'
     ? value
-    : "specialist";
+    : 'specialist';
 }
 
 export default async function SettingsPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ tab?: string | string[]; adminTab?: string | string[]; probe?: string | string[] }>;
+  searchParams?: Promise<{
+    tab?: string | string[];
+    adminTab?: string | string[];
+    probe?: string | string[];
+  }>;
 }) {
   const sp = searchParams != null ? await searchParams : {};
-  const legacyAdminTab = typeof sp.adminTab === "string" ? sp.adminTab : sp.adminTab?.[0];
+  const legacyAdminTab = typeof sp.adminTab === 'string' ? sp.adminTab : sp.adminTab?.[0];
   if (legacyAdminTab && ADMIN_TAB_REDIRECTS[legacyAdminTab]) {
     const target = ADMIN_TAB_REDIRECTS[legacyAdminTab];
     const probe = parseHealthArchiveProbeParam(sp.probe);
@@ -58,11 +68,12 @@ export default async function SettingsPage({
   }
 
   const tab = parseTab(sp.tab);
-  if (tab === "specialist") redirect(routePaths.account);
-  if (tab === "install") redirect(`${routePaths.account}?tab=install`);
+  if (tab === 'specialist') redirect(routePaths.account);
+  if (tab === 'install') redirect(`${routePaths.account}?tab=install`);
 
   const workspace = await requireOrganizationWorkspaceContext();
-  const isGlobalAdmin = workspace.session.user.role === "admin" && workspace.session.adminMode === true;
+  const isGlobalAdmin =
+    workspace.session.user.role === 'admin' && workspace.session.adminMode === true;
   const canManageOrganization = workspace.canManageOrganization || isGlobalAdmin;
   if (!canManageOrganization) redirect(routePaths.account);
 
@@ -72,20 +83,20 @@ export default async function SettingsPage({
   // typing the URL.
   const teamEntitlement = await requireEntitlementForReadAction(
     { organizationId: workspace.organizationId },
-    "clinic_team",
+    'clinic_team',
   );
   // §29 владельца: биллинг клиники видит владелец И администратор клиники («админ клиники или соло-специалист
   // — равноценно»), а обычный персонал не видит. Условие потеряно лидом при разрешении конфликта слияния
   // 28.07 и возвращено: тест «shows billing to owner and clinic admin» падал на редиректе админа.
   const canAccessBilling =
-    workspace.membershipRole === "owner" || workspace.membershipRole === "admin" || isGlobalAdmin;
+    workspace.membershipRole === 'owner' || workspace.membershipRole === 'admin' || isGlobalAdmin;
   const visibleTabs: SettingsTabId[] = [
-    "organization",
-    ...(teamEntitlement.ok ? (["team"] as const) : []),
-    ...(canAccessBilling ? (["billing"] as const) : []),
+    'organization',
+    ...(teamEntitlement.ok ? (['team'] as const) : []),
+    ...(canAccessBilling ? (['billing'] as const) : []),
   ];
 
-  if (tab === null || tab === "organization") {
+  if (tab === null || tab === 'organization') {
     const deps = buildAppDeps();
     // The RSC render already gated this whole tab on `canManageOrganization` above, so this context
     // is built directly from the resolved workspace rather than re-running the guard a second time.
@@ -96,10 +107,21 @@ export default async function SettingsPage({
       actorPlatformUserId: workspace.session.user.userId,
       hasOrganizationManagementCapability: true,
     };
-    const [doctorSettings, clinicAdminSettings, platformSettings, brandingState, slugState, appBaseUrl] = await Promise.all([
-      deps.systemSettings.listSettingsByScope("doctor", { organizationId: workspace.organizationId }),
-      deps.systemSettings.listSettingsByScope("admin", { organizationId: workspace.organizationId }),
-      deps.systemSettings.listSettingsByScope("admin", { organizationId: null }),
+    const [
+      doctorSettings,
+      clinicAdminSettings,
+      platformSettings,
+      brandingState,
+      slugState,
+      appBaseUrl,
+    ] = await Promise.all([
+      deps.systemSettings.listSettingsByScope('doctor', {
+        organizationId: workspace.organizationId,
+      }),
+      deps.systemSettings.listSettingsByScope('admin', {
+        organizationId: workspace.organizationId,
+      }),
+      deps.systemSettings.listSettingsByScope('admin', { organizationId: null }),
       deps.orgBranding.getManagementState(brandingCtx),
       workspace.canManageOrganization && deps.clinicDirectory
         ? deps.clinicDirectory.getSlugManagementState(workspace.organizationId)
@@ -112,46 +134,61 @@ export default async function SettingsPage({
         ? orgBrandLogoUrl(publishedBrand.logoMediaId)
         : null;
     const patientLabel = valueOf(
-      doctorSettings.find((setting) => setting.key === "patient_label")?.valueJson,
-      "пациент",
+      doctorSettings.find((setting) => setting.key === 'patient_label')?.valueJson,
+      'пациент',
     );
     const appointmentReminderEnabled = valueOf(
-      doctorSettings.find((setting) => setting.key === "doctor_appointment_reminder_enabled")?.valueJson,
+      doctorSettings.find((setting) => setting.key === 'doctor_appointment_reminder_enabled')
+        ?.valueJson,
       false,
     );
     const appointmentReminderOffsets = valueOf<unknown>(
-      doctorSettings.find((setting) => setting.key === "doctor_appointment_reminder_offsets_minutes")?.valueJson,
+      doctorSettings.find(
+        (setting) => setting.key === 'doctor_appointment_reminder_offsets_minutes',
+      )?.valueJson,
       [],
     );
     const todayPreferences = parseDoctorTodayPreferences(
-      doctorSettings.find((setting) => setting.key === "doctor_today_preferences")?.valueJson,
+      doctorSettings.find((setting) => setting.key === 'doctor_today_preferences')?.valueJson,
     );
-    const clinicAdminValue = (key: string, fallback = "") => String(valueOf(
-      clinicAdminSettings.find(
-        (setting) => setting.key === key && setting.organizationId === workspace.organizationId,
-      )?.valueJson,
-      fallback,
-    ) ?? fallback).trim();
-    const clinicGoogleEnabled = Boolean(valueOf(
-      clinicAdminSettings.find(
-        (setting) => setting.key === "google_calendar_enabled" && setting.organizationId === workspace.organizationId,
-      )?.valueJson,
-      false,
-    ));
-    const platformAdminValue = (key: string, fallback = "") => String(valueOf(
-      platformSettings.find((setting) => setting.key === key)?.valueJson,
-      fallback,
-    ) ?? fallback).trim();
-    const platformGoogleConfigured = ["google_client_id", "google_client_secret", "google_redirect_uri"]
-      .every((key) => platformAdminValue(key) !== "");
+    const clinicAdminValue = (key: string, fallback = '') =>
+      String(
+        valueOf(
+          clinicAdminSettings.find(
+            (setting) => setting.key === key && setting.organizationId === workspace.organizationId,
+          )?.valueJson,
+          fallback,
+        ) ?? fallback,
+      ).trim();
+    const clinicGoogleEnabled = Boolean(
+      valueOf(
+        clinicAdminSettings.find(
+          (setting) =>
+            setting.key === 'google_calendar_enabled' &&
+            setting.organizationId === workspace.organizationId,
+        )?.valueJson,
+        false,
+      ),
+    );
+    const platformAdminValue = (key: string, fallback = '') =>
+      String(
+        valueOf(platformSettings.find((setting) => setting.key === key)?.valueJson, fallback) ??
+          fallback,
+      ).trim();
+    const platformGoogleConfigured = [
+      'google_client_id',
+      'google_client_secret',
+      'google_redirect_uri',
+    ].every((key) => platformAdminValue(key) !== '');
     const integrationAvailability = parsePlatformIntegrationAvailabilityEnvelope(
-      platformSettings.find((setting) => setting.key === "platform_integration_availability")?.valueJson,
+      platformSettings.find((setting) => setting.key === 'platform_integration_availability')
+        ?.valueJson,
     );
     return (
       <DoctorAppShell title="Настройки" user={workspace.session.user}>
         <DoctorPageHeader title="Настройки" />
         <SettingsTabsNav activeTab="organization" visibleTabs={visibleTabs} />
-        {workspace.membershipRole === "owner" && workspace.specialistId === null ? (
+        {workspace.membershipRole === 'owner' && workspace.specialistId === null ? (
           <DoctorSection>
             <DoctorSectionHeader>
               <DoctorSectionTitle>Кабинет специалиста недоступен</DoctorSectionTitle>
@@ -166,19 +203,14 @@ export default async function SettingsPage({
           </DoctorSection>
         ) : null}
         <OrgBrandingSection
-          key={`${brandingState.brandingMechanicEnabled}:${publishedBrand?.displayName ?? ""}:${publishedBrand?.logoMediaId ?? ""}`}
+          key={`${brandingState.brandingMechanicEnabled}:${publishedBrand?.displayName ?? ''}:${publishedBrand?.logoMediaId ?? ''}`}
           brandingMechanicEnabled={brandingState.brandingMechanicEnabled}
           coreDisplayName={brandingState.effective.core.displayName}
           publishedDisplayName={publishedBrand?.displayName ?? null}
           publishedLogoMediaId={publishedBrand?.logoMediaId ?? null}
           publishedLogoUrl={publishedLogoUrl}
         />
-        {slugState ? (
-          <ClinicSlugSection
-            initialState={slugState}
-            appBaseUrl={appBaseUrl}
-          />
-        ) : null}
+        {slugState ? <ClinicSlugSection initialState={slugState} appBaseUrl={appBaseUrl} /> : null}
         <SettingsForm
           patientLabel={String(patientLabel)}
           smsFallbackEnabled={false}
@@ -206,17 +238,17 @@ export default async function SettingsPage({
         {integrationAvailability.integrations.google_calendar ? (
           <GoogleCalendarSection
             platformOAuthConfigured={platformGoogleConfigured}
-            hasRefreshToken={clinicAdminValue("google_refresh_token").length > 0}
-            googleCalendarId={clinicAdminValue("google_calendar_id")}
+            hasRefreshToken={clinicAdminValue('google_refresh_token').length > 0}
+            googleCalendarId={clinicAdminValue('google_calendar_id')}
             googleCalendarEnabled={clinicGoogleEnabled}
-            googleConnectedEmail={clinicAdminValue("google_connected_email")}
+            googleConnectedEmail={clinicAdminValue('google_connected_email')}
           />
         ) : null}
       </DoctorAppShell>
     );
   }
 
-  if (tab === "team") {
+  if (tab === 'team') {
     if (!teamEntitlement.ok) redirect(`${routePaths.settings}?tab=organization`);
 
     const deps = buildAppDeps();
@@ -261,7 +293,7 @@ export default async function SettingsPage({
     {
       organizationId: workspace.organizationId,
       platformUserId: workspace.session.user.userId,
-      source: "clinic-billing-settings-read",
+      source: 'clinic-billing-settings-read',
     },
     () => deps.saasBilling.getOrganizationBillingOverview(workspace.organizationId),
   );

@@ -11,11 +11,11 @@
 
 ## Состояния email (канон)
 
-1. Свободен → обычная регистрация  
-2. Существует + verified + `user_password_credentials` → login / forgot  
-3. Существует + unverified / contact-only, нет credentials → **setup code** (`existing_account_needs_email_setup`)  
-4. Verified, нет credentials → setup password code  
-5. Конфликт / несколько кандидатов → безопасный auto-merge дублей по email; если две password-строки или hard blocker — support + `email_auth_conflict`  
+1. Свободен → обычная регистрация
+2. Существует + verified + `user_password_credentials` → login / forgot
+3. Существует + unverified / contact-only, нет credentials → **setup code** (`existing_account_needs_email_setup`)
+4. Verified, нет credentials → setup password code
+5. Конфликт / несколько кандидатов → безопасный auto-merge дублей по email; если две password-строки или hard blocker — support + `email_auth_conflict`
 
 ## Scope
 

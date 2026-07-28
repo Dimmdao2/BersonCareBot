@@ -19,7 +19,9 @@ describe('buildDedupKey', () => {
       payload: {},
     };
 
-    expect(buildDedupKey(event)).toBe('source-a:message.received:attempt=123:recordId=777:status=recorded');
+    expect(buildDedupKey(event)).toBe(
+      'source-a:message.received:attempt=123:recordId=777:status=recorded',
+    );
   });
 
   it('serializes null fingerprint values deterministically', () => {
@@ -38,12 +40,11 @@ describe('buildDedupKey', () => {
       payload: {},
     };
 
-    expect(buildDedupKey(event)).toBe([
-      'provider-a:webhook.received',
-      'action=updated',
-      'recordId=7905420',
-      'status=null',
-    ].join(':'));
+    expect(buildDedupKey(event)).toBe(
+      ['provider-a:webhook.received', 'action=updated', 'recordId=7905420', 'status=null'].join(
+        ':',
+      ),
+    );
   });
 
   it('falls back to source/type/eventId', () => {

@@ -1,27 +1,30 @@
-import { redirect } from "next/navigation";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getOptionalPatientSession, patientRscPersonalDataGate } from "@/app-layer/guards/requireRole";
-import { routePaths } from "@/app-layer/routes/paths";
+import { redirect } from 'next/navigation';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import {
+  getOptionalPatientSession,
+  patientRscPersonalDataGate,
+} from '@/app-layer/guards/requireRole';
+import { routePaths } from '@/app-layer/routes/paths';
 import {
   resolveDailyWarmupStartPathForPatient,
   resolvePlanStartLessonPathForPatient,
-} from "../resolvePatientReminderGoTargets";
+} from '../resolvePatientReminderGoTargets';
 import {
   getRememberedPatientOrganizationId,
   resolvePatientOrganizationRequestContext,
-} from "@/app-layer/patient-organization/requestContext";
-import { withPatientOrganizationPrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
+} from '@/app-layer/patient-organization/requestContext';
+import { withPatientOrganizationPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import {
   buildPatientReminderContinuation,
   buildPatientReminderOrganizationOpener,
   parsePatientReminderOrganizationTarget,
   patientOrganizationRecoveryPath,
-} from "../patientReminderOrganizationTarget";
+} from '../patientReminderOrganizationTarget';
 
-type Kind = "daily-warmup" | "plan-start-lesson";
+type Kind = 'daily-warmup' | 'plan-start-lesson';
 
 function isKind(s: string): s is Kind {
-  return s === "daily-warmup" || s === "plan-start-lesson";
+  return s === 'daily-warmup' || s === 'plan-start-lesson';
 }
 
 export default async function PatientGoReminderTargetPage({
@@ -36,27 +39,30 @@ export default async function PatientGoReminderTargetPage({
 }) {
   const { kind: raw } = await params;
   const sp = await searchParams;
-  const kind = typeof raw === "string" ? raw.trim() : "";
+  const kind = typeof raw === 'string' ? raw.trim() : '';
   if (!isKind(kind)) {
     redirect(routePaths.patient);
   }
 
-  const selfPath = kind === "daily-warmup" ? routePaths.patientGoDailyWarmup : routePaths.patientGoPlanStartLesson;
-  const fromReminder = sp.from === "reminder";
-  const reminderOrganizationId = fromReminder ? parsePatientReminderOrganizationTarget(sp.organizationId) : null;
+  const selfPath =
+    kind === 'daily-warmup' ? routePaths.patientGoDailyWarmup : routePaths.patientGoPlanStartLesson;
+  const fromReminder = sp.from === 'reminder';
+  const reminderOrganizationId = fromReminder
+    ? parsePatientReminderOrganizationTarget(sp.organizationId)
+    : null;
   const session = await getOptionalPatientSession();
   if (!session) {
     const returnTo = fromReminder
       ? reminderOrganizationId
         ? buildPatientReminderContinuation(kind, reminderOrganizationId)
-        : patientOrganizationRecoveryPath("reminder_target_missing")
+        : patientOrganizationRecoveryPath('reminder_target_missing')
       : selfPath;
     redirect(`${routePaths.root}?next=${encodeURIComponent(returnTo)}`);
   }
 
   const deps = buildAppDeps();
   if (fromReminder && !reminderOrganizationId) {
-    redirect(patientOrganizationRecoveryPath("reminder_target_missing"));
+    redirect(patientOrganizationRecoveryPath('reminder_target_missing'));
   }
   if (reminderOrganizationId) {
     const rememberedOrganizationId = await getRememberedPatientOrganizationId();
@@ -70,18 +76,28 @@ export default async function PatientGoReminderTargetPage({
     reminderOrganizationId ? { verifiedTargetOrganizationId: reminderOrganizationId } : {},
   );
   if (!patientContext.ok) {
-    redirect(reminderOrganizationId ? patientOrganizationRecoveryPath("organization_unavailable") : routePaths.patient);
+    redirect(
+      reminderOrganizationId
+        ? patientOrganizationRecoveryPath('organization_unavailable')
+        : routePaths.patient,
+    );
   }
-  if (kind === "daily-warmup") {
-    const personalTierOk = (await patientRscPersonalDataGate(session, routePaths.patient)) === "allow";
+  if (kind === 'daily-warmup') {
+    const personalTierOk =
+      (await patientRscPersonalDataGate(session, routePaths.patient)) === 'allow';
     const target = await withPatientOrganizationPrincipal(
       {
         organizationId: patientContext.organizationId,
         platformUserId: session.user.userId,
-        source: "app.patient.go.daily-warmup",
+        source: 'app.patient.go.daily-warmup',
       },
       () =>
-        resolveDailyWarmupStartPathForPatient(deps, session, personalTierOk, fromReminder ? "push_reminder" : "home"),
+        resolveDailyWarmupStartPathForPatient(
+          deps,
+          session,
+          personalTierOk,
+          fromReminder ? 'push_reminder' : 'home',
+        ),
     );
     redirect(target);
   }
@@ -89,7 +105,7 @@ export default async function PatientGoReminderTargetPage({
     {
       organizationId: patientContext.organizationId,
       platformUserId: session.user.userId,
-      source: "app.patient.go.plan-start-lesson",
+      source: 'app.patient.go.plan-start-lesson',
     },
     () => resolvePlanStartLessonPathForPatient(deps, session.user.userId),
   );

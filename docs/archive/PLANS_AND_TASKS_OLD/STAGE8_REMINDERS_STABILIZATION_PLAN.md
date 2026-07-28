@@ -41,12 +41,12 @@
 
 ## Затронутые файлы
 
-| Файл | Задачи |
-|------|--------|
-| `apps/integrator/src/infra/db/readPort.ts` | T1 |
-| `apps/integrator/src/infra/db/readPort.test.ts` | T1 |
-| `apps/webapp/src/modules/integrator/events.test.ts` | T2 |
-| (без изменений кода: запуск gate/reconcile) | T3 |
+| Файл                                                | Задачи |
+| --------------------------------------------------- | ------ |
+| `apps/integrator/src/infra/db/readPort.ts`          | T1     |
+| `apps/integrator/src/infra/db/readPort.test.ts`     | T1     |
+| `apps/webapp/src/modules/integrator/events.test.ts` | T2     |
+| (без изменений кода: запуск gate/reconcile)         | T3     |
 
 ---
 
@@ -69,6 +69,7 @@
 **Файл:** `apps/integrator/src/infra/db/readPort.ts`
 
 **Найти:**
+
 ```ts
         case 'reminders.rules.forUser': {
           const userId = asNonEmptyString(query.params.userId);
@@ -81,6 +82,7 @@
 ```
 
 **Заменить на:**
+
 ```ts
         case 'reminders.rules.forUser': {
           const userId = asNonEmptyString(query.params.userId);
@@ -103,6 +105,7 @@
 **Файл:** `apps/integrator/src/infra/db/readPort.ts`
 
 **Найти:**
+
 ```ts
         case 'reminders.rule.forUserAndCategory': {
           const userId = asNonEmptyString(query.params.userId);
@@ -116,6 +119,7 @@
 ```
 
 **Заменить на:**
+
 ```ts
         case 'reminders.rule.forUserAndCategory': {
           const userId = asNonEmptyString(query.params.userId);
@@ -139,6 +143,7 @@
 **Файл:** `apps/integrator/src/infra/db/readPort.ts`
 
 **Найти (в блоке импортов из repos/reminders.js):**
+
 ```ts
 import {
   getDueReminderOccurrences,
@@ -150,6 +155,7 @@ import {
 ```
 
 **Заменить на:**
+
 ```ts
 import {
   getDueReminderOccurrences,

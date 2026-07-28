@@ -1,45 +1,45 @@
 ---
 name: Staff cancelled delete
-overview: "Тихое удаление только уже отменённых записей в кабинете врача/админа: manual-cancel (уведомление) → delete (без booking.cancelled); Rubitime remove-record; purge зеркал; скрытие из календаря/списков/истории пациента. Канон be_appointments не hard-delete."
+overview: 'Тихое удаление только уже отменённых записей в кабинете врача/админа: manual-cancel (уведомление) → delete (без booking.cancelled); Rubitime remove-record; purge зеркал; скрытие из календаря/списков/истории пациента. Канон be_appointments не hard-delete.'
 status: completed
 completedAt: 2026-06-07
 canonicalPath: .cursor/plans/archive/staff_cancelled_delete_5c59a30e.plan.md
 todos:
   - id: p0-contract-helpers
-    content: "P0: isStaffDeletableCancelledStatus + STAFF_DELETABLE_STATUSES export; тесты; отличие от isCancelledAppointmentStatus (no_show вне delete)"
+    content: 'P0: isStaffDeletableCancelledStatus + STAFF_DELETABLE_STATUSES export; тесты; отличие от isCancelledAppointmentStatus (no_show вне delete)'
     status: completed
   - id: p0-projection-purge
-    content: "P0: расширить AppointmentProjectionPort + pg/inMemory softDelete (cancelReason, DELETE patient_bookings by rubitime_id OR canonical_id); softDeleteByCanonicalAppointmentId; isIntegratorRecordPurged"
+    content: 'P0: расширить AppointmentProjectionPort + pg/inMemory softDelete (cancelReason, DELETE patient_bookings by rubitime_id OR canonical_id); softDeleteByCanonicalAppointmentId; isIntegratorRecordPurged'
     status: completed
   - id: p1-emit-deleted-helper
-    content: "P1: вынести emitBookingDeletedEvent из admin soft-delete route; рефактор admin legacy route на shared helper (без смены auth)"
+    content: 'P1: вынести emitBookingDeletedEvent из admin soft-delete route; рефактор admin legacy route на shared helper (без смены auth)'
     status: completed
   - id: p1-staff-purge-orchestrator
-    content: "P1: staffPurgeCancelledAppointment (gate, idempotent, bridge, deleteRecord, booking.deleted only) + staffPurgeCancelledAppointment.test.ts"
+    content: 'P1: staffPurgeCancelledAppointment (gate, idempotent, bridge, deleteRecord, booking.deleted only) + staffPurgeCancelledAppointment.test.ts'
     status: completed
   - id: p1-api-routes
-    content: "P1: POST doctor+admin .../appointments/[id]/delete + route.test.ts (403/404/409/200/partial)"
+    content: 'P1: POST doctor+admin .../appointments/[id]/delete + route.test.ts (403/404/409/200/partial)'
     status: completed
   - id: p2-read-surfaces-filter
-    content: "P2: purge filter в pgBookingCalendar + pgDoctorCanonicalAppointments (list+stats) + pgDoctorAnalyticsMetricAccounts — infra/repos/doctorAppointmentPurgeFilter.ts"
+    content: 'P2: purge filter в pgBookingCalendar + pgDoctorCanonicalAppointments (list+stats) + pgDoctorAnalyticsMetricAccounts — infra/repos/doctorAppointmentPurgeFilter.ts'
     status: completed
   - id: p2-legacy-read-source
-    content: "P2: rubitime_legacy — pgDoctorAppointments уже фильтрует deleted_at (без изменений)"
+    content: 'P2: rubitime_legacy — pgDoctorAppointments уже фильтрует deleted_at (без изменений)'
     status: completed
   - id: p2-inbound-guard
-    content: "P2: inbound upsert → skipped_purged при deleted_at"
+    content: 'P2: inbound upsert → skipped_purged при deleted_at'
     status: completed
   - id: p3-doctor-ui
-    content: "P3: Удалить в DoctorCalendarEventPanel + DoctorAppointmentActions; panelErrorLabel; confirm; onChanged + router.refresh в списке"
+    content: 'P3: Удалить в DoctorCalendarEventPanel + DoctorAppointmentActions; panelErrorLabel; confirm; onChanged + router.refresh в списке'
     status: completed
   - id: p3-mirror-matrix
-    content: "P3: сценарий #10 в bookingMirrorDesyncMatrix"
+    content: 'P3: сценарий #10 в bookingMirrorDesyncMatrix'
     status: completed
   - id: p4-docs-acceptance
-    content: "P4: BOOKING_MIRROR_INTEGRITY_CONTRACT §delete, ACCEPTANCE smoke #10, api.md, INTEGRATOR_CONTRACT, patient-booking.md, LOG.md"
+    content: 'P4: BOOKING_MIRROR_INTEGRITY_CONTRACT §delete, ACCEPTANCE smoke #10, api.md, INTEGRATOR_CONTRACT, patient-booking.md, LOG.md'
     status: completed
   - id: p4-manual-smoke
-    content: "P4: ручной smoke SD-1..SD-6 — post-deploy оператор"
+    content: 'P4: ручной smoke SD-1..SD-6 — post-deploy оператор'
     status: cancelled
 isProject: false
 ---
@@ -48,31 +48,31 @@ isProject: false
 
 ## Продуктовое решение (зафиксировано)
 
-| Контекст | Поведение |
-|----------|-----------|
-| **Наш кабинет** | Сначала **Отменить** (`manual-cancel`) → одно уведомление. Потом **Удалить** — тихо. |
-| **Rubitime UI** | Можно удалить без отмены — **не копируем**; у нас delete только для уже отменённых. |
-| **Активная запись** | Delete **запрещён** → API `409 not_cancelled`, кнопки в UI нет. |
-| **Канон `be_appointments`** | **Не** hard-delete — audit/lifecycle (`be_appointment_cancellations`) сохраняются. |
+| Контекст                    | Поведение                                                                            |
+| --------------------------- | ------------------------------------------------------------------------------------ |
+| **Наш кабинет**             | Сначала **Отменить** (`manual-cancel`) → одно уведомление. Потом **Удалить** — тихо. |
+| **Rubitime UI**             | Можно удалить без отмены — **не копируем**; у нас delete только для уже отменённых.  |
+| **Активная запись**         | Delete **запрещён** → API `409 not_cancelled`, кнопки в UI нет.                      |
+| **Канон `be_appointments`** | **Не** hard-delete — audit/lifecycle (`be_appointment_cancellations`) сохраняются.   |
 
 ### Допустимые статусы delete (строгий whitelist)
 
 ```ts
 // новый export — НЕ isCancelledAppointmentStatus (там есть no_show)
 STAFF_DELETABLE_STATUSES = [
-  "cancelled_by_patient",
-  "cancelled_by_specialist",
-  "late_cancellation",
+  'cancelled_by_patient',
+  'cancelled_by_specialist',
+  'late_cancellation',
 ] as const;
 ```
 
-| Статус | Delete | Почему |
-|--------|--------|--------|
-| `cancelled_by_*`, `late_cancellation` | да | явная отмена |
-| `confirmed`, `rescheduled`, `awaiting_payment`, … | нет | `not_cancelled` |
-| `no_show` | нет | не «отмена» в продуктовом смысле |
-| `completed`, `visit_confirmed` | нет | завершённый визит |
-| `failed_sync` (ghost) | нет | ops/SQL, не doctor UI |
+| Статус                                            | Delete | Почему                           |
+| ------------------------------------------------- | ------ | -------------------------------- |
+| `cancelled_by_*`, `late_cancellation`             | да     | явная отмена                     |
+| `confirmed`, `rescheduled`, `awaiting_payment`, … | нет    | `not_cancelled`                  |
+| `no_show`                                         | нет    | не «отмена» в продуктовом смысле |
+| `completed`, `visit_confirmed`                    | нет    | завершённый визит                |
+| `failed_sync` (ghost)                             | нет    | ops/SQL, не doctor UI            |
 
 ---
 
@@ -87,14 +87,14 @@ Body: `{}` или пустой. Auth/guards: как [`manual-cancel`](apps/webap
 
 ### Ответы
 
-| HTTP | `error` / body | Когда |
-|------|----------------|-------|
-| 200 | `{ ok: true }` | purge выполнен или уже был (idempotent) |
-| 200 | `{ ok: true, rubitimeMirrorFailed: true }` | локально ок, `remove-record` упал |
-| 404 | `not_found` | нет `be_appointments` в org |
-| 409 | `not_cancelled` | статус ∉ whitelist |
-| 403 | `forbidden` | guard |
-| 503 | `lifecycle_unavailable` | только если критичный deps null (как cancel) |
+| HTTP | `error` / body                             | Когда                                        |
+| ---- | ------------------------------------------ | -------------------------------------------- |
+| 200  | `{ ok: true }`                             | purge выполнен или уже был (idempotent)      |
+| 200  | `{ ok: true, rubitimeMirrorFailed: true }` | локально ок, `remove-record` упал            |
+| 404  | `not_found`                                | нет `be_appointments` в org                  |
+| 409  | `not_cancelled`                            | статус ∉ whitelist                           |
+| 403  | `forbidden`                                | guard                                        |
+| 503  | `lifecycle_unavailable`                    | только если критичный deps null (как cancel) |
 
 **Partial outcomes (симметрия mirror contract):** delete path **не** 502 при сбое Rubitime после локального purge — `ok: true` + `rubitimeMirrorFailed`.
 
@@ -143,13 +143,13 @@ route.ts (doctor/admin, thin)
 
 **Reuse (обязательно):**
 
-| Существующее | Роль |
-|--------------|------|
-| [`projectCanonicalAppointment.ts`](apps/webapp/src/modules/patient-booking/projectCanonicalAppointment.ts) `resolveDoctorProjectionIntegratorRecordId` | ключ projection |
-| [`pgAppointmentProjection.softDeleteByIntegratorId`](apps/webapp/src/infra/repos/pgAppointmentProjection.ts) | база local purge |
-| [`bookingM2mApi.deleteRecord`](apps/webapp/src/modules/integrator/bookingM2mApi.ts) | M2M remove-record |
-| [`admin/.../soft-delete/route.ts`](apps/webapp/src/app/api/admin/appointment-records/[integratorRecordId]/soft-delete/route.ts) | источник для `emitBookingDeletedEvent` refactor |
-| [`staffManualCancelAfterCanonical`](apps/webapp/src/app-layer/booking/staffManualCancelAfterCanonical.ts) | **не** вызывать |
+| Существующее                                                                                                                                           | Роль                                            |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------- |
+| [`projectCanonicalAppointment.ts`](apps/webapp/src/modules/patient-booking/projectCanonicalAppointment.ts) `resolveDoctorProjectionIntegratorRecordId` | ключ projection                                 |
+| [`pgAppointmentProjection.softDeleteByIntegratorId`](apps/webapp/src/infra/repos/pgAppointmentProjection.ts)                                           | база local purge                                |
+| [`bookingM2mApi.deleteRecord`](apps/webapp/src/modules/integrator/bookingM2mApi.ts)                                                                    | M2M remove-record                               |
+| [`admin/.../soft-delete/route.ts`](apps/webapp/src/app/api/admin/appointment-records/[integratorRecordId]/soft-delete/route.ts)                        | источник для `emitBookingDeletedEvent` refactor |
+| [`staffManualCancelAfterCanonical`](apps/webapp/src/app-layer/booking/staffManualCancelAfterCanonical.ts)                                              | **не** вызывать                                 |
 
 **Новые файлы:**
 
@@ -216,15 +216,15 @@ route.ts (doctor/admin, thin)
 
 **Idempotency matrix (обязательные тесты):**
 
-| Состояние до вызова | Локальный purge | remove-record | booking.deleted | HTTP |
-|---------------------|-----------------|---------------|-----------------|------|
-| cancelled, not purged | да | да | да | 200 |
-| cancelled, already `deleted_at` | skip UPDATE | best-effort | да | 200 |
-| confirmed | — | — | — | 409 |
-| no_show | — | — | — | 409 |
-| missing appt | — | — | — | 404 |
-| bridge off | да | skip | да | 200 |
-| remove-record throws | да | fail flag | да | 200 + `rubitimeMirrorFailed` |
+| Состояние до вызова             | Локальный purge | remove-record | booking.deleted | HTTP                         |
+| ------------------------------- | --------------- | ------------- | --------------- | ---------------------------- |
+| cancelled, not purged           | да              | да            | да              | 200                          |
+| cancelled, already `deleted_at` | skip UPDATE     | best-effort   | да              | 200                          |
+| confirmed                       | —               | —             | —               | 409                          |
+| no_show                         | —               | —             | —               | 409                          |
+| missing appt                    | —               | —             | —               | 404                          |
+| bridge off                      | да              | skip          | да              | 200                          |
+| remove-record throws            | да              | fail flag     | да              | 200 + `rubitimeMirrorFailed` |
 
 **Negative test (критично):** mock `emitBookingEvent` — на delete path **ни разу** не `booking.cancelled`.
 
@@ -294,11 +294,11 @@ Helper (shared): `apps/webapp/src/infra/repos/doctorAppointmentPurgeFilter.ts` �
 
 ### Surfaces
 
-| Surface | Файл | Изменение |
-|---------|------|-----------|
-| Календарь (primary) | [`DoctorCalendarEventPanel.tsx`](apps/webapp/src/app/app/doctor/calendar/DoctorCalendarEventPanel.tsx) | «Удалить» рядом с «Отменить» только если `isStaffDeletableCancelledStatus` |
-| Список записей | [`DoctorAppointmentActions.tsx`](apps/webapp/src/app/app/doctor/appointments/DoctorAppointmentActions.tsx) | то же; нужен `status` в props (сейчас только `recordId` — **расширить** из list row) |
-| Admin calendar | если admin использует тот же panel — delete доступен через admin `apiBase` |
+| Surface             | Файл                                                                                                       | Изменение                                                                            |
+| ------------------- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| Календарь (primary) | [`DoctorCalendarEventPanel.tsx`](apps/webapp/src/app/app/doctor/calendar/DoctorCalendarEventPanel.tsx)     | «Удалить» рядом с «Отменить» только если `isStaffDeletableCancelledStatus`           |
+| Список записей      | [`DoctorAppointmentActions.tsx`](apps/webapp/src/app/app/doctor/appointments/DoctorAppointmentActions.tsx) | то же; нужен `status` в props (сейчас только `recordId` — **расширить** из list row) |
+| Admin calendar      | если admin использует тот же panel — delete доступен через admin `apiBase`                                 |
 
 ### UX rules (doctor UI style guide)
 
@@ -331,25 +331,25 @@ Helper (shared): `apps/webapp/src/infra/repos/doctorAppointmentPurgeFilter.ts` �
 
 ### Docs (обязательно)
 
-| Doc | Что добавить |
-|-----|--------------|
+| Doc                                                                                                           | Что добавить                                                                                       |
+| ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
 | [`BOOKING_MIRROR_INTEGRITY_CONTRACT.md`](docs/BOOKING_REWORK_INITIATIVE/BOOKING_MIRROR_INTEGRITY_CONTRACT.md) | § Staff delete: whitelist statuses; delete ≠ cancel; no `booking.cancelled`; local-before-Rubitime |
-| [`ACCEPTANCE_MIRROR_SYNC.md`](docs/BOOKING_REWORK_INITIATIVE/ACCEPTANCE_MIRROR_SYNC.md) | Smoke **#10** staff delete |
-| [`api.md`](apps/webapp/src/app/api/api.md) | doctor/admin delete endpoints |
-| [`INTEGRATOR_CONTRACT.md`](apps/webapp/INTEGRATOR_CONTRACT.md) | staff delete = `remove-record` after cancel, not for active |
-| [`patient-booking.md`](apps/webapp/src/modules/patient-booking/patient-booking.md) | patient history: row removed on staff delete |
-| [`LOG.md`](docs/BOOKING_REWORK_INITIATIVE/LOG.md) | execution entry |
+| [`ACCEPTANCE_MIRROR_SYNC.md`](docs/BOOKING_REWORK_INITIATIVE/ACCEPTANCE_MIRROR_SYNC.md)                       | Smoke **#10** staff delete                                                                         |
+| [`api.md`](apps/webapp/src/app/api/api.md)                                                                    | doctor/admin delete endpoints                                                                      |
+| [`INTEGRATOR_CONTRACT.md`](apps/webapp/INTEGRATOR_CONTRACT.md)                                                | staff delete = `remove-record` after cancel, not for active                                        |
+| [`patient-booking.md`](apps/webapp/src/modules/patient-booking/patient-booking.md)                            | patient history: row removed on staff delete                                                       |
+| [`LOG.md`](docs/BOOKING_REWORK_INITIATIVE/LOG.md)                                                             | execution entry                                                                                    |
 
 ### Ручной smoke (post-deploy)
 
-| ID | Шаг | Ожидание |
-|----|-----|----------|
-| SD-1 | Календарь: активная запись | нет кнопки «Удалить» |
-| SD-2 | Отменить (free) | одно уведомление пациенту; статус cancelled в panel |
-| SD-3 | Удалить | запись пропала из календаря и списка; **второго** уведомления нет |
-| SD-4 | Кабинет пациента → прошлые записи | записи нет |
-| SD-5 | Повторный delete (API) | 200 idempotent |
-| SD-6 | Rubitime journal | запись удалена (remove-record), если bridge on |
+| ID   | Шаг                               | Ожидание                                                          |
+| ---- | --------------------------------- | ----------------------------------------------------------------- |
+| SD-1 | Календарь: активная запись        | нет кнопки «Удалить»                                              |
+| SD-2 | Отменить (free)                   | одно уведомление пациенту; статус cancelled в panel               |
+| SD-3 | Удалить                           | запись пропала из календаря и списка; **второго** уведомления нет |
+| SD-4 | Кабинет пациента → прошлые записи | записи нет                                                        |
+| SD-5 | Повторный delete (API)            | 200 idempotent                                                    |
+| SD-6 | Rubitime journal                  | запись удалена (remove-record), если bridge on                    |
 
 ---
 
@@ -421,11 +421,11 @@ pnpm run ci
 
 ## Риски и mitigations
 
-| Риск | Mitigation |
-|------|------------|
-| Календарь показывает отменённую после delete | purge filter по `appointment_records.deleted_at` |
-| Пациент видит «Отменена» в истории | DELETE `patient_bookings`, не только UPDATE |
-| Двойное уведомление | delete без `booking.cancelled`; тест mock |
-| Delayed webhook revive | inbound `skipped_purged` guard |
-| `rubitime_legacy` list drift | soft-delete по rubitime id → `deleted_at` уже в legacy SQL |
-| Нет `appointment_records` row | fallback `be:{id}` soft-delete; tombstone INSERT + DELETE `patient_bookings` если row отсутствует |
+| Риск                                         | Mitigation                                                                                        |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Календарь показывает отменённую после delete | purge filter по `appointment_records.deleted_at`                                                  |
+| Пациент видит «Отменена» в истории           | DELETE `patient_bookings`, не только UPDATE                                                       |
+| Двойное уведомление                          | delete без `booking.cancelled`; тест mock                                                         |
+| Delayed webhook revive                       | inbound `skipped_purged` guard                                                                    |
+| `rubitime_legacy` list drift                 | soft-delete по rubitime id → `deleted_at` уже в legacy SQL                                        |
+| Нет `appointment_records` row                | fallback `be:{id}` soft-delete; tombstone INSERT + DELETE `patient_bookings` если row отсутствует |

@@ -17,6 +17,6 @@ export function mayActivateFutureSaasAccess(event: FutureSaasPaymentConfirmation
     event.statusVerified &&
     event.amountMatches &&
     event.currencyMatches &&
-    event.eventType === "payment.succeeded"
+    event.eventType === 'payment.succeeded'
   );
 }

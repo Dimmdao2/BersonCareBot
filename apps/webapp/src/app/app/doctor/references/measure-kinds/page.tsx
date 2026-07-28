@@ -1,7 +1,7 @@
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
-import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
-import { MeasureKindsTableClient } from "./MeasureKindsTableClient";
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
+import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
+import { MeasureKindsTableClient } from './MeasureKindsTableClient';
 
 export default async function DoctorMeasureKindsReferencePage() {
   // The enclosing layout resolves its own workspace principal, but a layout's
@@ -12,7 +12,9 @@ export default async function DoctorMeasureKindsReferencePage() {
   // same way the sibling `[categoryCode]` page does, so the read runs as `app_staff`.
   const workspace = await requireDoctorWorkspaceContext();
   const deps = buildAppDeps();
-  const items = await withDoctorWorkspacePrincipal(workspace, () => deps.measureKinds.listMeasureKinds());
+  const items = await withDoctorWorkspacePrincipal(workspace, () =>
+    deps.measureKinds.listMeasureKinds(),
+  );
   return (
     <MeasureKindsTableClient
       initialItems={items.map((it) => ({

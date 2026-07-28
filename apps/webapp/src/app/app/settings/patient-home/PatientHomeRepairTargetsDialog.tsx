@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { useEffect, useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
-import { Button } from "@/shared/ui/doctor/primitives/button";
+import { useEffect, useMemo, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
+import { Button } from '@/shared/ui/doctor/primitives/button';
 import {
   Dialog,
   DialogClose,
@@ -11,22 +11,22 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/shared/ui/doctor/primitives/dialog";
+} from '@/shared/ui/doctor/primitives/dialog';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/ui/doctor/primitives/select";
-import type { PatientHomeBlockItem } from "@/modules/patient-home/ports";
+} from '@/shared/ui/doctor/primitives/select';
+import type { PatientHomeBlockItem } from '@/modules/patient-home/ports';
 import {
   patientHomeBlockItemDisplayTitle,
   patientHomeBlockItemTargetTypeLabelRu,
   type PatientHomeRefDisplayTitles,
-} from "@/modules/patient-home/patientHomeBlockItemDisplayTitle";
-import { suggestedSlugForNewContentSection } from "@/modules/patient-home/patientHomeUnresolvedRefs";
-import { listPatientHomeCandidates, retargetPatientHomeItem } from "./actions";
+} from '@/modules/patient-home/patientHomeBlockItemDisplayTitle';
+import { suggestedSlugForNewContentSection } from '@/modules/patient-home/patientHomeUnresolvedRefs';
+import { listPatientHomeCandidates, retargetPatientHomeItem } from './actions';
 
 type Candidate = {
   targetType: string;
@@ -83,8 +83,10 @@ export function PatientHomeRepairTargetsDialog({
     if (!open) return;
     const next: Record<string, string> = {};
     for (const item of unresolvedItems) {
-      const match = candidates.find((c) => c.targetType === item.targetType && c.targetRef === item.targetRef);
-      next[item.id] = match ? `${match.targetType}:${match.targetRef}` : "";
+      const match = candidates.find(
+        (c) => c.targetType === item.targetType && c.targetRef === item.targetRef,
+      );
+      next[item.id] = match ? `${match.targetType}:${match.targetRef}` : '';
     }
     queueMicrotask(() => {
       setSelectionByItemId(next);
@@ -102,15 +104,19 @@ export function PatientHomeRepairTargetsDialog({
   }, [candidates]);
 
   const applyRetarget = (item: PatientHomeBlockItem) => {
-    const key = selectionByItemId[item.id] ?? "";
-    const [tt, ref] = key.split(":");
+    const key = selectionByItemId[item.id] ?? '';
+    const [tt, ref] = key.split(':');
     if (!tt || !ref) {
-      setError("Выберите цель из списка");
+      setError('Выберите цель из списка');
       return;
     }
     setError(null);
     startTransition(async () => {
-      const res = await retargetPatientHomeItem({ itemId: item.id, targetType: tt, targetRef: ref });
+      const res = await retargetPatientHomeItem({
+        itemId: item.id,
+        targetType: tt,
+        targetRef: ref,
+      });
       if (!res.ok) {
         setError(res.error);
         return;
@@ -128,14 +134,14 @@ export function PatientHomeRepairTargetsDialog({
         <DialogHeader>
           <DialogTitle>Исправить связи CMS</DialogTitle>
           <DialogDescription>
-            Для каждого элемента выберите существующий материал, раздел или курс. Slug в CMS не меняется — обновляется
-            только ссылка в блоке главной.
+            Для каждого элемента выберите существующий материал, раздел или курс. Slug в CMS не
+            меняется — обновляется только ссылка в блоке главной.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-6">
           {unresolvedItems.map((item) => {
             const options = candidatesByType.get(item.targetType) ?? [];
-            const selectValue = selectionByItemId[item.id] ?? "";
+            const selectValue = selectionByItemId[item.id] ?? '';
             const selectedCandidate = options.find(
               (c) => `${c.targetType}:${c.targetRef}` === selectValue,
             );
@@ -149,26 +155,33 @@ export function PatientHomeRepairTargetsDialog({
                   {patientHomeBlockItemDisplayTitle(item, refDisplayTitles)}
                 </div>
                 <div className="mt-1 text-xs text-muted-foreground">
-                  {patientHomeBlockItemTargetTypeLabelRu(item.targetType)} · {item.targetRef} (не найдено в CMS)
+                  {patientHomeBlockItemTargetTypeLabelRu(item.targetType)} · {item.targetRef} (не
+                  найдено в CMS)
                 </div>
                 <div className="mt-3 space-y-2">
                   <Select
                     value={selectValue}
                     onValueChange={(v) =>
-                      setSelectionByItemId((prev) => ({ ...prev, [item.id]: typeof v === "string" ? v : "" }))
+                      setSelectionByItemId((prev) => ({
+                        ...prev,
+                        [item.id]: typeof v === 'string' ? v : '',
+                      }))
                     }
                     disabled={candidatesLoading || isPending || options.length === 0}
                   >
                     <SelectTrigger className="w-full">
                       <SelectValue
-                        placeholder={options.length === 0 ? "Нет доступных целей" : "Выберите цель"}
+                        placeholder={options.length === 0 ? 'Нет доступных целей' : 'Выберите цель'}
                       >
                         {selectDisplayLabel}
                       </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       {options.map((c) => (
-                        <SelectItem key={`${c.targetType}:${c.targetRef}`} value={`${c.targetType}:${c.targetRef}`}>
+                        <SelectItem
+                          key={`${c.targetType}:${c.targetRef}`}
+                          value={`${c.targetType}:${c.targetRef}`}
+                        >
                           {c.title} ({c.targetRef})
                         </SelectItem>
                       ))}
@@ -183,42 +196,44 @@ export function PatientHomeRepairTargetsDialog({
                     >
                       Применить
                     </Button>
-                    {item.targetType === "content_section" ?
+                    {item.targetType === 'content_section' ? (
                       <Button
                         type="button"
                         size="sm"
                         variant="outline"
                         disabled={candidatesLoading || isPending}
                         onClick={() => {
-                          const q = suggested ? `?suggestedSlug=${encodeURIComponent(suggested)}` : "";
+                          const q = suggested
+                            ? `?suggestedSlug=${encodeURIComponent(suggested)}`
+                            : '';
                           router.push(`/app/doctor/content/sections/new${q}`);
                         }}
                       >
                         Создать раздел…
                       </Button>
-                    : null}
-                    {item.targetType === "content_page" ?
+                    ) : null}
+                    {item.targetType === 'content_page' ? (
                       <Button
                         type="button"
                         size="sm"
                         variant="outline"
                         disabled={candidatesLoading || isPending}
-                        onClick={() => router.push("/app/doctor/content/new")}
+                        onClick={() => router.push('/app/doctor/content/new')}
                       >
                         Новый материал…
                       </Button>
-                    : null}
-                    {item.targetType === "course" ?
+                    ) : null}
+                    {item.targetType === 'course' ? (
                       <Button
                         type="button"
                         size="sm"
                         variant="outline"
                         disabled={candidatesLoading || isPending}
-                        onClick={() => router.push("/app/doctor/treatment-program-templates")}
+                        onClick={() => router.push('/app/doctor/treatment-program-templates')}
                       >
                         К каталогу курсов…
                       </Button>
-                    : null}
+                    ) : null}
                   </div>
                 </div>
               </div>

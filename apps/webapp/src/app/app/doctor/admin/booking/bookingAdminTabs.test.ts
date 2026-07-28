@@ -1,29 +1,29 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from 'vitest';
 import {
   BOOKING_ADMIN_BASE,
   BOOKING_ADMIN_TABS,
   bookingAdminTabFromPathname,
-} from "./bookingAdminTabs";
+} from './bookingAdminTabs';
 
-describe("bookingAdminTabFromPathname", () => {
-  it("maps base path to overview", () => {
-    expect(bookingAdminTabFromPathname(BOOKING_ADMIN_BASE)).toBe("overview");
-    expect(bookingAdminTabFromPathname(`${BOOKING_ADMIN_BASE}/`)).toBe("overview");
+describe('bookingAdminTabFromPathname', () => {
+  it('maps base path to overview', () => {
+    expect(bookingAdminTabFromPathname(BOOKING_ADMIN_BASE)).toBe('overview');
+    expect(bookingAdminTabFromPathname(`${BOOKING_ADMIN_BASE}/`)).toBe('overview');
   });
 
-  it("maps each tab href to its id", () => {
+  it('maps each tab href to its id', () => {
     for (const tab of BOOKING_ADMIN_TABS) {
-      if (tab.id === "overview") continue;
+      if (tab.id === 'overview') continue;
       expect(bookingAdminTabFromPathname(tab.href)).toBe(tab.id);
       expect(bookingAdminTabFromPathname(`${tab.href}/extra`)).toBe(tab.id);
     }
   });
 
-  it("maps legacy catalog to overview", () => {
-    expect(bookingAdminTabFromPathname(`${BOOKING_ADMIN_BASE}/catalog`)).toBe("overview");
+  it('maps legacy catalog to overview', () => {
+    expect(bookingAdminTabFromPathname(`${BOOKING_ADMIN_BASE}/catalog`)).toBe('overview');
   });
 
-  it("has three unique tab ids and hrefs", () => {
+  it('has three unique tab ids and hrefs', () => {
     expect(BOOKING_ADMIN_TABS).toHaveLength(3);
     const ids = new Set(BOOKING_ADMIN_TABS.map((t) => t.id));
     expect(ids.size).toBe(3);
@@ -31,11 +31,11 @@ describe("bookingAdminTabFromPathname", () => {
     expect(hrefs.size).toBe(3);
   });
 
-  it("tabs include expected ids", () => {
+  it('tabs include expected ids', () => {
     const ids = BOOKING_ADMIN_TABS.map((t) => t.id);
-    expect(ids).toContain("overview");
-    expect(ids).toContain("form-public");
-    expect(ids).toContain("payments");
-    expect(ids).not.toContain("integrations");
+    expect(ids).toContain('overview');
+    expect(ids).toContain('form-public');
+    expect(ids).toContain('payments');
+    expect(ids).not.toContain('integrations');
   });
 });

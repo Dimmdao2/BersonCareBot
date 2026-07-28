@@ -1,9 +1,9 @@
 /** Wave 3 phase 15C — domain SQL via `runWebappPgText`. */
-import { runWebappPgText } from "@/infra/db/runWebappSql";
-import type { UserPinRecord, UserPinsPort } from "@/modules/auth/userPinsPort";
+import { runWebappPgText } from '@/infra/db/runWebappSql';
+import type { UserPinRecord, UserPinsPort } from '@/modules/auth/userPinsPort';
 
 function toDateField(v: Date | string): Date {
-  return typeof v === "string" ? new Date(v) : v;
+  return typeof v === 'string' ? new Date(v) : v;
 }
 
 function nullableDateField(v: Date | string | null): Date | null {
@@ -34,10 +34,10 @@ export const pgUserPinsPort: UserPinsPort = {
   },
 
   async upsertPinHash(userId: string, pinHash: string): Promise<void> {
-    await runWebappPgText(
-      `SELECT app.auth_user_pin_upsert($1::uuid, $2::text) AS updated`,
-      [userId, pinHash],
-    );
+    await runWebappPgText(`SELECT app.auth_user_pin_upsert($1::uuid, $2::text) AS updated`, [
+      userId,
+      pinHash,
+    ]);
   },
 
   async incrementFailed(
@@ -64,9 +64,6 @@ export const pgUserPinsPort: UserPinsPort = {
   },
 
   async resetAttempts(userId: string): Promise<void> {
-    await runWebappPgText(
-      `SELECT app.auth_user_pin_reset_attempts($1::uuid) AS reset`,
-      [userId],
-    );
+    await runWebappPgText(`SELECT app.auth_user_pin_reset_attempts($1::uuid) AS reset`, [userId]);
   },
 };

@@ -54,16 +54,16 @@ Focused source hashes:
 All binaries remain outside the repository under
 `/home/dev/dev-projects/.lead/runs/ui4-live-acceptance/7ec8ecedd-20260722T2310Z/`.
 
-| Evidence | External file | SHA-256 |
-|---|---|---|
-| Desktop unselected preview | [`desktop-unselected.png`](/home/dev/dev-projects/.lead/runs/ui4-live-acceptance/7ec8ecedd-20260722T2310Z/desktop-unselected.png) | `a302b5b556920db8c5c9ca75a1a26b5290e2cd415f12d451b015dccd3a94dcc8` |
-| Desktop selected preview, pointer | [`desktop-selected-pointer.png`](/home/dev/dev-projects/.lead/runs/ui4-live-acceptance/7ec8ecedd-20260722T2310Z/desktop-selected-pointer.png) | `f9e298faef098b3a70fdc7d3298878efe93edf5ffdfc42150cd985262037e540` |
-| Desktop selected preview, keyboard | [`desktop-selected-keyboard.png`](/home/dev/dev-projects/.lead/runs/ui4-live-acceptance/7ec8ecedd-20260722T2310Z/desktop-selected-keyboard.png) | `5fdbaef00f84bf790bb080429cacaaff7ba1de48fd913ebfd3e0880f96a3d9fd` |
-| Filtered KPI | [`desktop-filtered-kpi.png`](/home/dev/dev-projects/.lead/runs/ui4-live-acceptance/7ec8ecedd-20260722T2310Z/desktop-filtered-kpi.png) | `20a0964a49c5465c48a3d4950612366123d65e66dcbbcb8b0740d763526b96b4` |
-| Tooltip hover | [`desktop-tooltip-hover.png`](/home/dev/dev-projects/.lead/runs/ui4-live-acceptance/7ec8ecedd-20260722T2310Z/desktop-tooltip-hover.png) | `02fedfdf1722d17bbd96634983656b3acd2865572f0b1173742db980c28bfd71` |
-| Tooltip focus | [`desktop-tooltip-focus.png`](/home/dev/dev-projects/.lead/runs/ui4-live-acceptance/7ec8ecedd-20260722T2310Z/desktop-tooltip-focus.png) | `c7a914107f00a8c20f6904f6087c4f9cad157a24357a4344a3118085b1d4fc57` |
-| Full-workspace card | [`desktop-full-workspace-card.png`](/home/dev/dev-projects/.lead/runs/ui4-live-acceptance/7ec8ecedd-20260722T2310Z/desktop-full-workspace-card.png) | `be5f1a38eec17306f038f0fd4c6d9d3b21c8aa2b7555dfeb33524e4c24a857a1` |
-| Mobile list | [`mobile-list.png`](/home/dev/dev-projects/.lead/runs/ui4-live-acceptance/7ec8ecedd-20260722T2310Z/mobile-list.png) | `606067f197630bc8cab5367c7866d3c2577c63433ccdef53b8ebe8c878ca41d6` |
+| Evidence                           | External file                                                                                                                                       | SHA-256                                                            |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Desktop unselected preview         | [`desktop-unselected.png`](/home/dev/dev-projects/.lead/runs/ui4-live-acceptance/7ec8ecedd-20260722T2310Z/desktop-unselected.png)                   | `a302b5b556920db8c5c9ca75a1a26b5290e2cd415f12d451b015dccd3a94dcc8` |
+| Desktop selected preview, pointer  | [`desktop-selected-pointer.png`](/home/dev/dev-projects/.lead/runs/ui4-live-acceptance/7ec8ecedd-20260722T2310Z/desktop-selected-pointer.png)       | `f9e298faef098b3a70fdc7d3298878efe93edf5ffdfc42150cd985262037e540` |
+| Desktop selected preview, keyboard | [`desktop-selected-keyboard.png`](/home/dev/dev-projects/.lead/runs/ui4-live-acceptance/7ec8ecedd-20260722T2310Z/desktop-selected-keyboard.png)     | `5fdbaef00f84bf790bb080429cacaaff7ba1de48fd913ebfd3e0880f96a3d9fd` |
+| Filtered KPI                       | [`desktop-filtered-kpi.png`](/home/dev/dev-projects/.lead/runs/ui4-live-acceptance/7ec8ecedd-20260722T2310Z/desktop-filtered-kpi.png)               | `20a0964a49c5465c48a3d4950612366123d65e66dcbbcb8b0740d763526b96b4` |
+| Tooltip hover                      | [`desktop-tooltip-hover.png`](/home/dev/dev-projects/.lead/runs/ui4-live-acceptance/7ec8ecedd-20260722T2310Z/desktop-tooltip-hover.png)             | `02fedfdf1722d17bbd96634983656b3acd2865572f0b1173742db980c28bfd71` |
+| Tooltip focus                      | [`desktop-tooltip-focus.png`](/home/dev/dev-projects/.lead/runs/ui4-live-acceptance/7ec8ecedd-20260722T2310Z/desktop-tooltip-focus.png)             | `c7a914107f00a8c20f6904f6087c4f9cad157a24357a4344a3118085b1d4fc57` |
+| Full-workspace card                | [`desktop-full-workspace-card.png`](/home/dev/dev-projects/.lead/runs/ui4-live-acceptance/7ec8ecedd-20260722T2310Z/desktop-full-workspace-card.png) | `be5f1a38eec17306f038f0fd4c6d9d3b21c8aa2b7555dfeb33524e4c24a857a1` |
+| Mobile list                        | [`mobile-list.png`](/home/dev/dev-projects/.lead/runs/ui4-live-acceptance/7ec8ecedd-20260722T2310Z/mobile-list.png)                                 | `606067f197630bc8cab5367c7866d3c2577c63433ccdef53b8ebe8c878ca41d6` |
 
 ## Populated-row continuation — exact SHA `c431fe7a1`
 
@@ -83,10 +83,10 @@ the functional selected preview. Its computed chrome remained border `0px` on al
 background and `box-shadow:none`. The bounded verification observed no HTTP `>=400`, console error or page error.
 The mobile viewport also showed the same three populated status slots.
 
-| Evidence | External file | SHA-256 |
-|---|---|---|
+| Evidence                                           | External file                                                                                                                                      | SHA-256                                                            |
+| -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
 | Desktop populated row + selected frameless preview | [`desktop-populated-selected.png`](/home/dev/dev-projects/.lead/runs/ui4-populated-live/c431fe7a1-20260722T235339Z/desktop-populated-selected.png) | `9f73ae7b9ddf15eb70c80d452cb9a5e5812fe67631ad76f278381e3888f37a2a` |
-| Mobile populated row | [`mobile-populated-row.png`](/home/dev/dev-projects/.lead/runs/ui4-populated-live/c431fe7a1-20260722T235339Z/mobile-populated-row.png) | `1940b7bab01821be433ebce206b804496298ddd737c82205818a1824dfbe6576` |
+| Mobile populated row                               | [`mobile-populated-row.png`](/home/dev/dev-projects/.lead/runs/ui4-populated-live/c431fe7a1-20260722T235339Z/mobile-populated-row.png)             | `1940b7bab01821be433ebce206b804496298ddd737c82205818a1824dfbe6576` |
 
 The missing populated-state LIVE evidence for UI-4 item 8 is now present. No product code was changed and no owner
 acceptance is claimed.

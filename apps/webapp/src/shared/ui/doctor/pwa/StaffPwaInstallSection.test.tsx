@@ -1,39 +1,39 @@
 /** @vitest-environment jsdom */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
-import { STAFF_PWA_INSTALLED_STORAGE_KEY } from "@/shared/lib/pwa/staffPwaInstallState";
-import { StaffPwaInstallSection } from "./StaffPwaInstallSection";
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
+import { STAFF_PWA_INSTALLED_STORAGE_KEY } from '@/shared/lib/pwa/staffPwaInstallState';
+import { StaffPwaInstallSection } from './StaffPwaInstallSection';
 
-vi.mock("@/shared/lib/webPush/pwaDisplay", () => ({
+vi.mock('@/shared/lib/webPush/pwaDisplay', () => ({
   isStandalonePwa: vi.fn(() => true),
 }));
 
-vi.mock("./StaffPwaPushOptIn", () => ({
+vi.mock('./StaffPwaPushOptIn', () => ({
   StaffPwaPushOptIn: () => null,
 }));
 
-describe("StaffPwaInstallSection", () => {
+describe('StaffPwaInstallSection', () => {
   beforeEach(() => {
     localStorage.clear();
     vi.stubGlobal(
-      "fetch",
+      'fetch',
       vi.fn().mockResolvedValue({
         ok: true,
         json: async () => ({
           ok: true,
           vapidConfigured: true,
-          publicKey: "pk",
+          publicKey: 'pk',
           hasSubscription: false,
           globalWebPushEnabled: true,
         }),
       }),
     );
     vi.stubGlobal(
-      "matchMedia",
+      'matchMedia',
       vi.fn(() => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() })),
     );
-    Object.defineProperty(window.navigator, "standalone", {
+    Object.defineProperty(window.navigator, 'standalone', {
       configurable: true,
       value: true,
     });
@@ -44,7 +44,7 @@ describe("StaffPwaInstallSection", () => {
     vi.unstubAllGlobals();
   });
 
-  it("does not show done in patient standalone without staff marker", async () => {
+  it('does not show done in patient standalone without staff marker', async () => {
     render(<StaffPwaInstallSection />);
     await waitFor(() => {
       expect(screen.getByText(/Меню браузера|Поделиться|Установить/i)).toBeInTheDocument();
@@ -52,8 +52,8 @@ describe("StaffPwaInstallSection", () => {
     expect(screen.queryByText(/Приложение на устройстве/)).not.toBeInTheDocument();
   });
 
-  it("shows done when staff install marker is set", async () => {
-    localStorage.setItem(STAFF_PWA_INSTALLED_STORAGE_KEY, "1");
+  it('shows done when staff install marker is set', async () => {
+    localStorage.setItem(STAFF_PWA_INSTALLED_STORAGE_KEY, '1');
     render(<StaffPwaInstallSection />);
     await waitFor(() => {
       expect(screen.getByText(/Приложение на устройстве/)).toBeInTheDocument();

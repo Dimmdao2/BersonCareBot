@@ -1,14 +1,14 @@
-import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
-import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
-import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
+import { requireDoctorAccess } from '@/app-layer/guards/requireRole';
+import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
+import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
 import {
   parseDoctorCatalogPubArchQuery,
   testSetListFilterFromPubArch,
-} from "@/shared/lib/doctorCatalogListStatus";
-import { parseDoctorCatalogRegionQueryParam } from "@/shared/lib/doctorCatalogRegionQuery";
-import { doctorCatalogClientFilterUrlHints } from "@/shared/lib/doctorCatalogClientUrlSync";
-import { clinicalTestLibraryRows } from "./clinicalTestLibraryRows";
-import { TestSetsPageClient } from "./TestSetsPageClient";
+} from '@/shared/lib/doctorCatalogListStatus';
+import { parseDoctorCatalogRegionQueryParam } from '@/shared/lib/doctorCatalogRegionQuery';
+import { doctorCatalogClientFilterUrlHints } from '@/shared/lib/doctorCatalogClientUrlSync';
+import { clinicalTestLibraryRows } from './clinicalTestLibraryRows';
+import { TestSetsPageClient } from './TestSetsPageClient';
 
 type PageProps = {
   searchParams?: Promise<{
@@ -24,25 +24,27 @@ type PageProps = {
 
 export default async function DoctorTestSetsPage({ searchParams }: PageProps) {
   const session = await requireDoctorAccess();
-  const { buildAppDeps } = await import("@/app-layer/di/buildAppDeps");
+  const { buildAppDeps } = await import('@/app-layer/di/buildAppDeps');
   const deps = buildAppDeps();
 
   const sp = (await searchParams) ?? {};
-  const q = typeof sp.q === "string" ? sp.q : "";
+  const q = typeof sp.q === 'string' ? sp.q : '';
   const regionParsed = parseDoctorCatalogRegionQueryParam(sp.region);
 
   const listPubArch = parseDoctorCatalogPubArchQuery(sp);
 
   const [items, bodyRegionItems] = await Promise.all([
     deps.testSets.listTestSets(testSetListFilterFromPubArch(listPubArch)),
-    deps.references.listActiveItemsByCategoryCode("body_region"),
+    deps.references.listActiveItemsByCategoryCode('body_region'),
   ]);
   const bodyRegionIdToCode = Object.fromEntries(bodyRegionItems.map((it) => [it.id, it.code]));
 
-  const clinicalTestsForPicker = await deps.clinicalTests.listClinicalTests({ archiveScope: "active" });
+  const clinicalTestsForPicker = await deps.clinicalTests.listClinicalTests({
+    archiveScope: 'active',
+  });
   const clinicalTestsLibrary = clinicalTestLibraryRows(clinicalTestsForPicker);
 
-  const raw = typeof sp.selected === "string" ? sp.selected.trim() : "";
+  const raw = typeof sp.selected === 'string' ? sp.selected.trim() : '';
   const initialSelectedId = raw && items.some((s) => s.id === raw) ? raw : null;
   const initialSelectedUsageSnapshot =
     initialSelectedId != null ? await deps.testSets.getTestSetUsage(initialSelectedId) : null;

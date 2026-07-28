@@ -2,9 +2,9 @@
  * §9–10 SYSTEM_LOGIC_SCHEMA: курс — метаданные + ссылка на шаблон программы;
  * уроки — `content_pages` с секцией `lessons` или `course_lessons`, `requires_auth = true`.
  */
-export type CourseStatus = "draft" | "published" | "archived";
+export type CourseStatus = 'draft' | 'published' | 'archived';
 
-export const COURSE_LESSON_SECTIONS = ["lessons", "course_lessons"] as const;
+export const COURSE_LESSON_SECTIONS = ['lessons', 'course_lessons'] as const;
 
 /** Минимальные поля `content_pages` для валидации вступительного урока (§10). */
 export type IntroLessonPageRecord = {
@@ -67,30 +67,36 @@ export type UpdateCourseInput = {
 export const COURSE_USAGE_DETAIL_LIMIT = 12;
 
 export type CourseUsageRef =
-  | { kind: "treatment_program_template"; id: string; title: string }
-  | { kind: "treatment_program_instance"; id: string; title: string; patientUserId: string }
-  | { kind: "content_page"; id: string; title: string };
+  | { kind: 'treatment_program_template'; id: string; title: string }
+  | { kind: 'treatment_program_instance'; id: string; title: string; patientUserId: string }
+  | { kind: 'content_page'; id: string; title: string };
 
 export type CourseUsageSnapshot = {
   programTemplateId: string;
   programTemplateTitle: string | null;
   /** Один ref на шаблон, привязанный к курсу (идёт из строки курса). */
-  programTemplateRef: { kind: "treatment_program_template"; id: string; title: string } | null;
+  programTemplateRef: { kind: 'treatment_program_template'; id: string; title: string } | null;
   /** Экземпляры программ по тому же template_id, что у курса (не различение «из записи на курс» / назначение врача). */
   activeTreatmentProgramInstanceCount: number;
   completedTreatmentProgramInstanceCount: number;
-  activeTreatmentProgramInstanceRefs: Extract<CourseUsageRef, { kind: "treatment_program_instance" }>[];
-  completedTreatmentProgramInstanceRefs: Extract<CourseUsageRef, { kind: "treatment_program_instance" }>[];
+  activeTreatmentProgramInstanceRefs: Extract<
+    CourseUsageRef,
+    { kind: 'treatment_program_instance' }
+  >[];
+  completedTreatmentProgramInstanceRefs: Extract<
+    CourseUsageRef,
+    { kind: 'treatment_program_instance' }
+  >[];
   publishedLinkedContentPageCount: number;
   draftLinkedContentPageCount: number;
   archivedLinkedContentPageCount: number;
-  publishedLinkedContentPageRefs: Extract<CourseUsageRef, { kind: "content_page" }>[];
-  draftLinkedContentPageRefs: Extract<CourseUsageRef, { kind: "content_page" }>[];
-  archivedLinkedContentPageRefs: Extract<CourseUsageRef, { kind: "content_page" }>[];
+  publishedLinkedContentPageRefs: Extract<CourseUsageRef, { kind: 'content_page' }>[];
+  draftLinkedContentPageRefs: Extract<CourseUsageRef, { kind: 'content_page' }>[];
+  archivedLinkedContentPageRefs: Extract<CourseUsageRef, { kind: 'content_page' }>[];
 };
 
 export const EMPTY_COURSE_USAGE_SNAPSHOT: CourseUsageSnapshot = {
-  programTemplateId: "",
+  programTemplateId: '',
   programTemplateTitle: null,
   programTemplateRef: null,
   activeTreatmentProgramInstanceCount: 0,

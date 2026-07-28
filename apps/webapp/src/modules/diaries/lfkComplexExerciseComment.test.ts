@@ -1,32 +1,32 @@
-import { describe, expect, it } from "vitest";
-import { effectiveLfkComplexExerciseComment } from "./lfkComplexExerciseComment";
+import { describe, expect, it } from 'vitest';
+import { effectiveLfkComplexExerciseComment } from './lfkComplexExerciseComment';
 
-describe("effectiveLfkComplexExerciseComment", () => {
-  it("uses local override when non-empty after trim", () => {
+describe('effectiveLfkComplexExerciseComment', () => {
+  it('uses local override when non-empty after trim', () => {
     expect(
       effectiveLfkComplexExerciseComment({
-        comment: "Из шаблона",
-        localComment: "  Для пациента  ",
+        comment: 'Из шаблона',
+        localComment: '  Для пациента  ',
       }),
-    ).toBe("Для пациента");
+    ).toBe('Для пациента');
   });
 
-  it("falls back to frozen comment when local empty or null", () => {
+  it('falls back to frozen comment when local empty or null', () => {
     expect(
       effectiveLfkComplexExerciseComment({
-        comment: "Шаблон",
+        comment: 'Шаблон',
         localComment: null,
       }),
-    ).toBe("Шаблон");
+    ).toBe('Шаблон');
     expect(
       effectiveLfkComplexExerciseComment({
-        comment: "Шаблон",
-        localComment: "   ",
+        comment: 'Шаблон',
+        localComment: '   ',
       }),
-    ).toBe("Шаблон");
+    ).toBe('Шаблон');
   });
 
-  it("returns null when both absent", () => {
+  it('returns null when both absent', () => {
     expect(
       effectiveLfkComplexExerciseComment({
         comment: null,

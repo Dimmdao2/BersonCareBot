@@ -1,13 +1,13 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import type { MediaRecord } from "@/modules/media/types";
-import { parseMediaFileIdFromAppUrl } from "@/shared/lib/mediaPreviewUrls";
-import { fetchAdminMediaListItem } from "@/shared/ui/doctor/media/fetchAdminMediaListItem";
-import type { MediaListItem } from "@/shared/ui/doctor/media/MediaPickerList";
-import { MediaThumb } from "@/shared/ui/doctor/media/MediaThumb";
-import { libraryMediaRowToPreviewUi } from "@/shared/ui/doctor/media/mediaPreviewUiModel";
-import { cn } from "@/lib/utils";
+import { useEffect, useState } from 'react';
+import type { MediaRecord } from '@/modules/media/types';
+import { parseMediaFileIdFromAppUrl } from '@/shared/lib/mediaPreviewUrls';
+import { fetchAdminMediaListItem } from '@/shared/ui/doctor/media/fetchAdminMediaListItem';
+import type { MediaListItem } from '@/shared/ui/doctor/media/MediaPickerList';
+import { MediaThumb } from '@/shared/ui/doctor/media/MediaThumb';
+import { libraryMediaRowToPreviewUi } from '@/shared/ui/doctor/media/mediaPreviewUiModel';
+import { cn } from '@/lib/utils';
 
 function mediaListItemToRecord(item: MediaListItem): MediaRecord {
   return {
@@ -84,7 +84,7 @@ export function ContentHeroImage({
   const mediaId = parseMediaFileIdFromAppUrl(raw);
   if (mediaId) {
     const row = imageLibraryMedia ?? (hydrateFromAdminApi ? clientRow : undefined);
-    const kind = row?.kind === "video" ? "video" : "image";
+    const kind = row?.kind === 'video' ? 'video' : 'image';
     const media = row
       ? libraryMediaRowToPreviewUi({
           id: row.id,
@@ -98,7 +98,7 @@ export function ContentHeroImage({
         })
       : libraryMediaRowToPreviewUi({
           id: mediaId,
-          kind: "image",
+          kind: 'image',
           url: raw,
           previewSmUrl: null,
           previewMdUrl: null,
@@ -108,8 +108,8 @@ export function ContentHeroImage({
     return (
       <MediaThumb
         media={media}
-        className={cn("w-full", className)}
-        imgClassName={cn("max-w-full h-auto object-contain", imgClassName)}
+        className={cn('w-full', className)}
+        imgClassName={cn('max-w-full h-auto object-contain', imgClassName)}
         sizes="(max-width: 768px) 100vw, 720px"
         lazy={false}
       />
@@ -118,6 +118,6 @@ export function ContentHeroImage({
 
   return (
     // eslint-disable-next-line @next/next/no-img-element -- external CMS URLs (non-library)
-    <img src={raw} alt="" className={cn("max-w-full h-auto", className, imgClassName)} />
+    <img src={raw} alt="" className={cn('max-w-full h-auto', className, imgClassName)} />
   );
 }

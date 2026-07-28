@@ -15,61 +15,61 @@
 
 ### Phase 2 — static / read-only
 
-| Маршрут (от `/app/patient`) | Файл |
-|----------------------------|------|
-| `/sections` | `sections/page.tsx` |
-| `/sections/[slug]` | `sections/[slug]/page.tsx` |
-| `/content/[slug]` | `content/[slug]/page.tsx` |
-| `/courses` | `courses/page.tsx` |
-| `/treatment-programs` | `treatment-programs/page.tsx` |
+| Маршрут (от `/app/patient`)        | Файл                                       |
+| ---------------------------------- | ------------------------------------------ |
+| `/sections`                        | `sections/page.tsx`                        |
+| `/sections/[slug]`                 | `sections/[slug]/page.tsx`                 |
+| `/content/[slug]`                  | `content/[slug]/page.tsx`                  |
+| `/courses`                         | `courses/page.tsx`                         |
+| `/treatment-programs`              | `treatment-programs/page.tsx`              |
 | `/treatment-programs/[instanceId]` | `treatment-programs/[instanceId]/page.tsx` |
 
 ### Phase 3 — interactive
 
-| Маршрут | Файл |
-|---------|------|
-| `/profile` | `profile/page.tsx` |
-| `/notifications` | `notifications/page.tsx` |
-| `/reminders` | `reminders/page.tsx` |
+| Маршрут                       | Файл                                  |
+| ----------------------------- | ------------------------------------- |
+| `/profile`                    | `profile/page.tsx`                    |
+| `/notifications`              | `notifications/page.tsx`              |
+| `/reminders`                  | `reminders/page.tsx`                  |
 | `/reminders/journal/[ruleId]` | `reminders/journal/[ruleId]/page.tsx` |
-| `/diary` | `diary/page.tsx` |
-| `/diary/symptoms` | `diary/symptoms/page.tsx` |
-| `/diary/symptoms/journal` | `diary/symptoms/journal/page.tsx` |
-| `/diary/lfk` | `diary/lfk/page.tsx` |
-| `/diary/lfk/journal` | `diary/lfk/journal/page.tsx` |
-| `/support` | `support/page.tsx` |
-| `/help` | `help/page.tsx` |
-| `/purchases` | `purchases/page.tsx` |
-| `/bind-phone` | `bind-phone/page.tsx` |
+| `/diary`                      | `diary/page.tsx`                      |
+| `/diary/symptoms`             | `diary/symptoms/page.tsx`             |
+| `/diary/symptoms/journal`     | `diary/symptoms/journal/page.tsx`     |
+| `/diary/lfk`                  | `diary/lfk/page.tsx`                  |
+| `/diary/lfk/journal`          | `diary/lfk/journal/page.tsx`          |
+| `/support`                    | `support/page.tsx`                    |
+| `/help`                       | `help/page.tsx`                       |
+| `/purchases`                  | `purchases/page.tsx`                  |
+| `/bind-phone`                 | `bind-phone/page.tsx`                 |
 
 ### Phase 4 — booking / cabinet
 
-| Маршрут | Файл |
-|---------|------|
-| `/booking` | `booking/page.tsx` |
-| `/booking/new` | `booking/new/page.tsx` |
-| `/booking/new/city` | `booking/new/city/page.tsx` |
+| Маршрут                | Файл                           |
+| ---------------------- | ------------------------------ |
+| `/booking`             | `booking/page.tsx`             |
+| `/booking/new`         | `booking/new/page.tsx`         |
+| `/booking/new/city`    | `booking/new/city/page.tsx`    |
 | `/booking/new/service` | `booking/new/service/page.tsx` |
-| `/booking/new/slot` | `booking/new/slot/page.tsx` |
+| `/booking/new/slot`    | `booking/new/slot/page.tsx`    |
 | `/booking/new/confirm` | `booking/new/confirm/page.tsx` |
-| `/cabinet` | `cabinet/page.tsx` |
+| `/cabinet`             | `cabinet/page.tsx`             |
 
 ### Главная и прочие patient pages (в CHECKLISTS как «home» / не сведены в §4)
 
-| Маршрут | Файл | Примечание |
-|---------|------|------------|
-| `/` (home) | `page.tsx` | Источник эталонного chrome; часть блоков в `home/*.tsx`. |
-| `/messages` | `messages/page.tsx` | extra |
-| `/emergency` | `emergency/page.tsx` | extra |
-| `/lessons` | `lessons/page.tsx` | extra |
-| `/install` | `install/page.tsx` | extra |
-| `/address` | `address/page.tsx` | extra |
-| `/intake/nutrition` | `intake/nutrition/page.tsx` | extra |
-| `/intake/lfk` | `intake/lfk/page.tsx` | extra |
+| Маршрут             | Файл                        | Примечание                                               |
+| ------------------- | --------------------------- | -------------------------------------------------------- |
+| `/` (home)          | `page.tsx`                  | Источник эталонного chrome; часть блоков в `home/*.tsx`. |
+| `/messages`         | `messages/page.tsx`         | extra                                                    |
+| `/emergency`        | `emergency/page.tsx`        | extra                                                    |
+| `/lessons`          | `lessons/page.tsx`          | extra                                                    |
+| `/install`          | `install/page.tsx`          | extra                                                    |
+| `/address`          | `address/page.tsx`          | extra                                                    |
+| `/intake/nutrition` | `intake/nutrition/page.tsx` | extra                                                    |
+| `/intake/lfk`       | `intake/lfk/page.tsx`       | extra                                                    |
 
 ## 2. Style debt (наблюдаемые паттерны)
 
-Подсчёты и примеры — **grep по `apps/webapp/src/app/app/patient/**/*.tsx`** (и `.ts`). Цель Phase 1+: заменить на patient-scoped примитивы без смены смысла разметки.
+Подсчёты и примеры — **grep по `apps/webapp/src/app/app/patient/**/\*.tsx`** (и `.ts`). Цель Phase 1+: заменить на patient-scoped примитивы без смены смысла разметки.
 
 ### 2.1. Поверхности: `bg-card`, `border-border`, `rounded-xl` / `rounded-2xl`, `shadow-sm`
 
@@ -97,20 +97,20 @@
 
 ## 3. Что уже есть (опора Phase 1)
 
-| Артефакт | Путь |
-|----------|------|
-| Patient shell | `apps/webapp/src/shared/ui/AppShell.tsx` (`id="app-shell-patient"`) |
-| Top nav | `apps/webapp/src/shared/ui/PatientTopNav.tsx` |
-| Кнопки / clamp | `apps/webapp/src/shared/ui/patientVisual.ts` |
-| Карточки главной (эталон + **осторожно**) | `apps/webapp/src/app/app/patient/home/patientHomeCardStyles.ts` |
+| Артефакт                                  | Путь                                                                |
+| ----------------------------------------- | ------------------------------------------------------------------- |
+| Patient shell                             | `apps/webapp/src/shared/ui/AppShell.tsx` (`id="app-shell-patient"`) |
+| Top nav                                   | `apps/webapp/src/shared/ui/PatientTopNav.tsx`                       |
+| Кнопки / clamp                            | `apps/webapp/src/shared/ui/patientVisual.ts`                        |
+| Карточки главной (эталон + **осторожно**) | `apps/webapp/src/app/app/patient/home/patientHomeCardStyles.ts`     |
 
 ## 4. Style debt vs product / content debt
 
-| Категория | Примеры в коде | Действие в рамках инициативы |
-|-----------|----------------|------------------------------|
-| **Style debt** | `bg-card` + generic `Card`/`Button`/`Badge`; `text-muted-foreground`; повторяющиеся секционные оболочки | Замена на patient primitives / классы, сохранение DOM и copy. |
-| **Product / content debt** | Тексты empty states, порядок блоков, сценарии booking/LFK/программ, данные на странице | Только зафиксировать в `LOG.md` при аудите; **не** «улучшать» агентом. |
-| **Граница** | Смена класса muted-текста при **том же** тексте — style; смена формулировок empty state — product. | |
+| Категория                  | Примеры в коде                                                                                          | Действие в рамках инициативы                                           |
+| -------------------------- | ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| **Style debt**             | `bg-card` + generic `Card`/`Button`/`Badge`; `text-muted-foreground`; повторяющиеся секционные оболочки | Замена на patient primitives / классы, сохранение DOM и copy.          |
+| **Product / content debt** | Тексты empty states, порядок блоков, сценарии booking/LFK/программ, данные на странице                  | Только зафиксировать в `LOG.md` при аудите; **не** «улучшать» агентом. |
+| **Граница**                | Смена класса muted-текста при **том же** тексте — style; смена формулировок empty state — product.      |                                                                        |
 
 ## 5. Home-specific: не экспортировать как «общий» chrome
 
@@ -124,7 +124,7 @@
 ## 6. Компоненты, пересекающиеся с не-patient UI
 
 - Импорты из `@/components/ui/*` — общие shadcn; глобально их менять **нельзя** (`01_PRIMITIVES_PLAN.md`). Меняются только patient-страницы / patient-классы.
-- **`apps/webapp/src/app/app/settings/patient-home/**`** — админка настроек главной; вне scope patient style-transfer для страниц пациента (не трогать визуально в этой инициативе).
+- **`apps/webapp/src/app/app/settings/patient-home/**`\*\* — админка настроек главной; вне scope patient style-transfer для страниц пациента (не трогать визуально в этой инициативе).
 
 ## 7. Тесты (ориентир по областям)
 
@@ -139,13 +139,13 @@
 
 ## 8. Область файлов по фазам (кратко)
 
-| Фаза | Охват |
-|------|--------|
-| **1** | Только shared primitives (`01_PRIMITIVES_PLAN.md` — см. §9). |
-| **2** | Статические/каталожные страницы + колонка Phase 2 в §1. |
+| Фаза  | Охват                                                                                           |
+| ----- | ----------------------------------------------------------------------------------------------- |
+| **1** | Только shared primitives (`01_PRIMITIVES_PLAN.md` — см. §9).                                    |
+| **2** | Статические/каталожные страницы + колонка Phase 2 в §1.                                         |
 | **3** | Profile, notifications, reminders, diary, support, help, purchases, bind-phone + клиенты рядом. |
-| **4** | `booking/new/*`, `cabinet/*`, связанные компоненты записи. |
-| **5** | QA, маршрутная матрица, документация, global audit prep. |
+| **4** | `booking/new/*`, `cabinet/*`, связанные компоненты записи.                                      |
+| **5** | QA, маршрутная матрица, документация, global audit prep.                                        |
 
 ## 9. Команды проверок по фазам (без избыточного root CI)
 

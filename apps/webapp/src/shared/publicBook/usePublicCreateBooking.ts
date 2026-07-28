@@ -1,11 +1,11 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import type { BookingSelection } from "@/app/app/patient/cabinet/useBookingSelection";
-import type { BookingSlot, PatientBookingRecord } from "@/modules/patient-booking/types";
-import type { BookingAttribution } from "@/modules/booking-attribution/types";
-import { mapBookingCreateErrorCodeToRu } from "@/app/app/patient/cabinet/bookingCreateErrorMessages";
-import { readStoredPublicBookingAttribution } from "./attributionStorage";
+import { useState } from 'react';
+import type { BookingSelection } from '@/app/app/patient/cabinet/useBookingSelection';
+import type { BookingSlot, PatientBookingRecord } from '@/modules/patient-booking/types';
+import type { BookingAttribution } from '@/modules/booking-attribution/types';
+import { mapBookingCreateErrorCodeToRu } from '@/app/app/patient/cabinet/bookingCreateErrorMessages';
+import { readStoredPublicBookingAttribution } from './attributionStorage';
 
 type FormAnswer = { fieldKey: string; value: string };
 
@@ -44,9 +44,9 @@ export function usePublicCreateBooking() {
     try {
       const attribution: BookingAttribution = readStoredPublicBookingAttribution();
       const body =
-        input.selection.type === "online"
+        input.selection.type === 'online'
           ? {
-              type: "online" as const,
+              type: 'online' as const,
               category: input.selection.category,
               slotStart: input.slot.startAt,
               slotEnd: input.slot.endAt,
@@ -58,7 +58,7 @@ export function usePublicCreateBooking() {
             }
           : (() => {
               return {
-                type: "in_person" as const,
+                type: 'in_person' as const,
                 branchId: input.selection.branchId,
                 serviceId: input.selection.serviceId,
                 orgSlug: input.selection.orgSlug,
@@ -73,9 +73,9 @@ export function usePublicCreateBooking() {
               };
             })();
 
-      const res = await fetch("/api/booking/public/create", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const res = await fetch('/api/booking/public/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
       const json = (await res.json().catch(() => ({}))) as {
@@ -94,10 +94,10 @@ export function usePublicCreateBooking() {
         return false;
       }
       if (!res.ok || json.ok !== true || !json.booking) {
-        if (json.error === "rate_limited") {
-          setError("Слишком много попыток. Попробуйте позже.");
-        } else if (json.error === "verification_unavailable") {
-          setError("Не удалось отправить код подтверждения. Попробуйте позже.");
+        if (json.error === 'rate_limited') {
+          setError('Слишком много попыток. Попробуйте позже.');
+        } else if (json.error === 'verification_unavailable') {
+          setError('Не удалось отправить код подтверждения. Попробуйте позже.');
         } else {
           setError(mapBookingCreateErrorCodeToRu(json.error));
         }
@@ -105,7 +105,7 @@ export function usePublicCreateBooking() {
       }
       return json.booking;
     } catch {
-      setError("Ошибка сети при создании записи");
+      setError('Ошибка сети при создании записи');
       return false;
     } finally {
       setSubmitting(false);
@@ -118,9 +118,9 @@ export function usePublicCreateBooking() {
     setSubmitting(true);
     setError(null);
     try {
-      const res = await fetch("/api/booking/public/create/confirm", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const res = await fetch('/api/booking/public/create/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ challengeId: prompt.challengeId, code: code.trim() }),
       });
       const json = (await res.json().catch(() => ({}))) as {
@@ -129,12 +129,12 @@ export function usePublicCreateBooking() {
         booking?: PatientBookingRecord;
       };
       if (!res.ok || json.ok !== true || !json.booking) {
-        if (json.error === "verification_failed") {
+        if (json.error === 'verification_failed') {
           // Deliberately one message: the server does not distinguish wrong from expired from
           // exhausted, and neither may the screen.
-          setError("Неверный или истёкший код. Запросите новый код.");
-        } else if (json.error === "rate_limited") {
-          setError("Слишком много попыток. Попробуйте позже.");
+          setError('Неверный или истёкший код. Запросите новый код.');
+        } else if (json.error === 'rate_limited') {
+          setError('Слишком много попыток. Попробуйте позже.');
         } else {
           setError(mapBookingCreateErrorCodeToRu(json.error));
         }
@@ -143,7 +143,7 @@ export function usePublicCreateBooking() {
       setVerificationPrompt(null);
       return json.booking;
     } catch {
-      setError("Ошибка сети при подтверждении записи");
+      setError('Ошибка сети при подтверждении записи');
       return false;
     } finally {
       setSubmitting(false);
@@ -155,5 +155,12 @@ export function usePublicCreateBooking() {
     setError(null);
   }
 
-  return { submitting, error, createBooking, verificationPrompt, confirmVerification, cancelVerification };
+  return {
+    submitting,
+    error,
+    createBooking,
+    verificationPrompt,
+    confirmVerification,
+    cancelVerification,
+  };
 }

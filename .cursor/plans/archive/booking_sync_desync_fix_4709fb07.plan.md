@@ -1,33 +1,33 @@
 ---
 name: Booking sync desync fix
-overview: "Prod smoke 2026-06-06: закрыть рассинхроны Rubitime ↔ patient_bookings / be_appointments / appointment_records. Только sync-fix (status 4 cancel). remove-record при cancel запрещён. Главный симптом — rebook на отменённый слот блокируется нашей БД, не Rubitime."
+overview: 'Prod smoke 2026-06-06: закрыть рассинхроны Rubitime ↔ patient_bookings / be_appointments / appointment_records. Только sync-fix (status 4 cancel). remove-record при cancel запрещён. Главный симптом — rebook на отменённый слот блокируется нашей БД, не Rubitime.'
 status: completed
 completedAt: 2026-06-06
 canonicalPath: .cursor/plans/archive/booking_sync_desync_fix_4709fb07.plan.md
 todos:
   - id: p0-root-cause-prod-sql
-    content: "P0.0: Prod SQL на инцидентных слотах — подтвердить ghost row (status/cancelling/cancel_failed/duplicate)"
+    content: 'P0.0: Prod SQL на инцидентных слотах — подтвердить ghost row (status/cancelling/cancel_failed/duplicate)'
     status: completed
   - id: p0-cancel-sync-audit
-    content: "P0: Закрыть все cancel paths → patient_bookings cancelled + URL NULL; staff cancel → markCancelled; inbound native cancel"
+    content: 'P0: Закрыть все cancel paths → patient_bookings cancelled + URL NULL; staff cancel → markCancelled; inbound native cancel'
     status: completed
   - id: p0-overlap-rebook
-    content: "P0: createPending — stale cancelling/cancel_failed sweep + overlap tests; rebook после cancel"
+    content: 'P0: createPending — stale cancelling/cancel_failed sweep + overlap tests; rebook после cancel'
     status: completed
   - id: p1-branch-fk-projection
-    content: "P1: projectCanonicalAppointment* — legacy branches.id (не be_branches); pgAppointmentProjection COALESCE branch_id"
+    content: 'P1: projectCanonicalAppointment* — legacy branches.id (не be_branches); pgAppointmentProjection COALESCE branch_id'
     status: completed
   - id: p1-idempotent-delete
-    content: "P1: GCal 410 + Rubitime remove-record gone + update-record already-cancelled = silent"
+    content: 'P1: GCal 410 + Rubitime remove-record gone + update-record already-cancelled = silent'
     status: completed
   - id: p1-manage-url-stale
-    content: "P1: rubitime_manage_url NULL on cancel; inbound remove closes native rows; UI hide dead manage"
+    content: 'P1: rubitime_manage_url NULL on cancel; inbound remove closes native rows; UI hide dead manage'
     status: completed
   - id: p2-desync-matrix-docs
-    content: "P2: Desync matrix tests + ops backfill SQL + LOG/ACCEPTANCE smoke #9 + prod re-smoke runbook"
+    content: 'P2: Desync matrix tests + ops backfill SQL + LOG/ACCEPTANCE smoke #9 + prod re-smoke runbook'
     status: completed
   - id: post-deploy-ops-gate
-    content: "Post-deploy ops gate (cancelled): backfill SQL + prod re-smoke #4–6 + FK log check — runbook ACCEPTANCE § post-deploy desync fix; вне code merge"
+    content: 'Post-deploy ops gate (cancelled): backfill SQL + prod re-smoke #4–6 + FK log check — runbook ACCEPTANCE § post-deploy desync fix; вне code merge'
     status: cancelled
 isProject: false
 ---
@@ -38,25 +38,25 @@ isProject: false
 
 ## Продуктовые ограничения
 
-| Правило | Формулировка |
-|---------|--------------|
-| Rubitime | После отмены (status 4) **слот свободен** — блокировка только у нас |
+| Правило           | Формулировка                                                                                   |
+| ----------------- | ---------------------------------------------------------------------------------------------- |
+| Rubitime          | После отмены (status 4) **слот свободен** — блокировка только у нас                            |
 | Единственный путь | Синхронизация зеркала (outbound cancel + inbound webhook + patient_bookings + be_appointments) |
-| **Запрещено** | Cancel → `remove-record` / hard delete в Rubitime для normal cancel |
-| Out of scope | Legacy `no_canonical` reschedule, E2E browser, prod data migration DDL |
+| **Запрещено**     | Cancel → `remove-record` / hard delete в Rubitime для normal cancel                            |
+| Out of scope      | Legacy `no_canonical` reschedule, E2E browser, prod data migration DDL                         |
 
 ---
 
 ## Prod evidence (зафиксировано в логах)
 
-| Время | Событие | Вывод |
-|-------|---------|-------|
-| 21:14 | `create-record` 8449953 + projection OK | CR-A path работает |
-| 21:17 | `update-record` status 4 + patient cancel committed | Cancel из кабинета OK для пользователя |
-| 21:17 | `appointment_records_branch_id_fkey` — `5669cde1-…` not in `branches` | **Bug P1:** native projection пишет `be_branches.id` в legacy FK |
-| 21:20 | `GOOGLE_CALENDAR_DELETE_HTTP_410` на remove webhook | **Bug P1:** 410 не treated as idempotent |
-| Smoke #4 | Rebook на отменённый слот → «время занято» | **Bug P0:** active ghost в `patient_bookings` overlap CTE |
-| Smoke #6 | «Управлять» → record not found | **Bug P1:** `rubitime_manage_url` + active status при dead Rubitime row |
+| Время    | Событие                                                               | Вывод                                                                   |
+| -------- | --------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| 21:14    | `create-record` 8449953 + projection OK                               | CR-A path работает                                                      |
+| 21:17    | `update-record` status 4 + patient cancel committed                   | Cancel из кабинета OK для пользователя                                  |
+| 21:17    | `appointment_records_branch_id_fkey` — `5669cde1-…` not in `branches` | **Bug P1:** native projection пишет `be_branches.id` в legacy FK        |
+| 21:20    | `GOOGLE_CALENDAR_DELETE_HTTP_410` на remove webhook                   | **Bug P1:** 410 не treated as idempotent                                |
+| Smoke #4 | Rebook на отменённый слот → «время занято»                            | **Bug P0:** active ghost в `patient_bookings` overlap CTE               |
+| Smoke #6 | «Управлять» → record not found                                        | **Bug P1:** `rubitime_manage_url` + active status при dead Rubitime row |
 
 ---
 
@@ -101,14 +101,14 @@ WHERE status IN ('creating', 'awaiting_payment', 'confirmed', 'rescheduled', 'ca
 
 **Подтверждённые сценарии ghost row (A–F закрыты кодом + тестами 2026-06-06):**
 
-| # | Сценарий | Почему блокировало | Fix | Status |
-|---|----------|-------------------|-----|--------|
-| A | Cancel **только в Rubitime** (admin), webhook missed/delayed | `patient_bookings` остаётся `confirmed` | Inbound cancel → native row; idempotency | ✅ |
-| B | Patient cancel: crash между `markCancelling` и `markCancelled` | Застревает в `cancelling` | Stale sweep 15 min в `createPending` | ✅ |
-| C | Lifecycle fail → `cancel_failed` | `cancel_failed` в overlap list | Sweep → `failed_sync` после 15 min | ✅ |
-| D | **Staff cancel** из календаря | не вызывал `markCancelled` | `syncLinkedPatientBookingCancelled` | ✅ |
-| E | Duplicate rows same slot/cooperator | два active rows | `closeActivePatientBookingsByRubitimeId` | ✅ |
-| F | DB EXCLUDE | status не сменился | после A–E достаточно | ✅ |
+| #   | Сценарий                                                       | Почему блокировало                      | Fix                                      | Status |
+| --- | -------------------------------------------------------------- | --------------------------------------- | ---------------------------------------- | ------ |
+| A   | Cancel **только в Rubitime** (admin), webhook missed/delayed   | `patient_bookings` остаётся `confirmed` | Inbound cancel → native row; idempotency | ✅     |
+| B   | Patient cancel: crash между `markCancelling` и `markCancelled` | Застревает в `cancelling`               | Stale sweep 15 min в `createPending`     | ✅     |
+| C   | Lifecycle fail → `cancel_failed`                               | `cancel_failed` в overlap list          | Sweep → `failed_sync` после 15 min       | ✅     |
+| D   | **Staff cancel** из календаря                                  | не вызывал `markCancelled`              | `syncLinkedPatientBookingCancelled`      | ✅     |
+| E   | Duplicate rows same slot/cooperator                            | два active rows                         | `closeActivePatientBookingsByRubitimeId` | ✅     |
+| F   | DB EXCLUDE                                                     | status не сменился                      | после A–E достаточно                     | ✅     |
 
 **NOT the cause:** `be_appointments` terminal cancelled — EXCLUDE [`0089`](apps/webapp/db/drizzle-migrations/0089_booking_stage2_scheduling_and_forms.sql) их исключает; rubitime-first create skip `assertSlotAvailable`.
 
@@ -142,7 +142,7 @@ SQL
 
 ## P0 — Cancel sync: все пути → `cancelled` + slot free
 
-*(Реализовано 2026-06-06 — см. [`LOG.md`](docs/BOOKING_REWORK_INITIATIVE/LOG.md) §2026-06-06 desync fix.)*
+_(Реализовано 2026-06-06 — см. [`LOG.md`](docs/BOOKING_REWORK_INITIATIVE/LOG.md) §2026-06-06 desync fix.)_
 
 ### 1. `markCancelled` — atomic close
 
@@ -158,11 +158,11 @@ SET status = $2, cancelled_at = now(), rubitime_manage_url = NULL, ...
 
 [`upsertPatientBookingFromRubitime.ts`](packages/booking-rubitime-sync/src/upsertPatientBookingFromRubitime.ts):
 
-| source | было (до fix) | стало |
-|--------|---------------|-------|
-| `rubitime_projection` | DELETE | DELETE + sibling close |
-| `native` | UPDATE status, URL kept | UPDATE cancelled + **`rubitime_manage_url = NULL`** + sibling close |
-| inbound remove | native: UPDATE cancelled only | cancelled + URL NULL + projection DELETE path |
+| source                | было (до fix)                 | стало                                                               |
+| --------------------- | ----------------------------- | ------------------------------------------------------------------- |
+| `rubitime_projection` | DELETE                        | DELETE + sibling close                                              |
+| `native`              | UPDATE status, URL kept       | UPDATE cancelled + **`rubitime_manage_url = NULL`** + sibling close |
+| inbound remove        | native: UPDATE cancelled only | cancelled + URL NULL + projection DELETE path                       |
 
 **Integrator mirror:** [`writePort.ts`](apps/integrator/src/infra/db/writePort.ts) — тот же package.
 
@@ -199,15 +199,15 @@ WHERE status = 'cancel_failed' AND updated_at < now() - interval '15 minutes';
 
 ### P0 tests
 
-| File | Case | Status |
-|------|------|--------|
-| [`pgPatientBookings.test.ts`](apps/webapp/src/infra/repos/pgPatientBookings.test.ts) | rebook after `markCancelled`; stale `cancelling`; sibling close | ✅ |
-| [`upsertPatientBookingFromRubitime.test.ts`](packages/booking-rubitime-sync/src/upsertPatientBookingFromRubitime.test.ts) | native cancelled clears URL; sibling close | ✅ |
-| [`closeActivePatientBookingsByRubitimeId.test.ts`](packages/booking-rubitime-sync/src/closeActivePatientBookingsByRubitimeId.test.ts) | scenario E | ✅ |
-| [`service.test.ts`](apps/webapp/src/modules/patient-booking/service.test.ts) | cancel → create same slot | ✅ |
-| [`staffManualCancelAfterCanonical.test.ts`](apps/webapp/src/app-layer/booking/staffManualCancelAfterCanonical.test.ts) | marks patient booking cancelled | ✅ |
-| [`events.test.ts`](apps/webapp/src/modules/integrator/events.test.ts) | inbound cancel → applyRubitimeUpdate | ✅ |
-| [`bookingMirrorDesyncMatrix.test.ts`](apps/webapp/src/modules/patient-booking/bookingMirrorDesyncMatrix.test.ts) | matrix 7/7 | ✅ |
+| File                                                                                                                                  | Case                                                            | Status |
+| ------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- | ------ |
+| [`pgPatientBookings.test.ts`](apps/webapp/src/infra/repos/pgPatientBookings.test.ts)                                                  | rebook after `markCancelled`; stale `cancelling`; sibling close | ✅     |
+| [`upsertPatientBookingFromRubitime.test.ts`](packages/booking-rubitime-sync/src/upsertPatientBookingFromRubitime.test.ts)             | native cancelled clears URL; sibling close                      | ✅     |
+| [`closeActivePatientBookingsByRubitimeId.test.ts`](packages/booking-rubitime-sync/src/closeActivePatientBookingsByRubitimeId.test.ts) | scenario E                                                      | ✅     |
+| [`service.test.ts`](apps/webapp/src/modules/patient-booking/service.test.ts)                                                          | cancel → create same slot                                       | ✅     |
+| [`staffManualCancelAfterCanonical.test.ts`](apps/webapp/src/app-layer/booking/staffManualCancelAfterCanonical.test.ts)                | marks patient booking cancelled                                 | ✅     |
+| [`events.test.ts`](apps/webapp/src/modules/integrator/events.test.ts)                                                                 | inbound cancel → applyRubitimeUpdate                            | ✅     |
+| [`bookingMirrorDesyncMatrix.test.ts`](apps/webapp/src/modules/patient-booking/bookingMirrorDesyncMatrix.test.ts)                      | matrix 7/7                                                      | ✅     |
 
 ### P0 verify
 
@@ -217,7 +217,7 @@ WHERE status = 'cancel_failed' AND updated_at < now() - interval '15 minutes';
 
 ## P1 — FK `appointment_records.branch_id`
 
-*(Реализовано — `resolveLegacyBranchIdForProjection`, `canonicalCreate`, COALESCE в projection.)*
+_(Реализовано — `resolveLegacyBranchIdForProjection`, `canonicalCreate`, COALESCE в projection.)_
 
 ### Корень (prod log)
 
@@ -297,15 +297,15 @@ Document idempotency in [`INTEGRATOR_CONTRACT.md`](apps/webapp/INTEGRATOR_CONTRA
 
 ### Matrix (каждая строка = min 1 test)
 
-| # | Сценарий | Invariant |
-|---|----------|-----------|
-| 1 | Patient cancel cabinet | cancelled, URL null, rebook OK |
-| 2 | Staff cancel calendar | patient_bookings cancelled (explicit, not webhook-only) |
-| 3 | Inbound Rubitime cancel webhook | native + projection closed |
-| 4 | Inbound remove webhook | row gone/cancelled, GCal 410 silent |
-| 5 | Rebook same slot after 1–3 | no `slot_overlap` |
-| 6 | Inbound create after prior cancel | no duplicate active |
-| 7 | Partial mirror fail on cancel | local cancelled, no permanent ghost |
+| #   | Сценарий                          | Invariant                                               |
+| --- | --------------------------------- | ------------------------------------------------------- |
+| 1   | Patient cancel cabinet            | cancelled, URL null, rebook OK                          |
+| 2   | Staff cancel calendar             | patient_bookings cancelled (explicit, not webhook-only) |
+| 3   | Inbound Rubitime cancel webhook   | native + projection closed                              |
+| 4   | Inbound remove webhook            | row gone/cancelled, GCal 410 silent                     |
+| 5   | Rebook same slot after 1–3        | no `slot_overlap`                                       |
+| 6   | Inbound create after prior cancel | no duplicate active                                     |
+| 7   | Partial mirror fail on cancel     | local cancelled, no permanent ghost                     |
 
 ### Ops backfill (one-time post-deploy, non-secret)
 

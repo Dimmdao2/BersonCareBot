@@ -2,14 +2,14 @@ import {
   buildPatientProgramChecklistRows,
   isProgramChecklistItem,
   type PatientProgramChecklistRow,
-} from "@/modules/treatment-program/patient-program-actions";
-import { isStageZero } from "@/modules/treatment-program/stage-semantics";
-import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
+} from '@/modules/treatment-program/patient-program-actions';
+import { isStageZero } from '@/modules/treatment-program/stage-semantics';
+import type { TreatmentProgramInstanceDetail } from '@/modules/treatment-program/types';
 
 /** Этапы для снимка дня: не skipped; pipeline — все ненулевые этапы (в т.ч. completed). */
 function pickStagesForDiaryPlanSnapshot(detail: TreatmentProgramInstanceDetail) {
   return detail.stages.filter((s) => {
-    if (s.status === "skipped") return false;
+    if (s.status === 'skipped') return false;
     if (isStageZero(s)) return true;
     return s.sortOrder > 0;
   });
@@ -23,14 +23,18 @@ export function buildDiaryPlanChecklistItemIds(detail: TreatmentProgramInstanceD
   return rows.map((r) => r.item.id);
 }
 
-export function buildDiaryPlanChecklistRows(detail: TreatmentProgramInstanceDetail): PatientProgramChecklistRow[] {
+export function buildDiaryPlanChecklistRows(
+  detail: TreatmentProgramInstanceDetail,
+): PatientProgramChecklistRow[] {
   const out: PatientProgramChecklistRow[] = [];
   for (const st of pickStagesForDiaryPlanSnapshot(detail)) {
     const groupsSorted = [...(st.groups ?? [])].sort(
       (a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id),
     );
     const groupTitleById = new Map(groupsSorted.map((g) => [g.id, g.title] as const));
-    const itemsSorted = [...st.items].sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id));
+    const itemsSorted = [...st.items].sort(
+      (a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id),
+    );
     for (const item of itemsSorted) {
       if (!isProgramChecklistItem(item)) continue;
       out.push({

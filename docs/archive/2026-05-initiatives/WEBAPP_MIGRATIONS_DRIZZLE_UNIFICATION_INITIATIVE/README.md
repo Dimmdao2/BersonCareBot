@@ -16,12 +16,12 @@
 
 ## План выполнения по агентам
 
-| Этап | Содержание | Основной агент | Проверка/приемка |
-|---|---|---|---|
-| A | Инвентаризация legacy SQL vs Drizzle, карта соответствия, риски повторного применения | Composer (`composer-2`) | Codex review |
-| B | Нормализация Drizzle-миграций и безопасная стратегия ledger/compat | Codex (`gpt-5.3-codex`) | Codex self-check + targeted tests |
-| C | Изменения deploy-скриптов и post-migrate guardrails | Codex (`gpt-5.3-codex`) | Host-safe dry-run checklist |
-| D | Очистка legacy runner/документации и финальная стабилизация | Composer + Codex | Global audit |
+| Этап | Содержание                                                                            | Основной агент          | Проверка/приемка                  |
+| ---- | ------------------------------------------------------------------------------------- | ----------------------- | --------------------------------- |
+| A    | Инвентаризация legacy SQL vs Drizzle, карта соответствия, риски повторного применения | Composer (`composer-2`) | Codex review                      |
+| B    | Нормализация Drizzle-миграций и безопасная стратегия ledger/compat                    | Codex (`gpt-5.3-codex`) | Codex self-check + targeted tests |
+| C    | Изменения deploy-скриптов и post-migrate guardrails                                   | Codex (`gpt-5.3-codex`) | Host-safe dry-run checklist       |
+| D    | Очистка legacy runner/документации и финальная стабилизация                           | Composer + Codex        | Global audit                      |
 
 ## Документы инициативы
 

@@ -1,11 +1,12 @@
 # Code Audit 2 (Opus Final Gate) — EXTRA-02
+
 - Branch: auto/extra-02 @ 887da533
 - Auditor: Opus, READ-ONLY
 - Date: 2026-06-19
 
 ## Verdict: PASS
 
-- **O1 — PASS** — The old `Promise.all([listConversations, listClients({})])` was a *parallelism optimization only*; the two queries are independent and share no transaction or correctness dependency. The new sequential flow is strictly *more* correct: `listClients` now requires the conversation result (patient userIds) as input, so it cannot run before conversations are fetched. No correctness property is sacrificed — the only cost is one extra round-trip latency on non-empty lists, which is dwarfed by the full-table-scan that was eliminated. On empty lists the route is now *faster* (zero `listClients` calls). The old parallel approach was not unsafe per se; it was simply inefficient.
+- **O1 — PASS** — The old `Promise.all([listConversations, listClients({})])` was a _parallelism optimization only_; the two queries are independent and share no transaction or correctness dependency. The new sequential flow is strictly _more_ correct: `listClients` now requires the conversation result (patient userIds) as input, so it cannot run before conversations are fetched. No correctness property is sacrificed — the only cost is one extra round-trip latency on non-empty lists, which is dwarfed by the full-table-scan that was eliminated. On empty lists the route is now _faster_ (zero `listClients` calls). The old parallel approach was not unsafe per se; it was simply inefficient.
 
 - **O2 — PASS** — Dedup is handled twice, defensively. Route-side: `Array.from(new Set(list.flatMap(...)))` collapses duplicate userIds before the repo ever sees them. Repo-side: even if duplicates leaked through, `pu.id = ANY($1::uuid[])` is a set-membership predicate (equivalent to `IN`), not a join — a value appearing twice in the array matches the same row exactly once, so no row duplication occurs. Both layers are safe.
 

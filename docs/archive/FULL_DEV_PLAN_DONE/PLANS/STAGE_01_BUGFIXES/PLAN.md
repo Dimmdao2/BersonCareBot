@@ -48,27 +48,27 @@
 
 ### Когда остановиться и запросить человека
 
-| Подэтап | Без человека обычно не проверить |
-|---------|----------------------------------|
-| 1.2 | Реальный диалог с Max-ботом, webhook с прод-секретами, корректность deep-link в прод-конфиге |
-| 1.3 | Поведение внутри Telegram/Max Mini App на устройстве |
-| 1.4 | Физическая клавиатура на телефоне (можно частично эмулировать DevTools) |
-| 1.6 | Долгая сессия «в течение дня», сценарии с несколькими вкладками |
+| Подэтап | Без человека обычно не проверить                                                             |
+| ------- | -------------------------------------------------------------------------------------------- |
+| 1.2     | Реальный диалог с Max-ботом, webhook с прод-секретами, корректность deep-link в прод-конфиге |
+| 1.3     | Поведение внутри Telegram/Max Mini App на устройстве                                         |
+| 1.4     | Физическая клавиатура на телефоне (можно частично эмулировать DevTools)                      |
+| 1.6     | Долгая сессия «в течение дня», сценарии с несколькими вкладками                              |
 
 ### Якоря в репозитории (отправная точка)
 
-| Задача | Файлы / модули |
-|--------|----------------|
-| Профиль, телефон | `apps/webapp/src/app/app/patient/profile/ProfileForm.tsx`, `.../profile/actions.ts`, страница привязки `.../patient/bind-phone/` |
-| Max UI | `apps/webapp/src/shared/ui/ConnectMessengersBlock.tsx`; карточки каналов собираются выше по дереву (искать `channelCards` / preferences) |
-| Max backend | `apps/integrator/src/integrations/max/webhook.ts`, `connector.ts`, `mapIn.ts`, сценарии: `apps/integrator/src/content/max/user/scripts.json`, `.../admin/scripts.json`, справка `max.md` |
-| FAB «вопрос» | `apps/webapp/src/shared/ui/AskQuestionFAB.tsx`, вызов в `apps/webapp/src/shared/ui/AppShell.tsx` (проп `visible`) |
-| Канал | `apps/webapp/src/modules/auth/channelContext.ts` (типы; фактическая установка контекста — искать по репо `ChannelContext` / `channelContext`) |
-| Клиенты врача | `apps/webapp/src/app/app/doctor/clients/page.tsx`, `DoctorClientsPanel.tsx`, `ClientsFilters.tsx`, данные: `apps/webapp/src/infra/repos/pgDoctorClients.ts` |
-| Сессия | `apps/webapp/src/modules/auth/service.ts` — `SESSION_COOKIE_NAME`, `SESSION_TTL_SECONDS` (сейчас **12 ч**), `apps/webapp/src/config/env.ts` |
-| CMS | `apps/webapp/src/app/app/doctor/content/ContentForm.tsx`, `.../content/actions.ts`, домен `apps/webapp/src/modules/content-catalog/` |
-| Статистика отмен | SQL: `apps/webapp/src/infra/repos/pgDoctorAppointments.ts` → `getAppointmentStats` (фильтр `status = 'canceled'`) |
-| Дневник симптомов | `apps/webapp/src/app/app/patient/diary/symptoms/AddEntryForm.tsx` |
+| Задача            | Файлы / модули                                                                                                                                                                           |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Профиль, телефон  | `apps/webapp/src/app/app/patient/profile/ProfileForm.tsx`, `.../profile/actions.ts`, страница привязки `.../patient/bind-phone/`                                                         |
+| Max UI            | `apps/webapp/src/shared/ui/ConnectMessengersBlock.tsx`; карточки каналов собираются выше по дереву (искать `channelCards` / preferences)                                                 |
+| Max backend       | `apps/integrator/src/integrations/max/webhook.ts`, `connector.ts`, `mapIn.ts`, сценарии: `apps/integrator/src/content/max/user/scripts.json`, `.../admin/scripts.json`, справка `max.md` |
+| FAB «вопрос»      | `apps/webapp/src/shared/ui/AskQuestionFAB.tsx`, вызов в `apps/webapp/src/shared/ui/AppShell.tsx` (проп `visible`)                                                                        |
+| Канал             | `apps/webapp/src/modules/auth/channelContext.ts` (типы; фактическая установка контекста — искать по репо `ChannelContext` / `channelContext`)                                            |
+| Клиенты врача     | `apps/webapp/src/app/app/doctor/clients/page.tsx`, `DoctorClientsPanel.tsx`, `ClientsFilters.tsx`, данные: `apps/webapp/src/infra/repos/pgDoctorClients.ts`                              |
+| Сессия            | `apps/webapp/src/modules/auth/service.ts` — `SESSION_COOKIE_NAME`, `SESSION_TTL_SECONDS` (сейчас **12 ч**), `apps/webapp/src/config/env.ts`                                              |
+| CMS               | `apps/webapp/src/app/app/doctor/content/ContentForm.tsx`, `.../content/actions.ts`, домен `apps/webapp/src/modules/content-catalog/`                                                     |
+| Статистика отмен  | SQL: `apps/webapp/src/infra/repos/pgDoctorAppointments.ts` → `getAppointmentStats` (фильтр `status = 'canceled'`)                                                                        |
+| Дневник симптомов | `apps/webapp/src/app/app/patient/diary/symptoms/AddEntryForm.tsx`                                                                                                                        |
 
 ---
 
@@ -171,9 +171,11 @@
 
 1. Определить причину: при вводе выполняется server-side rerender через `searchParams` / `router.push`, что пересоздаёт input (см. подсказку выше).
 2. **Решение A (предпочтительное):** сделать фильтрацию client-side:
-  - Загрузить полный список клиентов на страницу.
-  - Фильтровать в client-компоненте через `useState` + `useMemo`.
-  - Поиск начинать только после 3 символов.
+
+- Загрузить полный список клиентов на страницу.
+- Фильтровать в client-компоненте через `useState` + `useMemo`.
+- Поиск начинать только после 3 символов.
+
 3. **Решение B:** если client-side невозможно из-за объёма данных — debounce 500ms на input перед отправкой запроса.
 4. Убедиться, что `<input>` не пересоздаётся (key стабилен).
 
@@ -299,10 +301,12 @@
 1. Прочитать AddEntryForm.tsx — найти рендер кнопок 0–10.
 2. Стилизовать через Tailwind: `rounded-full w-9 h-9 aspect-square` (идеальный круг).
 3. Цвета через inline style или Tailwind arbitrary values — градиент от зелёного к бордовому:
-  - 0: `hsl(120, 60%, 40%)` (зелёный)
-  - 5: `hsl(45, 80%, 50%)` (жёлтый)
-  - 10: `hsl(0, 70%, 35%)` (тёмно-бордовый)
-  - Вычислять через функцию `getScoreColor(score)` → HSL.
+
+- 0: `hsl(120, 60%, 40%)` (зелёный)
+- 5: `hsl(45, 80%, 50%)` (жёлтый)
+- 10: `hsl(0, 70%, 35%)` (тёмно-бордовый)
+- Вычислять через функцию `getScoreColor(score)` → HSL.
+
 4. При выборе (active): фон = цвет балла, текст белый (`text-white`).
 5. Без выбора: обводка цветом (`border-2`), фон прозрачный.
 6. Удалить старые CSS-классы для этих кнопок из `globals.css` если есть (это **исключение** к правилу этапа «не раздувать globals» — только удаление мёртвых правил после переноса на Tailwind).
@@ -325,4 +329,3 @@
 ### Отчёт агента (рекомендуется)
 
 Кратко: что изменено по файлам; для 1.2 / 1.6 — что проверено локально и что осталось на стороне владельца (логи, прод-URL).
-

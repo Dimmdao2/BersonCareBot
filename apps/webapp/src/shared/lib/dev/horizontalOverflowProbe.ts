@@ -12,17 +12,19 @@ export type HorizontalOverflowOffender = {
 const OVERFLOW_TOLERANCE_PX = 1;
 
 function readViewportWidth(): number {
-  if (typeof window === "undefined") return 0;
+  if (typeof window === 'undefined') return 0;
   return window.visualViewport?.width ?? document.documentElement.clientWidth;
 }
 
-function elementDescriptor(el: HTMLElement): Pick<HorizontalOverflowOffender, "tag" | "id" | "testId" | "classSnippet"> {
-  const className = typeof el.className === "string" ? el.className : "";
+function elementDescriptor(
+  el: HTMLElement,
+): Pick<HorizontalOverflowOffender, 'tag' | 'id' | 'testId' | 'classSnippet'> {
+  const className = typeof el.className === 'string' ? el.className : '';
   const snippet = className.length > 120 ? `${className.slice(0, 117)}…` : className;
   return {
     tag: el.tagName.toLowerCase(),
     id: el.id || null,
-    testId: el.getAttribute("data-testid"),
+    testId: el.getAttribute('data-testid'),
     classSnippet: snippet,
   };
 }
@@ -31,20 +33,23 @@ function elementDescriptor(el: HTMLElement): Pick<HorizontalOverflowOffender, "t
  * Находит видимые узлы, чей border-box выходит за ширину visual viewport.
  * Игнорирует `html`/`body` — их ширина может совпадать со scrollWidth при overflow.
  */
-export function scanHorizontalOverflowOffenders(viewportWidth?: number): HorizontalOverflowOffender[] {
-  if (typeof document === "undefined") return [];
+export function scanHorizontalOverflowOffenders(
+  viewportWidth?: number,
+): HorizontalOverflowOffender[] {
+  if (typeof document === 'undefined') return [];
 
   const vw = viewportWidth ?? readViewportWidth();
   if (vw <= 0) return [];
 
   const offenders: HorizontalOverflowOffender[] = [];
-  const nodes = document.body?.querySelectorAll("*");
+  const nodes = document.body?.querySelectorAll('*');
   if (!nodes) return [];
 
   for (const node of nodes) {
     if (!(node instanceof HTMLElement)) continue;
     const style = getComputedStyle(node);
-    if (style.display === "none" || style.visibility === "hidden" || style.opacity === "0") continue;
+    if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0')
+      continue;
 
     const rect = node.getBoundingClientRect();
     if (rect.width === 0 && rect.height === 0) continue;
@@ -62,13 +67,12 @@ export function scanHorizontalOverflowOffenders(viewportWidth?: number): Horizon
   }
 
   return offenders.sort(
-    (a, b) =>
-      b.overflowLeftPx + b.overflowRightPx - (a.overflowLeftPx + a.overflowRightPx),
+    (a, b) => b.overflowLeftPx + b.overflowRightPx - (a.overflowLeftPx + a.overflowRightPx),
   );
 }
 
 export function documentHasHorizontalScroll(): boolean {
-  if (typeof document === "undefined") return false;
+  if (typeof document === 'undefined') return false;
   const doc = document.documentElement;
   return doc.scrollWidth > doc.clientWidth + OVERFLOW_TOLERANCE_PX;
 }

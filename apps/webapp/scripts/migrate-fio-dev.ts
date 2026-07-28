@@ -22,9 +22,9 @@
  *   - DATABASE_URL env var pointing to the DEV database.
  *   - The patronymic column must already exist (migration 0129_add_patronymic.sql applied).
  */
-import "dotenv/config";
-import { Pool } from "pg";
-import { parseFullName } from "../src/lib/parseFullName";
+import 'dotenv/config';
+import { Pool } from 'pg';
+import { parseFullName } from '../src/lib/parseFullName';
 
 type UserRow = {
   id: string;
@@ -40,14 +40,14 @@ type ProposedChange = {
   existingFirstName: string | null;
   existingLastName: string | null;
   proposedPatronymic: string;
-  source: "display_name";
+  source: 'display_name';
 };
 
 function parseCli() {
   const args = process.argv.slice(2);
   return {
-    preview: args.includes("--preview"),
-    apply: args.includes("--apply"),
+    preview: args.includes('--preview'),
+    apply: args.includes('--apply'),
   };
 }
 
@@ -55,24 +55,24 @@ async function main() {
   const cli = parseCli();
 
   if (!cli.preview && !cli.apply) {
-    console.error("Usage: tsx scripts/migrate-fio-dev.ts --preview | --apply");
+    console.error('Usage: tsx scripts/migrate-fio-dev.ts --preview | --apply');
     process.exit(1);
   }
 
   const url = process.env.DATABASE_URL?.trim();
   if (!url) {
-    console.error("[ERROR] DATABASE_URL is not set");
+    console.error('[ERROR] DATABASE_URL is not set');
     process.exit(1);
   }
 
   // Safety check: refuse to run on prod-like DB URLs
-  if (url.includes("prod") || url.includes("production")) {
-    console.error("[ERROR] DATABASE_URL looks like a production database. Refusing to run.");
+  if (url.includes('prod') || url.includes('production')) {
+    console.error('[ERROR] DATABASE_URL looks like a production database. Refusing to run.');
     process.exit(1);
   }
 
-  console.log(`\n=== FIO Data Migration [${cli.apply ? "APPLY" : "PREVIEW (no writes)"}] ===`);
-  console.log(`DB: ${url.replace(/:[^:@/]*@/, ":***@").replace(/^.*@/, "")}`);
+  console.log(`\n=== FIO Data Migration [${cli.apply ? 'APPLY' : 'PREVIEW (no writes)'}] ===`);
+  console.log(`DB: ${url.replace(/:[^:@/]*@/, ':***@').replace(/^.*@/, '')}`);
 
   const pool = new Pool({ connectionString: url });
   const client = await pool.connect();
@@ -91,12 +91,14 @@ async function main() {
     );
 
     const rows = result.rows;
-    console.log(`\nFound ${rows.length} client rows with NULL patronymic and non-empty display_name.\n`);
+    console.log(
+      `\nFound ${rows.length} client rows with NULL patronymic and non-empty display_name.\n`,
+    );
 
     const proposed: ProposedChange[] = [];
 
     for (const row of rows) {
-      const dn = row.display_name?.trim() ?? "";
+      const dn = row.display_name?.trim() ?? '';
       const words = dn.split(/\s+/).filter(Boolean);
 
       // Only propose when display_name has 3+ words (likely FIO format)
@@ -110,17 +112,15 @@ async function main() {
       // Cross-check: if first_name and last_name match what we'd parse, extract patronymic safely
       // If they don't match (display_name was edited independently), skip — too risky
       const firstNameMatch =
-        !row.first_name ||
-        row.first_name.trim().toLowerCase() === parsed.firstName?.toLowerCase();
+        !row.first_name || row.first_name.trim().toLowerCase() === parsed.firstName?.toLowerCase();
       const lastNameMatch =
-        !row.last_name ||
-        row.last_name.trim().toLowerCase() === parsed.lastName?.toLowerCase();
+        !row.last_name || row.last_name.trim().toLowerCase() === parsed.lastName?.toLowerCase();
 
       if (!firstNameMatch || !lastNameMatch) {
         // Mismatch: log for review but don't propose a change
         console.log(
-          `[SKIP] ${row.id} display="${dn}" first_name="${row.first_name ?? ""}" ` +
-            `last_name="${row.last_name ?? ""}" — parts don't match parsed FIO, skipping.`,
+          `[SKIP] ${row.id} display="${dn}" first_name="${row.first_name ?? ''}" ` +
+            `last_name="${row.last_name ?? ''}" — parts don't match parsed FIO, skipping.`,
         );
         continue;
       }
@@ -131,38 +131,38 @@ async function main() {
         existingFirstName: row.first_name,
         existingLastName: row.last_name,
         proposedPatronymic: parsed.patronymic,
-        source: "display_name",
+        source: 'display_name',
       });
     }
 
     console.log(`Proposed patronymic backfills: ${proposed.length}`);
 
     if (proposed.length === 0) {
-      console.log("Nothing to do.");
+      console.log('Nothing to do.');
       await client.release();
       await pool.end();
       return;
     }
 
     // Print proposal table
-    console.log("\n--- Proposed changes ---");
+    console.log('\n--- Proposed changes ---');
     for (const p of proposed) {
       console.log(
         `  ${p.userId.slice(0, 8)}…  dn="${p.displayName}"  ` +
-          `fn="${p.existingFirstName ?? "(null)"}"  ln="${p.existingLastName ?? "(null)"}"  ` +
+          `fn="${p.existingFirstName ?? '(null)'}"  ln="${p.existingLastName ?? '(null)'}"  ` +
           `→ patronymic="${p.proposedPatronymic}"`,
       );
     }
 
     if (cli.preview) {
-      console.log("\n[PREVIEW] No DB writes. Run with --apply to commit.");
+      console.log('\n[PREVIEW] No DB writes. Run with --apply to commit.');
       await client.release();
       await pool.end();
       return;
     }
 
     // APPLY mode: update rows
-    console.log("\n[APPLY] Writing changes to DB…");
+    console.log('\n[APPLY] Writing changes to DB…');
     let updated = 0;
     let errors = 0;
 
@@ -183,9 +183,7 @@ async function main() {
       }
     }
 
-    console.log(
-      `\nDone. Updated: ${updated}/${proposed.length}. Errors: ${errors}.`,
-    );
+    console.log(`\nDone. Updated: ${updated}/${proposed.length}. Errors: ${errors}.`);
   } finally {
     client.release();
     await pool.end();
@@ -193,6 +191,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error("[FATAL]", err);
+  console.error('[FATAL]', err);
   process.exit(1);
 });

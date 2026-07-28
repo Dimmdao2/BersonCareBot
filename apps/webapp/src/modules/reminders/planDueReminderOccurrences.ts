@@ -38,16 +38,16 @@ const zonedFormatterCache = new Map<string, Intl.DateTimeFormat>();
 function getZonedFormatter(timeZone: string): Intl.DateTimeFormat {
   const cached = zonedFormatterCache.get(timeZone);
   if (cached) return cached;
-  const formatter = new Intl.DateTimeFormat("en-CA", {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
     timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    weekday: "short",
-    hourCycle: "h23",
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    weekday: 'short',
+    hourCycle: 'h23',
   });
   zonedFormatterCache.set(timeZone, formatter);
   return formatter;
@@ -56,36 +56,36 @@ function getZonedFormatter(timeZone: string): Intl.DateTimeFormat {
 function getZonedParts(date: Date, timeZone: string): ZonedDateParts {
   const parts = getZonedFormatter(timeZone).formatToParts(date);
   const read = (type: Intl.DateTimeFormatPartTypes): number => {
-    const value = parts.find((part) => part.type === type)?.value ?? "0";
+    const value = parts.find((part) => part.type === type)?.value ?? '0';
     return Number(value);
   };
   return {
-    year: read("year"),
-    month: read("month"),
-    day: read("day"),
-    hour: read("hour"),
-    minute: read("minute"),
-    second: read("second"),
-    weekdayShort: parts.find((part) => part.type === "weekday")?.value ?? "Mon",
+    year: read('year'),
+    month: read('month'),
+    day: read('day'),
+    hour: read('hour'),
+    minute: read('minute'),
+    second: read('second'),
+    weekdayShort: parts.find((part) => part.type === 'weekday')?.value ?? 'Mon',
   };
 }
 
 function weekdayMaskIndex(weekdayShort: string): number {
   const normalized = weekdayShort.toLowerCase();
   switch (normalized) {
-    case "mon":
+    case 'mon':
       return 0;
-    case "tue":
+    case 'tue':
       return 1;
-    case "wed":
+    case 'wed':
       return 2;
-    case "thu":
+    case 'thu':
       return 3;
-    case "fri":
+    case 'fri':
       return 4;
-    case "sat":
+    case 'sat':
       return 5;
-    case "sun":
+    case 'sun':
       return 6;
     default:
       return 0;
@@ -121,22 +121,22 @@ function zonedLocalDateTimeToUtc(input: {
   return new Date(guess.getTime() - offsetMs);
 }
 
-function localDateKey(parts: Pick<ZonedDateParts, "year" | "month" | "day">): string {
-  return `${parts.year}-${String(parts.month).padStart(2, "0")}-${String(parts.day).padStart(2, "0")}`;
+function localDateKey(parts: Pick<ZonedDateParts, 'year' | 'month' | 'day'>): string {
+  return `${parts.year}-${String(parts.month).padStart(2, '0')}-${String(parts.day).padStart(2, '0')}`;
 }
 
 type SlotsV1Data = {
   timesLocal: string[];
-  dayFilter: "weekdays" | "weekly_mask" | "every_n_days";
+  dayFilter: 'weekdays' | 'weekly_mask' | 'every_n_days';
   daysMask?: string;
   everyNDays?: number;
   anchorDate?: string;
 };
 
 function parseSlotsV1Data(raw: unknown): SlotsV1Data | null {
-  if (!raw || typeof raw !== "object") return null;
+  if (!raw || typeof raw !== 'object') return null;
   const o = raw as Record<string, unknown>;
-  if (!Array.isArray(o.timesLocal) || typeof o.dayFilter !== "string") return null;
+  if (!Array.isArray(o.timesLocal) || typeof o.dayFilter !== 'string') return null;
   return raw as SlotsV1Data;
 }
 
@@ -171,16 +171,16 @@ function isDayActiveForSlots(
   weekdayIndex: number,
   zonedNow: ReturnType<typeof getZonedParts>,
 ): boolean {
-  if (data.dayFilter === "weekdays") {
+  if (data.dayFilter === 'weekdays') {
     return weekdayIndex >= 0 && weekdayIndex <= 4;
   }
-  if (data.dayFilter === "weekly_mask") {
-    const mask = (data.daysMask ?? rule.daysMask ?? "1111111").padStart(7, "0").slice(0, 7);
-    return mask[weekdayIndex] === "1";
+  if (data.dayFilter === 'weekly_mask') {
+    const mask = (data.daysMask ?? rule.daysMask ?? '1111111').padStart(7, '0').slice(0, 7);
+    return mask[weekdayIndex] === '1';
   }
-  if (data.dayFilter === "every_n_days") {
+  if (data.dayFilter === 'every_n_days') {
     const n = data.everyNDays ?? 1;
-    const anchor = (data.anchorDate ?? "").trim();
+    const anchor = (data.anchorDate ?? '').trim();
     if (!anchor || n < 1) return false;
     const todayKey = localDateKey(zonedNow);
     let diff: number;
@@ -197,7 +197,10 @@ function isDayActiveForSlots(
   return false;
 }
 
-function planSlotsV1DueOccurrences(rule: ReminderPlanRule, nowIso: string): ReminderOccurrenceDraft[] {
+function planSlotsV1DueOccurrences(
+  rule: ReminderPlanRule,
+  nowIso: string,
+): ReminderOccurrenceDraft[] {
   const data = parseSlotsV1Data(rule.scheduleData);
   if (!data) return [];
   const now = new Date(nowIso);
@@ -207,9 +210,11 @@ function planSlotsV1DueOccurrences(rule: ReminderPlanRule, nowIso: string): Remi
 
   const results: ReminderOccurrenceDraft[] = [];
   for (const tl of data.timesLocal) {
-    const minuteOfDay = parseHhMmToMinuteOfDay(typeof tl === "string" ? tl : "");
+    const minuteOfDay = parseHhMmToMinuteOfDay(typeof tl === 'string' ? tl : '');
     if (minuteOfDay === null) continue;
-    if (isMinuteOfDayInQuietHours(minuteOfDay, rule.quietHoursStartMinute, rule.quietHoursEndMinute)) {
+    if (
+      isMinuteOfDayInQuietHours(minuteOfDay, rule.quietHoursStartMinute, rule.quietHoursEndMinute)
+    ) {
       continue;
     }
     const slotUtc = zonedLocalDateTimeToUtc({
@@ -229,15 +234,18 @@ function planSlotsV1DueOccurrences(rule: ReminderPlanRule, nowIso: string): Remi
   return results;
 }
 
-export function planDueReminderOccurrences(rule: ReminderPlanRule, nowIso: string): ReminderOccurrenceDraft[] {
+export function planDueReminderOccurrences(
+  rule: ReminderPlanRule,
+  nowIso: string,
+): ReminderOccurrenceDraft[] {
   if (!rule.isEnabled) return [];
-  if (rule.scheduleType === "slots_v1") {
+  if (rule.scheduleType === 'slots_v1') {
     return planSlotsV1DueOccurrences(rule, nowIso);
   }
   const now = new Date(nowIso);
   const zonedNow = getZonedParts(now, rule.timezone);
   const weekdayIndex = weekdayMaskIndex(zonedNow.weekdayShort);
-  if (rule.daysMask[weekdayIndex] !== "1") return [];
+  if (rule.daysMask[weekdayIndex] !== '1') return [];
 
   const results: ReminderOccurrenceDraft[] = [];
   for (

@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { useEffect, useMemo, useRef } from "react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { cn } from "@/lib/utils";
+import { useEffect, useMemo, useRef } from 'react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { cn } from '@/lib/utils';
 
 /**
  * Scrollable column of selectable time slots — brand-styled twin of the
@@ -32,7 +32,7 @@ function buildSlots(startHour: number, endHour: number, stepMinutes: number): st
   for (let t = startTotal; t <= endTotal; t += stepMinutes) {
     const h = Math.floor(t / 60);
     const m = t % 60;
-    slots.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
+    slots.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
   }
   return slots;
 }
@@ -53,7 +53,7 @@ export function DoctorTimeColumn({
 
   // Auto-scroll the selected slot into view when mounted (popover opens).
   useEffect(() => {
-    selectedRef.current?.scrollIntoView({ block: "center" });
+    selectedRef.current?.scrollIntoView({ block: 'center' });
   }, []);
 
   return (
@@ -62,8 +62,8 @@ export function DoctorTimeColumn({
       aria-label="Время"
       aria-disabled={disabled || undefined}
       className={cn(
-        "flex max-h-[16rem] flex-col gap-0.5 overflow-y-auto pr-1 sm:max-h-[18.5rem]",
-        disabled && "pointer-events-none opacity-50",
+        'flex max-h-[16rem] flex-col gap-0.5 overflow-y-auto pr-1 sm:max-h-[18.5rem]',
+        disabled && 'pointer-events-none opacity-50',
       )}
     >
       {slots.map((slot) => {
@@ -79,12 +79,12 @@ export function DoctorTimeColumn({
             disabled={disabled}
             onClick={() => onChange(slot)}
             className={cn(
-              "w-full shrink-0 cursor-pointer rounded-md px-3 py-1.5 text-center text-sm tabular-nums tracking-tight outline-none transition-colors",
-              "focus-visible:ring-2 focus-visible:ring-ring/50",
-              "disabled:pointer-events-none disabled:opacity-50",
+              'w-full shrink-0 cursor-pointer rounded-md px-3 py-1.5 text-center text-sm tabular-nums tracking-tight outline-none transition-colors',
+              'focus-visible:ring-2 focus-visible:ring-ring/50',
+              'disabled:pointer-events-none disabled:opacity-50',
               isSelected
-                ? "bg-primary font-medium text-primary-foreground hover:bg-primary/90"
-                : "text-foreground hover:bg-accent",
+                ? 'bg-primary font-medium text-primary-foreground hover:bg-primary/90'
+                : 'text-foreground hover:bg-accent',
             )}
           >
             {slot}

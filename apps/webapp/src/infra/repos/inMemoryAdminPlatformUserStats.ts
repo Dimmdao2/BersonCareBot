@@ -1,4 +1,4 @@
-import type { AdminPlatformUserStatsPort } from "@/modules/admin-platform-stats/ports";
+import type { AdminPlatformUserStatsPort } from '@/modules/admin-platform-stats/ports';
 
 export function createInMemoryAdminPlatformUserStatsPort(): AdminPlatformUserStatsPort {
   return {

@@ -1,94 +1,93 @@
 import {
   DEFAULT_PATIENT_SUPPORT_PATH,
   LOGIN_CONTACT_SUPPORT_PATH,
-} from "@/modules/system-settings/supportContactConstants";
-import { patientWarmupsSectionHref } from "@/modules/patient-home/warmupsSection";
-import type { PatientPlanTab } from "@/app/app/patient/treatment/patientPlanTab";
+} from '@/modules/system-settings/supportContactConstants';
+import { patientWarmupsSectionHref } from '@/modules/patient-home/warmupsSection';
+import type { PatientPlanTab } from '@/app/app/patient/treatment/patientPlanTab';
 
 export const routePaths = {
-  root: "/app",
+  root: '/app',
   /** Поддержка с экрана входа (гость, без сессии). */
   loginContactSupport: LOGIN_CONTACT_SUPPORT_PATH,
-  patient: "/app/patient",
+  patient: '/app/patient',
   /** Редирект из напоминаний бота: актуальная разминка дня (как «Начать разминку» на главной). */
-  patientGoDailyWarmup: "/app/patient/go/daily-warmup",
+  patientGoDailyWarmup: '/app/patient/go/daily-warmup',
   /** Редирект из напоминаний бота: «Начать занятие» по программе (как на карточке плана / в программе). */
-  patientGoPlanStartLesson: "/app/patient/go/plan-start-lesson",
-  doctor: "/app/doctor",
+  patientGoPlanStartLesson: '/app/patient/go/plan-start-lesson',
+  doctor: '/app/doctor',
   /** Legacy compatibility entry; redirects to the organization section in Settings. */
-  manage: "/app/manage",
+  manage: '/app/manage',
   /** Единая личная область staff-аккаунта, не требующая organization membership. */
-  account: "/app/account",
+  account: '/app/account',
   /** Установка Staff PWA (волна 2 §B). */
-  doctorInstall: "/app/doctor/install",
+  doctorInstall: '/app/doctor/install',
   /** Настройка блоков главной пациента (doctor/admin). */
-  doctorPatientHome: "/app/doctor/patient-home",
-  settings: "/app/settings",
+  doctorPatientHome: '/app/doctor/patient-home',
+  settings: '/app/settings',
   /** Каталог разделов CMS (публичные + при tier patient). */
-  patientSectionsIndex: "/app/patient/sections",
-  lessons: "/app/patient/sections/lessons",
-  emergency: "/app/patient/sections/emergency",
-  cabinet: "/app/patient/cabinet",
+  patientSectionsIndex: '/app/patient/sections',
+  lessons: '/app/patient/sections/lessons',
+  emergency: '/app/patient/sections/emergency',
+  cabinet: '/app/patient/cabinet',
   /** Запись на приём без обязательного телефона. */
-  patientBooking: "/app/patient/booking",
+  patientBooking: '/app/patient/booking',
   /** Wizard: шаг 1 — формат. */
-  bookingNew: "/app/patient/booking",
-  bookingNewCity: "/app/patient/booking",
-  bookingNewService: "/app/patient/booking/service",
-  bookingNewSlot: "/app/patient/booking/slot",
-  bookingNewConfirm: "/app/patient/booking/confirm",
+  bookingNew: '/app/patient/booking',
+  bookingNewCity: '/app/patient/booking',
+  bookingNewService: '/app/patient/booking/service',
+  bookingNewSlot: '/app/patient/booking/slot',
+  bookingNewConfirm: '/app/patient/booking/confirm',
   /** Экран «Запись подтверждена» — добавить в календарь / скачать ICS. */
-  bookingNewDone: "/app/patient/booking/done",
+  bookingNewDone: '/app/patient/booking/done',
   /** Адрес кабинета (iframe сайта специалиста). */
-  patientAddress: "/app/patient/address",
+  patientAddress: '/app/patient/address',
   /** Кратко о специалисте + ссылка на полный сайт. */
-  patientAbout: "/app/patient/about",
-  profile: "/app/patient/profile",
+  patientAbout: '/app/patient/about',
+  profile: '/app/patient/profile',
   /** Разрешённые связи пациента с организациями и выбор текущего контекста. */
-  patientOrganizations: "/app/patient/organizations",
-  notifications: "/app/patient/notifications",
-  notificationSettings: "/app/patient/notifications/settings",
-  purchases: "/app/patient/purchases",
+  patientOrganizations: '/app/patient/organizations',
+  notifications: '/app/patient/notifications',
+  notificationSettings: '/app/patient/notifications/settings',
+  purchases: '/app/patient/purchases',
   /** Единая страница дневника с вкладками «Симптомы» / «ЛФК». */
-  diary: "/app/patient/diary",
-  symptoms: "/app/patient/diary?tab=symptoms",
-  lfk: "/app/patient/diary?tab=lfk",
+  diary: '/app/patient/diary',
+  symptoms: '/app/patient/diary?tab=symptoms',
+  lfk: '/app/patient/diary?tab=lfk',
   /** Журнал записей симптомов (I.8): фильтр по месяцу, редактирование записей. */
-  diarySymptomsJournal: "/app/patient/diary/symptoms/journal",
+  diarySymptomsJournal: '/app/patient/diary/symptoms/journal',
   /** Журнал занятий ЛФК. */
-  diaryLfkJournal: "/app/patient/diary/lfk/journal",
-  bindPhone: "/app/patient/bind-phone",
+  diaryLfkJournal: '/app/patient/diary/lfk/journal',
+  bindPhone: '/app/patient/bind-phone',
   /** Сообщения пациента (поддержка, webapp-чат). */
-  patientMessages: "/app/patient/messages",
+  patientMessages: '/app/patient/messages',
   /** Справка (не в основном меню; прямой URL). */
-  patientHelp: "/app/patient/help",
+  patientHelp: '/app/patient/help',
   patientHelpArticle: (slug: string) => `/app/patient/help/${encodeURIComponent(slug)}`,
   /** Форма обращения в поддержку (Telegram админу). */
   patientSupport: DEFAULT_PATIENT_SUPPORT_PATH,
   /** Установка PWA / приложения (не в основном меню; прямой URL). */
-  patientInstall: "/app/patient/install",
+  patientInstall: '/app/patient/install',
   /** Напоминания пациента. */
-  patientReminders: "/app/patient/reminders",
+  patientReminders: '/app/patient/reminders',
   /** Полный текст рассылки врача (deep link из push). */
-  patientBroadcast: (auditId: string) =>
-    `/app/patient/broadcasts/${encodeURIComponent(auditId)}`,
+  patientBroadcast: (auditId: string) => `/app/patient/broadcasts/${encodeURIComponent(auditId)}`,
   /** Журнал действий по одному правилу (`integrator_rule_id`). */
   patientReminderJournal: (ruleIntegratorId: string) =>
     `/app/patient/reminders/journal/${encodeURIComponent(ruleIntegratorId)}`,
   /** Online intake — LFK (online-only flow). */
-  intakeLfk: "/app/patient/intake/lfk",
+  intakeLfk: '/app/patient/intake/lfk',
   /** Каталог курсов (продажа → тот же экземпляр программы, что и назначение врача). */
-  patientCourses: "/app/patient/courses",
+  patientCourses: '/app/patient/courses',
   /** Промо-программа по умолчанию (шаблон из admin settings, до материализации). */
-  patientTreatmentPromoDefault: "/app/patient/treatment/promo",
+  patientTreatmentPromoDefault: '/app/patient/treatment/promo',
   patientTreatmentPromoTemplateItem: (templateStageItemId: string) =>
     `/app/patient/treatment/promo/item/${encodeURIComponent(templateStageItemId)}`,
   /** Программы лечения (назначенные экземпляры). */
-  patientTreatmentPrograms: "/app/patient/treatment",
+  patientTreatmentPrograms: '/app/patient/treatment',
   /** `planTab` — вкладка плана при возврате (`?tab=`). Для `program` query не добавляется. */
   patientTreatmentProgram: (instanceId: string, planTab?: PatientPlanTab | null) => {
     const base = `/app/patient/treatment/${encodeURIComponent(instanceId)}`;
-    if (!planTab || planTab === "program") return base;
+    if (!planTab || planTab === 'program') return base;
     return `${base}?tab=${encodeURIComponent(planTab)}`;
   },
   /**
@@ -106,9 +105,9 @@ export const routePaths = {
   ) => {
     const base = `/app/patient/treatment/${encodeURIComponent(instanceId)}/item/${encodeURIComponent(itemId)}`;
     const sp = new URLSearchParams();
-    if (nav && nav !== "default") sp.set("nav", nav);
-    if (planTab && planTab !== "program") sp.set("planTab", planTab);
-    if (testId && testId.trim()) sp.set("testId", testId.trim());
+    if (nav && nav !== 'default') sp.set('nav', nav);
+    if (planTab && planTab !== 'program') sp.set('planTab', planTab);
+    if (testId && testId.trim()) sp.set('testId', testId.trim());
     const q = sp.toString();
     return q ? `${base}?${q}` : base;
   },
@@ -118,15 +117,15 @@ export const routePaths = {
   /** Раздел CMS «Разминки» (канонический slug — см. `warmupsSection.ts`). */
   patientWarmups: patientWarmupsSectionHref(),
   /** Online intake — Nutrition questionnaire. */
-  intakeNutrition: "/app/patient/intake/nutrition",
+  intakeNutrition: '/app/patient/intake/nutrition',
   /** Doctor online-intake inbox. */
-  doctorOnlineIntake: "/app/doctor/online-intake",
+  doctorOnlineIntake: '/app/doctor/online-intake',
   /** Расписание врача (новый URL, объединяет calendar + appointments + admin/booking). */
-  doctorSchedule: "/app/doctor/schedule",
+  doctorSchedule: '/app/doctor/schedule',
   /** Коммуникации врача (новый URL, объединяет messages + online-intake + broadcasts). */
-  doctorCommunications: "/app/doctor/communications",
+  doctorCommunications: '/app/doctor/communications',
   /** Список пациентов врача (новый раздел «Пациенты», Patients list page). */
-  doctorPatients: "/app/doctor/patients",
+  doctorPatients: '/app/doctor/patients',
   /** Карточка пациента (Patients card page). */
   doctorPatientCard: (userId: string) => `/app/doctor/patients/${encodeURIComponent(userId)}`,
 } as const;

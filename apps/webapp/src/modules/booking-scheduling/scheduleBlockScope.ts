@@ -13,12 +13,20 @@ export function scheduleBlockAppliesToScope(input: {
     }
   }
   if (input.branchId) {
-    if (input.blockBranchId !== null && input.blockBranchId !== undefined && input.blockBranchId !== input.branchId) {
+    if (
+      input.blockBranchId !== null &&
+      input.blockBranchId !== undefined &&
+      input.blockBranchId !== input.branchId
+    ) {
       return false;
     }
   }
   if (input.roomId) {
-    if (input.blockRoomId !== null && input.blockRoomId !== undefined && input.blockRoomId !== input.roomId) {
+    if (
+      input.blockRoomId !== null &&
+      input.blockRoomId !== undefined &&
+      input.blockRoomId !== input.roomId
+    ) {
       return false;
     }
   }

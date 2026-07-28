@@ -81,23 +81,23 @@
 
 **Затронутые HTTP handlers (parity не менялся):**
 
-| Path prefix | Notes |
-|-------------|--------|
-| `GET /api/integrator/subscriptions/{topics,for-user}` | |
-| `GET /api/integrator/appointments/{record,active-by-user}` | |
-| `GET /api/integrator/reminders/{history,rules,rules/by-category}` | |
-| `GET /api/integrator/communication/{conversations,conversations/[id],questions,questions/by-conversation/...}` | |
-| `GET /api/integrator/delivery-targets` | |
-| `GET /api/integrator/diary/{symptom-trackings,lfk-complexes}` | |
+| Path prefix                                                                                                    | Notes |
+| -------------------------------------------------------------------------------------------------------------- | ----- |
+| `GET /api/integrator/subscriptions/{topics,for-user}`                                                          |       |
+| `GET /api/integrator/appointments/{record,active-by-user}`                                                     |       |
+| `GET /api/integrator/reminders/{history,rules,rules/by-category}`                                              |       |
+| `GET /api/integrator/communication/{conversations,conversations/[id],questions,questions/by-conversation/...}` |       |
+| `GET /api/integrator/delivery-targets`                                                                         |       |
+| `GET /api/integrator/diary/{symptom-trackings,lfk-complexes}`                                                  |       |
 
 **Parity — общий префикс для всех перечисленных GET:**
 
 - **Статусы:** `400` — нет `x-bersoncare-timestamp` и/или `x-bersoncare-signature`; `401` — подпись не проходит `verifyIntegratorGetSignature`; далее без изменений специфичные `400`/`404`/`503`/`200` каждого handler.
 - **JSON (ошибки guard):** `{ "ok": false, "error": "missing webhook headers" }` и `{ "ok": false, "error": "invalid signature" }` — те же строки и ключи.
-- **Подпись:** canonical string неизменна: ``GET ${pathname}${search}`` (как в `verifyIntegratorGetSignature`); неверный timestamp/signature → `401` + `invalid signature`.
+- **Подпись:** canonical string неизменна: `GET ${pathname}${search}` (как в `verifyIntegratorGetSignature`); неверный timestamp/signature → `401` + `invalid signature`.
 - **Идемпотентность:** только read-side; повтор того же подписанного GET остаётся без побочных эффектов на уровне контракта (как до рефактора).
 
-**Остаточные `@/infra/*` в `integrator/**/route.ts`:** POST/side-effect маршруты (cluster I и др.) — вне G.
+**Остаточные `@/infra/*` в `integrator/**/route.ts`:\*\* POST/side-effect маршруты (cluster I и др.) — вне G.
 
 **Remediation (FIX после `AUDIT_TRACK_B_CLUSTER.md`, тот же кластер G):**
 
@@ -106,12 +106,12 @@
 
 **Parity — communication GET (дополнение к общему guard выше):**
 
-| Route file | Доп. ошибки / success |
-|------------|------------------------|
-| `communication/conversations/route.ts` | `503` `support communication not available`; `200` `{ ok, conversations }` |
-| `communication/conversations/[id]/route.ts` | `400` `conversation id required`; `503`; `404` `{ ok:false, error:"not_found" }`; `200` `{ ok, conversation }` |
-| `communication/questions/route.ts` | `503`; `200` `{ ok, questions }` |
-| `communication/questions/by-conversation/[conversationId]/route.ts` | `400` `conversation id required`; `503`; `200` `{ ok, question }` (`null` если нет) |
+| Route file                                                          | Доп. ошибки / success                                                                                          |
+| ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `communication/conversations/route.ts`                              | `503` `support communication not available`; `200` `{ ok, conversations }`                                     |
+| `communication/conversations/[id]/route.ts`                         | `400` `conversation id required`; `503`; `404` `{ ok:false, error:"not_found" }`; `200` `{ ok, conversation }` |
+| `communication/questions/route.ts`                                  | `503`; `200` `{ ok, questions }`                                                                               |
+| `communication/questions/by-conversation/[conversationId]/route.ts` | `400` `conversation id required`; `503`; `200` `{ ok, question }` (`null` если нет)                            |
 
 **Gate (обновлено):** PASS — `pnpm run typecheck`, `pnpm run lint`, `pnpm exec vitest --run` (полный suite `apps/webapp`, phase-level по `.cursor/rules/test-execution-policy.md` после изменений в нескольких деревьях тестов): **354** test files passed (4 skipped), **1798** tests passed (7 skipped).
 

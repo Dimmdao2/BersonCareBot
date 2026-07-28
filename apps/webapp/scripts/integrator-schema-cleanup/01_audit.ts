@@ -1,8 +1,8 @@
 #!/usr/bin/env tsx
 // HISTORICAL ONE-SHOT TOOL — Rubitime выведено 2026-07-27.
 // Kept for reproducible integrator-schema migration audits; it is not a live runtime workflow.
-import "dotenv/config";
-import pg from "pg";
+import 'dotenv/config';
+import pg from 'pg';
 
 type CountRow = { count: string };
 type TableStatus = {
@@ -15,38 +15,38 @@ type TableStatus = {
 type QueryResult<T> = { rows: T[] };
 
 const TABLES: Array<{ schema: string; table: string }> = [
-  { schema: "public", table: "system_settings" },
-  { schema: "integrator", table: "system_settings" },
-  { schema: "public", table: "integrator_push_outbox" },
-  { schema: "public", table: "reminder_rules" },
-  { schema: "public", table: "reminder_occurrence_history" },
-  { schema: "public", table: "reminder_delivery_events" },
-  { schema: "public", table: "webapp_reminder_occurrences" },
-  { schema: "integrator", table: "user_reminder_rules" },
-  { schema: "integrator", table: "user_reminder_occurrences" },
-  { schema: "integrator", table: "user_reminder_delivery_logs" },
-  { schema: "public", table: "appointment_records" },
-  { schema: "public", table: "patient_bookings" },
-  { schema: "public", table: "be_appointments" },
-  { schema: "integrator", table: "rubitime_events" },
-  { schema: "integrator", table: "rubitime_records" },
-  { schema: "integrator", table: "rubitime_booking_profiles" },
-  { schema: "integrator", table: "message_retry_jobs" },
-  { schema: "integrator", table: "contacts" },
-  { schema: "public", table: "user_channel_bindings" },
-  { schema: "integrator", table: "conversations" },
-  { schema: "integrator", table: "conversation_messages" },
-  { schema: "integrator", table: "message_drafts" },
-  { schema: "integrator", table: "user_questions" },
-  { schema: "integrator", table: "question_messages" },
-  { schema: "public", table: "support_conversations" },
-  { schema: "public", table: "support_conversation_messages" },
-  { schema: "public", table: "support_questions" },
-  { schema: "public", table: "support_question_messages" },
-  { schema: "integrator", table: "projection_outbox" },
-  { schema: "public", table: "outgoing_delivery_queue" },
-  { schema: "public", table: "idempotency_keys" },
-  { schema: "integrator", table: "idempotency_keys" },
+  { schema: 'public', table: 'system_settings' },
+  { schema: 'integrator', table: 'system_settings' },
+  { schema: 'public', table: 'integrator_push_outbox' },
+  { schema: 'public', table: 'reminder_rules' },
+  { schema: 'public', table: 'reminder_occurrence_history' },
+  { schema: 'public', table: 'reminder_delivery_events' },
+  { schema: 'public', table: 'webapp_reminder_occurrences' },
+  { schema: 'integrator', table: 'user_reminder_rules' },
+  { schema: 'integrator', table: 'user_reminder_occurrences' },
+  { schema: 'integrator', table: 'user_reminder_delivery_logs' },
+  { schema: 'public', table: 'appointment_records' },
+  { schema: 'public', table: 'patient_bookings' },
+  { schema: 'public', table: 'be_appointments' },
+  { schema: 'integrator', table: 'rubitime_events' },
+  { schema: 'integrator', table: 'rubitime_records' },
+  { schema: 'integrator', table: 'rubitime_booking_profiles' },
+  { schema: 'integrator', table: 'message_retry_jobs' },
+  { schema: 'integrator', table: 'contacts' },
+  { schema: 'public', table: 'user_channel_bindings' },
+  { schema: 'integrator', table: 'conversations' },
+  { schema: 'integrator', table: 'conversation_messages' },
+  { schema: 'integrator', table: 'message_drafts' },
+  { schema: 'integrator', table: 'user_questions' },
+  { schema: 'integrator', table: 'question_messages' },
+  { schema: 'public', table: 'support_conversations' },
+  { schema: 'public', table: 'support_conversation_messages' },
+  { schema: 'public', table: 'support_questions' },
+  { schema: 'public', table: 'support_question_messages' },
+  { schema: 'integrator', table: 'projection_outbox' },
+  { schema: 'public', table: 'outgoing_delivery_queue' },
+  { schema: 'public', table: 'idempotency_keys' },
+  { schema: 'integrator', table: 'idempotency_keys' },
 ];
 
 const HELP = `Usage:
@@ -62,7 +62,7 @@ function quoteIdent(value: string): string {
 }
 
 function toNumber(value: string | undefined): number {
-  const n = Number(value ?? "0");
+  const n = Number(value ?? '0');
   return Number.isFinite(n) ? n : 0;
 }
 
@@ -110,13 +110,13 @@ async function optionalScalar(
 }
 
 async function main(): Promise<void> {
-  if (process.argv.includes("--help")) {
+  if (process.argv.includes('--help')) {
     console.log(HELP);
     return;
   }
   const dbUrl = process.env.DATABASE_URL;
   if (!dbUrl) {
-    console.error("DATABASE_URL is required");
+    console.error('DATABASE_URL is required');
     process.exit(1);
   }
 
@@ -131,7 +131,7 @@ async function main(): Promise<void> {
     const probes = await Promise.all([
       optionalScalar(
         client,
-        "settings_mirror_missing_in_integrator",
+        'settings_mirror_missing_in_integrator',
         `SELECT count(*)::text AS count
          FROM public.system_settings p
          LEFT JOIN integrator.system_settings i
@@ -142,7 +142,7 @@ async function main(): Promise<void> {
       ),
       optionalScalar(
         client,
-        "contacts_public_missing_legacy_present",
+        'contacts_public_missing_legacy_present',
         `SELECT count(*)::text AS count
          FROM integrator.identities i
          JOIN integrator.contacts c
@@ -159,7 +159,7 @@ async function main(): Promise<void> {
       ),
       optionalScalar(
         client,
-        "contacts_public_legacy_phone_mismatch",
+        'contacts_public_legacy_phone_mismatch',
         `SELECT count(*)::text AS count
          FROM integrator.identities i
          JOIN integrator.contacts c
@@ -177,38 +177,38 @@ async function main(): Promise<void> {
       ),
       optionalScalar(
         client,
-        "projection_outbox_terminal_done",
+        'projection_outbox_terminal_done',
         `SELECT count(*)::text AS count FROM integrator.projection_outbox WHERE status IN ('done', 'cancelled')`,
       ),
       optionalScalar(
         client,
-        "projection_outbox_dead",
+        'projection_outbox_dead',
         `SELECT count(*)::text AS count FROM integrator.projection_outbox WHERE status = 'dead'`,
       ),
       optionalScalar(
         client,
-        "outgoing_delivery_queue_terminal",
+        'outgoing_delivery_queue_terminal',
         `SELECT count(*)::text AS count FROM public.outgoing_delivery_queue WHERE status IN ('sent', 'dead', 'cancelled')`,
       ),
       optionalScalar(
         client,
-        "integrator_push_outbox_terminal",
+        'integrator_push_outbox_terminal',
         `SELECT count(*)::text AS count FROM public.integrator_push_outbox WHERE status IN ('done', 'dead', 'cancelled')`,
       ),
       optionalScalar(
         client,
-        "public_idempotency_expired",
+        'public_idempotency_expired',
         `SELECT count(*)::text AS count FROM public.idempotency_keys WHERE expires_at < now()`,
       ),
       optionalScalar(
         client,
-        "integrator_idempotency_expired",
+        'integrator_idempotency_expired',
         `SELECT count(*)::text AS count FROM integrator.idempotency_keys WHERE expires_at < now()`,
       ),
     ]);
 
     const result = {
-      mode: "read-only",
+      mode: 'read-only',
       generatedAt: new Date().toISOString(),
       tableCounts,
       probes,

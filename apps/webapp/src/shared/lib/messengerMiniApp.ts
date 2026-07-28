@@ -5,7 +5,7 @@
  * - **MAX:** глобальный `window.WebApp` (bridge, см. dev.max.ru — WebApps / MAX Bridge)
  */
 
-import { PLATFORM_COOKIE_NAME } from "@/shared/lib/platform";
+import { PLATFORM_COOKIE_NAME } from '@/shared/lib/platform';
 
 /** Telegram WebApp bridge: types in repo only expose `initData`; runtime also has `close()`. */
 type TelegramMiniWebApp = {
@@ -19,16 +19,16 @@ function getTelegramWebApp(): TelegramMiniWebApp | undefined {
 
 /** Сырой `initData` Telegram Mini App (без валидации). См. {@link getMaxWebAppInitDataForAuth} для MAX. */
 export function readTelegramInitDataForAuth(): string {
-  if (typeof window === "undefined") return "";
+  if (typeof window === 'undefined') return '';
   const raw = getTelegramWebApp()?.initData;
-  return typeof raw === "string" ? raw.trim() : "";
+  return typeof raw === 'string' ? raw.trim() : '';
 }
 
 export function readPlatformCookieBot(): boolean {
-  if (typeof document === "undefined") return false;
+  if (typeof document === 'undefined') return false;
   const m = document.cookie.match(new RegExp(`(?:^|; )${PLATFORM_COOKIE_NAME}=([^;]*)`));
-  const raw = m?.[1] ? decodeURIComponent(m[1]) : "";
-  return raw === "bot";
+  const raw = m?.[1] ? decodeURIComponent(m[1]) : '';
+  return raw === 'bot';
 }
 
 /**
@@ -37,17 +37,17 @@ export function readPlatformCookieBot(): boolean {
  * Нужно, чтобы не держать пользователя в miniapp-ветке из‑за устаревшего `bersoncare_platform=bot` cookie.
  */
 export function isTelegramWebAppExternalBrowserSurface(): boolean {
-  if (typeof window === "undefined") return false;
+  if (typeof window === 'undefined') return false;
   const tg = window.Telegram?.WebApp as { platform?: string } | undefined;
   if (!tg) return false;
-  const p = typeof tg.platform === "string" ? tg.platform.toLowerCase().trim() : "";
-  if (p === "web" || p === "weba" || p === "webk" || p === "unknown") return true;
-  if (p === "") return true;
+  const p = typeof tg.platform === 'string' ? tg.platform.toLowerCase().trim() : '';
+  if (p === 'web' || p === 'weba' || p === 'webk' || p === 'unknown') return true;
+  if (p === '') return true;
   return false;
 }
 
 export function isMessengerMiniAppHost(): boolean {
-  if (typeof window === "undefined") return false;
+  if (typeof window === 'undefined') return false;
   const tgWebApp = getTelegramWebApp();
   // Скрипт telegram-web-app.js подключается и в обычном браузере — объект WebApp есть,
   // но вне клиента Telegram initData пустой; иначе кнопка «Выйти» скрывалась везде.
@@ -59,8 +59,8 @@ export function isMessengerMiniAppHost(): boolean {
     return true;
   }
   const webApp = (window as Window & { WebApp?: { initData?: string; ready?: () => void } }).WebApp;
-  if (!webApp || typeof webApp.ready !== "function") return false;
-  const maxInitData = typeof webApp.initData === "string" ? webApp.initData.trim() : "";
+  if (!webApp || typeof webApp.ready !== 'function') return false;
+  const maxInitData = typeof webApp.initData === 'string' ? webApp.initData.trim() : '';
   // В обычном браузере bridge-скрипт MAX тоже создает `window.WebApp`.
   // Mini App контекст считаем только когда есть реальные данные входа или bot-cookie.
   return maxInitData.length > 0 || readPlatformCookieBot();
@@ -82,41 +82,41 @@ export function isMessengerMiniAppHost(): boolean {
  * Не используем строку, если уже есть Telegram initData (избегаем двойного входа).
  */
 export function getMaxWebAppInitDataForAuth(): string {
-  if (typeof window === "undefined") return "";
+  if (typeof window === 'undefined') return '';
   const tgRaw = readTelegramInitDataForAuth();
-  if (tgRaw.length > 0) return "";
+  if (tgRaw.length > 0) return '';
   const w = (window as Window & { WebApp?: { initData?: string; ready?: () => void } }).WebApp;
-  if (!w || typeof w.ready !== "function") return "";
-  return typeof w.initData === "string" ? w.initData.trim() : "";
+  if (!w || typeof w.ready !== 'function') return '';
+  return typeof w.initData === 'string' ? w.initData.trim() : '';
 }
 
-export function inferMessengerChannelForRequestContact(): "telegram" | "max" | undefined {
-  if (typeof window === "undefined") return undefined;
+export function inferMessengerChannelForRequestContact(): 'telegram' | 'max' | undefined {
+  if (typeof window === 'undefined') return undefined;
   const tgWebApp = getTelegramWebApp();
   const tgInit = readTelegramInitDataForAuth();
   if (tgWebApp && (tgInit.length > 0 || readPlatformCookieBot())) {
-    return "telegram";
+    return 'telegram';
   }
   const maxApp = (window as Window & { WebApp?: { ready?: () => void; initData?: string } }).WebApp;
-  if (maxApp && typeof maxApp.ready === "function") {
-    const mid = typeof maxApp.initData === "string" ? maxApp.initData.trim() : "";
+  if (maxApp && typeof maxApp.ready === 'function') {
+    const mid = typeof maxApp.initData === 'string' ? maxApp.initData.trim() : '';
     /** Как {@link isMessengerMiniAppHost}: MAX Mini App — initData или `platform=bot`, не «голый» bridge. */
     if (mid.length > 0 || readPlatformCookieBot()) {
-      return "max";
+      return 'max';
     }
   }
   return undefined;
 }
 
 export function closeMessengerMiniApp(): void {
-  if (typeof window === "undefined") return;
+  if (typeof window === 'undefined') return;
   const tg = getTelegramWebApp();
-  if (tg && typeof tg.close === "function") {
+  if (tg && typeof tg.close === 'function') {
     tg.close();
     return;
   }
   const maxApp = (window as Window & { WebApp?: { close?: () => void } }).WebApp;
-  if (maxApp && typeof maxApp.close === "function") {
+  if (maxApp && typeof maxApp.close === 'function') {
     maxApp.close();
   }
 }

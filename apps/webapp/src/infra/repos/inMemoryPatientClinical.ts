@@ -4,7 +4,7 @@
  * trend = severities oldest→newest; resolved drops complaint out of active).
  */
 
-import { randomUUID } from "node:crypto";
+import { randomUUID } from 'node:crypto';
 import type {
   ActiveComplaint,
   ActiveDiagnosis,
@@ -27,12 +27,12 @@ import type {
   UpdateDiagnosisFieldsInput,
   UpdateVisitFieldsInput,
   Visit,
-} from "@/modules/patient-clinical/ports";
+} from '@/modules/patient-clinical/ports';
 
 type VisitRow = {
   id: string;
   patientUserId: string;
-  visitType: "first" | "repeat";
+  visitType: 'first' | 'repeat';
   visitedAt: string;
   location: string | null;
   service: string | null;
@@ -53,7 +53,7 @@ type ComplaintRow = {
   text: string;
   description: string | null;
   priority: boolean;
-  status: "active" | "resolved";
+  status: 'active' | 'resolved';
   sourceVisitId: string;
   resolvedAt: string | null;
   createdAt: string;
@@ -78,7 +78,7 @@ type DiagnosisRow = {
   text: string;
   priority: boolean;
   comment: string | null;
-  status: "active" | "refined" | "resolved";
+  status: 'active' | 'refined' | 'resolved';
   clinicalStatus: DiagnosisClinicalStatus;
   sourceVisitId: string;
   resolvedAt: string | null;
@@ -170,23 +170,33 @@ export function __resetInMemoryPatientClinicalForTest() {
 }
 
 function fmtDisplayDateInMemory(isoOrLocal: string): string {
-  const d = new Date(isoOrLocal.length === 10 ? isoOrLocal + "T00:00:00Z" : isoOrLocal);
-  const dd = String(d.getUTCDate()).padStart(2, "0");
-  const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const d = new Date(isoOrLocal.length === 10 ? isoOrLocal + 'T00:00:00Z' : isoOrLocal);
+  const dd = String(d.getUTCDate()).padStart(2, '0');
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
   const yyyy = d.getUTCFullYear();
   return `${dd}.${mm}.${yyyy}`;
 }
 
 function fmtSince(iso: string): string {
   const d = new Date(iso);
-  const dd = String(d.getUTCDate()).padStart(2, "0");
-  const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(d.getUTCDate()).padStart(2, '0');
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
   return `с ${dd}.${mm}`;
 }
 
 const RU_MONTHS = [
-  "января", "февраля", "марта", "апреля", "мая", "июня",
-  "июля", "августа", "сентября", "октября", "ноября", "декабря",
+  'января',
+  'февраля',
+  'марта',
+  'апреля',
+  'мая',
+  'июня',
+  'июля',
+  'августа',
+  'сентября',
+  'октября',
+  'ноября',
+  'декабря',
 ];
 
 function fmtVisitDate(iso: string): string {
@@ -196,20 +206,20 @@ function fmtVisitDate(iso: string): string {
 
 function fmtVisitTime(iso: string): string {
   const d = new Date(iso);
-  return `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
+  return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
 }
 
 function fmtDayMonth(iso: string): string {
   const d = new Date(iso);
-  const dd = String(d.getUTCDate()).padStart(2, "0");
-  const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(d.getUTCDate()).padStart(2, '0');
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
   return `${dd}.${mm}`;
 }
 
 export const inMemoryPatientClinicalPort: PatientClinicalPort = {
   async getClinicalState(patientUserId: string): Promise<ClinicalState> {
     const activeComplaints: ActiveComplaint[] = complaints
-      .filter((c) => c.patientUserId === patientUserId && c.status === "active")
+      .filter((c) => c.patientUserId === patientUserId && c.status === 'active')
       .map((c) => {
         const updates = complaintUpdates
           .filter((u) => u.complaintId === c.id)
@@ -230,7 +240,7 @@ export const inMemoryPatientClinicalPort: PatientClinicalPort = {
       .sort((a, b) => Number(b.priority) - Number(a.priority));
 
     const activeDiagnoses: ActiveDiagnosis[] = diagnoses
-      .filter((d) => d.patientUserId === patientUserId && d.status !== "resolved")
+      .filter((d) => d.patientUserId === patientUserId && d.status !== 'resolved')
       .map((d): ActiveDiagnosis => {
         const updates = diagnosisUpdates
           .filter((u) => u.diagnosisId === d.id)
@@ -239,15 +249,15 @@ export const inMemoryPatientClinicalPort: PatientClinicalPort = {
         const lastVisit = last ? visits.find((v) => v.id === last.visitId) : undefined;
         const sourceVisit = visits.find((v) => v.id === d.sourceVisitId);
         const meta =
-          d.status === "refined" && last
+          d.status === 'refined' && last
             ? `уточнён ${fmtDayMonth(lastVisit?.visitedAt ?? last.createdAt)}`
             : `поставлен ${fmtDayMonth(sourceVisit?.visitedAt ?? d.createdAt)}`;
         return {
           id: d.id,
           text: d.text,
           priority: d.priority,
-          status: d.status === "refined" ? "refined" : "active",
-          clinicalStatus: d.clinicalStatus ?? "предварительный",
+          status: d.status === 'refined' ? 'refined' : 'active',
+          clinicalStatus: d.clinicalStatus ?? 'предварительный',
           meta,
           comment: d.comment,
         };
@@ -275,28 +285,31 @@ export const inMemoryPatientClinicalPort: PatientClinicalPort = {
           return {
             id: u.id,
             priority: complaint?.priority ?? false,
-            label: complaint?.text ?? "",
+            label: complaint?.text ?? '',
             from,
             to: u.severity,
-            note: u.note ?? "",
+            note: u.note ?? '',
           };
         });
 
       // Text sections — only non-empty ones.
       const sections: { title: string; body: string }[] = [];
-      if (v.anamnesisText) sections.push({ title: "Анамнез / история жалобы", body: v.anamnesisText });
-      if (v.exam) sections.push({ title: "Осмотр", body: v.exam });
-      if (v.manipulations) sections.push({ title: "Проведённые манипуляции", body: v.manipulations });
-      if (v.trialResults) sections.push({ title: "Результаты проб", body: v.trialResults });
-      if (v.recommendations) sections.push({ title: "Рекомендации / Назначения", body: v.recommendations });
+      if (v.anamnesisText)
+        sections.push({ title: 'Анамнез / история жалобы', body: v.anamnesisText });
+      if (v.exam) sections.push({ title: 'Осмотр', body: v.exam });
+      if (v.manipulations)
+        sections.push({ title: 'Проведённые манипуляции', body: v.manipulations });
+      if (v.trialResults) sections.push({ title: 'Результаты проб', body: v.trialResults });
+      if (v.recommendations)
+        sections.push({ title: 'Рекомендации / Назначения', body: v.recommendations });
 
       return {
         id: v.id,
         date: fmtVisitDate(v.visitedAt),
         time: fmtVisitTime(v.visitedAt),
         type: v.visitType,
-        location: v.location ?? "",
-        duration: v.duration ?? "",
+        location: v.location ?? '',
+        duration: v.duration ?? '',
         anamnesisText: v.anamnesisText,
         dynamics: dynamics.length > 0 ? dynamics : undefined,
         sections: sections.length > 0 ? sections : undefined,
@@ -349,7 +362,7 @@ export const inMemoryPatientClinicalPort: PatientClinicalPort = {
       createdAt: now,
     });
 
-    if (input.visitType === "first") {
+    if (input.visitType === 'first') {
       for (const c of input.complaints ?? []) {
         const complaintId = randomUUID();
         complaints.push({
@@ -358,7 +371,7 @@ export const inMemoryPatientClinicalPort: PatientClinicalPort = {
           text: c.text,
           description: c.description ?? null,
           priority: c.priority,
-          status: "active",
+          status: 'active',
           sourceVisitId: visitId,
           resolvedAt: null,
           createdAt: now,
@@ -382,8 +395,8 @@ export const inMemoryPatientClinicalPort: PatientClinicalPort = {
           text: d.text,
           priority: d.priority,
           comment: d.comment ?? null,
-          status: "active",
-          clinicalStatus: "предварительный",
+          status: 'active',
+          clinicalStatus: 'предварительный',
           sourceVisitId: visitId,
           resolvedAt: null,
           createdAt: now,
@@ -404,14 +417,14 @@ export const inMemoryPatientClinicalPort: PatientClinicalPort = {
         if (u.resolved) {
           const complaint = complaints.find((c) => c.id === u.complaintId);
           if (complaint) {
-            complaint.status = "resolved";
+            complaint.status = 'resolved';
             complaint.resolvedAt = now;
           }
         }
       }
       for (const u of input.diagnosisUpdates ?? []) {
         const diagnosis = diagnoses.find((d) => d.id === u.diagnosisId);
-        const nextStatus = u.removed ? "resolved" : "refined";
+        const nextStatus = u.removed ? 'resolved' : 'refined';
         diagnosisUpdates.push({
           id: randomUUID(),
           diagnosisId: u.diagnosisId,
@@ -476,7 +489,13 @@ export const inMemoryPatientClinicalPort: PatientClinicalPort = {
       trauma: anamnesisTrauma
         .filter((r) => r.patientUserId === patientUserId)
         .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
-        .map((r) => ({ id: r.id, year: r.year, what: r.what, type: r.type, immobilization: r.immobilization })),
+        .map((r) => ({
+          id: r.id,
+          year: r.year,
+          what: r.what,
+          type: r.type,
+          immobilization: r.immobilization,
+        })),
       illness: anamnesisIllness
         .filter((r) => r.patientUserId === patientUserId)
         .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
@@ -500,7 +519,13 @@ export const inMemoryPatientClinicalPort: PatientClinicalPort = {
       createdAt: new Date().toISOString(),
     };
     anamnesisTrauma.push(row);
-    return { id: row.id, year: row.year, what: row.what, type: row.type, immobilization: row.immobilization };
+    return {
+      id: row.id,
+      year: row.year,
+      what: row.what,
+      type: row.type,
+      immobilization: row.immobilization,
+    };
   },
 
   async appendAnamnesisIllness(input: AppendAnamnesisIllnessInput): Promise<AnamnesisIllnessEntry> {
@@ -517,7 +542,9 @@ export const inMemoryPatientClinicalPort: PatientClinicalPort = {
     return { id: row.id, period: row.period, what: row.what, comment: row.comment };
   },
 
-  async appendAnamnesisLifestyle(input: AppendAnamnesisLifestyleInput): Promise<AnamnesisLifestyleEntry> {
+  async appendAnamnesisLifestyle(
+    input: AppendAnamnesisLifestyleInput,
+  ): Promise<AnamnesisLifestyleEntry> {
     const row: AnamnesisLifestyleRow = {
       id: randomUUID(),
       patientUserId: input.patientUserId,
@@ -551,8 +578,13 @@ export const inMemoryPatientClinicalPort: PatientClinicalPort = {
     return true;
   },
 
-  async getDiagnosisStatusHistory(patientUserId: string, diagnosisId: string): Promise<DiagnosisStatusHistoryEntry[]> {
-    const diagnosis = diagnoses.find((d) => d.id === diagnosisId && d.patientUserId === patientUserId);
+  async getDiagnosisStatusHistory(
+    patientUserId: string,
+    diagnosisId: string,
+  ): Promise<DiagnosisStatusHistoryEntry[]> {
+    const diagnosis = diagnoses.find(
+      (d) => d.id === diagnosisId && d.patientUserId === patientUserId,
+    );
     if (!diagnosis) return [];
     return diagnosisStatusHistory
       .filter((h) => h.diagnosisId === diagnosisId)

@@ -1,47 +1,47 @@
-import { describe, expect, it } from "vitest";
-import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
-import { buildDoctorClientActiveProgramTree } from "./buildDoctorClientActiveProgramTree";
+import { describe, expect, it } from 'vitest';
+import type { TreatmentProgramInstanceDetail } from '@/modules/treatment-program/types';
+import { buildDoctorClientActiveProgramTree } from './buildDoctorClientActiveProgramTree';
 
 function baseDetail(
   overrides: Partial<TreatmentProgramInstanceDetail> & {
-    stages?: TreatmentProgramInstanceDetail["stages"];
+    stages?: TreatmentProgramInstanceDetail['stages'];
   } = {},
 ): TreatmentProgramInstanceDetail {
   return {
-    id: "inst-1",
-    title: "План реабилитации",
-    status: "active",
+    id: 'inst-1',
+    title: 'План реабилитации',
+    status: 'active',
     templateId: null,
-    patientUserId: "p1",
+    patientUserId: 'p1',
     assignedBy: null,
-    assignmentSource: "doctor",
+    assignmentSource: 'doctor',
     patientPlanLastOpenedAt: null,
-    createdAt: "2025-01-01T00:00:00.000Z",
-    updatedAt: "2025-01-01T00:00:00.000Z",
+    createdAt: '2025-01-01T00:00:00.000Z',
+    updatedAt: '2025-01-01T00:00:00.000Z',
     stages: [],
     ...overrides,
   };
 }
 
-describe("buildDoctorClientActiveProgramTree", () => {
-  it("returns null for non-active instance", () => {
-    expect(buildDoctorClientActiveProgramTree(baseDetail({ status: "completed" }))).toBeNull();
+describe('buildDoctorClientActiveProgramTree', () => {
+  it('returns null for non-active instance', () => {
+    expect(buildDoctorClientActiveProgramTree(baseDetail({ status: 'completed' }))).toBeNull();
   });
 
-  it("omits disabled items and orders active items by sortOrder", () => {
+  it('omits disabled items and orders active items by sortOrder', () => {
     const tree = buildDoctorClientActiveProgramTree(
       baseDetail({
         stages: [
           {
-            id: "st-1",
-            instanceId: "inst-1",
+            id: 'st-1',
+            instanceId: 'inst-1',
             sourceStageId: null,
-            title: "Этап 1",
+            title: 'Этап 1',
             description: null,
             sortOrder: 1,
             localComment: null,
             skipReason: null,
-            status: "in_progress",
+            status: 'in_progress',
             startedAt: null,
             goals: null,
             objectives: null,
@@ -50,57 +50,57 @@ describe("buildDoctorClientActiveProgramTree", () => {
             groups: [],
             items: [
               {
-                id: "item-disabled",
-                stageId: "st-1",
-                itemType: "recommendation",
-                itemRefId: "r0",
+                id: 'item-disabled',
+                stageId: 'st-1',
+                itemType: 'recommendation',
+                itemRefId: 'r0',
                 sortOrder: 0,
                 comment: null,
                 localComment: null,
                 settings: null,
-                snapshot: { title: "Скрытый" },
+                snapshot: { title: 'Скрытый' },
                 completedAt: null,
                 isActionable: true,
-                status: "disabled",
+                status: 'disabled',
                 groupId: null,
-                createdAt: "2025-01-01T00:00:00.000Z",
+                createdAt: '2025-01-01T00:00:00.000Z',
                 lastViewedAt: null,
                 effectiveComment: null,
               },
               {
-                id: "item-b",
-                stageId: "st-1",
-                itemType: "recommendation",
-                itemRefId: "r2",
+                id: 'item-b',
+                stageId: 'st-1',
+                itemType: 'recommendation',
+                itemRefId: 'r2',
                 sortOrder: 2,
                 comment: null,
                 localComment: null,
                 settings: null,
-                snapshot: { title: "Б" },
+                snapshot: { title: 'Б' },
                 completedAt: null,
                 isActionable: true,
-                status: "active",
+                status: 'active',
                 groupId: null,
-                createdAt: "2025-01-01T00:00:00.000Z",
+                createdAt: '2025-01-01T00:00:00.000Z',
                 lastViewedAt: null,
                 effectiveComment: null,
               },
               {
-                id: "item-a",
-                stageId: "st-1",
-                itemType: "recommendation",
-                itemRefId: "r1",
+                id: 'item-a',
+                stageId: 'st-1',
+                itemType: 'recommendation',
+                itemRefId: 'r1',
                 sortOrder: 1,
                 comment: null,
                 localComment: null,
                 settings: null,
-                snapshot: { title: "А" },
+                snapshot: { title: 'А' },
                 completedAt: null,
                 isActionable: true,
-                status: "active",
+                status: 'active',
                 groupId: null,
-                createdAt: "2025-01-01T00:00:00.000Z",
-                lastViewedAt: "2025-01-02T00:00:00.000Z",
+                createdAt: '2025-01-01T00:00:00.000Z',
+                lastViewedAt: '2025-01-02T00:00:00.000Z',
                 effectiveComment: null,
               },
             ],
@@ -109,29 +109,32 @@ describe("buildDoctorClientActiveProgramTree", () => {
       }),
     );
 
-    expect(tree?.defaultExpandedStageId).toBe("st-1");
+    expect(tree?.defaultExpandedStageId).toBe('st-1');
     expect(tree?.stages).toHaveLength(1);
-    expect(tree?.stages[0]?.statusLabel).toBe("В работе");
-    expect(tree?.stages[0]?.ungroupedItems.map((i) => i.title)).toEqual(["А", "Б"]);
-    expect(tree?.stages[0]?.ungroupedItems.map((i) => i.itemTypeLabel)).toEqual(["Рекомендация", "Рекомендация"]);
+    expect(tree?.stages[0]?.statusLabel).toBe('В работе');
+    expect(tree?.stages[0]?.ungroupedItems.map((i) => i.title)).toEqual(['А', 'Б']);
+    expect(tree?.stages[0]?.ungroupedItems.map((i) => i.itemTypeLabel)).toEqual([
+      'Рекомендация',
+      'Рекомендация',
+    ]);
     expect(tree?.stages[0]?.ungroupedItems[0]?.isNew).toBe(false);
     expect(tree?.stages[0]?.ungroupedItems[1]?.isNew).toBe(true);
   });
 
-  it("includes stage zero as separate block when it has active items", () => {
+  it('includes stage zero as separate block when it has active items', () => {
     const tree = buildDoctorClientActiveProgramTree(
       baseDetail({
         stages: [
           {
-            id: "st-0",
-            instanceId: "inst-1",
+            id: 'st-0',
+            instanceId: 'inst-1',
             sourceStageId: null,
-            title: "",
+            title: '',
             description: null,
             sortOrder: 0,
             localComment: null,
             skipReason: null,
-            status: "available",
+            status: 'available',
             startedAt: null,
             goals: null,
             objectives: null,
@@ -140,35 +143,35 @@ describe("buildDoctorClientActiveProgramTree", () => {
             groups: [],
             items: [
               {
-                id: "item-z",
-                stageId: "st-0",
-                itemType: "recommendation",
-                itemRefId: "rz",
+                id: 'item-z',
+                stageId: 'st-0',
+                itemType: 'recommendation',
+                itemRefId: 'rz',
                 sortOrder: 0,
                 comment: null,
                 localComment: null,
                 settings: null,
-                snapshot: { title: "Общая" },
+                snapshot: { title: 'Общая' },
                 completedAt: null,
                 isActionable: true,
-                status: "active",
+                status: 'active',
                 groupId: null,
-                createdAt: "2025-01-01T00:00:00.000Z",
+                createdAt: '2025-01-01T00:00:00.000Z',
                 lastViewedAt: null,
                 effectiveComment: null,
               },
             ],
           },
           {
-            id: "st-1",
-            instanceId: "inst-1",
+            id: 'st-1',
+            instanceId: 'inst-1',
             sourceStageId: null,
-            title: "Этап 1",
+            title: 'Этап 1',
             description: null,
             sortOrder: 1,
             localComment: null,
             skipReason: null,
-            status: "in_progress",
+            status: 'in_progress',
             startedAt: null,
             goals: null,
             objectives: null,
@@ -177,20 +180,20 @@ describe("buildDoctorClientActiveProgramTree", () => {
             groups: [],
             items: [
               {
-                id: "item-p",
-                stageId: "st-1",
-                itemType: "recommendation",
-                itemRefId: "rp",
+                id: 'item-p',
+                stageId: 'st-1',
+                itemType: 'recommendation',
+                itemRefId: 'rp',
                 sortOrder: 0,
                 comment: null,
                 localComment: null,
                 settings: null,
-                snapshot: { title: "Пункт" },
+                snapshot: { title: 'Пункт' },
                 completedAt: null,
                 isActionable: true,
-                status: "active",
+                status: 'active',
                 groupId: null,
-                createdAt: "2025-01-01T00:00:00.000Z",
+                createdAt: '2025-01-01T00:00:00.000Z',
                 lastViewedAt: null,
                 effectiveComment: null,
               },
@@ -200,21 +203,21 @@ describe("buildDoctorClientActiveProgramTree", () => {
       }),
     );
 
-    expect(tree?.stages.map((s) => s.id)).toEqual(["st-0", "st-1"]);
-    expect(tree?.stages[0]?.title).toBe("Общие рекомендации");
+    expect(tree?.stages.map((s) => s.id)).toEqual(['st-0', 'st-1']);
+    expect(tree?.stages[0]?.title).toBe('Общие рекомендации');
   });
 
-  it("does not default-expand an in-progress stage hidden from the tree", () => {
-    const emptyWorkingStage: TreatmentProgramInstanceDetail["stages"][number] = {
-      id: "st-empty",
-      instanceId: "inst-1",
+  it('does not default-expand an in-progress stage hidden from the tree', () => {
+    const emptyWorkingStage: TreatmentProgramInstanceDetail['stages'][number] = {
+      id: 'st-empty',
+      instanceId: 'inst-1',
       sourceStageId: null,
-      title: "Пустой этап",
+      title: 'Пустой этап',
       description: null,
       sortOrder: 1,
       localComment: null,
       skipReason: null,
-      status: "in_progress",
+      status: 'in_progress',
       startedAt: null,
       goals: null,
       objectives: null,
@@ -223,28 +226,28 @@ describe("buildDoctorClientActiveProgramTree", () => {
       groups: [],
       items: [],
     };
-    const visibleStage: TreatmentProgramInstanceDetail["stages"][number] = {
+    const visibleStage: TreatmentProgramInstanceDetail['stages'][number] = {
       ...emptyWorkingStage,
-      id: "st-visible",
-      title: "Следующий этап",
+      id: 'st-visible',
+      title: 'Следующий этап',
       sortOrder: 2,
-      status: "available",
+      status: 'available',
       items: [
         {
-          id: "item-visible",
-          stageId: "st-visible",
-          itemType: "clinical_test",
-          itemRefId: "test-1",
+          id: 'item-visible',
+          stageId: 'st-visible',
+          itemType: 'clinical_test',
+          itemRefId: 'test-1',
           sortOrder: 0,
           comment: null,
           localComment: null,
           settings: null,
-          snapshot: { title: "Тест" },
+          snapshot: { title: 'Тест' },
           completedAt: null,
           isActionable: true,
-          status: "active",
+          status: 'active',
           groupId: null,
-          createdAt: "2025-01-01T00:00:00.000Z",
+          createdAt: '2025-01-01T00:00:00.000Z',
           lastViewedAt: null,
           effectiveComment: null,
         },
@@ -257,8 +260,8 @@ describe("buildDoctorClientActiveProgramTree", () => {
       }),
     );
 
-    expect(tree?.stages.map((s) => s.id)).toEqual(["st-visible"]);
-    expect(tree?.defaultExpandedStageId).toBe("st-visible");
-    expect(tree?.stages[0]?.ungroupedItems[0]?.itemTypeLabel).toBe("Клинический тест");
+    expect(tree?.stages.map((s) => s.id)).toEqual(['st-visible']);
+    expect(tree?.defaultExpandedStageId).toBe('st-visible');
+    expect(tree?.stages[0]?.ungroupedItems[0]?.itemTypeLabel).toBe('Клинический тест');
   });
 });

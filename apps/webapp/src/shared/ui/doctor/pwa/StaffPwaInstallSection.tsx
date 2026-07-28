@@ -1,28 +1,28 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useState } from "react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
+import { useCallback, useEffect, useState } from 'react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
 import {
   isStaffPwaInstallComplete,
   markStaffPwaInstalled,
-} from "@/shared/lib/pwa/staffPwaInstallState";
-import { StaffPwaPushOptIn } from "@/shared/ui/doctor/pwa/StaffPwaPushOptIn";
+} from '@/shared/lib/pwa/staffPwaInstallState';
+import { StaffPwaPushOptIn } from '@/shared/ui/doctor/pwa/StaffPwaPushOptIn';
 
 type BeforeInstallPromptEventLike = Event & {
   prompt: () => Promise<void>;
-  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
 };
 
 function isIosTouchDevice(): boolean {
-  if (typeof navigator === "undefined") return false;
+  if (typeof navigator === 'undefined') return false;
   const ua = navigator.userAgent;
   if (/iPad|iPhone|iPod/i.test(ua)) return true;
   const maxTouchPoints = navigator.maxTouchPoints ?? 0;
-  return navigator.platform === "MacIntel" && maxTouchPoints > 1;
+  return navigator.platform === 'MacIntel' && maxTouchPoints > 1;
 }
 
 function isLikelySafariNotChromium(): boolean {
-  if (typeof navigator === "undefined") return false;
+  if (typeof navigator === 'undefined') return false;
   const ua = navigator.userAgent;
   if (/Chrome|CriOS|Edg|OPR|Opera|FxiOS|Firefox/i.test(ua)) return false;
   return /Safari/i.test(ua);
@@ -46,8 +46,8 @@ export function StaffPwaInstallSection() {
       setDeferredPrompt(null);
     };
 
-    window.addEventListener("beforeinstallprompt", onBeforeInstallPrompt);
-    window.addEventListener("appinstalled", onAppInstalled);
+    window.addEventListener('beforeinstallprompt', onBeforeInstallPrompt);
+    window.addEventListener('appinstalled', onAppInstalled);
 
     const t = window.setTimeout(() => {
       setMounted(true);
@@ -57,8 +57,8 @@ export function StaffPwaInstallSection() {
 
     return () => {
       window.clearTimeout(t);
-      window.removeEventListener("beforeinstallprompt", onBeforeInstallPrompt);
-      window.removeEventListener("appinstalled", onAppInstalled);
+      window.removeEventListener('beforeinstallprompt', onBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', onAppInstalled);
     };
   }, []);
 
@@ -88,7 +88,7 @@ export function StaffPwaInstallSection() {
     return (
       <div className="space-y-2 text-sm leading-relaxed text-muted-foreground">
         <p>
-          Меню <strong className="text-foreground">Поделиться</strong> →{" "}
+          Меню <strong className="text-foreground">Поделиться</strong> →{' '}
           <strong className="text-foreground">На экран «Домой»</strong>.
         </p>
         <p>После установки ярлык откроет кабинет специалиста.</p>
@@ -106,8 +106,9 @@ export function StaffPwaInstallSection() {
       <p className="text-sm text-muted-foreground">
         {isSafari ? (
           <>
-            На Mac — <strong className="text-foreground">Файл</strong> →{" "}
-            <strong className="text-foreground">Добавить в Dock</strong>. Либо откройте в Chrome или Edge.
+            На Mac — <strong className="text-foreground">Файл</strong> →{' '}
+            <strong className="text-foreground">Добавить в Dock</strong>. Либо откройте в Chrome или
+            Edge.
           </>
         ) : (
           <>Меню браузера (⋮) → «Установить приложение…».</>

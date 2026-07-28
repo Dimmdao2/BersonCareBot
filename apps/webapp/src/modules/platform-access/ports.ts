@@ -20,7 +20,7 @@ export function bindPlatformAccessPort(port: PlatformAccessPort): void {
 
 export function getPlatformAccessPort(): PlatformAccessPort {
   if (!boundPlatformAccessPort) {
-    throw new Error("platform_access_port_not_bound");
+    throw new Error('platform_access_port_not_bound');
   }
   return boundPlatformAccessPort;
 }

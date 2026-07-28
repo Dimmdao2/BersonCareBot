@@ -1,36 +1,29 @@
-"use client";
+'use client';
 
-import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import { isSectionSlugProtectedFromDelete, isSystemParentCode } from "@/modules/content-sections/types";
-import type { ContentSectionRow } from "@/modules/content-sections/ports";
-import type { SystemParentCode } from "@/modules/content-sections/types";
-import { DataLoadFailureNotice } from "@/shared/ui/doctor/DataLoadFailureNotice";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { CatalogLeftPane } from "@/shared/ui/doctor/catalog/CatalogLeftPane";
-import { CatalogRightPane } from "@/shared/ui/doctor/catalog/CatalogRightPane";
-import { CatalogSplitLayout } from "@/shared/ui/doctor/catalog/CatalogSplitLayout";
-import { DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE } from "@/shared/ui/doctor/doctorWorkspaceLayout";
-import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
+import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
-  ContentNav,
-  useContentNavState,
-  type ContentNavSectionEntry,
-} from "./ContentNav";
-import {
-  ContentPagesSectionList,
-  type ContentPageListRow,
-} from "./ContentPagesSectionList";
-import type { ContentRatingSummary } from "./ContentRatingChip";
-import { ContentForm, type PublishedCourseOption } from "./ContentForm";
-import { AttachExistingSectionsModal } from "./AttachExistingSectionsModal";
-import {
-  useInlineContentEditor,
-  ContentEditorRightPane,
-} from "./ContentEditorRightPane";
-import { SYSTEM_PARENT_CODES } from "@/modules/content-sections/types";
-import { SectionForm } from "./sections/SectionForm";
-import { contentMobileBackTarget } from "./contentMobileBack";
+  isSectionSlugProtectedFromDelete,
+  isSystemParentCode,
+} from '@/modules/content-sections/types';
+import type { ContentSectionRow } from '@/modules/content-sections/ports';
+import type { SystemParentCode } from '@/modules/content-sections/types';
+import { DataLoadFailureNotice } from '@/shared/ui/doctor/DataLoadFailureNotice';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { CatalogLeftPane } from '@/shared/ui/doctor/catalog/CatalogLeftPane';
+import { CatalogRightPane } from '@/shared/ui/doctor/catalog/CatalogRightPane';
+import { CatalogSplitLayout } from '@/shared/ui/doctor/catalog/CatalogSplitLayout';
+import { DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE } from '@/shared/ui/doctor/doctorWorkspaceLayout';
+import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
+import { ContentNav, useContentNavState, type ContentNavSectionEntry } from './ContentNav';
+import { ContentPagesSectionList, type ContentPageListRow } from './ContentPagesSectionList';
+import type { ContentRatingSummary } from './ContentRatingChip';
+import { ContentForm, type PublishedCourseOption } from './ContentForm';
+import { AttachExistingSectionsModal } from './AttachExistingSectionsModal';
+import { useInlineContentEditor, ContentEditorRightPane } from './ContentEditorRightPane';
+import { SYSTEM_PARENT_CODES } from '@/modules/content-sections/types';
+import { SectionForm } from './sections/SectionForm';
+import { contentMobileBackTarget } from './contentMobileBack';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -40,8 +33,8 @@ export type ContentHubSection = {
   slug: string;
   title: string;
   isVisible: boolean;
-  kind: ContentSectionRow["kind"];
-  systemParentCode: ContentSectionRow["systemParentCode"];
+  kind: ContentSectionRow['kind'];
+  systemParentCode: ContentSectionRow['systemParentCode'];
   sortOrder: number;
 };
 
@@ -63,10 +56,10 @@ export type ContentHubShellProps = {
 // ---------------------------------------------------------------------------
 
 const SYSTEM_FOLDER_LABELS: Record<string, string> = {
-  situations: "Ситуации",
-  sos: "SOS",
-  warmups: "Разминки",
-  lessons: "Уроки · Новости · Мотивации",
+  situations: 'Ситуации',
+  sos: 'SOS',
+  warmups: 'Разминки',
+  lessons: 'Уроки · Новости · Мотивации',
 };
 
 function SystemFolderPane({
@@ -90,17 +83,17 @@ function SystemFolderPane({
   const childSections = useMemo(
     () =>
       sections
-        .filter((s) => s.kind === "system" && s.systemParentCode === folderCode)
-        .sort((a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title, "ru")),
+        .filter((s) => s.kind === 'system' && s.systemParentCode === folderCode)
+        .sort((a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title, 'ru')),
     [sections, folderCode],
   );
 
   const freeSections = useMemo(
     () =>
       sections
-        .filter((s) => s.kind === "article")
+        .filter((s) => s.kind === 'article')
         .map((s) => ({ slug: s.slug, title: s.title }))
-        .sort((a, b) => a.title.localeCompare(b.title, "ru")),
+        .sort((a, b) => a.title.localeCompare(b.title, 'ru')),
     [sections],
   );
 
@@ -108,10 +101,7 @@ function SystemFolderPane({
     <div className="flex flex-wrap items-center justify-between gap-2">
       <h2 className="m-0 text-base font-semibold">{label}</h2>
       <div className="ml-auto flex flex-wrap items-center gap-1.5">
-        <AttachExistingSectionsModal
-          folderCode={folderCode}
-          freeSections={freeSections}
-        />
+        <AttachExistingSectionsModal folderCode={folderCode} freeSections={freeSections} />
       </div>
     </div>
   );
@@ -130,29 +120,29 @@ function SystemFolderPane({
   }
 
   return (
-      <div className="flex flex-col gap-4">
-        {folderHeader}
-        <div className="flex flex-col gap-8">
-          {childSections.map((sec) => {
-            const rows = pagesBySectionSlug[sec.slug] ?? [];
-            return (
-              <ContentPagesSectionList
-                key={sec.slug}
-                sectionSlug={sec.slug}
-                sectionTitle={sec.title}
-                initialPages={rows}
-                ratingsById={ratingsById}
-                newPageSystemParentCode={folderCode}
-                sectionSettingsHref={`/app/doctor/content/sections/edit/${encodeURIComponent(sec.slug)}`}
-                allowDeleteSection={!isSectionSlugProtectedFromDelete(sec.slug)}
-                pagesInSectionCount={rows.length}
-                selectedPageId={selectedPageId}
-                onSelectPage={onSelectPage}
-                onCreatePage={onCreatePage}
-              />
-            );
-          })}
-        </div>
+    <div className="flex flex-col gap-4">
+      {folderHeader}
+      <div className="flex flex-col gap-8">
+        {childSections.map((sec) => {
+          const rows = pagesBySectionSlug[sec.slug] ?? [];
+          return (
+            <ContentPagesSectionList
+              key={sec.slug}
+              sectionSlug={sec.slug}
+              sectionTitle={sec.title}
+              initialPages={rows}
+              ratingsById={ratingsById}
+              newPageSystemParentCode={folderCode}
+              sectionSettingsHref={`/app/doctor/content/sections/edit/${encodeURIComponent(sec.slug)}`}
+              allowDeleteSection={!isSectionSlugProtectedFromDelete(sec.slug)}
+              pagesInSectionCount={rows.length}
+              selectedPageId={selectedPageId}
+              onSelectPage={onSelectPage}
+              onCreatePage={onCreatePage}
+            />
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -183,7 +173,7 @@ function ArticleSectionPane({
   const sec = sections.find((s) => s.slug === sectionSlug);
   const pages = pagesBySectionSlug[sectionSlug] ?? [];
   const newPageSystemParentCode =
-    sec?.kind === "system" && sec.systemParentCode ? sec.systemParentCode : undefined;
+    sec?.kind === 'system' && sec.systemParentCode ? sec.systemParentCode : undefined;
 
   return (
     <div className="flex flex-col gap-4">
@@ -224,14 +214,17 @@ function computeCountsByPaneKey(
   // System folder pane keys: sum pages across all child subsections
   for (const code of SYSTEM_PARENT_CODES) {
     const childSlugs = sections
-      .filter((s) => s.kind === "system" && s.systemParentCode === code)
+      .filter((s) => s.kind === 'system' && s.systemParentCode === code)
       .map((s) => s.slug);
-    counts[code] = childSlugs.reduce((sum, slug) => sum + (pagesBySectionSlug[slug]?.length ?? 0), 0);
+    counts[code] = childSlugs.reduce(
+      (sum, slug) => sum + (pagesBySectionSlug[slug]?.length ?? 0),
+      0,
+    );
   }
 
   // Article section pane keys: direct pages for that slug
   for (const sec of sections) {
-    if (sec.kind === "article") {
+    if (sec.kind === 'article') {
       counts[`section:${sec.slug}`] = pagesBySectionSlug[sec.slug]?.length ?? 0;
     }
   }
@@ -260,7 +253,7 @@ export function ContentHubShell({
   const articleSectionEntries: ContentNavSectionEntry[] = useMemo(
     () =>
       sections
-        .filter((s) => s.kind === "article")
+        .filter((s) => s.kind === 'article')
         .map((s) => ({ slug: s.slug, title: s.title, isVisible: s.isVisible })),
     [sections],
   );
@@ -332,8 +325,8 @@ export function ContentHubShell({
       );
     }
 
-    if (activePaneKey.startsWith("section:")) {
-      const slug = activePaneKey.slice("section:".length);
+    if (activePaneKey.startsWith('section:')) {
+      const slug = activePaneKey.slice('section:'.length);
       const sec = sections.find((s) => s.slug === slug);
       if (!sec) {
         return <p className="px-2 text-xs text-muted-foreground">Раздел не найден.</p>;
@@ -411,18 +404,23 @@ export function ContentHubShell({
 
   return (
     <>
-      <DoctorPageHeader
-        id="doctor-content-header"
-        title="Контент"
-      />
+      <DoctorPageHeader id="doctor-content-header" title="Контент" />
       <CatalogSplitLayout
-        left={<CatalogLeftPane stickySplit={false} className="lg:h-full">{renderLeftPanel()}</CatalogLeftPane>}
+        left={
+          <CatalogLeftPane stickySplit={false} className="lg:h-full">
+            {renderLeftPanel()}
+          </CatalogLeftPane>
+        }
         right={
           <CatalogRightPane contentClassName="px-4 py-4 md:px-5 md:py-5">
             {renderRightPanel()}
           </CatalogRightPane>
         }
-        mobileView={mobileDetail || creatingSection || creatingPageSection || editor.selectedPageId ? "detail" : "list"}
+        mobileView={
+          mobileDetail || creatingSection || creatingPageSection || editor.selectedPageId
+            ? 'detail'
+            : 'list'
+        }
         mobileBackSlot={
           <Button
             type="button"
@@ -434,12 +432,12 @@ export function ContentHubShell({
                 editingPage: editor.selectedPageId !== null,
                 creatingPage: creatingPageSection !== null,
               });
-              if (target === "materials" && editor.selectedPageId) {
+              if (target === 'materials' && editor.selectedPageId) {
                 editor.clear();
                 setMobileDetail(true);
                 return;
               }
-              if (target === "materials" && creatingPageSection) {
+              if (target === 'materials' && creatingPageSection) {
                 setCreatingPageSection(null);
                 setMobileDetail(true);
                 return;
@@ -448,7 +446,7 @@ export function ContentHubShell({
               setMobileDetail(false);
             }}
           >
-            ← {editor.selectedPageId || creatingPageSection ? "К материалам" : "К разделам"}
+            ← {editor.selectedPageId || creatingPageSection ? 'К материалам' : 'К разделам'}
           </Button>
         }
         className={DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE}

@@ -1,19 +1,17 @@
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
-import {
-  emitPackageLinkedCalendarSync,
-} from "@/app-layer/booking/emitPackageCalendarSync";
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
+import { emitPackageLinkedCalendarSync } from '@/app-layer/booking/emitPackageCalendarSync';
 import {
   staffBookingContactNameFromAppointment,
   staffBookingServiceTitleFromAppointment,
-} from "@/app-layer/booking/staffBookingIntegratorEvent";
-import { createBookingSyncPort } from "@/modules/integrator/bookingM2mApi";
+} from '@/app-layer/booking/staffBookingIntegratorEvent';
+import { createBookingSyncPort } from '@/modules/integrator/bookingM2mApi';
 import {
   requireDoctorBookingEngine,
   type DoctorBookingEngineContext,
-} from "../../_requireDoctorBookingEngine";
+} from '../../_requireDoctorBookingEngine';
 
 const bodySchema = z.object({
   branchId: z.string().uuid().nullable().optional(),
@@ -38,7 +36,7 @@ export async function POST(request: Request) {
   if (!gate.ok) return gate.response;
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
   const { ctx } = gate;
   const deps = buildAppDeps();
@@ -50,114 +48,121 @@ export async function POST(request: Request) {
   // any occupied slot. ONLINE patient bookings legitimately use NULL, but they
   // never reach this route. (F2: null-specialist overlap escape.)
   try {
-    const appointment = await withDoctorWorkspacePrincipal(ctx, "doctor.booking-engine.appointments.manual-create", async () => {
-      const resolvedSpecialistId =
-        parsed.data.specialistId ?? (await resolveDefaultSpecialistId(ctx));
-      if (!resolvedSpecialistId) throw new Error("specialist_required");
-      if (deps.bookingScheduling) {
-        await deps.bookingScheduling.assertSlotAvailable({
-          organizationId: ctx.organizationId,
-          specialistId: resolvedSpecialistId,
-          roomId: parsed.data.roomId ?? null,
-          slotStart: parsed.data.startAt,
-          slotEnd: parsed.data.endAt,
-          durationMinutes: parsed.data.durationMinutes,
-        });
-      }
-      if (parsed.data.platformUserId) {
-        const isSchedulableClient =
-          await deps.patientOrganization?.hasSchedulableClientRelationship(
-          parsed.data.platformUserId,
-          ctx.organizationId,
-        );
-        if (!isSchedulableClient) throw new Error("patient_not_available");
-      }
-      let created = await ctx.service.createAppointment({
-        organizationId: ctx.organizationId,
-        branchId: parsed.data.branchId ?? null,
-        roomId: parsed.data.roomId ?? null,
-        specialistId: resolvedSpecialistId,
-        serviceId: parsed.data.serviceId ?? null,
-        platformUserId: parsed.data.platformUserId ?? null,
-        startAt: parsed.data.startAt,
-        endAt: parsed.data.endAt,
-        durationMinutes: parsed.data.durationMinutes,
-        source: "admin_manual",
-        status: "confirmed",
-        phoneNormalized: parsed.data.phoneNormalized ?? null,
-        actorId: ctx.session.user.userId,
-      });
-      try {
-        if (
-          parsed.data.platformUserId &&
-          parsed.data.serviceId &&
-          deps.memberships
-        ) {
-          const picked = await deps.memberships.pickAutoPackageForBooking(
-            parsed.data.platformUserId,
-            ctx.organizationId,
-            parsed.data.serviceId,
-          );
-          if (picked) {
-            await deps.memberships.reserveForAppointment({
-              organizationId: ctx.organizationId,
-              patientPackageId: picked.id,
-              serviceId: parsed.data.serviceId,
-              appointmentId: created.id,
-              platformUserId: parsed.data.platformUserId,
-            });
-            const fresh = await ctx.service.getAppointment(created.id);
-            if (fresh) created = fresh;
-            await emitPackageLinkedCalendarSync(syncPort, created);
-          }
+    const appointment = await withDoctorWorkspacePrincipal(
+      ctx,
+      'doctor.booking-engine.appointments.manual-create',
+      async () => {
+        const resolvedSpecialistId =
+          parsed.data.specialistId ?? (await resolveDefaultSpecialistId(ctx));
+        if (!resolvedSpecialistId) throw new Error('specialist_required');
+        if (deps.bookingScheduling) {
+          await deps.bookingScheduling.assertSlotAvailable({
+            organizationId: ctx.organizationId,
+            specialistId: resolvedSpecialistId,
+            roomId: parsed.data.roomId ?? null,
+            slotStart: parsed.data.startAt,
+            slotEnd: parsed.data.endAt,
+            durationMinutes: parsed.data.durationMinutes,
+          });
         }
-      } catch {
-        // The appointment is already committed; optional package enrichment cannot reverse the API result.
-      }
-      let bookingRow: Awaited<
-        ReturnType<NonNullable<typeof deps.patientBooking>["getBookingByCanonicalAppointment"]>
-      > = null;
-      try {
-        bookingRow = deps.patientBooking
-          ? await deps.patientBooking.getBookingByCanonicalAppointment(created.id)
-          : null;
-      } catch {
-        // Optional compatibility projection read; the canonical appointment remains authoritative.
-      }
-      try {
-        await syncPort.emitBookingEvent({
-          eventType: "booking.created",
-          idempotencyKey: `staff.booking.created:${created.id}:${created.startAt}`,
-          payload: {
-            organizationId: created.organizationId,
-            bookingId: bookingRow?.id ?? created.id,
-            userId: bookingRow?.userId ?? created.platformUserId ?? created.id,
-            bookingType: bookingRow?.bookingType ?? "in_person",
-            city: bookingRow?.city ?? undefined,
-            category: bookingRow?.category ?? "general",
-            slotStart: created.startAt,
-            slotEnd: created.endAt,
-            contactName: bookingRow?.contactName ?? staffBookingContactNameFromAppointment(created),
-            contactPhone: bookingRow?.contactPhone ?? created.phoneNormalized ?? "+70000000000",
-            contactEmail: bookingRow?.contactEmail ?? undefined,
-            cityCodeSnapshot: bookingRow?.cityCodeSnapshot ?? null,
-            serviceTitleSnapshot: staffBookingServiceTitleFromAppointment(created, bookingRow),
-            canonicalAppointmentId: created.id,
-          },
+        if (parsed.data.platformUserId) {
+          const isSchedulableClient =
+            await deps.patientOrganization?.hasSchedulableClientRelationship(
+              parsed.data.platformUserId,
+              ctx.organizationId,
+            );
+          if (!isSchedulableClient) throw new Error('patient_not_available');
+        }
+        let created = await ctx.service.createAppointment({
+          organizationId: ctx.organizationId,
+          branchId: parsed.data.branchId ?? null,
+          roomId: parsed.data.roomId ?? null,
+          specialistId: resolvedSpecialistId,
+          serviceId: parsed.data.serviceId ?? null,
+          platformUserId: parsed.data.platformUserId ?? null,
+          startAt: parsed.data.startAt,
+          endAt: parsed.data.endAt,
+          durationMinutes: parsed.data.durationMinutes,
+          source: 'admin_manual',
+          status: 'confirmed',
+          phoneNormalized: parsed.data.phoneNormalized ?? null,
+          actorId: ctx.session.user.userId,
         });
-      } catch {
-        // Lifecycle event is best-effort for a committed staff manual create.
-      }
-      return created;
-    });
+        try {
+          if (parsed.data.platformUserId && parsed.data.serviceId && deps.memberships) {
+            const picked = await deps.memberships.pickAutoPackageForBooking(
+              parsed.data.platformUserId,
+              ctx.organizationId,
+              parsed.data.serviceId,
+            );
+            if (picked) {
+              await deps.memberships.reserveForAppointment({
+                organizationId: ctx.organizationId,
+                patientPackageId: picked.id,
+                serviceId: parsed.data.serviceId,
+                appointmentId: created.id,
+                platformUserId: parsed.data.platformUserId,
+              });
+              const fresh = await ctx.service.getAppointment(created.id);
+              if (fresh) created = fresh;
+              await emitPackageLinkedCalendarSync(syncPort, created);
+            }
+          }
+        } catch {
+          // The appointment is already committed; optional package enrichment cannot reverse the API result.
+        }
+        let bookingRow: Awaited<
+          ReturnType<NonNullable<typeof deps.patientBooking>['getBookingByCanonicalAppointment']>
+        > = null;
+        try {
+          bookingRow = deps.patientBooking
+            ? await deps.patientBooking.getBookingByCanonicalAppointment(created.id)
+            : null;
+        } catch {
+          // Optional compatibility projection read; the canonical appointment remains authoritative.
+        }
+        try {
+          await syncPort.emitBookingEvent({
+            eventType: 'booking.created',
+            idempotencyKey: `staff.booking.created:${created.id}:${created.startAt}`,
+            payload: {
+              organizationId: created.organizationId,
+              bookingId: bookingRow?.id ?? created.id,
+              userId: bookingRow?.userId ?? created.platformUserId ?? created.id,
+              bookingType: bookingRow?.bookingType ?? 'in_person',
+              city: bookingRow?.city ?? undefined,
+              category: bookingRow?.category ?? 'general',
+              slotStart: created.startAt,
+              slotEnd: created.endAt,
+              contactName:
+                bookingRow?.contactName ?? staffBookingContactNameFromAppointment(created),
+              contactPhone: bookingRow?.contactPhone ?? created.phoneNormalized ?? '+70000000000',
+              contactEmail: bookingRow?.contactEmail ?? undefined,
+              cityCodeSnapshot: bookingRow?.cityCodeSnapshot ?? null,
+              serviceTitleSnapshot: staffBookingServiceTitleFromAppointment(created, bookingRow),
+              canonicalAppointmentId: created.id,
+            },
+          });
+        } catch {
+          // Lifecycle event is best-effort for a committed staff manual create.
+        }
+        return created;
+      },
+    );
     return NextResponse.json({ ok: true, appointment });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "create_failed";
-    if (message === "slot_overlap" || (typeof err === "object" && err !== null && "code" in err && (err as { code: string }).code === "23P01")) {
-      return NextResponse.json({ ok: false, error: "slot_overlap" }, { status: 409 });
+    const message = err instanceof Error ? err.message : 'create_failed';
+    if (
+      message === 'slot_overlap' ||
+      (typeof err === 'object' &&
+        err !== null &&
+        'code' in err &&
+        (err as { code: string }).code === '23P01')
+    ) {
+      return NextResponse.json({ ok: false, error: 'slot_overlap' }, { status: 409 });
     }
-    if (message === "patient_not_available") {
-      return NextResponse.json({ ok: false, error: "patient_not_available" }, { status: 404 });
+    if (message === 'patient_not_available') {
+      return NextResponse.json({ ok: false, error: 'patient_not_available' }, { status: 404 });
     }
     return NextResponse.json({ ok: false, error: message }, { status: 400 });
   }

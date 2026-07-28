@@ -1,12 +1,12 @@
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
-import { routePaths } from "@/app-layer/routes/paths";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { requirePatientApiBusinessAccess } from '@/app-layer/guards/requireRole';
+import { routePaths } from '@/app-layer/routes/paths';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 
 const metricsBodySchema = z
   .object({
-    perceivedDifficulty: z.enum(["easy", "medium", "hard"]).optional(),
+    perceivedDifficulty: z.enum(['easy', 'medium', 'hard']).optional(),
     reps: z.number().int().positive().max(5000).optional(),
     sets: z.number().int().positive().max(500).optional(),
     weightKg: z.number().min(0).max(500).optional(),
@@ -14,7 +14,9 @@ const metricsBodySchema = z
   .strict();
 
 function validateIds(instanceId: string, itemId: string): boolean {
-  return z.string().uuid().safeParse(instanceId).success && z.string().uuid().safeParse(itemId).success;
+  return (
+    z.string().uuid().safeParse(instanceId).success && z.string().uuid().safeParse(itemId).success
+  );
 }
 
 export async function GET(
@@ -26,7 +28,7 @@ export async function GET(
 
   const { instanceId, itemId } = await context.params;
   if (!validateIds(instanceId, itemId)) {
-    return NextResponse.json({ ok: false, error: "invalid_id" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_id' }, { status: 400 });
   }
 
   const deps = buildAppDeps();
@@ -47,18 +49,18 @@ export async function PATCH(
 
   const { instanceId, itemId } = await context.params;
   if (!validateIds(instanceId, itemId)) {
-    return NextResponse.json({ ok: false, error: "invalid_id" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_id' }, { status: 400 });
   }
 
   let bodyJson: unknown;
   try {
     bodyJson = await request.json();
   } catch {
-    return NextResponse.json({ ok: false, error: "invalid_json" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_json' }, { status: 400 });
   }
   const parsed = metricsBodySchema.safeParse(bodyJson);
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
 
   const deps = buildAppDeps();
@@ -71,7 +73,7 @@ export async function PATCH(
     });
     return NextResponse.json({ ok: true });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "error";
+    const msg = e instanceof Error ? e.message : 'error';
     return NextResponse.json({ ok: false, error: msg }, { status: 404 });
   }
 }

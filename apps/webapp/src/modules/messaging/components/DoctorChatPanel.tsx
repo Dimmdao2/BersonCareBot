@@ -1,14 +1,14 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
-import { MessageComposer } from "@/shared/ui/chat/MessageComposer";
-import { cn } from "@/lib/utils";
-import { ChatView } from "@/modules/messaging/components/ChatView";
-import { notifyDoctorSupportUnreadCountChanged } from "@/modules/messaging/hooks/useSupportUnreadPolling";
-import { useMessagePolling } from "@/modules/messaging/hooks/useMessagePolling";
-import type { SerializedSupportMessage } from "@/modules/messaging/serializeSupportMessage";
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
+import { MessageComposer } from '@/shared/ui/chat/MessageComposer';
+import { cn } from '@/lib/utils';
+import { ChatView } from '@/modules/messaging/components/ChatView';
+import { notifyDoctorSupportUnreadCountChanged } from '@/modules/messaging/hooks/useSupportUnreadPolling';
+import { useMessagePolling } from '@/modules/messaging/hooks/useMessagePolling';
+import type { SerializedSupportMessage } from '@/modules/messaging/serializeSupportMessage';
 
 type DoctorChatPanelProps = {
   conversationId: string;
@@ -23,12 +23,12 @@ export function DoctorChatPanel({
   conversationId,
   initialMessages,
   className,
-  emptyText = "Нет сообщений в этом диалоге.",
+  emptyText = 'Нет сообщений в этом диалоге.',
   onReadStateChanged,
   onSent,
 }: DoctorChatPanelProps) {
   const [messages, setMessages] = useState<SerializedSupportMessage[]>(initialMessages ?? []);
-  const [draft, setDraft] = useState("");
+  const [draft, setDraft] = useState('');
   const [loading, setLoading] = useState(!initialMessages);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -38,7 +38,7 @@ export function DoctorChatPanel({
   const markRead = useCallback(async () => {
     try {
       const res = await fetch(`/api/doctor/messages/${encodeURIComponent(conversationId)}/read`, {
-        method: "POST",
+        method: 'POST',
       });
       if (res.ok) {
         notifyDoctorSupportUnreadCountChanged();
@@ -54,19 +54,19 @@ export function DoctorChatPanel({
       const res = await fetch(`/api/doctor/messages/${encodeURIComponent(conversationId)}`);
       const data = (await res.json()) as { ok?: boolean; messages?: SerializedSupportMessage[] };
       if (!res.ok || !data.ok) {
-        setError("Не удалось загрузить сообщения");
+        setError('Не удалось загрузить сообщения');
         return;
       }
       setMessages(data.messages ?? []);
       await markRead();
     } catch {
-      setError("Не удалось загрузить сообщения");
+      setError('Не удалось загрузить сообщения');
     }
   }, [conversationId, markRead]);
 
   useEffect(() => {
     let cancelled = false;
-    setDraft("");
+    setDraft('');
     setError(null);
     setLoading(true);
     (async () => {
@@ -95,7 +95,7 @@ export function DoctorChatPanel({
       if (!res.ok || !data.ok) return;
       const list = data.messages ?? [];
       setMessages(list);
-      if (list.some((m) => m.senderRole === "user" && !m.readAt)) {
+      if (list.some((m) => m.senderRole === 'user' && !m.readAt)) {
         await markRead();
       }
     } catch {
@@ -112,21 +112,21 @@ export function DoctorChatPanel({
     setError(null);
     try {
       const res = await fetch(`/api/doctor/messages/${encodeURIComponent(conversationId)}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: t }),
       });
       const data = (await res.json()) as { ok?: boolean };
       if (!res.ok || !data.ok) {
-        setError("Не отправлено");
+        setError('Не отправлено');
         return;
       }
-      setDraft("");
+      setDraft('');
       setReplyTarget(null);
       await loadMessages();
       await onSent?.();
     } catch {
-      setError("Ошибка сети");
+      setError('Ошибка сети');
     } finally {
       setSending(false);
     }
@@ -150,34 +150,36 @@ export function DoctorChatPanel({
       maxLength={4000}
       textareaRef={textareaRef}
       className="flex shrink-0 flex-col gap-2 border-t border-border pt-3"
-      header={replyTarget ? (
-        <div className="rounded-md border border-border bg-muted/30 px-2 py-1.5 text-xs text-muted-foreground">
-          <div className="flex items-start gap-2">
-            <span className="min-w-0 flex-1 truncate">
-              Ответ на: {replyTarget.text || "сообщение с вложением"}
-            </span>
-            <button
-              type="button"
-              className="shrink-0 font-medium text-foreground/70 hover:text-foreground"
-              onClick={() => setReplyTarget(null)}
-              aria-label="Убрать выбранное сообщение"
-            >
-              x
-            </button>
+      header={
+        replyTarget ? (
+          <div className="rounded-md border border-border bg-muted/30 px-2 py-1.5 text-xs text-muted-foreground">
+            <div className="flex items-start gap-2">
+              <span className="min-w-0 flex-1 truncate">
+                Ответ на: {replyTarget.text || 'сообщение с вложением'}
+              </span>
+              <button
+                type="button"
+                className="shrink-0 font-medium text-foreground/70 hover:text-foreground"
+                onClick={() => setReplyTarget(null)}
+                aria-label="Убрать выбранное сообщение"
+              >
+                x
+              </button>
+            </div>
           </div>
-        </div>
-      ) : null}
+        ) : null
+      }
       renderTextarea={(props) => <Textarea {...props} className="min-h-[88px] resize-y" />}
       renderSubmit={(props) => <Button {...props} />}
     />
   );
 
   if (loading) {
-    return <p className={cn("text-sm text-muted-foreground", className)}>Загрузка сообщений...</p>;
+    return <p className={cn('text-sm text-muted-foreground', className)}>Загрузка сообщений...</p>;
   }
 
   return (
-    <div className={cn("flex min-h-0 min-w-0 flex-col", className)}>
+    <div className={cn('flex min-h-0 min-w-0 flex-col', className)}>
       {error ? <p className="mb-2 shrink-0 text-sm text-destructive">{error}</p> : null}
       <ChatView
         variant="doctor"

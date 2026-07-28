@@ -1,4 +1,4 @@
-import { intervalsOverlap } from "@/modules/patient-booking/slotOverlap";
+import { intervalsOverlap } from '@/modules/patient-booking/slotOverlap';
 
 export type TimeInterval = { startMs: number; endMs: number };
 
@@ -38,8 +38,18 @@ export function splitByBreak(
   bufferMinutes: number,
 ): TimeInterval[] {
   if (row.isClosed || row.startMinute == null || row.endMinute == null) return [];
-  const startIso = wallClockToUtcIso(dateKey, Math.floor(row.startMinute / 60), row.startMinute % 60, timeZone);
-  const endIso = wallClockToUtcIso(dateKey, Math.floor(row.endMinute / 60), row.endMinute % 60, timeZone);
+  const startIso = wallClockToUtcIso(
+    dateKey,
+    Math.floor(row.startMinute / 60),
+    row.startMinute % 60,
+    timeZone,
+  );
+  const endIso = wallClockToUtcIso(
+    dateKey,
+    Math.floor(row.endMinute / 60),
+    row.endMinute % 60,
+    timeZone,
+  );
   const dayStartMs = new Date(startIso).getTime() + bufferMinutes * 60_000;
   const dayEndMs = new Date(endIso).getTime() - bufferMinutes * 60_000;
   if (dayEndMs <= dayStartMs) return [];
@@ -57,8 +67,18 @@ export function splitByBreak(
   let cursorMs = dayStartMs;
 
   for (const brk of sorted) {
-    const bsIso = wallClockToUtcIso(dateKey, Math.floor(brk.startMinute / 60), brk.startMinute % 60, timeZone);
-    const beIso = wallClockToUtcIso(dateKey, Math.floor(brk.endMinute / 60), brk.endMinute % 60, timeZone);
+    const bsIso = wallClockToUtcIso(
+      dateKey,
+      Math.floor(brk.startMinute / 60),
+      brk.startMinute % 60,
+      timeZone,
+    );
+    const beIso = wallClockToUtcIso(
+      dateKey,
+      Math.floor(brk.endMinute / 60),
+      brk.endMinute % 60,
+      timeZone,
+    );
     const bsMs = new Date(bsIso).getTime();
     const beMs = new Date(beIso).getTime();
 
@@ -94,46 +114,51 @@ export function pickWorkingHours(rows: WorkingHoursRow[]): WorkingHoursRow[] {
 /** Local calendar date YYYY-MM-DD in IANA timezone. */
 export function localDateKey(isoUtc: string, timeZone: string): string {
   const d = new Date(isoUtc);
-  const parts = new Intl.DateTimeFormat("en-CA", {
+  const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
   }).formatToParts(d);
-  const y = parts.find((p) => p.type === "year")?.value ?? "1970";
-  const m = parts.find((p) => p.type === "month")?.value ?? "01";
-  const day = parts.find((p) => p.type === "day")?.value ?? "01";
+  const y = parts.find((p) => p.type === 'year')?.value ?? '1970';
+  const m = parts.find((p) => p.type === 'month')?.value ?? '01';
+  const day = parts.find((p) => p.type === 'day')?.value ?? '01';
   return `${y}-${m}-${day}`;
 }
 
 export function localWeekday(dateKey: string, timeZone: string): number {
   const noonUtc = wallClockToUtcIso(dateKey, 12, 0, timeZone);
   const d = new Date(noonUtc);
-  const wd = new Intl.DateTimeFormat("en-US", { timeZone, weekday: "short" }).format(d);
+  const wd = new Intl.DateTimeFormat('en-US', { timeZone, weekday: 'short' }).format(d);
   const map: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
   return map[wd] ?? new Date(noonUtc).getUTCDay();
 }
 
-export function wallClockToUtcIso(dateKey: string, hour: number, minute: number, timeZone: string): string {
-  const [y, m, d] = dateKey.split("-").map(Number);
+export function wallClockToUtcIso(
+  dateKey: string,
+  hour: number,
+  minute: number,
+  timeZone: string,
+): string {
+  const [y, m, d] = dateKey.split('-').map(Number);
   const guess = new Date(Date.UTC(y, m - 1, d, hour, minute, 0));
-  const formatter = new Intl.DateTimeFormat("en-US", {
+  const formatter = new Intl.DateTimeFormat('en-US', {
     timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
     hour12: false,
   });
   for (let offsetMin = -14 * 60; offsetMin <= 14 * 60; offsetMin += 15) {
     const candidate = new Date(guess.getTime() + offsetMin * 60_000);
     const parts = formatter.formatToParts(candidate);
-    const py = Number(parts.find((p) => p.type === "year")?.value);
-    const pm = Number(parts.find((p) => p.type === "month")?.value);
-    const pd = Number(parts.find((p) => p.type === "day")?.value);
-    const ph = Number(parts.find((p) => p.type === "hour")?.value);
-    const pmin = Number(parts.find((p) => p.type === "minute")?.value);
+    const py = Number(parts.find((p) => p.type === 'year')?.value);
+    const pm = Number(parts.find((p) => p.type === 'month')?.value);
+    const pd = Number(parts.find((p) => p.type === 'day')?.value);
+    const ph = Number(parts.find((p) => p.type === 'hour')?.value);
+    const pmin = Number(parts.find((p) => p.type === 'minute')?.value);
     if (py === y && pm === m && pd === d && ph === hour && pmin === minute) {
       return candidate.toISOString();
     }
@@ -165,8 +190,18 @@ export function workingIntervalsForDate(
   const rows = working.filter((w) => w.weekday === wd);
   const out: TimeInterval[] = [];
   for (const row of rows) {
-    const startIso = wallClockToUtcIso(dateKey, Math.floor(row.startMinute / 60), row.startMinute % 60, timeZone);
-    const endIso = wallClockToUtcIso(dateKey, Math.floor(row.endMinute / 60), row.endMinute % 60, timeZone);
+    const startIso = wallClockToUtcIso(
+      dateKey,
+      Math.floor(row.startMinute / 60),
+      row.startMinute % 60,
+      timeZone,
+    );
+    const endIso = wallClockToUtcIso(
+      dateKey,
+      Math.floor(row.endMinute / 60),
+      row.endMinute % 60,
+      timeZone,
+    );
     const startMs = new Date(startIso).getTime() + bufferMinutes * 60_000;
     const endMs = new Date(endIso).getTime() - bufferMinutes * 60_000;
     if (endMs > startMs) out.push({ startMs, endMs });
@@ -213,14 +248,14 @@ export function deriveWorkingBounds(
 
 /** UTC ms → minutes-since-midnight in the given IANA timezone (0..1440). */
 function utcMsToLocalMinute(ms: number, timeZone: string): number {
-  const parts = new Intl.DateTimeFormat("en-US", {
+  const parts = new Intl.DateTimeFormat('en-US', {
     timeZone,
-    hour: "2-digit",
-    minute: "2-digit",
+    hour: '2-digit',
+    minute: '2-digit',
     hour12: false,
   }).formatToParts(new Date(ms));
-  let hour = Number(parts.find((p) => p.type === "hour")?.value ?? "0");
-  const minute = Number(parts.find((p) => p.type === "minute")?.value ?? "0");
+  let hour = Number(parts.find((p) => p.type === 'hour')?.value ?? '0');
+  const minute = Number(parts.find((p) => p.type === 'minute')?.value ?? '0');
   // Intl can format midnight as "24" in en-US hour12:false; normalise to 0.
   if (hour === 24) hour = 0;
   return hour * 60 + minute;
@@ -235,7 +270,8 @@ export function subtractBusy(working: TimeInterval[], busy: TimeInterval[]): Tim
         next.push(w);
         continue;
       }
-      if (b.startMs > w.startMs) next.push({ startMs: w.startMs, endMs: Math.min(b.startMs, w.endMs) });
+      if (b.startMs > w.startMs)
+        next.push({ startMs: w.startMs, endMs: Math.min(b.startMs, w.endMs) });
       if (b.endMs < w.endMs) next.push({ startMs: Math.max(b.endMs, w.startMs), endMs: w.endMs });
     }
     free = next.filter((x) => x.endMs > x.startMs);

@@ -1,15 +1,20 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/shared/ui/doctor/primitives/dialog";
+import Link from 'next/link';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/shared/ui/doctor/primitives/dialog';
 import type {
   DoctorAnalyticsMetricAccountItem,
   DoctorAnalyticsMetricKey,
-} from "@/modules/doctor-analytics-metric-accounts/ports";
-import type { AnalyticsPeriodValue } from "@/app/app/doctor/analytics/clients/analyticsPeriodUi";
-import { buildAdminStatsQuery } from "@/app/app/doctor/analytics/clients/analyticsPeriodUi";
-import { patientCardHref } from "@/app/app/doctor/patients/patientCardHref";
+} from '@/modules/doctor-analytics-metric-accounts/ports';
+import type { AnalyticsPeriodValue } from '@/app/app/doctor/analytics/clients/analyticsPeriodUi';
+import { buildAdminStatsQuery } from '@/app/app/doctor/analytics/clients/analyticsPeriodUi';
+import { patientCardHref } from '@/app/app/doctor/patients/patientCardHref';
 
 type Props = {
   open: boolean;
@@ -25,19 +30,19 @@ type Props = {
 
 const PAGE_SIZE = 30;
 const APPOINTMENT_METRICS = new Set<DoctorAnalyticsMetricKey>([
-  "today_appointments_today",
-  "today_appointments_week",
-  "today_cancellations_30d",
+  'today_appointments_today',
+  'today_appointments_week',
+  'today_cancellations_30d',
 ]);
 
 function formatEventAt(iso: string | null): string {
-  if (!iso) return "";
+  if (!iso) return '';
   const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleString("ru-RU", { hour12: false });
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleString('ru-RU', { hour12: false });
 }
 
-const DEFAULT_API_PATH = "/api/admin/doctor-analytics-metric-accounts";
+const DEFAULT_API_PATH = '/api/admin/doctor-analytics-metric-accounts';
 
 export function MetricAccountsDialog({
   open,
@@ -67,14 +72,14 @@ export function MetricAccountsDialog({
       setError(null);
       try {
         const q = new URLSearchParams(queryBase);
-        q.set("metric", metric);
-        q.set("limit", String(PAGE_SIZE));
-        q.set("offset", String(nextOffset));
+        q.set('metric', metric);
+        q.set('limit', String(PAGE_SIZE));
+        q.set('offset', String(nextOffset));
         if (extraQuery) {
           for (const [k, v] of Object.entries(extraQuery)) q.set(k, v);
         }
         const res = await fetch(`${apiPath}?${q.toString()}`, {
-          cache: "no-store",
+          cache: 'no-store',
         });
         const json = (await res.json()) as {
           ok?: boolean;
@@ -92,7 +97,7 @@ export function MetricAccountsDialog({
         setHasMore(Boolean(json.hasMore));
         setOffset(json.nextOffset ?? nextOffset + pageItems.length);
       } catch {
-        setError("network");
+        setError('network');
       } finally {
         setLoading(false);
       }
@@ -119,7 +124,7 @@ export function MetricAccountsDialog({
           void loadPage(offset, false);
         }
       },
-      { rootMargin: "120px" },
+      { rootMargin: '120px' },
     );
     observer.observe(node);
     return () => observer.disconnect();
@@ -138,7 +143,10 @@ export function MetricAccountsDialog({
           ) : null}
           <ul className="space-y-2">
             {items.map((item, idx) => (
-              <li key={`${item.userId}-${item.eventAt ?? "none"}-${idx}`} className="rounded-md border border-border/60 p-2">
+              <li
+                key={`${item.userId}-${item.eventAt ?? 'none'}-${idx}`}
+                className="rounded-md border border-border/60 p-2"
+              >
                 {item.userId ? (
                   <Link
                     href={patientCardHref(item.userId)}
@@ -153,15 +161,19 @@ export function MetricAccountsDialog({
                   <p className="text-xs text-muted-foreground">
                     {item.appointmentAt || item.eventAt
                       ? `Дата/время: ${formatEventAt(item.appointmentAt ?? item.eventAt)}`
-                      : "Дата/время не указаны"}
-                    {item.appointmentService ? ` · Услуга: ${item.appointmentService}` : " · Услуга: не указана"}
-                    {item.appointmentBranch ? ` · Филиал: ${item.appointmentBranch}` : " · Филиал: не указан"}
+                      : 'Дата/время не указаны'}
+                    {item.appointmentService
+                      ? ` · Услуга: ${item.appointmentService}`
+                      : ' · Услуга: не указана'}
+                    {item.appointmentBranch
+                      ? ` · Филиал: ${item.appointmentBranch}`
+                      : ' · Филиал: не указан'}
                   </p>
                 ) : (
                   <p className="text-xs text-muted-foreground">
-                    {item.phone ? `Телефон: ${item.phone}` : "Телефон не указан"}
-                    {item.eventLabel ? ` · ${item.eventLabel}` : ""}
-                    {item.eventAt ? ` · ${formatEventAt(item.eventAt)}` : ""}
+                    {item.phone ? `Телефон: ${item.phone}` : 'Телефон не указан'}
+                    {item.eventLabel ? ` · ${item.eventLabel}` : ''}
+                    {item.eventAt ? ` · ${formatEventAt(item.eventAt)}` : ''}
                   </p>
                 )}
               </li>
