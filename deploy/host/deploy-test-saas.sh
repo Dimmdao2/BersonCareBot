@@ -1472,7 +1472,11 @@ SELECT has_column_privilege('app_owner', 'public.operator_incidents', 'alert_sen
   # while app.provision_specialist_owner(uuid) INSERTs the durable current claim and lets the global
   # UNIQUE(slug) index decide races. The removed function's claims UPDATE grant is removed above;
   # provisioning retains only the reviewed SELECT+INSERT claim privileges.
-  local expected_secdef_count=106
+  # 106 -> 107 (2026-07-28, ночная волна). Арифметика, проверенная прогоном на живой базе TEST внутри
+  # откатываемой транзакции: базовые 106 + 0268 (узкий accessor имени сотрудника для панели аккаунтов)
+  # + 0269 (capability записи следа доставки) - 0270 (снята reserve_specialist_signup_slug вместе с бронью
+  # слага) = 107. Два параллельных потока считали независимо и каждый получил своё число; итог сверен лидом.
+  local expected_secdef_count=107
   local actual_secdef_count
   actual_secdef_count="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
 SELECT count(*) FROM pg_proc p WHERE pg_get_userbyid(p.proowner) = 'app_owner' AND p.prosecdef;
