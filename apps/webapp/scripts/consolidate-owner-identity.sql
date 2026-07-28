@@ -62,6 +62,16 @@ UPDATE user_phone_history   SET platform_user_id = 'b0021a38-fb86-45e9-9aec-d850
 DELETE FROM user_channel_preferences WHERE platform_user_id = 'a754c977-d1cc-46bb-b870-ca499be81884';
 DELETE FROM email_send_cooldowns     WHERE user_id          = 'a754c977-d1cc-46bb-b870-ca499be81884';
 
+-- ── 1b. Ссылки БЕЗ внешнего ключа — их не видно в каталоге связей ───────────────────────────────
+-- Найдено независимым аудитом 28.07 уже ПОСЛЕ первого применения на TEST: первая версия скрипта
+-- была собрана по внешним ключам на public.platform_users, а эти четыре колонки внешнего ключа не
+-- имеют (две из них вообще text, одна — в схеме интегратора). Поэтому удаление прошло молча и
+-- оставило 48 висячих ссылок. Все 48 вели на админское надгробие, перенос однозначен.
+UPDATE integrator.system_settings SET updated_by = 'b0021a38-fb86-45e9-9aec-d85014e932d4' WHERE updated_by::text = 'a754c977-d1cc-46bb-b870-ca499be81884';
+UPDATE public.broadcast_audit SET actor_id = 'b0021a38-fb86-45e9-9aec-d85014e932d4' WHERE actor_id::text = 'a754c977-d1cc-46bb-b870-ca499be81884';
+UPDATE public.operator_health_failure_archive SET archived_by_user_id = 'b0021a38-fb86-45e9-9aec-d85014e932d4' WHERE archived_by_user_id::text = 'a754c977-d1cc-46bb-b870-ca499be81884';
+UPDATE public.operator_health_failure_archive SET doctor_user_id = 'b0021a38-fb86-45e9-9aec-d85014e932d4' WHERE doctor_user_id::text = 'a754c977-d1cc-46bb-b870-ca499be81884';
+
 -- ── 2. Удаление надгробия ───────────────────────────────────────────────────────────────────────
 DELETE FROM platform_users WHERE id = 'a754c977-d1cc-46bb-b870-ca499be81884';
 
@@ -93,6 +103,40 @@ BEGIN
     RAISE EXCEPTION 'Ожидали одну карточку специалиста, осталось %', spec_rows;
   END IF;
   RAISE NOTICE 'Готово: одна staff-запись, одна карточка специалиста';
+END $$;
+
+-- ── Проверка на висячие ссылки: перебирает ВСЕ схемы и падает, если хоть одна осталась ───────────
+-- Существует потому, что первая версия проверяла только то, что перечислила сама, и пропустила
+-- 48 ссылок без внешнего ключа. Эта проверка ничего не перечисляет — она ищет.
+DO $$
+DECLARE r record; n bigint; total bigint := 0; dead text[] := ARRAY[
+  'a754c977-d1cc-46bb-b870-ca499be81884','9504c4b8-a97b-4be2-b2ff-9e03c13a71fb',
+  '2e5068fe-7f50-459f-b879-41cd194e5080','9475c2a9-cbef-4d3e-8357-f96503e2e29b'];
+BEGIN
+  FOR r IN
+    SELECT c.table_schema AS s, c.table_name AS t, c.column_name AS col
+    FROM information_schema.columns c
+    JOIN information_schema.tables tb
+      ON tb.table_schema = c.table_schema AND tb.table_name = c.table_name AND tb.table_type = 'BASE TABLE'
+    WHERE c.table_schema NOT IN ('pg_catalog','information_schema')
+      AND (c.data_type = 'uuid'
+           OR (c.data_type IN ('text','character varying')
+               AND c.column_name ~ '(user|_by$|actor|owner|author|specialist|changed|platform)'))
+  LOOP
+    BEGIN
+      EXECUTE format('select count(*) from %I.%I where %I::text = any($1)', r.s, r.t, r.col)
+        INTO n USING dead;
+      IF n > 0 THEN
+        RAISE WARNING 'остались висячие ссылки: %.%.% = % строк', r.s, r.t, r.col, n;
+        total := total + n;
+      END IF;
+    EXCEPTION WHEN others THEN NULL;   -- колонка недоступна для чтения — не повод падать
+    END;
+  END LOOP;
+  IF total > 0 THEN
+    RAISE EXCEPTION 'после слияния осталось % висячих ссылок на удалённые записи — смотри WARNING выше', total;
+  END IF;
+  RAISE NOTICE 'Висячих ссылок нет ни в одной схеме';
 END $$;
 
 COMMIT;
