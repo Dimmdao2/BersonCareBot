@@ -2,6 +2,7 @@ import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipa
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { ensureAuthModulePortsBound } from "@/app-layer/di/bindAuthModulePorts";
 import {
   AUTH_CHANNEL_DISABLED_ERROR,
   isAuthChannelEnabled,
@@ -33,6 +34,7 @@ const bodySchema = z.object({
 export async function POST(request: Request) {
   stampBootstrapPrincipal("api/auth/email-otp/confirm:POST", request);
 
+  ensureAuthModulePortsBound();
   const rateLimit = await checkAuthConfirmRateLimit(request, "email_otp_confirm");
   if (rateLimit.limited) {
     if (rateLimit.reason === "proxy_configuration") {

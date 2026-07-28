@@ -13,6 +13,7 @@ const recordFailedPasswordAttemptMock = vi.fn();
 const resetFailedPasswordAttemptsMock = vi.fn();
 const checkAuthConfirmRateLimitMock = vi.fn();
 const waitForPasswordFailureDelayMock = vi.fn();
+const ensureAuthModulePortsBoundMock = vi.fn();
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
@@ -28,6 +29,10 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
       getLatestSpecialistSignupIntentForUser: getLatestSpecialistSignupIntentForUserMock,
     },
   }),
+}));
+
+vi.mock("@/app-layer/di/bindAuthModulePorts", () => ({
+  ensureAuthModulePortsBound: () => ensureAuthModulePortsBoundMock(),
 }));
 
 vi.mock("@/modules/auth/envRole", () => ({
@@ -105,6 +110,10 @@ describe("POST /api/auth/email-password/login", () => {
       retryAfterSeconds: 600,
     });
     expect(verifyLoginMock).not.toHaveBeenCalled();
+    expect(ensureAuthModulePortsBoundMock).toHaveBeenCalledOnce();
+    expect(ensureAuthModulePortsBoundMock.mock.invocationCallOrder[0]).toBeLessThan(
+      checkAuthConfirmRateLimitMock.mock.invocationCallOrder[0]!,
+    );
   });
 
   it("returns proxy_configuration when the shared IP chokepoint cannot resolve a trusted key", async () => {
@@ -126,6 +135,7 @@ describe("POST /api/auth/email-password/login", () => {
   it("keeps existing-account and nonexistent-account password failures identical, including delay", async () => {
     const failure = {
       ok: false as const,
+      passwordChecked: true,
       attempts: 5,
       delaySeconds: 30,
       locked: false,
@@ -154,6 +164,7 @@ describe("POST /api/auth/email-password/login", () => {
   it("returns the same temporary lock response on the tenth failure for any identifier", async () => {
     const locked = {
       ok: false as const,
+      passwordChecked: true,
       attempts: 10,
       delaySeconds: 0,
       locked: true,
@@ -170,6 +181,24 @@ describe("POST /api/auth/email-password/login", () => {
     expect(missingResponse.status).toBe(429);
     expect(existingResponse.headers.get("Retry-After")).toBe("900");
     expect(await existingResponse.json()).toEqual(await missingResponse.json());
+  });
+
+  it("does not extend an already active account lock", async () => {
+    verifyLoginMock.mockResolvedValueOnce({
+      ok: false,
+      accountUserId: user.userId,
+      passwordChecked: false,
+      attempts: 10,
+      delaySeconds: 0,
+      locked: true,
+      retryAfterSeconds: 61,
+    });
+
+    const response = await POST(loginRequest());
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get("Retry-After")).toBe("61");
+    expect(recordFailedPasswordAttemptMock).not.toHaveBeenCalled();
   });
 
   it("resets the account counter after a successful primary password proof", async () => {

@@ -2,6 +2,7 @@ import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipa
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { ensureAuthModulePortsBound } from "@/app-layer/di/bindAuthModulePorts";
 import {
   recordAuthRegistrationFailure,
   recordAuthRegistrationSuccess,
@@ -36,6 +37,7 @@ const bodySchema = z
 export async function POST(request: Request) {
   stampBootstrapPrincipal("api/auth/phone/messenger-bind/finish:POST", request);
 
+  ensureAuthModulePortsBound();
   const rateLimit = await checkAuthConfirmRateLimit(request, "phone_messenger_bind_finish");
   if (rateLimit.limited) {
     if (rateLimit.reason === "proxy_configuration") {

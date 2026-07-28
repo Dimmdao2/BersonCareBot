@@ -49,6 +49,7 @@ describe("password change service", () => {
     tryVerifyLogin.mockResolvedValue({
       ok: false,
       accountUserId: USER_ID,
+      passwordChecked: true,
       attempts: 1,
       delaySeconds: 0,
       locked: false,
@@ -76,6 +77,7 @@ describe("password change service", () => {
     tryVerifyLogin.mockResolvedValue({
       ok: false,
       accountUserId: USER_ID,
+      passwordChecked: true,
       attempts: 10,
       delaySeconds: 0,
       locked: true,
@@ -94,6 +96,31 @@ describe("password change service", () => {
       retryAfterSeconds: 900,
     });
     expect(recordFailedPasswordAttempt).toHaveBeenCalledWith(USER_ID);
+  });
+
+  it("does not extend an account lock that was already active before password verification", async () => {
+    tryVerifyLogin.mockResolvedValue({
+      ok: false,
+      accountUserId: USER_ID,
+      passwordChecked: false,
+      attempts: 10,
+      delaySeconds: 0,
+      locked: true,
+      retryAfterSeconds: 61,
+    });
+
+    await expect(
+      service.changePassword({
+        userId: USER_ID,
+        currentPassword: "correct-password",
+        newPassword: "new-password",
+      }),
+    ).resolves.toEqual({
+      ok: false,
+      error: "password_temporarily_locked",
+      retryAfterSeconds: 61,
+    });
+    expect(recordFailedPasswordAttempt).not.toHaveBeenCalled();
   });
 
   it("changes the hash, revokes old epochs, and returns the fresh epoch for the surviving current session", async () => {

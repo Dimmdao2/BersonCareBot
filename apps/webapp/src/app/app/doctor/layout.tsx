@@ -14,7 +14,6 @@ import { staffPwaLayoutMetadata } from "@/shared/lib/pwa/staffPwaLayoutMetadata"
 import { DoctorWorkspaceShell } from "@/shared/ui/doctor/shell/DoctorWorkspaceShell";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import type { DoctorWorkspaceContext } from "@/modules/doctor-workspace/types";
-import { routePaths } from "@/app-layer/routes/paths";
 
 export const metadata: Metadata = staffPwaLayoutMetadata;
 
@@ -47,7 +46,14 @@ export default async function DoctorSectionLayout({ children }: { children: Reac
   const workspaceAccess = await requireOrganizationWorkspaceContext();
   const session = workspaceAccess.session;
   if (!workspaceAccess.canAccessClinicalWorkspace) {
-    redirect(`${routePaths.settings}?tab=organization`);
+    // Only a self-signup owner with the already-provisioned specialist card can be in the
+    // progressive 2FA-first-run state. Let that request reach the root onboarding page; every
+    // clinical child has its own workspace guard. A management-only admin must keep the
+    // historical organization-settings redirect rather than seeing the owner's 2FA prompt.
+    if (workspaceAccess.membershipRole === "owner" && workspaceAccess.specialistId !== null) {
+      return children;
+    }
+    redirect("/app/settings?tab=organization");
   }
   const deps = buildAppDeps();
   const [organization, doctorSettings, effectiveBranding] = await Promise.all([

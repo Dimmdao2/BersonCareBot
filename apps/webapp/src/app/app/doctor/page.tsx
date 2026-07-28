@@ -1,11 +1,12 @@
 /**
  * Главная страница кабинета специалиста («/app/doctor») — экран «Сегодня».
  */
+import Link from "next/link";
 import { loadDoctorAnalyticsAudience } from "@/app-layer/analytics/loadAnalyticsAudience";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getOnlineIntakeService } from "@/app-layer/di/onlineIntakeDeps";
 import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
-import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
+import { requireOrganizationWorkspaceContext } from "@/app-layer/guards/requireRole";
 import { loadAdminRegistrationFailureAttention } from "@/app-layer/product-analytics/loadAdminRegistrationFailureAttention";
 import { loadAdminDoctorTodayHealthBanner } from "@/modules/operator-health/adminDoctorTodayHealthBanner";
 import {
@@ -19,6 +20,8 @@ import {
 } from "@/modules/system-settings/doctorTodayPreferences";
 import { DateTime } from "luxon";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
+import { DoctorSection, DoctorSectionHeader, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
+import { buttonVariants } from "@/shared/ui/doctor/primitives/button-variants";
 import { DoctorTodayDashboard } from "./DoctorTodayDashboard";
 import { loadDoctorTodayDashboard } from "./loadDoctorTodayDashboard";
 
@@ -76,8 +79,26 @@ async function loadTodayWorkingBounds(
 }
 
 export default async function DoctorPage() {
-  const workspace = await requireDoctorWorkspaceContext();
+  const workspace = await requireOrganizationWorkspaceContext();
   const session = workspace.session;
+  if (!workspace.canAccessClinicalWorkspace) {
+    return (
+      <DoctorAppShell title="Первый запуск" user={session.user}>
+        <DoctorSection>
+          <DoctorSectionHeader>
+            <DoctorSectionTitle>Защитите аккаунт</DoctorSectionTitle>
+          </DoctorSectionHeader>
+          <p className="text-sm text-muted-foreground">
+            Кабинет создан. Чтобы открыть пациентов и клинические данные, подключите двухфакторную
+            защиту и сохраните резервные коды.
+          </p>
+          <Link className={buttonVariants({ size: "sm" })} href="/app/account?tab=security">
+            Настроить двухфакторную защиту
+          </Link>
+        </DoctorSection>
+      </DoctorAppShell>
+    );
+  }
   const deps = buildAppDeps();
   const intakeService = getOnlineIntakeService();
   const displayIana = await getAppDisplayTimeZone();

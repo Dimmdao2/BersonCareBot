@@ -159,6 +159,10 @@ secure=true; обновлена 25.07 и 27.07. `app.read_integrator_smtp_outbou
       fetch всё равно вызывает toast.error».
 - [x] **2.2** Заменить пять общих строк на текст по коду ответа (образец — `passwordChangeErrorText`), покрыв  ✅ f76ac7495 — текст по коду ответа
       все коды, которые роуты реально возвращают. Доказательство: тест «разный код → разный текст».
+      Коррекция аудита: `staffSecurityErrorText.ts` покрывает также
+      `doctor_workspace_membership_required`/`security_setup_required`; успешный TOTP verify больше не зависит
+      от отдельного status-refresh, а non-JSON HTTP-ответ не называется сетевым сбоем. Доказательство:
+      `StaffSecuritySection.test.tsx`, `staffSecurityErrorText.test.ts`; targeted Vitest — 28.07 PASS.
 - [x] **2.3** Вынести общий клиентский маппер «код → текст» и переиспользовать в `StaffSecuritySection` и  ✅ f76ac7495 — общий маппер, переиспользован и в AuthFlowV2
       `AuthFlowV2` (сейчас в каждом компоненте свой самодельный switch). Доказательство: новый модуль + оба
       вызывающих + тест.
@@ -208,6 +212,10 @@ locked_until` + `app.record_failed_staff_factor_attempt()` (5 попыток →
 
 - [x] **3.1** Немедленно: per-IP лимит на `/api/auth/email-password/login` тем же чокпоинтом, что у соседей  ✅ 46214b7df — лимит по IP тем же чокпоинтом, что у соседних ручек
       (`checkAuthConfirmRateLimit`). Доказательство: тест 429/`rate_limited` по образцу `login/factor`.
+      Коррекция второго аудита: все 12 route-входов в общий chokepoint вызывают
+      `ensureAuthModulePortsBound()` до limiter (`email-otp/confirm/route.ts:37-38`, тот же порядок в остальных
+      call sites); `email-otp/confirm/route.test.ts` и `login/route.test.ts` проверяют bind → limiter.
+      Доказательство: targeted Vitest 28.07 — PASS; shell-проверка всех call sites — 12/12 `OK`.
 - [ ] **3.4 Капча — ВЫБРАНА ALTCHA** (сравнение 28.07 по 11 критериям владельца, первоисточники в карточке).
       **Показывать не всем, а после неудач / по риску.** Внешние сервисы (reCAPTCHA, hCaptcha) исключены нашим
       же правилом §31 — данные посетителя не покидают страну.
@@ -228,9 +236,16 @@ locked_until` + `app.record_failed_staff_factor_attempt()` (5 попыток →
 
 - [ ] **3.2 РАЗВИЛКА ВЛАДЕЛЬЦА (D-2): порог и форма блокировки на аккаунт** — рекомендация: 5 неудач → 15 мин,
       как у второго фактора; растущая задержка вместо жёсткой блокировки при сомнении.
-- [x] **3.3** Счётчик неудач на аккаунт + временная блокировка в `pgUserPasswordCredentials.ts`, применённый к  ✅ 46214b7df — задержки 30/60/120/240/480 с 5-й, замок 15 мин на 10-й, снимается сам; неразличимость существующего и несуществующего адреса включая время ответа
+- [x] **3.3** Счётчик неудач на аккаунт + временная блокировка в `pgUserPasswordCredentials.ts`, применённый к  ✅ 46214b7df — задержки 30/60/120/240/480 с 5-й, замок 15 мин на 10-й, снимается сам; ~~неразличимость существующего и несуществующего адреса включая время ответа~~ (аудит 28.07: runtime timing не измерялся)
       ОБОИМ путям (вход и смена пароля). Доказательство: тест «блокировка после N неудач», «снимается по
       истечении окна», «верный пароль во время блокировки тоже отклоняется».
+      Коррекция второго аудита: `pgUserPasswordCredentials.ts:124-153` отличает уже активный lock
+      (`passwordChecked=false`) от фактической неудачной проверки; `login/route.ts:77-79` и
+      `passwordChange.ts:55-63` записывают account failure только во втором случае. Поэтому запрос на 14-й минуте
+      не сдвигает окно и lock self-clear остаётся через 15 минут. Доказательство:
+      `pgUserPasswordCredentialsBruteforce.test.ts`, `login/route.test.ts`, `passwordChange.test.ts`,
+      `passwordLoginProtection.test.ts`; targeted Vitest 28.07 — PASS. Полная timing-неразличимость по-прежнему
+      не заявляется без runtime-замера.
 - [ ] **3.4** Внести находку в `FINDINGS_AND_OPTIONS.md` под #1001 (D2 рядом, но это другая находка).
 
 **Риск:** identity/auth → полный многораундовый адверсарный цикл, потолок 2 correction-раунда.
@@ -324,6 +339,17 @@ todo). Новую не заводить — эти две описывают р�
       его решение** (сейчас это рекомендация планировщика, не его ruling) — и тогда отдельный мастер не строим.
 - [ ] **5.5** 2FA остаётся обязательной, но как пункт первого запуска ПОСЛЕ входа в кабинет, а не до него.
       Доказательство: чек-лист первого запуска виден, кабинет при этом доступен.
+      Коррекция второго аудита: родительский `doctor/layout.tsx:46-52` больше не перехватывает pending owner
+      redirect-ом и пропускает безопасную root-оболочку `doctor/page.tsx:81-100`; клинические страницы сохраняют
+      `requireDoctorWorkspaceContext`, а API — 403 через `requireDoctorWorkspaceApiContext`.
+      Доказательство: `layout.test.tsx` + `requireRole.doctorWorkspaceContext.test.ts`, targeted Vitest 28.07 —
+      PASS. Пункт остаётся открыт до требуемой живой проверки/скрина на TEST.
+      Коррекция следующего аудита: bypass layout теперь ограничен owner с уже созданной карточкой специалиста
+      (`doctor/layout.tsx:49-55`), поэтому management-only admin получает прежний redirect в organization settings;
+      единственный незащищённый clinical child, `doctor/dev/chart-test`, вызывает
+      `requireDoctorWorkspaceContext` до монтирования client-компонента (`dev/chart-test/page.tsx:10`).
+      Доказательство: `layout.test.tsx`, `dev/chart-test/page.test.tsx`; targeted Vitest 28.07 — PASS (6/6).
+      Пункт остаётся открыт до требуемой живой проверки/скрина на TEST.
 
 **Риск:** identity/auth (меняется порядок 2FA) → полный адверсарный аудит. Это **ревизия уже сданной работы
 U3S (#919)**, а не свежий скоуп — помечать так в коммите.
