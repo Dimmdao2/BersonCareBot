@@ -1,18 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { getSessionMock, buildReportMock } = vi.hoisted(() => ({
-  getSessionMock: vi.fn(),
+const { platformGateMock, buildReportMock } = vi.hoisted(() => ({
+  platformGateMock: vi.fn(),
   buildReportMock: vi.fn(),
 }));
 
-vi.mock("@/modules/auth/requireAdminMode", () => ({
-  requireAdminModeSession: getSessionMock,
+vi.mock("@/app-layer/guards/requireRole", () => ({
+  requirePlatformOperationsApiContext: platformGateMock,
 }));
 vi.mock("@/app-layer/db/client", () => ({
   getPool: () => ({}),
 }));
 vi.mock("@/app-layer/merge/platformUserNameMatchHints", () => ({
   buildNameMatchHintsReport: (...args: unknown[]) => buildReportMock(...args),
+}));
+vi.mock("@/app-layer/logging/logger", () => ({
+  logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn() },
 }));
 
 import { GET } from "./route";
@@ -29,13 +32,13 @@ const adminOk = {
 
 describe("GET /api/doctor/clients/name-match-hints", () => {
   beforeEach(() => {
-    getSessionMock.mockReset();
+    platformGateMock.mockReset();
     buildReportMock.mockReset();
-    getSessionMock.mockResolvedValue(adminOk);
+    platformGateMock.mockResolvedValue(adminOk);
   });
 
   it("returns 403 when not admin mode", async () => {
-    getSessionMock.mockResolvedValue({
+    platformGateMock.mockResolvedValue({
       ok: false,
       response: new Response(JSON.stringify({ ok: false }), { status: 403 }),
     });

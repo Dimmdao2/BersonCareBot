@@ -1,18 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { requireAdminModeSessionMock, listForDoctorMock, buildAppDepsMock } = vi.hoisted(() => {
-  const requireAdminModeSessionMock = vi.fn();
+const { platformGateMock, listForDoctorMock, buildAppDepsMock } = vi.hoisted(() => {
+  const platformGateMock = vi.fn();
   const listForDoctorMock = vi.fn();
   const buildAppDepsMock = vi.fn(() => ({
     healthFailureArchive: {
       listForDoctor: listForDoctorMock,
     },
   }));
-  return { requireAdminModeSessionMock, listForDoctorMock, buildAppDepsMock };
+  return { platformGateMock, listForDoctorMock, buildAppDepsMock };
 });
 
-vi.mock("@/modules/auth/requireAdminMode", () => ({
-  requireAdminModeSession: requireAdminModeSessionMock,
+vi.mock("@/app-layer/guards/requireRole", () => ({
+  requirePlatformOperationsApiContext: platformGateMock,
 }));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
@@ -23,13 +23,13 @@ import { GET } from "./route";
 
 describe("GET /api/doctor/health-failure-archive", () => {
   beforeEach(() => {
-    requireAdminModeSessionMock.mockReset();
+    platformGateMock.mockReset();
     listForDoctorMock.mockReset();
     buildAppDepsMock.mockClear();
   });
 
   it("does not read platform data when the platform guard denies", async () => {
-    requireAdminModeSessionMock.mockResolvedValue({
+    platformGateMock.mockResolvedValue({
       ok: false,
       response: new Response(JSON.stringify({ ok: false }), { status: 403 }),
     });
@@ -39,7 +39,7 @@ describe("GET /api/doctor/health-failure-archive", () => {
   });
 
   it("filters by the explicit platform operator", async () => {
-    requireAdminModeSessionMock.mockResolvedValue({
+    platformGateMock.mockResolvedValue({
       ok: true,
       session: { user: { userId: "adm-uuid-1", role: "admin" }, adminMode: true },
     });

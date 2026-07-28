@@ -1,8 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { getCurrentSession } from "@/modules/auth/service";
+import { requirePatientApiSession } from "@/app-layer/guards/requireRole";
 import { requestMessengerContactViaIntegrator } from "@/modules/messaging/requestMessengerContact";
 import { patientClientBusinessGate } from "@/app-layer/platform-access";
-import { canAccessPatient } from "@/modules/roles/service";
 import { env } from "@/config/env";
 import {
   AUTH_CHANNEL_DISABLED_ERROR,
@@ -37,10 +36,9 @@ function resolveMessengerContactTarget(input: {
  * Только при tier onboarding и привязке к мессенджеру.
  */
 export async function POST(request: NextRequest) {
-  const session = await getCurrentSession();
-  if (!session || !canAccessPatient(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  }
+  const gate = await requirePatientApiSession();
+  if (!gate.ok) return gate.response;
+  const session = gate.session;
 
   const tg = session.user.bindings.telegramId?.trim() ?? "";
   const mx = session.user.bindings.maxId?.trim() ?? "";

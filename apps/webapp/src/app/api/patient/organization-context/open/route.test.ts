@@ -1,16 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const getCurrentSessionMock = vi.hoisted(() => vi.fn());
-const patientClientBusinessGateMock = vi.hoisted(() => vi.fn());
+const patientBusinessGateMock = vi.hoisted(() => vi.fn());
 const resolveTargetMock = vi.hoisted(() => vi.fn());
 const resolveOrganizationMock = vi.hoisted(() => vi.fn());
 const getRememberedOrganizationMock = vi.hoisted(() => vi.fn());
 const revalidatePathMock = vi.hoisted(() => vi.fn());
 
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
-vi.mock("@/modules/auth/service", () => ({ getCurrentSession: getCurrentSessionMock }));
-vi.mock("@/app-layer/platform-access", () => ({
-  patientClientBusinessGate: patientClientBusinessGateMock,
+vi.mock("@/app-layer/guards/requireRole", () => ({
+  requirePatientApiBusinessAccess: patientBusinessGateMock,
 }));
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
@@ -23,8 +21,6 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
 vi.mock("@/app-layer/patient-organization/requestContext", () => ({
   getRememberedPatientOrganizationId: getRememberedOrganizationMock,
 }));
-vi.mock("@/modules/roles/service", () => ({ canAccessPatient: () => true }));
-
 import { GET } from "./route";
 
 const PATIENT_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -34,8 +30,10 @@ const INSTANCE_ID = "33333333-3333-4333-8333-333333333333";
 describe("patient organization trusted object opener", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    getCurrentSessionMock.mockResolvedValue({ user: { userId: PATIENT_ID, role: "client" } });
-    patientClientBusinessGateMock.mockResolvedValue("allow");
+    patientBusinessGateMock.mockResolvedValue({
+      ok: true,
+      session: { user: { userId: PATIENT_ID, role: "client" } },
+    });
     getRememberedOrganizationMock.mockResolvedValue(null);
   });
 
@@ -133,7 +131,10 @@ describe("patient organization trusted object opener", () => {
   });
 
   it("keeps the unauthenticated entry relative without changing login continuation policy", async () => {
-    getCurrentSessionMock.mockResolvedValue(null);
+    patientBusinessGateMock.mockResolvedValue({
+      ok: false,
+      response: Response.json({ ok: false, error: "unauthorized" }, { status: 401 }),
+    });
     const response = await GET(
       new Request(
         `https://attacker.example/api/patient/organization-context/open?kind=organization_go&organizationId=${ORG_B}&goKind=daily-warmup`,

@@ -5,9 +5,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getPool } from "@/app-layer/db/client";
+import { requirePlatformOperationsApiContext } from "@/app-layer/guards/requireRole";
 import { logger } from "@/app-layer/logging/logger";
 import { buildNameMatchHintsReport } from "@/app-layer/merge/platformUserNameMatchHints";
-import { requireAdminModeSession } from "@/modules/auth/requireAdminMode";
 
 const querySchema = z.object({
   missingPhone: z
@@ -40,7 +40,7 @@ function serializeMember(m: {
 }
 
 export async function GET(request: Request) {
-  const adminGate = await requireAdminModeSession();
+  const adminGate = await requirePlatformOperationsApiContext();
   if (!adminGate.ok) {
     return adminGate.response;
   }

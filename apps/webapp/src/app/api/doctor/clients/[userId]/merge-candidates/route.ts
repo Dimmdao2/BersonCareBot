@@ -6,10 +6,10 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getPool } from "@/app-layer/db/client";
 import { searchMergeCandidates } from "@/app-layer/merge/platformUserMergePreview";
-import { requireAdminModeSession } from "@/modules/auth/requireAdminMode";
+import { requirePlatformOperationsApiContext } from "@/app-layer/guards/requireRole";
 
 export async function GET(request: Request, context: { params: Promise<{ userId: string }> }) {
-  const adminGate = await requireAdminModeSession();
+  const adminGate = await requirePlatformOperationsApiContext();
   if (!adminGate.ok) {
     return adminGate.response;
   }

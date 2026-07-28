@@ -5,6 +5,9 @@
 - **requireSession** — требует авторизованную сессию; иначе редирект на вход. Для страниц и действий, доступных любой роли (например настройки).
 - **requirePatientAccess** — требует сессию с ролью пациента; иначе редирект. Для страниц раздела пациента.
 - **requireDoctorAccess** — требует сессию с ролью врача или админа; иначе редирект. Для страницы врача.
+- **requireAuthenticatedApiSession** — API любой авторизованной роли; сохраняет доказанный session principal, а для platform/staff без клиники ставит только identity-self principal.
+- **requireAuthenticatedIdentitySelfApiSession** — API любой авторизованной роли только для данных собственного platform user; не резолвит и не наследует клинику.
+- **requirePatientApiSession** — patient-only API без требования tier **patient**; для onboarding/profile поверхностей, которые должны работать при `need_activation`.
 - **requirePatientAccessWithPhone** — `requirePatientAccess` + для `client` проверка **tier patient** из БД (`patientClientBusinessGate` → `resolvePlatformAccessContext`); без `DATABASE_URL` — fallback на телефон в сессии (тесты). Точечный редирект «только по телефону в сессии» не используется — см. этот gate и **`patientRscPersonalDataGate`** для RSC.
 - **requirePatientApiBusinessAccess** — для Route Handlers: тот же критерий, что у `requirePatientAccessWithPhone`; 401 / 403 с `error: patient_activation_required` и `redirectTo` (bind-phone) при onboarding / без tier **patient** у канона. **`requirePatientApiSessionWithPhone`** — алиас (устаревшее имя).
 - **requirePatientBookingTrustedPhoneAccess** — для **`POST /api/booking/create`** и **`POST /api/booking/cancel`**: сначала `requirePatientApiBusinessAccess`, затем проверка **`phoneTrustedForPatient`** (`patient_phone_trust_at`); при отказе — **403** с `error: booking_phone_trust_required` и `redirectTo` на bind-phone (кабинет по verified email без доверенного телефона не проходит этот гейт).

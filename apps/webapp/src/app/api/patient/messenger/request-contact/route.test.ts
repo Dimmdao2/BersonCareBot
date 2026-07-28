@@ -1,13 +1,13 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const getCurrentSessionMock = vi.hoisted(() => vi.fn());
+const patientSessionGateMock = vi.hoisted(() => vi.fn());
 const patientGateMock = vi.hoisted(() => vi.fn());
 const requestMessengerMock = vi.hoisted(() => vi.fn());
 const isAuthChannelEnabledMock = vi.hoisted(() => vi.fn());
 
-vi.mock("@/modules/auth/service", () => ({
-  getCurrentSession: getCurrentSessionMock,
+vi.mock("@/app-layer/guards/requireRole", () => ({
+  requirePatientApiSession: patientSessionGateMock,
 }));
 
 vi.mock("@/app-layer/platform-access", () => ({
@@ -43,18 +43,24 @@ describe("POST /api/patient/messenger/request-contact", () => {
   });
 
   it("returns 401 when there is no session", async () => {
-    getCurrentSessionMock.mockResolvedValue(null);
+    patientSessionGateMock.mockResolvedValue({
+      ok: false,
+      response: Response.json({ ok: false, error: "unauthorized" }, { status: 401 }),
+    });
     const res = await POST(new NextRequest("http://localhost/api/patient/messenger/request-contact", { method: "POST" }));
     expect(res.status).toBe(401);
   });
 
   it("returns 400 not_required when gate is not need_activation", async () => {
-    getCurrentSessionMock.mockResolvedValue({
-      user: {
-        userId: "user-gate",
-        role: "client" as const,
-        phone: "+79990001122",
-        bindings: { telegramId: "", maxId: "" },
+    patientSessionGateMock.mockResolvedValue({
+      ok: true,
+      session: {
+        user: {
+          userId: "user-gate",
+          role: "client" as const,
+          phone: "+79990001122",
+          bindings: { telegramId: "", maxId: "" },
+        },
       },
     });
     patientGateMock.mockResolvedValue("allow");
@@ -65,9 +71,10 @@ describe("POST /api/patient/messenger/request-contact", () => {
   });
 
   it("returns 400 contact_channel_required when both bindings exist without X-Bersoncare-Contact-Channel", async () => {
-    getCurrentSessionMock.mockResolvedValue(
-      sessionWithId("user-dual", { telegramId: "tg-99", maxId: "max-88" }),
-    );
+    patientSessionGateMock.mockResolvedValue({
+      ok: true,
+      session: sessionWithId("user-dual", { telegramId: "tg-99", maxId: "max-88" }),
+    });
     patientGateMock.mockResolvedValue("need_activation");
     const res = await POST(new NextRequest("http://localhost/api/patient/messenger/request-contact", { method: "POST" }));
     expect(res.status).toBe(400);
@@ -77,9 +84,10 @@ describe("POST /api/patient/messenger/request-contact", () => {
   });
 
   it("rejects a disabled channel before patient identity lookup or dispatch", async () => {
-    getCurrentSessionMock.mockResolvedValue(
-      sessionWithId("user-disabled-tg", { telegramId: "tg-disabled", maxId: "" }),
-    );
+    patientSessionGateMock.mockResolvedValue({
+      ok: true,
+      session: sessionWithId("user-disabled-tg", { telegramId: "tg-disabled", maxId: "" }),
+    });
     isAuthChannelEnabledMock.mockResolvedValue(false);
 
     const res = await POST(
@@ -94,9 +102,10 @@ describe("POST /api/patient/messenger/request-contact", () => {
   });
 
   it("dispatches telegram when both bindings exist and header is telegram", async () => {
-    getCurrentSessionMock.mockResolvedValue(
-      sessionWithId("user-tg-header", { telegramId: "tg-99", maxId: "max-88" }),
-    );
+    patientSessionGateMock.mockResolvedValue({
+      ok: true,
+      session: sessionWithId("user-tg-header", { telegramId: "tg-99", maxId: "max-88" }),
+    });
     patientGateMock.mockResolvedValue("need_activation");
     requestMessengerMock.mockResolvedValue({ ok: true, status: "accepted" });
     const res = await POST(
@@ -110,9 +119,10 @@ describe("POST /api/patient/messenger/request-contact", () => {
   });
 
   it("dispatches max when header asks max and binding exists", async () => {
-    getCurrentSessionMock.mockResolvedValue(
-      sessionWithId("user-max-hint", { telegramId: "tg-99", maxId: "max-88" }),
-    );
+    patientSessionGateMock.mockResolvedValue({
+      ok: true,
+      session: sessionWithId("user-max-hint", { telegramId: "tg-99", maxId: "max-88" }),
+    });
     patientGateMock.mockResolvedValue("need_activation");
     requestMessengerMock.mockResolvedValue({ ok: true, status: "accepted" });
     const res = await POST(
@@ -126,9 +136,10 @@ describe("POST /api/patient/messenger/request-contact", () => {
   });
 
   it("returns 429 rate_limited on rapid repeat for same user after successful integrator call", async () => {
-    getCurrentSessionMock.mockResolvedValue(
-      sessionWithId("user-rate-limit", { telegramId: "tg-rate", maxId: "" }),
-    );
+    patientSessionGateMock.mockResolvedValue({
+      ok: true,
+      session: sessionWithId("user-rate-limit", { telegramId: "tg-rate", maxId: "" }),
+    });
     patientGateMock.mockResolvedValue("need_activation");
     requestMessengerMock.mockResolvedValue({ ok: true, status: "accepted" });
     const r1 = await POST(new NextRequest("http://localhost/api/patient/messenger/request-contact", { method: "POST" }));
@@ -140,9 +151,10 @@ describe("POST /api/patient/messenger/request-contact", () => {
   });
 
   it("does not apply rate limit timestamp when integrator returns error", async () => {
-    getCurrentSessionMock.mockResolvedValue(
-      sessionWithId("user-rate-after-fail", { telegramId: "tg-fail", maxId: "" }),
-    );
+    patientSessionGateMock.mockResolvedValue({
+      ok: true,
+      session: sessionWithId("user-rate-after-fail", { telegramId: "tg-fail", maxId: "" }),
+    });
     patientGateMock.mockResolvedValue("need_activation");
     requestMessengerMock
       .mockResolvedValueOnce({ ok: false, reason: "dispatch_failed" })
@@ -154,9 +166,10 @@ describe("POST /api/patient/messenger/request-contact", () => {
   });
 
   it("applies rate limit after duplicate integrator response", async () => {
-    getCurrentSessionMock.mockResolvedValue(
-      sessionWithId("user-rate-dup", { telegramId: "tg-dup", maxId: "" }),
-    );
+    patientSessionGateMock.mockResolvedValue({
+      ok: true,
+      session: sessionWithId("user-rate-dup", { telegramId: "tg-dup", maxId: "" }),
+    });
     patientGateMock.mockResolvedValue("need_activation");
     requestMessengerMock.mockResolvedValue({ ok: true, status: "duplicate" });
     const r1 = await POST(new NextRequest("http://localhost/api/patient/messenger/request-contact", { method: "POST" }));

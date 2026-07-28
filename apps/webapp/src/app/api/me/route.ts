@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { requireAuthenticatedIdentitySelfApiSession } from "@/app-layer/guards/requireRole";
 import { env } from "@/config/env";
 import { renewSessionCookieFromRequest } from "@/modules/auth/service";
 import type { PlatformAccessContext } from "@/modules/platform-access";
@@ -11,12 +12,10 @@ type MePlatformAccessPayload = Pick<
 >;
 
 export async function GET() {
+  const gate = await requireAuthenticatedIdentitySelfApiSession();
+  if (!gate.ok) return gate.response;
+  const session = gate.session;
   const deps = buildAppDeps();
-  const session = await deps.auth.getCurrentSession();
-
-  if (!session) {
-    return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  }
 
   await renewSessionCookieFromRequest();
 
