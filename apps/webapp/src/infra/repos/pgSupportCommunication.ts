@@ -19,11 +19,6 @@ import {
   webappOrganizationConversationId,
   webappPlatformConversationId,
 } from "@/modules/messaging/supportConversationIds";
-import type {
-  PlatformSupportConversation,
-  PlatformSupportConversationDetail,
-  PlatformSupportPort,
-} from "@/modules/messaging/platformSupportService";
 
 export type SupportConversationRow = {
   id: string;
@@ -399,48 +394,6 @@ type AdminQuestionListDbRow = {
   channel_external_id: string | null;
 };
 
-type PlatformSupportConversationDbRow = {
-  conversation_id: string;
-  organization_id: string | null;
-  organization_title: string | null;
-  source: string;
-  admin_scope: string;
-  status: string;
-  opened_at: string;
-  last_message_at: string;
-  closed_at: string | null;
-  close_reason: string | null;
-  channel_code: string | null;
-  last_message_text: string;
-  last_sender_role: string;
-  last_message_integrator_id: string;
-  last_message_source: string;
-  message_count: number;
-};
-
-function mapPlatformSupportConversation(
-  row: PlatformSupportConversationDbRow,
-): PlatformSupportConversation {
-  return {
-    conversationId: row.conversation_id,
-    organizationId: row.organization_id,
-    organizationTitle: row.organization_title,
-    source: row.source,
-    adminScope: row.admin_scope,
-    status: row.status,
-    openedAt: row.opened_at,
-    lastMessageAt: row.last_message_at,
-    closedAt: row.closed_at,
-    closeReason: row.close_reason,
-    channelCode: row.channel_code,
-    lastMessageText: row.last_message_text,
-    lastSenderRole: row.last_sender_role,
-    lastMessageIntegratorId: row.last_message_integrator_id,
-    lastMessageSource: row.last_message_source,
-    messageCount: Number(row.message_count),
-  };
-}
-
 function mapAdminConversationListRow(row: AdminConversationListDbRow): AdminConversationListRow {
   return {
     conversationId: String(row.conversation_id),
@@ -506,7 +459,7 @@ async function resolvePlatformUserId(
   return binding.rows[0]?.user_id ?? null;
 }
 
-export function createPgSupportCommunicationPort(): SupportCommunicationPort & PlatformSupportPort {
+export function createPgSupportCommunicationPort(): SupportCommunicationPort {
   return {
     async upsertConversationFromProjection(params) {
       const platformUserId = await resolvePlatformUserId(params.integratorUserId, {
@@ -873,119 +826,6 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort & P
         payloadJson: row.payload_json ?? {},
         occurredAt: row.occurred_at,
       }));
-    },
-
-    async listPlatformSupportConversations(params) {
-      const limit = Math.min(Math.max(params.limit, 1), 100);
-      const r = await runWebappPgText<PlatformSupportConversationDbRow>(
-        `SELECT
-           sc.id AS conversation_id,
-           sc.organization_id,
-           org.title AS organization_title,
-           sc.source,
-           sc.admin_scope,
-           sc.status,
-           sc.opened_at::text,
-           last_personal.created_at::text AS last_message_at,
-           sc.closed_at::text,
-           sc.close_reason,
-           sc.channel_code,
-           last_personal.text AS last_message_text,
-           last_personal.sender_role AS last_sender_role,
-           last_personal.integrator_message_id AS last_message_integrator_id,
-           last_personal.source AS last_message_source,
-           personal_count.message_count::int
-         FROM support_conversations sc
-         LEFT JOIN be_organizations org ON org.id = sc.organization_id
-         INNER JOIN LATERAL (
-           SELECT m.integrator_message_id, m.source, m.text, m.sender_role, m.created_at
-           FROM support_conversation_messages m
-           WHERE m.conversation_id = sc.id
-             AND NOT ${SUPPORT_NOTIFICATION_SQL}
-           ORDER BY m.created_at DESC, m.id DESC
-           LIMIT 1
-         ) last_personal ON true
-         INNER JOIN LATERAL (
-           SELECT COUNT(*)::int AS message_count
-           FROM support_conversation_messages m
-           WHERE m.conversation_id = sc.id
-             AND NOT ${SUPPORT_NOTIFICATION_SQL}
-         ) personal_count ON true
-         WHERE ($1::boolean = false OR last_personal.sender_role = 'user')
-         ORDER BY (last_personal.sender_role = 'user') DESC,
-                  last_personal.created_at DESC,
-                  sc.id DESC
-         LIMIT $2`,
-        [params.unansweredOnly, limit],
-      );
-      return r.rows.map(mapPlatformSupportConversation);
-    },
-
-    async getPlatformSupportConversation(conversationId) {
-      const conv = await runWebappPgText<PlatformSupportConversationDbRow>(
-        `SELECT
-           sc.id AS conversation_id,
-           sc.organization_id,
-           org.title AS organization_title,
-           sc.source,
-           sc.admin_scope,
-           sc.status,
-           sc.opened_at::text,
-           last_personal.created_at::text AS last_message_at,
-           sc.closed_at::text,
-           sc.close_reason,
-           sc.channel_code,
-           last_personal.text AS last_message_text,
-           last_personal.sender_role AS last_sender_role,
-           last_personal.integrator_message_id AS last_message_integrator_id,
-           last_personal.source AS last_message_source,
-           personal_count.message_count::int
-         FROM support_conversations sc
-         LEFT JOIN be_organizations org ON org.id = sc.organization_id
-         INNER JOIN LATERAL (
-           SELECT m.integrator_message_id, m.source, m.text, m.sender_role, m.created_at
-           FROM support_conversation_messages m
-           WHERE m.conversation_id = sc.id
-             AND NOT ${SUPPORT_NOTIFICATION_SQL}
-           ORDER BY m.created_at DESC, m.id DESC
-           LIMIT 1
-         ) last_personal ON true
-         INNER JOIN LATERAL (
-           SELECT COUNT(*)::int AS message_count
-           FROM support_conversation_messages m
-           WHERE m.conversation_id = sc.id
-             AND NOT ${SUPPORT_NOTIFICATION_SQL}
-         ) personal_count ON true
-         WHERE sc.id = $1::uuid
-         LIMIT 1`,
-        [conversationId],
-      );
-      if (conv.rows.length === 0) return null;
-
-      const msg = await runWebappPgText<Record<string, unknown>>(
-        `SELECT id, integrator_message_id, sender_role, message_type, text, source,
-                created_at::text, media_url, media_type
-         FROM support_conversation_messages m
-         WHERE m.conversation_id = $1::uuid
-           AND NOT ${SUPPORT_NOTIFICATION_SQL}
-         ORDER BY m.created_at ASC, m.id ASC`,
-        [conversationId],
-      );
-      const detail: PlatformSupportConversationDetail = {
-        conversation: mapPlatformSupportConversation(conv.rows[0]!),
-        messages: msg.rows.map((row) => ({
-          id: String(row.id),
-          integratorMessageId: String(row.integrator_message_id),
-          senderRole: String(row.sender_role),
-          messageType: String(row.message_type),
-          text: String(row.text),
-          source: String(row.source),
-          createdAt: String(row.created_at),
-          mediaUrl: row.media_url != null ? String(row.media_url) : null,
-          mediaType: row.media_type != null ? String(row.media_type) : null,
-        })),
-      };
-      return detail;
     },
 
     async listOpenConversationsForAdmin(params) {
