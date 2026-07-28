@@ -62,11 +62,15 @@ fi
 [ -z "$(git -C "$CLONE" status --porcelain)" ] || die "в клоне $CLONE есть незакоммиченное — салважни или сбрось перед запуском"
 HEAD_MAIN=$(git -C "$MAIN" rev-parse "$FEAT")
 HEAD_CLONE=$(git -C "$CLONE" rev-parse HEAD)
-if [ "$HEAD_MAIN" != "$HEAD_CLONE" ]; then
-  die "клон $CLONE_NAME на ${HEAD_CLONE:0:9}, а $FEAT на ${HEAD_MAIN:0:9}. Сначала:
-    git -C $CLONE fetch $MAIN $FEAT && git -C $CLONE reset --hard FETCH_HEAD
+# Клон обязан СОДЕРЖАТЬ голову feat. Равенства требовать нельзя: клон с невлитым фиксом
+# опережает feat на свой коммит, и его как раз надо аудировать (гейт 28.07 это запрещал —
+# ошибка конструкции, найденная на первом же аудите фиксов).
+if ! git -C "$CLONE" merge-base --is-ancestor "$HEAD_MAIN" "$HEAD_CLONE" 2>/dev/null; then
+  die "клон $CLONE_NAME на ${HEAD_CLONE:0:9} НЕ содержит голову $FEAT ${HEAD_MAIN:0:9}. Сначала:
+    git -C $CLONE fetch $MAIN $FEAT && git -C $CLONE merge --no-edit FETCH_HEAD
   (аудит на устаревшем клоне 28.07 проверял код, которого там не было)"
 fi
+AHEAD=$(git -C "$CLONE" rev-list --count "$HEAD_MAIN".."$HEAD_CLONE")
 
 # 3. Бриф: есть, непустой, ссылается на план.
 [ -s "$BRIEF" ] || die "бриф $BRIEF не найден или пуст"
@@ -85,7 +89,7 @@ fi
 # 5. Запуск. Лог рядом с брифом, run-id — в имени.
 LOG="$(dirname "$BRIEF")/$RUN_ID.log"
 echo "запуск: роль=$ROLE клон=$CLONE_NAME модель=$MODEL effort=$EFFORT слой=$PLAN_SLICE"
-echo "  клон и feat совпадают на ${HEAD_MAIN:0:9}; агентов роли было $LIVE из $CAP; лог $LOG"
+echo "  клон содержит feat ${HEAD_MAIN:0:9}, своих коммитов сверху: $AHEAD; агентов роли было $LIVE из $CAP; лог $LOG"
 [ -z "${ORCH_DRY:-}" ] || { echo "  ORCH_DRY=1 — все проверки пройдены, агент НЕ запущен"; exit 0; }
 nohup node "$PORT" --provider codex --model "$MODEL" --effort "$EFFORT" \
   --role "$ROLE" --sandbox "$SANDBOX" --cwd "$CLONE" --run-id "$RUN_ID" \
