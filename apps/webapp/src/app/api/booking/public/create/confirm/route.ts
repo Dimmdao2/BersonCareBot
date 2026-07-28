@@ -22,6 +22,7 @@ import {
 import { consumePublicBookingVerification } from "@/modules/public-booking/publicBookingVerification";
 import { redactPublicBookingRecord } from "@/modules/public-booking/publicBookingResponse";
 import { InPersonBookingResolveError } from "@/modules/patient-booking/inPersonBookingResolve";
+import { withExplicitOrganizationPrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import {
   jsonError,
   jsonOk,
@@ -97,12 +98,19 @@ export async function POST(request: Request) {
   }
 
   try {
-    const booking = await createVerifiedPublicBooking(
-      deps,
-      consumed.verified.intent,
-      // An e-mail-delivered code proves the e-mail, never the phone (#1005). The decision lives in
-      // `channelProvesPhoneControl`; this call site only carries its answer.
-      consumed.verified.phoneProven,
+    const booking = await withExplicitOrganizationPrincipal(
+      {
+        organizationId: consumed.verified.intent.organizationId,
+        source: "api/booking/public/create/confirm:POST",
+      },
+      () =>
+        createVerifiedPublicBooking(
+          deps,
+          consumed.verified.intent,
+          // An e-mail-delivered code proves the e-mail, never the phone (#1005). The decision lives in
+          // `channelProvesPhoneControl`; this call site only carries its answer.
+          consumed.verified.phoneProven,
+        ),
     );
     return jsonOk({ booking: redactPublicBookingRecord(booking) }, { status: 200 });
   } catch (error) {

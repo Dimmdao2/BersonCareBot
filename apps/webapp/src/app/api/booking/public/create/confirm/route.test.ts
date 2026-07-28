@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 
 const rateLimitMock = vi.hoisted(() => vi.fn());
 const resolveUserMock = vi.hoisted(() => vi.fn());
@@ -14,6 +15,7 @@ const OTHER_ORG_ID = "11111111-1111-4111-8111-111111111112";
 const BRANCH_ID = "550e8400-e29b-41d4-a716-446655440001";
 const SERVICE_ID = "550e8400-e29b-41d4-a716-446655440002";
 const EXISTING_PHONE = "+79001234567";
+let organizationSeenByFinalWrite: string | undefined;
 
 vi.mock("@/modules/public-booking/publicBookingRateLimit", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/modules/public-booking/publicBookingRateLimit")>();
@@ -66,10 +68,13 @@ function request(body: Record<string, unknown>) {
 describe("POST /api/booking/public/create/confirm", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    organizationSeenByFinalWrite = undefined;
     rateLimitMock.mockResolvedValue(false);
     resolveUserMock.mockResolvedValue({ ok: true, userId: "user-1" });
     createBookingMock.mockResolvedValue({ id: "pb-1", userId: "user-1", status: "confirmed", canonicalAppointmentId: "appt-1" });
-    recordMergeMock.mockResolvedValue(undefined);
+    recordMergeMock.mockImplementation(async () => {
+      organizationSeenByFinalWrite = getCurrentDbPrincipalOrganizationId();
+    });
     resolveCanonicalInPersonContextMock.mockResolvedValue({ organizationId: ORG_ID, branchId: BRANCH_ID, serviceId: SERVICE_ID });
     getBranchMock.mockResolvedValue({ id: BRANCH_ID, organizationId: ORG_ID, cityCode: "moscow" });
     getServiceMock.mockResolvedValue({ id: SERVICE_ID, organizationId: ORG_ID });
@@ -82,9 +87,13 @@ describe("POST /api/booking/public/create/confirm", () => {
     const response = await POST(request({ challengeId: "chal-1", code: "123456" }));
 
     expect(response.status).toBe(200);
+    await expect(response.text()).resolves.toBe(
+      '{"ok":true,"booking":{"id":"pb-1","status":"confirmed","canonicalAppointmentId":"appt-1"}}',
+    );
     expect(createBookingMock).toHaveBeenCalledWith(
       expect.objectContaining({ organizationId: ORG_ID, branchId: BRANCH_ID, serviceId: SERVICE_ID, contactPhone: EXISTING_PHONE }),
     );
+    expect(organizationSeenByFinalWrite).toBe(ORG_ID);
   });
 
   it("still hides the person's identifier after a successful confirm", async () => {
@@ -194,7 +203,7 @@ describe("POST /api/booking/public/create/confirm", () => {
     const response = await POST(request({ challengeId: "chal-1", code: "123456" }));
 
     expect(response.status).toBe(403);
-    expect(await response.json()).toMatchObject({ ok: false, error: "booking_blocked" });
+    await expect(response.text()).resolves.toBe('{"ok":false,"error":"booking_blocked"}');
   });
 
   it("redacts an unknown exception behind fixed create_failed", async () => {
