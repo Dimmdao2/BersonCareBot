@@ -11,7 +11,7 @@ function createPort(): OrganizationProvisioningPort {
     replacePendingSpecialistSignupChallenge: vi.fn(async () => false),
     provisionSpecialistOwner: vi.fn(async () => ({
       organizationId: "org-1",
-      specialistId: null,
+      specialistId: "provisioned-specialist-1",
       membershipId: "membership-1",
     })),
     ensureOwnBookableSpecialist: vi.fn(async () => ({
@@ -54,9 +54,10 @@ describe("ensureOwnBookableSpecialist", () => {
     expect(port.ensureOwnBookableSpecialist).not.toHaveBeenCalled();
   });
 
-  it("creates exactly one specialist for an invited doctor on the first valid staff entry", async () => {
+  it("does not create a specialist for an invited doctor through the owner repair path", async () => {
     const port = createPort();
 
+    // Changed because specialist repair is now restricted to the successfully provisioned organization owner.
     await expect(
       ensureOwnBookableSpecialist(port, {
         organizationId: "org-1",
@@ -66,20 +67,8 @@ describe("ensureOwnBookableSpecialist", () => {
         specialistId: null,
         displayName: "Invited Doctor",
       }),
-    ).resolves.toBe("specialist-1");
-    expect(port.ensureOwnBookableSpecialist).toHaveBeenCalledTimes(1);
-
-    await expect(
-      ensureOwnBookableSpecialist(port, {
-        organizationId: "org-1",
-        membershipId: "membership-1",
-        platformUserId: "user-1",
-        membershipRole: "doctor",
-        specialistId: "specialist-1",
-        displayName: "Invited Doctor",
-      }),
-    ).resolves.toBe("specialist-1");
-    expect(port.ensureOwnBookableSpecialist).toHaveBeenCalledTimes(1);
+    ).resolves.toBeNull();
+    expect(port.ensureOwnBookableSpecialist).not.toHaveBeenCalled();
   });
 
   it("creates a specialist for owner by default", async () => {

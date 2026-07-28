@@ -166,7 +166,18 @@ describe("legacy settings compatibility", () => {
 
     render(await SettingsPage({ searchParams: Promise.resolve({}) }));
 
+    // Changed because the clinical gate destination must now name the missing binding and its next step.
     expect(screen.getByRole("heading", { name: "Настройки" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Кабинет специалиста недоступен" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/К членству владельца не привязан профиль специалиста/u),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Перейти в личный аккаунт" })).toHaveAttribute(
+      "href",
+      "/app/account?tab=security",
+    );
     expect(screen.getByTestId("organization-settings")).toBeInTheDocument();
     expect(screen.getByTestId("clinic-slug")).toBeInTheDocument();
     expect(clinicSlugSectionMock).toHaveBeenCalledWith(

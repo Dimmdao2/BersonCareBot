@@ -13,5 +13,7 @@
 specialist-specific defaults. Management-only staff не получает клинические controls, а account не выдаёт
 organization-management capability.
 
-Security tab содержит существующие 2FA/sessions controls и смену пароля с текущим паролем. Отдельного
-`/app/ops/account` нет.
+Security tab содержит существующие 2FA/sessions controls и смену пароля с текущим паролем. Для legacy
+owner-membership без `specialist_id` здесь же доступен owner-only repair «Подключить рабочий кабинет» без
+предварительного TOTP: 2FA остаётся пунктом первого запуска после входа, а уже настроенный фактор по-прежнему
+нужно подтвердить в текущем сеансе. Отдельного `/app/ops/account` нет.

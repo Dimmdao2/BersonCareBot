@@ -23,7 +23,7 @@ export type SpecialistOwnerProvisioningInput = {
 
 export type SpecialistOwnerProvisioningResult = {
   organizationId: string;
-  specialistId: string | null;
+  specialistId: string;
   membershipId: string;
 };
 
