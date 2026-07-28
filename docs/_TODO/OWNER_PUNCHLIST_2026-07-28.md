@@ -344,6 +344,12 @@ todo). Новую не заводить — эти две описывают р�
       `requireDoctorWorkspaceContext`, а API — 403 через `requireDoctorWorkspaceApiContext`.
       Доказательство: `layout.test.tsx` + `requireRole.doctorWorkspaceContext.test.ts`, targeted Vitest 28.07 —
       PASS. Пункт остаётся открыт до требуемой живой проверки/скрина на TEST.
+      Коррекция следующего аудита: bypass layout теперь ограничен owner с уже созданной карточкой специалиста
+      (`doctor/layout.tsx:49-55`), поэтому management-only admin получает прежний redirect в organization settings;
+      единственный незащищённый clinical child, `doctor/dev/chart-test`, вызывает
+      `requireDoctorWorkspaceContext` до монтирования client-компонента (`dev/chart-test/page.tsx:10`).
+      Доказательство: `layout.test.tsx`, `dev/chart-test/page.test.tsx`; targeted Vitest 28.07 — PASS (6/6).
+      Пункт остаётся открыт до требуемой живой проверки/скрина на TEST.
 
 **Риск:** identity/auth (меняется порядок 2FA) → полный адверсарный аудит. Это **ревизия уже сданной работы
 U3S (#919)**, а не свежий скоуп — помечать так в коммите.

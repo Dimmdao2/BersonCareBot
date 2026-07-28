@@ -49,13 +49,21 @@ const doctorSession = {
   },
 };
 
-function workspace(canAccessClinicalWorkspace: boolean) {
+function workspace({
+  canAccessClinicalWorkspace,
+  membershipRole = "owner",
+  specialistId = canAccessClinicalWorkspace ? "00000000-0000-4000-8000-000000000004" : null,
+}: {
+  canAccessClinicalWorkspace: boolean;
+  membershipRole?: "owner" | "admin";
+  specialistId?: string | null;
+}) {
   return {
     session: doctorSession,
     organizationId: "00000000-0000-4000-8000-000000000002",
     membershipId: "00000000-0000-4000-8000-000000000003",
-    membershipRole: "owner" as const,
-    specialistId: canAccessClinicalWorkspace ? "00000000-0000-4000-8000-000000000004" : null,
+    membershipRole,
+    specialistId,
     canManageOrganization: true,
     canManageAllSpecialists: true,
     canAccessClinicalWorkspace,
@@ -87,7 +95,12 @@ describe("DoctorSectionLayout", () => {
   });
 
   it("keeps the safe first-run child reachable without constructing the clinical shell", async () => {
-    mocks.requireOrganizationWorkspaceContext.mockResolvedValue(workspace(false));
+    mocks.requireOrganizationWorkspaceContext.mockResolvedValue(
+      workspace({
+        canAccessClinicalWorkspace: false,
+        specialistId: "00000000-0000-4000-8000-000000000004",
+      }),
+    );
     const firstRun = "first-run";
 
     await expect(DoctorSectionLayout({ children: firstRun })).resolves.toBe(firstRun);
@@ -95,8 +108,19 @@ describe("DoctorSectionLayout", () => {
     expect(mocks.getOrganization).not.toHaveBeenCalled();
   });
 
+  it("redirects a management-only admin to organization settings instead of the owner first-run shell", async () => {
+    mocks.requireOrganizationWorkspaceContext.mockResolvedValue(
+      workspace({ canAccessClinicalWorkspace: false, membershipRole: "admin" }),
+    );
+
+    await expect(DoctorSectionLayout({ children: "clinical-child" })).rejects.toThrow(
+      "redirect:/app/settings?tab=organization",
+    );
+    expect(mocks.getOrganization).not.toHaveBeenCalled();
+  });
+
   it("keeps a bound owner clinical and passes the resolved practice name to the shell", async () => {
-    mocks.requireOrganizationWorkspaceContext.mockResolvedValue(workspace(true));
+    mocks.requireOrganizationWorkspaceContext.mockResolvedValue(workspace({ canAccessClinicalWorkspace: true }));
     mocks.getOrganization.mockResolvedValue({ title: "Практика Берсона" });
 
     const element = (await DoctorSectionLayout({ children: null })) as ReactElement<{
@@ -109,7 +133,7 @@ describe("DoctorSectionLayout", () => {
     const devBypassDoctor = { ...doctorSession, authSource: "dev_bypass" as const };
     mocks.getCurrentSession.mockResolvedValue(devBypassDoctor);
     mocks.requireOrganizationWorkspaceContext.mockResolvedValue({
-      ...workspace(true),
+      ...workspace({ canAccessClinicalWorkspace: true }),
       session: devBypassDoctor,
     });
     mocks.getOrganization.mockResolvedValue({ title: "DEV UX Clinic" });
