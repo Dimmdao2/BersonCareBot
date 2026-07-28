@@ -7,6 +7,7 @@ import { DoctorSection, DoctorSectionHeader, DoctorSectionTitle } from "@/shared
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
 import { Label } from "@/shared/ui/doctor/primitives/label";
+import { staffSecurityErrorText, staffSecurityNetworkErrorText } from "@/shared/ui/auth/staffSecurityErrorText";
 
 type SecurityStatus = {
   enrolled: boolean;
@@ -32,23 +33,6 @@ async function postJson<T>(url: string, body?: unknown): Promise<T> {
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   return await response.json() as T;
-}
-
-function passwordChangeErrorText(error?: string): string {
-  switch (error) {
-    case "wrong_current_password":
-      return "Текущий пароль указан неверно.";
-    case "weak_new_password":
-      return "Новый пароль должен содержать от 8 до 128 символов.";
-    case "rate_limited":
-      return "Слишком много попыток. Повторите через 10 минут.";
-    case "password_login_unavailable":
-      return "Для аккаунта не настроен вход по паролю.";
-    case "password_changed_session_reissue_failed":
-      return "Пароль изменён, но сеанс завершён. Войдите снова.";
-    default:
-      return "Пароль не изменён. Повторите попытку.";
-  }
 }
 
 export function StaffSecuritySection(props: Props) {
@@ -78,14 +62,14 @@ export function StaffSecuritySection(props: Props) {
         "/api/account/security/totp/start",
       );
       if (!result.ok || !result.secret || !result.uri) {
-        toast.error("Не удалось начать настройку защиты");
+        toast.error(staffSecurityErrorText(result.error, "start_enrollment"));
         return;
       }
       setSecret(result.secret);
       setUri(result.uri);
       setRecoveryCodes([]);
     } catch {
-      toast.error("Не удалось начать настройку защиты");
+      toast.error(staffSecurityNetworkErrorText("start_enrollment"));
     } finally {
       setBusy(false);
     }
@@ -99,7 +83,7 @@ export function StaffSecuritySection(props: Props) {
         { code },
       );
       if (!result.ok || !result.recoveryCodes) {
-        toast.error(result.error === "factor_locked" ? "Слишком много попыток. Повторите позже." : "Неверный код");
+        toast.error(staffSecurityErrorText(result.error, "verify_enrollment"));
         return;
       }
       setCode("");
@@ -107,36 +91,54 @@ export function StaffSecuritySection(props: Props) {
       setUri(null);
       setRecoveryCodes(result.recoveryCodes);
       await refreshStatus();
+    } catch {
+      toast.error(staffSecurityNetworkErrorText("verify_enrollment"));
     } finally {
       setBusy(false);
     }
   }
 
   async function confirmRecovery() {
-    const result = await postJson<{ ok: boolean }>("/api/account/security/recovery/confirm");
-    if (!result.ok) return toast.error("Не удалось подтвердить сохранение кодов");
-    setRecoveryCodes([]);
-    window.location.assign("/app/account?tab=security");
+    try {
+      const result = await postJson<{ ok: boolean; error?: string }>("/api/account/security/recovery/confirm");
+      if (!result.ok) return toast.error(staffSecurityErrorText(result.error, "confirm_recovery"));
+      setRecoveryCodes([]);
+      window.location.assign("/app/account?tab=security");
+    } catch {
+      toast.error(staffSecurityNetworkErrorText("confirm_recovery"));
+    }
   }
 
   async function bindSpecialist() {
-    const result = await postJson<{ ok: boolean; redirectTo?: string; error?: string }>(
-      "/api/account/first-run/bind-specialist",
-    );
-    if (!result.ok) return toast.error("Сначала завершите настройку защиты аккаунта");
-    window.location.assign(result.redirectTo ?? "/app/doctor");
+    try {
+      const result = await postJson<{ ok: boolean; redirectTo?: string; error?: string }>(
+        "/api/account/first-run/bind-specialist",
+      );
+      if (!result.ok) return toast.error(staffSecurityErrorText(result.error, "bind_specialist"));
+      window.location.assign(result.redirectTo ?? "/app/doctor");
+    } catch {
+      toast.error(staffSecurityNetworkErrorText("bind_specialist"));
+    }
   }
 
   async function retryProvisioning() {
-    const result = await postJson<{ ok: boolean; redirectTo?: string }>("/api/auth/specialist-signup/retry");
-    if (!result.ok) return toast.error("Аккаунт ещё не готов. Повторите позже.");
-    window.location.assign(result.redirectTo ?? "/app/account?tab=security");
+    try {
+      const result = await postJson<{ ok: boolean; redirectTo?: string; error?: string }>("/api/auth/specialist-signup/retry");
+      if (!result.ok) return toast.error(staffSecurityErrorText(result.error, "retry_provisioning"));
+      window.location.assign(result.redirectTo ?? "/app/account?tab=security");
+    } catch {
+      toast.error(staffSecurityNetworkErrorText("retry_provisioning"));
+    }
   }
 
   async function revokeSessions() {
-    const result = await postJson<{ ok: boolean }>("/api/account/security/sessions/revoke");
-    if (!result.ok) return toast.error("Не удалось завершить другие сеансы");
-    toast.success("Другие сеансы завершены");
+    try {
+      const result = await postJson<{ ok: boolean; error?: string }>("/api/account/security/sessions/revoke");
+      if (!result.ok) return toast.error(staffSecurityErrorText(result.error, "revoke_sessions"));
+      toast.success("Другие сеансы завершены");
+    } catch {
+      toast.error(staffSecurityNetworkErrorText("revoke_sessions"));
+    }
   }
 
   async function changePassword(event: FormEvent<HTMLFormElement>) {
@@ -156,14 +158,14 @@ export function StaffSecuritySection(props: Props) {
           setCurrentPassword("");
           setNewPassword("");
         }
-        toast.error(passwordChangeErrorText(result.error));
+        toast.error(staffSecurityErrorText(result.error, "change_password"));
         return;
       }
       setCurrentPassword("");
       setNewPassword("");
       toast.success("Пароль изменён");
     } catch {
-      toast.error("Пароль не изменён. Проверьте соединение и повторите попытку.");
+      toast.error(staffSecurityNetworkErrorText("change_password"));
     } finally {
       setPasswordBusy(false);
     }

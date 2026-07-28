@@ -60,7 +60,9 @@ describe('StaffSecuritySection first-run acceptance', () => {
       headers: undefined,
       body: undefined,
     });
-    expect(toastErrorMock).toHaveBeenCalledWith('Аккаунт ещё не готов. Повторите позже.');
+    expect(toastErrorMock).toHaveBeenCalledWith(
+      'Не удалось завершить настройку аккаунта. Повторите попытку позже.',
+    );
   });
 
   it('offers exact specialist binding only after factor and recovery readiness', async () => {
@@ -93,7 +95,9 @@ describe('StaffSecuritySection first-run acceptance', () => {
       headers: undefined,
       body: undefined,
     });
-    expect(toastErrorMock).toHaveBeenCalledWith('Сначала завершите настройку защиты аккаунта');
+    expect(toastErrorMock).toHaveBeenCalledWith(
+      'Сеанс защиты больше не подтверждён. Выйдите и войдите снова, затем повторите.',
+    );
   });
 
   it('keeps recovery sessions on the replacement-only Account security surface', () => {
@@ -175,16 +179,18 @@ describe('StaffSecuritySection first-run acceptance', () => {
       screen.getByRole('button', { name: 'Подключить приложение-аутентификатор' }),
     );
 
-    expect(toastErrorMock).toHaveBeenCalledWith('Не удалось начать настройку защиты');
+    expect(toastErrorMock).toHaveBeenCalledWith(
+      'Не удалось начать настройку защиты. Повторите попытку. Проверьте соединение с интернетом.',
+    );
   });
 
   it.each([
-    ['wrong_current_password', 'Текущий пароль указан неверно.'],
-    ['weak_new_password', 'Новый пароль должен содержать от 8 до 128 символов.'],
-    ['rate_limited', 'Слишком много попыток. Повторите через 10 минут.'],
+    ['wrong_current_password', 'Текущий пароль указан неверно. Проверьте его и повторите попытку.'],
+    ['weak_new_password', 'Новый пароль должен содержать от 8 до 128 символов. Измените пароль и повторите.'],
+    ['rate_limited', 'Слишком много попыток. Подождите 10 минут и повторите.'],
     [
       'password_changed_session_reissue_failed',
-      'Пароль изменён, но сеанс завершён. Войдите снова.',
+      'Пароль изменён, но сеанс завершён. Войдите снова с новым паролем.',
     ],
   ])('shows an actionable password-change error for %s', async (error, message) => {
     vi.mocked(fetch).mockResolvedValue(
@@ -229,4 +235,87 @@ describe('StaffSecuritySection first-run acceptance', () => {
     });
     expect(toastErrorMock).toHaveBeenCalledWith(message);
   });
+
+  it('shows a toast when TOTP verification loses the network', async () => {
+    vi.mocked(fetch).mockImplementation((url) => {
+      if (url === '/api/account/security/totp/start') {
+        return Promise.resolve(new Response(JSON.stringify({ ok: true, secret: 'secret', uri: 'otpauth://test' })));
+      }
+      return Promise.reject(new Error('offline'));
+    });
+    renderSecurity({ enrolled: false, recoveryConfirmed: false });
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Подключить приложение-аутентификатор' }));
+    await user.type(screen.getByLabelText('Код из приложения'), '123456');
+    await user.click(screen.getByRole('button', { name: 'Проверить' }));
+    expect(toastErrorMock).toHaveBeenCalledWith(
+      'Не удалось проверить код. Получите новый код и повторите. Проверьте соединение с интернетом.',
+    );
+  });
+
+  it('shows a toast when recovery confirmation loses the network', async () => {
+    vi.mocked(fetch).mockImplementation((url) => {
+      if (url === '/api/account/security/totp/start') {
+        return Promise.resolve(new Response(JSON.stringify({ ok: true, secret: 'secret', uri: 'otpauth://test' })));
+      }
+      if (url === '/api/account/security/totp/verify') {
+        return Promise.resolve(new Response(JSON.stringify({ ok: true, recoveryCodes: ['one'] })));
+      }
+      return Promise.reject(new Error('offline'));
+    });
+    renderSecurity({ enrolled: false, recoveryConfirmed: false });
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Подключить приложение-аутентификатор' }));
+    await user.type(screen.getByLabelText('Код из приложения'), '123456');
+    await user.click(screen.getByRole('button', { name: 'Проверить' }));
+    await user.click(screen.getByRole('button', { name: 'Я сохранил коды' }));
+    expect(toastErrorMock).toHaveBeenCalledWith(
+      'Не удалось подтвердить сохранение кодов. Проверьте, что коды сохранены, и повторите. Проверьте соединение с интернетом.',
+    );
+  });
+
+  it.each([
+    [
+      'Повторить настройку аккаунта',
+      { enrolled: false, recoveryConfirmed: false, hasOrganization: false, hasSpecialistBinding: false },
+      'Не удалось завершить настройку аккаунта. Повторите попытку позже. Проверьте соединение с интернетом.',
+    ],
+    [
+      'Подключить рабочий кабинет',
+      { enrolled: true, recoveryConfirmed: true, hasOrganization: true, hasSpecialistBinding: false },
+      'Не удалось подключить рабочий кабинет. Повторите попытку позже. Проверьте соединение с интернетом.',
+    ],
+    [
+      'Завершить другие сеансы',
+      { enrolled: true, recoveryConfirmed: true, hasOrganization: true, hasSpecialistBinding: true },
+      'Не удалось завершить другие сеансы. Повторите попытку. Проверьте соединение с интернетом.',
+    ],
+  ])('shows a toast when %s loses the network', async (buttonName, state, message) => {
+    vi.mocked(fetch).mockRejectedValue(new Error('offline'));
+    renderSecurity(state);
+    await userEvent.click(screen.getByRole('button', { name: buttonName }));
+    expect(toastErrorMock).toHaveBeenCalledWith(message);
+  });
 });
+
+function renderSecurity(input: {
+  enrolled: boolean;
+  recoveryConfirmed: boolean;
+  hasOrganization?: boolean;
+  hasSpecialistBinding?: boolean;
+}) {
+  return render(
+    <StaffSecuritySection
+      initialStatus={{
+        enrolled: input.enrolled,
+        recoveryConfirmed: input.recoveryConfirmed,
+        replacementRequired: false,
+        lockedUntil: null,
+      }}
+      hasProfileName
+      hasTimezone
+      hasOrganization={input.hasOrganization ?? true}
+      hasSpecialistBinding={input.hasSpecialistBinding ?? true}
+    />,
+  );
+}

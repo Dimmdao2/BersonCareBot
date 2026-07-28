@@ -52,6 +52,7 @@ import {
   validateOrganizationSlugCandidate,
 } from "@/modules/clinic-directory/organizationSlug";
 import type { OrganizationSlugMutationErrorCode } from "@/modules/clinic-directory/ports";
+import { staffSecurityErrorText } from "@/shared/ui/auth/staffSecurityErrorText";
 
 const WEB_CHAT_ID_KEY = "bersoncare_web_chat_id";
 
@@ -774,15 +775,7 @@ export function AuthFlowV2({
         redirectOk(result.data.redirectTo, "doctor");
         return;
       }
-      toast.error(
-        result.data.error === "factor_locked"
-          ? "Слишком много попыток. Повторите позже."
-          : result.data.error === "login_challenge_expired"
-            ? "Время подтверждения истекло. Войдите заново."
-            : result.data.error === "factor_replacement_required"
-              ? "Завершите восстановление с помощью резервного кода."
-            : "Неверный код.",
-      );
+      toast.error(staffSecurityErrorText(result.data.error, "login_factor"));
     } finally {
       setLoading(false);
     }
