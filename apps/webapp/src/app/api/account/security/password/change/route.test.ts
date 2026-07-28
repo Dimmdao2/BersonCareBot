@@ -141,6 +141,25 @@ describe("POST /api/account/security/password/change", () => {
     expect(changePasswordMock).not.toHaveBeenCalled();
   });
 
+  it("returns an actionable temporary-lock response after the tenth wrong password", async () => {
+    changePasswordMock.mockResolvedValue({
+      ok: false,
+      error: "password_temporarily_locked",
+      retryAfterSeconds: 900,
+    });
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get("Retry-After")).toBe("900");
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      error: "password_temporarily_locked",
+      message: "Слишком много неверных попыток. Подождите 15 минут или восстановите пароль.",
+      retryAfterSeconds: 900,
+    });
+  });
+
   it("mints the replacement current session from the post-revocation user epoch", async () => {
     changePasswordMock.mockResolvedValue({ ok: true, user: freshUser });
 

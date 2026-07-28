@@ -6,7 +6,12 @@ import { bindAuthRateLimitDbPort } from "@/modules/auth/authRateLimits";
 import { bindChannelLinkDbPort } from "@/modules/auth/channelLink";
 import { bindEmailSendPort } from "@/modules/auth/emailSendPort";
 import { bindOAuthUserResolvePort } from "@/modules/auth/oauthUserResolvePort";
-import { checkAndRecordAuthRateLimitEvent } from "@/infra/repos/pgAuthRateLimitEvents";
+import {
+  checkAndRecordAuthRateLimitEvent,
+  countActiveAuthRateLimitEvents,
+  recordAndCountAuthRateLimitEvent,
+  resetAuthRateLimitEvents,
+} from "@/infra/repos/pgAuthRateLimitEvents";
 import { pgChannelLinkDbPort } from "@/infra/repos/pgChannelLinkDbPort";
 import { pgEmailAuthPort } from "@/infra/repos/pgEmailAuth";
 import { pgPhoneOtpLimitsPort } from "@/infra/repos/pgPhoneOtpLimits";
@@ -20,7 +25,12 @@ let bound = false;
 /** Wire auth module DB ports from infra (composition root). Idempotent. */
 export function ensureAuthModulePortsBound(): void {
   if (bound) return;
-  bindAuthRateLimitDbPort({ checkAndRecord: checkAndRecordAuthRateLimitEvent });
+  bindAuthRateLimitDbPort({
+    checkAndRecord: checkAndRecordAuthRateLimitEvent,
+    recordAndCount: recordAndCountAuthRateLimitEvent,
+    countActive: countActiveAuthRateLimitEvents,
+    reset: resetAuthRateLimitEvents,
+  });
   bindEmailAuthDbPort(pgEmailAuthPort);
   bindPhoneOtpLimitsDbPort(pgPhoneOtpLimitsPort);
   bindDevBypassPlatformUserPhonePort(pgDevBypassPlatformUserPhonePort);

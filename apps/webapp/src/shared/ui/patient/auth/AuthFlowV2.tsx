@@ -722,6 +722,7 @@ export function AuthFlowV2({
         redirectTo?: string;
         factorRequired?: boolean;
         error?: string;
+        message?: string;
       }>("/api/auth/email-password/login", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -745,8 +746,10 @@ export function AuthFlowV2({
         toast.error("Email не подтверждён. Обратитесь в поддержку.");
         return;
       }
-      if (res.status === 401 || data.error === "invalid_credentials") {
-        toast.error("Неверный email или пароль.");
+      if (data.error === "invalid_credentials") {
+        toast.error(
+          data.message ?? "Email или пароль неверны. Проверьте данные или восстановите пароль.",
+        );
         return;
       }
       toast.error("Не удалось войти.");

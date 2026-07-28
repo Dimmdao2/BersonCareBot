@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createPasswordChangeService } from "./passwordChange";
 
 const USER_ID = "11111111-1111-4111-8111-111111111111";
-const OTHER_USER_ID = "22222222-2222-4222-8222-222222222222";
 const currentUser = {
   userId: USER_ID,
   role: "doctor" as const,
@@ -14,6 +13,8 @@ const currentUser = {
 describe("password change service", () => {
   const getVerifiedEmailForUser = vi.fn();
   const tryVerifyLogin = vi.fn();
+  const recordFailedPasswordAttempt = vi.fn();
+  const resetFailedPasswordAttempts = vi.fn();
   const hashPassword = vi.fn();
   const getStatus = vi.fn();
   const revokeSessions = vi.fn();
@@ -22,7 +23,12 @@ describe("password change service", () => {
   const findByUserId = vi.fn();
 
   const service = createPasswordChangeService({
-    credentials: { tryVerifyLogin, updatePasswordHash },
+    credentials: {
+      tryVerifyLogin,
+      recordFailedPasswordAttempt,
+      resetFailedPasswordAttempts,
+      updatePasswordHash,
+    },
     users: {
       getVerifiedEmailForUser,
       invalidateSessionsForSelf,
@@ -40,7 +46,13 @@ describe("password change service", () => {
   });
 
   it("rejects a wrong current password without changing credentials or sessions", async () => {
-    tryVerifyLogin.mockResolvedValue({ userId: OTHER_USER_ID });
+    tryVerifyLogin.mockResolvedValue({
+      ok: false,
+      accountUserId: USER_ID,
+      attempts: 1,
+      delaySeconds: 0,
+      locked: false,
+    });
 
     await expect(
       service.changePassword({
@@ -57,12 +69,41 @@ describe("password change service", () => {
     );
     expect(invalidateSessionsForSelf).not.toHaveBeenCalled();
     expect(updatePasswordHash).not.toHaveBeenCalled();
+    expect(recordFailedPasswordAttempt).toHaveBeenCalledWith(USER_ID);
+  });
+
+  it("reports the temporary account lock with its next safe retry", async () => {
+    tryVerifyLogin.mockResolvedValue({
+      ok: false,
+      accountUserId: USER_ID,
+      attempts: 10,
+      delaySeconds: 0,
+      locked: true,
+      retryAfterSeconds: 900,
+    });
+
+    await expect(
+      service.changePassword({
+        userId: USER_ID,
+        currentPassword: "wrong-password",
+        newPassword: "new-password",
+      }),
+    ).resolves.toEqual({
+      ok: false,
+      error: "password_temporarily_locked",
+      retryAfterSeconds: 900,
+    });
+    expect(recordFailedPasswordAttempt).toHaveBeenCalledWith(USER_ID);
   });
 
   it("changes the hash, revokes old epochs, and returns the fresh epoch for the surviving current session", async () => {
     const events: string[] = [];
     const freshUser = { ...currentUser, sessionEpoch: 6 };
-    tryVerifyLogin.mockResolvedValue({ userId: USER_ID });
+    tryVerifyLogin.mockResolvedValue({
+      ok: true,
+      userId: USER_ID,
+      emailVerified: true,
+    });
     getStatus.mockResolvedValue({
       enrolled: true,
       recoveryConfirmed: true,
@@ -93,6 +134,10 @@ describe("password change service", () => {
 
     expect(result).toEqual({ ok: true, user: freshUser });
     expect(updatePasswordHash).toHaveBeenCalledWith(USER_ID, "argon2:new-password");
+    expect(resetFailedPasswordAttempts).toHaveBeenCalledWith(
+      USER_ID,
+      "doctor@example.com",
+    );
     expect(events).toEqual([
       "staff-revoke",
       "epoch-revoke",

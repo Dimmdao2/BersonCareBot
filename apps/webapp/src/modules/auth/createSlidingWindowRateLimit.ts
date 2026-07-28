@@ -6,7 +6,7 @@ export type SlidingWindowRateLimitConfig = {
   scope: string;
   windowMs: number;
   maxPerWindow: number;
-  db: AuthRateLimitDbPort;
+  db: Pick<AuthRateLimitDbPort, "checkAndRecord">;
   /** Optional in-process cadence plus DB-bounded cleanup for this limiter scope. */
   scopePrune?: {
     retentionMs: number;

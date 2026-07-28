@@ -118,6 +118,8 @@ export const userPasswordCredentials = pgTable("user_password_credentials", {
 	userId: uuid("user_id").primaryKey().notNull(),
 	passwordHash: text("password_hash").notNull(),
 	algo: text().default("argon2id").notNull(),
+	failedAttempts: integer("failed_attempts").default(0).notNull(),
+	lockedUntil: timestamp("locked_until", { withTimezone: true, mode: 'string' }),
 	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 }, (table) => [
 	foreignKey({
@@ -125,6 +127,7 @@ export const userPasswordCredentials = pgTable("user_password_credentials", {
 			foreignColumns: [platformUsers.id],
 			name: "user_password_credentials_user_id_fkey"
 		}).onDelete("cascade"),
+	check("user_password_credentials_failed_attempts_check", sql`failed_attempts >= 0`),
 ]);
 
 /** Historical phone assignments per canonical user (`valid_to` null = current spell). */

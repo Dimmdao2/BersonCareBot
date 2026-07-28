@@ -1,5 +1,10 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { checkAndRecordAuthRateLimitEvent } from "@/infra/repos/pgAuthRateLimitEvents";
+import {
+  checkAndRecordAuthRateLimitEvent,
+  countActiveAuthRateLimitEvents,
+  recordAndCountAuthRateLimitEvent,
+  resetAuthRateLimitEvents,
+} from "@/infra/repos/pgAuthRateLimitEvents";
 
 const runWebappTransactionMock = vi.fn();
 const runWebappSqlMock = vi.fn();
@@ -57,6 +62,53 @@ describe("checkAndRecordAuthRateLimitEvent", () => {
     expect(runWebappPgTextMock).toHaveBeenCalledTimes(3);
     const insertSql = String(runWebappPgTextMock.mock.calls[2]?.[0] ?? "");
     expect(insertSql).toContain("app.auth_rate_limit_record($1, $2)");
+  });
+
+  it("returns the post-record count for password backoff scheduling", async () => {
+    runWebappTransactionMock.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => {
+      runWebappPgTextMock
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [{ c: "4" }] })
+        .mockResolvedValueOnce({ rows: [], rowCount: 1 });
+      return fn({});
+    });
+
+    await expect(recordAndCountAuthRateLimitEvent({
+      scope: "auth.password_identifier_failure",
+      key: "password-email:v1:opaque",
+      windowMs: 86_400_000,
+      maxPerWindow: 10,
+    })).resolves.toEqual({ limited: false, attempts: 5 });
+  });
+
+  it("counts and resets an exact active bucket through the existing accessors", async () => {
+    runWebappTransactionMock
+      .mockImplementationOnce(async (fn: (tx: unknown) => Promise<unknown>) => {
+        runWebappPgTextMock
+          .mockResolvedValueOnce({ rows: [] })
+          .mockResolvedValueOnce({ rows: [{ c: "7" }] });
+        return fn({});
+      })
+      .mockImplementationOnce(async (fn: (tx: unknown) => Promise<unknown>) => {
+        runWebappPgTextMock.mockResolvedValueOnce({ rows: [] });
+        return fn({});
+      });
+
+    await expect(countActiveAuthRateLimitEvents({
+      scope: "auth.password_identifier_failure",
+      key: "password-email:v1:opaque",
+      windowMs: 86_400_000,
+    })).resolves.toBe(7);
+    await expect(resetAuthRateLimitEvents({
+      scope: "auth.password_identifier_failure",
+      key: "password-email:v1:opaque",
+    })).resolves.toBeUndefined();
+
+    expect(
+      runWebappPgTextMock.mock.calls.filter((call) =>
+        String(call[0]).includes("app.auth_rate_limit_prune_key"),
+      ),
+    ).toHaveLength(2);
   });
 
   it("prunes stale rows for the full F0 scope before checking a pseudonymous key", async () => {

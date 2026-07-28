@@ -8,14 +8,54 @@ import { getRedirectPathForRole } from "@/modules/auth/redirectPolicy";
 import { setSessionFromUser } from "@/modules/auth/service";
 import { enterStaffSecuritySelfPrincipal } from "@/app-layer/principal/staffSecuritySelfPrincipal";
 import { prepareVerifiedPrimaryLoginWithStatus } from "@/modules/auth/verifiedStaffPrimaryLogin";
+import {
+  AUTH_CONFIRM_RATE_LIMIT_SEC,
+  checkAuthConfirmRateLimit,
+} from "@/modules/auth/authConfirmRateLimit";
+import {
+  PASSWORD_LOCK_SECONDS,
+  passwordFailurePrincipalId,
+  waitForPasswordFailureDelay,
+} from "@/modules/auth/passwordLoginProtection";
 
 const bodySchema = z.object({
   email: z.string().email(),
   password: z.string().min(1).max(128),
 });
 
+const INVALID_CREDENTIALS_MESSAGE =
+  "Email или пароль неверны. Проверьте данные или восстановите пароль.";
+const PASSWORD_LOCKED_MESSAGE =
+  "Слишком много неудачных попыток. Подождите 15 минут или восстановите пароль.";
+
 export async function POST(request: Request) {
   stampBootstrapPrincipal("api/auth/email-password/login:POST", request);
+  const rateLimit = await checkAuthConfirmRateLimit(request, "email_password_login");
+  if (rateLimit.limited) {
+    if (rateLimit.reason === "proxy_configuration") {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "proxy_configuration",
+          message: "Защита входа временно недоступна. Повторите попытку позже.",
+        },
+        { status: 503 },
+      );
+    }
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "rate_limited",
+        message: "Слишком много запросов. Подождите 10 минут и повторите попытку.",
+        retryAfterSeconds: AUTH_CONFIRM_RATE_LIMIT_SEC,
+      },
+      {
+        status: 429,
+        headers: { "Retry-After": String(AUTH_CONFIRM_RATE_LIMIT_SEC) },
+      },
+    );
+  }
+
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {
@@ -26,17 +66,62 @@ export async function POST(request: Request) {
   const deps = buildAppDeps();
 
   const pwd = await deps.userPasswordCredentials.verifyEmailPasswordForLogin(emailNorm, parsed.data.password);
-  if (!pwd) {
-    return NextResponse.json({ ok: false, error: "invalid_credentials" }, { status: 401 });
-  }
-  if (!pwd.emailVerified) {
-    return NextResponse.json({ ok: false, error: "email_not_verified" }, { status: 409 });
+  if (!pwd.ok) {
+    const failurePrincipalId = pwd.accountUserId ?? passwordFailurePrincipalId(emailNorm);
+    enterStaffSecuritySelfPrincipal(
+      failurePrincipalId,
+      "api/auth/email-password/login:primary-failed",
+    );
+    await deps.userPasswordCredentials.recordFailedPasswordAttempt(failurePrincipalId);
+    await waitForPasswordFailureDelay(pwd.delaySeconds);
+    if (pwd.locked) {
+      const retryAfterSeconds = pwd.retryAfterSeconds ?? PASSWORD_LOCK_SECONDS;
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "invalid_credentials",
+          message: PASSWORD_LOCKED_MESSAGE,
+          retryAfterSeconds,
+        },
+        {
+          status: 429,
+          headers: { "Retry-After": String(retryAfterSeconds) },
+        },
+      );
+    }
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "invalid_credentials",
+        message: INVALID_CREDENTIALS_MESSAGE,
+      },
+      { status: 401 },
+    );
   }
 
   enterStaffSecuritySelfPrincipal(pwd.userId, "api/auth/email-password/login:primary-verified");
+  await deps.userPasswordCredentials.resetFailedPasswordAttempts(pwd.userId, emailNorm);
+  if (!pwd.emailVerified) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "email_not_verified",
+        message: "Email не подтверждён. Подтвердите адрес и повторите вход.",
+      },
+      { status: 409 },
+    );
+  }
+
   let sessionUser = await deps.userByPhone.findByUserId(pwd.userId);
   if (!sessionUser) {
-    return NextResponse.json({ ok: false, error: "invalid_credentials" }, { status: 401 });
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "invalid_credentials",
+        message: INVALID_CREDENTIALS_MESSAGE,
+      },
+      { status: 401 },
+    );
   }
 
   const envRole = resolveRoleFromEnv({
