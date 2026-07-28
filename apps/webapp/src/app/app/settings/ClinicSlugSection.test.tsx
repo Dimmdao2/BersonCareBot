@@ -61,7 +61,7 @@ describe("clinicSlugErrorMessage", () => {
       />,
     );
 
-    const slug = screen.getByLabelText("Slug клиники");
+    const slug = screen.getByLabelText(/Slug клиники/);
     await user.type(slug, "Clinic-Upper");
     expect(slug).toHaveValue("clinic-upper");
   });
