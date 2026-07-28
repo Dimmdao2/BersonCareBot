@@ -335,7 +335,13 @@ describe("doctor support/task workspace principal cutover", () => {
 
   it("doctor Today SSR dashboard uses the selected workspace organization", () => {
     const page = readSource("src/app/app/doctor/page.tsx");
-    expect(page).toContain("requireDoctorWorkspaceContext");
+    // 736c3eb3a split first-run access from clinical access: the organization workspace may render
+    // the security CTA, but no clinical loader runs until the explicit capability check passes.
+    expect(page).toContain("requireOrganizationWorkspaceContext");
+    expect(page).toContain("if (!workspace.canAccessClinicalWorkspace)");
+    expect(page.indexOf("if (!workspace.canAccessClinicalWorkspace)")).toBeLessThan(
+      page.indexOf("withDoctorWorkspacePrincipal(workspace"),
+    );
     expect(page).toContain("withDoctorWorkspacePrincipal(workspace");
     expect(page).toContain("organizationId: workspace.organizationId");
     expect(page).toContain("const workspaceAudience =");

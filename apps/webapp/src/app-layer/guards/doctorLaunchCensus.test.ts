@@ -5,7 +5,6 @@ import { describe, expect, it } from "vitest";
 type LaunchClass = "platform" | "clinical";
 type ObjectPolicy =
   | "platform-config"
-  | "platform-support"
   | "platform-neutral-no-pii"
   | "workspace-media"
   | "workspace-clinical";
@@ -61,6 +60,9 @@ const launchManifest: readonly LaunchManifestEntry[] = [
  * `admin/*` subtree (app-settings, auth, booking + its 4 sub-pages, integrations, technical).
  * The platform clinic console then added its list and exact-organization detail pages. Both expose
  * platform commercial/configuration data only and require the platform-operations capability.
+ * 16 -> 15 app/admin pages: ac7ca4d5c (#1070) removed support/page.tsx because its backing
+ * support_conversations store contains patient-to-clinic clinical messages, not platform helpdesk
+ * tickets. Keeping the route absent from this exact manifest makes any unreviewed reintroduction fail.
  * Slices 5-7 add the rest of `launchManifest` above as each page physically moves.
  *
  * Owner ruling 2026-07-26 (final home): the whole tree above renamed from `app/platform/` to
@@ -83,9 +85,6 @@ const newPlatformLaunchManifest: readonly LaunchManifestEntry[] = [
   { route: "booking/payments/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
   { route: "clinics/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
   { route: "clinics/[organizationId]/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
-  // 15 -> 16 app/admin pages: the support inbox is for global platform operators, guarded by
-  // requirePlatformOperationsPage, and exposes support conversations rather than clinic workspace data.
-  { route: "support/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-support" },
   { route: "integrations/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
   { route: "technical/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
   // Pre-existing legacy redirect stub, unrelated to the PLAT-01…09 moves — kept as-is (see

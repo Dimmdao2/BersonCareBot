@@ -25,6 +25,7 @@ const {
   settingsTabsNavMock,
   orgBrandingSectionMock,
   clinicSlugSectionMock,
+  useSearchParamsMock,
 } = vi.hoisted(() => ({
   redirectMock: vi.fn((url: string) => { throw new Error(`redirect:${url}`); }),
   requireWorkspaceMock: vi.fn(),
@@ -50,9 +51,13 @@ const {
   ),
   orgBrandingSectionMock: vi.fn(() => <section data-testid="org-branding" />),
   clinicSlugSectionMock: vi.fn(() => <section data-testid="clinic-slug" />),
+  useSearchParamsMock: vi.fn(() => new URLSearchParams()),
 }));
 
-vi.mock("next/navigation", () => ({ redirect: redirectMock }));
+vi.mock("next/navigation", () => ({
+  redirect: redirectMock,
+  useSearchParams: useSearchParamsMock,
+}));
 vi.mock("@/app-layer/routes/paths", () => ({
   routePaths: { account: "/app/account", settings: "/app/settings" },
 }));
