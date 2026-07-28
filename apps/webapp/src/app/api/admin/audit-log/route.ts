@@ -55,9 +55,9 @@ export async function GET(req: Request) {
     return NextResponse.json({ ok: false, error: "invalid_system_health_filter" }, { status: 400 });
   }
 
-  const pool = getPool();
-  const runQuery = () =>
-    Promise.all([
+  const runQuery = () => {
+    const pool = getPool();
+    return Promise.all([
       listAdminAuditLog(pool, {
         page: filter.page,
         limit: filter.limit,
@@ -73,6 +73,7 @@ export async function GET(req: Request) {
       }),
       countOpenAutoMergeConflicts(pool),
     ]);
+  };
 
   let result: Awaited<ReturnType<typeof listAdminAuditLog>>;
   let openAutoMergeConflictCount: number;

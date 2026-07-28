@@ -4,7 +4,7 @@
  * Returns { ok, authUrl } or error. Подписанный state (без cookie).
  */
 import { NextResponse } from "next/server";
-import { getCurrentSession } from "@/modules/auth/service";
+import { requirePlatformOperationsApiContext } from "@/app-layer/guards/requireRole";
 import { createSignedOAuthState } from "@/modules/auth/oauthSignedState";
 import {
   getGoogleClientId,
@@ -21,13 +21,8 @@ const GOOGLE_CALENDAR_SCOPES = [
 ].join(" ");
 
 export async function POST() {
-  const session = await getCurrentSession();
-  if (!session) {
-    return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  }
-  if (session.user.role !== "admin") {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requirePlatformOperationsApiContext();
+  if (!gate.ok) return gate.response;
 
   const clientId = (await getGoogleClientId()).trim();
   const clientSecret = (await getGoogleClientSecret()).trim();

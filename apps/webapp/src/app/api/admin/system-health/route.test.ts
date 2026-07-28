@@ -58,6 +58,7 @@ const zeroIntegratorPushOutboxSnapshot = {
 
 const {
   requireAdminModeSessionMock,
+  requirePlatformOperationsApiContextMock,
   checkDbHealthMock,
   proxyIntegratorProjectionHealthMock,
   loggerInfoMock,
@@ -79,6 +80,7 @@ const {
   readSaasIsolationHealthMock,
 } = vi.hoisted(() => ({
   requireAdminModeSessionMock: vi.fn(),
+  requirePlatformOperationsApiContextMock: vi.fn(),
   checkDbHealthMock: vi.fn(),
   proxyIntegratorProjectionHealthMock: vi.fn(),
   loggerInfoMock: vi.fn(),
@@ -118,6 +120,10 @@ function mockPoolPreviewOnly() {
 
 vi.mock("@/modules/auth/requireAdminMode", () => ({
   requireAdminModeSession: requireAdminModeSessionMock,
+}));
+
+vi.mock("@/app-layer/guards/requireRole", () => ({
+  requirePlatformOperationsApiContext: requirePlatformOperationsApiContextMock,
 }));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
@@ -206,6 +212,10 @@ describe("GET /api/admin/system-health", () => {
 
   beforeEach(() => {
     requireAdminModeSessionMock.mockReset();
+    requirePlatformOperationsApiContextMock.mockReset().mockResolvedValue({
+      ok: true,
+      session: { user: { userId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", role: "admin" }, adminMode: true },
+    });
     checkDbHealthMock.mockReset();
     proxyIntegratorProjectionHealthMock.mockReset();
     loggerInfoMock.mockReset();
@@ -432,6 +442,22 @@ describe("GET /api/admin/system-health", () => {
     const res = await GET();
     expect(res.status).toBe(403);
     expect(loadCuratedSystemHealthSnapshotMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 403 before health reads when the platform guard rejects a foreign audience", async () => {
+    requireAdminModeSessionMock.mockResolvedValue({
+      ok: true,
+      session: { user: { userId: "a1", role: "admin" }, adminMode: true },
+    });
+    requirePlatformOperationsApiContextMock.mockResolvedValue({
+      ok: false,
+      response: new Response(JSON.stringify({ ok: false, error: "forbidden" }), { status: 403 }),
+    });
+
+    const res = await GET();
+    expect(res.status).toBe(403);
+    expect(loadCuratedSystemHealthSnapshotMock).not.toHaveBeenCalled();
+    expect(checkDbHealthMock).not.toHaveBeenCalled();
   });
 
   it("returns normalized healthy payload with projection degraded", async () => {

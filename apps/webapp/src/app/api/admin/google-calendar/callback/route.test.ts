@@ -23,9 +23,9 @@ vi.mock("@/modules/google-calendar/googleOAuthHelpers", () => ({
   fetchGoogleUserEmail: emailMock,
 }));
 
-const sessionMock = vi.hoisted(() => vi.fn());
-vi.mock("@/modules/auth/service", () => ({
-  getCurrentSession: sessionMock,
+const platformGateMock = vi.hoisted(() => vi.fn());
+vi.mock("@/app-layer/guards/requireRole", () => ({
+  requirePlatformOperationsApiContext: platformGateMock,
 }));
 
 const updateSettingMock = vi.hoisted(() => vi.fn());
@@ -65,7 +65,10 @@ function validGcalState(): string {
 
 describe("GET /api/admin/google-calendar/callback", () => {
   beforeEach(() => {
-    sessionMock.mockResolvedValue({ user: { role: "admin", userId: "admin-1" } });
+    platformGateMock.mockReset().mockResolvedValue({
+      ok: true,
+      session: { user: { role: "admin", userId: "admin-1" }, adminMode: true },
+    });
     exchangeMock.mockReset();
     emailMock.mockReset();
     updateSettingMock.mockReset().mockResolvedValue({ key: "google_refresh_token", valueJson: {} });
@@ -73,10 +76,24 @@ describe("GET /api/admin/google-calendar/callback", () => {
   });
 
   it("redirects with error when not authenticated", async () => {
-    sessionMock.mockResolvedValue(null);
+    platformGateMock.mockResolvedValue({
+      ok: false,
+      response: new Response(JSON.stringify({ ok: false, error: "unauthorized" }), { status: 401 }),
+    });
     const res = await GET(makeRequest({ code: "c", state: validGcalState() }));
     expect(res.status).toBeGreaterThanOrEqual(300);
     expect(res.headers.get("location") ?? "").toContain("reason=unauthorized");
+  });
+
+  it("keeps the redirect contract when the platform guard rejects a foreign audience", async () => {
+    platformGateMock.mockResolvedValue({
+      ok: false,
+      response: new Response(JSON.stringify({ ok: false, error: "forbidden" }), { status: 403 }),
+    });
+    const res = await GET(makeRequest({ code: "c", state: validGcalState() }));
+    expect(res.status).toBeGreaterThanOrEqual(300);
+    expect(res.headers.get("location") ?? "").toContain("reason=unauthorized");
+    expect(exchangeMock).not.toHaveBeenCalled();
   });
 
   it("redirects with error on invalid signed state", async () => {

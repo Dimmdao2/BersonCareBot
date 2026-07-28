@@ -1,12 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { requireAdminModeSessionMock, loadAdminProductAnalyticsMock } = vi.hoisted(() => ({
+const { requireAdminModeSessionMock, requirePlatformOperationsApiContextMock, loadAdminProductAnalyticsMock } = vi.hoisted(() => ({
   requireAdminModeSessionMock: vi.fn(),
+  requirePlatformOperationsApiContextMock: vi.fn(),
   loadAdminProductAnalyticsMock: vi.fn(),
 }));
 
 vi.mock("@/modules/auth/requireAdminMode", () => ({
   requireAdminModeSession: requireAdminModeSessionMock,
+}));
+
+vi.mock("@/app-layer/guards/requireRole", () => ({
+  requirePlatformOperationsApiContext: requirePlatformOperationsApiContextMock,
 }));
 
 vi.mock("@/app-layer/product-analytics/loadAdminProductAnalytics", () => ({
@@ -42,8 +47,26 @@ const samplePayload = {
 describe("GET /api/admin/product-analytics", () => {
   beforeEach(() => {
     requireAdminModeSessionMock.mockReset();
+    requirePlatformOperationsApiContextMock.mockReset().mockResolvedValue({
+      ok: true,
+      session: { user: { userId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", role: "admin" }, adminMode: true },
+    });
     loadAdminProductAnalyticsMock.mockReset();
     loadAdminProductAnalyticsMock.mockResolvedValue(samplePayload);
+  });
+
+  it("returns 403 before analytics reads when the platform guard rejects a foreign audience", async () => {
+    requireAdminModeSessionMock.mockResolvedValue({
+      ok: true,
+      session: { user: { userId: "a1", role: "admin" }, adminMode: true },
+    });
+    requirePlatformOperationsApiContextMock.mockResolvedValue({
+      ok: false,
+      response: new Response(JSON.stringify({ ok: false, error: "forbidden" }), { status: 403 }),
+    });
+    const res = await GET(new Request("http://localhost/api/admin/product-analytics"));
+    expect(res.status).toBe(403);
+    expect(loadAdminProductAnalyticsMock).not.toHaveBeenCalled();
   });
 
   it("returns 403 when not admin mode", async () => {

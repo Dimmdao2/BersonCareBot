@@ -1,8 +1,8 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
-const sessionMock = vi.hoisted(() => vi.fn());
-vi.mock("@/modules/auth/service", () => ({
-  getCurrentSession: sessionMock,
+const platformGateMock = vi.hoisted(() => vi.fn());
+vi.mock("@/app-layer/guards/requireRole", () => ({
+  requirePlatformOperationsApiContext: platformGateMock,
 }));
 
 // S10: smtp-test now uses relayOutbound (channel:'email') instead of direct sendTransactionalSmtpEmail.
@@ -23,7 +23,10 @@ function jsonReq(body: unknown) {
 
 describe("POST /api/admin/smtp-test", () => {
   beforeEach(() => {
-    sessionMock.mockResolvedValue(null);
+    platformGateMock.mockReset().mockResolvedValue({
+      ok: false,
+      response: new Response(JSON.stringify({ ok: false, error: "unauthorized" }), { status: 401 }),
+    });
     relayOutboundMock.mockResolvedValue({ ok: true, status: "accepted" });
   });
 
@@ -32,20 +35,30 @@ describe("POST /api/admin/smtp-test", () => {
     expect(res.status).toBe(401);
   });
 
-  it("returns 403 when not admin", async () => {
-    sessionMock.mockResolvedValue({ user: { role: "doctor", userId: "u1" } });
+  it("returns 403 when the platform guard rejects a foreign audience", async () => {
+    platformGateMock.mockResolvedValue({
+      ok: false,
+      response: new Response(JSON.stringify({ ok: false, error: "forbidden" }), { status: 403 }),
+    });
     const res = await POST(jsonReq({ to: "a@b.com" }));
     expect(res.status).toBe(403);
+    expect(relayOutboundMock).not.toHaveBeenCalled();
   });
 
   it("returns 400 for invalid email", async () => {
-    sessionMock.mockResolvedValue({ user: { role: "admin", userId: "u1" } });
+    platformGateMock.mockResolvedValue({
+      ok: true,
+      session: { user: { role: "admin", userId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" }, adminMode: true },
+    });
     const res = await POST(jsonReq({ to: "not-an-email" }));
     expect(res.status).toBe(400);
   });
 
   it("returns 200 and relays email channel with subject metadata", async () => {
-    sessionMock.mockResolvedValue({ user: { role: "admin", userId: "u1" } });
+    platformGateMock.mockResolvedValue({
+      ok: true,
+      session: { user: { role: "admin", userId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" }, adminMode: true },
+    });
 
     const res = await POST(jsonReq({ to: "test@example.com" }));
     expect(res.status).toBe(200);
@@ -59,7 +72,10 @@ describe("POST /api/admin/smtp-test", () => {
   });
 
   it("returns 502 when relay fails", async () => {
-    sessionMock.mockResolvedValue({ user: { role: "admin", userId: "u1" } });
+    platformGateMock.mockResolvedValue({
+      ok: true,
+      session: { user: { role: "admin", userId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" }, adminMode: true },
+    });
     relayOutboundMock.mockResolvedValue({ ok: false, reason: "no_integrator_url" });
     const res = await POST(jsonReq({ to: "test@example.com" }));
     expect(res.status).toBe(502);

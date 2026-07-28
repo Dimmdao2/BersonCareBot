@@ -5,6 +5,7 @@ const {
   requireDoctorWorkspaceApiContextMock,
   requirePlatformOperationsApiContextMock,
   withDoctorWorkspacePrincipalMock,
+  getPoolMock,
   listAdminAuditLogMock,
   countOpenAutoMergeConflictsMock,
 } = vi.hoisted(() => ({
@@ -12,6 +13,7 @@ const {
   requireDoctorWorkspaceApiContextMock: vi.fn(),
   requirePlatformOperationsApiContextMock: vi.fn(),
   withDoctorWorkspacePrincipalMock: vi.fn((_ctx: unknown, fn: () => unknown) => fn()),
+  getPoolMock: vi.fn(() => ({})),
   listAdminAuditLogMock: vi.fn(),
   countOpenAutoMergeConflictsMock: vi.fn(),
 }));
@@ -38,7 +40,7 @@ vi.mock("@/app-layer/guards/doctorWorkspacePrincipal", () => ({
 }));
 
 vi.mock("@/app-layer/db/client", () => ({
-  getPool: vi.fn(() => ({})),
+  getPool: getPoolMock,
 }));
 
 vi.mock("@/app-layer/admin/auditLog", () => ({
@@ -54,6 +56,7 @@ describe("GET /api/admin/audit-log", () => {
     requireDoctorWorkspaceApiContextMock.mockReset();
     requirePlatformOperationsApiContextMock.mockReset();
     withDoctorWorkspacePrincipalMock.mockClear();
+    getPoolMock.mockClear();
     listAdminAuditLogMock.mockReset();
     countOpenAutoMergeConflictsMock.mockReset();
     countOpenAutoMergeConflictsMock.mockResolvedValue(0);
@@ -234,6 +237,7 @@ describe("GET /api/admin/audit-log", () => {
       });
       const res = await GET(new Request("http://localhost/api/admin/audit-log?page=1"));
       expect(res.status).toBe(403);
+      expect(getPoolMock).not.toHaveBeenCalled();
       expect(listAdminAuditLogMock).not.toHaveBeenCalled();
     });
   });

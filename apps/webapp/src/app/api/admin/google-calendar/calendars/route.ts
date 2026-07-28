@@ -3,7 +3,7 @@
  * Admin-only: returns the list of writable Google Calendars for the connected account.
  */
 import { NextResponse } from "next/server";
-import { getCurrentSession } from "@/modules/auth/service";
+import { requirePlatformOperationsApiContext } from "@/app-layer/guards/requireRole";
 import {
   getGoogleClientId,
   getGoogleClientSecret,
@@ -15,13 +15,8 @@ import {
 } from "@/modules/google-calendar/googleOAuthHelpers";
 
 export async function GET() {
-  const session = await getCurrentSession();
-  if (!session) {
-    return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  }
-  if (session.user.role !== "admin") {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requirePlatformOperationsApiContext();
+  if (!gate.ok) return gate.response;
 
   const refreshToken = (await getGoogleRefreshToken()).trim();
   if (!refreshToken) {

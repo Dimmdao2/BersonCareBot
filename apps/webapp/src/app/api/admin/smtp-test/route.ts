@@ -8,7 +8,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
-import { getCurrentSession } from "@/modules/auth/service";
+import { requirePlatformOperationsApiContext } from "@/app-layer/guards/requireRole";
 import { relayOutbound } from "@/modules/messaging/relayOutbound";
 
 const bodySchema = z.object({
@@ -16,13 +16,8 @@ const bodySchema = z.object({
 });
 
 export async function POST(req: Request) {
-  const session = await getCurrentSession();
-  if (!session) {
-    return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  }
-  if (session.user.role !== "admin") {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requirePlatformOperationsApiContext();
+  if (!gate.ok) return gate.response;
 
   let body: z.infer<typeof bodySchema>;
   try {

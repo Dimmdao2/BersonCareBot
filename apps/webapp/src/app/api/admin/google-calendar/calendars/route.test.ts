@@ -23,16 +23,19 @@ vi.mock("@/modules/google-calendar/googleOAuthHelpers", () => ({
   fetchGoogleCalendarList: listMock,
 }));
 
-const sessionMock = vi.hoisted(() => vi.fn());
-vi.mock("@/modules/auth/service", () => ({
-  getCurrentSession: sessionMock,
+const platformGateMock = vi.hoisted(() => vi.fn());
+vi.mock("@/app-layer/guards/requireRole", () => ({
+  requirePlatformOperationsApiContext: platformGateMock,
 }));
 
 import { GET } from "./route";
 
 describe("GET /api/admin/google-calendar/calendars", () => {
   beforeEach(() => {
-    sessionMock.mockResolvedValue({ user: { role: "admin", userId: "u1" } });
+    platformGateMock.mockReset().mockResolvedValue({
+      ok: true,
+      session: { user: { role: "admin", userId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" }, adminMode: true },
+    });
     googleMocks.getGoogleClientId.mockResolvedValue("cid");
     googleMocks.getGoogleClientSecret.mockResolvedValue("csec");
     googleMocks.getGoogleRefreshToken.mockResolvedValue("rt");
@@ -41,15 +44,22 @@ describe("GET /api/admin/google-calendar/calendars", () => {
   });
 
   it("returns 401 when not authenticated", async () => {
-    sessionMock.mockResolvedValue(null);
+    platformGateMock.mockResolvedValue({
+      ok: false,
+      response: new Response(JSON.stringify({ ok: false, error: "unauthorized" }), { status: 401 }),
+    });
     const res = await GET();
     expect(res.status).toBe(401);
   });
 
-  it("returns 403 when not admin", async () => {
-    sessionMock.mockResolvedValue({ user: { role: "doctor", userId: "u1" } });
+  it("returns 403 when the platform guard rejects a foreign audience", async () => {
+    platformGateMock.mockResolvedValue({
+      ok: false,
+      response: new Response(JSON.stringify({ ok: false, error: "forbidden" }), { status: 403 }),
+    });
     const res = await GET();
     expect(res.status).toBe(403);
+    expect(googleMocks.getGoogleRefreshToken).not.toHaveBeenCalled();
   });
 
   it("returns 412 when not connected (no refresh token)", async () => {

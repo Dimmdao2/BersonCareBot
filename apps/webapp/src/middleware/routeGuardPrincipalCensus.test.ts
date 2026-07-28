@@ -117,7 +117,6 @@ const DB_PRINCIPAL_MODULE = "@bersoncare/db-principal";
  * alternate protection from a legacy gap instead of pretending every exception is safe by design.
  */
 const ROUTE_EXCEPTIONS: Readonly<Record<string, string>> = {
-  "admin/audit-log/route.ts": "legacy gap: DB client is acquired before the branch-specific approved guard",
   "admin/booking-engine/appointments/[id]/delete/route.ts": "delegated guard: local booking wrapper is outside app-layer/guards",
   "admin/booking-engine/appointments/[id]/lifecycle/route.ts": "delegated guard: local booking wrapper is outside app-layer/guards",
   "admin/booking-engine/appointments/[id]/manual-cancel/route.ts": "delegated guard: local booking wrapper is outside app-layer/guards",
@@ -164,18 +163,6 @@ const ROUTE_EXCEPTIONS: Readonly<Record<string, string>> = {
   "admin/booking-engine/working-days/route.ts": "delegated guard: local booking wrapper is outside app-layer/guards",
   "admin/booking-engine/working-hours/route.ts": "delegated guard: local booking wrapper is outside app-layer/guards",
   "admin/booking-engine/working-schedule-templates/route.ts": "delegated guard: local booking wrapper is outside app-layer/guards",
-  "admin/doctor-analytics-appointments/route.ts": "legacy gap: no approved app-layer guard is proven before DB access",
-  "admin/doctor-analytics-metric-accounts/route.ts": "legacy gap: no approved app-layer guard is proven before DB access",
-  "admin/google-calendar/calendars/route.ts": "legacy gap: authorization lives outside the approved app-layer guard set",
-  "admin/google-calendar/callback/route.ts": "legacy gap: authorization lives outside the approved app-layer guard set",
-  "admin/google-calendar/start/route.ts": "legacy gap: authorization lives outside the approved app-layer guard set",
-  "admin/mode/route.ts": "legacy gap: authorization lives outside the approved app-layer guard set",
-  "admin/platform-user-registration-stats/route.ts": "legacy gap: no approved app-layer guard is proven before DB access",
-  "admin/platform-user-subscriber-stats/route.ts": "legacy gap: no approved app-layer guard is proven before DB access",
-  "admin/product-analytics/route.ts": "legacy gap: authorization lives outside the approved app-layer guard set",
-  "admin/reminder-stats/route.ts": "legacy gap: authorization lives outside the approved app-layer guard set",
-  "admin/smtp-test/route.ts": "legacy gap: authorization lives outside the approved app-layer guard set",
-  "admin/system-health/route.ts": "legacy gap: authorization lives outside the approved app-layer guard set",
   "auth/channel-link/start/route.ts": "pre-auth: channel proof is established before a session exists",
   "auth/check-phone/route.ts": "pre-auth: authentication flow runs before a session exists",
   "auth/dev-bypass/route.ts": "pre-auth: development-only session bootstrap",
@@ -347,7 +334,7 @@ const ROUTE_EXCEPTIONS: Readonly<Record<string, string>> = {
 };
 
 // Ratchet: may only decrease. Set to the initial reviewed manifest size once populated.
-const MAX_ROUTE_EXCEPTIONS = 227;
+const MAX_ROUTE_EXCEPTIONS = 214;
 
 function walkRouteFiles(directory: string, result: string[] = []): string[] {
   for (const entry of readdirSync(directory, { withFileTypes: true })) {

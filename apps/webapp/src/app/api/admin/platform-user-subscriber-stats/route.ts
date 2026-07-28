@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { loadDoctorAnalyticsAudience } from "@/app-layer/analytics/loadAnalyticsAudience";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { requirePlatformOperationsApiContext } from "@/app-layer/guards/requireRole";
 import { requireAdminModeSession } from "@/modules/auth/requireAdminMode";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
 import { parseAdminStatsTimePreset } from "@/modules/admin-platform-stats/parseAdminStatsTimePreset";
@@ -20,6 +21,8 @@ function parsePreset(raw: string | null): AdminStatsTimePreset {
 export async function GET(req: Request) {
   const gate = await requireAdminModeSession();
   if (!gate.ok) return gate.response;
+  const platformGate = await requirePlatformOperationsApiContext();
+  if (!platformGate.ok) return platformGate.response;
 
   const url = new URL(req.url);
   const preset = parsePreset(url.searchParams.get("preset"));
