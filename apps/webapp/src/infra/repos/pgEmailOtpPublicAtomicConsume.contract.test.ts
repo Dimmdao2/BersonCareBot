@@ -77,6 +77,10 @@ describe("email OTP public atomic consume contract", () => {
     expect(handoff.match(/app\.email_otp_public_consume_latest_challenge\(text,text\)/g)).toHaveLength(3);
     expect(bootstrapGrants).toContain(`REVOKE EXECUTE ON FUNCTION ${signature} FROM :"d3_4_bootstrap_base_role"`);
     expect(bootstrapGrants).toContain(`GRANT EXECUTE ON FUNCTION ${signature} TO :"d3_4_bootstrap_base_role"`);
-    expect(d34Checker).toContain('"app.email_otp_public_consume_latest_challenge(text, text)"');
+    // Сравниваем без привязки к стилю кавычек: проверяется, что гейт D3.4 знает ЭТУ подпись, а не то,
+    // какими кавычками она в нём записана. После §16 гейты переведены на общий помощник сравнения и
+    // приведены к конвенции репозитория (одинарные кавычки) — привязка к двойным ломала тест, ничего
+    // не проверяя по существу.
+    expect(d34Checker.replace(/'/g, '"')).toContain('"app.email_otp_public_consume_latest_challenge(text, text)"');
   });
 });
