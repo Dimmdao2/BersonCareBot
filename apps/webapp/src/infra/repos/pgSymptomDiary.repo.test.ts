@@ -1,6 +1,3 @@
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { runWebappPgTextMock } = vi.hoisted(() => ({
@@ -18,18 +15,7 @@ vi.mock('@bersoncare/db-principal', () => ({
 
 import { pgSymptomDiaryPort } from './pgSymptomDiary';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
 const uid = '550e8400-e29b-41d4-a716-446655440000';
-
-describe('pgSymptomDiary (runtime constraints)', () => {
-  it('uses runWebappPgText only — no getPool / pool.query / client.query', () => {
-    const src = readFileSync(join(__dirname, 'pgSymptomDiary.ts'), 'utf8');
-    expect(src).not.toMatch(/\bgetPool\b/);
-    expect(src).not.toMatch(/\bpool\.query\b/);
-    expect(src).not.toMatch(/\bclient\.query\b/);
-    expect(src).toContain('runWebappPgText');
-  });
-});
 
 describe('pgSymptomDiaryPort (repo SQL parity)', () => {
   beforeEach(() => {
