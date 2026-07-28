@@ -1891,6 +1891,13 @@
       "when": 1793539200067,
       "tag": "0269_remove_specialist_signup_slug_reservation",
       "breakpoints": true
+    },
+    {
+      "idx": 270,
+      "version": "7",
+      "when": 1793539200068,
+      "tag": "0270_cms_pages_snapshot_quota",
+      "breakpoints": true
     }
   ]
 }

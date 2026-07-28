@@ -438,8 +438,10 @@ U3S (#919)**, а не свежий скоуп — помечать так в к�
 
 - [x] **10.1** Исправить ложь реестра: у мест специалистов стоит `declared_no_enforcement`, хотя они РЕАЛЬНО  ✅ ca276eff7 — места специалистов помечены application_transaction_snapshot, расход дошёл до витрины
       ограничены (`pgOrganizationInvites.ts:106-192`, advisory-лок + пересчёт в одной транзакции).
-- [ ] **10.2** Первый срез end-to-end на ОДНОЙ механике (`exercise_packages` или `cms_pages`) по образцу
+- [x] **10.2** Первый срез end-to-end на ОДНОЙ механике (`exercise_packages` или `cms_pages`) по образцу
       курсов: триггер, тег в реестре, ошибка в роуте, аналог `check-c5a-courses-quota-race.mjs`.
+      Доказательство: `0270_cms_pages_snapshot_quota.sql:44-112` (xact-lock → recount → BEFORE INSERT),
+      `actions.ts:210-220` (видимый отказ), `node apps/webapp/scripts/check-cms-pages-quota-race.mjs` — OK.
 - [ ] **10.3** Журнал событий для расхода за период — сегодня для рассылок и оплат нет даже строки о факте
       отправки, считать нечего.
 - [ ] **10.4** Якорь периода расхода (сейчас `TariffQuota.period` не читается нигде, кроме проверки для курсов).

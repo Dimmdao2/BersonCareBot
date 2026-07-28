@@ -76,6 +76,21 @@ GRANT UPDATE (tariff_id, commercial_access_state, updated_at)
 GRANT INSERT ON TABLE public.admin_audit_log TO app_platform_settings;
 GRANT EXECUTE ON FUNCTION app.list_platform_organization_members(uuid)
   TO app_platform_settings;
+-- #1069 / §10.2: migration 0270 owns the canonical CMS-page recount. This closure is also
+-- applied to bounded scratch databases that may not include that migration, so keep the grant
+-- explicit and guarded rather than aborting the rest of the platform runtime overlay.
+DO $c5a_cms_pages_snapshot_usage_grant$
+BEGIN
+  IF to_regprocedure('app.cms_pages_snapshot_usage(uuid)') IS NULL THEN
+    RAISE WARNING '§10.2: app.cms_pages_snapshot_usage(uuid) does not exist -- skipping the guarded app_platform_settings EXECUTE grant.';
+  ELSE
+    REVOKE ALL ON FUNCTION app.cms_pages_snapshot_usage(uuid)
+      FROM PUBLIC, app_staff, app_patient, app_platform_settings;
+    GRANT EXECUTE ON FUNCTION app.cms_pages_snapshot_usage(uuid)
+      TO app_platform_settings;
+  END IF;
+END
+$c5a_cms_pages_snapshot_usage_grant$;
 -- A-6 / #1007: matching platform-side grant for the clinical_test_measure_kinds write-lock above.
 -- SELECT/UPDATE for catalog management; the platform principal never needs a fresh INSERT path of
 -- its own -- doctors already cover "add a new label" via the insert-only POST route.
