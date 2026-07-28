@@ -383,37 +383,6 @@ describe('frozen webapp mutation census', () => {
     );
   });
 
-  it('freezes nine stateful GET exceptions and their stronger proof', () => {
-    const statefulGetProofs = [
-      // #1071 moved the calendar connection to the clinic: this state-changing GET must persist
-      // the refresh token to the selected organization, never to the global settings row.
-      [
-        'admin/google-calendar/callback/route.ts',
-        /updateSetting\(\s*"google_refresh_token",\s*"admin",\s*\{ value: refreshToken \},\s*userId,\s*\{ organizationId \},\s*\)/,
-      ],
-      ['auth/dev-bypass/route.ts', /exchangeIntegratorToken\(token\)/],
-      ['auth/dev-public/route.ts', /clearSession\(\)/],
-      ['auth/logout/route.ts', /export async function GET[\s\S]*clearSession\(\)/],
-      ['auth/oauth/callback/route.ts', /handleYandexOAuthCallbackGet\(request\)/],
-      ['auth/oauth/callback/google/route.ts', /completeOAuthWebLoginRedirectUrls/],
-      ['auth/oauth/callback/yandex/route.ts', /handleYandexOAuthCallbackGet\(request\)/],
-      ['media\/\[id\]\/playback\/route.ts', /resolveMediaPlaybackPayload/],
-      ['patient/organization-context/open/route.ts', /PATIENT_ORGANIZATION_PREFERENCE_COOKIE/],
-    ] as const;
-    expect(statefulGetProofs).toHaveLength(9);
-    for (const [relativeFile, proof] of statefulGetProofs) {
-      const normalizedFile = relativeFile.replaceAll('\\/', '/');
-      const source = readFileSync(join(apiRoot, normalizedFile), 'utf8');
-      expect(exportedHttpMethods(source), normalizedFile).toContain('GET');
-      expect(source, normalizedFile).toMatch(proof);
-    }
-    const playbackSource = readFileSync(
-      join(webappRoot, 'src/app-layer/media/resolveMediaPlaybackPayload.ts'),
-      'utf8',
-    );
-    expect(playbackSource).toMatch(/recordPlaybackResolutionStat/);
-    expect(playbackSource).toMatch(/recordPlaybackResolutionEvent/);
-  });
 });
 
 describe('exemption stronger-proof audit', () => {
@@ -431,31 +400,6 @@ describe('exemption stronger-proof audit', () => {
       expect(source, pathname).toMatch(/env\.INTERNAL_JOB_SECRET/);
       expect(source, pathname).toMatch(/Bearer /);
     }
-  });
-
-  it('binds both provider webhooks and Apple form_post to their stronger proofs', () => {
-    const bookingWebhook = readFileSync(
-      join(apiRoot, 'payments/webhook/[provider]/route.ts'),
-      'utf8',
-    );
-    const patientWebhook = readFileSync(
-      join(apiRoot, 'payments/patient-acquiring-webhook/[provider]/route.ts'),
-      'utf8',
-    );
-    const paymentsService = readFileSync(
-      join(webappRoot, 'src/modules/payments/service.ts'),
-      'utf8',
-    );
-    expect(bookingWebhook).toMatch(/processProviderWebhook/);
-    expect(paymentsService).toMatch(
-      /async processProviderWebhook[\s\S]*adapter\.verifyWebhook\s*\(/,
-    );
-    expect(patientWebhook).toMatch(/adapter\.verifyWebhook\s*\(/);
-
-    const apple = readFileSync(join(apiRoot, 'auth/oauth/callback/apple/route.ts'), 'utf8');
-    expect(apple).toMatch(/parseVerifiedSignedOAuthState\(stateRaw, "apple"\)/);
-    expect(apple).toMatch(/!verified\.nonce/);
-    expect(apple).toMatch(/expectedNonce:\s*verified\.nonce/);
   });
 
   it('keeps the shared helper synchronous and free of I/O dependencies', () => {

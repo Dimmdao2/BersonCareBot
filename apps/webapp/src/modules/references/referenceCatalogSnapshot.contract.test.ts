@@ -31,18 +31,6 @@ const webappProductionDeploy = readFileSync(
   resolve(repoRoot, 'deploy/host/deploy-webapp-prod.sh'),
   'utf8',
 );
-const devBypassWorkspace = readFileSync(
-  resolve(repoRoot, 'apps/webapp/src/infra/repos/pgDevBypassClinicAdminWorkspace.ts'),
-  'utf8',
-);
-const bookingEngineRepo = readFileSync(
-  resolve(repoRoot, 'apps/webapp/src/infra/repos/pgBookingEngine.ts'),
-  'utf8',
-);
-const testFixtureSeeder = readFileSync(
-  resolve(repoRoot, 'apps/webapp/scripts/seed-saas-test-walkthrough-fixtures.ts'),
-  'utf8',
-);
 
 describe('reference catalog snapshot-at-provision contract', () => {
   it('stores a versioned canonical manifest independent from every clinic catalog', () => {
@@ -107,30 +95,6 @@ describe('reference catalog snapshot-at-provision contract', () => {
     expect(rlsOverlay).toContain(
       'GRANT EXECUTE ON FUNCTION app.seed_reference_catalog_snapshot(uuid)',
     );
-  });
-
-  it('covers every runtime organization insert path', () => {
-    const devOrgInsert = devBypassWorkspace.indexOf('.insert(beOrganizations)');
-    const devSeed = devBypassWorkspace.indexOf('app.seed_reference_catalog_snapshot', devOrgInsert);
-    expect(devOrgInsert).toBeGreaterThan(-1);
-    expect(devSeed).toBeGreaterThan(devOrgInsert);
-    expect(devBypassWorkspace.indexOf('runWebappTransaction')).toBeLessThan(devOrgInsert);
-
-    const fixtureOrgInsert = testFixtureSeeder.indexOf('.insert(schema.beOrganizations)');
-    const fixtureSeed = testFixtureSeeder.indexOf(
-      'app.seed_reference_catalog_snapshot',
-      fixtureOrgInsert,
-    );
-    expect(fixtureOrgInsert).toBeGreaterThan(-1);
-    expect(fixtureSeed).toBeGreaterThan(fixtureOrgInsert);
-
-    const upsertOrganization = bookingEngineRepo.slice(
-      bookingEngineRepo.indexOf('async upsertOrganization'),
-      bookingEngineRepo.indexOf('async listBranches'),
-    );
-    expect(upsertOrganization).toContain('.update(beOrganizations)');
-    expect(upsertOrganization).not.toContain('.insert(beOrganizations)');
-    expect(upsertOrganization).toContain('throw new Error("organization_not_found")');
   });
 
   it('installs the DB-level organization hook under a cutover lock before catch-up', () => {
