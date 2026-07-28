@@ -23,7 +23,7 @@ function createPort(): OrganizationProvisioningPort {
     replacePendingSpecialistSignupChallenge: vi.fn(async () => false),
     provisionSpecialistOwner: vi.fn(async () => ({
       organizationId: "org-1",
-      specialistId: null,
+      specialistId: "specialist-1",
       membershipId: "membership-1",
     })),
     ensureOwnBookableSpecialist: vi.fn(async () => ({
@@ -72,11 +72,12 @@ describe("createOrganizationProvisioningService", () => {
     const port = createPort();
     const service = createOrganizationProvisioningService({ provisioningPort: port });
 
+    // Changed because successful owner provisioning now commits the owner specialist in the same transaction.
     await expect(
       service.provisionSpecialistOwner({ challengeId: "challenge-1" }),
     ).resolves.toEqual({
       organizationId: "org-1",
-      specialistId: null,
+      specialistId: "specialist-1",
       membershipId: "membership-1",
     });
     expect(port.provisionSpecialistOwner).toHaveBeenCalledWith({

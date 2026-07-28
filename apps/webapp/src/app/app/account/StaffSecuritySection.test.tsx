@@ -65,18 +65,16 @@ describe('StaffSecuritySection first-run acceptance', () => {
     );
   });
 
-  it('offers exact specialist binding only after factor and recovery readiness', async () => {
+  it('offers owner specialist repair before factor and recovery readiness', async () => {
     vi.mocked(fetch).mockResolvedValue(
-      new Response(JSON.stringify({ ok: false, error: 'verified_security_required' }), {
-        status: 403,
-      }),
+      new Response(JSON.stringify({ ok: false, error: 'specialist_binding_failed' }), { status: 409 }),
     );
 
     render(
       <StaffSecuritySection
         initialStatus={{
-          enrolled: true,
-          recoveryConfirmed: true,
+          enrolled: false,
+          recoveryConfirmed: false,
           replacementRequired: false,
           lockedUntil: null,
         }}
@@ -87,7 +85,8 @@ describe('StaffSecuritySection first-run acceptance', () => {
       />,
     );
 
-    expect(screen.getByText('✓ Двухфакторная защита и резервные коды')).toBeInTheDocument();
+    // Changed because specialist repair no longer waits for 2FA; 2FA remains an open first-run checklist item.
+    expect(screen.getByText('○ Двухфакторная защита и резервные коды')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Подключить рабочий кабинет' }));
 
     expect(fetch).toHaveBeenCalledWith('/api/account/first-run/bind-specialist', {
@@ -95,9 +94,6 @@ describe('StaffSecuritySection first-run acceptance', () => {
       headers: undefined,
       body: undefined,
     });
-    expect(toastErrorMock).toHaveBeenCalledWith(
-      'Сеанс защиты больше не подтверждён. Выйдите и войдите снова, затем повторите.',
-    );
   });
 
   it('keeps recovery sessions on the replacement-only Account security surface', () => {
@@ -274,6 +270,7 @@ describe('StaffSecuritySection first-run acceptance', () => {
     );
   });
 
+  // Changed because the repair button is now reachable while 2FA remains incomplete.
   it.each([
     [
       'Повторить настройку аккаунта',
@@ -282,7 +279,7 @@ describe('StaffSecuritySection first-run acceptance', () => {
     ],
     [
       'Подключить рабочий кабинет',
-      { enrolled: true, recoveryConfirmed: true, hasOrganization: true, hasSpecialistBinding: false },
+      { enrolled: false, recoveryConfirmed: false, hasOrganization: true, hasSpecialistBinding: false },
       'Не удалось подключить рабочий кабинет. Повторите попытку позже. Проверьте соединение с интернетом.',
     ],
     [

@@ -151,12 +151,22 @@ function isMidRecoveryStaffSecuritySession(session: AppSession): boolean {
   return assurance === "recovery" || assurance === "recovery_confirmation";
 }
 
+function requiresEstablishedStaffFactorVerification(session: AppSession): boolean {
+  return (
+    isMidRecoveryStaffSecuritySession(session) ||
+    (session.user.securityFactorRequired === true &&
+      session.staffSecurity?.assurance !== "factor_verified")
+  );
+}
+
 /**
  * Global admin switch (`auth_2fa_enabled`, owner ruling 2026-07-24): when on, staff
  * (global-admin + specialists) who have not completed TOTP verification this session are
  * treated the same as a mid-enrollment session — same gentle redirect to `/app/account`
  * (security tab), never a hard session kill or 500. "Surface enrollment, don't hard-break."
  * Default false keeps today's per-user opt-in behavior until an admin turns this on.
+ * The organization-workspace resolver below has one narrow progressive-onboarding exception for
+ * a self-provisioned owner; recovery and an already-enrolled but unverified factor still win.
  */
 export async function isRestrictedStaffSecuritySession(session: AppSession): Promise<boolean> {
   if (session.staffSecurity?.assurance === "factor_verified") return false;
@@ -336,13 +346,10 @@ async function resolveDoctorWorkspaceAccessContext(
   | { ok: true; ctx: DoctorWorkspaceAccessContext }
   | { ok: false; reason: "doctor_workspace_membership_required" | "forbidden" }
 > {
-  if (
-    (await isRestrictedStaffSecuritySession(session)) ||
-    (session.user.securityFactorRequired === true &&
-      session.staffSecurity?.assurance !== "factor_verified")
-  ) {
+  if (requiresEstablishedStaffFactorVerification(session)) {
     return { ok: false, reason: "forbidden" };
   }
+  const securityRestricted = await isRestrictedStaffSecuritySession(session);
   const resolution = await buildAppDeps().organizationMembership.resolveOrganizationForUser({
     platformUserId: session.user.userId,
   });
@@ -353,6 +360,11 @@ async function resolveDoctorWorkspaceAccessContext(
     return { ok: false, reason: "forbidden" };
   }
   const { context } = resolution;
+  // Progressive first run applies only to the organization owner created by self-signup.
+  // Existing enrolled-factor and recovery sessions were rejected above and still require 2FA.
+  if (securityRestricted && context.role !== "owner") {
+    return { ok: false, reason: "forbidden" };
+  }
   return {
     ok: true,
     ctx: {
@@ -390,9 +402,6 @@ export async function requireOrganizationWorkspaceContext(): Promise<DoctorWorks
   const session = await requireSession();
   if (!canAccessDoctor(session.user.role)) {
     redirect(buildOwnHubUrlWithAccessDeniedToast(session.user.role));
-  }
-  if (await isRestrictedStaffSecuritySession(session)) {
-    redirect(routePaths.account);
   }
   const accountCapabilities = resolveLaunchCapabilities({
     sessionRole: session.user.role,

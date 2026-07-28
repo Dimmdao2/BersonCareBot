@@ -6,7 +6,6 @@ import type {
 import {
   ensureOwnBookableSpecialist as ensureOwnBookableSpecialistCore,
   type EnsureOwnBookableSpecialistContext,
-  type EnsureOwnBookableSpecialistOptions,
 } from "./ensureOwnBookableSpecialist";
 import { validateOrganizationSlugCandidate } from "@/modules/clinic-directory/organizationSlug";
 
@@ -64,9 +63,8 @@ export function createOrganizationProvisioningService(deps: {
 
     async ensureOwnBookableSpecialist(
       ctx: EnsureOwnBookableSpecialistContext,
-      options?: EnsureOwnBookableSpecialistOptions,
     ): Promise<string | null> {
-      return ensureOwnBookableSpecialistCore(deps.provisioningPort, ctx, options);
+      return ensureOwnBookableSpecialistCore(deps.provisioningPort, ctx);
     },
   };
 }

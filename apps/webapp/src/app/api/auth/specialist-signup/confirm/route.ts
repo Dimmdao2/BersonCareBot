@@ -218,7 +218,7 @@ export async function POST(request: Request) {
   return jsonOk({
     redirectTo: "/app/account?tab=security",
     organizationId: provisioned.organizationId,
-    specialistId: provisioned.specialistId ?? null,
+    specialistId: provisioned.specialistId,
     membershipId: provisioned.membershipId,
   });
 }

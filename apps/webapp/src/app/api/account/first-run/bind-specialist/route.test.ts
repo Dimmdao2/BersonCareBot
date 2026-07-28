@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const requireAdminWorkspaceApiContextMock = vi.fn();
-const getStatusMock = vi.fn();
 const ensureOwnBookableSpecialistMock = vi.fn();
 
 vi.mock("@/app-layer/guards/requireRole", () => ({
@@ -11,7 +10,6 @@ vi.mock("@/app-layer/guards/requireRole", () => ({
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
-    staffSecurity: { getStatus: getStatusMock },
     organizationProvisioning: { ensureOwnBookableSpecialist: ensureOwnBookableSpecialistMock },
   }),
 }));
@@ -30,7 +28,7 @@ const ownerContext = {
       displayName: "Owner Doctor",
       bindings: {},
     },
-    staffSecurity: { assurance: "factor_verified" },
+    staffSecurity: { assurance: "pending_enrollment" },
   },
 };
 
@@ -38,15 +36,11 @@ describe("POST /api/account/first-run/bind-specialist", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     requireAdminWorkspaceApiContextMock.mockResolvedValue({ ok: true, ctx: ownerContext });
-    getStatusMock.mockResolvedValue({
-      enrolled: true,
-      recoveryConfirmed: true,
-      replacementRequired: false,
-    });
     ensureOwnBookableSpecialistMock.mockResolvedValue("cccccccc-cccc-4ccc-8ccc-cccccccccccc");
   });
 
-  it("uses only the trusted session membership and organization for the binding", async () => {
+  it("uses only the trusted owner membership and organization without a pre-binding 2FA lock", async () => {
+    // Changed because 2FA is a first-run task after workspace entry, while this repair remains owner-scoped.
     const response = await POST();
 
     expect(response.status).toBe(200);
@@ -60,26 +54,15 @@ describe("POST /api/account/first-run/bind-specialist", () => {
     });
   });
 
-  it("fails closed before binding when factor or recovery setup is incomplete", async () => {
-    getStatusMock.mockResolvedValueOnce({
-      enrolled: true,
-      recoveryConfirmed: false,
-      replacementRequired: false,
-    });
-
-    const response = await POST();
-    expect(response.status).toBe(403);
-    expect(ensureOwnBookableSpecialistMock).not.toHaveBeenCalled();
-  });
-
   it("does not let a non-owner use the self-signup owner binding endpoint", async () => {
     requireAdminWorkspaceApiContextMock.mockResolvedValueOnce({
       ok: true,
       ctx: { ...ownerContext, membershipRole: "admin" },
     });
+    // Changed because owner role is now the binding guard; security readiness is no longer consulted here.
     const response = await POST();
     expect(response.status).toBe(403);
-    expect(getStatusMock).not.toHaveBeenCalled();
+    expect(ensureOwnBookableSpecialistMock).not.toHaveBeenCalled();
   });
 
   it("passes through a rejected workspace gate", async () => {

@@ -165,7 +165,7 @@ export function createPgOrganizationProvisioningPort(): OrganizationProvisioning
         if (!row.ok) {
           throw new Error(row.code ?? "specialist_signup_provision_insert_failed");
         }
-        if (!row.organization_id || !row.membership_id) {
+        if (!row.organization_id || !row.specialist_id || !row.membership_id) {
           throw new Error("specialist_signup_provision_insert_failed");
         }
         return {
@@ -202,7 +202,7 @@ export function createPgOrganizationProvisioningPort(): OrganizationProvisioning
         if (membership.platformUserId !== platformUserId) {
           throw new Error("organization_membership_actor_mismatch");
         }
-        if (membership.role !== "owner" && membership.role !== "doctor") {
+        if (membership.role !== "owner") {
           throw new Error("organization_membership_not_bookable");
         }
         if (membership.specialistId) {

@@ -260,9 +260,11 @@ export function StaffSecuritySection(props: Props) {
             <Button size="sm" onClick={confirmRecovery}>Я сохранил коды</Button>
           </div>
         ) : null}
+        {!props.recoveryOnly && props.hasOrganization && !props.hasSpecialistBinding ? (
+          <Button size="sm" onClick={bindSpecialist}>Подключить рабочий кабинет</Button>
+        ) : null}
         {securityReady && !props.recoveryOnly ? (
           <div className="flex flex-wrap gap-2">
-            {!props.hasSpecialistBinding ? <Button size="sm" onClick={bindSpecialist}>Подключить рабочий кабинет</Button> : null}
             <Button size="sm" variant="outline" onClick={revokeSessions}>Завершить другие сеансы</Button>
           </div>
         ) : null}

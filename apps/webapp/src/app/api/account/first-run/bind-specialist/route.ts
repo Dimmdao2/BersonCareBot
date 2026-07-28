@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requireAdminWorkspaceApiContext } from "@/app-layer/guards/requireRole";
-import { runWithStaffSecuritySelfPrincipal } from "@/app-layer/principal/staffSecuritySelfPrincipal";
 
 export async function POST() {
   const gate = await requireAdminWorkspaceApiContext();
@@ -11,19 +10,6 @@ export async function POST() {
     return NextResponse.json({ ok: false, error: "owner_required" }, { status: 403 });
   }
   const deps = buildAppDeps();
-  const security = await runWithStaffSecuritySelfPrincipal(
-    ctx.session.user.userId,
-    "api/account/first-run/bind-specialist:security-self",
-    () => deps.staffSecurity.getStatus(),
-  );
-  if (
-    !security?.enrolled ||
-    !security.recoveryConfirmed ||
-    security.replacementRequired ||
-    ctx.session.staffSecurity?.assurance !== "factor_verified"
-  ) {
-    return NextResponse.json({ ok: false, error: "verified_security_required" }, { status: 403 });
-  }
   const specialistId = await deps.organizationProvisioning.ensureOwnBookableSpecialist({
     organizationId: ctx.organizationId,
     membershipId: ctx.membershipId,

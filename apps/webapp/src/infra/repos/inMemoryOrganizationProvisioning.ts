@@ -66,21 +66,24 @@ export function createInMemoryOrganizationProvisioningPort(
         intent.provisionedOrganizationId &&
         intent.provisionedMembershipId
       ) {
+        const specialistId = intent.provisionedSpecialistId ?? randomUUID();
+        intent.provisionedSpecialistId = specialistId;
         return {
           organizationId: intent.provisionedOrganizationId,
-          specialistId: intent.provisionedSpecialistId,
+          specialistId,
           membershipId: intent.provisionedMembershipId,
         };
       }
       const organizationId = randomUUID();
       const membershipId = randomUUID();
+      const specialistId = randomUUID();
       intent.status = "provisioned";
       intent.provisionedOrganizationId = organizationId;
-      intent.provisionedSpecialistId = null;
+      intent.provisionedSpecialistId = specialistId;
       intent.provisionedMembershipId = membershipId;
       return {
         organizationId,
-        specialistId: null,
+        specialistId,
         membershipId,
       };
     },

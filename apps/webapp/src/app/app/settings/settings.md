@@ -7,7 +7,8 @@
 - explicit legacy `?tab=specialist` → `/app/account`;
 - `?tab=install` → `/app/account?tab=install`;
 - `?tab=organization` сохраняет единственный guarded writer терминологии и organization reminders и является
-  канонической поверхностью **«Настройки»** для владельца кабинета/организации;
+  канонической поверхностью **«Настройки»** для владельца кабинета/организации; legacy owner без `specialist_id`
+  видит здесь причину недоступности клинического кабинета и прямую ссылку на `/app/account?tab=security`;
 - здесь же management-capable member видит и создаёт публичный адрес `/book/{slug}`, копирует полную ссылку
   и может самостоятельно переименовывать slug через browser-protected `POST /api/clinic/slug`; прежние адреса
   навсегда остаются привязаны к той же организации и доступны ей для возврата;

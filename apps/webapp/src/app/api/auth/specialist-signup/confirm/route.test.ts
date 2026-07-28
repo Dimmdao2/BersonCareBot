@@ -174,7 +174,7 @@ describe("POST /api/auth/specialist-signup/confirm", () => {
     confirmEmailChallengeMock.mockResolvedValueOnce({ ok: true });
     provisionSpecialistOwnerMock.mockResolvedValueOnce({
       organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-      specialistId: null,
+      specialistId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
       membershipId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
     });
     findByUserIdMock.mockResolvedValue({
@@ -206,11 +206,12 @@ describe("POST /api/auth/specialist-signup/confirm", () => {
       }),
       { staffSecurity: { assurance: "pending_enrollment" } },
     );
+    // Changed because successful provisioning now returns the specialist created atomically for the owner.
     await expect(res.json()).resolves.toMatchObject({
       ok: true,
       redirectTo: "/app/account?tab=security",
       organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-      specialistId: null,
+      specialistId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
     });
   });
 

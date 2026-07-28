@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requireEntitlementForReadAction } from "@/app-layer/guards/requireEntitlement";
@@ -8,6 +9,7 @@ import { entitlementsFromSnapshot } from "@/modules/org-entitlements/service";
 import { MECHANIC_REGISTRY, MECHANICS } from "@/modules/org-entitlements/types";
 import { orgBrandLogoUrl, type OrgBrandingManagementContext } from "@/modules/org-branding/service";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
+import { DoctorSection, DoctorSectionHeader, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
 import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
 import { ADMIN_TAB_REDIRECTS, parseHealthArchiveProbeParam } from "./adminSettingsData";
 import { AppointmentReminderSettingsSection } from "./AppointmentReminderSettingsSection";
@@ -119,6 +121,20 @@ export default async function SettingsPage({
       <DoctorAppShell title="Настройки" user={workspace.session.user}>
         <DoctorPageHeader title="Настройки" />
         <SettingsTabsNav activeTab="organization" visibleTabs={visibleTabs} />
+        {workspace.membershipRole === "owner" && workspace.specialistId === null ? (
+          <DoctorSection>
+            <DoctorSectionHeader>
+              <DoctorSectionTitle>Кабинет специалиста недоступен</DoctorSectionTitle>
+            </DoctorSectionHeader>
+            <p className="text-sm">
+              К членству владельца не привязан профиль специалиста. Перейдите в личный аккаунт и
+              подключите рабочий кабинет.
+            </p>
+            <Link className="text-sm underline" href="/app/account?tab=security">
+              Перейти в личный аккаунт
+            </Link>
+          </DoctorSection>
+        ) : null}
         <OrgBrandingSection
           key={`${brandingState.brandingMechanicEnabled}:${publishedBrand?.displayName ?? ""}:${publishedBrand?.logoMediaId ?? ""}`}
           brandingMechanicEnabled={brandingState.brandingMechanicEnabled}

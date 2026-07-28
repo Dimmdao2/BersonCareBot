@@ -132,9 +132,12 @@ describe("createPgOrganizationProvisioningPort", () => {
   it("keeps staff-context specialist backfill guarded on the current membership", () => {
     const src = readFileSync(join(__dirname, "pgOrganizationProvisioning.ts"), "utf8");
 
+    // Changed because the legacy repair path is owner-only; invited doctors use their invite provisioning path.
     expect(src).toContain("beSpecialists");
     expect(src).toContain("beOrganizationMembers");
     expect(src).toContain("ensureOwnBookableSpecialist");
+    expect(src).toContain('membership.role !== "owner"');
+    expect(src).not.toContain('membership.role !== "owner" && membership.role !== "doctor"');
     expect(src).toContain('.for("update")');
     expect(src).toContain("isNull(beOrganizationMembers.specialistId)");
     expect(src).toContain("specialist_membership_backfill_conflict");
