@@ -594,21 +594,29 @@ describe('RSC page DB-principal census (night plan A-5, bug class of 19f52fed2)'
   });
 
   it('makes every DB read written in a page entry itself state its own principal', () => {
+    // Владелец 29.07: номер строки НЕ может быть частью ожидаемого значения — он двигается от
+    // любого форматирования и делает гейт красным без единой поломки (этап 0 ревизии тестов,
+    // docs/_TODO/TEST_SUITE_AUDIT_2026-07-29.md). Сравниваем пути; строки уходят в текст ошибки,
+    // чтобы место всё так же находилось глазами.
     const offenders = pageEntries
       .filter((entry) => ownFileUncoveredReads(entry).length > 0)
-      .map((entry) => `${rel(entry)}:${ownFileUncoveredReads(entry)[0]!.line}`);
+      .map((entry) => rel(entry));
+    const offenderLines = pageEntries
+      .filter((entry) => ownFileUncoveredReads(entry).length > 0)
+      .map((entry) => `${rel(entry)}:${ownFileUncoveredReads(entry)[0]!.line}`)
+      .join(', ');
     // A page here reads with whatever principal happens to be ambient — for a page whose only
     // guard is its layout's, that is BOOTSTRAP: the bare `bcb_*_nonstaff_login`. Fix it in the
     // PAGE with one of the two shapes of 19f52fed2, or declare `stampBootstrapPrincipal()` if the
     // read is deliberately pre-authentication. Never by granting the nonstaff login role the table.
-    expect(offenders).toEqual([
+    expect(offenders, `непокрытые чтения (строки считаны сейчас): ${offenderLines}`).toEqual([
       // `getOptionalPatientSession()` + early return — safe by control flow, see the header.
       // PBK-1 (2026-07-27): path only — `new/confirm` -> `confirm`, `new/page.tsx` -> `page.tsx`.
-      'app/patient/booking/confirm/page.tsx:138',
-      'app/patient/booking/page.tsx:55',
-      'app/patient/content/[slug]/page.tsx:33',
-      'app/patient/help/[slug]/page.tsx:28',
-      'app/patient/sections/[slug]/page.tsx:42',
+      'app/patient/booking/confirm/page.tsx',
+      'app/patient/booking/page.tsx',
+      'app/patient/content/[slug]/page.tsx',
+      'app/patient/help/[slug]/page.tsx',
+      'app/patient/sections/[slug]/page.tsx',
     ]);
   });
 
