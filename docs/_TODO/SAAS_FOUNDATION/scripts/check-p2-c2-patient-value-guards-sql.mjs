@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { sourceTextIncludes, sourceTextIndexOf } from './source-text-guard.mjs';
+import { sourceTextIncludes } from './source-text-guard.mjs';
 
 import { readFileSync } from 'node:fs';
 
