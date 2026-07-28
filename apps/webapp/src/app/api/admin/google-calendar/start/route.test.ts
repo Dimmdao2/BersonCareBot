@@ -16,9 +16,9 @@ vi.mock("@/modules/system-settings/integrationRuntime", async (importOriginal) =
   };
 });
 
-const sessionMock = vi.hoisted(() => vi.fn());
-vi.mock("@/modules/auth/service", () => ({
-  getCurrentSession: sessionMock,
+const platformGateMock = vi.hoisted(() => vi.fn());
+vi.mock("@/app-layer/guards/requireRole", () => ({
+  requirePlatformOperationsApiContext: platformGateMock,
 }));
 
 vi.mock("@/config/env", () => ({
@@ -33,7 +33,10 @@ describe("POST /api/admin/google-calendar/start", () => {
     googleMocks.getGoogleClientId.mockResolvedValue("");
     googleMocks.getGoogleClientSecret.mockResolvedValue("");
     googleMocks.getGoogleRedirectUri.mockResolvedValue("");
-    sessionMock.mockResolvedValue(null);
+    platformGateMock.mockReset().mockResolvedValue({
+      ok: false,
+      response: new Response(JSON.stringify({ ok: false, error: "unauthorized" }), { status: 401 }),
+    });
   });
 
   it("returns 401 when not authenticated", async () => {
@@ -41,14 +44,21 @@ describe("POST /api/admin/google-calendar/start", () => {
     expect(res.status).toBe(401);
   });
 
-  it("returns 403 when not admin", async () => {
-    sessionMock.mockResolvedValue({ user: { role: "client", userId: "u1" } });
+  it("returns 403 when the platform guard rejects a foreign audience", async () => {
+    platformGateMock.mockResolvedValue({
+      ok: false,
+      response: new Response(JSON.stringify({ ok: false, error: "forbidden" }), { status: 403 }),
+    });
     const res = await POST();
     expect(res.status).toBe(403);
+    expect(googleMocks.getGoogleClientId).not.toHaveBeenCalled();
   });
 
   it("returns 501 when Google OAuth not configured", async () => {
-    sessionMock.mockResolvedValue({ user: { role: "admin", userId: "u1" } });
+    platformGateMock.mockResolvedValue({
+      ok: true,
+      session: { user: { role: "admin", userId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" }, adminMode: true },
+    });
     const res = await POST();
     expect(res.status).toBe(501);
     const data = (await res.json()) as { error: string };
@@ -56,7 +66,10 @@ describe("POST /api/admin/google-calendar/start", () => {
   });
 
   it("returns 200 with authUrl when credentials present", async () => {
-    sessionMock.mockResolvedValue({ user: { role: "admin", userId: "u1" } });
+    platformGateMock.mockResolvedValue({
+      ok: true,
+      session: { user: { role: "admin", userId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" }, adminMode: true },
+    });
     googleMocks.getGoogleClientId.mockResolvedValue("test-client-id");
     googleMocks.getGoogleClientSecret.mockResolvedValue("test-secret");
     googleMocks.getGoogleRedirectUri.mockResolvedValue("http://localhost/api/admin/google-calendar/callback");

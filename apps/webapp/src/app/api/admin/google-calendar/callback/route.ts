@@ -4,7 +4,7 @@
  * and connected email to system_settings(admin), redirects to Settings.
  */
 import { NextResponse } from "next/server";
-import { getCurrentSession } from "@/modules/auth/service";
+import { requirePlatformOperationsApiContext } from "@/app-layer/guards/requireRole";
 import {
   getAppBaseUrl,
   getGoogleClientId,
@@ -27,10 +27,11 @@ async function settingsRedirect(params: Record<string, string>): Promise<NextRes
 }
 
 export async function GET(request: Request) {
-  const session = await getCurrentSession();
-  if (!session || session.user.role !== "admin") {
+  const gate = await requirePlatformOperationsApiContext();
+  if (!gate.ok) {
     return await settingsRedirect({ gcal: "error", reason: "unauthorized" });
   }
+  const { session } = gate;
 
   const url = new URL(request.url);
   const stateFromQuery = url.searchParams.get("state") ?? "";

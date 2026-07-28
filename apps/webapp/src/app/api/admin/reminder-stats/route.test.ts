@@ -1,13 +1,23 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { requireAdminModeSessionMock, loadContentEngagementStatsMock, loadDoctorAnalyticsAudienceMock } = vi.hoisted(() => ({
+const {
+  requireAdminModeSessionMock,
+  requirePlatformOperationsApiContextMock,
+  loadContentEngagementStatsMock,
+  loadDoctorAnalyticsAudienceMock,
+} = vi.hoisted(() => ({
   requireAdminModeSessionMock: vi.fn(),
+  requirePlatformOperationsApiContextMock: vi.fn(),
   loadContentEngagementStatsMock: vi.fn(),
   loadDoctorAnalyticsAudienceMock: vi.fn(),
 }));
 
 vi.mock("@/modules/auth/requireAdminMode", () => ({
   requireAdminModeSession: requireAdminModeSessionMock,
+}));
+
+vi.mock("@/app-layer/guards/requireRole", () => ({
+  requirePlatformOperationsApiContext: requirePlatformOperationsApiContextMock,
 }));
 
 vi.mock("@/app-layer/analytics/loadAnalyticsAudience", () => ({
@@ -98,10 +108,29 @@ const samplePayload = {
 describe("GET /api/admin/reminder-stats", () => {
   beforeEach(() => {
     requireAdminModeSessionMock.mockReset();
+    requirePlatformOperationsApiContextMock.mockReset().mockResolvedValue({
+      ok: true,
+      session: { user: { userId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", role: "admin" }, adminMode: true },
+    });
     loadDoctorAnalyticsAudienceMock.mockReset();
     loadContentEngagementStatsMock.mockReset();
     loadDoctorAnalyticsAudienceMock.mockResolvedValue({ excludedUserIds: [] });
     loadContentEngagementStatsMock.mockResolvedValue(samplePayload);
+  });
+
+  it("returns 403 before stats reads when the platform guard rejects a foreign audience", async () => {
+    requireAdminModeSessionMock.mockResolvedValue({
+      ok: true,
+      session: { user: { userId: "a1", role: "admin" }, adminMode: true },
+    });
+    requirePlatformOperationsApiContextMock.mockResolvedValue({
+      ok: false,
+      response: new Response(JSON.stringify({ ok: false, error: "forbidden" }), { status: 403 }),
+    });
+    const res = await GET(new Request("http://localhost/api/admin/reminder-stats"));
+    expect(res.status).toBe(403);
+    expect(loadDoctorAnalyticsAudienceMock).not.toHaveBeenCalled();
+    expect(loadContentEngagementStatsMock).not.toHaveBeenCalled();
   });
 
   it("returns 403 when not admin mode", async () => {
