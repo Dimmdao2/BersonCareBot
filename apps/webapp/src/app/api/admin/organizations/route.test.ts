@@ -58,6 +58,7 @@ describe('GET /api/admin/organizations', () => {
     listTariffsMock.mockResolvedValueOnce([]);
     getEnforcedQuotaUsageMock.mockResolvedValueOnce({
       courses: 7,
+      cms_pages: 4,
       // A repository returning a placeholder for a non-enforced mechanic must not make it public.
       files: 0,
     });
@@ -69,7 +70,7 @@ describe('GET /api/admin/organizations', () => {
       ok: true,
       organizations: [{ id: ORGANIZATION_ID, title: 'Клиника восстановления' }],
       tariffs: [],
-      enforcedQuotaUsage: { [ORGANIZATION_ID]: { courses: 7 } },
+      enforcedQuotaUsage: { [ORGANIZATION_ID]: { courses: 7, cms_pages: 4 } },
     });
     expect(guardMock.mock.invocationCallOrder[0]).toBeLessThan(
       buildAppDepsMock.mock.invocationCallOrder[0]!,

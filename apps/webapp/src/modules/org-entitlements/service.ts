@@ -24,7 +24,7 @@ function assertQuota(mechanic: OrgMechanic, quota: TariffQuota): void {
     throw new Error("tariff_quota_unit_invalid");
   }
   if (
-    mechanic === "courses" &&
+    (mechanic === "courses" || mechanic === "cms_pages") &&
     (quota.unit !== "items" || quota.period !== "snapshot" || quota.usagePolicy !== "snapshot")
   ) {
     throw new Error("tariff_quota_enforcement_shape_invalid");

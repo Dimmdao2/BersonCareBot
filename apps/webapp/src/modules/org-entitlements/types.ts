@@ -13,7 +13,7 @@ export const MECHANIC_REGISTRY = {
   exercise_catalog: { label: "Каталог упражнений", quotaUnits: ["items"], quotaEnforcement: "declared_no_enforcement" },
   exercise_packages: { label: "Пакеты упражнений", quotaUnits: ["items"], quotaEnforcement: "declared_no_enforcement" },
   courses: { label: "Курсы", quotaUnits: ["items"], quotaEnforcement: "atomic_snapshot" },
-  cms_pages: { label: "Страницы CMS", quotaUnits: ["items"], quotaEnforcement: "declared_no_enforcement" },
+  cms_pages: { label: "Страницы CMS", quotaUnits: ["items"], quotaEnforcement: "atomic_snapshot" },
   files: { label: "Файлы пациентов", quotaUnits: ["bytes", "items"], quotaEnforcement: "declared_no_enforcement" },
   patient_card: { label: "Карточка пациента", quotaUnits: ["clients"], quotaEnforcement: "declared_no_enforcement" },
   subscriptions: { label: "Абонементы пациентов", quotaUnits: ["items"], quotaEnforcement: "declared_no_enforcement" },

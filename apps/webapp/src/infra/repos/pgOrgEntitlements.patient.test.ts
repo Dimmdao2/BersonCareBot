@@ -2,6 +2,7 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getCurrentWebappDbOperationFamily } from "@/infra/db/saasIsolationOperationContext";
+import { CMS_PAGES_USAGE_SQL } from "@/infra/repos/cmsPagesUsageSql";
 
 type TestPrincipal =
   | { kind: "patient"; organizationId?: string; platformUserId: string }
@@ -151,5 +152,32 @@ describe("pgOrgEntitlements current-patient capability", () => {
       access: { lifecycle: "active", tariffId: "tariff-1", source: "assignment" },
     });
     expect(runWebappPgTextMock).not.toHaveBeenCalled();
+  });
+
+  it("publishes CMS-page usage from the shared authoritative infra recount", async () => {
+    const coursesWhere = vi.fn().mockResolvedValue([{ count: 2 }]);
+    const coursesFrom = vi.fn(() => ({ where: coursesWhere }));
+    getDrizzleMock.mockReturnValue({
+      select: vi.fn(() => ({ from: coursesFrom })),
+    });
+    runWebappPgTextMock.mockImplementation(async (query: string, params: unknown[]) => {
+      if (query.includes(CMS_PAGES_USAGE_SQL)) {
+        expect(params).toEqual([ORGANIZATION_ID]);
+        return { rows: [{ used_value: 4 }] };
+      }
+      expect(params).toEqual([ORGANIZATION_ID, null]);
+      return { rows: [{ used_value: 3 }] };
+    });
+
+    await expect(
+      createPgOrgEntitlementsPort().getEnforcedQuotaUsage(ORGANIZATION_ID),
+    ).resolves.toEqual({
+      courses: 2,
+      cms_pages: 4,
+      clinic_team: 3,
+    });
+    expect(CMS_PAGES_USAGE_SQL).toBe(
+      "app.cms_pages_snapshot_usage($1::uuid)::int",
+    );
   });
 });

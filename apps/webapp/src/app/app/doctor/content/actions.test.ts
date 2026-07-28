@@ -116,6 +116,24 @@ describe("saveContentPage", () => {
     );
   });
 
+  it("returns a clear tariff denial when the atomic CMS-page quota rejects a new row", async () => {
+    upsertMock.mockRejectedValueOnce(new Error("saas_quota_reached:cms_pages:5/5"));
+
+    const res = await saveContentPage(
+      null,
+      formWith({
+        section: "lessons",
+        slug: "over-limit",
+        title: "T",
+      }),
+    );
+
+    expect(res).toEqual({
+      ok: false,
+      error: "Достигнут лимит страниц CMS по тарифу. Расширьте тариф.",
+    });
+  });
+
   it("returns cms_pages denial after auth without calling page service", async () => {
     requireEntitlementForActionMock.mockResolvedValueOnce({
       ok: false,

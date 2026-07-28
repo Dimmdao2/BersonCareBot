@@ -3,6 +3,7 @@ import { getCurrentDbPrincipal } from "@bersoncare/db-principal";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { runWithWebappDbOperationFamily } from "@/infra/db/saasIsolationOperationContext";
 import { runWebappPgText } from "@/infra/db/runWebappSql";
+import { CMS_PAGES_USAGE_SQL } from "@/infra/repos/cmsPagesUsageSql";
 import { CLINIC_SEAT_USAGE_SQL } from "@/infra/repos/seatUsageSql";
 import type { OrgEntitlementsPort } from "@/modules/org-entitlements/ports";
 import type {
@@ -225,11 +226,15 @@ export function createPgOrgEntitlementsPort(): OrgEntitlementsPort {
       return (await readSnapshot(organizationId)).access;
     },
     async getEnforcedQuotaUsage(organizationId) {
-      const [[{ count }], seatUsage] = await Promise.all([
+      const [[{ count }], cmsPagesUsage, seatUsage] = await Promise.all([
         getDrizzle()
           .select({ count: sql<number>`count(*)::int` })
           .from(courses)
           .where(eq(courses.organizationId, organizationId)),
+        runWebappPgText<{ used_value: number }>(
+          `SELECT ${CMS_PAGES_USAGE_SQL} AS used_value`,
+          [organizationId],
+        ),
         // The same authoritative expression as invite enforcement; null means no pending
         // invite is being replaced, so every live reservation is included in the storefront.
         runWebappPgText<{ used_value: number }>(
@@ -237,7 +242,11 @@ export function createPgOrgEntitlementsPort(): OrgEntitlementsPort {
           [organizationId, null],
         ),
       ]);
-      return { courses: count ?? 0, clinic_team: seatUsage.rows[0]?.used_value ?? 0 };
+      return {
+        courses: count ?? 0,
+        cms_pages: cmsPagesUsage.rows[0]?.used_value ?? 0,
+        clinic_team: seatUsage.rows[0]?.used_value ?? 0,
+      };
     },
   };
 }

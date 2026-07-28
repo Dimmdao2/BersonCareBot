@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import type { OrgEntitlementsPort } from "./ports";
@@ -121,19 +121,23 @@ describe("resolveOrgEntitlements", () => {
 
 describe("resolveOrgQuotaProjections", () => {
   it("exposes enforced snapshot quotas, including specialist seats configured outside the generic quota map", async () => {
-    const port = portFor({ mechanics: { courses: true } }, []);
+    const port = portFor({ mechanics: { courses: true, cms_pages: true } }, []);
     port.getSnapshot = vi.fn(async () => ({
       tariff: {
-        mechanics: { courses: true, clinic_team: true },
-        quotas: { courses: { kind: "numeric" as const, limit: 5, unit: "items", period: "snapshot" as const, usagePolicy: "snapshot" as const } },
+        mechanics: { courses: true, cms_pages: true, clinic_team: true },
+        quotas: {
+          courses: { kind: "numeric" as const, limit: 5, unit: "items", period: "snapshot" as const, usagePolicy: "snapshot" as const },
+          cms_pages: { kind: "numeric" as const, limit: 10, unit: "items", period: "snapshot" as const, usagePolicy: "snapshot" as const },
+        },
         includedSeats: 5,
       },
       overrides: [],
       access: { lifecycle: "active" as const, tariffId: "tariff-a", source: "assignment" as const },
     }));
-    port.getEnforcedQuotaUsage = vi.fn(async () => ({ courses: 4, clinic_team: 5 }));
+    port.getEnforcedQuotaUsage = vi.fn(async () => ({ courses: 4, cms_pages: 3, clinic_team: 5 }));
     await expect(resolveOrgQuotaProjections(port, "org-a")).resolves.toEqual([
       expect.objectContaining({ mechanic: "courses", usage: 4, threshold: "warning", enforcement: "atomic_snapshot" }),
+      expect.objectContaining({ mechanic: "cms_pages", usage: 3, threshold: "below_warning", enforcement: "atomic_snapshot" }),
       expect.objectContaining({ mechanic: "clinic_team", usage: 5, threshold: "reached", enforcement: "application_transaction_snapshot" }),
     ]);
   });
@@ -249,7 +253,7 @@ describe("platform tariff constructor validation", () => {
     }, { actorId: null, reason: "test" })).toThrow("tariff_quota_unit_invalid");
   });
 
-  it("accepts arbitrary declared quota shapes but restricts the enforced courses quota to its atomic shape", () => {
+  it("accepts arbitrary declared quota shapes but restricts enforced snapshot quotas to their atomic shape", () => {
     const port = { createTariff: vi.fn() };
     const service = createPlatformEntitlementsService(port as never);
     const base = {
@@ -258,7 +262,7 @@ describe("platform tariff constructor validation", () => {
       priceMinor: null,
       currency: null,
       billingPeriod: "month" as const,
-      mechanics: { booking: true, courses: true },
+      mechanics: { booking: true, courses: true, cms_pages: true },
       includedSeats: null,
       isActive: true,
     };
@@ -271,10 +275,15 @@ describe("platform tariff constructor validation", () => {
       ...base,
       quotas: { courses: { kind: "unlimited", limit: null, unit: "items", period: "month", usagePolicy: "consumption" } },
     }, { actorId: null, reason: "test" })).toThrow("tariff_quota_enforcement_shape_invalid");
+    expect(() => service.createTariff({
+      ...base,
+      quotas: { cms_pages: { kind: "numeric", limit: 10, unit: "items", period: "month", usagePolicy: "consumption" } },
+    }, { actorId: null, reason: "test" })).toThrow("tariff_quota_enforcement_shape_invalid");
   });
 
-  it("declares courses as DB-trigger enforcement and specialist seats as application-transaction enforcement", () => {
+  it("declares courses and CMS pages as DB-trigger enforcement and seats as application-transaction enforcement", () => {
     expect(MECHANIC_REGISTRY.courses.quotaEnforcement).toBe("atomic_snapshot");
+    expect(MECHANIC_REGISTRY.cms_pages.quotaEnforcement).toBe("atomic_snapshot");
     // #1069: seats were incorrectly declared unenforced. The distinct tag tells debugging to
     // inspect pgOrganizationInvites' advisory-lock transaction, rather than the courses trigger.
     expect(MECHANIC_REGISTRY.clinic_team.quotaEnforcement).toBe("application_transaction_snapshot");
@@ -290,6 +299,35 @@ describe("platform tariff constructor validation", () => {
     expect(migration).toContain("v_count * 5 >= v_limit * 4");
     expect(migration).toContain("saas_quota_reached:courses");
     expect(migration).not.toContain("saas_organization_quota_usage");
+    const migrationDir = resolve(process.cwd(), "db/drizzle-migrations");
+    const cmsPagesMigrationName = readdirSync(migrationDir).find((name) =>
+      name.endsWith("_cms_pages_snapshot_quota.sql"),
+    );
+    expect(cmsPagesMigrationName).toBeTruthy();
+    const cmsPagesMigration = readFileSync(resolve(migrationDir, cmsPagesMigrationName!), "utf8");
+    expect(cmsPagesMigration).toContain("CREATE TRIGGER content_pages_snapshot_quota_guard");
+    expect(cmsPagesMigration).toContain("BEFORE INSERT ON public.content_pages");
+    expect(cmsPagesMigration).toContain("CREATE OR REPLACE FUNCTION app.cms_pages_snapshot_usage(");
+    expect(cmsPagesMigration).toContain("CREATE OR REPLACE FUNCTION app.enforce_cms_pages_snapshot_quota()");
+    expect(cmsPagesMigration).toContain("DROP TRIGGER IF EXISTS content_pages_snapshot_quota_guard");
+    expect(cmsPagesMigration).toContain("saas_quota:cms_pages:");
+    expect(cmsPagesMigration).toContain("FROM public.content_pages");
+    expect(cmsPagesMigration).toContain("WHERE organization_id = p_organization_id");
+    expect(cmsPagesMigration).toContain("app.cms_pages_snapshot_usage(NEW.organization_id)");
+    expect(cmsPagesMigration).toContain("IF v_count >= v_limit THEN");
+    expect(cmsPagesMigration).toContain("saas_quota_reached:cms_pages");
+    expect(cmsPagesMigration).toContain("'saas_quota:cms_pages:' || NEW.organization_id::text");
+    expect(cmsPagesMigration).not.toContain("saas_organization_quota_usage");
+    const platformRuntime = readFileSync(
+      resolve(process.cwd(), "../../deploy/postgres/c5a-platform-operations-runtime.sql"),
+      "utf8",
+    );
+    expect(platformRuntime).toContain(
+      "GRANT EXECUTE ON FUNCTION app.cms_pages_snapshot_usage(uuid)\n      TO app_platform_settings",
+    );
+    expect(platformRuntime).toContain(
+      "'app.cms_pages_snapshot_usage(uuid)',\n    'EXECUTE'",
+    );
   });
 });
 
