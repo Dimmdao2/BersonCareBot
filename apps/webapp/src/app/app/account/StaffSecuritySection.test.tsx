@@ -176,8 +176,34 @@ describe('StaffSecuritySection first-run acceptance', () => {
     );
 
     expect(toastErrorMock).toHaveBeenCalledWith(
-      'Не удалось начать настройку защиты. Повторите попытку. Проверьте соединение с интернетом.',
+      'Не удалось начать настройку защиты. Повторите попытку.',
     );
+  });
+
+  it('keeps a successful TOTP verification successful without a fallible status refresh', async () => {
+    vi.mocked(fetch).mockImplementation((url) => {
+      if (url === '/api/account/security/totp/start') {
+        return Promise.resolve(
+          new Response(JSON.stringify({ ok: true, secret: 'secret', uri: 'otpauth://test' })),
+        );
+      }
+      if (url === '/api/account/security/totp/verify') {
+        return Promise.resolve(
+          new Response(JSON.stringify({ ok: true, recoveryCodes: ['recovery-one'] })),
+        );
+      }
+      return Promise.reject(new Error(`unexpected request: ${String(url)}`));
+    });
+
+    renderSecurity({ enrolled: false, recoveryConfirmed: false });
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Подключить приложение-аутентификатор' }));
+    await user.type(screen.getByLabelText('Код из приложения'), '123456');
+    await user.click(screen.getByRole('button', { name: 'Проверить' }));
+
+    expect(screen.getByText('recovery-one')).toBeInTheDocument();
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(toastErrorMock).not.toHaveBeenCalled();
   });
 
   it.each([

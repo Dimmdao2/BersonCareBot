@@ -2,6 +2,7 @@ import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipa
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { ensureAuthModulePortsBound } from "@/app-layer/di/bindAuthModulePorts";
 import { normalizeEmail } from "@/modules/auth/emailAuth";
 import { reconcileDbRoleWithEnvRole, resolveRoleFromEnv } from "@/modules/auth/envRole";
 import { getRedirectPathForRole } from "@/modules/auth/redirectPolicy";
@@ -30,6 +31,7 @@ const PASSWORD_LOCKED_MESSAGE =
 
 export async function POST(request: Request) {
   stampBootstrapPrincipal("api/auth/email-password/login:POST", request);
+  ensureAuthModulePortsBound();
   const rateLimit = await checkAuthConfirmRateLimit(request, "email_password_login");
   if (rateLimit.limited) {
     if (rateLimit.reason === "proxy_configuration") {

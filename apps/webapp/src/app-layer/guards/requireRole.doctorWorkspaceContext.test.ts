@@ -43,6 +43,7 @@ import {
   requireDoctorApiSession,
   requireDoctorWorkspaceApiContext,
   requireDoctorWorkspaceContext,
+  requireOrganizationWorkspaceContext,
   requirePlatformOperationsApiContext,
   requireStaffSecurityApiSession,
 } from "./requireRole";
@@ -180,7 +181,7 @@ describe("requireDoctorWorkspaceApiContext", () => {
     expect(gate.response.status).toBe(401);
   });
 
-  it("global 2FA switch on: lets the newly provisioned owner enter the workspace before enrollment", async () => {
+  it("global 2FA switch on: keeps the owner shell but denies clinical APIs before enrollment", async () => {
     getServerRuntimeBoolMock.mockResolvedValue(true);
     const pending = {
       ...session("doctor"),
@@ -201,13 +202,47 @@ describe("requireDoctorWorkspaceApiContext", () => {
       },
     });
 
-    // Changed because owner 2FA is now progressive onboarding after the first clinical workspace entry.
     const gate = await requireDoctorWorkspaceApiContext();
 
-    expect(gate.ok).toBe(true);
+    expect(gate.ok).toBe(false);
+    if (gate.ok) return;
+    expect(gate.response.status).toBe(403);
     expect(resolveOrganizationForUserMock).toHaveBeenCalledWith({
       platformUserId: pending.user.userId,
     });
+  });
+
+  it("global 2FA switch on: resolves a safe owner first-run shell without clinical capability", async () => {
+    getServerRuntimeBoolMock.mockResolvedValue(true);
+    const pending = {
+      ...session("doctor"),
+      staffSecurity: { assurance: "pending_enrollment" as const },
+    };
+    getCurrentSessionMock.mockResolvedValueOnce(pending);
+    resolveOrganizationForUserMock.mockResolvedValueOnce({
+      ok: true,
+      context: {
+        membershipId: "membership-1",
+        organizationId: ORG_1,
+        platformUserId: pending.user.userId,
+        role: "owner",
+        specialistId: "specialist-1",
+        canManageOrganization: true,
+        canManageAllSpecialists: true,
+        canAccessClinicalWorkspace: true,
+      },
+    });
+
+    const workspace = await requireOrganizationWorkspaceContext();
+
+    expect(workspace).toMatchObject({
+      membershipRole: "owner",
+      specialistId: "specialist-1",
+      canManageOrganization: true,
+      canAccessClinicalWorkspace: false,
+    });
+    expect(workspace.capabilities).toContain("organization.management");
+    expect(workspace.capabilities).not.toContain("clinical.workspace");
   });
 
   it("still denies an owner whose already-enrolled factor was not verified for this session", async () => {
@@ -818,7 +853,7 @@ describe("requireDoctorWorkspaceContext", () => {
     expect(redirectMock).not.toHaveBeenCalled();
   });
 
-  it("lets a provisioned owner reach the RSC workspace while first-run 2FA is still pending", async () => {
+  it("redirects clinical RSC pages to 2FA while the owner first-run shell remains pending", async () => {
     getServerRuntimeBoolMock.mockResolvedValue(true);
     const owner = {
       ...session("doctor"),
@@ -839,12 +874,10 @@ describe("requireDoctorWorkspaceContext", () => {
       },
     });
 
-    // Changed because the owner completes mandatory 2FA from first-run onboarding after workspace entry.
-    await expect(requireDoctorWorkspaceContext()).resolves.toMatchObject({
-      membershipRole: "owner",
-      specialistId: "specialist-owner",
-    });
-    expect(redirectMock).not.toHaveBeenCalled();
+    await expect(requireDoctorWorkspaceContext()).rejects.toThrow(
+      "redirect:/app/account?tab=security",
+    );
+    expect(redirectMock).toHaveBeenCalledWith("/app/account?tab=security");
   });
 
   it("redirects RSC context when membership is missing", async () => {

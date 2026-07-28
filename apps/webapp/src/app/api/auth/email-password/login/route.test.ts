@@ -13,6 +13,7 @@ const recordFailedPasswordAttemptMock = vi.fn();
 const resetFailedPasswordAttemptsMock = vi.fn();
 const checkAuthConfirmRateLimitMock = vi.fn();
 const waitForPasswordFailureDelayMock = vi.fn();
+const ensureAuthModulePortsBoundMock = vi.fn();
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
@@ -28,6 +29,10 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
       getLatestSpecialistSignupIntentForUser: getLatestSpecialistSignupIntentForUserMock,
     },
   }),
+}));
+
+vi.mock("@/app-layer/di/bindAuthModulePorts", () => ({
+  ensureAuthModulePortsBound: () => ensureAuthModulePortsBoundMock(),
 }));
 
 vi.mock("@/modules/auth/envRole", () => ({
@@ -105,6 +110,10 @@ describe("POST /api/auth/email-password/login", () => {
       retryAfterSeconds: 600,
     });
     expect(verifyLoginMock).not.toHaveBeenCalled();
+    expect(ensureAuthModulePortsBoundMock).toHaveBeenCalledOnce();
+    expect(ensureAuthModulePortsBoundMock.mock.invocationCallOrder[0]).toBeLessThan(
+      checkAuthConfirmRateLimitMock.mock.invocationCallOrder[0]!,
+    );
   });
 
   it("returns proxy_configuration when the shared IP chokepoint cannot resolve a trusted key", async () => {
