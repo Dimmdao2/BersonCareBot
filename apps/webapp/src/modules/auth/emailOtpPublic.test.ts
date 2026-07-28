@@ -32,9 +32,6 @@ function makeInMemDb(overrides?: Partial<EmailOtpPublicDbPort>): EmailOtpPublicD
       users.set(emailNormalized, userId);
       return { ok: true as const, userId, wasCreated: true };
     },
-    async deleteUnverifiedPublicEmailRegistration(userId) {
-      for (const [email, id] of users) if (id === userId) users.delete(email);
-    },
     async consumeLatestEmailChallenge() {
       return { ok: false as const, code: "expired_code" as const };
     },
@@ -179,27 +176,22 @@ describe("startPublicEmailOtpRegistration", () => {
     expect(sendEmailCodeMock).toHaveBeenCalledTimes(1);
   });
 
-  it("does not overwrite a pending registration and rolls back only a newly created identity on delivery failure", async () => {
-    const deleteUnverifiedPublicEmailRegistration = vi.fn();
-    const createdId = randomUUID();
-    sendEmailCodeMock.mockResolvedValueOnce({ ok: false, error: "smtp" });
-    const db = makeInMemDb({
-      registerPublicEmailPatient: vi.fn(async () => ({ ok: true as const, userId: createdId, wasCreated: true })),
-      deleteUnverifiedPublicEmailRegistration,
-    });
-    const result = await startPublicEmailOtpRegistration({ email: "patient@example.com", lastName: "Иванов", firstName: "Иван" }, db);
-    expect(result).toMatchObject({ ok: false, code: "email_send_failed" });
-    expect(deleteUnverifiedPublicEmailRegistration).toHaveBeenCalledWith(createdId);
-  });
+  it("retries after a delivery failure without requiring FIO again", async () => {
+    sendEmailCodeMock
+      .mockResolvedValueOnce({ ok: false, error: "smtp" })
+      .mockResolvedValueOnce({ ok: true });
+    const db = makeInMemDb();
 
-  it("keeps an existing pending identity when its resend delivery fails", async () => {
-    const deleteUnverifiedPublicEmailRegistration = vi.fn();
-    sendEmailCodeMock.mockResolvedValueOnce({ ok: false, error: "smtp" });
-    const db = makeInMemDb({
-      registerPublicEmailPatient: vi.fn(async () => ({ ok: true as const, userId: randomUUID(), wasCreated: false })),
-      deleteUnverifiedPublicEmailRegistration,
-    });
-    await startPublicEmailOtpRegistration({ email: "patient@example.com", lastName: "Иванов", firstName: "Иван" }, db);
-    expect(deleteUnverifiedPublicEmailRegistration).not.toHaveBeenCalled();
+    const first = await startPublicEmailOtpRegistration(
+      { email: "patient@example.com", lastName: "Иванов", firstName: "Иван" },
+      db,
+    );
+    expect(first).toMatchObject({ ok: false, code: "email_send_failed" });
+
+    // A normal email-only retry can now find the pending identity created above. The person is not
+    // asked for FIO a second time, and the second delivery attempt reaches the mail port.
+    const retry = await startPublicEmailOtpChallenge("patient@example.com", db);
+    expect(retry.ok).toBe(true);
+    expect(sendEmailCodeMock).toHaveBeenCalledTimes(2);
   });
 });

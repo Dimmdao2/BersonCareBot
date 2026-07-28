@@ -18,9 +18,6 @@ export type EmailOtpPublicDbPort = {
     patronymic: string | null;
   }): Promise<{ ok: true; userId: string; wasCreated: boolean } | { ok: false; reason: "duplicate_email" }>;
 
-  /** Roll back only a newly-created unverified registration after delivery failure. */
-  deleteUnverifiedPublicEmailRegistration(userId: string): Promise<void>;
-
   /**
    * Atomically consume the latest challenge using only a pre-hashed code.
    * C-2 step 4: the DB function itself now enforces that the row's purpose is one of

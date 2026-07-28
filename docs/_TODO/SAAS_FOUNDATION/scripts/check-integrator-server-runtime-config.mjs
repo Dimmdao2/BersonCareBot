@@ -5,9 +5,12 @@ const paths = {
   migration: 'apps/webapp/db/drizzle-migrations/0191_integrator_server_runtime_config.sql',
   restrictedMigration:
     'apps/webapp/db/drizzle-migrations/0235_integrator_smtp_restricted_accessor.sql',
+  deliveryAuditMigration:
+    'apps/webapp/db/drizzle-migrations/0269_integrator_global_delivery_attempt_audit.sql',
   overlay: 'deploy/postgres/integrator-server-runtime-config.sql',
   reader: 'apps/integrator/src/infra/db/publicRuntimeSettings.ts',
   restrictedReader: 'apps/integrator/src/infra/db/publicRestrictedSettings.ts',
+  deliveryAuditWriter: 'apps/integrator/src/infra/db/repos/messageLogs.ts',
   resolver: 'apps/integrator/src/config/appBaseUrl.ts',
   smtpResolver: 'apps/integrator/src/config/smtpOutbound.ts',
   emailIndex: 'apps/integrator/src/integrations/email/index.ts',
@@ -79,6 +82,19 @@ function run(overrides = {}) {
     'p_key',
     'process.env',
   ]);
+  requireFragments('global email delivery audit migration', files.deliveryAuditMigration, [
+    'CREATE OR REPLACE FUNCTION app.record_global_email_delivery_attempt(',
+    'SECURITY DEFINER',
+    'SET search_path = pg_catalog',
+    "p_channel IS DISTINCT FROM 'email'",
+    'INSERT INTO integrator.delivery_attempt_logs',
+    'OWNER TO app_owner',
+    'FROM PUBLIC, app_staff, app_patient, app_worker',
+  ]);
+  forbidFragments('global email delivery audit migration', files.deliveryAuditMigration, [
+    'GRANT INSERT ON TABLE integrator.delivery_attempt_logs',
+    'GRANT USAGE ON SEQUENCE integrator.delivery_attempt_logs_id_seq',
+  ]);
 
   requireFragments('overlay', files.overlay, [
     'integrator_runtime_config_role',
@@ -92,16 +108,20 @@ function run(overrides = {}) {
     'membership.inherit_option',
     'membership.set_option',
     'REVOKE SELECT ON TABLE public.app_runtime_settings, public.system_settings',
+    'REVOKE INSERT ON TABLE integrator.delivery_attempt_logs',
+    'REVOKE USAGE ON SEQUENCE integrator.delivery_attempt_logs_id_seq',
     'GRANT SELECT ON TABLE public.app_runtime_settings TO app_owner;',
     'ALTER FUNCTION app.read_global_server_runtime_setting(text) OWNER TO app_owner;',
     'REVOKE ALL ON FUNCTION app.read_global_server_runtime_setting(text) FROM PUBLIC;',
     'FROM app_staff, app_patient, app_worker;',
     'GRANT EXECUTE ON FUNCTION app.read_global_server_runtime_setting(text)',
     'GRANT EXECUTE ON FUNCTION app.read_integrator_smtp_outbound_setting()',
+    'GRANT EXECUTE ON FUNCTION app.record_global_email_delivery_attempt(',
     'ALTER FUNCTION app.read_integrator_smtp_outbound_setting() OWNER TO app_owner;',
     'REVOKE ALL ON FUNCTION app.read_integrator_smtp_outbound_setting() FROM PUBLIC;',
     'REVOKE ALL PRIVILEGES ON FUNCTION app.read_integrator_smtp_outbound_setting()\n  FROM :"integrator_runtime_config_role" CASCADE;',
     'DO $smtp_acl_scrub$',
+    'DO $delivery_audit_acl_scrub$',
     'SELECT DISTINCT privilege.grantee, role.rolname',
     'privilege.grantee <> procedure.proowner',
     'FROM PUBLIC CASCADE',
@@ -125,10 +145,14 @@ function run(overrides = {}) {
     "owner.rolname <> 'app_owner'",
     "privilege.privilege_type <> 'EXECUTE'",
     'OR privilege.is_grantable',
+    "'integrator.delivery_attempt_logs',",
+    "'integrator.delivery_attempt_logs_id_seq',",
   ]);
   forbidFragments('overlay', files.overlay, [
     'GRANT SELECT ON TABLE public.app_runtime_settings TO :"integrator_runtime_config_role"',
     'GRANT SELECT ON TABLE public.system_settings',
+    'GRANT INSERT ON TABLE integrator.delivery_attempt_logs\n  TO :"integrator_runtime_config_role"',
+    'GRANT USAGE ON SEQUENCE integrator.delivery_attempt_logs_id_seq\n  TO :"integrator_runtime_config_role"',
     'GRANT EXECUTE ON FUNCTION app.install_signed_context(text, integer, bigint, uuid, uuid, bigint, text)\n  TO :"integrator_runtime_config_role"',
     // A-5 (2026-07-26): the audience widening must stay a two-way OR of exactly ('server','public')
     // -- never a bare narrow 'server'-only re-check (that is the regression this file fixes) and
@@ -155,6 +179,17 @@ function run(overrides = {}) {
     'public.app_runtime_settings',
     'process.env',
     'p_key',
+  ]);
+  requireFragments('global email delivery audit writer', files.deliveryAuditWriter, [
+    "principal?.kind === 'infra' && principal.source === 'delivery-handler'",
+    'SELECT app.record_global_email_delivery_attempt(',
+    '$8::jsonb',
+    '$9::timestamptz',
+    "code: 'DELIVERY_ATTEMPT_LOG_INSERT_FAILED'",
+    'throw err;',
+  ]);
+  forbidFragments('global email delivery audit writer', files.deliveryAuditWriter, [
+    '.catch(() => {})',
   ]);
   requireFragments('SMTP resolver', files.smtpResolver, [
     'runWithBootstrapPrincipal',
@@ -220,6 +255,8 @@ function run(overrides = {}) {
     '"tag": "0191_integrator_server_runtime_config"',
     '"idx": 235',
     '"tag": "0235_integrator_smtp_restricted_accessor"',
+    '"idx": 267',
+    '"tag": "0269_integrator_global_delivery_attempt_audit"',
   ]);
   requireFragments('TEST deploy wiring', files.deploy, [
     'INTEGRATOR_SERVER_RUNTIME_CONFIG=deploy/postgres/integrator-server-runtime-config.sql',
@@ -231,12 +268,15 @@ function run(overrides = {}) {
     'NOT membership.inherit_option AND membership.set_option',
     "has_function_privilege(current_user, 'app.read_global_server_runtime_setting(text)', 'EXECUTE')",
     "has_function_privilege(current_user, 'app.read_integrator_smtp_outbound_setting()', 'EXECUTE')",
+    "has_function_privilege(current_user, 'app.record_global_email_delivery_attempt(text,text,text,text,text,integer,text,jsonb,timestamptz)', 'EXECUTE')",
+    "NOT has_table_privilege(current_user, 'integrator.delivery_attempt_logs', 'INSERT')",
+    "NOT has_sequence_privilege(current_user, 'integrator.delivery_attempt_logs_id_seq', 'USAGE')",
     "privilege.grantee = (SELECT oid FROM pg_roles WHERE rolname = current_user)",
     "privilege.grantee NOT IN (procedure.proowner, (SELECT oid FROM pg_roles WHERE rolname = current_user))",
     "owner.rolname <> 'app_owner'",
     "privilege.privilege_type <> 'EXECUTE'",
     'integrator DB-backed runtime/SMTP accessors are not ready',
-    'integrator DB-backed runtime/SMTP accessors: OK (exact ACL, no table SELECT)',
+    'integrator DB-backed runtime/SMTP/audit accessors: OK (exact ACL, no direct protected-table write)',
     'aclexplode(COALESCE(relation.relacl, acldefault',
     "privilege.grantee IN (0, (SELECT oid FROM pg_roles WHERE rolname = current_user))",
     "pg_has_role(current_user, pg_get_userbyid(relation.relowner), 'MEMBER')",
@@ -252,6 +292,7 @@ function run(overrides = {}) {
     'initdb',
     'pg_ctl',
     '0235_integrator_smtp_restricted_accessor.sql',
+    '0269_integrator_global_delivery_attempt_audit.sql',
     'integrator-server-runtime-config.sql',
     'TO smtp_stale WITH GRANT OPTION',
     'SET ROLE smtp_stale',
@@ -263,6 +304,8 @@ function run(overrides = {}) {
     "SET SESSION AUTHORIZATION smtp_runtime",
     'smtp_runtime_table_read_unexpectedly_succeeded',
     'smtp_runtime_current_org_unexpectedly_succeeded',
+    'smtp_runtime_delivery_audit_direct_insert_unexpectedly_succeeded',
+    'app.record_global_email_delivery_attempt(',
     'runRuntimePathProbe',
     'smtp-runtime-path.probe.mts',
     'resolveSmtpOutboundConfig(createDbPort())',
@@ -388,6 +431,18 @@ if (process.argv.includes('--self-test')) {
     rejected = true;
   }
   if (!rejected) fail('self-test did not reject a missing exact SMTP ACL scrub');
+  rejected = false;
+  try {
+    run({
+      overlay: readFileSync(paths.overlay, 'utf8').replace(
+        'DO $delivery_audit_acl_scrub$',
+        'DO $removed_delivery_audit_acl_scrub$',
+      ),
+    });
+  } catch {
+    rejected = true;
+  }
+  if (!rejected) fail('self-test did not reject a missing exact delivery-audit ACL scrub');
   rejected = false;
   try {
     run({

@@ -17,9 +17,14 @@ const migrationPath = resolve(
   repoRoot,
   "apps/webapp/db/drizzle-migrations/0235_integrator_smtp_restricted_accessor.sql",
 );
+const deliveryAuditMigrationPath = resolve(
+  repoRoot,
+  "apps/webapp/db/drizzle-migrations/0269_integrator_global_delivery_attempt_audit.sql",
+);
 const overlayPath = resolve(repoRoot, "deploy/postgres/integrator-server-runtime-config.sql");
 const runtimeProbePath = join(scratchRoot, "smtp-runtime-path.probe.mts");
 readFileSync(migrationPath, "utf8");
+readFileSync(deliveryAuditMigrationPath, "utf8");
 readFileSync(overlayPath, "utf8");
 
 function command(executable, args, options = {}) {
@@ -125,7 +130,21 @@ GRANT app_patient TO smtp_runtime WITH INHERIT FALSE, SET TRUE;
 GRANT app_worker TO smtp_runtime WITH INHERIT FALSE, SET TRUE;
 
 CREATE SCHEMA app;
+CREATE SCHEMA integrator;
 GRANT USAGE ON SCHEMA app TO smtp_stale, smtp_delegated;
+CREATE TABLE integrator.delivery_attempt_logs (
+  id bigserial PRIMARY KEY,
+  intent_type text,
+  intent_event_id text,
+  correlation_id text,
+  channel text NOT NULL,
+  status text NOT NULL CHECK (status IN ('success', 'failed')),
+  attempt integer NOT NULL CHECK (attempt > 0),
+  reason text,
+  payload_json jsonb NOT NULL DEFAULT '{}'::jsonb,
+  occurred_at timestamptz NOT NULL DEFAULT now(),
+  created_at timestamptz NOT NULL DEFAULT now()
+);
 CREATE TABLE public.system_settings (
   key text NOT NULL,
   scope text NOT NULL,
@@ -180,14 +199,23 @@ GRANT EXECUTE ON FUNCTION
   app.release_principal_context()
   TO app_staff, app_patient;
 GRANT SELECT ON TABLE public.system_settings, public.app_runtime_settings TO app_owner;
+GRANT USAGE ON SCHEMA integrator TO app_owner;
+GRANT INSERT ON TABLE integrator.delivery_attempt_logs TO app_owner;
+GRANT USAGE ON SEQUENCE integrator.delivery_attempt_logs_id_seq TO app_owner;
 `;
 
 const injectStaleAcl = `
 GRANT EXECUTE ON FUNCTION app.read_integrator_smtp_outbound_setting()
   TO smtp_stale WITH GRANT OPTION;
+GRANT EXECUTE ON FUNCTION app.record_global_email_delivery_attempt(
+  text, text, text, text, text, integer, text, jsonb, timestamptz
+) TO smtp_stale WITH GRANT OPTION;
 SET ROLE smtp_stale;
 GRANT EXECUTE ON FUNCTION app.read_integrator_smtp_outbound_setting()
   TO smtp_delegated;
+GRANT EXECUTE ON FUNCTION app.record_global_email_delivery_attempt(
+  text, text, text, text, text, integer, text, jsonb, timestamptz
+) TO smtp_delegated;
 RESET ROLE;
 `;
 
@@ -225,9 +253,26 @@ SELECT 1 / (
   )
   AND NOT has_table_privilege('smtp_runtime', 'public.system_settings', 'SELECT')
   AND NOT has_table_privilege('smtp_runtime', 'public.app_runtime_settings', 'SELECT')
+  AND has_function_privilege(
+    'smtp_runtime',
+    'app.record_global_email_delivery_attempt(text,text,text,text,text,integer,text,jsonb,timestamptz)',
+    'EXECUTE'
+  )
+  AND NOT has_table_privilege('smtp_runtime', 'integrator.delivery_attempt_logs', 'INSERT')
+  AND NOT has_sequence_privilege('smtp_runtime', 'integrator.delivery_attempt_logs_id_seq', 'USAGE')
   AND NOT has_function_privilege('smtp_runtime', 'app.current_org_id()', 'EXECUTE')
   AND NOT has_function_privilege('smtp_stale', 'app.read_integrator_smtp_outbound_setting()', 'EXECUTE')
   AND NOT has_function_privilege('smtp_delegated', 'app.read_integrator_smtp_outbound_setting()', 'EXECUTE')
+  AND NOT has_function_privilege(
+    'smtp_stale',
+    'app.record_global_email_delivery_attempt(text,text,text,text,text,integer,text,jsonb,timestamptz)',
+    'EXECUTE'
+  )
+  AND NOT has_function_privilege(
+    'smtp_delegated',
+    'app.record_global_email_delivery_attempt(text,text,text,text,text,integer,text,jsonb,timestamptz)',
+    'EXECUTE'
+  )
   AND NOT has_function_privilege('app_staff', 'app.read_integrator_smtp_outbound_setting()', 'EXECUTE')
   AND NOT has_function_privilege('app_patient', 'app.read_integrator_smtp_outbound_setting()', 'EXECUTE')
   AND NOT has_function_privilege('app_worker', 'app.read_integrator_smtp_outbound_setting()', 'EXECUTE')
@@ -235,6 +280,17 @@ SELECT 1 / (
 
 SET SESSION AUTHORIZATION smtp_runtime;
 SELECT 1 / (app.read_integrator_smtp_outbound_setting() IS NOT NULL)::int;
+SELECT app.record_global_email_delivery_attempt(
+  'message.send',
+  'smoke:global-email',
+  NULL,
+  'email',
+  'success',
+  1,
+  NULL,
+  '{"kind":"smoke"}'::jsonb,
+  statement_timestamp()
+);
 DO $denials$
 BEGIN
   BEGIN
@@ -246,6 +302,16 @@ BEGIN
   BEGIN
     PERFORM app.current_org_id();
     RAISE EXCEPTION 'smtp_runtime_current_org_unexpectedly_succeeded';
+  EXCEPTION WHEN insufficient_privilege THEN
+    NULL;
+  END;
+  BEGIN
+    INSERT INTO integrator.delivery_attempt_logs (
+      channel, status, attempt, payload_json, occurred_at
+    ) VALUES (
+      'email', 'success', 1, '{}'::jsonb, statement_timestamp()
+    );
+    RAISE EXCEPTION 'smtp_runtime_delivery_audit_direct_insert_unexpectedly_succeeded';
   EXCEPTION WHEN insufficient_privilege THEN
     NULL;
   END;
@@ -279,6 +345,7 @@ try {
   sql(setup);
   for (let pass = 0; pass < 2; pass += 1) {
     file(migrationPath);
+    file(deliveryAuditMigrationPath);
     sql(injectStaleAcl);
     file(overlayPath, ["-v", "integrator_runtime_config_role=smtp_runtime"]);
     sql(proof);
