@@ -83,9 +83,23 @@ export async function POST(request: Request) {
     );
   }
   if (!result.ok) {
+    const locked = result.error === "password_temporarily_locked";
+    const retryAfterSeconds = result.retryAfterSeconds ?? 15 * 60;
     return NextResponse.json(
-      { ok: false, error: result.error },
-      { status: result.error === "wrong_current_password" ? 401 : 409 },
+      {
+        ok: false,
+        error: result.error,
+        message: locked
+          ? "Слишком много неверных попыток. Подождите 15 минут или восстановите пароль."
+          : result.error === "wrong_current_password"
+            ? "Текущий пароль неверен. Проверьте его или восстановите пароль."
+            : "Вход по паролю не настроен. Используйте другой способ входа.",
+        ...(locked ? { retryAfterSeconds } : {}),
+      },
+      {
+        status: locked ? 429 : result.error === "wrong_current_password" ? 401 : 409,
+        ...(locked ? { headers: { "Retry-After": String(retryAfterSeconds) } } : {}),
+      },
     );
   }
 

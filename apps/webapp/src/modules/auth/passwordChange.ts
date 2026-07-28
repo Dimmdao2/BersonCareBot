@@ -2,9 +2,15 @@ import type { SessionUser } from "@/shared/types/session";
 import { normalizeEmail } from "@/modules/auth/emailAuth";
 import type { UserByPhonePort } from "@/modules/auth/userByPhonePort";
 import type { StaffSecurityService } from "@/modules/staff-security/service";
+import {
+  waitForPasswordFailureDelay,
+  type PasswordVerificationResult,
+} from "@/modules/auth/passwordLoginProtection";
 
 type PasswordCredentialsPort = {
-  tryVerifyLogin(emailNormalized: string, plainPassword: string): Promise<{ userId: string } | null>;
+  tryVerifyLogin(emailNormalized: string, plainPassword: string): Promise<PasswordVerificationResult>;
+  recordFailedPasswordAttempt(userId: string): Promise<void>;
+  resetFailedPasswordAttempts(userId: string, emailNormalized: string): Promise<void>;
   updatePasswordHash(userId: string, passwordHash: string): Promise<void>;
 };
 
@@ -20,7 +26,14 @@ type PasswordChangeDeps = {
 
 export type PasswordChangeResult =
   | { ok: true; user: SessionUser }
-  | { ok: false; error: "password_login_unavailable" | "wrong_current_password" };
+  | {
+      ok: false;
+      error:
+        | "password_login_unavailable"
+        | "wrong_current_password"
+        | "password_temporarily_locked";
+      retryAfterSeconds?: number;
+    };
 
 export function createPasswordChangeService(deps: PasswordChangeDeps) {
   return {
@@ -34,13 +47,28 @@ export function createPasswordChangeService(deps: PasswordChangeDeps) {
         return { ok: false, error: "password_login_unavailable" };
       }
 
+      const emailNormalized = normalizeEmail(verifiedEmail);
       const verified = await deps.credentials.tryVerifyLogin(
-        normalizeEmail(verifiedEmail),
+        emailNormalized,
         input.currentPassword,
       );
-      if (verified?.userId !== input.userId) {
+      if (!verified.ok || verified.userId !== input.userId || !verified.emailVerified) {
+        if (!verified.ok && verified.accountUserId === input.userId) {
+          await deps.credentials.recordFailedPasswordAttempt(input.userId);
+        }
+        if (!verified.ok) {
+          await waitForPasswordFailureDelay(verified.delaySeconds);
+          if (verified.locked) {
+            return {
+              ok: false,
+              error: "password_temporarily_locked",
+              retryAfterSeconds: verified.retryAfterSeconds,
+            };
+          }
+        }
         return { ok: false, error: "wrong_current_password" };
       }
+      await deps.credentials.resetFailedPasswordAttempts(input.userId, emailNormalized);
 
       const passwordHash = await deps.hashPassword(input.newPassword);
       const security = await deps.staffSecurity.getStatus();

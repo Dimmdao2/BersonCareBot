@@ -40,6 +40,11 @@
 - **`POST /api/auth/email-password/lookup`** — `{ ok: true, state }` для ветвления UI (`free` | `pending_registration` | `verified_with_password` | `needs_email_setup` | `email_conflict`). При нескольких canonical-строках с одним email lookup сначала пробует auto-merge через общий merge-engine, но **не** сливает две строки, если у обеих уже есть `user_password_credentials`; hard blocker пишет `email_auth_conflict` в `admin_audit_log` с `candidateIds`.
 - **`POST /api/auth/email-password/setup-access`** — повторная отправка setup-кода для `needs_email_setup`, возвращает `challengeId`.
 - **`POST /api/auth/email-password/login`** — при верном пароле и **`email_verified_at`** возвращает сессию и `redirectTo`. Если пароль верный, но email ещё не подтверждён — **409** `email_not_verified` (UI запускает повторную регистрацию/код).
+  Вход использует общий per-IP чокпоинт `auth.confirm` (30 запросов / 10 минут) и отдельный счётчик
+  последовательных неудач в `user_password_credentials`: с 5-й неудачи задержка
+  30/60/120/240/480 секунд, на 10-й — временная блокировка 15 минут. Успешная проверка пароля сбрасывает
+  счётчик. Для неизвестного email выполняется Argon2 dummy-verification и тот же псевдонимный identifier
+  backoff, поэтому тело, статус и задержка неверного пароля не раскрывают существование аккаунта.
 - **`POST /api/auth/email-password/forgot`** — сброс: код на почту для **verified + password**; для **contact-only** (`needs_email_setup`) — setup-код и `challengeId` для текущей формы (после lookup UI уже знает, что это setup flow). Если вкладка потеряла `challengeId`, `setup-code/complete` принимает код через latest active challenge пользователя.
 - **`POST /api/auth/email-password/setup-code/complete`** — contact-only setup по коду: подтверждает email, создаёт/обновляет пароль и ставит сессию.
 - **`POST /api/auth/email-password/reset`** — проверка кода через `consumeEmailChallengeCode` (если передан `challengeId`) или `consumeLatestEmailChallengeCodeForUser`, обновление хэша пароля; ошибки верификации кода (включая случай отсутствия пользователя) нормализуются в нейтральный `invalid_code`.

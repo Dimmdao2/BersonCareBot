@@ -1856,6 +1856,13 @@
       "when": 1793539200061,
       "tag": "0264_platform_integration_availability",
       "breakpoints": true
+    },
+    {
+      "idx": 265,
+      "version": "7",
+      "when": 1793539200062,
+      "tag": "0265_password_login_bruteforce_protection",
+      "breakpoints": true
     }
   ]
 }

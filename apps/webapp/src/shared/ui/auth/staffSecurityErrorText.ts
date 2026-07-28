@@ -24,6 +24,8 @@ export function staffSecurityErrorText(error: string | undefined, action: Securi
   switch (error) {
     case "wrong_current_password":
       return "Текущий пароль указан неверно. Проверьте его и повторите попытку.";
+    case "password_temporarily_locked":
+      return "Слишком много неверных попыток. Подождите 15 минут или восстановите пароль.";
     case "weak_new_password":
       return "Новый пароль должен содержать от 8 до 128 символов. Измените пароль и повторите.";
     case "password_login_unavailable":
