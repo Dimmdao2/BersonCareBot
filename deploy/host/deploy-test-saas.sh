@@ -930,7 +930,8 @@ compute_locked_smoke_scenario_ids(){
   ' "$DEPLOY_REPO/docs/_TODO/SAAS_FOUNDATION/saas-product-smoke-contract.json" "$exclude_csv"
 }
 
-# Mint the product-smoke sessions FRESH, immediately before the smoke runs.
+# Converge the packet accounts' TEST passwords, then mint product-smoke sessions FRESH immediately
+# before the smoke runs.
 #
 # Why this exists: the fixture holds pre-minted session COOKIES, and a staff session dies after
 # SESSION_SLIDING_TTL_STAFF_SECONDS (12 h) of idle. So any deploy more than 12 hours after the fixture was
@@ -944,21 +945,39 @@ compute_locked_smoke_scenario_ids(){
 # recorded in docs/ARCHITECTURE/OWNER_PRODUCT_RULES.md section 10; the three authorised accounts are
 # section 11.
 #
+# The packet is the password source of truth. Convergence is pinned to the exact bersoncarebot_test database,
+# validates the three packet actors, and changes no other account. The doctor actor is the active clinic owner,
+# so the freshly minted doctor session intentionally covers both doctor and clinic_admin smoke profiles.
+#
 # Fail-soft by design: if the credentials packet is absent, this is a NO-OP and the deploy falls back to
 # whatever fixture is on disk, which then gets the usual staleness warning. A missing packet must not take
-# a deploy down — the packet lives outside the repo and a fresh host will not have one yet.
+# a deploy down — the packet lives outside the repo and a fresh host will not have one yet. If convergence
+# itself fails, do not attempt a knowingly divergent login; leave the fixture untouched and let the mandatory
+# product-smoke gate report red after TEST services have been released.
 mint_smoke_sessions_if_possible(){
   local packet="${SAAS_SMOKE_LOGIN_PACKET:-/opt/env/bersoncarebot/saas-smoke-login.env}"
+  local password_converger="$DEPLOY_REPO/apps/webapp/scripts/converge-saas-smoke-login-passwords.mjs"
   local minter="$DEPLOY_REPO/deploy/host/mint-smoke-session.mjs"
   local fixture="${SAAS_PRODUCT_SMOKE_FIXTURE:-/run/bersoncarebot/saas-smoke.fixture}"
   if ! sudo test -r "$packet"; then
     echo "   note: no smoke-login packet at $packet — skipping session mint, using the fixture as found." >&2
     return 0
   fi
+  if [ ! -r "$password_converger" ]; then
+    echo "   ⚠️  WARN: $password_converger not readable — skipping password convergence and session mint." >&2
+    return 0
+  fi
   if [ ! -r "$minter" ]; then
     echo "   note: $minter not readable — skipping session mint." >&2
     return 0
   fi
+  echo "   converging TEST service-account passwords to the protected smoke-login packet"
+  if ! sudo env SAAS_SMOKE_PASSWORD_CONVERGENCE_TEST_ONLY=1 \
+      node "$password_converger" --packet="$packet"; then
+    echo "   ⚠️  WARN: service-account password convergence failed — fixture left untouched; session mint skipped." >&2
+    return 0
+  fi
+  echo "   service-account passwords converged to the packet (values were not printed)"
   echo "   minting fresh product-smoke sessions (packet present)"
   if sudo node "$minter" \
       --base-url="${SAAS_PRODUCT_SMOKE_BASE_URL:-https://test.bersoncare.ru}" \

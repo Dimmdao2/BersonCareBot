@@ -12,6 +12,10 @@ const files = {
   hardProtocol: 'docs/_TODO/SAAS_FOUNDATION/HARD_MIGRATION_PROTOCOL.md',
   tenantLog: 'docs/_TODO/SAAS_FOUNDATION/TENANT_HARD_MODE_LOG.md',
   deployTestSaas: 'deploy/host/deploy-test-saas.sh',
+  smokeLoginPacket: 'deploy/host/smoke-login-packet.mjs',
+  smokeLoginPasswordConverger: 'apps/webapp/scripts/converge-saas-smoke-login-passwords.mjs',
+  smokeLoginPasswordConvergerTest: 'deploy/host/converge-saas-smoke-login-passwords.test.mjs',
+  applicationPasswordHash: 'apps/webapp/src/modules/auth/pinHash.ts',
   contract: 'docs/_TODO/SAAS_FOUNDATION/saas-product-smoke-contract.json',
   smokeRunner: 'docs/_TODO/SAAS_FOUNDATION/scripts/smoke-saas-product.mjs',
 };
@@ -37,6 +41,9 @@ function runFixtureGateDocChecks(overrides = new Map()) {
   const hardProtocol = load(files.hardProtocol);
   const tenantLog = load(files.tenantLog);
   const deployTestSaas = load(files.deployTestSaas);
+  const smokeLoginPacket = load(files.smokeLoginPacket);
+  const smokeLoginPasswordConverger = load(files.smokeLoginPasswordConverger);
+  const applicationPasswordHash = load(files.applicationPasswordHash);
   const smokeRunner = load(files.smokeRunner);
 
   requireFragments(files.a1Doc, a1Doc, [
@@ -98,6 +105,52 @@ function runFixtureGateDocChecks(overrides = new Map()) {
     'fixture_path="$LOCKED_PRODUCT_SMOKE_FIXTURE_CANONICAL"',
     'bash "$validator" --validate "$fixture_path" "$SRC_REPO" "$DEPLOY_REPO"',
     '--fixture-file="$fixture_path"',
+    'SAAS_SMOKE_PASSWORD_CONVERGENCE_TEST_ONLY=1',
+    'node "$password_converger" --packet="$packet"',
+    'service-account passwords converged to the packet (values were not printed)',
+    'no smoke-login packet at $packet — skipping session mint, using the fixture as found.',
+    'service-account password convergence failed — fixture left untouched; session mint skipped.',
+  ]);
+  const passwordConvergenceCall = deployTestSaas.indexOf(
+    'node "$password_converger" --packet="$packet"',
+  );
+  const sessionMintCall = deployTestSaas.indexOf('sudo node "$minter"');
+  if (passwordConvergenceCall < 0 || sessionMintCall <= passwordConvergenceCall) {
+    throw new Error(
+      `${files.deployTestSaas} must converge packet passwords before minting smoke sessions`,
+    );
+  }
+
+  requireFragments(files.smokeLoginPacket, smokeLoginPacket, [
+    'SAAS_SMOKE_DOCTOR_EMAIL',
+    'SAAS_SMOKE_DOCTOR_PASSWORD',
+    'SAAS_SMOKE_GLOBAL_ADMIN_EMAIL',
+    'SAAS_SMOKE_GLOBAL_ADMIN_PASSWORD',
+    'SAAS_SMOKE_PATIENT_EMAIL',
+    'SAAS_SMOKE_PATIENT_PASSWORD',
+    'mode_must_be_0640',
+    'owner_must_be_root',
+    'group_must_be_deploy',
+  ]);
+
+  requireFragments(files.smokeLoginPasswordConverger, smokeLoginPasswordConverger, [
+    'const REQUIRED_DATABASE = "bersoncarebot_test"',
+    'const REQUIRED_DB_USER = "postgres"',
+    'argon2.hash(plainPassword, { type: argon2.argon2id })',
+    'argon2.verify(credential.password_hash, account.password)',
+    'WHERE users.email_normalized = $1',
+    'AND users.merged_into_id IS NULL',
+    'AND users.is_archived IS FALSE',
+    "memberships.role = 'owner'",
+    "memberships.status = 'active'",
+    'WHERE user_id = $1::uuid',
+    'DELETE FROM public.auth_rate_limit_events',
+    'changed=${changed} unchanged=${accounts.length - changed}',
+    'test_password_convergence_failed',
+  ]);
+  requireFragments(files.applicationPasswordHash, applicationPasswordHash, [
+    'argon2.hash(pin, { type: argon2.argon2id })',
+    'argon2.verify(hash, pin)',
   ]);
 
   requireFragments(files.smokeRunner, smokeRunner, [
@@ -499,6 +552,9 @@ function runMain() {
     ['node', '--check', files.smokeRunner],
     ['node', files.smokeRunner, '--check-contract'],
     ['node', files.smokeRunner, '--self-test'],
+    ['node', '--check', files.smokeLoginPacket],
+    ['node', '--check', files.smokeLoginPasswordConverger],
+    ['node', '--test', files.smokeLoginPasswordConvergerTest],
   ];
   const { tempDir, fixturePath } = makeSyntheticFixtureFile();
   steps.push([

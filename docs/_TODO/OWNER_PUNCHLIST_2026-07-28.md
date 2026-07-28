@@ -717,8 +717,18 @@ community-лицензия).
 **Карточка:** #998 (существующая, обновлена 28.07 — настоящий корень оказался глубже).
 
 - [x] **14.1** Ротация пароля служебного глобального админа и запись в пакет (значение нигде не печаталось).
-- [ ] **14.2** Деплой сам назначает пароль перед проверкой — «устаревать» перестаёт быть возможным.
-- [ ] **14.3** Разблокировать вход служебного врача — упирается в #1072 (раздвоенный аккаунт).
+- [x] **14.2** Деплой сам назначает пароль перед проверкой — «устаревать» перестаёт быть возможным.
+      Доказательство: TEST-only convergence идёт до mint `deploy/host/deploy-test-saas.sh:957`;
+      exact DB/actor/Argon2id/idempotent update `apps/webapp/scripts/converge-saas-smoke-login-passwords.mjs:11`;
+      `node --test deploy/host/converge-saas-smoke-login-passwords.test.mjs`,
+      `pnpm run check:saas-product-smoke-contract`, `pnpm run check:saas-hard-migration-protocol`,
+      `bash -n deploy/host/deploy-test-saas.sh` — PASS.
+- [x] **14.3** Разблокировать вход служебного врача — упирается в #1072 (раздвоенный аккаунт).
+      Блокер снят §13.2: пакетных `SAAS_SMOKE_DOCTOR_*` достаточно для живой `role=doctor` учётки с active
+      owner+specialist membership; одна сессия намеренно покрывает doctor+clinic_admin
+      `deploy/host/mint-smoke-session.mjs:173`. Runtime role-gate и upsert credentials:
+      `apps/webapp/scripts/converge-saas-smoke-login-passwords.mjs:129`;
+      `pnpm --dir packages/db-principal build && pnpm --dir apps/webapp typecheck` — PASS.
 
 ---
 

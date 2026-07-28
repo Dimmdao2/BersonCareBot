@@ -785,6 +785,15 @@ Product-smoke fixture по умолчанию хранится в canonical exte
 `/run/bersoncarebot/saas-smoke.fixture`: строго `root:deploy 0640`, без symlink-файла или symlink-родителя и вне
 source/deploy repositories. Одна и та же проверка выполняется до restore и повторно непосредственно перед smoke.
 
+Служебные login credentials для smoke хранятся отдельно в
+`/opt/env/bersoncarebot/saas-smoke-login.env` (`root:deploy 0640`). Если пакет присутствует, strict TEST closure
+непосредственно перед mint сессий приводит password credentials только перечисленных в нём врача/clinic-owner,
+глобального администратора и пациента к значениям пакета. Target жёстко закреплён за локальной БД
+`bersoncarebot_test`; врачебная сессия намеренно используется и как `doctor`, и как `clinic_admin`, потому что эта
+учётка имеет `role=doctor` и active owner membership со specialist. Значения паролей не печатаются и не передаются
+через argv/SQL text. Если пакета нет, поведение остаётся fail-soft: mint пропускается с предупреждением, а smoke
+использует существующий fixture и сам оставляет gate красным при невалидной авторизации.
+
 **Как переиздать fixture, если сессии протухли:** инструмент
 `docs/_TODO/SAAS_FOUNDATION/scripts/regenerate-saas-smoke-fixture.mjs` логинится как реальные аккаунты
 на целевом `--base-url` и записывает результат в этот fixture-файл. Он **перезаписывает пароли реальным
