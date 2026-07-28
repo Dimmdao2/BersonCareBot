@@ -77,7 +77,7 @@ describe('ClinicsConsoleClient', () => {
     expect(screen.getAllByText('Не запускался')).toHaveLength(3);
   });
 
-  it('renders the clinic card, override and only the real courses usage number', () => {
+  it('renders the clinic card, override and only the two real usage numbers', () => {
     const clinic = organization(ORGANIZATION_ID, 'Клиника Альфа', 'read_only');
     clinic.commercialAccessState = 'no_trial';
     clinic.overrides = [
@@ -102,8 +102,9 @@ describe('ClinicsConsoleClient', () => {
     const data: PlatformClinicsData = {
       tariffs: [tariff],
       organizations: [clinic],
-      // A placeholder for files must stay invisible because that mechanic has no real enforcement.
-      enforcedQuotaUsage: { [ORGANIZATION_ID]: { courses: 7, files: 0 } },
+      // Courses and specialist seats have real snapshot counters. A placeholder for files must
+      // stay invisible because that mechanic still has no enforcement.
+      enforcedQuotaUsage: { [ORGANIZATION_ID]: { courses: 7, clinic_team: 2, files: 0 } },
     };
 
     render(<ClinicsConsoleClient initialData={data} organizationId={ORGANIZATION_ID} />);
@@ -127,7 +128,14 @@ describe('ClinicsConsoleClient', () => {
       .closest<HTMLElement>('div.rounded-lg');
     expect(coursesTile).not.toBeNull();
     expect(within(coursesTile!).getByText('7')).toBeInTheDocument();
-    expect(screen.getAllByText('не отслеживается')).toHaveLength(14);
+    const clinicTeamTile = within(usageSection!)
+      .getByText('Режим клиники')
+      .closest<HTMLElement>('div.rounded-lg');
+    expect(clinicTeamTile).not.toBeNull();
+    expect(within(clinicTeamTile!).getByText('2')).toBeInTheDocument();
+    // 14 -> 13: clinic_team left the untracked group after gaining the real
+    // application_transaction_snapshot seat counter; all other declared mechanics stay explicit.
+    expect(screen.getAllByText('не отслеживается')).toHaveLength(13);
     expect(screen.queryByText(/^0$/)).not.toBeInTheDocument();
     expect(screen.queryByText(/аккаунт/i)).not.toBeInTheDocument();
   });

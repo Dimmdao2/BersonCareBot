@@ -638,7 +638,11 @@ describe("RSC page DB-principal census (night plan A-5, bug class of 19f52fed2)"
     // new entries appear in their place. Readers stay at 12: the moved step pages already counted
     // as readers by their old (shim) path, so the DB-reading page COUNT is unchanged — only the
     // path each one is reached under moved (see the surface assertion below).
-    expect(pageEntries).toHaveLength(163);
+    // Platform clinic console: 163 -> 165 page entries for `app/admin/clinics/page.tsx` and
+    // `app/admin/clinics/[organizationId]/page.tsx`. Both await `requirePlatformOperationsPage()`
+    // and render the client console; they do not build deps or read the DB in their RSC context.
+    // Data comes later through guarded GET `/api/admin/organizations`, so readers remain exactly 12.
+    expect(pageEntries).toHaveLength(165);
     expect(readers).toHaveLength(12);
   });
 

@@ -66,10 +66,12 @@ describe("0260 outgoing delivery scope text identifier fix", () => {
     const journal = JSON.parse(readFileSync(journalPath, "utf8")) as {
       entries: Array<Record<string, unknown>>;
     };
-    // The exact journal tail grew from one pinned 0260 entry to three: reviewed 0261 adds the
-    // platform-registration read definer, and 0262 removes Rubitime data. Keep all three exact
-    // instead of weakening the 0260 contract merely because it is no longer the final entry.
-    expect(journal.entries.slice(-3)).toEqual([
+    // The exact journal tail grew from three pinned entries to five. Migration 0263 neutralizes
+    // the retired provider's remaining provenance values/comments; migration 0264 seeds the
+    // global platform-integration availability setting and its two runtime mirrors. Neither adds
+    // a SECURITY DEFINER, so the exact deploy count asserted above remains 106. Keep every entry
+    // from 0260 exact instead of weakening the contract merely because 0260 is no longer the tail.
+    expect(journal.entries.slice(-5)).toEqual([
       {
         idx: 260,
         version: "7",
@@ -89,6 +91,20 @@ describe("0260 outgoing delivery scope text identifier fix", () => {
         version: "7",
         when: 1793539200059,
         tag: "0262_remove_rubitime_data",
+        breakpoints: true,
+      },
+      {
+        idx: 263,
+        version: "7",
+        when: 1793539200060,
+        tag: "0263_retire_provider_provenance_names",
+        breakpoints: true,
+      },
+      {
+        idx: 264,
+        version: "7",
+        when: 1793539200061,
+        tag: "0264_platform_integration_availability",
         breakpoints: true,
       },
     ]);

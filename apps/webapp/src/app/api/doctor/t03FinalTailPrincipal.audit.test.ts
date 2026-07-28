@@ -6,12 +6,12 @@ const repoRoot = process.cwd();
 const apiRoots = ["src/app/api/doctor", "src/app/api/admin"];
 
 const allowedUncovered: Record<string, string> = {
-  "src/app/api/admin/google-calendar/start/route.ts":
-    "global OAuth start URL, no scoped DB write",
-  "src/app/api/admin/mode/route.ts":
-    "session adminMode toggle, no scoped DB write",
-  "src/app/api/admin/smtp-test/route.ts":
-    "global admin integration test send, not scoped DB write",
+  // The 2026-07-28 guard wave moved 23 routes onto approved audience-specific guards (13 admin
+  // plus 10 doctor/patient). For this doctor/admin mutation census, three former admin exceptions
+  // — google-calendar/start, mode and smtp-test — now carry
+  // `requirePlatformOperationsApiContext` and therefore leave this explicit uncovered set.
+  // The other changed doctor/admin routes were already covered entries; patient routes are outside
+  // this audit's two roots. The five remaining exceptions below retain their reviewed class.
   "src/app/api/admin/users/[userId]/archive/route.ts":
     "admin user lifecycle route sharing patient archive helper; kept as explicit admin lifecycle exception",
   "src/app/api/doctor/account/email/route.ts":

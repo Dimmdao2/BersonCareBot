@@ -251,9 +251,13 @@ describe("frozen webapp mutation census", () => {
     // soft-delete route is NOT included in that reduction: AdminDangerActions still POSTs to it
     // from two live doctor surfaces, so freezing the observed 502 would hide a broken mutation.
     // Keep its exact path/method in the intended inventory until runtime/UI ownership resolves it.
+    // 503 -> 504: the platform clinic console added `api/admin/organizations/route.ts`. It is GET
+    // only and guarded by `requirePlatformOperationsApiContext`, so the exact route hash changes
+    // while all unsafe-file, unsafe-handler and mutation-class censuses below remain unchanged.
     expect(routeInventory).toContain("admin/appointment-records/[integratorRecordId]/soft-delete/route.ts");
-    expect(routeFiles).toHaveLength(503);
-    expect(sha256Lines(routeInventory)).toBe("0acec4bd002b3ce4e6dee295bc4bd02763a1c89915a17b548ad61e424dc40f8f");
+    expect(routeInventory).toContain("admin/organizations/route.ts");
+    expect(routeFiles).toHaveLength(504);
+    expect(sha256Lines(routeInventory)).toBe("99dc3996a75501c837c020a2ee62cb823f9d71b9512fd6fdfadaa8ec6750ba18");
     expect(unsafeInventory).toHaveLength(339);
     expect(unsafeInventory.reduce((count, entry) => count + entry.methods.length, 0)).toBe(373);
     expect(sha256Lines(unsafeInventoryLines)).toBe("0285e65270f53a3222ad681c1d2a94a8bbb5d1fe2659dfcf4f823dc62a8a598f");

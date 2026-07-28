@@ -54,6 +54,8 @@ const launchManifest: readonly LaunchManifestEntry[] = [
  * Slice 1 (2026-07-26) moved `system-health` here; slice 2 (2026-07-26) adds `health-archive`
  * and `audit-log`; slice 3 (2026-07-26) adds `commercial`; slice 4 (2026-07-26) adds the whole
  * `admin/*` subtree (app-settings, auth, booking + its 4 sub-pages, integrations, technical).
+ * The platform clinic console then added its list and exact-organization detail pages. Both expose
+ * platform commercial/configuration data only and require the platform-operations capability.
  * Slices 5-7 add the rest of `launchManifest` above as each page physically moves.
  *
  * Owner ruling 2026-07-26 (final home): the whole tree above renamed from `app/platform/` to
@@ -74,6 +76,8 @@ const newPlatformLaunchManifest: readonly LaunchManifestEntry[] = [
   // another platform route, so the finite launch manifest deliberately has no replacement entry.
   { route: "booking/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
   { route: "booking/payments/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
+  { route: "clinics/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
+  { route: "clinics/[organizationId]/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
   { route: "integrations/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
   { route: "technical/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
   // Pre-existing legacy redirect stub, unrelated to the PLAT-01…09 moves — kept as-is (see
