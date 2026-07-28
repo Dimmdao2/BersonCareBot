@@ -200,8 +200,11 @@ describe('getDrizzle transaction principal', () => {
       ),
     ).resolves.toBe('read');
 
-    const statements = executeMock.mock.calls.map(
-      ([statement]) => dialect.sqlToQuery(statement as SQL).sql,
+    // Сравниваем со схлопнутыми пробелами: проверяется ПОРЯДОК операций и то, что роль
+    // подменяется и сбрасывается, а не то, как отформатирован SQL. Точное сравнение ломалось от
+    // переноса аргументов на отдельные строки (28.07), хотя запрос тот же.
+    const statements = executeMock.mock.calls.map(([statement]) =>
+      dialect.sqlToQuery(statement as SQL).sql.replace(/\s+/g, ' ').trim(),
     );
     expect(statements).toEqual([
       'RESET ROLE',
