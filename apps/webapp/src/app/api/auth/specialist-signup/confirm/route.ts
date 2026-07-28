@@ -33,6 +33,7 @@ const ORGANIZATION_SLUG_REQUIRED_MESSAGE =
 const PROVISIONING_ERROR_RULES = {
   specialist_signup_intent_not_found: { status: 400, code: "signup_intent_not_found" },
   specialist_signup_user_not_verified: { status: 400, code: "expired_code" },
+  slug_unavailable: { status: 409, code: "slug_unavailable" },
   specialist_signup_slug_reservation_not_found: {
     status: 409,
     code: "organization_slug_required",

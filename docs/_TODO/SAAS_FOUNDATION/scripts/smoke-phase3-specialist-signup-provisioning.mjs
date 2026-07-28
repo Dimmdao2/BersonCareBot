@@ -9,16 +9,18 @@
  *
  * Covered properties:
  *   1. rollout-disabled source guards remain before signup side effects;
- *   2. provisioning creates exactly one organization + owner membership and no specialist;
- *   3. replay and concurrent confirmation converge on the same receipt;
- *   4. a foreign challenge UUID is not authority and a pre-existing active membership prevents a
+ *   2. two registrations racing for one slug are decided by the global unique index: one wins and
+ *      the other gets slug_unavailable without a leftover organization;
+ *   3. provisioning creates exactly one organization + owner membership + bound specialist;
+ *   4. replay and concurrent confirmation converge on the same receipt;
+ *   5. a foreign challenge UUID is not authority and a pre-existing active membership prevents a
  *      second organization;
- *   5. the authorized first-run binding is exact-org and idempotent and creates one specialist;
- *   6. the configured C5A trial is assigned in the same provisioning transaction and replayed
+ *   6. the authorized first-run binding is exact-org and idempotent and creates one specialist;
+ *   7. the configured C5A trial is assigned in the same provisioning transaction and replayed
  *      confirmations do not duplicate it;
- *   7. a signed staff principal reads only its exact organization/trial/overrides while retaining
+ *   8. a signed staff principal reads only its exact organization/trial/overrides while retaining
  *      global tariff visibility and no commercial DML;
- *   8. every scratch role, database, and private cluster is removed on exit/signals.
+ *   9. every scratch role, database, and private cluster is removed on exit/signals.
  *
  * `--static-only` runs source/contract guards without starting PostgreSQL.
  */
@@ -95,6 +97,10 @@ const paths = {
     repoRoot,
     'apps/webapp/db/drizzle-migrations/0268_platform_organization_members_directory.sql',
   ),
+  migration0270: path.join(
+    repoRoot,
+    'apps/webapp/db/drizzle-migrations/0270_remove_specialist_signup_slug_reservation.sql',
+  ),
   c5aPlatformOperations: path.join(repoRoot, 'deploy/postgres/c5a-platform-operations-runtime.sql'),
   ownerProvisioningOverlay: path.join(
     repoRoot,
@@ -143,6 +149,15 @@ const users = {
     organizationTitle: 'U3S Scratch Cabinet Two',
     organizationSlug: 'u3s-scratch-cabinet-two',
     fullName: 'Owner Two',
+  },
+  slugRaceLoser: {
+    userId: '34000000-0000-4000-8000-000000000004',
+    intentId: '34000000-0000-4000-8000-000000000024',
+    challengeId: '34000000-0000-4000-8000-000000000014',
+    email: 'owner-slug-race@example.invalid',
+    organizationTitle: 'U3S Scratch Losing Cabinet',
+    organizationSlug: 'u3s-scratch-cabinet-one',
+    fullName: 'Owner Slug Race',
   },
   existingMember: {
     userId: '33000000-0000-4000-8000-000000000003',
@@ -367,6 +382,7 @@ function installCanonicalSchema() {
     paths.migration0225,
     paths.migration0257,
     paths.migration0268,
+    paths.migration0270,
   ]) {
     psqlFile(migrationPath, {
       prefix: `BEGIN;\nSET ROLE ${quoteIdent(appOwnerRole)};`,
@@ -541,11 +557,11 @@ async function runCurrentContractProof() {
     nonce: () => `u3s_${randomUUID()}`,
   });
 
-  const first = await provisionOnce(
+  const [first, slugRaceLoser] = await provisionSlugRace(
     principal,
     lockedOptions,
-    users.first.userId,
-    users.first.challengeId,
+    users.first,
+    users.slugRaceLoser,
   );
   assert(first.ok === true && !first.code, 'first provisioning must succeed');
   assert(
@@ -560,6 +576,11 @@ async function runCurrentContractProof() {
     typeof first.specialistId === 'string' && first.specialistId.length > 0,
     'organization provisioning must bind the owner specialist in the same transaction',
   );
+  assert(
+    slugRaceLoser.ok === false && slugRaceLoser.code === 'slug_unavailable',
+    'the registration that loses the global slug race must receive slug_unavailable',
+  );
+  assertSlugRaceLoserRolledBack();
 
   const replay = await provisionOnce(
     principal,
@@ -632,12 +653,6 @@ function seedFixtures() {
         `(${quoteLiteral(user.intentId)}::uuid, ${quoteLiteral(user.userId)}::uuid, ${quoteLiteral(user.challengeId)}::uuid, ${quoteLiteral(user.email)}, ${quoteLiteral(user.organizationTitle)}, ${quoteLiteral(user.organizationSlug)}, ${quoteLiteral(user.fullName)})`,
     )
     .join(',\n');
-  const reservations = Object.values(users)
-    .map(
-      (user) =>
-        `(${quoteLiteral(user.organizationSlug)}, 'reservation', NULL, ${quoteLiteral(user.intentId)}::uuid, ${quoteLiteral(user.userId)}::uuid)`,
-    )
-    .join(',\n');
   psql(`
 SET ROLE ${quoteIdent(appOwnerRole)};
 INSERT INTO public.saas_tariffs (
@@ -679,10 +694,6 @@ INSERT INTO public.specialist_signup_intents (
   id, user_id, challenge_id, email_normalized, organization_title, organization_slug, specialist_full_name
 ) VALUES
 ${intents};
-INSERT INTO public.organization_slug_claims (
-  slug, kind, organization_id, signup_intent_id, created_by_platform_user_id
-) VALUES
-${reservations};
 RESET ROLE;
 `);
 }
@@ -852,6 +863,40 @@ async function provisionConcurrently(principal, lockedOptions, userId, challenge
   }
 }
 
+async function provisionSlugRace(principal, lockedOptions, winnerSeed, loserSeed) {
+  const winnerClient = makeRuntimeClient();
+  const loserClient = makeRuntimeClient();
+  let winnerTransactionOpen = false;
+  await Promise.all([winnerClient.connect(), loserClient.connect()]);
+  try {
+    await Promise.all([
+      applyPatientPrincipal(
+        principal,
+        lockedOptions,
+        winnerClient,
+        winnerSeed.userId,
+      ),
+      applyPatientPrincipal(principal, lockedOptions, loserClient, loserSeed.userId),
+    ]);
+    await winnerClient.query('BEGIN');
+    winnerTransactionOpen = true;
+    const winner = await queryProvision(winnerClient, winnerSeed.challengeId);
+    const loserPromise = queryProvision(loserClient, loserSeed.challengeId);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    await winnerClient.query('COMMIT');
+    winnerTransactionOpen = false;
+    const loser = await loserPromise;
+    return [winner, loser];
+  } finally {
+    await Promise.allSettled([
+      ...(winnerTransactionOpen ? [winnerClient.query('ROLLBACK')] : []),
+      principal.clearDbPrincipalFromConnection(winnerClient, lockedOptions),
+      principal.clearDbPrincipalFromConnection(loserClient, lockedOptions),
+    ]);
+    await Promise.allSettled([winnerClient.end(), loserClient.end()]);
+  }
+}
+
 async function queryProvision(client, challengeId) {
   const result = await client.query(
     `SELECT ok, code, organization_id::text, specialist_id::text, membership_id::text
@@ -867,6 +912,40 @@ async function queryProvision(client, challengeId) {
     specialistId: row.specialist_id,
     membershipId: row.membership_id,
   };
+}
+
+function assertSlugRaceLoserRolledBack() {
+  const state = JSON.parse(
+    psqlScalar(`
+SELECT json_build_object(
+  'intent_status', (
+    SELECT status
+    FROM public.specialist_signup_intents
+    WHERE id = ${quoteLiteral(users.slugRaceLoser.intentId)}::uuid
+  ),
+  'memberships', (
+    SELECT count(*)
+    FROM public.be_organization_members
+    WHERE platform_user_id = ${quoteLiteral(users.slugRaceLoser.userId)}::uuid
+  ),
+  'organizations', (
+    SELECT count(*)
+    FROM public.be_organizations
+    WHERE title = ${quoteLiteral(users.slugRaceLoser.organizationTitle)}
+  ),
+  'current_claims', (
+    SELECT count(*)
+    FROM public.organization_slug_claims
+    WHERE slug = ${quoteLiteral(users.slugRaceLoser.organizationSlug)}
+      AND kind = 'current'
+  )
+)::text;
+`),
+  );
+  assert(state.intent_status === 'pending', 'losing slug-race intent must remain pending');
+  assert(state.memberships === 0, 'losing slug-race registration must create no membership');
+  assert(state.organizations === 0, 'losing slug-race registration must leave no organization');
+  assert(state.current_claims === 1, 'the shared slug must have exactly the winner current claim');
 }
 
 function assertSameReceipt(left, right, label) {
@@ -893,8 +972,7 @@ SELECT json_build_object(
   'receipts', (SELECT count(*) FROM public.reference_catalog_snapshot_receipts WHERE organization_id = ${quoteLiteral(receipt.organizationId)}::uuid),
   'intent_status', (SELECT status FROM public.specialist_signup_intents WHERE challenge_id = ${quoteLiteral(seed.challengeId)}::uuid),
   'intent_specialist', (SELECT provisioned_specialist_id FROM public.specialist_signup_intents WHERE challenge_id = ${quoteLiteral(seed.challengeId)}::uuid),
-  'current_slug_claims', (SELECT count(*) FROM public.organization_slug_claims WHERE slug = ${quoteLiteral(seed.organizationSlug)} AND kind = 'current' AND organization_id = ${quoteLiteral(receipt.organizationId)}::uuid AND signup_intent_id IS NULL),
-  'pending_slug_reservations', (SELECT count(*) FROM public.organization_slug_claims WHERE signup_intent_id = ${quoteLiteral(seed.intentId)}::uuid),
+  'current_slug_claims', (SELECT count(*) FROM public.organization_slug_claims WHERE slug = ${quoteLiteral(seed.organizationSlug)} AND kind = 'current' AND organization_id = ${quoteLiteral(receipt.organizationId)}::uuid),
   'directory_slug', (SELECT slug FROM public.clinic_public_directory_entries WHERE organization_id = ${quoteLiteral(receipt.organizationId)}::uuid),
   'organization_tariff', (SELECT tariff_id FROM public.be_organizations WHERE id = ${quoteLiteral(receipt.organizationId)}::uuid),
   'commercial_access_state', (SELECT commercial_access_state FROM public.be_organizations WHERE id = ${quoteLiteral(receipt.organizationId)}::uuid),
@@ -922,10 +1000,9 @@ SELECT json_build_object(
   );
   assert(
     row.current_slug_claims === 1,
-    'signup reservation must promote to one current slug claim',
+    'signup provisioning must insert one current slug claim',
   );
-  assert(row.pending_slug_reservations === 0, 'promoted slug claim must release the signup intent');
-  assert(row.directory_slug === seed.organizationSlug, 'signup must publish the reserved slug');
+  assert(row.directory_slug === seed.organizationSlug, 'signup must publish the intent slug');
   assert(row.organization_tariff === trialTariffId, 'organization must receive the trial tariff');
   assert(row.commercial_access_state === 'active', 'trial must activate commercial access');
   assert(row.trials === 1, 'provisioning replay must retain exactly one trial');
@@ -1077,6 +1154,25 @@ function assertStaticSourceGuards() {
   assert(
     source.ownerProvisioningOverlay.includes("'specialist_signup_active_membership_exists'"),
     'canonical provisioning must deny a second active staff organization',
+  );
+  assert(
+    source.ownerProvisioningOverlay.includes('INSERT INTO public.organization_slug_claims (') &&
+      source.ownerProvisioningOverlay.includes("'current'") &&
+      source.ownerProvisioningOverlay.includes(
+        "v_unique_constraint_name = 'uq_organization_slug_claims_slug'",
+      ) &&
+      source.ownerProvisioningOverlay.includes("'slug_unavailable'::text") &&
+      !source.ownerProvisioningOverlay.includes('signup_intent_id') &&
+      !source.ownerProvisioningOverlay.includes("kind = 'reservation'"),
+    'canonical provisioning must claim current directly and map only the global slug unique race',
+  );
+  assert(
+    source.migration0270.includes(
+      'DROP FUNCTION IF EXISTS app.reserve_specialist_signup_slug(uuid, text)',
+    ) &&
+      source.migration0270.includes('DROP COLUMN signup_intent_id') &&
+      source.migration0270.includes('ALTER COLUMN organization_id SET NOT NULL'),
+    '0270 must remove signup-owned slug reservation state without removing the intent slug',
   );
   assert(
     source.ownerProvisioningOverlay.includes(

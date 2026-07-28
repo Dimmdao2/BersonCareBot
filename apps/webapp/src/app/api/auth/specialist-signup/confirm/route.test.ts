@@ -273,7 +273,7 @@ describe("POST /api/auth/specialist-signup/confirm", () => {
     expect(provisionSpecialistOwnerMock).not.toHaveBeenCalled();
   });
 
-  it("reserves a supplied address for a pre-cutover NULL-slug intent and finishes signup", async () => {
+  it("stores a supplied address for a pre-cutover NULL-slug intent and finishes signup", async () => {
     findUserIdByEmailChallengeIdMock.mockResolvedValueOnce("11111111-1111-4111-8111-111111111111");
     getSpecialistSignupIntentByChallengeIdMock.mockResolvedValueOnce({
       id: "intent-before-slug-cutover",
@@ -323,6 +323,34 @@ describe("POST /api/auth/specialist-signup/confirm", () => {
     expect(provisionSpecialistOwnerMock).toHaveBeenCalledWith({
       challengeId: "22222222-2222-4222-8222-222222222222",
     });
+  });
+
+  it("maps the losing atomic provisioning slug claim to the existing 409 response", async () => {
+    findUserIdByEmailChallengeIdMock.mockResolvedValueOnce(
+      "11111111-1111-4111-8111-111111111111",
+    );
+    confirmEmailChallengeMock.mockResolvedValueOnce({ ok: true });
+    provisionSpecialistOwnerMock.mockRejectedValueOnce(new Error("slug_unavailable"));
+    findByUserIdMock.mockResolvedValue({
+      userId: "11111111-1111-4111-8111-111111111111",
+      role: "client",
+      displayName: "Doctor Owner",
+      bindings: {},
+    });
+
+    const res = await POST(
+      new Request("http://localhost/api/auth/specialist-signup/confirm", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          challengeId: "22222222-2222-4222-8222-222222222222",
+          code: "123456",
+        }),
+      }),
+    );
+
+    expect(res.status).toBe(409);
+    await expect(res.json()).resolves.toEqual({ ok: false, error: "slug_unavailable" });
   });
 
   it("fails closed after email verification when protected staff setup is temporarily unavailable", async () => {

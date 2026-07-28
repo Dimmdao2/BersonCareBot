@@ -58,7 +58,7 @@ describe('platform organization-members directory boundary', () => {
       "NOT has_table_privilege('app_platform_settings', 'public.platform_users', 'SELECT')",
     );
     expect(deployGate).toContain('assert_c5a_platform_organization_members_closure');
-    expect(deployGate).toContain('local expected_secdef_count=107');
+    expect(deployGate).toContain('local expected_secdef_count=106');
   });
 
   it('registers reserved migration 0268 exactly', () => {

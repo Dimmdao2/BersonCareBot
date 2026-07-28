@@ -139,7 +139,7 @@ DECLARE
   v_organization_id uuid;
   v_membership_id uuid;
   v_specialist_id uuid;
-  v_slug_reservation_id uuid;
+  v_unique_constraint_name text;
 BEGIN
   v_platform_user_id := app.require_staff_security_self_user_id();
 
@@ -192,20 +192,9 @@ BEGIN
       RETURN;
     END IF;
 
-    -- Lock the exact pre-signup reservation before the first provisioning write. Promotion below
-    -- and all organization writes share this function transaction, so neither a clinic without an
-    -- address nor an address without its clinic can commit.
-    SELECT claim.id
-    INTO v_slug_reservation_id
-    FROM public.organization_slug_claims AS claim
-    WHERE claim.signup_intent_id = v_intent.id
-      AND claim.slug = v_intent.organization_slug
-      AND claim.kind = 'reservation'
-      AND claim.organization_id IS NULL
-    LIMIT 1
-    FOR UPDATE;
-
-    IF v_slug_reservation_id IS NULL OR v_intent.organization_slug IS NULL THEN
+    -- Pre-cutover intents can still carry no slug. Keep the established recovery code so confirm
+    -- asks for the address without consuming the still-valid e-mail challenge.
+    IF v_intent.organization_slug IS NULL THEN
       RETURN QUERY SELECT false, 'specialist_signup_slug_reservation_not_found'::text, NULL::uuid, NULL::uuid, NULL::uuid;
       RETURN;
     END IF;
@@ -232,29 +221,52 @@ BEGIN
 
     v_organization_id := gen_random_uuid();
 
-    INSERT INTO public.be_organizations (
-      id,
-      title,
-      is_active,
-      sort_order,
-      created_at,
-      updated_at
-    )
-    VALUES (
-      v_organization_id,
-      v_intent.organization_title,
-      true,
-      0,
-      now(),
-      now()
-    );
+    -- The global UNIQUE(slug) index is the only ownership arbiter. The organization insert and its
+    -- current claim share a subtransaction: if another registration commits this slug first, the
+    -- losing provisional organization is rolled back before returning the stable public error.
+    BEGIN
+      INSERT INTO public.be_organizations (
+        id,
+        title,
+        is_active,
+        sort_order,
+        created_at,
+        updated_at
+      )
+      VALUES (
+        v_organization_id,
+        v_intent.organization_title,
+        true,
+        0,
+        now(),
+        now()
+      );
 
-    UPDATE public.organization_slug_claims AS claim
-    SET kind = 'current',
-        organization_id = v_organization_id,
-        signup_intent_id = NULL,
-        updated_at = now()
-    WHERE claim.id = v_slug_reservation_id;
+      INSERT INTO public.organization_slug_claims (
+        slug,
+        kind,
+        organization_id,
+        created_by_platform_user_id,
+        created_at,
+        updated_at
+      )
+      VALUES (
+        v_intent.organization_slug,
+        'current',
+        v_organization_id,
+        v_user.id,
+        now(),
+        now()
+      );
+    EXCEPTION
+      WHEN unique_violation THEN
+        GET STACKED DIAGNOSTICS v_unique_constraint_name = CONSTRAINT_NAME;
+        IF v_unique_constraint_name = 'uq_organization_slug_claims_slug' THEN
+          RETURN QUERY SELECT false, 'slug_unavailable'::text, NULL::uuid, NULL::uuid, NULL::uuid;
+          RETURN;
+        END IF;
+        RAISE;
+    END;
 
     INSERT INTO public.clinic_public_directory_entries (
       organization_id,
@@ -350,7 +362,7 @@ END
 $$;
 
 COMMENT ON FUNCTION app.provision_specialist_owner(uuid) IS
-  'Signed identity-self specialist owner provisioning. Atomically promotes the signup slug reservation to current, publishes the directory row, creates the organization and binds the registering person''s own specialist; retry is idempotent.';
+  'Signed identity-self specialist owner provisioning. Atomically inserts the signup slug as current under the global UNIQUE index, publishes the directory row, creates the organization and binds the registering person''s own specialist; retry is idempotent.';
 
 -- Owner-exempt trusted seam: app_owner is NOLOGIN + BYPASSRLS with zero SET ROLE members (asserted
 -- in the preflight above). provision_specialist_owner AND current_provisioned_owner_organization()
@@ -392,7 +404,7 @@ GRANT EXECUTE ON FUNCTION app.require_staff_security_self_user_id() TO app_owner
 GRANT INSERT ON TABLE public.be_organizations TO app_owner;
 GRANT SELECT, UPDATE ON TABLE public.specialist_signup_intents TO app_owner;
 GRANT INSERT ON TABLE public.be_specialists TO app_owner;
-GRANT SELECT, UPDATE ON TABLE public.organization_slug_claims TO app_owner;
+GRANT SELECT, INSERT ON TABLE public.organization_slug_claims TO app_owner;
 GRANT INSERT ON TABLE public.clinic_public_directory_entries TO app_owner;
 
 SELECT 1 / (
@@ -414,7 +426,8 @@ SELECT 1 / (
   AND has_table_privilege('app_owner', 'public.specialist_signup_intents', 'UPDATE')
   AND has_table_privilege('app_owner', 'public.be_specialists', 'INSERT')
   AND has_table_privilege('app_owner', 'public.organization_slug_claims', 'SELECT')
-  AND has_table_privilege('app_owner', 'public.organization_slug_claims', 'UPDATE')
+  AND has_table_privilege('app_owner', 'public.organization_slug_claims', 'INSERT')
+  AND NOT has_table_privilege('app_owner', 'public.organization_slug_claims', 'UPDATE')
   AND has_table_privilege('app_owner', 'public.clinic_public_directory_entries', 'INSERT')
 )::int AS specialist_owner_provisioning_seam_ready;
 \endif
