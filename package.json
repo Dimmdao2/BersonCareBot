@@ -41,6 +41,7 @@
     "refresh:saas-a0-greenfield-baseline": "node scripts/refresh-a0-greenfield-baseline.mjs --confirm-local-dev-schema-refresh",
     "check:saas-s5-2-settings-security": "node docs/_TODO/SAAS_FOUNDATION/scripts/check-s5-2-settings-security.mjs",
     "smoke:saas-s5-2-settings-security": "node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-s5-2-settings-security.mjs",
+    "smoke:u6b-organization-slug-invariants": "node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-u6b-organization-slug-invariants.mjs",
     "check:new-table-rls-coverage": "node docs/_TODO/SAAS_FOUNDATION/scripts/check-new-table-rls-coverage.mjs",
     "check:saas-product-smoke-contract": "node docs/_TODO/SAAS_FOUNDATION/scripts/check-saas-product-smoke-contract.mjs && node docs/_TODO/SAAS_FOUNDATION/scripts/check-saas-product-smoke-contract.mjs --self-test",
     "check:owner-ready-test-integration": "node --check docs/_TODO/SAAS_FOUNDATION/scripts/check-owner-ready-test-integration.mjs && node docs/_TODO/SAAS_FOUNDATION/scripts/check-owner-ready-test-integration.mjs && node docs/_TODO/SAAS_FOUNDATION/scripts/check-owner-ready-test-integration.mjs --self-test",

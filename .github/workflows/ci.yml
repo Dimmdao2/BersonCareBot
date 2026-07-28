@@ -128,3 +128,13 @@ jobs:
       - uses: ./.github/actions/setup-pnpm
       - run: pnpm run check:saas-a1-rls-conformance
       - uses: ./.github/actions/cancel-on-failure
+
+  u6b-organization-slug-invariants:
+    name: U6B organization slug invariants
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup-pnpm
+      - run: sudo apt-get update && sudo apt-get install --yes postgresql-16
+      - run: pnpm run smoke:u6b-organization-slug-invariants
+      - uses: ./.github/actions/cancel-on-failure

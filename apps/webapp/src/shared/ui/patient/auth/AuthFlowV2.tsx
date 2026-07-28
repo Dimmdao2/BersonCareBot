@@ -1572,7 +1572,7 @@ export function AuthFlowV2({
                     onChange={(e) => {
                       specialistSignupSlugEditedRef.current = true;
                       specialistSignupSlugCheckRef.current += 1;
-                      const value = e.target.value;
+                      const value = e.target.value.toLowerCase();
                       setSpecialistSignupOrganizationSlug(value);
                       const validated = validateOrganizationSlugCandidate(value);
                       setSpecialistSignupSlugStatus(validated.ok ? "idle" : "error");
@@ -1645,7 +1645,7 @@ export function AuthFlowV2({
                   onChange={(e) => {
                     specialistSignupSlugEditedRef.current = true;
                     specialistSignupSlugCheckRef.current += 1;
-                    const value = e.target.value;
+                    const value = e.target.value.toLowerCase();
                     setSpecialistSignupOrganizationSlug(value);
                     const validated = validateOrganizationSlugCandidate(value);
                     setSpecialistSignupSlugStatus(validated.ok ? "idle" : "error");

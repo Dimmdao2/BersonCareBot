@@ -120,7 +120,7 @@ export function ClinicSlugSection({
       <Input
         id={fieldId}
         value={candidate}
-        onChange={(event) => setCandidate(event.currentTarget.value)}
+        onChange={(event) => setCandidate(event.currentTarget.value.toLowerCase())}
         placeholder="tochka-zdorovya"
         autoComplete="off"
         autoCapitalize="none"
