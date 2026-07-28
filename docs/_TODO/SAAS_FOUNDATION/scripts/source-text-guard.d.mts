@@ -7,6 +7,8 @@ export function sourceTextIndexOf(
   fromIndex?: number,
 ): number;
 
+export function sourceTextCount(source: string, fragment: string, sourcePath?: string): number;
+
 export function sourceTextEquals(actual: string, expected: string, sourcePath?: string): boolean;
 
 export function sourceTextSliceBetween(

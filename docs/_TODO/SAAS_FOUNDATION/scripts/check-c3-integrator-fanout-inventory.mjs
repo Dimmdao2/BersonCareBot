@@ -229,7 +229,7 @@ function assertRouteInventoryMatchesSource(loaded) {
 
   for (const entry of expectedInventoryEntries) {
     const routeLabel = entry.method === 'LOOP' ? entry.path : `${entry.method} ${entry.path}`;
-    requireFragments(files.doc, loaded.doc, [`| \`${entry.id}\` |`, `\`${routeLabel}\``]);
+    requireFragments(files.doc, loaded.doc, [`| \`${entry.id}\` | \`${routeLabel}\` |`]);
   }
 
   requireFragments(files.routes, routesText, [

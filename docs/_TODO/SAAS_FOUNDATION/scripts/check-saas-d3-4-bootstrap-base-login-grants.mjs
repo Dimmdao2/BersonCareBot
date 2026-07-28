@@ -613,7 +613,7 @@ function runChecks(overrides = {}) {
     'specialist_signup_staff_security_owner_schema_usage_ok',
     'REVOKE USAGE ON SCHEMA app FROM :specialist_signup_staff_security_owner_ident;',
     'organization_slug,\n    specialist_full_name',
-    'SET challenge_id = p_challenge_id,\n      organization_slug = p_organization_slug',
+    'SET challenge_id = p_challenge_id,\n      organization_slug = lower(p_organization_slug)',
   ]);
   forbidFragments(files.publicBootstrapSql, loaded.publicBootstrapSql, [
     'SET search_path = public, pg_catalog',

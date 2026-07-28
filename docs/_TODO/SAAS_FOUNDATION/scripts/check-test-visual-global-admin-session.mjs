@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { sourceTextIncludes, sourceTextIndexOf } from './source-text-guard.mjs';
+import { sourceTextCount, sourceTextIncludes, sourceTextIndexOf } from './source-text-guard.mjs';
 
 import { readFileSync } from 'node:fs';
 
@@ -150,9 +150,17 @@ function validate(source) {
     'operatorSession === null',
     'operatorSession.purpose !== "test_global_admin_visual"',
     'operatorSession.expiresAt !== parsed.expiresAt',
-    'session.operatorSession?.purpose === "test_global_admin_visual") return false',
     'session.operatorSession?.purpose === "test_global_admin_visual") return session',
   ]);
+  if (
+    sourceTextCount(
+      source.cookie,
+      'session.operatorSession?.purpose === "test_global_admin_visual") return false',
+      files.cookie,
+    ) !== 2
+  ) {
+    throw new Error('cookie: both renewable-session denial paths must remain present');
+  }
   requireFragments(files.types, source.types, [
     'operatorSession?:',
     'purpose: "test_global_admin_visual"',

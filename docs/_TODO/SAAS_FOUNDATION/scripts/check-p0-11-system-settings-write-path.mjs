@@ -2,7 +2,7 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 
-import { sourceTextIncludes } from './source-text-guard.mjs';
+import { sourceTextCount, sourceTextIncludes } from './source-text-guard.mjs';
 
 const repoRoot = process.cwd();
 
@@ -77,7 +77,13 @@ function runChecks(overrides = {}) {
     service,
     'const organizationId = options.organizationId?.trim() || null',
   );
-  assertContains(files.service, service, 'organizationId: result.organizationId ?? null');
+  if (
+    sourceTextCount(service, 'organizationId: result.organizationId ?? null', files.service) !== 2
+  ) {
+    throw new Error(
+      `${files.service} must sync result.organizationId on both settings write paths`,
+    );
+  }
   assertContains(files.service, service, 'organizationId: s.organizationId ?? null');
 
   for (const needle of [

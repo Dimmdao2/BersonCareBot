@@ -269,6 +269,33 @@ function exactSubstringTokenIndex(source, fragment, sourceTokens, fromIndex = 0)
   return tokenIndex < 0 ? fromIndex : tokenIndex;
 }
 
+function matchesFragmentWhitespaceBoundaries(
+  source,
+  fragment,
+  sourceTokens,
+  tokenIndex,
+  fragmentTokenCount,
+) {
+  const firstToken = sourceTokens[tokenIndex];
+  const lastToken = sourceTokens[tokenIndex + fragmentTokenCount - 1];
+  if (!firstToken || !lastToken) return false;
+
+  if (
+    /^\s/u.test(fragment) &&
+    (firstToken.start === 0 || !/\s/u.test(source[firstToken.start - 1]))
+  ) {
+    return false;
+  }
+  if (
+    /\s$/u.test(fragment) &&
+    (lastToken.end === source.length || !/\s/u.test(source[lastToken.end]))
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
 export function sourceTextIncludes(source, fragment, sourcePath = '') {
   const sourceTokens = tokenizeSourceTextWithRanges(source, sourcePath);
   const tokenMatch = findTokenSequence(
@@ -283,16 +310,46 @@ export function sourceTextIncludes(source, fragment, sourcePath = '') {
 
 export function sourceTextIndexOf(source, fragment, sourcePath = '', fromIndex = 0) {
   const exactIndex = source.indexOf(fragment, fromIndex);
-  if (exactIndex >= 0) return exactIndex;
 
   const sourceTokens = tokenizeSourceTextWithRanges(source, sourcePath);
   const fromTokenIndex = sourceTokens.findIndex(({ start }) => start >= fromIndex);
-  const tokenMatch = findTokenSequence(
-    sourceTokens.map(({ value }) => value),
-    tokenizeSourceText(fragment, sourcePath),
+  const sourceValues = sourceTokens.map(({ value }) => value);
+  const fragmentTokens = tokenizeSourceText(fragment, sourcePath);
+  let tokenMatch = findTokenSequence(
+    sourceValues,
+    fragmentTokens,
     fromTokenIndex < 0 ? sourceTokens.length : fromTokenIndex,
   );
-  return tokenMatch >= 0 ? sourceTokens[tokenMatch].start : -1;
+  while (
+    tokenMatch >= 0 &&
+    !matchesFragmentWhitespaceBoundaries(
+      source,
+      fragment,
+      sourceTokens,
+      tokenMatch,
+      fragmentTokens.length,
+    )
+  ) {
+    tokenMatch = findTokenSequence(sourceValues, fragmentTokens, tokenMatch + 1);
+  }
+  const tokenIndex = tokenMatch >= 0 ? sourceTokens[tokenMatch].start : -1;
+  if (exactIndex < 0) return tokenIndex;
+  if (tokenIndex < 0) return exactIndex;
+  return Math.min(exactIndex, tokenIndex);
+}
+
+export function sourceTextCount(source, fragment, sourcePath = '') {
+  let count = 0;
+  let cursor = 0;
+
+  while (cursor <= source.length) {
+    const index = sourceTextIndexOf(source, fragment, sourcePath, cursor);
+    if (index < 0) break;
+    count += 1;
+    cursor = index + 1;
+  }
+
+  return count;
 }
 
 export function sourceTextEquals(actual, expected, sourcePath = '') {

@@ -2,6 +2,7 @@
 import {
   sourceTextIncludes,
   sourceTextIndexOf,
+  sourceTextReplace,
   sourceTextSliceBetween,
   sourceTextSliceFrom,
 } from './source-text-guard.mjs';
@@ -1239,6 +1240,8 @@ function runChecks(overrides = {}) {
     'pg_has_role',
     'bersoncarebot_test',
     'does not touch TEST services',
+  ]);
+  requireFragments(files.disposableChecker, loaded.disposableChecker, [
     '"tolerateFailure: true",',
     '"pg_restore returned non-zero",',
   ]);
@@ -1636,7 +1639,12 @@ function runSelfTest() {
       ),
     },
     {
-      disposableChecker: read(files.disposableChecker).replaceAll('"tolerateFailure: true",', ''),
+      disposableChecker: sourceTextReplace(
+        read(files.disposableChecker),
+        '"tolerateFailure: true",',
+        '',
+        files.disposableChecker,
+      ),
     },
     {
       packageJson: read(files.packageJson).replace(

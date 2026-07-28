@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  sourceTextCount,
   sourceTextEquals,
   sourceTextIncludes,
   sourceTextIndexOf,
@@ -60,6 +61,55 @@ test('preserves fragment order and reports a missing fragment', () => {
       sourceTextIndexOf(source, 'checkout()', 'guard.ts'),
   );
   assert.equal(sourceTextIndexOf(source, 'missing()', 'guard.ts'), -1);
+});
+
+test('keeps standalone shell call positions distinct from function declarations', () => {
+  const source = `
+install_p2_b_protected_principal_context(){
+  prepare_context
+}
+run_closure(){
+\tinstall_p2_b_protected_principal_context
+  rehydrate_post_restore_runtime_overlays
+}
+`;
+  const removedCall = source.replace(
+    '\tinstall_p2_b_protected_principal_context\n',
+    '  rehydrate_post_restore_runtime_overlays\n',
+  );
+
+  assert.ok(
+    sourceTextIndexOf(
+      source,
+      '  install_p2_b_protected_principal_context\n',
+      'deploy/host/deploy-test-saas.sh',
+    ) >= 0,
+  );
+  assert.equal(
+    sourceTextIndexOf(
+      removedCall,
+      '  install_p2_b_protected_principal_context\n',
+      'deploy/host/deploy-test-saas.sh',
+    ),
+    -1,
+  );
+});
+
+test('counts every formatted occurrence in source order', () => {
+  const source = `
+    sync({ organizationId: result.organizationId ?? null, scope: 'admin' });
+    sync({
+      organizationId: result.organizationId ?? null,
+      scope: "doctor",
+    });
+  `;
+
+  assert.equal(
+    sourceTextCount(source, 'organizationId: result.organizationId ?? null', 'settings-service.ts'),
+    2,
+  );
+  assert.equal(sourceTextCount(source, 'scope: "admin"', 'settings-service.ts'), 1);
+  assert.equal(sourceTextCount(source, 'scope: "missing"', 'settings-service.ts'), 0);
 });
 
 test('compares generated SQL without depending on indentation', () => {

@@ -2,6 +2,7 @@
 import { readFile } from 'node:fs/promises';
 
 import {
+  sourceTextCount,
   sourceTextIncludes,
   sourceTextIndexOf,
   sourceTextSliceFrom,
@@ -49,6 +50,14 @@ const files = {
 
 function requireText(text, fragment, label) {
   if (!sourceTextIncludes(text, fragment, label)) throw new Error(`${label}: missing ${fragment}`);
+}
+function requireOccurrenceCount(text, fragment, expectedCount, label) {
+  const actualCount = sourceTextCount(text, fragment, files.overlay);
+  if (actualCount !== expectedCount) {
+    throw new Error(
+      `${label}: expected ${expectedCount} occurrences of ${fragment}, got ${actualCount}`,
+    );
+  }
 }
 function requireOrder(text, fragments, label) {
   let cursor = -1;
@@ -106,18 +115,22 @@ async function main() {
     'hourly.bucket_start <= bounds.current_hour',
     "date_trunc('day', as_of AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'",
     'app.read_saas_isolation_test_scenario_fixture_counts()',
-    "('webapp','patient_identity_exception_check')",
-    "('webapp','patient_booking_history')",
-    "('webapp','patient_product_analytics')",
-    "('webapp','patient_ui_config')",
-    "('webapp','patient_calendar_timezone')",
-    "('webapp','patient_content_catalog')",
-    "('webapp','patient_diary')",
-    "('webapp','auth_role_config')",
-    "('webapp', 'auth_role_config')",
     'saas_isolation_events_source_operation_check',
   ])
     requireText(loaded.overlay, fragment, 'overlay');
+  for (const operationFamily of [
+    'patient_identity_exception_check',
+    'patient_booking_history',
+    'patient_product_analytics',
+    'patient_ui_config',
+    'patient_calendar_timezone',
+    'patient_content_catalog',
+    'patient_diary',
+    'auth_role_config',
+  ]) {
+    const fragment = `('webapp','${operationFamily}')`;
+    requireOccurrenceCount(loaded.overlay, fragment, 2, 'overlay operation-family allowlists');
+  }
   for (const fragment of [
     "('webapp','patient_identity_exception_check')",
     "('webapp','patient_booking_history')",
@@ -433,7 +446,7 @@ async function main() {
     'code-only deploy delegates strict closure',
   );
   if (process.argv.includes('--self-test')) {
-    for (const [mutated, fragment, label] of [
+    for (const testCase of [
       [
         loaded.overlay.replaceAll('SECURITY DEFINER', 'SECURITY INVOKER'),
         'SECURITY DEFINER',
@@ -448,26 +461,31 @@ async function main() {
         loaded.overlay.replace("('webapp','patient_identity_exception_check'),", ''),
         "('webapp','patient_identity_exception_check')",
         'missing patient identity exception operation family',
+        2,
       ],
       [
         loaded.overlay.replace("('webapp','patient_booking_history'),", ''),
         "('webapp','patient_booking_history')",
         'missing patient booking history operation family',
+        2,
       ],
       [
         loaded.overlay.replace("('webapp','patient_product_analytics'),", ''),
         "('webapp','patient_product_analytics')",
         'missing patient product analytics operation family',
+        2,
       ],
       [
         loaded.overlay.replace("('webapp','auth_role_config'),", ''),
         "('webapp','auth_role_config')",
         'missing auth role config operation family',
+        2,
       ],
       [
         loaded.overlay.replace("('webapp', 'auth_role_config'),", ''),
         "('webapp', 'auth_role_config')",
         'missing auth role config table constraint',
+        2,
       ],
       [
         loaded.testScenarioRunner.replace('finally {', 'if (false) {'),
@@ -516,9 +534,14 @@ async function main() {
         'orphan post-runtime deploy gate',
       ],
     ]) {
+      const [mutated, fragment, label, expectedCount] = testCase;
       let rejected = false;
       try {
-        requireText(mutated, fragment, `self-test ${label}`);
+        if (expectedCount === undefined) {
+          requireText(mutated, fragment, `self-test ${label}`);
+        } else {
+          requireOccurrenceCount(mutated, fragment, expectedCount, `self-test ${label}`);
+        }
       } catch {
         rejected = true;
       }
