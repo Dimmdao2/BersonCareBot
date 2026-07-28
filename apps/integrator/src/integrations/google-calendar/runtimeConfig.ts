@@ -5,64 +5,89 @@
 import { createDbPort } from '../../infra/db/client.js';
 import { googleCalendarConfig, type GoogleCalendarConfig } from './config.js';
 import { logger } from '../../infra/observability/logger.js';
-import { readPublicSystemSettingString } from '../../infra/db/publicSystemSettings.js';
+import {
+  readExactOrganizationPublicSystemSettingString,
+  readPublicSystemSettingString,
+} from '../../infra/db/publicSystemSettings.js';
 
 const TTL_MS = 60_000;
 type CacheEntry = { config: GoogleCalendarConfig; expiresAt: number };
-let configCache: CacheEntry | null = null;
+const configCache = new Map<string, CacheEntry>();
 
-export function invalidateGoogleCalendarConfigCache(): void {
-  configCache = null;
+export function invalidateGoogleCalendarConfigCache(organizationId?: string): void {
+  if (organizationId?.trim()) configCache.delete(organizationId.trim());
+  else configCache.clear();
 }
 
-async function readDbSetting(key: string): Promise<string | null> {
+async function readDbSetting(key: string, organizationId: string | null = null): Promise<string | null> {
   try {
     const db = createDbPort();
-    return await readPublicSystemSettingString(db, key);
+    return await readPublicSystemSettingString(db, key, 'admin', { organizationId });
   } catch {
     return null;
   }
 }
 
-/**
- * Merge DB `system_settings` with env: each field uses DB when a row exists with a
- * non-empty parsed value; otherwise env. Avoids replacing a full env config with
- * empty strings when only part of the keys were synced to integrator DB.
- */
-async function mergeConfigFromDbWithEnv(env: GoogleCalendarConfig): Promise<GoogleCalendarConfig> {
+function isGoogleCalendarPlatformAvailable(raw: string | null): boolean {
+  if (!raw) return false;
   try {
-    const [enabledRaw, clientId, clientSecret, redirectUri, calendarId, refreshToken] = await Promise.all([
-      readDbSetting('google_calendar_enabled'),
+    const value = JSON.parse(raw) as { version?: unknown; integrations?: { google_calendar?: unknown } };
+    return value.version === 1 && value.integrations?.google_calendar === true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Platform OAuth identity keeps its bounded legacy env fallback. Clinic-owned connection
+ * values are exact organization rows and never inherit an env or global setting.
+ */
+async function mergeConfigFromDbWithEnv(
+  env: GoogleCalendarConfig,
+  organizationId: string,
+): Promise<GoogleCalendarConfig> {
+  try {
+    const db = createDbPort();
+    const [enabledRaw, clientId, clientSecret, redirectUri, calendarId, refreshToken, availability] = await Promise.all([
+      readExactOrganizationPublicSystemSettingString(db, 'google_calendar_enabled', organizationId),
       readDbSetting('google_client_id'),
       readDbSetting('google_client_secret'),
       readDbSetting('google_redirect_uri'),
-      readDbSetting('google_calendar_id'),
-      readDbSetting('google_refresh_token'),
+      readExactOrganizationPublicSystemSettingString(db, 'google_calendar_id', organizationId),
+      readExactOrganizationPublicSystemSettingString(db, 'google_refresh_token', organizationId),
+      readDbSetting('platform_integration_availability'),
     ]);
     return {
       enabled:
-        enabledRaw !== null ? enabledRaw === 'true' || enabledRaw === '1' : env.enabled,
+        isGoogleCalendarPlatformAvailable(availability) &&
+        (enabledRaw !== null ? enabledRaw === 'true' || enabledRaw === '1' : false),
       clientId: clientId ?? env.clientId,
       clientSecret: clientSecret ?? env.clientSecret,
       redirectUri: redirectUri ?? env.redirectUri,
-      calendarId: calendarId ?? env.calendarId,
-      refreshToken: refreshToken ?? env.refreshToken,
+      // A clinic connection must never inherit either value from another clinic or legacy env.
+      calendarId: calendarId ?? '',
+      refreshToken: refreshToken ?? '',
     };
   } catch (err) {
-    logger.warn({ err }, '[google-calendar] failed to read config from DB, using env only');
-    return env;
+    logger.warn({ err }, '[google-calendar] failed to read clinic config from DB');
+    return { ...env, enabled: false, calendarId: '', refreshToken: '' };
   }
 }
 
 /** @deprecated env fallback — use DB (system_settings admin) via webapp Settings UI */
 const envFallback = googleCalendarConfig;
 
-export async function getGoogleCalendarConfig(): Promise<GoogleCalendarConfig> {
-  const now = Date.now();
-  if (configCache && configCache.expiresAt > now) {
-    return configCache.config;
+export async function getGoogleCalendarConfig(organizationId: string | null | undefined = null): Promise<GoogleCalendarConfig> {
+  const normalizedOrganizationId = organizationId?.trim() ?? '';
+  if (!normalizedOrganizationId) {
+    return { ...envFallback, enabled: false, calendarId: '', refreshToken: '' };
   }
-  const resolved = await mergeConfigFromDbWithEnv(envFallback);
-  configCache = { config: resolved, expiresAt: now + TTL_MS };
+  const now = Date.now();
+  const cached = configCache.get(normalizedOrganizationId);
+  if (cached && cached.expiresAt > now) {
+    return cached.config;
+  }
+  const resolved = await mergeConfigFromDbWithEnv(envFallback, normalizedOrganizationId);
+  configCache.set(normalizedOrganizationId, { config: resolved, expiresAt: now + TTL_MS });
   return resolved;
 }

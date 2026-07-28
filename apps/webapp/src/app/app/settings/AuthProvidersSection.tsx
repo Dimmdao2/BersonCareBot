@@ -25,6 +25,7 @@ export type AuthProvidersSectionProps = {
   googleClientId: string;
   googleClientSecret: string;
   googleOauthLoginRedirectUri: string;
+  googleCalendarRedirectUri: string;
   appleOauthClientId: string;
   appleOauthTeamId: string;
   appleOauthKeyId: string;
@@ -60,6 +61,7 @@ export function AuthProvidersSection({
   googleClientId,
   googleClientSecret,
   googleOauthLoginRedirectUri,
+  googleCalendarRedirectUri,
   appleOauthClientId,
   appleOauthTeamId,
   appleOauthKeyId,
@@ -79,6 +81,7 @@ export function AuthProvidersSection({
   const [gId, setGId] = useState(googleClientId);
   const [gSecret, setGSecret] = useState(googleClientSecret);
   const [gLoginRedirect, setGLoginRedirect] = useState(googleOauthLoginRedirectUri);
+  const [gCalendarRedirect, setGCalendarRedirect] = useState(googleCalendarRedirectUri);
   const [aClientId, setAClientId] = useState(appleOauthClientId);
   const [aTeam, setATeam] = useState(appleOauthTeamId);
   const [aKeyId, setAKeyId] = useState(appleOauthKeyId);
@@ -101,6 +104,11 @@ export function AuthProvidersSection({
         const gLoginErr = validateHttpUrl("Google redirect (вход)", gLoginRedirect);
         if (gLoginErr) {
           setError(gLoginErr);
+          return;
+        }
+        const gCalendarErr = validateHttpUrl("Google redirect (Calendar)", gCalendarRedirect);
+        if (gCalendarErr) {
+          setError(gCalendarErr);
           return;
         }
         const vkIdRedirectErr = validateHttpUrl("VK ID redirect URI", vkIdRedirect);
@@ -138,6 +146,7 @@ export function AuthProvidersSection({
           patchAdminSetting("google_client_id", gId.trim()),
           patchAdminSetting("google_client_secret", gSecret.trim()),
           patchAdminSetting("google_oauth_login_redirect_uri", gLoginRedirect.trim()),
+          patchAdminSetting("google_redirect_uri", gCalendarRedirect.trim()),
           patchAdminSetting("apple_oauth_client_id", aClientId.trim()),
           patchAdminSetting("apple_oauth_team_id", aTeam.trim()),
           patchAdminSetting("apple_oauth_key_id", aKeyId.trim()),
@@ -168,7 +177,7 @@ export function AuthProvidersSection({
           <p className="text-xs text-muted-foreground">
             Провайдеры входа и OAuth. Значения в{" "}
             <code className="rounded bg-muted px-1">system_settings</code> (admin). Redirect для календаря Google — во
-            вкладке «Интеграции».
+            этой платформенной форме; клиника подключает только свой аккаунт и календарь.
           </p>
         </CardHeader>
         <CardContent className="flex flex-col gap-5">
@@ -353,8 +362,7 @@ export function AuthProvidersSection({
           <section className="flex flex-col gap-2">
             <p className="text-sm font-semibold">Google OAuth (вход + общий клиент для Calendar)</p>
             <p className="text-xs text-muted-foreground">
-              В Google Cloud Console добавьте два Authorized redirect URI: этот (вход) и URI календаря из вкладки
-              «Интеграции» (<code className="rounded bg-muted px-1">…/api/admin/google-calendar/callback</code>).
+              В Google Cloud Console добавьте два Authorized redirect URI: этот (вход) и Calendar callback ниже.
             </p>
             <label className="flex flex-col gap-1">
               <span className="text-xs font-medium">Client ID</span>
@@ -366,6 +374,22 @@ export function AuthProvidersSection({
                 autoComplete="off"
                 className="font-mono text-xs"
               />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-xs font-medium">Redirect URI для Calendar</span>
+              <Input
+                type="url"
+                placeholder="https://example.com/api/admin/google-calendar/callback"
+                value={gCalendarRedirect}
+                onChange={(e) => setGCalendarRedirect(e.target.value)}
+                disabled={isPending}
+                autoComplete="off"
+                className="font-mono text-xs"
+              />
+              <span className="text-xs text-muted-foreground">
+                Это OAuth callback нашего приложения, общий для всех клиник. Учётную запись и календарь выбирает
+                каждая клиника в своих настройках.
+              </span>
             </label>
             <label className="flex flex-col gap-1">
               <span className="text-xs font-medium">Client secret</span>

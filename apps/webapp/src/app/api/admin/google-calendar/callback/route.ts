@@ -4,12 +4,13 @@
  * and connected email to system_settings(admin), redirects to Settings.
  */
 import { NextResponse } from "next/server";
-import { requirePlatformOperationsApiContext } from "@/app-layer/guards/requireRole";
+import { requireClinicManagementApiContext } from "@/app-layer/guards/requireRole";
 import {
   getAppBaseUrl,
   getGoogleClientId,
   getGoogleClientSecret,
   getGoogleRedirectUri,
+  isGoogleCalendarPlatformAvailable,
 } from "@/modules/system-settings/integrationRuntime";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { invalidateConfigKey } from "@/modules/system-settings/configAdapter";
@@ -17,7 +18,7 @@ import {
   exchangeGoogleCode,
   fetchGoogleUserEmail,
 } from "@/modules/google-calendar/googleOAuthHelpers";
-import { verifySignedOAuthState } from "@/modules/auth/oauthSignedState";
+import { parseVerifiedSignedOAuthState } from "@/modules/auth/oauthSignedState";
 
 async function settingsRedirect(params: Record<string, string>): Promise<NextResponse> {
   const appBase = await getAppBaseUrl();
@@ -27,17 +28,21 @@ async function settingsRedirect(params: Record<string, string>): Promise<NextRes
 }
 
 export async function GET(request: Request) {
-  const gate = await requirePlatformOperationsApiContext();
+  const gate = await requireClinicManagementApiContext();
   if (!gate.ok) {
     return await settingsRedirect({ gcal: "error", reason: "unauthorized" });
   }
-  const { session } = gate;
+  const { session, organizationId } = gate.ctx;
 
   const url = new URL(request.url);
   const stateFromQuery = url.searchParams.get("state") ?? "";
 
-  if (!stateFromQuery || !verifySignedOAuthState(stateFromQuery, "gcal")) {
+  const state = stateFromQuery ? parseVerifiedSignedOAuthState(stateFromQuery, "gcal") : null;
+  if (!state || state.organizationId !== organizationId) {
     return await settingsRedirect({ gcal: "error", reason: "csrf" });
+  }
+  if (!(await isGoogleCalendarPlatformAvailable())) {
+    return await settingsRedirect({ gcal: "error", reason: "integration_disabled" });
   }
 
   const errorParam = url.searchParams.get("error");
@@ -75,12 +80,16 @@ export async function GET(request: Request) {
   const deps = buildAppDeps();
   const userId = session.user.userId;
 
-  await deps.systemSettings.updateSetting("google_refresh_token", "admin", { value: refreshToken }, userId);
+  await deps.systemSettings.updateSetting(
+    "google_refresh_token", "admin", { value: refreshToken }, userId, { organizationId },
+  );
   invalidateConfigKey("google_refresh_token");
 
   const email = await fetchGoogleUserEmail(accessToken);
   if (email) {
-    await deps.systemSettings.updateSetting("google_connected_email", "admin", { value: email }, userId);
+    await deps.systemSettings.updateSetting(
+      "google_connected_email", "admin", { value: email }, userId, { organizationId },
+    );
     invalidateConfigKey("google_connected_email");
   }
 

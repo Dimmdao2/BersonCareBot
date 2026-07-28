@@ -13,6 +13,7 @@ import { DoctorSection, DoctorSectionHeader, DoctorSectionTitle } from "@/shared
 import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
 import { ADMIN_TAB_REDIRECTS, parseHealthArchiveProbeParam } from "./adminSettingsData";
 import { AppointmentReminderSettingsSection } from "./AppointmentReminderSettingsSection";
+import { GoogleCalendarSection } from "./GoogleCalendarSection";
 import { BillingSection, type BillingMechanicRow } from "./BillingSection";
 import { describeCommercialAccessState } from "./billingCommercialState";
 import { DoctorTodayPreferencesSection } from "./DoctorTodayPreferencesSection";
@@ -24,6 +25,7 @@ import type { SettingsTabId } from "./settingsTabs";
 import { TeamSection } from "./TeamSection";
 import { parseDoctorTodayPreferences } from "@/modules/system-settings/doctorTodayPreferences";
 import { getAppBaseUrl } from "@/modules/system-settings/integrationRuntime";
+import { parsePlatformIntegrationAvailabilityEnvelope } from "@/modules/system-settings/platformIntegrationAvailability";
 
 type LegacySettingsTab = "specialist" | "organization" | "team" | "billing" | "install";
 
@@ -89,8 +91,10 @@ export default async function SettingsPage({
       actorPlatformUserId: workspace.session.user.userId,
       hasOrganizationManagementCapability: true,
     };
-    const [doctorSettings, brandingState, slugState, appBaseUrl] = await Promise.all([
+    const [doctorSettings, clinicAdminSettings, platformSettings, brandingState, slugState, appBaseUrl] = await Promise.all([
       deps.systemSettings.listSettingsByScope("doctor", { organizationId: workspace.organizationId }),
+      deps.systemSettings.listSettingsByScope("admin", { organizationId: workspace.organizationId }),
+      deps.systemSettings.listSettingsByScope("admin", { organizationId: null }),
       deps.orgBranding.getManagementState(brandingCtx),
       workspace.canManageOrganization && deps.clinicDirectory
         ? deps.clinicDirectory.getSlugManagementState(workspace.organizationId)
@@ -116,6 +120,27 @@ export default async function SettingsPage({
     );
     const todayPreferences = parseDoctorTodayPreferences(
       doctorSettings.find((setting) => setting.key === "doctor_today_preferences")?.valueJson,
+    );
+    const clinicAdminValue = (key: string, fallback = "") => String(valueOf(
+      clinicAdminSettings.find(
+        (setting) => setting.key === key && setting.organizationId === workspace.organizationId,
+      )?.valueJson,
+      fallback,
+    ) ?? fallback).trim();
+    const clinicGoogleEnabled = Boolean(valueOf(
+      clinicAdminSettings.find(
+        (setting) => setting.key === "google_calendar_enabled" && setting.organizationId === workspace.organizationId,
+      )?.valueJson,
+      false,
+    ));
+    const platformAdminValue = (key: string, fallback = "") => String(valueOf(
+      platformSettings.find((setting) => setting.key === key)?.valueJson,
+      fallback,
+    ) ?? fallback).trim();
+    const platformGoogleConfigured = ["google_client_id", "google_client_secret", "google_redirect_uri"]
+      .every((key) => platformAdminValue(key) !== "");
+    const integrationAvailability = parsePlatformIntegrationAvailabilityEnvelope(
+      platformSettings.find((setting) => setting.key === "platform_integration_availability")?.valueJson,
     );
     return (
       <DoctorAppShell title="Настройки" user={workspace.session.user}>
@@ -173,6 +198,15 @@ export default async function SettingsPage({
           }
           settingsEndpoint="/api/admin/settings"
         />
+        {integrationAvailability.integrations.google_calendar ? (
+          <GoogleCalendarSection
+            platformOAuthConfigured={platformGoogleConfigured}
+            hasRefreshToken={clinicAdminValue("google_refresh_token").length > 0}
+            googleCalendarId={clinicAdminValue("google_calendar_id")}
+            googleCalendarEnabled={clinicGoogleEnabled}
+            googleConnectedEmail={clinicAdminValue("google_connected_email")}
+          />
+        ) : null}
       </DoctorAppShell>
     );
   }

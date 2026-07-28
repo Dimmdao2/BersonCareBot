@@ -37,6 +37,7 @@ describe('syncCanonicalAppointmentToCalendar', () => {
     const input = {
       action: 'updated' as const,
       appointmentId: 'appt-1',
+      organizationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
       startAt: '2026-04-01T10:00:00.000Z',
       endAt: '2026-04-01T11:00:00.000Z',
       clientName: 'Иванов Иван',

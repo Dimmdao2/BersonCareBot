@@ -121,6 +121,26 @@ export async function readAdminSystemSettingString(
   return systemSettingInnerValueToString(await readAdminSystemSettingInnerValue(key, options));
 }
 
+/**
+ * Reads only the exact clinic row. Connection credentials must not inherit an old global
+ * value: that would direct two clinics' appointments into one calendar.
+ */
+export async function readExactOrganizationAdminSystemSettingString(
+  key: string,
+  organizationId: string,
+): Promise<string | null> {
+  const normalizedOrganizationId = organizationId.trim();
+  if (!normalizedOrganizationId) return null;
+  const result = await runWebappPgText<SystemSettingValueRow>(
+    `SELECT scope, organization_id, value_json
+       FROM system_settings
+      WHERE key = $1 AND scope = 'admin' AND organization_id = $2::uuid
+      LIMIT 1`,
+    [key, normalizedOrganizationId],
+  );
+  return systemSettingInnerValueToString(parseSettingEnvelopeValue(result.rows[0]?.value_json));
+}
+
 export async function readAdminSystemSettingBoolean(
   key: string,
   defaultValue: boolean,
