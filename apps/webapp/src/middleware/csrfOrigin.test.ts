@@ -263,8 +263,9 @@ describe("frozen webapp mutation census", () => {
     // `requirePlatformOperationsApiContext`; the clinic endpoint uses
     // `requireClinicManagementApiContext` and additionally requires owner membership. Neither is a
     // mutation or a CSRF exemption, so all unsafe-file/handler/class counts remain unchanged.
-    // 509 -> 507: #1070 correction removed the two GET-only platform support routes because their
-    // backing store contains patient-to-clinic clinical messages. Unsafe counts remain unchanged.
+    // 509 -> 507: ac7ca4d5c (#1070) removed the two GET-only platform support routes because their
+    // backing store contains patient-to-clinic clinical messages. Unsafe counts remain unchanged;
+    // the exact route hash below keeps an unreviewed reintroduction red.
     expect(routeInventory).toContain("admin/appointment-records/[integratorRecordId]/soft-delete/route.ts");
     expect(routeInventory).toContain("admin/organizations/route.ts");
     expect(routeInventory).toContain("admin/organizations/[organizationId]/members/route.ts");
@@ -315,7 +316,12 @@ describe("frozen webapp mutation census", () => {
 
   it("freezes nine stateful GET exceptions and their stronger proof", () => {
     const statefulGetProofs = [
-      ["admin/google-calendar/callback/route.ts", /updateSetting\("google_refresh_token"/],
+      // #1071 moved the calendar connection to the clinic: this state-changing GET must persist
+      // the refresh token to the selected organization, never to the global settings row.
+      [
+        "admin/google-calendar/callback/route.ts",
+        /updateSetting\(\s*"google_refresh_token",\s*"admin",\s*\{ value: refreshToken \},\s*userId,\s*\{ organizationId \},\s*\)/,
+      ],
       ["auth/dev-bypass/route.ts", /exchangeIntegratorToken\(token\)/],
       ["auth/dev-public/route.ts", /clearSession\(\)/],
       ["auth/logout/route.ts", /export async function GET[\s\S]*clearSession\(\)/],

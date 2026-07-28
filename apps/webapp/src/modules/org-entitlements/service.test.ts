@@ -439,9 +439,14 @@ describe('platform tariff constructor validation', () => {
       'utf8',
     );
     expect(platformRuntime).toContain(
-      'GRANT EXECUTE ON FUNCTION app.cms_pages_snapshot_usage(uuid)\n      TO app_platform_settings',
+      "IF to_regprocedure('app.cms_pages_snapshot_usage(uuid)') IS NULL THEN",
     );
-    expect(platformRuntime).toContain("'app.cms_pages_snapshot_usage(uuid)',\n    'EXECUTE'");
+    expect(platformRuntime).toContain(
+      "REVOKE ALL ON FUNCTION app.cms_pages_snapshot_usage(uuid)\n      FROM PUBLIC, app_staff, app_patient, app_platform_settings",
+    );
+    expect(platformRuntime).toContain(
+      "GRANT EXECUTE ON FUNCTION app.cms_pages_snapshot_usage(uuid)\n      TO app_platform_settings",
+    );
     expect(platformRuntime).toContain(
       'CREATE OR REPLACE FUNCTION app.read_org_enforced_quota_usage(',
     );

@@ -74,7 +74,11 @@ export default async function SettingsPage({
     { organizationId: workspace.organizationId },
     "clinic_team",
   );
-  const canAccessBilling = workspace.membershipRole === "owner" || isGlobalAdmin;
+  // §29 владельца: биллинг клиники видит владелец И администратор клиники («админ клиники или соло-специалист
+  // — равноценно»), а обычный персонал не видит. Условие потеряно лидом при разрешении конфликта слияния
+  // 28.07 и возвращено: тест «shows billing to owner and clinic admin» падал на редиректе админа.
+  const canAccessBilling =
+    workspace.membershipRole === "owner" || workspace.membershipRole === "admin" || isGlobalAdmin;
   const visibleTabs: SettingsTabId[] = [
     "organization",
     ...(teamEntitlement.ok ? (["team"] as const) : []),

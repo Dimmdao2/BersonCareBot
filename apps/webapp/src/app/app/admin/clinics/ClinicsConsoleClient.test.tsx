@@ -141,7 +141,7 @@ describe('ClinicsConsoleClient', () => {
     expect(screen.getAllByText('Не запускался')).toHaveLength(3);
   });
 
-  it('renders the clinic card, override and only the two real usage numbers', () => {
+  it('renders the clinic card, override and only the three real usage numbers', () => {
     const clinic = organization(ORGANIZATION_ID, 'Клиника Альфа', 'read_only');
     clinic.commercialAccessState = 'no_trial';
     clinic.overrides = [
@@ -166,9 +166,11 @@ describe('ClinicsConsoleClient', () => {
     const data: PlatformClinicsData = {
       tariffs: [tariff],
       organizations: [clinic],
-      // Courses and specialist seats have real snapshot counters. A placeholder for files must
-      // stay invisible because that mechanic still has no enforcement.
-      enforcedQuotaUsage: { [ORGANIZATION_ID]: { courses: 7, clinic_team: 2, files: 0 } },
+      // Courses and CMS pages have DB-trigger counters; specialist seats have an application-
+      // transaction counter. A placeholder for files must stay invisible because it is unenforced.
+      enforcedQuotaUsage: {
+        [ORGANIZATION_ID]: { courses: 7, cms_pages: 3, clinic_team: 2, files: 0 },
+      },
     };
     const members: PlatformClinicMember[] = [
       {
@@ -226,14 +228,19 @@ describe('ClinicsConsoleClient', () => {
       .closest<HTMLElement>('div.rounded-lg');
     expect(coursesTile).not.toBeNull();
     expect(within(coursesTile!).getByText('7')).toBeInTheDocument();
+    const cmsPagesTile = within(usageSection!)
+      .getByText('Страницы CMS')
+      .closest<HTMLElement>('div.rounded-lg');
+    expect(cmsPagesTile).not.toBeNull();
+    expect(within(cmsPagesTile!).getByText('3')).toBeInTheDocument();
     const clinicTeamTile = within(usageSection!)
       .getByText('Режим клиники')
       .closest<HTMLElement>('div.rounded-lg');
     expect(clinicTeamTile).not.toBeNull();
     expect(within(clinicTeamTile!).getByText('2')).toBeInTheDocument();
-    // 14 -> 13: clinic_team left the untracked group after gaining the real
-    // application_transaction_snapshot seat counter; all other declared mechanics stay explicit.
-    expect(screen.getAllByText('не отслеживается')).toHaveLength(13);
+    // 14 -> 12: clinic_team and cms_pages both left the untracked group after gaining real
+    // enforcement; every remaining declared-only mechanic stays explicit.
+    expect(screen.getAllByText('не отслеживается')).toHaveLength(12);
     expect(screen.queryByText(/^0$/)).not.toBeInTheDocument();
     // The accounts panel legitimately exists now (plan 9.6) — what must stay absent is a staff member's
     // contact details, not the panel itself.

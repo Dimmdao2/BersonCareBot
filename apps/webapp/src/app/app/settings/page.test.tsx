@@ -26,6 +26,7 @@ const {
   settingsTabsNavMock,
   orgBrandingSectionMock,
   clinicSlugSectionMock,
+  useSearchParamsMock,
 } = vi.hoisted(() => ({
   redirectMock: vi.fn((url: string) => {
     throw new Error(`redirect:${url}`);
@@ -60,9 +61,13 @@ const {
   ),
   orgBrandingSectionMock: vi.fn(() => <section data-testid="org-branding" />),
   clinicSlugSectionMock: vi.fn(() => <section data-testid="clinic-slug" />),
+  useSearchParamsMock: vi.fn(() => new URLSearchParams()),
 }));
 
-vi.mock('next/navigation', () => ({ redirect: redirectMock }));
+vi.mock('next/navigation', () => ({
+  redirect: redirectMock,
+  useSearchParams: useSearchParamsMock,
+}));
 vi.mock('@bersoncare/db-principal', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@bersoncare/db-principal')>()),
   runWithDbClinicBillingPrincipal: runWithDbClinicBillingPrincipalMock,
