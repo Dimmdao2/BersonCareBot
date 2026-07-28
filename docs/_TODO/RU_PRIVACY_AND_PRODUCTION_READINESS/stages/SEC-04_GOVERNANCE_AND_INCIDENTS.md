@@ -13,12 +13,28 @@ findings, реальные уведомления субъектам и producti
 
 ## Slice A — access governance and vulnerability workflow
 
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
+
 - [ ] Реестр SSH/Selectel/GitHub/DB/S3/global-admin доступов, owner и last review.
 - [ ] Joiner/mover/leaver: issue/change/revoke с SLA/evidence; квартальная recertification.
 - [ ] Break-glass: time-bound, reason, MFA, alert, after-action review.
 - [ ] Findings из `#881`: severity, owner, remediation SLA, exception reason/expiry, retest.
 
 ## Slice B — protected logs and incident response
+
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
 
 - [ ] Central security sink: least-privilege append/read, retention, alert delivery и redaction proof.
 - [ ] Принятые EDR/HIDS либо compensating signals имеют severity mapping, dedup/suppression, дежурного owner,

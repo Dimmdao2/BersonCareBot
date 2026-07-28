@@ -5,6 +5,14 @@ is the input for an owner go/no-go on a surgical fix; nothing here has been appl
 
 ## 0. Reality Summary
 
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
+
 `deploy/postgres/phase4-force-rls-cutover.sql` (commit `16a910970`) put ~140 tables on TEST under
 `FORCE ROW LEVEL SECURITY`. The relevant tenant policy shape (e.g. `saas_org_dormant_p0_8_3`) is:
 
@@ -36,6 +44,14 @@ That follow-up was never fully closed before FORCE went live on TEST. #821 is th
 materializing.
 
 ## 1. How The Principal Machinery Actually Works (and where it breaks)
+
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
 
 Read these first if verifying this doc: `packages/db-principal/src/index.ts`,
 `apps/webapp/src/app-layer/db/drizzle.ts`, `apps/webapp/src/infra/db/withClient.ts`,
@@ -95,6 +111,14 @@ Only two routes were previously hand-patched: `doctor/schedule-kpis` (whole hand
 
 ## 2. Blast-Radius Inventory (ranked, with direct evidence)
 
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
+
 Heuristic scan for "exported async method containing `.select(` but no `.transaction(`" inside
 `infra/repos` returns **~321 raw hits across 65 files** (over-counts). A second heuristic — `route.ts`
 under `app/api/{doctor,admin,patient}` importing **no** principal-wrapper helper — found **170 of 338**
@@ -127,6 +151,14 @@ under the cutover with zero principal wrap anywhere in the chain — consistent 
 Estimate only; Phase 0 produces the real number.
 
 ## 3. Options For The Single Chokepoint
+
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
 
 ### Option (a) — make the read layer itself always install the principal on checkout
 Extend the mechanism that already makes `db.transaction()` safe (`withPrincipalAwareTransactions()` in
@@ -167,6 +199,14 @@ parallel safety valve if verification runs long.
 
 ## 4. Tenant-Isolation Safety Proof
 
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
+
 **The installed org is never client-supplied.** `stampDbPrincipalFromSession()`
 (`sessionPrincipal.ts:26-68`) is the only place an org id enters a doctor/admin principal, deriving it
 via `organizationMembershipService.resolveOrganizationForUser({ platformUserId: session.user.userId })`
@@ -204,6 +244,14 @@ explicit organizationId here regardless of the chokepoint fix.
 
 ## 5. Test Plan
 
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
+
 1. **Mechanism-level (exists, stays green):** `smoke-r2-real-policy-isolation.mjs`,
    `rehearse-multitenant-isolation.mjs` — prove the principal+RLS plumbing (staff/patient wall, plain
    SET can't forge visibility, locked-mode fail-closed release). They don't exercise webapp
@@ -222,6 +270,14 @@ explicit organizationId here regardless of the chokepoint fix.
 
 ## 6. Phased Checklist (each phase auditable, TEST-only, no prod)
 
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
+
 - [ ] **Phase 0 — exact inventory.** Real static scan over `infra/repos/*.ts` cross-referenced against
   the FORCE-RLS table list (`phase4-force-rls-cutover.sql`/`R1_TABLE_TAXONOMY.md`); produce exact count
   + file:line list of unwrapped org-scoped reads. Checked-in inventory file (like `P0_7_WRITER_CENSUS.md`).
@@ -238,6 +294,14 @@ explicit organizationId here regardless of the chokepoint fix.
   then owner walkthrough per `ST-02_WALKTHROUGH.md` on real TEST UI.
 
 ## 7. Companion Bug (independent of RLS): `deactivateWorkingHours` swapped args
+
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
 
 Plain argument-order defect, type-checker-invisible (both params `string`). Git archaeology:
 - `modules/booking-scheduling/ports.ts:306` — service facade declares
@@ -269,6 +333,14 @@ Owner ruled on all four (verbatim intent):
 4. **Companion bug (§7) as a separate diff — lead's call, trusted.** Ship it separately.
 
 ## 8. Owner Decisions Needed (superseded by 8b above)
+
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
 
 1. **Keep FORCE on TEST during the fix, or temporarily relax to NO FORCE (Option c)?** Recommendation:
    keep FORCE on — Option (a) is small/single-file/low-risk; relaxing re-opens the trust model the

@@ -61,6 +61,14 @@ Scratch proof coverage to run where local postgres sudo is available:
 
 ## Checklist
 
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
+
 - [x] Code-search used before exact file reads for D1/#664/patient value guard locations. (✓ evidence)
 - [x] #664 exact columns pinned without re-deriving them. (✓ evidence)
 - [x] `public.treatment_program_events.actor_id` excluded from app_patient INSERT column grant. (✓ evidence: p0-5b-grants-sql.mjs:508-520,739-744)

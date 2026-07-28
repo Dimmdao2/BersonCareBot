@@ -64,6 +64,14 @@ Isolation negatives:
 
 ## Checklist
 
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
+
 - [x] Code-search used before exact file reads for D2/FB#1 locations. (✓ evidence)
 - [x] Minimal bootstrap grant artifact exists for `user_phone_history`, `platform_user_contacts`, and
   `app.close_active_user_phone_history(uuid)`. (✓ evidence: d2-fb1-bootstrap-phone-write-grants.sql:39-42)

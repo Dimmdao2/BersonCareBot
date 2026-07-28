@@ -85,6 +85,14 @@ grant выполнялся уже non-superuser мигратором. Текущ
 добавляет normalization/revoke assertions; после него нужен повторный clean + no-op rehearsal.
 
 ## Оставшиеся галочки до «готово»
+
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
 - [ ] Вся последовательность option D проходит на свежем дампе ДВАЖДЫ (чистый + повтор no-op) после
       переноса `app_ext` grant и normalization/revoke правок.
 - [x] Роль для prod-migrate зафиксирована: runtime-owner `bcb_webapp_prod` с временной auto-revoked

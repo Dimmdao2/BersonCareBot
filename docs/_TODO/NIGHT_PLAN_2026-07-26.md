@@ -26,6 +26,14 @@ cancelled or superseded work and is excluded from both totals. Detail and eviden
 
 ## A. Security — database privilege model
 
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
+
 - [ ] **A-1 (C1) Split the definer owner + policies instead of bypass + a gate.** Owner: «думаю надо делать
       все 1+2+3». Corrected facts: 46 anon-reachable definers, of which only **17** are owned by the
       BYPASSRLS `app_owner`; 28 belong to the DB owner (no BYPASSRLS, 162/209 tables are FORCE RLS); 2 with
@@ -199,6 +207,14 @@ cancelled or superseded work and is excluded from both totals. Detail and eviden
 
 ## B. Security — host, secrets, database access
 
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
+
 - [ ] **B-1 (A1) Split OS identities.** Owner authorised configuring users on THIS box under deploy rights.
       Runtime account with no sudo and **no `docker` group** (docker membership is root by itself and
       survives any sudo trim); deploy stays separate; delete the dormant old deploy path. Also: create a
@@ -236,6 +252,14 @@ cancelled or superseded work and is excluded from both totals. Detail and eviden
 - [ ] **B-4 (B2) Key ids so signing keys can rotate** without a forced global logout.
 
 ## C. Authentication
+
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
 
 - [x] **C-1 (D1) Session revocation** — `12e263e63` was superseded, not finished; the replacement is
       proven. Owner confirmed: idle 12 h staff / 30 d patient, absolute ceiling 7 d / 90 d. An independent
@@ -351,6 +375,14 @@ cancelled or superseded work and is excluded from both totals. Detail and eviden
 
 ## D. Notifications
 
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
+
 - [ ] **D-1 (D5) Routing by role + an owner-facing matrix**: per notification/error type choose push /
       e-mail / SMS. SMS is mechanism-only for now. Operational alerts get their own channel (the July
       SMTP-quota outage went unnoticed for a day because alerts shared a channel).
@@ -427,6 +459,14 @@ cancelled or superseded work and is excluded from both totals. Detail and eviden
 
 ## E. Messengers
 
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
+
 - [-] ~~**E-1 — CANCELLED 2026-07-26 by the owner. Nothing is cut; both stay, switchable.**~~ — ⛔
       **ОТМЕНЕНО ВЛАДЕЛЬЦЕМ 26.07:** «тг мы не вырезаем тогда, оставляем просто отключаемым в настройках».
       Owner, verbatim: «тг мы не вырезаем тогда, оставляем просто отключаемым в настройках» — and earlier,
@@ -456,6 +496,14 @@ cancelled or superseded work and is excluded from both totals. Detail and eviden
 - [ ] **E-3** Pre-production: message the messenger-only accounts while the bots still work.
 
 ## F. Product / UI
+
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
 
 - [x] **F-1 (#1002) Dropdowns show the KEY instead of the label** — closed at the root, not patched.
       `9caef151e` fixed it once in the shared primitive: `select.tsx`'s wrapper now auto-collects labels
@@ -737,6 +785,14 @@ cancelled or superseded work and is excluded from both totals. Detail and eviden
 - [x] Pre-production list opened — `docs/_TODO/PRE_PRODUCTION_TODO.md`.
 
 ## H. Разблокировано ответами владельца 26.07 — это РАБОТА, а не вопросы
+
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
 
 Владелец закрыл висевшие развилки. Каждая строка ниже — задача к исполнению; вопрос по ней **закрыт**,
 повторно не поднимать. Правила целиком: [`OWNER_PRODUCT_RULES.md`](../ARCHITECTURE/OWNER_PRODUCT_RULES.md).

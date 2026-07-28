@@ -37,6 +37,14 @@
 
 ## 0. FINAL RESULT (fixed definition of done)
 
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
+
 **R1 — TEST product parity and multi-org readiness.** On TEST, create as many organizations and test clients as are
 needed; exercise every role, clinic admin capability, settings flow, and the doctor/client routes. Product smoke
 must detect 401/403/5xx, empty-result regressions, Server Action errors, and new application errors; a health
@@ -91,6 +99,14 @@ clinic's data to another.
 ---
 
 ## 1. HISTORICAL STATE SNAPSHOT (2026-07-13; not a phase-status source)
+
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
 
 This section preserves the technical observations that shaped the original phases. It is not a current-status
 ledger: code, checker exit codes, committed artifacts, and admissible TEST evidence are reconciled in the
@@ -176,6 +192,14 @@ reality-derived table at `SAAS_ENFORCE_ROADMAP.md:709-729`. In particular, do no
 ---
 
 ## 2. PHASES (each is one focused agent pass)
+
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
 
 Tiers: **mini** = Sonnet/mechanical bounded change; **daily** = gpt-5.5 implementation/diagnosis; **deep** =
 gpt-5.6-sol only for security architecture. Each phase is audited independently by a different agent/model. No
@@ -670,6 +694,14 @@ No G2 exit exists on the current path. No action after G1 is specified here.
 
 ## 3. Execution rules
 
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
+
 - One active phase above is one focused pass. D3/D4 must be subdivided by the orchestrator if the discovered failure
   set cannot be fixed and verified honestly in one pass; never collapse C1-C4 into a mega-pass. F1/F2/G2 are
   explicitly not required on the current path.
@@ -683,6 +715,14 @@ No G2 exit exists on the current path. No action after G1 is specified here.
 - `accepted` is owner-only. No commit/push is implied by this roadmap-hardening pass.
 
 ## 4. Resolved architecture decision and remaining owner decisions
+
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
 
 Resolved for implementation: **dual NOBYPASSRLS login roles + dual pools selected by principal before checkout**.
 This is the smallest topology consistent with both `SET ROLE app_staff` and bootstrap `app.is_staff()=false` after

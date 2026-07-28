@@ -33,6 +33,14 @@ contents, branding UX, and product polish come after, on top of these mechanisms
 - [x] 3 R2-readiness holes closed (#645–#650), CI green, on `feat`, C1 NOT NULL verified on dev.
 
 ## M1 — R2 isolation code-complete & provable on scratch (Trek B) — 🔄 IN PROGRESS
+
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
 **DoD:** full isolation provable on a scratch DB under `NOBYPASSRLS` + `FORCE RLS`: org wall denies
 cross-org; patient wall denies cross-patient (webapp uuid + integrator bigint, incl. chain-only tables);
 staff (`actor='staff'`) sees all-org (variant A); unset context fails closed. Regression gate + full CI
@@ -180,6 +188,14 @@ green. Everything merged to `feat` and pushed. **No flip** (that's M2, owner-gat
 > I produce: the exact runbook + rollback + shadow-run results. Owner pushes the buttons.
 
 ## M3 — R3 tenant self-service (MVP-critical) — ⏳ NEXT after M1
+
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
 **DoD:** a solo specialist self-registers → gets own isolated org → own working space, **no manual SQL**.
 - [ ] **Admin/doctor account separation** (backend seam): distinct principals/roles, no entangled account.
 - [ ] **Org self-provisioning service**: create org + seed first member + defaults, programmatically.
@@ -190,9 +206,25 @@ green. Everything merged to `feat` and pushed. **No flip** (that's M2, owner-gat
 - [ ] **Seam: branding-as-config** (org name/logo as config, not hardcode), default = platform brand.
 
 ## M4 — R4 patient cabinets + multi-org — later
+
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
 - [ ] One global login + per-clinic enrollments; patient switches org; strictly own data everywhere.
 
 ## M5 — R5 commercialization — later (heavy owner vision)
+
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
 - [ ] Tariff grid, payments, entitlement gating (catalogs/content/schedule/booking/analytics), quotas
       (users/exercises), billing lifecycle, custom domains + premium branding.
 

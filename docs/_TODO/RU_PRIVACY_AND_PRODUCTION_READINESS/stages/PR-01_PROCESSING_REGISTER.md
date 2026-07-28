@@ -21,6 +21,14 @@ gates остаются открыты. Это не правовое
 
 ## Зависимости и remaining work
 
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
+
 `PR-00` принят владельцем. Юрист/ответственный по ПДн должен быть назначен через `O-01`; это register не
 подменяет ни назначение, ни external legal review.
 
@@ -114,6 +122,14 @@ review; values must not be copied into this register.
 | `PR01-34` consent and retention inputs | Legal reviewer turns health-data rows into approved basis/consent requirements and a matrix `data class → purpose → canonical source → secondary copies → retention/exception → cleanup owner`; no period is invented from implementation defaults. | `docs/_TODO/RU_PRIVACY_AND_PRODUCTION_READINESS/stages/PR-02_HEALTH_CONSENT.md` and `docs/_TODO/RU_PRIVACY_AND_PRODUCTION_READINESS/stages/PR-03_DATA_RIGHTS_AND_RETENTION.md`; approved legal text/matrix and provenance. | legal + domain owners | `owner_or_legal_gate` |
 
 ## Checks and exit
+
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
 
 - [x] Every factual row has source path(s), accountable owner/decision owner and one PR-00 taxonomy status. (✓ verified across PR01-01..PR01-34 tables in-doc)
 - [x] Repository evidence is separated from legal conclusions and unconfirmed runtime/provider facts. (✓ each row splits engineering fact vs owner/legal gate)
