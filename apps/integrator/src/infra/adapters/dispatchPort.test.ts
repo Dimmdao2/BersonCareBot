@@ -161,6 +161,36 @@ describe('createDefaultDispatchPort', () => {
     );
   });
 
+  it('keeps the successful provider result when both audit persistence and structured logging fail', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    vi.spyOn(logger, 'error').mockImplementation(() => {
+      throw new Error('logger unavailable');
+    });
+    sendPrimaryMock.mockResolvedValueOnce({ providerMessageId: 'sent-logger-down' });
+    const writeDb = vi.fn().mockRejectedValueOnce(new Error('audit unavailable'));
+    const dispatchPort = createDefaultDispatchPort({ adapters: buildAdapters(), writePort: { writeDb } });
+    const intent: OutgoingIntent = {
+      type: 'message.send',
+      meta: { eventId: 'evt-audit-and-log-fail', occurredAt: '2026-03-03T00:00:00.000Z', source: 'adapter' },
+      payload: {
+        recipient: { chatId: 1 },
+        message: { text: 'hi' },
+        delivery: { channels: [channelPrimary], maxAttempts: 1 },
+      },
+    };
+
+    await expect(dispatchPort.dispatchOutgoing(intent)).resolves.toEqual({
+      providerMessageId: 'sent-logger-down',
+    });
+    expect(consoleError).toHaveBeenCalledWith(
+      'Delivery succeeded but its attempt audit could not be persisted',
+      expect.objectContaining({
+        code: 'DELIVERY_ATTEMPT_AUDIT_PERSIST_FAILED',
+        deliveryAttemptAuditPersistFailureCount: 1,
+      }),
+    );
+  });
+
   it('does not fallback after primary failure', async () => {
     const providerError = new Error('adapter down with recipient +79990001122');
     sendPrimaryMock.mockRejectedValueOnce(providerError);

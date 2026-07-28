@@ -315,9 +315,32 @@ BEGIN
   EXCEPTION WHEN insufficient_privilege THEN
     NULL;
   END;
+  BEGIN
+    PERFORM app.record_global_email_delivery_attempt(
+      'not-message-send',
+      'smoke:invalid-global-email',
+      NULL,
+      'email',
+      'success',
+      1,
+      NULL,
+      '{"kind":"smoke"}'::jsonb,
+      statement_timestamp()
+    );
+    RAISE EXCEPTION 'smtp_runtime_delivery_audit_broad_intent_unexpectedly_succeeded';
+  EXCEPTION WHEN check_violation THEN
+    NULL;
+  END;
 END
 $denials$;
 RESET SESSION AUTHORIZATION;
+SELECT 1 / EXISTS (
+  SELECT 1
+  FROM integrator.delivery_attempt_logs
+  WHERE intent_event_id = 'smoke:global-email'
+    AND channel = 'email'
+    AND status = 'success'
+)::int;
 `;
 
 try {

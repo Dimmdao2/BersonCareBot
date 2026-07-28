@@ -104,19 +104,34 @@ function reportDeliveryAttemptAuditPersistFailure(
   status: 'success' | 'failed',
 ): void {
   deliveryAttemptAuditPersistFailureCount += 1;
-  logger.error(
-    {
-      auditError,
-      code: DELIVERY_ATTEMPT_AUDIT_PERSIST_FAILED,
-      deliveryAttemptAuditPersistFailureCount,
-      channel,
-      status,
-      intentType: intent.type,
-    },
-    status === 'success'
-      ? 'Delivery succeeded but its attempt audit could not be persisted'
-      : 'Delivery provider failed and its attempt audit could not be persisted',
-  );
+  const fields = {
+    auditError,
+    code: DELIVERY_ATTEMPT_AUDIT_PERSIST_FAILED,
+    deliveryAttemptAuditPersistFailureCount,
+    channel,
+    status,
+    intentType: intent.type,
+  };
+  const message = status === 'success'
+    ? 'Delivery succeeded but its attempt audit could not be persisted'
+    : 'Delivery provider failed and its attempt audit could not be persisted';
+  try {
+    logger.error(fields, message);
+  } catch {
+    // Delivery remains authoritative even if the structured logger transport is degraded.
+    // The fallback deliberately excludes the original error and intent payload.
+    try {
+      console.error(message, {
+        code: DELIVERY_ATTEMPT_AUDIT_PERSIST_FAILED,
+        deliveryAttemptAuditPersistFailureCount,
+        channel,
+        status,
+        intentType: intent.type,
+      });
+    } catch {
+      /* observability failure must never replace the provider outcome */
+    }
+  }
 }
 
 /** @internal Test-only reset for the process-local observability counter. */
