@@ -409,7 +409,8 @@ describe("AuthFlowV2 — browser", () => {
     );
 
     const slugInput = await screen.findByLabelText("Публичный адрес");
-    await user.type(slugInput, "clinic-before-cutover");
+    await user.type(slugInput, "Clinic-Before-Cutover");
+    expect(slugInput).toHaveValue("clinic-before-cutover");
     const codeInput = screen.getByLabelText("Код подтверждения");
     await user.type(codeInput, "123456");
     await user.click(screen.getByRole("button", { name: "Продолжить" }));
@@ -983,6 +984,27 @@ describe("AuthFlowV2 — browser", () => {
     await user.click(screen.getByRole("button", { name: "Продолжить" }));
 
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/app/doctor"));
+  });
+
+  it("lowercases the specialist signup public address on every keystroke", async () => {
+    const user = userEvent.setup();
+    render(
+      <AuthFlowV2
+        nextParam={null}
+        prefetchedAuthConfig={{
+          oauthProviders: { yandex: false, google: false, apple: false },
+          telegramBotUsername: null,
+          maxBotOpenUrl: null,
+          specialistSignupEnabled: true,
+          fetchedAt: Date.now(),
+        }}
+      />,
+    );
+
+    await user.click(await screen.findByRole("button", { name: "Я специалист" }));
+    const slug = screen.getByLabelText("Публичный адрес");
+    await user.type(slug, "Clinic-Upper");
+    expect(slug).toHaveValue("clinic-upper");
   });
 
   it("shows distinct invalid and taken public-address feedback before signup submit", async () => {

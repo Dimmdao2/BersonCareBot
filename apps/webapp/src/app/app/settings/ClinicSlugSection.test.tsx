@@ -51,4 +51,18 @@ describe("clinicSlugErrorMessage", () => {
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Переименовать" })).toBeDisabled();
   });
+
+  it("lowercases the clinic slug while it is entered", async () => {
+    const user = userEvent.setup();
+    render(
+      <ClinicSlugSection
+        initialState={{ currentSlug: null }}
+        appBaseUrl="https://app.example"
+      />,
+    );
+
+    const slug = screen.getByLabelText("Slug клиники");
+    await user.type(slug, "Clinic-Upper");
+    expect(slug).toHaveValue("clinic-upper");
+  });
 });
