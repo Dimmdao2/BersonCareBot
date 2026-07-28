@@ -2,6 +2,7 @@ import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipa
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { ensureAuthModulePortsBound } from "@/app-layer/di/bindAuthModulePorts";
 import {
   AUTH_CHANNEL_DISABLED_ERROR,
   isAuthChannelEnabled,
@@ -33,6 +34,7 @@ function resetNeutralFailureResponse() {
 export async function POST(request: Request) {
   stampBootstrapPrincipal("api/auth/email-password/reset:POST", request);
 
+  ensureAuthModulePortsBound();
   const rateLimit = await checkAuthConfirmRateLimit(request, "email_password_reset");
   if (rateLimit.limited) {
     if (rateLimit.reason === "proxy_configuration") {

@@ -86,12 +86,12 @@ describe("DoctorSectionLayout", () => {
     });
   });
 
-  it("routes a management-only owner to Settings", async () => {
+  it("keeps the safe first-run child reachable without constructing the clinical shell", async () => {
     mocks.requireOrganizationWorkspaceContext.mockResolvedValue(workspace(false));
+    const firstRun = "first-run";
 
-    await expect(DoctorSectionLayout({ children: null })).rejects.toThrow(
-      "redirect:/app/settings?tab=organization",
-    );
+    await expect(DoctorSectionLayout({ children: firstRun })).resolves.toBe(firstRun);
+    expect(mocks.redirect).not.toHaveBeenCalled();
     expect(mocks.getOrganization).not.toHaveBeenCalled();
   });
 

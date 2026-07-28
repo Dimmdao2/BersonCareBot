@@ -14,7 +14,6 @@ import { staffPwaLayoutMetadata } from "@/shared/lib/pwa/staffPwaLayoutMetadata"
 import { DoctorWorkspaceShell } from "@/shared/ui/doctor/shell/DoctorWorkspaceShell";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import type { DoctorWorkspaceContext } from "@/modules/doctor-workspace/types";
-import { routePaths } from "@/app-layer/routes/paths";
 
 export const metadata: Metadata = staffPwaLayoutMetadata;
 
@@ -47,7 +46,10 @@ export default async function DoctorSectionLayout({ children }: { children: Reac
   const workspaceAccess = await requireOrganizationWorkspaceContext();
   const session = workspaceAccess.session;
   if (!workspaceAccess.canAccessClinicalWorkspace) {
-    redirect(`${routePaths.settings}?tab=organization`);
+    // The root page is the safe first-run shell for a self-signup owner. Clinical child pages
+    // still call requireDoctorWorkspaceContext and redirect to the security checklist before
+    // loading domain data; the parent layout must not hide the root onboarding page first.
+    return children;
   }
   const deps = buildAppDeps();
   const [organization, doctorSettings, effectiveBranding] = await Promise.all([

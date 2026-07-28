@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { logger } from "@/app-layer/logging/logger";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { ensureAuthModulePortsBound } from "@/app-layer/di/bindAuthModulePorts";
 import { routePaths } from "@/app-layer/routes/paths";
 import {
   AUTH_CONFIRM_RATE_LIMIT_SEC,
@@ -25,6 +26,7 @@ const bodySchema = z.object({
  * Финальное удаление всех дневниковых данных после OTP.
  */
 export async function POST(request: Request) {
+  ensureAuthModulePortsBound();
   const rateLimit = await checkAuthConfirmRateLimit(request, "patient_diary_purge");
   if (rateLimit.limited) {
     if (rateLimit.reason === "proxy_configuration") {

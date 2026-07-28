@@ -23,6 +23,9 @@ vi.mock("@/modules/auth/authRateLimits", () => ({
   isAuthConfirmRateLimitedByKey: (...args: unknown[]) =>
     isAuthConfirmRateLimitedByKeyMock(...args),
 }));
+vi.mock("@/app-layer/di/bindAuthModulePorts", () => ({
+  ensureAuthModulePortsBound: vi.fn(),
+}));
 vi.mock("@/app-layer/guards/requireRole", () => ({
   requireStaffSecurityApiSession: () => requireStaffSecurityApiSessionMock(),
 }));

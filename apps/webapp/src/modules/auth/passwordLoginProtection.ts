@@ -22,7 +22,12 @@ export type PasswordFailureState = {
 
 export type PasswordVerificationResult =
   | { ok: true; userId: string; emailVerified: boolean }
-  | ({ ok: false; accountUserId?: string } & PasswordFailureState);
+  | ({
+      ok: false;
+      accountUserId?: string;
+      /** True only when this request actually performed a password proof and recorded its identifier failure. */
+      passwordChecked: boolean;
+    } & PasswordFailureState);
 
 function isUnboundPortError(error: unknown): boolean {
   return error instanceof Error && error.message.startsWith("AuthRateLimitDbPort is not bound.");

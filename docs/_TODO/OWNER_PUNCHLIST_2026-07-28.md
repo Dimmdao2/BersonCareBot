@@ -212,8 +212,10 @@ locked_until` + `app.record_failed_staff_factor_attempt()` (5 попыток →
 
 - [x] **3.1** Немедленно: per-IP лимит на `/api/auth/email-password/login` тем же чокпоинтом, что у соседей  ✅ 46214b7df — лимит по IP тем же чокпоинтом, что у соседних ручек
       (`checkAuthConfirmRateLimit`). Доказательство: тест 429/`rate_limited` по образцу `login/factor`.
-      Коррекция аудита: `login/route.ts:34-35` bind-ит auth DB-port до первого вызова chokepoint; тест
-      `login/route.test.ts` проверяет порядок bind → limiter. Targeted Vitest — 28.07 PASS.
+      Коррекция второго аудита: все 12 route-входов в общий chokepoint вызывают
+      `ensureAuthModulePortsBound()` до limiter (`email-otp/confirm/route.ts:37-38`, тот же порядок в остальных
+      call sites); `email-otp/confirm/route.test.ts` и `login/route.test.ts` проверяют bind → limiter.
+      Доказательство: targeted Vitest 28.07 — PASS; shell-проверка всех call sites — 12/12 `OK`.
 - [ ] **3.4 Капча — ВЫБРАНА ALTCHA** (сравнение 28.07 по 11 критериям владельца, первоисточники в карточке).
       **Показывать не всем, а после неудач / по риску.** Внешние сервисы (reCAPTCHA, hCaptcha) исключены нашим
       же правилом §31 — данные посетителя не покидают страну.
@@ -237,11 +239,13 @@ locked_until` + `app.record_failed_staff_factor_attempt()` (5 попыток →
 - [x] **3.3** Счётчик неудач на аккаунт + временная блокировка в `pgUserPasswordCredentials.ts`, применённый к  ✅ 46214b7df — задержки 30/60/120/240/480 с 5-й, замок 15 мин на 10-й, снимается сам; ~~неразличимость существующего и несуществующего адреса включая время ответа~~ (аудит 28.07: runtime timing не измерялся)
       ОБОИМ путям (вход и смена пароля). Доказательство: тест «блокировка после N неудач», «снимается по
       истечении окна», «верный пароль во время блокировки тоже отклоняется».
-      Коррекция аудита: `pgUserPasswordCredentials.ts:123-140` проверяет account-keyed bucket до Argon2 и
-      использует тот же путь для decoy principal; account lock переживает смену email и применяется обоим
-      password-путям. `pgUserPasswordCredentialsBruteforce.test.ts` доказывает отказ верному паролю во время
-      lock, `passwordLoginProtection.test.ts` — self-clear. Targeted Vitest — 28.07 PASS. Формулировка о полной
-      timing-неразличимости снята из `auth.md`: без runtime-замера доказаны только одинаковые ответ/backoff/Argon2.
+      Коррекция второго аудита: `pgUserPasswordCredentials.ts:124-153` отличает уже активный lock
+      (`passwordChecked=false`) от фактической неудачной проверки; `login/route.ts:77-79` и
+      `passwordChange.ts:55-63` записывают account failure только во втором случае. Поэтому запрос на 14-й минуте
+      не сдвигает окно и lock self-clear остаётся через 15 минут. Доказательство:
+      `pgUserPasswordCredentialsBruteforce.test.ts`, `login/route.test.ts`, `passwordChange.test.ts`,
+      `passwordLoginProtection.test.ts`; targeted Vitest 28.07 — PASS. Полная timing-неразличимость по-прежнему
+      не заявляется без runtime-замера.
 - [ ] **3.4** Внести находку в `FINDINGS_AND_OPTIONS.md` под #1001 (D2 рядом, но это другая находка).
 
 **Риск:** identity/auth → полный многораундовый адверсарный цикл, потолок 2 correction-раунда.
@@ -335,10 +339,11 @@ todo). Новую не заводить — эти две описывают р�
       его решение** (сейчас это рекомендация планировщика, не его ruling) — и тогда отдельный мастер не строим.
 - [ ] **5.5** 2FA остаётся обязательной, но как пункт первого запуска ПОСЛЕ входа в кабинет, а не до него.
       Доказательство: чек-лист первого запуска виден, кабинет при этом доступен.
-      Коррекция аудита (код + targeted tests PASS 28.07): `/app/doctor` остаётся доступной безопасной first-run
-      оболочкой (`app/app/doctor/page.tsx:81-100`), но до TOTP `requireRole.ts:368-390` не выдаёт
-      `clinical.workspace`, клинические API отвечают 403, а клинические страницы ведут на security checklist.
-      Пункт остаётся открыт до требуемой живой проверки/скрина на TEST.
+      Коррекция второго аудита: родительский `doctor/layout.tsx:46-52` больше не перехватывает pending owner
+      redirect-ом и пропускает безопасную root-оболочку `doctor/page.tsx:81-100`; клинические страницы сохраняют
+      `requireDoctorWorkspaceContext`, а API — 403 через `requireDoctorWorkspaceApiContext`.
+      Доказательство: `layout.test.tsx` + `requireRole.doctorWorkspaceContext.test.ts`, targeted Vitest 28.07 —
+      PASS. Пункт остаётся открыт до требуемой живой проверки/скрина на TEST.
 
 **Риск:** identity/auth (меняется порядок 2FA) → полный адверсарный аудит. Это **ревизия уже сданной работы
 U3S (#919)**, а не свежий скоуп — помечать так в коммите.

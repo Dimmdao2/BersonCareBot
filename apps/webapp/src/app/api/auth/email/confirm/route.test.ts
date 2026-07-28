@@ -6,6 +6,10 @@ const getCurrentDbPrincipalOrganizationIdMock = vi.fn();
 const isAuthChannelEnabledMock = vi.hoisted(() => vi.fn());
 const checkAuthConfirmRateLimitMock = vi.hoisted(() => vi.fn());
 
+vi.mock("@/app-layer/di/bindAuthModulePorts", () => ({
+  ensureAuthModulePortsBound: vi.fn(),
+}));
+
 vi.mock("@/modules/auth/authChannelPolicy", () => ({
   AUTH_CHANNEL_DISABLED_ERROR: "auth_channel_disabled",
   isAuthChannelEnabled: (...args: unknown[]) => isAuthChannelEnabledMock(...args),

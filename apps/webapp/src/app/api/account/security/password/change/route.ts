@@ -2,6 +2,7 @@ import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipa
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { ensureAuthModulePortsBound } from "@/app-layer/di/bindAuthModulePorts";
 import { requireStaffSecurityApiSession } from "@/app-layer/guards/requireRole";
 import { logger } from "@/app-layer/logging/logger";
 import {
@@ -25,6 +26,7 @@ export async function POST(request: Request) {
 
   // Authenticate before consuming the shared confirm budget so anonymous callers cannot exhaust it;
   // authenticated password guesses remain rate-limited below.
+  ensureAuthModulePortsBound();
   const rateLimit = await checkAuthConfirmRateLimit(request, "account_password_change");
   if (rateLimit.limited) {
     if (rateLimit.reason === "proxy_configuration") {

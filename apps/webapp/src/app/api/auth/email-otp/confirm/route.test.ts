@@ -7,6 +7,11 @@ const findByUserIdMock = vi.fn();
 const isVerifiedEmailGlobalAdminAsyncMock = vi.fn();
 const isAuthChannelEnabledMock = vi.hoisted(() => vi.fn());
 const checkAuthConfirmRateLimitMock = vi.hoisted(() => vi.fn());
+const ensureAuthModulePortsBoundMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@/app-layer/di/bindAuthModulePorts", () => ({
+  ensureAuthModulePortsBound: () => ensureAuthModulePortsBoundMock(),
+}));
 
 vi.mock("@/modules/auth/authChannelPolicy", () => ({
   AUTH_CHANNEL_DISABLED_ERROR: "auth_channel_disabled",
@@ -64,6 +69,7 @@ describe("POST /api/auth/email-otp/confirm", () => {
     isAuthChannelEnabledMock.mockResolvedValue(true);
     checkAuthConfirmRateLimitMock.mockReset();
     checkAuthConfirmRateLimitMock.mockResolvedValue({ limited: false });
+    ensureAuthModulePortsBoundMock.mockReset();
 
     findByUserIdMock.mockResolvedValue(testUser);
     confirmPublicEmailOtpChallengeMock.mockResolvedValue({
@@ -89,6 +95,10 @@ describe("POST /api/auth/email-otp/confirm", () => {
     expect(data.retryAfterSeconds).toBe(600);
     expect(confirmPublicEmailOtpChallengeMock).not.toHaveBeenCalled();
     expect(setSessionFromUserMock).not.toHaveBeenCalled();
+    expect(ensureAuthModulePortsBoundMock).toHaveBeenCalledOnce();
+    expect(ensureAuthModulePortsBoundMock.mock.invocationCallOrder[0]).toBeLessThan(
+      checkAuthConfirmRateLimitMock.mock.invocationCallOrder[0]!,
+    );
   });
 
   it("returns 503 proxy_configuration when the per-IP key cannot be resolved", async () => {

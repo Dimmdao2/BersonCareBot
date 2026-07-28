@@ -131,6 +131,7 @@ export function createPgUserPasswordCredentialsPort(): UserPasswordCredentialsPo
       return {
         ok: false,
         ...(row ? { accountUserId: row.user_id } : {}),
+        passwordChecked: false,
         ...activeLock,
       };
     }
@@ -148,6 +149,7 @@ export function createPgUserPasswordCredentialsPort(): UserPasswordCredentialsPo
     return {
       ok: false,
       ...(row ? { accountUserId: row.user_id } : {}),
+      passwordChecked: true,
       ...failure,
     };
   }
@@ -268,10 +270,10 @@ export const inMemoryUserPasswordCredentialsPort: UserPasswordCredentialsPort = 
     return { ok: false };
   },
   async tryVerifyLogin() {
-    return { ok: false, attempts: 1, delaySeconds: 0, locked: false };
+    return { ok: false, passwordChecked: true, attempts: 1, delaySeconds: 0, locked: false };
   },
   async verifyEmailPasswordForLogin() {
-    return { ok: false, attempts: 1, delaySeconds: 0, locked: false };
+    return { ok: false, passwordChecked: true, attempts: 1, delaySeconds: 0, locked: false };
   },
   async recordFailedPasswordAttempt() {},
   async resetFailedPasswordAttempts() {},

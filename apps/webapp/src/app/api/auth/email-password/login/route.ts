@@ -74,7 +74,9 @@ export async function POST(request: Request) {
       failurePrincipalId,
       "api/auth/email-password/login:primary-failed",
     );
-    await deps.userPasswordCredentials.recordFailedPasswordAttempt(failurePrincipalId);
+    if (pwd.passwordChecked) {
+      await deps.userPasswordCredentials.recordFailedPasswordAttempt(failurePrincipalId);
+    }
     await waitForPasswordFailureDelay(pwd.delaySeconds);
     if (pwd.locked) {
       const retryAfterSeconds = pwd.retryAfterSeconds ?? PASSWORD_LOCK_SECONDS;

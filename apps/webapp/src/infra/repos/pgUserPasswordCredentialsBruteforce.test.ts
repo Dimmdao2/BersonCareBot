@@ -49,6 +49,7 @@ describe("pg user password credential brute-force behavior", () => {
       ),
     ).resolves.toEqual({
       ok: false,
+      passwordChecked: true,
       attempts: 5,
       delaySeconds: 30,
       locked: false,
@@ -85,6 +86,7 @@ describe("pg user password credential brute-force behavior", () => {
     ).resolves.toEqual({
       ok: false,
       accountUserId: "11111111-1111-4111-8111-111111111111",
+      passwordChecked: false,
       attempts: 10,
       delaySeconds: 0,
       locked: true,
@@ -112,6 +114,7 @@ describe("pg user password credential brute-force behavior", () => {
     expect(result).toEqual({
       ok: false,
       accountUserId: "11111111-1111-4111-8111-111111111111",
+      passwordChecked: true,
       attempts: 5,
       delaySeconds: 30,
       locked: false,
