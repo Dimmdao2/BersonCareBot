@@ -1476,7 +1476,13 @@ SELECT has_column_privilege('app_owner', 'public.operator_incidents', 'alert_sen
   # откатываемой транзакции: базовые 106 + 0267 (узкий accessor имени сотрудника для панели аккаунтов)
   # + 0268 (capability записи следа доставки) - 0269 (снята reserve_specialist_signup_slug вместе с бронью
   # слага) = 107. Два параллельных потока считали независимо и каждый получил своё число; итог сверен лидом.
-  local expected_secdef_count=107
+  # 107 -> 109 (2026-07-28, §10.2 первая обеспеченная квота): миграция 0270 добавляет ДВЕ функции,
+  # принадлежащие app_owner — `app.cms_pages_snapshot_usage` (авторитетный пересчёт для витрины) и
+  # `app.enforce_cms_pages_snapshot_quota` (триггер BEFORE INSERT с advisory-локом). Обе явно
+  # `ALTER FUNCTION ... OWNER TO app_owner` (0270:22 и 0270:106), поэтому попадают под этот гейт.
+  # Воркер квот этот счётчик не обновил — поймано лидом до выката; без правки деплой упал бы FATAL
+  # посреди закрытия, как 24.07.
+  local expected_secdef_count=109
   local actual_secdef_count
   actual_secdef_count="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
 SELECT count(*) FROM pg_proc p WHERE pg_get_userbyid(p.proowner) = 'app_owner' AND p.prosecdef;

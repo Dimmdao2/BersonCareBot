@@ -46,9 +46,10 @@ describe("0260 outgoing delivery scope text identifier fix", () => {
     expect(migration).toContain(
       "GRANT EXECUTE ON FUNCTION app.resolve_outgoing_delivery_scope(uuid) TO app_operational_delivery_worker;",
     );
-    // 106 -> 107: 0267 adds the staff-name directory accessor, 0268 adds the delivery-audit
+    // 107 -> 109: 0270 (§10.2) adds two app_owner SECURITY DEFINER functions — the CMS-page usage
+    // recount and its BEFORE INSERT quota trigger. Earlier: 106 -> 107, 0267 staff-name accessor, 0268 delivery-audit
     // writer, and 0269 removes the superseded signup-slug reservation function.
-    expect(readFileSync(deployHostPath, "utf8")).toContain("local expected_secdef_count=107");
+    expect(readFileSync(deployHostPath, "utf8")).toContain("local expected_secdef_count=109");
   });
 
   it("keeps the UUID-to-UUID operator and broadcast branches unchanged", () => {
@@ -66,9 +67,12 @@ describe("0260 outgoing delivery scope text identifier fix", () => {
     const journal = JSON.parse(readFileSync(journalPath, "utf8")) as {
       entries: Array<Record<string, unknown>>;
     };
-    // Nine -> ten exact tail entries: 0268 adds the delivery-audit migration. Closing the unused
-    // 0267 reservation moves the former 0268/0269/0270 entries to 0267/0268/0269 without a gap.
-    expect(journal.entries.slice(-10)).toEqual([
+    // This test owns migration 0260 — so it pins 0260 and the block that followed it BY POSITION,
+    // not by tail slice. A tail slice re-broke on every unrelated migration (0270 shifted it out of
+    // the window) and taught nothing about 0260. The invariant that matters here is that each entry
+    // sits at the array position equal to its own idx, which the separate journal-sync check enforces
+    // globally; here we assert the exact block this migration belongs to.
+    expect(journal.entries.slice(260, 270)).toEqual([
       {
         idx: 260,
         version: "7",
