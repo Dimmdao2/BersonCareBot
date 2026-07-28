@@ -128,6 +128,16 @@ function assertExceptionEvidence(table, exception) {
       fail(`${table} exception policy evidence is missing ${token} in ${exception.policyPath}`);
     }
   }
+  // Часть доказательства может жить во втором файле: политика, которой нужна роль, созданная позже
+  // миграции, объявляется в накладке рантайма. Проверяем и его — иначе исключение считалось бы
+  // доказанным по половине улик (28.07, §29: чтение биллинга ушло к отдельной роли админа клиники).
+  if (!exception.extraPolicyPath) return;
+  const extra = readFileSync(join(repoRoot, exception.extraPolicyPath), "utf8");
+  for (const token of exception.extraPolicyTokens ?? []) {
+    if (!extra.includes(token)) {
+      fail(`${table} exception policy evidence is missing ${token} in ${exception.extraPolicyPath}`);
+    }
+  }
 }
 
 export function readPublicOrgScopedTables() {

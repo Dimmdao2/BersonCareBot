@@ -10,17 +10,27 @@ export const postPhase4StrictPolicyExceptions = new Map([
   ].map((table) => [
     `public.${table}`,
     {
+      // Обновлено 28.07 вместе с §29 владельца («сужаем биллинг до отдельной роли админа клиники»).
+      // Чтение биллинга больше НЕ принадлежит обычному персоналу: политика `<table>_staff_select` удалена,
+      // вместо неё `<table>_clinic_billing_select` для выделенной роли. Она создаётся не в миграции, а в
+      // накладке рантайма C5A — там роль `app_clinic_billing` уже существует, а в момент миграции её ещё нет.
+      // Поэтому доказательство теперь в ДВУХ файлах: FORCE RLS и платформенные политики в миграции,
+      // клиниковая политика чтения и отзыв прав у персонала — в накладке.
       reason:
-        "Post-Phase-4 SaaS billing data is organization-owned, FORCE RLS, staff exact-org read-only, and globally mutable only through the platform principal.",
+        "Post-Phase-4 SaaS billing data is organization-owned, FORCE RLS, readable only by the dedicated app_clinic_billing role within its exact organization, and globally mutable only through the platform principal. Ambient app_staff has no billing privilege (owner rule §29).",
       policyPath: "apps/webapp/db/drizzle-migrations/0259_saas_billing_foundation.sql",
       policyTokens: [
         `ALTER TABLE public.${table} ENABLE ROW LEVEL SECURITY;`,
         `ALTER TABLE public.${table} FORCE ROW LEVEL SECURITY;`,
-        `CREATE POLICY ${table}_staff_select`,
-        "AND organization_id = app.current_org_id()",
         `CREATE POLICY ${table}_platform_select`,
         `CREATE POLICY ${table}_platform_insert`,
         `CREATE POLICY ${table}_platform_update`,
+      ],
+      extraPolicyPath: "deploy/postgres/c5a-platform-operations-runtime.sql",
+      extraPolicyTokens: [
+        "_clinic_billing_select",
+        "FOR SELECT TO app_clinic_billing USING (app.current_org_id() IS NOT NULL AND organization_id = app.current_org_id())",
+        "REVOKE ALL PRIVILEGES ON TABLE public.%I FROM app_staff",
       ],
     },
   ]),

@@ -64,7 +64,12 @@ function runChecks(overrides = {}) {
     "assertDbPrincipalRequestPoolCheckoutAllowed",
     "assertRoutedWebappPoolCheckoutAllowed",
     "choosePoolKindForPrincipal(principal, input.metrics) === \"staff\" ? input.staffPool : input.nonstaffPool",
-    "principal?.kind === \"organization\" || principal?.kind === \"staff\" || principal?.kind === \"platform\"",
+    // 28.07: список видов принципала, уходящих в персональный пул, расширен на `clinicBilling`
+    // (§29 владельца — биллинг клиники сузили до отдельной роли). Это НЕ форматирование, а смена
+    // смысла, поэтому эталон обновлён осознанно: биллинг клиники обязан ходить через персональный
+    // пул, иначе `SET ROLE app_clinic_billing` некуда применить и оба пути к биллингу падают —
+    // ровно тот блокер релиза, который держал выкатку.
+    "principal?.kind === \"organization\" ||\n    principal?.kind === \"staff\" ||\n    principal?.kind === \"clinicBilling\" ||\n    principal?.kind === \"platform\"",
     "getWebappPoolRoutingMetrics",
   ]);
   requireFragmentBefore(

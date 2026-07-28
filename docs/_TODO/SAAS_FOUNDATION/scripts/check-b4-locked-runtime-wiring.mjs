@@ -54,17 +54,26 @@ function fail(message) {
   throw new Error(message);
 }
 
+// Сравниваем без привязки к стилю кавычек: гейт проверяет НАЛИЧИЕ кода, а не его форматирование.
+// 28.07 он упал на файле, переформатированном с двойных кавычек на одинарные, — при том что
+// одинарные и есть конвенция репозитория (.prettierrc: singleQuote). То есть гейт закреплял
+// отклонение и ломался от `prettier -w`. Нормализуем обе стороны одинаково; строгость по существу
+// сохраняется — отсутствующий экспорт по-прежнему роняет проверку.
+const normalizeQuotes = (value) => value.replace(/'/g, '"');
+
 function requireFragments(label, text, fragments) {
+  const haystack = normalizeQuotes(text);
   for (const fragment of fragments) {
-    if (!text.includes(fragment)) {
+    if (!haystack.includes(normalizeQuotes(fragment))) {
       fail(`${label} missing required fragment: ${fragment}`);
     }
   }
 }
 
 function requireFragmentBefore(label, text, before, after) {
-  const beforeIndex = text.indexOf(before);
-  const afterIndex = text.indexOf(after);
+  const haystack = normalizeQuotes(text);
+  const beforeIndex = haystack.indexOf(normalizeQuotes(before));
+  const afterIndex = haystack.indexOf(normalizeQuotes(after));
   if (beforeIndex < 0) {
     fail(`${label} missing required fragment: ${before}`);
   }
