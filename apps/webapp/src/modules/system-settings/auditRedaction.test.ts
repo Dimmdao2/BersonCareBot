@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { isPasswordBearingSettingKey, redactSettingValueForAudit } from "./auditRedaction";
+import {
+  isPasswordBearingSettingKey,
+  isSecretValueSettingKey,
+  redactSettingValueForAudit,
+} from "./auditRedaction";
 
 describe("redactSettingValueForAudit", () => {
   it("removes the IMAP password from anything bound for the audit trail", () => {
@@ -30,5 +34,35 @@ describe("redactSettingValueForAudit", () => {
     const value = { value: { intervalMs: 600_000 } };
     expect(redactSettingValueForAudit("operator_health_probe_config", value)).toBe(value);
     expect(isPasswordBearingSettingKey("operator_health_probe_config")).toBe(false);
+  });
+});
+
+describe("scalar secret keys reach neither the log line nor the durable ledger", () => {
+  // Найдено независимым аудитом 28.07: маскировка понимала только конверт `{value:{password}}`,
+  // поэтому скалярный секрет проходил в `system_settings_audit` как есть. Список секретов при этом
+  // был продублирован в маршруте (закрывал лог) и отсутствовал у журнала — теперь он один.
+  const secretKeys = [
+    "max_bot_api_key",
+    "yandex_oauth_client_secret",
+    "vk_id_client_secret",
+    "google_client_secret",
+    "google_refresh_token",
+    "apple_oauth_private_key",
+    "smsc_api_key",
+  ];
+
+  it.each(secretKeys)("маскирует %s", (key) => {
+    expect(redactSettingValueForAudit(key, "s3cret-value")).toBe("[REDACTED]");
+    expect(isSecretValueSettingKey(key)).toBe(true);
+  });
+
+  it("пустое значение остаётся видимым — в журнале должно быть видно, что настройку очистили", () => {
+    expect(redactSettingValueForAudit("vk_id_client_secret", "")).toBe("");
+    expect(redactSettingValueForAudit("vk_id_client_secret", null)).toBeNull();
+  });
+
+  it("не трогает несекретные ключи", () => {
+    expect(isSecretValueSettingKey("operator_health_probe_config")).toBe(false);
+    expect(redactSettingValueForAudit("google_client_id", "public-id")).toBe("public-id");
   });
 });
