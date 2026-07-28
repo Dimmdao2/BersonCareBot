@@ -8,6 +8,23 @@ Anything added here needs: what, why it can only be done at cutover, and who/wha
 
 ---
 
+## 0. Consolidate the owner's own account — FIRST STEP OF THE SEQUENCE, OWNER-ORDERED
+
+**Owner, 2026-07-28:** «Смержим до конца и оставим одну каноническую запись. причем сделаем скриптом и теперь
+уже не потеряем его. **Впишем в последовательность миграции в самом начале - первым шагом**» + «и чисти пустышки».
+
+- Script: [`apps/webapp/scripts/consolidate-owner-identity.sql`](../../apps/webapp/scripts/consolidate-owner-identity.sql).
+  Runbook: [`docs/OPERATIONS/OWNER_IDENTITY_CONSOLIDATION.md`](../OPERATIONS/OWNER_IDENTITY_CONSOLIDATION.md).
+- Flat SQL with the ids written in, deliberately: the rows are identical on TEST and PROD (TEST is a prod dump),
+  they have not changed since spring, and this runs exactly once per database. The owner rejected a
+  catalog-driven generic tool for this reason — «НУЖЕН СКРИПТ БЕЗ УСЛОЖНЕНИЙ И ВЫЧИСЛЕНИЙ».
+- Why it belongs at cutover: it deletes duplicate rows of the owner's own identity. Nothing created after
+  spring is touched, and the live doctor row is the survivor — so it is safe to run early, and running it first
+  means every later step operates on one canonical account instead of five.
+- Survivor stays `role=doctor` + clinic owner. It must NOT become a global admin — standing owner constraint.
+- Applied on TEST 2026-07-28 (see runbook for the measured numbers). PROD: pending cutover.
+- Depends on: nothing.
+
 ## 1. Notify the messenger-only users before the bot is removed — OWNER-ORDERED
 
 **Owner, 2026-07-26:** «11 человек живут только внутри бота — ничего, перед выкаткой на деплой мы сделаем
