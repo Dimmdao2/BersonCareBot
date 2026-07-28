@@ -40,15 +40,30 @@ die() { echo "ОТКАЗ: $*" >&2; exit 1; }
 ROLE=$1 CLONE_NAME=$2 RUN_ID=$3 MODEL=$4 EFFORT=$5 BRIEF=$6 PLAN_SLICE=$7
 CLONE="/home/dev/dev-projects/bcb-wt-$CLONE_NAME"
 
+# Владелец 28.07: «запускай аудиторов не в песочнице — это двойная работа и тупо».
+# Причина, найденная в коде порта: роль `auditor` входит в READ_ONLY_ROLES
+# (governor/host-sandbox.mjs:13), поэтому аудитору ПРИНУДИТЕЛЬНО ставится read-only-джейл
+# независимо от того, что просит вызывающий. Джейл блокирует sudo, аудиторы не могли читать
+# живую базу и честно ставили UNPROVEN — а перепроверял потом лид руками, то есть работа
+# делалась дважды.
+#
+# Отсюда третья роль `auditor-live`: в порт уходит как worker (песочница пускает к базе), в
+# потолках считается аудитором, а бриф ей ЗАПРЕЩАЕТ менять файлы. Гарантия не в песочнице, а в
+# проверке после прогона: дерево клона обязано остаться чистым (напоминание печатается ниже).
+ROLE_FOR_PORT="$ROLE"
 case "$ROLE" in
-  worker)  SANDBOX=workspace-write ;;
-  auditor) SANDBOX=read-only ;;
-  *) die "роль должна быть worker или auditor, дано '$ROLE'" ;;
+  worker)       SANDBOX=workspace-write ;;
+  auditor)      SANDBOX=read-only ;;
+  auditor-live) SANDBOX=workspace-write; ROLE_FOR_PORT=worker ;;
+  *) die "роль должна быть worker, auditor или auditor-live, дано '$ROLE'" ;;
 esac
 
 # 1. Потолок агентов.
 LIVE_W=$(ps -eo args | grep '[a]gent-run\.mjs' | grep -c -- '--role worker' || true)
 LIVE_A=$(ps -eo args | grep '[a]gent-run\.mjs' | grep -c -- '--role auditor' || true)
+# auditor-live уходит в порт воркером, поэтому в счётчике воркеров он неотличим: считаем его
+# аудитором консервативно — иначе один и тот же процесс не попадёт ни в один потолок.
+[ "$ROLE" != auditor-live ] || LIVE_A=$((LIVE_A + LIVE_W))
 if [ "$ROLE" = worker ]; then
   [ "$LIVE_W" -lt "$MAX_WORKERS" ] || die "уже $LIVE_W воркеров, потолок $MAX_WORKERS (AGENTS.md §24). В очередь, не веером."
   LIVE=$LIVE_W; CAP=$MAX_WORKERS
@@ -92,6 +107,7 @@ echo "запуск: роль=$ROLE клон=$CLONE_NAME модель=$MODEL effo
 echo "  клон содержит feat ${HEAD_MAIN:0:9}, своих коммитов сверху: $AHEAD; агентов роли было $LIVE из $CAP; лог $LOG"
 [ -z "${ORCH_DRY:-}" ] || { echo "  ORCH_DRY=1 — все проверки пройдены, агент НЕ запущен"; exit 0; }
 nohup node "$PORT" --provider codex --model "$MODEL" --effort "$EFFORT" \
-  --role "$ROLE" --sandbox "$SANDBOX" --cwd "$CLONE" --run-id "$RUN_ID" \
+  --role "$ROLE_FOR_PORT" --sandbox "$SANDBOX" --cwd "$CLONE" --run-id "$RUN_ID" \
   < "$BRIEF" > "$LOG" 2>&1 &
 echo "  pid=$!"
+[ "$ROLE" != auditor-live ] || echo "  ⚠ auditor-live: после прогона проверить, что дерево клона осталось чистым"
