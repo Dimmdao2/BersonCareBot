@@ -949,11 +949,11 @@ compute_locked_smoke_scenario_ids(){
 # validates the three packet actors, and changes no other account. The doctor actor is the active clinic owner,
 # so the freshly minted doctor session intentionally covers both doctor and clinic_admin smoke profiles.
 #
-# Fail-soft by design: if the credentials packet is absent, this is a NO-OP and the deploy falls back to
-# whatever fixture is on disk, which then gets the usual staleness warning. A missing packet must not take
-# a deploy down — the packet lives outside the repo and a fresh host will not have one yet. If convergence
-# itself fails, do not attempt a knowingly divergent login; leave the fixture untouched and let the mandatory
-# product-smoke gate report red after TEST services have been released.
+# If the credentials packet is absent, this is a NO-OP and the deploy falls back to whatever fixture is on
+# disk, which then gets the usual staleness warning. A missing packet must not take a deploy down — the packet
+# lives outside the repo and a fresh host will not have one yet. Once the packet exists, however, convergence
+# and fresh minting are one fail-closed gate: neither failure may fall back to an older cookie fixture and
+# report green for credentials that the current deploy never proved.
 mint_smoke_sessions_if_possible(){
   local packet="${SAAS_SMOKE_LOGIN_PACKET:-/opt/env/bersoncarebot/saas-smoke-login.env}"
   local password_converger="$DEPLOY_REPO/apps/webapp/scripts/converge-saas-smoke-login-passwords.mjs"
@@ -964,18 +964,18 @@ mint_smoke_sessions_if_possible(){
     return 0
   fi
   if [ ! -r "$password_converger" ]; then
-    echo "   ⚠️  WARN: $password_converger not readable — skipping password convergence and session mint." >&2
-    return 0
+    echo "   ⚠️  FAIL [TEST]: $password_converger not readable while the smoke-login packet is present." >&2
+    return 1
   fi
   if [ ! -r "$minter" ]; then
-    echo "   note: $minter not readable — skipping session mint." >&2
-    return 0
+    echo "   ⚠️  FAIL [TEST]: $minter not readable while the smoke-login packet is present." >&2
+    return 1
   fi
   echo "   converging TEST service-account passwords to the protected smoke-login packet"
   if ! sudo env SAAS_SMOKE_PASSWORD_CONVERGENCE_TEST_ONLY=1 \
       node "$password_converger" --packet="$packet"; then
-    echo "   ⚠️  WARN: service-account password convergence failed — fixture left untouched; session mint skipped." >&2
-    return 0
+    echo "   ⚠️  FAIL [TEST]: service-account password convergence failed — refusing the older fixture." >&2
+    return 1
   fi
   echo "   service-account passwords converged to the packet (values were not printed)"
   echo "   minting fresh product-smoke sessions (packet present)"
@@ -986,15 +986,17 @@ mint_smoke_sessions_if_possible(){
       --out="$fixture"; then
     return 0
   fi
-  echo "   ⚠️  WARN: session mint failed — falling back to the fixture on disk; expect the staleness warning" >&2
-  echo "       and staff-scenario failures if it is older than the 12 h staff idle TTL." >&2
-  return 0
+  echo "   ⚠️  FAIL [TEST]: fresh session mint failed — refusing the older fixture." >&2
+  return 1
 }
 
 run_locked_product_smoke(){
   local fixture_path
   local local_smoke_failed=0
-  mint_smoke_sessions_if_possible
+  if ! mint_smoke_sessions_if_possible; then
+    echo "   ⚠️  FAIL [TEST]: packet-backed smoke login was not freshly proven; A2 stays RED." >&2
+    return 1
+  fi
   assert_locked_product_smoke_fixture_ready
   fixture_path="$LOCKED_PRODUCT_SMOKE_FIXTURE_CANONICAL"
   local smoke_dir

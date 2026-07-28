@@ -717,18 +717,23 @@ community-лицензия).
 **Карточка:** #998 (существующая, обновлена 28.07 — настоящий корень оказался глубже).
 
 - [x] **14.1** Ротация пароля служебного глобального админа и запись в пакет (значение нигде не печаталось).
-- [x] **14.2** Деплой сам назначает пароль перед проверкой — «устаревать» перестаёт быть возможным.
-      Доказательство: TEST-only convergence идёт до mint `deploy/host/deploy-test-saas.sh:957`;
-      exact DB/actor/Argon2id/idempotent update `apps/webapp/scripts/converge-saas-smoke-login-passwords.mjs:11`;
-      `node --test deploy/host/converge-saas-smoke-login-passwords.test.mjs`,
-      `pnpm run check:saas-product-smoke-contract`, `pnpm run check:saas-hard-migration-protocol`,
-      `bash -n deploy/host/deploy-test-saas.sh` — PASS.
-- [x] **14.3** Разблокировать вход служебного врача — упирается в #1072 (раздвоенный аккаунт).
+- [ ] **14.2** Деплой сам назначает пароль перед проверкой — «устаревать» перестаёт быть возможным.
+      Коррекция 28.07: при наличии пакета convergence и fresh mint fail-closed, старая cookie не продолжает gate
+      (`deploy/host/deploy-test-saas.sh:952-999`); Argon2id PHC проходит через фактический login repository
+      (`apps/webapp/src/infra/repos/pgUserPasswordCredentialsBruteforce.test.ts:166`).
+      `pnpm run check:saas-product-smoke-contract`, `bash -n deploy/host/deploy-test-saas.sh`,
+      `pnpm --dir apps/webapp exec vitest --run src/infra/repos/pgUserPasswordCredentialsBruteforce.test.ts`,
+      `pnpm --dir apps/webapp typecheck` — PASS. Пункт остаётся открыт до живого TEST deploy: кодовая проверка
+      не заменяет доказательство, что текущий пакет успешно прошёл convergence + fresh login на TEST.
+- [ ] **14.3** Разблокировать вход служебного врача — упирается в #1072 (раздвоенный аккаунт).
       Блокер снят §13.2: пакетных `SAAS_SMOKE_DOCTOR_*` достаточно для живой `role=doctor` учётки с active
       owner+specialist membership; одна сессия намеренно покрывает doctor+clinic_admin
-      `deploy/host/mint-smoke-session.mjs:173`. Runtime role-gate и upsert credentials:
-      `apps/webapp/scripts/converge-saas-smoke-login-passwords.mjs:129`;
-      `pnpm --dir packages/db-principal build && pnpm --dir apps/webapp typecheck` — PASS.
+      `deploy/host/mint-smoke-session.mjs:173`. Convergence теперь требует тот же инвариант, что runtime resolver:
+      ровно одну active membership, и она owner со specialist
+      (`apps/webapp/scripts/converge-saas-smoke-login-passwords.mjs:85-100,133-158`);
+      `pnpm run check:saas-product-smoke-contract`, `pnpm --dir apps/webapp typecheck` — PASS.
+      Пункт остаётся открыт до живого TEST-факта `active_memberships=1` и успешного fresh login одной сессией
+      в doctor + clinic_admin.
 
 ---
 

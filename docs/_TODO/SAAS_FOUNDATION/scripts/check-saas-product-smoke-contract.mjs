@@ -109,7 +109,9 @@ function runFixtureGateDocChecks(overrides = new Map()) {
     'node "$password_converger" --packet="$packet"',
     'service-account passwords converged to the packet (values were not printed)',
     'no smoke-login packet at $packet — skipping session mint, using the fixture as found.',
-    'service-account password convergence failed — fixture left untouched; session mint skipped.',
+    'service-account password convergence failed — refusing the older fixture.',
+    'fresh session mint failed — refusing the older fixture.',
+    'packet-backed smoke login was not freshly proven; A2 stays RED.',
   ]);
   const passwordConvergenceCall = deployTestSaas.indexOf(
     'node "$password_converger" --packet="$packet"',

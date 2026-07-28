@@ -90,9 +90,13 @@ export function assertSmokeLoginAccountFact(actor, fact) {
   if (fact.is_blocked === true) fail("account_blocked");
   if (
     spec.requiresClinicOwnerMembership &&
-    (Number(fact.owner_memberships) < 1 || Number(fact.owner_specialist_memberships) < 1)
+    (
+      Number(fact.active_memberships) !== 1 ||
+      Number(fact.owner_memberships) !== 1 ||
+      Number(fact.owner_specialist_memberships) !== 1
+    )
   ) {
-    fail("doctor_owner_membership_missing");
+    fail("doctor_membership_shape_mismatch");
   }
 }
 
@@ -133,6 +137,9 @@ async function findAccountFact(client, account) {
        users.role,
        (users.email_verified_at IS NOT NULL) AS email_verified,
        users.is_blocked,
+       count(*) FILTER (
+         WHERE memberships.status = 'active'
+       )::integer AS active_memberships,
        count(*) FILTER (
          WHERE memberships.role = 'owner'
            AND memberships.status = 'active'
@@ -299,6 +306,7 @@ async function selfTest() {
     role: "doctor",
     email_verified: true,
     is_blocked: false,
+    active_memberships: 1,
     owner_memberships: 1,
     owner_specialist_memberships: 1,
   });

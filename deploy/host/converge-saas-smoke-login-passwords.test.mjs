@@ -21,14 +21,24 @@ const packetText = [
   "",
 ].join("\n");
 
-test("uses the application's Argon2id password mechanism", async () => {
-  const applicationHashSource = await readFile(
-    new URL("../../apps/webapp/src/modules/auth/pinHash.ts", import.meta.url),
-    "utf8",
+test("uses the Argon2id PHC mechanism consumed by the actual password-login repository", async () => {
+  const [loginRouteSource, passwordRepositorySource] = await Promise.all([
+    readFile(
+      new URL("../../apps/webapp/src/app/api/auth/email-password/login/route.ts", import.meta.url),
+      "utf8",
+    ),
+    readFile(
+      new URL("../../apps/webapp/src/infra/repos/pgUserPasswordCredentials.ts", import.meta.url),
+      "utf8",
+    ),
+  ]);
+  assert.match(
+    loginRouteSource,
+    /deps\.userPasswordCredentials\.verifyEmailPasswordForLogin\(emailNorm, parsed\.data\.password\)/u,
   );
   assert.match(
-    applicationHashSource,
-    /argon2\.hash\(pin, \{ type: argon2\.argon2id \}\)/u,
+    passwordRepositorySource,
+    /argon2\.verify\(row\?\.password_hash \?\? DUMMY_PASSWORD_HASH, plainPassword\)/u,
   );
 
   const hash = await hashSmokeLoginPassword("same-mechanism-password");
@@ -47,6 +57,7 @@ test("derives exactly the three packet accounts and requires the doctor clinic-o
     role: "doctor",
     email_verified: true,
     is_blocked: false,
+    active_memberships: 1,
     owner_memberships: 1,
     owner_specialist_memberships: 1,
   });
@@ -56,10 +67,23 @@ test("derives exactly the three packet accounts and requires the doctor clinic-o
         role: "doctor",
         email_verified: true,
         is_blocked: false,
+        active_memberships: 0,
         owner_memberships: 0,
         owner_specialist_memberships: 0,
       }),
-    /doctor_owner_membership_missing/u,
+    /doctor_membership_shape_mismatch/u,
+  );
+  assert.throws(
+    () =>
+      assertSmokeLoginAccountFact("doctor", {
+        role: "doctor",
+        email_verified: true,
+        is_blocked: false,
+        active_memberships: 2,
+        owner_memberships: 1,
+        owner_specialist_memberships: 1,
+      }),
+    /doctor_membership_shape_mismatch/u,
   );
 });
 
@@ -82,7 +106,15 @@ test("pins TEST and converges before minting without password logging", async ()
   assert.match(deploySource, /if ! sudo test -r "\$packet"; then[\s\S]*?return 0/u);
   assert.match(
     deploySource,
-    /if ! sudo env SAAS_SMOKE_PASSWORD_CONVERGENCE_TEST_ONLY=1[\s\S]*?session mint skipped\.[\s\S]*?return 0/u,
+    /if ! sudo env SAAS_SMOKE_PASSWORD_CONVERGENCE_TEST_ONLY=1[\s\S]*?password convergence failed — refusing the older fixture\.[\s\S]*?return 1/u,
+  );
+  assert.match(
+    deploySource,
+    /fresh session mint failed — refusing the older fixture\.[\s\S]*?return 1/u,
+  );
+  assert.match(
+    deploySource,
+    /if ! mint_smoke_sessions_if_possible; then[\s\S]*?A2 stays RED\.[\s\S]*?return 1/u,
   );
 
   const convergeCall = deploySource.indexOf('node "$password_converger" --packet="$packet"');

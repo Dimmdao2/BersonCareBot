@@ -11,9 +11,15 @@ vi.mock("@/infra/db/runWebappSql", () => ({
   runWebappPgText: (...args: unknown[]) => runWebappPgTextMock(...args),
   runWebappTransaction: vi.fn(),
 }));
-vi.mock("argon2", () => ({
-  default: { verify: (...args: unknown[]) => argonVerifyMock(...args) },
-}));
+vi.mock("argon2", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("argon2")>();
+  return {
+    default: {
+      ...actual,
+      verify: (...args: unknown[]) => argonVerifyMock(...args),
+    },
+  };
+});
 vi.mock("@/modules/auth/passwordLoginProtection", () => ({
   inspectPasswordIdentifierLock: (...args: unknown[]) => inspectLockMock(...args),
   inspectPasswordAccountLock: (...args: unknown[]) => inspectAccountLockMock(...args),
@@ -25,6 +31,8 @@ vi.mock("@/modules/auth/passwordLoginProtection", () => ({
 }));
 
 import { createPgUserPasswordCredentialsPort } from "./pgUserPasswordCredentials";
+// @ts-expect-error Operational ESM scripts intentionally have no application TypeScript declarations.
+import { hashSmokeLoginPassword } from "../../../scripts/converge-saas-smoke-login-passwords.mjs";
 
 describe("pg user password credential brute-force behavior", () => {
   beforeEach(() => {
@@ -153,5 +161,34 @@ describe("pg user password credential brute-force behavior", () => {
       userId: "11111111-1111-4111-8111-111111111111",
       emailVerified: true,
     });
+  });
+
+  it("accepts the exact Argon2id PHC hash produced by TEST smoke convergence", async () => {
+    const plainPassword = "packet-password";
+    const passwordHash = await hashSmokeLoginPassword(plainPassword);
+    const actualArgon2 = await vi.importActual<typeof import("argon2")>("argon2");
+    runWebappPgTextMock.mockResolvedValueOnce({
+      rows: [{
+        user_id: "11111111-1111-4111-8111-111111111111",
+        password_hash: passwordHash,
+        email_verified: true,
+      }],
+    });
+    argonVerifyMock.mockImplementationOnce(
+      (hash: string, password: string) => actualArgon2.verify(hash, password),
+    );
+
+    await expect(
+      createPgUserPasswordCredentialsPort().verifyEmailPasswordForLogin(
+        "owner@example.test",
+        plainPassword,
+      ),
+    ).resolves.toEqual({
+      ok: true,
+      userId: "11111111-1111-4111-8111-111111111111",
+      emailVerified: true,
+    });
+
+    expect(argonVerifyMock).toHaveBeenCalledWith(passwordHash, plainPassword);
   });
 });
