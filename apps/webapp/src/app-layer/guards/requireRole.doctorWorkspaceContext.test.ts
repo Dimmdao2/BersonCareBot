@@ -3,6 +3,7 @@ import { enterWithDbBootstrapPrincipal, getCurrentDbPrincipal } from "@bersoncar
 import type { AppSession } from "@/shared/types/session";
 
 const getCurrentSessionMock = vi.hoisted(() => vi.fn());
+const getCurrentSessionForIdentitySelfMock = vi.hoisted(() => vi.fn());
 const resolveOrganizationForUserMock = vi.hoisted(() => vi.fn());
 const ORG_1 = "11111111-1111-4111-8111-111111111111";
 const ORG_2 = "22222222-2222-4222-8222-222222222222";
@@ -14,6 +15,7 @@ const redirectMock = vi.hoisted(() =>
 
 vi.mock("@/modules/auth/service", () => ({
   getCurrentSession: getCurrentSessionMock,
+  getCurrentSessionForIdentitySelf: getCurrentSessionForIdentitySelfMock,
 }));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
@@ -35,6 +37,8 @@ vi.mock("@/modules/system-settings/configAdapter", () => ({
 
 import {
   requireAdminWorkspaceApiContext,
+  requireAuthenticatedApiSession,
+  requireAuthenticatedIdentitySelfApiSession,
   requireClinicManagementApiContext,
   requireDoctorApiSession,
   requireDoctorWorkspaceApiContext,
@@ -61,9 +65,58 @@ function session(role: AppSession["user"]["role"]): AppSession {
 beforeEach(() => {
   enterWithDbBootstrapPrincipal({ source: "test-reset" });
   getCurrentSessionMock.mockReset();
+  getCurrentSessionForIdentitySelfMock.mockReset();
   resolveOrganizationForUserMock.mockReset();
   redirectMock.mockReset();
   getServerRuntimeBoolMock.mockReset().mockResolvedValue(false);
+});
+
+describe("requireAuthenticatedApiSession", () => {
+  it("accepts a signed-in account and replaces a bootstrap principal with identity-self", async () => {
+    const admin = { ...session("admin"), adminMode: true };
+    getCurrentSessionMock.mockResolvedValueOnce(admin);
+
+    const gate = await requireAuthenticatedApiSession();
+
+    expect(gate).toMatchObject({ ok: true, session: admin });
+    expect(getCurrentDbPrincipal()).toMatchObject({
+      kind: "patient",
+      platformUserId: admin.user.userId,
+    });
+  });
+
+  it("rejects a guest", async () => {
+    getCurrentSessionMock.mockResolvedValueOnce(null);
+
+    const gate = await requireAuthenticatedApiSession();
+
+    expect(gate.ok).toBe(false);
+    if (!gate.ok) expect(gate.response.status).toBe(401);
+  });
+});
+
+describe("requireAuthenticatedIdentitySelfApiSession", () => {
+  it("installs identity-self even for a platform operator", async () => {
+    const admin = { ...session("admin"), adminMode: true };
+    getCurrentSessionForIdentitySelfMock.mockResolvedValueOnce(admin);
+
+    const gate = await requireAuthenticatedIdentitySelfApiSession();
+
+    expect(gate).toMatchObject({ ok: true, session: admin });
+    expect(getCurrentDbPrincipal()).toMatchObject({
+      kind: "patient",
+      platformUserId: admin.user.userId,
+    });
+  });
+
+  it("rejects a guest", async () => {
+    getCurrentSessionForIdentitySelfMock.mockResolvedValueOnce(null);
+
+    const gate = await requireAuthenticatedIdentitySelfApiSession();
+
+    expect(gate.ok).toBe(false);
+    if (!gate.ok) expect(gate.response.status).toBe(401);
+  });
 });
 
 describe("U1 launch capability mapping", () => {

@@ -12,7 +12,7 @@
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getCurrentSession } from "@/modules/auth/service";
+import { requirePatientApiSession } from "@/app-layer/guards/requireRole";
 import { ensureAuthModulePortsBound } from "@/app-layer/di/bindAuthModulePorts";
 import {
   AUTH_CHANNEL_DISABLED_ERROR,
@@ -28,10 +28,14 @@ const bodySchema = z.object({
 export async function POST(request: Request) {
   ensureAuthModulePortsBound();
 
-  const session = await getCurrentSession();
-  if (!session) {
-    return NextResponse.json({ ok: false, error: "unauthorized", message: "Требуется вход" }, { status: 401 });
+  const gate = await requirePatientApiSession();
+  if (!gate.ok) {
+    if (gate.response.status === 401) {
+      return NextResponse.json({ ok: false, error: "unauthorized", message: "Требуется вход" }, { status: 401 });
+    }
+    return gate.response;
   }
+  const session = gate.session;
 
   if (!(await isAuthChannelEnabled("email"))) {
     return NextResponse.json(

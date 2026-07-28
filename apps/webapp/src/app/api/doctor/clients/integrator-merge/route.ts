@@ -5,13 +5,13 @@
  */
 import { NextResponse } from "next/server";
 import { getPool } from "@/app-layer/db/client";
+import { requirePlatformOperationsApiContext } from "@/app-layer/guards/requireRole";
 import { executeIntegratorPlatformUserMerge } from "@/infra/integratorPlatformUserMerge";
 import { integratorMergeBodySchema } from "@/infra/integratorPlatformUserMergeSchemas";
-import { requireAdminModeSession } from "@/modules/auth/requireAdminMode";
 import { getConfigBool } from "@/modules/system-settings/configAdapter";
 
 export async function POST(request: Request) {
-  const adminGate = await requireAdminModeSession();
+  const adminGate = await requirePlatformOperationsApiContext();
   if (!adminGate.ok) {
     return adminGate.response;
   }

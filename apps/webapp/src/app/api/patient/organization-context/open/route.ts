@@ -2,14 +2,12 @@ import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { patientClientBusinessGate } from "@/app-layer/platform-access";
+import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
-import { getCurrentSession } from "@/modules/auth/service";
 import {
   PATIENT_ORGANIZATION_CHANGE_RECEIPT_COOKIE,
   PATIENT_ORGANIZATION_PREFERENCE_COOKIE,
 } from "@/modules/patient-organization/preference";
-import { canAccessPatient } from "@/modules/roles/service";
 import { getRememberedPatientOrganizationId } from "@/app-layer/patient-organization/requestContext";
 
 const querySchema = z.discriminatedUnion("kind", [
@@ -47,10 +45,9 @@ function addQuery(path: string, params: Record<string, string>): string {
 }
 
 export async function GET(request: Request) {
-  const session = await getCurrentSession();
-  if (!session || !canAccessPatient(session.user.role) || (await patientClientBusinessGate(session)) !== "allow") {
-    return noStoreRedirect(routePaths.root);
-  }
+  const gate = await requirePatientApiBusinessAccess();
+  if (!gate.ok) return noStoreRedirect(routePaths.root);
+  const session = gate.session;
   const url = new URL(request.url);
   const parsed = querySchema.safeParse(Object.fromEntries(url.searchParams));
   if (!parsed.success) {

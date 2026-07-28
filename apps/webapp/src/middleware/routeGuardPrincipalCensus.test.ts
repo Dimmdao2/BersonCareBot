@@ -37,10 +37,13 @@ const HTTP_METHOD_SET = new Set<string>(HTTP_METHODS);
  */
 const APPROVED_ROUTE_GUARDS = new Set([
   "requireAdminWorkspaceApiContext",
+  "requireAuthenticatedApiSession",
+  "requireAuthenticatedIdentitySelfApiSession",
   "requireClinicManagementApiContext",
   "requireDoctorApiSession",
   "requireDoctorWorkspaceApiContext",
   "requirePatientApiBusinessAccess",
+  "requirePatientApiSession",
   "requirePatientApiSessionWithPhone",
   "requirePatientBookingTrustedPhoneAccess",
   "requirePlatformOperationsApiContext",
@@ -252,14 +255,9 @@ const ROUTE_EXCEPTIONS: Readonly<Record<string, string>> = {
   "doctor/booking-engine/working-days/route.ts": "delegated guard: local booking wrapper is outside app-layer/guards",
   "doctor/booking-engine/working-hours/route.ts": "delegated guard: local booking wrapper is outside app-layer/guards",
   "doctor/booking-engine/working-schedule-templates/route.ts": "delegated guard: local booking wrapper is outside app-layer/guards",
-  "doctor/clients/[userId]/merge-candidates/route.ts": "legacy gap: no approved app-layer guard is proven before DB access",
-  "doctor/clients/integrator-merge/route.ts": "legacy gap: no approved app-layer guard is proven before DB access",
   "doctor/clients/merge-preview/route.ts": "disabled stub: returns not_available and performs no DB access",
   "doctor/clients/merge-user-search/route.ts": "disabled stub: returns not_available and performs no DB access",
   "doctor/clients/merge/route.ts": "disabled stub: returns not_available and performs no DB access",
-  "doctor/clients/name-match-hints/route.ts": "legacy gap: authorization lives outside the approved app-layer guard set",
-  "doctor/health-failure-archive/route.ts": "legacy gap: authorization lives outside the approved app-layer guard set",
-  "doctor/schedule/nearest-free-window/route.ts": "legacy gap: authorization lives outside the approved app-layer guard set",
   "health/projection/route.ts": "public: health probe is intentionally callable without a user session",
   "health/route.ts": "public: health probe uses an explicit infra principal without a user session",
   "integrator/appointments/active-by-user/route.ts": "signed ingress: integrator GET HMAC verifier is outside app-layer/guards",
@@ -314,15 +312,10 @@ const ROUTE_EXCEPTIONS: Readonly<Record<string, string>> = {
   "join/email/confirm/route.ts": "pre-auth: invitation acceptance uses an email proof",
   "join/email/start/route.ts": "pre-auth: invitation acceptance starts before a session exists",
   "join/exchange/route.ts": "pre-auth: invitation bearer is exchanged for a session",
-  "me/route.ts": "legacy gap: raw session access is outside the approved app-layer guard set",
   "media/s3-status/route.ts": "public: S3 capability flag is anonymous and DB-free",
-  "menu/route.ts": "legacy gap: raw session access is outside the approved app-layer guard set",
   "patient-app/client-boot-report/route.ts": "public: bounded telemetry uses bootstrap principal and rate limiting",
-  "patient/analytics/push-open/route.ts": "legacy gap: no approved app-layer guard is proven before DB access",
-  "patient/email-change/confirm/route.ts": "legacy gap: token proof is outside the approved app-layer guard set",
-  "patient/material-ratings/route.ts": "legacy gap: optional-session branch is not an unconditional approved guard",
-  "patient/messenger/request-contact/route.ts": "legacy gap: authorization lives outside the approved app-layer guard set",
-  "patient/organization-context/open/route.ts": "legacy gap: raw session access is outside the approved app-layer guard set",
+  "patient/analytics/push-open/route.ts": "public telemetry: service-worker/PWA push clicks are intentionally accepted without a session",
+  "patient/material-ratings/route.ts": "mixed access: GET intentionally retains optional patient/guest semantics while PUT uses the patient business guard",
   "patient/organization-context/route.ts": "legacy gap: raw session access is outside the approved app-layer guard set",
   "patient/support/route.ts": "legacy gap: authorization lives outside the approved app-layer guard set",
   "payments/patient-acquiring-webhook/[provider]/route.ts": "provider webhook: provider signature is verified before processing",
@@ -334,7 +327,9 @@ const ROUTE_EXCEPTIONS: Readonly<Record<string, string>> = {
 };
 
 // Ratchet: may only decrease. Set to the initial reviewed manifest size once populated.
-const MAX_ROUTE_EXCEPTIONS = 214;
+// 227 -> 204: two remediation streams landed together — 13 admin routes and 10 doctor/patient routes left
+// the exception list in the same night. The ceiling is the sum of both, not either one alone.
+const MAX_ROUTE_EXCEPTIONS = 204;
 
 function walkRouteFiles(directory: string, result: string[] = []): string[] {
   for (const entry of readdirSync(directory, { withFileTypes: true })) {

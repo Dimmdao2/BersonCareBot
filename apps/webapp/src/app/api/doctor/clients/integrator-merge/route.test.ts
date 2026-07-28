@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const getSessionMock = vi.fn();
+const platformGateMock = vi.fn();
 const getConfigBoolMock = vi.fn();
 const executeMergeMock = vi.fn();
 
-vi.mock("@/modules/auth/requireAdminMode", () => ({
-  requireAdminModeSession: (...a: unknown[]) => getSessionMock(...a),
+vi.mock("@/app-layer/guards/requireRole", () => ({
+  requirePlatformOperationsApiContext: (...a: unknown[]) => platformGateMock(...a),
 }));
 vi.mock("@/modules/system-settings/configAdapter", () => ({
   getConfigBool: (...a: unknown[]) => getConfigBoolMock(...a),
@@ -35,10 +35,10 @@ const D = "00000000-0000-4000-8000-000000000022";
 
 describe("POST /api/doctor/clients/integrator-merge (Stage 5)", () => {
   beforeEach(() => {
-    getSessionMock.mockReset();
+    platformGateMock.mockReset();
     getConfigBoolMock.mockReset();
     executeMergeMock.mockReset();
-    getSessionMock.mockResolvedValue(adminOk);
+    platformGateMock.mockResolvedValue(adminOk);
     getConfigBoolMock.mockResolvedValue(true);
     executeMergeMock.mockResolvedValue({ ok: true, status: 200, body: { ok: true, result: { ok: true } } });
   });
@@ -75,7 +75,7 @@ describe("POST /api/doctor/clients/integrator-merge (Stage 5)", () => {
   });
 
   it("returns 403 when admin gate fails", async () => {
-    getSessionMock.mockResolvedValueOnce({
+    platformGateMock.mockResolvedValueOnce({
       ok: false,
       response: NextResponse.json({ ok: false }, { status: 403 }),
     });

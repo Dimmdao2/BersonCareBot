@@ -468,6 +468,82 @@ export async function requireDoctorApiSession(): Promise<
 }
 
 /**
+ * Any signed-in account, with the narrowest principal that session resolution can prove.
+ *
+ * Patient and organization staff sessions keep the principal installed by getCurrentSession().
+ * Accounts without an organization-derived principal (notably the platform operator and a staff
+ * account before joining a clinic) fall back to the identity-self principal instead of inheriting
+ * a clinic or platform-wide capability.
+ */
+export async function requireAuthenticatedApiSession(): Promise<
+  { ok: true; session: AppSession } | { ok: false; response: NextResponse }
+> {
+  ensureDbPrincipalContext({ source: "requireAuthenticatedApiSession:pending" });
+  const session = await getCurrentSession();
+  if (!session) {
+    return { ok: false, response: NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }) };
+  }
+  const currentPrincipal = getCurrentDbPrincipal();
+  if (
+    (!currentPrincipal ||
+      currentPrincipal.kind === "bootstrap" ||
+      currentPrincipal.kind === "infra" ||
+      currentPrincipal.kind === "integrator") &&
+    isPlatformUserUuid(session.user.userId)
+  ) {
+    try {
+      enterStaffSecuritySelfPrincipal(session.user.userId, "requireAuthenticatedApiSession:self");
+    } catch {
+      // Keep legacy/dev non-canonical sessions compatible. Locked DB ports still fail closed when
+      // no principal can be installed.
+    }
+  }
+  return { ok: true, session };
+}
+
+/** Any signed-in account, restricted to its own platform-user identity. */
+export async function requireAuthenticatedIdentitySelfApiSession(): Promise<
+  { ok: true; session: AppSession } | { ok: false; response: NextResponse }
+> {
+  ensureDbPrincipalContext({ source: "requireAuthenticatedIdentitySelfApiSession:pending" });
+  const session = await getCurrentSessionForIdentitySelf();
+  if (!session) {
+    return { ok: false, response: NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }) };
+  }
+  if (isPlatformUserUuid(session.user.userId)) {
+    try {
+      enterStaffSecuritySelfPrincipal(
+        session.user.userId,
+        "requireAuthenticatedIdentitySelfApiSession:self",
+      );
+    } catch {
+      // Legacy/dev non-canonical sessions retain their historical behavior. Locked DB ports fail
+      // closed if the identity-self principal cannot be installed.
+    }
+  }
+  return { ok: true, session };
+}
+
+/**
+ * Patient session boundary that deliberately does not require the patient business tier.
+ *
+ * This is for onboarding/profile APIs that must remain callable while patientClientBusinessGate
+ * still resolves `need_activation`. Business data routes must use requirePatientApiBusinessAccess.
+ */
+export async function requirePatientApiSession(): Promise<
+  { ok: true; session: AppSession } | { ok: false; response: NextResponse }
+> {
+  ensureDbPrincipalContext({ source: "requirePatientApiSession:pending" });
+  const session = await getCurrentSession();
+  if (!session || !canAccessPatient(session.user.role)) {
+    return { ok: false, response: NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }) };
+  }
+  const principal = await stampPatientPrincipalForApi(session);
+  if (!principal.ok) return principal;
+  return { ok: true, session };
+}
+
+/**
  * Exact identity-self boundary for the staff PWA subscription endpoints.
  *
  * A platform operator may create, read, or remove a subscription only for the

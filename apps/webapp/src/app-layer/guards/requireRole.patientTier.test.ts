@@ -50,7 +50,11 @@ vi.mock("@/shared/lib/platformCookie.server", () => ({
 }));
 
 import { getCurrentSession } from "@/modules/auth/service";
-import { requirePatientApiBusinessAccess, requirePatientApiSessionWithPhone } from "./requireRole";
+import {
+  requirePatientApiBusinessAccess,
+  requirePatientApiSession,
+  requirePatientApiSessionWithPhone,
+} from "./requireRole";
 
 function clientSession(partial?: Partial<AppSession["user"]>): AppSession {
   return {
@@ -364,5 +368,37 @@ describe("requirePatientApiBusinessAccess / requirePatientApiSessionWithPhone â€
     resolveMock.mockResolvedValueOnce(ctx);
     const b = await requirePatientApiSessionWithPhone();
     expect(a.ok && b.ok).toBe(true);
+  });
+});
+
+describe("requirePatientApiSession â€” onboarding patient boundary", () => {
+  beforeEach(() => {
+    enterWithDbBootstrapPrincipal({ source: "test-reset" });
+    vi.mocked(getCurrentSession).mockReset();
+    resolveMock.mockReset();
+    setDbPrincipalContextMode("legacy-guc");
+  });
+
+  it("accepts a patient without evaluating the business tier and installs its principal", async () => {
+    const sess = clientSession({ phone: undefined });
+    vi.mocked(getCurrentSession).mockResolvedValueOnce(sess);
+
+    const gate = await requirePatientApiSession();
+
+    expect(gate).toMatchObject({ ok: true, session: sess });
+    expect(resolveMock).not.toHaveBeenCalled();
+    expect(getCurrentDbPrincipal()).toMatchObject({
+      kind: "patient",
+      platformUserId: sess.user.userId,
+    });
+  });
+
+  it("rejects a staff audience", async () => {
+    vi.mocked(getCurrentSession).mockResolvedValueOnce(clientSession({ role: "doctor" }));
+
+    const gate = await requirePatientApiSession();
+
+    expect(gate.ok).toBe(false);
+    if (!gate.ok) expect(gate.response.status).toBe(401);
   });
 });

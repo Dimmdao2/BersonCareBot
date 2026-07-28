@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { getSessionMock, searchMergeCandidatesMock } = vi.hoisted(() => ({
-  getSessionMock: vi.fn(),
+const { platformGateMock, searchMergeCandidatesMock } = vi.hoisted(() => ({
+  platformGateMock: vi.fn(),
   searchMergeCandidatesMock: vi.fn(),
 }));
 
-vi.mock("@/modules/auth/requireAdminMode", () => ({
-  requireAdminModeSession: getSessionMock,
+vi.mock("@/app-layer/guards/requireRole", () => ({
+  requirePlatformOperationsApiContext: platformGateMock,
 }));
 vi.mock("@/app-layer/db/client", () => ({
   getPool: () => ({ query: vi.fn() }),
@@ -31,9 +31,21 @@ const uid = "00000000-0000-4000-8000-000000000001";
 
 describe("GET /api/doctor/clients/[userId]/merge-candidates", () => {
   beforeEach(() => {
-    getSessionMock.mockReset();
+    platformGateMock.mockReset();
     searchMergeCandidatesMock.mockReset();
-    getSessionMock.mockResolvedValue(adminOk);
+    platformGateMock.mockResolvedValue(adminOk);
+  });
+
+  it("rejects a non-platform audience before searching", async () => {
+    platformGateMock.mockResolvedValue({
+      ok: false,
+      response: Response.json({ ok: false, error: "forbidden" }, { status: 403 }),
+    });
+    const res = await GET(new Request("http://localhost/api"), {
+      params: Promise.resolve({ userId: uid }),
+    });
+    expect(res.status).toBe(403);
+    expect(searchMergeCandidatesMock).not.toHaveBeenCalled();
   });
 
   it("returns 400 invalid_user and does not call search when userId is not a uuid", async () => {

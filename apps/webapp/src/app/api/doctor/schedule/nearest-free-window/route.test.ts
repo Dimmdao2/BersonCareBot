@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const requireDoctorBookingEngineMock = vi.hoisted(() => vi.fn());
+const requireDoctorWorkspaceApiContextMock = vi.hoisted(() => vi.fn());
 const nearestFreeWindowMock = vi.hoisted(() => vi.fn());
 const buildAppDepsMock = vi.hoisted(() => vi.fn());
 
-vi.mock("../../booking-engine/_requireDoctorBookingEngine", () => ({
-  requireDoctorBookingEngine: requireDoctorBookingEngineMock,
+vi.mock("@/app-layer/guards/requireRole", () => ({
+  requireDoctorWorkspaceApiContext: requireDoctorWorkspaceApiContextMock,
 }));
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: buildAppDepsMock,
@@ -13,6 +13,9 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
 vi.mock("@/infra/logging/logger", () => ({
   logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn() },
   serializeError: (e: unknown) => e,
+}));
+vi.mock("@/app-layer/booking/resolveDoctorCalendarIana", () => ({
+  resolveDoctorCalendarIana: vi.fn().mockResolvedValue("Europe/Moscow"),
 }));
 
 import { GET } from "./route";
@@ -24,21 +27,21 @@ const DOCTOR_SESSION = { user: { userId: "d1", role: "doctor", bindings: {} } };
 const sampleWindow = { from: "2026-06-13T10:00:00.000Z", to: "2026-06-13T10:30:00.000Z" };
 
 function makeGateOk() {
-  requireDoctorBookingEngineMock.mockResolvedValue({
+  requireDoctorWorkspaceApiContextMock.mockResolvedValue({
     ok: true,
     ctx: { session: DOCTOR_SESSION, organizationId: ORG_ID, service: {} },
   });
 }
 
 function makeGate401() {
-  requireDoctorBookingEngineMock.mockResolvedValue({
+  requireDoctorWorkspaceApiContextMock.mockResolvedValue({
     ok: false,
     response: Response.json({ ok: false, error: "unauthorized" }, { status: 401 }),
   });
 }
 
 function makeGate403() {
-  requireDoctorBookingEngineMock.mockResolvedValue({
+  requireDoctorWorkspaceApiContextMock.mockResolvedValue({
     ok: false,
     response: Response.json({ ok: false, error: "forbidden" }, { status: 403 }),
   });
@@ -46,6 +49,7 @@ function makeGate403() {
 
 function makeDepsWithScheduling() {
   buildAppDepsMock.mockReturnValue({
+    bookingEngine: {},
     bookingScheduling: { nearestFreeWindow: nearestFreeWindowMock },
     systemSettings: null,
   });
@@ -53,6 +57,7 @@ function makeDepsWithScheduling() {
 
 function makeDepsWithoutScheduling() {
   buildAppDepsMock.mockReturnValue({
+    bookingEngine: {},
     bookingScheduling: null,
     systemSettings: null,
   });
@@ -62,7 +67,7 @@ const BASE_URL = "http://localhost/api/doctor/schedule/nearest-free-window";
 
 describe("GET /api/doctor/schedule/nearest-free-window", () => {
   beforeEach(() => {
-    requireDoctorBookingEngineMock.mockReset();
+    requireDoctorWorkspaceApiContextMock.mockReset();
     nearestFreeWindowMock.mockReset();
     buildAppDepsMock.mockReset();
     nearestFreeWindowMock.mockResolvedValue(sampleWindow);

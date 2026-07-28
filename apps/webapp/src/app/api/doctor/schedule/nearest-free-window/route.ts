@@ -16,9 +16,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
 import { logger, serializeError } from "@/infra/logging/logger";
 import { resolveDoctorCalendarIana } from "@/app-layer/booking/resolveDoctorCalendarIana";
-import { requireDoctorBookingEngine } from "../../booking-engine/_requireDoctorBookingEngine";
 
 const QuerySchema = z.object({
   specialistId: z.string().uuid().optional().nullable(),
@@ -28,7 +28,7 @@ const QuerySchema = z.object({
 });
 
 export async function GET(req: Request) {
-  const gate = await requireDoctorBookingEngine();
+  const gate = await requireDoctorWorkspaceApiContext();
   if (!gate.ok) return gate.response;
 
   const url = new URL(req.url);
@@ -48,6 +48,9 @@ export async function GET(req: Request) {
   }
 
   const deps = buildAppDeps();
+  if (!deps.bookingEngine) {
+    return NextResponse.json({ ok: false, error: "booking_engine_unavailable" }, { status: 503 });
+  }
   if (!deps.bookingScheduling) {
     // Деградация: сервис недоступен — возвращаем null окно (не блокировать UI)
     return NextResponse.json({ ok: true, window: null });
