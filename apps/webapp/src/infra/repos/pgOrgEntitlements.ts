@@ -3,7 +3,7 @@ import { getCurrentDbPrincipal } from "@bersoncare/db-principal";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { runWithWebappDbOperationFamily } from "@/infra/db/saasIsolationOperationContext";
 import { runWebappPgText } from "@/infra/db/runWebappSql";
-import { CLINIC_SEAT_USAGE_SQL } from "@/modules/clinic-seats/seatUsageSql";
+import { CLINIC_SEAT_USAGE_SQL } from "@/infra/repos/seatUsageSql";
 import type { OrgEntitlementsPort } from "@/modules/org-entitlements/ports";
 import type {
   EffectiveOrgCommercialAccess,

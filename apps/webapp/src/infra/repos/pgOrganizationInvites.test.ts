@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { CLINIC_SEAT_USAGE_SQL } from "@/modules/clinic-seats/seatUsageSql";
+import { CLINIC_SEAT_USAGE_SQL } from "@/infra/repos/seatUsageSql";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoSource = readFileSync(join(__dirname, "pgOrganizationInvites.ts"), "utf8");
@@ -69,8 +69,8 @@ describe("organization invite PostgreSQL contract", () => {
   });
 
   it("uses the exact same authoritative seat expression for enforcement and the quota storefront", () => {
-    expect(repoSource).toContain('import { CLINIC_SEAT_USAGE_SQL } from "@/modules/clinic-seats/seatUsageSql"');
-    expect(orgEntitlementsSource).toContain('import { CLINIC_SEAT_USAGE_SQL } from "@/modules/clinic-seats/seatUsageSql"');
+    expect(repoSource).toContain('import { CLINIC_SEAT_USAGE_SQL } from "@/infra/repos/seatUsageSql"');
+    expect(orgEntitlementsSource).toContain('import { CLINIC_SEAT_USAGE_SQL } from "@/infra/repos/seatUsageSql"');
     expect(orgEntitlementsSource).toContain("`SELECT ${CLINIC_SEAT_USAGE_SQL} AS used_value`");
     // A null exclusion includes every current reservation; invite replacement alone excludes its own pending email.
     expect(orgEntitlementsSource).toContain("[organizationId, null]");

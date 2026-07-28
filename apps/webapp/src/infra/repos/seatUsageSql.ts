@@ -1,8 +1,7 @@
 /**
- * Authoritative current clinic-seat usage.  Keep this expression shared with the invite
- * capacity check: active specialists consume seats, as do live pending doctor invites and
- * accepted doctor invites awaiting specialist provisioning. `excludedPendingInviteEmail` is
- * used only while replacing a pending invite for that same email.
+ * Lives in infra, not in modules: the DB chokepoint rule forbids raw SQL in the guarded domain layer,
+ * and CI enforces it (`scripts/check-db-chokepoint.mjs`). Shared here so the invite capacity check and the
+ * usage dashboard read ONE expression — a second copy is how the two numbers start disagreeing.
  */
 export const CLINIC_SEAT_USAGE_SQL = `
   (

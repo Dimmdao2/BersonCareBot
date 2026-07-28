@@ -1,5 +1,5 @@
 import { runWebappPgText, runWebappTransaction } from "@/infra/db/runWebappSql";
-import { CLINIC_SEAT_USAGE_SQL } from "@/modules/clinic-seats/seatUsageSql";
+import { CLINIC_SEAT_USAGE_SQL } from "@/infra/repos/seatUsageSql";
 import type {
   AcceptOrganizationInviteResult,
   CreateOrganizationInviteResult,
