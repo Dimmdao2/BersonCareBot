@@ -16,6 +16,14 @@ Status: execution plan only. This stage removes invented product scope and the c
 
 ## 1. Outcome and non-negotiable boundaries
 
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
+
 The completed executable part of R3 must leave the repository smaller:
 
 - the media worker runs as the narrow tenant-agnostic `app_worker`/infra principal, while tenant ownership is fixed before dispatch and verified at claim time (`deploy/postgres/phase4-app-worker-narrow-rls.sql:1-24`, `apps/webapp/src/infra/repos/pgMediaTranscodeJobs.ts:24-38`, `apps/webapp/src/infra/repos/pgMediaTranscodeJobs.ts:51-69`);
@@ -34,6 +42,14 @@ This is a deletion stage. The only permitted net-new runtime protection is the m
 
 ## 2. Canonical decisions for this plan
 
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
+
 The worker must not re-open these decisions:
 
 1. Media tenancy is enforced at enqueue time. Dispatch workers are tenant-agnostic infra workers with the narrow `app_worker` role; they are not clinic staff and do not receive a tenant bypass (`deploy/postgres/phase4-app-worker-narrow-rls.sql:3-17`, `apps/media-worker/src/workerTick.ts:23-48`).
@@ -43,6 +59,14 @@ The worker must not re-open these decisions:
 5. The strict renderer's count of 163 is correct. The production-copy inventory is missing two tables; do not weaken either side to manufacture agreement (`docs/_TODO/SAAS_FOUNDATION/scripts/check-phase4-prod-copy-db-state.mjs:208-212`, `docs/_TODO/SAAS_FOUNDATION/scripts/phase4-locked-policy-artifact.mjs:43-50`).
 
 ## 3. Execution order, dependencies, and pass boundaries
+
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
 
 Execute in this order:
 
@@ -54,6 +78,14 @@ Execute in this order:
 Do not combine item 1 with an RLS/grant change. Its security proof depends on the existing narrow wall remaining byte-for-byte unchanged (`deploy/postgres/phase4-app-worker-narrow-rls.sql:12-24`, `deploy/postgres/phase4-app-worker-narrow-rls.sql:53-63`).
 
 ## 4. Item 3 — `be_organizations`: owner-decision gate, no execution in R3
+
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
 
 ### 4.1 Why a mechanical edit is forbidden
 
@@ -88,6 +120,14 @@ Item 3 is intentionally unresolved. This is not a worker blocker for items 4, 2,
 
 ## 5. Item 4 — extend production-copy DB-state inventory to 163
 
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
+
 ### 5.1 Exact edits
 
 - [x] In `docs/_TODO/SAAS_FOUNDATION/scripts/check-phase4-prod-copy-db-state.mjs:15-18`, replace the migration inventory regex
@@ -113,6 +153,14 @@ Item 3 is intentionally unresolved. This is not a worker blocker for items 4, 2,
 - [x] Do not alter any RLS policy, migration, grant, table, or production-copy safety rule (`docs/_TODO/SAAS_FOUNDATION/scripts/check-phase4-prod-copy-db-state.mjs:13-30`). — CONFIRMED: neither R3 commit touches any RLS/migration/grant file; only the checker script and two docs changed (`9ea78459d` file list).
 
 ## 6. Item 2 — delete staff multi-membership selection
+
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
 
 ### 6.1 Service contract: delete selection, replace duplicates with a loud error
 
@@ -163,6 +211,14 @@ This error is intentionally allowed to propagate from authoritative workspace re
 - [x] Do not add a uniqueness migration or a new invite-acceptance check in R3. This stage removes the resolver/guard/UX mechanism and loudly exposes invalid existing data; write-time enforcement would be a separate additive DB change, which this deletion stage does not authorize. — CONFIRMED: no migration file appears in either R3 commit's changed-file list.
 
 ## 7. Item 1 — restore tenant-agnostic media worker and add claim invariant
+
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
 
 ### 7.1 Runtime principal deletion
 
@@ -231,6 +287,14 @@ This invariant replaces the weaker claim-time backfill. Organization ID remains 
 
 ## 8. Final static gate, review, and commits
 
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
+
 Run only after executable items 4, 2, and 1 are individually green:
 
 - [ ] Run every DB-free command listed in sections 5.2, 6.5, and 7.6 once; do not substitute a DB-backed smoke test. — NOT FULLY TRUE TODAY: every command was run live 2026-07-27, but two of them fail on drift outside R3's own scope (5.2's `phase4-locked-policy-artifact.mjs --summary`, now 168 not 163; 7.6's `check:saas-c4-scheduler-media-cron-fanout`, failing on an unrelated integrator test title). Left open rather than claiming the aggregate is green.
@@ -242,6 +306,14 @@ Run only after executable items 4, 2, and 1 are individually green:
 - [x] Leave item 3 and its three owner-decision boxes unchecked in the handoff. Report the exact unanswered choices from section 4.3; do not claim R3 fully complete until the owner authorizes a separate `be_organizations` wall/capability stage. — DONE: boxes 66-68 remain unchecked above; the three choices (cross-org read mechanism, update/provisioning split, integrator first-contact resolver) are reported as still open in this reconciliation's header note and matrix.
 
 ## 9. Definition of done for the executable R3 cut
+
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
 
 - [x] No staff resolver, guard, live plan, or staff-route test exposes organization selection; duplicate active staff memberships throw `multiple_active_staff_memberships` (`apps/webapp/src/modules/organization-membership/service.ts:50-73`). — CONFIRMED, see section 6 evidence above; 48/48 tests green.
 - [x] No media runtime or checker selects `runWithOptionalMediaWorkerOrganizationPrincipal`; locked media-worker checkout rejects organization principals (`apps/media-worker/src/runMediaWorkerSql.ts:65-85`, `apps/media-worker/src/withClient.ts:18-48`). — CONFIRMED, see section 7 evidence above; 33/33 tests green.

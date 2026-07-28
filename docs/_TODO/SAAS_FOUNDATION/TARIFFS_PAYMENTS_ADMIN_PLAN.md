@@ -33,6 +33,14 @@
 
 ## 0. Провенанс и re-scope
 
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
+
 Карточка #751 была шире (tariffs → entitlements → store → billing → analytics, см.
 [`SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md`](./SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md) и
 [`STORE_EXECUTION_PLAN.md`](./STORE_EXECUTION_PLAN.md)). Владелец сузил её **2026-07-17**, дословно:
@@ -123,6 +131,14 @@ product/UX scope, `OWNER_RULINGS_2026-07-16.md` действует в остал
 
 ## 1. Reality lock — 2026-07-17 (проверено кодом, не по памяти)
 
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
+
 | Область | Уже есть (file:line) | Чего нет / что устарело в старых доках |
 |---|---|---|
 | Схема entitlements | `saas_tariffs`, `be_organizations.tariff_id`, `saas_org_entitlement_overrides` — [`saasEntitlements.ts:24-59`](../../../apps/webapp/db/schema/saasEntitlements.ts); RLS overlay [`store-p0-entitlements-rls.sql`](../../../deploy/postgres/store-p0-entitlements-rls.sql) применён на test (commit `c1f07c130`) | Нет write-порта (P0 — read-only, [`ports.ts:1-9`](../../../apps/webapp/src/modules/org-entitlements/ports.ts)) |
@@ -145,6 +161,14 @@ product/UX scope, `OWNER_RULINGS_2026-07-16.md` действует в остал
 | Settings root split (S5) | Existing partial slice: `app_runtime_settings`, migration [`0186_app_runtime_settings.sql`](../../../apps/webapp/db/drizzle-migrations/0186_app_runtime_settings.sql), `pgAppRuntimeSettings` and provider. **`app_runtime_settings_audit` does not exist**; it remains S5-1 work. S5-0 reality lock is logged in [`SAAS_S5_SETTINGS_ROOT_SPLIT_LOG.md`](./SAAS_S5_SETTINGS_ROOT_SPLIT_LOG.md); S5-1—S5-7 are not complete. | This does **not** change the domain for `saas_billing_payment_provider`: the runtime store is patient-safe and credentials remain restricted in `system_settings` by design. |
 
 ## 2. Границы (что можно/нельзя трогать)
+
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
 
 **В scope:**
 - `apps/webapp/src/modules/org-entitlements/**` (write-порт, admin CRUD service).
@@ -172,6 +196,14 @@ product/UX scope, `OWNER_RULINGS_2026-07-16.md` действует в остал
 - `.cursor/rules/*`, `AGENTS.md`, CI workflow — не менять без отдельного явного запроса.
 
 ## 3. Целевая модель
+
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
 
 ```
 тариф (admin-конфигурируемые имя/цена/период + typed entitlements/quotas)
@@ -226,6 +258,14 @@ Compatibility-projection `be_organizations.tariff_id` остаётся исто�
 
 ## 4. Реестр механик — актуальное состояние на 2026-07-17
 
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
+
 | Mechanic | Целевой write-путь | Тип (route/action) | Текущий гейт | Что сделать в Phase 2 |
 |---|---|---|---|---|
 | `courses` | `POST /api/doctor/courses` | route | ✅ гейтится, но с багом двойного auth | Фикс на новый контракт §3.1 |
@@ -244,6 +284,14 @@ Compatibility-projection `be_organizations.tariff_id` остаётся исто�
 | `custom_domain` | нет поверхности | — | resolver-only | `declared_no_surface` |
 
 ## 5. Фазы (инженерный порядок, не решение владельца)
+
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
 
 ### Phase 1 — chokepoint hardening (registry + redesign, без нового UI)
 
@@ -592,6 +640,14 @@ capture/refund integration тест на mock-адаптере; secret redaction
 
 ## 6. Definition of Done
 
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
+
 - [x] **`requireEntitlement`/`requireEntitlementForAction` — один резолвер, оба API route и Server Action пути реально
   используют его.** (первая половина исходного составного пункта DoD)
   — ДОКАЗАНО: `checkEntitlement()` в `requireEntitlement.ts` — единственный внутренний резолвер за 6 адаптерами
@@ -639,11 +695,27 @@ capture/refund integration тест на mock-адаптере; secret redaction
 
 ## 7. Execution log
 
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
+
 При старте реализации завести рядом `TARIFFS_PAYMENTS_ADMIN_PLAN_LOG.md`. После каждой фазы фиксировать: commit
 range, точные post-change `file:line` для каждого закрытого пункта, tests/checkers/screenshots и результат,
 owner ruling vs инженерное решение раздельно, остаточные риски.
 
 ## 8. Открытые инженерные риски (не решения владельца — фиксируются, чтобы Phase 3/4 их не проглядели)
+
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
 
 1. **RLS-статус `be_organizations` не подтверждён.** Порт `listOrganizations()` сегодня не фильтрует по org в коде;
    не найдено `CREATE POLICY` именно на эту таблицу в `deploy/postgres/*.sql`. Cross-org listing для tariff-assignment

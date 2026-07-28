@@ -16,6 +16,14 @@
 
 ## 0. Hard boundaries (read first, do not violate)
 
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
+
 - **Production is a DIFFERENT server (IP 135.x). It is NOT on this box and is OUT OF SCOPE.**
   This box has only the DEV server and the TEST server. TEST is not production.
 - On TEST you MUST cut, break, observe what falls, and fix. That is the point of TEST.
@@ -27,6 +35,14 @@
 
 ## 1. Root cause this work order fixes
 
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
+
 The previous orchestrator closed ~30 "done" stages off **short roadmap descriptions** — it did not open the linked
 detailed plans, did not hand workers the full detailed checklist, did not verify each checkbox against reality.
 Net result: of ~30 accepted stages, ~2 are actually done. Symptoms already seen: DNA background replaced with
@@ -34,6 +50,14 @@ near-white; Clients screen "client card in right pane" (a rejected idea) silentl
 their own UI instead of following detailed plans.
 
 ## 2. Scope of THIS push (priority order)
+
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
 
 ### Track A — UI finish to real PASS with PNG acceptance  (PRIMARY)
 - **A1. DNA background regression.** Doctor page background is `#faf9f4` (near-white) via
@@ -184,6 +208,14 @@ disposable restore+migrate proof and live TEST verification are milestone gates,
 
 ## 3. Required output of the re-audit (per stage)
 
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
+
 A row-by-row matrix, one row per atomic checkbox of the **linked detailed plan** (quoted verbatim):
 
 | checkbox (quoted) | code evidence (path:line) | test evidence | live PNG | verdict: real-done / partial / fake-done / owner-deferred |
@@ -192,6 +224,14 @@ A checkbox may NOT be marked done without cited reality evidence or an explicit 
 Report ends with: `closed X/N against <owner plan path>` + a mandatory `NOT DONE:` section (even if empty).
 
 ## 4. Owner rulings captured in this session (2026-07-22)
+
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
 
 - **Support/tech chat:** for both specialists and their clients → routes to the **global admin**; delivery =
   **push + email to the sender**; technical requests, ticket model, show "do not share patient data" notice.

@@ -14,6 +14,14 @@ TEST restore proof + `G-11`.
 
 ## DR-01 — protection
 
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
+
 - [ ] Сверить DB/files/S3/config/key material: что нужно для полного восстановления и что нельзя класть вместе.
 - [x] Зафиксировать `umask`, directories `0700`, artifacts `0600`, owner и cleanup для существующих backup scripts.
       Closed for `deploy/postgres/postgres-backup.sh` (repository slice, taskdb `#901`, L4): `umask 077`,
@@ -52,6 +60,14 @@ TEST restore proof + `G-11`.
 - [ ] Добавить наблюдаемость success/failure/age/duration без секретов и ПДн.
 
 ## DR-02 — recovery proof
+
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
 
 - [ ] Сценарий A: потеря PostgreSQL, restore DB + migrations/invariants.
 - [ ] Сценарий B: потеря VPS, rebuild services/config + restore DB/files.

@@ -30,6 +30,14 @@
 
 ## Чек-лист внедрения
 
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
+
 ### Этап 1 — Gitleaks (очень высокий приоритет)
 - [x] Новый job `secrets-scan` в `ci.yml` (PR + push): `gitleaks/gitleaks-action` или пинованный бинарь. (✓ .github/workflows/security.yml:24-49 job `gitleaks`, pinned binary v8.18.4, on: push[main]+pull_request | commit 2027f969)
 - [x] Полноисторический скан хотя бы на push в `main` (не только diff) — прошлый инцидент был про содержимое `.env`. (✓ .github/workflows/security.yml:29-35 checkout `fetch-depth: 0` + `gitleaks git .` full-history | commit 2027f969)

@@ -69,6 +69,14 @@ OR
 
 ## Checklist
 
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
+
 ### 1. Drizzle schema + migration
 - [x] **Add `organizationId: uuid("organization_id")` (nullable) + `idx_*_organization_id` + idempotent FK to
       `be_organizations(id) ON DELETE CASCADE` to `platform_user_contacts` (`apps/webapp/db/schema/platformUserContacts.ts`).** —
@@ -215,6 +223,14 @@ Implemented + rehearsal-verified in layers (each caught by the LIVE prod-copy re
   This is genuinely the "owner-gated, unwired" locked-mode connection routing (see 0175 header / audit FB#2).
 
 ## NOT DONE — FLIP-BLOCKERS (must close before any enforce/locked+FORCE cutover; NOT needed for TEST-dormant deploy)
+
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
 - [ ] **FB#1-bootstrap [HIGH] prove the bootstrap/OTP phone-write path under enforce** (topology-fidelity above).
   **Confirmed still open 2026-07-27** — no rehearsal-topology fix or fresh proof found in this pass; leave open.
 - [ ] **FB#1 [HIGH] user_phone_history close-prior UPDATE vs partial unique index.** Under strict RLS an org-context

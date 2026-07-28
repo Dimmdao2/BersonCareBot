@@ -14,6 +14,14 @@ test/docs paths и независимый security auditor. Active SaaS/Product 
 
 ## C0 — threat and key architecture packet (`AI + external + owner`)
 
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
+
 - [ ] Агенты составляют data-at-rest map: PostgreSQL data/WAL/temp, swap, logs, env, dumps, originals, HLS,
       previews, message attachments и transient worker files.
 - [ ] Для каждого класса фиксируется adversary: lost disk/snapshot, local user, deploy compromise, root compromise,
@@ -30,6 +38,14 @@ test/docs paths и независимый security auditor. Active SaaS/Product 
 
 ## C1 — reusable crypto envelope (`AI development`)
 
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
+
 - [ ] Реализовать versioned authenticated envelope contract: algorithm/version/key-id/nonce/tag/chunk metadata,
       plaintext length/type и domain-bound additional authenticated data.
 - [ ] Использовать поддерживаемую reviewed crypto implementation; собственные cipher primitives запрещены.
@@ -41,6 +57,14 @@ test/docs paths и независимый security auditor. Active SaaS/Product 
 **Выход:** изолированный crypto package/module, contract tests и независимый security audit.
 
 ## C2 — S3 originals and multipart (`AI development`)
+
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
 
 > ➕ **ВНЕСЕНО РЕШЕНИЕМ ВЛАДЕЛЬЦА 27.07 — отдельная подпапка для видео врача.**
 > Дословно: «Подпапка — да, верно. но это будет включено в работу по разделению видео на шифрованные и нет.»
@@ -113,6 +137,14 @@ test/docs paths и независимый security auditor. Active SaaS/Product 
 
 ## C3 — HLS/media-worker (`AI development`)
 
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
+
 - [ ] Worker decrypts source only inside encrypted volume/tmp boundary, transcodes, encrypts playlists/segments/
       previews and removes transient plaintext on success/failure/reboot recovery.
 - [ ] Playback path authorizes resource and decrypts/proxies segments; direct presigned plaintext GET прекращается
@@ -124,6 +156,14 @@ test/docs paths и независимый security auditor. Active SaaS/Product 
 **Выход:** synthetic end-to-end TEST playback, resource-negative tests и measured CPU/latency/egress.
 
 ## C4 — database fields and secrets (`AI + external decision`)
+
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
 
 - [ ] LUKS остаётся первым broad DB-at-rest layer. Не заявлять PostgreSQL TLS или `pgcrypto` как TDE.
 - [ ] После data inventory внешний specialist/architect выбирает только поля, которым нужна защита от dump/DB-reader;
@@ -139,6 +179,14 @@ test/docs paths и независимый security auditor. Active SaaS/Product 
 обоснованием; этот пункт не исчезает молча.
 
 ## Checks и Definition of Done
+
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
 
 - [ ] Crypto design принят владельцем и внешним reviewer; key loss/recovery/rotation rehearsed.
 - [ ] Tenant A cannot decrypt/use tenant B envelope even with object/row identifier.

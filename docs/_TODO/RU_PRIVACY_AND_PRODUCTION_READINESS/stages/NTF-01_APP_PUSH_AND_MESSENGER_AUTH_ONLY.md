@@ -68,6 +68,14 @@
 
 ## 1. Зафиксированное owner ruling (`G-15`)
 
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
+
 > **SUPERSEDED AS TARGET — 2026-07-27.** Ruling ниже заменён последующими §21–§25; не исполнять его как закрывающую policy.
 
 - Telegram/MAX не являются notification/inbox/support surface.
@@ -83,6 +91,14 @@ access recovery, receipt/fiscal, contract/legal/export/deletion и operator/secu
 отдельно. Точные allowlists и field-level preview rules агент приносит владельцу одним пакетом после `N0` census.
 
 ## 2. Current-state baseline
+
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
 
 Read-only audit 2026-07-19 подтвердил:
 
@@ -102,6 +118,14 @@ Read-only audit 2026-07-19 подтвердил:
 а этот stage — целевую миграцию; документы синхронизируются с runtime только в `N7`.
 
 ## 3. Матрица message classes и каналов
+
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
 
 > **SUPERSEDED AS TARGET — 2026-07-27.** Заменена не только отдельная клетка, но и жёсткая shape этой матрицы: каналы вычисляются по §21, content — §2/§15/§22, DEV/TEST filter — §23. См. строку **«Уведомления»** в карте authority.
 
@@ -127,6 +151,14 @@ builders относится к соответствующим N3 children; N1 в
 
 ## 4. Матрица текста push — engineering safe default до `MOB-O9/G-04B`
 
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
+
 | Tier | Что можно показать | Что нельзя автоматически подставлять | Default copy |
 |---|---|---|---|
 | `T0 public/general` | общий news/product text | secrets/tokens/PII in URL | полезный полный короткий текст |
@@ -148,6 +180,14 @@ builders относится к соответствующим N3 children; N1 в
 push без blanket masking» повторно не открывается.
 
 ## 5. Этапы исполнения
+
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
 
 ### N0 — census, contracts and exact manifests (`AI`, executable now docs/read-only)
 
@@ -618,6 +658,14 @@ booking-reminder stage rather than freezing `24h/2h` into the new channel policy
 
 ## 6. Dependencies and non-overlap
 
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
+
 - N0/N1 и `LOG-01/L0-L1` не зависят от billing.
 - N2 native provider ждёт `MOB-00/MOB-02`, `G-04B` и restricted setting/key gate; Web Push migration work может
   идти раньше.
@@ -628,6 +676,14 @@ booking-reminder stage rather than freezing `24h/2h` into the new channel policy
 - `CRYPTO-01/C4`, `SEC-04` и `PR-04A` требуют закрытых NTF/LOG evidence.
 
 ## 7. Definition of Done
+
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
 
 > **SUPERSEDED — 2026-07-27.** В частности, DoD «Ни один product runtime path не отправляет Telegram/MAX/email/SMS» и auth-only allowlist ниже инвертированы/уточнены §15 и §21–§23. Не использовать их как release criterion; см. строку **«Уведомления»** в карте authority.
 

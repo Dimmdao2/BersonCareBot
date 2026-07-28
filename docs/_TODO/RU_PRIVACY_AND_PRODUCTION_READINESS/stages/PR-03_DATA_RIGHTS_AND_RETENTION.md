@@ -43,6 +43,14 @@ integration commit остаются stage gate. `reset-user` включён в f
 
 ## PR-03A — pre-launch containment
 
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
+
 - [ ] Утверждена retention matrix, legal holds/exceptions и договорный текст; бессрочное хранение без основания
       отсутствует.
 - [ ] Есть рабочий authenticated/manual intake для access/correction/termination requests: identity verification,
@@ -55,6 +63,14 @@ integration commit остаются stage gate. `reset-user` включён в f
 
 ## PR-03B / Slice A — DSAR and correction automation
 
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
+
 - [ ] Authenticated request workflow: status, SLA, assignee, identity verification и immutable audit trail.
 - [ ] Экспортировать только данные субъекта в выбранном org context; чужой tenant/internal secrets исключены.
       Large-export implementation может идти отдельным поздним sub-slice `PR-03B`, но остаётся обязательной до
@@ -63,6 +79,14 @@ integration commit остаются stage gate. `reset-user` включён в f
 - [ ] Отказ/частичное исполнение содержит причину и legal hold/retention basis.
 
 ## PR-03B / Slice B — retention, deletion and offboarding automation
+
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
 
 - [ ] Матрица БД/files/messages/audit/backups/payments → trigger → срок → action → exception → owner.
 - [ ] Удаление аккаунта не является немедленным hard delete: `active → pending_deletion → reactivated | purge_due`.

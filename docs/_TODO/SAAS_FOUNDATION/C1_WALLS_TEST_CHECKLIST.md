@@ -62,6 +62,14 @@ Anchors: Точка Здоровья = org `a0000000-0000-4000-8000-000000000001
 ---
 
 ## OVERNIGHT STATUS (2026-07-13, updated live)
+
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
 - [x] Wall roles + grants on TEST DB (done, non-disruptive).
 - [x] **Core code already present** — `sessionPrincipal.ts` already resolves org from session membership +
       stamps staff/patient principal. No code change needed for staff reads.

@@ -46,6 +46,14 @@ active SaaS plans и central SIEM implementation из SEC-04.
 
 ## Работа
 
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
+
 - [ ] Event contract: sensitive read/search/list, download/playback, export, mutation и permission deny.
 - [ ] Поля: actor/principal/org/resource type/id/action/outcome/reason/request correlation/time.
 - [ ] Запретить diagnosis, notes, message body, file bytes, token, cookie и secret в event payload.

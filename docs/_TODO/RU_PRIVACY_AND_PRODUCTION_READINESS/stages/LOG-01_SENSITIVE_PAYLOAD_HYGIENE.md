@@ -36,6 +36,14 @@ delivery attempts, retries, dead-letter и очередей. Это отдель
 
 ## L0 — data-flow census (`AI`)
 
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
+
 - [ ] Инвентаризировать logger/console error paths, DB/provider/request errors, audit/metrics, queues, retries,
       dead-letter, crash reports и support exports во всех runtime processes.
 - [ ] Для каждого store указать payload fields, access, retention/cleanup, canonical source и необходимость копии.
@@ -43,6 +51,14 @@ delivery attempts, retries, dead-letter и очередей. Это отдель
 - [ ] Сформировать exact L1/L2 file/schema manifests; active notification/SaaS files не захватывать без coordination.
 
 ## L1 — immediate logging guard (`AI`, executable now)
+
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
 
 - [x] Удалить raw SQL params и query text из integrator error output/`console.error` (taskdb `#914`,
       `apps/integrator/src/infra/db/client.ts`: все `query`/`tx` error paths и duplicate `console.error` calls). (✓ verified client.ts:54-85,121-135,170-205 — logs only queryFingerprint/pgCode/pgClass/dbPrincipalSource, no sql/params)
@@ -83,6 +99,14 @@ terminal security audit `bcb-log01-l1-914-codex-terminal-reaudit-20260719` — P
 
 ## L2 — queues, attempts and retries (`AI`, after NTF census/retention gate)
 
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
+
 - [ ] Когда canonical object существует, queue хранит ID/type/routing metadata и fetches content just-in-time; не
       копирует clinical text.
 - [ ] Где payload неизбежен, он минимален, encrypted/tenant-bound, имеет явный TTL и удаляется после terminal state.
@@ -122,6 +146,14 @@ terminal security audit `bcb-log01-l1-914-codex-terminal-reaudit-20260719` — P
 
 ## L3 — invariants and operations (`AI + owner`)
 
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
+
 > **Расщеплено 2026-07-27** — тот же дефект компаунда: одна половина (DB/provider → Pino/stdout/stderr) закрыта
 > `L1` ещё 2026-07-19, вторая (queue/retry → delivery attempts/audit/metrics/terminal queue rows) не начата и
 > заблокирована на `L2`. Проверено: `grep -rn SENSITIVE_TEST_MARKER` находит маркер только в
@@ -152,6 +184,14 @@ terminal security audit `bcb-log01-l1-914-codex-terminal-reaudit-20260719` — P
 - Production log rotation/purge/apply — отдельный `G-11` window; DEV plan не читает реальные payload/log values.
 
 ## Definition of Done
+
+> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
+> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
+> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
+> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
+> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
+> только если готового нет — и написать в коммите, почему готовое не подошло.
+
 
 > **Расщеплено 2026-07-27** — раньше один пункт смешивал SQL params (закрыто `L1`) с message/clinical
 > fields/secrets (не закрыто: `dispatchPort.ts` до сих пор логирует полный non-OTP `intent.payload` в
