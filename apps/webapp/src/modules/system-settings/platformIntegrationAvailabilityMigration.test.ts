@@ -36,6 +36,8 @@ describe('platform integration availability migration', () => {
     expect(platformRoleOverlay).toContain("'platform_integration_availability'");
     expect(migration).not.toMatch(/^\s*(?:CREATE|ALTER)\s+(?:OR\s+REPLACE\s+)?FUNCTION\b/im);
     expect(migration).not.toMatch(/^\s*GRANT\b/im);
-    expect(deployGate).toContain('local expected_secdef_count=106');
+    // 106 -> 107 elsewhere in the final wave: 0267 adds the staff-name directory accessor, 0268
+    // adds the delivery-audit writer, and 0269 removes the signup-slug reservation function.
+    expect(deployGate).toContain('local expected_secdef_count=107');
   });
 });

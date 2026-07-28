@@ -237,7 +237,9 @@ describe('0218 organization slug foundation', () => {
     expect(journal).toContain('"tag": "0255_organization_slug_same_org_reclaim"');
     expect(journal).toContain('"idx": 257');
     expect(journal).toContain('"tag": "0257_specialist_signup_slug_reservation"');
-    expect(journal).toContain('"idx": 270');
+    // 270 -> 269: closing the unused 0267 reservation shifts the removal migration down one
+    // journal slot; its SQL contract and timestamp remain unchanged.
+    expect(journal).toContain('"idx": 269');
     expect(journal).toContain('"tag": "0269_remove_specialist_signup_slug_reservation"');
   });
 });

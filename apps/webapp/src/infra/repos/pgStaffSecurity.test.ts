@@ -117,6 +117,8 @@ describe("staff security database boundary", () => {
     );
     expect(deploy).toContain("NOT has_table_privilege(");
     expect(deploy).toContain("NOT has_any_column_privilege(");
-    expect(deploy).toContain("local expected_secdef_count=106");
+    // 106 -> 107: 0267 adds the staff-name directory accessor, 0268 adds the delivery-audit
+    // writer, and 0269 removes the superseded signup-slug reservation function.
+    expect(deploy).toContain("local expected_secdef_count=107");
   });
 });

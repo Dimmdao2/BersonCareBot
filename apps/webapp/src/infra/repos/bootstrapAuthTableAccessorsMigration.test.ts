@@ -249,8 +249,9 @@ describe("0258 bootstrap auth table accessors", () => {
 
     const deploy = readFileSync(deployPath, "utf8");
     expect(deploy).toContain("83 -> 105 (2026-07-27, taskdb #1062)");
-    // 106 -> 107: migration 0268 adds the reviewed platform staff-directory projector.
-    expect(deploy).toContain("local expected_secdef_count=106");
+    // 106 -> 107: 0267 adds the staff-name directory accessor, 0268 adds the delivery-audit
+    // writer, and 0269 removes the superseded signup-slug reservation function.
+    expect(deploy).toContain("local expected_secdef_count=107");
     for (const row of [
       "('public.user_pins', 'SELECT')",
       "('public.user_pins', 'INSERT')",

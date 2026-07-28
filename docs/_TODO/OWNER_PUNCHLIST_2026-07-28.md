@@ -419,7 +419,8 @@ U3S (#919)**, а не свежий скоуп — помечать так в к�
       Выдать ровно `SELECT ON be_organization_members TO app_platform_settings` и обновить все точные
       deploy-ассерты тем же куском. Показать только сотрудников: имя, роль/статус членства, дату и наличие
       карточки специалиста; без контактов, пациентов и управляющих действий.
-      Закрыто 28.07 миграцией `0268_platform_organization_members_directory.sql`, C5A runtime exact wall,
+      Закрыто 28.07 миграцией `0267_platform_organization_members_directory.sql` (0268→0267: закрыта
+      неиспользованная бронь номера 0267), C5A runtime exact wall,
       post-closure deploy-ассертом, платформенным GET-роутом и read-only панелью. Доказательство: целевые
       route/UI/repository/migration/census-тесты, webapp typecheck, D3.4 checker + self-test и полный private
       U3S smoke зелёные.

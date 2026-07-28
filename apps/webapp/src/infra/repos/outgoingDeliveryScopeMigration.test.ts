@@ -46,8 +46,9 @@ describe("0260 outgoing delivery scope text identifier fix", () => {
     expect(migration).toContain(
       "GRANT EXECUTE ON FUNCTION app.resolve_outgoing_delivery_scope(uuid) TO app_operational_delivery_worker;",
     );
-    // 106 -> 107: migration 0268 adds the reviewed platform staff-directory projector.
-    expect(readFileSync(deployHostPath, "utf8")).toContain("local expected_secdef_count=106");
+    // 106 -> 107: 0267 adds the staff-name directory accessor, 0268 adds the delivery-audit
+    // writer, and 0269 removes the superseded signup-slug reservation function.
+    expect(readFileSync(deployHostPath, "utf8")).toContain("local expected_secdef_count=107");
   });
 
   it("keeps the UUID-to-UUID operator and broadcast branches unchanged", () => {
@@ -65,9 +66,9 @@ describe("0260 outgoing delivery scope text identifier fix", () => {
     const journal = JSON.parse(readFileSync(journalPath, "utf8")) as {
       entries: Array<Record<string, unknown>>;
     };
-    // Keep every journal entry from 0260 exact instead of weakening the contract merely because
-    // 0260 is no longer the tail. Migrations 0268 and 0270 use their owner-reserved numbers.
-    expect(journal.entries.slice(-9)).toEqual([
+    // Nine -> ten exact tail entries: 0268 adds the delivery-audit migration. Closing the unused
+    // 0267 reservation moves the former 0268/0269/0270 entries to 0267/0268/0269 without a gap.
+    expect(journal.entries.slice(-10)).toEqual([
       {
         idx: 260,
         version: "7",
@@ -118,14 +119,21 @@ describe("0260 outgoing delivery scope text identifier fix", () => {
         breakpoints: true,
       },
       {
-        idx: 268,
+        idx: 267,
         version: "7",
         when: 1793539200065,
         tag: "0267_platform_organization_members_directory",
         breakpoints: true,
       },
       {
-        idx: 270,
+        idx: 268,
+        version: "7",
+        when: 1793539200066,
+        tag: "0268_integrator_global_delivery_attempt_audit",
+        breakpoints: true,
+      },
+      {
+        idx: 269,
         version: "7",
         when: 1793539200067,
         tag: "0269_remove_specialist_signup_slug_reservation",

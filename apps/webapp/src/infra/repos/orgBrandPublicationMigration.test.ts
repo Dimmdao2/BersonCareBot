@@ -225,7 +225,9 @@ describe("0238 organization brand publication", () => {
     // focused migration test pins both exact signatures and the two newly required table grants.
     // 76 -> 80 (2026-07-27): migration 0254 adds four auth rate-limit accessors.
     // 80 -> 81 (2026-07-27): migration 0256 adds the staff-security self password-hash action.
-    expect(deploy).toContain("local expected_secdef_count=106");
+    // 106 -> 107: 0267 adds the staff-name directory accessor, 0268 adds the delivery-audit
+    // writer, and 0269 removes the superseded signup-slug reservation function.
+    expect(deploy).toContain("local expected_secdef_count=107");
     expect(deploy).toContain("('public.org_enrollments', 'SELECT')");
     expect(deploy).toContain("('public.phone_challenges', 'INSERT')");
     expect(deploy).toContain("('public.phone_otp_locks', 'UPDATE')");
