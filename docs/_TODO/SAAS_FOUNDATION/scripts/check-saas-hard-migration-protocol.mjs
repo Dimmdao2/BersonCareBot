@@ -1,4 +1,10 @@
 #!/usr/bin/env node
+import {
+  sourceTextIncludes,
+  sourceTextIndexOf,
+  sourceTextSliceBetween,
+  sourceTextSliceFrom,
+} from './source-text-guard.mjs';
 
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -70,7 +76,7 @@ function fail(message) {
 }
 
 function requireFragments(label, text, fragments) {
-  const missing = fragments.filter((fragment) => !text.includes(fragment));
+  const missing = fragments.filter((fragment) => !sourceTextIncludes(text, fragment, label));
   if (missing.length > 0) {
     fail(`${label} missing required fragment(s):\n- ${missing.join('\n- ')}`);
   }
@@ -86,7 +92,7 @@ function requirePatterns(label, text, patterns) {
 }
 
 function forbidFragments(label, text, fragments) {
-  const present = fragments.filter((fragment) => text.includes(fragment));
+  const present = fragments.filter((fragment) => sourceTextIncludes(text, fragment, label));
   if (present.length > 0) {
     fail(`${label} contains forbidden fragment(s):\n- ${present.join('\n- ')}`);
   }
@@ -95,11 +101,11 @@ function forbidFragments(label, text, fragments) {
 function requireOrderedFragments(label, text, fragments) {
   let cursor = 0;
   for (const fragment of fragments) {
-    const index = text.indexOf(fragment, cursor);
+    const index = sourceTextIndexOf(text, fragment, label, cursor);
     if (index < 0) {
       fail(`${label} missing ordered fragment after offset ${cursor}: ${fragment}`);
     }
-    cursor = index + fragment.length;
+    cursor = index + 1;
   }
 }
 
@@ -111,9 +117,12 @@ function load(overrides = {}) {
 
 function runChecks(overrides = {}) {
   const loaded = load(overrides);
-  const deployMainIndex = loaded.deployTestSaas.indexOf('# 0. preflight');
-  if (deployMainIndex < 0) fail(`${files.deployTestSaas} missing main preflight marker`);
-  const deployMain = loaded.deployTestSaas.slice(deployMainIndex);
+  const deployMain = sourceTextSliceFrom(
+    loaded.deployTestSaas,
+    '# 0. preflight',
+    files.deployTestSaas,
+  );
+  if (deployMain === null) fail(`${files.deployTestSaas} missing main preflight marker`);
 
   requireFragments(files.protocol, loaded.protocol, [
     '# SaaS hard migration protocol - fresh dump to TEST rehearsal',
@@ -270,14 +279,20 @@ function runChecks(overrides = {}) {
     'not restore+migration proof',
   ]);
 
-  const devRestoreOrderStart = loaded.protocol.indexOf(
+  const devRestoreOrderStart = sourceTextIndexOf(
+    loaded.protocol,
     'For every DEV restore performed with `--no-owner --no-acl`, the mandatory fail-closed order is:',
+    files.protocol,
   );
-  const devRestoreOrderEnd = loaded.protocol.indexOf('The handoff opens', devRestoreOrderStart);
-  if (devRestoreOrderStart < 0 || devRestoreOrderEnd <= devRestoreOrderStart) {
+  const devRestoreOrder = sourceTextSliceBetween(
+    loaded.protocol,
+    'For every DEV restore performed with `--no-owner --no-acl`, the mandatory fail-closed order is:',
+    'The handoff opens',
+    files.protocol,
+  );
+  if (devRestoreOrderStart < 0 || devRestoreOrder === null) {
     fail(`${files.protocol} missing bounded DEV restore order passage`);
   }
-  const devRestoreOrder = loaded.protocol.slice(devRestoreOrderStart, devRestoreOrderEnd);
   requireOrderedFragments(`${files.protocol} DEV restore locked-policy order`, devRestoreOrder, [
     '3. per-database P0.5b grants;',
     '4. canonical strict locked-helper base policies from',
@@ -290,28 +305,35 @@ function runChecks(overrides = {}) {
     'canonical D3.4 bootstrap/base-login closure',
   ]);
 
-  const devRecoveryClosureStart = loaded.protocol.indexOf(
+  const devRecoveryClosureStart = sourceTextIndexOf(
+    loaded.protocol,
     'The wrapper then reapplies per-database P0.5b grants',
+    files.protocol,
   );
-  const devRecoveryClosureEnd = loaded.protocol.indexOf(
+  const devRecoveryClosure = sourceTextSliceBetween(
+    loaded.protocol,
+    'The wrapper then reapplies per-database P0.5b grants',
     'Within that one shared list',
-    devRecoveryClosureStart,
+    files.protocol,
   );
-  if (devRecoveryClosureStart < 0 || devRecoveryClosureEnd <= devRecoveryClosureStart) {
+  if (devRecoveryClosureStart < 0 || devRecoveryClosure === null) {
     fail(`${files.protocol} missing bounded DEV recovery closure passage`);
   }
-  const devRecoveryClosure = loaded.protocol.slice(devRecoveryClosureStart, devRecoveryClosureEnd);
-  requireOrderedFragments(`${files.protocol} DEV recovery locked-policy closure`, devRecoveryClosure, [
-    'reapplies per-database P0.5b grants',
-    'applies the canonical strict locked-helper base policies from',
-    '`deploy/postgres/phase4-locked-helper-rls-policies.sql`',
-    '`phase4_enforce_locked_context=1`',
-    'only then runs the\nshared specialized helper/E1 closure',
-    '`deploy/postgres/d3-4-bootstrap-base-login-read-grants.sql`',
-    'This DEV recovery does not run',
-    '`deploy/postgres/phase4-force-rls-cutover.sql`',
-    'does not otherwise enable FORCE RLS',
-  ]);
+  requireOrderedFragments(
+    `${files.protocol} DEV recovery locked-policy closure`,
+    devRecoveryClosure,
+    [
+      'reapplies per-database P0.5b grants',
+      'applies the canonical strict locked-helper base policies from',
+      '`deploy/postgres/phase4-locked-helper-rls-policies.sql`',
+      '`phase4_enforce_locked_context=1`',
+      'only then runs the\nshared specialized helper/E1 closure',
+      '`deploy/postgres/d3-4-bootstrap-base-login-read-grants.sql`',
+      'This DEV recovery does not run',
+      '`deploy/postgres/phase4-force-rls-cutover.sql`',
+      'does not otherwise enable FORCE RLS',
+    ],
+  );
 
   requireOrderedFragments(`${files.protocol} allowed sequence`, loaded.protocol, [
     '### 1. Assert TEST runtime mode',
@@ -464,20 +486,24 @@ function runChecks(overrides = {}) {
     'DONE — full data-ready TEST migration (reviewed FIO + locked runtime verified)',
   ]);
 
-  requireOrderedFragments(`${files.runtimeOverlayLib} canonical overlay sequence`, loaded.runtimeOverlayLib, [
-    'deploy/postgres/organization-member-invites-rls.sql',
-    'deploy/postgres/store-p0-entitlements-rls.sql',
-    'deploy/postgres/patient-course-assignment-wall.sql',
-    'deploy/postgres/specialist-signup-public-bootstrap-rls.sql',
-    'deploy/postgres/specialist-owner-provisioning-rls.sql',
-    'deploy/postgres/runtime-overlay-app-owner-handoff.sql',
-    'deploy/postgres/reference-catalog-rls.sql',
-    'deploy/postgres/patient-visible-catalog-rls.sql',
-    'deploy/postgres/patient-web-push-vapid-public-key-accessor.sql',
-    'deploy/postgres/public-booking-bootstrap-resolver.sql',
-    'deploy/postgres/public-clinic-slug-bootstrap-resolver.sql',
-    'deploy/postgres/e1-webapp-runtime-config.sql',
-  ]);
+  requireOrderedFragments(
+    `${files.runtimeOverlayLib} canonical overlay sequence`,
+    loaded.runtimeOverlayLib,
+    [
+      'deploy/postgres/organization-member-invites-rls.sql',
+      'deploy/postgres/store-p0-entitlements-rls.sql',
+      'deploy/postgres/patient-course-assignment-wall.sql',
+      'deploy/postgres/specialist-signup-public-bootstrap-rls.sql',
+      'deploy/postgres/specialist-owner-provisioning-rls.sql',
+      'deploy/postgres/runtime-overlay-app-owner-handoff.sql',
+      'deploy/postgres/reference-catalog-rls.sql',
+      'deploy/postgres/patient-visible-catalog-rls.sql',
+      'deploy/postgres/patient-web-push-vapid-public-key-accessor.sql',
+      'deploy/postgres/public-booking-bootstrap-resolver.sql',
+      'deploy/postgres/public-clinic-slug-bootstrap-resolver.sql',
+      'deploy/postgres/e1-webapp-runtime-config.sql',
+    ],
+  );
 
   requireFragments(files.devRuntimeOverlay, loaded.devRuntimeOverlay, [
     'TARGET_OWNER_ROLE="bcb_webapp_dev_user"',
@@ -507,26 +533,35 @@ function runChecks(overrides = {}) {
     'SELECT app.release_principal_context();',
     'DEV C0 dual-pool runtime requires locked principal-context mode',
   ]);
-  requireOrderedFragments(`${files.devRuntimeOverlay} strict base before specialized overlays`, loaded.devRuntimeOverlay, [
-    'runtime_overlay_admin_psql -d "$TARGET_DB" -X -v ON_ERROR_STOP=1 -f "$P0_5B_GRANTS"',
-    '-v phase4_enforce_locked_context=1',
-    '-f "$PHASE4_LOCKED_POLICIES"',
-    'runtime_overlay_apply_post_migration_chain',
-    '"$REPO_ROOT" "$TARGET_DB" "$TARGET_RUNTIME_ROLE" 1 >/dev/null',
-  ]);
-  requireOrderedFragments(`${files.refreshDevFromTest} preflight before destructive refresh`, loaded.refreshDevFromTest, [
-    'bash "$DEV_MIGRATE" --preflight',
-    'actual_source=',
-    'pg_dump -Fc',
-    'DROP DATABASE IF EXISTS "$TARGET_DB" WITH (FORCE)',
-    '"${POSTGRES[@]}" pg_restore',
-    'bash "$DEV_MIGRATE" --execute',
-    'bash "$DEV_POST_REFRESH_UNLOCK" --execute',
-  ]);
-  forbidFragments(`${files.refreshDevFromTest} duplicated migration closure`, loaded.refreshDevFromTest, [
-    'pnpm run migrate',
-    'DEV_RUNTIME_OVERLAY_REHYDRATE',
-  ]);
+  requireOrderedFragments(
+    `${files.devRuntimeOverlay} strict base before specialized overlays`,
+    loaded.devRuntimeOverlay,
+    [
+      'runtime_overlay_admin_psql -d "$TARGET_DB" -X -v ON_ERROR_STOP=1 -f "$P0_5B_GRANTS"',
+      '-v phase4_enforce_locked_context=1',
+      '-f "$PHASE4_LOCKED_POLICIES"',
+      'runtime_overlay_apply_post_migration_chain',
+      '"$REPO_ROOT" "$TARGET_DB" "$TARGET_RUNTIME_ROLE" 1 >/dev/null',
+    ],
+  );
+  requireOrderedFragments(
+    `${files.refreshDevFromTest} preflight before destructive refresh`,
+    loaded.refreshDevFromTest,
+    [
+      'bash "$DEV_MIGRATE" --preflight',
+      'actual_source=',
+      'pg_dump -Fc',
+      'DROP DATABASE IF EXISTS "$TARGET_DB" WITH (FORCE)',
+      '"${POSTGRES[@]}" pg_restore',
+      'bash "$DEV_MIGRATE" --execute',
+      'bash "$DEV_POST_REFRESH_UNLOCK" --execute',
+    ],
+  );
+  forbidFragments(
+    `${files.refreshDevFromTest} duplicated migration closure`,
+    loaded.refreshDevFromTest,
+    ['pnpm run migrate', 'DEV_RUNTIME_OVERLAY_REHYDRATE'],
+  );
   requireFragments(files.devDatabaseUrlParser, loaded.devDatabaseUrlParser, [
     'DATABASE_URL_NONSTAFF',
     'bcb_dev_runtime_nonstaff_login',
@@ -576,10 +611,16 @@ function runChecks(overrides = {}) {
     ],
   );
   {
-    const preflightIndex = deployMain.indexOf(
+    const preflightIndex = sourceTextIndexOf(
+      deployMain,
       'log "TEST runtime mode preflight"\nassert_test_runtime_mode_ready',
+      files.deployTestSaas,
     );
-    const firstTrapIndex = deployMain.indexOf('trap cleanup_exit EXIT');
+    const firstTrapIndex = sourceTextIndexOf(
+      deployMain,
+      'trap cleanup_exit EXIT',
+      files.deployTestSaas,
+    );
     if (preflightIndex < 0 || firstTrapIndex < 0 || firstTrapIndex < preflightIndex) {
       fail(
         `${files.deployTestSaas} must not install cleanup_exit trap before dormant TEST env preflight`,
@@ -728,11 +769,21 @@ function runChecks(overrides = {}) {
     '-v test_settings_overlay_mode=reset',
   ]);
 
-  const overlayModeGuardIndex = loaded.testSettingsOverride.indexOf(
+  const overlayModeGuardIndex = sourceTextIndexOf(
+    loaded.testSettingsOverride,
     "SELECT :'test_settings_overlay_mode' IN ('reset', 'code-only')",
+    files.testSettingsOverride,
   );
-  const overlayErrorStopIndex = loaded.testSettingsOverride.indexOf('\\set ON_ERROR_STOP on');
-  const overlayFirstMutationIndex = loaded.testSettingsOverride.indexOf('DROP TRIGGER');
+  const overlayErrorStopIndex = sourceTextIndexOf(
+    loaded.testSettingsOverride,
+    '\\set ON_ERROR_STOP on',
+    files.testSettingsOverride,
+  );
+  const overlayFirstMutationIndex = sourceTextIndexOf(
+    loaded.testSettingsOverride,
+    'DROP TRIGGER',
+    files.testSettingsOverride,
+  );
   if (
     overlayErrorStopIndex < 0 ||
     overlayModeGuardIndex < 0 ||
@@ -779,11 +830,16 @@ function runChecks(overrides = {}) {
       "SELECT tgname, tgrelid::regclass, tgenabled FROM pg_trigger WHERE tgname = 'system_settings_test_lock';",
     ],
   );
-  const postTransactionText = loaded.testSettingsOverride.slice(
-    loaded.testSettingsOverride.indexOf('COMMIT;') + 'COMMIT;'.length,
+  const postTransactionText = sourceTextSliceFrom(
+    loaded.testSettingsOverride,
+    'COMMIT;',
+    files.testSettingsOverride,
   );
+  if (postTransactionText === null) fail(`${files.testSettingsOverride} missing atomic COMMIT`);
   if (/\b(?:INSERT|UPDATE|DELETE|CREATE|ALTER|DROP|TRUNCATE)\b/iu.test(postTransactionText)) {
-    fail(`${files.testSettingsOverride} must not mutate settings or lock objects after atomic COMMIT`);
+    fail(
+      `${files.testSettingsOverride} must not mutate settings or lock objects after atomic COMMIT`,
+    );
   }
   const smtpModeBlocks = [
     ...loaded.testSettingsOverride.matchAll(
@@ -799,27 +855,38 @@ function runChecks(overrides = {}) {
       'ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE',
     ]);
   }
-  requireFragments(`${files.testSettingsOverride} code-only public SMTP block`, smtpModeBlocks[0][2], [
-    "VALUES ('smtp_outbound', 'admin', '{\"value\":null}'::jsonb, NOW(), NULL)",
-    'ON CONFLICT (key, scope) WHERE organization_id IS NULL DO NOTHING;',
-  ]);
-  requireFragments(`${files.testSettingsOverride} code-only mirror SMTP block`, smtpModeBlocks[1][2], [
-    "SELECT 'smtp_outbound', 'admin', source.value_json, NOW(), NULL",
-    'FROM public.system_settings AS source',
-    "WHERE source.key = 'smtp_outbound'\n  AND source.scope = 'admin'\n  AND source.organization_id IS NULL",
-    'ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE',
-  ]);
-  const publicLockBody = loaded.testSettingsOverride.slice(
-    loaded.testSettingsOverride.indexOf('CREATE OR REPLACE FUNCTION system_settings_test_lock_guard()'),
-    loaded.testSettingsOverride.indexOf(
-      'CREATE OR REPLACE FUNCTION integrator.system_settings_test_lock_guard()',
-    ),
+  requireFragments(
+    `${files.testSettingsOverride} code-only public SMTP block`,
+    smtpModeBlocks[0][2],
+    [
+      "VALUES ('smtp_outbound', 'admin', '{\"value\":null}'::jsonb, NOW(), NULL)",
+      'ON CONFLICT (key, scope) WHERE organization_id IS NULL DO NOTHING;',
+    ],
   );
-  const integratorLockBody = loaded.testSettingsOverride.slice(
-    loaded.testSettingsOverride.indexOf(
-      'CREATE OR REPLACE FUNCTION integrator.system_settings_test_lock_guard()',
-    ),
+  requireFragments(
+    `${files.testSettingsOverride} code-only mirror SMTP block`,
+    smtpModeBlocks[1][2],
+    [
+      "SELECT 'smtp_outbound', 'admin', source.value_json, NOW(), NULL",
+      'FROM public.system_settings AS source',
+      "WHERE source.key = 'smtp_outbound'\n  AND source.scope = 'admin'\n  AND source.organization_id IS NULL",
+      'ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE',
+    ],
   );
+  const publicLockBody = sourceTextSliceBetween(
+    loaded.testSettingsOverride,
+    'CREATE OR REPLACE FUNCTION system_settings_test_lock_guard()',
+    'CREATE OR REPLACE FUNCTION integrator.system_settings_test_lock_guard()',
+    files.testSettingsOverride,
+  );
+  if (publicLockBody === null) fail(`${files.testSettingsOverride} missing public lock body`);
+  const integratorLockBody = sourceTextSliceFrom(
+    loaded.testSettingsOverride,
+    'CREATE OR REPLACE FUNCTION integrator.system_settings_test_lock_guard()',
+    files.testSettingsOverride,
+  );
+  if (integratorLockBody === null)
+    fail(`${files.testSettingsOverride} missing integrator lock body`);
   forbidFragments(`${files.testSettingsOverride} public lock`, publicLockBody, ["'smtp_outbound'"]);
   forbidFragments(`${files.testSettingsOverride} integrator lock`, integratorLockBody, [
     "'smtp_outbound'",
@@ -914,10 +981,13 @@ function runChecks(overrides = {}) {
     'log "B1 doctor/admin identity assertion"',
     'run_strict_post_migration_closure',
   ]);
-  const lockedSmokeHelper = loaded.deployTestSaas.slice(
-    loaded.deployTestSaas.indexOf('run_locked_product_smoke(){'),
-    loaded.deployTestSaas.indexOf('assert_awg_relay_active(){'),
+  const lockedSmokeHelper = sourceTextSliceBetween(
+    loaded.deployTestSaas,
+    'run_locked_product_smoke(){',
+    'assert_awg_relay_active(){',
+    files.deployTestSaas,
   );
+  if (lockedSmokeHelper === null) fail(`${files.deployTestSaas} missing locked smoke helper`);
   requireOrderedFragments(
     `${files.deployTestSaas} locked smoke consumption revalidation`,
     lockedSmokeHelper,
@@ -936,10 +1006,13 @@ function runChecks(overrides = {}) {
     '[ "$metadata" = "$expected_uid:$expected_gid:$expected_mode" ]',
     'validate_fixture "$2" "$3" "$4" 0 "$deploy_gid" 640',
   ]);
-  const fixtureBypassHelper = loaded.deployTestSaas.slice(
-    loaded.deployTestSaas.indexOf('run_deploy_repo_with_test_db_owner_bypass(){'),
-    loaded.deployTestSaas.indexOf('run_a2_nginx_preflight(){'),
+  const fixtureBypassHelper = sourceTextSliceBetween(
+    loaded.deployTestSaas,
+    'run_deploy_repo_with_test_db_owner_bypass(){',
+    'run_a2_nginx_preflight(){',
+    files.deployTestSaas,
   );
+  if (fixtureBypassHelper === null) fail(`${files.deployTestSaas} missing fixture BYPASS helper`);
   requireOrderedFragments(`${files.deployTestSaas} fixture BYPASS cleanup`, fixtureBypassHelper, [
     'grant_migrator_owner_membership',
     'ALTER ROLE \\"$DBROLE\\" BYPASSRLS;',
@@ -966,7 +1039,7 @@ function runChecks(overrides = {}) {
     'await assertFixtureDatabaseTarget(',
     "const REHEARSAL_MODE_ENV = 'SAAS_TEST_FIXTURE_REHEARSAL_MODE'",
     "const REHEARSAL_DATABASE_ENV = 'SAAS_TEST_FIXTURE_REHEARSAL_DATABASE'",
-    "const REHEARSAL_DATABASE_PATTERN = /^bcb_saas_[a-z0-9_]+_rehearsal_[a-z0-9_]+$/",
+    'const REHEARSAL_DATABASE_PATTERN = /^bcb_saas_[a-z0-9_]+_rehearsal_[a-z0-9_]+$/',
     "throw new Error('refusing_fixture_rehearsal_target')",
     "hostname === 'localhost'",
     "hostname === '127.0.0.1'",
@@ -1035,7 +1108,7 @@ function runChecks(overrides = {}) {
     "assertCount('appointments'",
     "assertCount('program_actions'",
     'manifest v2; Clinic A staff=3 patients=5; Clinic B staff=1 patients=3',
-    'logServerRuntimeError(\'saas-test-fixture-cli\', error)',
+    "logServerRuntimeError('saas-test-fixture-cli', error)",
     'writeError(`[saas-test-fixture] FAILED\\n`)',
   ]);
   requirePatterns(files.fixtureSeeder, loaded.fixtureSeeder, [
@@ -1252,8 +1325,8 @@ function runSelfTest() {
     },
     {
       testSettingsOverride: read(files.testSettingsOverride).replace(
-        "ON CONFLICT (key, scope) WHERE organization_id IS NULL DO NOTHING;",
-        "ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE SET value_json = EXCLUDED.value_json;",
+        'ON CONFLICT (key, scope) WHERE organization_id IS NULL DO NOTHING;',
+        'ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE SET value_json = EXCLUDED.value_json;',
       ),
     },
     {

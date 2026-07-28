@@ -14,10 +14,12 @@ import {
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
+import { sourceTextIncludes } from './source-text-guard.mjs';
+
 const read = (path) => readFileSync(path, 'utf8');
 const requireText = (path, fragments, readText = read) => {
   const text = readText(path);
-  const missing = fragments.filter((fragment) => !text.includes(fragment));
+  const missing = fragments.filter((fragment) => !sourceTextIncludes(text, fragment, path));
   if (missing.length > 0) throw new Error(`${path} missing:\n- ${missing.join('\n- ')}`);
 };
 

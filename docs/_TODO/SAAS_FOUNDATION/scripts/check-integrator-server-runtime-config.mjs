@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import { sourceTextIncludes, sourceTextIndexOf } from './source-text-guard.mjs';
+
 import { readFileSync } from 'node:fs';
 
 const paths = {
@@ -23,11 +25,9 @@ const paths = {
   configDocs: 'docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md',
   journal: 'apps/webapp/db/drizzle-migrations/meta/_journal.json',
   deploy: 'deploy/host/deploy-test-saas.sh',
-  smtpSmoke:
-    'docs/_TODO/SAAS_FOUNDATION/scripts/smoke-integrator-smtp-restricted-access.mjs',
+  smtpSmoke: 'docs/_TODO/SAAS_FOUNDATION/scripts/smoke-integrator-smtp-restricted-access.mjs',
   e1Overlay: 'deploy/postgres/e1-webapp-runtime-config.sql',
-  adminEmailMigration:
-    'apps/webapp/db/drizzle-migrations/0231_admin_email_role_runtime_config.sql',
+  adminEmailMigration: 'apps/webapp/db/drizzle-migrations/0231_admin_email_role_runtime_config.sql',
   envRole: 'apps/webapp/src/modules/auth/envRole.ts',
 };
 
@@ -37,13 +37,15 @@ function fail(message) {
 
 function requireFragments(label, text, fragments) {
   for (const fragment of fragments) {
-    if (!text.includes(fragment)) fail(`${label} missing ${JSON.stringify(fragment)}`);
+    if (!sourceTextIncludes(text, fragment, label))
+      fail(`${label} missing ${JSON.stringify(fragment)}`);
   }
 }
 
 function forbidFragments(label, text, fragments) {
   for (const fragment of fragments) {
-    if (text.includes(fragment)) fail(`${label} contains forbidden ${JSON.stringify(fragment)}`);
+    if (sourceTextIncludes(text, fragment, label))
+      fail(`${label} contains forbidden ${JSON.stringify(fragment)}`);
   }
 }
 
@@ -142,7 +144,7 @@ function run(overrides = {}) {
     "'app_patient', 'app.release_principal_context()', 'EXECUTE'",
     'SELECT oid, NOT rolinherit AS noinherit',
     'aclexplode(',
-    "privilege.grantee IN (0, runtime_role.oid)",
+    'privilege.grantee IN (0, runtime_role.oid)',
     'privilege.grantee NOT IN (procedure.proowner, runtime_role.oid)',
     "owner.rolname <> 'app_owner'",
     "privilege.privilege_type <> 'EXECUTE'",
@@ -207,10 +209,7 @@ function run(overrides = {}) {
     'emailConfig',
     '{ err',
   ]);
-  forbidFragments('email integration exports', files.emailIndex, [
-    'emailConfig',
-    './config.js',
-  ]);
+  forbidFragments('email integration exports', files.emailIndex, ['emailConfig', './config.js']);
 
   requireFragments('resolver', files.resolver, [
     "{ source: 'integrator-server-runtime-config' }",
@@ -226,9 +225,7 @@ function run(overrides = {}) {
     '.catch(() => {})',
   ]);
 
-  requireFragments('principal allowlist', files.principal, [
-    "'integrator-server-runtime-config'",
-  ]);
+  requireFragments('principal allowlist', files.principal, ["'integrator-server-runtime-config'"]);
   requireFragments('api startup', files.api, [
     'const runtimeDb = createDbPort()',
     'await getAppBaseUrl(runtimeDb)',
@@ -277,14 +274,14 @@ function run(overrides = {}) {
     "procedure.oid = 'app.record_global_email_delivery_attempt(text,text,text,text,text,integer,text,jsonb,timestamptz)'::regprocedure AND (privilege.grantee NOT IN (procedure.proowner, (SELECT oid FROM pg_roles WHERE rolname = current_user))",
     "NOT has_table_privilege(current_user, 'integrator.delivery_attempt_logs', 'INSERT')",
     "NOT has_sequence_privilege(current_user, 'integrator.delivery_attempt_logs_id_seq', 'USAGE')",
-    "privilege.grantee = (SELECT oid FROM pg_roles WHERE rolname = current_user)",
-    "privilege.grantee NOT IN (procedure.proowner, (SELECT oid FROM pg_roles WHERE rolname = current_user))",
+    'privilege.grantee = (SELECT oid FROM pg_roles WHERE rolname = current_user)',
+    'privilege.grantee NOT IN (procedure.proowner, (SELECT oid FROM pg_roles WHERE rolname = current_user))',
     "owner.rolname <> 'app_owner'",
     "privilege.privilege_type <> 'EXECUTE'",
     'integrator DB-backed runtime/SMTP/audit accessors are not ready',
     'integrator DB-backed runtime/SMTP/audit accessors: OK (exact ACL, no direct protected-table write)',
     'aclexplode(COALESCE(relation.relacl, acldefault',
-    "privilege.grantee IN (0, (SELECT oid FROM pg_roles WHERE rolname = current_user))",
+    'privilege.grantee IN (0, (SELECT oid FROM pg_roles WHERE rolname = current_user))',
     "pg_has_role(current_user, pg_get_userbyid(relation.relowner), 'MEMBER')",
     "app.read_global_server_runtime_setting('app_base_url')",
     'install_integrator_server_runtime_config_overlay',
@@ -307,7 +304,7 @@ function run(overrides = {}) {
     'privilege.grantee NOT IN (',
     "NOT has_table_privilege('smtp_runtime', 'public.system_settings', 'SELECT')",
     "NOT has_function_privilege('smtp_runtime', 'app.current_org_id()', 'EXECUTE')",
-    "SET SESSION AUTHORIZATION smtp_runtime",
+    'SET SESSION AUTHORIZATION smtp_runtime',
     'smtp_runtime_table_read_unexpectedly_succeeded',
     'smtp_runtime_current_org_unexpectedly_succeeded',
     'smtp_runtime_delivery_audit_direct_insert_unexpectedly_succeeded',
@@ -322,7 +319,7 @@ function run(overrides = {}) {
     'locked runtime path, exact ACL, role denials, idempotent reapply',
   ]);
   requireFragments('current admin-email runtime projection', files.adminEmailMigration, [
-    "('admin_emails', '{\"value\":\"\"}'::jsonb)",
+    '(\'admin_emails\', \'{"value":""}\'::jsonb)',
     "'admin_telegram_ids', 'admin_max_ids', 'admin_phones', 'admin_emails'",
     'REVOKE ALL ON FUNCTION app.read_webapp_server_runtime_setting(text, text) FROM PUBLIC;',
   ]);
@@ -331,11 +328,15 @@ function run(overrides = {}) {
     '0230_error_tracking_runtime.sql',
     '0231_admin_email_role_runtime_config.sql',
   ]);
-  const legacyRoleProjection = files.e1Overlay.indexOf(
+  const legacyRoleProjection = sourceTextIndexOf(
+    files.e1Overlay,
     '0201_e1_webapp_auth_role_runtime_config.sql',
+    paths.e1Overlay,
   );
-  const currentEmailProjection = files.e1Overlay.indexOf(
+  const currentEmailProjection = sourceTextIndexOf(
+    files.e1Overlay,
     '0231_admin_email_role_runtime_config.sql',
+    paths.e1Overlay,
   );
   if (legacyRoleProjection < 0 || currentEmailProjection <= legacyRoleProjection) {
     fail('ordinary deploy E1 overlay does not restore admin_emails after legacy 0201');
@@ -350,7 +351,9 @@ function run(overrides = {}) {
     'PLATFORM_OWNER_IDENTITY',
     'return false;',
   ]);
-  forbidFragments('fresh verified-email policy', files.envRole, ['getFreshServerRuntimeTokenList(']);
+  forbidFragments('fresh verified-email policy', files.envRole, [
+    'getFreshServerRuntimeTokenList(',
+  ]);
 }
 
 if (process.argv.includes('--self-test')) {
@@ -455,7 +458,7 @@ if (process.argv.includes('--self-test')) {
   try {
     run({
       deploy: readFileSync(paths.deploy, 'utf8').replace(
-        "privilege.grantee NOT IN (procedure.proowner, (SELECT oid FROM pg_roles WHERE rolname = current_user))",
+        'privilege.grantee NOT IN (procedure.proowner, (SELECT oid FROM pg_roles WHERE rolname = current_user))',
         'false',
       ),
     });

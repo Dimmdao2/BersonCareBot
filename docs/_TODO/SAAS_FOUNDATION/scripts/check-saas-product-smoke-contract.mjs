@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { sourceTextIncludes, sourceTextIndexOf } from './source-text-guard.mjs';
 
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -21,7 +22,7 @@ function read(path) {
 }
 
 function requireFragments(label, text, fragments) {
-  const missing = fragments.filter((fragment) => !text.includes(fragment));
+  const missing = fragments.filter((fragment) => !sourceTextIncludes(text, fragment, label));
   if (missing.length > 0) {
     throw new Error(
       `${label} missing required fixture-gate fragment(s):\n- ${missing.join('\n- ')}`,
@@ -162,9 +163,7 @@ function runFixtureGateDocChecks(overrides = new Map()) {
   ) {
     throw new Error(`${files.contract} must probe versioned SaaS isolation health as global_admin`);
   }
-  const specialistEngagementAnalytics = scenariosById.get(
-    'doctor.analytics.patient-engagement',
-  );
+  const specialistEngagementAnalytics = scenariosById.get('doctor.analytics.patient-engagement');
   if (
     !['doctor', 'clinic_admin'].includes(specialistEngagementAnalytics?.actor) ||
     specialistEngagementAnalytics?.category !== 'analytics' ||
@@ -192,10 +191,7 @@ function runFixtureGateDocChecks(overrides = new Map()) {
   const clinicalWriteDenied = contract.mutationScenarios.find(
     (scenario) => scenario.id === 'global-admin.clinical-write.denied',
   );
-  const exactClinicalWriteDenials = [
-    'doctor_workspace_membership_required',
-    'forbidden',
-  ];
+  const exactClinicalWriteDenials = ['doctor_workspace_membership_required', 'forbidden'];
   if (
     clinicalWriteDenied?.actor !== 'global_admin' ||
     clinicalWriteDenied.category !== 'bookings' ||
@@ -231,9 +227,7 @@ function runFixtureGateDocChecks(overrides = new Map()) {
       `${files.contract} must assert a server-rendered /app marker instead of client-hydrated login copy`,
     );
   }
-  const specialistSignupEntry = scenariosById.get(
-    'public.specialist-clinic-registration.entry',
-  );
+  const specialistSignupEntry = scenariosById.get('public.specialist-clinic-registration.entry');
   if (
     specialistSignupEntry?.path !== '/api/auth/login/alternatives-config' ||
     specialistSignupEntry.jsonExpectation?.requireSuccess !== true ||
@@ -406,9 +400,9 @@ function runSelfTest() {
     ),
   );
   const csrfDenialEquivalentMutation = JSON.parse(contractText);
-  csrfDenialEquivalentMutation.mutationScenarios.find(
-    (scenario) => scenario.id === 'global-admin.clinical-write.denied',
-  ).expectedErrorValues.push('csrf_origin_forbidden');
+  csrfDenialEquivalentMutation.mutationScenarios
+    .find((scenario) => scenario.id === 'global-admin.clinical-write.denied')
+    .expectedErrorValues.push('csrf_origin_forbidden');
   expectDocMutationRejected(
     'csrf origin denial accepted as tenant authorization proof',
     files.contract,
