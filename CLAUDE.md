@@ -7,6 +7,12 @@
 
 → **`AGENTS.md`** (мастер-вход) · **`.cursor/rules/*.mdc`** (канон scoped-правил, приоритет при расхождении).
 
+## 🔁 Оркестрируешь? Перечитай чек-лист ПОСЛЕ КАЖДОГО СЖАТИЯ КОНТЕКСТА
+**`docs/ORCHESTRATOR_CHECKLIST.md`** — десять строк, которые теряются первыми: независимый аудит после каждого
+воркера, галочку ставит оркестратор сам, потолок трёх агентов, слова владельца сразу в план-файл.
+**Агентов запускать только через `tools/orch-launch.sh`** — он механически отказывает, если условия не выполнены
+(владелец 28.07: обещание «впредь буду помнить» не работает, правило должно стоять в двери).
+
 ## 📁 Инфо по репо (куда смотреть)
 - Архитектура: `docs/ARCHITECTURE/SERVER CONVENTIONS.md`, `docs/ARCHITECTURE/ARCHITECTURE_GUARDRAILS.md`, `ARCHITECTURE.md`, `apps/webapp/ARCHITECTURE.md`.
 - Dev/тестирование: `docs/ARCHITECTURE/LOCAL_DEV_AND_AGENT_TESTING.md`. Деплой/прод: `deploy/HOST_DEPLOY_README.md`.
