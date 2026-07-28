@@ -4,7 +4,11 @@
  * Guard: branch on the platform.operations capability. Global platform configuration uses
  * the dedicated platform principal and clinic managers keep the organization-scoped path.
  */
-import { isPasswordBearingSettingKey, redactSettingValueForAudit } from "@/modules/system-settings/auditRedaction";
+import {
+  isPasswordBearingSettingKey,
+  isSecretValueSettingKey,
+  redactSettingValueForAudit,
+} from "@/modules/system-settings/auditRedaction";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
@@ -190,15 +194,10 @@ const batchBodySchema = z.object({
     .min(1),
 });
 
-const SECRET_LIKE_KEYS = new Set<string>([
-  "max_bot_api_key",
-  "yandex_oauth_client_secret",
-  "vk_id_client_secret",
-  "google_client_secret",
-  "google_refresh_token",
-  "apple_oauth_private_key",
-  "smsc_api_key",
-]);
+// Список скалярных секретов живёт в одном месте — `modules/system-settings/auditRedaction`.
+// Раньше он был здесь и закрывал только строку лога, а долговечный журнал изменений не закрывал
+// никто: независимый аудит 28.07 нашёл `vk_id_client_secret` в `system_settings_audit` как есть.
+// Два списка расходятся молча, поэтому список теперь один и общий с журналом.
 
 /** Patient-home editorial controls are owner content controls, not ordinary clinic-management settings. */
 const OWNER_ONLY_PATIENT_HOME_KEYS = new Set<string>([
@@ -226,7 +225,7 @@ function redactWebPushVapidForAudit(envelope: unknown): unknown {
 
 
 function auditValueForLog(key: string, value: unknown): unknown {
-  if (SECRET_LIKE_KEYS.has(key)) return "[REDACTED]";
+  if (isSecretValueSettingKey(key)) return "[REDACTED]";
   if (isPasswordBearingSettingKey(key)) return redactSettingValueForAudit(key, value);
   if (key === "web_push_vapid") return redactWebPushVapidForAudit(value);
   if (key === "booking_payment_providers") {
