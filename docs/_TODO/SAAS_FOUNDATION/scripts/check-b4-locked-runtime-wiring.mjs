@@ -125,6 +125,12 @@ function collectScopedDbTouchingRoutesMissingPrincipalSource() {
     "runWebappTransaction(",
   ];
   const principalSources = [
+    // 2026-07-28: both added while bringing `me` and `menu` off raw session access onto approved guards
+    // (route guard census remediation). Verified in requireRole.ts before listing them here: each calls
+    // ensureDbPrincipalContext and then enterStaffSecuritySelfPrincipal for a platform user, i.e. they do
+    // install a principal — they were missing from this list, not missing the behaviour.
+    "requireAuthenticatedIdentitySelfApiSession",
+    "requireAuthenticatedApiSession",
     "requireDoctorApiSession",
     "requireDoctorWorkspaceApiContext",
     "requireAdminWorkspaceApiContext",
