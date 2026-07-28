@@ -120,7 +120,10 @@ describe('0259 SaaS billing foundation migration', () => {
     expect(billingDeployGate).toContain(
       "'app.install_signed_context(text,integer,bigint,uuid,uuid,bigint,text)'",
     );
-    expect(principal).toContain("kind: 'clinicBilling'");
+    // Сравниваем без привязки к стилю кавычек: два гейта пиннили ОДИН файл в противоположных стилях
+    // (этот ждал одинарные, тридцать других — двойные). Проверяется наличие вида принципала, а не
+    // то, как он записан.
+    expect(principal.replace(/'/g, '"')).toContain('kind: "clinicBilling"');
     expect(principal).toContain('SET ROLE ${DB_PRINCIPAL_CLINIC_BILLING_ROLE}');
     expect(clinicRoute).toContain('runWithDbClinicBillingPrincipal');
     expect(repository).not.toContain('SET ROLE');
