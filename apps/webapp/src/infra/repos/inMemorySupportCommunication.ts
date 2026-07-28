@@ -5,7 +5,6 @@ import type {
   SupportQuestionRow,
   SupportDeliveryEventRow,
 } from "./pgSupportCommunication";
-import type { PlatformSupportPort } from "@/modules/messaging/platformSupportService";
 import { isSupportNotificationMessage } from "@/shared/lib/supportMessageKinds";
 
 const questionMessageTexts = new Map<string, string>();
@@ -24,7 +23,7 @@ function nextId(prefix: string, seq: number): string {
   return `${prefix}-${Date.now()}-${seq}`;
 }
 
-export const inMemorySupportCommunicationPort: SupportCommunicationPort & PlatformSupportPort = {
+export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
   async upsertConversationFromProjection(params) {
     const existing = Array.from(conversations.values()).find(
       (c) => c.integratorConversationId === params.integratorConversationId
@@ -248,116 +247,6 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort & Platfo
       .filter((e) => e.conversationMessageId && msgIds.includes(e.conversationMessageId))
       .sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime())
       .slice(0, limit);
-  },
-
-  async listPlatformSupportConversations(params) {
-    const lastPersonalMessage = (conversationId: string) =>
-      [...messages.values()]
-        .filter(
-          (message) =>
-            message.conversationId === conversationId &&
-            !isSupportNotificationMessage(message),
-        )
-        .sort(
-          (a, b) =>
-            b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id),
-        )[0];
-
-    return [...conversations.values()]
-      .map((conversation) => ({
-        conversation,
-        lastMessage: lastPersonalMessage(conversation.id),
-        messageCount: [...messages.values()].filter(
-          (message) =>
-            message.conversationId === conversation.id &&
-            !isSupportNotificationMessage(message),
-        ).length,
-      }))
-      .filter(
-        (
-          item,
-        ): item is typeof item & {
-          lastMessage: SupportConversationMessageRow;
-        } => item.lastMessage != null,
-      )
-      .filter(
-        ({ lastMessage }) =>
-          !params.unansweredOnly || lastMessage.senderRole === "user",
-      )
-      .sort(
-        (a, b) =>
-          Number(b.lastMessage.senderRole === "user") -
-            Number(a.lastMessage.senderRole === "user") ||
-          b.lastMessage.createdAt.localeCompare(a.lastMessage.createdAt) ||
-          b.conversation.id.localeCompare(a.conversation.id),
-      )
-      .slice(0, params.limit)
-      .map(({ conversation, lastMessage, messageCount }) => ({
-        conversationId: conversation.id,
-        organizationId: conversation.organizationId ?? null,
-        organizationTitle: null,
-        source: conversation.source,
-        adminScope: conversation.adminScope,
-        status: conversation.status,
-        openedAt: conversation.openedAt,
-        lastMessageAt: lastMessage.createdAt,
-        closedAt: conversation.closedAt,
-        closeReason: conversation.closeReason,
-        channelCode: conversation.channelCode,
-        lastMessageText: lastMessage.text,
-        lastSenderRole: lastMessage.senderRole,
-        lastMessageIntegratorId: lastMessage.integratorMessageId,
-        lastMessageSource: lastMessage.source,
-        messageCount,
-      }));
-  },
-
-  async getPlatformSupportConversation(conversationId) {
-    const conversation = conversations.get(conversationId);
-    if (!conversation) return null;
-    const personalMessages = [...messages.values()]
-      .filter(
-        (message) =>
-          message.conversationId === conversationId &&
-          !isSupportNotificationMessage(message),
-      )
-      .sort(
-        (a, b) =>
-          a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id),
-      );
-    const lastMessage = personalMessages.at(-1);
-    if (!lastMessage) return null;
-    return {
-      conversation: {
-        conversationId: conversation.id,
-        organizationId: conversation.organizationId ?? null,
-        organizationTitle: null,
-        source: conversation.source,
-        adminScope: conversation.adminScope,
-        status: conversation.status,
-        openedAt: conversation.openedAt,
-        lastMessageAt: lastMessage.createdAt,
-        closedAt: conversation.closedAt,
-        closeReason: conversation.closeReason,
-        channelCode: conversation.channelCode,
-        lastMessageText: lastMessage.text,
-        lastSenderRole: lastMessage.senderRole,
-        lastMessageIntegratorId: lastMessage.integratorMessageId,
-        lastMessageSource: lastMessage.source,
-        messageCount: personalMessages.length,
-      },
-      messages: personalMessages.map((message) => ({
-        id: message.id,
-        integratorMessageId: message.integratorMessageId,
-        senderRole: message.senderRole,
-        messageType: message.messageType,
-        text: message.text,
-        source: message.source,
-        createdAt: message.createdAt,
-        mediaUrl: message.mediaUrl,
-        mediaType: message.mediaType,
-      })),
-    };
   },
 
   async listOpenConversationsForAdmin(params) {

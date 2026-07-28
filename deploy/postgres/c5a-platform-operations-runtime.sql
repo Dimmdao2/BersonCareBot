@@ -273,38 +273,29 @@ CREATE POLICY be_organizations_staff_current_org_read ON public.be_organizations
     AND id = app.current_org_id()
   );
 
--- #1070: read-only platform support inbox. These two tables contain the text that users
--- explicitly addressed to support. Identity and clinical tables remain outside this role.
--- Guarded because bounded provisioning smokes can run this overlay without the support schema.
-DO $c5a_platform_support_read$
+-- #1070 correction: these legacy-named tables are patient-to-clinic messaging, including
+-- clinical and rehabilitation text. They are not the platform helpdesk from owner plan §11.
+-- The platform role must stay outside them until the dedicated ticket schema exists.
+DO $c5a_platform_support_isolation$
 BEGIN
   IF to_regclass('public.support_conversations') IS NULL
     OR to_regclass('public.support_conversation_messages') IS NULL
   THEN
-    RAISE WARNING '#1070: support conversation tables do not exist -- skipping platform support read rehydration.';
+    RAISE WARNING '#1070: patient communication tables do not exist -- skipping platform isolation rehydration.';
     RETURN;
   END IF;
 
-  GRANT SELECT ON TABLE
-    public.support_conversations,
-    public.support_conversation_messages
-    TO app_platform_settings;
-
   DROP POLICY IF EXISTS support_conversations_platform_operations_select
     ON public.support_conversations;
-  CREATE POLICY support_conversations_platform_operations_select
-    ON public.support_conversations
-    FOR SELECT TO app_platform_settings
-    USING (true);
-
   DROP POLICY IF EXISTS support_conversation_messages_platform_operations_select
     ON public.support_conversation_messages;
-  CREATE POLICY support_conversation_messages_platform_operations_select
-    ON public.support_conversation_messages
-    FOR SELECT TO app_platform_settings
-    USING (true);
+
+  REVOKE ALL PRIVILEGES ON TABLE
+    public.support_conversations,
+    public.support_conversation_messages
+    FROM app_platform_settings;
 END
-$c5a_platform_support_read$;
+$c5a_platform_support_isolation$;
 
 -- Booking-configuration read for the platform principal — the second half of taskdb #1009.
 --

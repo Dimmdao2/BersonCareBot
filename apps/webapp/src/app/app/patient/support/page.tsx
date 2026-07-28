@@ -18,7 +18,8 @@ export default async function PatientSupportPage() {
         <div>
           <h2 className="text-base font-semibold">Связаться с поддержкой</h2>
           <p className={cn(patientMutedTextClass, "mt-1")}>
-            Сообщение уйдёт администратору. К письму автоматически прикрепятся ваш профиль и привязки.
+            Здесь помогают пользоваться приложением. Вопросы о здоровье, симптомах и лечении задавайте врачу
+            в кабинете пациента.
           </p>
         </div>
         <PatientSupportForm defaultEmail={defaultEmail} />
